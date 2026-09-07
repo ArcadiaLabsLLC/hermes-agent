@@ -283,7 +283,7 @@ answer (its `blocked_tools` list is resolved over every tool registered in the p
 actor is built from `tool_contract`'s two lists, not from that projection), and `current_chat_goal`
 left `INSTANCE_IDENTITY_FIELDS` for the reason `goal_id` was never in it. `tool_contract` stays and
 may not be dropped — the actor IS constructed from it and `_prepare_resident_persona_chat_agent`
-does not re-apply it on reuse. Full receipt: `planned/chat-turn-prep-cost.md` §5 Stage 2a.
+does not re-apply it on reuse. Full receipt: `planned/chat-turn-prep-cost.md` §4.2 Stage 2a (the 2026-08 text is in that file's history).
 
 ### 4b. The resident actor is built before the first turn (2026-08-23)
 
@@ -313,7 +313,7 @@ all three first turns in the window read `true`, and the two neko ones name
 `resident_rebuild_component_workspace_agents` — the `--agents-file` residue 04 names, a workspace-bound
 chat mismatching on the one input the prewarm cannot reproduce. The wall half of the receipt does
 hold there (`agent_ready − write_ahead` = 125 / 94 / 750 ms), so the residue costs a rebuild, not the
-old ~3 s construction (`planned/chat-turn-prep-cost.md` §7).
+old ~3 s construction (`planned/chat-turn-prep-cost.md` §4.2 Stage 2; re-armed 2026-09-07, whose §0.2 names the residue Stage 7 takes).
 
 ## 5. MCP admission — the profile declares the server
 
@@ -686,7 +686,7 @@ Mechanism exists in code; the NUMBER or live condition was not re-measured here.
 - **The 2,421 ms `chat_lane_scope_ms`** —
   `tests/agent_runtime/test_agent_create_subphases.py:17-24`, one machine, hermetic home. That file
   states no test asserts a millisecond and none can reproduce the magnitude; the enforced gate is
-  the probe-round count. **Annotated 2026-08-23 (prep-cost §3 H2): the 2,421 ms is the UNWARMED
+  the probe-round count. **Annotated 2026-08-23 (prep-cost 2026-08 text §3 H2, in that file's history): the 2,421 ms is the UNWARMED
   CREATE subphase (warm create: 859/15 ms) — never re-quote it as a per-turn cost.**
 - **The 1,762 ms hermes share of turn `c59ab99e`** (`mission_chat_phases.py:433-434`) and the live
   phase-joined TTFT splits (alice 17.8 s, qa 9.2 s) — 2026-08-22 session receipts, read through the
