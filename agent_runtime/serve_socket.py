@@ -368,6 +368,27 @@ MAX_LINE_BYTES = 1 << 20
 LOCK_OUTCOME_ACQUIRED = "acquired"
 LOCK_OUTCOME_HELD = "lock_held_by"
 
+#: The key a LEAVING owner stamps on its sidecar at drain start (RS-3), and the
+#: only thing that tells a contender "alive and leaving" apart from "alive and
+#: serving". Both are a live pid holding the lock; only one of them is going to
+#: let go.
+SOCKET_OWNER_DRAINING_KEY = "draining_at"
+
+#: How long a contender will wait for an owner it can PROVE is leaving (RS-4).
+#: Derived from the launcher's drain deadline rather than chosen: its
+#: ``drainDeadline`` in
+#: `EterniaLauncher/lib/features/mission_control/data/mission_control_serve_session_io.dart`
+#: is 20 s, so a bound below that would give up while the drain it is waiting
+#: for is still legitimately running — which is the failure this exists to end.
+#: The margin covers the exit that follows the deadline. Named ONCE, here,
+#: because a second spelling of it is a second thing to keep in step with the
+#: launcher.
+SOCKET_LOCK_DRAIN_WAIT_SECONDS = 25.0
+#: The retry cadence inside that bound. Short enough that the replacement's
+#: ready frame is not visibly later than the release, long enough that the whole
+#: wait is a hundred syscalls rather than tens of thousands.
+SOCKET_LOCK_DRAIN_POLL_SECONDS = 0.25
+
 #: What the PREVIOUS owner sidecar was, at the moment this process took (or
 #: failed to take) the lock. Diagnostic only — it rides the log line and the
 #: result object, never the greeting: a launcher decides on ``outcome`` plus
@@ -416,6 +437,14 @@ class SocketLockResult:
     #: replaced, and it appears only when that pid was PROVEN not running. Never
     #: set on the ordinary uncontested boot (no sidecar, or our own).
     took_over_from: int | None = None
+    #: RS-4. Milliseconds this process spent waiting for an owner it could prove
+    #: was LEAVING, and it appears on both endings: on ``acquired`` it is how
+    #: long the takeover cost, on ``lock_held_by`` it is how long the incumbent
+    #: was given before the degrade. Absent (None) when no wait was entered at
+    #: all, which is every ordinary boot and every refusal by a healthy owner —
+    #: so "the key is missing" and "the key is 0" mean different things and
+    #: neither is a guess.
+    waited_for_drain_ms: int | None = None
     #: One of the ``OWNER_STATE_*`` words: what the pre-existing sidecar was.
     #: Diagnostic — it never reaches a greeting frame (see :meth:`payload`).
     owner_state: str = OWNER_STATE_ABSENT
@@ -445,6 +474,8 @@ class SocketLockResult:
             row["owner_started_at"] = self.owner_started_at
         if self.took_over_from is not None:
             row["took_over_from"] = self.took_over_from
+        if self.waited_for_drain_ms is not None:
+            row["waited_for_drain_ms"] = self.waited_for_drain_ms
         return row
 
 
@@ -488,13 +519,27 @@ class SocketOwnerLock:
     one answer.
     """
 
-    def __init__(self, store_root: Path | str, *, log: Callable | None = None) -> None:
+    def __init__(
+        self,
+        store_root: Path | str,
+        *,
+        log: Callable | None = None,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        self._store_root = Path(store_root)
         self._path = socket_lock_path(store_root)
         self._owner_path = socket_owner_path(store_root)
         self._handle = None
         self._acquired = False
         self._lock = threading.Lock()
         self._log = log
+        # Injected for the same reason :class:`HelloRateLimiter` injects its
+        # own: the bound under test is 25 REAL seconds, and a test that waited
+        # them out could not tell "it acquired because the owner left" from "it
+        # acquired because something else did". Production passes neither.
+        self._clock = clock
+        self._sleep = sleep
 
     @property
     def path(self) -> Path:
@@ -523,6 +568,18 @@ class SocketOwnerLock:
                 # names a proven-dead pid is a lock in the act of being
                 # released, and the kernel has already done the releasing.
                 handle, failure = self._try_lock()
+            waited_ms: int | None = None
+            if (
+                handle is None
+                and failure is None
+                and self._owner_is_leaving(owner, owner_state, owner_pid)
+            ):
+                # RS-4. The owner is alive, so the branch below would refuse —
+                # but it is alive and LEAVING, and refusing a lane whose holder
+                # is on its way out is what cost the operator a whole session
+                # on 2026-09-07: the replacement ran stdio-only, so no socket,
+                # no hub stream, and no LAN listener for the rest of the day.
+                handle, failure, waited_ms = self._wait_for_drain()
             if handle is None:
                 if failure is None:
                     # RE-READ before naming the winner, which is what this
@@ -544,6 +601,7 @@ class SocketOwnerLock:
                     owner_started_at=(
                         owner_started_at if failure is None else None
                     ),
+                    waited_for_drain_ms=waited_ms,
                     owner_state=owner_state,
                 )
                 self._note(result, owner_pid=owner_pid)
@@ -551,19 +609,98 @@ class SocketOwnerLock:
 
             self._handle = handle
             self._acquired = True
-            took_over = owner_pid if owner_state == OWNER_STATE_DEAD else None
+            # A takeover is now either of two proofs that the previous owner is
+            # not coming back: it was already dead when we looked, or it let go
+            # of the lock while we waited on its drain. The receipt is the same
+            # word because the launcher's question is the same one — "did this
+            # boot inherit somebody's lane, and whose".
+            took_over = (
+                owner_pid
+                if (owner_state == OWNER_STATE_DEAD or waited_ms is not None)
+                else None
+            )
             result = SocketLockResult(
                 outcome=LOCK_OUTCOME_ACQUIRED,
                 pid=os.getpid(),
                 path=str(self._path),
                 owner_started_at=owner_started_at if took_over is not None else None,
                 took_over_from=took_over,
+                waited_for_drain_ms=waited_ms,
                 owner_state=owner_state,
             )
             self._note(result, owner_pid=owner_pid)
             return result
 
-    # ── acquire's three helpers ─────────────────────────────────────────────
+    # ── acquire's helpers ───────────────────────────────────────────────────
+
+    def _owner_is_leaving(
+        self, owner: dict[str, Any], owner_state: str, owner_pid: int | None
+    ) -> bool:
+        """Is the live holder of this lock on its way OUT? (RS-4)
+
+        Two independent proofs, either of which is enough, and neither of which
+        is a guess about a process this one cannot see:
+
+        * the sidecar carries :data:`SOCKET_OWNER_DRAINING_KEY` — the owner
+          stamped it itself, as the first act of its drain, before it closed its
+          listener (``hermes_cli/harness_parts/serve.py``);
+        * the owner's registry row is GONE. ``_finish_drain`` unregisters as the
+          statement after it releases this lock, and nothing else removes a live
+          serve's row, so a live pid with no row is a serve inside the last
+          breath of its shutdown.
+
+        Everything else is refused as before. In particular a sidecar we could
+        not read, or one naming a pid whose liveness the probe could not answer,
+        is NOT leaving: waiting on those would spend a boot on a hunch, and the
+        fail-safe direction here is the same as :meth:`_classify_owner`'s.
+        """
+
+        if owner_state != OWNER_STATE_LIVE or owner_pid is None:
+            return False
+        if _text_or_none(owner.get(SOCKET_OWNER_DRAINING_KEY)) is not None:
+            return True
+        return not self._owner_register_row_exists(owner_pid)
+
+    def _owner_register_row_exists(self, owner_pid: int) -> bool:
+        """``<store_root>/serve_instances/<pid>.json``, asked of the registry.
+
+        Imported rather than joined by hand for the same reason
+        :func:`_owner_pid_alive` is: the layout of that directory is the
+        registry's to decide, and a second spelling of the path here would be a
+        second thing to keep true. An unreadable answer counts as PRESENT, which
+        is the conservative direction — it declines the wait.
+        """
+
+        try:
+            from .serve_registry import serve_instance_path
+
+            return serve_instance_path(self._store_root, owner_pid).exists()
+        except Exception:  # noqa: BLE001 — a probe never fails a boot
+            return True
+
+    def _wait_for_drain(self) -> tuple[Any, str | None, int]:
+        """Poll the OS lock until the leaving owner frees it, or the bound ends.
+
+        Returns ``(handle, failure, waited_ms)`` — the same two-value answer
+        :meth:`_try_lock` gives, plus the number that makes both endings
+        readable. It polls the LOCK and never re-reads the sidecar: the sidecar
+        is what got us into this loop, and the only fact that can end it is the
+        kernel's.
+
+        The sleep comes FIRST. A lock we just failed to take microseconds ago
+        will not have freed in between, and an immediate re-try would only make
+        the first lap a duplicate of the attempt that sent us here.
+        """
+
+        started = self._clock()
+        while True:
+            self._sleep(SOCKET_LOCK_DRAIN_POLL_SECONDS)
+            handle, failure = self._try_lock()
+            waited_ms = int(round((self._clock() - started) * 1000.0))
+            if handle is not None or failure is not None:
+                return handle, failure, waited_ms
+            if (self._clock() - started) >= SOCKET_LOCK_DRAIN_WAIT_SECONDS:
+                return None, None, waited_ms
 
     def _try_lock(self) -> tuple[Any, str | None]:
         """``(handle, None)`` on success, ``(None, None)`` when CONTENDED, or
@@ -642,6 +779,11 @@ class SocketOwnerLock:
                     "owner_state": result.owner_state,
                     "owner_pid": owner_pid,
                     "owner_started_at": result.owner_started_at,
+                    # RS-4. On a takeover it says what the wait bought; on a
+                    # refusal it says how long the incumbent was given before
+                    # this runtime degraded, which is the difference between
+                    # "it never tried" and "the drain outlasted the bound".
+                    "waited_for_drain_ms": result.waited_for_drain_ms,
                     "path": result.path,
                 }
             )
@@ -657,6 +799,37 @@ class SocketOwnerLock:
             write_json_atomic(self._owner_path, dict(record))
         except Exception:
             pass
+
+    def mark_draining(self, when: str | None = None) -> bool:
+        """Stamp the sidecar ``draining_at``: this owner is LEAVING. (RS-3)
+
+        Called as the first act of the drain, BEFORE the listener closes, so
+        there is no window in which the lane refuses new connections while still
+        advertising itself as a healthy owner — which is exactly the window a
+        contender arrived in on 2026-09-07 and read as "serving".
+
+        It REWRITES the published record rather than replacing it: the sidecar
+        is still the discovery answer for the clients already attached, and a
+        drain that blanked the port would turn one defect into two. Additive by
+        construction, so a reader that predates this key finds the keys it
+        knows, unchanged and in the same places.
+
+        Best effort and never raises — a bookkeeping stamp that could fail a
+        drain would be a worse defect than the one it exists to close. Returns
+        True the one time it lands on disk.
+        """
+
+        if not self._acquired:
+            return False
+        try:
+            record, _state = _read_owner_record(self._owner_path)
+            row = dict(record or {})
+            row.setdefault("pid", os.getpid())
+            row[SOCKET_OWNER_DRAINING_KEY] = when or _now_iso()
+            write_json_atomic(self._owner_path, row)
+            return True
+        except Exception:  # noqa: BLE001 — the drain outranks its own receipt
+            return False
 
     def release(self) -> None:
         """Unlock, close, and drop the owner sidecar. Idempotent; never raises.

@@ -187,6 +187,24 @@ def _store_root():
     return paths.store_root()
 
 
+def _serving_row(root, pid: int) -> None:
+    """The registry row a SERVING incumbent would have (RS-4).
+
+    Same helper, same reason, as ``test_serve_socket_lane._serving_row``: a
+    contender reads "alive and still serving" off the absence of ``draining_at``
+    AND the presence of ``serve_instances/<pid>.json``, so a fabricated
+    incumbent that is only a sidecar no longer describes a healthy owner.
+    """
+
+    from agent_runtime.serve_registry import serve_instance_path
+
+    path = serve_instance_path(root, pid)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"pid": pid, "transport": "stdio+socket"}), encoding="utf-8"
+    )
+
+
 def pair_device(*, tier: str = TIER_CONSOLE, name: str = "phone") -> DeviceCredential:
     root = _store_root()
     code = mint_pairing_code(root, tier=tier, name=name)
@@ -339,6 +357,12 @@ def test_a_socket_lock_lost_to_a_live_owner_names_the_holder_on_the_gateway_bloc
                 "started_at": "2026-09-04T10:28:16.817Z",
             }
         )
+        # RS-4 (2026-09-07): an owner that is alive is refused at once only
+        # while it is also SERVING, and the registry row is half of how the
+        # contender reads that. A bare sidecar now reads as an owner that has
+        # already unregistered, and the serve below would spend the drain bound
+        # waiting for it instead of reporting the block this test is about.
+        _serving_row(root, live_foreign_pid)
         with running_serve() as handle:
             assert handle.ready["socket"]["outcome"] == "lock_held_by"
             block = handle.ready["gateway"]

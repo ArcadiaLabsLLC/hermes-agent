@@ -4106,8 +4106,13 @@ def serve_loop(
                 exc_info=True,
             )
 
-        def _unregister_instance() -> None:
-            """Drop this serve's registry entry. Idempotent, never raises."""
+        def _unregister_instance(reason: str = "shutdown") -> None:
+            """Drop this serve's registry entry. Idempotent, never raises.
+
+            ``reason`` is the exit path that called it — the same three words
+            the teardown already uses on ``_close_socket_lane`` beside it — and
+            it exists so the receipt below names WHICH ending removed the row.
+            """
 
             if store_root_path is None:
                 return
@@ -4117,22 +4122,38 @@ def serve_loop(
                     unregister_serve_instance,
                 )
 
-                if not unregister_serve_instance(store_root_path):
+                row_path = serve_instance_path(store_root_path, os.getpid())
+                if unregister_serve_instance(store_root_path):
+                    # RS-3. The one line that marks the INSTANT this runtime
+                    # stopped advertising itself. The drain's terminal frame is
+                    # published before the teardown it accounts for, so until
+                    # this existed nothing on the wire dated the row's removal —
+                    # and that instant is what a contender's ``lock_held_by``
+                    # has to be read against.
+                    _service_log(
+                        {
+                            "event": "serve_instance_unregistered",
+                            "boot_id": boot_id,
+                            "pid": os.getpid(),
+                            "reason": reason,
+                            "path": str(row_path),
+                        }
+                    )
+                else:
                     # Reported, not swallowed. A clean exit that leaves its
                     # entry behind makes the registry claim a serve that is on
                     # its way out, and the next client's discovery would try to
                     # connect to it. The read-time classification eventually
                     # calls it dead — "eventually" is the part an operator has
                     # to be able to see coming.
-                    if serve_instance_path(store_root_path, os.getpid()).exists():
+                    if row_path.exists():
                         _service_log(
                             {
                                 "event": "serve_instance_unregister_failed",
                                 "boot_id": boot_id,
                                 "pid": os.getpid(),
-                                "path": str(
-                                    serve_instance_path(store_root_path, os.getpid())
-                                ),
+                                "reason": reason,
+                                "path": str(row_path),
                             }
                         )
             except Exception:
@@ -4926,7 +4947,7 @@ def serve_loop(
             # nobody left to tell.
             _broadcast_lanes(frame)
             _close_socket_lane(reason="drain")
-            _unregister_instance()
+            _unregister_instance(reason="drain")
             # RL-16, and it has to be HERE rather than in an ``atexit`` hook:
             # the clean-drain tail can end in ``hard_exit``, which is
             # ``os._exit``, and the timeout tail always does — neither runs an
@@ -5598,6 +5619,18 @@ def serve_loop(
                     "minimum_deadline_seconds": effective_minimum,
                 }
                 frames.emit(draining_frame)
+                # RS-3, and it has to be BEFORE the listeners close: from the
+                # next line on this lane refuses new connections, and a
+                # contender that read the sidecar in that window used to see a
+                # live pid and a port and conclude "serving". The stamp is what
+                # lets it conclude "leaving" instead and wait the drain out
+                # (``SocketOwnerLock.acquire``) rather than degrade to stdio for
+                # the rest of the session — the operator's 2026-09-07 restart.
+                if socket_lock is not None:
+                    try:
+                        socket_lock.mark_draining()
+                    except Exception:
+                        pass
                 # New connections are refused from here on BOTH doors (existing
                 # ones stay up to be told how it ends), and every attached
                 # client hears it at the same moment the stdio supervisor does.
@@ -6115,7 +6148,7 @@ def serve_loop(
                 frames.emit(abandoned)
                 _broadcast_lanes(abandoned)
                 _close_socket_lane(reason="drain_abandoned")
-                _unregister_instance()
+                _unregister_instance(reason="drain_abandoned")
                 _note_end("drained")
                 _write_end()
                 # Nonzero on purpose, and the SAME code a timeout uses: a
@@ -6138,7 +6171,7 @@ def serve_loop(
         # service exists to make legible.
         _broadcast_lanes(shutdown_frame)
         _close_socket_lane(reason="shutdown")
-        _unregister_instance()
+        _unregister_instance(reason="shutdown")
         _write_end()
         frames.emit(shutdown_frame)
         return 0

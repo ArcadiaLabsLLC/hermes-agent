@@ -310,6 +310,27 @@ def _store_root():
     return paths.store_root()
 
 
+def _serving_row(root, pid: int) -> None:
+    """Give a fabricated incumbent the registry row a SERVING one would have.
+
+    RS-4 (2026-09-07): a contender refuses a live owner at once only while that
+    owner is still serving, and it reads "still serving" off two things — no
+    ``draining_at`` on the sidecar, and a present ``serve_instances/<pid>.json``.
+    A test whose incumbent is a bare sidecar therefore no longer describes a
+    healthy owner; it describes one that has already unregistered, and the
+    contender waits out the drain bound instead of refusing. Writing the row is
+    how these tests say "and it is up", which is what they always meant.
+    """
+
+    from agent_runtime.serve_registry import serve_instance_path
+
+    path = serve_instance_path(root, pid)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"pid": pid, "transport": "stdio+socket"}), encoding="utf-8"
+    )
+
+
 def _read_until(connection: ServeSocketClient, event: str, *, limit: int = 200) -> dict:
     for _ in range(limit):
         frame = connection.read_frame()
@@ -366,6 +387,11 @@ def test_the_second_serve_for_a_root_degrades_to_stdio_and_names_the_owner():
     incumbent = SocketOwnerLock(root)
     assert incumbent.acquire().acquired is True
     incumbent.publish_owner({"pid": 4242, "port": 61000, "boot_id": "incumbent"})
+    # RS-4. 4242 is a fabricated pid whose liveness is the box's business, not
+    # this test's: on a machine where it happens to be running, an incumbent
+    # with no registry row reads as one that has already unregistered, and the
+    # serve below would wait out the drain bound instead of degrading.
+    _serving_row(root, 4242)
     try:
         with running_serve() as handle:
             assert handle.ready["socket"]["outcome"] == "lock_held_by"
@@ -457,6 +483,12 @@ def test_a_live_owner_is_refused_exactly_as_before_and_nothing_is_taken_over(
                 "started_at": "2026-09-04T11:00:00.000Z",
             }
         )
+        # RS-4. "Alive" is no longer the whole precondition: the refusal is
+        # immediate for an owner that is alive AND SERVING, and the registry row
+        # is half of how a contender reads the second word. Without it this
+        # test still passed — 25 s later, through the drain wait — which is a
+        # green that describes the wrong scenario.
+        _serving_row(root, live_foreign_pid)
         loser = SocketOwnerLock(root, log=lines.append)
         result = loser.acquire()
 

@@ -96,8 +96,30 @@ E   ImportError: cannot import name 'SOCKET_LOCK_DRAIN_POLL_SECONDS' from 'agent
 ```
 
 An import error is a weak red — it says the constant is missing, not that the
-behaviour is. The behavioural red is quoted in §3.3, taken with the constants
-present and the wait not yet wired.
+behaviour is. So the two constants, the result field and the injected
+clock/sleep landed first, WITHOUT the wait, and the red was taken again:
+
+```
+>       assert result.acquired is True
+E       AssertionError: assert False is True
+E        +  where False = SocketLockResult(outcome='lock_held_by', pid=34888, path='…\serve_socket.lock',
+E                          owner_started_at='2026-09-07T16:25:09.771Z', took_over_from=None,
+E                          waited_for_drain_ms=None, owner_state='pid_running').acquired
+```
+
+```
+>       assert result.waited_for_drain_ms == int(SOCKET_LOCK_DRAIN_WAIT_SECONDS * 1000)
+E       AssertionError: assert None == 25000
+```
+
+`owner_state='pid_running'` with `waited_for_drain_ms=None` beside a sidecar
+that says `draining_at` is the field's 16:25:23 line reproduced at the unit
+seam: the contender knew the owner was alive, had the word "leaving" on disk in
+front of it, and refused without waiting a single lap.
+
+3 failed, 3 passed — the three that passed are the arm that must not change
+(a healthy owner refused at once), the constants' pin, and the production
+defaults' pin.
 
 ---
 
