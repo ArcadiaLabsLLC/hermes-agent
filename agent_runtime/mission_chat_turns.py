@@ -1223,6 +1223,21 @@ _PROFILE_TIMING_MAX_KEYS = 64
 _PROFILE_TIMING_FLAG_KEY = "resident_actor_reused"
 _PROFILE_TIMING_REBUILD_PREFIX = "resident_rebuild_"
 
+#: chat-turn-prep Stage 6's two additional 0/1 shapes.
+#:
+#: ``*_cached`` — today only ``observability_catalog_cached``: whether the 15 s
+#: installed-skill-catalog TTL held for this turn. §0.3 measured two uncontended
+#: floors (≈430 ms with the memo warm, ≈840 ms once it had expired) and without
+#: this bit a record cannot say which of them a turn paid.
+#:
+#: ``visibility_bundle_rebuild_*`` — CP-7: which chat-lane bundle key component
+#: moved. Exactly the ``resident_rebuild_*`` family's shape and admitted the
+#: same way, because it answers the same question one layer up. NAMES only: the
+#: value is a ``1`` and the component rides in the KEY, so nothing out of the
+#: key material can reach a durable record through it.
+_PROFILE_TIMING_CACHED_SUFFIX = "_cached"
+_PROFILE_TIMING_BUNDLE_REBUILD_PREFIX = "visibility_bundle_rebuild_"
+
 
 def safe_turn_profile_timing(value: Any) -> dict[str, Any] | None:
     """Sanitize a runner timing dict for the durable record. ``None`` = no block.
@@ -1244,7 +1259,12 @@ def safe_turn_profile_timing(value: Any) -> dict[str, Any] | None:
             continue
         if key.endswith("_ms"):
             ceiling = _PROFILE_TIMING_MAX_MS
-        elif key == _PROFILE_TIMING_FLAG_KEY or key.startswith(_PROFILE_TIMING_REBUILD_PREFIX):
+        elif (
+            key == _PROFILE_TIMING_FLAG_KEY
+            or key.startswith(_PROFILE_TIMING_REBUILD_PREFIX)
+            or key.startswith(_PROFILE_TIMING_BUNDLE_REBUILD_PREFIX)
+            or key.endswith(_PROFILE_TIMING_CACHED_SUFFIX)
+        ):
             ceiling = 1
         else:
             continue

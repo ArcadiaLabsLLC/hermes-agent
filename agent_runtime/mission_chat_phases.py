@@ -101,10 +101,18 @@ PHASE_FLAGS: tuple[str, ...] = ("agent_init_cold",)
 #: turn of an unchanged chat reuses the bundle and builds none. ``1`` is the
 #: honest cost of the first turn after any keyed input moved; anything above ``1``
 #: means something is re-resolving what the bundle was supposed to hold.
+#: ``prewarm_overlapped`` is chat-turn-prep Stage 6's CP-2 recorder and is
+#: sampled exactly the way ``builds_overlapped`` is — spans on one monotonic
+#: clock, intersected with the turn's own window. It answers the question
+#: ``builds_overlapped`` leaves open: on 2026-09-07 a chat-open actor prewarm
+#: for the operator's own root ran 5,750 ms across the whole of a turn's
+#: pre-admit span, and nothing on the record could say so. ``None`` (absent)
+#: for a process that has never constructed one; ``0`` is a finding.
 PHASE_COUNTERS: tuple[str, ...] = (
     "registry_probe_rounds",
     "builds_overlapped",
     "visibility_bundle_builds",
+    "prewarm_overlapped",
 )
 
 #: Every key the block may carry, in the order a human reads the turn.
@@ -132,6 +140,7 @@ _BLOCK_ORDER: tuple[str, ...] = (
     "registry_probe_rounds",
     "visibility_bundle_builds",
     "builds_overlapped",
+    "prewarm_overlapped",
 )
 
 _KNOWN_MARKS = frozenset(PHASE_ORDER)
@@ -523,7 +532,29 @@ _TIMING_FROM_PHASES: tuple[tuple[str, str], ...] = (
     ("request_assembled_ms", "request_assembled"),
     ("provider_first_byte_ms", "provider_first_byte"),
     ("builds_overlapped", "builds_overlapped"),
+    # chat-turn-prep Stage 6 item 1 — the PRE-ADMIT half. RO-7's first cut
+    # projected the provider boundary and the post-admit durations, which is
+    # everything EXCEPT the span the operator's "twice as slow as the Mac"
+    # lives in: ``request_received → write_ahead`` measured 906 ms uncontended
+    # and 2,796–3,172 ms with a snapshot build beside it, against ~0.2–0.55 s
+    # inferred for the Mac (plan §0.1, §0.4). ``write_ahead_ms`` IS the number
+    # CP-1 judges this plan on; the two marks before it say which half moved,
+    # and ``agent_ready_ms`` closes the post-admit bootstrap the same way.
+    ("context_built_ms", "context_built"),
+    ("observability_built_ms", "observability_built"),
+    ("write_ahead_ms", "write_ahead"),
+    ("agent_ready_ms", "agent_ready"),
+    # The rebuild receipt CP-7 names the moved component for. It read ≥ 1 on
+    # all fifteen agent-chat turns since 2026-08-29 and 2 on any turn
+    # overlapping a prewarm, so it is the second fact that explains an outlier
+    # — and a MEASURED ``0`` is the answer that acquits the bundle.
+    ("visibility_bundle_builds", "visibility_bundle_builds"),
 )
+
+#: The wire keys above that are COUNTS rather than elapsed ms, and therefore
+#: take the count ceiling. A set beside the pairs so the projection has one
+#: place to ask instead of a name comparison inline.
+_TIMING_COUNT_KEYS = frozenset({"builds_overlapped", "visibility_bundle_builds"})
 
 #: wire key → the ``profile_timing`` key it copies. The ``profile_`` prefix is
 #: the runner's own namespacing (``profile_runner._profile_status_callback``);
@@ -533,6 +564,13 @@ _TIMING_FROM_PROFILE: tuple[tuple[str, str], ...] = (
     ("turn_context_ms", "profile_conversation_turn_context_ms"),
     ("responses_create_ms", "profile_provider_responses_create_ms"),
     ("stream_consume_ms", "profile_provider_stream_consume_ms"),
+    # Stage 6 item 1, from the runner's own namespace rather than the marks:
+    # the credential resolve inside ``write_ahead → agent_ready``. It bills 0
+    # when its memo hits and 566–1,221 ms when the memo's write-time TTL has
+    # expired under a turn (plan §0.5) — the site Stage 10 refreshes off the
+    # turn. Written by the runner WITHOUT the ``profile_`` prefix, so unlike
+    # its three neighbours above the wire name and the source name coincide.
+    ("runtime_resolve_ms", "runtime_resolve_ms"),
 )
 
 #: The runner's cold/warm receipt, copied as the BOOLEAN it means rather than
@@ -540,9 +578,18 @@ _TIMING_FROM_PROFILE: tuple[tuple[str, str], ...] = (
 #: duration, and it is what makes the durations comparable across turns.
 _TIMING_REUSED_KEY = "resident_actor_reused"
 
-#: Every key the block may carry, in the order a human reads a turn: what
-#: hermes did, when the request left, when the first byte came back, what the
-#: provider spent, and the two facts that explain an outlier.
+#: Every key the block may carry: RO-7's original seven — what hermes did, when
+#: the request left, when the first byte came back, what the provider spent, and
+#: the two facts that explain an outlier — then chat-turn-prep Stage 6's six.
+#:
+#: The six are APPENDED rather than interleaved chronologically, and that is the
+#: whole of the "additive in the strict sense" rule taken literally: no existing
+#: key moves, in name OR in position, so a consumer written against the block as
+#: it shipped reads the payload exactly as it did before. Nothing reads this
+#: block positionally — the launcher's ``MissionRuntimeTurnTiming`` reads it by
+#: key name — so the cost of the literal reading is only that a person scanning
+#: the tuple finds the pre-admit half below the post-admit half. The six are in
+#: their own chronological order among themselves.
 TURN_TIMING_ORDER: tuple[str, ...] = (
     "turn_context_ms",
     "request_assembled_ms",
@@ -551,6 +598,12 @@ TURN_TIMING_ORDER: tuple[str, ...] = (
     "stream_consume_ms",
     "builds_overlapped",
     _TIMING_REUSED_KEY,
+    "context_built_ms",
+    "observability_built_ms",
+    "write_ahead_ms",
+    "agent_ready_ms",
+    "visibility_bundle_builds",
+    "runtime_resolve_ms",
 )
 
 
@@ -561,8 +614,8 @@ def turn_timing_block(
 
     Copies — never derives. Every value here was measured by the instrument
     that owns it and is already on the durable record; this function's whole
-    job is to project seven of those numbers onto the turn's terminal payload
-    under names a person can read.
+    job is to project :data:`TURN_TIMING_ORDER`'s numbers onto the turn's
+    terminal payload under names a person can read.
 
     **The honesty contract is the record's own, unchanged.** A phase the turn
     never reached has NO key — not ``0``, not ``null``. A turn that died before
@@ -580,7 +633,7 @@ def turn_timing_block(
     for wire_key, source_key in _TIMING_FROM_PHASES:
         value = _timing_int(
             marks.get(source_key),
-            ceiling=_MAX_COUNT if wire_key == "builds_overlapped" else _MAX_ELAPSED_MS,
+            ceiling=_MAX_COUNT if wire_key in _TIMING_COUNT_KEYS else _MAX_ELAPSED_MS,
         )
         if value is not None:
             collected[wire_key] = value

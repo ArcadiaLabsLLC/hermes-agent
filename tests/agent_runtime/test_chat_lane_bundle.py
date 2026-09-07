@@ -302,6 +302,111 @@ def test_an_availability_invalidation_announces_itself_through_the_epoch():
     assert scratch.generation != generation
 
 
+# ── (3) CP-7: a rebuild names the component that moved ──────────────────────
+
+
+def test_a_rebuild_names_exactly_the_key_component_that_moved(monkeypatch):
+    """chat-turn-prep CP-7, the same shape Stage 2a gave the actor signature.
+
+    The live record says ``visibility_bundle_builds`` ≥ 1 on all fifteen
+    agent-chat turns since 2026-08-29 and says nothing about WHY, because the
+    key is one sha256 and a digest that moved is unreadable evidence. Keeping
+    the previous key's MATERIAL beside the bundle turns "something moved" into
+    a name.
+
+    *Killing mutation:* keep only ``(key, bundle)`` in the memo and the diff has
+    nothing to compare against — this row reds on an empty tuple.
+    """
+
+    import tools.registry as registry_module
+
+    persona = _persona()
+    _warm_the_lane(persona)
+    epoch = {"value": 11}
+    monkeypatch.setattr(registry_module, "registry_epoch", lambda: epoch["value"])
+    CLB.chat_lane_bundle(persona, session_id="chat-cp7")
+    cursor = CLB.key_material_moves_this_thread()
+    epoch["value"] = 12
+    CLB.chat_lane_bundle(persona, session_id="chat-cp7")
+
+    assert CLB.key_material_moves_since(cursor) == ("registry_epoch",), (
+        "the epoch is the only input that moved between the two lookups, so it "
+        "must be the only one named"
+    )
+
+
+def test_a_first_build_names_nothing_because_nothing_MOVED():
+    """A cold lookup has no predecessor. "Built for the first time" and "rebuilt
+    because an input changed" are different facts about a turn, and a first
+    build that named every component would make every cold turn look like a
+    cache that will not hold."""
+
+    persona = _persona("dev-cp7-cold")
+    cursor = CLB.key_material_moves_this_thread()
+    CLB.chat_lane_bundle(persona, session_id="chat-cp7-cold")
+
+    assert CLB.key_material_moves_since(cursor) == ()
+
+
+def test_the_diff_carries_NAMES_and_never_VALUES():
+    """The disclosure rule ``ChatLaneBundle.degraded`` already follows.
+
+    Every entry in the key material is a content hash, a session id, a store
+    path or a permission record; the component NAME is the whole diagnosis and
+    the value is operator data. A ``permission`` that moved must name
+    ``permission``, never the grant it moved to.
+    """
+
+    persona = _persona("dev-cp7-names")
+    _warm_the_lane(persona)
+    CLB.chat_lane_bundle(persona, session_id="chat-cp7-a")
+    cursor = CLB.key_material_moves_this_thread()
+    # The same (persona, root) memo slot with a permission fingerprint that
+    # moved: the bundle's memo is keyed on the root, so a bounded grant on THAT
+    # root is what makes ``permission`` the component that moved.
+    ChatToolPermissionStore().set(
+        persona_id=persona.id,
+        session_id="chat-cp7-a",
+        mode=PERMISSION_MODE_BOUNDED,
+        reason="test moves exactly one key component",
+        turns_remaining=2,
+    )
+    CLB.chat_lane_bundle(persona, session_id="chat-cp7-a")
+    moved = CLB.key_material_moves_since(cursor)
+
+    assert "permission" in moved, moved
+    for name in moved:
+        assert name.replace("_", "").isalnum() and name.islower()
+        assert "chat-cp7-a" not in name
+        assert persona.id not in name
+
+
+def test_the_moves_counter_is_cumulative_and_read_as_a_DELTA(monkeypatch):
+    """Same contract as ``bundle_builds_this_thread``, and for the same reason.
+
+    ``harness serve`` runs concurrent turns on pooled threads. A counter this
+    module RESET would let two overlapping observers destroy each other's
+    measurement, so the near end is a cursor the caller samples at its own
+    anchor and the reading is the tail since then.
+    """
+
+    import tools.registry as registry_module
+
+    persona = _persona("dev-cp7-delta")
+    _warm_the_lane(persona)
+    epoch = {"value": 21}
+    monkeypatch.setattr(registry_module, "registry_epoch", lambda: epoch["value"])
+    CLB.chat_lane_bundle(persona, session_id="chat-cp7-delta")
+    epoch["value"] = 22
+    CLB.chat_lane_bundle(persona, session_id="chat-cp7-delta")
+    # A cursor taken AFTER that rebuild sees none of it.
+    cursor = CLB.key_material_moves_this_thread()
+    assert CLB.key_material_moves_since(cursor) == ()
+    epoch["value"] = 23
+    CLB.chat_lane_bundle(persona, session_id="chat-cp7-delta")
+    assert CLB.key_material_moves_since(cursor) == ("registry_epoch",)
+
+
 def test_the_explicit_invalidation_hatch_drops_every_bundle():
     """Real API, not a test hook: the escape valve for a change neither the key
     nor the registry epoch can see."""

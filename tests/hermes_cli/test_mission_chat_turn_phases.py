@@ -547,6 +547,127 @@ def test_the_accounting_block_still_rides_its_own_key(timed_turn):
     assert TURN_PHASES_KEY in timed_turn
 
 
+#: chat-turn-prep Stage 6 item 2 — THE CENSUS. Everything the HANDLER itself
+#: measures and folds into ``profile_timing``, as opposed to what the runner
+#: reports. Pinned as a closed set because the block is a durable record's key
+#: namespace: a sub-span that arrives without a decision is a wire change
+#: nobody ruled, and one that silently stops arriving is an instrument that
+#: died without saying so.
+#:
+#: ``session_db_open_ms`` is Stage 4's. The six ``*_ms`` below are the pre-admit
+#: sub-spans of §0.3 — the skill-directory walking that is ≥ 60 % of an
+#: uncontended turn's admission — and ``observability_catalog_cached`` is the
+#: 0/1 that says whether the 15 s catalog TTL was hit or missed on THIS turn,
+#: which is the difference between the 430 ms floor and the 840 ms one.
+_HANDLER_MEASURED_KEYS: tuple[str, ...] = (
+    "session_db_open_ms",
+    "context_skill_preload_ms",
+    "context_hud_ms",
+    "context_signature_ms",
+    "observability_skill_rows_ms",
+    "observability_catalog_walk_ms",
+    "observability_shared_catalog_ms",
+    "observability_catalog_cached",
+)
+
+
+def test_the_pre_admit_sub_spans_ride_the_durable_record(
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+):
+    """Stage 6 item 2, end to end on a real turn.
+
+    ``context_built`` and ``observability_built`` are ONE number each, and §0.3
+    had to profile a sandbox copy of the live root to learn that ≥ 60 % of both
+    is the same skill-directory walk performed three ways. Stage 8's remedy is
+    judged on these keys, so the keys reaching a persisted record IS Stage 6's
+    deliverable — a sub-span the store's sanitizer silently refused would gate
+    the remedy on nothing.
+    """
+
+    _drive(
+        monkeypatch,
+        capsys,
+        _streaming_provider(profile_timing={"resident_actor_reused": 1}),
+        turn_id="phases_sub_spans",
+    )
+    block = _record_on_disk(isolate_agent_runtime_root, "phases_sub_spans")[
+        TURN_PROFILE_TIMING_KEY
+    ]
+    for key in _HANDLER_MEASURED_KEYS:
+        assert key in block, f"{key} was measured on this turn and must be recorded"
+        assert isinstance(block[key], int) and not isinstance(block[key], bool)
+        assert block[key] >= 0
+    assert block["observability_catalog_cached"] in (0, 1)
+    # ADDITIVE: the runner's own accounting is untouched beside them.
+    assert block["resident_actor_reused"] == 1
+
+
+def test_the_sub_spans_are_bounded_by_the_spans_they_decompose(
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+):
+    """A sub-span wider than its own phase is a measurement of the wrong thing.
+
+    The context builder's three and the observability row's three are timed
+    INSIDE their builders, and the two builders are bracketed by the phase
+    marks — so each group must fit inside the mark span that contains it. This
+    is what makes ``context_built − context_skill_preload_ms`` a subtraction an
+    operator can trust rather than two clocks that happen to be near each other.
+
+    The scripted clock ticks one SECOND per read, so the marks are enormous
+    beside real millisecond spans; the direction of the inequality is what is
+    pinned, and it is the direction a swapped start/end would reverse.
+    """
+
+    _drive(
+        monkeypatch,
+        capsys,
+        _streaming_provider(profile_timing={"resident_actor_reused": 1}),
+        turn_id="phases_sub_span_bounds",
+    )
+    record = _record_on_disk(isolate_agent_runtime_root, "phases_sub_span_bounds")
+    block = record[TURN_PROFILE_TIMING_KEY]
+    phases = record[TURN_PHASES_KEY]
+    context_span = phases["context_built"] - phases["request_received"]
+    observability_span = phases["observability_built"] - phases["context_built"]
+    assert (
+        block["context_skill_preload_ms"]
+        + block["context_hud_ms"]
+        + block["context_signature_ms"]
+    ) <= context_span
+    assert (
+        block["observability_skill_rows_ms"]
+        + block["observability_catalog_walk_ms"]
+        + block["observability_shared_catalog_ms"]
+    ) <= observability_span
+
+
+def test_the_observability_rows_timings_never_reach_the_persisted_row(
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+):
+    """The sub-spans ride ``profile_timing``, and ONLY ``profile_timing``.
+
+    They are returned on the built row so the handler can fold them at the one
+    site that owns the turn's timing block; the row itself is an operator-facing
+    context artifact with its own retention and its own consumers, and a timing
+    mapping that leaked into it would be a second, unversioned copy of a number
+    the record already carries.
+    """
+
+    _drive(
+        monkeypatch,
+        capsys,
+        _streaming_provider(profile_timing={"resident_actor_reused": 1}),
+        turn_id="phases_row_no_timings",
+    )
+    rows = sorted(
+        (Path(isolate_agent_runtime_root) / "prompt_observability").glob("*.json")
+    )
+    assert rows, "the turn must have persisted an observability row to prove this"
+    for path in rows:
+        row = json.loads(path.read_text(encoding="utf-8"))
+        assert "timings" not in row, f"{path.name} carried the builder's timings"
+
+
 @pytest.fixture
 def warm_timed_turn(monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks):  # noqa: F811
     _drive(
@@ -589,9 +710,10 @@ def test_a_runner_that_reported_no_timing_leaves_only_what_the_HANDLER_measured(
 
     So the invariant is unchanged and its application is sharpened: a block may
     only carry what was actually measured. With a blind runner that is EXACTLY
-    ONE key, and specifically not a fabricated ``resident_actor_reused`` or a
-    zeroed ``agent_construct_ms``. The "nothing measured at all" arm is still
-    pinned, one layer down, by
+    the handler's own census (:data:`_HANDLER_MEASURED_KEYS`), and specifically
+    not a fabricated ``resident_actor_reused`` or a zeroed
+    ``agent_construct_ms``. The "nothing measured at all" arm is still pinned,
+    one layer down, by
     ``test_safe_turn_profile_timing_rejects_everything_it_cannot_read``'s empty
     dict returning ``None``.
     """
@@ -604,9 +726,9 @@ def test_a_runner_that_reported_no_timing_leaves_only_what_the_HANDLER_measured(
     )
     record = _record_on_disk(isolate_agent_runtime_root, "phases_timing_blind")
     block = record[TURN_PROFILE_TIMING_KEY]
-    assert set(block) == {"session_db_open_ms"}, (
+    assert set(block) == set(_HANDLER_MEASURED_KEYS), (
         "a blind runner must contribute nothing; only the handler's own "
-        "measurement may appear"
+        "measurements may appear"
     )
     assert isinstance(block["session_db_open_ms"], int)
     assert block["session_db_open_ms"] >= 0
@@ -671,6 +793,125 @@ def test_a_plan_that_measured_nothing_leaves_session_db_open_ms_ABSENT(
         isolate_agent_runtime_root, "phases_session_db_unmeasured"
     )
     assert "session_db_open_ms" not in record[TURN_PROFILE_TIMING_KEY]
+
+
+def test_a_bundle_rebuild_names_the_component_that_moved(
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+):
+    """CP-7, driven through the real handler across two turns of one chat.
+
+    ``visibility_bundle_builds`` read ≥ 1 on all fifteen agent-chat turns since
+    2026-08-29 and nothing said WHICH keyed input moved, so "the bundle is
+    rebuilt every turn" was a fact with no address. A scripted registry-epoch
+    bump between two turns of the same chat is the one component whose movement
+    a test can arrange without editing a file the fixture owns.
+
+    *Killing mutation:* record the whole key material instead of the differing
+    entries and the flag lands under a digest instead of a name; drop the diff
+    and the second turn reports a rebuild with no component at all — the state
+    the live record has been in since 08-29.
+    """
+
+    from tools.registry import invalidate_check_fn_cache
+
+    _drive(
+        monkeypatch,
+        capsys,
+        _streaming_provider(profile_timing={"resident_actor_reused": 1}),
+        turn_id="phases_bundle_first",
+    )
+    invalidate_check_fn_cache()
+    _drive(
+        monkeypatch,
+        capsys,
+        _streaming_provider(profile_timing={"resident_actor_reused": 1}),
+        turn_id="phases_bundle_rebuilt",
+    )
+    record = _record_on_disk(isolate_agent_runtime_root, "phases_bundle_rebuilt")
+    block = record[TURN_PROFILE_TIMING_KEY]
+    assert record[TURN_PHASES_KEY]["visibility_bundle_builds"] >= 1, (
+        "the epoch bump must actually have forced a rebuild, or this row proves "
+        "nothing about naming one"
+    )
+    assert block["visibility_bundle_rebuild_component_registry_epoch"] == 1
+
+
+def test_the_rebuild_receipt_carries_NAMES_and_never_VALUES(
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+):
+    """The same disclosure rule ``ChatLaneBundle.degraded`` follows.
+
+    The key material holds a persona content hash, a session id, a runtime root
+    PATH and a permission record. Naming the component that moved is the whole
+    diagnosis; carrying its value would put an operator's chat root and a store
+    path onto a durable record through a timing key.
+    """
+
+    from tools.registry import invalidate_check_fn_cache
+
+    _drive(
+        monkeypatch,
+        capsys,
+        _streaming_provider(profile_timing={"resident_actor_reused": 1}),
+        turn_id="phases_bundle_names_first",
+    )
+    invalidate_check_fn_cache()
+    _drive(
+        monkeypatch,
+        capsys,
+        _streaming_provider(profile_timing={"resident_actor_reused": 1}),
+        turn_id="phases_bundle_names",
+    )
+    block = _record_on_disk(isolate_agent_runtime_root, "phases_bundle_names")[
+        TURN_PROFILE_TIMING_KEY
+    ]
+    named = [
+        key
+        for key in block
+        if key.startswith("visibility_bundle_rebuild_component_")
+    ]
+    assert named, "a rebuild on this turn must name at least one component"
+    for key in named:
+        assert block[key] == 1, "the flag is a 1, never a payload"
+        component = key[len("visibility_bundle_rebuild_component_") :]
+        assert component.replace("_", "").isalnum() and component.islower()
+    assert all(isinstance(value, int) for value in block.values())
+
+
+def test_the_sanitizer_admits_the_handlers_census_and_the_rebuild_flags():
+    """The store boundary for Stage 6's keys, at the sanitizer's own unit.
+
+    ``safe_turn_profile_timing`` is a CLOSED admission list — ``*_ms``,
+    ``resident_actor_reused``, ``resident_rebuild_*`` — and Stage 6 adds two
+    shapes to it: the ``*_cached`` 0/1 and the ``visibility_bundle_rebuild_*``
+    family CP-7 names components through. Pinned here rather than only through
+    a driven turn, because the failure mode is silent: a key the sanitizer does
+    not know is DROPPED, and the remedy stage it gates would then be judged on
+    a record that never carried it.
+    """
+
+    from agent_runtime.mission_chat_turns import safe_turn_profile_timing
+
+    block = safe_turn_profile_timing(
+        {
+            **{key: 7 for key in _HANDLER_MEASURED_KEYS if key.endswith("_ms")},
+            "observability_catalog_cached": 1,
+            "visibility_bundle_rebuild_component_registry_epoch": 1,
+            # …and nothing else may ride in beside them.
+            "visibility_bundle_rebuild_component_value": "personainst_secret",
+            "observability_catalog_note": "a shared skills dir path",
+        }
+    )
+
+    assert block is not None
+    for key in _HANDLER_MEASURED_KEYS:
+        if key.endswith("_ms"):
+            assert block[key] == 7
+    assert block["observability_catalog_cached"] == 1
+    assert block["visibility_bundle_rebuild_component_registry_epoch"] == 1
+    assert "visibility_bundle_rebuild_component_value" not in block
+    assert "observability_catalog_note" not in block
+    assert "secret" not in repr(block)
 
 
 @pytest.mark.parametrize(

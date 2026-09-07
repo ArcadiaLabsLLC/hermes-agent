@@ -14,7 +14,7 @@ sits under `## Open rows`, `## Unverified carry-forward`, or is gone. The handle
 **One id, minted launcher-side, echoed byte-equal.** The launcher mints `agent-chat-send-<uuid4>` as
 the intent's `idempotencyKey` (`mission_agent_chat_panel.dart`), sends it as the RPC's
 `client_message_id` (`mission_agent_chat_adapter.dart`), and hermes echoes it as `turn_id`
-(`persona_commands.py:3111`, `:3145`) after reading it at `:2189-2195`. Absent, hermes mints
+(`persona_commands.py:3273`, `:3307`) after reading it at `:2191-2197`. Absent, hermes mints
 `agent-chat-send-<hex12>` and writes it back onto `args` so the serve lane and the turn store agree.
 The launcher's timeline names this the join key in its own docstring
 (`mission_chat_turn_timeline.dart`): one key, minted once, so the cross-process join is
@@ -23,7 +23,7 @@ never a time-proximity guess.
 **Explicit `session_id`** (new-chat and per-chat sends) runs two SessionDB guards, both
 `REJECTED`/exit 2:
 
-- `unknown_chat_session` (`persona_commands.py:2236-2251`) — the named root is not in the canonical
+- `unknown_chat_session` (`persona_commands.py:2238-2253`) — the named root is not in the canonical
   SessionDB. `next_expected`: *open a server-minted chat root before sending*.
 - `foreign_chat_session` (`:2252-2280`) — the root exists but is not owned by the target: no owner,
   no owner row, a differing persona, or a pinned `persona_instance_id` that is not the owner. On
@@ -64,12 +64,16 @@ provider_first_byte → stream_done → native_committed → projected
 `request_assembled` landed 2026-08-22 (`785a35beae`) and splits the old "provider" span:
 `provider_request_started → request_assembled` is hermes assembly, `request_assembled →
 provider_first_byte` is client init + network + provider (`:352-375`). Beside the marks ride one
-flag (`agent_init_cold`, `:92`) and three counters (`registry_probe_rounds`,
-`visibility_bundle_builds`, `builds_overlapped`, `:96`); `_BLOCK_ORDER` is the closed set a reader
-may see. `visibility_bundle_builds` landed 2026-08-23 with the chat-lane bundle (§4a) and is a
-delta of a thread-cumulative counter like `registry_probe_rounds`: `0` on a warm steady-state turn,
-`1` when a keyed input moved, and anything above `1` means something is re-resolving what the
-bundle holds.
+flag (`agent_init_cold`, `:92`) and four counters (`registry_probe_rounds`,
+`visibility_bundle_builds`, `builds_overlapped`, `prewarm_overlapped`); `_BLOCK_ORDER` is the
+closed set a reader may see. `visibility_bundle_builds` landed 2026-08-23 with the chat-lane bundle
+(§4a) and is a delta of a thread-cumulative counter like `registry_probe_rounds`: `0` on a warm
+steady-state turn, `1` when a keyed input moved, and anything above `1` means something is
+re-resolving what the bundle holds. `prewarm_overlapped` landed with prep-cost Stage 6 and is
+sampled exactly as `builds_overlapped` is — monotonic spans intersected with the turn's window,
+counted by `agent_runtime/persona_chat_actor_prewarm.py` — because the other thing measured
+stealing a turn's pre-admit span is a chat-open actor prewarm for the operator's own root
+(5,750 ms across a whole pre-admit span, 2026-09-07).
 
 **Six `profile_timing` receipts landed 2026-09-01** (prep-cost Stages 3–5, `3b4923f6c2` /
 `139f480a23`; all `*_ms` keys `safe_turn_profile_timing` already admitted — no schema change):
@@ -85,6 +89,23 @@ why the open stays per-turn and unpooled. The durable record's block is the TURN
 the live result frame keeps the runner's dict byte-for-byte. Evidence + the owed live re-takes:
 `planned/chat-turn-prep-stages-3-5-field-notes-2026-09-01.md`.
 
+**Seven more landed with prep-cost Stage 6 (2026-09-07)** — the PRE-ADMIT sub-spans, because
+`context_built` and `observability_built` are one number each and a sandbox profile of the live
+root said ≥ 60 % of both is skill-directory walking performed three ways. The two builders time
+themselves and return a `timings` mapping the handler folds beside `session_db_open_ms`:
+`context_skill_preload_ms` / `context_hud_ms` / `context_signature_ms` from
+`agent_runtime/mission_chat_turn_context.py`, and `observability_skill_rows_ms` /
+`observability_catalog_walk_ms` / `observability_shared_catalog_ms` plus the 0/1
+`observability_catalog_cached` from `agent_runtime/prompt_observability.py`. The three in each
+group are disjoint (the walks are subtracted out of the block they run inside), so a group sums to
+its phase span rather than past it, and the mapping never reaches a persisted observability row —
+the handler pops it and `persist_prompt_observability_context` drops it again. Beside them ride
+`visibility_bundle_rebuild_component_<name>=1` flags (CP-7, §4a): which chat-lane bundle key
+component moved, names only, the same disclosure rule `resident_signature_diff` follows.
+`safe_turn_profile_timing` grew two admitted shapes for these — `*_cached` and
+`visibility_bundle_rebuild_*` — and admits nothing else new. Evidence and the owed operator read:
+`planned/chat-turn-prep-cost.md` §0.3 and `planned/chat-turn-prep-cost-field-notes-2026-09-07.md`.
+
 **Four honesty rules** (`:18-50`), each enforced in code, not by convention:
 
 1. **Absent, never a fake zero.** `snapshot()` emits only what was marked (`:334-355`);
@@ -97,8 +118,8 @@ the live result frame keeps the runner's dict byte-for-byte. Evidence + the owed
    rides the emitter's per-token `delta()` and may arrive on a worker thread.
 4. **Release-visible.** No flag, no debug gate; the block rides persists the turn already performs.
 
-Construction IS the anchor, taken as the handler's first statement (`persona_commands.py:2059`;
-the handler opens at `:2034`), ahead of the capability bind and the config load, because everything
+Construction IS the anchor, taken as the handler's first statement (`persona_commands.py:2061`;
+the handler opens at `:2036`), ahead of the capability bind and the config load, because everything
 below is admission cost the operator waits through. Marks land at `:3158`, `:3197`, `:3225`,
 `:3266`, `:3282`, `:3295` (write_ahead — deliberately *before* the write it names), `:3450`,
 `:3662`, `:3880` and on the emitter (provider_first_byte, `~:4986`); `request_assembled` arrives as
@@ -115,7 +136,8 @@ the extra seconds were spent BEFORE the provider, in context assembly correlated
 visibility-bundle builds — was the opposite of what the launcher's line alone suggested. An
 operator cannot write that script.
 
-So the turn's terminal payload carries a seven-key projection, built by
+So the turn's terminal payload carries a closed projection — seven keys at RO-7, thirteen since
+prep-cost Stage 6 widened it (2026-09-07) — built by
 `mission_chat_phases.turn_timing_block` and copied in at commit inside
 `_mission_chat_commit_turn`, from the same two instruments the terminal persist writes in the same
 breath (`turn_phases` for the marks and counters, the handler's folded `profile_timing` superset
@@ -130,6 +152,20 @@ for the runner's durations):
 | `stream_consume_ms` | `profile_timing.profile_provider_stream_consume_ms` |
 | `builds_overlapped` | `phases.builds_overlapped` |
 | `resident_actor_reused` | `profile_timing.resident_actor_reused`, as a bool |
+| `context_built_ms` | `phases.context_built` (Stage 6) |
+| `observability_built_ms` | `phases.observability_built` (Stage 6) |
+| `write_ahead_ms` | `phases.write_ahead` (Stage 6) — CP-1's number |
+| `agent_ready_ms` | `phases.agent_ready` (Stage 6) |
+| `visibility_bundle_builds` | `phases.visibility_bundle_builds` (Stage 6) |
+| `runtime_resolve_ms` | `profile_timing.runtime_resolve_ms` (Stage 6) — no `profile_` prefix on this one |
+
+Stage 6's six are APPENDED to `TURN_TIMING_ORDER` rather than interleaved chronologically, which
+is "additive in the strict sense" taken literally: no existing key moves in name OR position.
+Nothing reads the block positionally (the launcher's `MissionRuntimeTurnTiming` reads it by key
+name), so the only cost is that the tuple lists the pre-admit half below the post-admit half.
+`write_ahead_ms` is why the widening happened: the pre-admit span is where a local turn's extra
+seconds live, and until Stage 6 it was readable only by opening the ledger file — which an
+operator cannot do for the OTHER machine.
 
 **Which frame it rides, precisely.** The payload is the one dict `_mission_chat_emit` hands out:
 the argv lane's `--json` object, and the streamed lane's `chat.final`. Under a served
@@ -155,14 +191,14 @@ magnitudes are dropped rather than coerced.
 ## 3. Model selection
 
 Four tiers, highest wins, resolved once in `_chat_effective_model_payload`
-(`persona_commands.py:7049`):
+(`persona_commands.py:7264`):
 
 ```
 chat-session override  >  instance override  >  persona default  >  config default
 ```
 
 The chat-session override persists under `mission_control_chat_model_override`
-(`persona_commands.py:6581`, `agent_runtime/persona_chat_history.py:234`) via
+(`persona_commands.py:6796`, `agent_runtime/persona_chat_history.py:234`) via
 `_resolve_chat_model_override` (`:7035`), called at `:3531`. Its scope is literally
 `mission_control_chat_session` (`:7085`, inside `_chat_effective_model_payload`) — per-thread,
 not per-instance. Values validate against
@@ -427,7 +463,7 @@ the graceful checkpoint, so a default turn has ~180 s of tool-using time.
 
 **The volatile tail** is how the agent is told any of this. Contributors register by name with their
 own byte budget — `turn_budget` 1024, `capability` 4096, `mcp_admission` 2048
-(`mission_chat_turn_context.py:114-122`, composed at `:467-479`). Per-contributor, not global, so a
+(`mission_chat_turn_context.py:115-123`, composed at `:515-528`). Per-contributor, not global, so a
 long capability account cannot squeeze out the countdown. Over-budget content states its shortfall
 twice: in band, so the agent reads it was not told everything, and as a typed accounting row, so no
 operator has to grep prose to learn a fact was clipped.
@@ -581,7 +617,7 @@ application already filled every shared cache it would have reached. The same cr
 `warm_persona_memos` bills 281 ms with `chat_lane_scope_ms` at 15 and zero probe rounds; the
 neighbouring-memo-key suspicion is ACQUITTED at HEAD. No test asserts a millisecond; the gate is the
 counted mechanism — the registry's probe-round counter (`tools/registry.py:286`), sampled as a
-per-turn delta (`persona_commands.py:2064`, `:3267`).
+per-turn delta (`persona_commands.py:2066`, `:3429`).
 
 ## 10. Provider dispatch, and the outcome line
 
@@ -593,7 +629,7 @@ the hermes side of the split) and right before the provider call; it carries no
 `duration_ms`/`timing_key` because it names an INSTANT, which also keeps it out of the
 profile-timing dict. Step constant: `CONVERSATION_REQUEST_ASSEMBLED_STEP =
 "conversation_request_assembled"` (`hermes_constants.py:1533`); `mark_from_trace_payload`
-(`mission_chat_phases.py:424-460`) is the only converter, and it takes nothing from a malformed one.
+(`mission_chat_phases.py:433-469`) is the only converter, and it takes nothing from a malformed one.
 
 **The payload has to survive the sink to reach that converter.** Its real route is
 `agent.status_callback → profile_runner._profile_status_callback (:1489) → ChatProgressSink.emit →
@@ -604,7 +640,7 @@ an instant rather than work. That silently unmeasured `request_assembled` on eve
 ahead of the filter) now forwards the marker to `on_trace` ONLY: no EventLog row, no
 `before_first_trace` latch, no chat-log mirror, and only a `step` matched against the closed set of
 marker steps plus a bare `status` token — so the noise rule and the redaction boundary both stay
-intact. `phase_timing_marker_step` (`mission_chat_phases.py:391-422`) is the single authority both
+intact. `phase_timing_marker_step` (`mission_chat_phases.py:400-431`) is the single authority both
 sides read, so producer and consumer cannot drift apart again.
 
 The live measurement that motivated the split (turn `c59ab99e`, 2026-08-22): **1,762 ms of a 13,532
@@ -688,7 +724,7 @@ Mechanism exists in code; the NUMBER or live condition was not re-measured here.
   states no test asserts a millisecond and none can reproduce the magnitude; the enforced gate is
   the probe-round count. **Annotated 2026-08-23 (prep-cost 2026-08 text §3 H2, in that file's history): the 2,421 ms is the UNWARMED
   CREATE subphase (warm create: 859/15 ms) — never re-quote it as a per-turn cost.**
-- **The 1,762 ms hermes share of turn `c59ab99e`** (`mission_chat_phases.py:433-434`) and the live
+- **The 1,762 ms hermes share of turn `c59ab99e`** (`mission_chat_phases.py:442-443`) and the live
   phase-joined TTFT splits (alice 17.8 s, qa 9.2 s) — 2026-08-22 session receipts, read through the
   launcher's audit tooling; not reproducible from this repo.
 - **Tool-schema census** (62 core tools / 93,075 bytes vs 34 deferrable / 32,182; 74% core) —

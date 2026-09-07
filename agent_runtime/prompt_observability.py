@@ -4,7 +4,9 @@ import hashlib
 import json
 import os
 import re
-from contextlib import nullcontext
+import threading
+import time
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -25,6 +27,94 @@ from .serde import to_jsonable
 SAFE_PREVIEW_LIMIT = 1200
 DEFAULT_CHAT_HISTORY_LIMIT = 8
 MAX_WORKSPACE_AGENTS_BYTES = 128 * 1024
+
+
+# ── chat-turn-prep Stage 6 item 2: this row's own sub-spans ──────────────────
+#
+# ``observability_built − context_built`` is ONE number on the phase block and
+# it read 438–1,718 ms live (§0.1) and 270–937 ms in the §0.3 sandbox. The
+# profile said where it goes — the resolver's two skill-root walks (357 ms), the
+# installed-catalog TTL miss (129 ms) and ``build_shared_catalog``'s per-file
+# content hashing (336 ms cold) — but a profile is not a receipt, and Stage 8's
+# remedy is judged on these three plus the 0/1 that says whether the 15 s
+# catalog TTL was hit.
+#
+# THREAD-LOCAL, and the accumulation happens where the work happens rather than
+# at the top call site: the catalog walk runs from two places inside this build
+# (the builder's own call and the resolver's union pass) and the shared catalog
+# from a third, so timing the call sites would bill one of three walks. The
+# builder resets the accumulator when it opens its skill block and reads it when
+# the block closes, so what it collects is exactly this build's.
+#
+# The snapshot lane calls the same functions on the builder thread and simply
+# never reads the accumulator; a build there resets nothing and costs two
+# ``time.monotonic()`` reads per walk.
+
+#: The keys this row contributes, in the order the builder performs them. The
+#: handler folds them onto the turn's ``profile_timing``; the store's
+#: ``safe_turn_profile_timing`` is what bounds them.
+OBSERVABILITY_TIMING_KEYS: tuple[str, ...] = (
+    "observability_skill_rows_ms",
+    "observability_catalog_walk_ms",
+    "observability_shared_catalog_ms",
+    "observability_catalog_cached",
+)
+
+#: The field the built row carries :data:`OBSERVABILITY_TIMING_KEYS` under, on
+#: its way to the handler. Never persisted — see
+#: :func:`persist_prompt_observability_context`.
+PROMPT_OBSERVABILITY_TIMINGS_KEY = "timings"
+
+_SPAN_CATALOG_WALK = "catalog_walk"
+_SPAN_SHARED_CATALOG = "shared_catalog"
+
+_span_state = threading.local()
+
+
+def _span_totals() -> dict[str, float]:
+    totals = getattr(_span_state, "totals", None)
+    if totals is None:
+        totals = {}
+        _span_state.totals = totals
+    return totals
+
+
+@contextmanager
+def _accumulate_span(name: str):
+    """Add this block's monotonic duration to ``name`` on THIS thread.
+
+    Never raises and never swallows: an instrument may not change what the
+    build does, in either direction.
+    """
+
+    started = time.monotonic()
+    try:
+        yield
+    finally:
+        totals = _span_totals()
+        totals[name] = totals.get(name, 0.0) + max(0.0, time.monotonic() - started)
+
+
+def _reset_observability_spans() -> None:
+    _span_state.totals = {}
+    _span_state.walks = 0
+
+
+def _observability_span_ms(name: str) -> int:
+    return max(0, int(_span_totals().get(name, 0.0) * 1000))
+
+
+def _note_catalog_walk() -> None:
+    """Count a catalog MISS. The count, not the duration, is what
+    ``observability_catalog_cached`` reports: a walk that finished under half a
+    millisecond still walked, and rounding it to ``0 ms`` must not be allowed to
+    report the TTL as having held."""
+
+    _span_state.walks = int(getattr(_span_state, "walks", 0)) + 1
+
+
+def _observability_catalog_walks() -> int:
+    return int(getattr(_span_state, "walks", 0))
 
 
 def _mission_chat_memory_loaded(persona: Any) -> bool:
@@ -220,6 +310,10 @@ def mission_chat_prompt_observability(
     except Exception:
         skill_profile_context = nullcontext()
     skill_resolver = skill_resolver or _SkillObservabilityResolver()
+    # Stage 6 item 2 opens here: everything between this reset and the read
+    # below is the skill half of ``observability_built − context_built``.
+    _reset_observability_spans()
+    _skill_block_started = time.monotonic()
     with skill_profile_context:
         skill_cache_key = (
             profile,
@@ -269,6 +363,25 @@ def mission_chat_prompt_observability(
             queued_skills=preloaded_skills_loaded,
             required_preload_skills=required_names,
         )
+    # …and closes here. The three spans are DISJOINT by construction: the two
+    # walks are subtracted out of the block's total, so ``skill_rows`` is the
+    # resolve and the row composition and nothing else, and an operator adding
+    # the three up gets the block back rather than a number larger than it.
+    _skill_block_ms = max(0, int((time.monotonic() - _skill_block_started) * 1000))
+    _catalog_walk_ms = _observability_span_ms(_SPAN_CATALOG_WALK)
+    _shared_catalog_ms = _observability_span_ms(_SPAN_SHARED_CATALOG)
+    observability_timings = {
+        "observability_skill_rows_ms": max(
+            0, _skill_block_ms - _catalog_walk_ms - _shared_catalog_ms
+        ),
+        "observability_catalog_walk_ms": _catalog_walk_ms,
+        "observability_shared_catalog_ms": _shared_catalog_ms,
+        # A MEASUREMENT, not a default: ``1`` says the 15 s TTL held for every
+        # catalog read this build made, ``0`` says at least one of them walked.
+        # §0.3's two floors (≈430 ms warm against ≈840 ms 17 s later) are this
+        # bit; without it the two are indistinguishable on the record.
+        "observability_catalog_cached": 0 if _observability_catalog_walks() else 1,
+    }
     skill_manifest_hash = hashlib.sha256(
         json.dumps(
             {
@@ -573,6 +686,14 @@ def mission_chat_prompt_observability(
                 "Secrets and raw provider credentials are not included.",
             ],
         },
+        # chat-turn-prep Stage 6 item 2, riding OUT on the built object and no
+        # further: the turn handler folds it onto ``profile_timing`` (where the
+        # store bounds it) and :func:`persist_prompt_observability_context`
+        # strips it, so this mapping never reaches a persisted row. It is here
+        # rather than on a side channel because the builder is called through
+        # one return value and a second one would be a seam every caller has to
+        # remember.
+        PROMPT_OBSERVABILITY_TIMINGS_KEY: observability_timings,
     }
 
 
@@ -902,6 +1023,32 @@ def _prompt_layer_content_stub(content: str) -> dict[str, Any]:
     }
 
 
+def _evict_builder_timings(chat_contexts: list[dict[str, Any]]) -> None:
+    """Drop the builder's own sub-spans from every FRAME row.
+
+    chat-turn-prep Stage 6: :func:`mission_chat_prompt_observability` returns
+    :data:`OBSERVABILITY_TIMING_KEYS` under
+    :data:`PROMPT_OBSERVABILITY_TIMINGS_KEY` so the mission-chat handler can
+    fold them onto the turn record's ``profile_timing``. That is the mapping's
+    ONLY consumer, and every other exit drops it: the handler pops it before the
+    row travels on, :func:`persist_prompt_observability_context` drops it before
+    a row reaches disk, and this drops it before a row reaches the read-model
+    frame.
+
+    The snapshot lane builds rows through the same function with no handler in
+    between, so without this the section would put a wall-clock-dependent
+    mapping onto a byte-pinned wire projection — measured, not hypothetical: it
+    moved two rows of the launcher's `delta_agent_create_narrow_profile`
+    fixture the first time this stage was run.
+
+    Mutates ``chat_contexts`` in place, like its two neighbours above.
+    """
+
+    for row in chat_contexts:
+        if isinstance(row, dict):
+            row.pop(PROMPT_OBSERVABILITY_TIMINGS_KEY, None)
+
+
 def _evict_prompt_layer_content(chat_contexts: list[dict[str, Any]]) -> None:
     """Replace each prompt layer's heavy ``content`` with the accounting stub.
 
@@ -1107,6 +1254,9 @@ def snapshot_prompt_observability(
             if isinstance(rows, list):
                 catalog_sink.setdefault(ref, to_jsonable(rows))
     _evict_final_model_input(chat_contexts)
+    # chat-turn-prep Stage 6: the builder's own sub-spans are the turn handler's
+    # and nobody else's — least of all a byte-pinned wire projection.
+    _evict_builder_timings(chat_contexts)
     # w13/h4: the same move, one field over, to what became the largest slice —
     # the prompt-layer BODIES. The descriptor table stays whole (the row's own
     # re-measurement ruled that cut not worth its churn).
@@ -1311,6 +1461,14 @@ def persist_prompt_observability_context(context: dict[str, Any]) -> None:
     # Deep JSON copy (to_jsonable rebuilds every dict/list) — mutations below
     # cannot touch the caller's object.
     row = to_jsonable(context)
+    # chat-turn-prep Stage 6 item 2: the builder's own sub-spans ride the built
+    # object to the turn handler, which folds them onto the turn record's
+    # ``profile_timing``. They are dropped HERE, at the one persist chokepoint,
+    # so no lane can leak a second unversioned copy of a timing the ledger
+    # already carries onto an operator-facing context row — including the
+    # snapshot lane, which builds rows through the same function with no handler
+    # in between.
+    row.pop(PROMPT_OBSERVABILITY_TIMINGS_KEY, None)
     for canonical_field, alias_field, ref_field in _PERSIST_REF_FIELDS:
         value = row.pop(canonical_field, None)
         alias = row.pop(alias_field, None)
@@ -2272,12 +2430,17 @@ class _SkillObservabilityResolver:
         build, 2026-07-23).  Read-only for callers — the same dict is shared."""
         if self._shared_catalog is None:
             catalog: list[dict[str, Any]] = []
-            try:
-                from .skills_inventory import build_shared_catalog
+            # Stage 6 item 2: the content-hash walk, billed where it runs. On a
+            # TURN this memo never hits — the turn lane constructs a fresh
+            # resolver per call — so this span is the whole of it every time,
+            # which is the fact §0.3 measured at 336 ms cold and Stage 8 fixes.
+            with _accumulate_span(_SPAN_SHARED_CATALOG):
+                try:
+                    from .skills_inventory import build_shared_catalog
 
-                _, _, catalog = build_shared_catalog()
-            except Exception:
-                catalog = []
+                    _, _, catalog = build_shared_catalog()
+                except Exception:
+                    catalog = []
             self._shared_catalog = {
                 str(item.get("slug") or ""): item
                 for item in catalog
@@ -2545,14 +2708,19 @@ def _installed_skill_catalog() -> list:
         and now - _skill_catalog_memo["at"] < _SKILL_CATALOG_TTL_SECONDS
     ):
         return _skill_catalog_memo["rows"]
+    # A MISS. Timed here rather than at the call sites because there are three
+    # of them and only one of them is in this module's turn-lane builder — see
+    # the Stage 6 note at the top of this file.
     rows: list = []
-    if walker is not None:
-        try:
-            installed = walker()
-            if isinstance(installed, list):
-                rows = installed
-        except Exception:
-            rows = []
+    _note_catalog_walk()
+    with _accumulate_span(_SPAN_CATALOG_WALK):
+        if walker is not None:
+            try:
+                installed = walker()
+                if isinstance(installed, list):
+                    rows = installed
+            except Exception:
+                rows = []
     _skill_catalog_memo["rows"] = rows
     _skill_catalog_memo["at"] = now
     _skill_catalog_memo["walker"] = walker

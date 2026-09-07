@@ -115,6 +115,30 @@ def _agent_runs_in_flight() -> int | None:
         return None
 
 
+def _chat_turns_admitted() -> int | None:
+    """Mission-chat turns this process is inside right now, or ``None``.
+
+    chat-turn-prep CP-2's counter (``agent_runtime.turn_activity``), forwarded
+    the same way and under the same "``None`` is unaskable" rule as
+    :func:`_agent_runs_in_flight` above — and, like it, NOT a second authority:
+    the counter lives in one module and this is a read of it.
+
+    **Stage 6 reads this for the RECEIPT only.** The deferral's decision is
+    still ``_agent_runs_in_flight()`` alone. This number rides the
+    ``snapshot_build_deferred`` line so that the window Stage 5 can never see —
+    a turn between its anchor and ``write_ahead``, where 2,796–3,172 ms of
+    §0.1's turns 1 and 2 went — is visible on the same receipt BEFORE Stage 7
+    changes what the deferral does about it.
+    """
+
+    try:
+        from .turn_activity import chat_turns_admitted
+
+        return int(chat_turns_admitted())
+    except Exception:
+        return None
+
+
 def _defer_demote_build_for_active_turns(
     *,
     reason: str,
@@ -181,13 +205,21 @@ def _defer_demote_build_for_active_turns(
         # style): the lane, who paid, how long, what the bound was, and what was
         # still running when the wait ended. Never a persona, a chat root, or a
         # display name.
+        # ``admitted_at_exit`` (chat-turn-prep Stage 6, CP-2) is the second
+        # window on the same line: ``runs_in_flight_at_exit`` says whether a
+        # RUN was still going, and this says whether a TURN was admitted —
+        # which is the state §0.1's turns 1 and 2 were in for three seconds
+        # while this lane saw nothing. Recorded, never decided on: Stage 7 is
+        # where the wait starts reading it.
+        admitted = _chat_turns_admitted()
         logger.info(
             "snapshot_build_deferred reason=%s caller=%s waited_ms=%d "
-            "runs_in_flight_at_exit=%s bound_ms=%d",
+            "runs_in_flight_at_exit=%s admitted_at_exit=%s bound_ms=%d",
             reason,
             caller,
             waited_ms,
             "unknown" if in_flight is None else int(in_flight),
+            "unknown" if admitted is None else int(admitted),
             SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS,
         )
     return waited_ms

@@ -444,6 +444,56 @@ def test_snapshot_prompt_observability_hoists_by_default(isolate_agent_runtime_r
     assert persisted["final_model_input"].get("evicted") is not True
 
 
+def test_the_builders_own_sub_spans_never_reach_the_FRAME():
+    """chat-turn-prep Stage 6: ``timings`` is the turn handler's and nobody
+    else's.
+
+    The mapping rides out on the built row so the mission-chat handler can fold
+    it onto the turn record's ``profile_timing``. The SNAPSHOT lane builds rows
+    through the same function with no handler in between, so without this
+    eviction a wall-clock-dependent mapping lands on a byte-pinned wire
+    projection — which is not hypothetical: it moved two rows of the launcher's
+    ``delta_agent_create_narrow_profile`` fixture the first time the stage ran.
+
+    *Killing mutation:* drop the ``_evict_builder_timings`` call from
+    ``snapshot_prompt_observability`` and the producer-contract check goes red
+    on a fixture nobody edited.
+    """
+
+    rows = [
+        {"context_id": "ctx_a", po.PROMPT_OBSERVABILITY_TIMINGS_KEY: {"x_ms": 3}},
+        {"context_id": "ctx_b"},
+        "not a row",
+    ]
+
+    po._evict_builder_timings(rows)
+
+    assert po.PROMPT_OBSERVABILITY_TIMINGS_KEY not in rows[0]
+    assert rows[0]["context_id"] == "ctx_a"
+    # Idempotent, and blind to a row that never carried one.
+    po._evict_builder_timings(rows)
+    assert rows[1] == {"context_id": "ctx_b"}
+
+
+def test_the_persisted_row_drops_the_sub_spans_too(isolate_agent_runtime_root):
+    """The other exit. The persist chokepoint is where a snapshot-lane row
+    reaches disk, and an operator-facing context artifact is not a place for a
+    second unversioned copy of a number the turn ledger already carries."""
+
+    po.persist_prompt_observability_context(
+        {
+            "context_id": "ctx_timings",
+            "persona_instance_id": "personainst_timings",
+            "session_id": "chat-timings",
+            po.PROMPT_OBSERVABILITY_TIMINGS_KEY: {"observability_skill_rows_ms": 9},
+        }
+    )
+    persisted = po.load_persisted_context_row("ctx_timings")
+
+    assert persisted is not None
+    assert po.PROMPT_OBSERVABILITY_TIMINGS_KEY not in persisted
+
+
 def test_fresh_live_context_advertises_only_collectable_catalog_refs(
     isolate_agent_runtime_root,
 ):

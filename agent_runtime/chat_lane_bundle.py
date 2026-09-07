@@ -146,7 +146,21 @@ BUNDLE_CONTRACT_REVISION = "chat-lane-bundle-v1"
 #: partial clear needs an ordering this cache has no reason to maintain.
 _MEMO_MAX_ROOTS = 256
 
-_memo: dict[tuple[str, str], tuple[str, "ChatLaneBundle"]] = {}
+#: ``(persona id, chat root) → (key, the MATERIAL that key was hashed from, the
+#: bundle)``.
+#:
+#: The material rides along for CP-7 (``planned/chat-turn-prep-cost.md``): the
+#: key is one sha256, so a key that moved is unreadable evidence, and the live
+#: record has read ``visibility_bundle_builds`` ≥ 1 on every agent-chat turn
+#: since 2026-08-29 with nothing to say WHICH input moved. Keeping the previous
+#: material lets a rebuild name the entry — the same move Stage 2a made for the
+#: resident actor's signature, where the per-component digest map turned "the
+#: actor was not reusable" into "``relevant_config_revision`` moved", which was
+#: the whole diagnosis of a live process-wide ``HERMES_HOME`` rewrite.
+#:
+#: Cost: one small dict per live chat ROOT — already built on every lookup, and
+#: kept instead of discarded.
+_memo: dict[tuple[str, str], tuple[str, dict[str, Any], "ChatLaneBundle"]] = {}
 _memo_lock = threading.Lock()
 
 #: THREAD-LOCAL, and cumulative for the life of the thread — the same shape and
@@ -172,6 +186,75 @@ def bundle_builds_this_thread() -> int:
 
 def _note_bundle_build() -> None:
     _build_state.builds = int(getattr(_build_state, "builds", 0)) + 1
+
+
+#: How many recent moved-component names one thread remembers. A rebuild names
+#: at most as many components as the material has entries (nine), and a caller's
+#: window is one turn, so this is several turns of headroom. Bounded because the
+#: list is cumulative for the life of a pooled serve thread.
+_MAX_REMEMBERED_MOVES = 64
+
+
+def key_material_moves_this_thread() -> int:
+    """CP-7's CURSOR: component names this thread has recorded as moved.
+
+    Cumulative and never reset, exactly like :func:`bundle_builds_this_thread`
+    and for the identical reason — ``harness serve`` runs concurrent turns on
+    pooled threads, and a counter this module reset would let two overlapping
+    observers destroy each other's measurement. A caller samples this at its own
+    anchor and reads the tail with :func:`key_material_moves_since`.
+    """
+
+    return int(getattr(_build_state, "moves", 0))
+
+
+def key_material_moves_since(cursor: int) -> tuple[str, ...]:
+    """The component names recorded since ``cursor``, oldest first.
+
+    Deduplicated: a turn that rebuilt twice on the same moved component names it
+    once, because the receipt is a set of flags and not a tally. Truncated
+    honestly when the window is older than :data:`_MAX_REMEMBERED_MOVES` — the
+    names still known are returned rather than a lie about how many there were.
+    """
+
+    total = key_material_moves_this_thread()
+    remembered: list[str] = list(getattr(_build_state, "move_names", ()))
+    taken = max(0, min(total - int(cursor), len(remembered)))
+    if taken <= 0:
+        return ()
+    return tuple(dict.fromkeys(remembered[len(remembered) - taken :]))
+
+
+def _note_key_material_moves(previous: Any, current: Any) -> None:
+    """Record which TOP-LEVEL entries of the key material differ. Never raises.
+
+    NAMES ONLY, never values — the same disclosure rule
+    :attr:`ChatLaneBundle.degraded` follows. Every value in the material is a
+    persona content hash, a chat session id, a store path or a permission
+    record, and the name is the whole diagnosis: an operator reading
+    ``registry_epoch`` knows a registration moved, and reading the epoch's
+    number would tell them nothing more while putting a turn's identity onto a
+    durable record through a timing key.
+
+    Top level only, deliberately. ``permission`` is a nested dict and "the
+    permission fingerprint moved" is the actionable fact; descending into it
+    would trade one honest name for six that all mean the same thing.
+    """
+
+    if not isinstance(previous, dict) or not isinstance(current, dict):
+        return
+    moved = sorted(
+        str(name)
+        for name in set(previous) | set(current)
+        if previous.get(name) != current.get(name)
+    )
+    if not moved:
+        return
+    names: list[str] = list(getattr(_build_state, "move_names", []))
+    names.extend(moved)
+    del names[:-_MAX_REMEMBERED_MOVES]
+    _build_state.move_names = names
+    _build_state.moves = int(getattr(_build_state, "moves", 0)) + len(moved)
 
 
 @dataclass(frozen=True, slots=True)
@@ -345,20 +428,31 @@ def chat_lane_bundle(persona: Any, *, session_id: str | None) -> ChatLaneBundle:
     from .tool_permissions import permission_options_for_chat
 
     permission = permission_options_for_chat(persona, session_id=session_id)
-    key = chat_lane_bundle_key(persona, permission, session_id=session_id)
+    # Composed once and kept: the key IS this dict's digest, and CP-7 needs the
+    # dict itself to name the entry that moved.
+    material = chat_lane_bundle_key_material(
+        persona, permission, session_id=session_id
+    )
+    key = _revision(material)
     root = (str(getattr(persona, "id", "") or ""), str(session_id or ""))
 
     with _memo_lock:
         cached = _memo.get(root)
     if cached is not None and cached[0] == key:
-        return cached[1]
+        return cached[2]
+    if cached is not None:
+        # A rebuild with a predecessor to compare against. A FIRST build names
+        # nothing — "built for the first time" and "rebuilt because an input
+        # changed" are different facts, and naming every component on a cold
+        # lookup would make every cold turn look like a cache that will not hold.
+        _note_key_material_moves(cached[1], material)
 
     bundle = _build_bundle(persona, session_id=session_id, permission=permission, key=key)
     if bundle.complete:
         with _memo_lock:
             if len(_memo) >= _MEMO_MAX_ROOTS and root not in _memo:
                 _memo.clear()
-            _memo[root] = (key, bundle)
+            _memo[root] = (key, material, bundle)
     return bundle
 
 
@@ -466,4 +560,6 @@ __all__ = [
     "chat_lane_bundle_key",
     "chat_lane_bundle_key_material",
     "invalidate_chat_lane_bundles",
+    "key_material_moves_since",
+    "key_material_moves_this_thread",
 ]

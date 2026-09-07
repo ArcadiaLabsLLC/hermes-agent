@@ -131,6 +131,121 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+
+# ── the construction ledger (chat-turn-prep Stage 6, CP-2's second recorder) ──
+#
+# ``builds_overlapped`` on a turn record answers "did a snapshot build steal
+# time from this turn", and on 2026-09-07 it acquitted or convicted three turns
+# by itself. The OTHER thing running in that window has no such receipt: the
+# chat-open prewarm for the very root the operator was typing into ran 5,750 ms
+# across the whole of turn 1's pre-admit span (plan §0.2) — an LRU eviction
+# closing eight OpenAI clients over ~1.1 s, a full ``check_fn`` sweep and a
+# ``tool_search`` activation — and the only trace was a log line nobody joins to
+# a turn.
+#
+# So a construction records its span exactly the way
+# ``agent_runtime.snapshot_build_ledger`` records a build's: monotonic spans in
+# a bounded ring, intersected against the turn's own window, and ``None`` — not
+# ``0`` — for a process that has never prewarmed and therefore cannot see the
+# lane at all. Stage 7 does not move the eviction this bills; it names it, and
+# says a stage for it is written only if this receipt convicts it.
+#
+# What is NOT a construction: the yields. ``prewarm_chat_actor`` stands down
+# before assembling anything when a run is in flight, and a refusal that cost
+# nothing must not be counted as a span some turn overlapped.
+
+#: Enough history to cover any turn's window several times over. Bounded so a
+#: long-lived serve cannot grow it.
+_MAX_CONSTRUCTION_SPANS = 256
+
+_span_lock = threading.Lock()
+_construction_spans: list[tuple[float, float]] = []
+#: Has this process ever RUN a construction? Distinct from the list's length
+#: because the ring evicts; once true it stays true, and it is what separates
+#: "none overlapped" from "not observable here".
+_constructed_any = False
+
+
+def record_construction(*, started: float, ended: float) -> None:
+    """Record one construction's monotonic span. Never raises.
+
+    A construction that RAISED is recorded: it occupied the process for that
+    span whether or not it left an actor resident, and a turn beside it paid the
+    same price. Same rule as ``snapshot_build_ledger.record_build``.
+    """
+
+    global _constructed_any
+    try:
+        start = float(started)
+        end = float(ended)
+    except (TypeError, ValueError):
+        return
+    if end < start:
+        return
+    with _span_lock:
+        _constructed_any = True
+        _construction_spans.append((start, end))
+        if len(_construction_spans) > _MAX_CONSTRUCTION_SPANS:
+            del _construction_spans[:-_MAX_CONSTRUCTION_SPANS]
+
+
+def overlapping_constructions(*, start: float, end: float) -> int | None:
+    """How many recorded constructions intersect ``[start, end]``.
+
+    ``None`` when this process has never constructed one — the honest answer for
+    a CLI child, or for a serve whose hot-session registry is off. ``0`` when it
+    has and none touched this window: that is a measurement, and it is the
+    answer that acquits the prewarm for a turn.
+
+    Closed interval on both ends, for the same reason
+    ``snapshot_build_ledger.overlapping_builds`` uses one: everything around
+    this is millisecond-resolution, so the conservative reading is the right one.
+    """
+
+    try:
+        window_start = float(start)
+        window_end = float(end)
+    except (TypeError, ValueError):
+        return None
+    if window_end < window_start:
+        return None
+    with _span_lock:
+        if not _constructed_any:
+            return None
+        spans = list(_construction_spans)
+    return sum(
+        1
+        for span_start, span_end in spans
+        if span_end >= window_start and span_start <= window_end
+    )
+
+
+def reset_construction_spans_for_tests() -> None:
+    """Drop every recorded span AND the observed flag. Tests only."""
+
+    global _constructed_any
+    with _span_lock:
+        _construction_spans.clear()
+        _constructed_any = False
+
+
+class _ConstructionSpan:
+    """Times a construction and records it on exit. Never swallows."""
+
+    __slots__ = ("_started",)
+
+    def __enter__(self) -> "_ConstructionSpan":
+        self._started = time.monotonic()
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        try:
+            record_construction(started=self._started, ended=time.monotonic())
+        except Exception:  # pragma: no cover - an instrument never fails a prewarm
+            pass
+        return False
+
+
 # ── receipts ─────────────────────────────────────────────────────────────────
 #
 # TIMINGS AND IDS ONLY, in the vocabulary of the emitter list in
@@ -219,32 +334,43 @@ def prewarm_chat_actor(root_session_id: str, *, instance: Any = None) -> str:
     if agent_runs_in_flight() > 0:
         return OUTCOME_SKIPPED_TURN_ACTIVE
 
-    try:
-        prepared = _prepare(root, instance)
-    except _PrewarmRefused as refusal:
-        return refusal.outcome
-    except Exception:
-        logger.debug(
-            "chat-actor prewarm could not assemble a request for %s", root, exc_info=True
-        )
-        return OUTCOME_SKIPPED_CONSTRUCT_FAILED
+    # Stage 6's span opens PAST the yield and covers everything after it: the
+    # §0.2 line this bills (``elapsed_ms=5750``) is the whole of
+    # ``_prepare`` + ``prewarm``, and ``_prepare`` is not free — it reads
+    # SessionDB, resolves the lane bundle and composes the runtime signature.
+    # A stand-down above this point recorded nothing, which is the truth about
+    # a refusal that constructed nothing.
+    with _ConstructionSpan():
+        try:
+            prepared = _prepare(root, instance)
+        except _PrewarmRefused as refusal:
+            return refusal.outcome
+        except Exception:
+            logger.debug(
+                "chat-actor prewarm could not assemble a request for %s",
+                root,
+                exc_info=True,
+            )
+            return OUTCOME_SKIPPED_CONSTRUCT_FAILED
 
-    request, runner = prepared
-    # Re-read the gauge: assembling the request above reads SessionDB and
-    # resolves the lane bundle, which is where a turn that arrived meanwhile
-    # would now be. Cheap insurance against the widest part of the window.
-    if agent_runs_in_flight() > 0:
-        return OUTCOME_SKIPPED_TURN_ACTIVE
-    try:
-        timing = runner.prewarm(request)
-    except Exception:
-        logger.debug("chat-actor prewarm construction failed for %s", root, exc_info=True)
-        return OUTCOME_SKIPPED_CONSTRUCT_FAILED
-    return (
-        OUTCOME_ALREADY_RESIDENT
-        if timing.get("resident_actor_reused")
-        else OUTCOME_WARMED
-    )
+        request, runner = prepared
+        # Re-read the gauge: assembling the request above reads SessionDB and
+        # resolves the lane bundle, which is where a turn that arrived meanwhile
+        # would now be. Cheap insurance against the widest part of the window.
+        if agent_runs_in_flight() > 0:
+            return OUTCOME_SKIPPED_TURN_ACTIVE
+        try:
+            timing = runner.prewarm(request)
+        except Exception:
+            logger.debug(
+                "chat-actor prewarm construction failed for %s", root, exc_info=True
+            )
+            return OUTCOME_SKIPPED_CONSTRUCT_FAILED
+        return (
+            OUTCOME_ALREADY_RESIDENT
+            if timing.get("resident_actor_reused")
+            else OUTCOME_WARMED
+        )
 
 
 class _PrewarmRefused(Exception):
@@ -656,7 +782,10 @@ __all__ = [
     "OUTCOME_SKIPPED_PROFILE_UNREADY",
     "OUTCOME_SKIPPED_TURN_ACTIVE",
     "OUTCOME_WARMED",
+    "overlapping_constructions",
     "prewarm_chat_actor",
     "prewarm_chat_actors_on_boot",
+    "record_construction",
     "request_chat_actor_prewarm",
+    "reset_construction_spans_for_tests",
 ]

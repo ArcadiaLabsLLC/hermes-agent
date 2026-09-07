@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import os
@@ -122,6 +123,7 @@ from agent_runtime.persona_chat_mints import PersonaChatMintError, reserve_perso
 from agent_runtime.persona_runtime import GPTPersonaRuntime, chat_lane_capability_drops
 from agent_runtime.personas import profile_chat_toolsets, profile_persona_resolution
 from agent_runtime.prompt_observability import (
+    PROMPT_OBSERVABILITY_TIMINGS_KEY,
     attach_prompt_observability_turn_results,
     mission_chat_prompt_observability,
     persist_prompt_observability_context,
@@ -2640,6 +2642,159 @@ def _visibility_bundle_builds():
         return None
 
 
+def _within_admitted_turn(handler):
+    """Hold chat-turn-prep CP-2's admitted count for one whole turn handler.
+
+    **Why a decorator and not a ``with`` inside the body.** The rule is
+    "incremented at the handler anchor, decremented when the handler exits by
+    ANY path", and the handler has more than a dozen refusal returns above the
+    lease plus fourteen terminal transitions below it. A ``with`` block would
+    re-indent ~700 lines of the most-live code in the harness — a diff whose
+    risk is out of all proportion to a counter — and an explicit
+    increment/decrement pair would have to be repeated at every one of those
+    exits, which is precisely the shape that leaks one and wedges the demote
+    lane for the life of the process once Stage 7 reads it.
+
+    The window this opens is the handler's first instruction; the anchor
+    (``TurnPhaseMarks()``) is two local imports later, so the counted window and
+    the measured window begin at the same instant for every purpose this
+    counter has. ``functools.wraps`` keeps the wrapped function reachable, which
+    is what the AST/source gates over this handler read.
+
+    Nothing decides on the counter in Stage 6 — see
+    ``agent_runtime.turn_activity``.
+    """
+
+    @functools.wraps(handler)
+    def _admitted(args) -> int:
+        # Function-local, like every other import in this exec'd file.
+        from agent_runtime.turn_activity import admitted_turn
+
+        with admitted_turn():
+            return handler(args)
+
+    return _admitted
+
+
+def _visibility_bundle_diff_cursor():
+    """The near end of CP-7's moved-component window, or ``None``.
+
+    Same contract as :func:`_visibility_bundle_builds`, and for the same
+    reason: the module's list is cumulative and thread-local, so the turn's
+    reading is a tail taken from a cursor sampled at the anchor. ``None`` when
+    the module cannot be consulted at all, which leaves the turn naming no
+    component rather than claiming the previous turn's.
+    """
+
+    try:
+        from agent_runtime.chat_lane_bundle import key_material_moves_this_thread
+
+        return int(key_material_moves_this_thread())
+    except Exception:
+        return None
+
+
+def _visibility_bundle_rebuild_components(cursor):
+    """The key components that MOVED during this turn. Empty when unknowable.
+
+    An empty tuple for a turn that rebuilt nothing is the truth about it, and
+    an empty tuple for a turn whose cursor was never sampled is honest too: the
+    receipt is a set of named flags, and a flag nobody measured is simply not
+    written. Never raises — an instrument may not be a reason a turn fails.
+    """
+
+    if cursor is None:
+        return ()
+    try:
+        from agent_runtime.chat_lane_bundle import key_material_moves_since
+
+        names = key_material_moves_since(int(cursor))
+    except Exception:
+        return ()
+    # The name lands in a durable record's key namespace, so it is bounded here
+    # as well as at its source: lowercase ASCII words only, never a value and
+    # never anything a path or an id could survive as.
+    return tuple(
+        name
+        for name in names
+        if isinstance(name, str)
+        and 0 < len(name) <= 40
+        and name.replace("_", "").isalnum()
+        and name.islower()
+    )
+
+
+#: chat-turn-prep Stage 6 item 2: the closed set of pre-admit sub-span keys the
+#: two builders may contribute to a turn's ``profile_timing``.
+#:
+#: A closed set and not a prefix rule, at the fold rather than only at the store:
+#: ``profile_timing`` is a durable record's key namespace, and "whatever the
+#: builder put in its timings mapping" is not a decision anybody took. The
+#: store's ``safe_turn_profile_timing`` bounds the shapes; this bounds the
+#: MEMBERSHIP, so a new sub-span is a two-line edit here and a census row there
+#: rather than a silent wire change.
+_PRE_ADMIT_TIMING_KEYS = frozenset(
+    {
+        "context_skill_preload_ms",
+        "context_hud_ms",
+        "context_signature_ms",
+        "observability_skill_rows_ms",
+        "observability_catalog_walk_ms",
+        "observability_shared_catalog_ms",
+        "observability_catalog_cached",
+    }
+)
+
+
+def _safe_pre_admit_timings(value):
+    """The sub-spans a builder measured, as non-negative ints. Never raises.
+
+    Drops what it cannot read and supplies NOTHING — the same one-directional
+    defense ``safe_turn_phases`` and ``safe_turn_profile_timing`` apply, held
+    here as well because this is where an unmeasured span would become a zero
+    if anyone let it. A builder that recorded no mapping (an older object, a
+    build that raised part-way) contributes no keys.
+    """
+
+    if not isinstance(value, dict):
+        return {}
+    folded = {}
+    for key in _PRE_ADMIT_TIMING_KEYS:
+        raw = value.get(key)
+        # bool is an int subclass, and a True in a millisecond slot is
+        # corruption rather than a one-millisecond span.
+        if isinstance(raw, bool) or not isinstance(raw, int):
+            continue
+        if raw < 0:
+            continue
+        folded[key] = raw
+    return folded
+
+
+def _prewarm_constructions_overlapped(marks, *, until_ms):
+    """chat-turn-prep Stage 6: chat-actor prewarms whose span intersects
+    ``anchor → until_ms``. The same window, the same clock and the same
+    absent-never-zero rule as :func:`_snapshot_builds_overlapped` — the two
+    receipts differ only in which competitor for the GIL they count.
+
+    The window's near end IS the admitted window's near end: ``admitted_turn()``
+    is entered in the same statement that takes this anchor, so "ran inside the
+    admitted window" and "intersects the turn's window" are one question.
+    """
+
+    if until_ms is None:
+        return None
+    try:
+        from agent_runtime import persona_chat_actor_prewarm
+
+        anchor = marks.anchor_monotonic
+        return persona_chat_actor_prewarm.overlapping_constructions(
+            start=anchor, end=anchor + (float(until_ms) / 1000.0)
+        )
+    except Exception:
+        return None
+
+
 def _snapshot_builds_overlapped(marks, *, until_ms):
     """Stage 4: snapshot builds whose span intersects ``anchor → until_ms``.
 
@@ -2669,6 +2824,7 @@ def _snapshot_builds_overlapped(marks, *, until_ms):
         return None
 
 
+@_within_admitted_turn
 def _cmd_mission_chat_message(args) -> int:
     # Function-local: this file is exec'd into harness.py's globals, so a
     # module-level import here would need a matching harness.py import or it
@@ -2705,6 +2861,12 @@ def _cmd_mission_chat_message(args) -> int:
     # the same window. Sampled here so the baseline predates the turn-context
     # build, which is where the first bundle lookup happens.
     turn_phases.set_baseline("visibility_bundle_builds", _visibility_bundle_builds())
+    # CP-7's near end, sampled in the same breath and for the same reason: the
+    # bundle module's moved-component list is thread-cumulative, so this turn's
+    # names are the tail since here. The counter says a rebuild HAPPENED; this
+    # is what says which keyed input moved — the question fifteen live turns
+    # since 2026-08-29 have carried a ``1`` for and never answered.
+    _bundle_diff_cursor = _visibility_bundle_diff_cursor()
     # Per-request capability binding, at the very top so every path below —
     # including the refusals — runs with the truthful answer bound.
     _bind_mission_chat_delivery_capability()
@@ -3288,6 +3450,7 @@ def _cmd_mission_chat_message(args) -> int:
         relay_deadline=relay_deadline,
         phases=turn_phases,
         session_db_open_ms=_session_db_open_ms,
+        bundle_key_material_cursor=_bundle_diff_cursor,
     )
     # The lease covers the WRITES and nothing else. Post-emit decoration — the
     # auxiliary-LLM auto-title and the metadata event that reports it — is
@@ -3422,6 +3585,15 @@ def _mission_chat_commit_turn(plan, deferred, presence) -> int:
     # actually made of; serialized onto the record by the persists that already
     # happen. Nothing in this function reads a mark back to decide anything.
     turn_phases = plan.phases
+    # chat-turn-prep CP-7: the near end of the moved-key-component window,
+    # sampled at the anchor by the plan phase (see the plan's own field).
+    _bundle_diff_cursor = plan.bundle_key_material_cursor
+    # chat-turn-prep Stage 6 item 2: the two builders' sub-spans of the
+    # pre-admit path, taken off the objects they ride out on and folded into
+    # ``profile_timing`` beside ``session_db_open_ms`` below. Empty until each
+    # builder returns, so a turn that dies before one of them records nothing
+    # for it rather than a zero.
+    _pre_admit_timings: dict[str, int] = {}
     # ── finalization accounting ────────────────────────────────────────────
     # Bookkeeping that fails AFTER the reply is durable does not fail the turn —
     # and used to leave no trace at all. Two classes of silence lived here:
@@ -3891,6 +4063,10 @@ def _mission_chat_commit_turn(plan, deferred, presence) -> int:
         surface_prompt=getattr(args, "surface_prompt", "") or "",
     )
     turn_phases.mark("context_built")
+    # Stage 6 item 2: taken off the built context, not re-measured. The builder
+    # timed its own three sub-spans (`mission_chat_turn_context`.
+    # ``CONTEXT_TIMING_KEYS``) because only it can see them; this is the fold.
+    _pre_admit_timings.update(_safe_pre_admit_timings(getattr(turn_context, "timings", None)))
     # The same object the runner's checkpoint clamp is armed from below, so the
     # number the agent was told and the number the runtime enforces cannot drift.
     wall_budget = turn_context.wall_budget
@@ -3930,6 +4106,17 @@ def _mission_chat_commit_turn(plan, deferred, presence) -> int:
         ),
     )
     turn_phases.mark("observability_built")
+    # Stage 6 item 2, the row's half — POPPED, not read: the mapping exists to
+    # reach this fold and nothing downstream may see it. The row travels on to
+    # the terminal frame's echo and to the persist chokepoint, and neither is a
+    # place for a second copy of a number the ledger already carries.
+    _pre_admit_timings.update(
+        _safe_pre_admit_timings(
+            prompt_context.pop(PROMPT_OBSERVABILITY_TIMINGS_KEY, None)
+            if isinstance(prompt_context, dict)
+            else None
+        )
+    )
     # The envelope is rendered last because it needs the observability row's
     # context_id; body and volatile tail both come from the one built context.
     situational_hud_content = turn_context.runtime_context_envelope(
@@ -4223,6 +4410,24 @@ def _mission_chat_commit_turn(plan, deferred, presence) -> int:
             _session_db_open_ms, bool
         ):
             _profile_timing["session_db_open_ms"] = _session_db_open_ms
+        # chat-turn-prep Stage 6 item 2: the pre-admit sub-spans, folded BESIDE
+        # it and for the same reason. ``context_built`` and
+        # ``observability_built`` are one number each on the phase block, and
+        # §0.3 had to profile a sandbox copy of the live root to learn that
+        # ≥ 60 % of both is one skill-directory walk performed three ways.
+        # Stage 8's remedy is judged on these keys, so they have to be on the
+        # record the re-take reads. Absent for a span nobody measured.
+        _profile_timing.update(_pre_admit_timings)
+        # CP-7: WHICH bundle key component moved on this turn. The names only —
+        # every value in that key material is a content hash, a session id, a
+        # store path or a permission record, and the same disclosure rule
+        # ``ChatLaneBundle.degraded`` follows applies here.
+        for _component in _visibility_bundle_rebuild_components(
+            _bundle_diff_cursor
+        ):
+            _profile_timing[
+                f"visibility_bundle_rebuild_component_{_component}"
+            ] = 1
         # Cold/warm, from the runner's own receipt rather than a guess here.
         # `resident_actor_reused` is written by the resident-actor registry on
         # every acquire; a turn whose runner reported none (no registry on this
@@ -4236,6 +4441,16 @@ def _mission_chat_commit_turn(plan, deferred, presence) -> int:
         turn_phases.count(
             "builds_overlapped",
             _snapshot_builds_overlapped(
+                turn_phases, until_ms=turn_phases.get("stream_done")
+            ),
+        )
+        # chat-turn-prep Stage 6 (CP-2): the other competitor for the same GIL.
+        # §0.2 measured a chat-open actor prewarm for the operator's OWN root
+        # running 5,750 ms across the entire pre-admit span of turn 1, with the
+        # record saying nothing about it. Recorded here, decided on nowhere.
+        turn_phases.count(
+            "prewarm_overlapped",
+            _prewarm_constructions_overlapped(
                 turn_phases, until_ms=turn_phases.get("stream_done")
             ),
         )

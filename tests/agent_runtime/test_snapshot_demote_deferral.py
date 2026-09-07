@@ -216,6 +216,211 @@ def test_a_wait_that_resolves_to_zero_ms_logs_nothing(monkeypatch, caplog):
     ]
 
 
+# --------------------------------------------------------------------------- #
+# chat-turn-prep Stage 6 item 4 — CP-2, built as a RECORDER                     #
+# --------------------------------------------------------------------------- #
+# §0.2 measured the thing Stage 5 cannot see: turns 1 and 2 spent 3,172 and
+# 2,796 ms before ``write_ahead`` with a led build and a 5,750 ms actor prewarm
+# running beside them, and neither the deferral nor the prewarm's own yield
+# could tell, because both read ``profile_runner._ACTIVE_RUNS``, which
+# ``_counted_agent_run`` does not increment until ``ProfileAgentRunner.run()``.
+# Stage 7 makes them read the admitted counter. Stage 6 only BUILDS it and
+# writes what it sees down: ``admitted_at_exit=`` on this receipt, and
+# ``prewarm_overlapped`` on the turn record. Nothing here decides anything.
+
+
+def test_an_admitted_turn_is_counted_from_the_anchor_and_released_by_ANY_exit():
+    """CP-2's counter, at its own unit.
+
+    The window this opens is the one ``agent_runs_in_flight`` cannot see: it
+    starts where the turn's monotonic anchor is taken and ends when the handler
+    leaves by any path — including the fourteen terminal transitions of the
+    commit phase and every refusal above them. A counter that leaked on a raise
+    would wedge Stage 7's deferral permanently, so the release is asserted
+    through an exception and not only through a clean exit.
+    """
+
+    from agent_runtime import turn_activity
+
+    assert turn_activity.chat_turns_admitted() == 0
+    with turn_activity.admitted_turn():
+        assert turn_activity.chat_turns_admitted() == 1
+        with turn_activity.admitted_turn():
+            assert turn_activity.chat_turns_admitted() == 2
+        assert turn_activity.chat_turns_admitted() == 1
+    assert turn_activity.chat_turns_admitted() == 0
+
+    with pytest.raises(RuntimeError):
+        with turn_activity.admitted_turn():
+            raise RuntimeError("a turn that died inside its admitted window")
+    assert turn_activity.chat_turns_admitted() == 0
+
+
+def test_the_admitted_counter_is_its_OWN_authority_and_not_the_runners():
+    """One counter, one meaning. ``agent_runs_in_flight`` keeps its callers and
+    its definition (a run inside ``ProfileAgentRunner.run()``); this one counts
+    a turn from its anchor. Stage 7 reads ``admitted() or running()`` precisely
+    because they are different facts about different spans — collapsing them
+    here would delete the distinction the whole stage turns on."""
+
+    from agent_runtime import profile_runner, turn_activity
+
+    with turn_activity.admitted_turn():
+        assert turn_activity.chat_turns_admitted() == 1
+        assert profile_runner.agent_runs_in_flight() == 0
+    with profile_runner._counted_agent_run():
+        assert profile_runner.agent_runs_in_flight() == 1
+        assert turn_activity.chat_turns_admitted() == 0
+
+
+def test_the_deferral_receipt_says_how_many_turns_were_ADMITTED_at_exit(
+    monkeypatch, caplog
+):
+    """Stage 6's half of CP-2 on this line: a second number, no new decision.
+
+    ``runs_in_flight_at_exit`` answers "was a run still going when I gave up",
+    and on 2026-09-07 the answer was ``1`` on the three deferrals that fired —
+    all of them during turn 3's PROVIDER wait, none during the pre-admit span
+    turns 1 and 2 spent three seconds in. ``admitted_at_exit`` is what makes
+    that second window visible on the same line, so Stage 7's before/after is
+    read off receipts rather than argued.
+
+    *Killing mutation:* log the runs counter under both names and the two
+    numbers agree on every line, which is the state this key exists to end.
+    """
+
+    from agent_runtime import turn_activity
+
+    _in_flight(monkeypatch, [1])
+    clock = _FakeClock()
+    with caplog.at_level("INFO", logger=stream_mod.logger.name):
+        with turn_activity.admitted_turn():
+            _defer_demote_build_for_active_turns(
+                reason=BATCH_REASON_DEMOTE,
+                caller="hub",
+                sleeper=clock.sleep,
+                clock=clock,
+            )
+    lines = [
+        r.getMessage()
+        for r in caplog.records
+        if "snapshot_build_deferred" in r.getMessage()
+    ]
+    assert len(lines) == 1
+    assert "admitted_at_exit=1" in lines[0]
+    assert "runs_in_flight_at_exit=1" in lines[0]
+
+
+def test_an_unreadable_admitted_counter_reads_unknown_and_never_zero(
+    monkeypatch, caplog
+):
+    """The same absent-never-zero rule the whole plan is about, on a log line.
+
+    ``admitted_at_exit=0`` is a finding — no turn was admitted when this build
+    gave up waiting. "I could not ask" is not that finding, and a line that
+    spelled them identically would be evidence for a conclusion nobody reached.
+    """
+
+    _in_flight(monkeypatch, [1])
+    monkeypatch.setattr(stream_mod, "_chat_turns_admitted", lambda: None)
+    clock = _FakeClock()
+    with caplog.at_level("INFO", logger=stream_mod.logger.name):
+        _defer_demote_build_for_active_turns(
+            reason=BATCH_REASON_DEMOTE,
+            caller="hub",
+            sleeper=clock.sleep,
+            clock=clock,
+        )
+    line = [
+        r.getMessage()
+        for r in caplog.records
+        if "snapshot_build_deferred" in r.getMessage()
+    ][0]
+    assert "admitted_at_exit=unknown" in line
+
+
+def test_stage_six_changes_no_deferral_DECISION(monkeypatch):
+    """The stage's own boundary, asserted rather than promised.
+
+    CP-2's counter is built here as an INSTRUMENT; Stage 7 is where the
+    deferral starts reading it. A demote build requested while a turn is
+    admitted but not yet running must therefore still proceed today — and this
+    row is the one Stage 7 flips.
+    """
+
+    from agent_runtime import turn_activity
+
+    _in_flight(monkeypatch, [0])
+    clock = _FakeClock()
+    with turn_activity.admitted_turn():
+        waited = _defer_demote_build_for_active_turns(
+            reason=BATCH_REASON_DEMOTE,
+            caller="hub",
+            sleeper=clock.sleep,
+            clock=clock,
+        )
+    assert waited == 0
+    assert clock.slept == []
+
+
+def test_prewarm_overlapped_counts_a_construction_whose_span_intersects():
+    """Stage 6's second recorder, sampled exactly the way ``builds_overlapped``
+    is: spans on one monotonic clock, intersected with the turn's window.
+
+    §0.2's prewarm ran 5,750 ms across the WHOLE of turn 1's pre-admit span —
+    an LRU eviction closing eight OpenAI clients over ~1.1 s, a full ``check_fn``
+    sweep, a tool-search activation — and the only trace of it was a log line
+    nobody joins to a turn. Stage 7 does not move that eviction; it names it and
+    says a stage for it is written only if this receipt bills it. So the receipt
+    has to exist first.
+    """
+
+    from agent_runtime import persona_chat_actor_prewarm as prewarm
+
+    prewarm.reset_construction_spans_for_tests()
+    try:
+        assert prewarm.overlapping_constructions(start=0.0, end=10.0) is None, (
+            "a process that has never prewarmed cannot see the lane, and must "
+            "say so rather than report a zero"
+        )
+        prewarm.record_construction(started=2.0, ended=5.0)
+        assert prewarm.overlapping_constructions(start=0.0, end=1.0) == 0
+        assert prewarm.overlapping_constructions(start=0.0, end=2.0) == 1
+        assert prewarm.overlapping_constructions(start=3.0, end=4.0) == 1
+        assert prewarm.overlapping_constructions(start=5.0, end=9.0) == 1
+        assert prewarm.overlapping_constructions(start=6.0, end=9.0) == 0
+    finally:
+        prewarm.reset_construction_spans_for_tests()
+
+
+def test_a_prewarm_that_stood_DOWN_recorded_no_construction(monkeypatch):
+    """A yield is not a construction.
+
+    ``prewarm_chat_actor`` returns ``skipped_turn_active`` before it assembles
+    anything when a run is in flight, and billing that as a span would put a
+    zero-cost refusal into the count that Stage 7's eviction question turns on.
+    """
+
+    from agent_runtime import persona_chat_actor_prewarm as prewarm
+
+    monkeypatch.setattr(
+        prewarm, "_persona_chat_runtime_registry_present", lambda: True, raising=False
+    )
+    monkeypatch.setattr(
+        "agent_runtime.profile_runner.agent_runs_in_flight", lambda: 1
+    )
+    prewarm.reset_construction_spans_for_tests()
+    try:
+        outcome = prewarm.prewarm_chat_actor("chat-root-that-yields")
+        assert outcome in (
+            prewarm.OUTCOME_SKIPPED_TURN_ACTIVE,
+            prewarm.OUTCOME_REGISTRY_OFF,
+        )
+        assert prewarm.overlapping_constructions(start=0.0, end=10**9) is None
+    finally:
+        prewarm.reset_construction_spans_for_tests()
+
+
 def test_the_signal_is_the_runners_counter_and_not_a_second_authority():
     """The forwarder resolves to ``profile_runner.agent_runs_in_flight``.
 

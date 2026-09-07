@@ -48,14 +48,28 @@ from tests.hermes_cli.test_mission_chat_budget_payload import (  # type: ignore
 )
 
 #: A runner's dict as the codex lane fills it: the three durations RO-7 names,
-#: plus the cold/warm receipt and a neighbour that must NOT reach the block.
+#: chat-turn-prep Stage 6's fourth (``runtime_resolve_ms``, the memo Stage 10
+#: is about), plus the cold/warm receipt and a neighbour that must NOT reach the
+#: block.
 _RUNNER_TIMING = {
     "profile_conversation_turn_context_ms": 1_233,
     "profile_provider_responses_create_ms": 889,
     "profile_provider_stream_consume_ms": 1_630,
+    "runtime_resolve_ms": 512,
     "resident_actor_reused": 1,
     "agent_construct_ms": 4_012,
 }
+
+#: chat-turn-prep Stage 6 item 1: the four PRE-ADMIT marks the operator's
+#: question turns on, projected off the same ``phases`` block that already
+#: carried them. ``write_ahead_ms`` is CP-1's number — the one this plan is
+#: judged on — and the other three are what it decomposes into.
+_PRE_ADMIT_KEYS = (
+    "context_built_ms",
+    "observability_built_ms",
+    "write_ahead_ms",
+    "agent_ready_ms",
+)
 
 
 def _drive_capturing(monkeypatch, capsys, provider, *, turn_id, stream=True):
@@ -118,7 +132,7 @@ def timed_payload(monkeypatch, capsys, isolate_agent_runtime_root, scripted_mark
     return payload, _record_on_disk(isolate_agent_runtime_root, "timing_block_ok")
 
 
-def test_the_terminal_payload_carries_the_seven_key_timing_block(timed_payload):
+def test_the_terminal_payload_carries_the_whole_timing_block(timed_payload):
     """The frame the launcher folds, with the split it could not see before.
 
     *Killing mutation:* drop the ``MISSION_CHAT_TURN_TIMING_KEY`` entry from
@@ -131,12 +145,61 @@ def test_the_terminal_payload_carries_the_seven_key_timing_block(timed_payload):
     assert block["turn_context_ms"] == 1_233
     assert block["responses_create_ms"] == 889
     assert block["stream_consume_ms"] == 1_630
+    assert block["runtime_resolve_ms"] == 512
     assert block["resident_actor_reused"] is True
     # The two that come from the record's own marks rather than the runner's
     # namespace: elapsed ms off the turn's anchor, and the Stage-4 count.
     assert isinstance(block["request_assembled_ms"], int)
     assert isinstance(block["provider_first_byte_ms"], int)
     assert block["builds_overlapped"] == 1
+
+
+def test_the_pre_admit_split_reaches_the_payload_the_operator_greps(timed_payload):
+    """chat-turn-prep Stage 6 item 1, CP-1's number on the wire.
+
+    The operator's question — "why is a local turn twice the Mac's?" — is
+    answered by ``write_ahead_ms`` and the two spans it decomposes into, and
+    until this stage the only place to read them was the ledger file. A launcher
+    line cannot join a file it cannot open on the other machine.
+
+    *Killing mutation:* drop ``write_ahead`` from ``_TIMING_FROM_PHASES`` and
+    this row reds on the missing key while every pre-Stage-6 row stays green.
+    """
+
+    payload, _record = timed_payload
+    block = payload[TURN_TIMING_KEY]
+    for key in _PRE_ADMIT_KEYS:
+        assert key in block, f"{key} must project onto the terminal payload"
+        assert isinstance(block[key], int) and not isinstance(block[key], bool)
+    values = [block[key] for key in _PRE_ADMIT_KEYS]
+    assert values == sorted(values), f"the pre-admit marks are out of order: {values}"
+    # The bundle-build receipt CP-7 names the component for. A measured ``0`` is
+    # the answer that acquits the bundle, so it is an int, never a truthiness.
+    assert isinstance(block["visibility_bundle_builds"], int)
+
+
+def test_the_pre_admit_keys_are_COPIES_of_the_records_own_marks(timed_payload):
+    """"Copied, never derived" for the six new keys specifically.
+
+    Every one of them is already on the durable record; this block renames them
+    and nothing else. A projection that RE-READ a clock here would drift from
+    the ledger the operator joins it against.
+    """
+
+    payload, record = timed_payload
+    block = payload[TURN_TIMING_KEY]
+    phases = record[TURN_PHASES_KEY]
+    for wire_key, mark in zip(_PRE_ADMIT_KEYS, (
+        "context_built",
+        "observability_built",
+        "write_ahead",
+        "agent_ready",
+    )):
+        assert block[wire_key] == phases[mark]
+    assert block["visibility_bundle_builds"] == phases["visibility_bundle_builds"]
+    assert block["runtime_resolve_ms"] == record[TURN_PROFILE_TIMING_KEY][
+        "runtime_resolve_ms"
+    ]
 
 
 def test_the_block_is_a_copy_of_the_ledger_record_and_not_a_second_reading(
@@ -280,8 +343,10 @@ def test_the_projection_reads_both_instruments_and_renames_neither_wrongly():
         "builds_overlapped": 3,
         "resident_actor_reused": False,
     }
-    # The order a person reads a turn in, not the order the sources are in.
-    assert list(block) == list(TURN_TIMING_ORDER)
+    # The order a person reads a turn in, not the order the sources are in —
+    # over the keys this scripted input actually measured, since Stage 6's six
+    # are absent from a ``phases`` block that carries only RO-7's three marks.
+    assert list(block) == [key for key in TURN_TIMING_ORDER if key in block]
 
 
 def test_a_zero_that_was_MEASURED_survives():
@@ -322,3 +387,87 @@ def test_a_true_in_a_duration_slot_is_corruption_not_one_millisecond():
     assert turn_timing_block(
         phases={"provider_first_byte": True}, profile_timing={}
     ) is None
+
+
+# --------------------------------------------------------------------------- #
+# 4. Stage 6's six, at the projection's unit                                    #
+# --------------------------------------------------------------------------- #
+def test_the_projection_copies_the_pre_admit_marks_under_their_wire_names():
+    block = turn_timing_block(
+        phases={
+            "context_built": 468,
+            "observability_built": 906,
+            "write_ahead": 906,
+            "agent_ready": 952,
+            "visibility_bundle_builds": 2,
+        },
+        profile_timing={"runtime_resolve_ms": 12},
+    )
+
+    assert block == {
+        "context_built_ms": 468,
+        "observability_built_ms": 906,
+        "write_ahead_ms": 906,
+        "agent_ready_ms": 952,
+        "visibility_bundle_builds": 2,
+        "runtime_resolve_ms": 12,
+    }
+    assert list(block) == [key for key in TURN_TIMING_ORDER if key in block]
+
+
+@pytest.mark.parametrize("key", _PRE_ADMIT_KEYS + ("visibility_bundle_builds",))
+def test_a_pre_admit_phase_the_turn_never_reached_has_NO_KEY(key):
+    """The absence rule, applied to the new half.
+
+    A turn refused at the replay guard never reaches ``write_ahead``. A
+    ``write_ahead_ms`` of ``0`` on it would read as the fastest admission ever
+    measured — and CP-1 judges this plan on exactly that number, so the one
+    value it must never invent is a zero.
+    """
+
+    block = turn_timing_block(
+        phases={"request_received": 0, "context_built": 41}, profile_timing={}
+    )
+
+    assert block is not None
+    if key == "context_built_ms":
+        assert block[key] == 41
+    else:
+        assert key not in block, f"{key} materialized as {block.get(key)!r}"
+
+
+@pytest.mark.parametrize(
+    "mark", ["context_built", "observability_built", "write_ahead", "agent_ready"]
+)
+def test_a_bool_in_one_of_the_new_ms_SLOTS_is_dropped(mark):
+    """``bool`` is an ``int`` subclass. A ``True`` here is corruption, and the
+    block is sanitized on the way OUT because it is read straight off a wire
+    frame by a consumer that will render it."""
+
+    block = turn_timing_block(phases={mark: True}, profile_timing={})
+
+    assert block is None or f"{mark}_ms" not in block
+
+
+def test_the_new_keys_did_not_displace_the_old_ones():
+    """Additive in the strict sense: every RO-7 key keeps its name and its
+    position relative to the others, so a consumer written against the
+    pre-Stage-6 block reads the payload exactly as before."""
+
+    assert TURN_TIMING_ORDER[:7] == (
+        "turn_context_ms",
+        "request_assembled_ms",
+        "provider_first_byte_ms",
+        "responses_create_ms",
+        "stream_consume_ms",
+        "builds_overlapped",
+        "resident_actor_reused",
+    )
+    assert set(TURN_TIMING_ORDER[7:]) == {
+        "context_built_ms",
+        "observability_built_ms",
+        "write_ahead_ms",
+        "agent_ready_ms",
+        "visibility_bundle_builds",
+        "runtime_resolve_ms",
+    }

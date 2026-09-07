@@ -385,6 +385,23 @@ class MissionChatTurnPlan:
     #: caller that could not measure is not forced to invent a value.
     session_db_open_ms: object = None
 
+    #: chat-turn-prep CP-7: the near end of the chat-lane bundle's
+    #: moved-key-component window, sampled at the ANCHOR, or ``None`` when the
+    #: bundle module could not be consulted.
+    #:
+    #: Carried here for exactly the reason ``session_db_open_ms`` is: the cursor
+    #: has to be taken in ``_cmd_mission_chat_message`` before the turn does any
+    #: work, and the names it opens are read in ``_mission_chat_commit_turn``,
+    #: which is a different function. The list it indexes into is thread-local
+    #: and cumulative (``chat_lane_bundle.key_material_moves_this_thread``) — a
+    #: counter this lane RESET would let two overlapping turns on one pooled
+    #: serve thread destroy each other's measurement, which is the rule
+    #: ``registry_probe_rounds`` and ``visibility_bundle_builds`` already follow.
+    #:
+    #: ``None`` means the window was never opened, and the turn then names no
+    #: component rather than inheriting the previous turn's.
+    bundle_key_material_cursor: object = None
+
 
 @dataclass(slots=True)
 class MissionChatDeferredFinalization:

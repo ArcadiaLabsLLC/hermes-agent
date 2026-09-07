@@ -101,6 +101,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import time
 from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
@@ -128,6 +129,34 @@ PROMPT_CONTRACT_REVISION = "mc-chat-continuity-v1"
 
 #: Surface name the required-skill preload policy keys on.
 PRELOAD_SURFACE = "mission_chat"
+
+#: chat-turn-prep Stage 6 item 2: the sub-spans this builder measures, in the
+#: order it performs them. ``context_built`` is ONE number on the phase block —
+#: 468–1,813 ms live, 136–1,171 ms in the §0.3 sandbox — and the profile said
+#: 984 of a cold 1,171 was the skill-root walk behind ``_resolve_skill_preload``
+#: and ~90 was the HUD's roster of 11. Neither is readable from the mark.
+#:
+#: The keys are the handler's, not this module's: it folds them into the turn's
+#: ``profile_timing`` beside ``session_db_open_ms``, where the store's
+#: ``safe_turn_profile_timing`` bounds them. They are INSTRUMENTS — nothing
+#: downstream may branch on one.
+CONTEXT_TIMING_KEYS: tuple[str, ...] = (
+    "context_skill_preload_ms",
+    "context_hud_ms",
+    "context_signature_ms",
+)
+
+
+def _elapsed_ms(started: float) -> int:
+    """Whole milliseconds since ``started``, clamped at zero.
+
+    ``time.monotonic`` by construction (never a wall clock): these spans are
+    subtracted from each other and compared against the turn's own monotonic
+    marks, and an NTP step inside a turn must not be able to produce a negative
+    "duration" on a durable record.
+    """
+
+    return max(0, int((time.monotonic() - float(started)) * 1000))
 
 
 # ── volatile-tail roster ─────────────────────────────────────────────────────
@@ -332,6 +361,12 @@ class MissionChatTurnContext:
     #: Defaulted so a caller that only wants the composite (and every test that
     #: constructs this object by hand) is unchanged.
     runtime_signature_digests: dict[str, str] = field(default_factory=dict)
+    #: chat-turn-prep Stage 6 item 2 — :data:`CONTEXT_TIMING_KEYS` → elapsed ms,
+    #: for the sub-spans this build actually performed. An INSTRUMENT the
+    #: handler folds onto ``profile_timing``: no consumer may branch on it, and
+    #: an empty mapping is what a hand-constructed context (or one built through
+    #: a resolver set that skipped a step) honestly reports.
+    timings: dict[str, int] = field(default_factory=dict)
 
     # — convenience projections the CLI body used to hold as locals —
 
@@ -411,12 +446,18 @@ def build_mission_chat_turn_context(
     # survives" and silently re-snapshots every turn.
     history = list(native_history or ())
 
+    #: Stage 6 item 2's accumulator. Filled as each sub-span closes, so a build
+    #: that raises part-way carries nothing rather than a half-attributed span.
+    timings: dict[str, int] = {}
+
+    _started = time.monotonic()
     skills = _resolve_skill_preload(
         persona=persona,
         session_id=session_id,
         native_history=history,
         resolvers=resolvers,
     )
+    timings["context_skill_preload_ms"] = _elapsed_ms(_started)
 
     workspace_agents = resolvers.load_workspace_agents(agents_file)
     workspace_agents_receipt = None
@@ -433,6 +474,7 @@ def build_mission_chat_turn_context(
     # the input that moved. Deriving them from the same components dict is what
     # keeps the diff honest — a second composition could name a component the
     # key was never built from.
+    _started = time.monotonic()
     signature_components = mission_chat_runtime_signature_components(
         persona=persona,
         instance=instance,
@@ -450,6 +492,12 @@ def build_mission_chat_turn_context(
     runtime_signature_digests = mission_chat_runtime_signature_digests(
         signature_components
     )
+    # The composition AND both folds, as one span: they read the same components
+    # dict and splitting them would bill a hash separately from the resolve that
+    # produced its input. The tool contract and permission state inside the
+    # components come through the chat-lane bundle, so on a turn that rebuilt
+    # the bundle this span is where that rebuild is paid.
+    timings["context_signature_ms"] = _elapsed_ms(_started)
 
     # Wall budget for this turn, resolved ONCE (single authority: the same object
     # arms the runner's checkpoint clamp and renders the agent's budget line). A
@@ -471,12 +519,14 @@ def build_mission_chat_turn_context(
     # body.
     capability = resolvers.capability_block(persona, session_id=session_id) or {}
 
+    _started = time.monotonic()
     situational_hud = (
         resolvers.situational_hud(
             instance, turn_budget=wall_budget.hud_block(), capability=capability
         )
         or {}
     )
+    timings["context_hud_ms"] = _elapsed_ms(_started)
     revision = situational_hud_revision(situational_hud)
     delivery = runtime_context_delivery(history, revision)
 
@@ -500,6 +550,7 @@ def build_mission_chat_turn_context(
         runtime_signature=runtime_signature,
         volatile_tail=volatile_tail,
         runtime_signature_digests=runtime_signature_digests,
+        timings=timings,
     )
 
 
