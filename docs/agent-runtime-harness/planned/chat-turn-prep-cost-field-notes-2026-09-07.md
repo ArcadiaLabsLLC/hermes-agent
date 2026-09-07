@@ -397,7 +397,49 @@ rewriting prose this stage was not asked to touch. **Rowed for whoever owns the
 lines of `_a_turn_holds_the_gil`, which is unavoidable for a contiguous range
 citing code that was split by an insertion.
 
-### 3.6 Deviations from the plan text
+### 3.6 The cross-stack checks, and the one fixture Fable must re-capture
+
+Both launcher-side hermes checks were run against this candidate, sandboxed:
+
+| check | result |
+|---|---|
+| `tool/test_quality/check_producer_contracts.py --hermes-root=X:/wt/prep-stage7` | **exit 0** — `producer contract fixtures match Hermes: stream frames + response envelopes` |
+| `tool/hermes_serve_frames/generate.py --hermes-root=X:/wt/prep-stage7 --check` | **exit 1** — `ready.json: committed bytes differ from a fresh capture` |
+| the same generator against clean hermes main `68b8361de0` | exit 0 (control — the red is this branch's, not the tree's) |
+
+**The red was read rather than regenerated away.** A fresh capture from this
+branch was diffed against the committed fixture, and **exactly two fields
+move**:
+
+```
+capture.hermes_commit : 3eb8cd43a2… -> 4a59b76fc9…
+frame.build.code_tree : c3864c6291… -> 60e5a4a692…
+```
+
+`hermes_commit` is capture provenance, not a frame field (the checker ignores
+it — it prints `captured from …, probed …` notes for all 24 other frames and
+passes them). `build.code_tree` is the build-identity hash landed on
+2026-09-07 by `3eb8cd43a2` — "a commit is not a build, so the row says which
+code" — and it is a hash OF `agent_runtime`. **No field the launcher's decoder
+switches on moved.** That is the evidence for "Stage 7 changes no wire
+contract", and it is why this is a fixture recapture rather than a contract
+change.
+
+**Deliberately NOT re-captured on this branch.** The captured `code_tree` and
+`hermes_commit` are this branch tip's, and both are wrong the moment the branch
+is rebased or landed — Fable's landed sha is not `4a59b76fc9`. Committing them
+here would bake a stale hash into a byte-pinned fixture and hand the next reader
+a green gate certifying the wrong build. **Landing step for Fable:** after
+Stage 7 is on hermes main, re-run
+
+```
+python tool/hermes_serve_frames/generate.py --hermes-root=<landed hermes main> --python=<interpreter>
+```
+
+and commit the refreshed `ready.json` in the launcher, exactly as launcher
+`0691128d9` did when `code_tree` first landed.
+
+### 3.7 Deviations from the plan text
 
 1. **The union is a named helper, not an inline `or`.** `_a_turn_holds_the_gil`
    exists so the `None`-is-unknown rule is stated once and tested once, rather
@@ -413,11 +455,13 @@ citing code that was split by an insertion.
    (`test_an_unreadable_admitted_counter_still_defers_for_a_live_run`). Going
    from one gauge to two makes "unknown" ambiguous in a way it was not before,
    and nothing in the brief's list covered it.
-4. **No launcher slice.** Stage 7 changes no wire, projection or timing key, so
-   the producer-contract check and the serve-frame generator have nothing to
-   re-derive and no fixture moves. Fable should still run them as landing proof.
+4. **No launcher CODE slice, but one launcher fixture must be re-captured at
+   landing.** Stage 7 changes no wire, projection or timing key — proved, not
+   asserted, in §3.6 below. It does, however, change `agent_runtime` source, and
+   the `ready` frame carries `build.code_tree`, a hash OF that source. So the
+   byte-pinned `ready.json` fixture moves by design.
 
-### 3.7 Owed — what this branch does NOT establish
+### 3.8 Owed — what this branch does NOT establish
 
 * **The number.** CP-1's verdict for Stage 7 is a field read, not a test result:
   ten consecutive PC agent-chat turns with pre-admit build overlap zero on ≥ 9,
