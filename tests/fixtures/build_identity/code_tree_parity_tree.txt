@@ -11,7 +11,7 @@
 # not say so.
 
 hermes_cli/harness_parts/serve.py	8888888888888888888888888888888888888888
-docs/agent-runtime-harness/00-index.md	7777777777777777777777777777777777777777
+docs/agent-runtime-harness/index.rst	7777777777777777777777777777777777777777
 agent_runtime/serve_socket.py	5555555555555555555555555555555555555555
 README.md	3333333333333333333333333333333333333333
 tests/agent_runtime/test_build_identity.py	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

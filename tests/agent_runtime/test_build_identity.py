@@ -57,7 +57,7 @@ PARITY_DIGEST = "10272b75505713833a1fb812e706b961e1d43a50"
 #: The bytes of the fixture, so "byte-equal in both repos" is a measurement.
 #: The launcher pins the same sha256 over its own copy.
 PARITY_FIXTURE_SHA256 = (
-    "9acf6529f8095872fae8b4c4fb2458e67a9690cb3bf266b4316ee2dacd015e79"
+    "2915319d2107307915eb6d4c9c3abf67f9428842a47e17866525b9f6a71b9a11"
 )
 
 
