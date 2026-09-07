@@ -58,16 +58,40 @@ def _in_flight(monkeypatch, values):
     monkeypatch.setattr(stream_mod, "_agent_runs_in_flight", _read)
 
 
-def test_the_bound_is_one_second_and_is_a_constant_not_a_literal():
-    """The doctrine value itself, pinned.
+def _admitted(monkeypatch, values):
+    """Drive ``_chat_turns_admitted`` from a script; the last value repeats.
 
-    The plan says "hundreds of ms, not a starvation" and the module comment
-    commits to one second. Asserting the behaviour against the constant alone
-    would let a later edit move both together and stay green, so the VALUE is
-    pinned here and the behaviour is pinned against the constant below.
+    The mirror of :func:`_in_flight`, and deliberately a SECOND script rather
+    than one fused gauge: Stage 7's whole subject is the window where the two
+    counters disagree — a turn admitted at the handler anchor with no runner
+    yet — so a test that could not say "admitted 1, running 0" could not state
+    the bug.
     """
 
-    assert SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS == 1000
+    script = list(values)
+
+    def _read():
+        return script.pop(0) if len(script) > 1 else script[0]
+
+    monkeypatch.setattr(stream_mod, "_chat_turns_admitted", _read)
+
+
+def test_the_bound_covers_the_measured_pre_admit_p95_and_is_a_constant():
+    """The doctrine value itself, pinned — CP-3's number, not a round one.
+
+    Stage 5 chose one second for a window that opened at
+    ``ProfileAgentRunner.run()``. Stage 7 makes the wait cover the span from
+    the handler's anchor instead, and that span was MEASURED: §0.1's
+    ``write_ahead`` p95 on 2026-09-07 is 3,172 ms (3,172 / 2,796 / 906). A
+    bound shorter than the span it now protects would release the build back
+    into the middle of the turn it just stood aside for.
+
+    Asserting the behaviour against the constant alone would let a later edit
+    move both together and stay green, so the VALUE is pinned here and the
+    behaviour is pinned against the constant below.
+    """
+
+    assert SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS == 3500
 
 
 def test_a_non_demote_lane_never_defers(monkeypatch):
@@ -339,28 +363,180 @@ def test_an_unreadable_admitted_counter_reads_unknown_and_never_zero(
     assert "admitted_at_exit=unknown" in line
 
 
-def test_stage_six_changes_no_deferral_DECISION(monkeypatch):
-    """The stage's own boundary, asserted rather than promised.
+# ── Stage 7: the deferral DECIDES on the admitted counter ────────────────────
+#
+# Stage 6 built CP-2's counter and wrote what it saw onto the receipt
+# (``admitted_at_exit=``) while the DECISION stayed ``_agent_runs_in_flight()``
+# alone. The row above this block used to assert exactly that boundary
+# ("a demote build requested while a turn is admitted but not yet running must
+# still proceed today — and this row is the one Stage 7 flips"). This is that
+# flip: the four tests below are the same seam read the other way round.
 
-    CP-2's counter is built here as an INSTRUMENT; Stage 7 is where the
-    deferral starts reading it. A demote build requested while a turn is
-    admitted but not yet running must therefore still proceed today — and this
-    row is the one Stage 7 flips.
+
+def test_admitted_before_runner_defers_demote(monkeypatch):
+    """The window Stage 5 could not see, now held.
+
+    §0.1's turns 1 and 2 spent 3,172 and 2,796 ms between the handler's anchor
+    and ``write_ahead`` with a led core build burning the same GIL, and the
+    deferral saw nothing the whole time because ``_counted_agent_run`` does not
+    increment until ``ProfileAgentRunner.run()``. Admitted 1 / running 0 is
+    precisely that state, and it must now hold the build.
+
+    The release is asserted at the NEXT POLL rather than instantly, because
+    that is the real mechanism: the wait loop re-samples, and a test that
+    accepted an immediate return would also pass against a deferral that never
+    slept at all.
+    """
+
+    _in_flight(monkeypatch, [0])
+    _admitted(monkeypatch, [1, 1, 0])
+    clock = _FakeClock()
+    waited = _defer_demote_build_for_active_turns(
+        reason=BATCH_REASON_DEMOTE,
+        caller="hub",
+        sleeper=clock.sleep,
+        clock=clock,
+    )
+    assert waited > 0, (
+        "a turn admitted at its anchor with no runner yet is the exact state "
+        "§0.1's turns 1 and 2 were in — the demote build must stand aside"
+    )
+    assert clock.slept, "standing aside means sleeping, not returning a number"
+    assert waited < SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS, (
+        "admission was released mid-wait; the build must resume at the next "
+        "poll rather than serve out the whole bound"
+    )
+
+
+def test_admission_release_exception_and_refusal_do_not_leak(monkeypatch):
+    """A leaked count would wedge the demote lane for the life of the process.
+
+    Stage 6 could afford a leak — nothing read the counter. Stage 7 cannot: an
+    admission that survived its handler would hold every subsequent demote
+    build for the full 3.5 s bound, forever. So this exercises the REAL
+    ``turn_activity`` cleanup (not the scripted gauge) across the two exits the
+    mission-chat handler actually takes — a raise from inside the window, and
+    an ordinary early refusal — and then proves the next build is free.
     """
 
     from agent_runtime import turn_activity
 
+    assert turn_activity.chat_turns_admitted() == 0
+
+    with pytest.raises(RuntimeError):
+        with turn_activity.admitted_turn():
+            raise RuntimeError("a turn that died between its anchor and write_ahead")
+    assert turn_activity.chat_turns_admitted() == 0
+
+    def _refuse_early():
+        with turn_activity.admitted_turn():
+            return "refused_before_write_ahead"
+
+    assert _refuse_early() == "refused_before_write_ahead"
+    assert turn_activity.chat_turns_admitted() == 0
+
+    # The real counter, unscripted, reading the real zero left behind.
     _in_flight(monkeypatch, [0])
     clock = _FakeClock()
-    with turn_activity.admitted_turn():
-        waited = _defer_demote_build_for_active_turns(
-            reason=BATCH_REASON_DEMOTE,
-            caller="hub",
-            sleeper=clock.sleep,
-            clock=clock,
-        )
+    waited = _defer_demote_build_for_active_turns(
+        reason=BATCH_REASON_DEMOTE,
+        caller="hub",
+        sleeper=clock.sleep,
+        clock=clock,
+    )
     assert waited == 0
     assert clock.slept == []
+
+
+def test_demote_bound_covers_two_seconds_but_releases_at_3500(monkeypatch):
+    """CP-3's bound at both of its edges, on a scripted clock.
+
+    Two claims, and they need each other. At 2,000 ms — past Stage 5's old
+    ceiling, inside the measured pre-admit p95 — the build is STILL held; that
+    is the whole reason the constant moved. At the bound it proceeds regardless,
+    so a wedged counter cannot starve the launcher's HUD.
+
+    The build that waited out the bound and then overlapped anyway is still
+    counted overlapped: nothing here touches the ledger, and the deferral must
+    not be able to launder its own failures out of ``builds_overlapped``.
+    """
+
+    _in_flight(monkeypatch, [0])
+    _admitted(monkeypatch, [1])  # a turn that never ends within the bound
+    clock = _FakeClock()
+
+    still_held_at_2000 = {}
+
+    def _sleep(seconds):
+        clock.sleep(seconds)
+        elapsed_ms = int((clock.now - 1_000.0) * 1000)
+        if elapsed_ms >= 2_000 and "answer" not in still_held_at_2000:
+            still_held_at_2000["answer"] = True
+
+    waited = _defer_demote_build_for_active_turns(
+        reason=BATCH_REASON_DEMOTE, caller="hub", sleeper=_sleep, clock=clock
+    )
+    assert still_held_at_2000.get("answer") is True, (
+        "at 2,000 ms — past Stage 5's old 1,000 ms ceiling — an admitted turn "
+        "must still be holding the build; that is why CP-3 moved the constant"
+    )
+    assert waited == SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS == 3500, (
+        "the bound is a ceiling on the WHOLE deferral: once it elapses the "
+        "build proceeds no matter what is admitted"
+    )
+
+
+def test_hydrate_full_core_and_cancel_preserve_bypass(monkeypatch):
+    """Stage 7 widens WHO the demote lane yields to, never WHICH lanes yield.
+
+    The exclusions are the safety argument and they are unchanged: the boot /
+    hydrate job and the ``full_core`` lane are a consumer waiting on an answer,
+    not a cadence rebuilding state nobody asked for. Making an operator's first
+    paint wait on a chat turn would trade this inflation for a worse one. And a
+    consumer that went away must not be waited FOR.
+    """
+
+    for reason in ("full_core", "hydrate", "boot"):
+        _in_flight(monkeypatch, [0])
+        _admitted(monkeypatch, [3])
+        clock = _FakeClock()
+        waited = _defer_demote_build_for_active_turns(
+            reason=reason, caller="hub", sleeper=clock.sleep, clock=clock
+        )
+        assert waited == 0, f"{reason} must never wait on an admitted turn"
+        assert clock.slept == [], f"{reason} must not sleep at all"
+
+    _in_flight(monkeypatch, [0])
+    _admitted(monkeypatch, [1])
+    monkeypatch.setattr(stream_mod, "request_cancelled", lambda: True)
+    clock = _FakeClock()
+    waited = _defer_demote_build_for_active_turns(
+        reason=BATCH_REASON_DEMOTE, caller="hub", sleeper=clock.sleep, clock=clock
+    )
+    assert waited == 0
+    assert clock.slept == []
+
+
+def test_an_unreadable_admitted_counter_still_defers_for_a_live_run(monkeypatch):
+    """``None`` is unknown, and unknown is not a veto over the OTHER counter.
+
+    The forwarders answer ``None`` when the module cannot be consulted at all.
+    Stage 5's rule — treat unknown as "do not defer" — was written when there
+    was one gauge. With two, an unreadable admitted counter must degrade to
+    Stage 5's exact behaviour rather than suppress a deferral a live run had
+    already earned.
+    """
+
+    _in_flight(monkeypatch, [2, 2, 0])
+    _admitted(monkeypatch, [None])
+    clock = _FakeClock()
+    waited = _defer_demote_build_for_active_turns(
+        reason=BATCH_REASON_DEMOTE, caller="hub", sleeper=clock.sleep, clock=clock
+    )
+    assert waited > 0, (
+        "an unreadable admitted counter must not cancel the deferral a "
+        "readable run counter earned"
+    )
 
 
 def test_prewarm_overlapped_counts_a_construction_whose_span_intersects():

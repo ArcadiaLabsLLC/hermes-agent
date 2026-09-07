@@ -94,14 +94,26 @@ denied.** Both are the first turn's own work, performed earlier:
 **It yields to real work.** ``_WORKDIR_LOCK`` serializes every run in the
 process, so a construction holding it while an operator message arrives ADDS
 ~3 s to that turn instead of removing it. The guard is
-``profile_runner.agent_runs_in_flight()``, read immediately before the scope
-stack is entered: if any real run is in flight this item stands down
-(``skipped_turn_active``) rather than queueing behind it. Constructions are
-serialized one at a time on a single daemon worker, so at most one is ever in
-flight; and the residual race — a turn arriving DURING a construction — is
-bounded by that one construction and is a NO-OP when the turn is for the same
-chat root, which is the common case at chat-open: that turn would have built
-this exact actor itself, and instead finds it.
+``turn_activity.chat_turns_admitted()`` OR ``profile_runner.agent_runs_in_flight()``
+— read immediately before the scope stack is entered, and again after
+``_prepare``: if a turn is admitted or any real run is in flight this item
+stands down (``skipped_turn_active``) rather than queueing behind it.
+
+The admitted half is chat-turn-prep Stage 7 (CP-2), and it is the half that
+fires. ``agent_runs_in_flight()`` counts from ``ProfileAgentRunner.run()``;
+a mission-chat turn is admitted at the handler's anchor and spends its whole
+pre-admit assembly before any runner exists. §0.2 measured the consequence:
+this prewarm ran ``elapsed_ms=5750`` across the ENTIRE pre-admit span of the
+turn the operator was typing — into the same chat root it was warming — and
+the run gauge read zero throughout.
+
+``turn_activity``'s process-wide count is the sole admission authority, and it
+covers the same-root case by construction: when any turn is admitted this
+stands down, the same-root prewarm included. That is the NO-OP case, now taken
+deliberately instead of raced — the turn would have built this exact actor
+itself, and instead finds it. Constructions are serialized one at a time on a
+single daemon worker, so at most one is ever in flight; the residual race, a
+turn arriving DURING a construction, is bounded by that one construction.
 
 Triggers
 --------
@@ -327,11 +339,26 @@ def prewarm_chat_actor(root_session_id: str, *, instance: Any = None) -> str:
         return OUTCOME_SKIPPED_NO_CHAT_ROOT
 
     from .profile_runner import agent_runs_in_flight
+    from .turn_activity import chat_turns_admitted
 
     # The yield decision, taken BEFORE anything expensive and before the scope
     # stack. See the module docstring: standing down costs a warm actor; queueing
     # behind a live turn costs that turn ~3 s.
-    if agent_runs_in_flight() > 0:
+    #
+    # Stage 7 / CP-2: an ADMITTED turn owns the GIL, not only a RUNNING one.
+    # §0.2's chat-open prewarm billed ``elapsed_ms=5750`` across the WHOLE of
+    # turn 1's pre-admit span, for the very root the operator was typing into,
+    # and this read saw nothing the entire time because ``_counted_agent_run``
+    # does not increment until ``ProfileAgentRunner.run()``.
+    #
+    # ``turn_activity``'s process-wide count is the SOLE admission authority and
+    # it already covers the same-root case: when any turn is admitted this
+    # stands down, including the prewarm for that turn's own root — which is the
+    # no-op the module docstring names (that turn would build this exact actor
+    # itself, and instead finds it). No per-root admission map is minted here;
+    # the GIL this yields to is process-wide, so the counter that guards it is
+    # too.
+    if chat_turns_admitted() > 0 or agent_runs_in_flight() > 0:
         return OUTCOME_SKIPPED_TURN_ACTIVE
 
     # Stage 6's span opens PAST the yield and covers everything after it: the
@@ -354,10 +381,17 @@ def prewarm_chat_actor(root_session_id: str, *, instance: Any = None) -> str:
             return OUTCOME_SKIPPED_CONSTRUCT_FAILED
 
         request, runner = prepared
-        # Re-read the gauge: assembling the request above reads SessionDB and
+        # Re-read the gauges: assembling the request above reads SessionDB and
         # resolves the lane bundle, which is where a turn that arrived meanwhile
-        # would now be. Cheap insurance against the widest part of the window.
-        if agent_runs_in_flight() > 0:
+        # would now be. Cheap insurance against the widest part of the window —
+        # and under Stage 7 it is the check that actually fires, because a turn
+        # arriving during ``_prepare`` is ADMITTED long before it runs.
+        #
+        # Refusing here still leaves the preparation span honestly recorded:
+        # ``_prepare`` really did run and really did cost something. What this
+        # prevents is the CONSTRUCTION — the expensive half — colliding with the
+        # turn.
+        if chat_turns_admitted() > 0 or agent_runs_in_flight() > 0:
             return OUTCOME_SKIPPED_TURN_ACTIVE
         try:
             timing = runner.prewarm(request)

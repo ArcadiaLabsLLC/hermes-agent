@@ -78,7 +78,7 @@ the create receipt (`agent_create_phases.py:23-24`) then inherited verbatim.
    aids behind a flag: the phases block rides persists the turn already performs
    (`:37-39`), the snapshot receipts ride the ordinary `Logger` family so
    `hermes serve` lands them in `agent.log` with no extra flag
-   (`snapshot.py:397-398`, `stream.py:150-151`), and the launcher's lines reach
+   (`snapshot.py:397-398`, `stream.py:181-182`), and the launcher's lines reach
    the diag tee in release too.
 5. **Never subtract wall stamps across processes.** `anchored_at` is the single
    wall stamp on a turn record, and exists only for eyeballing the turn against
@@ -107,7 +107,7 @@ the create receipt (`agent_create_phases.py:23-24`) then inherited verbatim.
    the two will drift. `build_receipt_facts` (`snapshot.py:324-336`) READS
    `build_ms` off the envelope the build stamped rather than re-timing it;
    `snapshot_build`'s deprecated `elapsed_ms=` carries the identical value as
-   `waited_ms=` (`stream.py:166-169`); `agent_create_phases` repeats
+   `waited_ms=` (`stream.py:197-200`); `agent_create_phases` repeats
    `instance_ms` from the RPC result (`agent_create_phases.py:83-87`).
 
 **Rule 1 has a LIST form**: a list that was shortened is as much a silent zero
@@ -186,10 +186,10 @@ what the fixture mirror below enforces.
 | receipt (grep this) | emitter | consumer |
 |---|---|---|
 | `snapshot_build_core role=… caller=… generation=… build_ms=… offset=… sections_top=… pid=…` | `agent_runtime/snapshot.py:398-408` (fn `:369`, call site `:683`) | operator grep (`role=led` is the build count); `tests/agent_runtime/test_snapshot_build_logging.py:758` pins the prefix |
-| `snapshot_build reason=… waited_ms=… elapsed_ms=… build_ms=… role=… caller=… generation=… offset=… events=…` (+`sections_top=`, +`core_source=`, then `pid=` last) | `agent_runtime/stream.py:296-299` (fn `_log_snapshot_build` `:228`) | operator grep; a launcher in the field still parses `elapsed_ms` (`stream.py:261-262`); `tests/agent_runtime/test_stream_build_timing_log.py` |
+| `snapshot_build reason=… waited_ms=… elapsed_ms=… build_ms=… role=… caller=… generation=… offset=… events=…` (+`sections_top=`, +`core_source=`, then `pid=` last) | `agent_runtime/stream.py:336-339` (fn `_log_snapshot_build` `:268`) | operator grep; a launcher in the field still parses `elapsed_ms` (`stream.py:301-302`); `tests/agent_runtime/test_stream_build_timing_log.py` |
 | `snapshot_agents_readiness walk_ms=… tool_visibility_ms=… pid=…` | const `snapshot.py:432-434`, emitted `:449-454` | joins `snapshot_build_core` on `pid`; pinned by regex at `tests/agent_runtime/test_agents_readiness_attribution.py:51` |
-| `stream_attach op=… purpose=… … pid=…` | `agent_runtime/stream.py:244-250` | boot-investigation join (third `pid=`-bearing family) |
-| `stream_denied lane=… reason=… connection=… client=… transport=… tier=… pid=…` | `agent_runtime/stream.py:384-429`, emitted from `serve.py::_deny_subscribe` (`:4207`) | the other half of `stream_attach`: WHICH of the six subscribe refusals closed a lane, and on which connection. Added because a cockpit's stream to a second machine died 7 ms after its subscribe on 2026-09-04 and neither machine held the reason (R-D26); `tests/agent_runtime/test_serve_socket_lane.py` |
+| `stream_attach op=… purpose=… … pid=…` | `agent_runtime/stream.py:284-290` | boot-investigation join (third `pid=`-bearing family) |
+| `stream_denied lane=… reason=… connection=… client=… transport=… tier=… pid=…` | `agent_runtime/stream.py:424-469`, emitted from `serve.py::_deny_subscribe` (`:4207`) | the other half of `stream_attach`: WHICH of the six subscribe refusals closed a lane, and on which connection. Added because a cockpit's stream to a second machine died 7 ms after its subscribe on 2026-09-04 and neither machine held the reason (R-D26); `tests/agent_runtime/test_serve_socket_lane.py` |
 | `snapshot_core_cache …` / `snapshot_core_cache_write …` / `snapshot_core_shadow …` / `snapshot_core_cache_lane_closed …` | `agent_runtime/core_cache.py` — see the channel table below | `agent_runtime/core_cache_census.py` via `scripts/core_cache_demote_census.py` |
 | `persona_prewarm done persona=… elapsed_ms=…` | const `PREWARM_DONE_RECEIPT` (`persona_prewarm.py:171`), emitted by `_worker` | pacing census; pinned at `tests/agent_runtime/test_persona_prewarm.py:481` |
 | `persona_chat_actor_prewarm root=… outcome=… elapsed_ms=…` | const `persona_chat_actor_prewarm.py` (`CHAT_ACTOR_PREWARM_DONE_RECEIPT`), emitted in `_drain` | did the chat's actor get built before its first message; format pinned at `tests/agent_runtime/test_persona_chat_actor_prewarm.py` |
@@ -215,10 +215,10 @@ nothing at all (`snapshot.py:374-381`). A build that raised logs nothing: "the
 exception is the receipt" (`:685-686`). An injected-store (fixture) build emits
 no receipt (`:570-573`). `sections_top` rides every `snapshot_build_core`, and a
 WAIT line only when the build under it crossed `BUILD_SECTIONS_WAIT_THRESHOLD_MS`
-(`stream.py:177-182`). `pid=` goes LAST on
+(`stream.py:208-214`). `pid=` goes LAST on
 all three join families so no adjacency moves — an additive field, never a
 formatter change, because `%(process)d` would re-shape every line the runtime
-emits and break every grep anchored on a neighbour (`stream.py:142-148`).
+emits and break every grep anchored on a neighbour (`stream.py:173-179`).
 
 ### The core-cache family and its census
 
@@ -688,7 +688,7 @@ not by trusting the audit's own status.**
 | finding | then | now |
 |---|---|---|
 | `serve_rpc.py` baseline `or 0` — an unreadable event log became watermark 0, killing the sink's baseline gate and re-opening the resync↔restart loop | `baseline_offset = int(...) or 0` | typed absence: `baseline_offset = event_offset_of(watermark)` then an explicit `is None` arm — `agent_runtime/serve_rpc.py:1056-1057` |
-| empty `patches` shipped as a `patch` frame — the client advanced its watermark having folded nothing | coverable ⇒ promoted | promotion now also requires `batch_carries_patch_rows(batch)`; the honest answer for a pair-less batch is the full core — `agent_runtime/stream.py:887-898`, argued at `:633-660` |
+| empty `patches` shipped as a `patch` frame — the client advanced its watermark having folded nothing | coverable ⇒ promoted | promotion now also requires `batch_carries_patch_rows(batch)`; the honest answer for a pair-less batch is the full core — `agent_runtime/stream.py:927-938`, argued at `:673-700` |
 | `office_surface` could never satisfy the office scope gate, so every folder-only patch frame was dropped with no patch and no resync | `entity == OFFICE_ACTOR_ENTITY` and a slash-prefixed id | one predicate: `office_patch_scope(patch) == workspace_id` — `agent_runtime/serve_office_subscriptions.py:486` |
 | `_usage_lane_detected` — a credential fault DELETED the lane from the Limits panel, and an empty envelope rendered as a positive claim that no provider is signed in | `except Exception: return False` | three outcomes, not two: true / false / **raise**, with the raise caught per provider and the lane emitted `unavailable` naming the exception class — `hermes_cli/harness.py:5739-5747`, `:5973-5987` |
 

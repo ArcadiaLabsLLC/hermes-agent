@@ -337,7 +337,7 @@ cannot touch: two shipped incidents came from writers that mutate durable state 
 event at all, and an offset key cannot see them at any price.
 
 A mismatch does not mean a blank canvas: `take_stale_first_core` serves the last persisted core
-**labeled stale** while the build runs (`core_cache.py:3817`, `stream.py:1353`). The one-shot
+**labeled stale** while the build runs (`core_cache.py:3817`, `stream.py:1393`). The one-shot
 belongs to the SUBSCRIBER, not the process — derived at producer-build time by
 `serve.py::_room_wants_stale_first` (`:4369`) — because a boot starts two `stream_frames`
 generators and the module-global version handed the allowance to whichever raced first. A
@@ -478,8 +478,8 @@ residue above, exactly as predicted. That re-take stays owed
 
 ## Stage 10 — demote builds and same-offset core reuse
 
-`agent_runtime/demote_core_reuse.py`, consumed only by `agent_runtime/stream.py` (`:998`,
-`:1024`, `:1082`). The waste: three `snapshot_build reason=demote role=led` lines at the SAME
+`agent_runtime/demote_core_reuse.py`, consumed only by `agent_runtime/stream.py` (`:1038`,
+`:1064`, `:1122`). The waste: three `snapshot_build reason=demote role=led` lines at the SAME
 offset 89961793 on 2026-08-22 10:50, `build_ms` 3017 / 3210 / 2388, identical fingerprint.
 `build_snapshot`'s coalescer cannot merge them — it is deliberately strict, and a caller
 arriving mid-build waits for the NEXT build rather than riding the in-flight one. That rule is

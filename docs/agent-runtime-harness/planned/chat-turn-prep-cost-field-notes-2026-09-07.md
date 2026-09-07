@@ -253,6 +253,192 @@ fails identically on clean `main` in `X:/Eternia/hermes-agent`
 
 ## 3. Stage 7
 
+**Status: BUILT, pending Fable verification and landing.** Branch
+`codex/prep-cost-stage7-admitted-turn`, worktree `X:/wt/prep-stage7`, cut from
+local `main` at `68b8361de0`. Nothing pushed, nothing merged; §4.1's landed sha
+stays empty until it actually lands.
+
+**Scope, and why it is only this.** CP-2 and CP-3 made live at the two sites
+Stage 6 instrumented and deliberately left alone. Stage 6's own `turn_activity`
+module is unchanged — it was already the sole admission authority, and its
+process-wide count already covers the same-root prewarm case, so no second
+per-root admission map was added. The handler's `_within_admitted_turn`
+decorator and its `finally` cleanup are untouched.
+
+### 3.1 The source changes
+
+| file | change |
+|---|---|
+| `agent_runtime/stream.py` | `SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS` 1,000 → **3,500** (CP-3); new `_a_turn_holds_the_gil(admitted=, in_flight=)` union helper; `_defer_demote_build_for_active_turns` reads admitted OR running **at entry and at every poll**; the exit receipt samples **both** counters freshly |
+| `agent_runtime/persona_chat_actor_prewarm.py` | both yield reads — before `_prepare` and before `runner.prewarm` — take `chat_turns_admitted() > 0 or agent_runs_in_flight() > 0`; the module docstring's stated guard corrected to match |
+
+Preserved deliberately, each with a test naming it: cancellation, the finite
+deadline, the 25 ms poll cadence, demote-only eligibility (hydrate / `boot` /
+`full_core` never wait), the existing `skipped_turn_active` outcome token, the
+build and prewarm span ledgers, and `builds_overlapped` still counting a build
+that exhausts the bound and overlaps anyway — the deferral must not be able to
+launder its own failures out of the receipt.
+
+**`None` handling, stated because it is a real decision.** Both forwarders
+answer `None` when their module cannot be consulted. Stage 5's rule — unknown
+means "do not defer" — is preserved: an unreadable counter contributes nothing
+to the union. What it must not do is cancel a deferral the *other* counter
+already earned, which is why the helper is a union of two independently-falsy
+reads and not one fused gauge. `unknown` is still preserved on the receipt.
+
+### 3.2 Red first, then green
+
+The Stage 7 test IDs proposed in the implementation brief were authored against
+the pre-fix tree and **measured red there**. The three guard tests pass pre-fix
+by design — they pin behaviour Stage 7 preserves, not behaviour it flips, and a
+guard test that started red would be pinning the wrong thing.
+
+Run: `pytest tests/agent_runtime/test_snapshot_demote_deferral.py tests/agent_runtime/test_persona_chat_actor_prewarm.py`
+
+| test ID | pre-fix | post-fix |
+|---|---|---|
+| `test_snapshot_demote_deferral.py::test_admitted_before_runner_defers_demote` | **RED** | green |
+| `…::test_demote_bound_covers_two_seconds_but_releases_at_3500` | **RED** | green |
+| `…::test_the_bound_covers_the_measured_pre_admit_p95_and_is_a_constant` | **RED** | green |
+| `test_persona_chat_actor_prewarm.py::test_admitted_same_root_skips_before_prepare` | **RED** | green |
+| `…::test_admission_during_prepare_skips_before_construction` | **RED** | green |
+| `test_snapshot_demote_deferral.py::test_admission_release_exception_and_refusal_do_not_leak` | green (guard) | green |
+| `…::test_hydrate_full_core_and_cancel_preserve_bypass` | green (guard) | green |
+| `…::test_an_unreadable_admitted_counter_still_defers_for_a_live_run` | green (guard) | green |
+
+Pre-fix `5 failed, 48 passed`; post-fix **`53 passed`, exit 0**.
+
+**One pre-stage test was replaced rather than deleted.** Stage 6's
+`test_stage_six_changes_no_deferral_DECISION` asserted the opposite of Stage 7
+on purpose, and said so in its own docstring: *"a demote build requested while a
+turn is admitted but not yet running must therefore still proceed today — and
+this row is the one Stage 7 flips."* This is that flip. The block replacing it
+carries the same sentence as its header comment, so the boundary stays readable
+in the diff. Likewise `test_the_bound_is_one_second_and_is_a_constant_not_a_literal`
+became `test_the_bound_covers_the_measured_pre_admit_p95_and_is_a_constant` —
+the VALUE is still pinned separately from the behaviour, so a later edit cannot
+move both together and stay green.
+
+### 3.3 Mutation proof
+
+Each mutation applied to the worktree source, the focused set re-run, then
+**restored before commit** — verified afterwards by `git diff` against the
+staged tree showing only the test files. No mutation survived.
+
+| mutation | reds |
+|---|---|
+| deferral decides on the run counter alone (admission dropped from the union) | `test_admitted_before_runner_defers_demote`, `test_demote_bound_covers_two_seconds_but_releases_at_3500` |
+| bound left at Stage 5's 1,000 | `test_the_bound_covers_the_measured_pre_admit_p95_and_is_a_constant`, `test_demote_bound_covers_two_seconds_but_releases_at_3500` |
+| second prewarm check removed | `test_admission_during_prepare_skips_before_construction` |
+| first prewarm check drops admission | `test_admitted_same_root_skips_before_prepare` |
+
+### 3.4 Sandbox and gates
+
+All runs under an isolated sandbox: `HERMES_HOME`, `HERMES_HEAD_HOME`,
+`HERMES_AGENT_RUNTIME_ROOT`, `HOME`, `USERPROFILE`, `APPDATA` and
+`LOCALAPPDATA` redirected to a throwaway tree and **echoed before every run**;
+the worktree's own code on `PYTHONPATH`; `PYTHONDONTWRITEBYTECODE=1`. The
+interpreter is the repo's shared TEST venv (`$HOME/.venvs/hermes-test`, one of
+`scripts/run_tests.sh`'s own candidates), resolved *before* `HOME` is redirected
+and then pinned by absolute path — read and executed only, never written. The
+live store and the live venv were not written, and nothing here started a serve.
+
+### 3.5 The canon cite remap this stage owed
+
+`stream.py` grew 40 lines, and the dead-link gate
+(`tests/scripts/test_doc_cite_adjacency.py`) reds on line-numbered cites into it.
+Clean `main` passes that gate (40 passed), so every failure was this branch's
+drift. **Twenty-seven** cite tokens across five canon docs were remapped — not
+only the thirteen the gate flagged, because a cite that still passes the gate by
+luck while pointing at the wrong code is worse than one that fails.
+
+The offsets were derived from this branch's own diff hunks, per range, never as
+a blanket shift:
+
+| original line range | offset |
+|---|---|
+| ≤ 88 | +0 |
+| 89–141 | +10 |
+| 142–180 | +31 |
+| 181–193 | +32 |
+| 194–212 | +33 |
+| 213–214 | +39 |
+| ≥ 215 | +40 |
+
+Every remap was then **verified byte-identical** — old line content against new
+line content — before it was written, and the applier refuses any token that is
+absent from its stated doc line, repeated on it, or ambiguous between the bare
+`stream.py:N` and prefixed `agent_runtime/stream.py:N` spellings.
+
+**Eight of the twenty-seven were WAIVED cites**, and the waiver keys in
+`cite-adjacency-baseline.json` carry the line number, so moving a cite without
+moving its key reds the gate twice — once as an unwaived failure at the new
+line, once as a stale waiver at the old one. The eight keys were renumbered to
+follow their cites. **No waiver was added and none was deleted; the count is
+unchanged at 67.** This follows the file's own precedent, recorded in its
+`_comment` for the 2026-09-04 D7h shift that moved `stream.py` by 47 lines, and
+this stage appended its own amendment note there in the same shape.
+
+**Two pre-existing stale cites found in passing, and deliberately NOT fixed
+here.** Both already pointed at unrelated code on clean `main` — they were green
+because they are waived, not because they are right:
+
+* `03-transport-and-wire.md:874` cites `stream.py:108-148` for the claim that
+  `pid` rides last on both build families; those lines are the run-counter
+  forwarders and the deferral.
+* `07-observability.md:218` cites `stream.py:177-182` for the
+  `BUILD_SECTIONS_WAIT_THRESHOLD_MS` WAIT line; those lines are the deferral's
+  early return.
+
+They were remapped mechanically so they point at the same code they pointed at
+before (`118-179` and `208-214`), preserving the status quo rather than silently
+rewriting prose this stage was not asked to touch. **Rowed for whoever owns the
+07/03 currency pass.** The `03:874` range now also encloses the 21 inserted
+lines of `_a_turn_holds_the_gil`, which is unavoidable for a contiguous range
+citing code that was split by an insertion.
+
+### 3.6 Deviations from the plan text
+
+1. **The union is a named helper, not an inline `or`.** `_a_turn_holds_the_gil`
+   exists so the `None`-is-unknown rule is stated once and tested once, rather
+   than duplicated at the entry check and the poll check where the two could
+   drift apart.
+2. **`runs_in_flight_at_exit` is now re-sampled at the receipt**, where it
+   previously reported whichever poll ended the loop. On the deadline path —
+   the path whose honesty matters most, because something was still holding —
+   the old value was one poll stale. The brief asked for both counts sampled
+   freshly; this is that, and because it slightly changes an existing key's
+   meaning it is called out rather than buried.
+3. **A guard test was added beyond the brief's list**
+   (`test_an_unreadable_admitted_counter_still_defers_for_a_live_run`). Going
+   from one gauge to two makes "unknown" ambiguous in a way it was not before,
+   and nothing in the brief's list covered it.
+4. **No launcher slice.** Stage 7 changes no wire, projection or timing key, so
+   the producer-contract check and the serve-frame generator have nothing to
+   re-derive and no fixture moves. Fable should still run them as landing proof.
+
+### 3.7 Owed — what this branch does NOT establish
+
+* **The number.** CP-1's verdict for Stage 7 is a field read, not a test result:
+  ten consecutive PC agent-chat turns with pre-admit build overlap zero on ≥ 9,
+  `write_ahead` p50 ≤ 1.3 × the same-day uncontended p50, and no prewarm overlap
+  on a newly-opened root. Derive pre-admit overlap from the anchored interval
+  and the actual build spans — do not relabel an existing whole-turn counter as
+  pre-admit. A missed target is a finding, not permission to widen this stage
+  into hydrate deferral or eviction surgery.
+* **CP-9's Stage 6 read is still owed, and is upstream of that verdict.**
+  Checked read-only while preparing this branch, 2026-09-07: the launcher diag
+  log (`%TEMP%\eternia_launcher_diag.log`, 318,191 B) contains **zero**
+  `rt_write_ahead_ms` occurrences — its newest `[MissionChatTiming]` lines carry
+  only `rt_turn_context_ms` / `rt_first_byte_ms` / `rt_builds_overlapped` — and
+  **none** of the 50 records under `mission_chat_turns/` carries any of the
+  seven Stage 6 sub-spans or a `visibility_bundle_rebuild_component_*` name.
+  The running runtime and the running launcher both predate Stage 6. That read
+  is what Stages 8 and 10 were gated on, and it is why this pass built Stage 7
+  alone.
+* **A restart warning is owed before landing.** This is runtime code, not docs:
+  Fable tells the operator the local runtime will restart before landing it.
+
 ## 4. Stage 8
 
 ## 5. Stage 9

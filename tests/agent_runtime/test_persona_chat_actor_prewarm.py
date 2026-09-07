@@ -796,6 +796,135 @@ def test_a_prewarm_stands_down_while_a_real_turn_is_in_flight(stub_runtime, monk
     assert outcomes == [OUTCOME_SKIPPED_TURN_ACTIVE]
 
 
+# ── (4b) Stage 7: yielding to an ADMITTED turn, not only a running one ──────
+#
+# CP-2. §0.2's chat-open prewarm ran ``elapsed_ms=5750`` across the WHOLE of
+# turn 1's pre-admit span — for the very root the operator was typing into.
+# Both yield reads below take ``chat_turns_admitted() or agent_runs_in_flight()``
+# so that window is visible; Stage 6 built the counter and left the decision
+# alone, and these are the two sites that now decide on it.
+#
+# The ruling, recorded because it is what these tests are shaped by:
+# ``turn_activity``'s process-wide count is the SOLE admission authority and it
+# already covers the same-root case. When any turn is admitted the prewarm
+# stands down — including the prewarm for that turn's own root, which is the
+# no-op §0.2 named (that turn would build this exact actor itself and instead
+# finds it). No second per-root admission map is minted here.
+
+
+def test_admitted_same_root_skips_before_prepare(stub_runtime, monkeypatch):
+    """The first yield site, through the production body.
+
+    *Killing mutation:* drop ``chat_turns_admitted`` from the first check.
+    *Probed field:* ``_prepare`` is never entered and no construction span is
+    recorded — a refusal that constructed nothing must bill nothing, or the
+    count Stage 7's eviction question turns on is poisoned by zero-cost
+    stand-downs.
+    """
+
+    from agent_runtime import persona_chat_actor_prewarm as prewarm
+    from agent_runtime import turn_activity
+
+    registry = PersonaChatRuntimeRegistry()
+    monkeypatch.setattr(
+        "agent_runtime.persona_chat_continuity.persona_chat_runtime_registry",
+        lambda: registry,
+    )
+    monkeypatch.setattr(
+        prewarm_module,
+        "_prepare",
+        lambda root, instance: pytest.fail(
+            "the prewarm assembled a request while a turn was admitted"
+        ),
+    )
+
+    prewarm.reset_construction_spans_for_tests()
+    try:
+        assert agent_runs_in_flight() == 0, "the control: no RUN is in flight"
+
+        # Same root as the admitted turn — §0.2's actual case.
+        with turn_activity.admitted_turn():
+            assert (
+                prewarm_chat_actor("chat_root_admitted") == OUTCOME_SKIPPED_TURN_ACTIVE
+            )
+            # Another root, same process: the count is process-wide because the
+            # GIL is process-wide. Standing down here is the ruling, not a gap.
+            assert prewarm_chat_actor("chat_root_other") == OUTCOME_SKIPPED_TURN_ACTIVE
+
+        assert prewarm.overlapping_constructions(start=0.0, end=10**9) is None, (
+            "a stand-down before ``_prepare`` must not open a construction span"
+        )
+    finally:
+        prewarm.reset_construction_spans_for_tests()
+
+    # The running-only control: Stage 5's behaviour is preserved unchanged, and
+    # the admitted counter is back to zero so it cannot be what refused.
+    assert turn_activity.chat_turns_admitted() == 0
+    monkeypatch.setattr("agent_runtime.profile_runner.agent_runs_in_flight", lambda: 1)
+    assert prewarm_chat_actor("chat_root_admitted") == OUTCOME_SKIPPED_TURN_ACTIVE
+
+
+def test_admission_during_prepare_skips_before_construction(stub_runtime, monkeypatch):
+    """The second yield site — the widest part of the window.
+
+    ``_prepare`` reads SessionDB, resolves the lane bundle and composes the
+    runtime signature; a turn that arrived meanwhile is now exactly where the
+    construction would collide with it. The re-read must catch that and refuse
+    BEFORE ``runner.prewarm``.
+
+    *Killing mutation:* remove the second check, or leave it reading only
+    ``agent_runs_in_flight``. *Probed field:* ``runner.prewarm`` is never
+    called. The preparation span stays honestly recorded — ``_prepare`` really
+    did run and really did cost something, and Stage 6's span opens past the
+    first yield precisely so that truth survives.
+    """
+
+    from agent_runtime import persona_chat_actor_prewarm as prewarm
+    from agent_runtime import turn_activity
+
+    registry = PersonaChatRuntimeRegistry()
+    monkeypatch.setattr(
+        "agent_runtime.persona_chat_continuity.persona_chat_runtime_registry",
+        lambda: registry,
+    )
+
+    admission: list = []
+
+    class _Runner:
+        def prewarm(self, request):  # pragma: no cover - unreachable is the point
+            pytest.fail(
+                "an actor was constructed for a turn that admitted during _prepare"
+            )
+
+    def _prepare_then_a_turn_arrives(root, instance):
+        # The race, made deterministic: admission opens partway through the
+        # preparation, exactly as an operator's message does.
+        window = turn_activity.admitted_turn()
+        window.__enter__()
+        admission.append(window)
+        return object(), _Runner()
+
+    monkeypatch.setattr(prewarm_module, "_prepare", _prepare_then_a_turn_arrives)
+
+    prewarm.reset_construction_spans_for_tests()
+    try:
+        assert agent_runs_in_flight() == 0, "the control: no RUN is in flight"
+        outcome = prewarm_chat_actor("chat_root_racing")
+        assert outcome == OUTCOME_SKIPPED_TURN_ACTIVE
+
+        spans = prewarm.overlapping_constructions(start=0.0, end=10**9)
+        assert spans, (
+            "``_prepare`` ran and cost real time — the preparation span is the "
+            "honest record of it and must not vanish because the yield fired"
+        )
+    finally:
+        for window in admission:
+            window.__exit__(None, None, None)
+        prewarm.reset_construction_spans_for_tests()
+
+    assert turn_activity.chat_turns_admitted() == 0
+
+
 # ── (5) inert without a registry ────────────────────────────────────────────
 
 

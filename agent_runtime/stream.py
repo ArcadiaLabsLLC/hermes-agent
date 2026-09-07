@@ -74,18 +74,28 @@ BATCH_REASON_DEMOTE = "demote"
 #: a cross-stack landing. The value a knob would carry is a doctrine, and the
 #: doctrine is written here instead.
 #:
-#: WHY BOUNDED AT ALL, and why at one second. The launcher's HUD freshness rides
-#: these builds; an unbounded "wait until no turn is running" is a STARVATION on
-#: exactly the install this exists for, where an operator sends turns back to
-#: back and the demote lane would never see a quiet moment. The plan's own
-#: wording is "hundreds of ms, not a starvation". One second is the ceiling on
-#: the WHOLE deferral of one build request, not per poll: once it elapses the
-#: build proceeds regardless of what is in flight, so the worst case this adds
-#: to HUD staleness is one second — against the seconds of CPU a led build was
-#: measured to steal from a turn it overlapped (§2.5: ``build_ms=3979`` inside
-#: the 4a80f05e turn; Stage 2a item 7: 1,796/2,343 ms turns overlapping a
-#: readiness walk against 453 ms for a non-overlapping one).
-SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS = 1000
+#: WHY BOUNDED AT ALL. The launcher's HUD freshness rides these builds; an
+#: unbounded "wait until no turn is running" is a STARVATION on exactly the
+#: install this exists for, where an operator sends turns back to back and the
+#: demote lane would never see a quiet moment. The plan's own wording is
+#: "hundreds of ms, not a starvation". The bound is the ceiling on the WHOLE
+#: deferral of one build request, not per poll: once it elapses the build
+#: proceeds regardless of what is in flight — against the seconds of CPU a led
+#: build was measured to steal from a turn it overlapped (§2.5:
+#: ``build_ms=3979`` inside the 4a80f05e turn; Stage 2a item 7: 1,796/2,343 ms
+#: turns overlapping a readiness walk against 453 ms for a non-overlapping one).
+#:
+#: WHY 3,500 AND NOT 1,000 (chat-turn-prep Stage 7, CP-3). Stage 5 chose one
+#: second for a window that opened at ``ProfileAgentRunner.run()``. Stage 7
+#: makes this wait cover the span from the handler's ANCHOR instead — the
+#: pre-admit assembly ``_ACTIVE_RUNS`` cannot see — and that span was measured
+#: on this PC 2026-09-07 (``planned/chat-turn-prep-cost.md`` §0.1): 3,172 /
+#: 2,796 / 906 ms, a p95 of 3,172. CP-3's rule is that the bound is the measured
+#: pre-admit p95 rather than a round number, because a ceiling shorter than the
+#: span it now protects releases the build back into the middle of the very turn
+#: it stood aside for. The cost is stated and accepted: the HUD is up to 3.5 s
+#: staler while a turn is admitted, and the operator is looking at the chat.
+SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS = 3500
 
 #: Poll granularity while deferring. Small enough that the common case — a turn
 #: that ends mid-wait — resumes promptly, large enough not to spin.
@@ -139,6 +149,27 @@ def _chat_turns_admitted() -> int | None:
         return None
 
 
+def _a_turn_holds_the_gil(*, admitted: int | None, in_flight: int | None) -> bool:
+    """Is a mission-chat turn occupying this process right now?
+
+    CP-2 in one expression: an ADMITTED turn owns the GIL, not only a RUNNING
+    one. The two counters answer different halves of one turn — ``admitted``
+    from the handler's anchor, ``in_flight`` from ``ProfileAgentRunner.run()``
+    — and the union is the whole of it.
+
+    **``None`` is unknown, and unknown is not a veto.** Both forwarders answer
+    ``None`` when their module cannot be consulted at all. Stage 5's rule —
+    treat unknown as "do not defer", because an optimization that fires on an
+    unmeasured premise is the failure mode this plan exists to end — is
+    preserved exactly: an unreadable counter contributes nothing. What it must
+    NOT do is cancel a deferral the OTHER counter already earned, which is why
+    this is a union of two independently-falsy reads rather than a single
+    fused gauge.
+    """
+
+    return bool(admitted) or bool(in_flight)
+
+
 def _defer_demote_build_for_active_turns(
     *,
     reason: str,
@@ -177,8 +208,9 @@ def _defer_demote_build_for_active_turns(
 
     if reason != BATCH_REASON_DEMOTE:
         return 0
-    in_flight = _agent_runs_in_flight()
-    if not in_flight:
+    if not _a_turn_holds_the_gil(
+        admitted=_chat_turns_admitted(), in_flight=_agent_runs_in_flight()
+    ):
         return 0
     _sleep = sleeper if sleeper is not None else time.sleep
     _now = clock if clock is not None else time.monotonic
@@ -190,8 +222,9 @@ def _defer_demote_build_for_active_turns(
         now_s = _now()
         if now_s >= deadline:
             break
-        in_flight = _agent_runs_in_flight()
-        if not in_flight:
+        if not _a_turn_holds_the_gil(
+            admitted=_chat_turns_admitted(), in_flight=_agent_runs_in_flight()
+        ):
             break
         _sleep(
             min(
@@ -209,9 +242,16 @@ def _defer_demote_build_for_active_turns(
         # window on the same line: ``runs_in_flight_at_exit`` says whether a
         # RUN was still going, and this says whether a TURN was admitted —
         # which is the state §0.1's turns 1 and 2 were in for three seconds
-        # while this lane saw nothing. Recorded, never decided on: Stage 7 is
-        # where the wait starts reading it.
+        # while this lane saw nothing. Stage 6 recorded it; Stage 7 decides on
+        # it, and BOTH are now sampled freshly here rather than reported from
+        # whichever poll happened to end the loop. A receipt that answers "what
+        # was true when this build was released" has to read at the release: a
+        # ``runs_in_flight_at_exit`` carried over from the last poll would be
+        # one poll stale on the deadline path, which is the exact path whose
+        # honesty matters most (the bound elapsed, so something was still
+        # holding, and the line has to say which of the two it was).
         admitted = _chat_turns_admitted()
+        in_flight = _agent_runs_in_flight()
         logger.info(
             "snapshot_build_deferred reason=%s caller=%s waited_ms=%d "
             "runs_in_flight_at_exit=%s admitted_at_exit=%s bound_ms=%d",
