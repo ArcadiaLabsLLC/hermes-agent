@@ -23,7 +23,7 @@ runtime. Everything else launcher-side belongs to the Launcher's docs.
 
 ## Stage 1 — interpreter and import tax (`interpreter_ms` and its segments)
 
-`_cmd_serve` starts a `BootTimeline` as its first instruction (`serve.py:6235-6241`).
+`_cmd_serve` starts a `BootTimeline` as its first instruction (`serve.py:6268-6274`).
 Everything before that instant is `interpreter_ms`: process creation → the command's own first
 statement, resolved through psutil and **simply absent when the platform will not give a
 creation time** (`agent_runtime/boot_timeline.py:108-118`). That one number used to be the
@@ -317,7 +317,7 @@ event at all, and an offset key cannot see them at any price.
 A mismatch does not mean a blank canvas: `take_stale_first_core` serves the last persisted core
 **labeled stale** while the build runs (`core_cache.py:3817`, `stream.py:1321`). The one-shot
 belongs to the SUBSCRIBER, not the process — derived at producer-build time by
-`serve.py::_room_wants_stale_first` (`:4339`) — because a boot starts two `stream_frames`
+`serve.py::_room_wants_stale_first` (`:4360`) — because a boot starts two `stream_frames`
 generators and the module-global version handed the allowance to whichever raced first. A
 forced-refresh one-shot is refused the stale core outright.
 

@@ -130,14 +130,32 @@ its replacement; a QA lane spawns its own). Only one may own the socket, or
 "connect to the service for root X" has two answers. The winner is decided by
 an OS-held exclusive lock on ``<store_root>/serve_socket.lock``, held for the
 process's lifetime, following the same ``msvcrt.locking`` / ``fcntl.flock``
-pattern as ``agent_runtime/locks.py``. The loser does not fail and does not
-retry: it runs stdio-only and SAYS SO on its ready frame
+pattern as ``agent_runtime/locks.py``. The loser does not fail: it runs
+stdio-only and SAYS SO on its ready frame
 (``socket: {"outcome": "lock_held_by", "pid": …}``). A silent degrade here
 would be indistinguishable from a socket that never worked.
 
+**It retries in exactly one case, and the case is written down** (RS-4,
+2026-09-07). This paragraph used to end "and does not retry", and that was the
+rule the operator's restart broke: a build-behind restart drained the old
+runtime, the replacement asked for the lock 14 s into that drain, and the old
+owner was alive and holding it — because the lock is released at the END of a
+drain, after the in-flight work. The replacement degraded permanently against a
+process that was about to let go. So a contender that can PROVE the holder is
+leaving — ``draining_at`` on the sidecar, or a holder with no registry row —
+polls the lock every :data:`SOCKET_LOCK_DRAIN_POLL_SECONDS` for up to
+:data:`SOCKET_LOCK_DRAIN_WAIT_SECONDS` and takes the lane when it frees,
+reporting ``took_over_from`` and ``waited_for_drain_ms``. A holder that is alive
+and SERVING is refused immediately, without one poll, exactly as it always was;
+a wait that expires degrades exactly as today and carries the number.
+
 The holder's identity lives in a sidecar, ``serve_socket.owner.json``, and not
 in the lock file itself: on Windows ``msvcrt.locking`` is a MANDATORY lock, so
-a loser cannot read the bytes of the file it just lost.
+a loser cannot read the bytes of the file it just lost. The sidecar is also
+where a leaving owner announces itself: :meth:`SocketOwnerLock.mark_draining`
+stamps ``draining_at`` on it as the FIRST act of the drain, before the listener
+closes, so no window exists in which the lane refuses new connections while
+still advertising itself as healthy.
 
 **A DEAD owner is not an owner** (R-L2, 2026-09-04). The sidecar outlives its
 process — a killed serve never gets to unlink it — and until this stage a boot
@@ -482,9 +500,11 @@ class SocketLockResult:
 class SocketOwnerLock:
     """An exclusive OS lock held for the life of the process.
 
-    Non-blocking by design. A serve that loses this race has a job to do
-    (stdio) and must not spend its boot waiting for a lock whose holder is
-    healthy — the loser degrades loudly instead.
+    Non-blocking against a HEALTHY holder, by design. A serve that loses this
+    race has a job to do (stdio) and must not spend its boot waiting for a lock
+    whose holder is not going anywhere — the loser degrades loudly instead.
+    Against a holder it can prove is LEAVING it does wait, bounded; see "A
+    LEAVING owner is worth waiting for" below.
 
     A DEAD owner is not a holder (R-L2)
     -----------------------------------
@@ -513,10 +533,43 @@ class SocketOwnerLock:
       lock we could not take on the second attempt is held by something the
       sidecar does not describe, and this class does not spin.
 
-    What it does NOT do is take a lock away from a LIVE owner. That refusal is
-    unchanged, byte for byte — ``lock_held_by`` with the winner's pid — because
-    the whole point of the lock is that "connect to the service for root X" has
-    one answer.
+    What it does NOT do is take a lock away from a live owner that is SERVING.
+    That refusal is unchanged, byte for byte — ``lock_held_by`` with the
+    winner's pid, on the first attempt, without a poll — because the whole point
+    of the lock is that "connect to the service for root X" has one answer.
+
+    A LEAVING owner is worth waiting for (RS-4)
+    -------------------------------------------
+
+    Measured on the operator's machine on 2026-09-07, and it is the R-L2 defect
+    with the pid alive: a build-behind restart drained the old runtime, the
+    replacement asked for the lock 14 s into that drain, and got
+    ``lock_held_by`` naming a process whose listener had ALREADY closed. The
+    order is not the bug — the drain releases this lock before it drops its
+    registry row — but the release is the last act of a shutdown that first
+    waits out every in-flight request, and for that whole window the holder is
+    alive, holding, and finished. The replacement ran stdio-only for the rest of
+    the session: no socket, no hub stream, no LAN listener, "bridge stopped" on
+    the operator's sheet.
+
+    So there is a THIRD shape, and it is separated from a healthy incumbent by
+    evidence rather than by a timer:
+
+    * the lock is HELD, the sidecar names a LIVE pid, and that pid is provably
+      on its way out — either ``draining_at`` is stamped on the sidecar (the
+      owner said so itself, at drain start, before closing its listener) or the
+      owner has no ``serve_instances/<pid>.json`` row (it already unregistered).
+      :meth:`acquire` then polls the lock every
+      :data:`SOCKET_LOCK_DRAIN_POLL_SECONDS` for at most
+      :data:`SOCKET_LOCK_DRAIN_WAIT_SECONDS` and takes the lane when it frees,
+      recording ``took_over_from`` and ``waited_for_drain_ms``.
+
+    A wait that expires degrades exactly as it always did, and carries the
+    number: the difference between "it never tried" and "it gave the incumbent
+    25 s" is the difference between a defect and a drain that outlived its own
+    deadline. An unreadable sidecar and an unanswerable liveness probe are NOT
+    leaving — the fail-safe direction is the same as :meth:`_classify_owner`'s,
+    because waiting on a hunch spends a boot.
     """
 
     def __init__(

@@ -47,7 +47,43 @@ a line that says when the row went.
 
 ## 2. What was built
 
-<!-- filled in §4 -->
+**`agent_runtime/serve_socket.py`**
+
+- `SOCKET_OWNER_DRAINING_KEY = "draining_at"`, and two module constants:
+  `SOCKET_LOCK_DRAIN_WAIT_SECONDS = 25.0` (named once, with the launcher's 20 s
+  `drainDeadline` cited beside it) and `SOCKET_LOCK_DRAIN_POLL_SECONDS = 0.25`.
+- `SocketLockResult.waited_for_drain_ms`, on the object and — when a wait
+  happened at all — on `payload()`, so it rides both endings.
+- `SocketOwnerLock.__init__` takes `clock` and `sleep`, defaulted to
+  `time.monotonic` / `time.sleep`, the same injection `HelloRateLimiter`
+  already uses. Production passes neither; a test pins that (§4).
+- `SocketOwnerLock._owner_is_leaving` — live pid AND (`draining_at` stamped OR
+  no `serve_instances/<pid>.json`). Anything the probes cannot answer is NOT
+  leaving.
+- `SocketOwnerLock._wait_for_drain` — sleep-then-try, so the first lap is not a
+  duplicate of the attempt that got us here; returns `(handle, failure,
+  waited_ms)`.
+- `SocketOwnerLock.mark_draining()` — REWRITES the published sidecar (the port
+  and the boot id survive; the drain must not blank a record clients are still
+  discovering by) with `draining_at`.
+- A takeover is now either proof: the owner was already dead, or it let go while
+  we waited. Same `took_over_from` word, because the launcher's question is the
+  same one.
+
+**`hermes_cli/harness_parts/serve.py`**
+
+- The drain op calls `socket_lock.mark_draining()` between `frames.emit` and the
+  `begin_drain()` loop — before the listener closes, which is the whole point.
+- `_unregister_instance(reason=…)` emits one `serve_instance_unregistered` line
+  on the service log when the row actually goes, and the pre-existing
+  `serve_instance_unregister_failed` line grew the same `reason`. The three call
+  sites say `drain`, `drain_abandoned`, `shutdown`.
+
+**Canon**: the `serve_socket.py` module docstring's "does not fail and does not
+retry" sentence now says when it DOES retry; the `SocketOwnerLock` class
+docstring grew a third owner shape ("A LEAVING owner is worth waiting for");
+`docs/agent-runtime-harness/03-transport-and-wire.md`'s socket-ownership
+paragraph gained the draining sidecar, the new line, and the bounded wait.
 
 ---
 
@@ -125,10 +161,67 @@ defaults' pin.
 
 ## 4. The mutation table
 
-<!-- filled after green -->
+Each row: one production behaviour removed or inverted, both new test files run,
+the verdict quoted. Taken after green, restored from a scratch copy each time —
+the tree ends byte-identical (`git diff --stat` re-checked).
+
+| mutation | which tests red |
+|---|---|
+| `_wait_for_drain()` call removed from `acquire` | `test_serve_socket_drain_wait.py::test_a_draining_owner_is_waited_out_and_the_lane_is_taken`, `::test_an_owner_that_dropped_its_register_row_counts_as_leaving`, `::test_a_wait_that_expires_degrades_as_today_and_says_how_long_it_gave` — **3 failed, 6 passed** |
+| `socket_lock.mark_draining()` not called at drain start | `test_harness_serve_drain_order.py::test_the_sidecar_says_it_is_leaving_from_the_first_drain_event_on` — **1 failed, 8 passed** |
+| `_finish_drain` drops the row BEFORE it releases the lock | `test_harness_serve_drain_order.py::test_drain_releases_the_lock_before_it_drops_the_row` — **1 failed, 2 passed**, `At index 1 diff: 'row_unregistered' != 'lock_released'` |
+| the register-row arm of `_owner_is_leaving` returns False | `test_serve_socket_drain_wait.py::test_an_owner_that_dropped_its_register_row_counts_as_leaving` — **1 failed, 5 passed**, and only that one, so the two arms are independently pinned |
+| `serve_instance_unregistered` renamed | `test_harness_serve_drain_order.py::test_the_moment_the_register_row_goes_is_one_line_on_the_service_log` — **1 failed, 2 passed** |
+
+Nothing here is a kill-proof for the constants themselves; those are pinned by
+value in `test_serve_socket_drain_wait.py::test_the_bound_is_one_named_constant_above_the_launchers_drain_deadline`,
+and the production defaults by `::test_the_default_wait_uses_real_time_and_is_not_left_to_the_caller`.
 
 ---
 
 ## 5. Deviations
 
-<!-- filled at the end -->
+**1. Three existing tests grew a register row, and it was a REAL red, not a
+cosmetic one.** `test_serve_socket_lane.py::test_a_live_owner_is_refused_exactly_as_before_and_nothing_is_taken_over`
+took **25.09 s** after the wait landed (pytest `--durations`) — it passed, but
+through the drain wait, describing the wrong scenario. Its incumbent was a bare
+sidecar naming a live pid with no registry row, which under RS-4 reads as an
+owner that has already unregistered. Two more had the same shape:
+`::test_the_second_serve_for_a_root_degrades_to_stdio_and_names_the_owner`
+(fabricated pid 4242, whose liveness is the box's business — a latent
+machine-dependent 25 s) and
+`test_serve_gateway_lane.py::test_a_socket_lock_lost_to_a_live_owner_names_the_holder_on_the_gateway_block`.
+All three now write `serve_instances/<pid>.json` through a `_serving_row`
+helper, which is them saying out loud the thing they always meant: *alive **and
+serving***. Timing back to baseline afterwards (three files: 23.8 s on this
+branch vs 22.8 s at `c670168049`).
+
+**2. A second module constant.** The plan says "one named constant, module
+level" for the 25 s bound; the poll cadence is a second one,
+`SOCKET_LOCK_DRAIN_POLL_SECONDS`. The ruling's "once" is about the BOUND — the
+number that has to stay in step with the launcher — and a bare `0.25` in a loop
+would have been a magic number the tests could not name. The launcher-facing
+constant is still spelled exactly once.
+
+**3. The order test was green before the fix.** Stated in §1 and §3.1 rather
+than engineered around. The plan explicitly allowed either answer; the honest
+one is that the shutdown order was already right and the field defect was the
+lock's *duration*, not its *position*.
+
+**4. Line-number cites in three canon docs were repointed.** Inserting into
+`hermes_cli/harness_parts/serve.py` shifted six `serve.py:<n>` cites in
+`03-transport-and-wire.md`, `04-boot-and-lifecycle.md` and `07-observability.md`
+by +21/+33 lines; `tests/scripts/test_doc_cite_adjacency.py` caught all six
+(`UNWAIVED FAILURES: 6`) and passes after the repoint. Nothing in those
+sentences changed — only the numbers.
+
+**5. Not done, and not in scope.** The plan's Stage 3 (RS-6, `code_tree` on the
+register row) is a separate stage and is untouched here. The `serve_instance_unregistered`
+line is on the service log only — it is deliberately not a new frame kind, for
+the same reason `serve_socket_owner_takeover` is not.
+
+**6. The order test arms the end-reason recorder.** `record_end_reason=True` is
+what writes the ended note, and arming it installs a process-wide console
+control handler on Windows; the test monkeypatches
+`_install_console_ctrl_reason_handler` to a no-op so a unit test does not leave
+one on the pytest process.

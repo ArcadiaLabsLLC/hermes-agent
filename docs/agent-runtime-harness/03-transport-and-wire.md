@@ -117,6 +117,36 @@ holder dies — so the only shape needing a retry is a held lock whose sidecar
 names a corpse, and that retry is bounded at one. Measured cost of the missing
 rule: a launcher respawn that did not await the old child's exit left the
 replacement stdio-only for a whole session, and therefore with no LAN listener.
+
+**A LEAVING owner is not a serving owner, and a contender waits for it**
+(RS-3/RS-4, 2026-09-07). R-L2 with the pid ALIVE: a build-behind restart drained
+the runtime, the replacement asked for the lock 14 s into that drain, and was
+refused by a process whose listener had already closed. The order is not the
+defect — `_finish_drain` in `hermes_cli/harness_parts/serve.py` releases the
+socket lock and only then unregisters its row — but the release is the last act
+of a shutdown that first waits out every in-flight request, so for that whole
+window the holder is alive, holding, and finished. Two facts now let a contender
+read that from outside the process. First, the drain ANNOUNCES itself:
+`SocketOwnerLock.mark_draining` (`agent_runtime/serve_socket.py`) stamps
+`draining_at` on the owner sidecar as the first act of the drain, before the
+listener closes, additively — the port an already-attached client is using stays
+on the record. Second, the moment the registry stops advertising the runtime is
+one line, `serve_instance_unregistered` (`reason` = `drain` | `drain_abandoned` |
+`shutdown`), on the same service log as `serve_socket_owner_takeover`; the
+drain's terminal frame is published BEFORE the teardown it accounts for, so
+nothing used to date the row's removal. Given either proof — `draining_at`, or a
+live owner with no `serve_instances/<pid>.json` — `SocketOwnerLock.acquire`
+polls the lock every `SOCKET_LOCK_DRAIN_POLL_SECONDS` (250 ms) for at most
+`SOCKET_LOCK_DRAIN_WAIT_SECONDS` (25 s, derived from the launcher's 20 s
+`drainDeadline` in
+`EterniaLauncher/lib/features/mission_control/data/mission_control_serve_session_io.dart`
+plus margin, and named once so the two repos cannot drift) and takes the lane
+when it frees: `acquired`, `took_over_from`, `waited_for_drain_ms`. An owner
+that is alive and SERVING is refused on the first attempt without a poll, as
+before; a wait that expires degrades exactly as before and carries the number.
+Pinned by `tests/agent_runtime/test_serve_socket_drain_wait.py` (all four arms)
+and `tests/hermes_cli/test_harness_serve_drain_order.py::test_drain_releases_the_lock_before_it_drops_the_row`.
+
 The handshake is challenge-response and the SERVER speaks first —
 `server_hello` carries a 64-hex nonce and `hello_contract: 3`, and the client
 answers `HMAC-SHA256(key=<per-root token>, msg="v3|<the port it DIALLED>|<nonce>")`.
@@ -834,7 +864,7 @@ existed the log named none of them:
 
 | Caller | `op` / `purpose` | Site |
 |---|---|---|
-| socket/stdio op lane | `subscribe` / `stream_lane` | `serve.py:5388-5390` |
+| socket/stdio op lane | `subscribe` / `stream_lane` | `serve.py:5409-5411` |
 | RPC office lane | `runtime.office.subscribe` / `office_patch` | `serve_office_subscriptions.py:902` |
 | argv CLI | `harness_stream` / `cli_stream` | `runtime_commands.py:630-631` |
 
@@ -846,7 +876,7 @@ never raises — an instrument must not be why a subscribe fails.
 
 **Who paints the boot's one stale core is a property of the ROOM**, so
 `stream_frames(wants_stale_first=…)` is stated by the caller —
-`serve.py::_room_wants_stale_first` (`:4339`) reads the hub's two subscriber
+`serve.py::_room_wants_stale_first` (`:4360`) reads the hub's two subscriber
 tables at producer-build time, `_cmd_stream` (`runtime_commands.py:620`) states
 `True`, default `False`. It cannot be re-derived inside the producer: the
 subscriber attaching FIRST at boot is the RPC office lane, whose sink discards
@@ -869,7 +899,7 @@ workspace id that failed the private "id under `<workspace_id>/`" restatement
 becomes a resync notification; an UNKNOWN frame type takes the same branch
 deliberately. Drops are typed, never silent: a subscriber outrunning its bounded
 buffer gets `subscription_dropped` naming which of the two bounds tripped —
-frame count or bytes — then is unsubscribed (`serve.py:5355`).
+frame count or bytes — then is unsubscribed (`serve.py:5376`).
 
 ## 7. The PUSH-vs-RPC boundary, and the fork boundary
 
