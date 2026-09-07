@@ -74,7 +74,18 @@ def test_the_ready_frame_carries_build_auth_and_instance_blocks():
 
     ready = _one(frames, "ready")
     assert code == 0
-    assert set(ready["build"]) == {"commit", "dirty", "source", "resolved_at"}
+    # RS-6 added three: the digest RL-20 compares, the rule that produced it,
+    # and why a null digest is null. Census, not a sample — a key that stops
+    # riding the frame is a launcher silently back on commit comparison.
+    assert set(ready["build"]) == {
+        "commit",
+        "dirty",
+        "source",
+        "resolved_at",
+        "code_tree",
+        "code_tree_rule",
+        "code_tree_reason",
+    }
     assert ready["auth"] == {"token_file": "minted"}
     assert ready["instance"]["outcome"] == "registered"
     assert ready["instance"]["pid"] == os.getpid()

@@ -23,7 +23,7 @@ runtime. Everything else launcher-side belongs to the Launcher's docs.
 
 ## Stage 1 — interpreter and import tax (`interpreter_ms` and its segments)
 
-`_cmd_serve` starts a `BootTimeline` as its first instruction (`serve.py:6268-6274`).
+`_cmd_serve` starts a `BootTimeline` as its first instruction (`serve.py:6280-6286`).
 Everything before that instant is `interpreter_ms`: process creation → the command's own first
 statement, resolved through psutil and **simply absent when the platform will not give a
 creation time** (`agent_runtime/boot_timeline.py:108-118`). That one number used to be the
@@ -124,7 +124,29 @@ must ask a second question to learn what code it connected to has a window in wh
 know (`serve.py:1419-1632`):
 
 1. **Which code** — `build_stamp().frame_payload()`. A durable service that silently pins last
-   week's code is the shape of the dispatch dead-flag-proxy incident.
+   week's code is the shape of the dispatch dead-flag-proxy incident. The block is
+   `commit` / `dirty` / `source` / `resolved_at` plus RS-6's three, and it rides the register
+   row (`serve_instances/<pid>.json`'s `build`) and the socket greeting unchanged, because a
+   reader that has to ask a second question is the window this stage exists to close.
+
+   **RS-6: a commit is not a build.** `code_tree` is a sha1 over the tracked files a runtime can
+   actually load — `git ls-tree -r HEAD` minus `docs/`, `tests/`, `.github/` and the repo-root
+   markdown (a path with no `/` in it whose name ends in `.md`; markdown deeper in the tree is
+   runtime data — the skills tree reads it) — sorted by the path's UTF-8 bytes and framed
+   `<path>`, NUL, `<blob>`, newline per entry. `code_tree_rule` publishes that rule as
+   `{"prefixes": […], "root_suffixes": […]}` so the launcher applies the rule it was HANDED
+   rather than a second copy that can drift, and `code_tree_reason` says why a null is null
+   (`not_git:<source>` for a Docker image or an unresolvable checkout; a `git_*` token for a
+   probe that failed). The launcher's RL-20 build-behind restart compares `code_tree`, not
+   `commit`: on 2026-09-07 at 16:25:09Z a **docs-only** hermes landing moved the commit, drained
+   a healthy runtime, and the replacement lost the socket lock for the rest of the session. All
+   of it is `agent_runtime/build_identity.py`, and the two implementations — this one and the
+   launcher's Dart — are held to one answer by a byte-equal fixture hashed on both sides:
+   `tests/fixtures/build_identity/code_tree_parity_tree.txt` and
+   `EterniaLauncher/test/fixtures/build_identity/code_tree_parity_tree.txt`. The keys are pinned
+   by `tests/agent_runtime/test_build_stamp.py::test_the_frame_block_is_the_keys_the_ready_frame_and_the_register_row_carry`
+   and, on the row itself, by
+   `tests/agent_runtime/test_serve_registry.py::test_the_row_carries_the_code_tree_and_the_rule_that_made_it`.
 2. **The secret** — `ensure_token(store_root)`. The frame carries the POSTURE only; the token
    value must never appear in a frame, a log, or an event.
 3. **The transport** — one serve per root owns the socket lane, decided by an OS-held exclusive
@@ -173,7 +195,7 @@ would be inherited by every subprocess a handler spawns, which is a different qu
 
 ## Stage 5 — the hygiene sweeps
 
-**Orphaned turns** (`orphaned_turn_sweep_ms`, `serve.py:3830` →
+**Orphaned turns** (`orphaned_turn_sweep_ms`, `serve.py:3839` →
 `agent_runtime/persona_chat_continuity.py:891`). A native turn holds the OS-backed root lease for
 its entire execution and the kernel releases it when the holder dies, so "in-flight record AND
 acquirable lease" is proof the turn can no longer settle itself; a session whose lease is HELD is
@@ -182,7 +204,7 @@ requested after — so repaired records project as typed `turn_interrupted` mark
 instead of a console stuck "running" forever. When anything flips, a `state.reconciled` event is
 appended so already-connected watermark-gated consumers converge too. Best-effort.
 
-**Detached dispatches** (`dispatch_restore_ms`, `serve.py:3846`). Same moment, same reason:
+**Detached dispatches** (`dispatch_restore_ms`, `serve.py:3855`). Same moment, same reason:
 a row still marked `running` whose owning process is provably gone can never finish, and the
 sender is owed that answer. Identity-verified — a recycled PID is not the old owner — and
 fail-open. Both counts ride the ready frame when nonzero.
@@ -317,7 +339,7 @@ event at all, and an offset key cannot see them at any price.
 A mismatch does not mean a blank canvas: `take_stale_first_core` serves the last persisted core
 **labeled stale** while the build runs (`core_cache.py:3817`, `stream.py:1353`). The one-shot
 belongs to the SUBSCRIBER, not the process — derived at producer-build time by
-`serve.py::_room_wants_stale_first` (`:4360`) — because a boot starts two `stream_frames`
+`serve.py::_room_wants_stale_first` (`:4369`) — because a boot starts two `stream_frames`
 generators and the module-global version handed the allowance to whichever raced first. A
 forced-refresh one-shot is refused the stale core outright.
 

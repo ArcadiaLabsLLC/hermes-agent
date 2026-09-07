@@ -35,7 +35,14 @@ Contract
 * **Resolved once per process**, behind a lock, and cached: the stamp is a
   property of the code this interpreter LOADED, and re-measuring it per
   request would answer for the checkout as it is now — a different question,
-  and one that costs two subprocesses to ask.
+  and one that costs three subprocesses to ask.
+* **RS-6: a commit is not a build.** The stamp also carries ``code_tree`` — a
+  digest of the tracked files a runtime can load, defined in
+  ``agent_runtime/build_identity.py`` — because the launcher's build-behind
+  restart used to compare commits and therefore drained a healthy runtime for
+  a DOCS-ONLY landing (2026-09-07 16:25:09Z; the replacement lost the socket
+  lock and the session finished on the argv lane). The commit stays: it is
+  what a human reads and what the receipts join on.
 
 The process facts (``pid``, ``boot_at``, ``uptime_ms``) are deliberately NOT
 cached: uptime is computed from a monotonic baseline captured at import, so a
@@ -53,6 +60,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from agent_runtime.build_identity import CodeTree, code_tree_for, code_tree_rule
 
 __all__ = [
     "GIT_TIMEOUT_SECONDS",
@@ -109,17 +118,37 @@ class BuildStamp:
     repo_root: str | None
     #: When the resolution ran (UTC ISO-8601, ``Z``).
     resolved_at: str
+    #: **RS-6.** sha1 over the tracked files a runtime can load — see
+    #: ``agent_runtime/build_identity.py``. None when nothing was measured,
+    #: which includes every non-``git`` source: a baked sha is a commit with no
+    #: tree behind it, and a digest invented for it would be a well-formed
+    #: wrong answer of exactly the class this module refuses.
+    code_tree: str | None
+    #: Empty when the digest resolved; otherwise a typed token —
+    #: ``not_git:<source>`` when there was no tree to read at all, or the
+    #: ``git_*`` token ``code_tree_for`` returned.
+    code_tree_reason: str
 
     @property
     def resolved(self) -> bool:
         return self.commit is not None
 
     def frame_payload(self) -> dict[str, Any]:
-        """The ``build`` block on the serve ``ready`` frame.
+        """The ``build`` block on the serve ``ready`` frame and the register row.
 
-        Deliberately the four keys a client needs to answer "is this service
-        running my install?" — the rest is available from the ``version`` op
-        at any time, so the boot frame does not carry a report nobody reads.
+        Deliberately the keys a client needs to answer "is this service running
+        my install?" — the rest is available from the ``version`` op at any
+        time, so the boot frame does not carry a report nobody reads.
+
+        **RS-6 added three.** ``code_tree`` is what RL-20 now compares (a commit
+        moves on a docs landing; the digest does not, and the 2026-09-07
+        16:25:09Z restart that cost a session its socket is what that
+        distinction is worth). ``code_tree_rule`` is the RULE that produced it,
+        published so the launcher applies the one it was handed rather than a
+        second copy that can drift. ``code_tree_reason`` is why a null is null:
+        a launcher falling back to the commit comparison should be able to say
+        whether it fell back for an old hermes, a Docker image, or a git that
+        timed out.
         """
 
         return {
@@ -127,6 +156,9 @@ class BuildStamp:
             "dirty": self.dirty,
             "source": self.source,
             "resolved_at": self.resolved_at,
+            "code_tree": self.code_tree,
+            "code_tree_rule": code_tree_rule(),
+            "code_tree_reason": self.code_tree_reason,
         }
 
     def payload(self) -> dict[str, Any]:
@@ -211,6 +243,8 @@ def _resolve() -> BuildStamp:
                 reason="no_repo_root",
                 repo_root=str(_fallback_repo_root() or ""),
                 resolved_at=resolved_at,
+                code_tree=None,
+                code_tree_reason=f"not_git:{SOURCE_BUILD_SHA_FILE}",
             )
         return BuildStamp(
             commit=None,
@@ -219,6 +253,8 @@ def _resolve() -> BuildStamp:
             reason="no_repo_root",
             repo_root=None,
             resolved_at=resolved_at,
+            code_tree=None,
+            code_tree_reason=f"not_git:{SOURCE_UNKNOWN}",
         )
 
     commit, commit_reason = _git(root, ["rev-parse", "HEAD"])
@@ -232,6 +268,8 @@ def _resolve() -> BuildStamp:
                 reason=commit_reason,
                 repo_root=str(root),
                 resolved_at=resolved_at,
+                code_tree=None,
+                code_tree_reason=f"not_git:{SOURCE_BUILD_SHA_FILE}",
             )
         return BuildStamp(
             commit=None,
@@ -240,7 +278,16 @@ def _resolve() -> BuildStamp:
             reason=commit_reason,
             repo_root=str(root),
             resolved_at=resolved_at,
+            code_tree=None,
+            code_tree_reason=f"not_git:{SOURCE_UNKNOWN}",
         )
+
+    # **RS-6.** One more subprocess, once per process, on the same cached
+    # resolution as the commit: WHICH CODE, as opposed to which commit. Run
+    # here rather than lazily on first read because the ``ready`` frame and the
+    # register row are both written before any client can ask, and a digest
+    # resolved later would put two different answers on one boot.
+    tree: CodeTree = code_tree_for(root)
 
     # ``--no-optional-locks`` + ``-uno``: a status probe on the boot path must
     # not take the index lock (it would race a human's git in the same
@@ -257,6 +304,8 @@ def _resolve() -> BuildStamp:
             reason=f"dirty_unknown:{status_reason}",
             repo_root=str(root),
             resolved_at=resolved_at,
+            code_tree=tree.code_tree,
+            code_tree_reason=tree.reason,
         )
     return BuildStamp(
         commit=commit,
@@ -265,6 +314,8 @@ def _resolve() -> BuildStamp:
         reason="",
         repo_root=str(root),
         resolved_at=resolved_at,
+        code_tree=tree.code_tree,
+        code_tree_reason=tree.reason,
     )
 
 

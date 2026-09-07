@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pytest
 
+from agent_runtime.build_stamp import build_stamp
 from agent_runtime.serve_registry import (
     CLASSIFICATION_LIVE,
     CLASSIFICATION_STALE_DEAD_PID,
@@ -72,6 +73,37 @@ def test_registration_writes_the_full_record_under_the_store_root(tmp_path):
     # The identity baseline the recycled-pid check compares against later.
     assert record["started_at_ticks"] == 1000
     assert record["argv_hint"]
+
+
+def test_the_row_carries_the_code_tree_and_the_rule_that_made_it(tmp_path):
+    """RS-6's row census — the two keys RL-20 reads, on the file it reads them from.
+
+    Registered through the SAME block ``harness serve`` writes
+    (``build_stamp().frame_payload()``, in ``hermes_cli/harness_parts/serve.py``)
+    rather than a hand-built dict, so a key that stopped riding the frame reds
+    here and not only at the stamp's own seam.
+    """
+
+    block = build_stamp().frame_payload()
+    _register(tmp_path, build=block)
+
+    record = json.loads(
+        serve_instance_path(tmp_path, 4242).read_bytes().decode("utf-8")
+    )
+    row_build = record["build"]
+
+    assert "code_tree" in row_build and "code_tree_rule" in row_build
+    assert row_build["code_tree_rule"] == {
+        "prefixes": ["docs/", "tests/", ".github/"],
+        "root_suffixes": [".md"],
+    }
+    # This test process runs from a checkout, so the digest is real. Where it is
+    # not (a Docker image), the row says so in ``code_tree_reason`` and the
+    # launcher falls back to the commit — pinned by
+    # ``tests/agent_runtime/test_build_stamp.py::test_a_non_git_source_writes_no_code_tree_and_the_row_says_why``.
+    if row_build["source"] == "git" and not row_build["code_tree_reason"]:
+        assert isinstance(row_build["code_tree"], str)
+        assert len(row_build["code_tree"]) == 40
 
 
 def test_the_argv_hint_stays_a_hint(tmp_path):

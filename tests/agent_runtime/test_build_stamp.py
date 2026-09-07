@@ -15,6 +15,7 @@ import time
 import pytest
 
 from agent_runtime import build_stamp as build_stamp_module
+from agent_runtime.build_identity import CodeTree, code_tree_for, code_tree_rule
 from agent_runtime.build_stamp import (
     SOURCE_BUILD_SHA_FILE,
     SOURCE_GIT,
@@ -233,10 +234,135 @@ def test_uptime_comes_from_the_monotonic_baseline_not_the_wall_clock(monkeypatch
     assert payload["boot_at"].endswith("Z")
 
 
-def test_the_frame_block_is_the_four_keys_the_ready_frame_carries():
+def test_the_frame_block_is_the_keys_the_ready_frame_and_the_register_row_carry():
+    """RS-6's census: the block the launcher reads, and nothing it has to infer.
+
+    ``code_tree`` and ``code_tree_rule`` are the two keys RL-20 now compares on;
+    ``code_tree_reason`` is the third because a null digest beside a rule is
+    otherwise unreadable — "this hermes predates the key", "this is a Docker
+    image", and "git timed out on the boot path" are three different facts and a
+    launcher that falls back to the commit comparison should be able to say
+    which one it fell back FOR.
+    """
+
     assert set(build_stamp().frame_payload()) == {
         "commit",
         "dirty",
         "source",
         "resolved_at",
+        "code_tree",
+        "code_tree_rule",
+        "code_tree_reason",
     }
+
+
+def test_a_git_checkout_stamps_a_code_tree_and_the_rule_that_made_it(
+    real_repo, monkeypatch
+):
+    """RS-6: the row carries the digest AND the rule, so the reader cannot drift."""
+
+    monkeypatch.setattr(build_stamp_module, "repo_root_for", lambda *a, **k: real_repo)
+
+    stamp = build_stamp(refresh=True)
+    block = stamp.frame_payload()
+
+    assert stamp.source == SOURCE_GIT
+    assert block["code_tree"] == code_tree_for(real_repo).code_tree
+    assert isinstance(block["code_tree"], str) and len(block["code_tree"]) == 40
+    assert block["code_tree_reason"] == ""
+    assert block["code_tree_rule"] == code_tree_rule()
+
+
+def test_a_docs_only_commit_leaves_the_code_tree_where_it_was(real_repo, monkeypatch):
+    """The field defect of 2026-09-07 16:25:09Z, at the stamp's own seam.
+
+    The commit moves — it is a real landing — and the digest does not, so RL-20
+    has nothing to restart.
+    """
+
+    monkeypatch.setattr(build_stamp_module, "repo_root_for", lambda *a, **k: real_repo)
+    before = build_stamp(refresh=True)
+
+    (real_repo / "docs").mkdir(exist_ok=True)
+    (real_repo / "docs" / "plan.md").write_bytes(b"a plan\n")
+    (real_repo / "NOTES.md").write_bytes(b"root prose\n")
+    _git(real_repo, "add", "-A")
+    _git(real_repo, "commit", "-qm", "docs only")
+
+    after = build_stamp(refresh=True)
+
+    assert after.commit != before.commit
+    assert after.frame_payload()["code_tree"] == before.frame_payload()["code_tree"]
+
+
+def test_a_non_git_source_writes_no_code_tree_and_the_row_says_why(
+    tmp_path, monkeypatch
+):
+    """A baked sha is a commit with no tree to read. Never a fabricated digest."""
+
+    (tmp_path / ".hermes_build_sha").write_bytes(b"a" * 40 + b"\n")
+    monkeypatch.setattr(build_stamp_module, "repo_root_for", lambda *a, **k: None)
+    monkeypatch.setattr(build_stamp_module, "_fallback_repo_root", lambda: tmp_path)
+
+    block = build_stamp(refresh=True).frame_payload()
+
+    assert block["source"] == SOURCE_BUILD_SHA_FILE
+    assert block["code_tree"] is None
+    assert block["code_tree_reason"] == f"not_git:{SOURCE_BUILD_SHA_FILE}"
+    # The rule is a constant of this build and is stated even when nothing was
+    # measured: a reader learns which rule WOULD have applied.
+    assert block["code_tree_rule"] == code_tree_rule()
+
+
+def test_an_unresolvable_repo_says_not_git_unknown_rather_than_nothing(monkeypatch):
+    monkeypatch.setattr(build_stamp_module, "repo_root_for", lambda *a, **k: None)
+    monkeypatch.setattr(build_stamp_module, "_baked_sha", lambda root: None)
+
+    block = build_stamp(refresh=True).frame_payload()
+
+    assert block["source"] == SOURCE_UNKNOWN
+    assert block["code_tree"] is None
+    assert block["code_tree_reason"] == f"not_git:{SOURCE_UNKNOWN}"
+
+
+def test_a_commit_whose_tree_could_not_be_read_keeps_the_commit_and_says_so(
+    real_repo, monkeypatch
+):
+    """Partial knowledge, reported partially — the same rule ``dirty`` follows."""
+
+    monkeypatch.setattr(build_stamp_module, "repo_root_for", lambda *a, **k: real_repo)
+    monkeypatch.setattr(
+        build_stamp_module,
+        "code_tree_for",
+        lambda *a, **k: CodeTree(
+            code_tree=None, reason="git_timeout", entry_count=None
+        ),
+    )
+
+    block = build_stamp(refresh=True).frame_payload()
+
+    assert block["commit"] == _git(real_repo, "rev-parse", "HEAD")
+    assert block["source"] == SOURCE_GIT
+    assert block["code_tree"] is None
+    assert block["code_tree_reason"] == "git_timeout"
+
+
+def test_the_code_tree_is_measured_once_per_process_like_the_commit(
+    real_repo, monkeypatch
+):
+    """One extra subprocess at boot, not one per caller — the stamp is memoised."""
+
+    monkeypatch.setattr(build_stamp_module, "repo_root_for", lambda *a, **k: real_repo)
+    calls: list[object] = []
+
+    def counted(root, head="HEAD"):
+        calls.append(root)
+        return CodeTree(code_tree="c" * 40, reason="", entry_count=1)
+
+    monkeypatch.setattr(build_stamp_module, "code_tree_for", counted)
+
+    build_stamp(refresh=True)
+    for _ in range(4):
+        build_stamp()
+
+    assert len(calls) == 1

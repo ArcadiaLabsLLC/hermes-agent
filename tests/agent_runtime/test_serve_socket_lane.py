@@ -669,7 +669,17 @@ def test_a_good_token_gets_the_build_handshake():
             assert reply["event"] == "hello_ok"
             assert reply["contract"] == serve_module.SERVE_SCHEMA_VERSION
             assert reply["boot_id"] == handle.ready["boot_id"]
-            assert set(reply["build"]) == {"commit", "dirty", "source", "resolved_at"}
+            # The socket greeting carries the SAME block as ``ready`` — RS-6's
+            # three included, because a remote client reads nothing else.
+            assert set(reply["build"]) == {
+                "commit",
+                "dirty",
+                "source",
+                "resolved_at",
+                "code_tree",
+                "code_tree_rule",
+                "code_tree_reason",
+            }
             assert reply["transport"] == "socket"
             assert reply["draining"] is False
             # The client named a build; either it disagrees with this runtime's

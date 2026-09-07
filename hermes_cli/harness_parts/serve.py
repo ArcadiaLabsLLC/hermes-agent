@@ -3278,6 +3278,15 @@ def serve_loop(
                 "source": "unknown",
                 "resolved_at": None,
                 "reason": f"stamp_failed:{type(exc).__name__}",
+                # RS-6's keys are present on the failure arm too, and BOTH are
+                # null: a reader that fell back to the commit comparison must
+                # be able to tell "this hermes has no code tree" from "this
+                # hermes predates the key", and an absent key says the second.
+                # The rule is null because the module that owns it is exactly
+                # what did not import.
+                "code_tree": None,
+                "code_tree_rule": None,
+                "code_tree_reason": f"stamp_failed:{type(exc).__name__}",
             }
         # 2. THE SECRET. Unwired to any transport (stdio needs none), minted
         #    now so the socket slice starts with a lock already on the door
@@ -5184,6 +5193,9 @@ def serve_loop(
                         "dirty": None,
                         "source": "unknown",
                         "reason": f"stamp_failed:{type(exc).__name__}",
+                        "code_tree": None,
+                        "code_tree_rule": None,
+                        "code_tree_reason": f"stamp_failed:{type(exc).__name__}",
                     }
                 sink.emit(
                     {

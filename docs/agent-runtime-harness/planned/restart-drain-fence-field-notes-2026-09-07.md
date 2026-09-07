@@ -225,3 +225,231 @@ what writes the ended note, and arming it installs a process-wide console
 control handler on Windows; the test monkeypatches
 `_install_console_ctrl_reason_handler` to a no-op so a unit test does not leave
 one on the pytest process.
+
+---
+
+# Stage 3 — hermes half (RS-6, the code tree)
+
+Branch `feat/build-code-tree`, in a fresh hermes worktree, from
+`114bfd69e7` (Stage 2's landing).
+
+The question RL-20 was asking was the wrong one. It compared `build.commit`
+against the checkout's `git rev-parse HEAD`, so on 2026-09-07 at 16:25:09Z a
+**docs-only** hermes landing — the prep-cost plan and three canon cites, not one
+runtime file — drained a healthy runtime, and the replacement lost the socket
+lock for the rest of the session (plan §0). This half makes the runtime state
+WHICH CODE it is running, so the launcher can compare that instead.
+
+---
+
+## 1. What was built
+
+**`agent_runtime/build_identity.py`** (new)
+
+- `NON_RUNTIME_PREFIXES = ("docs/", "tests/", ".github/")` — literal path
+  prefixes, each ending in `/` so `docsite/serve.py` and `tests_support/helper.py`
+  are KEPT. Defined once, here.
+- `NON_RUNTIME_ROOT_SUFFIXES = (".md",)` and the rule that uses it, stated
+  precisely: **repo-root markdown is a path containing no `/` at all whose name
+  ends, case-insensitively, in a suffix from that tuple.** `README.md` and
+  `AGENTS.md` go; `agent_runtime/skills/README.md` and
+  `skills/runtime-model/SKILL.md` stay, because a live runtime reads and acts on
+  the skills tree and a blanket `*.md` rule would report a skill edit as a docs
+  landing. This is the one part of RS-6 that is not expressible as a prefix, and
+  it is why `code_tree_rule` is a two-key block rather than a bare list
+  (deviation 1).
+- `code_tree_digest(entries)` — sha1 over `<path>\0<blob>\n` per surviving
+  entry, in ascending order of the path's **UTF-8 bytes**. Both halves are
+  mirrored in Dart: the NUL stops a path running into a blob, and sorting by
+  bytes rather than by the host language's collation is what makes two languages
+  agree at all.
+- `code_tree_for(root, head="HEAD")` — runs `git ls-tree -r -z HEAD`, never
+  raises, returns a typed `CodeTree(code_tree, reason, entry_count)`.
+  `CODE_TREE_TIMEOUT_SECONDS = 8.0`, four times `build_stamp`'s bound, because
+  this probe reads every tracked path where that one reads a line.
+- `-z` rather than the default output: without it git C-quotes any path with a
+  space, a quote or a non-ASCII byte in it, and a digest over quoted paths on
+  one machine and unquoted ones on another is two digests for one tree.
+- Mode bits are deliberately NOT hashed (a `chmod +x` is not code a runtime
+  loads differently); gitlinks ARE (a submodule's commit id is code identity).
+
+**`agent_runtime/build_stamp.py`**
+
+- `BuildStamp` gains `code_tree` and `code_tree_reason`, **without defaults**:
+  all six construction sites state their own answer, so a new arm cannot inherit
+  a silent `None` that reads like a measurement.
+- `frame_payload()` gains three keys — `code_tree`, `code_tree_rule` (the rule
+  itself, so the launcher applies the one it was HANDED) and `code_tree_reason`.
+  That block is the register row's `build`, the `ready` frame's `build` and the
+  socket greeting's `build`, all from one place, so wiring it once wired all
+  three (`serve.py`, `build_block` — five uses).
+- Non-git sources write **no** digest and say why: `not_git:build_sha_file` for
+  a Docker image, `not_git:unknown` for an unresolvable checkout. A digest
+  fabricated for a baked sha would be a well-formed wrong answer, which is the
+  class this module's whole contract exists to refuse.
+- One extra subprocess per process, on the same cached resolution as the commit.
+  **Measured on this checkout: 78 ms, three runs, 5,724 runtime entries out of
+  9,257 tracked paths.**
+
+**Canon**: `docs/agent-runtime-harness/04-boot-and-lifecycle.md`, Stage 4 item 1
+(the `build_stamp().frame_payload()` bullet) — the full rule, both fixture
+paths, and the two tests that pin the keys.
+
+---
+
+## 2. The reds, quoted
+
+### 2.1 The module (a weak red, and said so)
+
+`tests/agent_runtime/test_build_identity.py` could not import:
+
+```
+tests\agent_runtime\test_build_identity.py:25: in <module>
+    from agent_runtime.build_identity import (
+E   ModuleNotFoundError: No module named 'agent_runtime.build_identity'
+```
+
+An import error says a name is missing, not that a behaviour is — the same weak
+red Stage 2 called out. The strong reds are all on the WIRING below, which is
+where the behaviour lives: a new pure function has no prior behaviour to be
+wrong about, and its 30 tests are the rule's specification rather than a
+regression fence.
+
+### 2.2 The wiring — 7 failed, 10 passed on the un-wired stamp
+
+`tests/agent_runtime/test_build_stamp.py`, the census first:
+
+```
+>       assert set(build_stamp().frame_payload()) == {
+            "commit",
+            "dirty",
+            "source",
+            "resolved_at",
+            "code_tree",
+            "code_tree_rule",
+            "code_tree_reason",
+        }
+E       AssertionError: assert {'commit', 'd...at', 'source'} == {'code_tree',...lved_at', ...}
+E
+E         Extra items in the right set:
+E         'code_tree'
+E         'code_tree_reason'
+E         'code_tree_rule'
+```
+
+then the reads, and the seam:
+
+```
+>       assert block["code_tree"] == code_tree_for(real_repo).code_tree
+E       KeyError: 'code_tree'
+```
+
+```
+>       monkeypatch.setattr(build_stamp_module, "code_tree_for", counted)
+E       AttributeError: <module 'agent_runtime.build_stamp' from
+E       'X:\…\agent_runtime\build_stamp.py'> has no attribute 'code_tree_for'
+```
+
+### 2.3 Two censuses that were NOT in the plan caught the change themselves
+
+Neither is a test I wrote for this stage; both are existing censuses that
+red because the frame grew, which is exactly what a census is for:
+
+```
+tests/agent_runtime/test_serve_service_foundations.py:77
+>       assert set(ready["build"]) == {"commit", "dirty", "source", "resolved_at"}
+E       AssertionError: assert {'code_tree',...lved_at', ...} == {'commit', 'd...at', 'source'}
+E
+E         Extra items in the left set:
+E         'code_tree_rule'
+E         'code_tree'
+E         'code_tree_reason'
+```
+
+and the same shape at `tests/agent_runtime/test_serve_socket_lane.py:672`
+(`test_a_good_token_gets_the_build_handshake`). Both were widened to the seven
+keys, and the socket one now says out loud that a remote client reads that
+greeting and nothing else.
+
+---
+
+## 3. The shared parity fixture
+
+`tests/fixtures/build_identity/code_tree_parity_tree.txt` — ten `<path>TAB<blob>`
+lines, deliberately unsorted, covering every arm of the rule (root markdown,
+`docs/`, `tests/`, `.github/`, nested markdown that STAYS, a `.ps1`, two
+`agent_runtime/` files). Its byte-equal copy is
+`EterniaLauncher/test/fixtures/build_identity/code_tree_parity_tree.txt`.
+
+Two pins hold the two repos to one answer, and neither can read the other repo:
+
+- **the digest** — `10272b75505713833a1fb812e706b961e1d43a50`, pinned by name in
+  both suites. A pinned constant is normally circular; it is not circular for
+  the job it does here, which is cross-repo. The rule's own correctness is
+  pinned by the filtering and ordering tests, not by that number.
+- **the bytes** — sha256 `9acf6529f8095872fae8b4c4fb2458e67a9690cb3bf266b4316ee2dacd015e79`,
+  pinned on both sides, plus an explicit "no CR in this file" assertion. Both
+  repos are `eol=lf`, so LF is what byte-equality means here.
+
+Header lines in the fixture name BOTH repos' paths, so the two copies stay
+byte-equal: a header that named only "the other" repo would differ per side and
+break the very equality it documents.
+
+---
+
+## 4. Deviations
+
+**1. `code_tree_rule` is a two-key block, not a bare prefix list.** RS-6 says the
+row carries "the prefix list itself". Repo-root markdown is not a prefix and
+cannot honestly be spelled as one — `*.md` as a list entry would also match
+`docs/x.md` for a naive reader, which is the drift the published rule exists to
+prevent. So the value is
+`{"prefixes": ["docs/", "tests/", ".github/"], "root_suffixes": [".md"]}`: the
+prefix list is there, spelled exactly once, with the second half of the rule
+beside it instead of hidden in prose.
+
+**2. A third key, `code_tree_reason`.** RS-6 names two. The third exists because
+RS-6 also says a non-git source "writes no `code_tree` and the row says so", and
+a null digest beside a rule cannot say anything: "this hermes predates the key",
+"this is a Docker image" and "git timed out on the boot path" are three
+different facts, and the launcher's `rule=commit` fallback should be able to say
+which one it fell back FOR. It follows `BuildStamp.reason`'s existing
+typed-token style.
+
+**3. `code_tree_for` takes the checkout as well as the head.** RS-6 spells it
+`code_tree_for(head)`. A one-argument form would have to resolve a repo root of
+its own, and `build_stamp.repo_root_for` already resolved one — two walkers is
+two answers. `head` keeps its name and its default.
+
+**4. The row census landed in two places, not one.** The plan says "the row
+census test pins the two keys". `test_build_stamp.py::test_the_frame_block_is_the_keys_the_ready_frame_and_the_register_row_carry`
+pins the block at its source; `test_serve_registry.py::test_the_row_carries_the_code_tree_and_the_rule_that_made_it`
+registers through the SAME `build_stamp().frame_payload()` call `harness serve`
+uses and reads the keys back off the written `serve_instances/<pid>.json`. The
+second one is what fails if the block stops riding the row while still being
+correct at its source.
+
+**5. Ten line-number cites repointed in three canon docs.** The two inserts into
+`hermes_cli/harness_parts/serve.py` (RS-6's keys on the two `stamp_failed`
+fallback dicts) shifted `serve.py:<n>` cites in `03-transport-and-wire.md`,
+`04-boot-and-lifecycle.md` and `07-observability.md` by +9 and +12;
+`tests/scripts/test_doc_cite_adjacency.py` named all ten (`UNWAIVED FAILURES: 10`)
+and passes after the repoint. Nothing in those sentences changed — only the
+numbers. Same class as Stage 2's deviation 4.
+
+**6. One pre-existing red, untouched by this stage.**
+`tests/agent_runtime/test_harness_serve.py::test_ready_line_and_exit_frames`
+fails on `assert frames[1]["event"] == "ready"` / `assert 'stderr' == 'ready'`,
+because a `serve_registry_pruned action=refused reason=unknown
+classification_reason=cmdline_not_serve_like` line lands on stderr between
+`booting` and `ready` — the test resolves the LIVE runtime root and the refusal
+is about the pytest process's own row. **Verified pre-existing**: the two
+production files were copied aside, reverted (`git checkout --` /
+`rm build_identity.py`), the test re-run — same failure — and the files
+restored. It is not in this stage's gate set and is rowed, not fixed here.
+
+**7. Not done, and not in scope.** The launcher half (the Dart digest, RL-20's
+comparison, `serve_build_current`) is the other half of Stage 3 and lands in the
+launcher repo. The field gate — one docs-only hermes landing on the operator's
+machine reading `serve_build_current reason=code_tree_equal` with the runtime
+pid unchanged — is the operator's, and no boot has produced that line yet.
