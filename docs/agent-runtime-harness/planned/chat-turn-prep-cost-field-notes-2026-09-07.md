@@ -439,6 +439,25 @@ python tool/hermes_serve_frames/generate.py --hermes-root=<landed hermes main> -
 and commit the refreshed `ready.json` in the launcher, exactly as launcher
 `0691128d9` did when `code_tree` first landed.
 
+**The launcher gates on the claim branch** (`codex/prep-cost-stage7-claim`,
+one queue line in `Launcher_Brain`): `flutter analyze` — *No issues found*;
+`tool/stagec_qa_mcp_server` `no_dead_docs_link_test.dart` — *All tests passed*;
+`flutter test test/features/mission_control test/architecture` — **+7926 ~1,
+All tests passed, exit 0**.
+
+**One flake seen and chased down, recorded so a later red is not misread as
+this stage.** The FIRST full-suite run on that branch reported
+`+7925 ~1 -1` with
+`test/features/mission_control/mission_boot_anchor_receipt_test.dart`
+("receipts.jsonl opens with the anchor line, then session_start") failing. It
+was not attributed by assertion — it was tested three ways: standalone on clean
+launcher `main` (11 passed), standalone in the claim worktree (11 passed), the
+full suite on clean launcher `main` (+7926 ~1, passed), and the full suite on
+the claim branch a second time (+7926 ~1, passed). A one-line Brain markdown
+change has no mechanism to reach a receipts end-to-end test, and the totals
+match clean main exactly. It is a full-suite flake in that test — most likely
+contention on its receipts file — and it is **rowed, not fixed here**.
+
 ### 3.7 Deviations from the plan text
 
 1. **The union is a named helper, not an inline `or`.** `_a_turn_holds_the_gil`
