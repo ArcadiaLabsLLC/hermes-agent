@@ -188,7 +188,7 @@ Red-first (`tests/agent_runtime/test_send_path_runner_reuse.py`, `tests/agent_ru
 
 | stage | what | landed sha | date | re-take read |
 |---|---|---|---|---|
-| 6 | instrument: widened `timing` block + `rt_write_ahead_ms`, sub-spans, rebuild component, admitted counter (recorder) | — | — | — |
+| 6 | instrument: widened `timing` block + `rt_write_ahead_ms`, sub-spans, rebuild component, admitted counter (recorder) | hermes `a319021acc` (rebased over the restart-fence Stage 2), launcher `a4b8e390c` | 2026-09-07 | OWED — one agent-chat turn per machine whose `[MissionChatTiming]` line carries `rt_write_ahead_ms=` and whose record carries the seven sub-spans (plus, on the PC, one `visibility_bundle_rebuild_component_*`). Deviations accepted at landing: `safe_turn_profile_timing` did NOT admit `*_cached` (two shapes added, ceiling 1); the six keys are appended to `TURN_TIMING_ORDER`; CP-2's admitted window is a decorator on the handler, not a `with`; the `timings` mapping had a third consumer (the snapshot lane's `chat_contexts[]`) and is evicted at all three exits — caught by the launcher's byte-pinned fixtures; no fixture byte regenerated. Pre-existing red rowed by the builder: `tests/agent_runtime/test_harness_serve.py::test_ready_line_and_exit_frames` (SQLite WAL warning becomes a `stderr` frame) |
 | 7 | admitted-turn deferral + prewarm yield, bound 3,500 | — | — | — |
 | 8 | one skill walk per turn, fingerprint-keyed rows | — | — | — |
 | 9 | observability row post-turn (gated on 8's number) | — | — | — |
