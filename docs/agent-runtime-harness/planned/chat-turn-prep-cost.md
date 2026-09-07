@@ -1,1029 +1,227 @@
-# Planned — chat-turn prep cost (the ~4 s of hermes between admission and the provider)
+# Planned — chat-turn prep cost, re-armed 2026-09-07: the seconds an agent-chat turn spends before the provider
 
-**Status:** Stages 0–2 LANDED 2026-08-23 (`60c7f46ec1` / `7f2c82f090` / `bfde53b4ae`), Stage 2a landed in two parts (`14271f261f` = the instrument + convictions 4–6; `b0c1a668b9` = conviction 7, the ambient config document — the instrument's first field validation); live steady-state re-take READ 2026-08-24 for 1, 2a and the warm half of 2 (§6), leaving the `context_built` tail and the fresh-chat first turn open. **Stages 3–5 EXECUTED WITH AMENDMENTS 2026-09-01** — see the ledger below; two of the three stages were built AGAINST this plan's named remedy, because the live record falsified it first (§5 stamps, field notes
-[`chat-turn-prep-stages-3-5-field-notes-2026-09-01.md`](chat-turn-prep-stages-3-5-field-notes-2026-09-01.md)). **Owner doc:**
-[`../05-chat-turn-lane.md`](../05-chat-turn-lane.md).
+**Status:** RE-ARMED 2026-09-07 (Fable, read-only against the live store, the neko profile log, the launcher's 2026-09-06 timing line, and one sandboxed profile of the pre-admit path). Stages 0–5 of the 2026-08-23 → 09-01 program are EXECUTED and live in the ledger (§4) with their billing verdicts intact; the full 2026-08 text is in this file's history (`git log --follow`) and in [`chat-turn-prep-stages-3-5-field-notes-2026-09-01.md`](chat-turn-prep-stages-3-5-field-notes-2026-09-01.md). Stages 6–10 below are new; nothing in §2 has shipped. Field notes for this pass: [`chat-turn-prep-cost-field-notes-2026-09-07.md`](chat-turn-prep-cost-field-notes-2026-09-07.md). **Owner doc:** [`../05-chat-turn-lane.md`](../05-chat-turn-lane.md). **Sibling:** `EterniaLauncher/docs/mission_control/planned/runtime-observability.md` (RO-7 is the wire this plan widens; its §0 item 4 is the row that re-armed this one).
 
-## EXECUTED — 2026-09-01, Stages 3–5 (ledger)
+**The operator's question.** *Agent messaging (a chat send to a placed agent — the Neko supervisor — from Mission Control's Agents panel) is about twice as slow on this Windows PC as on the Mac.* The answer, with the numbers in §0: the provider leg is the same on both machines; what differs is the time hermes spends BEFORE the write-ahead — context assembly and the prompt-observability row — and that time on this PC is (a) a ~0.4–0.9 s floor made almost entirely of skill-directory walking that is repeated three ways per turn, and (b) inflated to 1.1–3.2 s on three turns in four because the same process is building a 4–9 s core snapshot for a roster of 11 instances every 5–6 s while the operator chats, and the one deferral that exists (Stage 5) cannot see a turn until it is past the write-ahead. The launcher's own share of `send_to_admit` is 102–137 ms.
 
-Branch `perf/chat-turn-prep-stages-3-5`, cut from `98d43d0c86`, landed on `main`.
-Verification: focused suites green (145/101/72/45/167 across the five sets),
-mutation gate 18/18 killed, cross-stack producer surface clean from the launcher
-primary (`generate.py --check` + `check_producer_contracts.py`, both exits 0).
-**Five live re-take reads are OWED before these instruments' numbers judge the
-stages** — enumerated in the field notes §9 and rowed as the OPERATOR row in the
-launcher Mission Control queue.
+---
 
-| stage | what landed | sha | outcome |
+## 0. Ground truth (2026-09-07, this PC)
+
+Every number here comes from one of five sources, named per table: the per-turn ledger (`<store>/mission_chat_turns/*.json`, v3 `phases` + `profile_timing`), the neko profile's `agent.log` (the serve pid 28184, build `42a07c5dfa`), the launcher's `[MissionChatTiming]` lines as recorded in `EterniaLauncher/docs/mission_control/planned/runtime-observability.md` §0.4 (this morning's own lines were rotated out of the diag log before they could be read — the log is deleted past 2 MB on open), the serve register row, and a sandboxed profile (§0.3) of the handler's pre-admit path against a copy of the live root.
+
+**A join rule the reader must know first.** The ledger's `started_at` is stamped at the write-ahead persist, NOT at the handler anchor; `phases.anchored_at` is the anchor. Joining the log to `started_at` puts every event 0.9–3.2 s early and makes the record look impossible (a `conversation turn:` line before `context_built`). Joined on `anchored_at`, every log event below lands within ~50 ms of its mark. The timeline tool and the RO-7 line already use the marks; this rule goes into 07 with Stage 6.
+
+### 0.1 The three agent-chat turns of 07:48–07:49Z (root `…f6844ba8_894297972f70`, a chat opened seconds earlier)
+
+Elapsed ms from `anchored_at`; spans are differences of consecutive marks.
+
+| turn | anchor UTC | `context_built` | obs (`observability_built − context_built`) | **`write_ahead`** (= pre-admit) | `agent_ready − write_ahead` | assembly (`request_assembled − provider_request_started`) | TTFB (`provider_first_byte − request_assembled`) | `builds_overlapped` | `visibility_bundle_builds` | `turn_context_ms` | `runtime_resolve_ms` | reused |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 `…97f6ab05` | 07:48:48.392 | 1,813 | 1,359 | **3,172** | 234 | 421 | 2,720 | 1 | **2** | 173 | 0 | 1 |
+| 2 `…84beff76` | 07:49:01.057 | 1,063 | 1,718 | **2,796** | 63 | 47 | 1,296 | 1 | 1 | 44 | 0 | 1 |
+| 3 `…17ce8b7d` | 07:49:21.203 | 468 | 438 | **906** | 46 | 359 | 2,173 | **0** | 1 | 350 | 12 | 1 |
+
+Log cross-reference (neko `agent.log`, local clock): `API call #1 … latency=3.7s ttfb=2.7s` / `1.8s ttfb=1.3s cache=97%` / `2.6s ttfb=2.2s cache=95%` — the ledger's TTFB column to within 20 ms. `session_db_open_ms` 15/30/14, `mcp_admission_ms` 7/6/5 (the neko role admits no MCP server; `launcher_qa` is declared for `qa`/`dev` only). `resident_actor_reused=1` on all three — the chat-open prewarm delivered its actor, so `agent_ready − write_ahead` is 46–234 ms and the OLD plan's cold-construction problem is closed.
+
+So on the one turn nothing else was running (turn 3), hermes spent **906 ms** before the provider request could start and **1,311 ms** before the request left; on the two turns something else WAS running it spent **2,796–3,172 ms** and **2,906–3,827 ms**. Same chat, same actor, twenty seconds apart.
+
+### 0.2 What else the serve was doing — the inflator, timed against the turns
+
+From the same log, pid 28184, one thread pool, one GIL:
+
+| window (local clock, 03:48–03:49) | what | cost | overlaps |
 |---|---|---|---|
-| 3 — prologue receipts | `profile_conversation_turn_context_ms`; the system-prompt restore/build POSITIVE pair; the tool-defs memo hit/miss receipt (`agent_init_tool_defs_build_ms`/`..._cached_ms`) | `3b4923f6c2` | **AMENDED: the plan's named remedy site is FALSIFIED** — `request_build` bills 1 ms warm, and the cache this stage specified already exists (`model_tools._tool_defs_cache`). No second cache was built; the receipts were (field notes §2–3) |
-| 4 — SessionDB open | `session_db_open_ms` on every durable turn record (handler copies the runner's dict; live frame byte-unchanged) | `139f480a23` | **AMENDED: pooling REFUSED with the number** — warm writer-open ~6 ms median (5.7/6.5/6.6, flat 0.6→170.8 MB) vs this stage's own 100 ms threshold. Decision rule retained: live median >100 ms warm reopens it (field notes §4) |
-| 5 — demote-build deferral | `_defer_demote_build_for_active_turns` in `agent_runtime/stream.py`, bounded `SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS = 1000`, demote lane only, `snapshot_build_deferred` receipt | `048bc96802` | Built as planned; `builds_overlapped` accounting untouched so a deferral cannot launder its own failures (field notes §5) |
+| 45.25 → 51.09 | `persona_chat_actor_prewarm root=…894297972f70 outcome=warmed elapsed_ms=5750` on thread `persona-chat-actor-prewarm` — the chat-open prewarm for THIS root, requested when the operator opened the chat ~3 s before typing. Inside it: an LRU eviction (`max_hot_sessions=8`, and the 02:03 boot pass had warmed exactly 8 roots) whose `agent_close` closed 8 OpenAI clients over ~1.1 s, a full `check_fn` sweep (`_browser_cdp_check` … `check_web_api_key`), and `tool_search activated` | 5,750 ms | **turn 1's entire pre-admit span** (48.39 → 51.56) |
+| 46.4 → 55.18 | `snapshot_build_core role=led caller=cli generation=4 build_ms=8736 sections_top=agents_readiness:5092,events:1345,prompt_observability:1240` (reason `hydrate`, `waited_ms=9780`); its readiness walk `walk_ms=4955` ended 52.86 | 8,736 ms | turn 1's pre-admit span AND its prologue |
+| 56.4 → 01.19 | gen 5, `build_ms=4831` (`agents_readiness:1469,events:1273,prompt_observability:1030`) | 4,831 | turn 2's first 130 ms |
+| 02.35 → 07.28 | gen 6, `build_ms=4932`; readiness walk 03.6 → 05.25 | 4,932 | **turn 2's pre-admit span** (01.06 → 03.85) and prologue |
+| 07.8 → 12.76 · 13.4 → 17.92 | gen 7 (4,986), gen 8 (4,498) | | idle gap |
+| 21.20 → 22.11 | **turn 3 pre-admit — no build in flight** | | `builds_overlapped=0`, 906 ms |
+| 23.36 / 23.47 / 23.54 | `snapshot_build_deferred reason=demote waited_ms=1000 runs_in_flight_at_exit=1 bound_ms=1000` ×3 — Stage 5's deferral fired, for turn 3 only, and only once the turn was inside the runner (after `write_ahead`); then gen 9 (5,357), gen 10 (6,453), gen 11 (4,186) | | turn 3's provider wait |
 
-(Claims register: `13b7770042`; field notes: `48feeddf6f`.)
-**Question this answers** (operator, 2026-08-22): *"maybe something we are doing with the
-chat isn't initializing fully or fast enough?"* — the answer is **yes, twice over**: the
-turn path re-derives per turn what could live per process (and the per-process caches it
-does have expire on 15/30 s TTLs tuned for snapshot builds, not for operator cadence), and
-the one warm path that exists (`persona_prewarm`) warms the *create* lane's memos at boot,
-not the *turn* lane's costs at turn time.
+**Eight led builds, 44.0 s of build time, inside the 55 s that held three turns.** The hourly count says this is chat-driven, not a cadence: 8 builds in the 03:00 hour — all of them in that minute — against 3 (02:00), 6 (05:00) and 2 (09:00) in hours with no chat. A turn appends events (presence START/END, the reservation, the write-ahead journal row, the instance's `skill_manifest_hash` stamp at `observability_built`), every appended event is the hub's reason to rebuild, and the core cache cannot short-circuit a rebuild because `snapshot_core_cache never_converged builds=3 diff_scope=every_pass … diff=chat_turn_reservations/…` (03:49:07). The feedback loop is: the chat causes the builds that slow the chat.
 
-Everything below is read from live turn records under
-`X:/Eternia/.hermes/agent-runtime/mission_chat_turns/` (v3 `phases` blocks), the live
-serve log `X:/Eternia/.hermes/profiles/base/logs/agent.log`, and HEAD code. Carry-forward
-numbers are marked as such.
+**Why Stage 5 did not protect turns 1 and 2.** `_defer_demote_build_for_active_turns` (`agent_runtime/stream.py`) and the prewarm's yield (`persona_chat_actor_prewarm.prewarm_chat_actor`, two reads of `agent_runs_in_flight()`) both read `profile_runner._ACTIVE_RUNS`, which `_counted_agent_run` increments at `ProfileAgentRunner.run()` — i.e. after `write_ahead`. The span this plan is about — `request_received → write_ahead` — is invisible to both by construction. Turn 3's three deferrals prove the mechanism works where it can see; turns 1 and 2 prove where it cannot.
 
----
+### 0.3 The uncontended floor, profiled — what runs between `request_received` and `observability_built`, in order, with its cost
 
-## 1. The measured phase table (live turns, 2026-08-22/23 UTC)
+Method: a sandbox copy of the live root (`config.yaml`, `profiles/`, `skills/`, `agent-runtime/` minus caches, logs and archives; `HERMES_HOME` set to the copy's `profiles/base` exactly as the serve row's `hermes_home` reads, `HERMES_AGENT_RUNTIME_ROOT` to the copy's `agent-runtime`, `HOME`/`USERPROFILE`/`APPDATA`/`LOCALAPPDATA` to a throwaway directory), the same system-wide interpreter the serve runs on (the register row's chain; it is NOT under the Defender exclusion, the store is), and a script that calls the handler's pre-admit steps in `_cmd_mission_chat_message`'s own order for persona `neko_supervisor`, instance `…f6844ba8`, its bound root. Three passes per process: cold, warm immediately, warm after 17 s (past every 15 s TTL). Nothing was written under the live root; the script and its output are in the field notes.
 
-Deltas in ms between consecutive marks of the v3 `phases` block
-(`agent_runtime/mission_chat_phases.py:76-89`; anchor = handler entry,
-`hermes_cli/harness_parts/persona_commands.py:2059`). All turns below are
-`gpt-5.6-luna` / `openai-codex` mission chats read from the turn store on 2026-08-22.
-
-| turn (`started_at` UTC) | ctx | obs | emit/WA | →agent_ready | →first_byte | probe rounds | builds overlapped | note |
-|---|---|---|---|---|---|---|---|---|
-| `…bda7c2d49abb` 08-23 02:04:20 (= diag turn **4a80f05e**) | 344 | 453 | 15 | **3,016** | **4,344** | 0 | 1 | first turn after a 22:03 serve restart; new chat |
-| `…e880b26e2c95` 08-23 02:55:06 | 1,953 | 468 | 15 | **3,642** | 3,782 | 27 | 1 | warm serve, new chat (cold resident actor) |
-| `…b1ec49d62a8c` 08-23 02:56:29 | 1,375 | 453 | 16 | **500** | 1,062 | 26 | 0 | same chat, turn 2 (resident actor reused) |
-| `…dff8c307101a` 08-22 17:44:24 | 1,203 | 391 | 15 | 3,171 | 2,250 | 27 | 1 | qa |
-| `…c7b12bd01053` 08-22 17:41:52 | 3,921 | 531 | 16 | 3,219 | 4,078 | 23 | 3 | neko |
-| `…d7033c756f1f` 08-22 14:51:42 | 1,844 | 531 | 15 | 110 | 3,250 | 0 | 1 | reuse-warm |
-| `…457c7fbdea98` 08-22 14:51:23 | 1,969 | 421 | 15 | 3,360 | 4,985 | 27 | 2 | |
-| `…b8ba46db0d97` 08-22 14:49:47 | 1,077 | 625 | 17 | 625 | 1,389 | 26 | 0 | |
-| `…d3b728e445e3` 08-22 14:48:35 | 157 | 1,858 | 31 | 1,423 | 10,469 | 0 | 3 | fb span includes provider stall |
-
-Column key: **ctx** = `request_received→context_built`, **obs** =
-`context_built→observability_built`, **emit/WA** = `→emitter_created/write_ahead`
-(always ~15–30 ms), **→agent_ready** = `write_ahead→agent_ready` (profile bootstrap),
-**→first_byte** = `provider_request_started→provider_first_byte` (contains BOTH hermes
-assembly and provider TTFB — see §2.4).
-
-**The diag turn 4a80f05e reconciles exactly.** Launcher diag said
-`send_to_admit=921ms, admit_to_first_delta=7,391ms`. The record
-(`mission_chat_turns/persona_chat_personainst_neko_supervisor_agent_f6f7a51b_e5a076d45827_463c52dff9ac.json`,
-key `agent-chat-send-4a80f05e-…`) says `write_ahead=812`, `provider_first_byte=8172` —
-`8172−812 = 7,360 ≈ 7,391`, and `921 ≈ 812 + ~110 ms` of launcher→serve transport.
-So **the launcher's "admit" IS the hermes `write_ahead` mark**, and the launcher/transport
-share of `send_to_admit` is ~0.1 s; the rest is the handler's own pre-write-ahead work
-(§2.1–2.2). Hypothesis 6 is thereby bounded: admission cost is hermes-dominated.
-
-The provider call inside was `latency=3.4s ttfb=3.1s` (agent.log
-`2026-08-22 22:04:27,793 … API call #1: model=gpt-5.6-luna … in=17633 … latency=3.4s ttfb=3.1s`),
-so of the 4,344 ms `provider_request_started→provider_first_byte` span, **~1.2 s was
-hermes** (prologue + assembly, §2.4) and 3.1 s the provider. Total hermes prep for that
-turn: 0.34 + 0.45 + 3.02 + ~1.2 ≈ **5.0 s**; on the steadier warm turns the same sum is
-**~3.5–4.5 s** — the operator's "~4 s".
-
-**Vintage caveat — RESOLVED 2026-08-23, and it was not vintage.** None of the sampled
-records carries `request_assembled` or `agent_init_cold`, though both are in HEAD
-(`mission_chat_phases.py:84`, `:92`; emitter `agent/conversation_loop.py:2469`; flag site
-`persona_commands.py:3394-3399`). This section originally offered two explanations and
-ranked them; **the serve-vintage arm is dead and the "less likely" arm was right** —
-twice over, by two independent mechanisms. The serve was restarted on HEAD (confirmed:
-`snapshot_core_cache_write … restat=` in the live log) and the two turns that followed
-(`03:57:37Z`, `03:57:52Z`, both in the store) still carried neither key.
-
-* **`request_assembled` — the payload never reached the handler.** The marker travels
-  `conversation_loop._emit_request_assembled_marker → agent.status_callback →
-  profile_runner._profile_status_callback → ChatProgressSink.emit → on_trace →
-  _stream_progress`. `ChatProgressSink.emit` drops any `run.progress` payload carrying
-  none of its Trace-lane signal keys (`progress.py:83-86`) — the rule that keeps bare
-  "Run progress update" rows out of the operator's console. A timing marker names an
-  INSTANT and carries no `tool_name`, no `command_label`, no work summary, so it was
-  filtered as noise on every turn. Every existing test agreed the wiring was healthy
-  because each drove the mark/emit ENDS directly and skipped the sink in the middle.
-* **`agent_init_cold` — the runner had nothing to report, and knew it.** The flag is
-  derived from `profile_timing["resident_actor_reused"]`, which `profile_runner` wrote
-  ONLY on the resident-actor branch (`:967-986`). That branch needs a registry, and
-  `persona_chat.hot_sessions_enabled` defaults to **False** (`runtime_config.py:142`)
-  with no `persona_chat` stanza in the live root config — so
-  `initialize_persona_chat_runtime_registry(enabled=False)` leaves the registry `None`
-  (`serve.py:1242`), the handler's `runtime_registry` is `None`, and every turn took the
-  `else: agent = _construct_agent()` branch, which recorded nothing. The handler then correctly refused
-  to guess. **Corollary: no sampled live turn reused a resident actor — none could.**
-  The fast second turn (`write_ahead → agent_ready` of 63 ms against turn 1's 2,000 ms on
-  the same 03:57Z pair) is the OTHER warm caches
-  (core-cache snapshot, runtime-resolve TTL, registry probe TTL), not actor reuse, and
-  §2.3's "bimodal 0.1–0.6 s reused" rows must be re-read as that. Stage 2's premise is
-  unaffected — a resident actor is not being reused because there is not one — but its
-  receipt (`agent_init_cold=false`) also requires the config stanza to be turned on.
-  **Update 2026-08-23: the stanza WAS turned on, the registry appeared — and reuse still
-  did not happen, for a second and independent reason.** `_runtime_signature` hashed the
-  whole persona-instance row, and a chat turn writes that row (`state` flips,
-  `updated_at`/`last_heartbeat_at` are stamped, `skill_manifest_hash` is written back at
-  the end of every turn), so the reuse key could not match twice. Turn `14:45:14Z` — the
-  second message of one neko chat, 45 s after the first, nothing changed — carries
-  `resident_rebuild_runtime_signature_changed` + `resident_actor_reused=0`. Fixed as part
-  of Stage 1 (§5) with an explicit actor-identity allowlist.
-
-Both are fixed at Stage 0 (§5). Until a serve restarted on the fixed tree writes the
-keys, the assembly-vs-TTFB split inside `→first_byte` still rests on the one measured
-carry-forward (1,762 ms, turn `c59ab99e`, quoted at `mission_chat_phases.py:420-424`)
-plus the log cross-reference above.
-
----
-
-## 2. Who owns each span
-
-### 2.1 `request_received → context_built` (0.15–3.9 s, typically 1–2 s warm)
-
-One span, four owners, in execution order inside `_cmd_mission_chat_message`:
-
-1. **Admission guards + session resolution** (`persona_commands.py:2034-2530`): config
-   load (mtime-cached, `agent_runtime/config.py:112-116` — fine), relay guard, target
-   decision, clarify binding, **fresh SessionDB open**
-   (`persona_commands.py:2076 _default_persona_session_db()` →
-   `agent_runtime/snapshot.py:2312-2317` → `chat_session_scope.py:615-626` →
-   `hermes_state.py:1825` — the non-read-only constructor runs schema init + FTS probe
-   per open; the WAL-reset check logs on this path:
-   `2026-08-22 22:04:15,970 WARNING hermes_state: state.db: linked SQLite 3.45.3 is vulnerable to the WAL-reset corruption bug …`).
-2. **Chat-root lease** (`persona_commands.py:2523`): a concurrent turn/settlement on the
-   same root serializes here — lease wait lands in this span undistinguished.
-3. **Native history load** (`persona_commands.py:3017-3036`): full lineage read from
-   SessionDB + per-turn re-filter against abandoned turn records
-   (`mission_chat_turn_records(session_id=…)`, `:3021`).
-4. **`build_mission_chat_turn_context`** (`agent_runtime/mission_chat_turn_context.py:329-440`):
-   skill preload (catalog reads), workspace AGENTS.md, **and — the expensive part — the
-   toolset/visibility resolver family invoked repeatedly**: `capability_block`
-   (→ `chat_lane_capability_drops`, `persona_runtime.py:688-734`), `admission_line`
-   (`:737`), and inside `_runtime_signature` (`mission_chat_turn_context.py:635-636`)
-   `tool_contract` + `permission_state` — each independently walking
-   `permission_options_for_chat` → `effective_toolsets`/`all_registered_toolsets`
-   (`personas.py:249-252` → `model_tools.get_available_toolsets` → the registry
-   check_fn sweep).
-
-The `registry_probe_rounds` receipt (23–27 on most warm turns, baseline/delta at
-`persona_commands.py:2064`/`:3267`) proves the sweep runs **many times per turn**: a
-round is only counted when at least one `check_fn` actually EXECUTED
-(`tools/registry.py:264-283`), and the live log shows the interleaved doubled sweep in
-this exact window — e.g. turn `…e880b26e2c95`:
-`22:55:04,005 WARNING tools.registry: check_fn _browser_cdp_check returned False…` twice
-within 35 ms, then the whole family (`check_computer_use_requirements`,
-`_check_feishu` ×2, `check_bfl_requirements`, `_check_kanban_mode`,
-`check_video_generation_requirements`, `check_vision_requirements`,
-`check_web_api_key`, `check_x_search_requirements`, `_check_yuanbao`,
-`_check_spotify_available`, …) twice over, 22:55:03.97–05.46 — squarely inside that
-turn's 1,953 ms ctx span.
-
-### 2.2 `context_built → observability_built` (0.39–1.9 s, typically ~0.45 s)
-
-Owner: `mission_chat_prompt_observability`
-(`agent_runtime/prompt_observability.py:108-320`): skill-catalog walk behind a **15 s
-TTL** memo (`_SKILL_CATALOG_TTL_SECONDS = 15.0`, `:2419`), the skill resolver, a
-**second SessionDB history read** (`_chat_history_context`, `:169`), profile
-context-file hashing (SOUL.md / MEMORY.md rows), identity-prompt reads. The C1
-build-once note at `persona_commands.py:3404-3410` already killed the post-turn
-*second* build; the *pre-turn* build still re-derives rows whose cache key
-(`skill_cache_key`, `:196-203`) is stable across consecutive turns of the same chat —
-the memo just doesn't outlive 15 s.
-
-### 2.3 `write_ahead → agent_ready` (bimodal: 0.1–0.6 s reused / 3.0–3.6 s cold)
-
-Owner: `ProfileRunner._execute_agent_run` (`agent_runtime/profile_runner.py:780-1033`).
-Inside this span, in order: the global **`_WORKDIR_LOCK`** (`:797` — all runs in the
-process serialize here), `persona_profile_context` install (the `.env` load:
-`22:04:20,973 INFO run_agent: Loaded environment variables from X:\Eternia\.hermes\profiles\neko\.env`),
-runtime resolve (cached, `:1587`), MCP admission (`:869`), and — on a chat root's FIRST
-turn — **agent construction** (`_construct_agent`, `:939-965`): OpenAI SDK client
-(`22:04:21,089 … OpenAI client created (agent_init, shared=True) … model=gpt-5.6-luna` —
-~150 ms after the env load), tool-definition build with its own check_fn sweep
-(`22:55:08,552 … check_fn check_close_terminal_requirements returned False…` — the
-terminal-family probes fire *during construction*, a second probe population beyond
-§2.1's), and tool_search activation
-(`22:04:22,701 INFO tools.tool_search: tool_search activated (tier 1): 27 core/visible tools kept, 10 deferred`).
-
-The resident-actor registry (`:967-986`) makes turn 2+ of the same chat root cheap
-(`agent_ready` 110–625 ms, factory never called, `resident_actor_reused=1`), which is
-exactly why the span is bimodal. **Nothing pre-constructed the actor before turn 1** —
-not `persona_prewarm` (visibility memos only, §3), not serve boot
-(`_prewarm_provider_runtime`, `hermes_cli/harness_parts/serve.py:1029-1057`, warms the
-SDK import, the SSL context, and the *shared* parts of `get_tool_definitions` — not a
-persona-shaped agent). **Stage 2 (§5) is the thing that now does**, at serve boot and at
-chat-open, through the same `acquire()`; this paragraph describes the state it changed.
-
-### 2.4 `provider_request_started → provider_first_byte` (hermes share ~1.1–1.8 s)
-
-Owner: the `run_conversation` prologue + request assembly, all BEFORE any byte leaves:
-`build_turn_context` (`agent/conversation_loop.py:1317-1358` → `agent/turn_context.py`:
-stdio guard, sanitization, todo/nudge hydration, system-prompt restore-or-build,
-preflight compression, `pre_llm_call` hook, external-memory prefetch, crash-resilience
-persistence), then `request_build` (tool-schema serialization,
-`conversation_loop.py:2261-2263`), LLM request middleware (`:2285-2302`),
-`pre_api_request` hook (`:2307-2363`), codex transport preflight incl. token refresh
-(`:2459-2464`), and a **per-request client build**
-(`22:04:24,630 INFO run_agent: OpenAI client created (codex_stream_request, shared=False)`
-— on the 4a80f05e turn the prologue's own `conversation turn:` line landed at
-22:04:24,241, 1.09 s after `agent_ready` at ~23.15). Measured once with the split
-instrument: **1,762 ms of a 13,532 ms "provider" span** (turn `c59ab99e`, quoted at
-`mission_chat_phases.py:420-424`). The `request_assembled` mark that makes this a
-standing distribution is in HEAD but absent from live records (§1 vintage caveat).
-
-### 2.5 Cross-cutting: in-process snapshot builds
-
-`builds_overlapped` was 1–3 on most sampled turns, and each led build costs seconds of
-CPU in the same process (log during the 4a80f05e turn:
-`22:04:26,279 … snapshot_build_core role=led caller=cli generation=2 build_ms=3979 … sections_top=agents_readiness:1517,…`;
-boot-window builds up to `build_ms=9131`). The builder also runs its own
-`tool_visibility` resolution (`22:04:03,213 … snapshot_agents_readiness walk_ms=1845 tool_visibility_ms=3218`),
-which is what keeps the 30 s check_fn TTL perpetually churning and steals GIL time from
-whatever span the turn happens to be in. This inflates every number above without
-owning any single mark.
-
----
-
-## 3. Hypotheses: confirmed / killed
-
-**H1 — prewarm caches keyed differently on prewarm vs turn path: SPLIT.**
-The *key-mismatch* arm is **KILLED**: `warm_persona_memos` aligns onto the exact
-`(toolsets, blocked)` key the create reads
-(`agent_runtime/persona_prewarm.py:205-232`, pinned by
-`test_the_warm_fills_the_exact_toolset_key_the_create_reads`), and the
-`session_id=None`-vs-minted-id suspicion was already acquitted
-(`planned/mission-chat-admission-latency.md` §2). The *TTL* arm is **CONFIRMED**, and it
-is what makes prewarm cosmetic for TURNS: the memos prewarm fills expire on
-`_PROFILE_READINESS_TTL_SECONDS = 15.0` (`tool_visibility.py:466`),
-`_CHECK_FN_TTL_SECONDS = 30.0` (`tools/registry.py:225`), and
-`_SKILL_CATALOG_TTL_SECONDS = 15.0` (`prompt_observability.py:2419`). Prewarm fires at
-boot/palette-open (`persona_prewarm done … elapsed_ms=530/219/280/266/203`, log
-22:04:07–08); any turn arriving >30 s later pays the full sweep again — receipt:
-23–27 probe rounds on turns HOURS after boot (§1 table). The only prewarm-filled cache
-that genuinely survives is the process-lifetime
-`_cached_tool_names_for_toolsets` lru (`tool_visibility.py:520`).
-Also confirmed: prewarm never touches §2.3's agent construction or §2.4's prologue at all.
-
-**H2 — `chat_lane_scope`: CONFIRMED as a CREATE-lane span; the turn lane re-runs the
-same resolvers, uncached.** `chat_lane_scope_ms` is an `agent_create_phases` subphase
-(`agent_runtime/persona_assignments.py:3057-3062`,
-`agent_runtime/agent_create_phases.py:121`); the 2,421 ms figure in doc 05 is the
-**unwarmed create** of 2026-08-22 (`tests/agent_runtime/test_agent_create_subphases.py:18-24`),
-859 ms on a warm-process cold create and ~15 ms after a warm
-(doc `08-performance-and-debt-ledger.md:31`) — it is NOT a per-turn phase and must not
-be quoted as one. What the TURN path pays instead is the same underlying work: the
-resolver family (`_enabled_toolsets_for_chat`, `chat_lane_capability_drops`,
-`mission_chat_admission_line`, `chat_runtime_tool_contract`,
-`permission_state_for_chat`) invoked ≥4× per turn from
-`build_mission_chat_turn_context` (§2.1.4), each repeating
-`permission_options_for_chat` + toolset resolution. It IS cacheable per
-(persona instance, session, permission revision): the turn already computes exactly such
-a composite key — `_runtime_signature` (`mission_chat_turn_context.py:605-645`) — and
-then throws the component results away. **REMEDIED 2026-08-23 by Stage 1** — see §5. The
-landed key is NOT `_runtime_signature`'s: it drops the instance (no component reads it)
-and adds an explicit registry epoch, because the signature is a key over the ACTOR and
-this is a key over the LANE. Same insight, two different questions.
-
-**H3 — SessionDB opened cold per turn: CONFIRMED in code, magnitude UNMEASURED.**
-Every turn constructs a fresh `SessionDB` (chain in §2.1.1); the writer-path constructor
-runs `_init_schema` (DDL + FTS probe + column reconcile) and the WAL checks. No phase
-mark isolates it, so its ms share inside the ctx span is honestly unknown — a pooling
-stage needs a measurement first. (The IC-2 work covered the CLOSE side's checkpoint;
-this is the OPEN side.)
-**`[MEASURED 2026-09-01 — the magnitude is SMALL.]`** Warm writer-open is **~6 ms
-median** (5.7 / 6.5 / 6.6 across three live stores, flat from 0.6 MB to 170.8 MB —
-fixed per-open work, not a scan); the cold figure (56–204 ms) is the process's FIRST
-open and a pool would pay it too. Against Stage 4's own >100 ms rule, **pooling is
-REFUSED**; `session_db_open_ms` now rides every durable record so the operator
-re-takes this in the field. Field notes §4.
-
-**H4 — history re-read/re-serialized per turn: CONFIRMED, partially legitimate.**
-The native lineage is read from SessionDB every turn (`persona_commands.py:3017-3036`)
-and read a SECOND time by the observability row (`prompt_observability.py:169`); the
-whole ~17.6k-token input is re-serialized into `conversation_kwargs`
-(`profile_runner.py:1038-1049`) and re-shipped. A content-address exists —
-`native_history_revision` already keys resident-actor reuse
-(`persona_commands.py:5797-5807`, `profile_runner.py:974-979`) — so both the second
-read and the re-serialization on an unchanged-revision turn are class-(d) waste; the
-provider-side token cost is governed separately by `cache_scope_id` header hints
-(`profile_runner.py:933-935`) and is out of scope here.
-
-**H5 — prologue inside the "provider" span: CONFIRMED** (§2.4). Named residents of the
-span, in order: `build_turn_context`, tool-schema `request_build`, request middleware,
-`pre_api_request` hook, codex preflight + token refresh, per-request client build. The
-carry-forward split: 1,762 ms (turn `c59ab99e`); live corroboration ~1.1–1.5 s on the
-4a80f05e log timeline. Cacheable members: tool-schema serialization (keyed by toolset
-tuple — the schemas are stable across turns of one chat), system-prompt
-restore-or-build (already restore-first, verify hit rate). Genuinely per-turn: the
-hooks, compression preflight, the user-message row.
-**`[FALSIFIED 2026-09-01 — the "cacheable" naming is wrong at the named site.]`**
-`request_build` bills **1 ms warm** (4 of 7 freshest records; 51–128 ms cold) and
-`pre_api_hook` is 0 — on the live lane its tool work is `_responses_tools`, a
-reference-copying loop with nothing to cache. The expensive schema build is
-`model_tools.get_tool_definitions`, which runs at agent CONSTRUCTION (853–1,674 ms,
-billed as `profile_agent_init_tool_setup_ms`), is skipped on a reused resident actor,
-and is ALREADY cached (`model_tools._tool_defs_cache`, generation-keyed, bounded).
-What owns the span is `build_turn_context` plus the unmeasured prologue around it —
-now timed as `profile_conversation_turn_context_ms`. Field notes §2.
-
-**H6 — admission split: CONFIRMED hermes-dominated** (§1): launcher+transport ≈ 0.1 s
-of `send_to_admit`; the remaining ~0.8 s (up to ~2.4 s on other turns) is the handler's
-own pre-`write_ahead` work, i.e. spans 2.1–2.2. There is no separate "serve argv
-dispatch" cost worth chasing.
-
----
-
-## 4. Classification summary
-
-| Cost | Owner | Class | Warm ms (typ.) |
+| step (handler order) | cold, first turn in a process | warm, next turn immediately | warm, 17 s later |
 |---|---|---|---|
-| Toolset/check_fn sweeps, ≥4 resolver walks/turn | §2.1.4 + §2.3 construction | **(d) waste** within a turn, **(a)** across turns (TTL-expired memos) | ~0.8–1.5 s spread over ctx + agent_ready |
-| Prompt-observability row rebuild | §2.2 | **(a)** (15 s TTL memos; key stable across turns) | ~0.4–0.6 s |
-| Agent construction on chat-root turn 1 | §2.3 | **(b)** per-chat-root lazy; **covered by Stage 2's prewarm since 2026-08-23** — the cost still exists, it moved off the turn | ~3.0–3.6 s (once per chat root, and again on signature change) |
-| Profile `.env` + context install | §2.3 | **(b)** | ~0.2–0.8 s |
-| SessionDB cold open ×1 + history read ×2 | §2.1.1/2.2 | **(a)/(d)** | ~~unmeasured~~ open measured ~6 ms warm (2026-09-01, §3 H3); history reads still unmeasured |
-| Prologue + request assembly | §2.4 | mix **(a)** (schemas, system prompt) + **(c)** (hooks, message) | ~1.1–1.8 s |
-| Write-ahead persist, lease, guards, HUD deltas | §2.1 | **(c)** genuine | ~0.2–0.4 s |
-| Snapshot-build GIL contention | §2.5 | **(d)** infrastructural | unattributed inflation |
-| Provider TTFB | provider | **(c)** | 1.0–3.1 s (luna) |
+| `load_agent_runtime_config` · `_persona_by_id` · `ensure_for_personas` · `apply_instance_model_overrides` · `_resolve_chat_model_override` · replay checks · `_persona_chat_native_tip/history` (6 rows) · `mission_chat_turn_records` (3) · `_persona_chat_native_revision` · `_session_model_config` | 19 · 39 · 67 · 0 · 1 · 7 · 0.2 · 0.8 · 3 · 0.1 | 0.3 · 3.4 · 6.7 · 0 · 1 · 0.6 · 0.1 · 0.6 · 2.9 · 0.1 | same as warm |
+| `_default_persona_session_db` (`session_db_open_ms`) | 165 | 4.7 | 4.7 |
+| `permission_options_for_chat` | 45 | 1.2 | 1.0 |
+| `chat_lane_bundle` (the lane's visibility) | **1,563** (the process's first registry/admission resolve) | 33–245 (a REBUILD: the key moved once between the cold pass and the next) | 1.8 (hit) |
+| `build_mission_chat_turn_context` | **1,171** | 136 | **234** |
+| ⤷ `_resolve_skill_preload` → `_default_required_preload_skills` → `skill_utils.required_preload_skill_ids` → `resolve_skills` → `_skill_root_registry` ×2 | 984 | ~100 | 203 (180 in `_skill_root_registry`; 539 `is_skill_support_path` stats) |
+| ⤷ `situational_hud_for_instance` (roster of 11, installs) | 90 | ~30 | ~30 |
+| ⤷ bundle reads ×5, `_safe_admitted_operating_skills` | 67 | 0 | 0 |
+| `mission_chat_prompt_observability` | **937** | 270 | **587** |
+| ⤷ `_SkillObservabilityResolver.resolve` ×3 → `resolve_skills` → `_skill_root_registry` ×2 (1,009 stats) | 362 | — | 357 |
+| ⤷ `_installed_skill_catalog` ×3 (15 s TTL) → `skills_tool._find_all_skills` → `_get_category_from_path` ×50 | 151 | 0 (hit) | 129 (miss) |
+| ⤷ `shared_catalog` → `skills_inventory.build_shared_catalog` → `_content_hash` ×10 (reads and hashes every file of every shared skill) | 336 | below 65 (OS cache) | below 65 |
+| ⤷ `hermes_constants.get_default_hermes_root` ×73 · `get_shared_skills_dir` ×66 | 67 · 62 | | 67 · 62 |
+| `runtime_context_envelope` · `instance_store.update` (the `skill_manifest_hash` stamp, a store write + event) | 0 · 11 | 0 · 8 | 0 · 10 |
+| **pre-admit total** | ≈ 4,100 | **≈ 430** | **≈ 840** |
+
+Live turn 3 (uncontended, 20 s after turn 2) read 468 + 438 = 906; the 17-s sandbox pass reads 234 + 587 = 821. Same shape within 10%, and the difference is the lease, the guards, and OS cache state. So on this PC, **an idle agent-chat turn pays ~0.43 s of pre-admit work if the previous turn was under 15 s ago and ~0.84 s otherwise, and ≥ 60% of either is walking skill directories** — three different walkers, none of which knows about the other two:
+
+1. `agent/skill_utils._skill_root_registry` — memoized on a fingerprint, but the fingerprint IS a stat walk of every resolver-visible markdown candidate in every root (539–1,009 stats per turn), run twice per `resolve_skills`, and `resolve_skills` runs twice per turn: once for the preload policy in the context builder, once in the observability resolver. Four root walks per turn to answer "did a skill change".
+2. `agent_runtime/prompt_observability._installed_skill_catalog` — a 15 s TTL memo (`_SKILL_CATALOG_TTL_SECONDS`) tuned for snapshot builds; an operator's turn cadence misses it more often than not (turn 3 did).
+3. `agent_runtime/skills_inventory.build_shared_catalog` — content-hashes every file of every shared skill on EVERY turn, because the turn lane constructs a fresh `_SkillObservabilityResolver()` per call (`mission_chat_prompt_observability` takes `skill_resolver=None` from the handler), so its `skill_context(skill_cache_key)` memo — the one the old plan's §2.2 said "does not outlive 15 s" — never hits on a turn at all. It is build-scoped and a turn is not a build.
+
+The bundle's key moves between turns on the live serve too: `visibility_bundle_builds` reads ≥ 1 on all 15 agent-chat turns since 2026-08-29 (0 on the five 08-24 turns that met Stage 1's receipt), and 2 on any turn overlapping a prewarm (turn 1; the prewarm's admission/registration cycle bumps `registry_epoch` mid-turn — old §7.4's accepted cost). Which component moves on a QUIET turn is unreceipted; a rebuild costs 33–245 ms uncontended. Stage 6 names it.
+
+### 0.4 The launcher's share, and the Mac
+
+The launcher's line for this morning is gone (§0 preamble). The 2026-09-06 15:29–15:30Z turns are the last ones with both halves, and they join the ledger exactly:
+
+| turn (UTC) | ledger `write_ahead` | ledger `provider_first_byte − write_ahead` | launcher `send_to_admit_ms` / `admit_to_first_delta_ms` (runtime-observability.md §0.4) | `builds_overlapped` | `turn_context_ms` |
+|---|---|---|---|---|---|
+| 15:29:45 | 702 | 6,391 | — / — | 2 | 1,233 |
+| 15:29:59 | 1,578 | 2,047 | **1,680 / 2,048** | 1 | 620 |
+| 15:30:10 | 389 | 2,875 | **526** / — | 0 | 829 |
+| 15:30:20 | 1,139 | 6,625 | — / **6,644** | 3 | 4,730 |
+
+`send_to_admit − write_ahead` = 102 and 137 ms: **the launcher plus the local socket own ~0.1 s of admission; the rest is hermes' pre-admit work** (old H6, re-confirmed on a second day). Post-admit inflation is contention too: `agent_ready − write_ahead` 31–63 ms on the clean turns against 658–2,298 on overlapped ones with the same reused actor, and `turn_context_ms` 620–829 against 4,730 with three overlaps.
+
+The Mac, from the same §0.4 (three method-lane turns, its own runtime, its own store): `send_to_admit_ms` 287–657, `admit_to_first_delta_ms` 1,498–2,164. With the same ~0.1 s transport share, the Mac's pre-admit hermes work is **~0.2–0.55 s** — the PC's memo-warm floor, never its TTL-expired floor, and never its contended band (0.7–3.2 s). The Mac's ledger is not readable from here; Stage 6 makes its split a one-grep read on both machines.
+
+### 0.5 The provider leg (question 3)
+
+TTFB on this PC (`provider_first_byte − request_assembled`): 09-06 1,094–3,750 ms; today 2,720 / 1,296 / 2,173 (log `ttfb=` 2.7 / 1.3 / 2.2 s at 16.1–16.7k input tokens, 95–97 % prompt-cache on turns 2–3, 0 % on the fresh chat's first turn). `responses_create_ms` 837–2,182. The Mac's `admit_to_first_delta` of 1,498–2,164 is an UPPER bound on its TTFB for the same model through the same provider, and the PC's TTFB sits inside that band on its best turns. **No evidence the PC's provider leg is slower.** The Codex pool: four `credential pool: no available entries (all exhausted or empty)` reads per turn during the prologue (the neko profile's pool is `exhausted`; the profile's own `auth.json` serves the call), `runtime_resolve_ms` 0–12 when the resolve memo hits — no extra round trip, one `API call #1` per turn. The Agents-card warning is `profile_readiness._pooled_provider_issue` reading the same pool state; it is not on the turn path. **What the pool state DOES cost:** `_resolve_request_runtime`'s memo is stamped at the cold resolve and never refreshed (old §7.5, "not fixed on purpose"), so it expires 30 s after its write however heavily it is used — `runtime_resolve_ms` 885 / 1,221 / 740 / 566 on four of the fifteen 09-06 turns, paid inside `write_ahead → agent_ready`. Stage 10.
+
+### 0.6 Why the Mac pays less — what is evidenced, what is not (question 2)
+
+Evidenced on this side: (a) the contended band exists only when a led build or a prewarm overlaps the pre-admit span, 12 of 15 turns here, and every build's two heaviest sections (`agents_readiness` 1.4–5.1 s, `prompt_observability` 1.0–1.3 s) are per-instance walks over a roster of 11 instances / 4 personas — the Mac's roster is what its realm pull delivered (`09-multi-device-runtime.md`, tier 1) and is smaller by construction, though its build cost is unmeasured from here; (b) the uncontended floor is skill-walk bound, and the walk covers 50 available / 7 accessible skills across the shared root and the neko profile's own 39 MB `skills/` — the Mac's roots are unmeasured; (c) the cold `chat_lane_bundle` (1.5 s) and the cold `_skill_root_registry` (1.0 s) are paid once per process and the serve's boot prewarm covers them — not a per-turn difference on either machine. **Not evidenced, and not claimed:** Defender (the store root has been excluded since 2026-09-06; the interpreter and its site-packages are not, but they are imported at boot, not per turn), disk speed, and NTFS-vs-APFS `stat` cost for the same walk. Stage 6's receipts (`rt_write_ahead_ms` and the sub-spans) turn (a) and (b) into two numbers the operator reads off both machines.
+
+### 0.7 Question 1, answered in one list (agent-chat turn, this PC, in execution order)
+
+1. Guards, config, persona, instance store, model override, replay checks, native history, turn-record scan, revision, session-model config — **≈ 20 ms warm** (`_default_persona_session_db` 4.7; the 165 ms cold open is once per process).
+2. `chat_lane_bundle` — **2 ms hit / 33–245 rebuild**, rebuilt every turn on the live serve for an unreceipted key component; 1.5 s once per process.
+3. `build_mission_chat_turn_context` — **136 warm / 234 TTL-expired**, of which `required_preload_skill_ids` → two `_skill_root_registry` walks 100–203, the HUD ~30–90.
+4. `mission_chat_prompt_observability` — **270 warm / 587 expired**, of which `resolve` → two more root walks 357, `_installed_skill_catalog` 0/129, `build_shared_catalog` content hashing 336 cold / <65 warm, path resolution ~130.
+5. `instance_store.update` (the hash stamp; a store write that is also a rebuild trigger) — 8–11.
+6. — then `write_ahead`; and under a concurrent led build or prewarm, 2–5 above stretch by 2–4× (turns 1–2: 3,172 / 2,796 against 906).
 
 ---
 
-## 5. Stages (ordered by value; Stages 0, 1, 2 and 2a landed 2026-08-23, Stages 3–5 landed 2026-09-01 — see the EXECUTED ledger at the top)
+## 1. Rulings (CP = chat prep)
 
-**Stage 0 — restore the instrument before touching anything (opening gate, §6).**
-**Code half LANDED 2026-08-23, commit `60c7f46ec1`**; the live re-take is still
-owed. A serve restart was NOT the fix — see the resolved caveat in §1. Three changes:
-
-1. **The sink forwards a phase-timing marker past its own noise filter.**
-   `ChatProgressSink._forward_phase_timing_marker` (`agent_runtime/progress.py:178-224`,
-   called at `:137` BEFORE `_chat_progress_has_signal`) recognizes the marker through
-   `mission_chat_phases.phase_timing_marker_step` (`:391-422` — one authority, read by
-   both the sink and the converter) and hands it to `on_trace` only. It is an
-   instrument, not an event: **no EventLog row, no `before_first_trace` latch, no chat-log
-   mirror**, so the Trace-lane rule at `progress.py:83-86` stays literally true. Nothing
-   from the payload is forwarded verbatim except a `step` matched against the closed set
-   and a bare `status` token — no free-text field crosses at all.
-2. **The runner reports the cold construct it performed.** `profile_runner.py:1054` writes
-   `resident_actor_reused = 0` on the no-registry branch. That branch KNOWS it built an
-   agent; absent-never-zero protects an unknown fact, and this one was never unknown.
-   `agent_init_cold=true` now lands on a stock (hot-sessions-off) serve.
-3. **The runner's timing dict is persisted.** `profile_timing` rides the same
-   native-commit persist as `run_budget` (`persona_commands.py:3623-3638`) and is bounded
-   at the store boundary by `safe_turn_profile_timing`
-   (`mission_chat_turns.py:1190-1254`): `*_ms` ints, `resident_actor_reused`,
-   `resident_rebuild_*`, nothing else — the runner's dict is an open namespace that also
-   carries transport labels and real paths. Absent stays absent, and a REUSED actor still
-   has no `agent_construct_ms` (nothing was built, so there is no cost to report).
-
-Test seam closed with it: the handler-level fake now emits its marker through the REAL
-`_profile_status_callback` → `ChatProgressSink` chain
-(`tests/hermes_cli/test_mission_chat_turn_phases.py`), plus a whole-chain row in
-`tests/agent_runtime/test_progress.py`. Restoring the old sink filter reds five rows.
-*Recovers 0 ms; makes every later claim checkable.* Risk: none (additive keys).
-
-*Billing gate: NO REMEDY SITE (§6.1) — this stage BUILDS the instrument
-(`request_assembled`, `agent_init_cold`, `profile_timing`) and proposes no cure, so
-there is no site for a receipt to convict.*
-
-**Stage 1 — one visibility resolve per turn, memoized on identity. CODE LANDED
-2026-08-23, commit `7f2c82f090`**; the live re-take is owed.
-
-What landed:
-
-1. **`agent_runtime/chat_lane_bundle.py`** — the lane's whole visibility (permission
-   mode, MCP admission, enabled toolsets, blocked tool names, capability account,
-   admission line, operating manuals, tool contract, permission state) resolved ONCE and
-   memoized. It caches the **composition, not the probes**: the `check_fn` cache, its
-   grace window and its re-probe backoff are untouched, and `registry.get_definitions`
-   still re-probes every `check_fn` at agent construction — so a down backend still loses
-   its TOOLS. What can go stale is the toolset NAME in the lane's accounting.
-2. **The key is identity, not a clock:** persona revision · chat root · a permission
-   fingerprint read FRESH on every lookup (mode / source / expiry / turns_remaining /
-   mode blocks — so a `consume_turn` decrement or an operator restriction rebuilds, and
-   an `unbounded` bundle can never reach a bounded turn) · root **and** active
-   `config.yaml` `(mtime_ns, size)` · runtime root · entry-point lane ·
-   `tools.registry.registry_epoch()`. Deliberately NOT the instance revision — no
-   component reads the instance, and the instance still enters `_runtime_signature`
-   directly.
-3. **`tools/registry.py` grew the epoch**: `ToolRegistry.generation` (public; bumped by
-   `register` / `deregister` / `register_toolset_alias`, hence every MCP refresh) plus a
-   `_check_fn_epoch` bumped by `invalidate_check_fn_cache` — the availability half, which
-   nothing announced before. `registry_epoch()` is their sum, compared for equality only.
-4. **Bounded and non-poisoning:** one entry per (persona, chat root), replaced rather than
-   accumulated, capped at 256; a bundle whose best-effort components faulted is served to
-   that turn and never stored; the accessors deep-copy, so a consumer that decorates the
-   capability account cannot write into the cache. `invalidate_chat_lane_bundles()` is the
-   explicit hatch.
-5. **Scope is the turn path only** — `mission_chat_turn_context`'s resolver defaults and
-   `mission_chat_reply`. `apply_chat_lane_tool_scope`, the snapshot builder and
-   `persona_prewarm` still resolve live, because those are routinely driven with a
-   monkeypatched resolver rather than a changed config, which a config-keyed memo cannot
-   see. (So §2.5's builder-side churn is Stage 5's, not this stage's.)
-6. **The receipt:** `visibility_bundle_builds`, a third `PHASE_COUNTERS` member under the
-   same absent-never-zero contract — a delta of a thread-cumulative counter, baseline at
-   the handler anchor and second read at `agent_ready`, beside `registry_probe_rounds`.
-   `0` on a warm steady-state turn; `>1` means something is re-resolving.
-
-**Carried in from a live discovery mid-stage (14:45:14Z, hot_sessions ON): the resident
-actor could never be reused, for a reason that had nothing to do with the registry.**
-`_runtime_signature` hashed `asdict(instance)` whole, and a chat turn WRITES that row —
-`state` flips, `updated_at`/`last_heartbeat_at` are stamped, and the handler writes
-`skill_manifest_hash` back at the end of every turn. The second message of one neko chat,
-45 s after the first with nothing changed, recorded
-`resident_rebuild_runtime_signature_changed` + `resident_actor_reused=0`. The persona and
-instance now contribute an explicit ACTOR-IDENTITY allowlist
-(`PERSONA_IDENTITY_FIELDS` / `INSTANCE_IDENTITY_FIELDS`); a real `set-model` still rotates
-the key, a turn's bookkeeping no longer does. **This is a precondition for Stage 2** — a
-pre-constructed resident actor would have been discarded on its first reuse attempt.
-
-*Expected: `registry_probe_rounds` → 0 on steady-state turns; ctx span from ~1.4–2.0 s to
-<0.5 s. Receipt: `registry_probe_rounds=0` + `visibility_bundle_builds=0` +
-`context_built<500` on three consecutive warm turns of one chat — plus, now that hot
-sessions are on, `resident_actor_reused=1` on turn 2 of one chat.* The obs-span
-(`prompt_observability`) half of the original estimate is NOT addressed here — that memo
-is the separate `_SKILL_CATALOG_TTL_SECONDS` one and stays a 15 s TTL.
-Risk: **medium**, as stated — staleness surface moves from "30 s" to "explicit
-invalidation". Residue after the epoch: a backend that dies with nobody calling
-`invalidate_check_fn_cache`, and a profile MCP declaration edited on disk before
-registration. Both are named in the module's doctrine.
-
-*Billing gate: BILLED before the stage (§6.1) — §2.1.4 and §3 H2 bill the resolver
-family (`_enabled_toolsets_for_chat`, `chat_lane_capability_drops`,
-`mission_chat_admission_line`, `chat_runtime_tool_contract`,
-`permission_state_for_chat`) at ≥4× per turn on live records, with
-`runtime_resolve_ms` 878 / 0 / 1589 beside it (§7.5).*
-
-**Stage 2 — pre-construct the resident actor at chat-open (or first prewarm after
-placement). CODE LANDED 2026-08-23, commit `bfde53b4ae`**; the live re-take is
-owed. The registry + factory already existed (`profile_runner.py:1021-1040`); nothing called
-them off the turn's critical path. *Expected: −2.5–3.5 s on every first turn of a chat (the
-exact turn an operator is watching). Receipt: `agent_init_cold=false` +
-`agent_ready−write_ahead < 700 ms` on the FIRST turn of a freshly opened chat.* Risk:
-**medium** — construction touches `_WORKDIR_LOCK`/cwd and MCP admission.
-
-**Two of this stage's preconditions were cleared on 2026-08-23 and both were invisible
-until the other moved.** The operator turned `persona_chat.hot_sessions` on and restarted,
-which finally made the resident-actor registry exist — and the very first pair of turns
-proved the registry alone buys nothing, because `_runtime_signature` was keyed on
-persona-instance row liveness and could not match twice (Stage 1, §5). With the identity
-allowlist in, reuse is possible for the first time — and the live pair that opened this
-stage's window confirms it: `17:33:01Z` (first message after a boot) `agent_init_cold=true`,
-bootstrap 3,782 ms of which `agent_construct_ms=3000`, first byte 10.0 s; `17:33:17Z`
-(second message, same chat) `resident_actor_reused=1`, bootstrap **62 ms**, first byte 3.4 s.
-So the remaining defect is exactly and only the FIRST turn.
-
-What landed:
-
-1. **`agent_runtime/persona_chat_actor_prewarm.py`** — the whole lane. `prewarm_chat_actor`
-   assembles the request one chat's first turn would build and runs it; a single daemon
-   worker serializes the constructions; `request_chat_actor_prewarm` is the queueing hook
-   and answers `registry_off` (no thread, no queue entry) whenever
-   `persona_chat_runtime_registry()` is `None` — the state of every CLI one-shot.
-2. **The construction runs the REAL path, not a copy.**
-   `AgentRunRequest.prewarm_only` + `ProfileAgentRunner.prewarm` re-enter
-   `_execute_agent_run`, so the agent is built inside `_WORKDIR_LOCK`,
-   `persona_profile_context`, the workdir, the tool-execution / chat-root /
-   terminal-envelope / skill scopes and this persona's MCP admission — and the `with`
-   block unwinds normally, so the admitted MCP scope is torn down while the run still
-   holds the lock, exactly as a real run's is. The early return sits immediately after
-   the `acquire()` bookkeeping: no turn-scoped attributes, no compression threshold, no
-   `agent_ready` notification, no conversation.
-3. **Signature parity is by SHARED FUNCTION, not by agreement.** `_runtime_signature`
-   became public as
-   `mission_chat_turn_context.mission_chat_runtime_signature`; the prewarm calls it with
-   the same arguments the builder passes, and reproduces every input through the turn's
-   own authority (`_persona_by_id`, `apply_instance_model_overrides`,
-   `_chat_effective_model_payload`, `_session_model_config`, `load_agent_runtime_config`,
-   `chat_lane_bundle`). The tip and revision `acquire` compares come from
-   `_persona_chat_native_tip` / `_persona_chat_native_revision` — the send path's own
-   helpers, so a match is a REUSE and not a `disk_revision_changed` rebuild. The gate is
-   an end-to-end test that asserts the prewarm's digest is byte-equal to the one
-   `build_mission_chat_turn_context` puts on the turn context for the same chat, through
-   real stores.
-   *It cannot call the builder itself*: `build_mission_chat_turn_context` CONSUMES the
-   queued-skill list, so warming through it would steal the operator's queued skills from
-   the turn it is warming for.
-4. **Two triggers.** *Boot* — `_prewarm_persona_chat_actors` runs THIRD on serve's one
-   existing prewarm thread, behind the read-model build (the launcher's canvas waits on
-   it) and behind the provider warmup (whose SDK import every construction would otherwise
-   pay itself), warming at most `persona_chat.max_hot_sessions` chats,
-   most-recently-active first, chosen from instances with a bound
-   `default_chat_session_id`. *Chat-open* — both arms of `persona instance open-chat`
-   (`_cmd_persona_instance_open_chat` and the mint arm
-   `_cmd_persona_instance_open_new_chat`, which is the higher-value one: a freshly minted
-   root has no turn that is not its first). Deliberately NOT
-   `PersonaInstanceStore.open_chat`, which the send path re-enters on every turn — hooking
-   there would fire a background construction against every live turn. A call-site census
-   test pins exactly those two sites.
-5. **Yielding is a rule, not a hope.** `profile_runner.agent_runs_in_flight()` counts real
-   runs from `run()`'s entry (not from the lock — by the time a turn blocks on the lock the
-   damage is done); the prewarm reads it before assembling and again before entering the
-   scope stack, and stands down as `skipped_turn_active` rather than queueing behind a
-   turn. One construction at a time, on one worker. The residual race — a turn arriving
-   DURING a construction — is bounded by that one construction and is a NO-OP when the turn
-   is for the same chat root, which is the common case at chat-open: that turn would have
-   built this exact actor itself.
-6. **Receipts** (07-observability's census): `persona_chat_actor_prewarm root=<id>
-   outcome=<token> elapsed_ms=<n>` per item, and `persona_chat_actor_prewarm pass
-   candidates=<n> queued=<n> skipped=<n> elapsed_ms=<n>` per boot pass. Outcomes are a
-   closed set: `warmed`, `already_resident`, `registry_off`, `skipped_turn_active`,
-   `skipped_no_chat_root`, `skipped_persona_unresolved`, `skipped_profile_unready`,
-   `skipped_construct_failed`. Ids and timings only — never a display name, never a
-   resolved toolset.
-7. **No new config key, and that is a decision.** A `prewarm_on_boot` flag was written and
-   withdrawn: every field of `PersonaChatConfig` is projected onto the read-model wire
-   (`core.runtime_config.persona_chat.*`), so adding one reds the stream-contract goldens
-   and is a cross-stack landing (regenerate fixtures, mirror bytes into the Launcher,
-   update both manifests). `hot_sessions_enabled` already gates the lane end to end — with
-   no registry there is nowhere to put a pre-built actor. The refusal is pinned by a field
-   census on the dataclass so it is re-taken rather than drifted into.
-
-**The one input it cannot know, stated rather than guessed:** `--agents-file`, the
-operator's workspace `AGENTS.md`, which the launcher attaches per turn from a client-side
-selection. The prewarm warms with no workspace file. A WORKSPACE-BOUND chat therefore
-mismatches on its first turn and `acquire` rebuilds — that turn pays exactly what it pays
-today and the prewarmed actor is discarded, so the residue is wasted background work, never
-a wrong answer. Fabricating a path instead would ground a real agent's terminal at a
-directory the operator never chose.
-
-**Nothing is sent to a model.** Construction builds an OpenAI client object
-(`OpenAI client created (agent_init, shared=True)`) over already-resolved credentials; the
-first byte on the wire is `codex_stream_request`, inside `run_conversation`, on the far side
-of the early return. No prompt, no completion, no token spend. Two side effects ARE inherited
-from the real path and are named rather than denied, because both are the first turn's own
-work performed earlier: (1) `resolve_runtime_provider` reads credentials — a local
-`auth.json` read on `openai-codex`, but a Vertex persona mints an OAuth2 token and a Nous
-pool may refresh an expired agent key, and its result is cached for the turn behind it;
-(2) MCP admission spawns this persona's declared servers and tears them down on the way out.
-
-*Billing gate: BILLED before the stage (§6.1) — §2.3 bills `write_ahead → agent_ready`
-bimodal on live records: 0.1–0.6 s on a reused actor against 3.0–3.6 s cold. The site
-was billed; what the §6 gate then falsified within two turns was the stage's assumption
-about the REMEDY (§1 update), which is a different failure from Stages 3 and 4.*
-
-**Stage 2a — a refused reuse NAMES the input that moved. CODE LANDED 2026-08-23**
-(`14271f261f` = the instrument + convictions 4–6; `b0c1a668b9` = conviction 7, the ambient
-config document); the live re-take READ 2026-08-24 (§6). Not a latency stage: it is the instrument
-Stage 2's claim could not be checked without, plus the two identity fixes it convicted.
-
-*The receipt that forced it (2026-08-23T19:03Z, serve on `bfde53b4ae`+docs).* The boot
-prewarm warmed root `persona_chat_personainst_neko_supervisor_agent_f6f7a51b_3b7230c1b8d2`
-at `19:03:01Z` (`outcome=warmed elapsed_ms=469`). The next THREE turns of that one root —
-`19:03:10` / `19:03:23` / `19:03:40`, an `agent-chat-send` relay each — recorded
-`resident_actor_reused=0` and `resident_rebuild_runtime_signature_changed=1`. Every one.
-Construction was cheap on those turns (`agent_construct_ms` 10 / 15 / 12, warm TTLs), so
-nothing looked broken — but reuse never happened, which is the entire benefit Stage 1's
-allowlist fix and Stage 2's prewarm exist to buy. The composite key could only say that
-*something* moved, so the diagnosis had to be done by hand against the live store.
-
-*What the store could and could not settle.* Read-only, from the two persisted
-observability rows for that root plus the turn records:
-
-| suspect | live answer |
-|---|---|
-| `surface_prompt` | EMPTY on both turns (`surface_prompt_is_blank: true`) — not the mover |
-| `workspace_agents` receipt | byte-identical across both turns (`AGENTS.md`, `sha256 682CC0E9…`, 1,859 B) — not the turn-to-turn mover, but IS the prewarm→turn-1 mover, since the prewarm cannot know `--agents-file` |
-| `model_selection`, `session_model_config`, `skill_manifest_hash`, HUD revision | identical across both turns |
-| persona / instance identity revisions, tool contract, permission state | byte-stable at rest, computed twice 3 s apart |
-| `visibility_bundle_builds` | `0` / **`2`** / `0` — the chat-lane bundle's own key moved twice INSIDE the middle turn |
-
-That last row is the one that pointed: turns 1 and 3 were memo HITS on the bundle, turn 2
-rebuilt it twice, and the bundle's content is what the signature folds as `tool_contract`
-and `permissions`. The bundle key carries `tools.registry.registry_epoch`, and under the
-shipped default permission mode (`unbounded`, `SHIPPED_DEFAULT_PERMISSION_MODE`; the live
-root config sets no `tool_permissions` block and the chat has no stored grant)
-`_enabled_toolsets_for_chat` resolves `all_registered_toolsets()` and
-`permission_state_for_chat` resolves `blocked_tools` over EVERY tool registered in the
-process. In a warm multi-persona `harness serve` — which is what this is; the same log
-window shows a full plugin-discovery pass (`54 found, 47 enabled`) at `15:03:02` local,
-between the prewarm and turn 1 — that set moves whenever anything registers or
-deregisters.
-
-*What landed.*
-
-1. **The signature is composed once and folded twice.**
-   `mission_chat_runtime_signature_components` returns the flat component dict;
-   `mission_chat_runtime_signature_from_components` is the ONE fold to the composite key;
-   `mission_chat_runtime_signature_digests` turns the same dict into a per-component
-   digest map, which rides `MissionChatTurnContext.runtime_signature_digests` →
-   `mission_chat_reply(runtime_signature_components=)` →
-   `AgentRunRequest.persona_chat_runtime_signature_components` →
-   `PersonaChatRuntimeRegistry.acquire`. The prewarm seeds the same map on the entry it
-   registers, so the prewarm-vs-turn half of the diff is answerable too.
-2. **`acquire` diffs the map and reports NAMES.** It returns a fourth element (the moved
-   component names) and logs one line, `resident_signature_diff root=<id>
-   components=<a,b>`. Reuse is still decided by the composite alone — a second authority
-   for "is this the same actor" is how two answers drift. A caller that supplied no map
-   gets `()`, not a guess.
-3. **The names reach the durable record inside the existing vocabulary.** The runner
-   writes `resident_rebuild_component_<name> = 1` per moved component, which
-   `safe_turn_profile_timing` already admits (`resident_rebuild_*`, ints). A joined
-   string would be free text and would be dropped at that gate by construction — so the
-   diff rides as flags, which is also what makes it queryable across turns. NAMES only:
-   the digests are one-way and no value is ever emitted, because the components include
-   prompt- and policy-adjacent material (`surface_prompt_sha256`, the tool contract).
-4. **Convicted and removed: the operator-shaped half of `permissions`.** The key folded
-   the whole `permission_state_for_chat` answer — `blocked_tools` entries, `workdir`,
-   `repo_scope`, `can_run_terminal` / `can_mutate_files`, `expires_at`,
-   `turns_remaining`. None of it reaches the agent factory: `_execute_agent_run` builds
-   an actor from `enabled_toolsets` and `blocked_tool_names`, which the key already
-   carries verbatim as `tool_contract`, plus scopes derived from the permission MODE. So
-   the projection was the row-liveness defect of `7f2c82f090` wearing different clothes,
-   and under `unbounded` its `blocked_tools` list is exactly the registry-shaped thing
-   that moves in a warm multi-persona process. What stays is `{mode, source, expired}` —
-   the facts that decide what is constructed. A grant decrementing 5 → 4 changes nothing
-   about the actor; the turn it reaches 0 flips `expired`, which is still in the key.
-5. **Convicted and removed: `current_chat_goal` from `INSTANCE_IDENTITY_FIELDS`.** Read
-   the allowlist's own rule consistently — `goal_id` is excluded because it "renders into
-   the HUD, which rides the volatile tail and is therefore not part of the cached actor at
-   all", and `current_chat_goal`'s only readers are the chat-list TITLE
-   (`persona_chat_history`) and the operator projections / situational HUD. A
-   `persona instance steer --goal` changes what the next turn SAYS, not what its actor IS.
-   (Not the live churn source — the chat send never writes it — but a rebuild nobody
-   should ever have paid.)
-6. **`tool_contract` STAYS, and the doctrine says why.** However volatile it is, the actor
-   is constructed from those two lists and `_prepare_resident_persona_chat_agent` does not
-   re-apply them on reuse — it refreshes callbacks, the cache scope and the iteration cap
-   and nothing else. An actor whose tool surface moved is stale, so that rebuild is
-   correct behaviour. The receipt's job is to say so by name instead of leaving it
-   indistinguishable from a defect.
-
-7. **Convicted and removed: the whole config DOCUMENT from
-   `relevant_config_revision` — and this one the instrument caught in ONE READ.**
-
-   *The instrument's first field validation (2026-08-23T21:38:29Z, serve on
-   `14271f261f`).* Root
-   `persona_chat_personainst_neko_supervisor_agent_f6f7a51b_66a438245225`:
-
-   ```
-   21:38:29Z INFO agent_runtime.persona_chat_continuity: resident_signature_diff
-     root=persona_chat_personainst_neko_supervisor_agent_f6f7a51b_66a438245225
-     components=relevant_config_revision
-   ```
-
-   …and again at `21:39:07`, `21:39:19`, `21:40:36`, `21:40:40`. Five consecutive turns
-   of one chat, five rebuilds, ONE component named every time. No store archaeology, no
-   cross-referencing two persisted observability rows by hand: the line named the input
-   and the whole diagnosis started from a single grep. That is what items 1–3 were built
-   for, and it is the first time they were asked in the field.
-
-   *What it convicted.* Not a config edit: no config file was written in that window
-   (root `config.yaml` hours older, the profile's days older), and
-   `_revision_hash(_as_plain(load_agent_runtime_config()))` is deterministic — equal
-   twice in one process and equal across two fresh processes. What moved was not the
-   file, it was **which file**. `load_agent_runtime_config()` resolves
-   `get_hermes_home()/config.yaml`; with no context-local override on the turn's thread
-   that is the process-global `HERMES_HOME`, and `profile_context.persona_profile_context`
-   rewrites that variable for the width of a profile binding (its own docstring states
-   the invariant: sound only while runs are serialized by `profile_runner._WORKDIR_LOCK`).
-   The readiness walk behind every snapshot build enters it once per persona — in the
-   same `harness serve` process that hosts the chat turns, on another thread, every few
-   seconds (the same log window: `snapshot_agents_readiness` at 17:38:29 / :32 / :36 /
-   :39 / :45 / :48 local, pid `28624`, while turns ran on `harness-serve_1` and
-   `harness-serve_2`). So the document a turn hashed was whichever profile the walk
-   happened to be standing in, and two turns of an unchanged chat could not agree.
-
-   *The fix, by the doctrine items 4 and 5 already set.* `relevant_config_revision` now
-   hashes an ALLOWLIST projection (`ACTOR_CONFIG_IDENTITY_FIELDS`) through the same
-   `_identity_revision` the persona and instance use. The allowlist is EMPTY, and that is
-   a finding rather than a stub: every config block that reaches a constructed actor
-   reaches it RESOLVED, and each resolved form is already a component — the runtime model
-   defaults as `provider`/`model`/`api_mode`, `personas.<id>.*` as `persona_revision`,
-   `store_root` as `runtime_root`, `tool_permissions.default_mode` as `permissions.mode`,
-   and `mcp_admission` + the chat-lane toolset knobs as `tool_contract` (admission is an
-   input to the bundle's `_enabled_toolsets_for_chat`, so it is in those two lists
-   verbatim). `terminal_envelope.grants` binds a scope per run; `mission_chat.*` is
-   per-turn and its compaction cap is re-applied even on a reused actor; `persona_chat.*`
-   decides whether an actor is resident at all, never what one is. Empty is also the only
-   projection that is stable under an AMBIENT document: any non-empty projection can still
-   move for a reason that has nothing to do with this chat. A field that genuinely decides
-   what an actor IS goes there by name and the key rotates on it again —
-   `test_a_NAMED_actor_config_field_still_rotates_the_key` witnesses that the mechanism is
-   live rather than decorative.
-
-   *The hazard was NOT fixed here — it was fixed at the source next, and this debt is now
-   CLOSED.* This item fixed the KEY: the reuse key stopped depending on `HERMES_HOME`
-   holding still. What it left open was every other ambient reader on a turn's thread,
-   notably `chat_lane_bundle`'s key carrying the ACTIVE `config.yaml`'s `(mtime_ns, size)`,
-   so the same race still forced visibility-bundle rebuilds — and the live receipts said so
-   in milliseconds: a bundle-free turn built context in 453 ms, while turns overlapping a
-   readiness walk billed 1,796 / 2,343 ms with `visibility_bundle_builds=3/6` and 11 probe
-   rounds. The hazard owned ~1.3–1.9 s of turn variance.
-
-   **What shipped.** `profile_context.persona_profile_context` grew a context-local-only
-   mode (`export_env=False`) reached through a named sibling,
-   `profile_context.persona_profile_scope`; one authority, one body, the flag decides only
-   whether the `os.environ` mirror is written. `profile_readiness_for_persona` binds through
-   that sibling. The env-writing mode is untouched and keeps its `_WORKDIR_LOCK` invariant
-   comment — `profile_runner` still uses it, and must, because a ContextVar never crosses a
-   subprocess boundary.
-
-   **What the audit had to answer first**, since the seam's own comment says the writes are
-   pinned by live readers. Per env write → reader that pins it → reachable from the walk:
-   `HERMES_AGENT_RUNTIME_ROOT` → the legacy terminal envelope → **not reachable** (the walk
-   runs no tools). `HERMES_HOME` → in-process plugins reading it raw → **not reachable** (the
-   walk loads no plugin), and every home resolution it does perform goes through
-   `get_hermes_home()` (ContextVar-first) or an explicit path; the one raw-env reader,
-   `get_default_hermes_root()`, **collapses to the same answer** either way because a
-   binding's `profile_home` is always `<root>/profiles/<name>`. `HERMES_AUTH_HOME` →
-   `hermes_cli.auth._global_auth_file_path` → **REACHABLE, on every walk**, via
-   `_provider_issue` → `load_pool` / `probe_runtime_provider` → `read_credential_pool` →
-   `_load_global_auth_store`; without a remedy the walk's provider probe would have judged a
-   persona against `<root>/auth.json` instead of the head profile's `auth.json` (both files
-   exist on the live install). Closed by giving that authority a second channel:
-   `hermes_constants.get_hermes_auth_home()` (ContextVar first, env second), which
-   `_global_auth_file_path` and the readiness provider memo key now read. `HOME` → POSIX
-   `expanduser` / `Path.home()` → **reachable in principle, and the one named residue**: no
-   context-scoped hook exists, so a `~` expanded under the binding (a
-   `skills.external_dirs` entry, the `~/.codex` / `~/.qwen` credential singletons) resolves
-   to the process home rather than `<profile>/home`. Unobservable on native Windows
-   (`ntpath.expanduser` consults `USERPROFILE`), and `external_dirs` is `[]` in every profile
-   on this install. It is written into `persona_profile_scope`'s docstring rather than left
-   to be rediscovered.
-
-   **The sibling, closed in the same wave.** Retiring the readiness walk's env writes left
-   ONE unserialized binding on the snapshot lane, and it was the bigger one:
-   `snapshot_prompt_observability` enters `mission_chat_prompt_observability`'s
-   `skill_profile_context` once per roster instance, and that section bills
-   `prompt_observability:4520` against `agents_readiness:4366` on the 2026-08-22 cold boot.
-   It now binds through `persona_profile_scope` too. The audit answered the same way: no
-   subprocess, no plugin dispatch, and — unlike readiness — no `hermes_cli.auth` path at all,
-   because this block runs no provider probe, so the `HERMES_AUTH_HOME` reader is not even
-   reachable here. Skill discovery resolves through `get_hermes_home()`
-   (`skills_tool._skills_dir`, `skill_utils.get_skills_dir`, `get_config_path`); the
-   per-persona hash check takes an EXPLICIT `hermes_home=`; the realm rows are a sidecar file
-   read; `paths.store_root()` collapses because the env mode exports the root it resolved
-   BEFORE the override. The one axis carrying weight, `get_default_hermes_root()` (raw
-   `HERMES_HOME`, reached five ways from inside the binding), collapses structurally — a
-   binding's `profile_home` is always `get_profile_dir`'s
-   `get_default_hermes_root()/profiles/<name>`, and that function is a fixed point over
-   exactly those paths — and that is now PINNED by
-   `test_the_profiles_root_survives_dropping_the_HERMES_HOME_write`, parametrized over all
-   three ambient layouts including `HERMES_HOME` unset, rather than argued in prose. Same
-   `HOME` residue, same bound.
-
-   That site turned out to carry a second lane nobody had named:
-   `persona_commands._cmd_mission_chat_message` calls the same function at
-   `observability_built`, BEFORE `profile_runner` installs its own locked binding. So a chat
-   TURN was rebinding the process for every concurrent turn (`harness-serve_1` /
-   `harness-serve_2`) and for the snapshot builder — the hazard ran in both directions, and
-   the one switch closes both.
-
-   *Receipt to take on the next restart:* on turns that overlap a `snapshot_agents_readiness`
-   or `prompt_observability` build, `visibility_bundle_builds=0` and a
-   `request_received → context_built` span in the same band as a non-overlapping turn. With
-   both snapshot bindings context-local and the turn lane's own binding no longer
-   process-global, `resident_rebuild_component_relevant_config_revision` should not appear at
-   all.
-
-*What this does NOT claim.* The live turns were not re-run — the 19:03 serve was on
-`bfde53b4ae` and the 21:38 one on `14271f261f`; neither was restarted onto this tree.
-Removals 4, 5 and 7 are convicted on what the actor is built from, which is a code fact
-and does not need a live re-take; whether they are sufficient to make those chats reuse
-their actors is exactly what the next serve restart answers, and the
-`resident_rebuild_component_*` flags are what will answer it in one read instead of a
-store archaeology session — as removal 7 already demonstrates.
-
-*Receipt to take on the next restart:* on the second turn of one chat, either
-`resident_actor_reused=1`, or a `resident_rebuild_component_<name>` naming the remaining
-mover. A first turn of a workspace-bound chat is EXPECTED to show
-`resident_rebuild_component_workspace_agents` — that is the prewarm's documented blind
-spot finally self-reporting rather than being indistinguishable from a defect.
-
-*Billing gate: NO REMEDY SITE (§6.1) — a naming/receipt stage over Stage 2's refused
-reuse plus the two identity fixes it convicted; it proposes no cure of its own.*
-
-**Stage 3 — prologue diet, gated on the Stage-0 split data.** Cache tool-schema
-serialization per toolset tuple and verify the system-prompt restore path actually hits
-on turn 2+ (both live inside the `provider_request_started→request_assembled` span).
-*Expected: −0.5–1.0 s per turn. Receipt: `request_assembled−provider_request_started`
-median under 700 ms across a week.* Risk: low-medium. **Explicitly gated** by the
-standing rule in `planned/mission-chat-admission-latency.md` §5: no prologue work until
-the split is a distribution, not one turn.
-
-**`[EXECUTED WITH AMENDMENT 2026-09-01, `3b4923f6c2`.]` This stage's named remedy is
-FALSIFIED and was not built.** The live record (7 freshest `phases` records) bills
-`request_build` at **1 ms warm**; the serialization on the live lane is a
-reference-copying loop, and the cache this paragraph asks for already exists one level
-down (`model_tools._tool_defs_cache` — generation-keyed, config-fingerprinted, bounded,
-with an explicit hatch). A second cache would be a parallel authority. What landed
-instead is the one thing the memo lacked — receipts: `profile_conversation_turn_context_ms`
-(the previously unowned several-hundred-ms owner of the assembly span), the
-system-prompt restore/build POSITIVE pair, and the tool-defs memo hit/miss pair. The
-plan's expected −0.5–1.0 s never existed at this site. Re-target any future prologue
-diet at whatever `turn_context_ms` convicts — re-take read 1 of field notes §9.
-
-*Billing gate: NOT BILLED (§6.1) — the remedy site was named ahead of its receipt and
-the live record contradicted it: `request_build` bills 1 ms warm, and the cache this
-stage specified already existed one level down. Caught by the dispatch brief's
-re-measurement requirement, not by this plan (field notes §2, §6.1–2).*
-
-**Stage 4 — SessionDB open-side: measure, then pool.** Add a timing around
-`_default_persona_session_db()` (Stage 0 can carry it); if it bills >100 ms warm, hold
-one writer handle per serve process (the close-side checkpoint discipline from IC-2
-stays intact — pooling changes WHEN close happens, not whether). *Expected: unknown
-until measured. Receipt: the new timing key.* Risk: low for measuring; medium for
-pooling (multi-process WAL discipline is why per-open close exists).
-
-**`[EXECUTED WITH AMENDMENT 2026-09-01, `139f480a23`.]` Measured, and the measurement
-REFUSES the pooling half by this stage's own rule.** Warm writer-open: **~6 ms median**
-(5.7 / 6.5 / 6.6 ms across stores of 0.6 / 68.6 / 170.8 MB — flat across a 280× size
-range), nowhere near the 100 ms threshold. The instrument landed
-(`session_db_open_ms` folded into every durable record's `profile_timing`; the LIVE
-result frame keeps the runner's dict byte-for-byte); the pooling was NOT built. The
-decision rule stands if the field disagrees with the bench: live
-`session_db_open_ms` median >100 ms warm reopens pooling, IC-2 close discipline
-unchanged. Re-take read 4 of field notes §9.
-
-*Billing gate: NOT BILLED (§6.1) — the pooling half was named ahead of its receipt.
-When the timing this stage itself added finally billed the site it read ~6 ms warm
-against the stage's own 100 ms threshold, and the remedy was refused by its own rule
-(field notes §4, §6.3).*
-
-**Stage 5 — stop paying the snapshot builder during live turns.** `builds_overlapped`
-is already recorded; if Stage-0 data shows turn spans correlate with overlap (the
-4a80f05e boot window suggests they do), defer demote-cadence led builds while a turn is
-between `write_ahead` and `stream_done`. *Expected: removes the unattributed inflation,
-sharpens every other number. Receipt: span medians at `builds_overlapped=0` vs `>0`.*
-Risk: medium — the launcher's HUD freshness rides those builds; deferral must be
-bounded (hundreds of ms), not a starvation.
-
-**`[EXECUTED 2026-09-01, `048bc96802`.]`** The premise held in the freshest data
-(`builds_overlapped` = 1 and 2 on the two freshest turns).
-`_defer_demote_build_for_active_turns` (`agent_runtime/stream.py`) defers demote-cadence
-builds while `profile_runner.agent_runs_in_flight()` — the Stage-2 yield rule's own
-counter, not a new authority — reports a live run; bounded at
-`SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS = 1000` (module constant, deliberately not a config
-key); demote lane ONLY (boot/hydrate and `full_core` never wait); unknown counter does
-not defer; `builds_overlapped` still counts an overlap that outlasted the bound.
-Receipt: one `snapshot_build_deferred` line per deferral. Re-take read 5 of field
-notes §9.
-
-*Billing gate: BILLED before the stage (§6.1) — §2.5 bills `builds_overlapped` at 1–3
-on most sampled turns, with led builds of `build_ms=3979` (up to 9131 in the boot
-window) burning CPU in the same process. The one of the three 2026-09-01 stages whose
-named site survived re-measurement.*
-
-Deliberately NOT staged: re-tuning the 15/30 s TTL constants upward. That trades the
-measured storm for a staleness window on every consumer (snapshot drawers included)
-without removing the per-turn re-composition that Stage 1 removes properly.
+- **CP-1 · The number this plan is judged on is `write_ahead` on an agent-chat turn**, read from the ledger and — after Stage 6 — from the launcher's `[MissionChatTiming]` line as `rt_write_ahead_ms`, on both machines. Not `admit_to_first_delta` (provider-dominated), not `turn_context_ms` (already 44–350 uncontended). Targets: uncontended ≤ 300 ms (from 906), and a turn overlapping a build within 1.3× of the uncontended figure (from 3×).
+- **CP-2 · An ADMITTED turn owns the GIL, not only a RUNNING one.** One counter, one authority, next to `profile_runner._ACTIVE_RUNS`: `chat_turns_admitted()`, incremented when `TurnPhaseMarks()` is constructed at the handler anchor and decremented when the handler exits by any path. The demote deferral and the prewarm yield read `admitted() or running()`; `agent_runs_in_flight()` keeps its meaning and its callers. No second "a turn is happening" spelling anywhere else.
+- **CP-3 · The deferral bound is the measured pre-admit p95, not a round number.** `SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS` rises from 1,000 to 3,500 (this morning's p95 of `write_ahead` is 3,172; the bound must cover the span it now protects). Demote lane only, as before; hydrate and `full_core` never wait; `builds_overlapped` keeps counting a build that waits out the bound and overlaps anyway. The HUD is 3.5 s staler during a turn's admission and the operator is looking at the chat.
+- **CP-4 · One skill-root walk per turn, and its identity is the fingerprint, not a clock.** `_skill_root_registry`'s fingerprint is the ONE authority for "did a skill root change" on the turn lane; the observability resolver's skill rows and the installed catalog are memoized on `(skill_cache_key, roots fingerprint)` at process scope, replacing the 15 s `_SKILL_CATALOG_TTL_SECONDS` on that lane. The snapshot lane keeps its build-scoped resolver (it already walks once per build). `build_shared_catalog`'s content hashing keys on the same fingerprint. TTL constants are not raised anywhere (old plan's standing refusal, kept).
+- **CP-5 · The walk is shared, not repeated.** Within one turn `resolve_skills` runs once: the context builder's `required_preload_skill_ids` resolution is handed to the observability builder through the `required_preload_skills`/`preloaded_skills_*` arguments it already receives, and the resolver's `resolve()` takes the same `_root_registries` map (`resolve_skills` already accepts it). Four root walks become one.
+- **CP-6 · The prompt-observability row is not admission work.** Its only two pre-turn consumers are `context_id` (a hash of inputs the handler already holds) and the instance's `skill_manifest_hash` stamp; the row itself is persisted only post-turn (`persist_prompt_observability_context` after `attach_prompt_observability_turn_results`). If Stage 8 leaves the row above 150 ms uncontended, Stage 9 builds it after `stream_done` and moves the stamp to the same post-turn seam, which also removes one store write (and one rebuild trigger) from the pre-admit path. If Stage 8 gets it under 150 ms, Stage 9 is REFUSED by its own rule and the ledger says so.
+- **CP-7 · A bundle rebuild names the component that moved**, exactly as Stage 2a made `acquire` name the actor-signature component: `chat_lane_bundle` keeps the last key material per root and writes `visibility_bundle_rebuild_component_<name>=1` into the turn's `profile_timing` (the same `resident_rebuild_*`-shaped flag family `safe_turn_profile_timing` already admits). Names only, never values.
+- **CP-8 · The runtime-resolve memo is refreshed off the turn, never slid.** The served credential's age stays bounded by `RUNTIME_RESOLVE_CACHE_TTL_SECONDS` (the invariant old §7.5 protected): a hit that finds the entry older than half the TTL schedules ONE background re-resolve under the same key and keeps serving the current entry until the replacement lands. A turn pays the cold resolve once per process, not once per 30 s.
+- **CP-9 · Receipts before remedies, per stage** — the §4 billing gate (`tests/agent_runtime/test_prep_cost_stage_gate.py`) applies to Stages 6–10 exactly as it applied to 0–5; every stage below carries its verdict line. Stage 6 lands first and its keys must be read on one operator turn per machine before Stage 7's number is judged.
 
 ---
 
-## 6. Opening gate
+## 2. Stages
 
-**Do not start Stage 1+ until one turn record from a serve running the Stage-0 tree
-shows `request_assembled`, `agent_init_cold` and `profile_timing` present.**
+**Stage 6 — the instrument: the pre-admit split reaches the launcher line, the sub-spans reach the record, and a rebuild names itself.** Three additive receipts and one join rule, no cure.
 
-**Status 2026-08-23: the gate opened, and the first thing through it changed a stage.**
-The operator restarted a serve on the Stage-0 tree with `persona_chat.hot_sessions`
-enabled; live turn records now carry the runner's `profile_timing` (turn `14:45:14Z`
-shows `resident_rebuild_runtime_signature_changed` and `resident_actor_reused=0`), which
-is exactly the class of fact the instrument existed to surface — and it falsified the
-assumption behind Stage 2 within two turns (§1 update). Stage 1 proceeded on that
-evidence. **The gate is now fully CLOSED, 2026-08-24:** `request_assembled` is present on
-**all ten** records in the 00:42–00:48Z window (1,187–2,921 ms), alongside `agent_init_cold`
-and `profile_timing` on every one — so §2.4's assembly-vs-TTFB split no longer rests on the
-one carry-forward measurement. Note what the first attempt at
-this gate proved — the serve HAD been restarted on HEAD and the keys still did not appear
-(§1), because the causes were a redaction/noise filter and a default-off config, not
-vintage. Acting on Stage 1/2/3 without the restored instrument would repeat the exact
-failure mode this audit exists to end: remedies measured against numbers nobody can
-re-take.
+1. **RO-7's `timing` block grows** (`agent_runtime/mission_chat_phases.turn_timing_block`, `TURN_TIMING_ORDER`): `context_built_ms`, `observability_built_ms`, `write_ahead_ms`, `agent_ready_ms`, `visibility_bundle_builds`, `runtime_resolve_ms` — copied, never derived, absent-never-zero, under the block's existing ceilings. Additive in the strict sense (no existing key moves, the contract integer does not move); the byte-pinned goldens on both repos regenerate in the landing that follows (`tests/hermes_cli/test_mission_chat_turn_timing_block.py`; launcher `test/fixtures/hermes_serve_frames/` + `harness_stream/` mirrors, `EterniaLauncher/tool/check_producer_contracts.py`). The launcher's `[MissionChatTiming]` clause (`EterniaLauncher/lib/features/mission_control/data/mission_chat_turn_timeline.dart`, `noteMissionChatRuntimeTiming`) appends `rt_write_ahead_ms=` and `rt_bundle_builds=` under the same three-absences rule RO-7 ruled (omitted / `-` for a runtime that predates the key / `-` for a phase never reached). CP-1's number is then one grep on either machine.
+2. **The pre-admit sub-spans ride `profile_timing`**, folded by the handler beside `session_db_open_ms`: `context_skill_preload_ms`, `context_hud_ms`, `context_signature_ms`, `observability_skill_rows_ms`, `observability_catalog_walk_ms`, `observability_shared_catalog_ms`, plus `observability_catalog_cached` (0/1). Timed inside `build_mission_chat_turn_context` and `mission_chat_prompt_observability` with `time.monotonic`, returned on the built objects (a `timings` mapping on `MissionChatTurnContext` and on the row, stripped before persist by the existing `_PERSIST_REF_FIELDS`/slimming path), never logged as free text. `safe_turn_profile_timing` already admits `*_ms` ints and `*_cached` — a census test pins the new keys.
+3. **CP-7's rebuild receipt** in `agent_runtime/chat_lane_bundle.py`: `_memo` keeps `(key, material, bundle)`; on a key mismatch the differing `chat_lane_bundle_key_material` entries are recorded on the thread (beside `_build_state.builds`) and the handler folds them as `visibility_bundle_rebuild_component_<name>=1`.
+4. **The admitted-turn counter of CP-2** (`agent_runtime/turn_activity.py`: `chat_turns_admitted()`, `admitted_turn()` context manager; `persona_commands._cmd_mission_chat_message` enters it at the anchor) — built here as an INSTRUMENT: Stage 6 only records `prewarm_overlapped` (a construction that ran inside the admitted window, sampled the way `builds_overlapped` is) and `admitted_at_exit=` on `snapshot_build_deferred`; nothing reads it to decide anything until Stage 7.
+5. **The join rule** (§0 preamble) goes into `../07-observability.md` next to the `phases` census: join the log on `anchored_at`; `started_at` is the write-ahead persist.
 
-Secondary gates, inherited:
+Red-first, each measured red on the pre-stage tree: `tests/hermes_cli/test_mission_chat_turn_timing_block.py` (the six new keys project from a record and are absent when the phase is; a `bool` in a ms slot is dropped); `tests/hermes_cli/test_mission_chat_turn_phases.py` (the handler-level fake persists the sub-spans through the real `safe_turn_profile_timing`, and the `visibility_bundle_rebuild_component_registry_epoch` flag lands when a scripted epoch bump precedes the second turn); `tests/agent_runtime/test_chat_lane_bundle.py` (material diff names exactly the moved entry, never a value); `tests/agent_runtime/test_snapshot_demote_deferral.py` (`admitted_at_exit` on the receipt; `prewarm_overlapped` counts a construction whose span intersects the admitted window); launcher `test/features/mission_control/mission_chat_turn_timeline_test.dart` (`rt_write_ahead_ms=` printed, `-` for an old runtime, omitted for no terminal). **Number to move:** none — the gate is one operator agent-chat turn per machine whose line carries `rt_write_ahead_ms` and whose record carries the sub-spans and, on the PC, at least one `visibility_bundle_rebuild_component_*` name.
 
-- **Honesty contract** (`mission_chat_phases.py:18-50`): absent-never-zero,
-  monotonic-only, first-mark-wins, release-visible. A fix that unmeasures a phase is a
-  regression.
-- **Do not re-quote `chat_lane_scope_ms=2421` as a turn cost.** Verified here (§3 H2):
-  it is the *unwarmed create* subphase; the warm create is 859/15 ms. Doc 05's
-  carry-forward row carries the annotation as of 2026-08-23.
-- **The provider half stays out of scope**: the raw luna floor is 0.74–0.92 s at any
-  effort; live mission-chat TTFB runs 2.2–3.5 s because the model REASONS at
-  effort=medium before its first visible token (canonical explanation: doc 08's luna
-  row — a 96%-prompt-cache turn still showed 6.1 s ttfb, so it is not ingestion). The
-  alice-lane free-tier ruling is CLOSED: the operator ruled 2026-08-23 and both alice
-  instances carry the gpt-5.6-luna/openai-codex instance override
-  (`model_override_issued_at: 2026-08-22T14:49:24Z`; see
-  `planned/mission-chat-admission-latency.md` §5).
+*Billing gate: NO REMEDY SITE — Stage 6 builds receipts (the widened `timing` block, the sub-spans, the rebuild component, the admitted counter as a recorder) and proposes no cure.*
 
-### 6.1 The per-stage billing gate (added 2026-09-04)
+**Stage 7 — the admitted turn owns the GIL: the deferral and the prewarm yield see a turn from its anchor, and the bound covers the span.** CP-2 and CP-3 made live: `_defer_demote_build_for_active_turns` and `prewarm_chat_actor`'s two yield reads take `chat_turns_admitted() or agent_runs_in_flight()`; `SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS = 3500`; the `snapshot_build_deferred` receipt keeps `runs_in_flight_at_exit` and gains Stage 6's `admitted_at_exit`. The chat-open prewarm additionally stands down as `skipped_turn_active` when the turn admitted is for the SAME root (it would build the actor that turn is about to build — the no-op case Stage 2 named, now taken instead of raced). The eviction inside a construction (`PersonaChatRuntimeRegistry.acquire`'s `while len(self._entries) > self.max_entries` → `_close_entry` → `agent.close()`, 8 client closes over 1.1 s this morning) is NOT moved by this stage; it is named, its `prewarm_overlapped` receipt from Stage 6 is what would bill it, and a stage for it is written only if that receipt does.
 
-The gate above is written against the PLAN, once: *do not start Stage 1+ until one
-turn record shows the instrument*. It is therefore discharged by whoever goes
-through it first, and nothing re-asks the question of the stage actually being
-built. Two of the three stages built on 2026-09-01 named a remedy site the live
-record then contradicted:
+Red-first (`tests/agent_runtime/test_snapshot_demote_deferral.py`, `tests/agent_runtime/test_persona_chat_actor_prewarm.py`): a demote build requested while a turn is admitted but not yet running waits (red today: it proceeds); the wait ends the instant the turn's handler exits; the bound is 3,500 and a build past it proceeds and is still counted overlapped; hydrate/`full_core` never wait; a prewarm requested for the admitted turn's own root returns `skipped_turn_active` without constructing. Mutations: the deferral reading only `agent_runs_in_flight()` (red on the first case); the bound left at 1,000 (red on a 2,000 ms scripted admission). **Numbers to move (ledger, ten consecutive agent-chat turns on this PC):** `builds_overlapped` counted against the `request_received → write_ahead` window = 0 on ≥ 9 of 10 (from 12 of 15 overlapped); `write_ahead` p50 ≤ 1.3 × the same day's uncontended p50 (from 2.0–3.5×); no `prewarm_overlapped ≥ 1` on a turn whose root was just opened.
 
-| stage | its named site | what the record billed | verdict |
-|---|---|---|---|
-| 3 | `request_build` tool-schema serialization, "−0.5–1.0 s per turn" | **1 ms warm**; the cache asked for already existed in `model_tools` | remedy FALSIFIED, not built |
-| 4 | `_default_persona_session_db()` open, "measure, then pool" | **~6 ms warm** (flat across a 280× store-size range) vs the stage's own 100 ms threshold | pooling REFUSED by the stage's own rule |
-| 5 | demote-cadence snapshot builds during live turns | `builds_overlapped` 1–3, led `build_ms=3979` (§2.5) | site survived; built as planned |
+*Billing gate: BILLED before the stage — §0.2 bills `builds_overlapped` = 1 on turns 1–2 against 0 on turn 3 with `write_ahead` 3,172 / 2,796 against 906, and the 09-06 join (§0.4) bills `turn_context_ms` 4,730 with three overlaps against 620–829 with none; §0.2 also bills why Stage 5's receipt could not cover the span (`_counted_agent_run` starts at `run()`).*
 
-Neither Stage 3 nor Stage 4 was saved by this document. Both were saved because
-the dispatch brief independently required a re-measurement before the fix; had it
-not, both would have been built on a dead premise (field notes
-[`chat-turn-prep-stages-3-5-field-notes-2026-09-01.md`](chat-turn-prep-stages-3-5-field-notes-2026-09-01.md)
-§2, §4, §6). The missing mechanism is not more diligence — it is that the
-requirement was never asked per stage.
+**Stage 8 — one skill walk per turn, identity-keyed: the observability row and the preload policy share it, and nothing on the turn lane hashes a skill it already hashed.** CP-4 and CP-5.
 
-**The rule.** A stage may not name a remedy site until an instrument bills that
-site. Every stage in §5 therefore carries one `*Billing gate: …*` line taking
-exactly one of three verdicts:
+1. `agent/skill_utils.resolve_skills` is called ONCE per turn. `_resolve_skill_preload` keeps its `required_preload_skill_ids` call and returns the `_root_registries` it walked on `MissionChatSkillPreload`; the handler passes them to `mission_chat_prompt_observability(skill_resolver=…)` through a turn-lane resolver constructed WITH those registries, so the resolver's `resolve()` reuses them (`resolve_skills(..., _root_registries=)` exists for exactly this and is used by the snapshot lane).
+2. The turn-lane resolver's skill rows (`accessible_skills`, `available_skills`, `assignment_removals`) are memoized at PROCESS scope on `(skill_cache_key, roots_fingerprint)` where `roots_fingerprint` is the tuple of `_skill_root_registry(root).fingerprint` over `get_all_skills_dirs()` — the same identity the walk itself trusts. Bounded (one entry per persona, replaced not accumulated, capped), non-poisoning (a resolver that faulted is not stored). `_installed_skill_catalog`'s 15 s TTL is bypassed on this lane by the same key; the snapshot lane keeps the TTL (its build-scoped memo already made it one walk per build).
+3. `skills_inventory.build_shared_catalog` memoizes its rows on the shared root's fingerprint (the content hash of a skill whose files did not change is the same hash); the realm-sync publisher, which needs the hash to be a hash of BYTES, reads the same function and gets the same answer — the memo is on the fingerprint of the files it hashes.
+4. `hermes_constants.get_default_hermes_root` (0.9 ms × 73 calls) and `get_shared_skills_dir` (66 calls) are called once per turn through the resolver instead of once per skill; no memo on env state (the ambient-home hazard of old Stage 2a item 7 is not re-opened).
 
-- **`BILLED`** — a receipt convicted this site BEFORE the stage was written, and
-  the line names it (a § reference, a `*_ms` key, or a counter). This is the only
-  verdict that licenses naming a remedy.
-- **`NO REMEDY SITE`** — the stage builds instrumentation or accounting and
-  proposes no cure. Nothing to bill.
-- **`NOT BILLED`** — the site was named ahead of its receipt. The stage may still
-  MEASURE, but its remedy is a hypothesis until the instrument lands, and the
-  verdict the record eventually returned is recorded on the same line.
+Red-first (`tests/agent/test_skill_utils.py`, `tests/agent_runtime/test_prompt_observability.py`, `tests/agent_runtime/test_mission_chat_turn_context.py`, `tests/agent_runtime/test_snapshot_catalog_memo.py`, `tests/agent_runtime/test_skills_inventory.py`): a second turn of one persona against unchanged roots performs zero `_skill_root_registry` fingerprint walks beyond the first (counted through a walk counter added beside `probe_rounds_this_thread`, not a wall clock); editing one `SKILL.md` rotates the fingerprint and the rows rebuild on the next turn (the staleness bound is the walk's own — the mutation that drops the fingerprint from the key reds this); the row built through the shared registries is byte-equal to one built by today's path (`test_prompt_observability_record_once.py`'s golden); the shared catalog's `content_hash` for an edited skill changes on the next call. **Numbers to move (sandbox re-take with the §0.3 script, then ten live turns):** `observability_built − context_built` ≤ 150 ms uncontended on turns spaced > 15 s (from 438–587); `context_built` ≤ 250 (from 468); `observability_catalog_walk_ms` = 0 and `observability_skill_rows_ms` ≤ 30 on every turn after the first of a process.
 
-A stage arriving with no such line, or laundering a `NOT BILLED` into `BILLED`
-without a receipt, reds `tests/agent_runtime/test_prep_cost_stage_gate.py`. The
-two `NOT BILLED` rows stay on the page on purpose: they are this gate's evidence,
-and the next stage author reads them in place rather than in an archived note.
+*Billing gate: BILLED before the stage — §0.3 bills `resolve_skills`/`_skill_root_registry` at 203 + 357 ms, `_installed_skill_catalog` at 129 ms on a TTL miss, `build_shared_catalog` at 336 ms cold, inside a measured 234 + 587 ms uncontended pre-admit span, and §0.1 bills the same span live at 468 + 438 (`write_ahead` 906) on turn 3.*
 
-This is the plan-local instance of the standing house rule (*re-measure before
-fixing; a filed row is often right that something is wrong and wrong about why*).
-Widening it to every staged perf plan in `planned/` is a separate row — it needs
-a stage-heading convention those documents do not share yet.
+**Stage 9 — the prompt-observability row leaves the pre-admit path (conditional on Stage 8's re-take, CP-6).** Gate, read first: if Stage 8's live re-take shows `observability_built − context_built` ≤ 150 ms uncontended, this stage is REFUSED and the ledger row says so with the number. Otherwise: `context_id` is computed by a small pure function (`prompt_observability.mission_chat_context_id(...)`, the sha256 the row builder already computes over the same nine inputs) and handed to `runtime_context_envelope`; the handler marks `observability_built` right after it (the mark keeps its name and now measures the id, honestly ~0 ms); the row is built at `stream_done` with the same inputs the handler kept on the turn plan, then `attach_prompt_observability_turn_results` and `persist_prompt_observability_context` run exactly as today; the `instance.skill_manifest_hash` stamp and its `instance_store.update` move to the same post-turn seam (one fewer pre-admit store write, one fewer event for the hub to rebuild on). The `chat.final` wire echo still carries the built row — it is built before the terminal frame. A turn that fails before `stream_done` persists no row, as a refused turn persists none today.
 
-## 7. Uncertain / unverified, stated plainly
+Red-first (`tests/agent_runtime/test_prompt_observability.py`, `tests/hermes_cli/test_mission_chat_turn_phases.py`, `tests/agent_runtime/test_prompt_observability_record_once.py`): the id function equals the row's `context_id` for the same inputs (mutation: drop one input from either); under the scripted clock `observability_built − context_built` < 5 ms and the persisted row is byte-equal to the pre-stage golden; the instance's hash stamp is present after `native_committed` and absent at `write_ahead`; the terminal frame carries the row. **Number to move:** `write_ahead` uncontended ≤ 300 ms (CP-1's target) with `observability_built − context_built` ≤ 5.
 
-### 7.4 `visibility_bundle_builds=2` inside one turn — diagnosed, deliberately NOT changed
+*Billing gate: BILLED before the stage — §0.1 bills `observability_built − context_built` at 1,359 / 1,718 / 438 ms and §0.3 at 270–937 ms, with the row's only pre-turn consumers named (`context_id`, the hash stamp) and its persist site post-turn.*
 
-Live: `0` / `2` / `0` across the three 19:03 turns of one root (and `2` on the 17:33:17
-turn before Stage 2 landed). Two builds means the chat-lane bundle's key moved once
-mid-turn, between the context builder's first bundle read and a later one. The key carries
-`tools.registry.registry_epoch`, which is bumped by every registration change — including
-the turn's own MCP admission register/deregister cycle (turn 3 recorded
-`mcp_admission_ms=45`) and any concurrent run's, since `harness serve` runs turns from
-several personas on pooled threads in one process.
+**Stage 10 — the runtime-resolve memo refreshes itself off the turn (CP-8).** `profile_runner._resolve_request_runtime`'s entry gains `resolved_at`; a hit older than `RUNTIME_RESOLVE_CACHE_TTL_SECONDS / 2` returns the entry AND enqueues one refresh for its key on a single daemon worker (the prewarm module's worker pattern, or its own — one authority, stated in the notes), de-duplicated per key; the refresh resolves under the same profile binding the turn would (`persona_profile_scope`, context-local, never the env-writing mode — old Stage 2a item 7's audit applies verbatim) and replaces the entry; a failed refresh leaves the entry to expire as today. The credential age served to a turn is still ≤ TTL. Receipt: `runtime_resolve_cached=1` plus a new `runtime_resolve_refreshed_ms` on the turn that triggered a refresh (the refresh's own cost, billed to the background, not to `runtime_resolve_ms`).
 
-The tempting fix is to read a registration generation that EXCLUDES the per-turn MCP
-scope's own cycle. **Refused, and the reason is a correctness rule, not taste.** It would
-be admissible only if the bundle's content did not depend on registry state — but under
-`unbounded` its `enabled_toolsets` IS `all_registered_toolsets()`, and
-`scope_toolsets_to_admission` recognizes another persona's MCP toolsets through a LIVE
-alias read of the same registry. A bundle pinned across a registration change can
-therefore hand the next turn a toolset name that is no longer registered, or miss one that
-is. That is a wrong answer about what the turn may do, traded for a memo hit; the epoch
-stays in the key. The cost is bounded and now visible: at most one extra resolve on a turn
-that touches MCP registration.
+Red-first (`tests/agent_runtime/test_send_path_runner_reuse.py`, `tests/agent_runtime/test_reasoning_effort_runtime_seam.py`): with a scripted clock, a hit at TTL/2 + 1 s enqueues exactly one refresh and serves the old entry; a second hit before the refresh lands enqueues nothing more; after it lands the entry's stamp moved and `runtime_resolve_ms` on the next turn is 0 with `runtime_resolve_cached=1`; a refresh that raises leaves the old entry and the next post-TTL turn resolves cold as today (mutation: the sliding-window alternative — restamping on a hit — is asserted NOT to happen: the entry's age at serve time never exceeds TTL). **Number to move:** `runtime_resolve_ms` = 0 on every agent-chat turn after the first of a process, ten consecutive (from 566–1,221 on 4 of 15).
 
-### 7.5 `runtime_resolve_ms` 878 / 0 / 1589 — the memo's TTL is write-time, not use-time
+*Billing gate: BILLED before the stage — §0.5 bills `runtime_resolve_ms` 885 / 1,221 / 740 / 566 inside `write_ahead → agent_ready` on four of fifteen 2026-09-06 turns, the write-time TTL mechanism old §7.5 diagnosed and deliberately left.*
 
-`_resolve_request_runtime` (`profile_runner.py:1756-1785`) memoizes on
-`(HERMES_HOME, provider, model, (mtime_ns,size) of the profile's config.yaml and .env)`
-for `RUNTIME_RESOLVE_CACHE_TTL_SECONDS = 30`. Nothing in production calls
-`reset_runtime_resolve_cache` — the docstring's "profile teardown" has no caller — so a
-cross-persona turn cannot be wiping it. The stamp is written at the COLD resolve and is
-never refreshed on a hit, so the entry dies 30 s after that resolve however heavily it is
-used: turn 1 at `19:03:10` resolved cold (878 ms), turn 2 at `19:03:23` hit (0 ms), turn 3
-at `19:03:40` — **30.3 s after turn 1's write** — missed by three tenths of a second and
-paid 1,589 ms.
+**Order and gates.** 6 → 7 → 8 → (9 if its gate says so) → 10. Stage 7 may land before Stage 6's operator read only if its own tests are green; its NUMBER is judged after that read. Stages 8 and 10 are independent of 7 and may run beside it in their own worktrees. Every stage's re-take is ten consecutive agent-chat turns on this PC read from the ledger plus one turn per machine read from the launcher line; the field notes carry the tables.
 
-**Not fixed, on purpose.** A sliding window (restamping on a hit) makes the cached
-credential's effective age unbounded, and the constant's own doctrine pins the opposite
-invariant: it must stay well under the refresh skew so a served credential has ≥ 90 s of
-validity left. The honest options are a shorter TTL with a *separate* freshness floor, or
-leaving it — and neither belongs in this stage. The remaining unexplained gap is
-prewarm→turn 1 (9 s apart, should have hit): either the prewarm thread resolved under a
-different `HERMES_HOME` than the turn's profile context, or one of the two stamped files
-was rewritten between them. Both are one restart's worth of receipts away, and the memo
-already writes `runtime_resolve_cached=0/1` to tell them apart.
+---
 
+## 3. Non-goals — what this plan does NOT touch, and why
 
-- The **second plugin-discovery walk** at 22:04:18 (139 ms,
-  `Plugin discovery complete: 54 found, 47 enabled`) during the 4a80f05e window: the log
-  carries no pid on those lines, so whether it ran in the serve or a sibling hermes
-  child is unattributed. Small, but it fired inside the turn window.
-- ~~The **SessionDB open cost** (H3) is a code-shape finding, not a measured one.~~
-  **Measured 2026-09-01: ~6 ms warm** (§3 H3's dated mark; field notes §4). The
-  bench was a quiet worktree process — `session_db_open_ms` on the live records is
-  what confirms or reopens it.
-- The **prologue split** on the live turns is inferred from log timestamps
-  (23.15 → 24.24 → 24.63) plus one carry-forward measurement; the standing mark is not
-  yet on any record.
-- `send_to_admit`'s ~110 ms transport share is derived from ONE turn's
-  launcher-vs-record reconciliation; other turns may differ under launcher load.
-- **Stage 2's receipt is HALF READ (2026-08-24), and the open half is exactly the residue
-  this stage named in advance.** The `persona_chat_actor_prewarm` lines were the second
-  thing to read, and they read clean: 59 lines in `profiles/base/logs/agent.log`, items
-  `outcome=warmed` at 78–2,531 ms, no `skipped_turn_active` pass — the yield rule is not
-  firing too eagerly. The first thing to read did NOT close: all three fresh-chat first
-  turns in the window read `agent_init_cold=true`, and the two neko ones name
-  `resident_rebuild_component_workspace_agents`. That is the `--agents-file` check this
-  bullet told the reader to run first, and it comes back positive: the operator's workspace
-  `AGENTS.md` is attached per turn from a launcher-side selection and the prewarm cannot
-  know it, so a workspace-bound root mismatches on its first turn however well it was
-  warmed. The wall half held anyway (`agent_ready − write_ahead` = 125 / 94 / 750 ms), so
-  what remains is a rebuild, not the −2.5–3.5 s construction. **Remaining open: a first
-  turn of a freshly opened chat with `agent_init_cold=false`** — reachable either from a
-  root with no workspace-agents binding, or by teaching the prewarm that input.
-- **Stage 1's receipt is READ (2026-08-24), and the gate was met verbatim.** The gate asked
-  for `registry_probe_rounds=0` + `visibility_bundle_builds=0` on three consecutive warm
-  turns of one chat plus `resident_actor_reused=1` on turn 2; **five** consecutive turns of
-  one neko root delivered it — `00:43:08` / `:17` / `:20` / `:28` / `:56`, every one with
-  `resident_actor_reused=1`, `agent_init_cold=false`, no `resident_rebuild_component_*` key,
-  `registry_probe_rounds=0` and `visibility_bundle_builds=0`. The probe storms (23–27 rounds
-  per turn in §1's table) are gone from the live record, and so is the mid-turn bundle
-  rebuild. **Remaining open: the `context_built` tail.** The ctx spans on those five turns
-  were 562 / 796 / 343 / 968 / 468 ms — two under the 500 ms the row wanted, three not. The
-  bundle is provably not the cause any more (`visibility_bundle_builds=0` on all five), so
-  the residue is elsewhere in the context builder and needs its own conviction before it
-  gets a remedy. The same rule this audit exists to enforce applies to its own remedies.
+- **The snapshot build's own cost** (`agents_readiness` 1.4–5.1 s, `events` 1.2–2.4 s, `prompt_observability` 1.0–1.3 s per build; `never_converged` on `chat_turn_reservations`). Stage 7 keeps builds off the admitted window; it does not make them cheaper or rarer. That is `cold-first-core-build-cost.md` / `core-cache-input-closure.md`'s territory, and this plan files one row there: **the chat-turn sidecar family (`chat_turn_reservations`, presence events, the hash stamp) is the churn that makes every chat-adjacent build a full build** — §0.2's 8-in-55-s number is the evidence. Stage 8 will shrink the `prompt_observability` section as a side effect (the same walk, memoized on the same fingerprint) and the notes record by how much, but it is not promised.
+- **The provider leg**, the luna reasoning floor, prompt-cache hit rates, the Codex pool's `exhausted` state and the Agents-card warning (§0.5: not on the turn path beyond the memo Stage 10 fixes).
+- **The launcher's ~0.1 s** (§0.4) and the local socket; `send_to_admit`'s remainder is hermes'.
+- **Raising any TTL constant** (`_SKILL_CATALOG_TTL_SECONDS`, `_PROFILE_READINESS_TTL_SECONDS`, `_CHECK_FN_TTL_SECONDS`, `RUNTIME_RESOLVE_CACHE_TTL_SECONDS`) — the old plan's standing refusal; Stages 8 and 10 replace clocks with identity or refresh, never widen a staleness window. The `check_fn` re-probe inside the assembly span (~250 ms on turn 3, 30 s TTL) is left as a follow-up row, not a stage: it is the smallest item on the page.
+- **SessionDB pooling** (4.7 ms warm, refused by old Stage 4's rule, still refused).
+- **The actor prewarm's construction cost and the hot-session cap** (`max_hot_sessions=8`); Stage 7 changes only when the prewarm yields. The eviction's 1.1 s of client closes gets a stage only if `prewarm_overlapped` bills it.
+- **Turning the `unbounded` permission mode's registry-shaped bundle key into anything narrower** (old §7.4's correctness rule stands: a bundle pinned across a registration change hands the next turn a wrong toolset).
+- **Anything on the wire beyond Stage 6's additive keys**; no contract move; `busy`/`ready`/`hello_ok` unchanged.
+
+---
+
+## 4. Ledger
+
+### 4.1 Re-armed stages (fills at landing)
+
+| stage | what | landed sha | date | re-take read |
+|---|---|---|---|---|
+| 6 | instrument: widened `timing` block + `rt_write_ahead_ms`, sub-spans, rebuild component, admitted counter (recorder) | — | — | — |
+| 7 | admitted-turn deferral + prewarm yield, bound 3,500 | — | — | — |
+| 8 | one skill walk per turn, fingerprint-keyed rows | — | — | — |
+| 9 | observability row post-turn (gated on 8's number) | — | — | — |
+| 10 | runtime-resolve background refresh | — | — | — |
+
+### 4.2 Executed stages 0–5 (2026-08-23 → 2026-09-01), condensed with their billing verdicts
+
+The paragraphs below are the record the §4 billing gate reads; the full 2026-08 analysis (§1–§7 of the previous text) is in this file's git history and the 2026-09-01 field notes. Nothing in them is re-quoted above as a current number.
+
+**Stage 0 — restore the instrument before touching anything. LANDED 2026-08-23, `60c7f46ec1`.** `ChatProgressSink._forward_phase_timing_marker` forwards the loop's `request_assembled` marker past the sink's Trace-lane noise filter (the reason no live record carried the mark: the sink dropped every payload lacking a signal key, and a timing marker carries none by construction); `profile_runner` writes `resident_actor_reused=0` on the no-registry branch so `agent_init_cold` lands on a stock serve; `profile_timing` rides the native-commit persist bounded by `safe_turn_profile_timing`. Gate read 2026-08-24: all ten records in the 00:42–00:48Z window carried `request_assembled`, `agent_init_cold` and `profile_timing`.
+
+*Billing gate: NO REMEDY SITE — this stage BUILT the instrument (`request_assembled`, `agent_init_cold`, `profile_timing`) and proposed no cure, so there was no site for a receipt to convict.*
+
+**Stage 1 — one visibility resolve per turn, memoized on identity. LANDED 2026-08-23, `7f2c82f090`.** `agent_runtime/chat_lane_bundle.py`: the lane's whole visibility resolved once per (persona, chat root) and keyed on persona revision · root · a fresh permission fingerprint · both `config.yaml` revisions · runtime root · lane · `tools.registry.registry_epoch()` (the epoch was added to the registry for it). Receipt `visibility_bundle_builds`. Carried in: `_runtime_signature` hashed the whole instance row, which every turn writes, so a resident actor could never be reused — fixed with `PERSONA_IDENTITY_FIELDS` / `INSTANCE_IDENTITY_FIELDS`. Read 2026-08-24: five consecutive turns of one root with `registry_probe_rounds=0`, `visibility_bundle_builds=0`, `resident_actor_reused=1`; the `context_built` tail (343–968 ms) stayed open — it is §0.3's skill walk, convicted today.
+
+*Billing gate: BILLED before the stage — the 2026-08-22 records billed the resolver family at ≥ 4 walks per turn with 23–27 `registry_probe_rounds` and `runtime_resolve_ms` 878 / 0 / 1589 beside it (old §2.1.4, §3 H2, §7.5).*
+
+**Stage 2 — pre-construct the resident actor at chat-open. LANDED 2026-08-23, `bfde53b4ae`.** `agent_runtime/persona_chat_actor_prewarm.py`: `prewarm_chat_actor` runs the real `_execute_agent_run` path with `AgentRunRequest.prewarm_only`, on one daemon worker, at boot (behind the read-model build and the provider warmup, at most `max_hot_sessions` roots) and at both arms of `persona instance open-chat`; yields on `agent_runs_in_flight()` before assembling and before entering the scope stack; signature parity by shared function (`mission_chat_runtime_signature`). Named blind spot: `--agents-file` (a workspace-bound chat's first turn rebuilds). Read 2026-08-24: the wall half held (`agent_ready − write_ahead` 125 / 94 / 750 ms) and today's three turns read 234 / 63 / 46 with `resident_actor_reused=1`. §0.2 shows the residue this plan's Stage 7 takes: the yield cannot see an admitted-but-not-running turn.
+
+*Billing gate: BILLED before the stage — old §2.3 billed `write_ahead → agent_ready` bimodal on live records, 0.1–0.6 s reused against 3.0–3.6 s cold, `agent_construct_ms` 3,000 on the 17:33:01Z turn.*
+
+**Stage 2a — a refused reuse names the input that moved. LANDED 2026-08-23, `14271f261f` + `b0c1a668b9`.** `mission_chat_runtime_signature_components` / `_from_components` / `_digests`; `acquire` diffs the per-component digest map and logs `resident_signature_diff root=… components=…`; the runner writes `resident_rebuild_component_<name>=1`. Convicted and removed from the key: the operator-shaped half of `permissions` (only `{mode, source, expired}` stays), `current_chat_goal`, and — caught by the instrument's first field read, five consecutive turns naming `relevant_config_revision` — the whole ambient config document, because `HERMES_HOME` was being rewritten process-wide by the readiness walk on another thread. Fixed at the source: `profile_context.persona_profile_scope` (context-local, `export_env=False`) for the readiness walk, the snapshot's observability section, and the turn lane's own pre-runner binding.
+
+*Billing gate: NO REMEDY SITE — a naming/receipt stage over Stage 2's refused reuse plus the identity fixes it convicted; it proposed no cure of its own.*
+
+**Stage 3 — prologue diet. EXECUTED WITH AMENDMENT 2026-09-01, `3b4923f6c2`.** The named remedy (cache tool-schema serialization per toolset tuple) was FALSIFIED by the live record — `request_build` bills 1 ms warm, and the cache asked for already existed one level down (`model_tools._tool_defs_cache`, generation-keyed). What landed instead were receipts: `profile_conversation_turn_context_ms`, the system-prompt restore/build pair, the tool-defs memo hit/miss pair. Today `turn_context_ms` reads 44–350 uncontended and 4,730 under three overlaps (§0.4) — the prologue is a contention victim, not an owner.
+
+*Billing gate: NOT BILLED — the remedy site was named ahead of its receipt and the live record contradicted it: `request_build` bills 1 ms warm, and the cache this stage specified already existed one level down. Caught by the dispatch brief's re-measurement requirement, not by this plan (2026-09-01 field notes §2, §6.1–2).*
+
+**Stage 4 — SessionDB open-side: measure, then pool. EXECUTED WITH AMENDMENT 2026-09-01, `139f480a23`.** Measured, and the measurement refused the pooling by the stage's own rule: warm writer-open ~6 ms median across stores of 0.6–170.8 MB (the cold 56–204 ms is the process's first open, which a pool would pay too). `session_db_open_ms` rides every durable record; §0.3 re-measured it today at 4.7 ms warm / 165 cold. The rule stands: a live median > 100 ms warm reopens pooling; IC-2's close discipline is unchanged.
+
+*Billing gate: NOT BILLED — the pooling half was named ahead of its receipt. When the timing this stage itself added finally billed the site it read ~6 ms warm against the stage's own 100 ms threshold, and the remedy was refused by its own rule (2026-09-01 field notes §4, §6.3).*
+
+**Stage 5 — stop paying the snapshot builder during live turns. EXECUTED 2026-09-01, `048bc96802`.** `_defer_demote_build_for_active_turns` in `agent_runtime/stream.py`: demote-cadence builds wait while `profile_runner.agent_runs_in_flight()` reports a live run, bounded by `SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS = 1000`, demote lane only; receipt `snapshot_build_deferred`; `builds_overlapped` untouched so a deferral cannot launder its own failures. Today's read (§0.2): it fires exactly where it can see (turn 3, three deferrals during the provider wait) and cannot see the pre-admit span (turns 1–2), which is Stage 7's whole content.
+
+*Billing gate: BILLED before the stage — old §2.5 billed `builds_overlapped` at 1–3 on most sampled turns with led builds of `build_ms=3979` (up to 9131 in the boot window) burning CPU in the same process; the one of the three 2026-09-01 stages whose named site survived re-measurement.*

@@ -71,10 +71,11 @@ def blocks() -> dict[str, str]:
 
 def test_the_splitter_finds_the_stages_the_plan_actually_has(blocks):
     """ANTI-VACUITY. A regex that matched nothing would make every assertion
-    below trivially true, so the shape of §5 is pinned first: the seven stages
-    the EXECUTED ledger and §5's own heading name."""
+    below trivially true, so the shape of the plan is pinned first: the seven
+    executed stages the §4 ledger carries and the five re-armed stages of §2
+    (2026-09-07)."""
 
-    assert sorted(blocks) == ["0", "1", "2", "2a", "3", "4", "5"]
+    assert sorted(blocks) == sorted(["0", "1", "2", "2a", "3", "4", "5", "6", "7", "8", "9", "10"])
     assert all(len(body.strip()) > 200 for body in blocks.values())
 
 
