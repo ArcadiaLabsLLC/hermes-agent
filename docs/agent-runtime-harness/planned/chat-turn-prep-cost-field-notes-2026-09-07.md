@@ -692,6 +692,23 @@ fingerprint. That is inherited verbatim from
 this way since before this stage; it is recorded so the next reader meets it as
 a known property with a named owner.
 
+**Blast radius, checked because `skill_utils` is imported far outside the chat
+lane.** Every test file in the repo that touches `resolve_skill`,
+`required_preload_skill_ids`, `_skill_root_registry`, `build_shared_catalog`,
+`used_skills_context` or `skill_package_content_hash` was run: skill commands 22,
+skill utils 34, agent-create service 47, MCP admission 74, persona skill policy
+27, profile context 12, profile readiness 10, dead-symbol census 16, skill
+promotion 51, skills inventory 11, chat capability visibility 18, skills delete
+verbs 25 — **all green**.
+
+One file could not be run: `tests/agent_runtime/test_realm_sync_skill_inbox.py`
+hangs in a subprocess (`CreateProcess` / `tools/environments/base.py::_drain`)
+under the sandbox. **It hangs identically on clean `main`**, so it is
+environmental and pre-existing, not this stage; rowed here, not fixed here. A
+`tests/agent` directory-wide run hits the same class of hang and was abandoned
+rather than reported as a red — the plan's gate list is the bounded set, and
+"no unbounded full Hermes suite" is a standing rule.
+
 ### 4.4 The canon cite remap this stage owed
 
 The edits shifted `persona_commands.py` by 41 lines,
