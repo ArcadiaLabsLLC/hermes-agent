@@ -206,6 +206,28 @@ anything is excluded. Until then these firings are EXPECTED noise of the same cl
 IC-2 re-stat already absorbs for the DB triples; watch whether the weekly census still
 counts `every_pass` firings from this family after a week of post-`bfde53b4ae` boots.
 
+## 2026-09-08 addendum — the field half of IC-4's "measure first", partly taken
+
+Read on the operator's `neko` profile (`agent.log` + `errors.log`) and recorded in
+full at [`windows-path-syscall-cost-2026-09-08.md`](windows-path-syscall-cost-2026-09-08.md),
+"What the measurement did NOT explain" item 2. Three facts, none of which changes
+this plan's direction:
+
+- **2,094 `snapshot_core_cache_write` lines, ZERO `core_source=cache` serves.** The
+  only 42 `snapshot_core_cache` lines in that log are `never_converged`. The lane is
+  costing a write per build and buying nothing, exactly as the receipt says.
+- **The same code SERVES on a quiescent COPY of the same store** — 226–241 ms against
+  a 1.0–2.2 s cold build, measured under `HERMES_REQUIRE_ISOLATED_ROOT`. So
+  convergence is the whole blocker; nothing about the cache's design needs revisiting.
+- **The write-back is not itself expensive.** Disabling it entirely bought **4 ms**
+  on a 411 ms warm build. That kills "just stop writing" as a remedy: the prize is
+  the cold build the cache would replace, not the write it costs.
+
+The families in today's firings are the 2026-08-23 chat-turn sidecar family plus
+`realm_sync_state/<realm>.json`, `events_archive/events.*.jsonl`,
+`gateway/peers_cache.json` and `chat_turn_reservations/*.json`. The per-family reader
+audit this plan demands is still owed; nothing is excluded on this reading.
+
 ## The gate to open this
 
 - ~~Every candidate exclusion has a named reader audit proving nothing in

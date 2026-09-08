@@ -308,6 +308,56 @@ def get_process_hermes_home() -> Path:
     return _hermes_home_from_env()
 
 
+#: Memo for the ONE filesystem question :func:`get_default_hermes_root` asks.
+#:
+#: The function is otherwise pure path arithmetic over two strings — the
+#: ``HERMES_HOME`` env value and the platform-native default. Its single
+#: non-arithmetic step is ``env_path.resolve().relative_to(native_home.resolve())``,
+#: and on Windows each ``Path.resolve()`` is an ``nt._getfinalpathname`` call,
+#: which OPENS the path to ask the filesystem for its canonical name.
+#:
+#: Measured on the operator's Windows install, 2026-09-08, one warm
+#: ``agent_runtime.snapshot`` build against a copy of the live store: **662 of the
+#: build's 1,231 ``realpath`` calls and 394 of its 3,035 ``os.stat`` calls came
+#: from this one function**, reached through ``_get_profiles_root`` (394),
+#: ``harness_root_config_path`` (158), ``get_shared_skills_dir`` (36),
+#: ``machine_roots_registry_paths`` (32), ``mission_chat_workdir`` (22) and
+#: ``harness_skill_destination`` (20). Every one of them asked about the same two
+#: paths and got the same answer. Memoising the answer took the warm build from
+#: 623 ms to 416 ms — a third of it, from one dict.
+#:
+#: That ratio is also the launcher-visible half of the Windows/macOS gap: this
+#: ``realpath`` costs ~71 us per call against a handle open, where an
+#: APFS/ext4 ``realpath(3)`` is a few microseconds. The remedy is not a faster
+#: filesystem; it is not asking the same question 662 times.
+#:
+#: KEYED ON BOTH INPUTS, deliberately. ``HERMES_HOME`` alone would leak one
+#: process's answer across a ``Path.home()`` / ``LOCALAPPDATA`` monkeypatch, which
+#: is the exact fixture shape ``AGENTS.md`` prescribes for profile tests
+#: (``monkeypatch.setattr(Path, "home", ...)``). Computing the platform default is
+#: env/string work with no syscall, so paying it on every call is what makes the
+#: key honest rather than convenient.
+#:
+#: WHAT CAN GO STALE: a symlink or junction appearing, moving, or changing target
+#: at or above either path, inside one process, while both path STRINGS stay the
+#: same. Creating or deleting the leaf directories cannot do it — ``resolve()`` is
+#: non-strict and normalises a missing tail identically either way. Nothing in
+#: this runtime re-points the Hermes root under a live process; a test that wants
+#: to may call :func:`reset_default_hermes_root_cache`.
+_DEFAULT_HERMES_ROOT_CACHE: dict[tuple[str, str], Path] = {}
+
+
+def reset_default_hermes_root_cache() -> None:
+    """Forget every memoised default-root resolution.
+
+    Clearing is always safe: the next call simply pays the two ``resolve()``
+    calls again. Exposed for tests that re-point the Hermes root under a live
+    process, which production never does.
+    """
+
+    _DEFAULT_HERMES_ROOT_CACHE.clear()
+
+
 def get_default_hermes_root() -> Path:
     """Return the root Hermes directory for profile-level operations.
 
@@ -324,11 +374,34 @@ def get_default_hermes_root() -> Path:
     (``/opt/data/profiles/coder``) layouts.
 
     Import-safe — no dependencies beyond stdlib.
+
+    Memoised on ``(HERMES_HOME, platform default)``; the reasoning, the
+    measurement that motivates it and the one staleness window it admits are at
+    :data:`_DEFAULT_HERMES_ROOT_CACHE`.
     """
     native_home = _get_platform_default_hermes_home()
     env_home = os.environ.get("HERMES_HOME", "")
     if not env_home:
         return native_home
+    key = (env_home, str(native_home))
+    cached = _DEFAULT_HERMES_ROOT_CACHE.get(key)
+    if cached is not None:
+        return cached
+    _DEFAULT_HERMES_ROOT_CACHE[key] = resolved = _resolve_default_hermes_root(
+        env_home, native_home
+    )
+    return resolved
+
+
+def _resolve_default_hermes_root(env_home: str, native_home: Path) -> Path:
+    """The uncached body of :func:`get_default_hermes_root`.
+
+    Its own function so the memo above wraps a NAMED computation rather than an
+    inlined branch — the two ``resolve()`` calls it makes are the whole reason
+    the memo exists, and they must stay findable from the constant that explains
+    them.
+    """
+
     env_path = Path(env_home)
     try:
         env_path.resolve().relative_to(native_home.resolve())
