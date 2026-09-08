@@ -344,7 +344,7 @@ def _provider_issue(persona) -> tuple[str, str] | None:
 def _compute_provider_issue(resolver, provider, model) -> tuple[str, str] | None:
     if resolver is _RUNTIME_PROVIDER_RESOLVER:
         if provider == "openai-codex":
-            return _pooled_provider_issue(provider)
+            return _codex_provider_issue()
         # Readiness is a READ: the resolved runtime dict is discarded below —
         # only whether it RAISED is used. The plain resolver would nevertheless
         # advance a round-robin credential pool and rewrite the whole credential
@@ -366,26 +366,44 @@ def _compute_provider_issue(resolver, provider, model) -> tuple[str, str] | None
     return None
 
 
-def _pooled_provider_issue(provider: str) -> tuple[str, str] | None:
-    """Inspect cached Codex credentials without refreshing during a snapshot."""
+def _codex_provider_issue() -> tuple[str, str] | None:
+    """Codex readiness, answered by the RUN PATH's credential sources — read-only.
+
+    Was ``_pooled_provider_issue``, and the rename is the fix: it asked
+    ``load_pool("openai-codex").peek()`` and nothing else, so it reported
+    attention off the pool alone while the turn it was describing was being
+    served by ``resolve_codex_runtime_credentials()`` from the singleton token
+    set in the auth store. One authority answered the card and a different one
+    answered the request. A pool entry inside an exhaustion cooldown — up to an
+    hour by default, longer for a persisted 429 reset — put an amber
+    "Provider credential attention required" line on an agent whose every turn
+    succeeded.
+
+    The order and both sources now live beside the run path they mirror, in
+    ``hermes_cli.runtime_provider.codex_credentials_resolvable_read_only``; the
+    reason they cannot be answered by simply calling the resolver is written
+    there and at ``codex_auth_store_credentials_present``. What has NOT changed
+    is why this branch exists at all (MCF-16): readiness refreshes no token,
+    advances no rotation cursor and writes no byte of the credential store,
+    which the plain resolver would do on a file the snapshot's fingerprint does
+    not declare.
+    """
 
     try:
-        from agent.credential_pool import load_pool
+        from hermes_cli.runtime_provider import (
+            codex_credentials_resolvable_read_only,
+        )
 
-        pool = load_pool(provider)
-        entry = pool.peek()
-        if entry is None or not (
-            getattr(entry, "runtime_api_key", None)
-            or getattr(entry, "access_token", None)
-        ):
-            return (
-                READINESS_AUTH_ATTENTION,
-                "Provider credential attention required",
-            )
+        resolvable = codex_credentials_resolvable_read_only()
     except Exception as exc:
         return (
             READINESS_CONFIG_ERROR,
             f"Provider readiness check failed: {type(exc).__name__}",
+        )
+    if not resolvable:
+        return (
+            READINESS_AUTH_ATTENTION,
+            "Provider credential attention required",
         )
     return None
 

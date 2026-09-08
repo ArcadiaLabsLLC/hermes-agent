@@ -4563,6 +4563,52 @@
         "-q",
         "tests/agent/test_charsheet_draft_lock.py::test_a_permission_error_with_nothing_at_the_lock_path_is_not_a_busy_draft"
       ]
+    },
+    {
+      "id": "cxr1-codex-readiness-asks-the-pool-alone",
+      "path": "agent_runtime/profile_readiness.py",
+      "symbol": "_codex_provider_issue",
+      "operator": "narrow-authority-to-one-source",
+      "find": "        from hermes_cli.runtime_provider import (\n            codex_credentials_resolvable_read_only,\n        )\n\n        resolvable = codex_credentials_resolvable_read_only()",
+      "replace": "        from agent.credential_pool import load_pool\n\n        _entry = load_pool(\"openai-codex\").peek()\n        resolvable = bool(\n            _entry is not None\n            and (\n                getattr(_entry, \"runtime_api_key\", None)\n                or getattr(_entry, \"access_token\", None)\n            )\n        )",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_codex_readiness_matches_run_path.py::test_a_cooling_pool_entry_does_not_flag_an_agent_whose_singleton_can_serve"
+      ]
+    },
+    {
+      "id": "cxr2-codex-auth-store-lane-always-says-present",
+      "path": "hermes_cli/auth.py",
+      "symbol": "codex_auth_store_credentials_present",
+      "operator": "assume-the-credential-exists",
+      "find": "    try:\n        _read_codex_tokens()\n        return True",
+      "replace": "    try:\n        return True",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_codex_readiness_matches_run_path.py::test_the_same_fixture_without_a_singleton_still_reports_attention",
+        "tests/agent_runtime/test_codex_readiness_matches_run_path.py::test_a_lane_with_no_credential_anywhere_still_reports_attention"
+      ]
+    },
+    {
+      "id": "cxr3-codex-readiness-asks-the-store-before-the-pool",
+      "path": "hermes_cli/runtime_provider.py",
+      "symbol": "codex_credentials_resolvable_read_only",
+      "operator": "invert-source-order",
+      "find": "    entry = _load_pool(\"openai-codex\").peek()\n    if entry is not None and (\n        getattr(entry, \"runtime_api_key\", None)\n        or getattr(entry, \"access_token\", None)\n    ):\n        return True\n    return auth_mod.codex_auth_store_credentials_present()",
+      "replace": "    if auth_mod.codex_auth_store_credentials_present():\n        return True\n    entry = _load_pool(\"openai-codex\").peek()\n    return bool(\n        entry is not None\n        and (\n            getattr(entry, \"runtime_api_key\", None)\n            or getattr(entry, \"access_token\", None)\n        )\n    )",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_codex_readiness_matches_run_path.py::test_a_servable_pool_entry_answers_alone"
+      ]
     }
   ]
 }

@@ -4160,6 +4160,53 @@ def resolve_codex_runtime_credentials(
     }
 
 
+def codex_auth_store_credentials_present() -> bool:
+    """Would :func:`resolve_codex_runtime_credentials` find a credential to serve?
+
+    A READ-ONLY mirror of that function's credential SOURCES, in its order,
+    minus every branch that spends something: no token refresh, no network
+    probe of the Codex usage endpoint, no CLI import, no write to ``auth.json``
+    and no clearing of a pool cooldown. It answers only "is there a credential
+    here that the run path would hand to a turn", which is the question a
+    readiness pass is entitled to ask.
+
+    Why it exists as its OWN function rather than as a keyword on the resolver:
+    the resolver's write/network branches are reached exactly when the
+    singleton is unusable — the case readiness cares most about — so
+    ``refresh_if_expiring=False`` is not sufficient to make it a read, and a
+    reader would have to prove that from three nested branches rather than
+    from a name.
+
+    An access token past its expiry with a refresh token beside it counts as
+    PRESENT: the run path refreshes it and serves the turn, so reporting
+    attention for it would be reporting a condition the runtime does not have.
+    Whether that refresh succeeds is only knowable over the network, which this
+    function is defined not to do.
+    """
+
+    try:
+        _read_codex_tokens()
+        return True
+    except AuthError:
+        pass
+    except Exception:
+        logger.debug("Codex singleton readiness read failed", exc_info=True)
+        return False
+
+    # The resolver's global-root singleton fallback. Its OTHER fallback —
+    # ``_pool_codex_access_token`` — is deliberately NOT mirrored here: it is a
+    # second, looser read of the same credential pool the readiness caller has
+    # already asked with the pool's own availability rules, and it accepts an
+    # entry that those rules just refused (it consults only
+    # ``last_error_reset_at``, never the ``last_status`` cooldown). Mirroring it
+    # would mean readiness could never report attention while any pool row held
+    # any token string, including a long-dead one — which would retire the true
+    # positive along with the false one. Where the two pool reads disagree,
+    # readiness follows the stricter, and says so rather than leaving a reader
+    # to discover the divergence.
+    return bool(_read_global_codex_tokens_if_usable())
+
+
 def _is_codex_rate_limit_shaped(
     code: Any,
     reason: Any,
