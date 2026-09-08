@@ -489,16 +489,69 @@ contention on its receipts file — and it is **rowed, not fixed here**.
   and the actual build spans — do not relabel an existing whole-turn counter as
   pre-admit. A missed target is a finding, not permission to widen this stage
   into hydrate deferral or eviction surgery.
-* **CP-9's Stage 6 read is still owed, and is upstream of that verdict.**
-  Checked read-only while preparing this branch, 2026-09-07: the launcher diag
-  log (`%TEMP%\eternia_launcher_diag.log`, 318,191 B) contains **zero**
-  `rt_write_ahead_ms` occurrences — its newest `[MissionChatTiming]` lines carry
-  only `rt_turn_context_ms` / `rt_first_byte_ms` / `rt_builds_overlapped` — and
-  **none** of the 50 records under `mission_chat_turns/` carries any of the
-  seven Stage 6 sub-spans or a `visibility_bundle_rebuild_component_*` name.
-  The running runtime and the running launcher both predate Stage 6. That read
-  is what Stages 8 and 10 were gated on, and it is why this pass built Stage 7
-  alone.
+* **CP-9's Stage 6 read: ABSENT while this branch was built, TAKEN on the PC
+  immediately after.** Checked read-only while preparing the branch,
+  2026-09-07: the launcher diag log (318,191 B) contained **zero**
+  `rt_write_ahead_ms`, and the live serve's register row read build
+  `c670168049` — pre-Stage-6. That is why this pass built Stage 7 alone and
+  left Stages 8 and 10 untaken.
+
+  **A correction to how that was checked.** The record-side half of that claim
+  ("none of the 50 records carries a sub-span") was produced by a probe that
+  read `record['phases']` and `record['profile_timing']` directly. Each file
+  under `mission_chat_turns/` is keyed by TURN ID at the top level and the
+  phases live one level down, so the probe read `None` for every field of every
+  record and would have said "absent" whatever the file held. The conclusion
+  was right for the other two reasons — no `rt_write_ahead_ms` on any launcher
+  line, and a pre-Stage-6 build in the register row — but one leg of it was not
+  evidence. Recorded because the same probe shape would mislead the next reader.
+
+  **The read, taken 2026-09-08T00:03–00:05Z (PC).** Operator rebuilt the
+  launcher and restarted; serve pid 33460 came up at 00:00:43Z on `68b8361de0`
+  (`code_tree c3864c6291…`), which contains Stage 6 and **not** Stage 7. Nine
+  agent-chat turns, all `projected`, all provider-submitted. All nine carry the
+  seven sub-spans, and all nine carry
+  `visibility_bundle_rebuild_component_registry_epoch`; the launcher line
+  carries `rt_write_ahead_ms=` and `rt_bundle_builds=`. **The PC half of CP-9 is
+  closed.** The Mac half cannot be taken: Stage 6 is unpushed on both repos
+  (hermes local main is 9 commits ahead of `origin/main` `42a07c5dfa`, launcher
+  30 ahead of `43b751e14`), so the Mac cannot obtain it.
+
+  | turn | `write_ahead` | ovl | preload | hud | sig | obs rows | walk | shcat | cached |
+  |---|---|---|---|---|---|---|---|---|---|
+  | 69bbf2b0 | 421 | 1 | 125 | 15 | 0 | 203 | 0 | 31 | 1 |
+  | 6ef3108a | **438** | **0** | 139 | 16 | 0 | 171 | 0 | 16 | 1 |
+  | 18cdd8d2 | **593** | **0** | 280 | 16 | 0 | 157 | 62 | 31 | 0 |
+  | 77a02631 | 796 | 1 | 202 | 0 | 16 | 469 | 0 | 31 | 1 |
+  | ae94d0e3 | 844 | 1 | 171 | 0 | 16 | 484 | 0 | 62 | 1 |
+  | 1135dcee | 891 | 1 | 202 | 0 | 16 | 516 | 0 | 77 | 1 |
+  | e33502ed | 891 | 2 | 203 | 0 | 0 | 547 | 0 | 46 | 1 |
+  | 4e7c51e8 | 921 | 1 | 484 | 0 | 15 | 282 | 0 | 31 | 1 |
+  | 6e40c028 | 1,016 | 1 | 500 | 14 | 0 | 374 | 0 | 31 | 1 |
+
+  **This is the pre-Stage-7 baseline, and it is not Stage 7's result** — Stage 7
+  is unlanded and absent from `68b8361de0`. Against §0.1's pre-Stage-6 read, the
+  CONTENDED band moved from 2,796–3,172 ms to 796–1,016 and the uncontended
+  figure from 906 to 438/593. The cause is not this stage and is not claimed by
+  it: no build storm is present in this window (`rt_bundle_builds=1` and
+  `builds_overlapped` 0–2 per turn, against §0.2's eight led builds in 55 s).
+  Stage 7's own number must still be taken against a same-day uncontended p50.
+
+  **What the sub-spans now bill, on measured numbers rather than a sandbox
+  profile:** `observability_skill_rows_ms` is **157–547 ms** (median 374)
+  against Stage 8's ≤ 30 ms target, and `context_skill_preload_ms` is
+  **125–500 ms** against a ≤ 250 ms whole-context target. Together they are
+  ~60–80 % of every `write_ahead` above. `observability_catalog_walk_ms` is
+  already 0 on eight of nine — the one 62 ms walk is the single turn with
+  `observability_catalog_cached=0`, which is the 15 s TTL missing exactly as
+  §0.3 predicted. **Stage 8 is now billed on live turns, not only on the
+  sandbox.**
+
+  **A plan open question, answered.** §1 listed "which bundle key component
+  moves on a quiet live turn" as unmeasured. It is `registry_epoch`, on **nine
+  turns out of nine**, including the uncontended ones with no prewarm in
+  flight — so the epoch bump is not only the prewarm's registration cycle that
+  old §7.4 accepted.
 * **A restart warning is owed before landing.** This is runtime code, not docs:
   Fable tells the operator the local runtime will restart before landing it.
 
