@@ -529,6 +529,40 @@ contention on its receipts file — and it is **rowed, not fixed here**.
   | 4e7c51e8 | 921 | 1 | 484 | 0 | 15 | 282 | 0 | 31 | 1 |
   | 6e40c028 | 1,016 | 1 | 500 | 14 | 0 | 374 | 0 | 31 | 1 |
 
+  These nine are the WINDOWS turns only. Three more turns followed at
+  00:09:44–00:10:17Z on the method lane to the remote install
+  (`912c69ce-…`, the Mac): they carry `rt_write_ahead_ms=-` and
+  `rt_bundle_builds=-`, which is the three-absences rule reading correctly on a
+  runtime that predates the key. They are excluded from every number here —
+  they have no sub-spans to give, and Windows is the machine the operator's
+  question is about. They do turn the Mac half of CP-9 from an inference into a
+  measurement: the Mac ran real turns and reported the dash, so its runtime
+  demonstrably predates Stage 6, exactly as "unpushed" predicts. As a
+  by-product they are the only proof so far that Stage 6's launcher clause
+  prints `-` rather than a zero or an omission against a genuinely older
+  runtime — the PC alone could not demonstrate that.
+
+  **The Windows numbers, computed over those nine:**
+
+  | statistic | value |
+  |---|---|
+  | `write_ahead` p50, all nine | **844 ms** |
+  | `write_ahead` p50, uncontended (2 turns) | **516 ms** (438, 593) |
+  | `write_ahead` p50, contended (7 turns) | 891 ms |
+  | CP-1 target ≤ 300 ms uncontended | **NOT MET** at 516 |
+  | Stage 7 target p50 ≤ 1.30 × same-day uncontended p50 | **1.64 ×** — this is the PRE-Stage-7 reading, and it is the ratio Stage 7 has to move |
+  | `context_skill_preload_ms` p50 | 202 (125–500) |
+  | `observability_skill_rows_ms` p50 | **374** (157–547) |
+  | `observability_catalog_walk_ms` p50 | 0 (one 62, the single `cached=0` turn) |
+  | `observability_shared_catalog_ms` p50 | 31 (16–77) |
+
+  **Skill work is 74–89 % of `write_ahead`, median 88.2 %**
+  (`context_skill_preload_ms` + `observability_skill_rows_ms` +
+  `observability_shared_catalog_ms` + `observability_catalog_walk_ms` against
+  the turn's own span, per turn). That is the whole case for Stage 8 in one
+  number, and it is measured on live operator turns rather than derived from
+  the §0.3 sandbox profile.
+
   **This is the pre-Stage-7 baseline, and it is not Stage 7's result** — Stage 7
   is unlanded and absent from `68b8361de0`. Against §0.1's pre-Stage-6 read, the
   CONTENDED band moved from 2,796–3,172 ms to 796–1,016 and the uncontended
