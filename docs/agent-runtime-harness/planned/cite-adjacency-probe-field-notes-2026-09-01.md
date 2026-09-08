@@ -156,7 +156,7 @@ The rest stand.
   landing, three commits between `16fe90fb6a` and `d6055dab83` moved
   `hermes_constants.py`'s step constant 1481 -> 1533 (the gate caught it, red,
   and it was re-anchored) and simultaneously made
-  `07-observability.md|persona_commands.py:3522` PASS — not because
+  `07-observability.md|persona_commands.py:3543` PASS — not because
   `slim_chat_final_observability` moved to 3522, it is at 127/4221/4494, but
   because the same sentence also backticks `show`, `final` and `chat`, and one
   of those landed in the window. The subject rule needs an occurrence ceiling:
@@ -238,7 +238,7 @@ rule cannot turn a red cite green; that direction is pinned by test.
 (The plain ceiling, before the defined-symbol exemption below.)
 
 **What the table does NOT decide, and what does.** Every candidate flips the
-measured coincidence at 07's `persona_commands.py:3522`, so "does it catch 3522"
+measured coincidence at 07's `persona_commands.py:3543`, so "does it catch 3522"
 chooses nothing. What chooses is the cites each end gets wrong, read one by one:
 
 - **40 is too loose.** 01's `harness.py:616` — cited for `realm sync revert`,
@@ -284,7 +284,7 @@ Re-anchored (symbol unmoved, number refreshed):
 | 05 | `:6409`, `:6863`, `:2734` | `:6416`, `:6870`, `:3409` | the chat-model override |
 | 07 | `snapshot.py:403-411` (fn `:373`, call `:687`) | `:398-408` (fn `:369`, call `:683`) | `_log_snapshot_build_core` |
 | 07 | `harness.py:1935` | `:835-841` | the `prompt-context show` parser |
-| 07 | `persona_commands.py:3522` | `:4495` | `slim_chat_final_observability` |
+| 07 | `persona_commands.py:3543` | `:4495` | `slim_chat_final_observability` |
 | 07 | `:424-452` | `:554-581` | `batch_carries_patch_rows`'s argument |
 | 07 | `harness.py:3704-3721`, `:3952-3955` | `:5247-5265`, `:5485-5497` | `_usage_lane_detected` |
 | ops | `harness.py:1168` | `:1215` | the `retire`/`delete` alias parser |

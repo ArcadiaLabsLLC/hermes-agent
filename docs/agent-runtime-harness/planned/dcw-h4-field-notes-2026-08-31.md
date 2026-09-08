@@ -25,7 +25,7 @@ first.
 | Stage 5 "consumes the machine `next` hints (4b)" | 4b shipped `_characters_next` at `hermes_cli/harness.py:4025` with three arms: `start`, `approve-direction` (when it advanced), failed `rows` | HOLDS, with one correction below |
 | Stage 5 rides process-exit delivery (3b) | `process notify` is live (`tools/process_registry.py`, `notify_on_exit`); nothing about it is verb-specific | HOLDS — `auto` needs only to be ONE long process |
 | "newline-delimited payloads" | `emit_json` (`agent_runtime/cli_format.py:8`) is `indent=2` — every existing `--json` payload is a multi-line block | **FAILS as written.** NDJSON needs a compact dump. Resolved by adding `emit_json_line` beside `emit_json` rather than by hand-rolling a second encoder |
-| Stage 6 "key by tool-call id, not arrival order" | the pairing site is `_ChatProtocolV2Emitter._tool_finished` (`hermes_cli/harness_parts/persona_commands.py:6067`), which pairs by tool NAME and `stack.pop()` — LIFO | mechanism CONFIRMED, **but there is no tool-call id at this sink**: `_progress_payload_from_callback` (`agent_runtime/profile_runner.py:1852`) is handed `(event, tool_name, invocation, result)` and no id exists in the callback contract at all |
+| Stage 6 "key by tool-call id, not arrival order" | the pairing site is `_ChatProtocolV2Emitter._tool_finished` (`hermes_cli/harness_parts/persona_commands.py:6108`), which pairs by tool NAME and `stack.pop()` — LIFO | mechanism CONFIRMED, **but there is no tool-call id at this sink**: `_progress_payload_from_callback` (`agent_runtime/profile_runner.py:1852`) is handed `(event, tool_name, invocation, result)` and no id exists in the callback contract at all |
 
 ### The measured Stage 6 mechanism, exactly
 

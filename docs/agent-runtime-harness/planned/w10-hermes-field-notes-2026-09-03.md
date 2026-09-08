@@ -288,7 +288,7 @@ that test run was committed.
 Lane-A gate this whole wave is about — checked here because rows 5/6 are
 literally "make the unattended lane meaningful," and shipping it red would
 be the same defect one level up) found 3 UNWAIVED FAILURES it caused:
-`persona_commands.py:6884` (now `:6930`), `:6416` (now `:6462`), `:4495`
+`persona_commands.py:6925` (now `:6930`), `:6416` (now `:6462`), `:4495`
 (now `:4541`), cited from `docs/agent-runtime-harness/05-chat-turn-lane.md`
 and `07-observability.md`. Verified each old citation matched the base
 commit's actual content before re-deriving the new line from a fresh grep,

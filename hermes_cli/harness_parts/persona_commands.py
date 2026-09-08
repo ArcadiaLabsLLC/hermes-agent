@@ -2746,6 +2746,27 @@ _PRE_ADMIT_TIMING_KEYS = frozenset(
 )
 
 
+def _turn_skill_resolver(root_registries: dict[str, Any]) -> Any:
+    """The turn lane's prompt-observability resolver, built around ONE walk.
+
+    chat-turn-prep CP-5. Until Stage 8 the turn lane passed no resolver at all,
+    so ``mission_chat_prompt_observability`` constructed a bare one per call —
+    every memo on it cold, and its registry map empty, which is why the row
+    re-walked every skill root the preload policy had just walked.
+
+    ``None`` on any failure, which restores exactly the pre-Stage-8 behaviour:
+    the row builds its own resolver and pays its own walk. A turn must not fail
+    because an optimisation could not be constructed.
+    """
+
+    try:
+        from agent_runtime.prompt_observability import _SkillObservabilityResolver
+
+        return _SkillObservabilityResolver(root_registries=root_registries)
+    except Exception:
+        return None
+
+
 def _safe_pre_admit_timings(value):
     """The sub-spans a builder measured, as non-negative ints. Never raises.
 
@@ -4047,6 +4068,24 @@ def _mission_chat_commit_turn(plan, deferred, presence) -> int:
     # (agent_runtime.mission_chat.default_max_seconds, itself 240s when unset),
     # so the deployment sets the work-shaped window once instead of every caller
     # remembering a flag.
+    # chat-turn-prep CP-5, Stage 8: ONE registry snapshot per physical root for
+    # the whole turn. The preload policy walks the roots first and fills this
+    # map; the prompt-observability resolver below is constructed around the
+    # same object, so its ``resolve()`` and its per-name
+    # ``_resolved_skill_receipt`` calls read what the preload already took
+    # instead of re-walking.
+    #
+    # Keyed by RESOLVED ROOT PATH, which is what makes the hand-off safe: the
+    # observability row runs inside ``persona_profile_scope`` and this builder
+    # does not, so the two lanes can legitimately enumerate different root
+    # LISTS. A per-path key needs no agreement about the list — a root both
+    # lanes see is walked once, a root only one lane sees is walked by that
+    # lane, and a registry is a pure function of its root's contents either way.
+    #
+    # Turn-local by construction: born here, dies with this frame, never
+    # attached to the context, the row, a persisted record or a wire frame.
+    _turn_root_registries: dict[str, Any] = {}
+
     turn_context = build_mission_chat_turn_context(
         persona=persona,
         instance=instance,
@@ -4061,6 +4100,7 @@ def _mission_chat_commit_turn(plan, deferred, presence) -> int:
         min_relay_seconds=relay_policy.MIN_RELAY_BUDGET_SECONDS,
         agents_file=getattr(args, "agents_file", None),
         surface_prompt=getattr(args, "surface_prompt", "") or "",
+        root_registries=_turn_root_registries,
     )
     turn_phases.mark("context_built")
     # Stage 6 item 2: taken off the built context, not re-measured. The builder
@@ -4104,6 +4144,7 @@ def _mission_chat_commit_turn(plan, deferred, presence) -> int:
             if instance.skill_overrides is not None
             else None
         ),
+        skill_resolver=_turn_skill_resolver(_turn_root_registries),
     )
     turn_phases.mark("observability_built")
     # Stage 6 item 2, the row's half — POPPED, not read: the mapping exists to

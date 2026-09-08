@@ -195,12 +195,17 @@ def _default_consume_queued_skills(*, persona_id: str, session_id: str) -> list[
     return list(consume_skills_for_next_turn(persona_id=persona_id, session_id=session_id))
 
 
-def _default_required_preload_skills(skills: Sequence[Any]) -> list[str]:
+def _default_required_preload_skills(
+    skills: Sequence[Any], *, root_registries: dict[str, Any] | None = None
+) -> list[str]:
     from agent.skill_utils import required_preload_skill_ids
 
     return list(
         required_preload_skill_ids(
-            list(skills or []), surface=PRELOAD_SURFACE, root_node_mode=False
+            list(skills or []),
+            surface=PRELOAD_SURFACE,
+            root_node_mode=False,
+            _root_registries=root_registries,
         )
     )
 
@@ -289,7 +294,11 @@ class MissionChatTurnResolvers:
     """
 
     consume_queued_skills: Callable[..., list[str]] = _default_consume_queued_skills
-    required_preload_skills: Callable[[Sequence[Any]], list[str]] = (
+    #: chat-turn-prep CP-5: takes an optional ``root_registries`` keyword so the
+    #: preload policy and the prompt-observability row share ONE registry walk
+    #: per physical root per turn. Injected fakes may still take just ``skills``
+    #: — the call site passes the keyword only when it is accepted.
+    required_preload_skills: Callable[..., list[str]] = (
         _default_required_preload_skills
     )
     admitted_operating_skills: Callable[..., list[str]] = (
@@ -428,6 +437,7 @@ def build_mission_chat_turn_context(
     agents_file: Any = None,
     surface_prompt: str = "",
     resolvers: MissionChatTurnResolvers = DEFAULT_RESOLVERS,
+    root_registries: dict[str, Any] | None = None,
 ) -> MissionChatTurnContext:
     """Resolve one mission-chat turn's whole context. Order is load-bearing.
 
@@ -456,6 +466,7 @@ def build_mission_chat_turn_context(
         session_id=session_id,
         native_history=history,
         resolvers=resolvers,
+        root_registries=root_registries,
     )
     timings["context_skill_preload_ms"] = _elapsed_ms(_started)
 
@@ -622,12 +633,39 @@ def _safe_admitted_operating_skills(
         return []
 
 
+
+
+def _required_preload_skills(
+    resolvers: MissionChatTurnResolvers,
+    skills: Sequence[Any],
+    root_registries: dict[str, Any] | None,
+) -> list[str]:
+    """Call the preload resolver, passing CP-5's shared map only if it takes one.
+
+    ``MissionChatTurnResolvers`` is an injection seam and its fakes are written
+    across a dozen test modules against the old one-positional-argument shape.
+    Widening the contract by force would red every one of them for a reason that
+    has nothing to do with what they assert, so the keyword is offered and a
+    resolver that does not accept it is called exactly as before. The production
+    default accepts it, which is the path that matters for the walk count.
+    """
+
+    fn = resolvers.required_preload_skills
+    if root_registries is None:
+        return list(fn(skills))
+    try:
+        return list(fn(skills, root_registries=root_registries))
+    except TypeError:
+        return list(fn(skills))
+
+
 def _resolve_skill_preload(
     *,
     persona: Any,
     session_id: str,
     native_history: Iterable[dict[str, Any]] | None,
     resolvers: MissionChatTurnResolvers,
+    root_registries: dict[str, Any] | None = None,
 ) -> MissionChatSkillPreload:
     """Consume the queued skills, load the preload, wrap it in its envelope.
 
@@ -665,7 +703,9 @@ def _resolve_skill_preload(
     required = list(
         dict.fromkeys(
             [
-                *resolvers.required_preload_skills(getattr(persona, "skills", []) or []),
+                *_required_preload_skills(
+                    resolvers, getattr(persona, "skills", []) or [], root_registries
+                ),
                 *_safe_admitted_operating_skills(
                     persona, session_id=session_id, resolvers=resolvers
                 ),

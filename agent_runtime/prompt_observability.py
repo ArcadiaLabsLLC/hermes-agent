@@ -362,6 +362,7 @@ def mission_chat_prompt_observability(
             trace_events=trace_events,
             queued_skills=preloaded_skills_loaded,
             required_preload_skills=required_names,
+            root_registries=skill_resolver._root_registries,
         )
     # …and closes here. The three spans are DISJOINT by construction: the two
     # walks are subtracted out of the block's total, so ``skill_rows`` is the
@@ -2948,8 +2949,18 @@ def used_skills_context(
     trace_events: Iterable[dict[str, Any]] | None = None,
     queued_skills: Iterable[str] | None = None,
     required_preload_skills: Iterable[str] | None = None,
+    root_registries: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """Redaction-safe list of skills actually loaded/read during this turn."""
+    """Redaction-safe list of skills actually loaded/read during this turn.
+
+    ``root_registries`` is chat-turn-prep CP-5's shared walk. Every row below
+    resolves ONE name, and resolving a name walks every skill root, so without a
+    shared map a turn naming a dozen used/queued skills pays a dozen full walks
+    — inside the span the CP-9 read measured at 157–547 ms. Passing the turn's
+    map makes them all read the snapshot the preload lane already took. Optional
+    and defaulted, so the two out-of-turn callers (the persisted record and the
+    snapshot item) keep their present behaviour exactly.
+    """
     names: list[str] = []
     for entry in _list_used_skill_entries(final_model_input):
         _append_used_skill_name(names, _extract_skill_name(entry))
@@ -2973,7 +2984,7 @@ def used_skills_context(
             "kind": "skill",
             "status": "used",
             "source": "skill_view_trace",
-            **_resolved_skill_receipt(name),
+            **_resolved_skill_receipt(name, root_registries=root_registries),
         }
         for name in names
     ]
@@ -2991,16 +3002,19 @@ def used_skills_context(
                     if token in required
                     else "queued_next_turn_skill"
                 ),
-                **_resolved_skill_receipt(token),
+                **_resolved_skill_receipt(token, root_registries=root_registries),
             }
         )
     return rows
 
 
-def _resolved_skill_receipt(name: str) -> dict[str, Any]:
+def _resolved_skill_receipt(
+    name: str, *, root_registries: dict[str, Any] | None = None
+) -> dict[str, Any]:
     from agent.skill_utils import resolve_skill, skill_package_content_hash
 
-    resolution = resolve_skill(name)
+    # CP-5: one shared registry snapshot per root per turn, not one per NAME.
+    resolution = resolve_skill(name, _root_registries=root_registries)
     selected = resolution.candidate
     content_hash = (
         skill_package_content_hash(selected.skill_dir, selected.skill_md)

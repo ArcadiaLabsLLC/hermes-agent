@@ -25,6 +25,7 @@ never per-workspace skill divergence.
 from __future__ import annotations
 
 import hashlib
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -72,10 +73,68 @@ def _skill_files(skill_dir: Path) -> list[Path]:
     return files
 
 
+#: chat-turn-prep CP-4b: package content hashes, keyed on the files they hash.
+#:
+#: :func:`_content_hash` reads EVERY BYTE of every file of every shared skill,
+#: and the turn lane called it on every turn. The skill-root registry
+#: fingerprint cannot key it: that fingerprint covers resolver-visible markdown,
+#: so a support-script edit moves these bytes while leaving it identical. The
+#: key here is therefore a fingerprint of exactly the file set this function
+#: hashes — the same ``(relpath, mtime_ns, size)`` shape
+#: ``skill_utils.skill_package_content_hash`` already uses over that identical
+#: set, copied rather than re-invented so the two cannot drift apart.
+#:
+#: Bounded by identity, not by age: one entry per package, replaced when its own
+#: fingerprint moves.
+_CONTENT_HASH_CACHE: dict[str, tuple[tuple[tuple[str, int, int], ...], str]] = {}
+_CONTENT_HASH_LOCK = threading.Lock()
+
+
+def _content_hash_cache_clear() -> None:
+    """Test hook — drop memoized package content hashes."""
+
+    with _CONTENT_HASH_LOCK:
+        _CONTENT_HASH_CACHE.clear()
+
+
+def _package_fingerprint(
+    skill_dir: Path, files: list[Path]
+) -> tuple[tuple[str, int, int], ...]:
+    """Stat-level identity of exactly the files :func:`_content_hash` reads.
+
+    A file whose ``stat`` fails contributes ``(-1, -1)`` rather than being
+    dropped: an unstattable file is a CHANGE and must re-hash, where omitting it
+    would make a broken package look like an unchanged one.
+    """
+
+    stamps: list[tuple[str, int, int]] = []
+    for source in files:
+        rel = "/".join(source.relative_to(skill_dir).parts)
+        try:
+            stat = source.stat()
+            stamps.append((rel, stat.st_mtime_ns, stat.st_size))
+        except OSError:
+            stamps.append((rel, -1, -1))
+    return tuple(stamps)
+
+
 def _content_hash(skill_dir: Path, files: list[Path]) -> str:
     """Stable sha256 over the package's (relative path, bytes) pairs. Lets the
     Launcher detect "this catalog changed" and compare against realm drift
-    without shipping file contents."""
+    without shipping file contents.
+
+    Memoized on :func:`_package_fingerprint`. The ALGORITHM below is untouched —
+    the realm-sync publisher needs this to be a hash of bytes and it still is;
+    what CP-4b removes is re-reading bytes that did not change.
+    """
+
+    cache_key = str(skill_dir)
+    fingerprint = _package_fingerprint(skill_dir, files)
+    with _CONTENT_HASH_LOCK:
+        cached = _CONTENT_HASH_CACHE.get(cache_key)
+    if cached is not None and cached[0] == fingerprint:
+        return cached[1]
+
     digest = hashlib.sha256()
     for source in files:
         rel = "/".join(source.relative_to(skill_dir).parts)
@@ -86,7 +145,10 @@ def _content_hash(skill_dir: Path, files: list[Path]) -> str:
         except OSError:
             digest.update(b"<unreadable>")
         digest.update(b"\x00")
-    return digest.hexdigest()
+    result = digest.hexdigest()
+    with _CONTENT_HASH_LOCK:
+        _CONTENT_HASH_CACHE[cache_key] = (fingerprint, result)
+    return result
 
 
 def build_shared_catalog() -> tuple[Path | None, bool, list[dict[str, Any]]]:

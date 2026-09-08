@@ -591,6 +591,147 @@ contention on its receipts file — and it is **rowed, not fixed here**.
 
 ## 4. Stage 8
 
+**Status: BUILT, pending verification and landing.** Branch
+`codex/prep-cost-stage8-one-walk`, worktree `X:/wt/prep-stage8`, cut from main
+`483bcf6fab` (Stage 7 landed). Nothing pushed, nothing merged; §4.1's landed sha
+stays empty until it actually lands.
+
+**Released against the CP-9 read, not against the plan's sandbox profile.** §3.8
+records the read: skill work is 74–89 % of `write_ahead` (median 88.2 %) on nine
+live Windows turns, with `observability_skill_rows_ms` at 157–547 ms against a
+30 ms target. That is what put this stage in scope.
+
+### 4.1 What the source audit changed about the stage's shape
+
+Two findings, both recorded as clarifications in the plan's Stage 8 section
+before any code was written (CP-4a, CP-4b, CP-5a there):
+
+1. **`_skill_root_registry`'s cache does not skip the walk.** It is keyed on the
+   root and validated BY fingerprint, so reaching it at all re-runs
+   `iter_skill_index_files`, a whole-root `rglob("*.md")` and a `stat` per path;
+   only the frontmatter parse is skipped on a hit. Sharing *resolution results*
+   while each lane still called it would have moved nothing. **Sharing the
+   registry map is the load-bearing move**, and it is the only one that removes
+   filesystem work.
+2. **There is a fourth walker, and the plan's §0.3 did not name it.** §0.3
+   counted three (`resolve_skills` ×2, `_installed_skill_catalog`,
+   `build_shared_catalog`). But `used_skills_context` calls
+   `_resolved_skill_receipt(name)` per name, which called the SINGULAR
+   `resolve_skill(name)` — **one full per-root walk per used / queued /
+   required-preload skill name**, unbatched, and sitting inside the very span
+   the read measured at 157–547 ms. A turn naming a dozen skills walked every
+   root a dozen times.
+
+### 4.2 The change
+
+| file | change |
+|---|---|
+| `agent/skill_utils.py` | `resolve_skill` (singular) gains `_root_registries`, the same in/out accumulator `resolve_skills` already had; `required_preload_skill_ids` gains it and forwards it; new thread-local `skill_root_walks_this_thread()` counts WALKS |
+| `agent_runtime/prompt_observability.py` | `used_skills_context` takes `root_registries` and threads it to every `_resolved_skill_receipt`; the in-turn call site passes the resolver's own map |
+| `agent_runtime/mission_chat_turn_context.py` | `build_mission_chat_turn_context` and `_resolve_skill_preload` take `root_registries`; `_default_required_preload_skills` forwards it; `_required_preload_skills` adapter offers the keyword only to resolvers that accept it |
+| `agent_runtime/skills_inventory.py` | `_content_hash` memoized on `_package_fingerprint` — `(relpath, mtime_ns, size)` over exactly the files it hashes |
+| `hermes_cli/harness_parts/persona_commands.py` | one turn-local `_turn_root_registries` map, handed to the context builder and to a `_turn_skill_resolver` built around the same object |
+
+**Why keying by resolved root PATH settles CP-5a.** The two lanes can
+legitimately enumerate different root LISTS — the observability row runs inside
+`persona_profile_scope` and the context builder does not, and
+`get_all_skills_dirs()[0]` is `get_hermes_home()`-relative. A per-path key needs
+no agreement about the list: a root both lanes see is walked once, a root only
+one lane sees is walked by that lane, and a registry is a pure function of its
+root's contents either way. No lane can be handed a root it did not ask for,
+which a tuple-keyed "same list or nothing" scheme would also have achieved but
+only by falling back to two full walks whenever the lists differed.
+
+**Turn-local by construction.** The map is born in the handler frame, dies with
+it, and is never attached to the context, the row, a persisted record or a wire
+frame — the brief's "do not serialize them" rule, satisfied by never giving them
+a home outside the frame rather than by remembering to strip them. This also
+sidesteps the Stage 6 hazard where `timings` leaked into the snapshot lane's
+`chat_contexts[]` and had to be evicted at three exits.
+
+**Degradation is to the old behaviour, never to a failure.** `_turn_skill_resolver`
+returns `None` on any construction failure, and `mission_chat_prompt_observability`
+already builds its own resolver when handed `None`. A turn must not fail because
+an optimisation could not be constructed.
+
+### 4.3 Red, green, mutation
+
+Run: `pytest tests/agent/test_skill_utils.py tests/agent_runtime/test_skills_inventory.py`
+
+**A deviation to state plainly: the walk-count tests were authored AFTER the
+implementation, not before it.** Measured against the pre-stage source they show
+`3 failed, 3 passed`, but two of those three reds are `AttributeError` on the
+new walk counter rather than a behavioural disagreement — the counter is part of
+the stage, so reverting the stage removes the instrument too. Only
+`test_one_registry_fingerprint_walk_per_root_per_turn` is a genuine behavioural
+red there. **The mutation proof below is therefore the load-bearing evidence for
+this stage**, not the red-first run, and it is reported that way rather than
+dressed up.
+
+Green: **34 passed** (`test_skill_utils.py`), **11 passed**
+(`test_skills_inventory.py`), and the full gate set **286 passed, exit 0**.
+
+| mutation | reds |
+|---|---|
+| `resolve_skill` ignores the shared map (the fourth walker returns) | `test_one_registry_fingerprint_walk_per_root_per_turn` |
+| the preload policy stops forwarding the map | `test_one_registry_fingerprint_walk_per_root_per_turn` |
+| the shared map loses its per-root key (one bucket for all roots) | 5 tests, including two PRE-EXISTING ones — `test_resolve_skills_batched_matches_per_name_resolve_skill` and `test_cached_skill_registry_preserves_root_precedence_and_profile_classification` |
+| the package-hash memo stops checking its fingerprint | 3 tests, including the pre-existing `test_content_hash_tracks_content_changes` |
+| the package fingerprint omits support files | `test_support_file_change_invalidates_shared_catalog_hash`, `test_two_packages_are_cached_independently`, `test_the_fingerprint_covers_exactly_the_files_the_hash_reads` |
+
+All five killed; every mutation restored before commit, verified by an empty
+unstaged source diff. That two mutations are caught by tests written before this
+stage is the stronger signal — the shared map has to preserve precedence,
+collision and content-change semantics that were already pinned.
+
+**An honest limitation, pinned rather than papered over.**
+`test_same_size_same_mtime_edit_is_a_known_fingerprint_limitation` asserts that a
+same-size edit forced to the same `mtime_ns` is invisible to the package
+fingerprint. That is inherited verbatim from
+`skill_utils.skill_package_content_hash`, which has keyed the identical file set
+this way since before this stage; it is recorded so the next reader meets it as
+a known property with a named owner.
+
+### 4.4 The canon cite remap this stage owed
+
+The edits shifted `persona_commands.py` by 41 lines,
+`mission_chat_turn_context.py` by 11 and `prompt_observability.py` by 1.
+**Fifteen live cites across four canon docs** were re-anchored, each verified
+byte-identical between the old and the new line before it was written, and
+**three waived keys renumbered** to follow their cites (none added, none
+deleted; the count stays 67). The baseline's `_comment` carries the amendment in
+the same shape as its 2026-09-04 and Stage 7 precedents.
+
+Two judgement calls worth naming:
+
+* **Cites under `archive/` were deliberately NOT re-anchored.** A first pass
+  remapped them; that was reverted. The archive is a record of what was true
+  when it was written, and one existing waiver already refuses re-anchoring on
+  exactly that ground ("QUOTED ROT, not a live cite … re-anchoring it would
+  falsify the record").
+* **One cite was missed by the automated pass and fixed by hand** —
+  `05-chat-turn-lane.md:466`'s `` `:526-539` `` is a BARE continuation cite with
+  no basename before the colon, which the scanner's pattern did not match. Worth
+  knowing: any future remap script that keys on a filename will silently skip
+  every continuation cite in the canon.
+
+### 4.5 Owed
+
+* **The numbers.** The stage's targets are a sandbox re-take plus ten live turns
+  after landing: uncontended observability ≤ 150 ms, context ≤ 250 ms, warm
+  `observability_catalog_walk_ms` = 0 and skill-row composition ≤ 30 ms, with
+  cold / immediate-warm / 17-second-warm reported separately. **Nothing here
+  claims a millisecond** — the CP-9 read gives the before (`observability_skill_rows_ms`
+  p50 374, `context_skill_preload_ms` p50 202), and the after is owed.
+* **Stage 9's gate reads off that re-take**, not off this branch: Stage 9 is
+  REFUSED if live observability comes in at or under 150 ms. Missing live data
+  never opens Stage 9.
+* **A restart warning** before landing — this is runtime code.
+* The two out-of-turn `used_skills_context` callers (the persisted record and
+  the snapshot item) still pass no map and still resolve per name. They are not
+  on the turn path and were left alone deliberately; if the snapshot lane ever
+  bills for it, its own build-scoped registries are already the map to pass.
+
 ## 5. Stage 9
 
 ## 6. Stage 10

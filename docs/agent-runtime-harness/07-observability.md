@@ -446,12 +446,12 @@ the rest, never deletes (`PROMPT_OBSERVABILITY_RETAIN_PER_LANE`, `:1287-1289`);
 an absent catalog is honest absence, never a fake empty list (`:1319-1321`).
 Two consumers: the live `chat.final`
 echo carries a slimmed projection (`slim_chat_final_observability`,
-`persona_commands.py:4574`); evicted rows are
+`persona_commands.py:4615`); evicted rows are
 fetched by `harness prompt-context show --context-id <id> [--json]`
 (`hermes_cli/harness.py:876-886`, handler `:3122-3144`) — read-only, honest
 `not_found` on absence. `trace_events` are the turn's tool-call trace, passed at
-`persona_commands.py:3579` and read by `used_skills_context`
-(`prompt_observability.py:2945-2970`) to report which skills were actually
+`persona_commands.py:3600` and read by `used_skills_context`
+(`prompt_observability.py:2946-2981`) to report which skills were actually
 loaded — `skill_view` entries only, redaction-safe.
 
 **The frame projection evicts the two heaviest fields, not the row.** The

@@ -674,6 +674,39 @@ _SKILL_ROOT_REGISTRY_CACHE: dict[str, _SkillRootRegistry] = {}
 _SKILL_ROOT_REGISTRY_LOCK = threading.Lock()
 
 
+#: Per-thread count of physical-root registry WALKS — chat-turn-prep Stage 8.
+#:
+#: Same shape and the same reasoning as ``tools.registry.probe_rounds_this_thread``
+#: and ``chat_lane_bundle.bundle_builds_this_thread``: thread-local, because the
+#: question is "how much filesystem did THIS turn pay for", asked on the turn's
+#: own thread; and cumulative, because a reset owned by one lane would hide the
+#: other lane's walks.
+#:
+#: It counts the WALK, not the call, and that distinction is the stage. The
+#: cache below is validated BY fingerprint, so a "hit" still runs
+#: ``iter_skill_index_files``, the whole-root ``rglob("*.md")`` and a ``stat``
+#: per path — only the frontmatter parse is skipped. A counter on calls would
+#: show a memo working beautifully while the filesystem cost the CP-9 read
+#: measured at 157–547 ms per turn sat exactly where it was.
+_walk_state = threading.local()
+
+
+def skill_root_walks_this_thread() -> int:
+    """How many physical-root registry walks this thread has paid for."""
+
+    return int(getattr(_walk_state, "walks", 0))
+
+
+def reset_skill_root_walks_for_tests() -> None:
+    """Test hook — zero this thread's walk counter."""
+
+    _walk_state.walks = 0
+
+
+def _note_skill_root_walk() -> None:
+    _walk_state.walks = int(getattr(_walk_state, "walks", 0)) + 1
+
+
 def _skill_root_registry_cache_clear() -> None:
     """Test hook — drop reusable physical-root candidate registries."""
 
@@ -687,8 +720,14 @@ def _skill_root_registry(root: Path) -> _SkillRootRegistry:
     The fingerprint covers every resolver-visible markdown candidate plus the
     active-org marker. A changed root rebuilds only its own registry; unchanged
     roots reuse parsed frontmatter across profiles and snapshot builds.
+
+    **This function always touches the filesystem.** Its cache is keyed on the
+    root and validated by fingerprint, so reaching it at all costs a walk. A
+    caller that wants to avoid the walk shares a ``_root_registries`` map for
+    the life of one turn instead — chat-turn-prep CP-5.
     """
 
+    _note_skill_root_walk()
     root_key = str(_resolved_path(root))
     if not root.is_dir():
         fingerprint: tuple[tuple[str, int | None, int | None], ...] = ()
@@ -777,6 +816,7 @@ def resolve_skill(
     *,
     roots: List[Path] | None = None,
     categorized_identifier: str | None = None,
+    _root_registries: Dict[str, _SkillRootRegistry] | None = None,
 ) -> SkillResolution:
     """Resolve a filesystem skill through the one ordered runtime registry.
 
@@ -810,8 +850,20 @@ def resolve_skill(
     if categorized and categorized not in lookup_names:
         lookup_names.append(categorized)
 
+    # chat-turn-prep CP-5: the same in/out accumulator ``resolve_skills`` takes.
+    # This function is called ONCE PER NAME by the observability row's
+    # ``_resolved_skill_receipt``, so without a shared map a turn pays one full
+    # per-root walk for every used, queued and required-preload skill it names —
+    # inside the very span the CP-9 read measured at 157–547 ms. The plan's §0.3
+    # counted three walkers; this was the fourth.
+    root_registries = _root_registries if _root_registries is not None else {}
+
     for root in search_roots:
-        registry = _skill_root_registry(root)
+        root_key = str(_resolved_path(root))
+        registry = root_registries.get(root_key)
+        if registry is None:
+            registry = _skill_root_registry(root)
+            root_registries[root_key] = registry
         for lookup in lookup_names:
             direct_manifest = root / lookup / "SKILL.md"
             for skill_dir, manifest in registry.manifests:
@@ -1075,12 +1127,19 @@ def required_preload_skill_ids(
     *,
     surface: str,
     root_node_mode: bool = False,
+    _root_registries: Dict[str, _SkillRootRegistry] | None = None,
 ) -> List[str]:
-    """Return assigned skills whose resolved policy requires model loading."""
+    """Return assigned skills whose resolved policy requires model loading.
+
+    ``_root_registries`` is chat-turn-prep CP-5's shared walk: the mission-chat
+    handler hands the same map to this call and to the prompt-observability
+    resolver, so the preload policy and the observability row are answered from
+    ONE registry snapshot per physical root per turn instead of one each.
+    """
 
     names = list(dict.fromkeys(str(item or "").strip() for item in identifiers))
     names = [name for name in names if name]
-    resolutions = resolve_skills(names)
+    resolutions = resolve_skills(names, _root_registries=_root_registries)
     required: List[str] = []
     for name in names:
         resolution = resolutions[name]

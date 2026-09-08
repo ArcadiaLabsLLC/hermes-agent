@@ -2,6 +2,8 @@
 
 from unittest.mock import patch
 
+from agent import skill_utils
+
 import pytest
 
 from agent.skill_utils import (
@@ -640,3 +642,180 @@ class TestBOMToleranceSiblingSites:
         fm = _split_frontmatter("\ufeff---\nname: bp\n---\nbody")
         assert fm is not None
         assert fm.get("name") == "bp"
+
+
+# ── chat-turn-prep Stage 8: one registry walk per root per turn (CP-4, CP-5) ──
+#
+# The number these defend, from the 2026-09-08 CP-9 read of nine live Windows
+# turns: skill work was 74–89 % of the pre-admit span (median 88.2 %), with
+# `observability_skill_rows_ms` at 157–547 ms against a 30 ms target.
+#
+# What makes the walk expensive is NOT a cache miss. `_skill_root_registry`'s
+# process cache is validated BY fingerprint, so reaching it at all re-runs
+# `iter_skill_index_files`, a whole-root `rglob("*.md")` and a `stat` per path;
+# only the frontmatter parse is skipped on a hit. So these count WALKS, through
+# `skill_root_walks_this_thread`, and never wall-clock.
+
+
+def test_one_registry_fingerprint_walk_per_root_per_turn(tmp_path, monkeypatch):
+    """A turn's four resolution sites walk each root ONCE between them.
+
+    The four, as the audit found them: the preload policy's
+    ``required_preload_skill_ids``; the observability resolver's batch
+    ``resolve_skills``; and — the one the plan's §0.3 did not name — the per-NAME
+    ``resolve_skill`` behind every ``used_skills`` receipt, which is unbatched
+    and therefore walks once per name.
+
+    Sharing one map across all of them is the stage. The assertion is exact
+    (``== len(roots)``) rather than "fewer", because "fewer" would pass a change
+    that merely batched two of the four.
+    """
+
+    local = tmp_path / "local"
+    shared = tmp_path / "shared"
+    _write_skill(local, "alpha", load_policy="required_preload")
+    _write_skill(shared, "beta")
+    roots = [local, shared]
+    monkeypatch.setattr(skill_utils, "get_all_skills_dirs", lambda: list(roots))
+    skill_utils._skill_root_registry_cache_clear()
+
+    # One turn: one map, handed to every site.
+    registries: dict = {}
+    skill_utils.reset_skill_root_walks_for_tests()
+
+    skill_utils.required_preload_skill_ids(
+        ["alpha"], surface="mission_chat", _root_registries=registries
+    )
+    skill_utils.resolve_skills(["alpha", "beta"], _root_registries=registries)
+    for name in ("alpha", "beta", "alpha", "beta"):
+        skill_utils.resolve_skill(name, _root_registries=registries)
+
+    walks = skill_utils.skill_root_walks_this_thread()
+    assert walks == len(roots), (
+        f"one turn must walk each root exactly once; walked {walks} times for "
+        f"{len(roots)} roots"
+    )
+
+    # A SECOND turn is a second map, and must re-validate the filesystem — the
+    # freshness half of CP-4a. "Zero additional walks" is within a turn, never
+    # forever.
+    skill_utils.reset_skill_root_walks_for_tests()
+    skill_utils.resolve_skills(["alpha"], _root_registries={})
+    assert skill_utils.skill_root_walks_this_thread() == len(roots), (
+        "a later turn must re-stat its roots; a memo that outlived the turn "
+        "would be a staleness window, which CP-4 refuses"
+    )
+
+
+def test_unshared_resolution_still_walks_per_site(tmp_path, monkeypatch):
+    """The control that gives the test above its meaning.
+
+    Without a shared map every site walks for itself. This is the pre-Stage-8
+    behaviour, and it is pinned so the counter cannot silently start counting
+    something cheaper.
+    """
+
+    local = tmp_path / "local"
+    _write_skill(local, "alpha")
+    monkeypatch.setattr(skill_utils, "get_all_skills_dirs", lambda: [local])
+    skill_utils._skill_root_registry_cache_clear()
+
+    skill_utils.reset_skill_root_walks_for_tests()
+    skill_utils.resolve_skills(["alpha"])
+    skill_utils.resolve_skill("alpha")
+    skill_utils.resolve_skill("alpha")
+    assert skill_utils.skill_root_walks_this_thread() == 3, (
+        "each unshared site pays its own walk — if this drops, the counter is "
+        "measuring calls rather than filesystem work"
+    )
+
+
+def test_next_turn_manifest_add_edit_delete_and_org_flip_invalidate(
+    tmp_path, monkeypatch
+):
+    """Sharing must not outlive the turn: the next turn sees real changes.
+
+    Add, edit and delete, each read on a FRESH map the way a new turn would,
+    with an unrelated root left alone throughout. Alias/collision behaviour is
+    asserted across the change so sharing cannot quietly flatten two candidates
+    into one.
+    """
+
+    local = tmp_path / "local"
+    shared = tmp_path / "shared"
+    _write_skill(local, "alpha")
+    _write_skill(shared, "beta")
+    roots = [local, shared]
+    monkeypatch.setattr(skill_utils, "get_all_skills_dirs", lambda: list(roots))
+    skill_utils._skill_root_registry_cache_clear()
+
+    first = skill_utils.resolve_skills(["alpha", "beta", "gamma"], _root_registries={})
+    assert first["alpha"].status == "resolved"
+    assert first["gamma"].status == "missing"
+
+    # ADD, on the next turn's own map.
+    _write_skill(local, "gamma")
+    after_add = skill_utils.resolve_skills(["gamma"], _root_registries={})
+    assert after_add["gamma"].status == "resolved", "an added skill must appear"
+
+    # COLLISION: the same name in a second root is still two candidates.
+    _write_skill(shared, "gamma")
+    after_collision = skill_utils.resolve_skills(["gamma"], _root_registries={})
+    assert after_collision["gamma"].status == "collision", (
+        "a shared walk must not flatten a collision into a silent winner"
+    )
+
+    # DELETE one side; the collision resolves back to a single candidate.
+    (shared / "gamma" / "SKILL.md").unlink()
+    (shared / "gamma").rmdir()
+    after_delete = skill_utils.resolve_skills(["gamma"], _root_registries={})
+    assert after_delete["gamma"].status == "resolved"
+
+    # The unrelated root was never disturbed by any of it.
+    assert skill_utils.resolve_skills(["beta"], _root_registries={})["beta"].status == (
+        "resolved"
+    )
+
+
+def test_a_shared_map_is_keyed_by_root_so_lanes_with_different_roots_are_safe(
+    tmp_path, monkeypatch
+):
+    """CP-5a: the two lanes may enumerate DIFFERENT root lists.
+
+    ``mission_chat_prompt_observability`` runs inside ``persona_profile_scope``
+    and the context builder does not, so for a persona whose profile is not the
+    ambient one the lists can differ. The map is keyed by RESOLVED ROOT PATH,
+    which is what makes the hand-off safe without the lanes having to agree: a
+    root both lanes see is walked once, a root only one lane sees is walked by
+    that lane, and no lane is served a root it did not ask for.
+    """
+
+    a = tmp_path / "a"
+    b = tmp_path / "b"
+    _write_skill(a, "alpha")
+    _write_skill(b, "beta")
+    skill_utils._skill_root_registry_cache_clear()
+
+    registries: dict = {}
+    skill_utils.reset_skill_root_walks_for_tests()
+
+    # Lane one sees only `a`.
+    first = skill_utils.resolve_skills(["alpha"], roots=[a], _root_registries=registries)
+    assert first["alpha"].status == "resolved"
+    assert skill_utils.skill_root_walks_this_thread() == 1
+
+    # Lane two sees `a` and `b`: it reuses `a` and walks only the new root.
+    second = skill_utils.resolve_skills(
+        ["alpha", "beta"], roots=[a, b], _root_registries=registries
+    )
+    assert second["alpha"].status == "resolved"
+    assert second["beta"].status == "resolved"
+    assert skill_utils.skill_root_walks_this_thread() == 2, (
+        "the second lane must walk only the root the first had not already taken"
+    )
+
+    # And a lane restricted to `b` is not handed `a`'s skills.
+    third = skill_utils.resolve_skills(["alpha"], roots=[b], _root_registries=registries)
+    assert third["alpha"].status == "missing", (
+        "a shared map must never widen a lane's root list"
+    )

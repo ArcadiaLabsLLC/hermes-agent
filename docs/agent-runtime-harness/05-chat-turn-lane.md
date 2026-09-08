@@ -14,7 +14,7 @@ sits under `## Open rows`, `## Unverified carry-forward`, or is gone. The handle
 **One id, minted launcher-side, echoed byte-equal.** The launcher mints `agent-chat-send-<uuid4>` as
 the intent's `idempotencyKey` (`mission_agent_chat_panel.dart`), sends it as the RPC's
 `client_message_id` (`mission_agent_chat_adapter.dart`), and hermes echoes it as `turn_id`
-(`persona_commands.py:3273`, `:3307`) after reading it at `:2191-2197`. Absent, hermes mints
+(`persona_commands.py:3294`, `:3307`) after reading it at `:2191-2197`. Absent, hermes mints
 `agent-chat-send-<hex12>` and writes it back onto `args` so the serve lane and the turn store agree.
 The launcher's timeline names this the join key in its own docstring
 (`mission_chat_turn_timeline.dart`): one key, minted once, so the cross-process join is
@@ -191,14 +191,14 @@ magnitudes are dropped rather than coerced.
 ## 3. Model selection
 
 Four tiers, highest wins, resolved once in `_chat_effective_model_payload`
-(`persona_commands.py:7264`):
+(`persona_commands.py:7305`):
 
 ```
 chat-session override  >  instance override  >  persona default  >  config default
 ```
 
 The chat-session override persists under `mission_control_chat_model_override`
-(`persona_commands.py:6796`, `agent_runtime/persona_chat_history.py:234`) via
+(`persona_commands.py:6837`, `agent_runtime/persona_chat_history.py:234`) via
 `_resolve_chat_model_override` (`:7035`), called at `:3531`. Its scope is literally
 `mission_control_chat_session` (`:7085`, inside `_chat_effective_model_payload`) — per-thread,
 not per-instance. Values validate against
@@ -463,7 +463,7 @@ the graceful checkpoint, so a default turn has ~180 s of tool-using time.
 
 **The volatile tail** is how the agent is told any of this. Contributors register by name with their
 own byte budget — `turn_budget` 1024, `capability` 4096, `mcp_admission` 2048
-(`mission_chat_turn_context.py:115-123`, composed at `:515-528`). Per-contributor, not global, so a
+(`mission_chat_turn_context.py:115-123`, composed at `:526-539`). Per-contributor, not global, so a
 long capability account cannot squeeze out the countdown. Over-budget content states its shortfall
 twice: in band, so the agent reads it was not told everything, and as a typed accounting row, so no
 operator has to grep prose to learn a fact was clipped.

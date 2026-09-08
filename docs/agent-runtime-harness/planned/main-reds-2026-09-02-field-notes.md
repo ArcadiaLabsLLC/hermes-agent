@@ -20,8 +20,8 @@ was touched) naming six flags:
 
 | flag | registered | reader today |
 |---|---|---|
-| `persona_instance_return.proof_ids` | `harness.py:1274` | `harness_parts/persona_commands.py:5316` |
-| `persona_instance_return.artifact_refs` | `harness.py:1275` | `harness_parts/persona_commands.py:5317` |
+| `persona_instance_return.proof_ids` | `harness.py:1274` | `harness_parts/persona_commands.py:5357` |
+| `persona_instance_return.artifact_refs` | `harness.py:1275` | `harness_parts/persona_commands.py:5358` |
 | `roots_migrate.configs` | `harness.py:314` | `harness.py:2213` |
 | `roots_migrate.root` | `harness.py:315` | `harness.py:2220` |
 | `workspace_create.agent` | `harness.py:475` | `harness.py:3042`, `harness.py:3052` |

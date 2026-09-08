@@ -147,7 +147,7 @@ Root cause is split:
    fire-imp ctx shows `required_preload_skills: []`,
    `preloaded_skills_loaded: []`. `load_policy: required_preload`
    (SKILL.md:8) is resolved PER PERSONA over `persona.skills`
-   (`agent_runtime/mission_chat_turn_context.py:614` →
+   (`agent_runtime/mission_chat_turn_context.py:625` →
    `agent/skill_utils.py:required_preload_skill_ids`, which filters the
    persona's OWN assignment list) — the supervisor persona does not carry the
    skill, so nothing preloaded. Chara A2's ctx shows both

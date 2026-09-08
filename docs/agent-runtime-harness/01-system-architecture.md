@@ -18,7 +18,7 @@ There is one runtime execution surface. `GPTPersonaRuntime`
 (`agent_runtime/persona_runtime.py:51`) exposes exactly **one** public method,
 `mission_chat_reply` (`:72`) — there is no `run_persona`, no tick, no worker
 loop. The entry point is `_cmd_mission_chat_message` — defined at
-`hermes_cli/harness_parts/persona_commands.py:2828`, exec-loaded into
+`hermes_cli/harness_parts/persona_commands.py:2849`, exec-loaded into
 `harness.py` globals (`hermes_cli/harness.py:6491-6495`) and wired to argparse at
 `harness.py:1419`.
 
@@ -30,7 +30,7 @@ keeps transcript, live log, turn journal and projection consistent for free.
 Two narrower append seams do exist and are deliberate, turn-less writes — the
 bounded child-summary mirror (`agent_runtime/continuity.py:52-62`, posted by
 `return_summary_to_parent_session`) and the explicit-append seam
-(`persona_commands.py:7400`, whose own docstring records the open question of
+(`persona_commands.py:7441`, whose own docstring records the open question of
 declaring the persona-chat write path native-only). Doc 05 §8 owns their
 contract; neither runs a turn or reaches the provider.
 

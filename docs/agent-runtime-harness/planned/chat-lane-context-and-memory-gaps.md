@@ -28,7 +28,7 @@ persona-def keys (`persona_config_sync.py:105-106`).
 
 **The gap.** There is no CLI setter and no Mission Control surface. Grep over
 `hermes_cli/` finds only reads and one create-time default
-(`persona_commands.py:6282`, `:6303-6304`); grep over the launcher's `lib/` finds
+(`persona_commands.py:6323`, `:6303-6304`); grep over the launcher's `lib/` finds
 nothing at all. An operator who wants a persona to read `AGENTS.md` or its own
 `MEMORY.md` must hand-edit a config file.
 
