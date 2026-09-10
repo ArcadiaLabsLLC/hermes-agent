@@ -47,6 +47,7 @@ PART_FILENAMES = (
     "runtime_commands.py",
     "board.py",
     "office.py",
+    "level.py",
     "flow_commands.py",
     "checkpoint_commands.py",
 )

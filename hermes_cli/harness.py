@@ -1045,6 +1045,26 @@ def build_parser(parent_subparsers) -> None:
     )
     office_archive_surface.set_defaults(func=_cmd_office_archive_surface)
 
+    level = subs.add_parser(
+        "level",
+        help="Read or set a workspace's LEVEL document (the environment it stands in; realm-synced whole-document)",
+    )
+    level_subs = level.add_subparsers(dest="level_command", required=True)
+    level_show = level_subs.add_parser("show", help="Show a workspace's level (metadata; --full carries the document)")
+    level_show.add_argument("--workspace", "--workspace-id", default=None)
+    level_show.add_argument("--full", action="store_true", help="Include the level document itself, byte for byte as stored")
+    _add_stage42_global_args(level_show)
+    level_show.set_defaults(func=_cmd_level_show)
+    level_set = level_subs.add_parser("set", help="Store a workspace's level document VERBATIM (hermes validates that it is JSON with a version and reformats nothing)")
+    level_set.add_argument("--workspace", "--workspace-id", default=None)
+    level_set.add_argument(
+        "--document",
+        required=True,
+        help="Level document: a PATH to a JSON file (use this — a level can be 1 MB and a Windows command line caps at ~32 KB), or inline JSON",
+    )
+    _add_stage42_global_args(level_set, controls=frozenset({"dry_run"}))
+    level_set.set_defaults(func=_cmd_level_set)
+
     persona = subs.add_parser("persona", help="Run bounded live-token diagnostics for one persona")
     persona_subs = persona.add_subparsers(dest="persona_command")
     persona_list = persona_subs.add_parser("list", help="List durable persona instances")
@@ -6497,7 +6517,7 @@ def _cmd_serve_connect(args) -> int:
 
 def _load_command_parts() -> None:
     parts_dir = Path(__file__).with_name("harness_parts")
-    for filename in ("persona_commands.py", "runtime_commands.py", "board.py", "office.py", "flow_commands.py", "checkpoint_commands.py"):
+    for filename in ("persona_commands.py", "runtime_commands.py", "board.py", "office.py", "level.py", "flow_commands.py", "checkpoint_commands.py"):
         path = parts_dir / filename
         exec(compile(path.read_text(encoding="utf-8"), str(path), "exec"), globals())
 

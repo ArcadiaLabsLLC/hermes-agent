@@ -830,6 +830,7 @@ def _stage42_lane_sources():
         "runtime_commands.py",
         "board.py",
         "office.py",
+        "level.py",
         "flow_commands.py",
         "checkpoint_commands.py",
         # A REAL module rather than one of the exec'd parts above (it is

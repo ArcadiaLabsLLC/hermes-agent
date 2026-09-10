@@ -290,6 +290,57 @@ def persona_instance_dropped_steering_path(realm_id: str) -> Path:
     )
 
 
+#: The workspace LEVEL family's store directory name.
+#:
+#: A level is the ENVIRONMENT a workspace stands in — the launcher's own ruling
+#: R7 ("a level is the ENVIRONMENT; agents and desks are CONTENTS placed on it,
+#: stored separately; the two documents never merge"), which is why this is a
+#: sibling of :func:`office_root` and never a file inside it.
+LEVELS_DIRNAME = "levels"
+
+
+def levels_root() -> Path:
+    return store_root() / LEVELS_DIRNAME
+
+
+def level_path(workspace_id: str) -> Path:
+    """One workspace's level document, keyed by the workspace's path token.
+
+    Keyed by the TOKEN and not by an id read out of the file, because hermes
+    does not parse this document: the bytes are the launcher's ``SceneSerializer``
+    output verbatim and hermes reads exactly two facts from them (it is JSON, it
+    carries a ``version``). The office can key on an id inside ``office.json``
+    because the office schema is hermes's; this one is not, so the ADDRESS has to
+    live in the filename. The token is a pure function of the workspace id, so
+    the publish's realm filter tokenizes the ids it holds rather than trying to
+    recover an id from a name.
+    """
+
+    return levels_root() / f"{safe_path_token(workspace_id)}.json"
+
+
+def level_baseline_path(realm_id: str) -> Path:
+    # realm-sync baseline sidecar for the workspace LEVEL family; NEVER synced,
+    # NEVER published. Under the realm-sync root rather than beside the levels it
+    # describes, for the same construction reason the canvas baseline below is:
+    # the publish walk that ships ``store/levels/`` must not be able to pick it up.
+    return realm_sync_root() / safe_path_token(realm_id) / "level_baseline.json"
+
+
+def level_conflict_path(realm_id: str, workspace_token: str) -> Path:
+    # Where a HELD level's remote bytes are parked. Two publishers, two
+    # environments, one workspace has no natural three-way resolution at
+    # whole-document granularity, so the pull holds — and a hold that leaves no
+    # copy of what it refused to adopt makes the operator's only exit "pull again
+    # and hope". Keyed by the same token the store file is.
+    return (
+        realm_sync_root()
+        / safe_path_token(realm_id)
+        / "level_conflicts"
+        / f"{safe_path_token(workspace_token)}.json"
+    )
+
+
 def flow_graph_baseline_path(realm_id: str) -> Path:
     # realm-sync baseline sidecar for the replicated CANVAS family; NEVER synced,
     # NEVER published. Under the realm-sync root rather than beside the graphs it

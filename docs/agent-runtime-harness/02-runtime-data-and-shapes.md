@@ -32,11 +32,12 @@ Directories present in the live root, with the module that owns each:
 | `mission_chat_turns/` + `_archive/` | `mission_chat_turns.py:37` | one `<safe_session_key>.json` + `.lock` per chat |
 | `mission_chat_steer/` | `mission_chat_steer.py:328` | per-session steer drops |
 | `tool_turn_context/`, `queued_skills/` | `tool_turn_history.py:132`, `queued_skills.py:16` | per-turn tool context; skill inbox |
-| `prompt_observability/` | `paths.py:306` | one `ctx_<id>.json` per captured prompt context |
-| `prompt_observability_catalogs/` | `paths.py:310` | content-addressed `<hash>.json` skill catalogs, written iff absent |
-| `prompt_observability_index.json` | `paths.py:324` | latest-pointer cache; **never authority** — a corrupt index falls back to a directory scan |
+| `prompt_observability/` | `paths.py:450` | one `ctx_<id>.json` per captured prompt context |
+| `prompt_observability_catalogs/` | `paths.py:454` | content-addressed `<hash>.json` skill catalogs, written iff absent |
+| `prompt_observability_index.json` | `paths.py:468` | latest-pointer cache; **never authority** — a corrupt index falls back to a directory scan |
 | `agent_create_reservations/` | `paths.py:54` | recorded-progress receipts for `runtime.agent.create` |
 | `boards/`, `office/`, `workspaces/`, `realms/`, `agents/` | `paths.py:81,132,73,77,228` | Mission Board / Office / topology entities |
+| `levels/` | `paths.py:302`, `agent_runtime/level_sync.py` | one `<workspace token>.json` per workspace LEVEL — the launcher's `SceneSerializer` bytes VERBATIM. hermes validates only that it is UTF-8 JSON carrying a `version` and reformats nothing; realm-synced whole-document (adopt / converge / keep-local / HOLD) |
 | `flow_graphs/` | `checkpoint.py:62` | checkpoint flow graphs |
 | `realm_sync/`, `realm_sync_state/` | `realm_sync.py:1871` | per-realm git worktrees + sync state |
 | `serve_read_model/` | `core_cache.py:244` | the persisted snapshot core (below) |

@@ -327,6 +327,47 @@ def realm_sync_status(
         # the envelope rather than from a store walk. Additive and
         # absent-tolerant, like every honesty field above it.
         "flow_graphs": _flow_graph_status_row(realm.id, workspaces),
+        # The workspace LEVEL family's accounting, same shape and same
+        # absent-tolerant contract as the row above it.
+        "levels": _level_status_row(realm.id, workspaces),
+    }
+
+
+def _level_status_row(realm_id: str, workspaces: list[Workspace]) -> dict[str, Any]:
+    """``{publishable, unpublished, held, refused}`` for the workspace LEVEL family.
+
+    **A top-level key and DELIBERATELY NOT a ``store_drift`` family**, and the
+    reason is the one :func:`_flow_graph_status_row` records for why the canvas
+    was not one either until its revert arm landed: ``store_drift`` rows are
+    exactly the set the REVERT lane addresses. ``realm_revert`` sorts them
+    through ``_PROCESS_ORDER[row.family]`` — a direct subscript — and dispatches
+    on family for the upstream lookup, the baseline and the store door. A family
+    added there without a revert arm hands ``revert --all`` a ``KeyError`` and
+    offers the operator an exit that does not exist, so the level family's revert
+    arm is a follow-up with its own row, and until it lands this key carries the
+    same arithmetic in the shape that has no such promise attached.
+
+    ``unpublished`` is the identical hash-vs-baseline compare the publish scan
+    makes, spent here as a count — one walk's arithmetic in two shapes, never
+    two walks.
+    """
+
+    from .level_sync import level_baseline_key, read_level_baseline
+
+    scan = _level_publish_scan(workspaces)
+    baseline = read_level_baseline(realm_id)
+    unpublished = sum(
+        1
+        for token, body_hash in scan.hashes.items()
+        if baseline.get(level_baseline_key(token)) != body_hash
+    )
+    conflicts = paths.realm_sync_root() / paths.safe_path_token(realm_id) / "level_conflicts"
+    held = sorted(path.stem for path in conflicts.glob("*.json")) if conflicts.is_dir() else []
+    return {
+        "publishable": len(scan.artifacts),
+        "unpublished": unpublished,
+        "held": held,
+        "refused": list(scan.refused),
     }
 
 
@@ -405,6 +446,7 @@ def publish_realm_sync(
         result["profile_files"] = _profile_files_row(artifacts, profile_files_withheld)
         result["office_sync"] = {"refused": list(resolved.office_refused or [])}
         result["board_sync"] = {"refused": list(resolved.board_refused or [])}
+        result["level_sync"] = {"refused": list(resolved.level_refused or [])}
         if resolved.instance_projection is not None:
             result["persona_instance_projection"] = _persona_instance_row(
                 resolved.instance_projection, resolved.instance_rows_unreadable
@@ -528,6 +570,19 @@ def publish_realm_sync(
             update_flow_graph_baseline_after_publish(realm.id, resolved.flow_graph_projection)
     except Exception:  # noqa: BLE001 — baseline is best-effort; never fail publish
         pass
+    # The workspace LEVEL family: the same baseline discipline as every family
+    # above, and it matters here for the canvas's reason rather than the
+    # record's. A level merges at WHOLE-DOCUMENT granularity, so the answer to a
+    # two-sided divergence is a HOLD with a conflict sidecar — without this the
+    # publisher's very next pull hands them a held environment over the bytes
+    # they themselves just shipped.
+    from .level_sync import update_level_baseline_after_publish
+
+    try:
+        if resolved.level_hashes:
+            update_level_baseline_after_publish(realm.id, dict(resolved.level_hashes))
+    except Exception:  # noqa: BLE001 — baseline is best-effort; never fail publish
+        pass
     warnings = _notify_publish(realm, repo=repo, artifacts=artifacts, credential=credential) if changed else []
     git_after = _git_state(repo)
     result = _sync_result(realm, "publish", "published", artifacts, repo=repo, git=git_after, changed=changed)
@@ -544,6 +599,14 @@ def publish_realm_sync(
         "baseline": office_baseline,
     }
     result["board_sync"] = {"refused": list(resolved.board_refused or [])}
+    # Additive, and emitted whether or not this realm publishes a level: an
+    # omitted key cannot tell "this realm ships no level" apart from "this ack
+    # came from a hermes that has no level family", and the launcher's skew rule
+    # needs both — the same argument the two projections below already carry.
+    result["level_sync"] = {
+        "published": sorted(resolved.level_hashes or {}),
+        "refused": list(resolved.level_refused or []),
+    }
     if resolved.instance_projection is not None:
         result["persona_instance_projection"] = _persona_instance_row(
             resolved.instance_projection, resolved.instance_rows_unreadable
@@ -607,6 +670,20 @@ def pull_realm_sync(
 
     office_summary = apply_office_pull(realm.id, subtree)
     if office_summary.adopted or office_summary.converged or office_summary.archived:
+        changed = True
+    # The workspace LEVEL: same exclusion (store/levels/* ->
+    # _destination_for_sync_path None), same whole-document 3-way shape as the
+    # canvas. It stands HERE — after the generic loop that materialized
+    # store/workspaces/*, beside the office rather than inside its ordering
+    # argument — because R7 rules a level the ENVIRONMENT and the office's
+    # actors the CONTENTS placed on it, stored separately and never merged, so
+    # neither applier reads the other's files and there is no order between them
+    # to get wrong. What there IS an order against is the workspace records
+    # above: a level is addressed BY a workspace.
+    from .level_sync import apply_level_pull
+
+    level_summary = apply_level_pull(realm.id, subtree)
+    if level_summary.changed:
         changed = True
     # Realm skills: excluded from the generic loop too (skills/* →
     # _destination_for_sync_path None). Mirror them into the resolver-invisible
@@ -709,6 +786,12 @@ def pull_realm_sync(
     result["board_sync"] = board_summary.as_dict()
     result["office_sync"] = office_summary.as_dict()
     result["skill_sync"] = skill_summary.as_dict()
+    # Emitted UNCONDITIONALLY for the reason the two rows below are: an omitted
+    # key cannot tell "this realm publishes no level" apart from "this ack came
+    # from a hermes with no level family", and the launcher's version-skew rule
+    # (L1/L2) has to tell those two apart. ``source: null`` inside it is the
+    # first of those.
+    result["level_sync"] = level_summary.as_dict()
     result["profile_artifact_sync"] = profile_files_summary.as_dict()
     # THE contract seam with the launcher (plan §6). Emitted UNCONDITIONALLY,
     # carrying ``source: null`` when the peer published no projection, because
@@ -981,6 +1064,18 @@ class _ResolvedPublish:
     #: projection and the artifact is then not appended at all, so a graph-less
     #: realm publishes byte-identically to before this family existed.
     flow_graph_projection: Any = None
+    #: The workspace LEVEL family's published content hashes, keyed by workspace
+    #: token. Carried out of the SAME pass that minted the artifacts, and spent
+    #: by the publish to record the baseline — never re-walked, because a second
+    #: walk of ``store/levels/`` could disagree with the bytes actually written
+    #: and the disagreement would show up as a HOLD on the publisher's own
+    #: environment.
+    level_hashes: dict[str, str] = ()  # type: ignore[assignment]
+    #: Levels this pass would not publish because the document would not read.
+    #: Same discipline as ``office_refused``: a family that could not travel is a
+    #: typed row, never a silent omission — and here silence would let a peer
+    #: read the absence as "the realm removed this level".
+    level_refused: list[dict[str, Any]] = ()  # type: ignore[assignment]
 
 
 def resolve_realm_sync_artifacts(realm_id: str) -> list[RealmSyncArtifact]:
@@ -1002,6 +1097,13 @@ def _resolve_artifacts_with_projection(realm_id: str) -> _ResolvedPublish:
     # three cannot disagree about which offices are in this publish.
     office_scan = _office_publish_scan(workspaces)
     artifacts.extend(office_scan.artifacts)
+    # The workspace LEVEL family (launcher R15). Independent of the office by
+    # ruling rather than by convenience: R7 says a level is the ENVIRONMENT and
+    # the office's actors are the CONTENTS placed on it, stored separately, and
+    # "the two documents never merge". So it is its own scan over its own store
+    # directory, and a workspace whose office refuses still publishes its level.
+    level_scan = _level_publish_scan(workspaces)
+    artifacts.extend(level_scan.artifacts)
     # Personas referenced by synced office placements travel with the office
     # (plan §5): an office-only persona must be materializable on pull. The
     # wanted set was workspace.agent_ids only, which would sync a placement
@@ -1068,6 +1170,8 @@ def _resolve_artifacts_with_projection(realm_id: str) -> _ResolvedPublish:
         instance_projection=instance_projection,
         instance_rows_unreadable=instance_rows_unreadable,
         flow_graph_projection=flow_graph_projection,
+        level_hashes=level_scan.hashes,
+        level_refused=level_scan.refused,
     )
 
 
@@ -2110,6 +2214,81 @@ def _office_publish_scan(workspaces: list[Workspace]) -> OfficePublishScan:
     )
 
 
+class LevelPublishScan(NamedTuple):
+    """What ONE pass over the level store says this realm publishes.
+
+    THREE facts from one walk, for the reason ``OfficePublishScan`` states one
+    class up: the artifacts, the content hashes the publish records as its new
+    baseline, and the levels that would not travel. Deriving the hashes from a
+    second walk is the specific mistake available here — the publish writes the
+    bytes THIS scan read, and a baseline computed from a re-read is free to
+    disagree with them, which the publisher then meets as a HOLD on their own
+    environment at the next pull.
+    """
+
+    artifacts: list[RealmSyncArtifact]
+    hashes: dict[str, str]
+    refused: list[dict[str, Any]]
+
+
+def _level_publish_scan(workspaces: list[Workspace]) -> LevelPublishScan:
+    """The workspace LEVEL family: one document per workspace in this realm.
+
+    **Scoped by TOKEN, not by an id inside the file.** hermes does not parse this
+    document (``level_sync``'s module docstring says why), so the workspace it
+    belongs to is named by the FILENAME. The realm filter therefore tokenizes the
+    workspace ids it already holds and matches those — the token is a pure
+    function of the id, so this is exact in the direction that matters: a level
+    is published only if a workspace of this realm tokenizes to its name.
+
+    **A level that will not read publishes NOTHING and is refused typed**, the
+    office scan's rule for the office scan's reason. Publish copies the file
+    verbatim, so an undecodable document would travel; every peer's
+    :func:`apply_level_pull` then refuses it on arrival, and the operator who
+    could actually fix it — the one whose disk holds the broken file — is the one
+    person the silence would keep it from.
+    """
+
+    from .level_sync import (
+        LevelDocumentError,
+        LevelStore,
+        level_document_hash,
+        published_relative_path,
+    )
+
+    wanted = {paths.safe_path_token(ws.id) for ws in workspaces}
+    store = LevelStore()
+    artifacts: list[RealmSyncArtifact] = []
+    hashes: dict[str, str] = {}
+    refused: list[dict[str, Any]] = []
+    for token in store.list_workspace_tokens():
+        if token not in wanted:
+            continue
+        raw = store.read(token)
+        if raw is None:
+            # Listed by the directory walk and unreadable by the store's own
+            # read (an OSError it swallows). Not silence: the same typed row an
+            # undecodable document gets, because from the publish's side the two
+            # are one fact — this realm has a level here that cannot travel.
+            refused.append({"workspace_token": token, "reason": "level_unreadable", "error": "OSError"})
+            continue
+        try:
+            hashes[token] = level_document_hash(raw)
+        except LevelDocumentError as exc:
+            refused.append({"workspace_token": token, "reason": exc.code, "error": type(exc).__name__})
+            continue
+        source = paths.level_path(token)
+        artifacts.append(
+            RealmSyncArtifact(
+                kind="level",
+                source=source,
+                relative_path=published_relative_path(token),
+                destination=source,
+            )
+        )
+    return LevelPublishScan(artifacts=artifacts, hashes=hashes, refused=refused)
+
+
 def _office_wanted_persona_ids(workspaces: list[Workspace]) -> list[str]:
     """Persona ids referenced by office placements in this realm's workspaces
     (plan §5's one-line union — office-only personas travel with the office).
@@ -2854,6 +3033,19 @@ def _destination_for_sync_path(rel: str) -> Path | None:
         # Like the branch above, this already resolved to None through the final
         # fallthrough; the line records the OWNERSHIP.
         return None
+    if len(parts) == 3 and parts[0] == "store" and parts[1] == "levels":
+        # The workspace LEVEL family. Owned by ``level_sync.apply_level_pull``
+        # (adopt-or-hold at whole-document granularity against the 3-way
+        # baseline), never the generic overwrite loop: a raw write would put a
+        # peer's environment on this disk without passing the store door that
+        # validates it, and it would do so on a LAST-WRITE-WINS basis over a
+        # level this operator may have authored — the exact clobber the baseline
+        # exists to refuse.
+        #
+        # Like the two branches above it this ALREADY resolved to None through
+        # the final fallthrough (which is what made the launcher unable to do
+        # this from its side at all); the line records the OWNERSHIP.
+        return None
     if len(parts) > 2 and parts[0] == "store" and parts[1] == "profile_files":
         # The per-profile FILE family (MEMORY.md, core context, persona prompts).
         # Owned by ``profile_artifact_sync.apply_profile_artifact_pull``.
@@ -2914,6 +3106,8 @@ def _kind_for_sync_path(rel: str) -> str:
         return "persona_instance_config"
     if rel == "store/flow_graphs.yaml":
         return "flow_graph_config"
+    if rel.startswith("store/levels/"):
+        return "level"
     if rel.startswith("store/profile_files/"):
         # Kind is derived from the DESTINATION the published tail names — the
         # same authority the pull applier uses, never a second spelling.
