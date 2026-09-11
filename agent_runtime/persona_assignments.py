@@ -3035,6 +3035,21 @@ def persona_instance_id_for_placement(placement_id: str) -> str:
     return f"{PERSONA_INSTANCE_ID_PREFIX}{safe_assignment_token(placement_id) or 'persona'}"
 
 
+def row_is_canonical_persona_channel(instance_id: Any, persona_id: Any) -> bool:
+    """:func:`is_canonical_persona_channel`, asked of two STRINGS.
+
+    THE derivation; the typed predicate below delegates to it. A second shape
+    was needed by the reconciler's unplaced-instance classifier, which is pure
+    over ``to_jsonable`` rows and must not re-spell "is this the operator's own
+    channel" — getting that wrong in either direction reaps a chat channel or
+    spares a ghost, and two spellings of one question are free to drift into
+    disagreeing about which."""
+    token = safe_assignment_token(persona_id)
+    if not token:
+        return False
+    return str(instance_id or "").strip() == persona_instance_id_for(str(persona_id))
+
+
 def is_canonical_persona_channel(instance: PersonaInstance) -> bool:
     """True when a row IS the persona/profile's canonical operator channel.
 
@@ -3045,10 +3060,15 @@ def is_canonical_persona_channel(instance: PersonaInstance) -> bool:
     placement-derived id (``personainst_qa_agent_2``) whose tail is the scene
     itemId, so it never collapses onto the canonical id — that is exactly the
     discriminator the retire verb uses to protect the queued global-singleton
-    redesign while ending placement-backed rows."""
-    if not safe_assignment_token(instance.persona_id):
-        return False
-    return instance.id == persona_instance_id_for(instance.persona_id)
+    redesign while ending placement-backed rows.
+
+    NOT an id-SHAPE test, and that is why it survives the class of defect the
+    launcher's archive lane hit on 2026-09-11: it asks whether THIS id is the
+    one the persona's own channel would be minted under, so an instance minted
+    by ``persona instance create`` (``personainst_chara_a2_7b31d0e4``, no
+    ``_agent_`` marker) answers False correctly rather than being mistaken for a
+    channel because its tail looks wrong."""
+    return row_is_canonical_persona_channel(instance.id, instance.persona_id)
 
 
 def canonical_persona_instance_id(raw_id: Any, *, persona_id: str | None = None) -> str | None:

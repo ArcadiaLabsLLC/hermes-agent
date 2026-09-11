@@ -50,6 +50,7 @@ from .persona_assignments import (
     PersonaInstanceStore,
     canonical_persona_instance_id,
     persona_instance_id_for,
+    row_is_canonical_persona_channel,
     safe_assignment_token,
 )
 from .serde import from_jsonable, to_jsonable
@@ -67,6 +68,14 @@ _CONVERSATIONAL_MODES = frozenset({"chat", "free_floating", "configured", ""})
 # only when it is orphan-shaped AND carries none of the protections below.
 PRUNE_REASON_NO_PROFILE = "orphan-no-profile"
 PRUNE_REASON_LEGACY_ROLE = "legacy-role"
+# A workspace-scoped instance whose office placement for that workspace is
+# ARCHIVED and which holds no live placement anywhere. The operator ruling is
+# that a placement IS its instance, so such a row is a GHOST: the character left
+# the floor and the roster kept counting it. Measured 2026-09-11 —
+# ``personainst_chara_a2_7b31d0e4`` sat ``state: idle`` in ``ws_default`` for a
+# week after its actor was archived, and ``harness workspace list`` reported
+# ``agents: 3`` against two drawn characters.
+PRUNE_REASON_UNPLACED = "unplaced-instance"
 # Held = orphan-shaped but protected from prune; surfaced for accounting, never reaped.
 HELD_REASON_ACTIVE = "active-binding"
 HELD_REASON_TASK_BOUND = "task-bound"
@@ -260,6 +269,167 @@ def _row_get(row: dict[str, Any], *keys: str) -> Any:
     return None
 
 
+def _held_reason_for(
+    row: dict[str, Any],
+    *,
+    current: datetime,
+    heartbeat_fresh_seconds: float,
+    updated_min_age_seconds: float,
+    allow_recent_hold: bool,
+) -> str | None:
+    """THE held rules, once, for every prune classifier in this module.
+
+    A candidate row is HELD — surfaced for accounting, never reaped — when it
+    shows live activity, is task-bound (owned by the task-bound sweep), or has a
+    fresh heartbeat. ``allow_recent_hold`` adds the min-age grace, which is what
+    protects a row that is actively being written from being reaped mid-flight.
+
+    It lives here rather than inline because the unplaced-instance classifier
+    needs the identical protections and a second copy could quietly lose one.
+    The one that would matter most is the last: an operator who removes a
+    placement and keeps chatting to the agent in the same minute must get the
+    row held, not pruned.
+
+    S70 (contract 54) dropped the ``current_work_assignment_id`` /
+    ``attached_task_id`` wire aliases, so those two slots could no longer be
+    reached from either caller: ``reconcile_persona_instances`` passes
+    ``to_jsonable`` STORE rows (canonical names only) and ``snapshot.py`` passes
+    wire rows that no longer carry the aliases. Both aliases always held the same
+    value as the canonical key beside them, so the held/prunable verdict is
+    unchanged — that dropped unreachable keys, not a safety belt.
+    """
+
+    active = any(
+        str(_row_get(row, key) or "").strip()
+        for key in (
+            "active_run_id",
+            "current_assignment_id",
+            "current_task_id",
+        )
+    )
+    if active:
+        return HELD_REASON_ACTIVE
+    mode = str(_row_get(row, "mode", "lifecycle_mode") or "").strip().lower()
+    if mode == "task_bound":
+        return HELD_REASON_TASK_BOUND
+    if _within(current, _as_datetime(_row_get(row, "last_heartbeat_at")), heartbeat_fresh_seconds):
+        return HELD_REASON_HEARTBEAT
+    if allow_recent_hold and _within(
+        current,
+        _as_datetime(_row_get(row, "updated_at")),
+        updated_min_age_seconds,
+    ):
+        return HELD_REASON_RECENT
+    return None
+
+
+def classify_unplaced_persona_instances(
+    rows: list[dict[str, Any]] | None,
+    *,
+    live_placement_instance_ids: Any,
+    archived_placement_instance_ids_by_workspace: dict[str, Any] | None,
+    now: datetime | None = None,
+    heartbeat_fresh_seconds: float = _HEARTBEAT_FRESH_SECONDS,
+    updated_min_age_seconds: float = _UPDATED_MIN_AGE_SECONDS,
+) -> dict[str, list[dict[str, Any]]]:
+    """Pure classifier: which workspace-scoped rows are GHOSTS of a placement
+    that has left the floor.
+
+    A row is an *unplaced candidate* when ALL of the following hold:
+
+    1. it names a ``workspace_id`` — a runtime-global row (a canonical seeded
+       row, a pre-pointer record) was never a placement in anybody's level;
+    2. it is NOT the persona/profile's canonical operator channel
+       (:func:`row_is_canonical_persona_channel`). The base-profile foundation
+       gives every agent a free PROFILE row, and those are operator chat
+       channels that are not placement-backed and must never be reaped here.
+       This is the same discriminator ``agent retire`` refuses on
+       (``canonical_persona_channel``), asked through the one derivation;
+    3. an ARCHIVED office actor in that row's OWN workspace is bound to it —
+       positive evidence that this instance WAS placed there. There is no
+       id-shape question anywhere in this classifier, and that is deliberate:
+       the launcher's archive lane spent 2026-08-30 to 09-11 asking an id's
+       spelling whether an actor was placement-backed, and the answer was wrong
+       for every instance minted by ``persona instance create``;
+    4. NO live office actor anywhere is bound to it. "Anywhere" and not "in its
+       own workspace": an instance re-placed into a second workspace is on a
+       floor, and reaping it because its original placement was archived would
+       delete a character the operator can see.
+
+    A candidate is HELD by the same rules every other prune lane in this module
+    honours -- see :func:`_held_reason_for`. The min-age grace is IN FORCE here
+    (``allow_recent_hold=True``), which is what keeps "removed the desk, still
+    talking to the agent" from becoming a reap.
+
+    ``archived_placement_instance_ids_by_workspace`` is ``None`` when the office
+    store could not be enumerated completely. That is NOT an empty map: every
+    verdict here depends on having seen the whole store, and a short read would
+    answer "no live placement" for an instance that has one. ``None`` therefore
+    classifies NOTHING and says so in ``skipped``.
+    """
+
+    from hermes_time import now as _clock
+
+    if archived_placement_instance_ids_by_workspace is None:
+        return {
+            "prunable": [],
+            "held": [],
+            "skipped": [{"reason": "office_store_unreadable"}],
+        }
+
+    current = now or _clock()
+    live_ids = {
+        str(value).strip()
+        for value in (live_placement_instance_ids or ())
+        if str(value).strip()
+    }
+    archived_by_ws = {
+        str(wsid).strip(): {str(v).strip() for v in (values or ()) if str(v).strip()}
+        for wsid, values in archived_placement_instance_ids_by_workspace.items()
+    }
+    prunable: list[dict[str, Any]] = []
+    held: list[dict[str, Any]] = []
+
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        instance_id = str(_row_get(row, "persona_instance_id", "id") or "").strip()
+        if not instance_id:
+            continue
+        workspace_id = str(_row_get(row, "workspace_id") or "").strip()
+        if not workspace_id:
+            continue
+        persona_id = str(_row_get(row, "persona_id") or "").strip()
+        if row_is_canonical_persona_channel(instance_id, persona_id):
+            continue
+        canonical = canonical_persona_instance_id(instance_id, persona_id=persona_id) or instance_id
+        if canonical in live_ids:
+            continue
+        if canonical not in archived_by_ws.get(workspace_id, frozenset()):
+            continue
+
+        entry = {
+            "persona_instance_id": instance_id,
+            "persona_id": persona_id or None,
+            "role": str(_row_get(row, "role") or "").strip() or None,
+            "workspace_id": workspace_id,
+            "updated_at": _isoformat(_row_get(row, "updated_at")),
+        }
+        held_reason = _held_reason_for(
+            row,
+            current=current,
+            heartbeat_fresh_seconds=heartbeat_fresh_seconds,
+            updated_min_age_seconds=updated_min_age_seconds,
+            allow_recent_hold=True,
+        )
+        if held_reason is not None:
+            held.append({**entry, "reason": held_reason})
+        else:
+            prunable.append({**entry, "reason": PRUNE_REASON_UNPLACED})
+
+    return {"prunable": prunable, "held": held, "skipped": []}
+
+
 def classify_orphan_persona_instances(
     rows: list[dict[str, Any]] | None,
     *,
@@ -304,7 +474,6 @@ def classify_orphan_persona_instances(
         persona_id = str(_row_get(row, "persona_id") or "").strip()
         role = str(_row_get(row, "role") or "").strip()
         profile_id = str(_row_get(row, "profile_id", "source_profile_id", "backing_profile") or "").strip() or None
-        mode = str(_row_get(row, "mode", "lifecycle_mode") or "").strip().lower()
 
         is_backed = _row_is_backed(persona_id, profile_id, backed_ids, backed_profiles)
         if not is_backed and persona_id.startswith("profile:") and not profile_catalog_authoritative:
@@ -329,28 +498,13 @@ def classify_orphan_persona_instances(
         # passes wire rows that no longer carry the aliases. Both aliases always
         # held the same value as the canonical key beside them, so the held/prunable
         # verdict is unchanged — this drops unreachable keys, not a safety belt.
-        active = any(
-            str(_row_get(row, key) or "").strip()
-            for key in (
-                "active_run_id",
-                "current_assignment_id",
-                "current_task_id",
-            )
+        held_reason = _held_reason_for(
+            row,
+            current=current,
+            heartbeat_fresh_seconds=heartbeat_fresh_seconds,
+            updated_min_age_seconds=updated_min_age_seconds,
+            allow_recent_hold=not is_retired,
         )
-        if active:
-            held_reason: str | None = HELD_REASON_ACTIVE
-        elif mode == "task_bound":
-            held_reason = HELD_REASON_TASK_BOUND
-        elif _within(current, _as_datetime(_row_get(row, "last_heartbeat_at")), heartbeat_fresh_seconds):
-            held_reason = HELD_REASON_HEARTBEAT
-        elif not is_retired and _within(
-            current,
-            _as_datetime(_row_get(row, "updated_at")),
-            updated_min_age_seconds,
-        ):
-            held_reason = HELD_REASON_RECENT
-        else:
-            held_reason = None
 
         if held_reason is not None:
             held.append({**entry, "reason": held_reason})
@@ -370,6 +524,67 @@ def _profile_template_names() -> list[str]:
         return []
 
 
+def office_placement_evidence(office_store) -> tuple[set[str] | None, dict[str, set[str]] | None]:
+    """Which instances hold a LIVE office placement anywhere, and which hold an
+    ARCHIVED one in each workspace.
+
+    The evidence :func:`classify_unplaced_persona_instances` runs on, gathered
+    once. Both halves come out of the same ``scan_actors`` chokepoint the
+    snapshot and ``runtime.office.get`` read through, and the instance an actor
+    is bound to is read through ``canonical_persona_instance_id`` — the single
+    derivation — so a row stored under actor-token drift still matches the
+    instance row it belongs to.
+
+    Returns ``(None, None)`` the moment ANY workspace scan reports unreadable
+    files, and that is the whole safety posture of this lane rather than an
+    edge case. The classifier's central question is a NEGATIVE one — "no live
+    placement anywhere" — and a negative computed over a short read is a false
+    positive that archives a live agent's row. Refusing the whole phase costs
+    the operator a repeat run once the file is fixed; a partial answer costs
+    them an agent. Same rule ``archived_actor_keys_for_instance`` raises under,
+    with the fail direction chosen the same way.
+    """
+
+    from .persona_assignments import canonical_persona_instance_id
+
+    live: set[str] = set()
+    archived_by_ws: dict[str, set[str]] = {}
+
+    def _bound(actor) -> str | None:
+        raw = str(getattr(actor, "persona_instance_id", "") or "").strip()
+        if not raw:
+            return None
+        return canonical_persona_instance_id(raw, persona_id=actor.persona_id) or raw
+
+    for wsid in office_store.list_workspaces():
+        try:
+            live_scan = office_store.scan_actors(wsid)
+            full_scan = office_store.scan_actors(wsid, include_archived=True)
+        except Exception:
+            return None, None
+        if live_scan.unreadable or full_scan.unreadable:
+            return None, None
+        live_keys = {actor.actor_key for actor in live_scan.actors}
+        for actor in live_scan.actors:
+            bound = _bound(actor)
+            if bound:
+                live.add(bound)
+        archived: set[str] = set()
+        for actor in full_scan.actors:
+            # The archive-inclusive scan is the UNION of both directories, so an
+            # actor whose key is live is a live one seen twice, never an archived
+            # copy. Same discrimination ``archived_actor_keys_for_instance``
+            # makes, and made the same way: by which DIRECTORY holds it.
+            if actor.actor_key in live_keys:
+                continue
+            bound = _bound(actor)
+            if bound:
+                archived.add(bound)
+        archived_by_ws[wsid] = archived
+
+    return live, archived_by_ws
+
+
 def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | None = None) -> dict[str, Any]:
     """Collapse legacy-id persona-instance rows onto their canonical channel.
 
@@ -382,11 +597,15 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
     durable registry regardless, so the ``identity_map`` keeps resolving old
     ids in archived history. Running twice is a no-op the second time.
 
-    Five phases run in order: (1) legacy-id fold, (2) orphan / legacy-role
-    prune, (3) missing steering-parent repair, (4) missing chat-session-binding
-    repair, (5) owner-less flow-graph prune. ``apply=False`` (the CLI's
-    ``--dry-run``) reports every phase and writes nothing — no store rows, no
-    graph docs, no events.
+    Six phases run in order: (1) legacy-id fold, (2) orphan / legacy-role
+    prune, (2b) unplaced-instance prune, (3) missing steering-parent repair,
+    (4) missing chat-session-binding repair, (5) owner-less flow-graph prune.
+    ``apply=False`` (the CLI's ``--dry-run``) reports every phase and writes
+    nothing — no store rows, no graph docs, no events.
+
+    Phase 2b is numbered rather than renumbering its successors because the
+    ordinals are cited by name across this repo's docs and tests; it is a second
+    ARCHIVE phase and belongs beside the first.
 
     Phase 5 is LAST by referential ordering, not by convenience. Phases 1-2 are
     the only phases that add or remove rows and phases 3-4 only repair pointers
@@ -493,6 +712,60 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
             },
         )
 
+    # Phase 2b — UNPLACED-instance prune. A placement IS its instance (operator
+    # ruling, July 2026), so an instance whose only office placement has been
+    # archived is a ghost: the character left the floor and the roster kept
+    # counting it. Measured 2026-09-11 — the Default workspace reported
+    # ``agents: 3`` against two drawn characters for a week because
+    # ``personainst_chara_a2_7b31d0e4``'s actor was archived on 09-04 and its
+    # row stayed ``state: idle``.
+    #
+    # It runs AFTER the orphan prune and over the rows that survived it, so a
+    # row both lanes would take is taken once, by the lane with the older claim.
+    # Same contract as phase 2 in every other respect: archive (never delete),
+    # typed event, held/pruned accounting, and ``apply=False`` writes nothing.
+    from .office_store import OfficeStore
+
+    unplaced_live_ids, unplaced_archived_by_ws = office_placement_evidence(OfficeStore())
+    unplaced_classified = classify_unplaced_persona_instances(
+        [
+            to_jsonable(instance)
+            for instance in surviving
+            if instance.id not in {item["persona_instance_id"] for item in pruned_actions}
+        ],
+        live_placement_instance_ids=unplaced_live_ids or (),
+        archived_placement_instance_ids_by_workspace=unplaced_archived_by_ws,
+    )
+    unplaced_held = list(unplaced_classified["held"])
+    unplaced_pruned: list[dict[str, Any]] = []
+    unplaced_archive_dir = paths.persona_instances_archive_dir() / now().strftime(
+        "%Y%m%dT%H%M%SZ_unplaced"
+    )
+    for candidate in unplaced_classified["prunable"]:
+        instance = surviving_by_id.get(candidate["persona_instance_id"])
+        if instance is None:
+            continue
+        if store._has_live_binding(instance):  # noqa: SLF001 — reconciler IS store maintenance
+            # The cross-store belt phase 2 wears for the same reason: the row's
+            # own fields can be stale about a binding another store holds.
+            unplaced_held.append({**candidate, "reason": HELD_REASON_ACTIVE})
+            continue
+        unplaced_pruned.append(dict(candidate))
+        if not apply:
+            continue
+        _archive_row(instance.id, unplaced_archive_dir)
+        by_id.pop(instance.id, None)
+        store._event(  # noqa: SLF001 — the reconciler IS store maintenance
+            "persona_instance.pruned",
+            instance,
+            {
+                "reason": candidate["reason"],
+                "role": instance.role or None,
+                "workspace_id": candidate.get("workspace_id"),
+                "updated_at": candidate.get("updated_at"),
+            },
+        )
+
     # Phase 3 — referential integrity. Shape-valid rows can still point at an
     # owner that was retired, reaped, or manually removed. Repair those
     # foreign-key misses after the archive phases so the next snapshot cannot
@@ -523,6 +796,10 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
             live_instance_ids.discard(item["from_id"])
             live_instance_ids.add(item["to_id"])
     live_instance_ids -= {item["persona_instance_id"] for item in pruned_actions}
+    # Phase 2b's reap is discounted here for the same reason phase 2's is: by
+    # phase 5 the live-instance set must be FINAL, or an owner-less canvas whose
+    # agent this run just archived is held as "owner resolves".
+    live_instance_ids -= {item["persona_instance_id"] for item in unplaced_pruned}
     graph_prune = _prune_owner_less_flow_graphs(
         store=store,
         live_instance_ids=live_instance_ids,
@@ -539,6 +816,19 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
         "held": held_actions,
         "pruned_count": len(pruned_actions),
         "held_count": len(held_actions),
+        # Phase 2b, reported as its own lane rather than folded into the orphan
+        # tallies above: the two prunes answer different questions (no backing
+        # persona vs. no placement left) and an operator reading `--dry-run`
+        # has to be able to tell which row is about to go for which reason.
+        "unplaced_pruned": unplaced_pruned,
+        "unplaced_held": unplaced_held,
+        "unplaced_pruned_count": len(unplaced_pruned),
+        "unplaced_held_count": len(unplaced_held),
+        # Non-empty when the office store could not be enumerated completely, in
+        # which case phase 2b classified NOTHING. Never silently zero: a skipped
+        # phase and a clean phase both report no prunes, and only this key tells
+        # them apart.
+        "unplaced_skipped": unplaced_classified["skipped"],
         "steering_repairs": steering_repairs["repaired"],
         "steering_repaired_count": steering_repairs["repaired_count"],
         "session_binding_repairs": session_binding_repairs["repaired"],
@@ -556,6 +846,7 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
         "alias_count": len(aliases),
         "archive_dir": str(archive_dir) if apply and actions else None,
         "prune_archive_dir": str(prune_archive_dir) if apply and pruned_actions else None,
+        "unplaced_archive_dir": str(unplaced_archive_dir) if apply and unplaced_pruned else None,
         "graph_prune_archive_dir": graph_prune["archive_dir"],
         "remaining_instance_ids": sorted(by_id.keys()),
     }
