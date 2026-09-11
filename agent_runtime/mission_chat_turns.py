@@ -102,6 +102,18 @@ TURN_STATE_ABANDONED = "abandoned"
 # operator ``turn-resolve --action abandon``. Terminal, needs no resolution,
 # and never blocks the next send.
 TURN_STATE_BUDGET_EXHAUSTED = "budget_exhausted"
+# Provider-refusal terminal (2026-09-11). The PROVIDER authored a definite "this
+# request did not run" — a plan quota wall, a rejected credential, a model the
+# account cannot reach. Like ``budget_exhausted``, and for the same reason, it
+# is NOT an ambiguous provider outcome: there is no turn to prove either way, so
+# it settles here instead of freezing at ``outcome_unknown`` and demanding an
+# operator ``turn-resolve --action abandon`` for a request that never ran.
+#
+# A JOURNAL state rather than the legacy ``failed``: ``failed`` belongs to the
+# pre-journal streaming vocabulary, ``next_turn_state`` refuses a journal ->
+# legacy write by construction, and a legacy state carries none of the
+# lifecycle-set membership this one needs.
+TURN_STATE_PROVIDER_REFUSED = "provider_refused"
 # Legacy streaming vocabulary. Written by the pre-journal persist lane and by
 # the repair sweep; never produced by ``transition_mission_chat_turn``.
 TURN_STATE_RUNNING = "running"
@@ -118,6 +130,7 @@ JOURNAL_TURN_STATES = frozenset(
         TURN_STATE_PROJECTED,
         TURN_STATE_ABANDONED,
         TURN_STATE_BUDGET_EXHAUSTED,
+        TURN_STATE_PROVIDER_REFUSED,
     }
 )
 LEGACY_TURN_STATES = frozenset(
@@ -161,6 +174,7 @@ TERMINAL_TURN_STATES = frozenset(
         TURN_STATE_PROJECTED,
         TURN_STATE_ABANDONED,
         TURN_STATE_BUDGET_EXHAUSTED,
+        TURN_STATE_PROVIDER_REFUSED,
         TURN_STATE_COMPLETED,
         TURN_STATE_FAILED,
         TURN_STATE_INTERRUPTED,
@@ -178,6 +192,12 @@ REPLY_RECOVERABLE_TURN_STATES = frozenset(
         TURN_STATE_EXECUTING,
         TURN_STATE_OUTCOME_UNKNOWN,
         TURN_STATE_BUDGET_EXHAUSTED,
+        # A provider refusal means nothing ran, so there should be no reply to
+        # recover. It is listed anyway, exactly as ``budget_exhausted`` is:
+        # the house rule is that a reply PROVEN durable in SessionDB is never
+        # lost to a state flip, and a rule with an exception is a rule someone
+        # has to remember.
+        TURN_STATE_PROVIDER_REFUSED,
     }
 )
 # ...and with no such proof, a resend from these states is REFUSED: the prior
@@ -208,6 +228,7 @@ _JOURNAL_TRANSITIONS = {
         TURN_STATE_NATIVE_COMMITTED,
         TURN_STATE_OUTCOME_UNKNOWN,
         TURN_STATE_BUDGET_EXHAUSTED,
+        TURN_STATE_PROVIDER_REFUSED,
     },
     TURN_STATE_OUTCOME_UNKNOWN: {
         TURN_STATE_ABANDONED,
@@ -222,6 +243,14 @@ _JOURNAL_TRANSITIONS = {
     # settled turn.
     TURN_STATE_BUDGET_EXHAUSTED: {
         TURN_STATE_BUDGET_EXHAUSTED,
+        TURN_STATE_NATIVE_COMMITTED,
+    },
+    # Same shape as the budget row above, and for the same two reasons: a
+    # repeated settle after a crash must be safe, and a reply proven durable
+    # still wins. Nothing else leaves it — a retry uses a NEW
+    # client_message_id, like every other settled turn.
+    TURN_STATE_PROVIDER_REFUSED: {
+        TURN_STATE_PROVIDER_REFUSED,
         TURN_STATE_NATIVE_COMMITTED,
     },
     TURN_STATE_NATIVE_COMMITTED: {TURN_STATE_NATIVE_COMMITTED, TURN_STATE_PROJECTED},
@@ -1301,6 +1330,61 @@ def safe_turn_profile_timing(value: Any) -> dict[str, Any] | None:
 #: absent, and recorded-empty stays recorded.
 _JOURNAL_EMPTY_PRESERVING_FIELDS = frozenset({"stored_reply"})
 
+#: The provider's own verdict on a turn it refused to run
+#: (``mission_chat_outcome.ProviderRefusal.as_dict``), carried onto the record
+#: as ONE structured entry — the same treatment the run-budget accounting gets,
+#: and for the same reason: flattening it into six text fields would put six
+#: more keys in a whitelist that is read as "what a turn record may say".
+#:
+#: SANITIZED HERE rather than trusted from the caller, because the values
+#: originate in a provider's error body — attacker-influenced text on the far
+#: side of an HTTP boundary. Only these seven keys are admitted, ``status_code``
+#: and ``resets_in_seconds`` are coerced to ints, ``reset_at`` is admitted as a
+#: number or a bounded string, and everything else is dropped. Absent stays
+#: absent: a field the provider did not speak has no key.
+_JOURNAL_PROVIDER_REFUSAL_FIELD = "provider_refusal"
+_PROVIDER_REFUSAL_TEXT_FIELDS = {
+    "reason": 120,
+    "message": 400,
+    "provider": 80,
+    "model": 120,
+    "failure_reason": 80,
+}
+
+
+def safe_provider_refusal(value: Any) -> dict[str, Any] | None:
+    """The typed refusal block, or ``None`` when there is nothing readable."""
+
+    if not isinstance(value, dict):
+        return None
+    try:
+        status_code = int(value.get("status_code"))
+    except (TypeError, ValueError):
+        return None
+    # A refusal with no status code is not a refusal — the status IS the
+    # provider's verdict, and every consumer branches on it.
+    block: dict[str, Any] = {"status_code": status_code}
+    for key, limit in _PROVIDER_REFUSAL_TEXT_FIELDS.items():
+        text = safe_assignment_text(value.get(key), limit=limit)
+        if text:
+            block[key] = text
+    reset_at = value.get("reset_at")
+    if isinstance(reset_at, bool):
+        reset_at = None
+    if isinstance(reset_at, (int, float)):
+        block["reset_at"] = reset_at
+    elif isinstance(reset_at, str):
+        text = safe_assignment_text(reset_at, limit=80)
+        if text:
+            block["reset_at"] = text
+    try:
+        resets_in = int(value["resets_in_seconds"])
+    except (KeyError, TypeError, ValueError):
+        resets_in = None
+    if resets_in is not None and resets_in > 0:
+        block["resets_in_seconds"] = resets_in
+    return block
+
 
 def _safe_journal_metadata(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
@@ -1317,6 +1401,9 @@ def _safe_journal_metadata(value: Any) -> dict[str, Any]:
     run_budget = safe_run_budget_accounting(value.get(_JOURNAL_RUN_BUDGET_FIELD))
     if run_budget is not None:
         result[_JOURNAL_RUN_BUDGET_FIELD] = run_budget
+    refusal = safe_provider_refusal(value.get(_JOURNAL_PROVIDER_REFUSAL_FIELD))
+    if refusal is not None:
+        result[_JOURNAL_PROVIDER_REFUSAL_FIELD] = refusal
     # Turn-latency phase spans (schema v3). Same absent-stays-absent rule the
     # run-budget block states above, applied one level deeper: the block itself
     # is absent on a v2 record, and INSIDE the block a phase the turn never

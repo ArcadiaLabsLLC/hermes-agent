@@ -142,6 +142,13 @@ turn-resolve … --action abandon --json`, then send the text as a new turn with
 client message id. `budget_exhausted` is terminal and has no turn-resolve — the turn spent
 its `--max-seconds` wall budget.
 
+`chat_turn_provider_refused` is terminal and has no turn-resolve either, for the opposite
+reason: the model PROVIDER refused the request and it never ran. The frame carries a typed
+`provider_refusal: {status_code, reason, message, reset_at, resets_in_seconds, provider,
+model}` and the journal settles at `provider_refused`. Read `reason` (the provider's own
+code) to decide what to say; a 5xx / timeout / dropped stream is still
+`chat_turn_outcome_unknown`, because that ambiguity is real.
+
 ## Agent-to-Agent Orchestration (`agent_chat_send`)
 
 Any chat persona can brief ANY other persona over the canonical chat lane — "Alice,

@@ -60,6 +60,7 @@ TURN_STATE_CLASSIFICATION = (
     ("projected",         "terminal",  True),
     ("abandoned",         "terminal",  True),
     ("budget_exhausted",  "terminal",  True),
+    ("provider_refused",  "terminal",  True),
     ("completed",         "terminal",  False),
     ("failed",            "terminal",  False),
     ("interrupted",       "terminal",  False),
@@ -78,6 +79,7 @@ _JOURNAL_WALK = {
     "projected": ("pending", "executing", "native_committed", "projected"),
     "abandoned": ("pending", "abandoned"),
     "budget_exhausted": ("pending", "executing", "budget_exhausted"),
+    "provider_refused": ("pending", "executing", "provider_refused"),
 }
 
 
@@ -254,6 +256,7 @@ def test_retention_evicts_everything_except_the_inflight_bucket(state, lifecycle
         ("executing", "native_committed", True),
         ("outcome_unknown", "native_committed", True),
         ("budget_exhausted", "native_committed", True),
+        ("provider_refused", "native_committed", True),
         # ...and from nowhere else.
         ("pending", "native_committed", False),
         ("projected", "native_committed", False),
@@ -272,6 +275,19 @@ def test_retention_evicts_everything_except_the_inflight_bucket(state, lifecycle
         ("budget_exhausted", "executing", False),
         ("budget_exhausted", "outcome_unknown", False),
         ("budget_exhausted", "abandoned", False),
+        # A provider refusal settles ONLY from executing: the
+        # provider can only refuse a request that was sent, and the
+        # journal reaches `executing` at the submission boundary.
+        ("executing", "provider_refused", True),
+        ("pending", "provider_refused", False),
+        ("outcome_unknown", "provider_refused", False),
+        ("projected", "provider_refused", False),
+        ("abandoned", "provider_refused", False),
+        # ...and it never resurrects, exactly like the budget row.
+        ("provider_refused", "pending", False),
+        ("provider_refused", "executing", False),
+        ("provider_refused", "outcome_unknown", False),
+        ("provider_refused", "abandoned", False),
     ],
 )
 def test_journal_transition_acceptance(current, requested, accepted):

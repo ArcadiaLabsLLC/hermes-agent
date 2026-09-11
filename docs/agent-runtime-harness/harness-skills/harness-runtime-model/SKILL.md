@@ -237,6 +237,15 @@ exact `(root, client_message_id, turn_id)` tuple with `turn-resolve ...
 --action abandon`, then send the text as a new turn with a fresh client
 message ID.
 
+`chat_turn_provider_refused` is the OPPOSITE fault and takes the opposite
+action: the model provider authored a definite "this did not run" (a plan quota
+wall, a rejected credential, a model the account cannot reach), so there is
+nothing to resolve and `turn-resolve` will refuse it. The frame carries a typed
+`provider_refusal: {status_code, reason, message, reset_at, resets_in_seconds,
+provider, model}` — read `reason`, never the prose — and the journal settles at
+`provider_refused`. Wait out the reset (or fix the credential) and send a NEW
+client message id.
+
 ## Delegation — helpers without context bloat
 
 *(Absorbed `harness-continuity` 2026-08-28; full recipe and the return-summary

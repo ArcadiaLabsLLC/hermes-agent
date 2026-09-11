@@ -247,11 +247,19 @@ python -m hermes_cli.main harness mission-chat turn-resolve --session-id <root> 
 3. **`unknown_chat_session` ("unknown explicit persona chat root")** — the roster pointer
    went stale. Do not keep retrying. Mint a fresh root with `open-chat --new-session
    --idempotency-key <key>` and message that.
-4. **`budget_exhausted`** — terminal, and there is no turn-resolve for it. The turn spent
+4. **`chat_turn_provider_refused`** — terminal, and there is no turn-resolve for
+   it either. The PROVIDER refused the request and it never ran: `status_code` 401 /
+   402 / 403 / 404 / 429, or a classified 400. The typed `provider_refusal` block on
+   the frame carries the provider's own `reason` (`usage_limit_reached`,
+   `insufficient_quota`, ...), its `message`, and `reset_at` /
+   `resets_in_seconds` when it named one. Branch on `reason`; never match the
+   message text. A 5xx, a timeout or a dropped stream is NOT this — those stay
+   `chat_turn_outcome_unknown`, because they really are ambiguous.
+5. **`budget_exhausted`** — terminal, and there is no turn-resolve for it. The turn spent
    its `--max-seconds` wall budget (default 240s, or the profile's
    `agent_runtime.mission_chat.default_max_seconds`); the last max(60s, 15%) is reserved
    for a final checkpoint reply. Raise the budget deliberately or split the ask.
-5. **Wrong root, or the right root and the wrong profile — two different faults.** An
+6. **Wrong root, or the right root and the wrong profile — two different faults.** An
    EMPTY or unfamiliar roster is a ROOT fault: check `.parity.runtime_root` (a
    `%LOCALAPPDATA%` shadow root is the classic). A roster that looks right while the turn
    behaves wrong — no MCP, unexpected model — is a PROFILE fault: check `.parity.profile`

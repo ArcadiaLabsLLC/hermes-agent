@@ -70,6 +70,7 @@ CHAT_ERROR_KIND_WIRE = {
     # with the free-floating lane, their only producer (registry wave s70).
     "CHAT_TURN_BUDGET_EXHAUSTED": "chat_turn_budget_exhausted",
     "CHAT_TURN_OUTCOME_UNKNOWN": "chat_turn_outcome_unknown",
+    "CHAT_TURN_PROVIDER_REFUSED": "chat_turn_provider_refused",
     "CHAT_TURN_NOT_SUBMITTED": "chat_turn_not_submitted",
     "CHAT_TURN_RESOLUTION_MISMATCH": "chat_turn_resolution_mismatch",
     "CHAT_TURN_DUPLICATE_IN_FLIGHT": "chat_turn_duplicate_in_flight",
@@ -129,6 +130,19 @@ def _budget_error(*, wall_budget):
     return RunBudgetExceeded("budget exhausted", wall_budget=wall_budget)
 
 
+def _refusal_error(**provider_error):
+    """The exception ``profile_runner`` raises for a failed conversation, built
+    the way ``ProfileAgentRunner._run`` builds it — a formatted one-liner plus
+    the typed block. Nothing else in the chain survives to the chat lane."""
+
+    from agent_runtime.profile_runner import ProfileRunnerError
+
+    return ProfileRunnerError(
+        "HTTP 429: The usage limit has been reached",
+        provider_error=provider_error or None,
+    )
+
+
 # (exception factory, provider_submitted) -> (execution_state, error_kind)
 #
 # The middle rows are the 2026-07-26 incident: a wall-budget death reported as
@@ -156,6 +170,47 @@ FAILURE_TABLE = (
         True,
         ExecutionState.BLOCKED,
         ChatErrorKind.CHAT_TURN_OUTCOME_UNKNOWN,
+    ),
+    # THE PROVIDER'S OWN VERDICT outranks the boolean pair: a 429 with a plan
+    # quota body is a definite "this did not run", and the 2026-09-11 incident
+    # is what happened when it fell into the ambiguous row below instead.
+    (
+        lambda: _refusal_error(status_code=429, reason="usage_limit_reached"),
+        True,
+        ExecutionState.FAILED,
+        ChatErrorKind.CHAT_TURN_PROVIDER_REFUSED,
+    ),
+    # ...but a 5xx stays ambiguous. The provider did not decide anything; the
+    # request may well have run. Preserving THIS row is the whole reason the
+    # refusal is keyed on a status set rather than on "did it have a status".
+    (
+        lambda: _refusal_error(status_code=503, reason="overloaded"),
+        True,
+        ExecutionState.BLOCKED,
+        ChatErrorKind.CHAT_TURN_OUTCOME_UNKNOWN,
+    ),
+    # A context-overflow 400 is a refusal on the wire and not in meaning: the
+    # harness can shrink the request and re-send it.
+    (
+        lambda: _refusal_error(status_code=400, failure_reason="context_overflow"),
+        True,
+        ExecutionState.BLOCKED,
+        ChatErrorKind.CHAT_TURN_OUTCOME_UNKNOWN,
+    ),
+    # ...while a 400 the harness classified as a billing wall is one.
+    (
+        lambda: _refusal_error(status_code=400, failure_reason="billing"),
+        True,
+        ExecutionState.FAILED,
+        ChatErrorKind.CHAT_TURN_PROVIDER_REFUSED,
+    ),
+    # A refusal-shaped exception that never crossed the boundary is still a
+    # not-submitted turn: nothing was sent, so no provider refused anything.
+    (
+        lambda: _refusal_error(status_code=429, reason="usage_limit_reached"),
+        False,
+        ExecutionState.FAILED,
+        ChatErrorKind.CHAT_TURN_NOT_SUBMITTED,
     ),
     # any other post-boundary explosion is ambiguous too
     (
@@ -197,7 +252,18 @@ def test_classify_turn_failure(make_exc, provider_submitted, state, kind):
     outcome = classify_turn_failure(
         make_exc(), provider_submitted=provider_submitted
     )
-    assert outcome == TurnOutcome(state, kind, MISSION_CHAT_EXIT_FAILURE)
+    # Compared field-by-field rather than against a whole ``TurnOutcome``: the
+    # refusal rows also carry the provider's verdict, which is asserted on its
+    # own below, and an equality against a 3-field constructor would quietly
+    # start meaning "and it carries no refusal" for every other row too.
+    assert (outcome.execution_state, outcome.error_kind, outcome.exit_code) == (
+        state,
+        kind,
+        MISSION_CHAT_EXIT_FAILURE,
+    )
+    assert (outcome.provider_refusal is not None) is (
+        kind is ChatErrorKind.CHAT_TURN_PROVIDER_REFUSED
+    )
 
 
 def test_every_failure_state_and_kind_is_reachable_from_the_table():

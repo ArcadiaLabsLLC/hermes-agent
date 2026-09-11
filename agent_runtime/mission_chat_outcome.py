@@ -43,10 +43,12 @@ record and stay typed at their source.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, replace
 from enum import StrEnum
 
 __all__ = [
+    "AMBIGUOUS_400_FAILURE_REASONS",
     "ChatErrorKind",
     "DELEGATED_ERROR_KIND_SOURCES",
     "ExecutionState",
@@ -58,8 +60,12 @@ __all__ = [
     "MissionChatDeferredFinalization",
     "MissionChatTurnPlan",
     "OK_EXECUTION_STATES",
+    "PROVIDER_REFUSAL_STATUS_CODES",
+    "PROVIDER_REFUSED_OUTCOME",
+    "ProviderRefusal",
     "TurnOutcome",
     "classify_turn_failure",
+    "provider_refusal",
 ]
 
 
@@ -160,6 +166,15 @@ class ChatErrorKind(StrEnum):
     # -- turn lifecycle ------------------------------------------------------
     CHAT_TURN_BUDGET_EXHAUSTED = "chat_turn_budget_exhausted"
     CHAT_TURN_OUTCOME_UNKNOWN = "chat_turn_outcome_unknown"
+    #: The PROVIDER authored a definite "this request did not run" — a plan
+    #: quota wall, a rejected credential, a model the account cannot reach.
+    #: Deliberately NOT ``chat_turn_outcome_unknown``: there is no turn to
+    #: prove either way, so routing the operator at ``turn-resolve`` asks them
+    #: to adjudicate something the provider already settled. The 2026-09-11
+    #: incident is the whole reason it exists — a Codex ``usage_limit_reached``
+    #: 429 rendered as "Hermes cannot prove whether this turn completed", and
+    #: the operator resent into the same wall.
+    CHAT_TURN_PROVIDER_REFUSED = "chat_turn_provider_refused"
     CHAT_TURN_NOT_SUBMITTED = "chat_turn_not_submitted"
     CHAT_TURN_RESOLUTION_MISMATCH = "chat_turn_resolution_mismatch"
     #: This exact ``client_message_id`` is the turn RUNNING on the root right
@@ -202,6 +217,7 @@ TURN_LIFECYCLE_ERROR_KINDS = frozenset(
     {
         ChatErrorKind.CHAT_TURN_BUDGET_EXHAUSTED,
         ChatErrorKind.CHAT_TURN_OUTCOME_UNKNOWN,
+        ChatErrorKind.CHAT_TURN_PROVIDER_REFUSED,
         ChatErrorKind.CHAT_TURN_NOT_SUBMITTED,
         ChatErrorKind.CHAT_TURN_RESOLUTION_MISMATCH,
         ChatErrorKind.CHAT_TURN_DUPLICATE_IN_FLIGHT,
@@ -245,6 +261,215 @@ DELEGATED_ERROR_KIND_SOURCES = {
 # ---------------------------------------------------------------------------
 # the failure classifier
 # ---------------------------------------------------------------------------
+#: HTTP statuses on which the provider has AUTHORED a "this request did not
+#: run" answer. Each is a decision the provider made ABOUT the request, before
+#: running it: the credential was rejected (401), the account cannot pay (402),
+#: it lacks the entitlement (403), the model does not exist for it (404), or the
+#: plan/rate budget is spent (429). None of them can leave a half-finished turn
+#: on the provider's side, which is exactly what separates them from the
+#: genuinely ambiguous failures below.
+PROVIDER_REFUSAL_STATUS_CODES = frozenset({401, 402, 403, 404, 429})
+
+#: A 400 is the one status that is a refusal on the WIRE and not a refusal in
+#: MEANING. These classified reasons say the request as SENT was malformed or
+#: oversized — the harness can repair and re-send it, and the operator has
+#: nothing to wait for — so calling them "the provider refused you" would
+#: over-claim. A 400 the harness could not classify at all stays ambiguous for
+#: the same reason: over-approximating toward ``outcome_unknown`` costs an
+#: operator one honest "I cannot prove this", while over-approximating the
+#: other way tells them their plan is out of usage when it is not.
+AMBIGUOUS_400_FAILURE_REASONS = frozenset(
+    {
+        "context_overflow",
+        "payload_too_large",
+        "image_too_large",
+        "invalid_encrypted_content",
+        "multimodal_tool_content_unsupported",
+        "format_error",
+    }
+)
+
+#: Below this, a ``reset_at`` number is read as a DURATION in seconds; at or
+#: above it, as a UNIX epoch. 10^9 seconds is ~31.7 years as a duration and
+#: 2001-09-09 as an epoch, so no real value is ambiguous. Both shapes genuinely
+#: arrive: ``extract_api_error_context`` computes ``time.time() + retry_after``
+#: (epoch) for a ``Retry-After`` header, and forwards ``x-ratelimit-reset``
+#: verbatim, which providers send as either.
+_RESET_AT_EPOCH_FLOOR = 1_000_000_000
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderRefusal:
+    """The provider's own verdict on a request it declined to run.
+
+    Every field is READ from the typed error context the transport already
+    builds (``agent.agent_runtime_helpers.extract_api_error_context``), never
+    parsed out of the formatted one-liner. ``reason`` is the provider's OWN
+    spelling (``usage_limit_reached``, ``insufficient_quota``, …) because the
+    consumer that renders it must switch on a code, not match English — the
+    same rule the launcher's ``MissionChatErrorKind`` follows one repo over.
+    """
+
+    status_code: int
+    reason: str | None = None
+    message: str | None = None
+    #: The provider's reset marker, verbatim: a UNIX epoch, a duration in
+    #: seconds, or an ISO-8601 timestamp. Kept raw so a reader can see what was
+    #: said; ``resets_in_seconds`` is the derived, comparable form.
+    reset_at: object = None
+    provider: str | None = None
+    model: str | None = None
+    #: The harness's own classification of the same error
+    #: (``agent.error_classifier.FailoverReason``), when the failing lane
+    #: recorded one. Read ONLY to keep an ambiguous 400 ambiguous — never to
+    #: choose copy, which is ``reason``'s job.
+    failure_reason: str | None = None
+
+    def resets_in_seconds(self, *, now: float | None = None) -> int | None:
+        """Whole seconds until the refusal lifts, or ``None`` when unknown.
+
+        ``None`` means the provider said nothing about a reset, or said
+        something unreadable, or named a moment already past. All three must
+        reach a reader as absence — a zero here would render as "it resets in
+        about 0 h", which is a sentence nobody said.
+        """
+
+        delta = _reset_delta_seconds(self.reset_at, now=now)
+        if delta is None or delta <= 0:
+            return None
+        return int(delta)
+
+    def next_expected(self, *, now: float | None = None) -> str:
+        """What the caller should do next, in one sentence.
+
+        Lives on the value object rather than inline in the CLI lane because
+        ``persona_commands.py`` is ``exec``'d into ``harness.py``'s globals and
+        cannot be imported — prose written there is prose no test can read. It
+        names the WAIT when the provider named one, and it always says the turn
+        needs no ``turn-resolve``, because the single most expensive thing the
+        old behaviour did was send operators to that verb.
+        """
+
+        resets_in = self.resets_in_seconds(now=now)
+        wait = ""
+        if resets_in is not None:
+            wait = f" the provider says it resets in about {_humanize_seconds(resets_in)};"
+        reason = f" ({self.reason})" if self.reason else ""
+        return (
+            f"the model provider refused this request{reason} and it never ran;"
+            f"{wait} send a NEW client_message_id once the provider will accept "
+            "one — this turn is settled and needs NO turn-resolve"
+        )
+
+    def as_dict(self, *, now: float | None = None) -> dict[str, object]:
+        """The wire block. Absent stays absent: a field the provider did not
+        speak has no key, so no consumer can mistake a default for a fact."""
+
+        block: dict[str, object] = {"status_code": self.status_code}
+        for key, value in (
+            ("reason", self.reason),
+            ("message", self.message),
+            ("provider", self.provider),
+            ("model", self.model),
+            ("failure_reason", self.failure_reason),
+        ):
+            if isinstance(value, str) and value.strip():
+                block[key] = value.strip()
+        if self.reset_at not in (None, ""):
+            block["reset_at"] = self.reset_at
+        resets_in = self.resets_in_seconds(now=now)
+        if resets_in is not None:
+            block["resets_in_seconds"] = resets_in
+        return block
+
+
+def _reset_delta_seconds(value: object, *, now: float | None = None) -> float | None:
+    """Seconds from ``now`` to ``value``, for the three shapes providers send."""
+
+    if value is None or isinstance(value, bool):
+        return None
+    moment = time.time() if now is None else now
+    number: float | None = None
+    if isinstance(value, (int, float)):
+        number = float(value)
+    elif isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            number = float(text)
+        except ValueError:
+            from datetime import datetime
+
+            try:
+                parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+            return parsed.timestamp() - moment
+    if number is None:
+        return None
+    return number - moment if number >= _RESET_AT_EPOCH_FLOOR else number
+
+
+def provider_refusal(exc: BaseException) -> ProviderRefusal | None:
+    """The provider's verdict carried on ``exc``, or ``None`` when it has none.
+
+    Pure, and deliberately narrow. It reads ONE typed attribute —
+    ``provider_error``, attached by ``profile_runner`` at the only place a
+    provider failure becomes an exception — and never the exception's prose.
+    The live 2026-09-11 429 is why that attribute exists at all: the transport
+    collapses the SDK error into ``_summarize_api_error`` text several frames
+    below, so by the time the chat lane catches anything, the status code and
+    the quota body are gone unless something carried them deliberately.
+
+    ``None`` means "not a refusal", and that is the answer for every genuinely
+    ambiguous failure: a 5xx, a timeout, a connection reset, a stream that died
+    after its first byte. Those settle ``outcome_unknown`` exactly as before.
+    """
+
+    block = getattr(exc, "provider_error", None)
+    if not isinstance(block, dict):
+        return None
+    try:
+        status_code = int(block.get("status_code"))
+    except (TypeError, ValueError):
+        return None
+    failure_reason = _text(block.get("failure_reason"))
+    if status_code not in PROVIDER_REFUSAL_STATUS_CODES:
+        if status_code != 400:
+            return None
+        if failure_reason is None or failure_reason in AMBIGUOUS_400_FAILURE_REASONS:
+            return None
+    return ProviderRefusal(
+        status_code=status_code,
+        reason=_text(block.get("reason")),
+        message=_text(block.get("message")),
+        reset_at=block.get("reset_at"),
+        provider=_text(block.get("provider")),
+        model=_text(block.get("model")),
+        failure_reason=failure_reason,
+    )
+
+
+def _humanize_seconds(seconds: int) -> str:
+    """``10795`` -> ``"3 h"``. Coarse on purpose: a provider's reset estimate is
+    not precise, and rendering it to the second would claim an accuracy nobody
+    has."""
+
+    if seconds < 90:
+        return f"{max(seconds, 1)} s"
+    if seconds < 5400:
+        return f"{round(seconds / 60)} min"
+    return f"{round(seconds / 3600)} h"
+
+
+def _text(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text or None
+
+
 @dataclass(frozen=True, slots=True)
 class TurnOutcome:
     """One decision: what a failed turn is called, and how the process exits."""
@@ -252,6 +477,11 @@ class TurnOutcome:
     execution_state: ExecutionState
     error_kind: ChatErrorKind
     exit_code: int = MISSION_CHAT_EXIT_FAILURE
+    #: The provider's verdict, when the outcome IS one. Carried on the decision
+    #: so the CLI lane asks ``classify_turn_failure`` once and gets both the
+    #: name of the failure and the facts that justify it — rather than
+    #: re-deriving the second half beside every use of the first.
+    provider_refusal: ProviderRefusal | None = None
 
 
 #: The whole post-provider failure decision, as a table rather than a nested
@@ -278,6 +508,19 @@ _FAILURE_TABLE: dict[tuple[bool, bool], TurnOutcome] = {
 # row is unreachable by construction and stated so rather than left implicit.
 _FAILURE_TABLE[(True, False)] = _FAILURE_TABLE[(False, False)]
 
+#: The outcome a post-submission PROVIDER REFUSAL settles as. Deliberately not
+#: a row in the table above: the table is keyed on two booleans, and the whole
+#: finding of the 2026-09-11 incident is that a third boolean would have been
+#: the third patch on one class. A refusal is a VERDICT the provider authored,
+#: read off the exception, and it outranks the boolean pair — so it is looked
+#: up first and the table answers everything else.
+#:
+#: ``FAILED``, not ``BLOCKED``: nothing is blocked. The turn is over, it never
+#: ran, and there is no ambiguity for an operator to resolve.
+PROVIDER_REFUSED_OUTCOME = TurnOutcome(
+    ExecutionState.FAILED, ChatErrorKind.CHAT_TURN_PROVIDER_REFUSED
+)
+
 
 def wall_budget_exceeded(exc: BaseException, *, provider_submitted: bool) -> bool:
     """Did ``exc`` end this turn on its declared WALL budget?
@@ -298,11 +541,21 @@ def wall_budget_exceeded(exc: BaseException, *, provider_submitted: bool) -> boo
 def classify_turn_failure(
     exc: BaseException, *, provider_submitted: bool
 ) -> TurnOutcome:
-    """Name a failed mission-chat turn. Pure: reads ``exc``, writes nothing."""
+    """Name a failed mission-chat turn. Pure: reads ``exc``, writes nothing.
 
-    return _FAILURE_TABLE[
-        (wall_budget_exceeded(exc, provider_submitted=provider_submitted), provider_submitted)
-    ]
+    Order of authority, and it is the whole design: a wall-budget death is what
+    the HARNESS knows, a refusal is what the PROVIDER said, and the boolean
+    table is what is left when neither spoke. The budget is asked first because
+    a turn killed at its own deadline never received a provider answer at all —
+    whatever the request would have done is moot once we stopped waiting.
+    """
+
+    budget_tripped = wall_budget_exceeded(exc, provider_submitted=provider_submitted)
+    if provider_submitted and not budget_tripped:
+        refusal = provider_refusal(exc)
+        if refusal is not None:
+            return replace(PROVIDER_REFUSED_OUTCOME, provider_refusal=refusal)
+    return _FAILURE_TABLE[(budget_tripped, provider_submitted)]
 
 
 # ---------------------------------------------------------------------------
@@ -561,7 +814,13 @@ def _guard_turn_outcome_vocabulary() -> None:  # pragma: no cover - import contr
     missing = sorted(domain - set(_FAILURE_TABLE))
     if missing:
         raise RuntimeError(f"_FAILURE_TABLE does not cover {missing}")
-    for key, outcome in _FAILURE_TABLE.items():
+    # The refusal outcome is checked exactly as a row is. It lives outside the
+    # table on purpose (see its docstring) and an outcome outside the table is
+    # precisely the thing a table-shaped guard stops seeing, so it is named
+    # here rather than left to the reader to notice.
+    for key, outcome in list(_FAILURE_TABLE.items()) + [
+        ("PROVIDER_REFUSED_OUTCOME", PROVIDER_REFUSED_OUTCOME)
+    ]:
         if outcome.execution_state not in states:
             raise RuntimeError(
                 f"_FAILURE_TABLE[{key}] names a non-state {outcome.execution_state!r}"

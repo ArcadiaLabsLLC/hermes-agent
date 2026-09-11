@@ -62,6 +62,7 @@ from agent_runtime.mission_chat_turns import (
     TURN_STATE_OUTCOME_UNKNOWN,
     TURN_STATE_PENDING,
     TURN_STATE_PROJECTED,
+    TURN_STATE_PROVIDER_REFUSED,
     TURN_STATE_RUNNING,
     abandon_mission_chat_turn,
     mark_stale_inflight_turns_interrupted,
@@ -3827,6 +3828,33 @@ def _mission_chat_commit_turn(plan, deferred, presence) -> int:
             session_id=session_id, client_message_id=client_message_id
         ) or {}
         journal_state = TURN_STATE_PROJECTED
+    if journal_state == TURN_STATE_PROVIDER_REFUSED:
+        # Settled and NOT ambiguous, exactly like the budget row below: the
+        # provider refused this request, nothing ran, and there is nothing for
+        # `turn-resolve` to adjudicate. The refusal block is replayed off the
+        # record so a resend gets the same honest sentence the first attempt
+        # got — including the reset, which by now may have passed.
+        refusal_block = journal.get("provider_refusal")
+        data = {
+            "ok": False,
+            "capability_id": "mission.chat.message",
+            "execution_state": ExecutionState.FAILED,
+            "error_kind": ChatErrorKind.CHAT_TURN_PROVIDER_REFUSED,
+            "provider_refused": True,
+            "turn_resolution_required": False,
+            "journal_state": TURN_STATE_PROVIDER_REFUSED,
+            "root_chat_session_id": session_id,
+            "session_id": session_id,
+            "client_message_id": client_message_id,
+            "turn_id": journal.get("turn_id") or client_message_id,
+            "error": "this turn was refused by the model provider and never ran; it is settled and needs no resolution",
+            "next_expected": "send a new client_message_id once the provider will accept one; no turn-resolve is required",
+        }
+        if isinstance(refusal_block, dict):
+            data["provider_refusal"] = refusal_block
+        _stamp_finalization(data)
+        _mission_chat_emit(args, data)
+        return 2
     if journal_state == TURN_STATE_BUDGET_EXHAUSTED:
         # Settled, NOT ambiguous: this turn ended on its wall clock and the
         # harness knows it. Never route the operator to turn-resolve (that verb
@@ -4548,6 +4576,16 @@ def _mission_chat_commit_turn(plan, deferred, presence) -> int:
         wall_budget_exceeded = (
             turn_outcome.execution_state is ExecutionState.BUDGET_EXHAUSTED
         )
+        # The PROVIDER's own verdict, when it authored one. Same shape of fact
+        # as the wall budget above — a KNOWN terminal cause — and it settles the
+        # same way: terminal journal state, no turn-resolve, an honest sentence.
+        # The 2026-09-11 incident is what this arm replaces: a Codex
+        # `usage_limit_reached` 429 fell into the `outcome_unknown` row below,
+        # and the operator was shown an abandon-and-resend banner for a request
+        # that had never run.
+        refusal = turn_outcome.provider_refusal
+        provider_refused = refusal is not None
+        refusal_block = refusal.as_dict() if refusal is not None else None
         failed_outcome = None
         if wall_budget_exceeded:
             budget_block = dict(getattr(exc, "wall_budget", None) or {})
@@ -4579,6 +4617,20 @@ def _mission_chat_commit_turn(plan, deferred, presence) -> int:
                     # result to carry it, so it rides the exception — and this
                     # is the only place it can become durable, because a pure
                     # chat turn writes no run record.
+                    **turn_run_budget_metadata(error=exc),
+                },
+            )
+        elif provider_refused:
+            failed_outcome = transition_mission_chat_turn(
+                session_id=session_id,
+                client_message_id=client_message_id,
+                turn_id=stream_emitter.turn_id,
+                elements=stream_emitter.elements,
+                state=TURN_STATE_PROVIDER_REFUSED,
+                metadata={
+                    "provider_submitted": True,
+                    "provider_refusal": refusal_block,
+                    MISSION_CHAT_TURN_PHASES_KEY: turn_phases.snapshot(),
                     **turn_run_budget_metadata(error=exc),
                 },
             )
@@ -4619,6 +4671,8 @@ def _mission_chat_commit_turn(plan, deferred, presence) -> int:
             "next_expected": (
                 "send a new client_message_id with a smaller scope or a larger --max-seconds; this turn is settled and needs NO turn-resolve"
                 if wall_budget_exceeded
+                else refusal.next_expected()
+                if provider_refused
                 else (
                     "resolve the exact outcome_unknown turn with action=abandon, then send a new client_message_id"
                     if provider_submitted
@@ -4626,6 +4680,18 @@ def _mission_chat_commit_turn(plan, deferred, presence) -> int:
                 )
             ),
         }
+        if provider_refused:
+            data.update(
+                {
+                    "provider_refused": True,
+                    "turn_resolution_required": False,
+                    "journal_state": TURN_STATE_PROVIDER_REFUSED,
+                    # The typed block, so no consumer has to read the blocker
+                    # prose. `reason` is the provider's OWN code; the launcher
+                    # chooses its copy from that and never from the message.
+                    "provider_refusal": refusal_block,
+                }
+            )
         _stamp_finalization(data)
         if wall_budget_exceeded:
             data.update(
