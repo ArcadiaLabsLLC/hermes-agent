@@ -238,6 +238,14 @@ def realm_sync_status(
     agent_state = realm_agent_selection_state(realm_id)
     workspaces = _workspaces_for_realm(realm)
     workspace_statuses = _workspace_sync_statuses(realm, repo)
+    # Installs that predate the skill baseline sidecar (2026-09-12): record the
+    # agreement between canonical and inbox as the baseline BEFORE the held read
+    # and the drift walk below decide against it, so the operator's first local
+    # edit after the lane landed reads ``changed`` rather than ``held``.
+    from .skill_promotion import realm_inbox_dir as _realm_inbox_dir
+    from .skill_sync import record_converged_skill_baselines
+
+    record_converged_skill_baselines(realm.id, _realm_inbox_dir(realm.id))
     skills_drift = _held_skill_packages_for_realm(realm)
     state = _sync_state(git)
     # Local store drift vs the never-synced baseline sidecar: the git state above
@@ -3830,11 +3838,18 @@ def apply_skill_inbox_pull(realm: Realm, subtree: Path) -> SkillSyncSummary:
         BUCKET_UPDATED,
         classify_inbox_package,
         read_skill_baseline,
+        record_converged_skill_baselines,
         skill_baseline_key,
         write_skill_baseline,
     )
 
     inbox = realm_inbox_dir(realm.id)
+    # Installs that predate the sidecar (2026-09-12): where the canonical copy and
+    # the PRE-mirror inbox — the realm as of my last sync — already agree, that
+    # agreement is the baseline, recorded before the mirror rewrites the inbox.
+    # Only agreement is recorded; see ``seed_converged_skill_baselines`` for why
+    # the broad "inbox stands in for the baseline" rule was wrong.
+    record_converged_skill_baselines(realm.id, inbox)
     removed, reserved_refused, tombstoned = _mirror_realm_skill_inbox(
         subtree / "skills",
         inbox,

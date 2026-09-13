@@ -1083,3 +1083,103 @@ def test_resolve_dry_run_writes_nothing_at_all(tmp_path):
     assert read_skill_baseline(realm.id) == baseline_before
     # Still held, because a preview resolves nothing.
     assert realm_sync_status(realm.id)["skills_drift"] == ["foo"]
+
+
+# ── the migration rule: an install that predates the baseline sidecar ────────
+
+
+def _forget_the_baseline(realm_id: str) -> None:
+    """Simulate an install from before 2026-09-12: the inbox was mirrored by an
+    old pull, but no ``skill_baseline.json`` was ever written."""
+
+    from agent_runtime import paths
+
+    sidecar = paths.skill_baseline_path(realm_id)
+    assert sidecar.exists(), "the pull above should have recorded a baseline"
+    sidecar.unlink()
+
+
+def test_a_pre_baseline_install_reads_my_edit_as_drift_not_a_hold(tmp_path):
+    """Measured live on 2026-09-12, right after the lane landed: the operator's
+    first local edit classified ``held`` — "both changed" over a change only one
+    side made — because the realm had an inbox but no sidecar, and ``new_both`` is
+    the honest verdict when NOTHING is known. Something WAS known the moment
+    before the edit: canonical and inbox agreed. A status read records that
+    agreement as the baseline, so the edit that follows reads ``changed``.
+
+    Killing mutation: drop the ``record_converged_skill_baselines`` call in
+    ``realm_sync_status`` → the second status reports ``skills_drift == ["foo"]``
+    and ``skills_changed == 0``."""
+
+    from agent_runtime import paths
+    from agent_runtime.skill_promotion import list_inbox_packages
+
+    realm, repo = _local_realm(tmp_path)
+    _write_subtree_skill(repo, realm, "foo", files={"SKILL.md": "---\nname: foo\n---\n# Realm v1\n"})
+    pull_realm_sync(realm.id)
+    _forget_the_baseline(realm.id)
+    # A CRLF working copy of the same content still AGREES (sync hash), which is
+    # the operator's exact on-disk state after the EOL fix.
+    (_canonical("foo") / "SKILL.md").write_bytes(b"---\r\nname: foo\r\n---\r\n# Realm v1\r\n")
+
+    realm_sync_status(realm.id)  # observes the agreement and records it
+
+    assert read_skill_baseline(realm.id)[skill_baseline_key("foo")] == skill_package_sync_hash(
+        _canonical("foo")
+    )
+    _seed_canonical("foo", body="# Mine v2\n")
+
+    status = realm_sync_status(realm.id)
+
+    assert status["skills_drift"] == []
+    assert status["store_drift"]["skills"]["skills_changed"] == 1
+    assert _skill_drift_rows(realm.id, "foo") == [
+        {"family": "skill", "container": "", "item_key": "foo", "kind": "changed"}
+    ]
+    row = next(r for r in list_inbox_packages(realm.id) if r["skill"] == "foo")
+    assert row["decision"] == "kept_local"
+    # POSITIVE CONTROL for the narrowness of the rule: with NO status read between
+    # forgetting the baseline and the edit, nothing was observed to agree, so the
+    # verdict stays ``held`` — the seed never invents a direction.
+    _forget_the_baseline(realm.id)
+    _seed_canonical("foo", body="# Mine v3\n")
+    status = realm_sync_status(realm.id)
+    assert status["skills_drift"] == ["foo"]
+    assert status["store_drift"]["skills"]["skills_changed"] == 0
+    assert not paths.skill_baseline_path(realm.id).exists(), "disagreement must seed nothing"
+
+
+def test_a_pre_baseline_install_fast_forwards_a_realm_change_on_pull(tmp_path):
+    """Same install, the REALM moved and I did not → the pull seeds the baseline
+    from the pre-mirror inbox (the copy I last synced), classifies
+    ``take_remote`` and fast-forwards — instead of holding every member who
+    merely owned the skill, which was the pre-lane behaviour and which a pull
+    that seeded from the POST-mirror inbox would silently reintroduce as
+    ``unchanged``.
+
+    Killing mutation: delete the ``pre_mirror_hashes`` seed in
+    ``apply_skill_inbox_pull`` → ``held == ["foo"]``."""
+
+    realm, repo = _local_realm(tmp_path)
+    _write_subtree_skill(repo, realm, "foo", files={"SKILL.md": "---\nname: foo\n---\n# Realm v1\n"})
+    pull_realm_sync(realm.id)
+    _forget_the_baseline(realm.id)
+    _write_subtree_skill(repo, realm, "foo", files={"SKILL.md": "---\nname: foo\n---\n# Realm v2\n"})
+
+    result = pull_realm_sync(realm.id)
+
+    assert result["skill_sync"]["updated"] == ["foo"]
+    assert result["skill_sync"]["held"] == []
+    assert (_canonical("foo") / "SKILL.md").read_bytes() == b"---\nname: foo\n---\n# Realm v2\n"
+    # The pull PERSISTS the seed (advanced to the new remote hash).
+    assert read_skill_baseline(realm.id)[skill_baseline_key("foo")] == skill_package_sync_hash(
+        _canonical("foo")
+    )
+    # POSITIVE CONTROL: with BOTH sides moved since that last-synced copy the
+    # same install still holds — the seed narrows the hold, it does not remove it.
+    _forget_the_baseline(realm.id)
+    _seed_canonical("foo", body="# Mine v3\n")
+    _write_subtree_skill(repo, realm, "foo", files={"SKILL.md": "---\nname: foo\n---\n# Realm v3\n"})
+    result = pull_realm_sync(realm.id)
+    assert result["skill_sync"]["held"] == ["foo"]
+    assert result["skill_sync"]["updated"] == []

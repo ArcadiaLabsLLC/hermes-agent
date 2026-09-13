@@ -166,6 +166,71 @@ def update_skill_baseline_after_publish(realm_id: str, published: dict[str, str]
     write_skill_baseline(realm_id, {skill_baseline_key(slug): value for slug, value in published.items()})
 
 
+def seed_converged_skill_baselines(
+    baseline: dict[str, str], pairs: dict[str, tuple[str | None, str | None]]
+) -> list[str]:
+    """Record a missing baseline entry ONLY where local and inbox already agree.
+
+    The migration rule for installs that predate the sidecar (2026-09-12), and
+    deliberately the NARROW one. ``pairs`` maps slug → ``(local_hash,
+    inbox_hash)``; for every slug the ``baseline`` does not name whose two hashes
+    are equal and present, that hash is recorded in place (the caller decides
+    whether to persist). Returns the seeded slugs.
+
+    Why not "the inbox stands in for the baseline" outright: after a pull that
+    HELD a package the inbox carries a version this member never accepted, and
+    seeding from it would read an untouched-but-stale local copy as *my edit* —
+    ``kept_local``, a ``changed`` drift row, and a Publish that regresses the
+    realm's newer copy. Measured 2026-09-12 as seven reds across the hold and
+    resolve suites the moment the broad rule was tried. Convergence is the one
+    fact both sides have already agreed on, so recording it is idempotent and
+    cannot invent a direction; where they disagree and nothing is recorded, the
+    honest verdict stays ``held`` and the operator's resolve records the baseline.
+
+    The live case it exists for: the operator's own realm had an inbox and no
+    sidecar, and after the EOL fix local and inbox agreed — so the very next
+    status read records that agreement, and their first local edit after it reads
+    ``changed`` (push or revert) instead of ``held``.
+    """
+
+    seeded: list[str] = []
+    for slug, (local_hash, inbox_hash) in pairs.items():
+        key = skill_baseline_key(slug)
+        if key in baseline or not local_hash or local_hash != inbox_hash:
+            continue
+        baseline[key] = inbox_hash
+        seeded.append(slug)
+    return sorted(seeded)
+
+
+def record_converged_skill_baselines(realm_id: str, inbox_dir: Path) -> list[str]:
+    """Persist :func:`seed_converged_skill_baselines` over ``inbox_dir`` against
+    the canonical root — the STATUS read's door, and the pull's PRE-mirror door.
+
+    Writes the sidecar only when something was seeded. Hashes are the sync hash
+    on both sides, so a CRLF working copy of an LF inbox package counts as
+    agreement (the phantom the operator measured).
+    """
+
+    from hermes_constants import get_shared_skills_dir
+
+    from .skill_promotion import _iter_packages, skill_package_sync_hash
+
+    root = get_shared_skills_dir()
+    pairs: dict[str, tuple[str | None, str | None]] = {}
+    for slug, package_dir in _iter_packages(inbox_dir):
+        canonical = root.joinpath(*slug.split("/"))
+        local_hash = (
+            skill_package_sync_hash(canonical) if (canonical / "SKILL.md").is_file() else None
+        )
+        pairs[slug] = (local_hash, skill_package_sync_hash(package_dir))
+    baseline = read_skill_baseline(realm_id)
+    seeded = seed_converged_skill_baselines(baseline, pairs)
+    if seeded:
+        write_skill_baseline(realm_id, baseline)
+    return seeded
+
+
 # --- the ONE classifier -----------------------------------------------------
 
 
