@@ -30,6 +30,7 @@ This module must NOT import :mod:`agent_runtime.realm_sync` — the pull pipelin
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -41,11 +42,7 @@ from datetime import timezone
 from pathlib import Path
 from typing import Any
 
-from agent.skill_utils import (
-    EXCLUDED_SKILL_DIRS,
-    SKILL_SUPPORT_DIRS,
-    skill_package_content_hash,
-)
+from agent.skill_utils import EXCLUDED_SKILL_DIRS, SKILL_SUPPORT_DIRS
 from hermes_constants import get_shared_skills_dir
 from hermes_time import now
 from utils import atomic_json_write
@@ -227,8 +224,64 @@ def _canonical_dir_for(skill: str) -> Path:
     return get_shared_skills_dir().joinpath(*skill.split("/"))
 
 
+def skill_package_sync_hash(package_dir: Path) -> str:
+    """EOL-agnostic content hash of a skill package — the SYNC hash.
+
+    Same walk, same exclusions, same digest shape as
+    :func:`agent.skill_utils.skill_package_content_hash` (relative posix path,
+    NUL, bytes, NUL, in sorted order) with ONE difference: each file's bytes go
+    through :func:`agent_runtime.sync_text.canonicalize_text_bytes` first, so a
+    CRLF working copy and an LF published copy of the same content hash equal.
+
+    Why two hashes for one package, deliberately (design note §7): the resolver
+    cache and the installer-ownership manifest are BYTE-level on purpose —
+    ``skill_package_content_hash`` answers "are these the same bytes on disk" and
+    is untouched — while every sync decision answers "is this the same content",
+    which is the question the three-way classifier asks. The 2026-09-12 phantom
+    hold was the byte hash being asked the content question: 13 of 29 files in the
+    operator's canonical package carried CRLF, the realm's copy was LF,
+    ``diff -r --strip-trailing-cr`` between them was empty, and the lane
+    classified ``hold_divergent`` forever.
+
+    Not mtime-cached. The byte hash's cache is keyed on (base, per-file mtime+size)
+    and a second namespace over the same key space is how two caches come to
+    disagree; a package walk is cheap next to the pull it rides, and a stale sync
+    hash is a wrong merge decision rather than a slow one.
+    """
+
+    from .sync_text import canonicalize_text_bytes
+
+    package_dir = Path(package_dir)
+    files = [
+        path
+        for path in sorted(package_dir.rglob("*"))
+        if path.is_file()
+        and not any(
+            part.startswith(".") or part in EXCLUDED_SKILL_DIRS
+            for part in path.relative_to(package_dir).parts
+        )
+    ]
+    digest = hashlib.sha256()
+    for source in files:
+        relative = "/".join(source.relative_to(package_dir).parts)
+        digest.update(relative.encode("utf-8", errors="replace"))
+        digest.update(b"\x00")
+        try:
+            digest.update(canonicalize_text_bytes(source.read_bytes()))
+        except OSError:
+            digest.update(b"<unreadable>")
+        digest.update(b"\x00")
+    return digest.hexdigest()
+
+
 def _package_hash(package_dir: Path) -> str:
-    return skill_package_content_hash(package_dir, package_dir / "SKILL.md")
+    """The hash every promotion DECISION is made on — EOL-agnostic since
+    2026-09-12. ``agent.skill_utils.skill_package_content_hash`` — the BYTE hash
+    this module used to call here — is untouched and keeps its own consumers (the
+    resolver cache, the installer-ownership manifest); it is simply no longer
+    imported by this module, because a promotion decision never wants it."""
+
+    return skill_package_sync_hash(package_dir)
 
 
 def _has_skill_md(package_dir: Path) -> bool:
@@ -683,7 +736,8 @@ def list_inbox_packages(realm_token: str | None = None) -> list[dict]:
     current canonical root::
 
         {"skill", "realm", "action", "source_hash", "canonical_hash", "source_dir",
-         "promotion_block_reason", "promotion_block_detail"}
+         "promotion_block_reason", "promotion_block_detail", "decision",
+         "baseline_hash"}
 
     ``action`` is the :func:`classify_promotion` classification
     (``promote_new`` / ``noop_identical`` / ``hold_divergent`` / ``refuse_invalid``).
@@ -691,10 +745,20 @@ def list_inbox_packages(realm_token: str | None = None) -> list[dict]:
     guarded door would apply on top of it (``None`` when the promotion may
     proceed) — without it a row could advertise ``promote_new`` for a package
     the very next write would refuse.
+
+    ``decision`` and ``baseline_hash`` (additive, 2026-09-12) are the THREE-WAY
+    verdict — ``converged`` / ``adopted`` / ``updated`` / ``kept_local`` / ``held``
+    / ``refused`` — from :func:`agent_runtime.skill_sync.classify_inbox_package`,
+    which is the same function the pull loop decides through. ``action`` alone
+    cannot answer the operator's question: it has no baseline, so it reads a
+    realm-side update and a local edit as one ``hold_divergent``. Read
+    ``decision``; ``action`` is retained because it is what the guarded WRITE door
+    dispatches on.
     When ``realm_token`` is given only that realm's inbox is scanned.
     """
 
     from .skill_publishability import promotion_refusal
+    from .skill_sync import classify_inbox_package, read_skill_baseline
 
     root = realm_inbox_root()
     rows: list[dict] = []
@@ -713,12 +777,19 @@ def list_inbox_packages(realm_token: str | None = None) -> list[dict]:
 
     for realm_dir in realm_dirs:
         token = realm_dir.name
+        # ONE baseline read per realm, handed to every package's classification:
+        # the sidecar is one small file and re-reading it per package is how a
+        # loop over a 29-package inbox becomes 29 file reads of the same bytes.
+        baseline = read_skill_baseline(token)
         for slug, package_dir in iter_skill_packages(realm_dir):
             plan = classify_promotion(slug, package_dir)
             refusal = (
                 promotion_refusal(slug, package_dir)
                 if plan.action in ("promote_new", "hold_divergent")
                 else None
+            )
+            verdict = classify_inbox_package(
+                token, slug, package_dir, plan=plan, baseline=baseline
             )
             rows.append(
                 {
@@ -730,6 +801,8 @@ def list_inbox_packages(realm_token: str | None = None) -> list[dict]:
                     "source_dir": package_dir,
                     "promotion_block_reason": refusal.code if refusal else None,
                     "promotion_block_detail": refusal.message if refusal else None,
+                    "decision": verdict.bucket,
+                    "baseline_hash": verdict.baseline_hash,
                 }
             )
     return rows

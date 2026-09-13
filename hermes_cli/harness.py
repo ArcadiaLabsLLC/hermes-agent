@@ -657,17 +657,17 @@ def build_parser(parent_subparsers) -> None:
     realm_sync_publish.set_defaults(func=_cmd_realm_sync_publish)
     realm_sync_held = realm_sync_subs.add_parser(
         "held",
-        help="List profile files (MEMORY.md / core context / persona prompts) a pull HELD because the member's copy diverged from the realm's",
+        help="List what a pull HELD because BOTH sides changed: profile files (MEMORY.md / core context / persona prompts) and skill packages",
     )
     realm_sync_held.add_argument("realm_id")
     _add_stage42_global_args(realm_sync_held)
     realm_sync_held.set_defaults(func=_cmd_realm_sync_held)
     realm_sync_resolve = realm_sync_subs.add_parser(
         "resolve",
-        help="Resolve one held profile file: --take local keeps the member's content, --take remote adopts the realm's",
+        help="Resolve one held profile file or skill package: --take local keeps the member's content (and leaves it to publish), --take remote adopts the realm's",
     )
     realm_sync_resolve.add_argument("realm_id")
-    realm_sync_resolve.add_argument("--key", required=True, help="Entity key from `realm sync held` (e.g. alice:memories/MEMORY.md)")
+    realm_sync_resolve.add_argument("--key", required=True, help="Entity key from `realm sync held` — a profile file (alice:memories/MEMORY.md) or a skill package (skill::launcher-mcp-operations)")
     realm_sync_resolve.add_argument("--take", required=True, choices=["local", "remote"])
     _add_stage42_global_args(
         realm_sync_resolve, controls=frozenset({"dry_run", "yes"})
@@ -683,7 +683,7 @@ def build_parser(parent_subparsers) -> None:
         dest="items",
         action="append",
         default=None,
-        help="FAMILY:CONTAINER:KEY from `realm sync status` store_drift.items (e.g. office_actor:ws_x:dev_agent_1234); the container is empty when the row's holder is gone, and is passed back empty (persona_instance::personainst_1234); repeatable",
+        help="FAMILY:CONTAINER:KEY from `realm sync status` store_drift.items (e.g. office_actor:ws_x:dev_agent_1234); the container is empty when the row's holder is gone, and is passed back empty (persona_instance::personainst_1234) — the whole skill family is spelled that way (skill::launcher-mcp-operations), since a skill package has no realm-scoped container; repeatable",
     )
     realm_sync_revert.add_argument(
         "--all",
@@ -3574,26 +3574,75 @@ def _realm_sync_subtree(realm_id: str):
 
 
 def _cmd_realm_sync_held(args) -> int:
+    """Everything this realm is holding because BOTH sides changed.
+
+    TWO kinds in one list since 2026-09-12, distinguished by the row's own
+    ``kind``: ``profile_artifact_hold`` (a profile FILE) and ``skill_hold`` (a
+    skill PACKAGE). They belong in one verb because they are one question — "what
+    is waiting on me to choose a direction" — and both are resolved by the same
+    ``realm sync resolve --key … --take local|remote``. The list envelope's
+    ``item_kind`` stays ``profile_artifact_hold`` so an existing reader keys off
+    the same string it always did; read the per-row ``kind``.
+    """
+
     from agent_runtime.profile_artifact_sync import apply_profile_artifact_pull
+    from agent_runtime.realm_sync import _held_skill_packages_for_realm
+    from agent_runtime.skill_sync import skill_baseline_key
 
     summary = apply_profile_artifact_pull(args.realm_id, _realm_sync_subtree(args.realm_id), dry_run=True)
     rows = [
         {"id": key, "kind": "profile_artifact_hold", "realm_id": args.realm_id, "take_hint": "--take local|remote"}
         for key in sorted(set(summary.held))
     ]
+    realm = RealmStore().get(args.realm_id)
+    rows.extend(
+        {
+            "id": skill_baseline_key(slug),
+            "kind": "skill_hold",
+            "realm_id": args.realm_id,
+            "skill": slug,
+            "take_hint": "--take local|remote",
+        }
+        for slug in _held_skill_packages_for_realm(realm)
+    )
     _print_stage42(_list_envelope("profile_artifact_hold", rows), args=args, default_output="json")
     return 0
 
 
 def _cmd_realm_sync_resolve(args) -> int:
+    """Resolve ONE hold — a profile file, or (since 2026-09-12) a skill package.
+
+    Dispatched on the KEY, not on a new flag or a new verb: a skill key is
+    ``skill::<slug>`` and a profile-file key is ``<profile>:<path>``, so the
+    doubled colon is unambiguous and an operator (or the launcher) uses the id the
+    ``held`` row and the drift row already carry. Both arms are ``--yes``-gated,
+    both honour ``--dry-run`` by writing nothing at all, and both record the
+    realm's hash as the new baseline on EITHER take — see
+    ``skill_sync.resolve_held_skill`` for why ``--take local`` writing nothing is
+    the whole point.
+    """
+
     from agent_runtime.profile_artifact_sync import (
         ProfileArtifactResolveError,
         resolve_profile_artifact,
     )
+    from agent_runtime.skill_sync import SKILL_KEY_PREFIX, SkillResolveError, resolve_held_skill
 
     if not _require_yes(args):
         return 8
     dry_run = bool(getattr(args, "dry_run", False))
+    if str(args.key or "").startswith(SKILL_KEY_PREFIX):
+        try:
+            skill_row = resolve_held_skill(
+                args.realm_id, args.key, take=args.take, dry_run=dry_run
+            )
+        except SkillResolveError as exc:
+            return emit_harness_error(exc, args=args, code=exc.code)
+        skill_envelope = _object_envelope("skill_hold", skill_row)
+        if dry_run:
+            skill_envelope["dry_run"] = True
+        _print_stage42(skill_envelope, args=args, default_output="json")
+        return 0
     try:
         row = resolve_profile_artifact(
             args.realm_id,

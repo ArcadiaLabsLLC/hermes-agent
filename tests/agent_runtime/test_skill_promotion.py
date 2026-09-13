@@ -26,6 +26,7 @@ from agent_runtime.skill_promotion import (
     list_inbox_packages,
     realm_inbox_dir,
     realm_inbox_root,
+    skill_package_sync_hash,
 )
 from hermes_constants import get_shared_skills_dir
 
@@ -66,7 +67,19 @@ def _write_package(
 
 
 def _pkg_hash(pkg: Path) -> str:
+    """The BYTE hash — what the resolver cache and the installer-ownership
+    manifest use, and what the promotion door STOPPED deciding on in 2026-09-12's
+    three-way lane (``skill_package_content_hash`` itself is untouched)."""
+
     return skill_package_content_hash(pkg, pkg / "SKILL.md")
+
+
+def _sync_hash(pkg: Path) -> str:
+    """The hash a ``PromotionPlan`` and a provenance record carry: EOL-agnostic,
+    because a merge decision asks "is this the same content", never "are these the
+    same bytes" (held-skill-publish-direction §4.1)."""
+
+    return skill_package_sync_hash(pkg)
 
 
 def _snapshot(root: Path) -> dict[str, bytes]:
@@ -104,7 +117,7 @@ def test_classify_promote_new(tmp_path):
     src = _write_package(tmp_path / "src", "demo", body="# Demo\n")
     plan = classify_promotion("demo", src)
     assert plan.action == "promote_new"
-    assert plan.source_hash == _pkg_hash(src)
+    assert plan.source_hash == _sync_hash(src)
     assert plan.canonical_hash is None
     assert plan.canonical_dir == get_shared_skills_dir() / "demo"
 
@@ -126,7 +139,7 @@ def test_classify_hold_divergent(tmp_path):
     assert plan.action == "hold_divergent"
     assert plan.source_hash and plan.canonical_hash
     assert plan.source_hash != plan.canonical_hash
-    assert plan.canonical_hash == _pkg_hash(canonical)
+    assert plan.canonical_hash == _sync_hash(canonical)
     # Reason is hash-bearing so drift is legible without re-reading disk.
     assert plan.source_hash[:12] in plan.reason
     assert plan.canonical_hash[:12] in plan.reason
@@ -285,7 +298,7 @@ def test_execute_promote_new_writes_canonical_and_provenance(tmp_path):
     assert (canonical / "SKILL.md").is_file()
     # Multi-file package copied faithfully.
     assert (canonical / "scripts" / "run.py").read_text(encoding="utf-8") == "print(1)\n"
-    assert _pkg_hash(canonical) == plan.source_hash
+    assert _sync_hash(canonical) == plan.source_hash
 
     prov = _provenance(shared, "demo")
     assert prov is not None
@@ -306,7 +319,7 @@ def test_execute_adopt_divergent_archives_previous_and_records_previous_hash(tmp
         classify_promotion("demo", v1), source={"kind": "path", "path": str(v1)}
     )
     assert first.action == "promoted"
-    v1_hash = _pkg_hash(v1)
+    v1_hash = _sync_hash(v1)
 
     _content_hash_cache_clear()
     v2 = _write_package(tmp_path / "src2", "demo", body="# V2 diverged content\n")
@@ -612,3 +625,105 @@ def test_plan_and_result_are_frozen_dataclasses(tmp_path):
     assert isinstance(plan, PromotionPlan)
     with pytest.raises(Exception):
         plan.action = "mutated"  # type: ignore[misc]
+
+
+# ══ the sync hash is EOL-agnostic (2026-09-12) ══════════════════════════════
+#
+# ``EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md``
+# §4.1. Two hashes for one package, deliberately: the BYTE hash
+# (``skill_package_content_hash``) still answers "are these the same bytes on
+# disk" for the resolver cache and the installer-ownership manifest, and the SYNC
+# hash answers "is this the same content", which is the only question a merge
+# decision ever asks.
+
+
+def _write_package_bytes(base: Path, slug: str, data: bytes) -> Path:
+    pkg = base.joinpath(*slug.split("/"))
+    pkg.mkdir(parents=True, exist_ok=True)
+    (pkg / "SKILL.md").write_bytes(data)
+    return pkg
+
+
+def test_sync_hash_is_eol_agnostic_where_the_byte_hash_is_not(tmp_path):
+    """The measurement the phantom hold was: same content, different line
+    endings, two verdicts.
+
+    Both directions are asserted, and the byte hash's DISAGREEMENT is asserted
+    too — without that half this case would still pass if someone made
+    ``skill_package_content_hash`` canonicalize as well, which is the change §4.1
+    forbids (the resolver cache is byte-level on purpose).
+    """
+
+    crlf = _write_package_bytes(tmp_path / "crlf", "foo", b"---\r\nname: foo\r\n---\r\n# Foo\r\n")
+    lf = _write_package_bytes(tmp_path / "lf", "foo", b"---\nname: foo\n---\n# Foo\n")
+
+    assert skill_package_sync_hash(crlf) == skill_package_sync_hash(lf)
+    assert _pkg_hash(crlf) != _pkg_hash(lf)
+
+
+def test_sync_hash_still_separates_real_content_differences(tmp_path):
+    """POSITIVE CONTROL for the case above: the same bytes, ONE variable changed
+    (the body text rather than the line endings), and the hashes MUST differ. A
+    hash that collapsed everything would pass the EOL case for the wrong reason."""
+
+    a = _write_package_bytes(tmp_path / "a", "foo", b"---\nname: foo\n---\n# Foo\n")
+    b = _write_package_bytes(tmp_path / "b", "foo", b"---\nname: foo\n---\n# Bar\n")
+
+    assert skill_package_sync_hash(a) != skill_package_sync_hash(b)
+
+
+def test_sync_hash_passes_binary_assets_through_untouched(tmp_path):
+    """A NUL byte marks a file binary (git's own heuristic), so a ``\r\n`` inside a
+    PNG is DATA and must not be rewritten into a different image's hash."""
+
+    one = _write_package_bytes(tmp_path / "one", "foo", b"---\nname: foo\n---\n# Foo\n")
+    (one / "logo.png").write_bytes(b"\x89PNG\x00\r\ndata")
+    two = _write_package_bytes(tmp_path / "two", "foo", b"---\nname: foo\n---\n# Foo\n")
+    (two / "logo.png").write_bytes(b"\x89PNG\x00\ndata")
+
+    assert skill_package_sync_hash(one) != skill_package_sync_hash(two)
+
+
+def test_classify_promotion_converges_a_crlf_canonical_against_an_lf_source(tmp_path):
+    """The decision layer, not just the hash: a CRLF canonical and an LF source of
+    the same content is ``noop_identical``, where it used to be
+    ``hold_divergent`` forever.
+
+    Killing mutation: restore ``_package_hash`` to
+    ``skill_package_content_hash(package_dir, package_dir / "SKILL.md")``.
+    """
+
+    _write_package_bytes(_shared(), "foo", b"---\r\nname: foo\r\n---\r\n# Foo\r\n")
+    source = _write_package_bytes(tmp_path / "src", "foo", b"---\nname: foo\n---\n# Foo\n")
+
+    plan = classify_promotion("foo", source)
+
+    assert plan.action == "noop_identical"
+    assert plan.source_hash == plan.canonical_hash
+
+
+def test_list_inbox_packages_carries_the_three_way_decision(tmp_path):
+    """The additive ``decision`` / ``baseline_hash`` columns — the ONE classifier's
+    verdict, which is what ``_held_skill_packages_for_realm`` filters on so the
+    sheet's held card and the pull result cannot disagree."""
+
+    from agent_runtime.skill_sync import skill_baseline_key, write_skill_baseline
+
+    _write_package(_shared(), "foo", body="# Mine v2\n")
+    inbox_pkg = _write_package(realm_inbox_dir("realm_x"), "foo", body="# Realm v1\n")
+
+    # No baseline yet: two copies that differ is ``new_both`` → held.
+    (row,) = [r for r in list_inbox_packages("realm_x") if r["skill"] == "foo"]
+    assert row["action"] == "hold_divergent"
+    assert row["decision"] == "held"
+    assert row["baseline_hash"] is None
+
+    # Record "I last saw the realm's copy" — now the same two copies read as MY
+    # unpublished edit, and the held card must stop naming it.
+    write_skill_baseline(
+        "realm_x", {skill_baseline_key("foo"): skill_package_sync_hash(inbox_pkg)}
+    )
+    (row,) = [r for r in list_inbox_packages("realm_x") if r["skill"] == "foo"]
+    assert row["action"] == "hold_divergent", "the WRITE door's verdict is unchanged"
+    assert row["decision"] == "kept_local"
+    assert row["baseline_hash"] == skill_package_sync_hash(inbox_pkg)

@@ -45,6 +45,7 @@ from agent_runtime.realm_sync import (
     DRIFT_FAMILY_OFFICE_ACTOR,
     DRIFT_FAMILY_OFFICE_SURFACE,
     DRIFT_FAMILY_PERSONA_INSTANCE,
+    DRIFT_FAMILY_SKILL,
     DRIFT_KIND_ADDED,
     DRIFT_KIND_CHANGED,
     DRIFT_KIND_REMOVED,
@@ -853,3 +854,189 @@ def test_a_canvas_dry_run_writes_nothing(tmp_path):
     assert [row["outcome"] for row in result["items"]] == [OUTCOME_REVERTED]
     assert _canvas_x() == 99
     assert [item.kind for item in _canvas_rows(realm_id)] == [DRIFT_KIND_CHANGED]
+
+
+# ══ the SKILL family (2026-09-12) ═══════════════════════════════════════════
+#
+# ``EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md``
+# §4.5. This family's upstream is NOT under the subtree: it is the per-realm INBOX
+# mirror, which is the subtree's ``skills/`` tree copied LF-canonical and
+# package-filtered by the pull. A revert adopts THAT copy so a revert and a pull
+# install byte-identical content.
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_shared_skills(monkeypatch):
+    """A stray ``HERMES_SHARED_SKILLS`` would point these cases at the real
+    machine's skills root — and the ``added`` arm ARCHIVES a package."""
+
+    monkeypatch.delenv("HERMES_SHARED_SKILLS", raising=False)
+
+
+def _skill_env(tmp_path):
+    """A realm with a pulled subtree on disk (the revert refuses without one) and
+    the shared skills root isolated under this test's HERMES_HOME."""
+
+    from hermes_constants import get_shared_skills_dir
+
+    realm_id, _ws = _make_realm_workspace(tmp_path)
+    _subtree(realm_id, tmp_path)
+    root = get_shared_skills_dir()
+    root.mkdir(parents=True, exist_ok=True)
+    return realm_id, root
+
+
+def _write_pkg(base, slug: str, body: bytes):
+    pkg = base.joinpath(*slug.split("/"))
+    pkg.mkdir(parents=True, exist_ok=True)
+    (pkg / "SKILL.md").write_bytes(body)
+    return pkg
+
+
+def _realm_copy(realm_id: str, slug: str, body: bytes):
+    """The realm's copy of a package, where the pull's mirror leaves it."""
+
+    from agent_runtime.skill_promotion import realm_inbox_dir
+
+    return _write_pkg(realm_inbox_dir(realm_id), slug, body)
+
+
+def _skill_rows(realm_id: str):
+    return [item for item in _drift(realm_id) if item.family == DRIFT_FAMILY_SKILL]
+
+
+_REALM_BYTES = b"---\nname: foo\n---\n# Realm v1\n"
+_MINE_BYTES = b"---\nname: foo\n---\n# Mine v2\n"
+
+
+def _archived_skill_copies(slug: str = "foo"):
+    from hermes_constants import get_shared_skills_dir
+
+    return sorted((get_shared_skills_dir() / ".archive").glob(f"*/{slug}/SKILL.md"))
+
+
+def test_a_changed_skill_reverts_to_the_realms_copy_and_archives_mine(tmp_path):
+    """``changed`` → adopt the realm's package over mine, mine ARCHIVED, and the
+    baseline realigned to what the store now holds so drift reads zero without
+    lying."""
+
+    from agent_runtime.skill_promotion import skill_package_sync_hash
+    from agent_runtime.skill_sync import (
+        read_skill_baseline,
+        skill_baseline_key,
+        write_skill_baseline,
+    )
+
+    realm_id, root = _skill_env(tmp_path)
+    inbox_pkg = _realm_copy(realm_id, "foo", _REALM_BYTES)
+    write_skill_baseline(
+        realm_id, {skill_baseline_key("foo"): skill_package_sync_hash(inbox_pkg)}
+    )
+    canonical = _write_pkg(root, "foo", _MINE_BYTES)
+
+    assert [(item.item_key, item.kind, item.container) for item in _skill_rows(realm_id)] == [
+        ("foo", DRIFT_KIND_CHANGED, "")
+    ]
+    (item,) = _skill_rows(realm_id)
+    assert item.spec == "skill::foo"
+
+    result = revert_realm_sync(realm_id, item_specs=["skill::foo"])
+
+    assert result["reverted"] == 1
+    assert [row["outcome"] for row in result["items"]] == [OUTCOME_REVERTED]
+    assert (canonical / "SKILL.md").read_bytes() == _REALM_BYTES
+    # Archive-never-delete: my copy is still reachable.
+    assert any(path.read_bytes() == _MINE_BYTES for path in _archived_skill_copies())
+    assert read_skill_baseline(realm_id)[skill_baseline_key("foo")] == skill_package_sync_hash(
+        canonical
+    )
+    assert _skill_rows(realm_id) == []
+
+
+def test_an_added_skill_reverts_by_archiving_it_and_mints_no_tombstone(tmp_path):
+    """``added`` → the local-only package is ARCHIVED. A revert is diagnostic
+    intent ("my local copy is noise"), never an authored realm-wide delete, so no
+    ``skill_tombstones`` entry is written — the same guarantee the office and board
+    ``added`` arms carry through ``record_tombstone=False``."""
+
+    realm_id, root = _skill_env(tmp_path)
+    canonical = _write_pkg(root, "foo", _MINE_BYTES)
+
+    assert [(item.item_key, item.kind) for item in _skill_rows(realm_id)] == [
+        ("foo", DRIFT_KIND_ADDED)
+    ]
+
+    result = revert_realm_sync(realm_id, item_specs=["skill::foo"])
+
+    assert [row["outcome"] for row in result["items"]] == [OUTCOME_ARCHIVED_LOCAL_ONLY]
+    assert not canonical.exists()
+    assert any(path.read_bytes() == _MINE_BYTES for path in _archived_skill_copies())
+    assert RealmStore().get(realm_id).skill_tombstones == []
+    assert _skill_rows(realm_id) == []
+
+
+def test_a_removed_skill_reverts_by_reinstalling_the_realms_copy(tmp_path):
+    """``removed`` → baselined here, no local package: reinstall from the realm's
+    copy in the inbox."""
+
+    from agent_runtime.skill_promotion import skill_package_sync_hash
+    from agent_runtime.skill_sync import skill_baseline_key, write_skill_baseline
+    from hermes_constants import get_shared_skills_dir
+
+    realm_id, _root = _skill_env(tmp_path)
+    inbox_pkg = _realm_copy(realm_id, "foo", _REALM_BYTES)
+    write_skill_baseline(
+        realm_id, {skill_baseline_key("foo"): skill_package_sync_hash(inbox_pkg)}
+    )
+
+    assert [(item.item_key, item.kind) for item in _skill_rows(realm_id)] == [
+        ("foo", DRIFT_KIND_REMOVED)
+    ]
+
+    result = revert_realm_sync(realm_id, item_specs=["skill::foo"])
+
+    assert [row["outcome"] for row in result["items"]] == [OUTCOME_RESTORED]
+    assert (get_shared_skills_dir() / "foo" / "SKILL.md").read_bytes() == _REALM_BYTES
+    assert _skill_rows(realm_id) == []
+
+
+def test_a_removed_skill_the_realm_no_longer_carries_drops_the_stale_baseline(tmp_path):
+    """``removed`` with nothing upstream → the stale entry is DROPPED and
+    accounted, never silent, and no package is invented."""
+
+    from agent_runtime.skill_sync import read_skill_baseline, skill_baseline_key, write_skill_baseline
+
+    realm_id, _root = _skill_env(tmp_path)
+    write_skill_baseline(realm_id, {skill_baseline_key("foo"): "deadbeef"})
+
+    result = revert_realm_sync(realm_id, item_specs=["skill::foo"])
+
+    assert [row["outcome"] for row in result["items"]] == [OUTCOME_BASELINE_DROPPED]
+    assert read_skill_baseline(realm_id) == {}
+    assert _skill_rows(realm_id) == []
+
+
+def test_a_skill_dry_run_writes_nothing(tmp_path):
+    from agent_runtime.skill_promotion import skill_package_sync_hash
+    from agent_runtime.skill_sync import (
+        read_skill_baseline,
+        skill_baseline_key,
+        write_skill_baseline,
+    )
+
+    realm_id, root = _skill_env(tmp_path)
+    inbox_pkg = _realm_copy(realm_id, "foo", _REALM_BYTES)
+    write_skill_baseline(
+        realm_id, {skill_baseline_key("foo"): skill_package_sync_hash(inbox_pkg)}
+    )
+    canonical = _write_pkg(root, "foo", _MINE_BYTES)
+    baseline_before = read_skill_baseline(realm_id)
+
+    result = revert_realm_sync(realm_id, item_specs=["skill::foo"], dry_run=True)
+
+    assert result["dry_run"] is True
+    assert [row["outcome"] for row in result["items"]] == [OUTCOME_REVERTED]
+    assert (canonical / "SKILL.md").read_bytes() == _MINE_BYTES
+    assert read_skill_baseline(realm_id) == baseline_before
+    assert not _archived_skill_copies()
+    assert [item.kind for item in _skill_rows(realm_id)] == [DRIFT_KIND_CHANGED]

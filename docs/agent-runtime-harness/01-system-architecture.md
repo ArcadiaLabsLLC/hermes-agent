@@ -367,6 +367,81 @@ realigns those exact rows to the last-pulled upstream already on disk:
 archive-never-delete so it is recoverable, and **local-only** — no git, no
 network, no `--credential-file`, and it never mints a realm-visible tombstone.
 
+### The skill family joins the three-way model (2026-09-12)
+
+**`skills_drift` now means CONFLICTS ONLY.** The skill family was the last synced
+family deciding two-way — canonical package vs the per-realm inbox mirror, through
+`skill_promotion.classify_promotion` — with no never-synced baseline. Four
+consequences, all structural, and the launcher's SKILLS HELD card could only offer
+"adopt theirs" because of the first: with no baseline, "I edited it" and "they
+edited it" are the same `hold_divergent`. A realm-side update was a hold for every
+member who merely OWNED the skill; a publish of a real local edit left the hold
+standing (nothing recorded a baseline, and nothing refreshed the inbox the drift
+was computed from); and a local skill edit lit nothing at all, because
+`store_drift` had no skill family, so the sheet read "In sync" over a canonical
+package that differed from the realm's. Diagnosis, operator rulings and the
+contract packet:
+`EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md`.
+
+What is true now:
+
+- **Baseline sidecar.** `paths.skill_baseline_path(realm_id)` →
+  `<realm sync root>/<token>/skill_baseline.json`, keyed `skill::<slug>` → sync
+  hash; read/write/update helpers in `agent_runtime/skill_sync.py` beside the
+  other families'. Written by pull (`converged` / `adopted` / `updated`), publish
+  (every published package; entries for packages no longer published are DROPPED),
+  resolve (both takes) and revert.
+- **The sync hash is EOL-agnostic.** `skill_promotion.skill_package_sync_hash`
+  hashes each file's `sync_text.canonicalize_text_bytes` output with the same walk
+  and exclusions as `agent.skill_utils.skill_package_content_hash` — which is
+  itself untouched, because the resolver cache and the installer-ownership
+  manifest want the BYTE hash on purpose. `realm_sync._canonicalize_text_bytes` is
+  now an alias of the lifted `sync_text.canonicalize_text_bytes`. The phantom hold
+  the operator measured was the byte hash being asked the content question: 13 of
+  29 files in their canonical package carried CRLF, the realm's copy was LF, and
+  `diff -r --strip-trailing-cr` between them was empty.
+- **Five buckets, one classifier.** `apply_skill_inbox_pull` classifies each inbox
+  package through the SHARED `sync_merge.classify_three_way_pull`:
+  `converged` · `adopted` (no canonical copy) · **`updated`** (realm moved, mine
+  did not → the realm's copy is installed, my previous canonical archived) ·
+  **`kept_local`** (mine moved, the realm's did not → nothing written) · `held`
+  (both moved). `skills_drift` is the `held` set. `_held_skill_packages_for_realm`
+  and the pull loop go through ONE function
+  (`skill_sync.classify_inbox_package`, surfaced on `list_inbox_packages`' new
+  `decision` / `baseline_hash` columns), so the sheet's held card and the pull
+  result cannot disagree — they could, and did.
+- **Publish records the baseline AND re-mirrors the inbox**, in that order, after
+  the push succeeds and before the sidecar write: the subtree IS the realm once
+  the push lands, so the inbox is refreshed from it. Recording the baseline alone
+  would not clear the hold, because the drift is computed from the mirror.
+- **A local skill edit is unpublished drift.** `DRIFT_FAMILY_SKILL = "skill"` with
+  an EMPTY container (a package is held by the machine's one shared skills root,
+  not by a realm-scoped container), `item_key` = slug, counts
+  `store_drift.skills = {skills_changed, skills_added, skills_removed}` summed by
+  `_any_store_drift`, so `unpublished_changes` lights. The walk is scoped by
+  `realm_sync.publishable_skill_packages` — the publish's own iteration, now ONE
+  function for the publish, the post-publish baseline and the drift walk.
+  **Both-moved produces NO drift row**: that is the held card's, and a Publish
+  offered there would overwrite the realm's copy, which is the one thing a hold
+  exists to prevent.
+- **Two operator exits, no CLI line in the product.**
+  `hermes harness realm sync revert <realm> --item skill::<slug>` (`changed` →
+  adopt the inbox copy, mine archived; `added` → archive mine; `removed` →
+  reinstall from the inbox, else drop the stale entry), and
+  `hermes harness realm sync resolve <realm> --key skill::<slug> --take
+  local|remote --yes --json`, dispatched on the `skill::` prefix (unambiguous
+  against the profile-file family's `<profile>:<path>` keys). Both takes record
+  baseline := the realm's hash — "I have seen the realm's version", the
+  profile-file lane's exact semantics: `remote` installs the inbox copy over
+  canonical through the ONE guarded door (previous canonical archived, never
+  deleted), `local` writes NOTHING to the package, so the next status classifies it
+  `changed` and the next publish ships it. `realm sync held` lists skill holds as
+  `kind: "skill_hold"` beside the profile-file rows. Every write still goes through
+  `skill_promotion.execute_promotion`: archive-never-delete, atomic install,
+  provenance outside package dirs, `promotion_refusal` consulted first — no second
+  write path, and no per-skill publish verb (the launcher runs `resolve --take
+  local` and then the ONE credentialed publish).
+
 ### The instance-replication lane
 
 **A pull that delivers a desk now delivers the AGENT behind it**

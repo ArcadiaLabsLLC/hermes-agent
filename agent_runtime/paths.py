@@ -369,6 +369,17 @@ def profile_artifact_baseline_path(realm_id: str) -> Path:
     return realm_sync_root() / safe_path_token(realm_id) / "profile_artifact_baseline.json"
 
 
+def skill_baseline_path(realm_id: str) -> Path:
+    # realm-sync baseline sidecar for the SKILL PACKAGE family; NEVER synced,
+    # NEVER published. Added 2026-09-12, when the skill family joined the
+    # three-way pull model. Until then it was the only synced family with no
+    # baseline, so "I edited it" and "they edited it" were the same verdict
+    # (``hold_divergent``) and the sheet could only offer "adopt theirs" — see
+    # ``EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md``
+    # section 4.2.
+    return realm_sync_root() / safe_path_token(realm_id) / "skill_baseline.json"
+
+
 def agents_dir() -> Path:
     return store_root() / "agents"
 

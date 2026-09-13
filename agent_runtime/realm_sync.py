@@ -44,6 +44,7 @@ from .store import (
     skill_tombstoned,
     workspace_lift_is_active,
 )
+from .sync_text import canonicalize_text_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -266,6 +267,11 @@ def realm_sync_status(
         # drawing now lights "unpublished changes" instead of being visible only
         # as a count on the ``flow_graphs`` row below.
         "flow_graphs": _drift_counts(drift_items, _FLOW_GRAPH_DRIFT_COUNTS),
+        # Additive fifth family (held-skill-publish-direction §4.5). It arrives
+        # WITH its revert arm and its resolve verb, for the canvas family's
+        # reason: a drift row the operator cannot address is an exit that does
+        # not exist.
+        "skills": _drift_counts(drift_items, _SKILL_DRIFT_COUNTS),
         "items": [item.as_dict() for item in drift_items],
     }
     profile_artifacts_held = _held_profile_artifacts(realm, repo)
@@ -583,6 +589,18 @@ def publish_realm_sync(
             update_level_baseline_after_publish(realm.id, dict(resolved.level_hashes))
     except Exception:  # noqa: BLE001 — baseline is best-effort; never fail publish
         pass
+    # The SKILL family: the same baseline discipline as every family above, plus
+    # one step none of them needs. The skill lane decides against a MIRROR of the
+    # realm (the per-realm inbox), not against the subtree directly, so recording
+    # the baseline alone is not enough — the inbox still holds the PRE-publish
+    # realm copy, and ``skills_drift`` computed from it reports my own just-shipped
+    # edit as a conflict. That is precisely what the operator measured on
+    # 2026-09-12: "Published realm 'test realm' · just now" with the SKILLS HELD
+    # card still naming the package they had just published. After a successful
+    # push the subtree IS the realm, so the inbox is re-mirrored from it — and only
+    # then is ``skills_drift`` recomputed, by the sidecar write at the end of this
+    # function.
+    _record_skill_publish_baseline(realm, subtree=subtree)
     warnings = _notify_publish(realm, repo=repo, artifacts=artifacts, credential=credential) if changed else []
     git_after = _git_state(repo)
     result = _sync_result(realm, "publish", "published", artifacts, repo=repo, git=git_after, changed=changed)
@@ -696,7 +714,12 @@ def pull_realm_sync(
     # below — sidecar, result, event — wants the pulled record too.
     realm = RealmStore().get(realm.id)
     skill_summary = apply_skill_inbox_pull(realm, subtree)
-    if skill_summary.adopted or skill_summary.removed or skill_summary.tombstoned:
+    if (
+        skill_summary.adopted
+        or skill_summary.updated
+        or skill_summary.removed
+        or skill_summary.tombstoned
+    ):
         changed = True
     # Skill deletions: archive the local canonical copy of anything the pulled
     # ledger blocks. AFTER the inbox applier (the archive must not race the
@@ -1354,17 +1377,40 @@ def _skill_artifacts(realm: Realm) -> list[RealmSyncArtifact]:
     # code, and the git host can only gate WHO writes, never WHAT is written.
     root = get_shared_skills_dir()
     artifacts: list[RealmSyncArtifact] = []
-    if not root.exists():
-        return artifacts
-    selected_only = realm.skill_publish_mode == "selected"
-    selection = set(realm.skill_selection or [])
-    for slug, package_dir in _iter_publishable_skill_packages(root):
-        if selected_only and not _skill_slug_selected(slug, selection):
-            continue
-        if skill_tombstoned(realm, slug) is not None:
-            continue
+    for slug, package_dir in publishable_skill_packages(realm):
         _append_skill_package_artifacts(artifacts, root, slug, package_dir)
     return artifacts
+
+
+def publishable_skill_packages(realm: Realm) -> list[tuple[str, Path]]:
+    """``(slug, canonical package dir)`` for every package THIS realm publishes.
+
+    The canonical-root walk plus the two filters — publish mode / selection, and
+    the realm's skill-delete ledger — as ONE function, because three lanes need
+    the identical answer and three copies of a filter chain are free to disagree:
+
+    * ``_skill_artifacts`` (the publish itself),
+    * ``_record_skill_publish_baseline`` (what the baseline records after a push),
+    * ``_skill_store_drift_items`` (what counts as unpublished local drift).
+
+    It was inline in the publish walk until 2026-09-12, when the other two
+    arrived. A drift row for a package the publish would not ship offers the
+    operator a Publish that changes nothing, and a baseline entry for one offers a
+    Revert that reinstalls it — so "the same iteration as the publish" is a
+    correctness requirement here, not a style preference.
+    """
+
+    root = get_shared_skills_dir()
+    if not root.is_dir():
+        return []
+    selected_only = realm.skill_publish_mode == "selected"
+    selection = set(realm.skill_selection or [])
+    return [
+        (slug, package_dir)
+        for slug, package_dir in _iter_publishable_skill_packages(root)
+        if not (selected_only and not _skill_slug_selected(slug, selection))
+        and skill_tombstoned(realm, slug) is None
+    ]
 
 
 def _iter_publishable_skill_packages(root: Path):
@@ -1575,6 +1621,17 @@ DRIFT_FAMILY_PERSONA_INSTANCE = "persona_instance"
 #: drift row with no revert arm offers the operator an exit that does not exist.
 #: The arm exists now, so the rows do.
 DRIFT_FAMILY_FLOW_GRAPH = "flow_graph"
+#: The SKILL PACKAGE family (2026-09-12, held-skill-publish-direction §4.5). The
+#: LAST synced family to get drift rows, and the reason is the reason it had no
+#: baseline: with no never-synced baseline there was nothing to compare a local
+#: package against, so an operator who edited a skill got "In sync" from the sheet
+#: while their canonical copy differed from what the realm carries — and no revert
+#: row, because a row the revert lane cannot address is an exit that does not
+#: exist. The container is EMPTY: a skill package is held by the shared skills
+#: root, which is one per machine and not a realm-scoped container, so the row's
+#: own spec is ``skill::<slug>`` (``parse_item_spec`` accepts a blank container —
+#: see its docstring).
+DRIFT_FAMILY_SKILL = "skill"
 
 DRIFT_KIND_ADDED = "added"
 DRIFT_KIND_CHANGED = "changed"
@@ -1646,6 +1703,13 @@ class StoreDriftItem:
             # workspace-qualified key would be a second spelling of an identity
             # that has only one.
             return instance_baseline_key(self.item_key)
+        if self.family == DRIFT_FAMILY_SKILL:
+            from .skill_sync import skill_baseline_key
+
+            # The slug alone, for the flow-graph family's reason one step
+            # further: a skill slug is unique in the ONE shared skills root, so
+            # there is no container to qualify it with.
+            return skill_baseline_key(self.item_key)
         if self.family == DRIFT_FAMILY_FLOW_GRAPH:
             from .flow_graph_sync import flow_graph_baseline_key
 
@@ -1693,6 +1757,16 @@ _FLOW_GRAPH_DRIFT_COUNTS = (
     ("canvases_added", DRIFT_FAMILY_FLOW_GRAPH, DRIFT_KIND_ADDED),
     ("canvases_removed", DRIFT_FAMILY_FLOW_GRAPH, DRIFT_KIND_REMOVED),
 )
+#: The skill family's counts, shaped like every family above it. ``_any_store_drift``
+#: sums every count dict it finds under ``store_drift``, so adding this group is
+#: what makes a locally-edited skill light ``unpublished_changes`` — the operator's
+#: "I have changes I can push" — instead of the sheet reading "In sync" over a
+#: canonical package that differs from the realm's.
+_SKILL_DRIFT_COUNTS = (
+    ("skills_changed", DRIFT_FAMILY_SKILL, DRIFT_KIND_CHANGED),
+    ("skills_added", DRIFT_FAMILY_SKILL, DRIFT_KIND_ADDED),
+    ("skills_removed", DRIFT_FAMILY_SKILL, DRIFT_KIND_REMOVED),
+)
 
 
 def _drift_counts(
@@ -1720,7 +1794,93 @@ def store_drift_items(realm_id: str, workspaces: list[Workspace]) -> list[StoreD
         *_office_store_drift_items(realm_id, workspaces),
         *_persona_instance_store_drift_items(realm_id, workspaces),
         *_flow_graph_store_drift_items(realm_id, workspaces),
+        *_skill_store_drift_items(realm_id),
     ]
+
+
+def _skill_store_drift_items(realm_id: str) -> list[StoreDriftItem]:
+    """The SKILL half of the drift walk (held-skill-publish-direction §4.5).
+
+    Scoped exactly as the publish is — ``publishable_skill_packages(realm)``, the
+    same iteration and the same two filters — so a row can never name a package
+    this realm would not ship. It takes no ``workspaces``: a skill package belongs
+    to the machine's ONE shared skills root, not to a workspace, which is also why
+    every row's container is blank.
+
+    Three facts per slug: the canonical package's sync hash (``local``), the
+    baseline sidecar's entry, and the realm's copy in the inbox mirror
+    (``inbox``). The rows, and what each one deliberately is NOT:
+
+    * ``changed`` — baselined, local moved, and the realm's copy did NOT
+      (``inbox`` absent or equal to the baseline). My unpublished edit: Publish
+      ships it, Revert adopts the realm's copy back over it.
+    * ``added`` — no baseline and no inbox copy: a package this realm has never
+      carried. Revert archives it (never deletes).
+    * ``removed`` — baselined, and no local package at all. Revert reinstalls from
+      the inbox, or drops the stale entry when the inbox has nothing.
+    * **both moved → NO ROW.** That is the held card's, and a drift row beside it
+      would offer Publish as an exit from a conflict — overwriting the realm's
+      copy with mine, which is the one thing the hold exists to prevent. The
+      operator's exit there is ``realm sync resolve``, and after it the package
+      appears here as ``changed`` (``--take local``) or not at all
+      (``--take remote``).
+    * no baseline but an inbox copy that EQUALS local → no row: converged, and a
+      pull will record the baseline.
+
+    A tombstoned slug produces nothing, by ``publishable_skill_packages`` for the
+    live rows and by an explicit ledger check for the ``removed`` arm: the delete
+    lane archived that package on purpose, and reporting it as locally removed
+    would offer a revert that reinstalls what a member deleted realm-wide.
+    """
+
+    from .skill_promotion import (
+        _iter_packages,
+        realm_inbox_dir,
+        skill_package_sync_hash,
+    )
+    from .skill_sync import read_skill_baseline, skill_baseline_key, split_skill_baseline_key
+
+    realm = RealmStore().get(realm_id)
+    baseline = read_skill_baseline(realm_id)
+    inbox_hashes = {
+        slug: skill_package_sync_hash(package_dir)
+        for slug, package_dir in _iter_packages(realm_inbox_dir(realm_id))
+    }
+    # "No local package" is asked of the WHOLE canonical root, not of the
+    # publishable subset: a package that exists locally but is de-selected has not
+    # been removed, and calling it ``removed`` would offer a revert that reinstalls
+    # a package already on disk.
+    root = get_shared_skills_dir()
+    local_slugs = (
+        {slug for slug, _dir in _iter_publishable_skill_packages(root)} if root.is_dir() else set()
+    )
+
+    def _row(slug: str, kind: str) -> StoreDriftItem:
+        return StoreDriftItem(
+            family=DRIFT_FAMILY_SKILL, container="", item_key=slug, kind=kind
+        )
+
+    items: list[StoreDriftItem] = []
+    for slug, package_dir in publishable_skill_packages(realm):
+        local_hash = skill_package_sync_hash(package_dir)
+        base_hash = baseline.get(skill_baseline_key(slug))
+        inbox_hash = inbox_hashes.get(slug)
+        if base_hash is None:
+            if inbox_hash is None:
+                items.append(_row(slug, DRIFT_KIND_ADDED))
+            continue
+        if local_hash == base_hash:
+            continue
+        if inbox_hash is None or inbox_hash == base_hash:
+            items.append(_row(slug, DRIFT_KIND_CHANGED))
+    for key in sorted(baseline):
+        slug = split_skill_baseline_key(key)
+        if slug is None or slug in local_slugs:
+            continue
+        if skill_tombstoned(realm, slug) is not None:
+            continue
+        items.append(_row(slug, DRIFT_KIND_REMOVED))
+    return items
 
 
 def _flow_graph_store_drift_items(
@@ -3556,9 +3716,13 @@ def _workspace_sync_statuses(realm: Realm, repo: Path) -> list[dict[str, str]]:
 class SkillSyncSummary:
     """Outcome of :func:`apply_skill_inbox_pull` — the per-package reconcile
     verdicts for one realm pull. ``adopted`` were promoted new into the canonical
-    root, ``converged`` already matched canonical (no write), ``held`` diverge and
-    were quarantined without touching canonical (an operator resolves them via
-    ``hermes harness skills promote --adopt-divergent``), ``removed`` were pruned
+    root, ``converged`` already matched canonical (no write), ``updated`` were
+    realm-side changes fast-forwarded over an untouched local copy (the previous
+    canonical archived), ``kept_local`` are MY unpublished edits against an unmoved
+    realm copy (no write — they surface as ``store_drift.skills``), ``held`` diverge
+    on BOTH sides and were quarantined without touching canonical (an operator
+    resolves them with ``hermes harness realm sync resolve <realm> --key
+    skill::<slug> --take local|remote``), ``removed`` were pruned
     from the inbox because the realm no longer publishes them, and ``refused`` are
     packages the guarded door would not admit — an invalid/hostile/reserved slug,
     a canonical slot occupied by a non-skill-package (a bare-slug landing on an
@@ -3578,6 +3742,15 @@ class SkillSyncSummary:
     removed: list[str]
     refused: list[str]
     tombstoned: list[str] = ()  # type: ignore[assignment]
+    #: ``updated`` and ``kept_local`` are the THREE-WAY model's two new verdicts
+    #: (2026-09-12). ``updated`` is a realm-side change adopted over an UNTOUCHED
+    #: local copy — the fast-forward every sibling family already had, and which
+    #: this family used to report as a hold for every member who merely owned the
+    #: skill. ``kept_local`` is the mirror image: MY edit against an unmoved realm
+    #: copy, so nothing is written and the package shows up as unpublished drift
+    #: (``store_drift.skills``) with Publish and Revert as its exits.
+    updated: list[str] = ()  # type: ignore[assignment]
+    kept_local: list[str] = ()  # type: ignore[assignment]
 
     def as_dict(self) -> dict[str, list[str]]:
         return {
@@ -3589,6 +3762,12 @@ class SkillSyncSummary:
             # Additive key — the launcher's realm-sync sheet is absent-tolerant
             # (the ``store_drift`` precedent), so an older reader ignores it.
             "tombstoned": list(self.tombstoned),
+            # Additive for the same reason, and the launcher reads them as
+            # nullable (``RealmSkillSyncOutcome.updated`` / ``keptLocal``), so an
+            # older hermes is "this build has no three-way skill lane" rather
+            # than "nothing was updated".
+            "updated": list(self.updated),
+            "kept_local": list(self.kept_local),
         }
 
 
@@ -3601,14 +3780,31 @@ def apply_skill_inbox_pull(realm: Realm, subtree: Path) -> SkillSyncSummary:
     ``skills/…`` (``_destination_for_sync_path`` returns ``None``), so this owns
     the whole skill lane. The inbox is a byte-faithful, LF-canonical copy of that
     realm's current skill packages that the resolver never sees
-    (``EXCLUDED_SKILL_DIRS`` — C1). Each package is then classified against the
-    canonical shared root:
+    (``EXCLUDED_SKILL_DIRS`` — C1). Each package is then classified THREE-WAY —
+    local canonical vs the never-synced baseline sidecar vs the realm's copy —
+    through the shared :func:`sync_merge.classify_three_way_pull`, exactly as
+    every sibling family does, via the ONE classifier
+    :func:`agent_runtime.skill_sync.classify_inbox_package`:
 
-    - ``promote_new`` (no canonical copy) → auto-adopted, provenance recorded
+    - no canonical copy → auto-adopted, provenance recorded
       (``source={"kind": "realm", "realm_id": realm.id}``); the inbox mirror is
-      **never** moved (``move_source=False``).
-    - ``noop_identical`` → converged; canonical untouched.
-    - ``hold_divergent`` → held; canonical untouched, surfaced as drift.
+      **never** moved (``move_source=False``). Bucket ``adopted``.
+    - local == remote → ``converged``; canonical untouched.
+    - local == baseline, remote moved → the realm's copy is installed over mine
+      through the same guarded door with ``adopt_divergent=True`` (my previous
+      canonical ARCHIVED, never deleted). Bucket ``updated``. **This is the case
+      the two-way compare got wrong**: it held every member who merely owned the
+      skill, forever, over a change nobody disagreed with.
+    - local moved, remote == baseline → ``kept_local``: nothing is written, and
+      the package surfaces as unpublished drift (``store_drift.skills``) whose
+      exits are Publish and Revert.
+    - both moved → ``held``; canonical untouched, surfaced as ``skills_drift``,
+      which therefore now means CONFLICTS ONLY.
+
+    The baseline advances to the remote hash for ``converged`` / ``adopted`` /
+    ``updated`` — never for ``kept_local`` (that would erase the operator's
+    unpublished edit from the accounting) and never for ``held`` (nothing has been
+    seen-and-accepted) — and a ``removed`` package's entry is dropped with it.
 
     A package the realm's skill-delete ledger blocks never reaches that
     classification at all: the mirror drops it (``tombstoned``), so a stale
@@ -3626,6 +3822,17 @@ def apply_skill_inbox_pull(realm: Realm, subtree: Path) -> SkillSyncSummary:
         execute_promotion,
         realm_inbox_dir,
     )
+    from .skill_sync import (
+        BASELINE_ADVANCING_BUCKETS,
+        BUCKET_ADOPTED,
+        BUCKET_CONVERGED,
+        BUCKET_KEPT_LOCAL,
+        BUCKET_UPDATED,
+        classify_inbox_package,
+        read_skill_baseline,
+        skill_baseline_key,
+        write_skill_baseline,
+    )
 
     inbox = realm_inbox_dir(realm.id)
     removed, reserved_refused, tombstoned = _mirror_realm_skill_inbox(
@@ -3636,10 +3843,25 @@ def apply_skill_inbox_pull(realm: Realm, subtree: Path) -> SkillSyncSummary:
 
     adopted: list[str] = []
     converged: list[str] = []
+    updated: list[str] = []
+    kept_local: list[str] = []
     held: list[str] = []
     # Packages the mirror skipped (a reserved device-name component would crash a
     # Windows write) start the refused set; each is already NOT on disk.
     refused: list[str] = list(reserved_refused)
+    # ONE baseline read for the whole loop, ONE write at the end. Read per
+    # package it would be the same bytes N times; written per package, a raise
+    # mid-loop would leave a sidecar agreeing with neither the inbox nor the
+    # canonical root.
+    baseline = read_skill_baseline(realm.id)
+    baseline_dirty = False
+    # A package the realm stopped publishing takes its baseline entry with it:
+    # the entry means "the realm's copy was this when I last saw it", and there is
+    # no realm copy any more. Left behind, it reports a ``removed`` drift row
+    # whose revert would reinstall a package the realm dropped.
+    for gone in removed:
+        if baseline.pop(skill_baseline_key(gone), None) is not None:
+            baseline_dirty = True
     # Iterate the mirrored inbox package-by-package with per-package isolation:
     # a package that refuses OR raises (a malformed source, a TOCTOU-occupied
     # canonical slot, an unexpected I/O error) must never abort the whole pull —
@@ -3660,25 +3882,59 @@ def apply_skill_inbox_pull(realm: Realm, subtree: Path) -> SkillSyncSummary:
                 logger.warning("skill package refused at the realm door: %s (%s)", slug, refusal.code)
                 refused.append(slug)
                 continue
+            # The promotion door's STRUCTURAL verdict first — it owns the
+            # refusals the three-way model has no opinion about (an invalid slug,
+            # a canonical slot occupied by a non-package, a categorized child
+            # under a bare skill) — then the DIRECTION, from the shared
+            # classifier. Two different questions: the write door dispatches on
+            # the first, the operator reads the second.
             plan = classify_promotion(slug, source_dir)
-            if plan.action == "promote_new":
+            if plan.action == "refuse_invalid":
+                refused.append(slug)
+                continue
+            verdict = classify_inbox_package(
+                realm.id, slug, source_dir, plan=plan, baseline=baseline
+            )
+            bucket = verdict.bucket
+            if bucket == BUCKET_ADOPTED:
                 result = execute_promotion(
                     plan,
                     source={"kind": "realm", "realm_id": realm.id},
                     move_source=False,
                 )
+            elif bucket == BUCKET_UPDATED:
+                # The fast-forward. ``adopt_divergent=True`` is what makes the
+                # door archive my previous canonical before installing the
+                # realm's, so the copy being replaced is recoverable from
+                # ``.archive/<ts>/`` exactly as an explicit adopt's is.
+                result = execute_promotion(
+                    plan,
+                    source={"kind": "realm", "realm_id": realm.id},
+                    adopt_divergent=True,
+                    move_source=False,
+                )
+            else:
+                result = None
+            if result is not None:
                 if result.action == "promoted":
-                    adopted.append(slug)
+                    (adopted if bucket == BUCKET_ADOPTED else updated).append(slug)
                 elif result.action == "held":
                     held.append(slug)
+                    bucket = None  # never advance a baseline over a write that did not land
                 else:  # 'refused' / anything non-terminal — never became canonical
                     refused.append(slug)
-            elif plan.action == "noop_identical":
+                    bucket = None
+            elif bucket == BUCKET_CONVERGED:
                 converged.append(slug)
-            elif plan.action == "hold_divergent":
+            elif bucket == BUCKET_KEPT_LOCAL:
+                kept_local.append(slug)
+            else:  # held, or a defensively-mapped unreachable reason
                 held.append(slug)
-            else:  # refuse_invalid
-                refused.append(slug)
+            if bucket in BASELINE_ADVANCING_BUCKETS and verdict.remote_hash is not None:
+                key = skill_baseline_key(slug)
+                if baseline.get(key) != verdict.remote_hash:
+                    baseline[key] = verdict.remote_hash
+                    baseline_dirty = True
         except Exception:  # noqa: BLE001 — one bad package must not abort the pull
             logger.exception(
                 "skill inbox reconcile raised for %r (realm %s); refusing package",
@@ -3686,6 +3942,11 @@ def apply_skill_inbox_pull(realm: Realm, subtree: Path) -> SkillSyncSummary:
                 realm.id,
             )
             refused.append(slug)
+    if baseline_dirty:
+        try:
+            write_skill_baseline(realm.id, baseline)
+        except Exception:  # noqa: BLE001 — a baseline is a receipt; it never fails a pull
+            logger.exception("skill baseline write failed for realm %s", realm.id)
     return SkillSyncSummary(
         adopted=sorted(set(adopted)),
         converged=sorted(set(converged)),
@@ -3693,6 +3954,8 @@ def apply_skill_inbox_pull(realm: Realm, subtree: Path) -> SkillSyncSummary:
         removed=sorted(set(removed)),
         refused=sorted(set(refused)),
         tombstoned=sorted(set(tombstoned)),
+        updated=sorted(set(updated)),
+        kept_local=sorted(set(kept_local)),
     )
 
 
@@ -3839,25 +4102,84 @@ def _prune_empty_dirs(root: Path) -> None:
 
 
 def _held_skill_packages_for_realm(realm: Realm) -> list[str]:
-    """``skills_drift`` = the realm's inbox packages whose canonical copy diverges.
+    """``skills_drift`` = this realm's inbox packages that CONFLICT — and since
+    2026-09-12 that means conflicts ONLY.
 
-    Scans this realm's resolver-invisible inbox and returns the sorted slugs
-    classified ``hold_divergent`` against the current canonical root — the set an
-    operator must explicitly resolve (``promote --adopt-divergent``). Redefines
+    Scans this realm's resolver-invisible inbox and returns the sorted slugs whose
+    THREE-WAY verdict is ``held``: both my copy and the realm's moved since the
+    baseline. That is the set an operator must choose a DIRECTION for
+    (``realm sync resolve --key skill::<slug> --take local|remote``).
+
+    **It reads the same classifier the pull loop decides through**
+    (``skill_sync.classify_inbox_package``, reached here through
+    ``list_inbox_packages``' additive ``decision`` column), and that is the
+    load-bearing property rather than a tidiness one: while this read filtered
+    ``action == "hold_divergent"`` it reported as held every realm-side update for
+    every member who merely OWNED the skill, and every local edit — so the sheet's
+    held card and the pull's own ``skill_sync`` could disagree, and did. One
+    function, one answer.
+
+    Redefines
     the historic drift meaning (formerly a source-vs-destination byte compare over
     publish artifacts, which was structurally always empty since publish source
     and destination were the same canonical file) while keeping the sidecar/result
     key name and ``list[str]`` shape stable (Launcher realm-sync sheet compat)."""
 
     from .skill_promotion import list_inbox_packages
+    from .skill_sync import BUCKET_HELD
 
     return sorted(
         {
             row["skill"]
             for row in list_inbox_packages(realm.id)
-            if row["action"] == "hold_divergent"
+            if row["decision"] == BUCKET_HELD
         }
     )
+
+
+def _record_skill_publish_baseline(realm: Realm, *, subtree: Path) -> None:
+    """After a successful publish: record what shipped, then refresh the mirror.
+
+    TWO steps, in this order, and the order is the argument:
+
+    1. ``update_skill_baseline_after_publish`` over every package this realm
+       publishes (``publishable_skill_packages`` — the publish's own iteration),
+       hashed from the canonical package, which is what was published. Entries for
+       packages no longer published are dropped by that function, so a de-selected
+       or deleted slug stops being accounted.
+    2. re-mirror the inbox from the subtree. The subtree is the realm's state now
+       that the push has succeeded, and the inbox is what every skill decision
+       reads. Without this step the inbox keeps the pre-publish copy and the hold
+       the operator just published away survives until their next pull.
+
+    Both are best-effort, like every sibling family's baseline write: a receipt
+    never fails a publish, and the mirror is a cache the next pull rebuilds.
+    Tombstoned packages are dropped from the mirror by
+    ``_mirror_realm_skill_inbox`` itself, through the same ledger predicate the
+    pull passes it, so this can never resurrect a deleted slug into the inbox.
+    """
+
+    from .skill_promotion import realm_inbox_dir, skill_package_sync_hash
+    from .skill_sync import update_skill_baseline_after_publish
+
+    try:
+        update_skill_baseline_after_publish(
+            realm.id,
+            {
+                slug: skill_package_sync_hash(package_dir)
+                for slug, package_dir in publishable_skill_packages(realm)
+            },
+        )
+    except Exception:  # noqa: BLE001 — baseline is best-effort; never fail publish
+        logger.exception("skill baseline write failed after publish for realm %s", realm.id)
+    try:
+        _mirror_realm_skill_inbox(
+            subtree / "skills",
+            realm_inbox_dir(realm.id),
+            tombstoned=lambda slug: skill_tombstoned(realm, slug) is not None,
+        )
+    except Exception:  # noqa: BLE001 — the mirror is a cache the next pull rebuilds
+        logger.exception("skill inbox re-mirror failed after publish for realm %s", realm.id)
 
 
 def _distinct_skill_package_count(artifacts: list[RealmSyncArtifact]) -> int:
@@ -3886,25 +4208,15 @@ def _write_timestamp(repo: Path, name: str) -> None:
     path.write_text(now().isoformat(), encoding="utf-8")
 
 
-def _canonicalize_text_bytes(raw: bytes) -> bytes:
-    """Normalize published-artifact line endings to LF — the ONE canonicalization
-    chokepoint for realm sync.
-
-    Realm-sync artifacts are read from stores that write CRLF on Windows
-    (``atomic_json_write`` / ``str.write_text`` use text mode) while the pull
-    lane writes LF (``json.dumps(...).encode()``). Committing those raw bytes
-    turns every publish into a whole-file CRLF<->LF churn and reports
-    ``changed=true`` on no-op runs; diffs/merges between members carry EOL noise.
-    LF-normalizing at the write/copy boundary keeps the repo tree byte-stable.
-
-    Binary/asset artifacts (skill PNG/JPG/…) are detected by a NUL byte — git's
-    own text/binary heuristic — and passed through byte-for-byte untouched. The
-    3-way merge classifiers and office/board baselines hash the PARSED model
-    (EOL-agnostic), so canonicalizing bytes here never desyncs those hashes.
-    """
-    if b"\x00" in raw:
-        return raw
-    return raw.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+#: The canonicalization chokepoint, whose BODY moved to
+#: :mod:`agent_runtime.sync_text` on 2026-09-12
+#: (``EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md``
+#: §4.1). This name stays as the alias every call site in this module — and
+#: ``profile_artifact_sync.content_hash`` — already spells, so the lift changed
+#: no behaviour anywhere. It moved because the SKILL lane needs the same rule for
+#: its package hash and ``skill_promotion`` may not import this module (the pull
+#: pipeline imports the promotion door; the dependency is one-directional).
+_canonicalize_text_bytes = canonicalize_text_bytes
 
 
 def _published_artifacts_differ(subtree: Path, desired: dict[str, bytes]) -> bool:

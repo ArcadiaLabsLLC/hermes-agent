@@ -44,8 +44,16 @@ from agent_runtime.realm_sync import (
     read_realm_sync_sidecar,
     realm_sync_status,
 )
+from agent_runtime.realm_sync import _mirror_realm_skill_inbox
 from agent_runtime.skill_promotion import (
+    list_inbox_packages,
     realm_inbox_dir,
+    skill_package_sync_hash,
+)
+from agent_runtime.skill_sync import (
+    read_skill_baseline,
+    resolve_held_skill,
+    skill_baseline_key,
 )
 from agent_runtime.store import RealmStore
 from hermes_constants import CANONICAL_SHARED_SKILL_IDS, get_shared_skills_dir
@@ -224,6 +232,11 @@ def test_pull_converges_identical_package_without_rewrite(tmp_path):
     before = _snapshot(_canonical("foo"))
     _write_subtree_skill(repo, realm, "foo", files={"SKILL.md": f"---\nname: foo\n---\n{body}"})
 
+    # The LEGACY, pre-baseline case (held-skill-publish-direction §4.7): no
+    # ``skill_baseline.json`` exists yet, so the three-way classifier sees
+    # ``new``/``new`` and EQUAL content must still converge.
+    assert read_skill_baseline(realm.id) == {}
+
     result = pull_realm_sync(realm.id)
 
     assert result["skill_sync"]["converged"] == ["foo"]
@@ -265,6 +278,10 @@ def test_pull_holds_divergent_package_and_lists_drift(tmp_path):
     _seed_canonical("foo", body="# Canonical v1\n")
     before = _snapshot(_canonical("foo"))
     _write_subtree_skill(repo, realm, "foo", files={"SKILL.md": "---\nname: foo\n---\n# Realm v2\n"})
+
+    # The other LEGACY, pre-baseline case: no baseline, and the two copies
+    # DIFFER, so ``new_both`` holds — today's behaviour, deliberately preserved.
+    assert read_skill_baseline(realm.id) == {}
 
     result = pull_realm_sync(realm.id)
 
@@ -721,3 +738,348 @@ def test_dry_run_pull_writes_nothing_with_a_ledger(tmp_path):
     assert _snapshot(shared) == before
     assert _archived_package_names() == []
     assert not realm_inbox_dir(realm.id).exists()
+
+
+# ══ the three-way model (2026-09-12) ════════════════════════════════════════
+#
+# Authority: ``EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md``
+# §4. Until this lane landed the skill family was the only synced family deciding
+# TWO-way (canonical vs inbox, no baseline), which is why the launcher's SKILLS
+# HELD card could offer nothing but "adopt theirs": with no baseline, "I edited
+# it" and "they edited it" are the same verdict.
+
+
+def _seed_canonical_bytes(slug: str, data: bytes) -> Path:
+    """A canonical package whose SKILL.md bytes are given EXACTLY — the fixture
+    ``_seed_canonical`` cannot express CRLF, which is the whole subject below."""
+
+    pkg = _canonical(slug)
+    pkg.mkdir(parents=True, exist_ok=True)
+    (pkg / "SKILL.md").write_bytes(data)
+    return pkg
+
+
+def _realm_with_remote(tmp_path: Path, name: str = "Publishing Realm"):
+    """A realm whose sync repo tracks a local BARE upstream, so a real
+    (non-dry-run) ``publish_realm_sync`` can commit and push.
+
+    ``_local_realm`` above has no remote, which is right for the pull cases and
+    useless for the publish ones: the push is inside ``if changed`` and a repo
+    with no origin raises ``sync_remote_unreachable``. Same shape as
+    ``test_realm_sync.py``'s fixture of the same name.
+    """
+
+    bare = tmp_path / "origin.git"
+    subprocess.run(
+        ["git", "init", "--bare", str(bare)], check=True, capture_output=True, text=True
+    )
+    realm, repo = _local_realm(tmp_path, name=name)
+    for args in (
+        ("config", "user.email", "skill-sync-test@localhost"),
+        ("config", "user.name", "Skill Sync Test"),
+        ("commit", "--allow-empty", "-m", "init"),
+        ("remote", "add", "origin", str(bare)),
+        ("push", "-u", "origin", "HEAD"),
+    ):
+        subprocess.run(
+            ["git", "-C", str(repo), *args], check=True, capture_output=True, text=True
+        )
+    return realm, repo
+
+
+def _skill_drift_rows(realm_id: str, slug: str | None = None) -> list[dict]:
+    """The skill drift rows, optionally narrowed to ONE package.
+
+    The narrowing is load-bearing rather than convenience: a pull installs the
+    harness skill set into the shared root (``install_harness_skills``), and in
+    publish mode ``all`` those are packages this realm WOULD ship, so they are
+    honestly ``added`` until a publish records their baseline. A case about one
+    package must not assert a family-wide total another lane contributes to.
+    """
+
+    return [
+        row
+        for row in realm_sync_status(realm_id)["store_drift"]["items"]
+        if row["family"] == "skill" and (slug is None or row["item_key"] == slug)
+    ]
+
+
+# ── the phantom hold: a CRLF canonical against an LF arrival ─────────────────
+
+
+def test_pull_converges_crlf_canonical_against_lf_arrival(tmp_path):
+    """The direction ``test_pull_converges_eol_only_difference`` never covered —
+    and the one the operator actually hit on 2026-09-12.
+
+    That case is CRLF ARRIVING against an LF canonical, which the inbox mirror
+    normalizes on the way in. This is the mirror image: a WINDOWS EDITOR wrote the
+    canonical copy (13 of 29 files in the live package carried CRLF) while the
+    realm publishes LF. ``diff -r --strip-trailing-cr`` between the two was empty
+    and the lane classified ``hold_divergent`` forever, because the decision was
+    made on ``skill_package_content_hash`` — a BYTE hash — being asked a CONTENT
+    question.
+    """
+
+    realm, repo = _local_realm(tmp_path)
+    _seed_canonical_bytes("foo", b"---\r\nname: foo\r\n---\r\n# Foo\r\n")
+    before = _snapshot(_canonical("foo"))
+    _write_subtree_skill(repo, realm, "foo", files={"SKILL.md": "---\nname: foo\n---\n# Foo\n"})
+
+    result = pull_realm_sync(realm.id)
+
+    assert result["skill_sync"]["converged"] == ["foo"]
+    assert result["skill_sync"]["held"] == []
+    # The operator's CRLF bytes are NOT rewritten: converging is a decision, not
+    # a normalization pass over their working copy.
+    assert _snapshot(_canonical("foo")) == before
+    assert realm_sync_status(realm.id)["skills_drift"] == []
+
+
+# ── direction: my edit vs their edit are no longer the same verdict ──────────
+
+
+def test_pull_keeps_my_edit_and_reports_it_as_unpublished_drift(tmp_path):
+    """Local moved, the realm's copy did not → ``kept_local``, and the package
+    shows up as ``store_drift.skills`` ``changed`` — the operator's "I have
+    changes I can push". It is NOT in ``skills_drift``: nobody disagrees."""
+
+    realm, repo = _local_realm(tmp_path)
+    _write_subtree_skill(repo, realm, "foo", files={"SKILL.md": "---\nname: foo\n---\n# Realm v1\n"})
+    pull_realm_sync(realm.id)  # adopts, and records the baseline
+    _seed_canonical("foo", body="# Mine v2\n")
+
+    result = pull_realm_sync(realm.id)
+
+    assert result["skill_sync"]["kept_local"] == ["foo"]
+    assert result["skill_sync"]["held"] == []
+    assert result["skill_sync"]["updated"] == []
+    assert (_canonical("foo") / "SKILL.md").read_bytes() == b"---\nname: foo\n---\n# Mine v2\n"
+
+    status = realm_sync_status(realm.id)
+    assert status["skills_drift"] == []
+    assert status["store_drift"]["skills"]["skills_changed"] == 1
+    assert status["store_drift"]["skills"]["skills_removed"] == 0
+    assert _skill_drift_rows(realm.id, "foo") == [
+        {"family": "skill", "container": "", "item_key": "foo", "kind": "changed"}
+    ]
+    # POSITIVE CONTROL for the count wiring: the family is summed by
+    # ``_any_store_drift``, so the sheet stops saying "In sync".
+    assert status["unpublished_changes"] is True
+
+
+def test_pull_fast_forwards_a_realm_change_over_an_untouched_local_copy(tmp_path):
+    """Their edit, mine untouched → ``updated``: the fast-forward every sibling
+    family already had. Before the baseline existed this was a HOLD for every
+    member who merely OWNED the skill, forever, over a change nobody disagreed
+    with."""
+
+    realm, repo = _local_realm(tmp_path)
+    _write_subtree_skill(repo, realm, "foo", files={"SKILL.md": "---\nname: foo\n---\n# Realm v1\n"})
+    pull_realm_sync(realm.id)
+    _write_subtree_skill(repo, realm, "foo", files={"SKILL.md": "---\nname: foo\n---\n# Realm v2\n"})
+
+    result = pull_realm_sync(realm.id)
+
+    assert result["skill_sync"]["updated"] == ["foo"]
+    assert result["skill_sync"]["held"] == []
+    assert result["skill_sync"]["kept_local"] == []
+    assert (_canonical("foo") / "SKILL.md").read_bytes() == b"---\nname: foo\n---\n# Realm v2\n"
+    # Archive-never-delete: the displaced copy is recoverable.
+    archived = sorted((get_shared_skills_dir() / ".archive").glob("*/foo/SKILL.md"))
+    assert archived, "the displaced canonical must be archived, never dropped"
+    assert any(path.read_bytes() == b"---\nname: foo\n---\n# Realm v1\n" for path in archived)
+    # The baseline advanced, so the very next pull is a no-op rather than a
+    # second adopt of the same bytes.
+    assert read_skill_baseline(realm.id)[skill_baseline_key("foo")] == skill_package_sync_hash(
+        _canonical("foo")
+    )
+    assert pull_realm_sync(realm.id)["skill_sync"]["converged"] == ["foo"]
+    assert realm_sync_status(realm.id)["store_drift"]["skills"]["skills_changed"] == 0
+
+
+def test_pull_holds_only_when_both_sides_moved_since_the_baseline(tmp_path):
+    """Both moved → ``held``, canonical untouched — and NO drift row beside it.
+
+    A drift row here would offer Publish as an exit from a conflict, i.e.
+    overwriting the realm's copy with mine, which is the one thing the hold exists
+    to prevent. The exit is ``realm sync resolve``."""
+
+    realm, repo = _local_realm(tmp_path)
+    _write_subtree_skill(repo, realm, "foo", files={"SKILL.md": "---\nname: foo\n---\n# Realm v1\n"})
+    pull_realm_sync(realm.id)
+    _seed_canonical("foo", body="# Mine v2\n")
+    _write_subtree_skill(repo, realm, "foo", files={"SKILL.md": "---\nname: foo\n---\n# Realm v2\n"})
+    before = _snapshot(_canonical("foo"))
+
+    result = pull_realm_sync(realm.id)
+
+    assert result["skill_sync"]["held"] == ["foo"]
+    assert result["skill_sync"]["updated"] == []
+    assert result["skill_sync"]["kept_local"] == []
+    assert _snapshot(_canonical("foo")) == before
+
+    status = realm_sync_status(realm.id)
+    assert status["skills_drift"] == ["foo"]
+    # A conflict is NOT also unpublished drift: Publish is not an exit from a hold.
+    assert status["store_drift"]["skills"]["skills_changed"] == 0
+    assert _skill_drift_rows(realm.id, "foo") == []
+
+
+def test_a_never_published_local_package_is_added_drift(tmp_path):
+    """No baseline and no realm copy → ``added``: a package the realm has never
+    carried, which the operator can publish or revert (archive)."""
+
+    realm, _repo = _local_realm(tmp_path)
+    _seed_canonical("mine", body="# Only here\n")
+
+    status = realm_sync_status(realm.id)
+
+    assert status["store_drift"]["skills"]["skills_added"] == 1
+    assert _skill_drift_rows(realm.id, "mine") == [
+        {"family": "skill", "container": "", "item_key": "mine", "kind": "added"}
+    ]
+    assert status["skills_drift"] == []
+
+
+# ── publish: record the baseline, then refresh the mirror ───────────────────
+
+
+def test_publish_records_the_baseline_so_a_later_edit_is_drift_not_a_hold(tmp_path):
+    """After publishing, a local edit is UNPUBLISHED (``changed``) — never held.
+
+    Killing mutation: delete the ``_record_skill_publish_baseline`` call's
+    ``update_skill_baseline_after_publish`` step. With no baseline the edit reads
+    as ``new_both`` against the mirrored realm copy, so the sheet shows a CONFLICT
+    over content only this member ever touched, and offers no revert row at all.
+    """
+
+    realm, _repo = _realm_with_remote(tmp_path)
+    _seed_canonical("foo", body="# Mine v1\n")
+    publish_realm_sync(realm.id)
+    assert read_skill_baseline(realm.id)[skill_baseline_key("foo")] == skill_package_sync_hash(
+        _canonical("foo")
+    )
+
+    _seed_canonical("foo", body="# Mine v2\n")
+    status = realm_sync_status(realm.id)
+
+    assert status["skills_drift"] == []
+    assert status["store_drift"]["skills"]["skills_changed"] == 1
+    assert _skill_drift_rows(realm.id, "foo") == [
+        {"family": "skill", "container": "", "item_key": "foo", "kind": "changed"}
+    ]
+
+
+def test_publish_remirrors_the_inbox_so_the_hold_does_not_survive_it(tmp_path):
+    """THE operator's measured case: "Published realm 'test realm' · just now"
+    with the SKILLS HELD card still naming the package that was just published.
+
+    The skill lane decides against the per-realm inbox MIRROR, so recording the
+    baseline is not enough — the mirror still holds the pre-publish realm copy.
+    After a successful push the subtree IS the realm, so the inbox is re-mirrored
+    from it.
+
+    Killing mutation: delete the ``_mirror_realm_skill_inbox`` call in
+    ``_record_skill_publish_baseline``. The inbox then keeps the realm's old
+    bytes, and the package classifies ``updated`` — hermes telling the operator
+    the realm has a change waiting for them, over content they themselves just
+    shipped, whose adopt would REVERT their publish on the next pull.
+    """
+
+    realm, repo = _realm_with_remote(tmp_path)
+    # The realm's copy, put into the inbox through the pull's OWN mirror (no
+    # hand-written quarantine: the fixture must produce what production produces).
+    _write_subtree_skill(repo, realm, "foo", files={"SKILL.md": "---\nname: foo\n---\n# Realm v1\n"})
+    _mirror_realm_skill_inbox(_subtree_skills(repo, realm), realm_inbox_dir(realm.id))
+    _seed_canonical("foo", body="# Mine v2\n")
+    assert realm_sync_status(realm.id)["skills_drift"] == ["foo"], "precondition: a real hold"
+
+    publish_realm_sync(realm.id)
+
+    canonical_bytes = (_canonical("foo") / "SKILL.md").read_bytes()
+    assert (realm_inbox_dir(realm.id) / "foo" / "SKILL.md").read_bytes() == canonical_bytes
+    assert {row["skill"]: row["decision"] for row in list_inbox_packages(realm.id)} == {
+        "foo": "converged"
+    }
+    assert realm_sync_status(realm.id)["skills_drift"] == []
+    assert _skill_drift_rows(realm.id, "foo") == []
+
+
+# ── resolve: the operator chooses a direction ───────────────────────────────
+
+
+def _held_realm(tmp_path):
+    """A realm holding exactly one conflicted package ``foo``: the realm carries
+    "Realm v1" (mirrored as the pull leaves it) and this member carries
+    "Mine v2"."""
+
+    realm, repo = _local_realm(tmp_path)
+    _write_subtree_skill(repo, realm, "foo", files={"SKILL.md": "---\nname: foo\n---\n# Realm v1\n"})
+    _mirror_realm_skill_inbox(_subtree_skills(repo, realm), realm_inbox_dir(realm.id))
+    _seed_canonical("foo", body="# Mine v2\n")
+    assert realm_sync_status(realm.id)["skills_drift"] == ["foo"]
+    return realm, repo
+
+
+def test_resolve_take_local_turns_the_hold_into_publishable_drift(tmp_path):
+    """"Publish my version": the package is not touched, the baseline advances to
+    the realm's hash ("I have seen their version"), and the hold becomes a
+    ``changed`` row the next publish ships."""
+
+    realm, _repo = _held_realm(tmp_path)
+    mine = _snapshot(_canonical("foo"))
+
+    row = resolve_held_skill(realm.id, "skill::foo", take="local")
+
+    assert row["id"] == "skill::foo"
+    assert row["take"] == "local"
+    assert row["changed"] is False
+    assert row["archived_previous_to"] is None
+    assert row["local_hash"] != row["remote_hash"]
+    # Nothing written to the package — that is the whole act.
+    assert _snapshot(_canonical("foo")) == mine
+
+    status = realm_sync_status(realm.id)
+    assert status["skills_drift"] == []
+    assert status["store_drift"]["skills"]["skills_changed"] == 1
+    assert _skill_drift_rows(realm.id, "foo") == [
+        {"family": "skill", "container": "", "item_key": "foo", "kind": "changed"}
+    ]
+
+
+def test_resolve_take_remote_installs_the_realm_copy_and_archives_mine(tmp_path):
+    """"Use the realm's version": installed through the ONE guarded door, my copy
+    archived (never deleted), and the hold is gone with no drift left behind."""
+
+    realm, _repo = _held_realm(tmp_path)
+    inbox_bytes = (realm_inbox_dir(realm.id) / "foo" / "SKILL.md").read_bytes()
+
+    row = resolve_held_skill(realm.id, "skill::foo", take="remote")
+
+    assert row["take"] == "remote"
+    assert row["changed"] is True
+    assert (_canonical("foo") / "SKILL.md").read_bytes() == inbox_bytes
+    assert row["archived_previous_to"] is not None
+    archived = Path(row["archived_previous_to"])
+    assert archived.is_dir()
+    assert (archived / "SKILL.md").read_bytes() == b"---\nname: foo\n---\n# Mine v2\n"
+
+    status = realm_sync_status(realm.id)
+    assert status["skills_drift"] == []
+    assert status["store_drift"]["skills"]["skills_changed"] == 0
+    assert _skill_drift_rows(realm.id, "foo") == []
+
+
+def test_resolve_dry_run_writes_nothing_at_all(tmp_path):
+    realm, _repo = _held_realm(tmp_path)
+    mine = _snapshot(_canonical("foo"))
+    baseline_before = read_skill_baseline(realm.id)
+
+    row = resolve_held_skill(realm.id, "skill::foo", take="remote", dry_run=True)
+
+    assert row["take"] == "remote"
+    assert row["archived_previous_to"] is None
+    assert _snapshot(_canonical("foo")) == mine
+    assert read_skill_baseline(realm.id) == baseline_before
+    # Still held, because a preview resolves nothing.
+    assert realm_sync_status(realm.id)["skills_drift"] == ["foo"]

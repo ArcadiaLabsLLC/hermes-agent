@@ -30,6 +30,9 @@ Three rulings shape every line below.
 The write arms are the PULL lane's arms, not new ones: ``adopt_remote_actor`` /
 ``adopt_remote_surface`` / ``adopt_remote_board`` / ``adopt_remote_card`` /
 ``restore_actor`` / ``restore_card`` / ``archive_card`` / ``remove_actor``,
+— and, since the SKILL family joined on 2026-09-12, the ONE guarded promotion
+door (``skill_promotion.execute_promotion`` with ``adopt_divergent=True``, and
+``_archive_package`` for the local-only arm),
 and — since the replicated persona-INSTANCE family joined on 2026-08-31 —
 ``replicate_instance`` / ``retire_replica``, and since the replicated CANVAS
 family joined on 2026-09-05, ``FlowGraphStore.set_doc`` / ``.archive``, plus the
@@ -64,6 +67,7 @@ from .realm_sync import (
     DRIFT_FAMILY_OFFICE_ACTOR,
     DRIFT_FAMILY_OFFICE_SURFACE,
     DRIFT_FAMILY_PERSONA_INSTANCE,
+    DRIFT_FAMILY_SKILL,
     DRIFT_KIND_ADDED,
     DRIFT_KIND_CHANGED,
     DRIFT_KIND_REMOVED,
@@ -135,6 +139,7 @@ FAMILIES = frozenset(
         DRIFT_FAMILY_OFFICE_ACTOR,
         DRIFT_FAMILY_PERSONA_INSTANCE,
         DRIFT_FAMILY_FLOW_GRAPH,
+        DRIFT_FAMILY_SKILL,
     }
 )
 
@@ -150,14 +155,33 @@ FAMILIES = frozenset(
 #: like that. ``apply_flow_graph_pull`` runs after ``apply_persona_instance_pull``
 #: for this, and a ``--all`` revert that carried both would otherwise restore
 #: them in family-name order — ``flow_graph`` before ``persona_instance``.
+#: The SKILL family sits in the ROW band (0) and needs nothing from the others:
+#: its upstream is the per-realm inbox mirror and its container is the machine's
+#: shared skills root, so no other family's write can change what a skill row
+#: reverts to, and no skill write changes another family's hash.
 _PROCESS_ORDER = {
     DRIFT_FAMILY_OFFICE_ACTOR: 0,
     DRIFT_FAMILY_BOARD_CARD: 0,
     DRIFT_FAMILY_PERSONA_INSTANCE: 0,
+    DRIFT_FAMILY_SKILL: 0,
     DRIFT_FAMILY_OFFICE_SURFACE: 1,
     DRIFT_FAMILY_BOARD: 1,
     DRIFT_FAMILY_FLOW_GRAPH: 2,
 }
+
+
+class _SkillWriteRefused(RuntimeError):
+    """The promotion door refused a skill revert's write, with its typed code.
+
+    Raised out of the write arms and caught in :func:`_revert_one` BEFORE the
+    generic handler, so the row carries the door's own ``BLOCK_*`` code instead of
+    the exception class name — an installer-owned package is a policy answer the
+    operator can act on, not an unexpected failure.
+    """
+
+    def __init__(self, code: str, message: str = ""):
+        super().__init__(message or code)
+        self.code = code
 
 
 class RevertAction(str, Enum):
@@ -297,8 +321,15 @@ class _Upstream:
     exists and would not decode can be told apart from one that is absent.
     """
 
-    def __init__(self, subtree: Path) -> None:
+    def __init__(self, subtree: Path, *, realm_id: str | None = None) -> None:
         self._subtree = subtree
+        #: The SKILL family's upstream is NOT under the subtree: it is the
+        #: per-realm INBOX mirror, which is the subtree's ``skills/`` tree copied
+        #: LF-canonical and package-filtered (tombstones dropped) by the pull. The
+        #: revert adopts THAT copy so a revert and a pull install byte-identical
+        #: content — reading the raw subtree here would reintroduce the EOL
+        #: divergence the mirror exists to normalize.
+        self._realm_id = realm_id
         self._offices: dict[str, Any] = {}
         self._boards: dict[str, Any] = {}
         #: The instance family is ONE document for the whole realm, so it caches
@@ -362,11 +393,30 @@ class _Upstream:
             return None, True
         return bodies.get(graph_id), False
 
+    def _skill(self, slug: str) -> tuple[Any, bool]:
+        """The inbox package DIRECTORY for one slug, or ``None`` when the realm
+        does not carry it.
+
+        Never ``unreadable``: a skill package is a directory of files, not a
+        document that parses, so there is no third state between present and
+        absent. Its admission door runs in :func:`_revert_one` (the pull's own
+        ``refuse_package``, over the same bytes).
+        """
+
+        from .skill_promotion import realm_inbox_dir
+
+        if self._realm_id is None:
+            return None, False
+        package = realm_inbox_dir(self._realm_id).joinpath(*slug.split("/"))
+        return (package if (package / "SKILL.md").is_file() else None), False
+
     def lookup(self, family: str, container: str, item_key: str) -> tuple[Any, bool]:
         """``(entity_or_None, unreadable)``. ``unreadable`` True means the
         artifact is not decodable HERE, which is never the same answer as
         absent."""
 
+        if family == DRIFT_FAMILY_SKILL:
+            return self._skill(item_key)
         if family == DRIFT_FAMILY_PERSONA_INSTANCE:
             return self._instance(item_key)
         if family == DRIFT_FAMILY_FLOW_GRAPH:
@@ -466,15 +516,18 @@ def revert_realm_sync(
         read_persona_instance_baseline,
         write_persona_instance_baseline,
     )
+    from .skill_sync import read_skill_baseline, write_skill_baseline
 
-    upstream = _Upstream(subtree)
+    upstream = _Upstream(subtree, realm_id=realm.id)
     office_store = OfficeStore()
     board_store = BoardStore()
     office_baseline = read_office_baseline(realm.id)
     board_baseline = read_board_baseline(realm.id)
     instance_baseline = read_persona_instance_baseline(realm.id)
     flow_graph_baseline = read_flow_graph_baseline(realm.id)
+    skill_baseline = read_skill_baseline(realm.id)
     touched_office = touched_board = touched_instances = touched_flow_graphs = False
+    touched_skills = False
 
     for item in sorted(selected, key=lambda row: (_PROCESS_ORDER[row.family], row.family, row.container, row.item_key)):
         row = _revert_one(
@@ -486,6 +539,7 @@ def revert_realm_sync(
             board_baseline=board_baseline,
             instance_baseline=instance_baseline,
             flow_graph_baseline=flow_graph_baseline,
+            skill_baseline=skill_baseline,
             realm_id=realm.id,
             dry_run=dry_run,
         )
@@ -497,6 +551,8 @@ def revert_realm_sync(
                 touched_instances = True
             elif item.family == DRIFT_FAMILY_FLOW_GRAPH:
                 touched_flow_graphs = True
+            elif item.family == DRIFT_FAMILY_SKILL:
+                touched_skills = True
             else:
                 touched_board = True
 
@@ -515,6 +571,8 @@ def revert_realm_sync(
             write_persona_instance_baseline(realm.id, instance_baseline)
         if touched_flow_graphs:
             write_flow_graph_baseline(realm.id, flow_graph_baseline)
+        if touched_skills:
+            write_skill_baseline(realm.id, skill_baseline)
         if applied:
             _append_realm_sync_event(
                 REVERT_EVENT_TYPE, realm, changed=True, artifacts=len(applied)
@@ -549,6 +607,7 @@ def _revert_one(
     board_baseline: dict[str, str],
     instance_baseline: dict[str, str] | None = None,
     flow_graph_baseline: dict[str, str] | None = None,
+    skill_baseline: dict[str, str] | None = None,
     realm_id: str | None = None,
     dry_run: bool,
 ) -> RevertRow:
@@ -582,6 +641,8 @@ def _revert_one(
         baseline = instance_baseline if instance_baseline is not None else {}
     elif item.family == DRIFT_FAMILY_FLOW_GRAPH:
         baseline = flow_graph_baseline if flow_graph_baseline is not None else {}
+    elif item.family == DRIFT_FAMILY_SKILL:
+        baseline = skill_baseline if skill_baseline is not None else {}
     else:
         baseline = board_baseline
     key = item.baseline_key()
@@ -612,6 +673,16 @@ def _revert_one(
             # would be refused a drawing that already landed on this machine
             # through the pull, which is a worse lie than either door alone.
             refusal = _refuse_flow_graph(entity)
+        elif item.family == DRIFT_FAMILY_SKILL:
+            # The skill family's door is ``refuse_package`` over the package
+            # DIRECTORY — the exact door ``apply_skill_inbox_pull`` holds, for the
+            # canvas family's reason: the same bytes must not be admissible
+            # through a pull and refused through a revert. ``refuse_entity`` is
+            # not usable here at all; a package is a tree of files, not a
+            # JSON-able entity.
+            from .sync_admission import refuse_package
+
+            refusal = refuse_package(item.item_key, entity)
         else:
             refusal = refuse_entity(key, payload=to_jsonable(entity))
         if refusal is not None:
@@ -623,7 +694,17 @@ def _revert_one(
         return row
 
     try:
-        if decision.action is RevertAction.RESTORE:
+        if item.family == DRIFT_FAMILY_SKILL:
+            # ONE arm for this family: RESTORE and ADOPT are the same install
+            # (the canonical slot is empty for a ``removed`` row and occupied for
+            # a ``changed`` one, and the guarded door decides which), so splitting
+            # them across the two helpers below would be two spellings of one
+            # write.
+            if decision.action is RevertAction.ARCHIVE_LOCAL:
+                _archive_local_skill(item)
+            else:
+                _install_skill_from_inbox(item, entity, realm_id=realm_id)
+        elif decision.action is RevertAction.RESTORE:
             _restore_from_upstream(
                 item, entity, office_store=office_store, board_store=board_store, realm_id=realm_id
             )
@@ -633,6 +714,10 @@ def _revert_one(
             )
         else:  # ARCHIVE_LOCAL
             _archive_local_only(item, office_store=office_store, board_store=board_store)
+    except _SkillWriteRefused as exc:
+        row.outcome = REFUSED_STORE_ERROR
+        row.detail = exc.code
+        return row
     except Exception as exc:  # noqa: BLE001 — accounted, never silent; the pass continues
         row.outcome = REFUSED_STORE_ERROR
         row.detail = type(exc).__name__
@@ -654,6 +739,58 @@ def _revert_one(
         baseline.pop(key, None)
         row.detail = f"baseline_unrecorded:{type(exc).__name__}"
     return row
+
+
+def _install_skill_from_inbox(item: StoreDriftItem, source_dir, *, realm_id: str | None) -> None:
+    """Install the realm's copy of a skill package over the local canonical one.
+
+    Goes through the ONE guarded promotion door
+    (``skill_promotion.execute_promotion``), with ``adopt_divergent=True`` so a
+    present canonical package is ARCHIVED before the install rather than
+    overwritten — archive-never-delete, and the same arm the pull's ``updated``
+    bucket and the operator's ``--take remote`` use. Nothing here is a second
+    write path.
+
+    ``move_source=False``: the inbox is the realm's mirror, not a duplicate to
+    retire. A refusal (installer-owned package, or a canonical slot that moved
+    under us) raises :class:`_SkillWriteRefused` so the row carries the door's own
+    typed code.
+    """
+
+    from .skill_promotion import classify_promotion, execute_promotion
+
+    plan = classify_promotion(item.item_key, source_dir)
+    if plan.action == "refuse_invalid":
+        raise _SkillWriteRefused("skill_plan_refused", plan.reason)
+    result = execute_promotion(
+        plan,
+        source={"kind": "realm", "realm_id": realm_id or ""},
+        adopt_divergent=True,
+        move_source=False,
+    )
+    if result.action not in ("promoted", "noop"):
+        raise _SkillWriteRefused(result.reason_code or "skill_promotion_refused", result.reason)
+
+
+def _archive_local_skill(item: StoreDriftItem) -> None:
+    """Archive a local-only skill package — the ``added`` arm.
+
+    ``skill_promotion._archive_package`` MOVES the tree into
+    ``shared/skills/.archive/<UTC ts>/``, which is the never-delete lane the
+    promotion door and ``skills delete`` both use; ``hermes harness skills
+    promote`` can bring it back from there. This lane mints NO realm-visible
+    tombstone, exactly as the office/board ``added`` arms do not
+    (``record_tombstone=False``): the operator is saying "my local copy is noise",
+    not "delete this skill for the realm".
+    """
+
+    from hermes_constants import get_shared_skills_dir
+
+    from .skill_promotion import _archive_package
+
+    package = get_shared_skills_dir().joinpath(*item.item_key.split("/"))
+    if package.is_dir():
+        _archive_package(package, item.item_key)
 
 
 def _refuse_flow_graph(body):
@@ -859,6 +996,18 @@ def _current_content_hash(item: StoreDriftItem, *, office_store, board_store) ->
     make the sheet read in-sync for content this install does not hold.
     """
 
+    if item.family == DRIFT_FAMILY_SKILL:
+        from hermes_constants import get_shared_skills_dir
+
+        from .skill_promotion import skill_package_sync_hash
+
+        # The canonical package as it stands after the install, hashed with the
+        # SYNC hash — the same hash the pull, the publish baseline and the resolve
+        # verb record, so a reverted row reads ``local == baseline`` on the very
+        # next status instead of ``changed`` over an EOL difference.
+        return skill_package_sync_hash(
+            get_shared_skills_dir().joinpath(*item.item_key.split("/"))
+        )
     if item.family == DRIFT_FAMILY_FLOW_GRAPH:
         from .flow_graph import FlowGraphStore
         from .flow_graph_sync import flow_graph_def_hash, project_flow_graph
