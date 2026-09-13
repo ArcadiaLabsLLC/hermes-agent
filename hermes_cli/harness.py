@@ -2508,6 +2508,12 @@ def _cmd_skills_inbox(args) -> int:
             "canonical_hash": row["canonical_hash"],
             "promotion_block_reason": row["promotion_block_reason"],
             "promotion_block_detail": row["promotion_block_detail"],
+            # The THREE-WAY verdict (2026-09-12): ``action`` alone cannot tell a
+            # realm-side update (``updated``) from a conflict (``held``) — it has
+            # no baseline. Read ``decision``; ``action`` stays because the guarded
+            # write door dispatches on it.
+            "decision": row["decision"],
+            "baseline_hash": row["baseline_hash"],
         }
         for row in rows
     ]
