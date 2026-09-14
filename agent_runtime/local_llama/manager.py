@@ -5,12 +5,14 @@ from contextlib import contextmanager
 from copy import deepcopy
 from collections import deque
 import json
+import hashlib
 from pathlib import Path
 import threading
 import time
 import uuid
 
 from agent_runtime.store_file_io import iso_stamp, read_json_object, store_lock
+from agent_runtime.locks import HarnessLockUnavailable
 from utils import atomic_json_write
 
 from . import DISPLAY_NAME, PROVIDER_ID, SCHEMA
@@ -24,7 +26,10 @@ class LocalLlamaManager:
         self.directory = root / "local_llama"
         self.directory.mkdir(parents=True, exist_ok=True)
         self._ownership = store_lock(self.directory / "owner.lock", timeout_seconds=0)
-        self._ownership.__enter__()
+        try:
+            self._ownership.__enter__()
+        except HarnessLockUnavailable as exc:
+            raise LocalLlamaError("manager_unavailable", "Another Hermes process owns local llama", code=-32000) from exc
         try:
             self._initialize(config_path, install_id, router_factory)
         except BaseException:
@@ -142,9 +147,16 @@ class LocalLlamaManager:
             raise LocalLlamaError("unknown_operation", "Unknown local llama operation")
         request_id = identifier(params.get("request_id"), "request_id")
         keys = ("request_id", "expect_epoch", "expect_revision", "expect_config_revision") + allowed[kind]
+        if set(params) - set(keys):
+            raise LocalLlamaError("invalid_parameter", "Unknown local llama operation parameter")
+        params = dict(params)
+        for key in ("model_id", "replace_model_id"):
+            if params.get(key) is not None:
+                params[key] = identifier(params[key], key)
         normalized = {k: params.get(k) for k in keys}
         try:
-            fingerprint = json.dumps({"kind": kind, "params": normalized}, sort_keys=True, allow_nan=False)
+            canonical = json.dumps({"kind": kind, "params": normalized}, sort_keys=True, allow_nan=False)
+            fingerprint = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
         except (ValueError, TypeError):
             raise LocalLlamaError("invalid_parameter", "Parameters must contain finite JSON values") from None
         with self.lock:
@@ -168,6 +180,7 @@ class LocalLlamaManager:
                                      active_turns=deepcopy(list(self.leases.values())))
             if kind == "load":
                 model = self._model(identifier(params.get("model_id")))
+                integer(params.get("preset_revision"), "preset_revision")
                 if params.get("preset_revision") != model["revision"]:
                     raise LocalLlamaError("stale_revision", "Model preset changed", code=4090)
                 validate_parameters(params.get("load"), params.get("generation"))
@@ -186,10 +199,16 @@ class LocalLlamaManager:
             op = {"operation_id": str(uuid.uuid4()), "request_id": request_id, "kind": kind, "state": "queued",
                   "model_id": normalized.get("model_id"), "progress": None, "error": None,
                   "started_at": None, "finished_at": None}
+            previous_operation, previous_revision = self.operation, self.revision
             self.receipts[request_id] = {"fingerprint": fingerprint, "accepted_at": time.time(), "operation": op}
             self.operation = op
             self.revision += 1
-            self._persist()
+            try:
+                self._persist()
+            except OSError as exc:
+                self.receipts.pop(request_id, None)
+                self.operation, self.revision = previous_operation, previous_revision
+                raise LocalLlamaError("storage_unavailable", "Cannot save the local llama operation receipt", code=-32000) from exc
             worker = threading.Thread(target=self._execute, args=(kind, deepcopy(normalized), op), daemon=True,
                                       name="local-llama-operation")
             self._worker = worker

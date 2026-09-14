@@ -127,6 +127,37 @@ def test_read_projection_never_contains_internal_credentials(manager):
     assert "test-secret" not in str(manager.config_get())
 
 
+def test_receipt_keeps_bounded_digest_and_rejects_unknown_fields(manager):
+    request = params(manager)
+    manager.submit("stop", request)
+    settle(manager, request)
+    digest = manager.receipts[request["request_id"]]["fingerprint"]
+    assert len(digest) == 64
+    with pytest.raises(LocalLlamaError, match="Unknown"):
+        manager.submit("stop", params(manager, shell_command="not-an-option"))
+
+
+def test_second_manager_cannot_claim_same_runtime(manager):
+    with pytest.raises(LocalLlamaError) as caught:
+        LocalLlamaManager(manager.directory.parent, manager.config_store.path, "other", router_factory=FakeRouter)
+    assert caught.value.reason == "manager_unavailable"
+
+
+def test_storage_failure_cannot_start_an_unrecorded_process(manager, monkeypatch):
+    def unavailable():
+        raise OSError("disk unavailable")
+    with monkeypatch.context() as patch:
+        patch.setattr(manager, "_persist", unavailable)
+        with pytest.raises(LocalLlamaError) as caught:
+            manager.submit("start", params(manager))
+    assert caught.value.reason == "storage_unavailable"
+    assert manager.router.started == 0
+    assert manager.operation is None
+    request = params(manager)
+    manager.submit("start", request)
+    assert settle(manager, request)["state"] == "succeeded"
+
+
 def test_initialization_failure_releases_process_ownership(tmp_path):
     path = tmp_path / "config.yaml"
     path.write_text("local_llama: [broken\n")

@@ -23,6 +23,8 @@ class RouterClient:
         self.token = secrets.token_urlsafe(32)
         self.base_url = None
         self.cancel = threading.Event()
+        self._process_lock = threading.RLock()
+        self._closed = False
         self._session = requests.Session()
         self._session.trust_env = False
         self._session.headers["Authorization"] = f"Bearer {self.token}"
@@ -75,14 +77,17 @@ class RouterClient:
             except OSError as exc:
                 raise LocalLlamaError("port_in_use", "Configured llama port is already in use", code=-32000) from exc
         self.directory.mkdir(parents=True, exist_ok=True)
-        self.cancel.clear()
-        self._preset(None)
         environment = {k: v for k, v in os.environ.items() if not k.startswith("LLAMA_")}
         environment["LLAMA_API_KEY"] = self.token
         self.base_url = f"http://127.0.0.1:{config['port']}"
-        self.process = OwnedProcess([config["executable_path"], "--host", "127.0.0.1", "--port", str(config["port"]),
-                                     "--models-preset", str(self.directory / "models.ini"), "--models-max", "1",
-                                     "--no-models-autoload"], cwd=self.directory, env=environment)
+        with self._process_lock:
+            if self._closed:
+                raise LocalLlamaError("interrupted", "Hermes is stopping", code=-32000)
+            self._preset(None)
+            self.cancel.clear()
+            self.process = OwnedProcess([config["executable_path"], "--host", "127.0.0.1", "--port", str(config["port"]),
+                                         "--models-preset", str(self.directory / "models.ini"), "--models-max", "1",
+                                         "--no-models-autoload"], cwd=self.directory, env=environment)
         self._wait(lambda: self.request("/health").get("status") == "ok", 30)
 
     def _wait(self, predicate, timeout):
@@ -126,10 +131,14 @@ class RouterClient:
     def stop(self):
         # Router has no documented shutdown endpoint. Unload gracefully first;
         # Job close then terminates only this managed tree, including failed workers.
-        if self.process is not None:
-            self.process.close()
+        with self._process_lock:
+            process = self.process
             self.process = None
+        if process is not None:
+            process.close()
 
     def close(self):
-        self.cancel.set()
+        with self._process_lock:
+            self._closed = True
+            self.cancel.set()
         self.stop()

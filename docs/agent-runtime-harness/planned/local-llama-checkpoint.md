@@ -110,3 +110,20 @@ and repeated HTTP health failures, discarding observations invalidated by a
 concurrent lifecycle change. Missing/corrupt saved settings return typed errors;
 failed construction releases ownership. Missing replacement weights preserve the
 currently loaded model. No final visual acceptance or main landing yet.
+
+## Baseline failure outside this feature
+
+`test_response_contract_fixture.py` has an existing producer/fixture mismatch:
+`realm_sync_status_remote_unreachable.json` omits the producer's `levels` key.
+Confirmed with the same focused wrapper command on clean Hermes main `9015185e4e`:
+17 passed, 1 failed, exit 1. The feature worktree has the identical failure.
+Do not regenerate unrelated response fixtures as part of local llama. The
+companion `test_stream_contract_fixture.py` passed 21 tests; the expanded
+`test_persona_set_model.py` passed 40 including local selection while off.
+
+Latest recovery tail: operation fingerprints are SHA256 digests (bounded even for
+large catalogs), unknown mutation keys and non-integer preset revisions are
+rejected, manager ownership contention is typed, and shutdown cannot spawn a
+late router after binary probing. Receipt write failure rolls back the queued
+in-memory operation before any process starts. Focused manager/router tests:
+**13 passed**, exit 0, no retry. Launcher review fixes and Stage C remain open.
