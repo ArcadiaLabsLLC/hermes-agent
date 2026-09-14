@@ -94,7 +94,20 @@ def main():
         request.max_wall_seconds = 180
         request.progress_callback = events.append
         request.workdir = args.output
+        def inspect_agent(agent):
+            from agent.auxiliary_client import get_text_auxiliary_client
+            assert agent.context_compressor.context_length == 8192
+            client, model = get_text_auxiliary_client("compression", main_runtime=agent._current_main_runtime())
+            assert model == agent.model
+            assert str(client.base_url).rstrip("/") == runtime["base_url"]
+            assert client.api_key == runtime["api_key"]
+            agent._check_compression_model_feasibility()
+            assert not agent._fallback_chain
+            record("auxiliary_local_route", {"same_model": True, "same_endpoint": True,
+                                            "context_size": agent.context_compressor.context_length})
+        request.agent_ready_callback = inspect_agent
         agent_result = ProfileAgentRunner().run(request)
+        assert "auxiliary_local_route" in receipt["checks"], "Agent-ready verification failed"
         record("full_agent", {"response": agent_result.final_response,
                               "api_calls": agent_result.api_calls,
                               "tool_events": [e for e in events if "tool" in str(e.get("type", ""))]})

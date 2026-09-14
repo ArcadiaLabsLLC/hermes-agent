@@ -125,3 +125,41 @@ def test_old_epoch_cannot_replay_on_new_manager(tmp_path):
 def test_read_projection_never_contains_internal_credentials(manager):
     assert "test-secret" not in str(manager.status())
     assert "test-secret" not in str(manager.config_get())
+
+
+def test_initialization_failure_releases_process_ownership(tmp_path):
+    path = tmp_path / "config.yaml"
+    path.write_text("local_llama: [broken\n")
+    with pytest.raises(LocalLlamaError):
+        LocalLlamaManager(tmp_path / "runtime", path, "test", router_factory=FakeRouter)
+    path.write_text("{}")
+    replacement = LocalLlamaManager(tmp_path / "runtime", path, "test", router_factory=FakeRouter)
+    replacement.close()
+
+
+def test_shutdown_interrupts_pending_operation_and_refuses_new_commands(manager):
+    manager.router.block.clear()
+    request = params(manager)
+    manager.submit("start", request)
+    manager.close()
+    assert manager.status(request_id=request["request_id"])["operation"]["state"] == "interrupted"
+    with pytest.raises(LocalLlamaError) as caught:
+        manager.submit("start", params(manager))
+    assert caught.value.reason == "manager_unavailable"
+
+
+def test_missing_replacement_preserves_current_loaded_model(manager, tmp_path):
+    from agent_runtime.local_llama.config import LOAD_DEFAULTS, GENERATION_DEFAULTS
+    old, new = str(uuid.uuid4()), str(uuid.uuid4())
+    manager.server, manager.loaded = "running", old
+    manager.model_states[old] = {"state": "ready", "active_parameters": {
+        "load": deepcopy(LOAD_DEFAULTS), "generation": deepcopy(GENERATION_DEFAULTS)}}
+    manager.config["presets"] = [{"model_id": new, "display_name": "missing", "revision": 0,
+        "gguf_path": str(tmp_path / "gone.gguf"), "load": deepcopy(LOAD_DEFAULTS), "generation": deepcopy(GENERATION_DEFAULTS)}]
+    request = params(manager, model_id=new, preset_revision=0, load=deepcopy(LOAD_DEFAULTS),
+                     generation=deepcopy(GENERATION_DEFAULTS), replace_model_id=old)
+    manager.submit("load", request)
+    operation = settle(manager, request)
+    assert operation["error"]["reason"] == "missing_file"
+    assert manager.loaded == old
+    assert manager.server == "running"

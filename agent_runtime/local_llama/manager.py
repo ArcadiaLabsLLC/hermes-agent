@@ -356,16 +356,36 @@ class LocalLlamaManager:
                     "api_key": self.router.token, "local_parameters": deepcopy(self.model_states[model_id]["active_parameters"])}
 
     def _watch(self):
+        failures = 0
         while not self.stop_event.wait(2):
             with self.lock:
                 if self.server != "running" or (self.operation and self.operation["state"] in ("queued", "running")):
+                    failures = 0
                     continue
-                if self.router.process is not None and self.router.process.poll() is not None:
+                process = self.router.process
+                revision = self.revision
+            if process is None:
+                continue
+            exited = process.poll() is not None
+            try:
+                healthy = not exited and self.router.request("/health").get("status") == "ok"
+            except LocalLlamaError:
+                healthy = False
+            failures = 0 if healthy else failures + 1
+            with self.lock:
+                # A concurrent command/turn invalidates this observation. Never
+                # reconcile an old probe against a replacement process or load.
+                if self.closed or self.revision != revision or self.router.process is not process:
+                    failures = 0
+                    continue
+                if exited or failures >= 3:
+                    self.router.stop()
                     self.server = "failed"
-                    self.server_error = LocalLlamaError("router_failed", "The managed llama.cpp process exited").as_error()
+                    self.server_error = LocalLlamaError("router_failed", "The managed llama.cpp process exited or stopped responding").as_error()
                     self.loaded = None
                     self.model_states.clear()
                     self.revision += 1
+                    self._log("router failed health check")
 
     def close(self):
         with self.lock:

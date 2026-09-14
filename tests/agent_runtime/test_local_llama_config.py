@@ -47,3 +47,23 @@ def test_missing_config_has_no_fs_mutation(tmp_path):
     path = tmp_path / "config.yaml"
     assert ConfigStore(path).read() == default_config()
     assert not path.exists()
+
+
+def test_missing_saved_server_paths_remain_repairable(tmp_path):
+    config = default_config()
+    config["executable_path"] = str(tmp_path / "removed.exe")
+    config["model_roots"] = [str(tmp_path / "removed-models")]
+    store = ConfigStore(tmp_path / "config.yaml")
+    store.write(config)
+    assert store.read() == config
+    with pytest.raises(LocalLlamaError) as caught:
+        validate_config(config)
+    assert caught.value.reason == "missing_file"
+
+
+def test_invalid_saved_config_has_typed_error(tmp_path):
+    path = tmp_path / "config.yaml"
+    path.write_text("local_llama: [invalid\n")
+    with pytest.raises(LocalLlamaError) as caught:
+        ConfigStore(path).read()
+    assert caught.value.reason == "invalid_config"

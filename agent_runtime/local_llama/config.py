@@ -61,7 +61,7 @@ def local_path(value, name, *, directory=False, nullable=False, exists=True):
     return str(path.resolve())
 
 
-def validate_parameters(load, generation):
+def validate_parameters(load, generation, *, check_paths=True):
     _keys(load, LOAD_DEFAULTS, "load")
     _keys(generation, GENERATION_DEFAULTS, "generation")
     context = integer(load["context_size"], "context_size", 4096)
@@ -74,7 +74,7 @@ def validate_parameters(load, generation):
         _choice(load[key], ("f16", "q8_0", "q4_0"), key)
     if load["cache_type_v"] != "f16" and load["flash_attention"] != "on":
         raise LocalLlamaError("invalid_parameter", "Quantized V cache requires Flash Attention on")
-    local_path(load["chat_template_path"], "chat_template_path", nullable=True)
+    local_path(load["chat_template_path"], "chat_template_path", nullable=True, exists=check_paths)
     for key, low, high in (("temperature", 0, 2), ("top_p", 0, 1)):
         value = generation[key]
         if type(value) not in (int, float) or not math.isfinite(value) or not low <= value <= high:
@@ -94,16 +94,16 @@ def default_config():
             "model_roots": [], "presets": []}
 
 
-def validate_config(value):
+def validate_config(value, *, check_paths=True):
     _keys(value, default_config(), "config")
     if type(value["schema_version"]) is not int or value["schema_version"] != 1:
         raise LocalLlamaError("invalid_parameter", "Unsupported configuration schema")
     integer(value["port"], "port", 1024, 65535)
     out = deepcopy(value)
-    out["executable_path"] = local_path(value["executable_path"], "executable_path", nullable=True)
+    out["executable_path"] = local_path(value["executable_path"], "executable_path", nullable=True, exists=check_paths)
     if not isinstance(value["model_roots"], list) or len(value["model_roots"]) > 32:
         raise LocalLlamaError("invalid_parameter", "model_roots must be a list of at most 32 folders")
-    out["model_roots"] = [local_path(p, "model_root", directory=True) for p in value["model_roots"]]
+    out["model_roots"] = [local_path(p, "model_root", directory=True, exists=check_paths) for p in value["model_roots"]]
     if not isinstance(value["presets"], list) or len(value["presets"]) > 10000:
         raise LocalLlamaError("invalid_parameter", "presets must be a bounded list")
     seen = set()
@@ -121,7 +121,7 @@ def validate_config(value):
         preset["gguf_path"] = local_path(preset["gguf_path"], "gguf_path", exists=False)
         if Path(preset["gguf_path"]).suffix.lower() != ".gguf":
             raise LocalLlamaError("invalid_parameter", "Weights must be a GGUF file")
-        validate_parameters(preset["load"], preset["generation"])
+        validate_parameters(preset["load"], preset["generation"], check_paths=check_paths)
     return out
 
 
@@ -132,10 +132,13 @@ class ConfigStore:
     def read(self):
         if not self.path.exists():
             return default_config()
-        document = yaml.safe_load(self.path.read_bytes()) or {}
+        try:
+            document = yaml.safe_load(self.path.read_bytes()) or {}
+        except (yaml.YAMLError, OSError) as exc:
+            raise LocalLlamaError("invalid_config", "Cannot read the Hermes root configuration") from exc
         if not isinstance(document, dict):
             raise LocalLlamaError("invalid_config", "Root config must be a mapping")
-        return deepcopy(document.get("local_llama", default_config()))
+        return validate_config(document.get("local_llama", default_config()), check_paths=False)
 
     def write(self, config):
         from agent_runtime.store_file_io import store_lock

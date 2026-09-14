@@ -36,10 +36,14 @@ def get_manager(*, root=None, create=True):
         return binding["manager"]
 
 
-def shutdown():
+def shutdown(*, root=None):
     with _lock:
-        bindings = list(_bindings.values())
-        _bindings.clear()
+        if root is None:
+            bindings = list(_bindings.values())
+            _bindings.clear()
+        else:
+            binding = _bindings.pop(str(Path(root).resolve()), None)
+            bindings = [binding] if binding else []
     for binding in bindings:
         if binding["manager"] is not None:
             binding["manager"].close()

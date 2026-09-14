@@ -14,8 +14,10 @@ Canonical design: [local-llama-agent-console.md](local-llama-agent-console.md).
 - Real production manager/RPC proof passed: configuration, scan, empty startup,
   load 8192, runner-resolved text inference, unload, load 4096, stop. Isolated
   artifacts: `qa_artifacts/local-llama-runtime-proof/runtime-receipt.json`.
-- Full agent-loop probe is in progress; inspect its receipt and terminal result
-  before claiming success. Launcher L1 is delegated to the existing Sol agent.
+- Full agent-loop probe passed, including a real terminal tool call and response
+  (two API calls), same-model auxiliary compression routing, exact 8192 context,
+  zero fallback entries, reload 4096 and stop. Final local artifact directory:
+  `qa_artifacts/local-llama-agent-aux-proof/`. Launcher L1 is delegated to Sol.
   DTOs are frozen; do not change field names without coordinating.
 - Next: complete failure/recovery tests, full agent and remote/served-wire proof,
   integration review, Launcher focused tests and Stage C. Keep the final gate open.
@@ -86,3 +88,25 @@ methods still refuse them, and all local-model methods refuse peer callers. This
 preserves transport authorization policy. Model settings and logs are console tier.
 `thinking` capability currently advertises only `auto`; no unverified override is
 sent. Operator model paths are never committed. No cloud fallback is configured.
+
+## Recovery / agent checkpoint
+
+The real agent probe exposed Hermes's 64K context floor. Managed local models now
+share the explicit local-context exception, keyed by their requested provider and
+verified loaded context. Compression's floor exception is limited to the SAME
+local model with the same verified window. We never inflate the context budget.
+
+`test_local_llama_config.py`, `test_local_llama_manager.py`,
+`test_local_llama_process.py`, and `test_compression_feasibility.py` passed **37
+tests**, exit 0. The process ownership test took 8.9s in this serial run (no retry).
+`test_local_llama_gateway.py` passed **2 tests**, exit 0, over real TLS/device
+authentication and the real serve loop: console config persistence/idempotency,
+read-tier control/path refusals, manager teardown. This verifies the remote wire
+on loopback, not a separate physical machine or firewall.
+
+Shutdown is now scoped to the serve that acquired ownership; a non-owning serve
+cannot shut down another manager. Health reconciliation checks owned-process exit
+and repeated HTTP health failures, discarding observations invalidated by a
+concurrent lifecycle change. Missing/corrupt saved settings return typed errors;
+failed construction releases ownership. Missing replacement weights preserve the
+currently loaded model. No final visual acceptance or main landing yet.
