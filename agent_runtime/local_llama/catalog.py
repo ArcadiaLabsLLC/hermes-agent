@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import os
+import re
 from pathlib import Path
 import struct
 import time
@@ -53,7 +54,38 @@ def metadata(path: Path) -> dict:
             item = value(number("I"))
             if key in ("general.name", "general.architecture", "split.no", "split.count") or key.endswith(".context_length"):
                 result[key] = item
+        architecture = result.get("general.architecture")
+        if not isinstance(architecture, str) or not architecture or architecture in ("clip", "vision"):
+            raise LocalLlamaError("unsupported_model", "GGUF has no supported text architecture")
+        if "general.name" in result and not isinstance(result["general.name"], str):
+            raise LocalLlamaError("unsupported_model", "Invalid GGUF model name")
+        for key in ("split.count", "split.no"):
+            if key in result and (type(result[key]) is not int or result[key] < 0 or result[key] > 1000):
+                raise LocalLlamaError("incomplete_model", "Invalid GGUF shard metadata")
         return result
+
+
+def validate_model(path: Path):
+    try:
+        info = metadata(path)
+    except OSError as exc:
+        raise LocalLlamaError("missing_file", "The saved model is missing or unreadable") from exc
+    except UnicodeError as exc:
+        raise LocalLlamaError("unsupported_model", "GGUF metadata contains invalid text") from exc
+    count = info.get("split.count", 1)
+    if count > 1:
+        match = re.fullmatch(r"(.+)-(\d{5})-of-(\d{5})\.gguf", path.name, re.IGNORECASE)
+        if not match or int(match[3]) != count or info.get("split.no") != 0 or int(match[2]) != 1:
+            raise LocalLlamaError("incomplete_model", "Select the first file of a complete GGUF shard set")
+        for index in range(count):
+            shard = path.with_name(f"{match[1]}-{index + 1:05d}-of-{count:05d}.gguf")
+            try:
+                part = metadata(shard)
+            except OSError as exc:
+                raise LocalLlamaError("incomplete_model", "A GGUF shard is missing or unreadable") from exc
+            if any(part.get(k) != info.get(k) for k in ("general.name", "general.architecture", "split.count")) or part.get("split.no") != index:
+                raise LocalLlamaError("incomplete_model", "GGUF shards do not belong to the same model")
+    return info
 
 
 def scan(config: dict, *, max_candidates=10000, timeout=60):
@@ -62,7 +94,8 @@ def scan(config: dict, *, max_candidates=10000, timeout=60):
     candidates, errors, truncated = [], [], False
     deadline = time.monotonic() + timeout
     for root in config["model_roots"]:
-        for parent, directories, files in os.walk(root, followlinks=False):
+        for parent, directories, files in os.walk(root, followlinks=False,
+                onerror=lambda exc: errors.append({"path": exc.filename, "reason": "unreadable_directory"})):
             directories[:] = [d for d in directories if not Path(parent, d).is_symlink()
                                and not Path(parent, d).is_junction()]
             if time.monotonic() > deadline:
@@ -92,7 +125,10 @@ def scan(config: dict, *, max_candidates=10000, timeout=60):
                 continue
             if info.get("split.count", 1) > 1:
                 # Shards must be adjacent and agree on name, architecture, count.
-                key = (str(path.parent), info.get("general.name"), info.get("general.architecture"), info["split.count"])
+                match = re.fullmatch(r"(.+)-(\d{5})-of-(\d{5})\.gguf", path.name, re.IGNORECASE)
+                if not match:
+                    raise LocalLlamaError("incomplete_model", "Unrecognized GGUF shard filename")
+                key = (str(path.parent), match[1], info.get("general.name"), info.get("general.architecture"), info["split.count"])
                 split_groups.setdefault(key, []).append((path, info))
             else:
                 singles.append((path, info))

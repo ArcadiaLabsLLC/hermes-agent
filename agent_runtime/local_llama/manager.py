@@ -14,7 +14,7 @@ from agent_runtime.store_file_io import iso_stamp, read_json_object, store_lock
 from utils import atomic_json_write
 
 from . import DISPLAY_NAME, PROVIDER_ID, SCHEMA
-from .catalog import metadata, scan
+from .catalog import validate_model, scan
 from .config import ConfigStore, LocalLlamaError, identifier, integer, validate_config, validate_parameters
 from .router_client import RouterClient
 
@@ -25,6 +25,13 @@ class LocalLlamaManager:
         self.directory.mkdir(parents=True, exist_ok=True)
         self._ownership = store_lock(self.directory / "owner.lock", timeout_seconds=0)
         self._ownership.__enter__()
+        try:
+            self._initialize(config_path, install_id, router_factory)
+        except BaseException:
+            self._ownership.__exit__(None, None, None)
+            raise
+
+    def _initialize(self, config_path, install_id, router_factory):
         self.lock = threading.RLock()
         self.config_store = ConfigStore(config_path)
         self.config = self.config_store.read()
@@ -39,9 +46,12 @@ class LocalLlamaManager:
         self.model_states = {}
         self.leases = {}
         self.operation = None
+        self._worker = None
         self.logs = deque(maxlen=2000)
         self._log_sequence = 0
         self.closed = False
+        self.unavailable = {p["model_id"]: "missing_file" for p in self.config["presets"]
+                            if not Path(p["gguf_path"]).is_file()}
         self.stop_event = threading.Event()
         self.receipts = read_json_object(self.directory / "operations.json")
         for row in self.receipts.values():
@@ -97,7 +107,8 @@ class LocalLlamaManager:
                 state = self.model_states.get(preset["model_id"], {})
                 rows.append({"model_id": preset["model_id"], "display_name": preset["display_name"],
                              "preset_revision": preset["revision"], "state": state.get("state", "unloaded"),
-                             "selectable": True, "unavailable_reason": None,
+                             "selectable": preset["model_id"] not in self.unavailable,
+                             "unavailable_reason": self.unavailable.get(preset["model_id"]),
                              "active_parameters": state.get("active_parameters"), "error": state.get("error")})
             return deepcopy({"schema": SCHEMA, "install_id": self.install_id, "epoch": self.epoch,
                              "revision": self.revision, "config_revision": self.config_revision,
@@ -132,7 +143,10 @@ class LocalLlamaManager:
         request_id = identifier(params.get("request_id"), "request_id")
         keys = ("request_id", "expect_epoch", "expect_revision", "expect_config_revision") + allowed[kind]
         normalized = {k: params.get(k) for k in keys}
-        fingerprint = json.dumps({"kind": kind, "params": normalized}, sort_keys=True, allow_nan=False)
+        try:
+            fingerprint = json.dumps({"kind": kind, "params": normalized}, sort_keys=True, allow_nan=False)
+        except (ValueError, TypeError):
+            raise LocalLlamaError("invalid_parameter", "Parameters must contain finite JSON values") from None
         with self.lock:
             if self.closed:
                 raise LocalLlamaError("manager_unavailable", "Local llama manager is stopping", code=-32000)
@@ -178,6 +192,7 @@ class LocalLlamaManager:
             self._persist()
             worker = threading.Thread(target=self._execute, args=(kind, deepcopy(normalized), op), daemon=True,
                                       name="local-llama-operation")
+            self._worker = worker
             worker.start()
             return self._reply(op)
 
@@ -197,12 +212,17 @@ class LocalLlamaManager:
 
     def _save(self, config):
         with self.lock:
+            if self.closed:
+                raise LocalLlamaError("interrupted", "Hermes is stopping", code=-32000)
             self.config_store.write(config)
             self.config = config
+            self.unavailable = {p["model_id"]: "missing_file" for p in config["presets"]
+                                if not Path(p["gguf_path"]).is_file()}
             self.config_revision += 1
             self.revision += 1
 
     def _execute(self, kind, params, op):
+        load_started = False
         with self.lock:
             op.update(state="running", started_at=iso_stamp(None))
         try:
@@ -216,6 +236,8 @@ class LocalLlamaManager:
                     old = {p["model_id"]: p for p in self.config["presets"]}
                     for preset in config["presets"]:
                         previous = old.get(preset["model_id"])
+                        if previous and preset["revision"] != previous["revision"]:
+                            raise LocalLlamaError("stale_revision", "Model preset changed", code=4090)
                         preset["revision"] = previous["revision"] + (preset != previous) if previous else 0
                 self._save(config)
             elif kind == "catalog.scan":
@@ -246,14 +268,18 @@ class LocalLlamaManager:
                     "load": model["load"], "generation": model["generation"], "effective_context_size": model["load"]["context_size"]}:
                     pass
                 else:
-                    if self.loaded:
-                        self._unload(self.loaded)
-                    info = metadata(Path(model["gguf_path"]))
+                    info = validate_model(Path(model["gguf_path"]))
                     contexts = [v for k, v in info.items() if k.endswith(".context_length") and type(v) is int]
                     if contexts and model["load"]["context_size"] > min(contexts):
                         raise LocalLlamaError("invalid_parameter", "Context exceeds the model metadata maximum")
+                    if self.loaded:
+                        self._unload(self.loaded)
                     self._transition(model=model["model_id"], state="loading")
+                    load_started = True
                     props = self.router.load(model)
+                    caps = props.get("chat_template_caps", {})
+                    if not caps.get("supports_tools") or not caps.get("supports_tool_calls"):
+                        raise LocalLlamaError("unsupported_model", "This model template does not support agent tool calls", code=-32000)
                     context = props.get("default_generation_settings", {}).get("n_ctx")
                     if type(context) is not int or context != model["load"]["context_size"]:
                         self.router.unload(model["model_id"])
@@ -271,20 +297,31 @@ class LocalLlamaManager:
                 self._log(kind + " succeeded")
         except Exception as exc:
             error = exc if isinstance(exc, LocalLlamaError) else LocalLlamaError("operation_failed", "Local llama operation failed; verify configuration and available memory", code=-32000)
-            if kind in ("start", "load"):
+            router_failed = kind in ("start", "stop", "unload")
+            if kind == "load" and load_started:
+                try:
+                    self.router.unload(params["model_id"])
+                except Exception:
+                    router_failed = True
+            if router_failed:
                 self.router.stop()
             with self.lock:
-                if kind in ("start", "load", "stop"):
+                if router_failed:
                     self.server = "failed"
                     self.server_error = error.as_error()
                     self.loaded = None
                     self.model_states.clear()
+                elif kind == "load" and load_started:
+                    self.loaded = None
+                    self.model_states[params["model_id"]] = {"state": "failed", "active_parameters": None,
+                                                            "error": error.as_error()}
                 op.update(state="interrupted" if self.closed else "failed", error=error.as_error(), finished_at=iso_stamp(None))
                 self._log(kind + " failed: " + error.reason)
         finally:
             with self.lock:
                 self.revision += 1
-                self._persist()
+                if not self.closed:
+                    self._persist()
 
     def _unload(self, model_id):
         self._transition(model=model_id, state="unloading")
@@ -336,5 +373,12 @@ class LocalLlamaManager:
                 return
             self.closed = True
             self.stop_event.set()
+            if self.operation and self.operation["state"] in ("queued", "running"):
+                self.operation.update(state="interrupted", finished_at=iso_stamp(None),
+                                      error=LocalLlamaError("interrupted", "Hermes service stopped").as_error())
+            self._persist()
         self.router.close()
+        if self._worker is not None:
+            self._worker.join(timeout=5)
+        self._watcher.join(timeout=3)
         self._ownership.__exit__(None, None, None)

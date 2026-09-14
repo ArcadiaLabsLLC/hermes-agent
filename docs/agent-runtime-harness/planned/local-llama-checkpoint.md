@@ -8,14 +8,17 @@ Canonical design: [local-llama-agent-console.md](local-llama-agent-console.md).
 - Hermes branch: `codex/local-llama-runtime`; Launcher branch:
   `codex/local-llama-console`. Locate them with `git worktree list`; preserve every
   dirty worktree. Launcher queue row is TAKEN by this implementation.
-- H0 real-binary proof complete. H1 foundation written; RPC/serve binding,
-  provider routing, frontend, final hardening, and Q1 remain open.
-- Next: review/harden `agent_runtime/local_llama/manager.py` and `router_client.py`,
-  add catalog/manager failure tests, then implement `local_llama/rpc.py` and the
-  owning-serve registration/shutdown hooks. Do not expose a second manager from
-  a non-owning serve or a profile-scoped runner.
-- H2 must wire readiness, model resolution, whole-turn leases, context and
-  generation/auxiliary routing. Freeze tested DTO fixtures before Launcher work.
+- H0 complete. H1/H2 now include owning-serve binding/shutdown, RPC dispatch and
+  authorization, local provider selection/readiness, whole-turn leases, scoped
+  context/generation/auxiliary routing, and resident actor invalidation.
+- Real production manager/RPC proof passed: configuration, scan, empty startup,
+  load 8192, runner-resolved text inference, unload, load 4096, stop. Isolated
+  artifacts: `qa_artifacts/local-llama-runtime-proof/runtime-receipt.json`.
+- Full agent-loop probe is in progress; inspect its receipt and terminal result
+  before claiming success. Launcher L1 is delegated to the existing Sol agent.
+  DTOs are frozen; do not change field names without coordinating.
+- Next: complete failure/recovery tests, full agent and remote/served-wire proof,
+  integration review, Launcher focused tests and Stage C. Keep the final gate open.
 - The new modules are checkpoint code, not a production-ready claim. Do not
   land the runtime feature on main until the remaining contracts and proof pass.
 
@@ -67,3 +70,19 @@ No live Hermes config was changed. No runtime feature commit has landed on main.
 The pre-existing runtime-skill preload ceiling hook failure remains separately
 queued; it is unrelated to this feature. Existing Launcher personal memory files
 and the spatial-voice worktree remain outside scope.
+
+## RPC/provider checkpoint proof
+
+Focused catalog, manager, provider, persona-set-model, and readiness files passed
+64 tests. Provider visibility initially failed its old additive-key allowlist;
+the new `local_llama` block is now explicitly excluded from the legacy shape
+comparison. Follow-up wrapper run of `test_provider_visibility_v2.py`,
+`test_profile_runner.py`, and `test_local_llama_rpc.py` passed **114 tests**, exit 0.
+RPC plus existing authorization focused run previously passed **27 tests**.
+All commands used `scripts/run_tests.sh`, `-j 1 --file-timeout 120`.
+
+The existing read tier permits UNKNOWN callers to read sanitized status; console
+methods still refuse them, and all local-model methods refuse peer callers. This
+preserves transport authorization policy. Model settings and logs are console tier.
+`thinking` capability currently advertises only `auto`; no unverified override is
+sent. Operator model paths are never committed. No cloud fallback is configured.
