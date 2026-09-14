@@ -1,0 +1,127 @@
+from copy import deepcopy
+from pathlib import Path
+import threading
+import time
+import uuid
+
+import pytest
+
+from agent_runtime.local_llama.config import default_config, LocalLlamaError
+from agent_runtime.local_llama.manager import LocalLlamaManager
+
+
+class FakeRouter:
+    def __init__(self, directory):
+        self.process = None
+        self.started = 0
+        self.stopped = 0
+        self.block = threading.Event()
+        self.block.set()
+        self.token = "test-secret"
+        self.base_url = "http://127.0.0.1:8181"
+
+    def start(self, config):
+        self.started += 1
+        assert self.block.wait(5)
+
+    def stop(self):
+        self.stopped += 1
+
+    def close(self):
+        self.block.set()
+        self.stop()
+
+
+@pytest.fixture
+def manager(tmp_path):
+    manager = LocalLlamaManager(tmp_path / "runtime", tmp_path / "config.yaml", "install-test", router_factory=FakeRouter)
+    manager.config["executable_path"] = "test-executable"
+    yield manager
+    manager.close()
+
+
+def params(manager, **extra):
+    state = manager.status()
+    return {"request_id": str(uuid.uuid4()), "expect_epoch": state["epoch"],
+            "expect_revision": state["revision"], "expect_config_revision": state["config_revision"], **extra}
+
+
+def settle(manager, request):
+    end = time.monotonic() + 5
+    while time.monotonic() < end:
+        operation = manager.status(request_id=request["request_id"])["operation"]
+        if operation["state"] not in ("queued", "running"):
+            return operation
+        time.sleep(.01)
+    pytest.fail("operation did not settle")
+
+
+def test_start_ack_is_nonblocking_and_duplicate_has_one_effect(manager):
+    manager.router.block.clear()
+    request = params(manager)
+    first = manager.submit("start", request)
+    second = manager.submit("start", request)
+    assert first["operation"]["operation_id"] == second["operation"]["operation_id"]
+    assert first["operation"]["state"] in ("queued", "running")
+    assert manager.status()["server"]["state"] in ("off", "starting")
+    manager.router.block.set()
+    assert settle(manager, request)["state"] == "succeeded"
+    assert manager.router.started == 1
+    assert manager.status()["server"]["state"] == "running"
+
+
+def test_reused_request_id_with_different_payload_refused(manager):
+    request = params(manager)
+    manager.submit("start", request)
+    with pytest.raises(LocalLlamaError, match="different operation"):
+        manager.submit("stop", request)
+
+
+def test_busy_and_stale_guards_are_server_enforced(manager):
+    request = params(manager)
+    manager.router.block.clear()
+    manager.submit("start", request)
+    with pytest.raises(LocalLlamaError) as caught:
+        manager.submit("stop", params(manager))
+    assert caught.value.reason == "operation_busy"
+    manager.router.block.set()
+    settle(manager, request)
+    with pytest.raises(LocalLlamaError) as caught:
+        manager.submit("stop", {**request, "request_id": str(uuid.uuid4())})
+    assert caught.value.reason == "stale_revision"
+
+
+def test_turn_lease_prevents_unload_and_releases_on_exception(manager):
+    model_id = str(uuid.uuid4())
+    manager.server, manager.loaded = "running", model_id
+    manager.model_states[model_id] = {"active_parameters": {"test": True}}
+    with pytest.raises(RuntimeError):
+        with manager.lease(model_id, "turn-1", "agent-1"):
+            with pytest.raises(LocalLlamaError) as caught:
+                manager.submit("stop", params(manager))
+            assert caught.value.reason == "active_turns"
+            raise RuntimeError("turn failed")
+    assert manager.status()["active_turns"] == []
+
+
+def test_old_epoch_cannot_replay_on_new_manager(tmp_path):
+    manager = LocalLlamaManager(tmp_path / "runtime", tmp_path / "config.yaml", "install-test", router_factory=FakeRouter)
+    request = params(manager)
+    manager.submit("stop", request)
+    assert settle(manager, request)["state"] == "succeeded"
+    old_id = manager.status(request_id=request["request_id"])["operation"]["operation_id"]
+    manager.close()
+    replacement = LocalLlamaManager(tmp_path / "runtime", tmp_path / "config.yaml", "install-test", router_factory=FakeRouter)
+    try:
+        assert replacement.submit("stop", request)["operation"]["operation_id"] == old_id
+        assert replacement.router.stopped == 0
+        with pytest.raises(LocalLlamaError) as caught:
+            replacement.submit("stop", {**request, "request_id": str(uuid.uuid4())})
+        assert caught.value.reason == "stale_epoch"
+    finally:
+        replacement.close()
+
+
+def test_read_projection_never_contains_internal_credentials(manager):
+    assert "test-secret" not in str(manager.status())
+    assert "test-secret" not in str(manager.config_get())
