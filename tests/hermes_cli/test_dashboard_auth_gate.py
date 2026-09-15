@@ -20,7 +20,7 @@ from hermes_cli import web_server
 
 
 @pytest.fixture(autouse=True)
-def restore_server_binding_state():
+def restore_server_binding_state(monkeypatch):
     """Keep start_server's process-global bind metadata inside each test."""
     missing = object()
     previous_host = getattr(web_server.app.state, "bound_host", missing)
@@ -164,13 +164,12 @@ def _stub_uvicorn_run(monkeypatch):
 
 
 def _restore_app_state_after_test(monkeypatch, *names):
-    """Restore app.state attributes after start_server mutates them."""
+    """Restore mutable Starlette state through its dictionary, once."""
     for name in names:
-        monkeypatch.setattr(
-            web_server.app.state,
+        monkeypatch.setitem(
+            web_server.app.state._state,
             name,
             getattr(web_server.app.state, name, None),
-            raising=False,
         )
 
 

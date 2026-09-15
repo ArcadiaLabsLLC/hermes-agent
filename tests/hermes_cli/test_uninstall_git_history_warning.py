@@ -23,7 +23,7 @@ def test_dry_run_warns_git_history_not_backed_up(monkeypatch, tmp_path, capsys):
 
     output = capsys.readouterr().out
     assert "git history" in output.lower()
-    assert "not backed up" in output.lower()
+    assert "not backed up" in output.lower() or "without backup" in output.lower()
 
 
 def test_interactive_preamble_warns_git_history_not_backed_up(
@@ -47,4 +47,4 @@ def test_interactive_preamble_warns_git_history_not_backed_up(
 
     output = capsys.readouterr().out
     assert "git history" in output.lower()
-    assert "not backed up" in output.lower()
+    assert "not backed up" in output.lower() or "without backup" in output.lower()

@@ -369,7 +369,13 @@ def test_the_flush_site_uses_the_typed_boundary_and_reports_drift():
     from agent_runtime import native_persistence
     from agent import session_persistence
 
-    assert "project_native_message" in inspect.getsource(session_persistence)
+    persistence_tree = ast.parse(inspect.getsource(session_persistence))
+    assert any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "project_native_message"
+        for node in ast.walk(persistence_tree)
+    )
     source = Path(native_persistence.__file__)
     tree = ast.parse(source.read_text(encoding="utf-8"))
 

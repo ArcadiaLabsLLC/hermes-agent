@@ -1,6 +1,6 @@
 """Dangerous-command detection: normalization, tokenizing, and pattern tables.
 
-Pure command classification for :mod:`tools.approval` â€” no approval state, config reads, or
+Pure command classification for :mod:`tools.approval` — no approval state, config reads, or
 prompting live here.
 """
 
@@ -50,7 +50,7 @@ _WRITE_TARGET_BOUNDARY = r'(?=[\s;&|<>"\']|$)'
 
 # ---- Hardline (unconditional) blocklist ---------------------------------------------------
 # Commands that NEVER run via the agent, regardless of --yolo, approvals.mode=off, or cron approve
-# mode â€” a floor below yolo. Applies only to environments that can damage the host (local, ssh,
+# mode — a floor below yolo. Applies only to environments that can damage the host (local, ssh,
 # container-host cron); containerized backends already bypass the dangerous-command layer.
 # Deliberately tiny: only things with no recovery path (root wipe, raw block device writes,
 # shutdown, DoS). Recoverable operations (git reset --hard, chmod -R 777, curl|sh) stay in
@@ -80,7 +80,7 @@ _HARDLINE_SYSTEM_DIRS = (r'/home|/home/\*|/root|/root/\*|/etc|/etc/\*|/usr|/usr/
 
 # `rm` plus flag group, shared by the rm hardline rules (plain concatenation, not f-string:
 # backslashes in replacement fields are unsupported on the 3.11 floor). _CMDPOS-anchored so `rm`
-# must be an actual command word â€” "rm -rf /" as DATA in `git commit -m "â€¦rm -rf /â€¦"` must not trip the floor.
+# must be an actual command word — "rm -rf /" as DATA in `git commit -m "…rm -rf /…"` must not trip the floor.
 _RM_FLAG_PREFIX = _CMDPOS + r'rm\s+(-[^\s]*\s+)*'
 # Package-manager global options, each optionally taking ONE non-dash operand.
 _PKG_OPTS = r'(?:-[^\s]+(?:\s+[^-\s][^\s]*)?\s+)*'
@@ -108,10 +108,10 @@ HARDLINE_PATTERNS = [
     # so command-position anchoring is the wrong tool. It is instead matched against a QUOTE-MASKED variant
     # of the command (see _QUOTE_MASKED_HARDLINE / _mask_quoted_strings) so quoted prose (`echo "cat f >
     # /dev/sda"`) cannot trip it, while shell-carrying wrappers (sh -c / bash -c / eval) still surface their
-    # payload as a raw detection variant â€” quoting is not a bypass (#93392).
+    # payload as a raw detection variant — quoting is not a bypass (#93392).
     (r'>\s*/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*\b', "redirect to raw block device"),
     (r':\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:', "fork bomb"),
-    # Kill every process on the system â€” anchor the command-name token so `echo "kill -1 sends SIGHUP to
+    # Kill every process on the system — anchor the command-name token so `echo "kill -1 sends SIGHUP to
     # everything"` doesn't trip (#93392).
     (_CMDPOS + r'kill\s+(-[^\s]+\s+)*-1\b', "kill all processes"),
     (_CMDPOS + r'(shutdown|reboot|halt|poweroff)\b', "system shutdown/reboot"),
@@ -188,7 +188,7 @@ def detect_hardline_command(command: str) -> tuple:
         for pattern_re, description, quote_masked in HARDLINE_PATTERNS_COMPILED:
             if quote_masked and masked_lower is None:
                 # Positionless rules see quoted prose as DATA, except under shell carriers
-                # (sh -c, eval, source) whose quoted argument is code â€” those scan raw. bash -c
+                # (sh -c, eval, source) whose quoted argument is code — those scan raw. bash -c
                 # payloads also surface as their own raw variants via _execution_flag_findings.
                 masked_lower = (
                     variant_lower if _contains_shell_carrier(command_variant)
@@ -211,7 +211,7 @@ DANGEROUS_PATTERNS = [
     (r'\brm\s+(?!--(?:\s|$))(?:(?!\s--(?:\s|$))[^\n"\';|&])*\s' r'(?:-[a-z]*r[a-z]*\b|--recursive\b)',
      # GNU rm permutes options, so a recursive flag group may legally FOLLOW the operands: `rm build/ -rf`,
      # `rm build/ -r -f`, and `rm build/ --recursive --force` are all equivalent to the flags-first
-     # spellings the two patterns above catch â€” without this rule they run with no approval prompt at all.
+     # spellings the two patterns above catch — without this rule they run with no approval prompt at all.
      # Port of openai/codex#33464 ("recognize force options when they follow operands").
      "recursive delete (flags after operands)"),
     # Windows cmd/powershell destructive built-ins: gate only when executed through the shell so
@@ -221,7 +221,7 @@ DANGEROUS_PATTERNS = [
     # position (after leading -Flag switches and optional -Command/-c) so `-File c:\del-logs\run.ps1` is not caught.
     (r'\b(?:powershell|pwsh)(?:\.exe)?\b(?:\s+-\S+)*\s+(?:-(?:command|c)\s+)?["\']?(?:remove-item|rmdir|erase|del|rd|ri|rm)\b', "Windows PowerShell destructive delete"),
     (r'\b(?:powershell|pwsh)(?:\.exe)?\b.*\s-(?:encodedcommand|enc|e)\b', "PowerShell encoded command execution"),
-    # â”€â”€ Windows destructive tier: native Windows EXEs/cmdlets reachable from ANY backend on a
+    # ── Windows destructive tier: native Windows EXEs/cmdlets reachable from ANY backend on a
     # Windows host (incl. git-bash). Input is lowercased by the variant loop, so patterns are
     # lowercase. Each requires the destructive flag/verb so benign usage (`taskkill /IM app.exe`,
     # `reg query`, `icacls file`) does NOT prompt. Bare Remove-Item form (ACP clients, pwsh-default
@@ -230,35 +230,35 @@ DANGEROUS_PATTERNS = [
     (r'\bremove-item\b[^\n;|&]*\s-(?:recurse|force)\b', "PowerShell destructive delete (Remove-Item)"),
     # Bare cmd builtins with /s (recurse) or /q (quiet); plain `del file.txt` is covered only by the prefixed rule.
     (r'\b(?:del|erase|rd|rmdir)\s+(?:/[a-z]\s+)*/[sq]\b', "Windows destructive delete (recursive/quiet switch)"),
-    # Remote content piped to Invoke-Expression â€” PowerShell's `curl | sh`.
+    # Remote content piped to Invoke-Expression — PowerShell's `curl | sh`.
     (r'\b(?:iwr|invoke-webrequest|invoke-restmethod|irm|curl|wget)\b[^\n]*\|\s*(?:iex|invoke-expression)\b', "pipe remote content to PowerShell (iwr | iex)"),
     (r'\b(?:iex|invoke-expression)\s*\(\s*(?:iwr|invoke-webrequest|invoke-restmethod|irm)\b', "execute remote content via Invoke-Expression"),
-    # Force process kills â€” Windows analogue of pkill -9.
+    # Force process kills — Windows analogue of pkill -9.
     (r'\btaskkill\b[^\n]*\s/f\b', "force kill processes (taskkill /F)"),
     (r'\bstop-process\b[^\n]*\s-force\b', "force kill processes (Stop-Process -Force)"),
-    # Volume/disk destruction â€” Windows analogue of mkfs / dd.
+    # Volume/disk destruction — Windows analogue of mkfs / dd.
     (r'\bformat-volume\b', "format filesystem (Format-Volume)"),
     (r'\bclear-disk\b', "wipe disk (Clear-Disk)"),
     (r'\bdiskpart\b', "disk partitioning (diskpart)"),
     (r'\bformat(?:\.com)?\s+[a-z]:', "format drive (format.com)"),
     (r'\bcipher\s+/w\b', "wipe free space (cipher /w)"),
-    # ACL destruction â€” Windows analogue of chmod 777.
+    # ACL destruction — Windows analogue of chmod 777.
     (r'\bicacls\b[^\n]*\s/grant\b[^\n]*\b(?:everyone|todos|jeder|tout\s+le\s+monde|\*s-1-1-0)\b', "grant Everyone access (icacls)"),
     (r'\bicacls\b[^\n]*\s/reset\b', "reset ACLs recursively (icacls /reset)"),
-    # Backup/recovery destruction â€” classic ransomware prep.
+    # Backup/recovery destruction — classic ransomware prep.
     (r'\bvssadmin\b[^\n]*\bdelete\s+shadows\b', "delete volume shadow copies (vssadmin)"),
     (r'\bwbadmin\b[^\n]*\bdelete\b', "delete backups (wbadmin)"),
     (r'\bbcdedit\b[^\n]*\s/set\b', "modify boot configuration (bcdedit /set)"),
     # Registry deletion with force flag.
     (r'\breg(?:\.exe)?\s+delete\b', "registry delete (reg delete)"),
     (r'\bremove-itemproperty\b[^\n]*\s-force\b', "registry value delete (Remove-ItemProperty -Force)"),
-    # Windows service/system stop â€” analogue of systemctl stop.
+    # Windows service/system stop — analogue of systemctl stop.
     (r'\bstop-service\b[^\n]*\s-force\b', "force stop service (Stop-Service -Force)"),
     (r'\bsc(?:\.exe)?\s+(?:stop|delete)\b', "stop/delete service (sc)"),
     # Windows-form credential paths; the POSIX ~/.ssh patterns never match drive-letter or backslash spellings.
     (r'\busers[\\/][^\\/\s]+[\\/]\.ssh\b', "access to SSH keys (Windows path)"),
     (r'\bappdata[\\/](?:local|roaming)[\\/]hermes[^\n]*\.env\b', "access to Hermes secrets (Windows path)"),
-    # â”€â”€ end of Windows tier
+    # ── end of Windows tier
     (r'\bchmod\s+(-[^\s]*\s+)*(777|666|o\+[rwx]*w|a\+[rwx]*w)\b', "world/other-writable permissions"),
     (r'\bchmod\s+--recursive\b.*(777|666|o\+[rwx]*w|a\+[rwx]*w)', "recursive world/other-writable (long flag)"),
     (r'\bchown\s+(-[^\s]*)?R\s+root', "recursive chown to root"),
@@ -287,15 +287,15 @@ DANGEROUS_PATTERNS = [
     # for "c" also matched --norc/--rcfile/--restricted.
     (r'\b(curl|wget)\b.*\|\s*(?:[/\w]*/)?(?:ba)?sh(?:\s|$|-c)', "pipe remote content to shell"),
     (r'\b(bash|sh|zsh|ksh)\s+<\s*<?\s*\(\s*(curl|wget)\b', "execute remote script via process substitution"),
-    # eval/source/. $(curl ...) â€” equivalent to piping remote content to a shell.
+    # eval/source/. $(curl ...) — equivalent to piping remote content to a shell.
     (r'(?:\beval\b|\bsource\b|\.)\s*(?:\$\(\s*|`\s*)(?:curl|wget)\b', "execute remote content via command substitution"),
-    # Cloud instance-metadata (IMDS) credential endpoints â€” deterministic containment-escape
+    # Cloud instance-metadata (IMDS) credential endpoints — deterministic containment-escape
     # detection. On a cloud VM these serve live IAM/service-account credentials to ANY local
     # process with no auth, so a fetch is credential exfiltration unless the operator expects it.
     # The host literals have no other use, so their appearance ANYWHERE in the command (any HTTP
     # client, env assignment, or script argument) is the signal; lookarounds keep other 169.254.x.x
     # link-local addresses and longer dotted strings out. This prompts for approval (legit uses
-    # exist on real cloud VMs) â€” it is NOT a hardline block. Covers the link-local IPv4 endpoint
+    # exist on real cloud VMs) — it is NOT a hardline block. Covers the link-local IPv4 endpoint
     # (AWS/Azure/GCP/OpenStack), its AWS IPv6 form fd00:ec2::254, the GCP hostname, and Alibaba
     # Cloud's 100.100.100.200.
     (r'(?<![\d.])(?:169\.254\.169\.254|100\.100\.100\.200)(?![\d.])'
@@ -323,7 +323,7 @@ DANGEROUS_PATTERNS = [
     # between `hermes` and `gateway` (`hermes -p ade gateway restart`) are allowed so a profile flag can't slip past.
     (r'\bhermes\s+(?:-{1,2}\S+(?:\s+\S+)?\s+)*gateway\s+(stop|restart)\b', "stop/restart hermes gateway (kills running agents)"),
     (r'\bhermes\s+update\b', "hermes update (restarts gateway, kills running agents)"),
-    # Docker/Podman daemon redirect â€” global flags or env that point the CLI at a DIFFERENT (often remote) daemon:
+    # Docker/Podman daemon redirect — global flags or env that point the CLI at a DIFFERENT (often remote) daemon:
     # `docker -H ssh://prod stop app` looks local but operates on remote infra, so any redirect requires approval
     # regardless of subcommand. The flag must be in global position (before the subcommand) and -H/--host/--context
     # must carry a value, keeping `docker -h` and `docker run -h <hostname>` out. Listed BEFORE the lifecycle rules so
@@ -358,12 +358,12 @@ DANGEROUS_PATTERNS = [
     (rf'\b(cp|mv|install)\b.*\s{_SYSTEM_CONFIG_PATH}', "copy/move file into system config path"),
     (rf'\b(cp|mv|install)\b.*\s["\']?{_PROJECT_SENSITIVE_WRITE_TARGET}["\']?{_COMMAND_TAIL}', "overwrite project env/config file"),
     # cp/mv/install OVERWRITING a credential/SSH/shell-rc/Hermes file (key implant, login-time
-    # injection) â€” pairs the tee/redirection coverage. Anchored to the command tail so only the
+    # injection) — pairs the tee/redirection coverage. Anchored to the command tail so only the
     # DESTINATION fires; reading OUT of a sensitive path (`cp ~/.ssh/config /tmp/x`) stays safe.
     # The trailing `[^\s"\']*` consumes the rest of the destination filename.
     # The tee/redirection patterns above already gate _SENSITIVE_WRITE_TARGET (~/.ssh/*,
     # ~/.netrc/.pgpass/.npmrc/.pypirc, shell rc files, ~/.hermes/config.yaml/.env), but cp/mv/install was
-    # only paired for /etc and project-relative env/config â€” so `cp evil ~/.ssh/authorized_keys` (key
+    # only paired for /etc and project-relative env/config — so `cp evil ~/.ssh/authorized_keys` (key
     # implant), `cp creds ~/.netrc`, and `cp evil ~/.bashrc` (login-time command injection) slipped through
     # with auto-approve. Same unpaired-door rationale as #14639 / the sed-tee-redirect pairing on these
     # targets. `authorized_keys` after the `~/.ssh/` fragment).
@@ -470,7 +470,7 @@ def _normalize_command_for_detection(command: str) -> str:
     command = re.sub(r'\\([^\n])', r'\1', command)
     command = re.sub(r"''|\"\"", '', command)
     # Collapse $IFS / ${IFS...} (incl. `${IFS:0:1}`) to a space: IFS defaults to whitespace, so `rm${IFS}-rf${IFS}/`
-    # runs as `rm -rf /`, and every pattern â€” incl. the hardline floor â€” anchors on literal \s between tokens.
+    # runs as `rm -rf /`, and every pattern — incl. the hardline floor — anchors on literal \s between tokens.
     return re.sub(r'\$\{IFS\b[^}]*\}|\$IFS\b', ' ', command)
 
 
@@ -506,7 +506,7 @@ def _fold_home_prefixes(command: str, paths, replacement: str) -> str:
 def _rewrite_resolved_user_home(command: str) -> str:
     """User home (expanduser / realpath / $HOME) -> ``~/``; no-op when unset, degenerate, or unresolvable."""
     try:
-        # expanduser, realpath, and an explicit HOME â€” Windows expanduser uses USERPROFILE, not HOME.
+        # expanduser, realpath, and an explicit HOME — Windows expanduser uses USERPROFILE, not HOME.
         home = os.path.expanduser("~")
         paths = [home, os.path.realpath(home), os.environ.get("HOME", "")]
     except Exception:
@@ -644,7 +644,7 @@ def _shell_tokens_with_spans(segment: str, start: int):
 
     Lexing stops at the end of the simple command that begins at *start*: an unquoted ``;``, ``|``,
     ``&`` or newline, or the ``)`` / backtick that closes the substitution the command sits inside.
-    Without that, a grep nested as ``"$(grep â€¦ | cut â€¦)"`` was lexed together with the enclosing
+    Without that, a grep nested as ``"$(grep … | cut …)"`` was lexed together with the enclosing
     command's closing quote, read as unbalanced quoting, and reported as a hardline block (546
     blocked turns in one run, every one a false positive; ``sed -n "$(grep -n X f | cut -d: -f1),+3p" f``
     is the canonical shape)."""
@@ -1117,7 +1117,7 @@ def _iter_shell_command_starts(command: str):
 def _mark_command_starts(command: str, marker: str = "\n") -> str:
     """Insert *marker* (a newline) before each real (quote-aware) command start.
     ``\\n`` is already a ``_CMDPOS`` separator, so this exposes subshell ``(cmd)`` and brace-group
-    ``{ cmd; }`` openers â€” which the flat pattern class omits â€” to the anchored patterns WITHOUT the
+    ``{ cmd; }`` openers — which the flat pattern class omits — to the anchored patterns WITHOUT the
     quoted-prose false positives that adding ``(`` / ``{`` to ``_CMDPOS`` would cause: starts inside
     quotes are never produced, so ``--title "block (reboot)"`` is left as-is."""
     offsets = sorted(o for o in _iter_shell_command_starts(command) if o > 0)
@@ -1414,7 +1414,7 @@ def _is_verification_artifact_cleanup(command: str) -> bool:
     if _is_exempt_verification_artifact_path(operand):
         return True
     # Same file, MSYS spelling (see _windows_spelling_of_msys_path). Re-run the
-    # IDENTICAL checks on the translated path â€” the exemption widens to one
+    # IDENTICAL checks on the translated path — the exemption widens to one
     # extra SPELLING of an already-permitted target, never to an extra target.
     windows_spelling = _windows_spelling_of_msys_path(operand)
     if windows_spelling is None:
@@ -1430,7 +1430,7 @@ def _is_shell_token_spliced_gateway_lifecycle(command: str) -> bool:
     verb is an ARGUMENT, so ``launchctl kick"start" -k gui/501/ai.hermes.gateway`` auto-approved.
     Delegates to ``cron.lifecycle_guard`` (shlex-tokenized, anchored on a hermes-gateway
     identifier). Runs last so an ordinary pattern match keeps its more specific reason; this layer
-    only prompts â€” the non-bypassable block still lives in ``cron.lifecycle_guard``.
+    only prompts — the non-bypassable block still lives in ``cron.lifecycle_guard``.
 
     ``_normalize_command_for_detection`` strips backslash escapes, so ``kick\\start`` already reaches the
     launchctl pattern above. See #80269.
@@ -1471,7 +1471,7 @@ def _is_exempt_verification_artifact_path(operand: str) -> bool:
     questions:
 
     * **Spelling.** The operand must be written as the canonical temp dir joined
-      with a bare basename. This is a literal string comparison on purpose â€” it
+      with a bare basename. This is a literal string comparison on purpose — it
       is what refuses ``/tmp/nested/../x``, ``/var/tmp/x`` and every alternate
       spelling of temp. Relaxing it into an identity test would delete the
       traversal rejection outright, so it must NOT become
@@ -1480,7 +1480,7 @@ def _is_exempt_verification_artifact_path(operand: str) -> bool:
       symlink resolution. This one IS an identity question, and it is asked
       through the authority: a realpath'd dir and the realpath'd temp dir can
       differ in case on Windows, and a string ``!=`` there refuses a legitimate
-      cleanup rather than permitting an illegitimate one â€” but the exemption is
+      cleanup rather than permitting an illegitimate one — but the exemption is
       security-relevant either way, so it gets the resolution-based answer.
     """
     temp_dir = os.path.realpath(tempfile.gettempdir())
