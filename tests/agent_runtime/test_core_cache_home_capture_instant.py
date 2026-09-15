@@ -258,7 +258,7 @@ def test_the_cli_harness_dispatch_captures_before_the_command_runs():
     there writes a sidecar the NEXT boot demotes. The capture is taken at command
     dispatch, before the handler."""
 
-    from hermes_cli.main import (
+    from hermes_cli._downstream_cli import (
         _FINGERPRINT_HOME_CLI_BOOT_SITE,
         _capture_core_cache_fingerprint_home,
     )
