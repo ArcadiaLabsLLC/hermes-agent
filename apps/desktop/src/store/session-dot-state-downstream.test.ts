@@ -2,12 +2,14 @@ import { atom, type WritableAtom } from 'nanostores'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import { createClientSessionState } from '@/lib/chat-runtime'
+
+import type * as ComposerStatus from './composer-status'
 import { $backgroundRunningSessionIds } from './composer-status'
 import { $sessionDotStateById, showsRunningArc } from './session-dot-state'
-import { clearAllSessionStates, publishSessionState, $stalledSessionIds } from './session-states'
+import { $stalledSessionIds, clearAllSessionStates, publishSessionState } from './session-states'
 
 vi.mock('./composer-status', async importOriginal => ({
-  ...(await importOriginal<typeof import('./composer-status')>()),
+  ...(await importOriginal<typeof ComposerStatus>()),
   $backgroundRunningSessionIds: atom<string[]>([])
 }))
 
