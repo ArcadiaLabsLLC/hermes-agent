@@ -1065,14 +1065,14 @@ def test_the_two_upstream_seams_the_marker_rides_are_still_present():
     # Pin them by source so an upstream merge that reshapes either one fails
     # HERE — loudly — instead of silently un-attributing every relay again.
     import agent.turn_context as turn_context
-    import run_agent
+    import agent.session_persistence as session_persistence
 
     prologue = Path(turn_context.__file__).read_text(encoding="utf-8")
     assert 'pending_cli_message = getattr(agent, "_pending_cli_user_message", None)' in prologue
     assert "user_msg = pending_cli_message" in prologue
 
-    flush = Path(run_agent.__file__).read_text(encoding="utf-8")
-    assert 'finish_reason=msg.get("finish_reason")' in flush
+    flush = Path(session_persistence.__file__).read_text(encoding="utf-8")
+    assert '"finish_reason": msg.get("finish_reason")' in flush
 
 
 # --------------------------------------------------------------------------- #

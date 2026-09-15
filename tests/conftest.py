@@ -2127,7 +2127,9 @@ def _live_system_guard(request, monkeypatch):
                 "flow against a dedicated throwaway repo)."
             )
         backend = _backend_spawn_subcommand(cmd)
-        if backend is not None:
+        # The existing marker permits only a test-owned gateway lookalike.
+        # Other backend entry points remain forbidden even in marked tests.
+        if backend is not None and not (backend == "gateway" and lookalike_ok):
             raise RuntimeError(
                 f"tests/conftest.py live-system guard: blocked "
                 f"subprocess.{name}({cmd!r}) — this command would START a "

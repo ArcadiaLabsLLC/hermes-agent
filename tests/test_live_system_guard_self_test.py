@@ -402,3 +402,13 @@ def test_bypass_marker_disables_guard():
     # so we get the real os.kill. Calling os.kill(os.getpid(), 0) just
     # checks that the PID exists — harmless.
     os.kill(os.getpid(), 0)  # No exception — guard is OFF.
+
+
+@pytest.mark.spawns_gateway_lookalike
+def test_gateway_lookalike_marker_allows_only_gateway_shape():
+    # A real interpreter executing pass; trailing words only exercise argv classification.
+    result = subprocess.run([sys.executable, "-c", "pass", "hermes", "gateway", "run"])
+    assert result.returncode == 0
+    for subcommand in ("serve", "dashboard"):
+        with pytest.raises(RuntimeError, match="live-system guard"):
+            subprocess.run([sys.executable, "-c", "pass", "hermes", subcommand])
