@@ -1,3 +1,5 @@
+> Correction (2026-09-15): upstream has a managed local-model installer/runtime under `hermes_cli/local_runtime`. Any earlier absence claim below is superseded. See [integration checkpoint](integration-stage1.md#installer-correction). This candidate is still incomplete and untested.
+
 # Local llama installer handoff after synchronization inventory
 
 Status: **blocked on a validated upstream integration baseline**, not approved
