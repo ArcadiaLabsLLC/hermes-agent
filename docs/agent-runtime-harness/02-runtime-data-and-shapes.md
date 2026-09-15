@@ -28,7 +28,7 @@ Directories present in the live root, with the module that owns each:
 | `persona_instances/` + `_archive/` | `paths.py:20,24` | one `personainst_*.json` per instance |
 | `persona_assignments/` + `_archive/` | `paths.py:37,41` | persona↔channel bindings |
 | `persona_chat_mint_receipts/` | `paths.py:45` | durable idempotency receipts for server-minted chat roots |
-| `persona_chat_leases/`, `persona_chat_clarify_tickets/` | `persona_chat_continuity.py:786,1236` | per-chat leases and clarify tickets |
+| `persona_chat_leases/`, `persona_chat_clarify_tickets/` | `persona_chat_continuity.py:815,1236` | per-chat leases and clarify tickets |
 | `mission_chat_turns/` + `_archive/` | `mission_chat_turns.py:37` | one `<safe_session_key>.json` + `.lock` per chat |
 | `mission_chat_steer/` | `mission_chat_steer.py:328` | per-session steer drops |
 | `tool_turn_context/`, `queued_skills/` | `tool_turn_history.py:132`, `queued_skills.py:16` | per-turn tool context; skill inbox |
@@ -252,21 +252,24 @@ and the next builder observes the changed size/mtime and loads a fresh view.
 ## SessionDB — `state.db`
 
 `hermes_state.SessionDB` owns chat sessions and lives at
-`get_hermes_home() / "state.db"` (`hermes_state.py:246`) — **per profile**,
+`get_hermes_home() / "state.db"` (`hermes_state.py::_default_db_path`) — **per profile**,
 not in the store root. Live: 10 of the 11 profile directories under
 `.hermes/profiles/` carry one — `profiles/unbounded/` has none — plus a root
 `.hermes/state.db`. The path is resolved at
 call time, not at import: freezing it at import let a test that only set
 `HERMES_HOME` write into the developer's live profile
-(`hermes_state.py:256-264`).
+(`hermes_state.py::_ensure_test_isolation`).
 
 Journal mode is `WAL` by default, resolved by `resolve_journal_mode()`
-(`hermes_state.py:572`) from `database.journal_mode` in `config.yaml`.
-`apply_wal_with_fallback` (`:618`) falls back to `journal_mode=DELETE` when the
+(`hermes_state_wal.py::resolve_journal_mode`) from `database.journal_mode` in `config.yaml`.
+`hermes_state_wal.py::apply_wal_with_fallback` falls back to `journal_mode=DELETE` when the
 filesystem cannot support WAL's shared-memory and byte-range locking (NFS,
 SMB/CIFS, some FUSE, WSL1) — and it treats a `PRAGMA journal_mode=WAL` that
-returns a non-WAL mode *without raising* as a refusal (`:711-720`), because that
-PRAGMA is a query-that-sets. The snapshot's `persona_chat` section reads this
+returns a non-WAL mode *without raising* as a refusal, because that
+PRAGMA is a query-that-sets. The upstream guard also refuses unsafe WAL use
+with vulnerable SQLite builds; `hermes_state_wal.py::is_sqlite_wal_reset_vulnerable`
+and `apply_wal_with_fallback` own that decision. Deployment must verify the
+linked SQLite version rather than disabling the guard. The snapshot's `persona_chat` section reads this
 database through `chat_session_scope.open_chat_session_db` (`snapshot.py:2378`).
 
 ---

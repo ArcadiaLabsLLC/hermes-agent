@@ -191,15 +191,15 @@ magnitudes are dropped rather than coerced.
 ## 3. Model selection
 
 Four tiers, highest wins, resolved once in `_chat_effective_model_payload`
-(`persona_commands.py:7305`):
+(`persona_commands.py::_chat_effective_model_payload`):
 
 ```
 chat-session override  >  instance override  >  persona default  >  config default
 ```
 
 The chat-session override persists under `mission_control_chat_model_override`
-(`persona_commands.py:6837`, `agent_runtime/persona_chat_history.py:234`) via
-`_resolve_chat_model_override` (`:7035`), called at `:3531`. Its scope is literally
+(`persona_commands.py::_resolve_chat_model_override`, `agent_runtime/persona_chat_history.py:234`) via
+`_resolve_chat_model_override`. Its scope is literally
 `mission_control_chat_session` (`:7085`, inside `_chat_effective_model_payload`) — per-thread,
 not per-instance. Values validate against
 `^[A-Za-z0-9_.:/@+-]{1,200}$` (`:6582`); a violation is a typed refusal, a persist failure is
@@ -259,7 +259,7 @@ The harness lane admits by the persona's BOUND PROFILE `toolsets:` key, read by
 `HARNESS_LANE_DEFAULT_TOOLSETS` (`agent_runtime/personas.py:170`) = `harness_core`, reported as
 `toolset_declaration.source: lane_default`; any other list is honored verbatim as `profile_config`;
 an unresolvable profile home resolves the same default as `profile_unresolved`. A YAML fault
-resolves narrow, never wide. `harness_core` (`toolsets.py:406`) is a composite of 15 member
+resolves narrow, never wide. `harness_core` (`toolsets.py:244`) is a composite of 15 member
 toolsets — `agent_chat`, `board`, `clarify`, `delegation`, `terminal`, `file`, `web`, `browser`,
 `browser-cdp`, `skills`, `memory`, `todo`, `session_search`, `vision`, `code_execution` — expanded
 to those NAMES by `expand_toolset_names` (`:861`) so the cost policy, which drops by name, still
@@ -623,7 +623,7 @@ per-turn delta (`persona_commands.py:2066`, `:3429`).
 
 The conversation loop sits a layer below the harness and cannot hold the turn's `TurnPhaseMarks`, so
 it announces the dispatch instant as a `run.progress` timing payload and the mission-chat handler
-converts it. `_emit_request_assembled_marker` (`agent/conversation_loop.py:347-378`) fires once per
+converts it. `_emit_request_assembled_marker` (`agent_runtime/conversation_observability.py::_emit_request_assembled_marker`) fires once per
 PHYSICAL dispatch attempt, right after the transport preflight (so a codex token refresh lands on
 the hermes side of the split) and right before the provider call; it carries no
 `duration_ms`/`timing_key` because it names an INSTANT, which also keeps it out of the
@@ -648,7 +648,7 @@ ms "provider" span elapsed before the request client existed** — prologue, too
 serialization, prompt-cache decoration, request middleware, the `pre_api_request` hook and the
 per-request client build all sat inside the span the launcher rendered as provider time. The
 sibling receipt for every non-mission-chat lane is the `ttfb=` token on the `API call #N` log
-line (`_format_ttfb_token`, `conversation_loop.py:381-394`, commit `74702c193e`). Same
+line (`_format_ttfb_token`, `agent_runtime/conversation_observability.py::_format_ttfb_token`, commit `74702c193e`). Same
 absent-never-zero rule: `None` means no first-byte instant was observed — a non-streaming call, or a
 stream whose first-delta callback never fired — and the token vanishes rather than printing
 `ttfb=0.0s`, which reads as an instantaneous provider and is a lie no reader can detect.

@@ -306,9 +306,11 @@ Executed history stays archived. The duplicate-implementation retirement's rows
 - `hermes_cli/harness.py` carries a blanket `F821` per-file ignore (`pyproject.toml:454`)
   because the exec loader makes ~62 `_cmd_*` names genuinely undefined until
   `_load_command_parts()` runs; retiring it needs full module conversion.
-- Upstream-owned, report-only: `hermes_cli/env_loader.py:310` and `:541` hand-spell
-  `Path.home() / ".hermes"` where the Windows platform default is `%LOCALAPPDATA%\hermes`;
-  `hermes_state.py:235` freezes `DEFAULT_DB_PATH` at import time.
+- After upstream synchronization, `hermes_cli/env_loader.py` routes profile-home
+  decisions through the shared helper. Its remaining `Path.home() / ".hermes"`
+  fallback is in the defensive process-home resolver (`:589`).
+  `hermes_state.py::_default_db_path` resolves the active profile at call time;
+  the import-time `DEFAULT_DB_PATH` remains only for explicit compatibility overrides.
 
 **From [`DEAD_CODE_AUDIT_PASS_2_2026-08-18.md`](archive/2026-08-22-pre-consolidation/DEAD_CODE_AUDIT_PASS_2_2026-08-18.md)
 — all ten §4 ruling subjects confirmed still present in the tree:**

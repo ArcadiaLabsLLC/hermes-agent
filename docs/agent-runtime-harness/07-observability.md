@@ -56,7 +56,7 @@ the create receipt (`agent_create_phases.py:23-24`) then inherited verbatim.
    not `null`, not present-and-empty. `safe_turn_phases`
    (`agent_runtime/mission_chat_phases.py:472`) drops keys it
    cannot read rather than defaulting them; `_format_ttfb_token`
-   (`agent/conversation_loop.py:382-394`) emits no `ttfb=` token rather than
+   (`agent_runtime/conversation_observability.py::_format_ttfb_token`) emits no `ttfb=` token rather than
    `ttfb=0.0s`, "which reads as an instantaneous provider and is a lie no
    downstream reader can detect"; `_log_agents_readiness_split`
    (`snapshot.py:437-454`) prints nothing when the section never ran, and two
@@ -66,7 +66,7 @@ the create receipt (`agent_create_phases.py:23-24`) then inherited verbatim.
 2. **Monotonic only.** `time.monotonic` / `time.perf_counter` by construction,
    never a wall-clock delta: `BootTimeline` (`boot_timeline.py:16-17`),
    `TurnPhaseMarks` (`mission_chat_phases.py:29-32`), `_first_delta_recorder`
-   (`conversation_loop.py:402-413`). A clamped `0` beats a nonsense `-3` where a
+   (`agent_runtime/conversation_observability.py::_first_delta_recorder`). A clamped `0` beats a nonsense `-3` where a
    span must still be emitted (`boot_timeline.py:181-184`) — clamping a measured
    span is not the same act as inventing an unmeasured one.
 3. **First mark wins.** `provider_first_byte` is marked from a callback that
@@ -100,7 +100,7 @@ the create receipt (`agent_create_phases.py:23-24`) then inherited verbatim.
    first_byte" span opened before `run_conversation` had begun and so wore the
    provider's name over hermes assembly; `request_assembled` (`:84`, marked
    at `:447`, emitted as a run-progress marker at
-   `conversation_loop.py:347-379`) splits it: `provider_request_started →
+   `agent_runtime/conversation_observability.py::_emit_request_assembled_marker`) splits it: `provider_request_started →
    request_assembled` is hermes, `request_assembled → provider_first_byte` is
    the client plus the wire.
 8. **One authority per span.** A second measurement is a second authority, and
@@ -189,16 +189,16 @@ what the fixture mirror below enforces.
 | `snapshot_build reason=… waited_ms=… elapsed_ms=… build_ms=… role=… caller=… generation=… offset=… events=…` (+`sections_top=`, +`core_source=`, then `pid=` last) | `agent_runtime/stream.py:336-339` (fn `_log_snapshot_build` `:268`) | operator grep; a launcher in the field still parses `elapsed_ms` (`stream.py:301-302`); `tests/agent_runtime/test_stream_build_timing_log.py` |
 | `snapshot_agents_readiness walk_ms=… tool_visibility_ms=… pid=…` | const `snapshot.py:432-434`, emitted `:449-454` | joins `snapshot_build_core` on `pid`; pinned by regex at `tests/agent_runtime/test_agents_readiness_attribution.py:51` |
 | `stream_attach op=… purpose=… … pid=…` | `agent_runtime/stream.py:284-290` | boot-investigation join (third `pid=`-bearing family) |
-| `stream_denied lane=… reason=… connection=… client=… transport=… tier=… pid=…` | `agent_runtime/stream.py:424-469`, emitted from `serve.py::_deny_subscribe` (`:4207`) | the other half of `stream_attach`: WHICH of the six subscribe refusals closed a lane, and on which connection. Added because a cockpit's stream to a second machine died 7 ms after its subscribe on 2026-09-04 and neither machine held the reason (R-D26); `tests/agent_runtime/test_serve_socket_lane.py` |
+| `stream_denied lane=… reason=… connection=… client=… transport=… tier=… pid=…` | `agent_runtime/stream.py:424-469`, emitted from `serve.py::_deny_subscribe`  | the other half of `stream_attach`: WHICH of the six subscribe refusals closed a lane, and on which connection. Added because a cockpit's stream to a second machine died 7 ms after its subscribe on 2026-09-04 and neither machine held the reason (R-D26); `tests/agent_runtime/test_serve_socket_lane.py` |
 | `snapshot_core_cache …` / `snapshot_core_cache_write …` / `snapshot_core_shadow …` / `snapshot_core_cache_lane_closed …` | `agent_runtime/core_cache.py` — see the channel table below | `agent_runtime/core_cache_census.py` via `scripts/core_cache_demote_census.py` |
 | `persona_prewarm done persona=… elapsed_ms=…` | const `PREWARM_DONE_RECEIPT` (`persona_prewarm.py:171`), emitted by `_worker` | pacing census; pinned at `tests/agent_runtime/test_persona_prewarm.py:481` |
 | `persona_chat_actor_prewarm root=… outcome=… elapsed_ms=…` | const `persona_chat_actor_prewarm.py` (`CHAT_ACTOR_PREWARM_DONE_RECEIPT`), emitted in `_drain` | did the chat's actor get built before its first message; format pinned at `tests/agent_runtime/test_persona_chat_actor_prewarm.py` |
 | `persona_chat_actor_prewarm pass candidates=… queued=… skipped=… elapsed_ms=…` | const `persona_chat_actor_prewarm.py` (`CHAT_ACTOR_PREWARM_PASS_RECEIPT`), emitted in `prewarm_chat_actors_on_boot` | one line per boot pass; the `candidates`/`queued` gap is `max_hot_sessions` doing its job |
 | `resident_signature_diff root=… components=…` | const `persona_chat_continuity.py` (`RESIDENT_SIGNATURE_DIFF_RECEIPT`), emitted in `PersonaChatRuntimeRegistry.acquire` | why a resident actor was NOT reused: the signature component NAMES that moved (never digests, never values — the components include prompt- and policy-adjacent material). Twin of the turn record's `resident_rebuild_component_<name>` flags; format pinned at `tests/agent_runtime/test_persona_chat_continuity.py` |
 | `agent_create_phases persona=… instance_ms=… phases=… pid=…` | const `agent_create_phases.py:88-90`, emitted `:232-237` | drop-latency attribution; pinned at `tests/agent_runtime/test_agent_create_subphases.py:152` |
-| `harness serve boot timeline: <k=v …>` | `hermes_cli/harness_parts/serve.py:3997-4001`, line built by `BootTimeline.log_line` (`boot_timeline.py:173-178`) | operator grep; the same block also rides the `ready` frame (`serve.py:3923`) |
+| `harness serve boot timeline: <k=v …>` | `hermes_cli/harness_parts/serve.py:4002-4006`, line built by `BootTimeline.log_line` (`boot_timeline.py:173-178`) | operator grep; the same block also rides the `ready` frame (`serve.py:3928`) |
 | `API call #N: model=… provider=… in=… out=… total=… latency=…s[ cache=…][ ttfb=…s]` | `agent/conversation_loop.py:3473-3479` | provider-vs-hermes attribution; `tests/run_agent/test_api_call_ttfb.py` |
-| turn-record `phases` block (schema v3) | `agent_runtime/mission_chat_phases.py`; the key lands via `_safe_journal_metadata` (`mission_chat_turns.py:428`, `:487`) → `safe_turn_phases` (`:1245`) | `tool/mission_chat_latency_audit.dart` |
+| turn-record `phases` block (schema v3) | `agent_runtime/mission_chat_phases.py`; the key lands via `_safe_journal_metadata` (`mission_chat_turns.py::_safe_journal_metadata`) → `mission_chat_phases.py::safe_turn_phases` | `tool/mission_chat_latency_audit.dart` |
 | `[MissionChatTiming]` / `[MissionChatOutcome]` / `[MissionDropTiming]` | launcher — see the launcher section below | `tool/mission_chat_latency_audit.dart`; drop line read by eye |
 | `[MissionAgentCreate] lane=… gesture=… correlation=… …` and `[MissionOfficeWrite] <ws> retire lane: …` | launcher — see the launcher section below | the placement verb's two lanes, read by eye; the ADOPT line is also read by `mission_office_placement_instance_key_test.dart` |
 | `prompt_observability` rows + `trace_events` | `agent_runtime/prompt_observability.py:198`, persisted `:1421-1464` | `harness prompt-context show --context-id` (`hermes_cli/harness.py:880-886`) and the slimmed `chat.final` echo |
@@ -368,7 +368,7 @@ component that moved (CP-7): the same NAMES-never-values rule as
 durable record through this key — by construction, not by scrubbing.
 
 Persisted at `<store>/mission_chat_turns/<safe_session_key>.json`
-(`mission_chat_turns.py:28-43`) with `sort_keys=True` (`:1073`), so the on-disk order is
+(`mission_chat_turns.py:28-43`) with `sort_keys=True` (`mission_chat_turns.py:1102`), so the on-disk order is
 alphabetical and **nothing may depend on ordering** — the join contract is the
 key names and their meaning (`mission_chat_phases.py:126-142`). A "phase" more
 than 24 h after the anchor is rejected on READ as corrupt; the writer cannot
@@ -446,9 +446,9 @@ the rest, never deletes (`PROMPT_OBSERVABILITY_RETAIN_PER_LANE`, `:1287-1289`);
 an absent catalog is honest absence, never a fake empty list (`:1319-1321`).
 Two consumers: the live `chat.final`
 echo carries a slimmed projection (`slim_chat_final_observability`,
-`persona_commands.py:4615`); evicted rows are
+`agent_runtime/prompt_observability.py::slim_chat_final_observability`); evicted rows are
 fetched by `harness prompt-context show --context-id <id> [--json]`
-(`hermes_cli/harness.py:876-886`, handler `:3122-3144`) — read-only, honest
+(`hermes_cli/harness.py:876-886`, handler `hermes_cli/harness.py::_cmd_prompt_context_show`) — read-only, honest
 `not_found` on absence. `trace_events` are the turn's tool-call trace, passed at
 `persona_commands.py:3600` and read by `used_skills_context`
 (`prompt_observability.py:2946-2981`) to report which skills were actually
@@ -496,8 +496,9 @@ honest and release-visible for days while nothing read them, which is how the
   the logic is `compare_family` (`:54-75`), over the two fixture families the
   `FAMILIES` tuple declares (`:23-35`). Default mode RUNS this repo's
   generators first; `--no-generate` compares committed bytes read-only
-  (`:101-105`). CI runs it in default mode, in job `hermes-cli-contract`
-  (`.github/workflows/ci.yml:42`), at the step `:82-85`.
+  (`:101-105`). Launcher CI runs it in default mode in job `hermes-cli-contract`
+  (`.github/workflows/ci.yml`), at the step
+  `Regenerate and compare producer-owned stream and response fixtures`.
 * **`scripts/core_cache_demote_census.py`** — see the core-cache section.
 
 ## The doctor's report roster
@@ -687,10 +688,10 @@ not by trusting the audit's own status.**
 
 | finding | then | now |
 |---|---|---|
-| `serve_rpc.py` baseline `or 0` — an unreadable event log became watermark 0, killing the sink's baseline gate and re-opening the resync↔restart loop | `baseline_offset = int(...) or 0` | typed absence: `baseline_offset = event_offset_of(watermark)` then an explicit `is None` arm — `agent_runtime/serve_rpc.py:1056-1057` |
+| `serve_rpc.py` baseline `or 0` — an unreadable event log became watermark 0, killing the sink's baseline gate and re-opening the resync↔restart loop | `baseline_offset = int(...) or 0` | typed absence: `baseline_offset = event_offset_of(watermark)` then an explicit `is None` arm — `agent_runtime/serve_rpc.py:1066-1067` |
 | empty `patches` shipped as a `patch` frame — the client advanced its watermark having folded nothing | coverable ⇒ promoted | promotion now also requires `batch_carries_patch_rows(batch)`; the honest answer for a pair-less batch is the full core — `agent_runtime/stream.py:927-938`, argued at `:673-700` |
 | `office_surface` could never satisfy the office scope gate, so every folder-only patch frame was dropped with no patch and no resync | `entity == OFFICE_ACTOR_ENTITY` and a slash-prefixed id | one predicate: `office_patch_scope(patch) == workspace_id` — `agent_runtime/serve_office_subscriptions.py:486` |
-| `_usage_lane_detected` — a credential fault DELETED the lane from the Limits panel, and an empty envelope rendered as a positive claim that no provider is signed in | `except Exception: return False` | three outcomes, not two: true / false / **raise**, with the raise caught per provider and the lane emitted `unavailable` naming the exception class — `hermes_cli/harness.py:5759-5767`, `:5993-6007` |
+| `_usage_lane_detected` — a credential fault DELETED the lane from the Limits panel, and an empty envelope rendered as a positive claim that no provider is signed in | `except Exception: return False` | three outcomes, not two: true / false / **raise**, with the raise caught per provider and the lane emitted `unavailable` naming the exception class — `hermes_cli/harness.py::_usage_lane_detected`, `hermes_cli/harness.py::build_account_usage` |
 
 The highest-value read-side swallow also closed: the actor-directory read
 skipped undecodable files and returned a shorter list that described itself as

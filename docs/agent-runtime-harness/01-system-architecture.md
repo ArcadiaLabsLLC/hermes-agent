@@ -19,7 +19,7 @@ There is one runtime execution surface. `GPTPersonaRuntime`
 `mission_chat_reply` (`:72`) — there is no `run_persona`, no tick, no worker
 loop. The entry point is `_cmd_mission_chat_message` — defined at
 `hermes_cli/harness_parts/persona_commands.py:2849`, exec-loaded into
-`harness.py` globals (`hermes_cli/harness.py:6511-6515`) and wired to argparse at
+`harness.py` globals (`hermes_cli/harness.py::_load_command_parts`) and wired to argparse at
 `harness.py:1439`.
 
 Turn ingress has one path. Asynchronous agent-to-agent delivery
@@ -820,7 +820,7 @@ ledger; it now holds only for the realm's ordinary fields.
 
 Identity is layered, and each layer has an owner. The Mission Control chat
 system message is composed by `_mission_chat_surface_message`
-(`persona_runtime.py:525`) in this order:
+(`persona_runtime.py::_mission_chat_surface_message`) in this order:
 
 1. **Runtime identity** — a first-person block naming the selected persona and
    making self-relay impossible (`_mission_chat_identity_prompt`, `:434`).

@@ -80,7 +80,7 @@ running `scripts/verify_harness_skill_install.py`.
   - `tests/agent_runtime/test_persona_skill_policy.py:293,344,355` — rename
     `test_installed_canonical_skill_drift_fails_the_pre_push_gate` and fix
     its docstring; the verifier test itself stays (post-merge now runs it).
-  - `tests/cli/test_worktree_sync_base.py:165` comment ("backstopped by the
+  - `tests/hermes_cli/test_worktree_sync_base.py:165` comment ("backstopped by the
     pre-push gate" → backstopped by serve-boot install).
   - grep docs (`docs/agent-runtime-harness/01-*.md`, `08-*.md`) for
     pre-push/install mentions and correct them.

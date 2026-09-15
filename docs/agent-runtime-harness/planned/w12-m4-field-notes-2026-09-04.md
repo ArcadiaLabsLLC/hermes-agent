@@ -108,7 +108,7 @@ the `_partition_claims` stub it already carried.
 
 **Asked:** decide the runner's env contract, defaulting `HERMES_TEST_TMP_ROOT`.
 
-**Re-measured at base.** `scripts/run_tests.sh tests/test_run_tests_parallel.py`:
+**Re-measured at base.** `scripts/run_tests.sh tests/scripts/test_run_tests_parallel.py`:
 timed out at 8 workers, passed only on the runner's 1-worker file retry —
 185.8 s total, 111.8 s of it the retry. With `HERMES_TEST_TMP_ROOT` pointed at
 a dedicated dir: green first attempt, 52.7 s. So the row's cure works.
@@ -129,14 +129,14 @@ every other test process's hermetic home while those are being created and
 deleted. `HERMES_TEST_TMP_ROOT` "worked" by handing the same walk an emptier
 tree to walk. It is not the cure; it is a smaller version of the disease.
 
-**Changed:** `tests/test_run_tests_parallel.py` gains `_root_the_probe`, which
+**Changed:** `tests/scripts/test_run_tests_parallel.py` gains `_root_the_probe`, which
 writes `[pytest]\n` into a probe tree, called at the three sites that spawn an
 inner pytest (the grandchild leaker's dir, `_make_probe_dir`, and the flaky
 retry probe, which is a bare file so `tmp_path` itself is what gets anchored).
 A new test reads the rootdir back out of pytest's own header, so a `pytest.ini`
 that pytest declined to honour would fail it.
 
-**Verify:** `scripts/run_tests.sh tests/test_run_tests_parallel.py` — 14
+**Verify:** `scripts/run_tests.sh tests/scripts/test_run_tests_parallel.py` — 14
 passed, **first attempt, no retry, 72.3 s** at 8 workers, with
 `HERMES_TEST_TMP_ROOT` UNSET. Commit `6767666dd1`.
 
@@ -156,7 +156,7 @@ wait bound above 30 in a module carrying no `pytest.mark.timeout` flags **51
 modules**. Reading them, nearly all are SAFETY VALVES — a
 `subprocess.run(..., timeout=60)` around a call that returns in two seconds is
 not a wait any test expects to reach. (Three of the 51 are in this lane's own
-`tests/test_run_tests_parallel.py`, all valves.) Telling a valve from a bound
+`tests/scripts/test_run_tests_parallel.py`, all valves.) Telling a valve from a bound
 is semantic, so a literal gate here is born red and lands an allowlist, which
 the house rules forbid outright.
 

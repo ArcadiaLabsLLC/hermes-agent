@@ -33,7 +33,7 @@ bottom of each stage.
   from there. That satisfies the plan's stdout discipline by construction
   rather than by care.
 
-- **FALSIFIED — Stage H3's `tests/cli/test_worktree_sync_base.py:165` row.**
+- **FALSIFIED — Stage H3's `tests/hermes_cli/test_worktree_sync_base.py:165` row.**
   The plan reads that comment as a reference to `.githooks/pre-push` (the
   skill-install hook) and asks for it to be re-pointed at the serve-boot
   install. It is not that hook. The comment is about a **stale worktree base
@@ -106,7 +106,7 @@ bottom of each stage.
 - `docs/agent-runtime-harness/01-system-architecture.md`: the "and the pre-push
   hook is what makes that reliable" sentence is replaced by the four-row trigger
   census, plus the reason boot is the strongest site and the `--rebase` hole.
-- `tests/cli/test_worktree_sync_base.py:165` NOT touched — see the falsified
+- `tests/hermes_cli/test_worktree_sync_base.py:165` NOT touched — see the falsified
   assumption at the top of this file.
 
 ## Pre-existing red, NOT this lane's

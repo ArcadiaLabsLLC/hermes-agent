@@ -204,7 +204,7 @@ requested after — so repaired records project as typed `turn_interrupted` mark
 instead of a console stuck "running" forever. When anything flips, a `state.reconciled` event is
 appended so already-connected watermark-gated consumers converge too. Best-effort.
 
-**Detached dispatches** (`dispatch_restore_ms`, `serve.py:3855`). Same moment, same reason:
+**Detached dispatches** (`dispatch_restore_ms`, `serve.py:3860`). Same moment, same reason:
 a row still marked `running` whose owning process is provably gone can never finish, and the
 sender is owed that answer. Identity-verified — a recycled PID is not the old owner — and
 fail-open. Both counts ride the ready frame when nonzero.
@@ -339,7 +339,7 @@ event at all, and an offset key cannot see them at any price.
 A mismatch does not mean a blank canvas: `take_stale_first_core` serves the last persisted core
 **labeled stale** while the build runs (`core_cache.py:3817`, `stream.py:1393`). The one-shot
 belongs to the SUBSCRIBER, not the process — derived at producer-build time by
-`serve.py::_room_wants_stale_first` (`:4369`) — because a boot starts two `stream_frames`
+`serve.py::_room_wants_stale_first`  — because a boot starts two `stream_frames`
 generators and the module-global version handed the allowance to whichever raced first. A
 forced-refresh one-shot is refused the stale core outright.
 

@@ -61,7 +61,7 @@ reads.
    parsers), `hermes_cli/harness_parts/persona_commands.py`
    (`_cmd_persona_tool_diff`, `_persona_by_id`, `_cmd_persona_set_skills`),
    `hermes_cli/harness_parts/runtime_commands.py` (`_cmd_snapshot`).
-8. Tests and gates that constrain the build: `tests/test_toolsets.py`,
+8. Tests and gates that constrain the build: `tests/tools/test_toolsets.py`,
    `tests/agent_runtime/test_registry_hygiene.py`,
    `test_unbounded_default_posture.py`, `test_chat_lane_toolsets.py`,
    `test_tool_visibility.py`, `test_tool_visibility_import_deferral.py`,
@@ -288,7 +288,7 @@ behavior, unchanged).
 static `TOOLSETS` plus the mtime-cached profile YAML and never imports
 `model_tools`; asserted in a subprocess (`"model_tools" not in sys.modules`)
 in both `tests/agent_runtime/test_toolset_declaration.py` and
-`tests/test_toolsets.py`. Timings, this box, hermes-test interpreter:
+`tests/tools/test_toolsets.py`. Timings, this box, hermes-test interpreter:
 
 | what | measured |
 |---|---|
