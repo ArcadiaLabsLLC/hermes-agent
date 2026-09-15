@@ -9,6 +9,30 @@ at `docs/mission_control/planned/local-llama-manager-ux.md` in its repository.
 No installation, runtime restart, model download, or product change was performed
 to write this plan. New methods below must not be enabled before producer proof.
 
+## Upstream integration reassessment (2026-09-15)
+
+The combined source includes upstream `hermes_cli/local_runtime/` (binary assets,
+hardware, GGUF/catalog, bootstrap, supervision and recovery). The original source
+review below predates that integration. Treat release observations as historical;
+revalidate official release metadata at implementation time.
+
+Reuse suitable upstream download/qualification primitives behind the fork's
+root-bound `agent_runtime/local_llama` owner. Do not substitute upstream bootstrap
+or supervisor for the existing Launcher RPC owner: install/validate/activate stay
+separate, neither installation nor activation starts a server, and the existing
+receipt/revision/active-turn guards remain authoritative. Upstream context growth
+and multi-model residency must not silently replace this lane's pinned context
+and single-model contract. Resolve active-operation versus requested-receipt status
+and journal publication before freezing installer fixtures.
+
+The integration candidate passed all 48 existing Local llama tests and the real
+isolated text/tool/compression/reload/owned-shutdown probe. This proves the existing
+runtime, not the proposed installer. See the detailed
+[installer handoff](upstream-sync-20260914/installer-handoff.md) and
+[candidate evidence](upstream-sync-20260914/candidate-test-evidence.json).
+Launcher installation work remains blocked on producer-owned installer contract
+fixtures and served-wire proof; no installer methods have been implemented.
+
 ## 1. Review decisions and existing implementation
 
 Approve the host-scoped management panel, explicit server/weights distinction,
