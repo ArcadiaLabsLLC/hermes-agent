@@ -175,7 +175,7 @@ class TestTotality:
         def _explode():
             raise OSError("config.yaml unreadable")
 
-        monkeypatch.setattr(real_config, "load_config", _explode)
+        monkeypatch.setattr(real_config, "load_config_readonly", _explode)
         assert tirith_config.load_config_or_empty() == {}
         assert tirith_config.fail_open_when_scanner_unavailable() is True
 
@@ -192,7 +192,7 @@ class TestTotality:
             calls.append(1)
             return {"security": {"tirith_fail_open": True}}
 
-        monkeypatch.setattr(real_config, "load_config", _counted)
+        monkeypatch.setattr(real_config, "load_config_readonly", _counted)
         cfg = {"security": {"tirith_enabled": True, "tirith_fail_open": False}}
         assert tirith_config.fail_open_when_scanner_unavailable(cfg) is False
         assert calls == [], "passed-in config must not trigger a config load"

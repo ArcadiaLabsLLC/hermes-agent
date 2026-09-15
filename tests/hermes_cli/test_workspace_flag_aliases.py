@@ -172,6 +172,7 @@ def _required_extras(path: str) -> list[str]:
         # a table carrying a non-required flag is a second description of
         # requiredness that is free to disagree with argparse's.
         "harness agent create": ["--persona", "qa"],
+        "harness level set": ["--document", "{}"],
         "harness office actor-upsert": ["--actor-json", "{}"],
         "harness office actor-remove": ["--actor", "personainst_qa"],
         "harness office actor-restore": ["--actor", "personainst_qa"],

@@ -483,7 +483,7 @@ def test_registry_hygiene_survives_the_unbounded_default():
     """Plan §7.8(b) / §3.4. Kanban + feishu deregistration is junk removal, not a
     permission tier: ``profile_runner`` unions it at agent construction on every
     lane, so a preview that showed those tools as available would be lying about
-    17 tools the runtime strips."""
+    the tools the runtime strips."""
 
     visibility = resolve_tool_visibility(_persona())
 
@@ -492,8 +492,8 @@ def test_registry_hygiene_survives_the_unbounded_default():
     assert not (final & REGISTRY_HYGIENE_BLOCKED_TOOLS)
     blocked = {entry["name"] for entry in visibility["blocked_tools"]}
     assert blocked == set(REGISTRY_HYGIENE_BLOCKED_TOOLS)
-    # The plan's stated wire move: 22 (5 persona-safety + 17 hygiene) -> 17.
-    assert len(visibility["blocked_tools"]) == len(REGISTRY_HYGIENE_BLOCKED_TOOLS) == 17
+    # Every hygiene exclusion appears exactly once, including new upstream aliases.
+    assert len(visibility["blocked_tools"]) == len(REGISTRY_HYGIENE_BLOCKED_TOOLS)
     assert all(entry["reason"] == "registry_hygiene" for entry in visibility["blocked_tools"])
 
 
@@ -655,4 +655,6 @@ def test_tool_diff_preview_can_still_ask_for_the_bounded_shape():
 
     blocked = {entry["name"] for entry in bounded["blocked_tools"]}
     assert "delegate_task" in blocked
-    assert len(bounded["blocked_tools"]) == 22
+    from agent_runtime.personas import PERSONA_BLOCKED_TOOLS
+    assert blocked == set(PERSONA_BLOCKED_TOOLS)
+    assert len(bounded["blocked_tools"]) == len(blocked)

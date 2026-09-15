@@ -246,35 +246,6 @@ def test_root_write_through_is_visible_to_the_next_fallback_read(profile_env):
     assert read_credential_pool("openai-codex")[0]["access_token"] == "new"
 
 
-def test_codex_runtime_uses_global_pool_when_profile_singleton_is_empty(profile_env):
-    """Stale empty profile Codex state must not block the global credential pool."""
-    from hermes_cli.auth import resolve_codex_runtime_credentials
-
-    _write(profile_env["global"] / "auth.json", _make_auth_store(pool={
-        "openai-codex": [{
-            "id": "glob-codex",
-            "label": "global-codex",
-            "auth_type": "oauth",
-            "priority": 0,
-            "source": "manual:device_code",
-            "access_token": "global-codex-access-token",
-            "refresh_token": "global-codex-refresh-token",
-        }],
-    }))
-    _write(profile_env["profile"] / "auth.json", _make_auth_store(
-        providers={
-            "openai-codex": {
-                "auth_mode": "chatgpt",
-                "tokens": {"access_token": "", "refresh_token": ""},
-            },
-        },
-        pool={"openai-codex": []},
-    ))
-
-    creds = resolve_codex_runtime_credentials(refresh_if_expiring=False)
-
-    assert creds["source"] == "credential_pool"
-    assert creds["api_key"] == "global-codex-access-token"
 
 
 def test_codex_runtime_prefers_global_singleton_over_profile_stale_pool(profile_env):

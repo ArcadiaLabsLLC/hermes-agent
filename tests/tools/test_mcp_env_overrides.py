@@ -14,8 +14,8 @@ import logging
 import pytest
 from unittest.mock import patch
 
-from tools.mcp_tool import (
-    _build_safe_env,
+from tools.mcp_tool_config import _build_safe_env
+from agent_runtime.mcp_environment import (
     _get_process_mcp_env_overrides,
     _normalize_mcp_env_server_name,
 )

@@ -1752,8 +1752,8 @@ class TestBackgroundNotificationsConciseMigration:
         # Unset users inherit the new default at read time; no write needed.
         assert "display" not in raw or "background_process_notifications" not in raw.get("display", {})
 
-    def test_default_config_is_concise(self):
-        assert DEFAULT_CONFIG["display"]["background_process_notifications"] == "concise"
+    def test_default_config_preserves_fork_result_delivery(self):
+        assert DEFAULT_CONFIG["display"]["background_process_notifications"] == "result"
 
 
 class TestConfigNormalizationDoesNotOverwriteUserValues:

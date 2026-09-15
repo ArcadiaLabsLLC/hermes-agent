@@ -121,7 +121,7 @@ class TestSlackManifestArgparse:
         other surface — so the clamp is reported on stderr, next to the paste
         instructions, leaving stdout pure JSON for redirection.
         """
-        from hermes_cli import commands as commands_module
+        from hermes_cli import commands_platforms as commands_module
 
         monkeypatch.setattr(
             commands_module, "slack_clamped_slashes", lambda: ["platform", "diff"]
@@ -138,7 +138,7 @@ class TestSlackManifestArgparse:
 
     def test_manifest_is_quiet_when_every_command_fits(self, monkeypatch, capsys):
         """Control: the note is caused by the clamp, not printed always."""
-        from hermes_cli import commands as commands_module
+        from hermes_cli import commands_platforms as commands_module
 
         monkeypatch.setattr(commands_module, "slack_clamped_slashes", list)
         args = _parse_slack_args(["slack", "manifest"])
@@ -188,5 +188,4 @@ class TestSlackFullManifest:
         bot_events = manifest["settings"]["event_subscriptions"]["bot_events"]
         for event in ("message.im", "message.channels", "message.groups", "app_mention"):
             assert event in bot_events
-
 

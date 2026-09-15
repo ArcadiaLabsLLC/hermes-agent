@@ -261,14 +261,13 @@ def test_spawn_detached_is_fenced_for_the_whole_session():
 def test_cold_start_helper_cannot_reach_a_live_spawn(monkeypatch):
     """Drive the exact function the atexit handler called.
 
-    ``_cold_start_windows_gateway_after_update`` swallows every exception by
-    design (it is best-effort), so the claim is not "it raises" — it is that
-    the fence, not luck, is what stops it: with the spawn fenced it prints no
-    PID, and the fenced ``_spawn_detached`` is the callee it reached.
+    Cold-start now surfaces failures. The fence must be the cause of that
+    refusal: it prints no PID and reaches the fenced spawn chokepoint.
     """
     from hermes_cli import gateway_windows, update_cmd
 
-    monkeypatch.setattr(update_cmd, "_m", lambda: SimpleNamespace(_is_windows=lambda: True))
+    monkeypatch.setattr(update_cmd, "_m", lambda: SimpleNamespace(
+        _is_windows=lambda: True, _detect_venv_python_processes=lambda: []))
     monkeypatch.setattr("hermes_cli.gateway.find_gateway_pids", lambda **_k: [])
     calls: list[object] = []
     real_fenced = gateway_windows._spawn_detached
@@ -279,7 +278,8 @@ def test_cold_start_helper_cannot_reach_a_live_spawn(monkeypatch):
 
     monkeypatch.setattr(gateway_windows, "_spawn_detached", _recording)
 
-    update_cmd._cold_start_windows_gateway_after_update()
+    with pytest.raises(RuntimeError, match="Could not cold-start Windows gateway"):
+        update_cmd._cold_start_windows_gateway_after_update({"attested_generation": None})
 
     assert calls == [None], "the cold-start path did not reach _spawn_detached"
 
