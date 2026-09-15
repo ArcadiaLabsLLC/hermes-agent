@@ -127,6 +127,7 @@ import ast
 import functools
 import importlib
 import importlib.util
+import os
 import subprocess
 import sys
 import textwrap
@@ -927,9 +928,10 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "s23",
         "5a1267ef6",
         Form.CODE,
-        "the deleted node-control modules must not regain tool or toolset registration",
+        "the deleted node-control modules must not regain tool or toolset registration; "
+        "the exact run_node key does not include upstream _run_node_bootstrap",
         "node_control",
-        "run_node",
+        "'run_node'",
         "steer_node",
     ),
     *rows(
@@ -1453,8 +1455,13 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "positive machine",
         "ProjectorResult",
         "projector_lease",
-        "LEASE_TTL_SECONDS",
         "SLO_INCREMENTAL_APPLY_MS",
+    ),
+    *rows(
+        "s46", "3d0935e51", Form.CODE,
+        "the retired projector lease must not return in agent_runtime; upstream's "
+        "agent.turn_facade_lease has an independent live session-turn lease",
+        "LEASE_TTL_SECONDS", scope=_AR,
     ),
     # -- S47 — the wire fields that could only report a constant ------------
     *rows(
@@ -2878,8 +2885,8 @@ TOMBSTONES: tuple[Tombstone, ...] = (
     # `UnknownUsageLaneError`, which `_usage_failure_reason` reports by class
     # AND by id.
     #
-    # Scoped to `hermes_cli`, NOT repo-wide: `fetch_account_usage` is an
-    # upstream-owned public entry point with live readers in `cli.py` and
+    # Scoped to `hermes_cli.harness`, NOT repo-wide: `fetch_account_usage` is an
+    # upstream-owned public entry point with live readers in `hermes_cli/cli_info_mixin.py` and
     # `gateway/slash_commands.py` (fork boundary — route around it, never delete
     # it). What is tombstoned is this fork's harness calling it. CODE rather than
     # IMPORT because the reaped import was function-local, and the IMPORT scanner
@@ -2890,13 +2897,13 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         Form.CODE,
         "EG-0.3 Class-A reap 2 — the usage-lane fall-through into upstream's "
         "blanket swallow: nothing "
-        "under hermes_cli may call fetch_account_usage again — the per-provider "
+        "in the fork harness may call fetch_account_usage again — the per-provider "
         "fetchers are dispatched directly so the failure class reaches "
         "_fetch_usage_lanes' honest per-lane handler, and an id outside "
         "_USAGE_LANE_PROVIDERS raises UnknownUsageLaneError instead of "
         "degrading into 'no usage data'",
         "fetch_account_usage",
-        scope=("hermes_cli",),
+        scope=("hermes_cli.harness",),
     ),
     # -- S72 = dead-code audit pass 2 (2026-08-19), stage HB-1. -----------
     # `agent_runtime/risk_flags.py` was an ISLAND BEHIND A FOLDED PREDICATE.
@@ -3526,10 +3533,11 @@ def _production_files(packages: tuple[str, ...]) -> list[Path]:
         relative = package.replace(".", "/")
         root = HERMES_ROOT / relative
         if root.is_dir():
-            for path in sorted(root.rglob("*.py")):
-                if any(part in _SKIP_DIRS for part in path.parts):
-                    continue
-                files.append(path)
+            # Prune excluded dependency trees before traversal. Filtering only
+            # after rglob visits node_modules can consume the entire file budget.
+            for directory, children, names in os.walk(root):
+                children[:] = sorted(name for name in children if name not in _SKIP_DIRS)
+                files.extend(Path(directory) / name for name in sorted(names) if name.endswith(".py"))
             continue
         module = HERMES_ROOT / f"{relative}.py"
         if module.is_file():
