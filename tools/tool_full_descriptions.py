@@ -134,6 +134,37 @@ FULL_TOOL_DESCRIPTIONS: Dict[str, Union[str, Callable[[], str]]] = {
 }
 
 
+def _current_execute_code_full() -> str:
+    from tools.code_execution_tool import build_execute_code_schema
+    return build_execute_code_schema(_full_description=True)["description"]
+
+
+def _current_clarify_full() -> str:
+    from tools.clarify_tool import FULL_CLARIFY_DESCRIPTION
+    return FULL_CLARIFY_DESCRIPTION
+
+
+def _current_skill_manage_full() -> str:
+    from tools.skill_manager_tool import _skill_manage_description, _display_create_dir
+    return _skill_manage_description(_display_create_dir())
+
+
+def _current_session_search_full() -> str:
+    from tools.session_search_tool import FULL_SESSION_SEARCH_DESCRIPTION
+    return FULL_SESSION_SEARCH_DESCRIPTION
+
+
+# These descriptions follow the new upstream batch/kernel contracts directly.
+FULL_TOOL_DESCRIPTIONS.update({
+    "session_search": _current_session_search_full,
+    "execute_code": _current_execute_code_full,
+    "clarify": _current_clarify_full,
+    "skill_manage": _current_skill_manage_full,
+    "todo_list": FULL_TOOL_DESCRIPTIONS["todo"] + "\nBreak large phases into subtasks via parent; enumerate every requested instance. Mark completion only after verification.",
+    "process_manage": FULL_TOOL_DESCRIPTIONS["process"],
+})
+
+
 def full_tool_description(name: str) -> Optional[str]:
     """Return the full (untrimmed) description for a tool, or None if not mirrored.
 

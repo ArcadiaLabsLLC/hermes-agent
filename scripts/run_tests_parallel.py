@@ -1,18 +1,10 @@
 #!/usr/bin/env python3
 """Per-file parallel test runner.
 
-Opt-in fast temp (suite-perf Stage 7, ruled 2026-09-01): set
-``HERMES_TEST_TMP_ROOT`` to a DEDICATED, Defender-excluded, throwaway
-directory (the operator's is ``X:\\Eternia\\test-tmp``) and every child this
-runner spawns inherits it — ``tests/conftest.py`` moves each session's temp
-(tmp_path, hermetic HERMES_HOME, tempfile) under a per-run subdir there,
-escaping the measured 2.3-2.9x real-time-scan tax on ``%TEMP%``. Absent or
-missing, behavior is byte-identical to before the knob existed.
-
 The minimum-viable replacement for pytest-xdist + a subprocess-isolation
 plugin. Discovers test files under ``tests/`` (excluding integration/e2e
 unless explicitly requested), then runs one ``python -m pytest <file>``
-subprocess per file, with bounded parallelism (default: up to 8 workers).
+subprocess per file, with bounded parallelism (default: ``min(os.cpu_count(), 8)``).
 
 Why per-file rather than per-test?
     Per-test spawn overhead (~250ms × 17k tests = 70min CPU minimum)
@@ -40,7 +32,9 @@ Usage:
 
 Environment:
     HERMES_TEST_WORKERS  Override worker count (default: min(os.cpu_count(), 8))
-    HERMES_TEST_PATHS    Override discovery roots (colon-sep, default: 'tests')
+    HERMES_TEST_PATHS    Override discovery roots (colon-sep; on Windows
+                         ';' also works and drive letters are handled;
+                         default: 'tests')
 
 Exit code: 0 if every file's pytest exited 0; 1 otherwise.
 """
@@ -50,8 +44,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, Future
@@ -93,11 +90,6 @@ _SKIP_PARTS = {"integration", "e2e", "docker"}
 # time while keeping a genuinely hung file bounded.
 _DEFAULT_FILE_TIMEOUT_SECONDS = 300.0
 
-# Import-heavy pytest subprocesses contend for memory and disk bandwidth well
-# before one worker per logical CPU is useful. Keep the automatic choice
-# conservative; explicit --jobs / HERMES_TEST_WORKERS values remain uncapped.
-_DEFAULT_MAX_WORKERS = 8
-
 # One-shot retry of failing test FILES. A file that exits non-zero is re-run
 # once in a fresh subprocess; if the re-run passes, the file counts as passed
 # but is loudly reported as FLAKY so it gets fixed rather than hidden.
@@ -105,17 +97,6 @@ _DEFAULT_MAX_WORKERS = 8
 # laundered into green by this (it would have to flake in our favor twice in
 # a row on the same runner, which is exactly the definition of a flake).
 # Set to 0 to disable (env: HERMES_TEST_FILE_RETRIES).
-#
-# RETRY OWNERSHIP — two mechanisms, deliberately disjoint:
-#   * THIS one is the in-pool flake retry. It re-runs immediately, still under
-#     full pool contention, so it only makes sense for order/race flakes.
-#   * The straggler pass in ``main()`` re-runs TIMEOUT-shaped results once,
-#     serially, at 1-worker isolation AFTER the pool drains — contention is
-#     precisely what it is ruling out, so retrying under contention cannot help.
-# ``_run_one_file`` therefore refuses to retry timeout-shaped results in-pool
-# (see the guard there), and the straggler pass runs with retries=0. Without
-# that split a hung file would burn ``file_timeout`` twice inside the pool and
-# then a third time at isolation.
 _DEFAULT_FILE_RETRIES = 1
 
 # Duration cache: maps relative file paths to last-observed subprocess
@@ -124,75 +105,44 @@ _DEFAULT_FILE_RETRIES = 1
 _DURATIONS_FILE = "test_durations.json"
 
 
-def _adaptive_default_jobs(cpu_count: int | None) -> int:
-    """Choose a conservative automatic worker count for import-heavy tests."""
-    return min(cpu_count or 4, _DEFAULT_MAX_WORKERS)
+def _split_pathspec(value: str) -> List[str]:
+    chunks = value.split(";") if sys.platform == "win32" else [value]
+    return [part for chunk in chunks for part in _split_path_list(chunk)]
+
+# Host-OS gating (see the ``_OS_MARKS`` block in tests/conftest.py): tests
+# marked for another host are collected and SKIPPED by the conftest hook —
+# this runner never executes them, by construction. The summary calls that
+# out explicitly so a local run isn't misread as covering macOS/Windows
+# behaviour, and names the CI lane where those tests actually execute.
+_OS_MARKERS = {
+    "linux_only": ("linux", "the main Linux CI lane"),
+    "macos_only": ("darwin", "the tests-os CI lane (macos-latest)"),
+    "windows_only": ("win32", "the tests-os CI lane (windows-latest)"),
+}
 
 
-def _format_timeout_output(output: str | None, file_timeout: float) -> str:
-    """Render a timeout result even when ``communicate()`` returned ``None``."""
-    captured = output or "(captured output unavailable)"
-    return (
-        f"(timed out after {file_timeout:.0f}s; process tree terminated)\n"
-        f"{captured}"
-    )
+def _off_host_marker_files(files: List[Path]) -> dict[str, int]:
+    """Count discovered files referencing each marker for an OS we are not on.
 
-
-def _is_retryable_timeout_result(
-    rc: int,
-    output: str,
-    summary: dict[str, int],
-) -> bool:
-    """Return true only for a nonzero, timeout-shaped result without failures."""
-    if rc == 0 or summary.get("failed", 0) > 0:
-        return False
-    lowered = output.lower()
-    return "timeout" in lowered or "timed out after" in lowered
-
-
-def _split_path_list(raw: str) -> list[str]:
-    """Split a colon-joined path list without cutting Windows drive letters.
-
-    ``C:\\repo\\tests\\test_a.py`` naively ``split(":")``-ed becomes
-    ``["C", "\\repo\\tests\\test_a.py"]`` and the runner then tries to open a
-    file literally named ``C`` under the repo root. Re-join any single ASCII
-    letter that is immediately followed by a path separator — that is a drive
-    qualifier, not a list delimiter.
-
-    The ``exists()`` probe is a fast path for "the argument IS one path that
-    happens to contain a colon", and its failure has to be swallowed: a joined
-    LIST is not a path, and asking the OS whether one exists is not a question
-    every OS answers with False. On Linux a list past ``PATH_MAX`` makes
-    ``stat()`` return ``ENAMETOOLONG``, which ``pathlib`` does not ignore, so
-    the probe RAISES — while Windows folds the same overflow into its ignored
-    winerror set and answers False. That asymmetry is the whole bug: every CI
-    ``--files`` slice (8 slices × ~380 files ≈ 30 KB of argument) died here
-    before collecting a single test, on every push from 2026-08-04 on, while
-    the identical call was green on every developer's Windows box.
+    Whole-word text match, same approach as scripts/ci/list_os_marked_tests.py:
+    over-counting a prose mention is harmless here (the note is informational);
+    what matters is never reporting 0 while gated tests exist.
     """
-    try:
-        if Path(raw).exists():
-            return [raw]
-    except OSError:
-        pass
-    parts = raw.split(":")
-    out: list[str] = []
-    index = 0
-    while index < len(parts):
-        piece = parts[index]
-        following = parts[index + 1] if index + 1 < len(parts) else ""
-        if len(piece) == 1 and piece.isalpha() and following[:1] in ("\\", "/"):
-            out.append(f"{piece}:{following}")
-            index += 2
+    off_host = {
+        marker: re.compile(rf"\b{marker}\b")
+        for marker, (host_prefix, _) in _OS_MARKERS.items()
+        if not sys.platform.startswith(host_prefix)
+    }
+    counts = {marker: 0 for marker in off_host}
+    for path in files:
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
             continue
-        out.append(piece)
-        index += 1
-    return [value for value in out if value.strip()]
-
-
-def _split_discovery_roots(raw: str) -> list[str]:
-    """Split configured roots without cutting an absolute Windows drive path."""
-    return _split_path_list(raw)
+        for marker, pattern in off_host.items():
+            if pattern.search(text):
+                counts[marker] += 1
+    return {marker: n for marker, n in counts.items() if n}
 
 
 def _approximately_count_tests(
@@ -367,10 +317,6 @@ def _run_one_file(
     )
     attempt = 0
     while rc != 0 and attempt < retries:
-        # Timeout-shaped stragglers are NOT retried here. An immediate re-run
-        # happens under the same pool contention that produced the timeout, so
-        # it costs another full ``file_timeout`` and almost always fails again.
-        # Those are owned by the serial 1-worker straggler pass in ``main()``.
         if _is_retryable_timeout_result(rc, output, summary):
             break
         attempt += 1
@@ -399,31 +345,6 @@ _FLAKY_RESULTS: List[Tuple[Path, str]] = []
 _flaky_lock = threading.Lock()
 
 
-#: Set to a coverage config file to trace every per-file subprocess. The ONLY
-#: consumer is ``scripts/unreachable_branch_report.py``; see :func:`_pytest_argv`.
-_COVERAGE_RC_ENV = "HERMES_TEST_COVERAGE_RC"
-
-
-def _pytest_argv(file: Path, pytest_args: List[str]) -> List[str]:
-    """``python -m pytest <file> …``, wrapped in ``coverage run`` when asked.
-
-    The wrap is the seam ``scripts/unreachable_branch_report.py`` measures
-    through. Without it the report would have to re-implement ``run_tests.sh``'s
-    hermetic environment to trace anything, and a second spelling of that
-    environment is a second thing to keep in sync — the report would then be
-    measuring branches under pins and env the suite never runs with.
-
-    Absent-safe by construction: with the variable unset the argv is
-    byte-identical to what this runner has always spawned, so an ordinary run
-    pays nothing and cannot be traced by accident. Every other decision
-    (``branch``, ``parallel``, ``data_file``, ``source``) lives in the config
-    file the report writes, so this seam carries ONE path and no policy.
-    """
-    rcfile = os.environ.get(_COVERAGE_RC_ENV, "").strip()
-    prefix = ["-m", "coverage", "run", f"--rcfile={rcfile}"] if rcfile else []
-    return [sys.executable, *prefix, "-m", "pytest", str(file), *pytest_args]
-
-
 def _run_one_file_once(
     file: Path,
     pytest_args: List[str],
@@ -433,6 +354,26 @@ def _run_one_file_once(
     """Single attempt of a per-file pytest subprocess (see _run_one_file)."""
     cmd = _pytest_argv(file, pytest_args)
 
+    # Give this subprocess its own pytest temp root.
+    #
+    # pytest builds its tmp_path root as <temproot>/pytest-of-<user>/. At the
+    # end of a session it walks that directory with cleanup_dead_symlinks().
+    # The walk lists the directory. Then it asks whether the `pytest-current`
+    # symlink resolves. Then it unlinks the symlink.
+    #
+    # Every file shared one root. A second process replaced that symlink
+    # between the question and the unlink. The first process then died with
+    # FileNotFoundError after all of its tests passed.
+    #
+    # The risk grows with the number of processes that finish together. At 8
+    # workers it never occurred. At 144 workers it occurs.
+    #
+    # One root for each subprocess removes the shared directory that the race
+    # needs. The parent deletes the root after the attempt.
+    env = os.environ.copy()
+    temproot = tempfile.mkdtemp(prefix="hermes-pytest-tmproot-")
+    env["PYTEST_DEBUG_TEMPROOT"] = temproot
+
     subproc_start = time.monotonic()
     # launch the pytest process
     proc = subprocess.Popen(
@@ -441,7 +382,7 @@ def _run_one_file_once(
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True, encoding="utf-8", errors="replace",
-        env=os.environ,
+        env=env,
         # POSIX: place the child at the head of its own process group so
         # _kill_tree can SIGKILL the group atomically.
         # Windows: this maps to CREATE_NEW_PROCESS_GROUP in CPython 3.12+;
@@ -482,6 +423,11 @@ def _run_one_file_once(
         _kill_tree(proc, pgid=pgid)
 
         output = (output or "") + "\n"
+    finally:
+        # Delete the temp root for this attempt. Nothing reads it after the
+        # subprocess exits. More than 3000 of them fill the disk of the
+        # runner over one suite.
+        shutil.rmtree(temproot, ignore_errors=True)
 
     if rc == 5:
         # No tests collected in THIS file — legitimate per-file: a
@@ -507,8 +453,6 @@ def _parse_pytest_summary(output: str) -> dict[str, int]:
     Returns a dict with keys ``passed``, ``failed``, ``skipped``, ``errors``,
     ``xfailed``, ``xpassed`` (only keys found in the output are present).
     """
-    import re
-
     result: dict[str, int] = {}
     # Walk backwards from the end — the summary line is always near the tail.
     for line in reversed(output.splitlines()):
@@ -533,8 +477,8 @@ def _parse_pytest_summary(output: str) -> dict[str, int]:
 
 def _format_file(file: Path, repo_root: Path) -> str:
     """Render a test-file path for display: strip the repo-root prefix
-    when possible so output reads ``tests/acp/test_auth.py`` instead of
-    ``/home/runner/work/hermes-agent/hermes-agent/tests/acp/test_auth.py``.
+    when possible so output reads ``tests/acp_adapter/test_auth.py`` instead of
+    ``/home/runner/work/hermes-agent/hermes-agent/tests/acp_adapter/test_auth.py``.
 
     Falls back to the absolute path for anything outside the repo root.
     """
@@ -796,6 +740,102 @@ def _make_stdio_glyph_safe() -> None:
                 pass
 
 
+
+_DEFAULT_MAX_WORKERS = 8
+_COVERAGE_RC_ENV = "HERMES_TEST_COVERAGE_RC"
+
+
+def _adaptive_default_jobs(cpu_count: int | None) -> int:
+    """Choose a conservative automatic worker count for import-heavy tests."""
+    return min(cpu_count or 4, _DEFAULT_MAX_WORKERS)
+
+
+def _format_timeout_output(output: str | None, file_timeout: float) -> str:
+    """Render a timeout result even when ``communicate()`` returned ``None``."""
+    captured = output or "(captured output unavailable)"
+    return (
+        f"(timed out after {file_timeout:.0f}s; process tree terminated)\n"
+        f"{captured}"
+    )
+
+
+def _is_retryable_timeout_result(
+    rc: int,
+    output: str,
+    summary: dict[str, int],
+) -> bool:
+    """Return true only for a nonzero, timeout-shaped result without failures."""
+    if rc == 0 or summary.get("failed", 0) > 0:
+        return False
+    lowered = output.lower()
+    return rc == 124 or bool(re.search(r"(?m)^\++ Timeout \++$", output)) or lowered.startswith("(timed out after")
+
+
+def _split_path_list(raw: str) -> list[str]:
+    """Split a colon-joined path list without cutting Windows drive letters.
+
+    ``C:\\repo\\tests\\test_a.py`` naively ``split(":")``-ed becomes
+    ``["C", "\\repo\\tests\\test_a.py"]`` and the runner then tries to open a
+    file literally named ``C`` under the repo root. Re-join any single ASCII
+    letter that is immediately followed by a path separator — that is a drive
+    qualifier, not a list delimiter.
+
+    The ``exists()`` probe is a fast path for "the argument IS one path that
+    happens to contain a colon", and its failure has to be swallowed: a joined
+    LIST is not a path, and asking the OS whether one exists is not a question
+    every OS answers with False. On Linux a list past ``PATH_MAX`` makes
+    ``stat()`` return ``ENAMETOOLONG``, which ``pathlib`` does not ignore, so
+    the probe RAISES — while Windows folds the same overflow into its ignored
+    winerror set and answers False. That asymmetry is the whole bug: every CI
+    ``--files`` slice (8 slices × ~380 files ≈ 30 KB of argument) died here
+    before collecting a single test, on every push from 2026-08-04 on, while
+    the identical call was green on every developer's Windows box.
+    """
+    try:
+        if Path(raw).exists():
+            return [raw]
+    except OSError:
+        pass
+    parts = raw.split(":")
+    out: list[str] = []
+    index = 0
+    while index < len(parts):
+        piece = parts[index]
+        following = parts[index + 1] if index + 1 < len(parts) else ""
+        if len(piece) == 1 and piece.isalpha() and following[:1] in ("\\", "/"):
+            out.append(f"{piece}:{following}")
+            index += 2
+            continue
+        out.append(piece)
+        index += 1
+    return [value for value in out if value.strip()]
+
+
+def _split_discovery_roots(raw: str) -> list[str]:
+    """Split configured roots without cutting an absolute Windows drive path."""
+    return _split_path_list(raw)
+
+
+def _pytest_argv(file: Path, pytest_args: List[str]) -> List[str]:
+    """``python -m pytest <file> …``, wrapped in ``coverage run`` when asked.
+
+    The wrap is the seam ``scripts/unreachable_branch_report.py`` measures
+    through. Without it the report would have to re-implement ``run_tests.sh``'s
+    hermetic environment to trace anything, and a second spelling of that
+    environment is a second thing to keep in sync — the report would then be
+    measuring branches under pins and env the suite never runs with.
+
+    Absent-safe by construction: with the variable unset the argv is
+    byte-identical to what this runner has always spawned, so an ordinary run
+    pays nothing and cannot be traced by accident. Every other decision
+    (``branch``, ``parallel``, ``data_file``, ``source``) lives in the config
+    file the report writes, so this seam carries ONE path and no policy.
+    """
+    rcfile = os.environ.get(_COVERAGE_RC_ENV, "").strip()
+    prefix = ["-m", "coverage", "run", f"--rcfile={rcfile}"] if rcfile else []
+    return [sys.executable, *prefix, "-m", "pytest", str(file), *pytest_args]
+
+
 def main() -> int:
     _make_stdio_glyph_safe()
     parser = argparse.ArgumentParser(
@@ -806,19 +846,17 @@ def main() -> int:
         "-j",
         "--jobs",
         type=int,
-        default=int(
-            os.environ.get("HERMES_TEST_WORKERS")
-            or _adaptive_default_jobs(os.cpu_count())
-        ),
-        help=(
-            "Parallel worker count (default: $HERMES_TEST_WORKERS or "
-            f"min(cpu_count, {_DEFAULT_MAX_WORKERS}))"
-        ),
+        default=int(os.environ.get("HERMES_TEST_WORKERS") or _adaptive_default_jobs(os.cpu_count())),
+        help="Parallel worker count (default: $HERMES_TEST_WORKERS or min(cpu_count, 8))",
     )
     parser.add_argument(
         "--paths",
         default=os.environ.get("HERMES_TEST_PATHS", ":".join(_DEFAULT_ROOTS)),
-        help="Colon-separated discovery roots (default: 'tests')",
+        help=(
+            "Colon-separated discovery roots (default: 'tests'). On "
+            "Windows, ';' also separates and drive letters (C:\\...) are "
+            "kept intact."
+        ),
     )
     parser.add_argument(
         "--include-integration",
@@ -877,9 +915,10 @@ def main() -> int:
         "--files",
         metavar="LIST",
         help=(
-            "Explicit colon-separated list of test files to run. Bypasses "
-            "discovery entirely — used by CI matrix jobs that receive their "
-            "file list from the generate job."
+            "Explicit colon-separated list of test files to run (on "
+            "Windows, ';' also separates and drive letters are kept "
+            "intact). Bypasses discovery entirely — used by CI matrix "
+            "jobs that receive their file list from the generate job."
         ),
     )
     parser.add_argument(
@@ -1014,8 +1053,7 @@ def main() -> int:
 
     # --files: explicit file list from the CI generate job — skip discovery.
     if args.files:
-        # Drive-letter-safe: a bare split(":") shreds `C:\repo\test_x.py`.
-        files = [repo_root / f for f in _split_path_list(args.files)]
+        files = [repo_root / f for f in _split_pathspec(args.files)]
         roots = []
     else:
         # Resolve discovery roots: positional path args override --paths if any
@@ -1023,7 +1061,7 @@ def main() -> int:
         if args.paths_positional:
             roots = [repo_root / p for p in args.paths_positional]
         else:
-            roots = [repo_root / p for p in _split_discovery_roots(args.paths)]
+            roots = [repo_root / p for p in _split_pathspec(args.paths)]
 
         if args.include_integration:
             # Caller takes responsibility — typically used via explicit -k filter.
@@ -1108,6 +1146,7 @@ def main() -> int:
     fail_count = 0
     tests_passed = 0
     tests_failed = 0
+    tests_skipped = 0
     # Every collected outcome, not just pass/fail: a legitimately all-skipped
     # (platform-gated) file reports "2 skipped" and must NOT trip the
     # nothing-ran guard, whereas a file that died before collection reports
@@ -1116,7 +1155,7 @@ def main() -> int:
     lock = threading.Lock()
 
     def _on_done(file: Path, started_at: float, fut: "Future[Tuple[Path, int, str, Dict[str, int], float]]") -> None:
-        nonlocal files_done, tests_done, pass_count, fail_count, tests_passed, tests_failed
+        nonlocal files_done, tests_done, pass_count, fail_count, tests_passed, tests_failed, tests_skipped
         nonlocal tests_collected
         n_tests = test_counts.get(file, 0)
         try:
@@ -1141,6 +1180,7 @@ def main() -> int:
             # Accumulate test-level counts from parsed summary.
             tests_passed += summary.get("passed", 0)
             tests_failed += summary.get("failed", 0)
+            tests_skipped += summary.get("skipped", 0)
             tests_collected += sum(
                 summary.get(k, 0)
                 for k in ("passed", "failed", "skipped", "errors", "xfailed", "xpassed")
@@ -1242,7 +1282,22 @@ def main() -> int:
     elapsed = time.monotonic() - started
     print()
     pct = min(100, (tests_done / approx_total_tests * 100)) if approx_total_tests else 0
-    print(f"=== Summary: {len(files)} files, {tests_passed} tests passed, {tests_failed} failed ({pct:.0f}% complete) in {elapsed:.1f}s ({args.jobs} workers) ===")
+    skipped_note = f", {tests_skipped} skipped" if tests_skipped else ""
+    print(f"=== Summary: {len(files)} files, {tests_passed} tests passed, {tests_failed} failed{skipped_note} ({pct:.0f}% complete) in {elapsed:.1f}s ({args.jobs} workers) ===")
+
+    # Host-OS gating note: tests marked for another OS were skipped by the
+    # conftest hook, not run. Say so explicitly — a green local run on Linux
+    # proves nothing about the macos_only/windows_only tests, and the reader
+    # should know where they DO run rather than misreading skips as coverage.
+    off_host = _off_host_marker_files(files)
+    if off_host:
+        print()
+        for marker, n in sorted(off_host.items()):
+            _, lane = _OS_MARKERS[marker]
+            print(
+                f"  note: {marker} tests (in {n} file{'s' if n != 1 else ''}) were "
+                f"SKIPPED on this host ({sys.platform}); they run on {lane}."
+            )
 
     # Zero tests collected across the WHOLE run is NOT a pass. Per-file rc=5
     # is deliberately tolerated above (platform-gated files), but if NOTHING

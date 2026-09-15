@@ -168,3 +168,19 @@ def pytest_runtest_logreport(report):  # noqa: D401 — pytest hook
 def pytest_terminal_summary(terminalreporter):  # noqa: D401 — pytest hook
     """Surface registry rows that no longer describe a real failure."""
     _STALE.report(terminalreporter)
+
+
+@pytest.fixture(autouse=True)
+def _fast_retry_backoff(request, monkeypatch):
+    """Short-circuit retry backoff for all tests in this directory.
+
+    Tests that assert on the real backoff value opt out with
+    ``@pytest.mark.real_retry_backoff``.
+    """
+    if request.node.get_closest_marker("real_retry_backoff"):
+        return
+    # The agent.turn_* retry paths import ``jittered_backoff`` lazily from
+    # ``agent.retry_utils``; patch it there so rate-limit / invalid-response /
+    # server-error retries don't burn real wall-clock seconds.
+    from agent import retry_utils as _retry_utils
+    monkeypatch.setattr(_retry_utils, "jittered_backoff", lambda *a, **k: 0.0)

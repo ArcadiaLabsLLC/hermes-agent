@@ -31,18 +31,11 @@ def curator_env(tmp_path, monkeypatch, capsys):
     importlib.reload(hermes_constants)
     from agent import curator
     importlib.reload(curator)
-    # NOT reloaded, unlike hermes_constants and curator above. Reloading
-    # hermes_cli.main mints a fresh object for every class in it while keeping
-    # the module identity, so a `from hermes_cli.main import X` binding taken
-    # at collection stops being the class production instantiates and
-    # isinstance answers False three files later (measured 2026-08-31 against
-    # test_update_hangup_protection). Nothing here needed it: the notice
-    # resolves curator state at call time.
-    from hermes_cli import main as hermes_main
+    from hermes_cli import update_cmd_maint
 
     yield {
         "curator": curator,
-        "main": hermes_main,
+        "main": update_cmd_maint,
         "capsys": capsys,
     }
 

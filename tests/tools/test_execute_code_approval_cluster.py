@@ -9,7 +9,7 @@ Covers the canonical fix for issues #4146, #27303, #30882, #33057:
   3. tools.approval.check_execute_code_guard — the entry-point guard decision
      matrix (isolated backends, yolo/off, cron-deny, headless-local,
      gateway approve/deny/timeout/missing-notify, smart mode).
-  4. tools.code_execution_tool._scrub_child_env — broad HERMES_ prefix dropped,
+  4. tools.code_execution_env._scrub_child_env — broad HERMES_ prefix dropped,
      operational allowlist kept, DSN/WEBHOOK blocked, passthrough precedence.
 """
 
@@ -23,7 +23,12 @@ import threading
 import pytest
 
 from tools import approval as A
+import tools.approval_detection as approval_detection
+from tools import approval_context
+from tools import approval_context
+from tools import approval_smart
 from tools.thread_context import propagate_context_to_thread
+from gateway.session_context import clear_session_vars, reset_session_vars, set_session_vars
 
 
 # ---------------------------------------------------------------------------
@@ -83,30 +88,15 @@ def test_helper_clears_callbacks_on_teardown():
 
 
 def test_both_rpc_threads_use_propagation_helper():
-    """The propagation wiring, asserted structurally rather than by substring.
-
-    RE-AIMED 2026-08-09. It used to be::
-
-        src = inspect.getsource(cet)
-        assert "propagate_context_to_thread(_rpc_server_loop)" in src
-
-    Two problems. The lesser one: a reformat of that call across lines breaks it
-    while the wiring is intact. The serious one: it is a *positive* claim proven
-    by substring, so it can only ever tell you the text is present — and the
-    change it exists to catch (a restructure that loses the callback) can leave
-    the text exactly where it is.
-
-    Kept rather than deleted, because the guarantee is real and is NOT covered
-    by the behavioural test above: that one drives the guard on the CALLER
-    thread, while this covers the two RPC worker threads, whose bug (#33057) is
-    that a gateway approval raised from inside them finds no callback and
-    silently returns. Driving those for real means standing up a UDS server and
-    a file-poll loop, so the wiring is pinned structurally instead — on the AST,
-    where a reflow cannot break it and a comment cannot satisfy it.
-    """
+    """Source guard: every execute_code RPC serving thread must carry the
+    cell's approval context, or the gateway approval bypass (#33057) silently
+    returns. The remote poll thread wraps its target with
+    propagate_context_to_thread; the local session kernel instead rebinds
+    authority per cell (``dispatch=`` passed to ``_rpc_server_loop``)."""
     import ast
     import inspect
     import tools.code_execution_tool as cet
+    import tools.code_kernel as ck
 
     tree = ast.parse(inspect.getsource(cet))
     wrapped: set[str] = set()
@@ -127,13 +117,20 @@ def test_both_rpc_threads_use_propagation_helper():
             if isinstance(arg, ast.Name):
                 wrapped.add(arg.id)
 
-    for target in ("_rpc_server_loop", "_rpc_poll_loop"):
+    for target in ("_rpc_poll_loop",):
         assert target in wrapped, (
             f"{target} is not wrapped with propagate_context_to_thread "
             f"(wrapped targets found: {sorted(wrapped) or 'none'}) — a gateway "
             "approval raised from that thread finds no callback and the request "
             "silently returns unapproved (#33057)."
         )
+    kernel_tree = ast.parse(inspect.getsource(ck))
+    rpc_calls = [n for n in ast.walk(kernel_tree) if isinstance(n, ast.Call)
+                 and isinstance(n.func, ast.Name) and n.func.id == "_rpc_server_loop"]
+    assert rpc_calls, "local session kernel must serve tool RPC"
+    assert all(any(k.arg == "dispatch" and isinstance(k.value, ast.Name)
+                   and k.value.id == "_dispatch" for k in call.keywords)
+               for call in rpc_calls), "local RPC must rebind authority per cell"
 
 
 # ---------------------------------------------------------------------------
@@ -150,18 +147,20 @@ def gw_session(monkeypatch):
     monkeypatch.delenv("HERMES_EXEC_ASK", raising=False)
     # Force manual mode regardless of host config and disable any process-level
     # yolo inherited from the developer's live environment.
-    monkeypatch.setattr(A, "_get_approval_mode", lambda: "manual")
+    monkeypatch.setattr(approval_context, "_get_approval_mode", lambda: "manual")
     monkeypatch.setattr(A, "_YOLO_MODE_FROZEN", False)
 
     session_key = "cluster-test-session"
-    token = A.set_current_session_key(session_key)
+    token = approval_context.set_current_session_key(session_key)
     with A._lock:
         A._gateway_queues.pop(session_key, None)
         A._gateway_notify_cbs.pop(session_key, None)
+        A._permanent_approved.discard("execute_code")
+        A._session_approved.get(session_key, set()).discard("execute_code")
     try:
         yield session_key
     finally:
-        A.reset_current_session_key(token)
+        approval_context.reset_current_session_key(token)
         with A._lock:
             A._gateway_queues.pop(session_key, None)
             A._gateway_notify_cbs.pop(session_key, None)
@@ -259,16 +258,49 @@ def test_guard_headless_local_approved(monkeypatch):
     monkeypatch.delenv("HERMES_INTERACTIVE", raising=False)
     monkeypatch.delenv("HERMES_CRON_SESSION", raising=False)
     monkeypatch.delenv("HERMES_EXEC_ASK", raising=False)
-    monkeypatch.setattr(A, "_get_approval_mode", lambda: "manual")
+    monkeypatch.setattr(approval_context, "_get_approval_mode", lambda: "manual")
     assert A.check_execute_code_guard("import os", "local")["approved"] is True
 
 
 def test_guard_cron_deny_blocks(monkeypatch):
     monkeypatch.setattr(A, "_YOLO_MODE_FROZEN", False)
+    monkeypatch.delenv("HERMES_CRON_SESSION", raising=False)
+    monkeypatch.delenv("HERMES_GATEWAY_SESSION", raising=False)
+    monkeypatch.setattr(approval_context, "_get_approval_mode", lambda: "manual")
+    monkeypatch.setattr(approval_context, "_get_cron_approval_mode", lambda: "deny")
+    tokens = set_session_vars(cron_session="1")
+    try:
+        res = A.check_execute_code_guard("import os", "local")
+    finally:
+        clear_session_vars(tokens)
+    assert res["approved"] is False
+    assert res["outcome"] == "blocked"
+
+
+def test_guard_explicit_non_cron_masks_leaked_env(monkeypatch):
+    monkeypatch.setattr(A, "_YOLO_MODE_FROZEN", False)
     monkeypatch.setenv("HERMES_CRON_SESSION", "1")
     monkeypatch.delenv("HERMES_GATEWAY_SESSION", raising=False)
-    monkeypatch.setattr(A, "_get_approval_mode", lambda: "manual")
-    monkeypatch.setattr(A, "_get_cron_approval_mode", lambda: "deny")
+    monkeypatch.delenv("HERMES_INTERACTIVE", raising=False)
+    monkeypatch.delenv("HERMES_EXEC_ASK", raising=False)
+    monkeypatch.setattr(approval_context, "_get_approval_mode", lambda: "manual")
+    monkeypatch.setattr(approval_context, "_get_cron_approval_mode", lambda: "deny")
+    tokens = set_session_vars(cron_session="")
+    try:
+        res = A.check_execute_code_guard("import os", "local")
+    finally:
+        clear_session_vars(tokens)
+        reset_session_vars()
+    assert res["approved"] is True
+
+
+def test_guard_legacy_env_cron_still_blocks(monkeypatch):
+    reset_session_vars()
+    monkeypatch.setattr(A, "_YOLO_MODE_FROZEN", False)
+    monkeypatch.setenv("HERMES_CRON_SESSION", "1")
+    monkeypatch.delenv("HERMES_GATEWAY_SESSION", raising=False)
+    monkeypatch.setattr(approval_context, "_get_approval_mode", lambda: "manual")
+    monkeypatch.setattr(approval_context, "_get_cron_approval_mode", lambda: "deny")
     res = A.check_execute_code_guard("import os", "local")
     assert res["approved"] is False
     assert res["outcome"] == "blocked"
@@ -306,20 +338,20 @@ def test_guard_gateway_missing_notify_is_pending(gw_session):
 
 
 def test_guard_smart_mode(gw_session, monkeypatch):
-    monkeypatch.setattr(A, "_get_approval_mode", lambda: "smart")
+    monkeypatch.setattr(approval_context, "_get_approval_mode", lambda: "smart")
 
-    monkeypatch.setattr(A, "_smart_approve", lambda c, d: "approve")
+    monkeypatch.setattr(approval_smart, "_smart_approve", lambda c, d: "approve")
     res = A.check_execute_code_guard("import os", "local")
     assert res["approved"] is True and res.get("smart_approved") is True
 
     # Smart DENY on an interactive surface now asks the owner. With no bound
     # notifier it remains pending rather than being hard-denied.
-    monkeypatch.setattr(A, "_smart_approve", lambda c, d: "deny")
+    monkeypatch.setattr(approval_smart, "_smart_approve", lambda c, d: "deny")
     res = A.check_execute_code_guard("import os", "local")
     assert res["approved"] is False and res["status"] == "pending_approval"
 
     # escalate → falls through to manual gateway approval
-    monkeypatch.setattr(A, "_smart_approve", lambda c, d: "escalate")
+    monkeypatch.setattr(approval_smart, "_smart_approve", lambda c, d: "escalate")
     _register_resolver(gw_session, "once")
     res = A.check_execute_code_guard("import os", "local")
     assert res["approved"] is True
@@ -330,10 +362,15 @@ def test_terminal_smart_deny_owner_override_is_one_operation(gw_session, monkeyp
     with A._lock:
         A._permanent_approved.discard("owner-override-test-danger")
         A._session_approved.get(gw_session, set()).discard("owner-override-test-danger")
-    monkeypatch.setattr(A, "_get_approval_mode", lambda: "smart")
-    monkeypatch.setattr(A, "_smart_approve", lambda _command, _description: "deny")
+    monkeypatch.setattr(approval_context, "_get_approval_mode", lambda: "smart")
+    monkeypatch.setattr(approval_smart, "_smart_approve", lambda _command, _description: "deny")
     monkeypatch.setattr(
         A,
+        "detect_dangerous_command",
+        lambda command: (True, "owner-override-test-danger", f"risk:{command}"),
+    )
+    monkeypatch.setattr(
+        approval_detection,
         "detect_dangerous_command",
         lambda command: (True, "owner-override-test-danger", f"risk:{command}"),
     )
@@ -363,8 +400,8 @@ def test_execute_code_smart_deny_owner_override_is_one_operation(gw_session, mon
     with A._lock:
         A._permanent_approved.discard("execute_code")
         A._session_approved.get(gw_session, set()).discard("execute_code")
-    monkeypatch.setattr(A, "_get_approval_mode", lambda: "smart")
-    monkeypatch.setattr(A, "_smart_approve", lambda _command, _description: "deny")
+    monkeypatch.setattr(approval_context, "_get_approval_mode", lambda: "smart")
+    monkeypatch.setattr(approval_smart, "_smart_approve", lambda _command, _description: "deny")
 
     shown = _register_capturing_resolver(gw_session, "session")
     result = A.check_execute_code_guard("print('first')", "local")
@@ -386,10 +423,14 @@ def test_smart_escalate_still_persists_session_choice(gw_session, monkeypatch):
     key = "smart-escalate-persistence"
     with A._lock:
         A._session_approved.get(gw_session, set()).discard(key)
-    monkeypatch.setattr(A, "_get_approval_mode", lambda: "smart")
-    monkeypatch.setattr(A, "_smart_approve", lambda _command, _description: "escalate")
+    monkeypatch.setattr(approval_context, "_get_approval_mode", lambda: "smart")
+    monkeypatch.setattr(approval_smart, "_smart_approve", lambda _command, _description: "escalate")
     monkeypatch.setattr(
         A, "detect_dangerous_command",
+        lambda command: (True, key, f"risk:{command}"),
+    )
+    monkeypatch.setattr(
+        approval_detection, "detect_dangerous_command",
         lambda command: (True, key, f"risk:{command}"),
     )
     monkeypatch.setattr(
@@ -408,10 +449,14 @@ def test_smart_escalate_still_persists_session_choice(gw_session, monkeypatch):
 
 
 def test_terminal_smart_deny_pending_payload_is_one_operation(gw_session, monkeypatch):
-    monkeypatch.setattr(A, "_get_approval_mode", lambda: "smart")
-    monkeypatch.setattr(A, "_smart_approve", lambda _command, _description: "deny")
+    monkeypatch.setattr(approval_context, "_get_approval_mode", lambda: "smart")
+    monkeypatch.setattr(approval_smart, "_smart_approve", lambda _command, _description: "deny")
     monkeypatch.setattr(
         A, "detect_dangerous_command",
+        lambda command: (True, "pending-smart-deny", f"risk:{command}"),
+    )
+    monkeypatch.setattr(
+        approval_detection, "detect_dangerous_command",
         lambda command: (True, "pending-smart-deny", f"risk:{command}"),
     )
     monkeypatch.setattr(
@@ -432,8 +477,8 @@ def test_terminal_smart_deny_pending_payload_is_one_operation(gw_session, monkey
 
 
 def test_execute_code_smart_deny_pending_payload_is_one_operation(gw_session, monkeypatch):
-    monkeypatch.setattr(A, "_get_approval_mode", lambda: "smart")
-    monkeypatch.setattr(A, "_smart_approve", lambda _command, _description: "deny")
+    monkeypatch.setattr(approval_context, "_get_approval_mode", lambda: "smart")
+    monkeypatch.setattr(approval_smart, "_smart_approve", lambda _command, _description: "deny")
 
     result = A.check_execute_code_guard("print('pending')", "local")
 
@@ -484,7 +529,7 @@ def test_guard_session_yolo_bypasses(gw_session):
 # ---------------------------------------------------------------------------
 
 def test_env_scrub_hermes_allowlist_and_secret_blocks():
-    from tools.code_execution_tool import _scrub_child_env
+    from tools.code_execution_env import _scrub_child_env
 
     env = {
         # operational allowlist → kept
@@ -493,7 +538,7 @@ def test_env_scrub_hermes_allowlist_and_secret_blocks():
         "HERMES_DELEGATED_CHILD_CONTEXT": "1",
         # other HERMES_* → dropped (broad prefix removed)
         "HERMES_BASE_URL": "https://x", "HERMES_INTERACTIVE": "1",
-        "HERMES_KANBAN_DB": "postgres://u:p@h/db",
+        "HERMES_KANBAN_TASK": "t_parent",
         # secret substrings (incl. new DSN/WEBHOOK) → dropped
         "SENTRY_DSN": "https://a@s.io/1", "SLACK_WEBHOOK": "https://h/x",
         "OPENAI_API_KEY": "sk", "GITHUB_TOKEN": "ghp",
@@ -508,7 +553,7 @@ def test_env_scrub_hermes_allowlist_and_secret_blocks():
     ):
         assert kept in out, f"{kept} should be kept"
     for dropped in (
-        "HERMES_BASE_URL", "HERMES_INTERACTIVE", "HERMES_KANBAN_DB",
+        "HERMES_BASE_URL", "HERMES_INTERACTIVE", "HERMES_KANBAN_TASK",
         "SENTRY_DSN", "SLACK_WEBHOOK", "OPENAI_API_KEY", "GITHUB_TOKEN",
         "RANDOM_X",
     ):
@@ -518,7 +563,7 @@ def test_env_scrub_hermes_allowlist_and_secret_blocks():
 def test_env_scrub_passthrough_overrides_secret_block():
     """A skill/config-declared passthrough var is an explicit user opt-in and
     passes even if it matches a secret substring (precedence is intentional)."""
-    from tools.code_execution_tool import _scrub_child_env
+    from tools.code_execution_env import _scrub_child_env
 
     env = {"MY_SERVICE_DSN": "value"}
     out = _scrub_child_env(env, is_passthrough=lambda k: k == "MY_SERVICE_DSN",
@@ -540,7 +585,7 @@ def test_env_scrub_no_log_when_nothing_dropped(caplog):
     """No diagnostic noise when there are no dropped HERMES_* vars."""
     import logging
 
-    from tools.code_execution_tool import _scrub_child_env
+    from tools.code_execution_env import _scrub_child_env
 
     with caplog.at_level(logging.DEBUG, logger="tools.code_execution_tool"):
         _scrub_child_env(

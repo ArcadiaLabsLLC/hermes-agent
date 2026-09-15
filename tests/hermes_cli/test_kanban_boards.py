@@ -29,6 +29,8 @@ if str(_WORKTREE) not in sys.path:
     sys.path.insert(0, str(_WORKTREE))
 
 from hermes_cli import kanban_db as kb
+from hermes_cli import kanban_db_connect as kbc
+from hermes_cli import kanban_db_dispatch as kbd
 
 
 # ---------------------------------------------------------------------------
@@ -153,16 +155,7 @@ class TestBoardCRUD:
         # downstream readers hit `no such table: task_events`.
         kb.create_board("recycle")
         # First connect populates _INITIALIZED_PATHS for this DB.
-        #
-        # connect_closing, NOT `with kb.connect(...)`: sqlite3's own
-        # connection context manager commits/rolls back the transaction but
-        # never CLOSES the handle — which is precisely why connect_closing
-        # exists. Leaking the handle here holds kanban.db open across the
-        # remove_board() call below. That is invisible on POSIX (unlinking an
-        # open file succeeds) and makes the rename/rmtree fail outright on
-        # Windows, so the cache-invalidation guarantee under test is never
-        # reached.
-        with kb.connect_closing(board="recycle") as conn:
+        with kbc.connect_closing(board="recycle") as conn:
             kb.create_task(conn, title="t1", assignee="dev")
         db_path = kb.board_dir("recycle") / "kanban.db"
         assert str(db_path.resolve()) in kb._INITIALIZED_PATHS
@@ -174,7 +167,7 @@ class TestBoardCRUD:
 
         # Simulate the event-stream poll: re-open the same slug. connect()
         # recreates the directory + empty .db; the schema must be re-applied.
-        with kb.connect_closing(board="recycle") as conn:
+        with kbc.connect_closing(board="recycle") as conn:
             tables = {
                 row[0]
                 for row in conn.execute(
@@ -201,18 +194,18 @@ class TestConnectionIsolation:
         kb.create_board("alpha")
         kb.create_board("beta")
 
-        with kb.connect(board="alpha") as conn:
+        with kbc.connect(board="alpha") as conn:
             kb.create_task(conn, title="alpha-task-1", assignee="dev")
             kb.create_task(conn, title="alpha-task-2", assignee="dev")
 
-        with kb.connect(board="beta") as conn:
+        with kbc.connect(board="beta") as conn:
             kb.create_task(conn, title="beta-only", assignee="dev")
 
-        with kb.connect(board="alpha") as conn:
+        with kbc.connect(board="alpha") as conn:
             a = kb.list_tasks(conn)
-        with kb.connect(board="beta") as conn:
+        with kbc.connect(board="beta") as conn:
             b = kb.list_tasks(conn)
-        with kb.connect(board="default") as conn:
+        with kbc.connect(board="default") as conn:
             d = kb.list_tasks(conn)
 
         assert {t.title for t in a} == {"alpha-task-1", "alpha-task-2"}
@@ -222,9 +215,9 @@ class TestConnectionIsolation:
     def test_connect_without_args_uses_current(self, fresh_home):
         kb.create_board("curr")
         kb.set_current_board("curr")
-        with kb.connect() as conn:
+        with kbc.connect() as conn:
             kb.create_task(conn, title="implicit", assignee="x")
-        with kb.connect(board="curr") as conn:
+        with kbc.connect(board="curr") as conn:
             tasks = kb.list_tasks(conn)
         assert [t.title for t in tasks] == ["implicit"]
 
@@ -233,11 +226,11 @@ class TestConnectionIsolation:
         kb.create_board("envwin")
         kb.set_current_board("persist")
         monkeypatch.setenv("HERMES_KANBAN_BOARD", "envwin")
-        with kb.connect() as conn:
+        with kbc.connect() as conn:
             kb.create_task(conn, title="via-env", assignee="x")
-        with kb.connect(board="envwin") as conn:
+        with kbc.connect(board="envwin") as conn:
             assert [t.title for t in kb.list_tasks(conn)] == ["via-env"]
-        with kb.connect(board="persist") as conn:
+        with kbc.connect(board="persist") as conn:
             assert kb.list_tasks(conn) == []
 
 
@@ -284,7 +277,7 @@ class TestWorkerSpawnEnv:
             tenant=None,
         )
 
-        kb._default_spawn(task, str(fresh_home / "ws"), board="spawntest")
+        kbd._default_spawn(task, str(fresh_home / "ws"), board="spawntest")
 
         env = captured["env"]
         assert env["HERMES_KANBAN_BOARD"] == "spawntest"

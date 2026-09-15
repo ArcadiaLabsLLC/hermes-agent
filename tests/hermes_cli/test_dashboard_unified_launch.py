@@ -8,6 +8,7 @@ launching profile preselected. `--isolated` opts out.
 import sys
 import types
 import pytest
+from hermes_cli import main_dashboard
 
 
 @pytest.fixture
@@ -49,8 +50,8 @@ def _capture_reexec(main_mod, monkeypatch):
         def wait(self):
             return 0
 
-    monkeypatch.setattr(main_mod.os, "execvpe", fake_exec)
-    monkeypatch.setattr(main_mod.subprocess, "Popen", _FakePopen)
+    monkeypatch.setattr(main_dashboard.os, "execvpe", fake_exec)
+    monkeypatch.setattr(main_dashboard.subprocess, "Popen", _FakePopen)
     return calls
 
 
@@ -71,7 +72,7 @@ class TestUnifiedDashboardRouting:
         monkeypatch.setattr(
             "hermes_cli.profiles.get_active_profile_name", lambda: "worker_x"
         )
-        monkeypatch.setattr(main_mod, "_dashboard_listening", lambda host, port: True)
+        monkeypatch.setattr(main_dashboard, "_dashboard_listening", lambda host, port: True)
         execs = _capture_reexec(main_mod, monkeypatch)
 
         with pytest.raises(SystemExit) as exc:
@@ -84,7 +85,7 @@ class TestUnifiedDashboardRouting:
         monkeypatch.setattr(
             "hermes_cli.profiles.get_active_profile_name", lambda: "worker_x"
         )
-        monkeypatch.setattr(main_mod, "_dashboard_listening", lambda host, port: False)
+        monkeypatch.setattr(main_dashboard, "_dashboard_listening", lambda host, port: False)
         execs = _capture_reexec(main_mod, monkeypatch)
 
         with pytest.raises(SystemExit):
@@ -120,7 +121,7 @@ class TestUnifiedDashboardRouting:
         monkeypatch.setattr(
             "hermes_cli.profiles.get_active_profile_name", lambda: "oracle"
         )
-        monkeypatch.setattr(main_mod, "_dashboard_listening", lambda host, port: False)
+        monkeypatch.setattr(main_dashboard, "_dashboard_listening", lambda host, port: False)
         execs = _capture_reexec(main_mod, monkeypatch)
 
         with pytest.raises(SystemExit):
@@ -147,8 +148,7 @@ class TestUnifiedDashboardRouting:
             "hermes_cli.profiles.get_active_profile_name", lambda: "worker_x"
         )
         listening_calls = []
-        monkeypatch.setattr(
-            main_mod, "_dashboard_listening",
+        monkeypatch.setattr(main_dashboard, "_dashboard_listening",
             lambda host, port: listening_calls.append(1) or False,
         )
         execs = _capture_reexec(main_mod, monkeypatch)
@@ -173,5 +173,30 @@ class TestUnifiedDashboardRouting:
         with pytest.raises((SystemExit, AttributeError, ImportError, TypeError)):
             main_mod.cmd_dashboard(_args(open_profile="worker_x"))
         assert execs == []
+class TestInteractiveDashboardAuthSetup:
+
+    def test_loopback_proxy_public_url_offers_auth_setup(
+        self, main_mod, monkeypatch, capsys
+    ):
+        """A TTY operator is prompted when public_url gates a loopback bind."""
+        from hermes_cli.dashboard_auth import clear_providers
+
+        monkeypatch.setenv(
+            "HERMES_DASHBOARD_PUBLIC_URL",
+            "https://dashboard.example.test:9443",
+        )
+        clear_providers()
+        monkeypatch.setattr(main_mod.sys.stdin, "isatty", lambda: True)
+        monkeypatch.setattr(main_mod.sys.stdout, "isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda _prompt: "3")
+
+        with pytest.raises(SystemExit) as exc:
+            main_mod._maybe_setup_dashboard_auth_interactively(_args())
+
+        assert exc.value.code == 1
+        output = capsys.readouterr().out
+        assert "configured external dashboard.public_url" in output
+
+
 
 

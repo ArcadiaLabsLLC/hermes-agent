@@ -76,9 +76,14 @@ class TestCallSiteWiring:
     """
 
     def _read_auth_source(self):
+        # The Nous refresh sites live in auth_nous.py (split out of auth.py);
+        # read both so the guard tolerates relocation but still fires on deletion.
         import hermes_cli.auth as _auth_mod
+        import hermes_cli.auth_nous as _nous_mod
         from pathlib import Path
-        return Path(_auth_mod.__file__).read_text(encoding="utf-8")
+        return "".join(
+            Path(m.__file__).read_text(encoding="utf-8") for m in (_auth_mod, _nous_mod)
+        )
 
     def _auth_tree(self):
         import ast
@@ -164,25 +169,17 @@ class TestCallSiteWiring:
         )
 
     def test_validator_wired_at_all_known_call_sites(self):
-        """A FLOOR on validator call sites, not an exact census.
-
-        The previous version asserted ``refresh_count == 2`` and
-        ``mint_count == 0`` - the second being an assertion that something
-        which has never existed still does not exist. An exact count also
-        fails on a correct tree the moment a legitimate new site is added,
-        which trains people to edit the number rather than audit the site.
-        """
+        """Keep all four protected sources after upstream extracts refresh healing."""
         import ast
-        calls = [
-            node
-            for node in ast.walk(self._auth_tree())
-            if isinstance(node, ast.Call)
-            and self._callee_name(node) == "_validate_nous_inference_url_from_network"
-        ]
-        assert len(calls) >= 4, (
-            f"expected at least 4 validated network sites, found {len(calls)}; "
-            "protection was removed from one of them"
-        )
+        tree = self._auth_tree()
+        calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
+        direct = [n for n in calls if self._callee_name(n) == "_validate_nous_inference_url_from_network"]
+        healed = [n for n in calls if self._callee_name(n) == "_healed_nous_inference_url"]
+        helper = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "_healed_nous_inference_url")
+        assert any(isinstance(n, ast.Call) and self._callee_name(n) == "_validate_nous_inference_url_from_network" for n in ast.walk(helper))
+        # One validator call is the shared helper itself, not a network source.
+        assert len(direct) - 1 + len(healed) >= 4
+        assert len(healed) >= 2
 
     def test_proxy_adapter_also_validates(self):
         """The Nous proxy adapter applies the validator as defense-in-depth
@@ -239,6 +236,7 @@ class TestHealsPoisonedStoredValue:
 
     def test_refresh_resets_rejected_url_to_default(self, monkeypatch):
         import hermes_cli.auth as auth
+        import hermes_cli.auth_nous as hermes_cli_auth_nous
 
         poisoned = "https://stg-inference-api.nousresearch.com/v1"
         state = {
@@ -252,6 +250,7 @@ class TestHealsPoisonedStoredValue:
         # Force the refresh branch and return another rejected (staging) URL,
         # exercising the validator-returns-None heal path.
         monkeypatch.setattr(auth, "_nous_invoke_jwt_status", lambda *a, **k: "needs_refresh")
+        monkeypatch.setattr(hermes_cli_auth_nous, "_nous_invoke_jwt_status", lambda *a, **k: "needs_refresh")
         monkeypatch.setattr(
             auth,
             "_refresh_access_token",
@@ -262,9 +261,21 @@ class TestHealsPoisonedStoredValue:
                 "inference_base_url": poisoned,  # Portal still hands back staging
             },
         )
+        monkeypatch.setattr(
+            hermes_cli_auth_nous,
+            "_refresh_access_token",
+            lambda **k: {
+                "access_token": "newtok",
+                "refresh_token": "newrtok",
+                "expires_in": 3600,
+                "inference_base_url": poisoned,  # Portal still hands back staging
+            },
+        )
         # Skip the JWT usability assertions (orthogonal to URL healing).
         monkeypatch.setattr(auth, "_assert_nous_inference_jwt_usable", lambda *a, **k: None)
+        monkeypatch.setattr(hermes_cli_auth_nous, "_assert_nous_inference_jwt_usable", lambda *a, **k: None)
         monkeypatch.setattr(auth, "_select_nous_invoke_jwt", lambda *a, **k: None)
+        monkeypatch.setattr(hermes_cli_auth_nous, "_select_nous_invoke_jwt", lambda *a, **k: None)
 
         result = auth.refresh_nous_oauth_from_state(state, force_refresh=True)
 
@@ -292,10 +303,12 @@ class TestEnvOverrideWins:
     STAGING = "https://stg-inference-api.nousresearch.com/v1"
 
     def _patch_no_refresh(self, monkeypatch, auth, state):
+        import hermes_cli.auth_nous as hermes_cli_auth_nous
         import contextlib
 
         # No refresh fires: the stored access token is a usable invoke JWT.
         monkeypatch.setattr(auth, "_nous_invoke_jwt_status", lambda *a, **k: None)
+        monkeypatch.setattr(hermes_cli_auth_nous, "_nous_invoke_jwt_status", lambda *a, **k: None)
         monkeypatch.setattr(
             auth, "_auth_store_lock", lambda *a, **k: contextlib.nullcontext()
         )
@@ -310,10 +323,14 @@ class TestEnvOverrideWins:
         monkeypatch.setattr(auth, "_save_provider_state_to_source", lambda *a, **k: None)
         monkeypatch.setattr(auth, "_save_auth_store", lambda *a, **k: None)
         monkeypatch.setattr(auth, "_write_shared_nous_state", lambda *a, **k: None)
+        monkeypatch.setattr(hermes_cli_auth_nous, "_write_shared_nous_state", lambda *a, **k: None)
         monkeypatch.setattr(auth, "_sync_nous_pool_from_auth_store", lambda *a, **k: None)
+        monkeypatch.setattr(hermes_cli_auth_nous, "_sync_nous_pool_from_auth_store", lambda *a, **k: None)
         monkeypatch.setattr(auth, "_resolve_verify", lambda *a, **k: True)
         monkeypatch.setattr(auth, "_assert_nous_inference_jwt_usable", lambda *a, **k: None)
+        monkeypatch.setattr(hermes_cli_auth_nous, "_assert_nous_inference_jwt_usable", lambda *a, **k: None)
         monkeypatch.setattr(auth, "_select_nous_invoke_jwt", lambda *a, **k: None)
+        monkeypatch.setattr(hermes_cli_auth_nous, "_select_nous_invoke_jwt", lambda *a, **k: None)
 
     def _base_state(self, auth, stored):
         return {

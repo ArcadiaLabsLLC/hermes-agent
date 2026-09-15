@@ -36,6 +36,9 @@ ALLOWLIST = {
     # Canonical loader owners.
     "hermes_cli/config.py",
     "gateway/config.py",
+    # load_gateway_config()'s config.yaml phase lives here (extracted from
+    # gateway/config.py); same owner, same managed-overlay contract.
+    "gateway/config_loader.py",
     # _load_gateway_config()'s fallback path for tests that monkeypatch
     # gateway.run._hermes_home (delegates to read_raw_config otherwise).
     "gateway/run.py",
@@ -75,6 +78,9 @@ ALLOWLIST = {
 EXCLUDED_DIR_PARTS = {
     "tests", ".venv", ".git", ".worktrees", ".claude", "node_modules", "website",
     "docs", "scripts", "examples", "apps",
+    # Compiled bytecode is not source. Sibling test processes also create
+    # and delete these directories while this scan walks the tree.
+    "__pycache__",
 }
 
 # Marker file every PEP-405 virtual environment carries at its root. The
@@ -106,7 +112,7 @@ def _iter_source_files(root: Path = REPO_ROOT):
     # ``root`` is a parameter so the pruning rules can be DRIVEN on a synthetic
     # tree instead of only being observable when this checkout happens to
     # contain the hazard. Production callers pass nothing.
-    for dirpath, dirnames, filenames in os.walk(root):
+    for dirpath, dirnames, filenames in os.walk(root, onerror=lambda _e: None):
         here = Path(dirpath)
         dirnames[:] = [
             name

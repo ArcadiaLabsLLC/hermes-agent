@@ -24,6 +24,7 @@ violation (does not modify files).
 
 from __future__ import annotations
 
+import ast
 import os
 import re
 import sys
@@ -84,26 +85,48 @@ SKIP_DIRS = {
 }
 
 
-def _unpacked_kwargs_set_stdin(
-    lines: list[str], call_index: int, names: list[str], lookback: int = 60
-) -> bool:
-    """True when a dict unpacked into the call assigns stdin.
+_SPLAT_RE = re.compile(r"\*\*\s*([A-Za-z_][A-Za-z0-9_]*)")
 
-    ``subprocess.Popen(argv, **popen_kwargs)`` carries its ``stdin`` in the
-    dict, not in the call text, so a purely line-local scan reported a
-    false violation for a call that IS muzzled (``tools/agent_chat_dispatch``
-    builds ``popen_kwargs`` with ``"stdin": subprocess.DEVNULL``). Search the
-    region between the dict's assignment and the call for a stdin key.
+
+def _splat_carries_stdin(call_text: str, content: str) -> bool:
+    """True when the call splats ``**name`` / ``**name(...)`` and ``name`` is defined in
+    the same file (assignment or ``def``) whose OWN expression/body sets ``stdin=``.
+
+    Shared kwargs helpers (``_RUN_KW = dict(..., stdin=DEVNULL)``, ``def _run_kwargs(): return
+    dict(..., stdin=DEVNULL)``) legitimately carry the guard; we only accept them when the
+    definition provably sets stdin= — never on the helper's name alone, and never because an
+    unrelated later call in the file happens to pass ``stdin=``.
     """
-    start = max(0, call_index - lookback)
+    names = set(_SPLAT_RE.findall(call_text))
+    if not names:
+        return False
+    try:
+        tree = ast.parse(content)
+    except SyntaxError:
+        return False
     for name in names:
-        for k in range(start, call_index):
-            if not re.match(rf"\s*{re.escape(name)}\b[^=]*=", lines[k]):
-                continue
-            block = "\n".join(lines[k:call_index])
-            if re.search(r"""["']stdin["']\s*:""", block) or "stdin=" in block:
-                return True
-    return False
+        node = None
+        for n in ast.walk(tree):
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == name:
+                node = n
+                break
+            if isinstance(n, (ast.Assign, ast.AnnAssign)):
+                targets = n.targets if isinstance(n, ast.Assign) else [n.target]
+                if any(isinstance(t, ast.Name) and t.id == name for t in targets):
+                    node = n.value if n.value is not None else n
+                    break
+        if node is None:
+            return False
+        # stdin appears as a keyword (dict(stdin=...)) or as a dict-literal key ({"stdin": ...})
+        # somewhere INSIDE this definition — not merely nearby in the file.
+        has = any(
+            (isinstance(sub, ast.keyword) and sub.arg == "stdin")
+            or (isinstance(sub, ast.Constant) and sub.value == "stdin")
+            for sub in ast.walk(node)
+        )
+        if not has:
+            return False
+    return True
 
 
 def find_subprocess_calls(content: str, filepath: str) -> list[dict]:
@@ -153,20 +176,17 @@ def find_subprocess_calls(content: str, filepath: str) -> list[dict]:
                         if "input=" in call_text:
                             break
 
+                        # Splats a same-file kwargs helper whose definition
+                        # sets stdin= → the guard travels with the helper.
+                        if _splat_carries_stdin(call_text, content):
+                            break
+
                         # Inline exemption marker on the call itself or within
                         # the few comment lines immediately above it → the call
                         # intentionally inherits stdin.
                         window_start = max(0, i - 4)
                         preceding = "\n".join(lines[window_start:i])
                         if EXEMPT_MARKER in call_text or EXEMPT_MARKER in preceding:
-                            break
-
-                        # ``**kwargs`` unpacking → the stdin= may live in the
-                        # dict being unpacked rather than in the call text.
-                        unpacked = re.findall(r"\*\*(\w+)", call_text)
-                        if unpacked and _unpacked_kwargs_set_stdin(
-                            lines, i, unpacked
-                        ):
                             break
 
                         violations.append({
@@ -200,10 +220,6 @@ def main() -> int:
             continue
 
         for py_file in dirpath.rglob("*.py"):
-            # POSIX spelling: KNOWN_SAFE (and every other path constant here)
-            # is written with "/", while ``relative_to`` yields the platform
-            # separator. On Windows the allowlist therefore matched NOTHING
-            # and the guard reported known-safe files as violations.
             rel = py_file.relative_to(repo_root).as_posix()
 
             # Skip known-safe files.
@@ -235,7 +251,6 @@ def main() -> int:
 
         for py_file in resolved.rglob("*.py"):
             rel = str(py_file)
-            # Same POSIX-spelling reason as above for the "/tests/" probe.
             if py_file.name in ("conftest.py",) or "/tests/" in py_file.as_posix():
                 continue
 

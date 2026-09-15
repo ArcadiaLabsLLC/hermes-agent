@@ -66,9 +66,9 @@ def load_config_or_empty() -> dict:
     The import is deliberately function-local — see the module docstring.
     """
     try:
-        from hermes_cli.config import load_config
+        from hermes_cli.config import load_config_readonly
 
-        cfg = load_config()
+        cfg = load_config_readonly()
     except Exception:
         return {}
     return cfg if isinstance(cfg, dict) else {}

@@ -1,4 +1,4 @@
-"""Fixtures shared across hermes_cli kanban tests."""
+"""Fixtures shared across hermes_cli tests."""
 
 from __future__ import annotations
 
@@ -79,8 +79,8 @@ def _gateway_fence_is_armed_for_this_test():
 _AGENT_BROWSER_PROBE_BINDINGS = (
     "hermes_constants",
     "hermes_cli.dep_ensure",
-    "hermes_cli.doctor",
-    "tools.browser_tool",
+    "hermes_cli.doctor_tools",
+    "tools.browser_tool_lifecycle",
 )
 
 
@@ -452,7 +452,7 @@ def _no_live_process_table(monkeypatch):
     running, so a test that reads it is asking a question with no defined
     answer.
 
-    The desktop build-lock sweep (``hermes_cli.main._DESKTOP_PROCESS_LISTER``,
+    The desktop build-lock sweep (``hermes_cli._desktop_processes._DESKTOP_PROCESS_LISTER``,
     reached from ``cmd_gui``) is the SECOND consumer of the same seam and is
     defaulted here too rather than in a fixture of its own — one place that
     answers "does any test in this directory touch the live process table",
@@ -475,10 +475,10 @@ def _no_live_process_table(monkeypatch):
         return
     monkeypatch.setattr(profiles, "_PROCESS_LISTER", _EmptyProcessTable())
     try:
-        from hermes_cli import main as _cli_main
+        from hermes_cli import _desktop_processes
     except Exception:
         return
-    monkeypatch.setattr(_cli_main, "_DESKTOP_PROCESS_LISTER", _EmptyProcessTable())
+    monkeypatch.setattr(_desktop_processes, "_DESKTOP_PROCESS_LISTER", _EmptyProcessTable())
 
 
 # ── Pre-existing environment-gap fence (2026-07-30) ─────────────────────────
@@ -1332,3 +1332,80 @@ def pytest_terminal_summary(terminalreporter):  # noqa: D401 — pytest hook
     )
     for nodeid in sorted(set(_STALE_ENV_GAP_ENTRIES)):
         terminalreporter.write_line(f"  {nodeid}")
+
+
+@pytest.fixture
+def isolated_update_runtime(monkeypatch, tmp_path, request):
+    """Keep mocked updater flows off the host checkout and runtime fleet."""
+    from hermes_cli import gateway, main, update_cmd, update_cmd_fleet
+    from hermes_cli import update_inventory, update_receipt
+
+    checkout = tmp_path / "isolated-update-checkout"
+    (checkout / ".git").mkdir(parents=True)
+    (checkout / "apps" / "desktop").mkdir(parents=True)
+    monkeypatch.setattr(main, "PROJECT_ROOT", checkout)
+    if hasattr(request.module, "PROJECT_ROOT"):
+        monkeypatch.setattr(request.module, "PROJECT_ROOT", checkout)
+
+    # A real purge would discard the module objects patched below.
+    monkeypatch.setattr(main, "_purge_stale_hermes_modules", lambda: None)
+    monkeypatch.setattr(gateway, "find_gateway_pids", lambda *a, **k: [])
+    monkeypatch.setattr(gateway, "find_profile_gateway_processes", lambda *a, **k: [])
+    monkeypatch.setattr(gateway, "_get_service_pids", lambda *a, **k: set())
+    monkeypatch.setattr(gateway, "supports_systemd_services", lambda: False)
+    monkeypatch.setattr(main, "_pause_windows_gateways_for_update", lambda: None)
+    monkeypatch.setattr(main, "_resume_windows_gateways_after_update", lambda *a, **k: None)
+    monkeypatch.setattr(main, "_detect_venv_python_processes", lambda: [])
+    monkeypatch.setattr(main, "_restore_active_tool_dependencies", lambda *a, **k: None)
+    monkeypatch.setattr(update_cmd, "_clear_windows_venv_holders_or_exit", lambda *a, **k: None)
+    monkeypatch.setattr(update_cmd, "_finish_dashboard_update_cleanup", lambda *a, **k: None)
+    monkeypatch.setattr(update_cmd, "_apply_pending_fleet_restart_catchup", lambda *a, **k: None)
+    monkeypatch.setattr(update_cmd_fleet, "_restart_macos_launchd_gateways", lambda *a, **k: None)
+    monkeypatch.setattr(update_inventory, "collect_runtime_inventory", lambda: None)
+    monkeypatch.setattr(update_receipt, "collect_fleet_versions", lambda *a, **k: [])
+
+
+# ---- prompt_toolkit / capsys isolation ----
+# ``cli._cprint`` renders through ``prompt_toolkit.print_formatted_text``,
+# which — when called with no explicit ``output=`` — lazily creates an
+# ``Output`` from ``sys.stdout`` **and caches it on the process-global default
+# ``AppSession``** (``prompt_toolkit.application.current._current_app_session``,
+# a ``ContextVar`` with a module-level default). The cache is keyed to nothing
+# and never re-reads ``sys.stdout``.
+#
+# Under pytest, ``capsys`` swaps ``sys.stdout`` for a fresh buffer per test.
+# So the first CLI test that emits through ``_cprint`` (e.g. one exercising
+# ``/queue``, which prints a "Queued: …" line) locks prompt_toolkit's cached
+# output onto *its* captured stdout. Every later ``capsys`` test that asserts
+# on ``_cprint`` output then reads an empty buffer, because the render went to
+# the first test's now-dead capture target. That is the mechanism behind the
+# order-dependent ``test_resume_quiet_stderr`` failure: it passes in isolation
+# and in its own file, but fails in a full ``tests/cli`` run.
+#
+# Reset the cached output before every CLI test so each one re-creates a fresh
+# prompt_toolkit ``Output`` bound to its own ``sys.stdout`` on first use. This
+# is a no-op when prompt_toolkit isn't importable and cheap otherwise (the
+# property re-creates lazily).
+
+
+@pytest.fixture(autouse=True)
+def _reset_prompt_toolkit_output_cache():
+    """Clear prompt_toolkit's cached AppSession output around each CLI test.
+
+    See the module docstring for the capsys/prompt_toolkit interaction this
+    guards against.
+    """
+
+    def _clear() -> None:
+        try:
+            from prompt_toolkit.application.current import get_app_session
+
+            get_app_session()._output = None
+        except Exception:
+            # prompt_toolkit not importable / internal shape changed — the
+            # tests that rely on this simply keep their prior behavior.
+            pass
+
+    _clear()
+    yield
+    _clear()
