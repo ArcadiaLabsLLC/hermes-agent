@@ -2190,7 +2190,8 @@ FULL_PROCESS_DESCRIPTION = (
 PROCESS_SCHEMA = {
     "name": "process_manage",
     "description": (
-        "Manage background processes and their retained results. submit sends Enter; write sends raw bytes. "
+        "Background processes: wait returns partial output on timeout. "
+        "submit appends Enter to answer prompts; write sends raw bytes, no newline. "
         "notify requests a receipt in a new persona turn: end this turn. Subagents must handoff surviving "
         "processes. Call tool_describe for ownership and retention details."
     ),

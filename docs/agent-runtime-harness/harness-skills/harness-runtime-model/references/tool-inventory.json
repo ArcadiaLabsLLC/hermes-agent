@@ -305,7 +305,7 @@
       "toolset": "clarify",
       "mutating": false,
       "gated": true,
-      "description": "Ask 1-5 independent questions in `questions`. Each: question text, up to 4 choices (recommended first), optional multi_select; omit choices for free text. Pu..."
+      "description": "Ask 1-5 independent questions in one call. Put options only in choices, recommended first; omit for free text. Responses preserve order. Decide low-stakes ma..."
     },
     {
       "name": "delegate_task",
@@ -319,7 +319,7 @@
       "toolset": "code_execution",
       "mutating": false,
       "gated": true,
-      "description": "Run Python in a persistent session kernel with Hermes tools (`from hermes_tools import web_search, terminal, ...`). Use for 3+ calls with filtering, branches..."
+      "description": "Run Python in a persistent session kernel via `from hermes_tools import ...` (web_search, web_extract, read_file, write_file, search_files, patch, terminal)...."
     },
     {
       "name": "memory",
@@ -340,14 +340,14 @@
       "toolset": "terminal",
       "mutating": false,
       "gated": false,
-      "description": "Poll, wait on, or kill background terminal processes (from terminal(background=true)). Completed results remain retrievable by session_id when resuming their..."
+      "description": "Background processes: wait returns partial output on timeout. submit appends Enter to answer prompts; write sends raw bytes, no newline. notify requests a re..."
     },
     {
       "name": "read_file",
       "toolset": "file",
       "mutating": false,
       "gated": true,
-      "description": "Read a text file with line numbers and pagination (offset/limit; large reads truncate on a line boundary with next_offset). Auto-extracts .ipynb/.docx/.xlsx...."
+      "description": "Read a text file with line numbers and pagination (offset/limit; large reads truncate on a line boundary with next_offset). Auto-extracts .ipynb/.docx/.xlsx/..."
     },
     {
       "name": "search_files",
@@ -361,7 +361,7 @@
       "toolset": "session_search",
       "mutating": false,
       "gated": true,
-      "description": "Search or scroll the local session DB of past Hermes conversations (FTS5, no LLM). Shapes: query -> discover sessions; session_id + around_message_id -> scro..."
+      "description": "Search conversation history (FTS5): query to discover; session_id + around_message_id to scroll; session_id to read; no args for recent. Paste returned link..."
     },
     {
       "name": "skill_manage",
@@ -403,7 +403,7 @@
       "toolset": "todo",
       "mutating": false,
       "gated": true,
-      "description": "Manage the current session's task list (3+ step work). No args reads it; pass `todos` to write (merge=false replaces, merge=true updates by id). Items {id, c..."
+      "description": "Session task list for 3+ steps; no args reads it. For requested batches, enumerate every instance; split phases via parent. Keep ONE item in_progress; mark c..."
     },
     {
       "name": "vision_analyze",
