@@ -97,6 +97,8 @@ REGISTRY_HYGIENE_BLOCKED_TOOLS = frozenset(
         "kanban_attach",
         "kanban_attach_url",
         "kanban_attachments",
+        "kanban_request_review",
+        "kanban_request_changes",
         # feishu_doc toolset (1)
         "feishu_doc_read",
         # feishu_drive toolset (4)

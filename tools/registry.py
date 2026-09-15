@@ -1010,69 +1010,21 @@ class ToolScan(NamedTuple):
     unresolved: List[str]
 
 
-def _module_level_string_constants(tree: ast.Module) -> Dict[str, str]:
-    """``{NAME: "value"}`` for every module-level assignment of a string literal.
-
-    Needed because 11 of the 90 registrations in this tree name a module-level
-    ``_TOOLSET`` constant instead of repeating the literal
-    (``flux3_video_tool.py``, ``yuanbao_tools.py``). Folding those is the
-    difference between a manifest that covers 79/90 and one that covers all of
-    them, and a manifest with holes is one nobody may rely on.
-
-    Deliberately NOT a general constant folder: one assignment, one Name target,
-    one string Constant. Anything else — a join, an f-string, a conditional, a
-    re-assignment later in the file — is left unresolved and surfaces in
-    :attr:`ToolScan.unresolved` rather than being guessed at.
-    """
-
-    constants: Dict[str, str] = {}
-    reassigned: Set[str] = set()
-    for stmt in tree.body:
-        targets: List[ast.expr] = []
-        value: Optional[ast.expr] = None
-        if isinstance(stmt, ast.Assign):
-            targets = list(stmt.targets)
-            value = stmt.value
-        elif isinstance(stmt, ast.AnnAssign) and stmt.value is not None:
-            targets = [stmt.target]
-            value = stmt.value
-        for target in targets:
-            if not isinstance(target, ast.Name):
-                continue
-            if target.id in constants or target.id in reassigned:
-                # A name written twice is a name whose value depends on WHERE
-                # the register call sits. Refuse it rather than pick a side.
-                constants.pop(target.id, None)
-                reassigned.add(target.id)
-                continue
-            if isinstance(value, ast.Constant) and isinstance(value.value, str):
-                constants[target.id] = value.value
-    return constants
-
-
-def _literal_str(node: Optional[ast.expr], constants: Dict[str, str]) -> Optional[str]:
-    if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        return node.value
-    if isinstance(node, ast.Name):
-        return constants.get(node.id)
-    return None
-
-
 def scan_registered_tools(tools_dir: Optional[Path] = None) -> ToolScan:
     """Which tools each builtin module registers, and into which toolset —
     read STATICALLY, importing nothing.
 
     The question "what are this install's toolset names" does not need the 38
     registrar modules; it needs the two identifying arguments of their top-level
-    ``registry.register()`` calls, both of which are string literals in the
-    source. Importing them to find out costs 3.16 s measured on this checkout
+    ``registry.register()`` calls, including finite literal registration
+    tables. Importing them to find out costs 3.16 s measured on this checkout
     (2026-09-04, warm verdict cache) and is paid on every cold
     ``perform_agent_create`` and every single-test run, because the memo it would
     otherwise ride lives under ``get_hermes_home()`` — which the test runner
     points at a fresh temp directory per file, so it is cold by construction.
 
-    Same AST walk :func:`_module_registers_tools` already performs, same text
-    prefilter, same top-level-only rule (a ``registry.register`` inside a
+    Uses the builtin discovery text prefilter and a module-level AST reader
+    that also expands literal registration tables. The scope stays module-level (a ``registry.register`` inside a
     function body is a helper, not a registrar, and stays invisible here exactly
     as it does there). What is added is reading the call's arguments.
 
@@ -1093,7 +1045,9 @@ def scan_registered_tools(tools_dir: Optional[Path] = None) -> ToolScan:
     modules: Dict[str, List[str]] = {}
     unresolved: List[str] = []
 
-    for path in sorted(tools_path.glob("*.py")):
+    paths = list(tools_path.glob("*.py"))
+    paths.extend(path for path in tools_path.glob("*/tool.py") if (path.parent / "__init__.py").is_file())
+    for path in sorted(paths):
         if path.name in {"__init__.py", "registry.py", "mcp_tool.py"}:
             continue
         try:
@@ -1109,26 +1063,17 @@ def scan_registered_tools(tools_dir: Optional[Path] = None) -> ToolScan:
             unresolved.append(f"{path.stem}: does not parse")
             continue
 
-        constants = _module_level_string_constants(tree)
-        for stmt in tree.body:
-            if not _is_registry_register_call(stmt):
-                continue
-            call = stmt.value
-            keywords = {kw.arg: kw.value for kw in call.keywords if kw.arg}
-            name_node = keywords.get("name") or (call.args[0] if call.args else None)
-            toolset_node = keywords.get("toolset") or (
-                call.args[1] if len(call.args) > 1 else None
-            )
-            name = _literal_str(name_node, constants)
-            toolset = _literal_str(toolset_node, constants)
-            if name is None or toolset is None:
+        from tools.toolset_scan import registration_rows
+        for stmt, name, toolset in registration_rows(tree):
+            if not isinstance(name, str) or not isinstance(toolset, str):
                 unresolved.append(
                     f"{path.stem}: register() at line {stmt.lineno} has a "
-                    f"{'name' if name is None else 'toolset'} this reader cannot resolve"
+                    f"{'name' if not isinstance(name, str) else 'toolset'} this reader cannot resolve"
                 )
                 continue
             tools[name] = toolset
-            modules.setdefault(path.stem, []).append(name)
+            module = ".".join(path.relative_to(tools_path).with_suffix("").parts)
+            modules.setdefault(module, []).append(name)
 
     return ToolScan(tools=tools, modules=modules, unresolved=unresolved)
 

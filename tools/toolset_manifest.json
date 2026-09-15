@@ -7,12 +7,8 @@
     "agent_chat_open": "agent_chat",
     "agent_chat_send": "agent_chat",
     "agent_chat_threads": "agent_chat",
-    "bfl_flux3_get_result": "bfl",
-    "bfl_flux3_image_to_video": "bfl",
-    "bfl_flux3_keyframes_to_video": "bfl",
-    "bfl_flux3_prompting_guide": "bfl",
-    "bfl_flux3_text_to_video": "bfl",
-    "bfl_flux3_video_continuation": "bfl",
+    "annotate_preview": "desktop_ui",
+    "apply_layout": "desktop_ui",
     "board_card_add": "board",
     "board_cards": "board",
     "browser_back": "browser",
@@ -20,27 +16,37 @@
     "browser_click": "browser",
     "browser_console": "browser",
     "browser_dialog": "browser-cdp",
+    "browser_exec": "browser-use",
     "browser_get_images": "browser",
     "browser_navigate": "browser",
     "browser_press": "browser",
     "browser_scroll": "browser",
     "browser_snapshot": "browser",
     "browser_type": "browser",
+    "browser_vault_enter_code": "browser",
+    "browser_vault_fill": "browser",
+    "browser_vault_list": "browser",
+    "browser_vault_save_login": "browser",
+    "browser_vault_unlock": "browser",
     "browser_vision": "browser",
     "clarify": "clarify",
-    "close_terminal": "terminal",
+    "close_terminal": "desktop_ui",
     "computer_use": "computer_use",
-    "cronjob": "cronjob",
+    "cronjob_manage": "cronjob",
     "delegate_task": "delegation",
+    "desktop_preview": "desktop_ui",
+    "desktop_project": "project",
     "discord": "discord",
     "discord_admin": "discord_admin",
+    "drive_preview": "desktop_ui",
     "execute_code": "code_execution",
     "feishu_doc_read": "feishu_doc",
     "feishu_drive_add_comment": "feishu_drive",
     "feishu_drive_list_comment_replies": "feishu_drive",
     "feishu_drive_list_comments": "feishu_drive",
     "feishu_drive_reply_comment": "feishu_drive",
-    "focus_pane": "terminal",
+    "focus_pane": "desktop_ui",
+    "gui_tour": "desktop_ui",
     "ha_call_service": "homeassistant",
     "ha_get_state": "homeassistant",
     "ha_list_entities": "homeassistant",
@@ -56,27 +62,28 @@
     "kanban_heartbeat": "kanban",
     "kanban_link": "kanban",
     "kanban_list": "kanban",
+    "kanban_request_changes": "kanban",
+    "kanban_request_review": "kanban",
     "kanban_show": "kanban",
     "kanban_unblock": "kanban",
+    "manage_connections": "connections",
     "memory": "memory",
-    "open_preview": "terminal",
     "patch": "file",
-    "process": "terminal",
-    "project_create": "project",
-    "project_list": "project",
-    "project_switch": "project",
-    "react_to_message": "terminal",
+    "process_manage": "terminal",
+    "react_to_message": "desktop_ui",
     "read_file": "file",
-    "read_terminal": "terminal",
+    "read_terminal": "desktop_ui",
+    "read_window_below": "desktop_ui",
     "search_files": "file",
     "session_search": "session_search",
+    "show_tip": "desktop_ui",
     "skill_manage": "skills",
     "skill_search": "skills",
     "skill_view": "skills",
     "skills_list": "skills",
     "terminal": "terminal",
     "text_to_speech": "tts",
-    "todo": "todo",
+    "todo_list": "todo",
     "video_analyze": "video",
     "video_generate": "video_gen",
     "vision_analyze": "vision",
@@ -101,6 +108,12 @@
       "agent_chat_send",
       "agent_chat_threads"
     ],
+    "annotate_preview_tool": [
+      "annotate_preview"
+    ],
+    "apply_layout_tool": [
+      "apply_layout"
+    ],
     "board_tool": [
       "board_card_add",
       "board_cards"
@@ -123,6 +136,16 @@
       "browser_type",
       "browser_vision"
     ],
+    "browser_use_cli": [
+      "browser_exec"
+    ],
+    "browser_vault_tool": [
+      "browser_vault_enter_code",
+      "browser_vault_fill",
+      "browser_vault_list",
+      "browser_vault_save_login",
+      "browser_vault_unlock"
+    ],
     "clarify_tool": [
       "clarify"
     ],
@@ -135,8 +158,11 @@
     "computer_use_tool": [
       "computer_use"
     ],
+    "connectors.tool": [
+      "manage_connections"
+    ],
     "cronjob_tools": [
-      "cronjob"
+      "cronjob_manage"
     ],
     "delegate_tool": [
       "delegate_task"
@@ -144,6 +170,9 @@
     "discord_tool": [
       "discord",
       "discord_admin"
+    ],
+    "drive_preview_tool": [
+      "drive_preview"
     ],
     "feishu_doc_tool": [
       "feishu_doc_read"
@@ -159,14 +188,6 @@
       "read_file",
       "search_files",
       "write_file"
-    ],
-    "flux3_video_tool": [
-      "bfl_flux3_get_result",
-      "bfl_flux3_image_to_video",
-      "bfl_flux3_keyframes_to_video",
-      "bfl_flux3_prompting_guide",
-      "bfl_flux3_text_to_video",
-      "bfl_flux3_video_continuation"
     ],
     "focus_pane_tool": [
       "focus_pane"
@@ -191,28 +212,31 @@
       "kanban_heartbeat",
       "kanban_link",
       "kanban_list",
+      "kanban_request_changes",
+      "kanban_request_review",
       "kanban_show",
       "kanban_unblock"
     ],
     "memory_tool": [
       "memory"
     ],
-    "open_preview_tool": [
-      "open_preview"
+    "preview_tool": [
+      "desktop_preview"
     ],
     "process_registry": [
-      "process"
+      "process_manage"
     ],
     "project_tools": [
-      "project_create",
-      "project_list",
-      "project_switch"
+      "desktop_project"
     ],
     "react_to_message_tool": [
       "react_to_message"
     ],
     "read_terminal_tool": [
       "read_terminal"
+    ],
+    "read_window_tool": [
+      "read_window_below"
     ],
     "session_search_tool": [
       "session_search"
@@ -228,8 +252,14 @@
     "terminal_tool": [
       "terminal"
     ],
+    "tip_tool": [
+      "show_tip"
+    ],
     "todo_tool": [
-      "todo"
+      "todo_list"
+    ],
+    "tour_tool": [
+      "gui_tour"
     ],
     "tts_tool": [
       "text_to_speech"

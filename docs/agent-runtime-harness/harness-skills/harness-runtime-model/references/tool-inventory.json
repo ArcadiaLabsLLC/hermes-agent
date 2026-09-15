@@ -37,12 +37,7 @@
     {
       "name": "terminal",
       "tools": [
-        "close_terminal",
-        "focus_pane",
-        "open_preview",
-        "process",
-        "react_to_message",
-        "read_terminal",
+        "process_manage",
         "terminal"
       ]
     },
@@ -74,6 +69,11 @@
         "browser_scroll",
         "browser_snapshot",
         "browser_type",
+        "browser_vault_enter_code",
+        "browser_vault_fill",
+        "browser_vault_list",
+        "browser_vault_save_login",
+        "browser_vault_unlock",
         "browser_vision"
       ]
     },
@@ -102,7 +102,7 @@
     {
       "name": "todo",
       "tools": [
-        "todo"
+        "todo_list"
       ]
     },
     {
@@ -259,6 +259,41 @@
       "description": "Type text into an input field by its snapshot ref ID (clears the field first)."
     },
     {
+      "name": "browser_vault_enter_code",
+      "toolset": "browser",
+      "mutating": false,
+      "gated": true,
+      "description": "The page asks for a one-time / verification / 2FA code after the password: call this. If the saved login has an authenticator key the code is generated and e..."
+    },
+    {
+      "name": "browser_vault_fill",
+      "toolset": "browser",
+      "mutating": false,
+      "gated": true,
+      "description": "Fill the CURRENT browser page from a vault handle (see browser_vault_list): a login item fills ONLY the password field (type the identifier/username yourself..."
+    },
+    {
+      "name": "browser_vault_list",
+      "toolset": "browser",
+      "mutating": false,
+      "gated": true,
+      "description": "ALWAYS call this first when a page asks for a password, card or address. Lists saved website logins, payment cards and addresses as handles with metadata (ki..."
+    },
+    {
+      "name": "browser_vault_save_login",
+      "toolset": "browser",
+      "mutating": false,
+      "gated": true,
+      "description": "The current page is a login form and browser_vault_list has no item for its origin: ask the user, through a masked prompt in their UI, to save the login for..."
+    },
+    {
+      "name": "browser_vault_unlock",
+      "toolset": "browser",
+      "mutating": false,
+      "gated": true,
+      "description": "Ask the user to unlock a password manager (1Password or Bitwarden) for this session. The master password is typed into a masked prompt owned by the UI and ne..."
+    },
+    {
       "name": "browser_vision",
       "toolset": "browser",
       "mutating": false,
@@ -270,14 +305,7 @@
       "toolset": "clarify",
       "mutating": false,
       "gated": true,
-      "description": "Ask the operator a question before proceeding. Multiple choice: pass up to 4 `choices` (rendered as pickable rows -- never enumerate options inside `question..."
-    },
-    {
-      "name": "close_terminal",
-      "toolset": "terminal",
-      "mutating": false,
-      "gated": true,
-      "description": "Close the read-only GUI tab for a background process (desktop only): drops the view, does NOT kill the process (output keeps buffering; reopen from the statu..."
+      "description": "Ask 1-5 independent questions in `questions`. Each: question text, up to 4 choices (recommended first), optional multi_select; omit choices for free text. Pu..."
     },
     {
       "name": "delegate_task",
@@ -291,14 +319,7 @@
       "toolset": "code_execution",
       "mutating": false,
       "gated": true,
-      "description": "Run a Python script that calls Hermes tools via `from hermes_tools import ...` (web_search, web_extract, read_file, write_file, search_files, patch, terminal..."
-    },
-    {
-      "name": "focus_pane",
-      "toolset": "terminal",
-      "mutating": false,
-      "gated": true,
-      "description": "Reveal and focus a pane in the Hermes desktop app when the user asks to see it — e.g. \"show me the terminal\", \"open the file browser\", \"show the diff\". Panes..."
+      "description": "Run Python in a persistent session kernel with Hermes tools (`from hermes_tools import web_search, terminal, ...`). Use for 3+ calls with filtering, branches..."
     },
     {
       "name": "memory",
@@ -308,32 +329,18 @@
       "description": "Save durable facts to persistent memory that survive across sessions. Memory is injected into every future turn, so keep entries compact and high-signal. HOW..."
     },
     {
-      "name": "open_preview",
-      "toolset": "terminal",
-      "mutating": false,
-      "gated": true,
-      "description": "Open something in the preview pane beside the chat in the Hermes desktop app. Use this when the user asks to see a page, dev server, or file in the preview p..."
-    },
-    {
       "name": "patch",
       "toolset": "file",
       "mutating": true,
       "gated": true,
-      "description": "Targeted find-and-replace file edits with fuzzy matching; returns a unified diff and auto-runs syntax checks. mode='replace' (path/old_string/new_string) or..."
+      "description": "Targeted find-and-replace file edits with fuzzy matching; returns a unified diff and auto-runs syntax checks. Supply path, old_string and new_string. Disambi..."
     },
     {
-      "name": "process",
+      "name": "process_manage",
       "toolset": "terminal",
       "mutating": false,
       "gated": false,
-      "description": "Manage background processes from terminal(background=true). Actions: list, poll (status + new output), log, wait, kill, notify (deliver the result in a NEW t..."
-    },
-    {
-      "name": "react_to_message",
-      "toolset": "terminal",
-      "mutating": false,
-      "gated": true,
-      "description": "React to a message with a single emoji, the way you'd tapback in iMessage. Reach for it when a reaction is what a person would do: something funny gets a 😂,..."
+      "description": "Poll, wait on, or kill background terminal processes (from terminal(background=true)). Completed results remain retrievable by session_id when resuming their..."
     },
     {
       "name": "read_file",
@@ -341,13 +348,6 @@
       "mutating": false,
       "gated": true,
       "description": "Read a text file with line numbers and pagination (offset/limit; large reads truncate on a line boundary with next_offset). Auto-extracts .ipynb/.docx/.xlsx...."
-    },
-    {
-      "name": "read_terminal",
-      "toolset": "terminal",
-      "mutating": false,
-      "gated": true,
-      "description": "Read what is currently shown in the Hermes desktop GUI's embedded terminal pane (desktop only). No args = visible screen + total_lines; pass start_line/count..."
     },
     {
       "name": "search_files",
@@ -368,7 +368,7 @@
       "toolset": "skills",
       "mutating": false,
       "gated": false,
-      "description": "Create / update / delete skills (your procedural memory). Actions: create, patch (preferred for fixes), edit (full rewrite), delete (pass absorbed_into), wri..."
+      "description": "Create, update, or delete skills — your procedural memory for recurring task types. The call is an operations array (a single edit is a list of one); it appl..."
     },
     {
       "name": "skill_search",
@@ -382,24 +382,24 @@
       "toolset": "skills",
       "mutating": false,
       "gated": true,
-      "description": "Load a skill's full SKILL.md plus its linked files (references/templates/scripts). First call returns SKILL.md + a linked_files dict; call again with file_pa..."
+      "description": "Skills allow for loading information about specific tasks and workflows, as well as scripts and templates. Load a skill's full content or access its linked f..."
     },
     {
       "name": "skills_list",
       "toolset": "skills",
       "mutating": false,
       "gated": true,
-      "description": "List available skills (name + description). Disambiguator: skill_search(query) finds matches; skill_view(name) loads full content."
+      "description": "List available skills (name + description). Use skill_view(name) to load full content."
     },
     {
       "name": "terminal",
       "toolset": "terminal",
       "mutating": true,
       "gated": true,
-      "description": "Run shell commands on a persistent Linux env (cwd + exported env persist between calls). Foreground returns instantly; background=true (pair notify_on_comple..."
+      "description": "Run shell commands in the configured environment (cwd and exported env persist between calls). Foreground returns when done; background=true with notify_on_c..."
     },
     {
-      "name": "todo",
+      "name": "todo_list",
       "toolset": "todo",
       "mutating": false,
       "gated": true,
@@ -437,7 +437,7 @@
   "counts": {
     "tools": 44,
     "toolsets": 15,
-    "token_estimate": 1177
+    "token_estimate": 1190
   },
   "cli_only_verbs": [
     "persona instance open-chat",

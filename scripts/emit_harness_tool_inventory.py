@@ -74,7 +74,7 @@ TOOLSET_PURPOSE = {
     "board": "record follow-up work — planning state only",
     "clarify": "ask the operator a question mid-turn",
     "delegation": "hand a bounded subtask to a helper with fresh context",
-    "terminal": "run commands; the desktop pane verbs are GUI-gated",
+    "terminal": "run commands and manage background processes",
     "file": "read, write, patch and search files",
     "web": "search the web and pull a page's content",
     "browser": "drive a real browser: navigate, click, type, read, screenshot",

@@ -201,5 +201,28 @@ def test_the_scan_is_pointed_at_a_real_corpus():
     assert scan.unresolved == [], scan.unresolved
     # Two names from opposite ends of the corpus, one of each registration form,
     # so a reader that regressed to literals-only reds here as well.
-    assert scan.tools["read_terminal"] == "terminal"
-    assert scan.tools["bfl_flux3_get_result"] == "bfl"
+    assert scan.tools["read_terminal"] == "desktop_ui"
+    assert scan.tools["browser_navigate"] == "browser"
+
+
+def test_literal_registration_tables_are_read_without_executing_handlers(tmp_path):
+    _write(tmp_path, "table_tool.py", '''
+raise RuntimeError("the scanner must never execute this module")
+SCHEMA = {"name": "first", "parameters": make_parameters()}
+TABLE = ((SCHEMA, unknown_handler), ({"name": "second"}, another_handler))
+for schema, handler in TABLE:
+    registry.register(name=schema["name"], toolset="file", handler=handler)
+''')
+    scan = scan_registered_tools(tmp_path)
+    assert scan.tools == {"first": "file", "second": "file"}
+    assert scan.unresolved == []
+
+
+def test_unknown_registration_table_refuses_instead_of_disappearing(tmp_path):
+    _write(tmp_path, "computed_tool.py", '''
+for name, handler in discover_remote_tools():
+    registry.register(name=name, toolset="file", handler=handler)
+''')
+    scan = scan_registered_tools(tmp_path)
+    assert scan.tools == {}
+    assert len(scan.unresolved) == 1

@@ -161,14 +161,14 @@ incident sections. If you are looking for one, it is gone, not missing.
 | `board` | `board_card_add` · `board_cards` | record follow-up work — planning state only |
 | `clarify` | `clarify` | ask the operator a question mid-turn |
 | `delegation` | `delegate_task` | hand a bounded subtask to a helper with fresh context |
-| `terminal` | `close_terminal` · `focus_pane` · `open_preview` · `process` · `react_to_message` · `read_terminal` · `terminal` | run commands; the desktop pane verbs are GUI-gated |
+| `terminal` | `process_manage` · `terminal` | run commands and manage background processes |
 | `file` | `patch` · `read_file` · `search_files` · `write_file` | read, write, patch and search files |
 | `web` | `web_extract` · `web_search` | search the web and pull a page's content |
-| `browser` | `browser_back` · `browser_click` · `browser_console` · `browser_get_images` · `browser_navigate` · `browser_press` · `browser_scroll` · `browser_snapshot` · `browser_type` · `browser_vision` | drive a real browser: navigate, click, type, read, screenshot |
+| `browser` | `browser_back` · `browser_click` · `browser_console` · `browser_get_images` · `browser_navigate` · `browser_press` · `browser_scroll` · `browser_snapshot` · `browser_type` · `browser_vault_enter_code` · `browser_vault_fill` · `browser_vault_list` · `browser_vault_save_login` · `browser_vault_unlock` · `browser_vision` | drive a real browser: navigate, click, type, read, screenshot |
 | `browser-cdp` | `browser_cdp` · `browser_dialog` | raw CDP and dialog handling for the same browser |
 | `skills` | `skill_manage` · `skill_search` · `skill_view` · `skills_list` | find, read and author skills |
 | `memory` | `memory` | durable profile memory |
-| `todo` | `todo` | your own in-turn checklist |
+| `todo` | `todo_list` | your own in-turn checklist |
 | `session_search` | `session_search` | search your own past sessions |
 | `vision` | `vision_analyze` | analyze an image |
 | `code_execution` | `execute_code` | run code in the sandbox |

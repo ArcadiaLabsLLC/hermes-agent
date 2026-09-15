@@ -45,7 +45,9 @@ HARNESS_CORE_MEMBERS = [
 # RE-MEASURED and not adjusted: 44 tools, and the token estimate the live
 # resolver reports for the declared set on this build.
 DECLARED_TOOL_COUNT = 44
-DECLARED_TOKEN_ESTIMATE = 1177
+# Upstream's canonical tool names and refreshed manifest: same 44 declared
+# tools, measured name/schema estimate +13 tokens (1177 -> 1190).
+DECLARED_TOKEN_ESTIMATE = 1190
 MISSION_PERSONAS = ("neko_supervisor", "dev", "backend_dev", "qa")
 
 
@@ -111,7 +113,7 @@ def test_the_fork_lanes_and_the_conversational_core_are_all_callable():
         "board_card_add", "board_cards", "clarify", "delegate_task",
         "terminal", "read_file", "write_file", "patch", "search_files",
         "web_search", "session_search", "skill_search", "vision_analyze",
-        "execute_code", "memory", "todo",
+        "execute_code", "memory", "todo_list",
     } <= final
 
 
@@ -169,7 +171,8 @@ def test_a_declaration_that_names_the_hygiene_toolsets_brings_the_17_back(
     preview = _preview(_persona("dev"))
 
     assert preview["toolset_declaration"]["source"] == "profile_config"
-    assert preview["availability_counts"]["withheld"] == len(REGISTRY_HYGIENE_BLOCKED_TOOLS) == 17
+    assert preview["availability_counts"]["withheld"] == len(REGISTRY_HYGIENE_BLOCKED_TOOLS)
+    assert {entry["name"] for entry in preview["withheld_tools"]} == REGISTRY_HYGIENE_BLOCKED_TOOLS
     assert preview["final_tool_count"] == DECLARED_TOOL_COUNT  # none of them SHIP
     assert {entry["reason"] for entry in preview["withheld_tools"]} == {"registry_hygiene"}
 
@@ -224,7 +227,11 @@ def test_a_static_bundle_declaration_resolves_by_registry_membership(declaring_p
 
     assert preview["toolset_declaration"]["source"] == "profile_config"
     assert preview["final_tool_count"] == 7  # spotify only, by registry membership
-    assert len(resolve_toolset("hermes-cli")) == 62  # what a turn would resolve
+    # Upstream consolidated preview tools and renamed process/todo. Assert the
+    # useful members rather than freezing an unrelated total tool count.
+    assert {"terminal", "process_manage", "todo_list"} <= set(
+        resolve_toolset("hermes-cli")
+    )
 
 
 def test_the_bounded_cost_policy_still_cuts_the_declared_set(bounded_chat_session):

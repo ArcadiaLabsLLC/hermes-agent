@@ -161,7 +161,7 @@ def test_the_reader_answers_a_toolset_without_importing_a_registrar_module():
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout.strip().splitlines()[-1])
 
-    assert payload["answer"] == "terminal"
+    assert payload["answer"] == "desktop_ui"
     assert payload["count"] >= 80
     assert payload["model_tools"] is False
     assert payload["registrars"] == [], payload["registrars"]
@@ -201,7 +201,7 @@ def test_the_reader_and_the_artifact_are_the_same_facts():
         assert builtin_toolset_for_tool(name) == toolset
 
 
-@pytest.mark.parametrize("name", ["read_terminal", "bfl_flux3_get_result"])
+@pytest.mark.parametrize("name", ["read_terminal", "browser_navigate"])
 def test_both_registration_forms_survive_the_round_trip(name):
     """One literal registration and one that names a module-level ``_TOOLSET``
     constant — the two forms the real tree uses. A reader that regressed to

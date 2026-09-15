@@ -37,7 +37,9 @@ def test_hygiene_set_covers_exactly_the_kanban_and_feishu_toolsets():
     # kanban_attach / kanban_attach_url / kanban_attachments). The detector did
     # its job; the constant was extended deliberately rather than the count
     # loosened.
-    assert len(_static_toolset_tools("kanban")) == 12
+    # Upstream adds review/changes requests; both inherit the fork's existing
+    # exclusion of the entire kanban toolset on native runtime lanes.
+    assert len(_static_toolset_tools("kanban")) == 14
     assert len(_static_toolset_tools("feishu_doc") | _static_toolset_tools("feishu_drive")) == 5
 
 
