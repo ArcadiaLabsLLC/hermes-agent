@@ -310,7 +310,11 @@ PROCESS_COMPLETE_DISPLAY_KIND = "process_complete"
 
 
 def _short_command(command) -> str:
-    cmd = " ".join(str(command or "").split())
+    from agent.redact import redact_sensitive_text
+    from tools.ansi_strip import strip_ansi
+
+    # Redact before shortening: clipping a credential can hide its recognizable prefix.
+    cmd = " ".join(redact_sensitive_text(strip_ansi(str(command or ""))).split())
     return cmd[:77] + "..." if len(cmd) > 80 else cmd
 
 

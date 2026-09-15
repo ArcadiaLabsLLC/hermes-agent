@@ -7665,6 +7665,7 @@ def test_run_prompt_submit_requeues_foreign_completion(
 
 
 def test_run_prompt_submit_delivers_completion_observed_by_poll(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_BACKGROUND_AGENT_TURNS", "true")
     import queue as _queue_mod
 
     from tools.process_registry import process_registry
@@ -7707,6 +7708,7 @@ def test_run_prompt_submit_delivers_completion_observed_by_poll(monkeypatch, tmp
 def test_run_prompt_submit_requeues_all_unstarted_notifications_with_real_threading(
     monkeypatch, tmp_path
 ):
+    monkeypatch.setenv("HERMES_BACKGROUND_AGENT_TURNS", "true")
     import queue as _queue_mod
 
     from tools.process_registry import process_registry
@@ -7801,6 +7803,7 @@ def test_run_prompt_submit_requeues_all_unstarted_notifications_with_real_thread
 def test_run_prompt_submit_delivers_completion_owned_through_compression_lineage(
     monkeypatch, tmp_path
 ):
+    monkeypatch.setenv("HERMES_BACKGROUND_AGENT_TURNS", "true")
     import queue as _queue_mod
 
     from tools.process_registry import process_registry
@@ -7854,6 +7857,7 @@ def test_run_prompt_submit_delivers_completion_owned_through_compression_lineage
 
 
 def test_run_prompt_submit_prefers_origin_ui_session_id(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_BACKGROUND_AGENT_TURNS", "true")
     import queue as _queue_mod
 
     from tools.process_registry import process_registry
@@ -18384,7 +18388,7 @@ def test_notification_poller_delivers_status_only_by_default(monkeypatch):
         assert len(status_calls) >= 1
         assert status_calls[0][2]["kind"] == "process"
         status_text = status_calls[0][2]["text"]
-        assert "Background process proc_poller_test completed" in status_text
+        assert "Background Process Finished:" in status_text
         assert "sk-testsecret" not in status_text
         assert "sk-outputsecret" not in status_text
 
