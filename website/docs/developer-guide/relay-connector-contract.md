@@ -184,6 +184,7 @@ present (may be `null`); the rest are included only when set.
 | `user_id` | string\|null | yes | Message author id. Session-key discriminator. |
 | `user_name` | string\|null | yes | Author display name. |
 | `thread_id` | string\|null | yes | Thread/forum-topic id when in a thread. Session-key discriminator. |
+| `prospective_thread_id` | string\|null | no | For Discord auto-thread creation, the thread a channel message will be delivered into. Non-DM session keying uses it when `thread_id` is absent, preserving continuity with later in-thread replies. |
 | `chat_topic` | string\|null | yes | Channel topic/description (Discord, Slack). |
 | `user_id_alt` | string | no | Platform-specific stable alt id (Signal UUID, Feishu union_id). |
 | `chat_id_alt` | string | no | Alternate chat id (e.g. Signal group internal id). |

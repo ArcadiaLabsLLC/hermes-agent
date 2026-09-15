@@ -26,6 +26,12 @@
     "kind": "realm_sync",
     "last_publish": null,
     "last_pull": null,
+    "levels": {
+      "held": [],
+      "publishable": 0,
+      "refused": [],
+      "unpublished": 0
+    },
     "profile_artifacts_held": [],
     "remote_check_error": "sync_auth_failed",
     "remote_checked": false,
@@ -59,6 +65,11 @@
         "instances_added": 0,
         "instances_changed": 0,
         "instances_removed": 0
+      },
+      "skills": {
+        "skills_added": 0,
+        "skills_changed": 0,
+        "skills_removed": 0
       }
     },
     "sync_repo": "realm_sync/srv_fixture",
