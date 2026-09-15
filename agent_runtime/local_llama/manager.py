@@ -111,12 +111,14 @@ class LocalLlamaManager:
             for preset in self.config["presets"]:
                 state = self.model_states.get(preset["model_id"], {})
                 rows.append({"model_id": preset["model_id"], "display_name": preset["display_name"],
+                             "context_length": preset["load"]["context_size"],
                              "preset_revision": preset["revision"], "state": state.get("state", "unloaded"),
                              "selectable": preset["model_id"] not in self.unavailable,
                              "unavailable_reason": self.unavailable.get(preset["model_id"]),
                              "active_parameters": state.get("active_parameters"), "error": state.get("error")})
             return deepcopy({"schema": SCHEMA, "install_id": self.install_id, "epoch": self.epoch,
                              "revision": self.revision, "config_revision": self.config_revision,
+                             "configured": bool(self.config.get("executable_path")),
                              "capabilities": self.capabilities(), "server": {"state": self.server, "error": self.server_error},
                              "models": rows, "active_turns": list(self.leases.values()), "operation": operation})
 

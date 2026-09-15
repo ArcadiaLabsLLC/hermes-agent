@@ -70,6 +70,21 @@ def test_start_ack_is_nonblocking_and_duplicate_has_one_effect(manager):
     assert manager.status()["server"]["state"] == "running"
 
 
+def test_off_status_exposes_host_catalog_without_configuration_paths(manager):
+    model_id = str(uuid.uuid4())
+    manager.config["presets"] = [{"model_id": model_id, "display_name": "Remote weights",
+        "revision": 2, "load": {"context_size": 8192}, "gguf_path": "private-host-path.gguf"}]
+    state = manager.status()
+    assert state["server"]["state"] == "off"
+    assert state["configured"] is True
+    assert state["models"][0]["model_id"] == model_id
+    assert state["models"][0]["context_length"] == 8192
+    assert "private-host-path" not in str(state)
+    assert "test-executable" not in str(state)
+    manager.config["executable_path"] = None
+    assert manager.status()["configured"] is False
+
+
 def test_reused_request_id_with_different_payload_refused(manager):
     request = params(manager)
     manager.submit("start", request)
