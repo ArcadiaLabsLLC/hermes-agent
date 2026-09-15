@@ -108,7 +108,9 @@ jobs:
     # adds a second setup.
     # Larger hosted runners belong to upstream; forks use the standard hosted pool.
     runs-on: ${{ github.repository == 'NousResearch/hermes-agent' && 'ubuntu-latest-96-core' || 'ubuntu-latest' }}
-    timeout-minutes: 30
+    # Fork proof reached only 52% at 30 minutes on the standard four-worker runner.
+    # Keep upstream's limit; give forks enough time to finish the same suite.
+    timeout-minutes: ${{ github.repository == 'NousResearch/hermes-agent' && 30 || 90 }}
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
