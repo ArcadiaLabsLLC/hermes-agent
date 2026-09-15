@@ -6437,9 +6437,9 @@ def __getattr__(name):  # PEP 562 — lazy so no import cycles
 
 def _venv_interpreter(venv: Path) -> Path:
     """The interpreter path inside ``venv`` for this platform."""
-    if is_windows():
-        return venv / "Scripts" / "python.exe"
-    return venv / "bin" / "python"
+    from hermes_constants import venv_python_path
+
+    return venv_python_path(venv, windows=is_windows())
 
 
 class ManagedPythonUnavailable(RuntimeError):

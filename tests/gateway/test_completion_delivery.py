@@ -44,6 +44,8 @@ def isolated_registry(tmp_path, monkeypatch):
 
 def _runner(adapter, *, origins=None):
     runner = object.__new__(GatewayRunner)
+    # Exercise agent-turn delivery explicitly; the fork defaults to text notices.
+    runner._background_agent_turns_enabled = lambda: True
     runner._running = True
     runner.adapters = {Platform.TELEGRAM: adapter}
     runner.session_store = SimpleNamespace(
@@ -76,6 +78,38 @@ def _async_event(delegation_id="deleg_duplicate"):
         "origin_profile": "default",
         "origin_hermes_home": "/tmp/hermes-default",
     }
+
+
+def _completion_event(*, started_at, session_id="proc_reused"):
+    return {
+        "type": "completion",
+        "session_id": session_id,
+        "session_key": "agent:main:telegram:dm:123",
+        "platform": "telegram",
+        "chat_type": "dm",
+        "chat_id": "123",
+        "started_at": started_at,
+        "command": "echo done",
+        "exit_code": 0,
+        "completion_reason": "exited",
+        "output": "done\n",
+    }
+
+
+def _persist_pending_completion(event):
+    from tools import async_delegation
+
+    async_delegation._persist_dispatch({
+        "delegation_id": event["delegation_id"],
+        "session_key": event["session_key"],
+        "origin_ui_session_id": "",
+        "parent_session_id": event.get("parent_session_id"),
+        "dispatched_at": event["dispatched_at"],
+    })
+    async_delegation._persist_completion(event, {
+        "status": "completed",
+        "summary": event["summary"],
+    })
 
 
 def _stop_after_sleeps(monkeypatch, runner, count):

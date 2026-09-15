@@ -766,7 +766,6 @@ DEFAULT_CONFIG = {
         "resume_skip_tool_only": True,
         "busy_input_mode": "interrupt",  # interrupt | queue | steer
         "busy_text_mode": "interrupt",   # interrupt | queue (normal text follow-ups while busy)
-        "background_process_notifications": "result",  # off | error | result | all
         "background_process_agent_turns": False,  # legacy notify_on_complete full agent turn
         # When busy_input_mode="steer", suppress only the visible
         # "Steered into current run" confirmation bubble by setting this false.
@@ -801,7 +800,7 @@ DEFAULT_CONFIG = {
         # Gateway notices when a terminal(background=true) process finishes: "concise" (one line;
         # failures append an output tail) | "all" (running updates + final raw output) | "result"
         # (final raw only) | "error" (raw only on non-zero exit) | "off".
-        "background_process_notifications": "concise",
+        "background_process_notifications": "result",
         "streaming": False,
         "timestamps": False,      # message timestamps (CLI labels, TUI rows, desktop transcript)
         "timestamp_format": "%H:%M",  # strftime format, e.g. "%b-%d %H:%M"

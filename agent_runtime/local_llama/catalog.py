@@ -4,6 +4,7 @@ from __future__ import annotations
 from copy import deepcopy
 import os
 import re
+import stat
 from pathlib import Path
 import struct
 import time
@@ -96,8 +97,21 @@ def scan(config: dict, *, max_candidates=10000, timeout=60):
     for root in config["model_roots"]:
         for parent, directories, files in os.walk(root, followlinks=False,
                 onerror=lambda exc: errors.append({"path": exc.filename, "reason": "unreadable_directory"})):
-            directories[:] = [d for d in directories if not Path(parent, d).is_symlink()
-                               and not Path(parent, d).is_junction()]
+            safe_directories = []
+            for directory in directories:
+                path = Path(parent, directory)
+                try:
+                    info = path.lstat()
+                except OSError:
+                    errors.append({"path": str(path), "reason": "unreadable_directory"})
+                    continue
+                # Path.is_junction() requires Python 3.12. On supported 3.11,
+                # reject Windows reparse points directly, including junctions.
+                if not stat.S_ISLNK(info.st_mode) and not (
+                    getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
+                ):
+                    safe_directories.append(directory)
+            directories[:] = safe_directories
             if time.monotonic() > deadline:
                 truncated = True
                 break

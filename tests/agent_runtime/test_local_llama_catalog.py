@@ -22,7 +22,9 @@ def gguf(path, **extra):
 
 
 def test_scan_preserves_identity_and_ignores_projection_weights(tmp_path):
-    gguf(tmp_path / "model.gguf")
+    nested = tmp_path / "models"
+    nested.mkdir()
+    gguf(nested / "model.gguf")
     gguf(tmp_path / "mmproj.gguf")
     config = default_config()
     config["model_roots"] = [str(tmp_path)]

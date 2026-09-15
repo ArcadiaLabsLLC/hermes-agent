@@ -321,7 +321,9 @@ def test_27_json_shaped_tool_secret_is_redacted():
             ],
         }
     )
-    assert "topsecret" not in row["tool_calls"][0]["function"]["arguments"]
+    arguments = row["tool_calls"][0]["function"]["arguments"]
+    assert "topsecret" not in arguments
+    assert json.loads(arguments) == {"token": "[redacted]", "command": "ok"}
 
 
 def test_28_safe_history_drops_unpaired_assistant_tool_call():

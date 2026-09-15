@@ -30,7 +30,7 @@ from .persona_assignments import (
     safe_assignment_text,
     safe_assignment_token,
 )
-from .redaction import TEXT_SECRET_ASSIGNMENT_RE
+from .redaction import TEXT_SECRET_ASSIGNMENT_RE, TEXT_SECRET_KEYS
 
 
 logger = logging.getLogger(__name__)
@@ -166,6 +166,35 @@ class BoundedUserContent:
 
 def _redacted(value: Any) -> str:
     text = str(value or "").replace("\x00", " ")
+    # Native history has always treated explicit secret fields as sensitive,
+    # including short values upstream's general text heuristics leave intact.
+    # Preserve JSON siblings and leave non-secret argument bytes unchanged.
+    try:
+        parsed = json.loads(text)
+    except (ValueError, RecursionError):
+        parsed = None
+    changed = False
+
+    def redact_fields(item):
+        nonlocal changed
+        if isinstance(item, dict):
+            for key, child in item.items():
+                if re.search(r"(?:" + TEXT_SECRET_KEYS + r")$", key, re.IGNORECASE):
+                    item[key] = "[redacted]"
+                    changed = True
+                else:
+                    redact_fields(child)
+        elif isinstance(item, list):
+            for child in item:
+                redact_fields(child)
+
+    if isinstance(parsed, (dict, list)):
+        try:
+            redact_fields(parsed)
+        except RecursionError:
+            return "[redacted]"
+        if changed:
+            text = json.dumps(parsed, ensure_ascii=False)
     try:
         from agent.redact import redact_sensitive_text
 
