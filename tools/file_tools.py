@@ -1024,7 +1024,7 @@ READ_FILE_SCHEMA = {
     # route we trust (_read_file_schema_overrides). Scanned-page coverage
     # teaching lives in the response-time NEEDS-OCR warning
     # (read_extract.py); the schema doesn't pre-teach it.
-    "description": 'Read a text file with line numbers and pagination (offset/limit; large reads truncate on a line boundary with next_offset). Auto-extracts .ipynb/.docx/.xlsx. Disambiguator: text only -- use vision_analyze for images; prefer this over shell cat/head/tail.',
+    "description": 'Read a text file with line numbers and pagination (offset/limit; large reads truncate on a line boundary with next_offset). Auto-extracts .ipynb/.docx/.xlsx/.pptx, .doc/.ppt/.xls, PDF (text layer), OpenDocument, RTF and EPUB. Cannot read images/binary -- use vision_analyze for images; prefer this over shell cat/head/tail.',
     "parameters": {
         "type": "object",
         "properties": {

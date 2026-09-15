@@ -154,6 +154,11 @@ def _current_session_search_full() -> str:
     return FULL_SESSION_SEARCH_DESCRIPTION
 
 
+def _current_process_full() -> str:
+    from tools.process_registry import FULL_PROCESS_DESCRIPTION
+    return FULL_PROCESS_DESCRIPTION
+
+
 # These descriptions follow the new upstream batch/kernel contracts directly.
 FULL_TOOL_DESCRIPTIONS.update({
     "session_search": _current_session_search_full,
@@ -161,8 +166,11 @@ FULL_TOOL_DESCRIPTIONS.update({
     "clarify": _current_clarify_full,
     "skill_manage": _current_skill_manage_full,
     "todo_list": FULL_TOOL_DESCRIPTIONS["todo"] + "\nBreak large phases into subtasks via parent; enumerate every requested instance. Mark completion only after verification.",
-    "process_manage": FULL_TOOL_DESCRIPTIONS["process"],
+    "process_manage": _current_process_full,
 })
+# Registry names were renamed upstream; the mirrors must follow their live owners.
+del FULL_TOOL_DESCRIPTIONS["process"]
+del FULL_TOOL_DESCRIPTIONS["todo"]
 
 
 def full_tool_description(name: str) -> Optional[str]:

@@ -72,7 +72,9 @@ def test_wire_ships_brief_shorter_than_full_docs():
 def test_tool_describe_returns_full_docs_and_live_params():
     """tool_describe serves the full mirror text + the untrimmed parameters."""
     for name in ("session_search", "browser_navigate", "execute_code"):
-        result = json.loads(dispatch_tool_describe({"name": name}, current_tool_defs=[]))
+        entry = registry.get_entry(name)
+        result = json.loads(dispatch_tool_describe(
+            {"name": name}, current_tool_defs=[{"type": "function", "function": entry.schema}]))
         assert "error" not in result, (name, result)
         assert result["description"] == full_tool_description(name)
         # Wire brief is what the schema ships; tool_describe returns MORE.

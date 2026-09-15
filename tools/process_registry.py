@@ -1345,7 +1345,6 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
         # buffered ``output_buffer``, never from the pipe.
         self._release_finished_handles(session)
         self._write_checkpoint()
-        session._completion_event.set()
         # Only enqueue completion notification on the FIRST move.  Without
         # this guard, kill_process() and the reader thread can both call
         # _move_to_finished(), producing duplicate [IMPORTANT: ...] messages.
@@ -1354,33 +1353,37 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
         # A ``process notify`` request is the SECOND reason a completion is
         # owed — the first being a spawn-time notify_on_complete. Both produce
         # ONE event: a session that is armed twice over must not deliver twice.
-        notify_row = self._notify_request_row(session.id)
-        if not session.notify_on_complete and notify_row is None:
-            return
-        if notify_row is not None and not self._notify_target_is_live(notify_row):
-            # The persona instance that asked is gone. DROP it — the delivery
-            # lane's positive-ownership rule (#64484) says absence of the
-            # instance means "do not deliver", never "deliver anyway" — and say
-            # so out loud, because a silently abandoned completion is the exact
-            # failure class this lane exists to retire.
-            logger.warning(
-                "process-exit notify for %s dropped: persona instance %s no longer"
-                " owns chat root %s",
-                session.id,
-                notify_row.get("persona_instance_id") or "?",
-                notify_row.get("chat_session_id") or "?",
-            )
-            self._settle_notify_request(
-                session.id, fired=False, detail="persona_instance_missing"
-            )
-            notify_row = None
-            if not session.notify_on_complete:
+        try:
+            notify_row = self._notify_request_row(session.id)
+            if not session.notify_on_complete and notify_row is None:
                 return
-        event = self._completion_event_payload(session)
-        if notify_row is not None:
-            self._stamp_notify_routing(event, notify_row)
-            self._settle_notify_request(session.id, fired=True)
-        self.completion_queue.put(event)
+            if notify_row is not None and not self._notify_target_is_live(notify_row):
+                # The persona instance that asked is gone. DROP it — the delivery
+                # lane's positive-ownership rule (#64484) says absence of the
+                # instance means "do not deliver", never "deliver anyway" — and say
+                # so out loud, because a silently abandoned completion is the exact
+                # failure class this lane exists to retire.
+                logger.warning(
+                    "process-exit notify for %s dropped: persona instance %s no longer"
+                    " owns chat root %s",
+                    session.id,
+                    notify_row.get("persona_instance_id") or "?",
+                    notify_row.get("chat_session_id") or "?",
+                )
+                self._settle_notify_request(
+                    session.id, fired=False, detail="persona_instance_missing"
+                )
+                notify_row = None
+                if not session.notify_on_complete:
+                    return
+            event = self._completion_event_payload(session)
+            if notify_row is not None:
+                self._stamp_notify_routing(event, notify_row)
+                self._settle_notify_request(session.id, fired=True)
+            self.completion_queue.put(event)
+        finally:
+            # A finite owner must not wake before the completion is queued.
+            session._completion_event.set()
 
     @staticmethod
     def _exit_fields(session: ProcessSession) -> dict:
@@ -1456,7 +1459,7 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
         result: dict = {"waited": [], "completed": [], "timed_out": []}
         with self._lock:
             pending = [
-                s for s in self._running.values()
+                s for s in (*self._running.values(), *self._finished.values())
                 if s.notify_on_complete and not s._completion_event.is_set() and (task_id is None or s.task_id == task_id)
             ]
         if not pending or timeout <= 0:
@@ -2169,12 +2172,7 @@ process_registry = ProcessRegistry()
 # --- the "process_manage" tool schema + handler -----------------------------------
 from tools.registry import registry, tool_error
 
-PROCESS_SCHEMA = {
-    "name": "process_manage",
-    # The enum names the verbs; the description keeps only non-obvious semantics
-    # (write-vs-submit is the one real trap: a lone \n on a Windows PTY is not Enter).
-    # See #95681.
-    "description": (
+FULL_PROCESS_DESCRIPTION = (
         "Poll, wait on, or kill background terminal processes (from "
         "terminal(background=true)). "
         "Completed results remain retrievable by session_id when resuming their owning conversation "
@@ -2187,6 +2185,14 @@ PROCESS_SCHEMA = {
         "handoff (subagents only): transfer a running process you started to your parent agent, which then "
         "receives its completion; `data` = one sentence on its purpose. Subagent-owned processes are otherwise "
         "killed when the subagent finishes and their notifications never reach the parent."
+    )
+
+PROCESS_SCHEMA = {
+    "name": "process_manage",
+    "description": (
+        "Manage background processes and their retained results. submit sends Enter; write sends raw bytes. "
+        "notify requests a receipt in a new persona turn: end this turn. Subagents must handoff surviving "
+        "processes. Call tool_describe for ownership and retention details."
     ),
     "parameters": {
         "type": "object",

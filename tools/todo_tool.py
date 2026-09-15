@@ -221,7 +221,7 @@ def check_todo_requirements() -> bool:
 TODO_SCHEMA = {
     "name": "todo_list",
     "description": (
-        "Manage the current session's task list (3+ step work). No args reads it; pass `todos` to write (merge=false replaces, merge=true updates by id). Items {id, content, status, parent}; enumerate every requested instance and split phases via parent. Complete only verified work; one in_progress at a time. Disambiguator: session-scoped working checklist, not durable skills/memory."
+        "Session task list for 3+ steps; no args reads it. For requested batches, enumerate every instance; split phases via parent. Keep ONE item in_progress; mark complete only when verified done. If a task fails, cancel it and add a revised item. Not durable memory."
     ),
     "parameters": {
         "type": "object",

@@ -537,7 +537,7 @@ def check_session_search_requirements() -> bool:
 SESSION_SEARCH_SCHEMA = {
     "name": "session_search",
     "description": (
-        "Search or scroll the local session DB of past Hermes conversations (FTS5, no LLM). Shapes: query -> discover sessions; session_id + around_message_id -> scroll a window; session_id -> read one; no args -> recent. Every result carries a `link` (e.g. @session:default/2026...) -- paste it verbatim inline when referring the user to a session. Disambiguator: searches conversation HISTORY, not a live source -- if the user gave a URL/file/account, inspect that first. Call tool_describe for the full shape/FTS5 reference."
+        "Search conversation history (FTS5): query to discover; session_id + around_message_id to scroll; session_id to read; no args for recent. Paste returned link verbatim when citing a session. If given a live source (URL/file/account), inspect that first. Call tool_describe for shapes and search syntax."
     ),
     "parameters": {
         "type": "object",
@@ -643,14 +643,16 @@ registry.register(
 
 FULL_SESSION_SEARCH_DESCRIPTION = (
 "Recall past conversations: search or read old Hermes sessions (FTS5), or "
-        "scroll inside one. Four shapes, picked by args: `query` = discovery "
+        "scroll inside one. Four shapes, picked by args: `query` = DISCOVERY "
         "(top-N matching sessions, top result fully hydrated); `session_id` + "
-        "`around_message_id` = scroll (window of messages around an anchor); "
+        "`around_message_id` = SCROLL (window of messages around an anchor); "
         "`session_id` alone = read a whole session — how you resolve an "
         "`@session:<profile>/<id>` link (split on '/' into profile + id); no "
-        "args = browse recent sessions. Results are actual DB messages, no LLM. "
+        "args = BROWSE recent sessions. To scroll FORWARD, use messages[-1]['id'] "
+        "as around_message_id; backward, use the first message's id. "
+        "Results are actual DB messages, no LLM. SOURCE-FIRST LIMIT: "
         "Searches conversation history ONLY — when the user gave a direct "
-        "source (URL, file, contact, live system), inspect that first; never "
+        "source (URL, file, contact, live system), inspect that first and use session_search as secondary; never "
         "conclude 'not found' from history alone. Use for questions about past "
         "conversations: 'what did we do about X', 'where did we leave Y'. When "
         "referring the user to a session, write its `link` value verbatim "

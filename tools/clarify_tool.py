@@ -257,7 +257,7 @@ FULL_CLARIFY_DESCRIPTION = (
 CLARIFY_SCHEMA = {
     "name": "clarify",
     "description": (
-        f"Ask 1-{MAX_QUESTIONS} independent questions in `questions`. Each: question text, up to {MAX_CHOICES} choices (recommended first), optional multi_select; omit choices for free text. Put options only in choices. Returns responses in order and timed_out if incomplete. Decide low-stakes matters yourself; terminal handles dangerous-command confirmation."
+        f"Ask 1-{MAX_QUESTIONS} independent questions in one call. Put options only in choices, recommended first; omit for free text. Responses preserve order. Decide low-stakes matters yourself; terminal owns dangerous-command confirmation."
     ),
     "parameters": {
         "type": "object",
