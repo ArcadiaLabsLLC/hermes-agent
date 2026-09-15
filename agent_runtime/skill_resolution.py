@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Set, Tuple
 from hermes_constants import CANONICAL_SHARED_SKILL_IDS, get_shared_skills_dir, get_skills_dir
-from agent import skill_utils as _skills
+# Import skill_utils only inside consumers: its compatibility aliases import us.
 
 _SKILL_RUNTIME_SURFACE: ContextVar[str | None] = ContextVar(
     "hermes_skill_runtime_surface", default=None
@@ -108,6 +108,7 @@ def _skill_root_registry(root: Path) -> _SkillRootRegistry:
     caller that wants to avoid the walk shares a ``_root_registries`` map for
     the life of one turn instead — chat-turn-prep CP-5.
     """
+    from agent import skill_utils as _skills
 
     _note_skill_root_walk()
     root_key = str(_resolved_path(root))
@@ -204,6 +205,7 @@ def resolve_skill(
     and legacy flat-file forms.  Duplicate candidates produce ``collision``;
     root ordering is descriptive only and never silently selects a winner.
     """
+    from agent import skill_utils as _skills
 
     name = str(identifier or "").strip()
     search_roots = list(roots) if roots is not None else _skills.get_all_skills_dirs()
@@ -267,6 +269,7 @@ def resolve_skills(
     _root_registries: Dict[str, _SkillRootRegistry] | None = None,
 ) -> Dict[str, SkillResolution]:
     """Resolve many bare/path identifiers with one registry walk."""
+    from agent import skill_utils as _skills
 
     names = list(dict.fromkeys(str(item or "").strip() for item in identifiers))
     names = [name for name in names if name]
@@ -343,6 +346,7 @@ def skill_package_content_hash(skill_dir: Path | None, skill_md: Path) -> str:
     mtime-cached (see ``_CONTENT_HASH_CACHE``): the returned digest is identical
     to an uncached run; repeats within a build skip re-reading unchanged files.
     """
+    from agent import skill_utils as _skills
 
     if skill_dir is None:
         files = [skill_md]
@@ -456,6 +460,7 @@ def _cached_skill_frontmatter(skill_md: Path) -> Dict[str, Any]:
     identical to the inline parse on a cache miss; the result is read-only, never
     mutated, so sharing the cached dict is safe.
     """
+    from agent import skill_utils as _skills
     from agent_runtime.parse_cache import cached_by_mtime
 
     def _load(path: Path) -> Dict[str, Any]:
