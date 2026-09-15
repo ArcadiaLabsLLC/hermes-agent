@@ -56,7 +56,7 @@ def test_container_without_stamp_is_not_docker(tmp_path):
 
 
 def test_stamp_install_method_writes_code_scoped(tmp_path, monkeypatch):
-    from hermes_cli.config import stamp_install_method
+    from hermes_cli.install_method import stamp_install_method
     home = tmp_path / "profile"
     code = tmp_path / "code"
     home.mkdir()
