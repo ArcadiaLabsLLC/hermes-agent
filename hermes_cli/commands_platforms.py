@@ -454,3 +454,36 @@ def slack_native_slashes() -> list[tuple[str, str, str]]:
         logger.warning("Slack's %d-command cap omitted %d native slashes: %s. Use /hermes <command> for these.",
                        _SLACK_MAX_SLASH_COMMANDS, len(clamped), ", ".join(f"/{name}" for name in clamped))
     return entries
+
+
+def discord_skill_commands(
+    max_slots: int,
+    reserved_names: set[str],
+) -> tuple[list[tuple[str, str, str]], int]:
+    """Return skill entries for Discord slash command registration.
+
+    Same priority and filtering logic as :func:`telegram_menu_commands`
+    (plugins > skills, hub excluded, per-platform disabled excluded), but
+    adapted for Discord's constraints:
+
+    - Hyphens are allowed in names (no ``-`` → ``_`` sanitization)
+    - Descriptions capped at 100 chars (Discord's per-field max)
+
+    Args:
+        max_slots: Available command slots (100 minus existing built-in count).
+        reserved_names: Names of already-registered built-in commands.
+
+    Returns:
+        ``(entries, hidden_count)`` where *entries* is a list of
+        ``(discord_name, description, cmd_key)`` triples.  ``cmd_key`` is
+        the original ``/skill-name`` key needed for the slash handler callback.
+    """
+    entries, hidden_count = _collect_gateway_skill_entries(
+        platform="discord",
+        max_slots=max_slots,
+        reserved_names=set(reserved_names),  # copy — don't mutate caller's set
+        desc_limit=100,
+    )
+    return [
+        (name, desc, cmd_key) for name, desc, cmd_key, _raw_name in entries
+    ], hidden_count

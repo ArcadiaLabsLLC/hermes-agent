@@ -29,6 +29,8 @@ through an injected fake registrar.
 
 from __future__ import annotations
 
+import tools.mcp_tool_discovery as _owner_tools_mcp_tool_discovery
+
 import dataclasses
 import threading
 import time
@@ -308,7 +310,7 @@ def test_resolution_performs_zero_spawns(qa_profile, monkeypatch):
     def _explode(*_args, **_kwargs):
         raise AssertionError("resolve_mcp_admission must never register anything")
 
-    monkeypatch.setattr(mcp_tool, "register_mcp_servers", _explode)
+    monkeypatch.setattr(_owner_tools_mcp_tool_discovery, "register_mcp_servers", _explode)
 
     admission = resolve_mcp_admission(
         _persona("qa"), cfg=_cfg(enabled=True)
@@ -1268,7 +1270,7 @@ def test_explain_mcp_is_stable_machine_readable_and_registers_nothing(
     from hermes_cli.harness import build_parser
 
     monkeypatch.setattr(
-        mcp_tool,
+        _owner_tools_mcp_tool_discovery,
         "register_mcp_servers",
         lambda *_a, **_k: pytest.fail("--explain-mcp must not register anything"),
     )

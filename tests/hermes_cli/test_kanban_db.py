@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hermes_cli.kanban_db_dispatch as _owner_hermes_cli_kanban_db_dispatch
+import hermes_cli.kanban_db_workspace as _owner_hermes_cli_kanban_db_workspace
+
 import concurrent.futures
 import os
 import sqlite3
@@ -1830,7 +1833,7 @@ def test_detect_crashed_workers_writes_supervisor_lost_child_artifact(
         host_prefix = _kb._claimer_id().split(":", 1)[0]
         kb.claim_task(conn, tid, claimer=f"{host_prefix}:s")
         kbd._set_worker_pid(conn, tid, dead_supervisor_pid)
-        _kb.set_workspace_path(conn, tid, str(workspace))
+        _owner_hermes_cli_kanban_db_workspace.set_workspace_path(conn, tid, str(workspace))
         conn.execute(
             "UPDATE tasks SET started_at = ? WHERE id = ?",
             (int(_kb.time.time()) - _kb.DEFAULT_CRASH_GRACE_SECONDS - 1, tid),
@@ -1856,7 +1859,7 @@ def test_detect_crashed_workers_writes_supervisor_lost_child_artifact(
 
         monkeypatch.setattr(_kb, "_pid_alive", _alive)
 
-        crashed = kb.detect_crashed_workers(conn)
+        crashed = _owner_hermes_cli_kanban_db_dispatch.detect_crashed_workers(conn)
         assert crashed == [tid]
 
         # The crashed event payload must carry an evidence_path and a
@@ -1954,7 +1957,7 @@ def test_detect_crashed_workers_process_failed_when_no_live_sidecar(
         host_prefix = _kb._claimer_id().split(":", 1)[0]
         kb.claim_task(conn, tid, claimer=f"{host_prefix}:s")
         kbd._set_worker_pid(conn, tid, 7777777)
-        _kb.set_workspace_path(conn, tid, str(workspace))
+        _owner_hermes_cli_kanban_db_workspace.set_workspace_path(conn, tid, str(workspace))
         conn.execute(
             "UPDATE tasks SET started_at = ? WHERE id = ?",
             (int(_kb.time.time()) - _kb.DEFAULT_CRASH_GRACE_SECONDS - 1, tid),
@@ -1963,7 +1966,7 @@ def test_detect_crashed_workers_process_failed_when_no_live_sidecar(
 
         monkeypatch.setattr(_kb, "_pid_alive", lambda _p: False)
 
-        crashed = kb.detect_crashed_workers(conn)
+        crashed = _owner_hermes_cli_kanban_db_dispatch.detect_crashed_workers(conn)
         assert crashed == [tid]
 
         events = kb.list_events(conn, tid)

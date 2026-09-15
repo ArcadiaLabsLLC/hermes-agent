@@ -188,6 +188,7 @@ class DownstreamGatewayMixin:
         try:
             from hermes_cli.config import load_config as _load_config
             from hermes_cli import kanban_db as _kb
+            from hermes_cli import kanban_db_connect, kanban_db_dispatch
             from hermes_cli.kanban_blocked_pm import (
                 BlockedPmHookConfig,
                 handle_blocked_event,
@@ -256,7 +257,7 @@ class DownstreamGatewayMixin:
                         seen_db_paths.add(resolved_db_path)
                         conn = None
                         try:
-                            conn = _kb.connect(board=slug)
+                            conn = kanban_db_connect.connect(board=slug)
                             cursor = int(cursors.get(resolved_db_path, 0) or 0)
                             events = unseen_blocked_events(conn, after_event_id=cursor)
                             if not events:
@@ -281,7 +282,7 @@ class DownstreamGatewayMixin:
                                     )
                             if created_any and dispatch_after_create:
                                 try:
-                                    _kb.dispatch_once(conn, board=slug, max_spawn=1)
+                                    kanban_db_dispatch.dispatch_once(conn, board=slug, max_spawn=1)
                                 except Exception as exc:
                                     logger.warning(
                                         "kanban blocked PM hook: dispatch after create "

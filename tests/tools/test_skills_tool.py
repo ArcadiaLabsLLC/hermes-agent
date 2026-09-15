@@ -1072,7 +1072,7 @@ class TestSkillSearch:
         with patch("tools.skills_tool.SKILLS_DIR", tmp_path), \
              patch("agent_runtime.skill_search.unified_search") as unified, \
              patch("agent_runtime.skill_search.create_source_router", return_value=[]):
-            from tools.skills_hub import SkillMeta
+            from tools.skills_hub_models import SkillMeta
 
             unified.return_value = [
                 SkillMeta(

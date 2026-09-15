@@ -1,3 +1,5 @@
+
+import hermes_cli.kanban_db_connect as _owner_hermes_cli_kanban_db_connect
 from hermes_cli import kanban_db as kb
 from hermes_cli.kanban_blocked_pm import (
     BlockedPmHookConfig,
@@ -16,7 +18,7 @@ def _setup_db(tmp_path, monkeypatch, name="blocked-hook.db"):
 
 def test_review_required_blocked_event_creates_one_pm_auto_route_card(tmp_path, monkeypatch):
     _setup_db(tmp_path, monkeypatch)
-    conn = kb.connect()
+    conn = _owner_hermes_cli_kanban_db_connect.connect()
     try:
         tid = kb.create_task(
             conn,
@@ -59,7 +61,7 @@ def test_review_required_blocked_event_creates_one_pm_auto_route_card(tmp_path, 
 
 def test_serious_credential_blocker_creates_serious_pm_triage_card(tmp_path, monkeypatch):
     _setup_db(tmp_path, monkeypatch, "serious-hook.db")
-    conn = kb.connect()
+    conn = _owner_hermes_cli_kanban_db_connect.connect()
     try:
         tid = kb.create_task(conn, title="Needs credential", assignee="worker")
         assert kb.block_task(
@@ -87,7 +89,7 @@ def test_serious_credential_blocker_creates_serious_pm_triage_card(tmp_path, mon
 
 def test_classifier_ignores_body_boilerplate_when_review_signal_is_non_serious(tmp_path, monkeypatch):
     _setup_db(tmp_path, monkeypatch, "classifier-hook.db")
-    conn = kb.connect()
+    conn = _owner_hermes_cli_kanban_db_connect.connect()
     try:
         tid = kb.create_task(
             conn,

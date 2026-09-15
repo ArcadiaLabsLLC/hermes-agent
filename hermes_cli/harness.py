@@ -5831,7 +5831,7 @@ def _usage_lane_detected(provider_id: str) -> bool:
     if provider_id == "openai-codex":
         return _codex_usage_login_detected()
     if provider_id == "anthropic":
-        from agent.anthropic_adapter import resolve_anthropic_token
+        from agent.anthropic_credentials import resolve_anthropic_token
 
         return bool((resolve_anthropic_token() or "").strip())
     if provider_id == "openrouter":

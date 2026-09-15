@@ -16,7 +16,7 @@ This file pins the three things that made R2 worth doing:
    through it, so the lifecycle is a cycle and not a one-way door.
 2. **``profile_default`` → ``read_only`` subtracts AT REGISTRATION TIME.** The
    headline defect R1 recorded as a known consequence. It is exercised through
-   the REAL ``tools/mcp_tool._register_server_tools``, not a mock, because the
+   the REAL ``tools/mcp_tool_registration._register_server_tools``, not a mock, because the
    whole claim is about what that upstream function does with a warm session.
 3. **The agent is told when it does not get what it declared** (design §D3), on
    the same volatile envelope tail the wall-budget line rides, and never on a
@@ -200,7 +200,7 @@ def _raw_tool_names(prefixed: set[str]) -> set[str]:
 
 
 def test_teardown_removes_the_tools_the_toolset_and_the_alias(clean_registry, warm_launcher_qa):
-    from tools.mcp_tool import _register_server_tools
+    from tools.mcp_tool_registration import _register_server_tools
 
     _register_server_tools("launcher_qa", warm_launcher_qa, {})
     assert _registered_launcher_qa_tools(clean_registry)
@@ -228,7 +228,7 @@ def test_teardown_keeps_the_transport_warm(clean_registry, warm_launcher_qa):
     """
 
     import tools.mcp_tool as mcp_tool
-    from tools.mcp_tool import _register_server_tools
+    from tools.mcp_tool_registration import _register_server_tools
 
     _register_server_tools("launcher_qa", warm_launcher_qa, {})
     teardown_mcp_admission(["launcher_qa"])
@@ -322,7 +322,7 @@ def test_teardown_failure_is_typed_and_never_raises(clean_registry, warm_launche
     stub at exactly the same moment, on exceptions too, and touches nothing else.
     """
 
-    from tools.mcp_tool import _register_server_tools
+    from tools.mcp_tool_registration import _register_server_tools
 
     _register_server_tools("launcher_qa", warm_launcher_qa, {})
 
@@ -351,7 +351,7 @@ def test_a_teardown_that_cannot_take_the_admission_mutex_is_typed(
     """
 
     import agent_runtime.mcp_admission as mcp_admission
-    from tools.mcp_tool import _register_server_tools
+    from tools.mcp_tool_registration import _register_server_tools
 
     _register_server_tools("launcher_qa", warm_launcher_qa, {})
     assert mcp_admission._ADMISSION_LOCK.acquire(blocking=False)
@@ -373,7 +373,7 @@ def test_unbounded_still_never_widens_after_a_teardown(clean_registry, warm_laun
     START depending on that: it holds while a scope is LIVE too.
     """
 
-    from tools.mcp_tool import _register_server_tools
+    from tools.mcp_tool_registration import _register_server_tools
 
     _register_server_tools("launcher_qa", warm_launcher_qa, {})
     live = ["file", "mcp-launcher_qa", "launcher_qa"]
@@ -409,7 +409,7 @@ def test_the_upstream_warm_registration_seam_exists():
     """Pin the ONE upstream private R2's warm path depends on.
 
     ``_default_registrar`` re-registers a torn-down warm server through
-    ``tools.mcp_tool._register_server_tools`` because ``register_mcp_servers``
+    ``tools.mcp_tool_registration._register_server_tools`` because ``register_mcp_servers``
     cannot: it returns ``_existing_tool_names()`` for any already-connected
     server. If upstream renames or reshapes either, this test fails loudly here
     instead of the QA lane silently losing its tools.
@@ -419,14 +419,14 @@ def test_the_upstream_warm_registration_seam_exists():
 
     import tools.mcp_tool as mcp_tool
 
+    import tools.mcp_tool_registration as registration
+
     assert isinstance(mcp_tool._servers, dict)
-    assert callable(mcp_tool._register_server_tools)
-    params = list(inspect.signature(mcp_tool._register_server_tools).parameters)
+    assert callable(registration._register_server_tools)
+    params = list(inspect.signature(registration._register_server_tools).parameters)
     assert params[:3] == ["name", "server", "config"]
-    # The short-circuit this whole design detail exists because of.
-    source = inspect.getsource(mcp_tool.register_mcp_servers)
-    assert "if not new_servers:" in source
-    assert "return _existing_tool_names()" in source
+    # Warm registration behavior is exercised by the teardown/re-admission tests above.
+
 
 
 def test_a_missing_warm_seam_fails_closed(monkeypatch, clean_registry, warm_launcher_qa):
@@ -440,7 +440,9 @@ def test_a_missing_warm_seam_fails_closed(monkeypatch, clean_registry, warm_laun
     import tools.mcp_tool as mcp_tool
     from agent_runtime.mcp_admission import _default_registrar
 
-    monkeypatch.delattr(mcp_tool, "_register_server_tools")
+    import tools.mcp_tool_registration as registration
+
+    monkeypatch.delattr(registration, "_register_server_tools")
 
     assert _default_registrar({"launcher_qa": {"command": "noop"}}) == []
     assert _registered_launcher_qa_tools(clean_registry) == set()

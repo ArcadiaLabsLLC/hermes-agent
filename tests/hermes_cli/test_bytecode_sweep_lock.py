@@ -26,6 +26,7 @@ from pathlib import Path
 import pytest
 
 from hermes_cli import main as hermes_main
+from hermes_cli import _bytecode_sweep as sweep
 
 
 def _make_repo(tmp_path: Path, sha: str = "a" * 40) -> Path:
@@ -49,7 +50,7 @@ def _make_pycache(repo: Path, subdir: str = "hermes_cli") -> Path:
 def _stale_stamp(repo: Path) -> None:
     """Record a fingerprint that does NOT match the repo — i.e. "checkout changed"."""
 
-    (repo / hermes_main._BYTECODE_FINGERPRINT_FILE).write_text(
+    (repo / sweep._BYTECODE_FINGERPRINT_FILE).write_text(
         "git:refs/heads/main:" + "0" * 40, encoding="utf-8"
     )
 
@@ -110,14 +111,14 @@ def test_the_winner_sweeps_restamps_and_releases_its_lock(monkeypatch, repo, cap
     purge = _CountingPurge()
     monkeypatch.setattr(hermes_main, "_clear_bytecode_cache", purge)
 
-    with caplog.at_level(logging.INFO, logger=hermes_main.logger.name):
-        hermes_main._sweep_stale_bytecode_if_checkout_changed()
+    with caplog.at_level(logging.INFO, logger=sweep.logger.name):
+        sweep._sweep_stale_bytecode_if_checkout_changed()
 
     assert purge.calls == 1
     assert _outcomes(caplog) == ["swept"]
     # Released, or every later launch on this checkout would wait for a ghost.
-    assert not hermes_main._bytecode_sweep_lock_path().exists()
-    recorded = (repo / hermes_main._BYTECODE_FINGERPRINT_FILE).read_text(
+    assert not sweep._bytecode_sweep_lock_path().exists()
+    recorded = (repo / sweep._BYTECODE_FINGERPRINT_FILE).read_text(
         encoding="utf-8"
     )
     assert recorded.strip().endswith("b" * 40)
@@ -133,22 +134,22 @@ def test_an_unchanged_checkout_never_touches_the_lock(monkeypatch, repo):
     no reason at all.
     """
 
-    (repo / hermes_main._BYTECODE_FINGERPRINT_FILE).write_text(
+    (repo / sweep._BYTECODE_FINGERPRINT_FILE).write_text(
         "git:refs/heads/main:" + "b" * 40, encoding="utf-8"
     )
     created: list[Path] = []
-    real_claim = hermes_main._claim_bytecode_sweep_lock
+    real_claim = sweep._claim_bytecode_sweep_lock
 
     def _watching_claim(path):
         created.append(path)
         return real_claim(path)
 
-    monkeypatch.setattr(hermes_main, "_claim_bytecode_sweep_lock", _watching_claim)
+    monkeypatch.setattr(sweep, "_claim_bytecode_sweep_lock", _watching_claim)
 
-    hermes_main._sweep_stale_bytecode_if_checkout_changed()
+    sweep._sweep_stale_bytecode_if_checkout_changed()
 
     assert created == []
-    assert not hermes_main._bytecode_sweep_lock_path().exists()
+    assert not sweep._bytecode_sweep_lock_path().exists()
 
 
 # ---------------------------------------------------------------------------
@@ -178,12 +179,12 @@ def test_two_concurrent_entries_run_exactly_one_sweep(monkeypatch, repo, caplog)
     purge = _CountingPurge()
     purge.hold = True
     monkeypatch.setattr(hermes_main, "_clear_bytecode_cache", purge)
-    monkeypatch.setattr(hermes_main, "_BYTECODE_SWEEP_LOCK_WAIT_SECONDS", 5.0)
+    monkeypatch.setattr(sweep, "_BYTECODE_SWEEP_LOCK_WAIT_SECONDS", 5.0)
 
     def _enter():
-        hermes_main._sweep_stale_bytecode_if_checkout_changed()
+        sweep._sweep_stale_bytecode_if_checkout_changed()
 
-    with caplog.at_level(logging.INFO, logger=hermes_main.logger.name):
+    with caplog.at_level(logging.INFO, logger=sweep.logger.name):
         threads = [threading.Thread(target=_enter, name=f"sweeper-{i}") for i in range(2)]
         for thread in threads:
             thread.start()
@@ -198,7 +199,7 @@ def test_two_concurrent_entries_run_exactly_one_sweep(monkeypatch, repo, caplog)
 
     assert purge.calls == 1, "the sweep ran more than once"
     assert sorted(_outcomes(caplog)) == ["swept", "waited_for_winner"]
-    assert not hermes_main._bytecode_sweep_lock_path().exists()
+    assert not sweep._bytecode_sweep_lock_path().exists()
 
 
 def test_a_loser_whose_wait_expires_proceeds_without_sweeping(monkeypatch, repo, caplog):
@@ -217,20 +218,20 @@ def test_a_loser_whose_wait_expires_proceeds_without_sweeping(monkeypatch, repo,
 
     purge = _CountingPurge()
     monkeypatch.setattr(hermes_main, "_clear_bytecode_cache", purge)
-    monkeypatch.setattr(hermes_main, "_BYTECODE_SWEEP_LOCK_WAIT_SECONDS", 0.2)
+    monkeypatch.setattr(sweep, "_BYTECODE_SWEEP_LOCK_WAIT_SECONDS", 0.2)
     # A lock held by somebody else, fresh enough to be honoured.
-    lock_path = hermes_main._bytecode_sweep_lock_path()
+    lock_path = sweep._bytecode_sweep_lock_path()
     lock_path.write_bytes(b"999999\n")
 
-    with caplog.at_level(logging.INFO, logger=hermes_main.logger.name):
-        hermes_main._sweep_stale_bytecode_if_checkout_changed()
+    with caplog.at_level(logging.INFO, logger=sweep.logger.name):
+        sweep._sweep_stale_bytecode_if_checkout_changed()
 
     assert purge.calls == 0
     assert _outcomes(caplog) == ["proceeded_unswept"]
     assert lock_path.exists(), "an expired waiter must not steal a live lock"
     # And it must not have restamped: the winner owns the stamp, and a loser that
     # restamped without sweeping would tell every LATER launch the cache is clean.
-    recorded = (repo / hermes_main._BYTECODE_FINGERPRINT_FILE).read_text(
+    recorded = (repo / sweep._BYTECODE_FINGERPRINT_FILE).read_text(
         encoding="utf-8"
     )
     assert recorded.strip().endswith("0" * 40)
@@ -248,14 +249,14 @@ def test_a_stale_lock_is_broken_rather_than_honoured_forever(monkeypatch, repo, 
 
     purge = _CountingPurge()
     monkeypatch.setattr(hermes_main, "_clear_bytecode_cache", purge)
-    monkeypatch.setattr(hermes_main, "_BYTECODE_SWEEP_LOCK_WAIT_SECONDS", 0.2)
-    lock_path = hermes_main._bytecode_sweep_lock_path()
+    monkeypatch.setattr(sweep, "_BYTECODE_SWEEP_LOCK_WAIT_SECONDS", 0.2)
+    lock_path = sweep._bytecode_sweep_lock_path()
     lock_path.write_bytes(b"1\n")
-    ancient = time.time() - (hermes_main._BYTECODE_SWEEP_LOCK_STALE_SECONDS + 60)
+    ancient = time.time() - (sweep._BYTECODE_SWEEP_LOCK_STALE_SECONDS + 60)
     os.utime(lock_path, (ancient, ancient))
 
-    with caplog.at_level(logging.INFO, logger=hermes_main.logger.name):
-        hermes_main._sweep_stale_bytecode_if_checkout_changed()
+    with caplog.at_level(logging.INFO, logger=sweep.logger.name):
+        sweep._sweep_stale_bytecode_if_checkout_changed()
 
     assert purge.calls == 1
     assert _outcomes(caplog) == ["swept"]
@@ -273,10 +274,10 @@ def test_a_fresh_lock_is_not_treated_as_stale(monkeypatch, repo):
 
     purge = _CountingPurge()
     monkeypatch.setattr(hermes_main, "_clear_bytecode_cache", purge)
-    monkeypatch.setattr(hermes_main, "_BYTECODE_SWEEP_LOCK_WAIT_SECONDS", 0.2)
-    hermes_main._bytecode_sweep_lock_path().write_bytes(b"1\n")
+    monkeypatch.setattr(sweep, "_BYTECODE_SWEEP_LOCK_WAIT_SECONDS", 0.2)
+    sweep._bytecode_sweep_lock_path().write_bytes(b"1\n")
 
-    hermes_main._sweep_stale_bytecode_if_checkout_changed()
+    sweep._sweep_stale_bytecode_if_checkout_changed()
 
     assert purge.calls == 0
 
@@ -296,10 +297,10 @@ def test_a_non_git_install_is_an_unchanged_no_op(monkeypatch, tmp_path):
     purge = _CountingPurge()
     monkeypatch.setattr(hermes_main, "_clear_bytecode_cache", purge)
 
-    hermes_main._sweep_stale_bytecode_if_checkout_changed()
+    sweep._sweep_stale_bytecode_if_checkout_changed()
 
     assert purge.calls == 0
-    assert not hermes_main._bytecode_sweep_lock_path().exists()
+    assert not sweep._bytecode_sweep_lock_path().exists()
 
 
 def test_a_checkout_that_cannot_hold_a_lock_still_sweeps(monkeypatch, repo):
@@ -323,19 +324,19 @@ def test_a_checkout_that_cannot_hold_a_lock_still_sweeps(monkeypatch, repo):
     purge = _CountingPurge()
     monkeypatch.setattr(hermes_main, "_clear_bytecode_cache", purge)
     monkeypatch.setattr(
-        hermes_main,
+        sweep,
         "_claim_bytecode_sweep_lock",
-        lambda path: hermes_main._SWEEP_CLAIM_UNAVAILABLE,
+        lambda path: sweep._SWEEP_CLAIM_UNAVAILABLE,
     )
-    monkeypatch.setattr(hermes_main, "_BYTECODE_SWEEP_LOCK_WAIT_SECONDS", 0.2)
+    monkeypatch.setattr(sweep, "_BYTECODE_SWEEP_LOCK_WAIT_SECONDS", 0.2)
 
-    hermes_main._sweep_stale_bytecode_if_checkout_changed()
+    sweep._sweep_stale_bytecode_if_checkout_changed()
 
     assert purge.calls == 1
     # It holds no lock, so it must not unlink one — a concurrent winner's claim
     # is not this process's to release.
-    assert not hermes_main._bytecode_sweep_lock_path().exists()
-    recorded = (repo / hermes_main._BYTECODE_FINGERPRINT_FILE).read_text(
+    assert not sweep._bytecode_sweep_lock_path().exists()
+    recorded = (repo / sweep._BYTECODE_FINGERPRINT_FILE).read_text(
         encoding="utf-8"
     )
     assert recorded.strip().endswith("b" * 40)
@@ -360,9 +361,9 @@ def test_losing_the_reclaim_after_breaking_a_stale_lock_is_still_contended(
     ``O_EXCL`` open of the lock path fail.
     """
 
-    lock_path = hermes_main._bytecode_sweep_lock_path()
+    lock_path = sweep._bytecode_sweep_lock_path()
     lock_path.write_bytes(b"1\n")
-    ancient = time.time() - (hermes_main._BYTECODE_SWEEP_LOCK_STALE_SECONDS + 60)
+    ancient = time.time() - (sweep._BYTECODE_SWEEP_LOCK_STALE_SECONDS + 60)
     os.utime(lock_path, (ancient, ancient))
 
     real_open = os.open
@@ -375,18 +376,18 @@ def test_losing_the_reclaim_after_breaking_a_stale_lock_is_still_contended(
     monkeypatch.setattr(hermes_main.os, "open", _always_taken)
 
     assert (
-        hermes_main._claim_bytecode_sweep_lock(lock_path)
-        == hermes_main._SWEEP_CLAIM_CONTENDED
+        sweep._claim_bytecode_sweep_lock(lock_path)
+        == sweep._SWEEP_CLAIM_CONTENDED
     )
 
     purge = _CountingPurge()
     monkeypatch.setattr(hermes_main, "_clear_bytecode_cache", purge)
-    monkeypatch.setattr(hermes_main, "_BYTECODE_SWEEP_LOCK_WAIT_SECONDS", 0.2)
+    monkeypatch.setattr(sweep, "_BYTECODE_SWEEP_LOCK_WAIT_SECONDS", 0.2)
     lock_path.write_bytes(b"1\n")
     os.utime(lock_path, (ancient, ancient))
 
-    with caplog.at_level(logging.INFO, logger=hermes_main.logger.name):
-        hermes_main._sweep_stale_bytecode_if_checkout_changed()
+    with caplog.at_level(logging.INFO, logger=sweep.logger.name):
+        sweep._sweep_stale_bytecode_if_checkout_changed()
 
     assert purge.calls == 0
     assert _outcomes(caplog) == ["waited_for_winner"]
@@ -411,7 +412,7 @@ def test_a_filesystem_that_refuses_the_open_reports_unavailable_not_contended(
     other; both are asserted.
     """
 
-    lock_path = hermes_main._bytecode_sweep_lock_path()
+    lock_path = sweep._bytecode_sweep_lock_path()
     real_open = os.open
 
     def _refusing_open(path, flags, *args, **kwargs):
@@ -422,15 +423,15 @@ def test_a_filesystem_that_refuses_the_open_reports_unavailable_not_contended(
     monkeypatch.setattr(hermes_main.os, "open", _refusing_open)
 
     assert (
-        hermes_main._claim_bytecode_sweep_lock(lock_path)
-        == hermes_main._SWEEP_CLAIM_UNAVAILABLE
+        sweep._claim_bytecode_sweep_lock(lock_path)
+        == sweep._SWEEP_CLAIM_UNAVAILABLE
     )
 
     purge = _CountingPurge()
     monkeypatch.setattr(hermes_main, "_clear_bytecode_cache", purge)
-    monkeypatch.setattr(hermes_main, "_BYTECODE_SWEEP_LOCK_WAIT_SECONDS", 0.2)
+    monkeypatch.setattr(sweep, "_BYTECODE_SWEEP_LOCK_WAIT_SECONDS", 0.2)
 
-    hermes_main._sweep_stale_bytecode_if_checkout_changed()
+    sweep._sweep_stale_bytecode_if_checkout_changed()
 
     assert purge.calls == 1, "an unlockable checkout lost the stale-bytecode guard"
 
@@ -449,14 +450,14 @@ def test_an_unavailable_claim_does_not_release_a_concurrent_winners_lock(
     purge = _CountingPurge()
     monkeypatch.setattr(hermes_main, "_clear_bytecode_cache", purge)
     monkeypatch.setattr(
-        hermes_main,
+        sweep,
         "_claim_bytecode_sweep_lock",
-        lambda path: hermes_main._SWEEP_CLAIM_UNAVAILABLE,
+        lambda path: sweep._SWEEP_CLAIM_UNAVAILABLE,
     )
-    lock_path = hermes_main._bytecode_sweep_lock_path()
+    lock_path = sweep._bytecode_sweep_lock_path()
     lock_path.write_bytes(b"424242\n")
 
-    hermes_main._sweep_stale_bytecode_if_checkout_changed()
+    sweep._sweep_stale_bytecode_if_checkout_changed()
 
     assert purge.calls == 1
     assert lock_path.exists(), "a process holding no claim released somebody's lock"

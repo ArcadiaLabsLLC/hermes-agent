@@ -14,6 +14,9 @@ stubbing ``subprocess.run`` instead. See ``_no_real_pip``'s docstring.
 
 from __future__ import annotations
 
+import shutil as _owner_shutil
+import subprocess as _owner_subprocess
+
 import threading
 
 import pytest
@@ -180,7 +183,7 @@ def test_tools_config_pip_install_refuses_venv_scoped_installs(monkeypatch):
     from hermes_cli import tools_config
 
     monkeypatch.setattr(
-        tools_config.subprocess,
+        _owner_subprocess,
         "run",
         lambda *a, **k: pytest.fail("pip ran under an armed barrier"),
     )
@@ -208,8 +211,8 @@ def test_tools_config_target_installs_stay_allowed(monkeypatch):
         calls.append(list(cmd))
         return _Ok()
 
-    monkeypatch.setattr(tools_config.shutil, "which", lambda name: None)
-    monkeypatch.setattr(tools_config.subprocess, "run", _fake_run)
+    monkeypatch.setattr(_owner_shutil, "which", lambda name: None)
+    monkeypatch.setattr(_owner_subprocess, "run", _fake_run)
     with lazy_deps.deny_venv_installs("an agent turn"):
         result = tools_config._pip_install(["--target", "/tmp/lsp", "pyright"])
 

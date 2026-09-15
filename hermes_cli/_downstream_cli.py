@@ -10,7 +10,7 @@ _FINGERPRINT_HOME_CLI_BOOT_SITE = "hermes_cli.main:harness_command_dispatch"
 def cmd_postinstall(args):
     """One-shot bootstrap for pip users: install non-Python deps + run setup."""
     from hermes_cli.main import _has_any_provider_configured, cmd_setup
-    from hermes_cli.config import stamp_install_method
+    from hermes_cli.install_method import stamp_install_method
     from hermes_cli.dep_ensure import ensure_dependency, ensure_git_bash, _DEP_CHECKS
     from hermes_cli.path_setup import register_hermes_command
     from hermes_constants import get_hermes_home

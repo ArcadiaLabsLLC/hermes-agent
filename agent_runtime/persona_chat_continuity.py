@@ -754,7 +754,7 @@ def chat_root_session_key_scope(scope_id: str | None) -> Iterator[None]:
         yield
         return
     try:
-        from tools.approval import (
+        from tools.approval_context import (
             reset_current_session_key,
             set_current_session_key,
         )

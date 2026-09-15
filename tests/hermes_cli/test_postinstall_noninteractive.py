@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hermes_cli.install_method as _owner_hermes_cli_install_method
+
 import json
 import os
 from pathlib import Path
@@ -20,7 +22,7 @@ def _patch_common(monkeypatch, calls, *, stub_shim: bool = True):
     import hermes_cli.main as main_mod
     import hermes_cli.path_setup as path_setup
 
-    monkeypatch.setattr(config_mod, "stamp_install_method", lambda _method: None)
+    monkeypatch.setattr(_owner_hermes_cli_install_method, "stamp_install_method", lambda _method: None)
     monkeypatch.setattr(
         dep_ensure,
         "ensure_dependency",

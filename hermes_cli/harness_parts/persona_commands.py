@@ -16,6 +16,7 @@ import re
 import sys
 import time
 import uuid
+from typing import Any
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 
@@ -1711,7 +1712,7 @@ def _cmd_persona_chat_delete(args) -> int:
     if registry is not None:
         registry.evict(session_id)
     try:
-        from tools.terminal_tool import cleanup_vm
+        from tools.terminal_tool_lifecycle import cleanup_vm
 
         cleanup_vm(session_id, force_remove=True)
     except Exception:

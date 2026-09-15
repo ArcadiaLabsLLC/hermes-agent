@@ -59,17 +59,8 @@ from agent.charsheet.spec import CHAR8, RowSpec, SheetSpec, row_key
 # Centralized in this ONE block so an upstream rename breaks loudly, at import
 # time, in a single place (plan §A-6).
 from agent.pet.generate import imagegen
-from agent.pet.generate.atlas import (
-    CELL_HEIGHT,
-    CELL_WIDTH,
-    _clear_transparent_rgb,
-    _fit_to_cell,
-    atlas_to_webp_bytes,
-    extract_strip_frames,
-    frame_x_bounds,
-    normalize_cells,
-    remove_background,
-)
+from agent.pet.generate.atlas import CELL_HEIGHT, CELL_WIDTH, _clear_transparent_rgb, _fit_to_cell, extract_strip_frames, frame_x_bounds, normalize_cells, remove_background
+from agent.pet.generate.encoding import atlas_to_webp_bytes
 
 logger = logging.getLogger(__name__)
 

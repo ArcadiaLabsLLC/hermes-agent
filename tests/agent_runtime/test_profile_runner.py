@@ -1,3 +1,5 @@
+
+import agent.prompt_builder as _owner_agent_prompt_builder
 import os
 import time
 from pathlib import Path
@@ -1919,7 +1921,7 @@ def test_rendered_skills_prompt_chars_guards_and_measures(monkeypatch):
     rendered_text = "## Skills (mandatory)\n" + "x" * 9000
     monkeypatch.setattr(run_agent, "get_toolset_for_tool", lambda name: "skills")
     monkeypatch.setattr(
-        run_agent, "build_skills_system_prompt", lambda **kwargs: rendered_text
+        _owner_agent_prompt_builder, "build_skills_system_prompt", lambda **kwargs: rendered_text
     )
     agent = SimpleNamespace(
         valid_tool_names={"skill_view", "skills_list", "web_search"}, platform="cli"
@@ -1937,7 +1939,7 @@ def test_rendered_skills_prompt_chars_swallows_render_failure(monkeypatch):
     def _boom(**kwargs):
         raise RuntimeError("render exploded")
 
-    monkeypatch.setattr(run_agent, "build_skills_system_prompt", _boom)
+    monkeypatch.setattr(_owner_agent_prompt_builder, "build_skills_system_prompt", _boom)
     agent = SimpleNamespace(valid_tool_names={"skill_view"}, platform="cli")
     assert _rendered_skills_prompt_chars(agent) is None
 

@@ -971,7 +971,7 @@ def _prefixed_tool_names(server: str, tool_names: Iterable[str]) -> list[str]:
     if not names:
         return []
     try:
-        from tools.mcp_tool import mcp_prefixed_tool_name
+        from tools.mcp_tool_schema import mcp_prefixed_tool_name
     except Exception:  # pragma: no cover - MCP SDK absent; the tools.exclude filter still applies
         logger.debug("MCP admission could not resolve prefixed tool names", exc_info=True)
         return []
@@ -1617,7 +1617,7 @@ def _default_registrar(servers: Mapping[str, Mapping[str, Any]]) -> list[str]:
     for name, cfg in warm.items():
         names.extend(_reregister_warm_server(name, dict(cfg)))
     if cold:
-        from tools.mcp_tool import register_mcp_servers
+        from tools.mcp_tool_discovery import register_mcp_servers
 
         names.extend(register_mcp_servers({name: dict(cfg) for name, cfg in cold.items()}) or [])
     return names
@@ -1791,7 +1791,7 @@ def _wake_parked_servers(names: Sequence[str]) -> frozenset[str]:
 def _reregister_warm_server(name: str, config: dict[str, Any]) -> list[str]:
     """Re-register a connected server's tools under THIS run's tool filter.
 
-    The upstream seam (``tools.mcp_tool._register_server_tools``) is the same one
+    The upstream seam (``tools.mcp_tool_registration._register_server_tools``) is the same one
     dynamic ``notifications/tools/list_changed`` refresh uses to nuke-and-repave
     an MCP server's registry scope, which is exactly the operation R2 needs — it
     honours ``tools.include`` / ``tools.exclude``, re-registers the toolset alias,
@@ -1804,7 +1804,8 @@ def _reregister_warm_server(name: str, config: dict[str, Any]) -> list[str]:
     """
 
     try:
-        from tools.mcp_tool import _register_server_tools, _servers
+        from tools.mcp_tool import _servers
+        from tools.mcp_tool_registration import _register_server_tools
 
         server = dict(_servers).get(name)
         if server is None:  # pragma: no cover - raced against a disconnect

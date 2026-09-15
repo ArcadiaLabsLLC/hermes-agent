@@ -1,4 +1,4 @@
-import { atom } from 'nanostores'
+import { atom, type WritableAtom } from 'nanostores'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import { createClientSessionState } from '@/lib/chat-runtime'
@@ -11,14 +11,16 @@ vi.mock('./composer-status', async importOriginal => ({
   $backgroundRunningSessionIds: atom<string[]>([])
 }))
 
+const background = $backgroundRunningSessionIds as WritableAtom<string[]>
+
 afterEach(() => {
   clearAllSessionStates()
-  $backgroundRunningSessionIds.set([])
+  background.set([])
 })
 
 it('keeps working and stalled turns above a background process, then yields when idle', () => {
   const id = 'downstream-dot-priority'
-  $backgroundRunningSessionIds.set([id])
+  background.set([id])
   publishSessionState(id, { ...createClientSessionState(id), busy: true })
   expect($sessionDotStateById.get()[id]).toBe('working')
   expect(showsRunningArc($sessionDotStateById.get()[id])).toBe(true)

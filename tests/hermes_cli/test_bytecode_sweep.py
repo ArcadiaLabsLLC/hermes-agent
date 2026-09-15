@@ -18,6 +18,7 @@ import pytest
 
 from hermes_cli import _boot_clock
 from hermes_cli import main as hermes_main
+from hermes_cli import _bytecode_sweep as sweep
 from hermes_cli import main_web_build
 
 
@@ -47,7 +48,7 @@ def test_sweep_clears_pycache_when_checkout_changed(monkeypatch, tmp_path):
         "git:refs/heads/main:" + "a" * 40, encoding="utf-8"
     )
 
-    hermes_main._sweep_stale_bytecode_if_checkout_changed()
+    sweep._sweep_stale_bytecode_if_checkout_changed()
 
     assert not cache.exists()
     # Stamp updated to the current fingerprint.
@@ -89,13 +90,13 @@ def test_a_sweep_records_its_duration_for_the_boot_frame(
     repo = _make_repo(tmp_path, sha="c" * 40)
     _make_pycache(repo)
     monkeypatch.setattr(hermes_main, "PROJECT_ROOT", repo)
-    (repo / hermes_main._BYTECODE_FINGERPRINT_FILE).write_text(
+    (repo / sweep._BYTECODE_FINGERPRINT_FILE).write_text(
         "git:refs/heads/main:" + "a" * 40, encoding="utf-8"
     )
 
     assert _boot_clock.BYTECODE_SWEEP_MS is None
-    with caplog.at_level(logging.INFO, logger=hermes_main.logger.name):
-        hermes_main._sweep_stale_bytecode_if_checkout_changed()
+    with caplog.at_level(logging.INFO, logger=sweep.logger.name):
+        sweep._sweep_stale_bytecode_if_checkout_changed()
 
     assert _boot_clock.BYTECODE_SWEEP_MS is not None
     assert _boot_clock.BYTECODE_SWEEP_MS >= 0
@@ -122,11 +123,11 @@ def test_a_no_op_sweep_still_records_a_duration(
     cache = _make_pycache(repo)
     monkeypatch.setattr(hermes_main, "PROJECT_ROOT", repo)
     # Stamp already matches — the early return.
-    (repo / hermes_main._BYTECODE_FINGERPRINT_FILE).write_text(
+    (repo / sweep._BYTECODE_FINGERPRINT_FILE).write_text(
         "git:refs/heads/main:" + "d" * 40, encoding="utf-8"
     )
 
-    hermes_main._sweep_stale_bytecode_if_checkout_changed()
+    sweep._sweep_stale_bytecode_if_checkout_changed()
 
     assert cache.exists(), "nothing should have been swept"
     assert _boot_clock.BYTECODE_SWEEP_MS is not None
@@ -141,7 +142,7 @@ def test_a_non_git_install_still_records_a_duration(
     (repo / "hermes_cli").mkdir(parents=True)
     monkeypatch.setattr(hermes_main, "PROJECT_ROOT", repo)
 
-    hermes_main._sweep_stale_bytecode_if_checkout_changed()
+    sweep._sweep_stale_bytecode_if_checkout_changed()
 
     assert _boot_clock.BYTECODE_SWEEP_MS is not None
 

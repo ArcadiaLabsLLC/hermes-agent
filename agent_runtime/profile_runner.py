@@ -3440,6 +3440,7 @@ def _rendered_skills_prompt_chars(agent) -> int | None:
         if not any(name in valid for name in ("skills_list", "skill_view", "skill_manage")):
             return None
         import run_agent
+        from agent import prompt_builder
 
         avail_toolsets = {
             toolset
@@ -3458,7 +3459,7 @@ def _rendered_skills_prompt_chars(agent) -> int | None:
             )
         except Exception:
             compact = None
-        rendered = run_agent.build_skills_system_prompt(
+        rendered = prompt_builder.build_skills_system_prompt(
             available_tools=valid,
             available_toolsets=avail_toolsets,
             compact_categories=compact,

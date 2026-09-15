@@ -37,6 +37,9 @@ behaviour is unchanged: nothing in ``agent/anthropic_adapter.py`` moved.
 
 from __future__ import annotations
 
+import agent.anthropic_credentials as _owner_agent_anthropic_credentials
+import pathlib as _owner_pathlib
+
 import ast
 import json
 import warnings
@@ -64,9 +67,9 @@ def _synthetic_home(monkeypatch, tmp_path, *, seed_credentials: bool = False) ->
     surfaces as "the synthetic file was read/written" — never as a read of the
     operator's real login.
     """
-    import agent.anthropic_adapter as aa
+    import agent.anthropic_credentials as aa
 
-    monkeypatch.setattr(aa.Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(_owner_pathlib.Path, "home", lambda: tmp_path)
     if seed_credentials:
         cred_file = tmp_path / ".claude" / ".credentials.json"
         cred_file.parent.mkdir(parents=True, exist_ok=True)
@@ -99,18 +102,18 @@ def test_credentials_file_reader_is_neutralized(tmp_path, monkeypatch):
     ``_neutralize_claude_code_credentials_file`` and this goes red — the
     synthetic token comes back, which on an unsandboxed home is the operator's.
     """
-    import agent.anthropic_adapter as aa
+    import agent.anthropic_credentials as aa
 
     home = _synthetic_home(monkeypatch, tmp_path, seed_credentials=True)
     assert _credential_files_under(home), "fixture did not seed the synthetic file"
 
     assert aa._read_claude_code_credentials_from_file() is None
-    assert aa.read_claude_code_credentials() is None
+    assert _owner_agent_anthropic_credentials.read_claude_code_credentials() is None
 
 
 def test_credentials_file_reader_is_the_neutralized_stub():
     """The module attribute itself must be the conftest stub, not the real reader."""
-    import agent.anthropic_adapter as aa
+    import agent.anthropic_credentials as aa
 
     assert getattr(
         aa._read_claude_code_credentials_from_file, "_hermes_neutralized", False
@@ -128,7 +131,7 @@ def test_credentials_file_writer_is_neutralized(tmp_path, monkeypatch):
     appears, which on an unsandboxed home is the operator's live login
     overwritten with whatever a mocked refresh endpoint returned.
     """
-    import agent.anthropic_adapter as aa
+    import agent.anthropic_credentials as aa
 
     home = _synthetic_home(monkeypatch, tmp_path)
 
@@ -140,7 +143,7 @@ def test_credentials_file_writer_is_neutralized(tmp_path, monkeypatch):
 
 
 def test_credentials_file_writer_is_the_neutralized_stub():
-    import agent.anthropic_adapter as aa
+    import agent.anthropic_credentials as aa
 
     assert getattr(
         aa._write_claude_code_credentials, "_hermes_neutralized", False
@@ -156,14 +159,14 @@ def test_token_refresh_path_cannot_write_the_credentials_file(
     rotated pair. This is the specific route that could overwrite the
     operator's Claude Code login from a test whose network layer is mocked.
     """
-    import agent.anthropic_adapter as aa
+    import agent.anthropic_credentials as aa
 
     home = _synthetic_home(monkeypatch, tmp_path)
     counts = _neutralize_claude_code_credentials_file
 
-    monkeypatch.setattr(aa, "read_claude_code_credentials", lambda: None)
+    monkeypatch.setattr(_owner_agent_anthropic_credentials, "read_claude_code_credentials", lambda: None)
     monkeypatch.setattr(
-        aa,
+        _owner_agent_anthropic_credentials,
         "refresh_anthropic_oauth_pure",
         lambda *_a, **_k: {
             "access_token": _SYNTHETIC_ROTATED,
@@ -190,7 +193,7 @@ def test_pool_refresh_path_cannot_write_the_credentials_file(
     the refresh, so the module-attribute patch covers it — but only because
     the import is late. Assert it, rather than assume it.
     """
-    import agent.anthropic_adapter as aa
+    import agent.anthropic_credentials as aa
     from agent.credential_pool import (
         AUTH_TYPE_OAUTH,
         CredentialPool,
@@ -201,7 +204,7 @@ def test_pool_refresh_path_cannot_write_the_credentials_file(
     counts = _neutralize_claude_code_credentials_file
 
     monkeypatch.setattr(
-        aa,
+        _owner_agent_anthropic_credentials,
         "refresh_anthropic_oauth_pure",
         lambda *_a, **_k: {
             "access_token": _SYNTHETIC_ROTATED,
@@ -263,7 +266,7 @@ def test_ungated_available_entries_route_lands_in_the_stub(
         last_status=STATUS_EXHAUSTED,
     )
     pool = CredentialPool("anthropic", [entry])
-    available = pool._available_entries()
+    available, _ = pool._available_entries()
 
     assert counts["read"] > 0, "route 1 did NOT reach the credentials-file reader"
     # Neutralized: the synthetic file's tokens must not have been synced in.
@@ -580,9 +583,9 @@ class TestOptInStillNeverTouchesTheHostFile:
     """The opt-in half, exercised: real code path, synthetic home, no leak."""
 
     def test_real_reader_runs_against_the_tmpdir_only(self, tmp_path, monkeypatch):
-        import agent.anthropic_adapter as aa
+        import agent.anthropic_credentials as aa
 
-        monkeypatch.setattr(aa.Path, "home", lambda: tmp_path)
+        monkeypatch.setattr(_owner_pathlib.Path, "home", lambda: tmp_path)
         assert not getattr(
             aa._read_claude_code_credentials_from_file, "_hermes_neutralized", False
         ), "the marker did not disengage the neutralization"
@@ -597,9 +600,9 @@ class TestOptInStillNeverTouchesTheHostFile:
         assert creds["source"] == "claude_code_credentials_file"
 
     def test_real_writer_lands_inside_the_tmpdir_only(self, tmp_path, monkeypatch):
-        import agent.anthropic_adapter as aa
+        import agent.anthropic_credentials as aa
 
-        monkeypatch.setattr(aa.Path, "home", lambda: tmp_path)
+        monkeypatch.setattr(_owner_pathlib.Path, "home", lambda: tmp_path)
         aa._write_claude_code_credentials(
             _SYNTHETIC_ACCESS, _SYNTHETIC_REFRESH, _FAR_FUTURE_MS
         )

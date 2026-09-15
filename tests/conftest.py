@@ -1033,7 +1033,7 @@ def _neutralize_claude_code_credentials_file(request, monkeypatch):
         return counts
 
     try:
-        import agent.anthropic_adapter as _anthropic_adapter
+        import agent.anthropic_credentials as _anthropic_adapter
     except Exception:
         return counts
 

@@ -1,3 +1,5 @@
+
+import hermes_cli.kanban_db_connect as _owner_hermes_cli_kanban_db_connect
 import asyncio
 
 from gateway.run import GatewayRunner
@@ -39,7 +41,7 @@ def test_gateway_blocked_pm_hook_routes_blocked_event_without_subscription(tmp_p
         },
     )
 
-    conn = kb.connect()
+    conn = _owner_hermes_cli_kanban_db_connect.connect()
     try:
         tid = kb.create_task(conn, title="Implementation complete", assignee="worker")
         assert kb.block_task(conn, tid, reason="review-required: implementation complete, tests green")
@@ -52,7 +54,7 @@ def test_gateway_blocked_pm_hook_routes_blocked_event_without_subscription(tmp_p
 
     asyncio.run(_run_one_blocked_pm_hook_tick(monkeypatch, runner))
 
-    conn = kb.connect()
+    conn = _owner_hermes_cli_kanban_db_connect.connect()
     try:
         rows = conn.execute(
             "SELECT id, title, assignee, body, idempotency_key FROM tasks "
