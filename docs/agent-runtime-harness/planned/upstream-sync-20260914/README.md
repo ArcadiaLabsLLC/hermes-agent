@@ -1,4 +1,4 @@
-> Latest: [checkpoint 10](integration-stage10.md). Candidate and real-model proof complete; main delivery held because the live service imports the primary checkout. Earlier checkpoints are historical.
+> Latest: [checkpoint 13](integration-stage13.md). Launcher updater protection is on main. Hermes remains an unlanded candidate with regression checks still in progress; earlier completeness statements are superseded. The live service still imports the primary checkout.
 
 # Hermes upstream synchronization checkpoint — 2026-09-14
 
