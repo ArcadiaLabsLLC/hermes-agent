@@ -533,6 +533,7 @@ class TestDeleteProfile:
         )
         monkeypatch.setitem(sys.modules, "psutil", fake_psutil)
 
+        monkeypatch.setattr(profiles, "_PROCESS_LISTER", profiles._PsutilProcessLister())
         pids = profiles._profile_bound_backend_pids("coder", profile_dir)
         assert pids == [201]
 
@@ -622,6 +623,7 @@ class TestDeleteProfile:
         )
         monkeypatch.setitem(sys.modules, "psutil", fake_psutil)
 
+        monkeypatch.setattr(profiles, "_PROCESS_LISTER", profiles._PsutilProcessLister())
         pids = profiles._profile_bound_backend_pids("coder", profile_dir)
         assert set(pids) == {401, 402}
 
