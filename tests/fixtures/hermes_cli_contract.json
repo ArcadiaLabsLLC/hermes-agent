@@ -15133,6 +15133,14 @@
           "required": false,
           "type": null
         },
+        "--clone-channels": {
+          "action": "store_true",
+          "canonical": "--clone-channels",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
         "--clone-from": {
           "action": "store",
           "canonical": "--clone-from",
