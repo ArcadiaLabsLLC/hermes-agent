@@ -74,6 +74,22 @@
         "      Tests  1 passed (1)"
       ],
       "test_targets": null
+    },
+    {
+      "log": "candidate-final-seams-stage10.log",
+      "sha256": "baccad275549701bc0192dc2298655c5d78acbc477e895ffd8085d7e86d3dba2",
+      "summaries": [
+        "=== Summary: 8 files, 94 tests passed, 2 failed, 1 skipped (100% complete) in 117.9s (4 workers) ==="
+      ],
+      "test_targets": "Discovered 8 test files (~102 tests) under ['tests\\\\hermes_cli\\\\test_auth_profile_fallback.py', 'tests\\\\hermes_cli\\\\test_auth_provider_scope.py', 'tests\\\\hermes_cli\\\\test_auth_store_read_failure.py', 'tests\\\\hermes_cli\\\\test_auth_pool_operations.py', 'tests\\\\hermes_cli\\\\test_local_runtime.py', 'tests\\\\hermes_cli\\\\test_local_runtime_recovery.py', 'tests\\\\agent_runtime\\\\test_peer_authorization.py', 'tests\\\\tui_gateway\\\\test_kanban_notify_poller.py']; running with -j 4"
+    },
+    {
+      "log": "candidate-final-seams-repaired-stage10.log",
+      "sha256": "64620e1a991dfe408420f960423642e2f5d981ff4012ddcd8c162d005bd10ded",
+      "summaries": [
+        "=== Summary: 2 files, 68 tests passed, 0 failed (100% complete) in 27.7s (2 workers) ==="
+      ],
+      "test_targets": "Discovered 2 test files (~52 tests) under ['tests\\\\tui_gateway\\\\test_kanban_notify_poller.py', 'tests\\\\hermes_cli\\\\test_local_runtime.py']; running with -j 2"
     }
   ],
   "real_probe": {
@@ -95,5 +111,7 @@
     "command": " .venv/Scripts/python.exe scripts/probe_local_llama_runtime.py --executable X:/AI/TextGen/models/llamacpp-upstream/backends/b10809/win-cuda-13.3-x64/build/bin/llama-server.exe --model X:/AI/TextGen/models/llamacpp/models/mradermacher/qwen-3_8-27b-abliterated_i1-Q4_K_M/model.gguf --output X:/wt/hermes-upstream-audit-20260914/qa-artifacts/upstream-sync-candidate-llama",
     "exit_code": 0,
     "isolation": "own home, runtime root, loopback port and owned child processes; service.shutdown completed"
-  }
+  },
+  "final_code_candidate": "b547f783a85a456c3e269b80936c4e85d5c7144a",
+  "superseded_failures": "Stage8/9/10 exploratory failures have passing named followups. Stage10 local-runtime timeout repeated once; stub HTTP server never reported unload. Corrected stub state transition; 53 local-runtime tests and 15 kanban notification tests pass. No production timeout relaxation."
 }

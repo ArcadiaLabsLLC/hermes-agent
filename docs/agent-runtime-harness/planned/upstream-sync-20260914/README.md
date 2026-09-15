@@ -1,3 +1,5 @@
+> Latest: [checkpoint 10](integration-stage10.md). Candidate and real-model proof complete; main delivery held because the live service imports the primary checkout. Earlier checkpoints are historical.
+
 # Hermes upstream synchronization checkpoint — 2026-09-14
 
 Status: inventory and recovery checkpoint; upstream integration is NOT validated
