@@ -14,6 +14,7 @@ RETRY_POLICY = REPO_ROOT / "scripts" / "desktop-update" / "retry-policy.ps1"
 
 
 @pytest.mark.windows_only
+@pytest.mark.timeout(45)  # Preserve the child PowerShell policy's 30s budget.
 def test_retry_policy_distinguishes_self_lock_deferral(tmp_path: Path) -> None:
     install_root = tmp_path / "hermes-agent"
     install_root.mkdir()
