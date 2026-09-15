@@ -520,3 +520,14 @@ def test_chat_lane_preview_matches_actual_lane_with_restore_config(
     assert "terminal" not in final
     assert "skill_manage" not in final
     assert "clarify" in final
+
+
+def test_bounded_persona_still_blocks_renamed_cron_tool():
+    persona = _persona("dev")
+    bounded = resolve_tool_visibility(persona, ToolVisibilityOptions(
+        permission_mode=PERMISSION_MODE_PROFILE_DEFAULT, enabled_toolsets=["cronjob"]))
+    unbounded = resolve_tool_visibility(persona, ToolVisibilityOptions(
+        permission_mode=PERMISSION_MODE_UNBOUNDED, enabled_toolsets=["cronjob"]))
+    assert "cronjob_manage" in unbounded["final_model_tools"]
+    assert "cronjob_manage" not in bounded["final_model_tools"]
+    assert "cronjob_manage" in bounded["blocked_tool_names"]

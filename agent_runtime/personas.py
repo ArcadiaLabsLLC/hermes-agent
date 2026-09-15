@@ -117,6 +117,7 @@ PERSONA_BLOCKED_TOOLS = frozenset(
         "memory",
         "send_message",
         "cronjob",
+        "cronjob_manage",  # upstream action-tool name; preserve the bounded-lane block
     }
 ) | REGISTRY_HYGIENE_BLOCKED_TOOLS
 
