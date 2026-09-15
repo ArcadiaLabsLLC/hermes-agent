@@ -1,4 +1,4 @@
-> Latest: [checkpoint 12](integration-stage12.md). Launcher updater protection is on main. Hermes remains an unlanded candidate with regression checks still in progress; earlier completeness statements are superseded. The live service still imports the primary checkout.
+> Latest: [checkpoint 13](integration-stage13.md). Launcher updater protection is on main. Hermes remains an unlanded candidate with regression checks still in progress; earlier completeness statements are superseded. The live service still imports the primary checkout.
 
 # Hermes upstream synchronization checkpoint — 2026-09-14
 
