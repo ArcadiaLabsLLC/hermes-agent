@@ -99,6 +99,7 @@ RULED_EXEMPTIONS_PATH = TESTS_ROOT / "source_grep_ruled_exemptions.txt"
 UPSTREAM_ASSERTIONS_PATH = TESTS_ROOT / "upstream_source_assertions.json"
 PINNED_UPSTREAM = "110baa095bc7135a0624557a9cc35df0f98ece0f"
 PINNED_UPSTREAM_COUNT = 66
+PINNED_HASH_FORMAT = "sha256-ast-dump-no-empty-type-params-v1"
 
 
 #: What separates a ruled exemption's KEY from its one-line reason. Split at the
@@ -572,6 +573,12 @@ _REMEDY = (
 
 def _function_hashes(source: str) -> dict[str, list[str]]:
     tree = ast.parse(source)
+    # Python 3.12 added empty type_params fields to existing function/class ASTs.
+    # Omit only that empty field so 3.11 and 3.12+ hash the same source identically.
+    # Nonempty type parameters remain part of the semantic fingerprint.
+    for node in ast.walk(tree):
+        if getattr(node, "type_params", None) == []:
+            del node.type_params
     names = _qualname_index(tree)
     hashes: dict[str, list[str]] = {}
     for node in ast.walk(tree):
@@ -585,6 +592,8 @@ def _pinned_upstream_errors(data: dict, found: list[str], root: Path) -> list[st
     """Validate the approved import without importing or running its test modules."""
     errors = []
     entries = data.get("entries", [])
+    if data.get("hash_format") != PINNED_HASH_FORMAT:
+        errors.append("upstream fingerprint format changed")
     if data.get("upstream") != PINNED_UPSTREAM:
         errors.append("upstream baseline changed without a new review")
     if data.get("approved_count") != len(entries) or len(entries) > PINNED_UPSTREAM_COUNT:
@@ -869,7 +878,7 @@ def test_detector_leaves_the_allowed_form_alone(label: str) -> None:
     assert _violations_of(ALLOWED_FORMS[label]) == [], f"{label} was wrongly flagged"
 
 
-@pytest.mark.parametrize("change", ["function", "stale", "duplicate", "baseline", "count"])
+@pytest.mark.parametrize("change", ["function", "stale", "duplicate", "baseline", "count", "format"])
 def test_pinned_upstream_register_rejects_drift(tmp_path, change):
     path = tmp_path / "tests" / "example.py"
     path.parent.mkdir()
@@ -877,7 +886,7 @@ def test_pinned_upstream_register_rejects_drift(tmp_path, change):
     path.write_text(source, encoding="utf-8")
     key = "tests/example.py::test_example::example assertion"
     row = {"key": key, "function_sha256": _function_hashes(source)["test_example"][0]}
-    data = {"upstream": PINNED_UPSTREAM, "approved_count": 1, "entries": [row]}
+    data = {"upstream": PINNED_UPSTREAM, "hash_format": PINNED_HASH_FORMAT, "approved_count": 1, "entries": [row]}
     found = [key]
     assert _pinned_upstream_errors(data, found, tmp_path) == []
     if change == "function":
@@ -889,6 +898,8 @@ def test_pinned_upstream_register_rejects_drift(tmp_path, change):
         data["approved_count"] = 2
     elif change == "baseline":
         data["upstream"] = "another baseline"
+    elif change == "format":
+        data["hash_format"] = "unreviewed"
     else:
         data["approved_count"] = 2
     assert _pinned_upstream_errors(data, found, tmp_path)
