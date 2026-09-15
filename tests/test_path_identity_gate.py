@@ -96,7 +96,7 @@ _MIN_SCANNED_FILES = 60
 #: comparison at that site is CORRECT, and the claim has to be defensible on its
 #: own terms. "It has always been like that" is not a reason.
 _RAW_PATH_COMPARISON_EXEMPTIONS: dict[tuple[str, str], str] = {
-    ("tools/approval.py", "_is_exempt_verification_artifact_path"): (
+    ("tools/approval_detection.py", "_is_exempt_verification_artifact_path"): (
         "Deliberate LITERAL-SPELLING guard, not an identity question. The "
         "operand must be written as the canonical temp dir joined with a bare "
         "basename; that string equality is exactly what refuses "
@@ -113,13 +113,30 @@ _RAW_PATH_COMPARISON_EXEMPTIONS: dict[tuple[str, str], str] = {
         "collapse the hops the walk exists to inspect one at a time — every "
         "device check in the loop already runs through _posix_match_forms."
     ),
-    ("tools/terminal_tool.py", "_get_env_config"): (
+    ("tools/terminal_tool.py", "_resolve_config_cwd"): (
         "Classifies a cwd as host-shaped vs container-shaped by SPELLING, which "
         "is the question being asked: _HOST_CWD_PREFIXES is ('/Users/', "
         "'/home/', 'C:\\\\', 'C:/') and '/workspace'//root' are container-side "
         "roots that need not exist on this host. A resolution-based test cannot "
         "answer 'does this look like a host path' — realpath would anchor the "
         "container spellings to the host filesystem and invert the verdict."
+    ),
+    ("tools/terminal_tool.py", "_resolve_task_host_cwd"): (
+        "Host/container spelling classification, extracted from _get_env_config; "
+        "container roots cannot be resolved against the host filesystem."
+    ),
+    ("tools/file_operations_lint.py", "_has_ancestor_tsconfig"): (
+        "Root termination of a dirname walk over one absolute spelling; resolving "
+        "symlinks would change which lexical ancestors the project search visits."
+    ),
+    ("tools/file_operations_search.py", "_effective_macos_search_exclusions"): (
+        "Remote POSIX search-root spelling and deduplication, as well as local roots; "
+        "a remote path cannot be resolved against the host filesystem. Local keys "
+        "already use normcase and all entries share the same normalizer."
+    ),
+    ("tools/read_extract.py", "_extract_xlsx"): (
+        "ZIP member names, not host files: POSIX-normalized relationship targets "
+        "must match case-sensitive archive member spellings."
     ),
 }
 

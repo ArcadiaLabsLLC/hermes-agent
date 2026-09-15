@@ -14,6 +14,7 @@ from pathlib import Path
 
 from tools.binary_extensions import has_opaque_document_extension, is_pdf_path
 from tools.file_tools_paths import _expand_tilde, _resolve_path_for_task
+from tools.path_identity import denotes_same_file
 
 # Prefixes matched after realpath. macOS: /private/var mirrors /var — block the
 # sensitive subtrees only; a blanket "/private/var/" refuses every temp-file
@@ -121,7 +122,7 @@ def _hermes_exempt_homes() -> tuple[str, ...]:
     if profile_home is None:
         return (home,)
     root = os.path.realpath(str(Path(str(profile_home)).parent.parent))
-    return (home, root) if root and root != home else (home,)
+    return (home, root) if root and not denotes_same_file(root, home) else (home,)
 
 
 def _resolved_or_raw(filepath: str, task_id: str) -> str:
@@ -212,7 +213,7 @@ def _protected_instruction_reason(filepath: str, task_id: str = "default",
     # ``_hermes_exempt_homes`` also covers the ROOT when the active home is a named
     # profile, so ~/.hermes/<file> cannot read as project-local ``.hermes`` config.
     for real_home in _hermes_exempt_homes():
-        if resolved == real_home or resolved.startswith(real_home + os.sep):
+        if Path(resolved).is_relative_to(Path(real_home)):
             return None
 
     for candidate in (normalized, resolved):
