@@ -101,7 +101,7 @@ def test_dir_writable_probe(tmp_path) -> None:
         ro.chmod(0o755)
 
 
-def test_adapter_import_does_not_resolve_sidecar_dir() -> None:
+def test_adapter_import_does_not_resolve_sidecar_dir(monkeypatch) -> None:
     """Importing the adapter must not probe the filesystem or mirror files.
 
     resolve_sidecar_dir() touch/unlink-probes the source tree and may copy

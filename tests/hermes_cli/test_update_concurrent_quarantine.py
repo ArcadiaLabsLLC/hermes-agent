@@ -276,6 +276,7 @@ def test_pause_windows_gateways_for_update_stops_profile_and_unmapped_pids(
 
 
 @patch.object(cli_main, "_is_windows", return_value=True)
+@pytest.mark.real_windows_gateway_pause  # Service/process transports are mocked below.
 def test_pause_and_resume_windows_gateway_service(
     _winp,
     monkeypatch,
@@ -363,6 +364,7 @@ def test_pause_and_resume_windows_gateway_service(
 
 
 @patch.object(cli_main, "_is_windows", return_value=True)
+@pytest.mark.real_windows_gateway_pause  # Service/process transports are mocked below.
 def test_pause_windows_gateway_service_failure_restores_every_attempted_service(
     _winp,
     monkeypatch,
@@ -408,6 +410,7 @@ def test_pause_windows_gateway_service_failure_restores_every_attempted_service(
 
 
 @patch.object(cli_main, "_is_windows", return_value=True)
+@pytest.mark.real_windows_gateway_pause  # Service/process transports are mocked below.
 def test_pause_windows_gateway_service_surfaces_rollback_start_failure(
     _winp,
     monkeypatch,
@@ -479,6 +482,7 @@ def test_restore_windows_gateway_service_waits_out_stop_pending(monkeypatch):
 
 
 @patch.object(cli_main, "_is_windows", return_value=True)
+@pytest.mark.real_windows_gateway_pause  # Service/process transports are mocked below.
 def test_pause_windows_gateways_aborts_when_service_discovery_is_indeterminate(
     _winp,
     monkeypatch,
@@ -503,6 +507,7 @@ def test_pause_windows_gateways_aborts_when_service_discovery_is_indeterminate(
 
 
 @patch.object(cli_main, "_is_windows", return_value=True)
+@pytest.mark.real_windows_gateway_pause  # Service/process transports are mocked below.
 def test_pause_windows_gateways_aborts_when_gateway_pid_discovery_is_indeterminate(
     _winp,
     monkeypatch,
@@ -683,6 +688,7 @@ def test_venv_launcher_ancestors_is_empty_without_pids(_winp):
 
 
 @patch.object(cli_main, "_is_windows", return_value=True)
+@pytest.mark.real_windows_gateway_pause  # Service/process transports are mocked below.
 def test_pause_kill_set_covers_venv_guard_abort_set(
     _winp,
     monkeypatch,

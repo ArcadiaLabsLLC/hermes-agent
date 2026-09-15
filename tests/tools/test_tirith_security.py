@@ -327,7 +327,8 @@ class TestUnsupportedPlatform:
         nothing anywhere reported the divergence."""
         mock_cfg.return_value = {"tirith_enabled": True, "tirith_path": "tirith",
                                  "tirith_timeout": 5, "tirith_fail_open": False}
-        _tirith_mod._reset_spawn_warning_state()
+        with _tirith_mod._warned_lock:
+            _tirith_mod._warned_messages.clear()
         with caplog.at_level(logging.WARNING, logger="tools.tirith_security"), \
              patch("tools.tirith_security.is_platform_supported", return_value=False), \
              patch("tools.tirith_security.subprocess.run") as mock_run:
@@ -354,7 +355,8 @@ class TestUnsupportedPlatform:
         same failure mode the spawn warnings already dedupe against."""
         mock_cfg.return_value = {"tirith_enabled": True, "tirith_path": "tirith",
                                  "tirith_timeout": 5, "tirith_fail_open": False}
-        _tirith_mod._reset_spawn_warning_state()
+        with _tirith_mod._warned_lock:
+            _tirith_mod._warned_messages.clear()
         with caplog.at_level(logging.WARNING, logger="tools.tirith_security"), \
              patch("tools.tirith_security.is_platform_supported", return_value=False):
             for _ in range(5):
@@ -373,7 +375,8 @@ class TestUnsupportedPlatform:
         explicitly asked for something else gets told."""
         mock_cfg.return_value = {"tirith_enabled": True, "tirith_path": "tirith",
                                  "tirith_timeout": 5, "tirith_fail_open": True}
-        _tirith_mod._reset_spawn_warning_state()
+        with _tirith_mod._warned_lock:
+            _tirith_mod._warned_messages.clear()
         with caplog.at_level(logging.WARNING, logger="tools.tirith_security"), \
              patch("tools.tirith_security.is_platform_supported", return_value=False):
             result = check_command_security("rm -rf /")

@@ -130,7 +130,7 @@ class TestWebUIHashFailureIsAccounted:
         web_dir, _ = _make_web_dir(tmp_path)
         boom = ModuleNotFoundError("No module named 'pathspec'")
         with caplog.at_level("WARNING", logger="hermes_cli.main"), \
-             patch("hermes_cli.main._compute_web_ui_content_hash", side_effect=boom):
+             patch("hermes_cli.main_web_build._compute_web_ui_content_hash", side_effect=boom):
             _write_web_ui_build_stamp(self._root(web_dir), web_dir)
 
         # Still never fails the build...
@@ -151,7 +151,7 @@ class TestWebUIHashFailureIsAccounted:
 
         boom = ModuleNotFoundError("No module named 'pathspec'")
         with caplog.at_level("WARNING", logger="hermes_cli.main"), \
-             patch("hermes_cli.main._compute_web_ui_content_hash", side_effect=boom):
+             patch("hermes_cli.main_web_build._compute_web_ui_content_hash", side_effect=boom):
             needed = _web_ui_build_needed(web_dir)
 
         assert needed is True
@@ -251,7 +251,7 @@ class TestBuildWebUISkipsWhenFresh:
         # hermes_constants.find_node_executable and returns the platform npm
         # directly on Windows — so a shutil.which stub never reaches the
         # value under test and the real npm path leaks into the argv.
-        with patch("hermes_cli.main._resolve_node_runtime_npm", return_value="/usr/bin/npm"), \
+        with patch("hermes_cli.main_install_repair._resolve_node_runtime_npm", return_value="/usr/bin/npm"), \
              patch("hermes_cli.main.subprocess.run", return_value=install_cp) as mock_run, \
              patch("hermes_cli.main_web_build._run_with_idle_timeout", return_value=build_cp):
             result = _build_web_ui(web_dir)
@@ -275,7 +275,7 @@ class TestBuildWebUISkipsWhenFresh:
         build_cp = __import__("subprocess").CompletedProcess([], 0, stdout="", stderr="")
         # See the sibling test: the npm path comes from
         # _resolve_node_runtime_npm(), not from shutil.which.
-        with patch("hermes_cli.main._resolve_node_runtime_npm", return_value="/usr/bin/npm"), \
+        with patch("hermes_cli.main_install_repair._resolve_node_runtime_npm", return_value="/usr/bin/npm"), \
              patch("hermes_cli.main.subprocess.run", return_value=install_cp), \
              patch("hermes_cli.main_web_build._run_with_idle_timeout", return_value=build_cp) as mock_idle:
             result = _build_web_ui(web_dir)
@@ -478,4 +478,3 @@ class TestBuildRecoversFromMissingToolchain:
         assert result is True
         assert mock_install.call_count == 1
         assert mock_build.call_count == 1
-

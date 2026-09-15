@@ -52,7 +52,7 @@ class TestTirithSecurityLoader:
         from tools.tirith_security import _load_security_config
 
         cfg = {"security": {"tirith_enabled": True, "tirith_fail_open": True}}
-        with patch("hermes_cli.config.load_config", return_value=cfg):
+        with patch("hermes_cli.config.load_config_readonly", return_value=cfg):
             assert _load_security_config()["tirith_fail_open"] is True  # near miss
 
             monkeypatch.setenv("TIRITH_FAIL_OPEN", "false")
@@ -62,7 +62,7 @@ class TestTirithSecurityLoader:
         from tools.tirith_security import _load_security_config
 
         cfg = {"security": {"tirith_enabled": True}}
-        with patch("hermes_cli.config.load_config", return_value=cfg):
+        with patch("hermes_cli.config.load_config_readonly", return_value=cfg):
             assert _load_security_config()["tirith_enabled"] is True  # near miss
 
             monkeypatch.setenv("TIRITH_ENABLED", "false")
@@ -74,7 +74,7 @@ class TestTirithSecurityLoader:
         from tools.tirith_security import _load_security_config
 
         cfg = {"security": {"tirith_path": "/opt/tirith", "tirith_timeout": 11}}
-        with patch("hermes_cli.config.load_config", return_value=cfg):
+        with patch("hermes_cli.config.load_config_readonly", return_value=cfg):
             resolved = _load_security_config()
         assert resolved["tirith_path"] == "/opt/tirith"
         assert resolved["tirith_timeout"] == 11
@@ -102,7 +102,7 @@ class TestApprovalMainFlow:
         }
         monkeypatch.setenv("HERMES_INTERACTIVE", "1")
 
-        with patch("hermes_cli.config.load_config", return_value=cfg):
+        with patch("hermes_cli.config.load_config_readonly", return_value=cfg):
             # Near miss: without the override the command sails through with
             # nobody consulted.
             calls = []
@@ -139,7 +139,7 @@ class TestApprovalCronLane:
     def _run(self):
         from tools.approval import check_all_command_guards
 
-        with patch("tools.approval._get_cron_approval_mode", return_value="deny"):
+        with patch("tools.approval_context._get_cron_approval_mode", return_value="deny"):
             with patch("tools.approval.detect_dangerous_command", return_value=(False, None, None)):
                 with patch(
                     "builtins.__import__",
@@ -150,7 +150,7 @@ class TestApprovalCronLane:
     def test_fail_open_override_reaches_the_cron_lane(self, monkeypatch, no_tirith_env):
         cfg = {"security": {"tirith_enabled": True, "tirith_fail_open": True}}
 
-        with patch("hermes_cli.config.load_config", return_value=cfg):
+        with patch("hermes_cli.config.load_config_readonly", return_value=cfg):
             assert self._run()["approved"] is True  # near miss
 
             monkeypatch.setenv("TIRITH_FAIL_OPEN", "false")
@@ -208,7 +208,7 @@ class TestCliStartupNotice:
         import cli as cli_mod
 
         printed = []
-        stub = types.SimpleNamespace(config=config)
+        stub = types.SimpleNamespace(config=config, _tirith_security_checked=False)
         with patch("tools.tirith_security.ensure_installed", return_value=None):
             with patch("tools.tirith_security.is_platform_supported", return_value=True):
                 with patch.object(cli_mod, "_cprint", lambda text: printed.append(text)):
