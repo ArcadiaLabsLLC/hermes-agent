@@ -366,7 +366,11 @@ def test_the_flush_site_uses_the_typed_boundary_and_reports_drift():
     that reports.
     """
 
-    source = Path(__file__).resolve().parents[2] / "run_agent.py"
+    from agent_runtime import native_persistence
+    from agent import session_persistence
+
+    assert "project_native_message" in inspect.getsource(session_persistence)
+    source = Path(native_persistence.__file__)
     tree = ast.parse(source.read_text(encoding="utf-8"))
 
     def called(name: str) -> list[ast.Call]:

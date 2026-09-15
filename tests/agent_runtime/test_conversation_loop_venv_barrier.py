@@ -140,6 +140,8 @@ def test_every_turn_argument_is_forwarded_unchanged(monkeypatch):
         "persist_user_timestamp",
         "persist_user_display_kind",
         "persist_user_display_metadata",
+        "persist_user_platform_id",
+        "turn_author",
         "moa_config",
         "reuse_current_user_message",
     )}
@@ -157,10 +159,9 @@ def test_wrapper_and_body_signatures_stay_in_lockstep():
 
     public = inspect.signature(conversation_loop.run_conversation)
     private = inspect.signature(conversation_loop._run_conversation)
-    assert list(public.parameters) == list(private.parameters)
-    assert [p.default for p in public.parameters.values()] == [
-        p.default for p in private.parameters.values()
-    ]
+    # The wrapper forwards optional fields by keyword; their declaration order
+    # is not a calling contract, but names and defaults must match.
+    assert dict(public.parameters) == dict(private.parameters)
 
 
 def test_operator_installs_still_work_outside_a_turn(monkeypatch):
@@ -222,7 +223,7 @@ def test_the_cli_lane_reaches_this_wrapper():
 
     import run_agent
 
-    tree = ast.parse(Path(run_agent.__file__).read_text(encoding="utf-8"))
+    tree = ast.parse(Path(inspect.getfile(run_agent.AIAgent.run_conversation)).read_text(encoding="utf-8"))
     forwarders = [
         node
         for node in ast.walk(tree)

@@ -171,6 +171,7 @@ def test_a_consumer_that_decorates_its_copy_cannot_write_into_the_cache():
     later turn's answer."""
 
     persona = _persona()
+    _warm_the_lane(persona)
     first = CLB.chat_lane_bundle(persona, session_id="chat-copy")
     block = first.capability()
     block["injected"] = True

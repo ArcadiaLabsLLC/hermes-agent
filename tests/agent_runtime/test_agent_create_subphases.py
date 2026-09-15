@@ -410,4 +410,8 @@ def test_a_mint_bills_no_probe_rounds_to_any_projection_read(
     }, rounds_per_projection_read
     # The receipt has to AGREE with the attribution, or the instrument the
     # operator reads and the mechanism the gate counts have come apart.
-    assert spans["chat_lane_scope_ms"] >= spans["tool_visibility_ms"], spans
+    # Scope and visibility are sibling spans inside wire_row_ms (PHASE_ORDER's
+    # documented nesting); neither sibling is required to outlast the other.
+    assert spans["wire_row_ms"] >= max(
+        spans["chat_lane_scope_ms"], spans["tool_visibility_ms"]
+    ), spans

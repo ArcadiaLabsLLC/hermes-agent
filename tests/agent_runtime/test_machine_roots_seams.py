@@ -247,14 +247,14 @@ def test_persona_repo_scope_without_tokens_is_untouched(tmp_path, monkeypatch):
 
 
 def test_runtime_mcp_loader_drops_an_unresolvable_server(tmp_path, monkeypatch):
-    import tools.mcp_tool as mcp_tool
+    from agent_runtime import mcp_environment
 
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HERMES_HOME", str(home))
     machine_roots_cache_clear()
 
-    resolved = mcp_tool._resolve_machine_root_tokens(
+    resolved = mcp_environment._resolve_machine_root_tokens(
         {
             "launcher_qa": {"command": "${roots.eternia_launcher}/tool/server"},
             "portable": {"command": "node"},
@@ -265,12 +265,12 @@ def test_runtime_mcp_loader_drops_an_unresolvable_server(tmp_path, monkeypatch):
 
 
 def test_runtime_mcp_loader_is_a_no_op_for_tokenless_configs(tmp_path, monkeypatch):
-    import tools.mcp_tool as mcp_tool
+    from agent_runtime import mcp_environment
 
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     machine_roots_cache_clear()
     servers = {"launcher_qa": {"command": r"X:\repo\tool\server.exe", "args": []}}
-    assert mcp_tool._resolve_machine_root_tokens(servers) == servers
+    assert mcp_environment._resolve_machine_root_tokens(servers) == servers
 
 
 def test_cli_probe_path_refuses_to_spawn_an_unresolved_token(tmp_path, monkeypatch):

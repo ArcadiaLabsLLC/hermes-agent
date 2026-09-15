@@ -107,6 +107,40 @@ def impatient_wake(monkeypatch):
     monkeypatch.setattr(admission_module, "_PARKED_WAKE_TIMEOUT_SECONDS", 0.3)
 
 
+def test_connections_with_the_same_name_stay_in_the_owning_profile(monkeypatch):
+    import tools.mcp_tool as mcp
+
+    own = _ParkedServer("launcher_qa", _LAUNCHER_QA_FULL_SURFACE)
+    other = _ParkedServer("launcher_qa", _LAUNCHER_QA_FULL_SURFACE)
+    monkeypatch.setattr(mcp, "_mcp_registry_scope", lambda: "own")
+    monkeypatch.setattr(mcp, "_servers", {
+        ("own", "launcher_qa"): own,
+        ("other", "launcher_qa"): other,
+    })
+    monkeypatch.setattr(mcp, "_server_tool_scopes", {})
+    assert admission_module._current_mcp_servers() == {"launcher_qa": own}
+    assert admission_module._wake_parked_servers(["launcher_qa"]) == {"launcher_qa"}
+    assert own.nudges == 1
+    assert other.nudges == 0
+
+
+def test_admission_sees_an_adopted_connection_but_not_an_unrelated_one(monkeypatch):
+    import tools.mcp_tool as mcp
+
+    shared = _ParkedServer("launcher_qa", _LAUNCHER_QA_FULL_SURFACE)
+    unrelated = _ParkedServer("private", [])
+    monkeypatch.setattr(mcp, "_mcp_registry_scope", lambda: "consumer")
+    monkeypatch.setattr(mcp, "_servers", {
+        ("owner", "launcher_qa"): shared,
+        ("other", "private"): unrelated,
+    })
+    monkeypatch.setattr(mcp, "_server_tool_scopes", {
+        ("owner", "launcher_qa"): {"consumer"},
+    })
+    assert admission_module._current_mcp_servers() == {"launcher_qa": shared}
+    assert not admission_module._is_parked("private")
+
+
 def test_a_parked_server_is_woken_and_its_tools_are_registered(
     monkeypatch, clean_registry
 ):

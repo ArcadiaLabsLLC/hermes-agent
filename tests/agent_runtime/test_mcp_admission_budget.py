@@ -500,9 +500,9 @@ def test_upstream_registers_mcp_tools_synchronously():
 
     import inspect
 
-    import tools.mcp_tool as mcp_tool
+    from tools.mcp_tool_registration import _register_candidates
 
-    source = inspect.getsource(mcp_tool._register_server_tools)
+    source = inspect.getsource(_register_candidates)
     assert "is_async=False" in source
     assert "is_async=True" not in source
 

@@ -190,6 +190,10 @@ def _scan_profile_flag(argv: list) -> tuple:
         arg = argv[i]
         if arg == "--" or (arg == "--args" and _inside_mcp_add_args(argv, i)):
             break
+        # The downstream rebind verb owns its target --profile argument.
+        if arg in {"--profile", "-p"} or arg.startswith("--profile="):
+            if any(argv[j:j + 3] == ["harness", "agent", "set-profile"] for j in range(i)):
+                break
         if arg in {"--profile", "-p"} and i + 1 < len(argv):
             if re.match(_PROFILE_NAME_RE, argv[i + 1]):
                 return argv[i + 1], 2, i
@@ -252,8 +256,12 @@ def apply_profile_override() -> None:
     # points at the hermes root (systemd hardcodes HERMES_HOME=/root/.hermes)
     # we must still read active_profile — the user may have run
     # `hermes profile use` and the gateway should honour it (#22502).
+    # Reset inherited receipts: this value describes this process only.
+    os.environ["HERMES_PROFILE_RESOLUTION"] = "default"
+    resolution = "flag" if profile_name is not None else "default"
     hermes_home_env = os.environ.get("HERMES_HOME", "")
     if profile_name is None and hermes_home_env and Path(hermes_home_env).parent.name == "profiles":
+        os.environ["HERMES_PROFILE_RESOLUTION"] = "env_profile_dir"
         return
 
     if profile_name is None and not _under_gateway_supervisor(argv) and not _desktop_ssh_backend(argv):
@@ -265,6 +273,7 @@ def apply_profile_override() -> None:
                 name = active_path.read_text(encoding="utf-8").strip()
                 if name and name != "default":
                     profile_name = name  # consume stays 0: nothing to strip
+                    resolution = "active_profile_marker"
         except (UnicodeDecodeError, OSError):
             pass  # corrupted file, skip
 
@@ -287,6 +296,7 @@ def apply_profile_override() -> None:
         print(f"Warning: profile override failed ({exc}), using default", file=sys.stderr)
         return
     os.environ["HERMES_HOME"] = hermes_home
+    os.environ["HERMES_PROFILE_RESOLUTION"] = resolution
     # Strip the flag from argv so argparse doesn't choke
     if consume > 0 and profile_index is not None:
         start = profile_index + 1  # +1 because argv is sys.argv[1:]

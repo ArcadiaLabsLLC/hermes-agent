@@ -617,8 +617,9 @@ def _sessiondb_in_the_live_shape():
       grows the main file with one-time schema work — a genuine input change,
       and not the one under test.
 
-    Measured after warm-up: every further open moves ``-wal``'s mtime and
-    nothing else, at size 0. That is exactly the self-perturbation P2 removes.
+    Upstream now avoids redundant schema writes on open. Explicitly settle
+    the fixture's own DDL before measuring read-only opens or final unlink;
+    those operations must not be confused with checkpointing pending frames.
     """
 
     from agent_runtime.chat_session_scope import chat_session_db_path
@@ -636,6 +637,8 @@ def _sessiondb_in_the_live_shape():
         holder.execute("CREATE TABLE IF NOT EXISTS mc1_wal_probe (id INTEGER)")
         holder.commit()
         SessionDB(db_path=db_path).close()
+        checkpoint = holder.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+        assert checkpoint[0] == 0, "fixture checkpoint was blocked"
         assert os.path.exists(f"{db_path}-wal"), (
             "no -wal sibling exists while a connection is held, so this fixture "
             "is not reproducing the live shape and nothing below would be tested"
@@ -679,11 +682,10 @@ def test_the_builds_own_sessiondb_open_does_not_move_the_key(
         after_key = core_cache.build_input_fingerprint()
         assert after_key is not None
 
-        # Non-vacuity FIRST: if the open did not disturb the sibling, the
-        # equality below would be true for want of anything to be true about.
-        assert after_wal.st_mtime_ns != before_wal, (
-            "opening the SessionDB did not move -wal's mtime, so this case "
-            "measured nothing — the fixture is not in the live shape"
+        # Upstream deliberately made read-only opens stop writing schema/WAL.
+        # The independent sibling-mtime tests above still exercise the mask.
+        assert after_wal.st_mtime_ns == before_wal, (
+            "a read-only SessionDB open unexpectedly rewrote the settled WAL"
         )
         assert after_wal.st_size == 0, (
             f"-wal is {after_wal.st_size} bytes after a read-only open; this "
@@ -729,9 +731,8 @@ def test_a_persisted_key_survives_the_next_process_opening_the_database(
         _open_the_sessiondb(db_path)
         after = os.stat(wal).st_mtime_ns
 
-        assert after != before, (
-            "the SessionDB open did not disturb -wal, so this case measured "
-            "nothing — the fixture is not in the live shape"
+        assert after == before, (
+            "a read-only SessionDB open unexpectedly rewrote the settled WAL"
         )
         read = core_cache.read_persisted_core()
         assert read.matched, (

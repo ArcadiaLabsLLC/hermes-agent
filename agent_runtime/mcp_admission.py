@@ -1676,6 +1676,19 @@ def mcp_sdk_available() -> bool:
     return bool(_MCP_AVAILABLE)
 
 
+def _current_mcp_servers() -> dict[str, Any]:
+    """Read connections owned or adopted by the current profile only."""
+    from tools.mcp_tool import _servers, _lock
+    from tools.mcp_tool_scope import _key_name, _resolve_server_key
+
+    with _lock:
+        return {
+            name: _servers[key]
+            for name in {_key_name(key) for key in _servers}
+            if (key := _resolve_server_key(name)) in _servers
+        }
+
+
 def _live_mcp_sessions() -> frozenset[str]:
     """Admitted-server names already connected WITH a live session.
 
@@ -1688,13 +1701,13 @@ def _live_mcp_sessions() -> frozenset[str]:
     """
 
     try:
-        from tools.mcp_tool import _servers
+        servers = _current_mcp_servers()
     except Exception:  # pragma: no cover - MCP SDK absent ⇒ nothing is warm
         return frozenset()
     try:
         return frozenset(
             str(name)
-            for name, server in dict(_servers).items()
+            for name, server in servers.items()
             if getattr(server, "session", None) is not None
         )
     except Exception:  # pragma: no cover - defensive
@@ -1711,9 +1724,7 @@ def _is_parked(name: str) -> bool:
     """
 
     try:
-        from tools.mcp_tool import _servers
-
-        server = dict(_servers).get(str(name))
+        server = _current_mcp_servers().get(str(name))
     except Exception:  # pragma: no cover - MCP SDK absent ⇒ nothing is cached
         return False
     return server is not None and getattr(server, "session", None) is None
@@ -1737,8 +1748,7 @@ def _wake_parked_servers(names: Sequence[str]) -> frozenset[str]:
     if not wanted:
         return frozenset()
     try:
-        from tools.mcp_tool import (
-            _servers,
+        from tools.mcp_tool_loop import (
             _signal_reconnect,
             _wait_for_server_session_ready,
         )
@@ -1746,7 +1756,7 @@ def _wake_parked_servers(names: Sequence[str]) -> frozenset[str]:
         logger.debug("MCP admission could not reach the reconnect seam", exc_info=True)
         return frozenset()
 
-    cache = dict(_servers)
+    cache = _current_mcp_servers()
     parked = {name: cache[name] for name in wanted if name in cache}
     nudged: dict[str, Any] = {}
     for name, server in parked.items():
@@ -1804,10 +1814,9 @@ def _reregister_warm_server(name: str, config: dict[str, Any]) -> list[str]:
     """
 
     try:
-        from tools.mcp_tool import _servers
         from tools.mcp_tool_registration import _register_server_tools
 
-        server = dict(_servers).get(name)
+        server = _current_mcp_servers().get(name)
         if server is None:  # pragma: no cover - raced against a disconnect
             return []
         registered = list(_register_server_tools(name, server, config) or [])

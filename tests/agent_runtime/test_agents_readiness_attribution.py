@@ -26,9 +26,9 @@ WHAT MAKES THIS GATE NON-VACUOUS. "A line was emitted with two numbers on it" is
 true of any two numbers, including two that time the same span or nothing. So the
 gate injects a KNOWN delay into one half at a time and requires the OTHER half
 not to carry it. A single-number receipt, or two timers wrapping the same span,
-fails that discriminator in both directions. The injected delay is large against
-the timer's 1 ms floor and the assertions are one-sided, so a slow or loaded box
-makes the gate more true, never flaky.
+fails that discriminator in both directions. A controlled clock advances only in
+the injected half, so unrelated discovery or disk latency cannot obscure which
+span the receipt attributes.
 """
 
 from __future__ import annotations
@@ -36,14 +36,15 @@ from __future__ import annotations
 import logging
 import re
 import time
+from types import SimpleNamespace
 
 import pytest
 
 from agent_runtime import snapshot as snapshot_module
 from agent_runtime.snapshot import build_snapshot
 
-#: Long enough to dwarf the ms-resolution timer and any incidental section work,
-#: short enough that the file costs well under a second of suite time.
+#: Controlled clock advance: incidental provider discovery must not be charged
+#: as the injected delay on a slow machine.
 _INJECTED_DELAY_SECONDS = 0.25
 _INJECTED_DELAY_MS = _INJECTED_DELAY_SECONDS * 1000
 
@@ -108,12 +109,16 @@ def test_a_slow_readiness_walk_lands_on_the_walk_number(one_runtime_persona):
     from agent_runtime import profile_readiness as profile_readiness_module
 
     real = profile_readiness_module.profile_readiness_for_persona
+    clock = [0.0]
 
     def slow(persona, **kwargs):
-        time.sleep(_INJECTED_DELAY_SECONDS)
+        clock[0] += _INJECTED_DELAY_SECONDS
         return real(persona, **kwargs)
 
     with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(snapshot_module, "time", SimpleNamespace(
+            **{**vars(time), "perf_counter": lambda: clock[0]}
+        ))
         mp.setattr(
             profile_readiness_module, "profile_readiness_for_persona", slow
         )
@@ -128,12 +133,16 @@ def test_a_slow_readiness_walk_lands_on_the_walk_number(one_runtime_persona):
 
 def test_a_slow_summary_lands_on_the_tool_visibility_number(one_runtime_persona):
     real = snapshot_module._agent_summary
+    clock = [0.0]
 
     def slow(agent, **kwargs):
-        time.sleep(_INJECTED_DELAY_SECONDS)
+        clock[0] += _INJECTED_DELAY_SECONDS
         return real(agent, **kwargs)
 
     with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(snapshot_module, "time", SimpleNamespace(
+            **{**vars(time), "perf_counter": lambda: clock[0]}
+        ))
         mp.setattr(snapshot_module, "_agent_summary", slow)
         with caplog_at_info() as caplog:
             build_snapshot()

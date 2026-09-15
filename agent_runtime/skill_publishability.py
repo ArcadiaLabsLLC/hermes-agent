@@ -313,11 +313,7 @@ def package_manifest_name(package_dir: Path) -> str:
 # ── Profile skills roots ───────────────────────────────────────────────────
 
 
-def _resolved(path: Path) -> Path:
-    try:
-        return path.expanduser().resolve()
-    except (OSError, RuntimeError):
-        return path.expanduser().absolute()
+from .skill_resolution import _resolved_path as _resolved
 
 
 def profile_skills_roots() -> list[Path]:
