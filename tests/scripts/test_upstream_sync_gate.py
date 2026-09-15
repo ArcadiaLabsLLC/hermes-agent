@@ -10,6 +10,10 @@ def test_gate_commands_include_required_harness_lanes():
         include_launcher=False,
     )
 
+    for command in commands[:2]:
+        assert command.argv[1] == "scripts/run_tests.sh"
+        assert "pytest" not in command.argv
+
     assert [command.name for command in commands] == [
         "agent_runtime_pytest",
         "hermes_cli_pytest",

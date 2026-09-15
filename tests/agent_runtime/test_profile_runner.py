@@ -1310,13 +1310,14 @@ def _todo_result(items):
     return json.dumps({"todos": items, "summary": {"total": len(items)}})
 
 
-def test_todo_state_payload_from_json_string_result():
+@pytest.mark.parametrize("tool_name", ["todo", "todo_list"])
+def test_todo_state_payload_from_json_string_result(tool_name):
     items = [
         {"id": "1", "content": "Verify the data lane", "status": "completed"},
         {"id": "2", "content": "Ship the checklist panel", "status": "in_progress"},
         {"id": "3", "content": "Land it", "status": "pending"},
     ]
-    payload = _todo_state_payload("todo", _todo_result(items), invocation={"todos": items})
+    payload = _todo_state_payload(tool_name, _todo_result(items), invocation={"todos": items})
     assert payload == items
 
 

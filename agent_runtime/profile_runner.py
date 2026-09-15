@@ -2914,7 +2914,7 @@ def _todo_state_payload(tool_name: str | None, result: Any, invocation: Any) -> 
     explicit ``[]`` (T9d): a todo write that clears the checklist must tell the
     operator console to clear it, a state distinct from absence."""
 
-    if (tool_name or "").lower() != "todo":
+    if (tool_name or "").lower() not in {"todo", "todo_list"}:
         return None
     todos = _todo_items_from(result)
     if todos is None:

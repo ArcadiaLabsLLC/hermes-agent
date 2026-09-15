@@ -1070,8 +1070,8 @@ class TestSkillSearch:
         _make_skill(tmp_path, "alpha-local", body="No body in search")
 
         with patch("tools.skills_tool.SKILLS_DIR", tmp_path), \
-             patch("tools.skills_tool.unified_search") as unified, \
-             patch("tools.skills_tool.create_source_router", return_value=[]):
+             patch("agent_runtime.skill_search.unified_search") as unified, \
+             patch("agent_runtime.skill_search.create_source_router", return_value=[]):
             from tools.skills_hub import SkillMeta
 
             unified.return_value = [

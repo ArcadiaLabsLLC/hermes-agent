@@ -451,6 +451,6 @@ def slack_clamped_slashes() -> list[str]:
 def slack_native_slashes() -> list[tuple[str, str, str]]:
     entries, clamped = _slack_native_slashes_and_clamped()
     if clamped:
-        logger.warning("Slack's %d-command cap omitted native slashes: %s. Use /hermes <command> for these.",
-                       _SLACK_MAX_SLASH_COMMANDS, ", ".join(clamped))
+        logger.warning("Slack's %d-command cap omitted %d native slashes: %s. Use /hermes <command> for these.",
+                       _SLACK_MAX_SLASH_COMMANDS, len(clamped), ", ".join(f"/{name}" for name in clamped))
     return entries

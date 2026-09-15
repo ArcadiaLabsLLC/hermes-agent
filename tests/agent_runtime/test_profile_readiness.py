@@ -117,6 +117,7 @@ def test_readiness_receipt_reports_effective_hash_and_loadability(
         encoding="utf-8",
     )
     monkeypatch.setattr(skill_utils, "get_shared_skills_dir", lambda: shared)
+    monkeypatch.setattr("agent_runtime.skill_resolution.get_shared_skills_dir", lambda: shared)
     monkeypatch.setattr(skill_utils, "get_all_skills_dirs", lambda: [shared])
 
     row = _resolve_skill_names(["harness-runtime-model"])[0]
@@ -245,6 +246,7 @@ def test_readiness_missing_set_is_single_source_derivation(tmp_path, monkeypatch
         "---\nname: present-skill\n---\nbody\n", encoding="utf-8"
     )
     monkeypatch.setattr(skill_utils, "get_shared_skills_dir", lambda: shared)
+    monkeypatch.setattr("agent_runtime.skill_resolution.get_shared_skills_dir", lambda: shared)
     monkeypatch.setattr(skill_utils, "get_all_skills_dirs", lambda: [shared])
 
     names = ["present-skill", "absent-one", "absent-two", "present-skill"]

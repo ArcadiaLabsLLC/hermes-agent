@@ -2342,7 +2342,7 @@ def run_daemon(
     interval: float = 60.0,
     max_spawn: Optional[int] = None,
     failure_limit: int = DEFAULT_FAILURE_LIMIT,
-    ttl_seconds: int = _kb.DEFAULT_CLAIM_TTL_SECONDS,
+    ttl_seconds: Optional[int] = None,
     stop_event=None,
     on_tick=None,
 ) -> None:
@@ -2356,6 +2356,8 @@ def run_daemon(
     """
     import threading
 
+    if ttl_seconds is None:
+        ttl_seconds = _kb.DEFAULT_CLAIM_TTL_SECONDS
     if stop_event is None:
         stop_event = threading.Event()
 

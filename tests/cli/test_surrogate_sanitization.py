@@ -11,7 +11,7 @@ import socket
 import pytest
 from unittest.mock import MagicMock, patch
 
-from run_agent import (
+from agent.message_sanitization import (
     _sanitize_surrogates,
     _sanitize_messages_surrogates,
     _sanitize_structure_surrogates,
@@ -73,6 +73,7 @@ class _OfflineModelEndpoint:
             response.url = request.url
             response.request = request
             response._content = b'{"error": "offline in tests"}'
+            response._content_consumed = True
             return response
 
         monkeypatch.setattr(HTTPAdapter, "send", _offline_adapter_send)

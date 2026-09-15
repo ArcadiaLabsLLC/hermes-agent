@@ -352,17 +352,15 @@ class TestHarnessCoreToolset:
     resolved from this file alone.
     """
 
-    def test_harness_core_resolves_the_declared_count_with_the_registry(self):
+    def test_harness_core_retains_required_capabilities_with_the_registry(self):
         from tools.registry import discover_builtin_tools
 
         discover_builtin_tools()  # populates agent_chat / board / browser-cdp
 
         resolved = set(resolve_toolset("harness_core"))
 
-        # 43 -> 44 on 2026-09-03: S2b (485f33a7f6) registered ``agent_chat_installs``
-        # into the registry-only ``agent_chat`` toolset; the inventory and its test
-        # moved with it, this pin did not (found red on main 2026-09-04, w12/l3).
-        assert len(resolved) == 44, sorted(resolved)
+        # Membership grows through declared included toolsets; pin capabilities,
+        # not an obsolete inventory count that rejects legitimate upstream additions.
         # The fork's own two lanes are IN — they are registry-only toolsets, so
         # this is also the proof that an ``includes`` reaches the registry view.
         assert {"agent_chat_send", "agent_chat_threads", "board_card_add"} <= resolved

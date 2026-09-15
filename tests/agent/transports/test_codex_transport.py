@@ -859,7 +859,7 @@ class TestCodexBuildKwargs:
             model="gpt-5.4",
             messages=messages,
             tools=[],
-            cache_scope_id="private-conversation-alpha",
+            header_cache_scope_id="private-conversation-alpha",
             is_codex_backend=True,
         )
         first = dict(transport._last_cache_routing_observability)
@@ -867,7 +867,7 @@ class TestCodexBuildKwargs:
             model="gpt-5.4",
             messages=messages,
             tools=[],
-            cache_scope_id="private-conversation-beta",
+            header_cache_scope_id="private-conversation-beta",
             is_codex_backend=True,
         )
         second = dict(transport._last_cache_routing_observability)
@@ -906,18 +906,18 @@ class TestCodexBuildKwargs:
 
         assert kw["extra_headers"] == {"x-test": "1"}
 
-    # ── T10c: cache_scope_id header-behavior table ──────────────────────────
-    # cache_scope_id is a header-only cache-scope override, distinct from the
+    # ── T10c: header_cache_scope_id header-behavior table ──────────────────────────
+    # header_cache_scope_id is a header-only cache-scope override, distinct from the
     # run session_id, so the persona-chat lane (session_id=None to avoid
     # transcript reload) can still route a STABLE per-conversation cache scope.
     #
     #   scope set  · session None → headers present, value = scope
     #   scope set  · session set  → headers present, value = scope (scope wins)
-    #   scope None · session set  → headers present, value = session (unchanged)
-    #   scope None · session None → no headers (unchanged)
+    #   scope None · session set  → raw transcript id + upstream body cache key
+    #   scope None · session None → upstream content cache header only
 
     def test_codex_scope_set_session_none_emits_scope_headers(self, transport):
-        """Persona-chat shape: session_id=None but a stable cache_scope_id →
+        """Persona-chat shape: session_id=None but a stable header_cache_scope_id →
         cache-scope headers ARE emitted, carrying the scope value."""
         messages = [{"role": "user", "content": "Hi"}]
         kw = transport.build_kwargs(
@@ -925,7 +925,7 @@ class TestCodexBuildKwargs:
             messages=messages,
             tools=[],
             session_id=None,
-            cache_scope_id="chat-persona-123",
+            header_cache_scope_id="chat-persona-123",
             is_codex_backend=True,
         )
         headers = kw.get("extra_headers", {})
@@ -933,14 +933,14 @@ class TestCodexBuildKwargs:
         assert headers.get("x-client-request-id") == "chat-persona-123"
 
     def test_codex_scope_takes_precedence_over_session(self, transport):
-        """When both are present, cache_scope_id wins for the routing headers."""
+        """When both are present, header_cache_scope_id wins for the routing headers."""
         messages = [{"role": "user", "content": "Hi"}]
         kw = transport.build_kwargs(
             model="gpt-5.4",
             messages=messages,
             tools=[],
             session_id="run-session-abc",
-            cache_scope_id="chat-persona-123",
+            header_cache_scope_id="chat-persona-123",
             is_codex_backend=True,
         )
         headers = kw.get("extra_headers", {})
@@ -948,7 +948,7 @@ class TestCodexBuildKwargs:
         assert headers.get("x-client-request-id") == "chat-persona-123"
 
     def test_codex_session_used_when_scope_absent(self, transport):
-        """No cache_scope_id → the headers fall back to session_id exactly as
+        """No header_cache_scope_id → the headers fall back to session_id exactly as
         before (worker/mission-run lanes are unchanged)."""
         messages = [{"role": "user", "content": "Hi"}]
         kw = transport.build_kwargs(
@@ -956,14 +956,14 @@ class TestCodexBuildKwargs:
             messages=messages,
             tools=[],
             session_id="run-session-abc",
-            cache_scope_id=None,
+            header_cache_scope_id=None,
             is_codex_backend=True,
         )
         headers = kw.get("extra_headers", {})
         assert headers.get("session_id") == "run-session-abc"
-        assert headers.get("x-client-request-id") == "run-session-abc"
+        assert headers.get("x-client-request-id") == kw["prompt_cache_key"]
 
-    def test_codex_no_headers_when_neither_scope_nor_session(self, transport):
+    def test_codex_content_cache_header_without_scope_or_session(self, transport):
         """Neither present → no cache-scope headers (current behavior held)."""
         messages = [{"role": "user", "content": "Hi"}]
         kw = transport.build_kwargs(
@@ -971,12 +971,13 @@ class TestCodexBuildKwargs:
             messages=messages,
             tools=[],
             session_id=None,
-            cache_scope_id=None,
+            header_cache_scope_id=None,
             is_codex_backend=True,
         )
-        assert "extra_headers" not in kw
+        assert "session_id" not in kw.get("extra_headers", {})
+        assert kw["extra_headers"]["x-client-request-id"] == kw["prompt_cache_key"]
 
-    @pytest.mark.parametrize("scope_param", ["cache_scope_id", "session_id"])
+    @pytest.mark.parametrize("scope_param", ["header_cache_scope_id", "session_id"])
     def test_codex_cache_scope_headers_bound_long_ids(self, transport, scope_param):
         """Cache-routing headers must satisfy the provider's 64-character
         limit whether their source is the persona-chat override or the normal
@@ -995,12 +996,18 @@ class TestCodexBuildKwargs:
         )
         first = transport.build_kwargs(**common, **{scope_param: live_alice_scope})
         repeated = transport.build_kwargs(**common, **{scope_param: live_alice_scope})
-        without_scope = transport.build_kwargs(**common)
+        without_scope = transport.build_kwargs(header_cache_scope_id="another-persona", **common)
         different = transport.build_kwargs(
             **common,
             **{scope_param: f"{live_alice_scope[:-1]}0"},
         )
 
+        if scope_param == "session_id":
+            # Upstream separates physical transcript identity from bounded cache routing.
+            assert first["extra_headers"]["session_id"] == live_alice_scope
+            assert first["extra_headers"]["x-client-request-id"] == first["prompt_cache_key"]
+            assert len(first["extra_headers"]["x-client-request-id"]) <= 64
+            return
         first_scope = first["extra_headers"]["session_id"]
         assert first_scope == first["extra_headers"]["x-client-request-id"]
         assert first_scope != live_alice_scope
@@ -1018,15 +1025,15 @@ class TestCodexBuildKwargs:
             model="gpt-5.4",
             messages=[{"role": "user", "content": "Hi"}],
             tools=[],
-            cache_scope_id=boundary_scope,
+            header_cache_scope_id=boundary_scope,
             is_codex_backend=True,
         )
 
         assert kw["extra_headers"]["session_id"] == boundary_scope
         assert kw["extra_headers"]["x-client-request-id"] == boundary_scope
 
-    def test_cache_scope_id_is_header_only_not_transcript_or_cache_key(self, transport):
-        """cache_scope_id must ONLY change the cache-scope headers — never the
+    def test_header_cache_scope_id_is_header_only_not_transcript_or_cache_key(self, transport):
+        """header_cache_scope_id must ONLY change the cache-scope headers — never the
         input items (transcript), instructions, prompt_cache_key body field, or
         anything session-load related. Build the SAME request with and without a
         scope and assert everything but extra_headers is byte-identical."""
@@ -1041,8 +1048,8 @@ class TestCodexBuildKwargs:
             session_id=None,
             is_codex_backend=True,
         )
-        without = transport.build_kwargs(**common)
-        with_scope = transport.build_kwargs(cache_scope_id="chat-persona-123", **common)
+        without = transport.build_kwargs(header_cache_scope_id="another-persona", **common)
+        with_scope = transport.build_kwargs(header_cache_scope_id="chat-persona-123", **common)
 
         # The scope only adds routing headers; the request body is untouched.
         assert with_scope["input"] == without["input"]
@@ -1052,18 +1059,18 @@ class TestCodexBuildKwargs:
         assert with_scope.get("prompt_cache_key", "").startswith("pck_")
         assert "chat-persona-123" not in with_scope.get("prompt_cache_key", "")
         # The ONLY difference is the added cache-scope headers.
-        assert "extra_headers" not in without
+        assert without["extra_headers"]["session_id"] == "another-persona"
         assert with_scope["extra_headers"]["session_id"] == "chat-persona-123"
 
-    def test_cache_scope_id_ignored_off_codex_backend(self, transport):
+    def test_header_cache_scope_id_ignored_off_codex_backend(self, transport):
         """The scope headers are codex-backend-only. A non-codex responses call
-        with a cache_scope_id must NOT sprout session_id/x-client-request-id."""
+        with a header_cache_scope_id must NOT sprout session_id/x-client-request-id."""
         messages = [{"role": "user", "content": "Hi"}]
         kw = transport.build_kwargs(
             model="gpt-5.4",
             messages=messages,
             tools=[],
-            cache_scope_id="chat-persona-123",
+            header_cache_scope_id="chat-persona-123",
             is_codex_backend=False,
         )
         headers = kw.get("extra_headers", {})

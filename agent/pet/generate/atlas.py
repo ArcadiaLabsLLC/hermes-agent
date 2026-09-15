@@ -818,3 +818,10 @@ def frame_x_bounds(
         )
         for i, (left, right) in enumerate(ranges)
     ]
+
+
+def _slot_bounds(width: int, frame_count: int) -> list[tuple[int, int]]:
+    return [
+        (round(i * width / frame_count), round((i + 1) * width / frame_count))
+        for i in range(frame_count)
+    ]

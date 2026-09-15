@@ -9,6 +9,7 @@ covered in ``test_shell_hooks_consent.py``.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -24,6 +25,13 @@ def _write_script(tmp_path: Path, name: str, body: str) -> Path:
     path.write_text(body)
     path.chmod(0o755)
     return path
+
+
+def _python_hook(tmp_path: Path, body: str) -> str:
+    """Exercise subprocess hook semantics with an explicit portable interpreter."""
+    script = tmp_path / "hook.py"
+    script.write_text(body, encoding="utf-8")
+    return f'"{Path(sys.executable).as_posix()}" "{script.as_posix()}"'
 
 
 def _allowlist_pair(monkeypatch, tmp_path, event: str, command: str) -> None:
@@ -253,13 +261,9 @@ class TestCallbackSubprocess:
 
     def test_modify_canonical_parsing(self, tmp_path):
         """Shell hook returning canonical modify is parsed correctly."""
-        script = _write_script(
-            tmp_path, "mod_canon.sh",
-            "#!/usr/bin/env bash\n"
-            'printf \'{"action": "modify", "args": {"path": "/safe"}}\\n\'',
-        )
+        command = _python_hook(tmp_path, 'print(\'{"action": "modify", "args": {"path": "/safe"}}\')')
         spec = shell_hooks.ShellHookSpec(
-            event="pre_tool_call", command=str(script),
+            event="pre_tool_call", command=command,
         )
         cb = shell_hooks._make_callback(spec)
         result = cb(tool_name="write_file", args={"path": "/unsafe"})
@@ -267,13 +271,9 @@ class TestCallbackSubprocess:
 
     def test_modify_claude_code_parsing(self, tmp_path):
         """Shell hook returning Claude-Code modify is normalised."""
-        script = _write_script(
-            tmp_path, "mod_cc.sh",
-            "#!/usr/bin/env bash\n"
-            'printf \'{"decision": "modify", "tool_input": {"content": "safe"}}\\n\'',
-        )
+        command = _python_hook(tmp_path, 'print(\'{"decision": "modify", "tool_input": {"content": "safe"}}\')')
         spec = shell_hooks.ShellHookSpec(
-            event="pre_tool_call", command=str(script),
+            event="pre_tool_call", command=command,
         )
         cb = shell_hooks._make_callback(spec)
         result = cb(tool_name="write_file", args={"content": "danger"})
@@ -751,14 +751,9 @@ class TestEvaluateResult:
 
 class TestFailSemanticsEndToEnd:
     def test_exit_2_script_blocks(self, tmp_path):
-        script = _write_script(
-            tmp_path, "exit2.sh",
-            "#!/usr/bin/env bash\n"
-            'echo "rm -rf is not permitted" >&2\n'
-            "exit 2\n",
-        )
+        command = _python_hook(tmp_path, 'import sys\nprint("rm -rf is not permitted", file=sys.stderr)\nsys.exit(2)')
         spec = shell_hooks.ShellHookSpec(
-            event="pre_tool_call", command=str(script),
+            event="pre_tool_call", command=command,
         )
         cb = shell_hooks._make_callback(spec)
         result = cb(tool_name="terminal", args={"command": "rm -rf /"})
@@ -779,14 +774,9 @@ class TestFailSemanticsEndToEnd:
 
     def test_run_once_reflects_exit_2_block(self, tmp_path):
         """hermes hooks test must mirror production semantics."""
-        script = _write_script(
-            tmp_path, "exit2.sh",
-            "#!/usr/bin/env bash\n"
-            'echo "denied" >&2\n'
-            "exit 2\n",
-        )
+        command = _python_hook(tmp_path, 'import sys\nprint("denied", file=sys.stderr)\nsys.exit(2)')
         spec = shell_hooks.ShellHookSpec(
-            event="pre_tool_call", command=str(script),
+            event="pre_tool_call", command=command,
         )
         result = shell_hooks.run_once(
             spec, {"tool_name": "terminal", "args": {"command": "ls"}},
@@ -795,12 +785,9 @@ class TestFailSemanticsEndToEnd:
         assert result["parsed"] == {"action": "block", "message": "denied"}
 
     def test_run_once_reflects_fail_closed_timeout(self, tmp_path):
-        script = _write_script(
-            tmp_path, "sleepy.sh",
-            "#!/usr/bin/env bash\nsleep 5\n",
-        )
+        command = _python_hook(tmp_path, 'import time\ntime.sleep(5)')
         spec = shell_hooks.ShellHookSpec(
-            event="pre_tool_call", command=str(script),
+            event="pre_tool_call", command=command,
             timeout=1, fail_closed=True,
         )
         result = shell_hooks.run_once(

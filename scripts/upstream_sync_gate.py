@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -113,6 +114,15 @@ def build_gate_commands(
     simulate_broken_seam: bool = False,
 ) -> list[GateCommand]:
     python = sys.executable
+    # On Windows prefer Git Bash over the System32 WSL launcher; the wrapper
+    # selects the worktree's test environment and isolates each test file.
+    bash = shutil.which("bash") or "bash"
+    if os.name == "nt":
+        for root in (os.environ.get("ProgramFiles", r"C:\Program Files"), os.environ.get("LOCALAPPDATA", "")):
+            candidate = Path(root) / "Git" / "bin" / "bash.exe"
+            if candidate.is_file():
+                bash = str(candidate)
+                break
     commands: list[GateCommand] = []
     if simulate_broken_seam:
         commands.append(
@@ -124,8 +134,8 @@ def build_gate_commands(
         )
     commands.extend(
         [
-            GateCommand("agent_runtime_pytest", [python, "-m", "pytest", "tests/agent_runtime", "-q"], repo_root),
-            GateCommand("hermes_cli_pytest", [python, "-m", "pytest", "tests/hermes_cli", "-q"], repo_root),
+            GateCommand("agent_runtime_pytest", [bash, "scripts/run_tests.sh", "tests/agent_runtime", "--", "-q"], repo_root),
+            GateCommand("hermes_cli_pytest", [bash, "scripts/run_tests.sh", "tests/hermes_cli", "--", "-q"], repo_root),
             GateCommand(
                 "harness_no_model_smoke",
                 # `--temp-root` was retired 2026-07-27 (env-determinism audit

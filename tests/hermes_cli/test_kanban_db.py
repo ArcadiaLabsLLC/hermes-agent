@@ -1824,12 +1824,12 @@ def test_detect_crashed_workers_writes_supervisor_lost_child_artifact(
         encoding="utf-8",
     )
 
-    conn = kb.connect()
+    conn = kbc.connect()
     try:
         tid = kb.create_task(conn, title="encode", assignee="worker")
         host_prefix = _kb._claimer_id().split(":", 1)[0]
         kb.claim_task(conn, tid, claimer=f"{host_prefix}:s")
-        kb._set_worker_pid(conn, tid, dead_supervisor_pid)
+        kbd._set_worker_pid(conn, tid, dead_supervisor_pid)
         _kb.set_workspace_path(conn, tid, str(workspace))
         conn.execute(
             "UPDATE tasks SET started_at = ? WHERE id = ?",
@@ -1948,12 +1948,12 @@ def test_detect_crashed_workers_process_failed_when_no_live_sidecar(
 
     workspace = tmp_path / "ws-plain"
     workspace.mkdir()
-    conn = kb.connect()
+    conn = kbc.connect()
     try:
         tid = kb.create_task(conn, title="plain", assignee="worker")
         host_prefix = _kb._claimer_id().split(":", 1)[0]
         kb.claim_task(conn, tid, claimer=f"{host_prefix}:s")
-        kb._set_worker_pid(conn, tid, 7777777)
+        kbd._set_worker_pid(conn, tid, 7777777)
         _kb.set_workspace_path(conn, tid, str(workspace))
         conn.execute(
             "UPDATE tasks SET started_at = ? WHERE id = ?",

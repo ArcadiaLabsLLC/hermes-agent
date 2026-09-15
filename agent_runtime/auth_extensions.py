@@ -12,7 +12,6 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
-from hermes_cli import auth
 from hermes_cli.auth_constants import AuthError
 from hermes_constants import secure_parent_dir
 from utils import atomic_replace
@@ -27,6 +26,9 @@ def _rotation_state_path() -> Path:
     pytest seat belt, so a test that forgot to sandbox ``HERMES_HOME`` cannot
     write rotation state into the real user's Hermes root either.
     """
+    # Import at use time: auth re-exports these downstream helpers.
+    from hermes_cli import auth
+
     return auth._auth_file_path().with_name("credential_rotation.json")
 
 
@@ -109,6 +111,9 @@ def write_pool_rotation_state(provider_id: str, state: Dict[str, Any]) -> Path:
     one. An empty ``state`` drops the provider's slice, so a pool that stops
     rotating does not leave a row behind forever.
     """
+    # Import at use time: auth re-exports these downstream helpers.
+    from hermes_cli import auth
+
     key = (provider_id or "").strip().lower()
     with auth._auth_store_lock():
         store = _load_rotation_state()
@@ -127,6 +132,9 @@ def write_pool_rotation_state(provider_id: str, state: Dict[str, Any]) -> Path:
 
 def _read_global_codex_tokens_if_usable() -> Dict[str, Any] | None:
     """Return usable global-root Codex singleton tokens for profile fallback."""
+    # Import at use time: auth re-exports these downstream helpers.
+    from hermes_cli import auth
+
     try:
         global_store = auth._load_global_auth_store()
         providers = global_store.get("providers") if isinstance(global_store, dict) else None
@@ -167,6 +175,9 @@ def codex_auth_store_credentials_present() -> bool:
     Whether that refresh succeeds is only knowable over the network, which this
     function is defined not to do.
     """
+
+    # Import at use time: auth re-exports these downstream helpers.
+    from hermes_cli import auth
 
     try:
         auth._read_codex_tokens()

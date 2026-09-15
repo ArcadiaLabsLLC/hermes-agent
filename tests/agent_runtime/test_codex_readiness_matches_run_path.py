@@ -75,7 +75,8 @@ def _cooling_pool_entry(*, access_token: str = POOL_STALE_ACCESS) -> dict:
 
     ``last_error_reset_at`` is null exactly as it was on disk, so the cooldown
     is derived from ``last_status_at + EXHAUSTED_TTL_DEFAULT_SECONDS`` (one
-    hour) — sixty seconds ago puts the entry firmly inside it, and
+    hour in the original fork). Upstream shortens sole-credential cooldowns;
+    stamp exhaustion now to keep this fixture inside the actual cooldown, and
     ``_available_entries`` skips it, so ``peek()`` answers ``None``.
 
     The source string is the field's, not ``device_code``: the codex re-auth
@@ -94,7 +95,7 @@ def _cooling_pool_entry(*, access_token: str = POOL_STALE_ACCESS) -> dict:
         "access_token": access_token,
         "refresh_token": POOL_STALE_REFRESH,
         "last_status": "exhausted",
-        "last_status_at": time.time() - 60,
+        "last_status_at": time.time(),
         "last_error_code": None,
         "last_error_reset_at": None,
     }
