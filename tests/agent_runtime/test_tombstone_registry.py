@@ -4241,83 +4241,85 @@ def test_the_test_tree_walk_is_also_paid_at_import():
 _ROUND4_HISTORY_ERROR: str | None = None
 
 
+def _historical_test_sources(root: Path, base: str) -> dict[str, str]:
+    """Read changed pre-existing tests in three Git calls, including partial clones.
+
+    numstat makes Git prefetch missing historical blobs in one batch. A
+    name-only diff followed by thousands of git-show processes instead incurs
+    one lazy network fetch per missing blob on CI's blob:none checkout.
+    Disabling rename detection both avoids similarity work and keeps the old
+    side of a moved test in the deleted-test coverage audit.
+    """
+    diff = subprocess.run(
+        ["git", "diff", "--numstat", "--no-renames", "--diff-filter=DMT", "-z",
+         base, "HEAD", "--", "tests"],
+        cwd=root, check=True, capture_output=True,
+    )
+    paths = [record.split(b"\t", 2)[2] for record in diff.stdout.split(b"\0") if record]
+    if not paths:
+        return {}
+    tree = subprocess.run(
+        ["git", "ls-tree", "-r", "-z", base, "--", "tests"],
+        cwd=root, check=True, capture_output=True,
+    ).stdout
+    objects = {}
+    for record in tree.split(b"\0"):
+        if record:
+            metadata, path = record.split(b"\t", 1)
+            _mode, kind, oid = metadata.split()
+            if kind == b"blob":
+                objects[path] = oid
+    if any(path not in objects for path in paths):
+        raise ValueError("Git did not list a historical test blob")
+    # Object IDs avoid filename delimiters and work with older Git versions
+    # that do not support cat-file's NUL-delimited input option.
+    contents = subprocess.run(
+        ["git", "cat-file", "--batch"], cwd=root,
+        input=b"".join(objects[path] + b"\n" for path in paths),
+        check=True, capture_output=True,
+    ).stdout
+    sources: dict[str, str] = {}
+    cursor = 0
+    for path in paths:
+        boundary = contents.index(b"\n", cursor)
+        header = contents[cursor:boundary].split()
+        if len(header) != 3 or header[1] != b"blob":
+            raise ValueError("Git did not return a historical test blob")
+        size = int(header[2])
+        cursor = boundary + 1
+        end = cursor + size
+        if contents[end:end + 1] != b"\n":
+            raise ValueError("Git returned a truncated historical test blob")
+        sources[path.decode("utf-8")] = contents[cursor:end].decode("utf-8", errors="replace")
+        cursor = end + 1
+    if cursor != len(contents):
+        raise ValueError("Git returned unexpected trailing historical test data")
+    return sources
+
+
 @functools.lru_cache(maxsize=1)
 def _round4_uncovered_subjects() -> tuple[str, ...]:
     """Live production symbols whose last direct test reference a deletion took.
 
-    Hoisted and warmed for the same reason as the two walks above, and this one
-    is the least obviously expensive of the three, which is exactly why it is
-    worth stating. Its cost is not a walk but a `git show` SUBPROCESS per test
-    file changed since ``_ROUND4_COVERAGE_BASE``, plus a parse of each revision.
-    Measured at 21.4s after the tests/ walk was hoisted off it.
-
-    21s under a 30s cap reads like headroom and is not. The
-    ``test_no_other_module_states_the_contract_version`` case in this same sweep
-    measured 8s standalone and still crossed 30s inside a long-lived
-    single-process run — a ~4x dilation once several thousand tests have already
-    executed in the interpreter. And unlike a fixed tree walk this cost GROWS: the
-    base commit is pinned while HEAD advances, so the changed-file list gets
-    longer every week. Leaving it at 21s would just be scheduling the same
-    process kill for a later date.
+    The current test-tree parse is shared, and historical test contents are
+    fetched/read in bulk. Keep this session-scoped work outside item timeouts.
     """
-
     global _ROUND4_HISTORY_ERROR
-
     covered = _covered_production_subjects()
-
-    diff = subprocess.run(
-        [
-            "git",
-            "diff",
-            "--name-only",
-            f"{_ROUND4_COVERAGE_BASE}..HEAD",
-            "--",
-            "tests",
-        ],
-        cwd=HERMES_ROOT,
-        # NOT check=True. This walk is warmed at MODULE IMPORT (see below), so
-        # a raised CalledProcessError here does not fail one test — it aborts
-        # COLLECTION of this entire 4,300-line gate file, and reports the loss
-        # as an unreadable `subprocess.CalledProce...`. That is what run
-        # 33969282189's slice 8 shows: the CI checkout was shallow, the base
-        # commit was not in it, git exited 128, and every unrelated tombstone
-        # gate in this file went unrun and unnoticed. The failure is recorded
-        # and named by `test_round4_deleted_tests_left_no_live_production_subject_uncovered`
-        # instead, so one broken precondition costs one red test with a
-        # readable reason.
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if diff.returncode != 0:
-        shallow = subprocess.run(
-            ["git", "rev-parse", "--is-shallow-repository"],
-            cwd=HERMES_ROOT,
-            check=False,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
+    try:
+        historical = _historical_test_sources(HERMES_ROOT, _ROUND4_COVERAGE_BASE)
+    except (subprocess.CalledProcessError, ValueError) as exc:
+        # Import-time warming must not abort collection of unrelated rows, but
+        # the named coverage test below must fail when history cannot be read.
+        detail = (exc.stderr or b"").decode("utf-8", errors="replace")[:300] if isinstance(exc, subprocess.CalledProcessError) else str(exc)
         _ROUND4_HISTORY_ERROR = (
-            f"`git diff --name-only {_ROUND4_COVERAGE_BASE}..HEAD -- tests` "
-            f"exited {diff.returncode}: {diff.stderr.strip()[:300]}\n"
-            f"(`git rev-parse --is-shallow-repository` says {shallow!r})\n"
-            "This walk needs the history that holds its base commit. A shallow "
-            "checkout does not have it — the CI slice jobs pass "
-            "`fetch-depth: 0` with `filter: blob:none` for exactly this."
+            f"Cannot read historical tests at {_ROUND4_COVERAGE_BASE}: {detail}. "
+            "This audit requires the pinned base history; use fetch-depth: 0."
         )
         return ()
-    changed_tests = diff.stdout.splitlines()
     uncovered: list[str] = []
-    for relative in changed_tests:
-        old = subprocess.run(
-            ["git", "show", f"{_ROUND4_COVERAGE_BASE}:{relative}"],
-            cwd=HERMES_ROOT,
-            check=False,
-            capture_output=True,
-            text=True,
-            errors="replace",
-        )
-        old_tree = _parsed(old.stdout) if old.returncode == 0 else None
+    for relative, source in historical.items():
+        old_tree = _parsed(source)
         if old_tree is None:
             continue
         current_path = HERMES_ROOT / relative
@@ -4382,9 +4384,7 @@ def test_the_round4_git_walk_is_also_paid_at_import():
 
     assert _ROUND4_CACHE_SIZE_AT_IMPORT == 1, (
         "the round-4 coverage diff was NOT warmed at module import (cache size "
-        f"at import: {_ROUND4_CACHE_SIZE_AT_IMPORT}). It runs a `git show` per "
-        "changed test file and measured 21.4s inside its own item against the "
-        "30s cap — a margin that shrinks with every commit. Restore the warm."
+        f"at import: {_ROUND4_CACHE_SIZE_AT_IMPORT}). Historical source parsing is a session cost, not an item cost. Restore the warm."
     )
     assert _round4_uncovered_subjects.cache_info().misses == 1, (
         "the round-4 git walk ran more than once: "
@@ -4426,3 +4426,37 @@ def test_no_doc_carries_a_pasteable_call_to_a_retired_renderer():
 def test_deleted_test_coverage_follows_defining_module_not_plugin_pointer():
     assert not _live_production_symbol(("hermes_cli.config", "stamp_install_method"))
     assert _live_production_symbol(("hermes_cli.install_method", "stamp_install_method"))
+
+
+def test_bulk_history_keeps_deleted_and_moved_tests_and_ignores_new_tests(tmp_path):
+    def git(*args):
+        return subprocess.run(
+            ["git", "-c", "core.hooksPath=/dev/null" if os.name != "nt" else "core.hooksPath=NUL", *args],
+            cwd=tmp_path, check=True, capture_output=True, text=True,
+        ).stdout.strip()
+
+    git("init")
+    git("config", "user.name", "History audit fixture")
+    git("config", "user.email", "history-fixture@example.invalid")
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    before = {"test_changed.py": "old changed\n", "test_deleted.py": "deleted\n",
+              "test moved.py": "moved\n", "test_unicode_é.py": "unicode\n"}
+    for name, source in before.items():
+        (tests / name).write_text(source, encoding="utf-8", newline="\n")
+    git("add", "tests")
+    git("commit", "-m", "old tests")
+    base = git("rev-parse", "HEAD")
+    (tests / "test_changed.py").write_text("new changed\n", encoding="utf-8", newline="\n")
+    (tests / "test_deleted.py").unlink()
+    (tests / "test moved.py").rename(tests / "test_renamed.py")
+    (tests / "test_unicode_é.py").unlink()
+    (tests / "test_added.py").write_text("new test\n", encoding="utf-8", newline="\n")
+    git("add", "tests")
+    git("commit", "-m", "changed tests")
+    assert _historical_test_sources(tmp_path, base) == {
+        f"tests/{name}": source for name, source in before.items()
+    }
+    assert _historical_test_sources(tmp_path, "HEAD") == {}
+    with pytest.raises(subprocess.CalledProcessError):
+        _historical_test_sources(tmp_path, "refs/heads/missing-history")
