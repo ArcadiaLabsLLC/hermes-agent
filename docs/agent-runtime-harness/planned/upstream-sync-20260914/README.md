@@ -3,6 +3,17 @@
 Status: inventory and recovery checkpoint; upstream integration is NOT validated
 or landed. This report does not authorize replacing published main.
 
+Navigation: [verification and exact commands](verification.md),
+[installer handoff](installer-handoff.md),
+[all original-to-review commit mappings](original-to-consolidated.csv),
+[unresolved conflict ledger](conflict-ledger.csv).
+
+Final checkpoint: original main and origin/main still match at `34ad8ba33f`;
+all nine pre-existing worktree heads and porcelain statuses are unchanged
+(`worktree-preservation.json`). The bounded review tip is `5104732788`, with
+the exact original tracked tree. 394 baseline tests passed with one retry, and
+the isolated real-model/tool probe exited 0. No integrated candidate exists yet.
+
 ## Pinned inputs and safety
 
 | Input | SHA |
