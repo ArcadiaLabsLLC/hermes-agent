@@ -709,7 +709,7 @@ def test_a_raising_detector_emits_the_lane_with_its_class(monkeypatch, error_cla
     [
         (
             "anthropic",
-            "agent.anthropic_adapter",
+            "agent.anthropic_credentials",
             "resolve_anthropic_token",
             _DetectorExploded,
         ),

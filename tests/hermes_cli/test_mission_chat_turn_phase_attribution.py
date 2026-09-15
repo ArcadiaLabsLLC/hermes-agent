@@ -137,11 +137,12 @@ def test_a_pass_that_really_probes_counts_one_round_and_a_cached_pass_counts_non
     )
     assert probes["n"] == 1
 
-    registry_module._check_fn_cache.pop(_check, None)
+    cache_key = (_check, registry_module.check_fn_cache_scope())
+    registry_module._check_fn_cache.pop(cache_key, None)
     reg.get_definitions({"phase_probe_tool"})
     assert registry_module.probe_rounds_this_thread() == before + 2
     assert probes["n"] == 2
-    registry_module._check_fn_cache.pop(_check, None)
+    registry_module._check_fn_cache.pop(cache_key, None)
     registry_module._check_fn_last_good.pop(_check, None)
 
 

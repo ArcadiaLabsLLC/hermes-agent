@@ -96,8 +96,8 @@ LEAK_PRONE_VARS: dict[str, tuple[str, str]] = {
         "be repointed rather than the name dropped",
     ),
     "HERMES_SHARED_AUTH_DIR": (
-        "hermes_cli/auth.py",
-        ":5137 overrides the shared-secret directory the auth resolver reads",
+        "hermes_cli/auth_nous.py",
+        "shared_secret_dir overrides the shared-secret directory the auth resolver reads",
     ),
     "HERMES_OPTIONAL_SKILLS": (
         "hermes_constants.py",
@@ -123,12 +123,12 @@ LEAK_PRONE_VARS: dict[str, tuple[str, str]] = {
         ":62 overrides the bundled-plugin discovery root",
     ),
     "HERMES_BIN": (
-        "hermes_cli/kanban_db.py",
-        ":9258 selects the `hermes` executable dispatched workers are spawned with",
+        "hermes_cli/kanban_db_dispatch.py",
+        "selects the `hermes` executable dispatched workers are spawned with",
     ),
     "HERMES_TUI_DIR": (
-        "hermes_cli/main.py",
-        ":1973 makes _make_tui_argv prefer a prebuilt bundle over the source tree",
+        "hermes_cli/main_tui_launch.py",
+        "makes _make_tui_argv prefer a prebuilt bundle over the source tree",
     ),
     "HERMES_WEB_DIST": (
         "hermes_cli/main.py",
@@ -207,7 +207,7 @@ def test_every_guarded_var_is_actually_in_the_blanking_set():
 
 
 @pytest.mark.parametrize("name", sorted(LEAK_PRONE_VARS))
-def test_each_guarded_var_is_witnessed_on_a_live_production_reader(name: str):
+def test_each_guarded_var_is_witnessed_on_a_live_production_reader(name: str, monkeypatch, tmp_path):
     """The entry's own premise, asserted rather than trusted.
 
     Blanking a variable nothing reads costs nothing and proves nothing, so an
@@ -218,6 +218,22 @@ def test_each_guarded_var_is_witnessed_on_a_live_production_reader(name: str):
     """
 
     module_name, why = LEAK_PRONE_VARS[name]
+    # The packaged roots now delegate their env read to a shared helper. Exercise
+    # those resolvers instead of treating arbitrary helper-call strings as reads.
+    packaged_readers = {
+        "HERMES_OPTIONAL_SKILLS": "get_optional_skills_dir",
+        "HERMES_OPTIONAL_MCPS": "get_optional_mcps_dir",
+        "HERMES_BUNDLED_SKILLS": "get_bundled_skills_dir",
+    }
+    if name in packaged_readers:
+        import hermes_constants
+        reader = getattr(hermes_constants, packaged_readers[name])
+        fallback, override = tmp_path / "fallback", tmp_path / "override"
+        monkeypatch.delenv(name, raising=False)
+        assert reader(fallback) == fallback
+        monkeypatch.setenv(name, str(override))
+        assert reader(fallback) == override
+        return
     module = _repo_root() / module_name
     assert module.is_file(), f"{module_name} no longer exists; the entry for {name} is stale"
     assert name in _env_names_read_by(module), (

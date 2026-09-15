@@ -964,7 +964,7 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             },
         ),
     ],
-    'test_ensure_hermes_home_uid_34107.py': [
+    'test_ensure_hermes_home_uid.py': [
         (
             _no_os_chown,
             'os.chown does not exist on this platform, and config.py:713 returns '
@@ -1049,18 +1049,6 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             {
                 'TestBackfillProfileEnvs::test_copies_default_env_into_envless_profiles',
                 'TestCreateProfile::test_seeds_placeholder_env_file',
-            },
-        ),
-    ],
-    'test_web_server_oauth_write.py': [
-        (
-            _no_posix_mode_bits,
-            'asserts a 0o600 file mode; this filesystem records only a '
-            'read-only bit. The guarantee is not lost — the sibling '
-            'test_dashboard_oauth_write_uses_atomic_json_write_with_owner_only_mode '
-            'pins atomic_json_write(mode=0o600) portably and runs here',
-            {
-                'test_dashboard_oauth_write_uses_owner_only_permissions',
             },
         ),
     ],

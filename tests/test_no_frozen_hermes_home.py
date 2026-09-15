@@ -64,18 +64,16 @@ SKIP_DIRS = (
 # Module-level names whose value is resolved from HERMES_HOME at import time,
 # keyed by repo-relative path. Every file carries the reason its freeze is
 # tolerated. Measured by the probe below, not read off the source.
+# *_AT_IMPORT additions from upstream 110baa095b are reassignment sentinels;
+# each corresponding resolver reads the active home unless explicitly overridden.
 FROZEN_LEDGER: dict[str, tuple[frozenset[str], str]] = {
     "agent/auxiliary_client.py": (
-        frozenset({"_AUTH_JSON_PATH"}),
+        frozenset({"_AUTH_JSON_PATH", "_AUTH_JSON_PATH_AT_IMPORT"}),
         "upstream: auxiliary provider auth path",
     ),
     "cli.py": (
         frozenset({"_hermes_home"}),
         "upstream: CLI entry resolves the home once at startup",
-    ),
-    "cron/executions.py": (
-        frozenset({"EXECUTIONS_FILE"}),
-        "upstream: cron execution ledger path",
     ),
     "cron/jobs.py": (
         frozenset({
@@ -84,25 +82,13 @@ FROZEN_LEDGER: dict[str, tuple[frozenset[str], str]] = {
         }),
         "upstream: cron store layout, all derived from one frozen HERMES_DIR",
     ),
-    "cron/suggestions.py": (
-        frozenset({"CRON_DIR", "SUGGESTIONS_FILE"}),
-        "upstream: cron suggestion store",
-    ),
-    "gateway/channel_directory.py": (
-        frozenset({"CHANNEL_ALIASES_PATH", "DIRECTORY_PATH"}),
-        "upstream: gateway channel directory",
-    ),
     "gateway/hooks.py": (
-        frozenset({"HOOKS_DIR"}),
+        frozenset({"HOOKS_DIR", "_HOOKS_DIR_AT_IMPORT"}),
         "upstream: gateway hook directory",
     ),
     "gateway/mirror.py": (
         frozenset({"_SESSIONS_DIR", "_SESSIONS_INDEX"}),
         "upstream: gateway session mirror",
-    ),
-    "gateway/pairing.py": (
-        frozenset({"PAIRING_DIR"}),
-        "upstream: gateway pairing store",
     ),
     "gateway/platforms/base.py": (
         frozenset({
@@ -117,19 +103,14 @@ FROZEN_LEDGER: dict[str, tuple[frozenset[str], str]] = {
         "upstream: gateway process entry resolves the home once at startup",
     ),
     "gateway/sticker_cache.py": (
-        frozenset({"CACHE_PATH"}),
+        frozenset({"CACHE_PATH", "_CACHE_PATH_AT_IMPORT"}),
         "upstream: gateway sticker cache",
     ),
     "hermes_cli/claw.py": (
         frozenset({"_OPENCLAW_SCRIPT_INSTALLED"}),
         "upstream: openclaw install marker path",
     ),
-    "hermes_cli/doctor.py": (
-        frozenset({"_DHH"}),
-        "display LABEL only, never a filesystem read; run_doctor resolves the "
-        "home and its .env at call time",
-    ),
-    "hermes_cli/web_server.py": (
+    "hermes_cli/web_server_gateway.py": (
         frozenset({"_ACTION_LOG_DIR"}),
         "upstream: dashboard action log directory",
     ),
@@ -141,12 +122,8 @@ FROZEN_LEDGER: dict[str, tuple[frozenset[str], str]] = {
         "precisely to detect that reassignment.",
     ),
     "plugins/platforms/feishu/feishu_comment_rules.py": (
-        frozenset({"PAIRING_FILE", "RULES_FILE"}),
+        frozenset({"PAIRING_FILE", "RULES_FILE", "_PAIRING_FILE_AT_IMPORT", "_RULES_FILE_AT_IMPORT"}),
         "upstream plugin: feishu comment rule store",
-    ),
-    "plugins/platforms/matrix/adapter.py": (
-        frozenset({"_CRYPTO_DB_PATH", "_STORE_DIR"}),
-        "upstream plugin: matrix crypto store",
     ),
     "run_agent.py": (
         frozenset({"_hermes_home"}),
@@ -166,7 +143,7 @@ FROZEN_LEDGER: dict[str, tuple[frozenset[str], str]] = {
         "case as google_api.py",
     ),
     "tools/checkpoint_manager.py": (
-        frozenset({"CHECKPOINT_BASE"}),
+        frozenset({"CHECKPOINT_BASE", "_CHECKPOINT_BASE_AT_IMPORT"}),
         "upstream tool: checkpoint store root",
     ),
     # ``tools/environments/modal.py`` used to sit here for ``_SNAPSHOT_STORE``,
@@ -184,13 +161,11 @@ FROZEN_LEDGER: dict[str, tuple[frozenset[str], str]] = {
     # environment took a ``RuntimeError: Could not determine home directory``
     # out of a *snapshot-store path* it never touches. Now the lazy
     # ``_snapshot_store_path()``, matching ``vercel_sandbox.py``.
-    # ``tools/process_registry.py`` used to sit here for ``CHECKPOINT_PATH``.
-    # The Activity projection made the freeze load-bearing rather than merely
-    # untidy — a second process reading the checkpoint has to agree with the
-    # writer about WHERE it is, and an import-time bind made that depend on when
-    # the module first got imported relative to a persona-profile home flip. The
-    # constant is now the lazy ``checkpoint_path()``, so the ledger row is gone
-    # rather than re-worded.
+    "tools/process_registry.py": (
+        frozenset({"CHECKPOINT_PATH", "_CHECKPOINT_PATH_AT_IMPORT"}),
+        "upstream compatibility sentinel: _checkpoint_path resolves the active home "
+        "at call time unless CHECKPOINT_PATH was explicitly reassigned",
+    ),
     "tools/skill_manager_tool.py": (
         frozenset({"HERMES_HOME", "SKILLS_DIR", "_SKILLS_DIR_AT_IMPORT"}),
         "upstream tool: skills root; _SKILLS_DIR_AT_IMPORT is a deliberate "
@@ -210,10 +185,6 @@ FROZEN_LEDGER: dict[str, tuple[frozenset[str], str]] = {
         "upstream tool: skills root; _SKILLS_DIR_AT_IMPORT is a deliberate "
         "import-time snapshot used to detect reassignment",
     ),
-    "tools/tts_tool.py": (
-        frozenset({"DEFAULT_OUTPUT_DIR"}),
-        "upstream tool: TTS output directory",
-    ),
     "tui_gateway/server.py": (
         frozenset({"_CRASH_LOG", "_hermes_home"}),
         "upstream: TUI gateway process entry",
@@ -226,19 +197,6 @@ FROZEN_LEDGER: dict[str, tuple[frozenset[str], str]] = {
     # since the regex only ever saw the first hop — the failure message names
     # them and they belong here.
     #
-    # trajectory_compressor.py has since GRADUATED out of this bucket: `fire`
-    # was installed on the ambient interpreter on 2026-08-01 (ledger item 7,
-    # RULED EXECUTE), the probe imported the module for the first time, and the
-    # measurement CONFIRMED the carried regex ledger exactly — `_hermes_home`
-    # and nothing else. The regex's "first hop only" worry did not materialize.
-    # It keeps its UNPROBED row as well, deliberately: that row is what a host
-    # WITHOUT `fire` needs, and per test_ledger_reasons_are_present both entries
-    # are legitimate at once so long as the module is ledgered here.
-    "trajectory_compressor.py": (
-        frozenset({"_hermes_home"}),
-        "upstream: process entry. Measured 2026-08-01 once `fire` was installed; "
-        "confirms the carried regex ledger with no additional derived names",
-    ),
     "scripts/profile-tui.py": (
         frozenset({"DEFAULT_LOG", "DEFAULT_STATE_DB"}),
         "upstream script: TUI profiler log/db paths. Carried from the regex "
@@ -250,13 +208,6 @@ FROZEN_LEDGER: dict[str, tuple[frozenset[str], str]] = {
 # import failure is not a pass: it means the module was never checked, so it is
 # recorded here rather than silently dropped.
 UNPROBED: dict[str, str] = {
-    "trajectory_compressor.py": (
-        "imports `fire` at module level, a declared dependency absent from some "
-        "test environments. Probed wherever fire is installed — including this "
-        "ambient interpreter since 2026-08-01, where it now imports and its "
-        "FROZEN_LEDGER entry is measured rather than carried. The row stays for "
-        "hosts that still lack `fire`."
-    ),
     "scripts/profile-tui.py": (
         "imports `termios`, a POSIX-only stdlib module, so it cannot load on "
         "Windows. Probed on any POSIX host."
