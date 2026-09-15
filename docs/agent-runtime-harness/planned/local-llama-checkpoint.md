@@ -127,3 +127,15 @@ rejected, manager ownership contention is typed, and shutdown cannot spawn a
 late router after binary probing. Receipt write failure rolls back the queued
 in-memory operation before any process starts. Focused manager/router tests:
 **13 passed**, exit 0, no retry. Launcher review fixes and Stage C remain open.
+## Landing checkpoint — 2026-09-14
+
+Operator requested landing the current implementation. Latest backend review adds
+read-tier selected-host catalog fields (`configured` and model `context_length`).
+Manager and real TLS gateway tests passed 15 through scripts/run_tests.sh.
+Launcher product review passed 89 focused tests and its final QA callback test
+passed; the normal Windows build and operator provider/settings inspection passed.
+Full five-control Stage C acceptance and a second physical remote host remain
+unverified. Earlier pending-landing notes above are historical checkpoints.
+
+The improved installation panel and official llama.cpp download/version wizard
+are outside this landing and await the operator's next plan.
