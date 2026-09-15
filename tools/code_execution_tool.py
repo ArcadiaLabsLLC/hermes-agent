@@ -861,11 +861,12 @@ def build_execute_code_schema(enabled_sandbox_tools: set = None,
     )
     if not _full_description:
         description = (
-            f"Run Python in a persistent session kernel with Hermes tools (`from hermes_tools import {import_str}`). "
-            "Use for 3+ calls with filtering, branches or loops; normal calls for single calls or user interaction. "
-            "State survives calls; timeout/interruption loses it. Limits: 5 minutes, 50 tool calls; stdout over 50KB "
-            "shows head/tail plus a full-output file. Print results. Import json_parse, shell_quote and retry from "
-            "hermes_tools before use. Call tool_describe for allowed tools and helpers. " + cwd_note
+            "Run Python in a persistent session kernel via `from hermes_tools import ...` "
+            "(web_search, web_extract, read_file, write_file, search_files, patch, terminal). "
+            "Use for 3+ chained calls with logic/filter/loop; use plain calls otherwise. "
+            "State survives calls; timeout/interruption loses it. 5-min / 50KB stdout / 50-call limits; "
+            "print your result. Truncated stdout includes a full-output file. "
+            "Call tool_describe for available tools, helper imports and execution-mode guidance."
         )
 
     return {
