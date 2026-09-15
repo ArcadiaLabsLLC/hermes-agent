@@ -3735,11 +3735,11 @@
     },
     {
       "id": "sh-loader-registers-without-binding-the-parent",
-      "path": "plugins/memory/__init__.py",
-      "symbol": "_publish_module",
+      "path": "plugins/plugin_loader.py",
+      "symbol": "load_plugin_module",
       "operator": "stop-one-step-short-of-an-import",
-      "find": "    try:\n        setattr(parent, child, module)\n    except Exception:  # noqa: BLE001 — a binding failure must never fail a load\n        logger.debug(\"could not bind %s on %s\", child, parent_name, exc_info=True)",
-      "replace": "    return",
+      "find": "        setattr(parent_mod, child_name, mod)",
+      "replace": "        pass",
       "test": [
         "{python}",
         "-m",
@@ -3749,12 +3749,12 @@
       ]
     },
     {
-      "id": "sh-loader-rollback-leaves-the-parent-attribute",
-      "path": "plugins/memory/__init__.py",
-      "symbol": "_unpublish_module",
-      "operator": "undo-only-the-sys-modules-half",
-      "find": "    try:\n        delattr(parent, child)\n    except AttributeError:\n        pass",
-      "replace": "    return",
+      "id": "sh-loader-failed-exec-leaves-module-published",
+      "path": "plugins/plugin_loader.py",
+      "symbol": "load_plugin_module",
+      "operator": "retain-failed-module-registration",
+      "find": "    if not _exec(mod, logger):\n        sys.modules.pop(module_name, None)\n        return None",
+      "replace": "    if not _exec(mod, logger):\n        return None",
       "test": [
         "{python}",
         "-m",

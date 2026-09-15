@@ -376,6 +376,7 @@ def test_subprocess_popen_real_gateway_restart_blocked():
         )
 
 
+@pytest.mark.spawns_gateway_lookalike
 def test_subprocess_run_gateway_status_passes_through():
     """Only lifecycle verbs are blocked: ``gateway status`` (and every other
     read-only subcommand) must still spawn — via the canonical matcher, not an
