@@ -5,6 +5,8 @@ from unittest.mock import patch
 from agent import skill_utils
 
 import pytest
+from pathlib import Path
+from agent_runtime import skill_resolution
 
 from agent.skill_utils import (
     extract_skill_config_vars,
@@ -113,7 +115,7 @@ def test_canonical_harness_skill_refuses_non_shared_source_and_duplicates(
     shared = tmp_path / "shared"
     local.mkdir()
     shared.mkdir()
-    monkeypatch.setattr(skill_utils, "get_shared_skills_dir", lambda: shared)
+    monkeypatch.setattr(skill_resolution, "get_shared_skills_dir", lambda: shared)
     _write_skill(local, "harness-runtime-model")
 
     assert resolve_skill(
@@ -131,7 +133,7 @@ def test_required_preload_policy_uses_resolver_and_compatibility(tmp_path, monke
 
     shared = tmp_path / "shared"
     shared.mkdir()
-    monkeypatch.setattr(skill_utils, "get_shared_skills_dir", lambda: shared)
+    monkeypatch.setattr(skill_resolution, "get_shared_skills_dir", lambda: shared)
     monkeypatch.setattr(skill_utils, "get_all_skills_dirs", lambda: [shared])
     _write_skill(
         shared,
@@ -173,6 +175,7 @@ def test_metadata_as_string_does_not_crash():
         "requires_toolsets": [],
         "fallback_for_tools": [],
         "requires_tools": [],
+        "session_platforms": [],
     }
 
 
@@ -185,6 +188,7 @@ def test_metadata_as_none():
         "requires_toolsets": [],
         "fallback_for_tools": [],
         "requires_tools": [],
+        "session_platforms": [],
     }
 
 
@@ -197,6 +201,7 @@ def test_metadata_missing_entirely():
         "requires_toolsets": [],
         "fallback_for_tools": [],
         "requires_tools": [],
+        "session_platforms": [],
     }
 
 
@@ -351,11 +356,11 @@ def test_skill_config_home_vars_use_subprocess_home(tmp_path, monkeypatch):
         {"key": "wiki.tilde_var", "default": "~/$LEAF"},
     ])
 
-    assert resolved["wiki.home_var"] == str(subprocess_home / "wiki")
-    assert resolved["wiki.braced_home"] == str(subprocess_home / "notes")
-    assert resolved["wiki.tilde"] == str(subprocess_home / "scratch")
+    assert Path(resolved["wiki.home_var"]) == subprocess_home / "wiki"
+    assert Path(resolved["wiki.braced_home"]) == subprocess_home / "notes"
+    assert Path(resolved["wiki.tilde"]) == subprocess_home / "scratch"
     assert resolved["wiki.other_var"] == "/proj/cache"
-    assert resolved["wiki.tilde_var"] == str(subprocess_home / "leaf")
+    assert Path(resolved["wiki.tilde_var"]) == subprocess_home / "leaf"
 
 
 def test_iter_skill_index_files_prunes_skill_support_dirs(tmp_path):
@@ -632,8 +637,8 @@ def test_cached_skill_registry_preserves_root_precedence_and_profile_classificat
     _write_skill(shared, "same")
     skill_utils._skill_root_registry_cache_clear()
 
-    monkeypatch.setattr(skill_utils, "get_skills_dir", lambda: local)
-    monkeypatch.setattr(skill_utils, "get_shared_skills_dir", lambda: shared)
+    monkeypatch.setattr(skill_resolution, "get_skills_dir", lambda: local)
+    monkeypatch.setattr(skill_resolution, "get_shared_skills_dir", lambda: shared)
     first = skill_utils.resolve_skills(["same"], roots=[local, shared])["same"]
     assert first.status == "collision"
     assert [candidate.root for candidate in first.candidates] == [local, shared]
@@ -645,7 +650,7 @@ def test_cached_skill_registry_preserves_root_precedence_and_profile_classificat
     # Reuse the same physical registries under another profile classification;
     # source metadata is projected per call, never cached into the root entry.
     other_profile = tmp_path / "other-profile"
-    monkeypatch.setattr(skill_utils, "get_skills_dir", lambda: other_profile)
+    monkeypatch.setattr(skill_resolution, "get_skills_dir", lambda: other_profile)
     second = skill_utils.resolve_skills(["same"], roots=[shared, local])["same"]
     assert [candidate.root for candidate in second.candidates] == [shared, local]
     assert [candidate.source_kind for candidate in second.candidates] == [

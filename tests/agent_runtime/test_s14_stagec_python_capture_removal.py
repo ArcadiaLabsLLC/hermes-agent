@@ -34,7 +34,7 @@ REMOVED_MODULES = (
 def test_the_mcp_side_stagec_path_is_untouched():
     """Stage C is reached through the launcher_qa MCP server, not through Python."""
 
-    import tools.mcp_tool as mcp_tool
+    from agent_runtime import mcp_environment as mcp_tool
 
     resolved = mcp_tool._resolve_machine_root_tokens(
         {"launcher_qa": {"command": r"X:\repo\tool\server.exe", "args": []}}

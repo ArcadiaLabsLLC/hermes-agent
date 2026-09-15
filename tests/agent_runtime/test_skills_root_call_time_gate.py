@@ -412,7 +412,8 @@ def test_index_installed_skill_dirs_by_name_follows_the_live_profile(
     _write_skill(frozen_root, "cat/ghost", "ghost")
     expected = _write_skill(live_root, "cat/widget", "widget")
 
-    index = skills_sync._index_installed_skill_dirs_by_name()
+    from tools import skills_sync_optional
+    index = skills_sync_optional._index_installed_skill_dirs_by_name()
 
     assert index == {"widget": [expected]}, (
         "the installed-dir index scanned the import-time root: it should list "
@@ -426,7 +427,9 @@ def test_find_installed_skill_dir_by_name_follows_the_live_profile(
     skills_sync, _frozen_root, live_root = switched_profile
     expected = _write_skill(live_root, "cat/widget", "widget")
 
-    assert skills_sync._find_installed_skill_dir_by_name("widget") == expected
+    from tools import skills_sync_optional
+    index = skills_sync_optional._index_installed_skill_dirs_by_name()
+    assert skills_sync_optional._relocated_dest("widget", index) == (expected, "cat/widget")
 
 
 def test_read_hub_install_paths_follows_the_live_profile(switched_profile) -> None:
@@ -449,7 +452,7 @@ def test_index_active_skills_follows_the_live_profile(switched_profile) -> None:
     _write_skill(frozen_root, "cat/ghost", "ghost")
     expected = _write_skill(live_root, "cat/widget", "widget")
 
-    assert skills_sync._index_active_skills() == {"widget": [expected]}
+    assert list(skills_sync._iter_active_skill_mds()) == [expected / "SKILL.md"]
 
 
 def test_recover_renamed_skill_follows_the_live_profile(switched_profile) -> None:
@@ -465,12 +468,9 @@ def test_recover_renamed_skill_follows_the_live_profile(switched_profile) -> Non
     dest = live_root / "new" / "widget"
 
     moved = skills_sync._recover_renamed_skill(
+        skills_sync._SyncState(manifest={"widget": skills_sync._dir_hash(candidate)}, quiet=True),
         "widget",
-        skills_sync._dir_hash(candidate),
         dest,
-        {"widget": [candidate]},
-        set(),
-        True,
     )
 
     assert moved == "old/widget"

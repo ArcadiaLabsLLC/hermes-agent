@@ -92,7 +92,7 @@ def _payload(command, *, scope, cfg=None, monkeypatch=None):
     without the test having to shell out and actually push.
     """
 
-    from tools import terminal_tool as terminal_tool_module
+    from agent_runtime import terminal_policy as terminal_tool_module
 
     if cfg is not None:
         # Pin the config the decision reads without touching any real config
@@ -630,7 +630,7 @@ def test_worker_lane_keeps_the_legacy_hard_block(tmp_path, monkeypatch):
     """Worker ticks bind no envelope scope ⇒ byte-identical legacy behavior."""
 
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path))
-    from tools import terminal_tool as terminal_tool_module
+    from agent_runtime import terminal_policy as terminal_tool_module
 
     payload = terminal_tool_module._harness_envelope_block("git push origin main")
     assert payload == {
@@ -654,7 +654,7 @@ def test_chat_lane_keeps_no_envelope_at_all(monkeypatch):
     """``hermes chat`` never set HERMES_AGENT_RUNTIME_ROOT and binds no scope."""
 
     monkeypatch.delenv("HERMES_AGENT_RUNTIME_ROOT", raising=False)
-    from tools import terminal_tool as terminal_tool_module
+    from agent_runtime import terminal_policy as terminal_tool_module
 
     assert terminal_tool_module._harness_envelope_block("git push origin main") is None
 
@@ -681,7 +681,7 @@ def test_policy_import_failure_falls_back_to_the_hard_block(tmp_path, monkeypatc
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", _fail)
-    from tools import terminal_tool as terminal_tool_module
+    from agent_runtime import terminal_policy as terminal_tool_module
 
     payload = terminal_tool_module._harness_envelope_block("git push origin main")
     assert payload is not None
@@ -814,14 +814,14 @@ def _upstream_receipt_writer_source() -> str:
     import ast
     from pathlib import Path
 
-    from tools import terminal_tool as terminal_tool_module
+    from agent_runtime import terminal_policy as terminal_tool_module
 
     path = Path(terminal_tool_module.__file__)
     text = path.read_text(encoding="utf-8")
     for node in ast.walk(ast.parse(text)):
         if isinstance(node, ast.FunctionDef) and node.name == "_log_harness_blocked_attempt":
             return ast.get_source_segment(text, node) or ""
-    raise AssertionError("_log_harness_blocked_attempt not found in tools/terminal_tool.py")
+    raise AssertionError("_log_harness_blocked_attempt not found in agent_runtime/terminal_policy.py")
 
 
 def test_legacy_block_receipt_keeps_the_row_keys_the_upstream_writer_emits(tmp_path, monkeypatch):

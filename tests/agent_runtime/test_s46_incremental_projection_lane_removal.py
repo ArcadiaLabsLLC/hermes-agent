@@ -399,6 +399,12 @@ def test_no_surviving_module_re_grows_the_lane():
             except (SyntaxError, tokenize.TokenError):
                 source = raw
             for form in _IDENTIFIER_FORMS:
+                # Upstream's session turn lease prevents concurrent inference;
+                # it is unrelated to the retired incremental projector lease.
+                if (path.relative_to(REPO_ROOT).as_posix(), form) == (
+                    "agent/turn_facade_lease.py", "LEASE_TTL_SECONDS"
+                ):
+                    continue
                 if form in source:
                     offenders.append(f"{path.relative_to(REPO_ROOT)}:{form}")
     assert scanned > 500, scanned
@@ -416,6 +422,9 @@ def test_the_lookalike_keep_set_survives():
     from agent.credential_pool import CredentialPool
 
     assert callable(CredentialPool.acquire_lease)
+    from agent.turn_facade_lease import DurableTurnLease, LEASE_TTL_SECONDS
+    assert callable(DurableTurnLease)
+    assert LEASE_TTL_SECONDS > 0
 
     # ``agent.agent_runtime_helpers.apply_pending_steer_to_tool_results`` is the
     # steering lane, unrelated to projection and very much live.

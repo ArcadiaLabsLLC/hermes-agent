@@ -138,6 +138,10 @@ AUTHORITY_SYMBOL = DEFINITION_SITE[1]
 #: ``SNAPSHOT_CONTRACT_VERSION`` would no longer be independent, and the entry
 #: would have stopped being true.
 LANE_CONTRACT_ALLOWLIST = {
+    ("platform_actions.py", "ACTIONS_CONTRACT_VERSION"): (
+        "Upstream plugin platform-action capability contract, independent of "
+        "snapshot parity and its version. Versions adapter action dispatch."
+    ),
     ("serve_rpc.py", "RPC_CONTRACT_VERSION"): (
         "the JSON-RPC METHOD-SURFACE contract, published at serve_rpc.py:178 as "
         "`{'contract': RPC_CONTRACT_VERSION, 'methods': method_names()}`. It "
@@ -171,6 +175,7 @@ LANE_CONTRACT_ALLOWLIST = {
 #: a newcomer with the same name anywhere in the scanned roots would inherit an
 #: exemption it was never reasoned about. Witnessed by the lookalike test.
 LANE_CONTRACT_MODULE_HOMES = {
+    "platform_actions.py": "hermes_cli",
     "serve_rpc.py": "agent_runtime",
     "serve.py": "hermes_cli/harness_parts",
     "serve_socket.py": "agent_runtime",

@@ -23,8 +23,9 @@ from toolsets import TOOLSETS
 def test_the_upstream_neighbours_of_the_removed_block_survive():
     # The entries immediately above and below the removed block.
     assert TOOLSETS["session_search"]["tools"] == ["session_search"]
-    assert TOOLSETS["project"]["tools"] == [
-        "project_list",
-        "project_create",
-        "project_switch",
-    ]
+    # Upstream consolidated the three project verbs into one action tool.
+    assert TOOLSETS["project"]["tools"] == ["desktop_project"]
+    from tools import project_tools
+    assert all(callable(getattr(project_tools, name)) for name in (
+        "project_list", "project_create", "project_switch"
+    ))
