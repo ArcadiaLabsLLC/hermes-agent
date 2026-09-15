@@ -107,7 +107,7 @@
     },
     {
       "id": "bwh2-bytecode-sweep-loses-its-single-winner-lock",
-      "path": "hermes_cli/main.py",
+      "path": "hermes_cli/_bytecode_sweep.py",
       "symbol": "_sweep_stale_bytecode_if_checkout_changed/claim",
       "operator": "remove-mutual-exclusion",
       "find": "        claim = _claim_bytecode_sweep_lock(lock_path)",
@@ -122,7 +122,7 @@
     },
     {
       "id": "bwh2-unlockable-checkout-loses-the-stale-bytecode-guard",
-      "path": "hermes_cli/main.py",
+      "path": "hermes_cli/_bytecode_sweep.py",
       "symbol": "_claim_bytecode_sweep_lock/unavailable",
       "operator": "collapse-unavailable-onto-contended",
       "find": "    except OSError:\n        return _SWEEP_CLAIM_UNAVAILABLE\n    try:\n        os.write(fd, f\"{os.getpid()}\\n\".encode(\"utf-8\"))",
@@ -2746,8 +2746,8 @@
       "path": "agent_runtime/stream.py",
       "symbol": "_defer_demote_build_for_active_turns",
       "operator": "drop-lane-guard",
-      "find": "    if reason != BATCH_REASON_DEMOTE:\n        return 0\n    in_flight = _agent_runs_in_flight()",
-      "replace": "    in_flight = _agent_runs_in_flight()",
+      "find": "    if reason != BATCH_REASON_DEMOTE:\n        return 0\n",
+      "replace": "",
       "test": [
         "{python}",
         "-m",
@@ -2761,14 +2761,14 @@
       "path": "agent_runtime/stream.py",
       "symbol": "SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS",
       "operator": "widen-bound",
-      "find": "SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS = 1000",
+      "find": "SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS = 3500",
       "replace": "SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS = 5000",
       "test": [
         "{python}",
         "-m",
         "pytest",
         "-q",
-        "tests/agent_runtime/test_snapshot_demote_deferral.py::test_the_bound_is_one_second_and_is_a_constant_not_a_literal"
+        "tests/agent_runtime/test_snapshot_demote_deferral.py::test_demote_bound_covers_two_seconds_but_releases_at_3500"
       ]
     },
     {
@@ -2821,8 +2821,8 @@
       "path": "agent/conversation_loop.py",
       "symbol": "_restore_or_build_system_prompt",
       "operator": "drop-restore-flag",
-      "find": "        agent._system_prompt_restored_from_session = True\n        _emit_conversation_timing(\n            agent,\n            \"system_prompt_restore\",",
-      "replace": "        _emit_conversation_timing(\n            agent,\n            \"system_prompt_restore\",",
+      "find": "        agent._system_prompt_restored_from_session = True\n",
+      "replace": "",
       "test": [
         "{python}",
         "-m",
@@ -2836,7 +2836,7 @@
       "path": "agent/conversation_loop.py",
       "symbol": "_restore_or_build_system_prompt",
       "operator": "drop-restore-receipt",
-      "find": "        _emit_conversation_timing(\n            agent,\n            \"system_prompt_restore\",\n            _prompt_started,\n            stored_state=stored_state,\n        )\n        return",
+      "find": "        _emit_conversation_timing(agent, \"system_prompt_restore\", _prompt_started, stored_state=stored_state)\n        return",
       "replace": "        return",
       "test": [
         "{python}",
@@ -2852,7 +2852,7 @@
       "path": "agent/conversation_loop.py",
       "symbol": "_restore_or_build_system_prompt",
       "operator": "drop-build-receipt",
-      "find": "    _emit_conversation_timing(\n        agent,\n        \"system_prompt_build\",\n        _prompt_started,\n        stored_state=stored_state,\n    )",
+      "find": "    _emit_conversation_timing(agent, \"system_prompt_build\", _prompt_started, stored_state=stored_state)",
       "replace": "    pass",
       "test": [
         "{python}",
@@ -2880,10 +2880,10 @@
     {
       "id": "ctp3-turn-context-is-not-timed-by-the-loop",
       "path": "agent/conversation_loop.py",
-      "symbol": "_run_conversation",
+      "symbol": "_run_conversation_turn",
       "operator": "unwire-call-site-timing",
-      "find": "    _emit_conversation_timing(\n        agent,\n        \"turn_context\",\n        _turn_context_started,",
-      "replace": "    _noop_conversation_timing(\n        agent,\n        \"turn_context\",\n        _turn_context_started,",
+      "find": "    _emit_conversation_timing(agent, \"turn_context\", _turn_context_started,",
+      "replace": "    _noop_conversation_timing(agent, \"turn_context\", _turn_context_started,",
       "test": [
         "{python}",
         "-m",
@@ -2897,8 +2897,8 @@
       "path": "model_tools.py",
       "symbol": "get_tool_definitions",
       "operator": "drop-hit-counter",
-      "find": "        if cached is not None:\n            _bump_tool_defs_counter(\"hits\")",
-      "replace": "        if cached is not None:",
+      "find": "        _bump_tool_defs_counter(\"hits\")\n",
+      "replace": "",
       "test": [
         "{python}",
         "-m",
@@ -2910,10 +2910,10 @@
     {
       "id": "ctp3-tool-schema-rebuild-is-not-counted",
       "path": "model_tools.py",
-      "symbol": "get_tool_definitions",
+      "symbol": "get_tool_definitions.compute",
       "operator": "drop-miss-counter",
-      "find": "    _bump_tool_defs_counter(\"misses\")\n    result = _compute_tool_definitions",
-      "replace": "    result = _compute_tool_definitions",
+      "find": "        _bump_tool_defs_counter(\"misses\")\n",
+      "replace": "",
       "test": [
         "{python}",
         "-m",
@@ -2939,7 +2939,7 @@
     },
     {
       "id": "ctp3-unreadable-counter-is-reported-as-a-cache-hit",
-      "path": "agent/agent_init.py",
+      "path": "agent_runtime/init_observability.py",
       "symbol": "_emit_tool_defs_receipt",
       "operator": "collapse-unknown-into-hit",
       "find": "    if misses_before is None or misses_after is None:\n        return\n    step = (",
@@ -2954,7 +2954,7 @@
     },
     {
       "id": "ctp3-a-memo-hit-is-reported-as-a-schema-build",
-      "path": "agent/agent_init.py",
+      "path": "agent_runtime/init_observability.py",
       "symbol": "_emit_tool_defs_receipt",
       "operator": "weaken-miss-discriminator",
       "find": "        \"tool_defs_build\" if misses_after > misses_before else \"tool_defs_cached\"",
@@ -2972,8 +2972,8 @@
       "path": "hermes_cli/harness_parts/persona_commands.py",
       "symbol": "_cmd_mission_chat_message",
       "operator": "drop-plan-field",
-      "find": "        phases=turn_phases,\n        session_db_open_ms=_session_db_open_ms,\n    )",
-      "replace": "        phases=turn_phases,\n    )",
+      "find": "        session_db_open_ms=_session_db_open_ms,\n",
+      "replace": "",
       "test": [
         "{python}",
         "-m",
@@ -3765,8 +3765,8 @@
     },
     {
       "id": "doctor-home-is-read-at-call-time-not-at-import",
-      "path": "hermes_cli/doctor.py",
-      "symbol": "run_doctor/HERMES_HOME",
+      "path": "hermes_cli/doctor_state.py",
+      "symbol": "_check_skills_hub/HERMES_HOME",
       "operator": "re-freeze-the-home",
       "find": "    HERMES_HOME = get_hermes_home()",
       "replace": "    HERMES_HOME = Path.home() / \".hermes\"",
@@ -3930,7 +3930,7 @@
     },
     {
       "id": "postinstall-swallows-the-shim-refusal",
-      "path": "hermes_cli/main.py",
+      "path": "hermes_cli/_downstream_cli.py",
       "symbol": "cmd_postinstall",
       "operator": "silence-the-shim-report",
       "find": "    if path_result.error:\n        print()\n        print(f\"⚠ PATH shim not written [{path_result.error}]: {path_result.note}\")",
@@ -3945,7 +3945,7 @@
     },
     {
       "id": "postinstall-summary-drops-the-refusal-code",
-      "path": "hermes_cli/main.py",
+      "path": "hermes_cli/_downstream_cli.py",
       "symbol": "cmd_postinstall",
       "operator": "blank-summary-error",
       "find": "            \"error\": path_result.error,",
@@ -4581,10 +4581,10 @@
     },
     {
       "id": "cxr2-codex-auth-store-lane-always-says-present",
-      "path": "hermes_cli/auth.py",
+      "path": "agent_runtime/auth_extensions.py",
       "symbol": "codex_auth_store_credentials_present",
       "operator": "assume-the-credential-exists",
-      "find": "    try:\n        _read_codex_tokens()\n        return True",
+      "find": "    try:\n        auth._read_codex_tokens()\n        return True",
       "replace": "    try:\n        return True",
       "test": [
         "{python}",
@@ -4597,7 +4597,7 @@
     },
     {
       "id": "cxr3-codex-readiness-asks-the-store-before-the-pool",
-      "path": "hermes_cli/runtime_provider.py",
+      "path": "agent_runtime/provider_probes.py",
       "symbol": "codex_credentials_resolvable_read_only",
       "operator": "invert-source-order",
       "find": "    entry = _load_pool(\"openai-codex\").peek()\n    if entry is not None and (\n        getattr(entry, \"runtime_api_key\", None)\n        or getattr(entry, \"access_token\", None)\n    ):\n        return True\n    return auth_mod.codex_auth_store_credentials_present()",

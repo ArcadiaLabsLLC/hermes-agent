@@ -199,6 +199,7 @@ def _changed_sources(base: str) -> list[str]:
         check=False,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     if completed.returncode != 0:
         raise RuntimeError(f"git diff --name-only failed: {completed.stderr.strip()}")
@@ -216,6 +217,7 @@ def _changed_lines(base: str, relative_path: str) -> set[int]:
         check=False,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     if completed.returncode != 0:
         raise RuntimeError(f"git diff failed for {relative_path}: {completed.stderr.strip()}")
@@ -707,6 +709,7 @@ def _commits_since_derivation(claim: dict[str, Any]) -> int | None:
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
         )
     except OSError:

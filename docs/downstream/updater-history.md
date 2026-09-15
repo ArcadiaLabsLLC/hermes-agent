@@ -1,6 +1,8 @@
 # Desktop updates after commit consolidation
 
-The desktop Update button uses the repository handoff (`scripts/desktop-update/windows.ps1` or `posix.sh`) and `hermes update`. The desktop continues to own shutdown/relaunch and the backend continues to own Git updates. No second updater or lifecycle owner is introduced.
+## Hermes Desktop
+
+Hermes Desktop's Update button uses the repository handoff (`scripts/desktop-update/windows.ps1` or `posix.sh`) and `hermes update`. The desktop continues to own shutdown/relaunch and the backend continues to own Git updates. No second updater or lifecycle owner is introduced.
 
 ## Supported path
 
@@ -25,3 +27,25 @@ Updating a checkout used by a live editable install can mix old and new imports.
 ## Evidence
 
 Real temporary Git tests cover tree-equivalent folds, genuine divergence, normal ancestry, staged/untracked preservation, atomic recovery failure, pre-stash refusal and late fallback refusal. Windows handoff retry tests execute the PowerShell policy. Existing inventory/autostash tests remain relevant. User-facing final messages are wired in both platform handoffs; full desktop installation/relaunch and POSIX visual acceptance require their platform environments.
+
+## Eternia Launcher (the operator/user update button)
+
+Eternia Launcher owns a separate origin/main-only updater:
+`EterniaLauncher/lib/features/mission_control/state/hermes_update_apply_controller.dart`
+and `data/mission_control_hermes_setup.dart` in the same feature. It does not
+invoke Hermes Desktop's handoff or `hermes update`.
+
+The Launcher patch checks freshly fetched history before runtime maintenance.
+A diverged/folded history or failed check returns without stopping Hermes. The
+existing update service retains `git merge --ff-only` after fetching again, so
+remote changes during maintenance cannot trigger a reset/rebase. Its settings
+message now calls for preserving/reconciling both histories; it no longer
+recommends `reset --hard`. Launcher does not create the CLI's recovery refs.
+
+Users on published main can update normally after the integration is published
+as a descendant of that main. Installations stranded on the older July pre-fold
+history still require individual ancestry/patch review; neither tree similarity
+nor this patch authorizes discarding their local commits.
+
+Launcher verification: 37 updater/controller tests passed and focused analysis
+reported no issues. No live update, app rebuild, stop or restart was performed.
