@@ -167,8 +167,11 @@ def test_a_user_installed_provider_binds_on_its_synthetic_parent(tmp_path):
         memory._load_provider_from_dir(directory)
 
         namespace = sys.modules[memory._USER_NAMESPACE]
-        full = f"{memory._USER_NAMESPACE}.{PROBE}"
-        assert getattr(namespace, PROBE) is sys.modules[full]
+        # External packages are namespaced by their source path to keep
+        # different profiles from sharing same-named provider module state.
+        full = memory._module_name(directory, PROBE)
+        assert full.startswith(memory._USER_NAMESPACE + ".")
+        assert getattr(namespace, full.rsplit(".", 1)[1]) is sys.modules[full]
         assert getattr(sys.modules[full], "store") is sys.modules[f"{full}.store"]
     finally:
         for name in [n for n in sys.modules if n not in before]:
