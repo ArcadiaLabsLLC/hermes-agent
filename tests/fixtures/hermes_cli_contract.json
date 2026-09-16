@@ -12040,7 +12040,7 @@
           "choices": null,
           "name": "configs",
           "nargs": "*",
-          "required": true,
+          "required": false,
           "type": null
         }
       ],
