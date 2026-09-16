@@ -185,6 +185,17 @@ class HostedRoomRuntime:
             self._rooms_needing_reschedule.update(self._room_threads)
         self._wake.set()
 
+    def request_reconciliation(self, identity: state.TaskIdentity) -> None:
+        """A host has fresh evidence for this exact task (for example a human answer).
+
+        Invalidate only its negative recovery observation, not its durable lease
+        or generation. The existing worker still decides whether it can settle.
+        """
+        for key in tuple(self._inspected_indeterminate_attempts):
+            if key[:2] == (identity.room_id, identity.task_id):
+                self._inspected_indeterminate_attempts.discard(key)
+        self.wakeup()
+
     def status(self) -> dict[str, Any]:
         """Return a transport-neutral snapshot of runtime health."""
         with self._status_lock:
@@ -365,6 +376,8 @@ class HostedRoomRuntime:
             return transport is not None and transport is self.rpc
         info = transport.info(**_session_kw(profile, session_id))
         if not _info_active(info):
+            if info.get("stop_unresolved") is True:
+                return False  # Inactive alone does not settle an unknown attempt.
             # History was checked just before this probe: an inactive exact session cannot
             # keep executing, and after a restart its process-local task marker is absent.
             return True
@@ -835,7 +848,7 @@ class HostedRoomRuntime:
                     binding, task, lease, inspection.terminal, publish=False)
                 inspected.discard(attempt_key)
                 continue
-            if self.clock() < deadline:
+            if inspection.active or self.clock() < deadline:
                 self._set_blocked(binding.room_id, True)
                 return True
             deferred = self._fenced(
@@ -957,7 +970,7 @@ def _find_terminal_receipt(
         return _TerminalReceipt(
             status=cast(state.TerminalStatus, status), settlement_id=receipt_id,
             result=_bounded_terminal_result(
-                {"message_id": receipt_id, "text": message.get("content", "")}))
+                {"message_id": receipt_id, "text": message.get("content", ""), "error": message.get("error")}))
     return None
 
 

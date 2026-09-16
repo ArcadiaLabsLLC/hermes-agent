@@ -2294,6 +2294,12 @@ class PersonaInstanceStore:
             session_id=normalized_session,
             persona_instance_id=persona_instance_id,
         )
+        from .auxiliary_chat import is_auxiliary_chat
+
+        if is_auxiliary_chat(instance_id, normalized_session):
+            # assert_bindable above still enforces retirement and ownership.
+            # An auxiliary open is never allowed to create/repoint an instance.
+            return self.get(instance_id)
         safe_display_name = safe_assignment_text(display_name, limit=120) if display_name is not None else None
         safe_default_display_name = (
             safe_assignment_text(default_display_name, limit=120) if default_display_name is not None else None

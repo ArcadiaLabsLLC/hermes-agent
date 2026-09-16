@@ -1390,6 +1390,11 @@ def _safe_journal_metadata(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         return {}
     result: dict[str, Any] = {}
+    from .auxiliary_chat import safe_auxiliary_result
+
+    auxiliary = safe_auxiliary_result(value.get("auxiliary_result"))
+    if auxiliary is not None:
+        result["auxiliary_result"] = auxiliary
     for key, limit in _JOURNAL_TEXT_FIELDS.items():
         text = safe_assignment_text(value.get(key), limit=limit)
         if text:

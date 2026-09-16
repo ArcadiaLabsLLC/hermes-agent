@@ -37,7 +37,7 @@ TerminalKind = Literal["settled", "failed", "cancelled", "deferred"]
 _MENTION_RE = re.compile(r"@([A-Za-z0-9][A-Za-z0-9._:-]*)", re.IGNORECASE)
 _TURN_ID_RE = re.compile(
     r"^d(?P<source>[1-9][0-9]*)\.r(?P<round>[0-2])\."
-    r"p(?P<position>[0-5])\.s(?P<seen>[1-9][0-9]*)\."
+    r"p(?P<position>0|[1-9][0-9]*)\.s(?P<seen>[1-9][0-9]*)\."
     r"m(?P<member>[0-9a-f]{24})$")
 
 _TARGET_FIELDS = {
@@ -75,6 +75,38 @@ class DiscussionReconstructionError(DiscussionPolicyError):
 
 
 @dataclass(frozen=True)
+class DiscussionLimits:
+    """Host-declared immutable policy, never inferred from a mutable global.
+
+    The default preserves Bot Mode's six-profile policy. An instance-aware host
+    may retain a larger historical member catalog, limit its active set separately,
+    and bound prompts to the native transport's smaller input envelope.
+    """
+    max_members: int = MAX_DISCUSSION_MEMBERS
+    max_rounds: int = MAX_DISCUSSION_ROUNDS
+    max_messages: int = MAX_DISCUSSION_MESSAGES
+    prompt_bytes: int = driver.MAX_PROMPT_BYTES
+    shared_profiles: bool = False
+    guidance: str = ""
+
+    def __post_init__(self) -> None:
+        for name, low, high in (("max_members", 2, hosted_rooms.MAX_MEMBERS),
+                                ("max_rounds", 1, MAX_DISCUSSION_ROUNDS),
+                                ("max_messages", 1, 384),
+                                ("prompt_bytes", 2048, driver.MAX_PROMPT_BYTES)):
+            value = getattr(self, name)
+            if type(value) is not int or not low <= value <= high:
+                raise DiscussionValidationError(f"invalid Discussion limit: {name}")
+        if type(self.shared_profiles) is not bool:
+            raise DiscussionValidationError("shared_profiles must be a boolean")
+        if not isinstance(self.guidance, str) or len(self.guidance.encode("utf-8")) > 1000:
+            raise DiscussionValidationError("invalid Discussion guidance")
+
+
+DEFAULT_LIMITS = DiscussionLimits()
+
+
+@dataclass(frozen=True)
 class DiscussionMember:
     """One immutable local or peer member of the hosted room."""
     member_id: str
@@ -92,6 +124,7 @@ class DiscussionRoom:
     members: tuple[DiscussionMember, ...]
     gateway_id: str
     authority_epoch: int
+    limits: DiscussionLimits = DEFAULT_LIMITS
 
 
 @dataclass(frozen=True)
@@ -239,13 +272,14 @@ def _validate_member(raw: Any, index: int, known_profiles: set[str]) -> Discussi
     return DiscussionMember(member_id, profile, handle, display_name, target)
 
 
-def validate_roster(value: Any, *, local_profiles: Iterable[str]) -> tuple[DiscussionMember, ...]:
-    """Validate a frozen 2-6 member roster of profiles on this gateway."""
+def validate_roster(value: Any, *, local_profiles: Iterable[str],
+                    limits: DiscussionLimits = DEFAULT_LIMITS) -> tuple[DiscussionMember, ...]:
+    """Validate a frozen roster under the explicitly supplied host policy."""
     if not isinstance(value, list):
         raise DiscussionValidationError("members must be a list")
-    if not MIN_DISCUSSION_MEMBERS <= len(value) <= MAX_DISCUSSION_MEMBERS:
+    if not MIN_DISCUSSION_MEMBERS <= len(value) <= limits.max_members:
         raise DiscussionValidationError(
-            f"members must contain between {MIN_DISCUSSION_MEMBERS} and {MAX_DISCUSSION_MEMBERS} entries")
+            f"members must contain between {MIN_DISCUSSION_MEMBERS} and {limits.max_members} entries")
     known_profiles = {_identifier(profile, label="local profile") for profile in local_profiles}
     members: list[DiscussionMember] = []
     targets: set[str] = set()
@@ -255,7 +289,8 @@ def validate_roster(value: Any, *, local_profiles: Iterable[str]) -> tuple[Discu
         member = _validate_member(raw, index, known_profiles)
         unique = "profiles" if member.target.get("kind") == "local" else "targets"
         for key, seen, message in (
-            (compact_json(member.target, ensure_ascii=False).casefold(), targets, f"member {unique} must be unique"),
+            ((member.member_id if limits.shared_profiles else compact_json(member.target, ensure_ascii=False)).casefold(),
+             targets, f"member {unique} must be unique"),
             (member.handle.casefold(), handles, "member handles must be unique and cannot reserve @all or @everyone"),
             (member.member_id.casefold(), member_ids, "member ids must be unique")):
             if key in seen:
@@ -265,7 +300,8 @@ def validate_roster(value: Any, *, local_profiles: Iterable[str]) -> tuple[Discu
     return tuple(members)
 
 
-def validate_room(value: Any, *, local_profiles: Iterable[str]) -> DiscussionRoom:
+def validate_room(value: Any, *, local_profiles: Iterable[str],
+                  limits: DiscussionLimits = DEFAULT_LIMITS) -> DiscussionRoom:
     """Project a hosted-room row into the strict same-gateway policy shape."""
     if not isinstance(value, Mapping):
         raise DiscussionValidationError("room must be an object")
@@ -278,8 +314,8 @@ def validate_room(value: Any, *, local_profiles: Iterable[str]) -> DiscussionRoo
         raise DiscussionValidationError("room name is too long")
     gateway_id = _identifier(value.get("authority_gateway_id"), label="authority_gateway_id")
     authority_epoch = _positive_int(value.get("authority_epoch"), label="authority_epoch")
-    members = validate_roster(value.get("members"), local_profiles=local_profiles)
-    return DiscussionRoom(room_id, name, members, gateway_id, authority_epoch)
+    members = validate_roster(value.get("members"), local_profiles=local_profiles, limits=limits)
+    return DiscussionRoom(room_id, name, members, gateway_id, authority_epoch, limits)
 
 
 def is_pass_text(value: Any) -> bool:
@@ -339,8 +375,8 @@ def _member_by_id(room: DiscussionRoom, member_id: Any) -> DiscussionMember:
 
 def _validate_turn_coordinates(payload: Mapping[str, Any], room: DiscussionRoom) -> None:
     _member_by_id(room, payload.get("member_id"))
-    _zero_based_int(payload.get("member_index"), label="member_index", maximum=MAX_DISCUSSION_MEMBERS - 1)
-    _zero_based_int(payload.get("round_index"), label="round_index", maximum=MAX_DISCUSSION_ROUNDS - 1)
+    _zero_based_int(payload.get("member_index"), label="member_index", maximum=room.limits.max_members - 1)
+    _zero_based_int(payload.get("round_index"), label="round_index", maximum=room.limits.max_rounds - 1)
     for field in ("thread_id", "task_id", "turn_id", "discussion_event_id"):
         _identifier(payload.get(field), label=field)
 
@@ -445,11 +481,12 @@ def _validated_events(events: Sequence[Mapping[str, Any]], *, room: DiscussionRo
 
 
 def derive_member_watermarks(
-    room_value: Any, events: Sequence[Mapping[str, Any]], *, local_profiles: Iterable[str]
+    room_value: Any, events: Sequence[Mapping[str, Any]], *, local_profiles: Iterable[str],
+    limits: DiscussionLimits = DEFAULT_LIMITS
 ) -> dict[tuple[str, str], int]:
     """Derive ``(thread_id, member_id)`` watermarks from terminal events."""
     return _derive_member_watermarks(
-        _validated_events(events, room=validate_room(room_value, local_profiles=local_profiles)))
+        _validated_events(events, room=validate_room(room_value, local_profiles=local_profiles, limits=limits)))
 
 
 def _derive_member_watermarks(events: Sequence[_ValidatedEvent]) -> dict[tuple[str, str], int]:
@@ -506,9 +543,9 @@ def _truncate_utf8_text(value: Any, *, max_bytes: int, suffix: str = "") -> str:
 
 def _build_prompt(
     *, room: DiscussionRoom, member: DiscussionMember, messages: Sequence[_ValidatedEvent], watermark: int,
-    seen_through_seq: int) -> str:
+    seen_through_seq: int, active_members: Sequence[DiscussionMember] | None = None) -> str:
     delta = [event for event in messages if watermark < event.seq <= seen_through_seq][- MAX_DISCUSSION_DELTA_LINES:]
-    peers = ", ".join(f"@{candidate.handle}" for candidate in room.members if candidate.member_id != member.member_id)
+    peers = ", ".join(f"@{candidate.handle}" for candidate in (room.members if active_members is None else active_members) if candidate.member_id != member.member_id)
     opening = [
         f'[Discussion: "{room.name}"] You are @{member.handle}, one participant '
         f"with {peers or 'no other members'} and the user.", "",
@@ -519,20 +556,25 @@ def _build_prompt(
         '- If you have nothing new to add, reply with exactly "(pass)".',
         "- Mention a teammate by handle to pull them into the next round; do not repeat points already made.",
         "- Never reveal content from private conversations. Your reply is published verbatim."]
+    if room.limits.guidance:
+        rules.append(room.limits.guidance)
     fixed_bytes = len("\n".join([*opening, *rules]).encode("utf-8"))
-    available = max(0, driver.MAX_PROMPT_BYTES - fixed_bytes - 1)
+    available = max(0, room.limits.prompt_bytes - fixed_bytes - 1)
     selected: list[str] = []
     for event in reversed(delta):
         line = f"  {_format_message(event, room)}"
         if (line_bytes := len(line.encode("utf-8")) + 1) > available:
-            if not selected and available > 32:
-                selected.append(_truncate_utf8_text(line, max_bytes=available))
-            selected.append("  [Earlier content omitted to fit this turn.]")
+            omission = "  [Earlier content omitted to fit this turn.]"
+            reserved = len(omission.encode("utf-8")) + 2
+            if not selected and available > reserved + 32:
+                selected.append(_truncate_utf8_text(line, max_bytes=available - reserved))
+            if available >= reserved:
+                selected.append(omission)
             break
         selected.append(line)
         available -= line_bytes
     selected.reverse()
-    if len((prompt := "\n".join([*opening, *selected, *rules])).encode("utf-8")) > driver.MAX_PROMPT_BYTES:
+    if len((prompt := "\n".join([*opening, *selected, *rules])).encode("utf-8")) > room.limits.prompt_bytes:
         raise DiscussionValidationError("Discussion prompt exceeds the driver limit")
     return prompt
 
@@ -604,33 +646,39 @@ def _effective_watermarks(
 
 def plan_next_task(
     room_value: Any, events: Sequence[Mapping[str, Any]], *, local_profiles: Iterable[str],
-    initial_watermarks: Mapping[tuple[str, str], int] | None = None) -> DiscussionDecision:
+    initial_watermarks: Mapping[tuple[str, str], int] | None = None,
+    limits: DiscussionLimits = DEFAULT_LIMITS,
+    active_member_ids: Iterable[str] | None = None) -> DiscussionDecision:
     """Replay the complete room log and return at most one next member task."""
-    room = validate_room(room_value, local_profiles=local_profiles)
+    room = validate_room(room_value, local_profiles=local_profiles, limits=limits)
     validated = _validated_events(events, room=room)
     if (discussion := _pending_discussion(validated)) is None:
         return DiscussionDecision(status="idle", reason="no_pending_user_event")
+    active_ids = None if active_member_ids is None else frozenset(active_member_ids)
+    if active_ids is not None and not active_ids <= {member.member_id for member in room.members}:
+        raise DiscussionValidationError("active members must belong to the admitted catalog")
+    active = tuple(m for m in room.members if active_ids is None or m.member_id in active_ids)
     thread_id = str(discussion.payload["thread_id"])
     decide = partial(
         DiscussionDecision, discussion_event_id=discussion.event_id, source_event_seq=discussion.seq,
         thread_id=thread_id)
     thread_messages, discussion_messages, member_messages = _thread_messages(validated, discussion)
-    if len(member_messages) >= MAX_DISCUSSION_MESSAGES:
+    if len(member_messages) >= room.limits.max_messages:
         return decide("bounded", "max_messages")
     terminals = {
         (int(event.payload["round_index"]), str(event.payload["member_id"])) for event in validated
         if event.kind in _TERMINAL_EVENT_KINDS and event.payload.get("discussion_event_id") == discussion.event_id}
     watermarks = _effective_watermarks(validated, initial_watermarks)
     seen_through_seq = max(event.seq for event in thread_messages)
-    for round_index in range(MAX_DISCUSSION_ROUNDS):
+    for round_index in range(room.limits.max_rounds):
         # The user's message selects the first round, with no mention meaning
         # everyone. Later rounds are opt-in: only a peer explicitly cited by a
         # Bot and not heard from afterward gets another turn. Every member's
         # watermark remains intact, so a peer cited later still receives the
         # complete bounded transcript delta without consuming turns meanwhile.
         responders = (
-            resolve_mentions((str(discussion.payload["text"]),), room.members) if round_index == 0
-            else _unaddressed_member_mentions(discussion_messages, room))
+            resolve_mentions((str(discussion.payload["text"]),), active) if round_index == 0
+            else tuple(m for m in _unaddressed_member_mentions(discussion_messages, room) if m in active))
         for member_index, member in enumerate(_rotate(responders, round_index)):
             if (round_index, member.member_id) in terminals:
                 continue
@@ -639,22 +687,23 @@ def plan_next_task(
                 continue
             prompt = _build_prompt(
                 room=room, member=member, messages=thread_messages, watermark=watermark,
-                seen_through_seq=seen_through_seq)
+                seen_through_seq=seen_through_seq, active_members=active)
             return decide("task", "member_turn", task=_make_task_plan(
                 room=room, discussion_event=discussion, member=member, member_index=member_index,
                 round_index=round_index, seen_through_seq=seen_through_seq, prompt=prompt))
         if not any(int(event.payload["round_index"]) == round_index for event in member_messages):
             return decide("settled", "silent_round")
-        if round_index == MAX_DISCUSSION_ROUNDS - 1:
+        if round_index == room.limits.max_rounds - 1:
             return decide("bounded", "max_rounds")
     raise AssertionError("bounded Discussion loop exhausted unexpectedly")
 
 
 def reconstruct_task_plan(
-    room_value: Any, events: Sequence[Mapping[str, Any]], task: Mapping[str, Any], *, local_profiles: Iterable[str]
+    room_value: Any, events: Sequence[Mapping[str, Any]], task: Mapping[str, Any], *, local_profiles: Iterable[str],
+    limits: DiscussionLimits = DEFAULT_LIMITS
 ) -> DiscussionTaskPlan:
     """Reconstruct and verify one persisted driver task after a restart."""
-    room = validate_room(room_value, local_profiles=local_profiles)
+    room = validate_room(room_value, local_profiles=local_profiles, limits=limits)
     validated = _validated_events(events, room=room)
     identity, payload = task.get("identity"), task.get("payload")
     if not isinstance(identity, driver.TaskIdentity) or not isinstance(payload, Mapping):
@@ -665,6 +714,8 @@ def reconstruct_task_plan(
         raise DiscussionReconstructionError("driver task payload shape changed")
     if (match := _TURN_ID_RE.fullmatch(identity.turn_id)) is None:
         raise DiscussionReconstructionError("turn_id is not a Discussion coordinate")
+    _zero_based_int(int(match.group("position")), label="member_index", maximum=room.limits.max_members - 1)
+    _zero_based_int(int(match.group("round")), label="round_index", maximum=room.limits.max_rounds - 1)
     source_event_seq = int(match.group("source"))
     if payload.get("source_event_seq") != source_event_seq:
         raise DiscussionReconstructionError("task source event does not match turn_id")
@@ -681,7 +732,7 @@ def reconstruct_task_plan(
         raise DiscussionReconstructionError("task target member does not match turn_id")
     if not isinstance(prompt := payload.get("prompt"), str) or not prompt.strip():
         raise DiscussionReconstructionError("task prompt is missing")
-    if len(prompt.encode("utf-8")) > driver.MAX_PROMPT_BYTES:
+    if len(prompt.encode("utf-8")) > room.limits.prompt_bytes:
         raise DiscussionReconstructionError("task prompt exceeds the driver limit")
     reconstructed = _make_task_plan(
         room=room, discussion_event=discussion, member=member, member_index=int(match.group("position")),
@@ -750,13 +801,14 @@ _TERMINAL_EFFECTS = {
 
 def plan_publication(
     room_value: Any, events: Sequence[Mapping[str, Any]], task: DiscussionTaskPlan, *, status: TerminalKind,
-    result: Any = None, execution_generation: int | None = None, local_profiles: Iterable[str]) -> PublicationPlan:
+    result: Any = None, execution_generation: int | None = None, local_profiles: Iterable[str],
+    limits: DiscussionLimits = DEFAULT_LIMITS) -> PublicationPlan:
     """Plan idempotent room effects for one terminal driver task.
 
     A newer user event in the same thread supersedes a late result: the task stays terminal in driver state,
     but only a deterministic cancellation is published so stale prose and its watermark cannot hide it.
     """
-    room = validate_room(room_value, local_profiles=local_profiles)
+    room = validate_room(room_value, local_profiles=local_profiles, limits=limits)
     validated = _validated_events(events, room=room)
     for failed, message in (
         (task.identity.room_id != room.room_id, "task belongs to a different room"),

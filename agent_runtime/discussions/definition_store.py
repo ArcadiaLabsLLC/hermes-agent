@@ -163,8 +163,19 @@ def _next_revision(current: int) -> int:
     return current + 1
 
 
+def _assert_table_editable(conn: sqlite3.Connection, key: tuple[str, str, str]) -> None:
+    if key[0] != "table":
+        return
+    # The optional run schema may not exist in a pure authoring-only client.
+    # Checking and writing are inside the SAME immediate transaction as Start.
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE name='mc_discussion_table_claims'").fetchone():
+        if conn.execute("SELECT 1 FROM mc_discussion_table_claims WHERE workspace_id=? AND table_id=?", key[1:]).fetchone():
+            raise DefinitionError("table_busy", "definition_id")
+
+
 def _write(conn: sqlite3.Connection, key: tuple[str, str, str], spec: TableSpec | PresetSpec,
            *, expected: int, origin: PresetOrigin | None = None) -> DefinitionRecord:
+    _assert_table_editable(conn, key)
     row = _raw(conn, key)
     if row is None:
         if expected != 0:
@@ -253,6 +264,7 @@ class DefinitionStore:
         with transaction(self._connect(), immediate=True) as conn:
             record = _required(conn, key)
             _expect(record, expected)
+            _assert_table_editable(conn, key)
             new_revision = _next_revision(expected)
             conn.execute(
                 "UPDATE mc_discussion_definitions SET revision=?,deleted=1 WHERE kind=? AND workspace_id=? AND definition_id=? AND revision=?",
