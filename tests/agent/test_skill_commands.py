@@ -753,11 +753,14 @@ class TestSkillDirectoryHeader:
         # the absolute skill-dir prefix per line cost ~9K tokens on skills
         # with hundreds of references; the absolute base is already stated
         # once in the [Skill directory: ...] header and the footer example.
-        assert "- " + str(Path("scripts/run.js")) in msg
-        assert "- " + str(Path("scripts/run.js")) + "  ->  " not in msg
-        assert str(skill_dir / "scripts" / "run.js") not in msg.split(
-            "[This skill has supporting files"
-        )[1].split("\nLoad any of these")[0]
+        # skill_view serializes linked-file paths with as_posix(), including
+        # on Windows; these are portable skill-relative identifiers, not host paths.
+        support_section = msg.split("[This skill has supporting files", 1)[1].split(
+            "\nLoad any of these", 1
+        )[0]
+        support_lines = [line for line in support_section.splitlines() if line.startswith("- ")]
+        assert support_lines == ["- scripts/run.js"]
+        assert str(skill_dir / "scripts" / "run.js") not in support_section
         # Absolute resolution stays available via the header + footer example.
         assert f"[Skill directory: {skill_dir}]" in msg
         assert f"node {skill_dir}/scripts/foo.js" in msg

@@ -96,6 +96,18 @@ def _skill_root_registry_cache_clear() -> None:
     with _SKILL_ROOT_REGISTRY_LOCK:
         _SKILL_ROOT_REGISTRY_CACHE.clear()
 
+def _is_package_owned_markdown(path: Path, search_root: Path) -> bool:
+    """True when a legacy Markdown candidate belongs to an ancestor directory skill."""
+    try:
+        relative = path.relative_to(search_root)
+    except ValueError:
+        return False
+    return any(
+        (search_root.joinpath(*relative.parts[:depth]) / "SKILL.md").is_file()
+        for depth in range(1, len(relative.parts))
+    )
+
+
 def _skill_root_registry(root: Path) -> _SkillRootRegistry:
     """Return the candidate registry for one physical skill root.
 
@@ -126,7 +138,8 @@ def _skill_root_registry(root: Path) -> _SkillRootRegistry:
     legacy = [
         path
         for path in root.rglob("*.md")
-        if path.name != "SKILL.md" and not _skills.is_skill_support_path(path)
+        if (path.name != "SKILL.md" and not _skills.is_skill_support_path(path)
+            and not _is_package_owned_markdown(path, root))
     ]
     marker = root / _skills.ORG_MIRROR_DIR_NAME / _skills.ORG_ACTIVE_MARKER
     fingerprint_paths = [*manifests, *legacy, marker]

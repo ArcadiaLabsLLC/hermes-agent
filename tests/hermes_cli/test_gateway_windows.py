@@ -75,10 +75,6 @@ def test_build_gateway_argv_keeps_venv_console_python_for_uv_venv(monkeypatch, t
     assert str(project) in env_overlay["PYTHONPATH"].split(gateway_windows.os.pathsep)
 
 
-
-
-
-
 class TestStableWindowsGatewayWorkingDir:
     def test_stable_gateway_working_dir_uses_hermes_home(self, tmp_path, monkeypatch):
         home = tmp_path / ".hermes"
@@ -274,3 +270,22 @@ def test_gateway_vbs_script_is_console_less(monkeypatch):
 
 
 
+
+
+def test_launcher_settings_keeps_managed_python_for_explicit_profile(monkeypatch, tmp_path):
+    """A sibling cold-start selects its home without reverting to checkout Python."""
+    caller = tmp_path / "caller"
+    target = tmp_path / "profiles" / "alice"
+    caller.mkdir()
+    target.mkdir(parents=True)
+    managed = str(tmp_path / "managed" / "python.exe")
+    monkeypatch.setattr(gateway, "resolve_managed_python", lambda: managed)
+    monkeypatch.setattr("hermes_cli.config.get_hermes_home", lambda: caller)
+    monkeypatch.setattr(gateway, "_profile_arg", lambda home: "--profile alice" if home == str(target) else "")
+
+    python, cwd, home, profile = gateway_windows._launcher_settings(target)
+
+    assert python == managed
+    assert home == str(target)
+    assert profile == "--profile alice"
+    assert cwd == str(caller)

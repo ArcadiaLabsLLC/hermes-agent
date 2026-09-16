@@ -401,3 +401,25 @@ class TestGeneralizedSupervisorMarkers:
 
         plist = generate_launchd_plist()
         assert "<key>HERMES_SUPERVISED_CHILD</key>" in plist
+
+
+def test_extracted_profile_scanner_normalizes_and_preserves_rebind(monkeypatch):
+    from hermes_cli import _profile_bootstrap as bootstrap
+    monkeypatch.setattr(sys, "argv", ["hermes"])
+    assert bootstrap._scan_profile_flag(["-p", " Work ", "chat"]) == ("work", 2, 0)
+    assert bootstrap._scan_profile_flag(["--profile= Work ", "chat"]) == ("work", 1, 0)
+    assert bootstrap._scan_profile_flag(["harness", "agent", "set-profile", "--profile", "work"]) == (None, 0, None)
+
+
+def test_extracted_profile_scanner_distinguishes_cli_typos_from_pytest(monkeypatch, capsys):
+    import pytest
+    from hermes_cli import _profile_bootstrap as bootstrap
+    monkeypatch.setattr(sys, "argv", ["hermes"])
+    with pytest.raises(SystemExit) as error:
+        bootstrap._scan_profile_flag(["-p", "Work Bot", "chat"])
+    assert error.value.code == 2
+    assert "hermes profile list" in capsys.readouterr().err
+    monkeypatch.setattr(sys, "argv", ["pytest"])
+    assert bootstrap._scan_profile_flag(["-p", "Work Bot"]) == (None, 0, None)
+    assert bootstrap._scan_profile_flag(["-p", "no:xdist"]) == (None, 0, None)
+    assert capsys.readouterr().err == ""

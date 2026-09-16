@@ -11,6 +11,13 @@ to write this plan. New methods below must not be enabled before producer proof.
 
 ## Upstream integration reassessment (2026-09-15)
 
+Latest follow-up baseline: upstream `416a8177c25d87aa9929dfcf31f7964137d7fcdd`.
+Its supervisor changes launch-flag compatibility and unknown idle telemetry;
+the fork-owned Local llama implementation is unchanged. Qualify owner-specific
+arguments against pinned binaries and never turn unknown telemetry into lifecycle
+authority. No installer schema change follows from this update. See the
+[latest merge and validation notes](upstream-sync-20260915.md).
+
 The combined source includes upstream `hermes_cli/local_runtime/` (binary assets,
 hardware, GGUF/catalog, bootstrap, supervision and recovery). The original source
 review below predates that integration. Treat release observations as historical;

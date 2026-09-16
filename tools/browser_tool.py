@@ -37,12 +37,25 @@ _BROWSER_PASSTHROUGH_KEYS: tuple[str, ...] = (
 
 def _build_browser_env() -> dict:
     """Credential-scrubbed env for an agent-browser subprocess (deferred import: test
-    harnesses stub the ``tools`` package)."""
-    from tools.environments.local import hermes_subprocess_env
+    harnesses stub the ``tools`` package). The passthrough keys are re-added from the active
+    profile's secret scope, never ``os.environ``: under multiplex that holds the LAUNCH profile's
+    Browserbase/Firecrawl keys, and a served profile's browser must run on its own (or none)."""
+    from agent.secret_scope import UnscopedSecretError, get_secret
+    from tools.environments.local import served_profile_child_env
 
-    env = hermes_subprocess_env(inherit_credentials=False)
-    env.update({k: os.environ[k] for k in _BROWSER_PASSTHROUGH_KEYS if k in os.environ})
-    return env
+    from agent.proxy_bypass import add_loopback_no_proxy
+
+    env = served_profile_child_env(inherit_credentials=False)
+    for key in _BROWSER_PASSTHROUGH_KEYS:
+        try:
+            value = get_secret(key)
+        except UnscopedSecretError:
+            value = None  # multiplex, no scope bound: no key rather than a sibling profile's
+        if value is not None:
+            env[key] = value
+    # The Browser Use harness dials the resolved local CDP URL over ``websockets``; without a
+    # loopback NO_PROXY a macOS system proxy captures that dial (#110565).
+    return add_loopback_no_proxy(env)
 
 
 try:
@@ -437,7 +450,7 @@ atexit.register(_lifecycle._stop_browser_cleanup_thread)
 BROWSER_TOOL_SCHEMAS = [
     {
         "name": "browser_navigate",
-        "description": 'Navigate to a URL and load the page; must be called before other browser_* tools. Returns a compact snapshot with ref IDs. Disambiguator: for plain info or plain-text endpoints (.md/.json/API) prefer web_search / web_extract / curl -- the browser is for interacting with dynamic pages.',
+        "description": "Navigate to a URL in the browser. Initializes the session and loads the page. Must be called before other browser tools. For simple information retrieval, prefer a lightweight retrieval tool when one is available (faster, cheaper). For plain-text endpoints — URLs ending in .md, .txt, .json, .yaml, .yml, .csv, .xml, raw.githubusercontent.com, or any documented API endpoint — prefer an available text-extraction or terminal-fetch tool; the browser stack is overkill and much slower for these. Use browser tools when you need to interact with a page (click, fill forms, dynamic content). Returns a compact page snapshot with interactive elements and ref IDs — no need to call browser_snapshot separately after navigating.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -1253,6 +1266,7 @@ def browser_vision(question: str, annotate: bool = False, task_id: Optional[str]
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
+from tools.downstream_schema import brief_schema
 from tools.registry import registry, tool_error
 from tools.browser_extension_router import extension_controller_available, routed_browser_handler
 
@@ -1311,7 +1325,7 @@ def _routed_handler(name: str, fallback):
 for _name, _emoji, _check_fn, _defaults, *_extra in _BROWSER_TOOL_TABLE:
     if _check_fn is None:  # also binds the legacy check_browser_<x>_requirements globals (tests + callers)
         _check_fn = globals()[f"check_{_name}_requirements"] = _routed_check_fn(_name)
-    registry.register(name=_name, toolset="browser", schema=_BROWSER_SCHEMA_MAP[_name],
+    registry.register(name=_name, toolset="browser", schema=brief_schema(_name, _BROWSER_SCHEMA_MAP[_name]),
                       handler=_routed_handler(_name, _fallback_call(_name, _defaults, *_extra)),
                       check_fn=_check_fn, emoji=_emoji)
 

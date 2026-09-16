@@ -415,3 +415,20 @@ def test_disarming_cannot_lift_the_session_finish_latch():
     finally:
         fence._LATCHED = latched_before
         fence.arm()
+
+
+def test_spawn_fence_forwards_profile_only_when_unarmed(monkeypatch, tmp_path):
+    from hermes_cli import gateway_windows
+    calls = []
+    def fake_spawn(script_path=None, home=None):
+        calls.append((script_path, home))
+        return 123
+    monkeypatch.setattr(gateway_windows, "_spawn_detached", fake_spawn)
+    _gateway_fence._install_spawn_detached_stub()
+    monkeypatch.setattr(_gateway_fence, "_ARMED", False)
+    assert gateway_windows._spawn_detached(home=tmp_path) == 123
+    assert calls == [(None, tmp_path)]
+    monkeypatch.setattr(_gateway_fence, "_ARMED", True)
+    with pytest.raises(GatewayFenceViolation):
+        gateway_windows._spawn_detached(home=tmp_path)
+    assert calls == [(None, tmp_path)]

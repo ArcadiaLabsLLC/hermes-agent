@@ -426,11 +426,11 @@ def _install_spawn_detached_stub() -> None:
 
     real_spawn_detached = gateway_windows._spawn_detached
 
-    def _fenced_spawn_detached(script_path=None):
+    def _fenced_spawn_detached(script_path=None, home=None):
         if not _ARMED:
             # Outside this directory's tests the chokepoint is not ours to
             # close; hand the call back to production unchanged.
-            return real_spawn_detached(script_path)
+            return real_spawn_detached(script_path, home=home)
         _refuse(
             "gateway_windows._spawn_detached",
             script_path,

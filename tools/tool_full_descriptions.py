@@ -9,6 +9,11 @@ REVERT CONTRACT: this file is intentionally independent of the description-trim
 commit. A ``git revert`` of the trims restores the full text to the schemas while
 this mirror keeps serving the same originals — the full docs are never lost.
 
+Browser navigation, write_file and terminal capture their current upstream full
+text through tools.downstream_schema at registration. Their briefs live there;
+new upstream documentation needs no second copy. Other entries retain the
+following snapshot contract.
+
 MIRROR DISCIPLINE: this is a snapshot of the descriptions as they shipped before
 the T6b trims. If a tool's genuine documentation changes, update BOTH the brief
 schema description and this mirror. Parameter docs are NOT duplicated here —
@@ -178,6 +183,11 @@ def full_tool_description(name: str) -> Optional[str]:
 
     Values may be plain strings or zero-arg callables (for profile-aware text).
     """
+    from tools.downstream_schema import registered_full_description
+
+    current = registered_full_description(name)
+    if current is not None:
+        return current
     value = FULL_TOOL_DESCRIPTIONS.get(name)
     if value is None:
         return None

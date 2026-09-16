@@ -143,7 +143,7 @@ class TestReadJournalMode:
             holder.close()
 
     @pytest.mark.skipif(os.name == "nt", reason="chmod is a no-op on Windows")
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
+    @pytest.mark.skipif(os.name != "nt" and os.geteuid() == 0, reason="root ignores file permissions")
     def test_read_only_directory_is_still_readable(self, tmp_path):
         db = tmp_path / "state.db"
         _make_db(db, journal_mode="WAL")
@@ -279,9 +279,10 @@ class TestLiveConnectionSafety:
 
 class TestUnreadableReason:
     def test_missing_file_keeps_the_os_error_text(self, tmp_path):
-        reason = doctor_platform._unreadable_reason(tmp_path / "gone.db")
-
-        assert "No such file or directory" in reason
+        missing = tmp_path / "gone.db"
+        with pytest.raises(OSError) as error:
+            missing.stat()
+        assert doctor_platform._unreadable_reason(missing) == str(error.value)
 
     @pytest.mark.skipif(os.name == "nt", reason="chmod is a no-op on Windows")
     @pytest.mark.skipif(
@@ -321,6 +322,18 @@ class TestUnreadableReason:
 
 
 class TestReportDatabaseJournalModes:
+    def test_wal_db_on_cross_vm_fs_is_flagged_with_offline_remedy(self, tmp_path, capsys, monkeypatch):
+        # #110848: startup only refuses WAL for fresh databases on virtiofs/9p; doctor must surface an existing WAL
+        # file there (with a non-vulnerable SQLite, where it used to print a plain info line).
+        _make_db(tmp_path / "state.db", journal_mode="WAL")
+        monkeypatch.setattr("hermes_state_wal._path_on_cross_vm_fs", lambda p: True)
+
+        doctor_platform._report_database_journal_modes(tmp_path, (3, 51, 3))
+
+        out = capsys.readouterr().out
+        assert "state.db is in WAL mode on a cross-VM filesystem" in out
+        assert "PRAGMA journal_mode=DELETE" in out
+
     def test_vulnerable_runtime_wal_db_is_exposed(self, tmp_path, capsys):
         _make_db(tmp_path / "state.db", journal_mode="WAL")
 
@@ -364,7 +377,7 @@ class TestReportDatabaseJournalModes:
         assert "state.db is in WAL mode" in out
         assert "projects.db: rollback journal mode" in out
         assert "kanban.db: rollback journal mode" in out
-        assert "kanban/boards/myboard/kanban.db is in WAL mode" in out
+        assert f"{(board / 'kanban.db').relative_to(tmp_path)} is in WAL mode" in out
 
     def test_missing_databases_are_skipped(self, tmp_path, capsys):
         doctor_platform._report_database_journal_modes(tmp_path, VULNERABLE)
@@ -388,7 +401,7 @@ class TestReportDatabaseJournalModes:
         assert "state.db: rollback journal mode" in out
 
     @pytest.mark.skipif(os.name == "nt", reason="chmod is a no-op on Windows")
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
+    @pytest.mark.skipif(os.name != "nt" and os.geteuid() == 0, reason="root ignores file permissions")
     def test_unreadable_database_does_not_crash(self, tmp_path, capsys):
         db = tmp_path / "state.db"
         _make_db(db)

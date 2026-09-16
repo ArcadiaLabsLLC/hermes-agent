@@ -930,3 +930,25 @@ def test_a_shared_map_is_keyed_by_root_so_lanes_with_different_roots_are_safe(
     assert third["alpha"].status == "missing", (
         "a shared map must never widen a lane's root list"
     )
+
+
+def test_shared_resolver_excludes_package_markdown_but_keeps_legacy_skills(tmp_path):
+    """Tool reads and runtime policy must agree on package-owned support files."""
+    _write_skill(tmp_path, "research")
+    _write_skill(tmp_path, "character")
+    internal = tmp_path / "character" / "prompts" / "research.md"
+    internal.parent.mkdir()
+    internal.write_text("Internal prompt, not a standalone skill", encoding="utf-8")
+    legacy = tmp_path / "legacy" / "standalone.md"
+    legacy.parent.mkdir()
+    legacy.write_text("Legacy standalone skill", encoding="utf-8")
+    names = ["research", "character/prompts/research", "legacy/standalone"]
+    batch = skill_utils.resolve_skills(names, roots=[tmp_path])
+    for name in names:
+        single = skill_utils.resolve_skill(name, roots=[tmp_path])
+        assert single.status == batch[name].status
+        assert single.candidates == batch[name].candidates
+    assert batch["research"].status == "resolved"
+    assert batch["research"].candidates[0].skill_md == tmp_path / "research" / "SKILL.md"
+    assert batch["character/prompts/research"].status == "missing"
+    assert batch["legacy/standalone"].status == "resolved"
