@@ -81,8 +81,16 @@ belongs in Launcher.
   exit 0; official SHA256 verification, safe extraction, binary version/router
   qualification, inactive publication, explicit activation, server remained off.
   Receipt retained in local Codex artifacts. No live runtime/config/model touched.
+- The same setup probe with `--backend cuda` passed against official b10964,
+  including the paired CUDA runtime dependency archive and explicit activation.
+- `scripts/probe_local_llama_runtime.py` against that newly installed CUDA binary
+  and the existing 27B Q4_K_M GGUF passed on the NVIDIA RTX 4090: load, text
+  generation, a real Hermes terminal tool call, unload, reload with changed
+  context size, and shutdown. GPU memory rose from 4,189 MiB to 19,358 MiB during
+  inference. This verifies this machine, not compatibility with every GPU/driver.
+- Catalog, owned-process, provider and router targets: 12 tests passed, exit 0.
 - Python compileall over the changed package passed. Full integrated Launcher
-  flow, real GPU variant install, second physical host and Stage C remain pending.
+  flow, second physical host and Stage C remain pending.
 
 ## Limits and implementation decisions
 
