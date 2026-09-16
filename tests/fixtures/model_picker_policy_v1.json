@@ -1,0 +1,21 @@
+{
+  "schema": "model_picker_fixture/v1",
+  "policies": {
+    "openai-codex": {
+      "schema": "hermes.model_picker_policy/v1",
+      "billing_mode": "account",
+      "catalog_mode": "compatibility",
+      "source": "hermes_cli.codex_models",
+      "model_ids": [
+        "example-chat-model",
+        "example-chat-model-900k"
+      ]
+    },
+    "anthropic": {
+      "schema": "hermes.model_picker_policy/v1",
+      "billing_mode": "catalog",
+      "catalog_mode": "reference",
+      "source": "models.dev"
+    }
+  }
+}
