@@ -12,6 +12,8 @@ METHODS = {"status": TIER_READ, "config.get": TIER_CONSOLE, "config.set": TIER_C
 
 
 def register(method, ok, err):
+    from .setup_rpc import register as register_setup
+    register_setup(method, ok, err)
     for suffix, tier in METHODS.items():
         def handler(rid, params, context, operation=suffix):
             try:

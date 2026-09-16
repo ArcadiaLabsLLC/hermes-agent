@@ -39,6 +39,8 @@ class LocalLlamaManager:
     def _initialize(self, config_path, install_id, router_factory):
         self.lock = threading.RLock()
         self.config_store = ConfigStore(config_path)
+        from .config_journal import recover
+        recover(self.directory, self.config_store)
         self.config = self.config_store.read()
         self.install_id = install_id
         self.epoch = str(uuid.uuid4())
@@ -55,6 +57,7 @@ class LocalLlamaManager:
         self.logs = deque(maxlen=2000)
         self._log_sequence = 0
         self.closed = False
+        self._ownership_released = False
         self.unavailable = {p["model_id"]: "missing_file" for p in self.config["presets"]
                             if not Path(p["gguf_path"]).is_file()}
         self.stop_event = threading.Event()
@@ -65,6 +68,8 @@ class LocalLlamaManager:
                 op.update(state="interrupted", finished_at=iso_stamp(None),
                           error=LocalLlamaError("interrupted", "Hermes restarted during this operation").as_error())
         self._persist()
+        from .setup_manager import SetupManager
+        self.setup = SetupManager(self)
         self._watcher = threading.Thread(target=self._watch, name="local-llama-health", daemon=True)
         self._watcher.start()
 
@@ -94,9 +99,20 @@ class LocalLlamaManager:
                 "supported_values": {"thinking": ["auto"], "flash_attention": ["auto", "on", "off"],
                                      "cache_type_k": ["f16", "q8_0", "q4_0"], "cache_type_v": ["f16", "q8_0", "q4_0"]}}
 
+    def setup_busy(self):
+        return getattr(self, "setup", None) is not None and self.setup.active is not None
+
+    def active_operation(self):
+        if self.setup_busy():
+            op = self.setup.active
+            return {"operation_id": op["operation_id"], "request_id": op["request_id"],
+                    "kind": "setup." + op["kind"], "state": "running", "progress": None,
+                    "error": None, "accepted_at": op["accepted_at"]}
+        return self.operation if self.operation and self.operation["state"] in ("queued", "running") else None
+
     def status(self, *, operation_id=None, request_id=None):
         with self.lock:
-            operation = self.operation
+            operation = self.active_operation() or self.operation
             if operation_id and request_id:
                 raise LocalLlamaError("invalid_parameter", "Choose one operation lookup")
             if request_id:
@@ -120,7 +136,8 @@ class LocalLlamaManager:
                              "revision": self.revision, "config_revision": self.config_revision,
                              "configured": bool(self.config.get("executable_path")),
                              "capabilities": self.capabilities(), "server": {"state": self.server, "error": self.server_error},
-                             "models": rows, "active_turns": list(self.leases.values()), "operation": operation})
+                             "models": rows, "active_turns": list(self.leases.values()), "operation": operation,
+                             "active_operation": self.active_operation()})
 
     def config_get(self):
         with self.lock:
@@ -175,7 +192,7 @@ class LocalLlamaManager:
                 integer(normalized[name], name)
                 if normalized[name] != actual:
                     raise LocalLlamaError("stale_revision", "Local llama state changed; refresh and retry", code=4090)
-            if self.operation and self.operation["state"] in ("queued", "running"):
+            if self.setup_busy() or (self.operation and self.operation["state"] in ("queued", "running")):
                 raise LocalLlamaError("operation_busy", "A local llama operation is already running", code=4090)
             if self.leases and kind in ("start", "stop", "load", "unload"):
                 raise LocalLlamaError("active_turns", "A local model turn is active", code=4090,
@@ -235,7 +252,8 @@ class LocalLlamaManager:
         with self.lock:
             if self.closed:
                 raise LocalLlamaError("interrupted", "Hermes is stopping", code=-32000)
-            self.config_store.write(config)
+            from .config_journal import publish
+            publish(self.directory, self.config_store, self.config, config, self.config_revision + 1)
             self.config = config
             self.unavailable = {p["model_id"]: "missing_file" for p in config["presets"]
                                 if not Path(p["gguf_path"]).is_file()}
@@ -355,7 +373,7 @@ class LocalLlamaManager:
     def lease(self, model_id, turn_id, persona_instance_id):
         key = str(uuid.uuid4())
         with self.lock:
-            if self.operation and self.operation["state"] in ("queued", "running"):
+            if self.setup_busy() or (self.operation and self.operation["state"] in ("queued", "running")):
                 raise LocalLlamaError("operation_busy", "Local llama is changing state", code=4090)
             if self.closed or self.server != "running" or self.loaded != model_id:
                 raise LocalLlamaError("model_not_ready", "Load the selected local model before sending a message", code=4090)
@@ -419,7 +437,15 @@ class LocalLlamaManager:
                                       error=LocalLlamaError("interrupted", "Hermes service stopped").as_error())
             self._persist()
         self.router.close()
+        setup_stopped = self.setup.close()
         if self._worker is not None:
             self._worker.join(timeout=5)
         self._watcher.join(timeout=3)
-        self._ownership.__exit__(None, None, None)
+        if setup_stopped:
+            self.release_ownership()
+
+    def release_ownership(self):
+        with self.lock:
+            if not self._ownership_released:
+                self._ownership_released = True
+                self._ownership.__exit__(None, None, None)

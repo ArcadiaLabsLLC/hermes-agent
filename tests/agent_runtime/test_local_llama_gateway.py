@@ -14,9 +14,13 @@ def test_console_device_can_configure_only_the_served_host(gateway_on):
     with running_serve() as handle:
         with device_client(handle, credential) as (connection, hello):
             assert "runtime.local_llama.config.set" in hello["rpc"]["methods"]
+            assert "runtime.local_llama.installation.apply" in hello["rpc"]["methods"]
+            setup = _rpc(connection, "runtime.local_llama.setup.status")["result"]
+            assert setup["inventory"] == [] and setup["active_operation"] is None
             state = _rpc(connection, "runtime.local_llama.status")["result"]
             settings = _rpc(connection, "runtime.local_llama.config.get")["result"]
             assert state["install_id"] == settings["install_id"]
+            assert setup["install_id"] == state["install_id"]
             config = settings["config"]
             config["port"] = 8189
             params = {"request_id": str(uuid.uuid4()), "expect_epoch": state["epoch"],
@@ -41,5 +45,8 @@ def test_read_device_cannot_view_paths_or_mutate(gateway_on):
     with running_serve() as handle:
         with device_client(handle, credential) as (connection, _):
             assert _rpc(connection, "runtime.local_llama.status")["result"]["server"]["state"] == "off"
-            for method in ("config.get", "config.set", "start", "stop", "load", "unload", "catalog.scan", "logs.get"):
+            assert _rpc(connection, "runtime.local_llama.setup.capabilities")["result"]["schema"] == "hermes.local_llama.setup/v1"
+            for method in ("config.get", "config.set", "start", "stop", "load", "unload", "catalog.scan", "logs.get",
+                           "setup.status", "installations.detect", "installations.validate", "host_paths.validate",
+                           "installation.plan", "installation.apply", "installations.activate", "operations.cancel", "releases.list", "hardware.get"):
                 assert "error" in _rpc(connection, "runtime.local_llama." + method)
