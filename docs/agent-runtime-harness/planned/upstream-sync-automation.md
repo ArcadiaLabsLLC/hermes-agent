@@ -1,12 +1,12 @@
 # Hermes upstream-sync automation handoff
 
-Status: **LOCAL COMPLETION REQUIRED — no upstream merge has been published yet.**
+State: **HANDOFF_ONLY — local completion required; no new upstream merge is represented by this branch yet.**
 
 This file is the durable handoff for the persistent branch `automation/upstream-sync`.
-The cloud task should update it whenever it can make safe progress or discovers a new
-blocker. A local coding agent may continue from this branch, complete work requiring a
-real checkout/toolchain, commit the result to the same branch, and leave `main` untouched
-for operator testing and acceptance.
+The cloud task updates it whenever it can make safe progress or discovers a new blocker.
+A local coding agent may continue from this branch, complete work requiring a real checkout
+or toolchain, commit the result to the same branch, and leave `main` untouched for operator
+testing and acceptance.
 
 ## Frozen state for this handoff
 
@@ -14,13 +14,29 @@ for operator testing and acceptance.
 - Fork main: `0a86b7e1374a3b7860cd37b8d89776ddc9255ea1`
 - Official upstream: `NousResearch/hermes-agent`
 - Current upstream observed: `9796235822b89e08597a402dad045b5b4464e474`
-- Last upstream commit previously integrated into the fork history: `416a8177c25d87aa9929dfcf31f7964137d7fcdd`
+- Last upstream commit already represented in accepted fork history: `416a8177c25d87aa9929dfcf31f7964137d7fcdd`
 - Earlier cloud audit target: `784d5c3f9c2cb77698d8a9d2e72b1d106a38ea88`
 - Upstream advanced 22 commits from that earlier audit target to the current observed tip.
 
-The cloud run deliberately did **not** attach either upstream target as a merge parent,
+The cloud audit deliberately did **not** attach either newer upstream target as a merge parent,
 because the resulting source tree could not be proven complete without regenerating a
 conflicting generated dependency lockfile.
+
+## Cloud capability test completed
+
+The cloud-side GitHub path has now successfully demonstrated all of the following without
+modifying `main`:
+
+- pinned branch/file/history reads;
+- Git tree-object creation;
+- Git commit-object creation without publishing it;
+- creation of the persistent `automation/upstream-sync` branch at a handoff-only commit;
+- reading the handoff back from the published branch;
+- updating this handoff file on that branch.
+
+This proves the cloud task can maintain durable branch state and can assemble Git objects.
+It does **not** prove that it has a shell, can execute repository generators/tests, or can
+safely publish an upstream merge whose generated artifacts are unresolved.
 
 ## What the cloud audit completed
 
@@ -28,10 +44,10 @@ conflicting generated dependency lockfile.
 - Verified that fork `main` stayed untouched.
 - Audited the upstream delta in bounded pieces rather than trusting a single potentially
   truncated GitHub compare response.
-- Confirmed the persistent integration branch did not previously exist.
 - Confirmed both fork and upstream independently changed dependency-resolution inputs/state.
-- Tested that GitHub Git-data operations can assemble tree and commit objects without moving
-  a live branch; publication is intentionally deferred until this handoff commit is ready.
+- Re-checked current upstream after the blocked audit and observed 22 additional commits.
+- Preserved all source integration as pending rather than falsely recording newer upstream
+  ancestry before the merged tree is complete.
 
 ## Primary blocker: `uv.lock`
 
@@ -69,10 +85,13 @@ Work only on `automation/upstream-sync`; do not modify or force-push `main`.
 7. Run focused checks first, using `scripts/run_tests.sh` and the downstream hermetic-runner
    rules. Run generator/contract checks required by files actually changed. Record exact
    commands, results, and the tested commit SHA here.
-8. If CLI/RPC/payload contracts changed, record the likely Launcher follow-up here, but do not
+8. If CLI/RPC/payload contracts changed, record likely Launcher follow-up here, but do not
    modify Launcher from this branch.
-9. Commit all completed reconciliation and update this handoff in the same branch. Do not
-   merge to `main`; the operator will pull/test the exact candidate SHA and decide acceptance.
+9. Commit completed reconciliation and update this handoff in the same branch. Change this
+   file's State to `SOURCE_CANDIDATE` only when the claimed upstream target is actually present
+   in Git ancestry and the source tree has no known unresolved integration defect.
+10. Do not merge to `main`; the operator will pull/test the exact candidate SHA and decide
+   acceptance.
 
 ## Conflict hierarchy to preserve
 
@@ -88,17 +107,23 @@ Work only on `automation/upstream-sync`; do not modify or force-push `main`.
 
 ## Cloud-task continuation rules
 
-Future scheduled runs should always inspect this file and the actual Git ancestry. They should
+Future scheduled runs must inspect this file and actual Git ancestry before acting. They should
 make every safe GitHub-only improvement they can. If a real-checkout operation is still needed,
 they should **update this handoff on the persistent branch instead of returning only an ephemeral
-chat report**. A handoff-only commit is allowed when source integration itself cannot safely be
-published. Such a commit must clearly say that the upstream merge is incomplete and must not
-claim the upstream SHA is integrated.
+chat report**.
 
-If a local agent later commits the completed merge, future cloud runs should treat those human
+A handoff-only commit is allowed when source integration cannot safely be published. It may
+record analysis, exact blocker details, safe preparatory work, and local-agent instructions.
+It must keep `State: HANDOFF_ONLY`, must not attach an upstream merge parent whose tree is known
+incomplete, and must not claim the newer upstream SHA is integrated.
+
+Do not create a daily handoff commit when nothing material changed. Update it when fork `main`,
+upstream `main`, blocker details, safe completed work, or required local steps materially change.
+
+If a local agent later commits the completed merge, future cloud runs must treat those human
 commits as authoritative branch history, inspect what was completed, refresh fork `main` first
-when necessary, then continue with newer upstream commits. Never reset or discard the local
-agent's work merely because the scheduled task did not create it.
+when necessary, then continue with newer upstream commits. Never reset or discard local-agent
+work merely because the scheduled task did not create it.
 
 ## Acceptance boundary
 
