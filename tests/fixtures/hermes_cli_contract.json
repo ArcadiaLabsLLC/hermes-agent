@@ -15181,6 +15181,14 @@
           "required": false,
           "type": null
         },
+        "--sync-imports": {
+          "action": "store_true",
+          "canonical": "--sync-imports",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
         "-h": {
           "action": "help",
           "canonical": "--help",
