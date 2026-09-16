@@ -12,7 +12,24 @@ This branch now contains the tested definition/persistence foundation plus the f
 - preset Load/Modified/Revert semantics that preserve the loaded revision rather than live-linking to a changing preset;
 - focused tests and mutation evidence in `discussion-definition-foundation-validation.md`.
 
-The foundation was exercised in the prior sandbox with 202 focused cases passing (78 new authoring/storage + 124 unchanged dispatch/hosted-room regressions). That run used the documented missing-`pytest-timeout` command-line workaround; rerun normally in the project environment before landing.
+The foundation was exercised in the prior sandbox with 202 focused cases passing (78 new authoring/storage + 124 unchanged dispatch/hosted-room regressions). That run used the documented missing-`pytest-timeout` command-line workaround. The normal local runner has now passed as recorded below.
+
+## Local review receipt — 2026-09-16
+
+Fetched `origin/main` at `0a86b7e1374a3b7860cd37b8d89776ddc9255ea1` and reviewed feature commit `c59da64c39c8ef59c59be25fd92bdd4380e363d5`. The feature branch was already descended from current main; no rebase was needed. The dedicated review worktree was clean before and after validation. Other registered dirty worktrees were preserved.
+
+Commands and observed results:
+
+| Command | Result |
+| --- | --- |
+| `python -m compileall -q agent_runtime/discussions` | Exit 0; all changed Python modules compiled. |
+| `python -c "from agent_runtime.discussions import definitions, definition_store; print('imports OK')"` | Exit 0; `imports OK`. |
+| `bash scripts/run_tests.sh tests/agent_runtime/test_discussion_definitions.py tests/agent_runtime/test_discussion_definition_store.py tests/agent_runtime/test_dispatch_session_policy.py tests/gateway/test_hosted_room_discussion.py tests/gateway/test_hosted_room_driver.py` | Exit 0; 202 passed, 0 failed, five files, 28.9 seconds runner wall at eight workers. |
+| `git diff --check origin/main...HEAD` | Exit 0. |
+
+The five test-file counts were 58 definition, 20 storage, 35 dispatch-session policy, 45 hosted-room discussion, and 44 hosted-room driver. The canonical runner used its normal test environment and options, without the prior sandbox's `pytest-timeout` workaround. Its precompile phase printed a WSL Git worktree-path warning (`not a git repository`), but it continued into the test runner and all 202 tests passed. The earlier six killing-mutation receipts in `discussion-definition-foundation-validation.md` were reviewed, not rerun locally.
+
+Review found no new defect in the implemented definition/preset foundation. No production source or tests changed in this review. This does not validate live room execution, RPC, a twelve-member native run, cross-install behavior, the Launcher consumer, or Stage C. The Launcher-side analyzer/test receipts and queued baseline blockers are in `EterniaLauncher/docs/tooling/DISCUSSION_TABLES_REVIEW_2026-09-16.md` on its matching feature branch.
 
 ## Remaining runtime work
 
