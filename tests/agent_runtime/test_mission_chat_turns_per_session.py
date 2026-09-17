@@ -17,6 +17,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from agent_runtime import mission_chat_turns
 from agent_runtime.mission_chat_turns import (
     MissionChatTurnPersistOutcome,
@@ -35,6 +37,35 @@ def _persist_completed(session_id: str, client_message_id: str) -> None:
         state="completed",
     )
     assert outcome is MissionChatTurnPersistOutcome.PERSISTED
+
+
+@pytest.mark.parametrize('failures', [1, 5])
+def test_atomic_journal_retry_preserves_committed_file(tmp_path, monkeypatch, failures):
+    path = tmp_path / 'journal.json'
+    path.write_text('{"old":true}', encoding='utf-8')
+    original = Path.replace
+    calls = []
+
+    def replace(source, destination):
+        calls.append(source)
+        if len(calls) <= failures:
+            assert json.loads(path.read_text(encoding='utf-8')) == {'old': True}
+            error = PermissionError('reader sharing violation')
+            error.winerror = 32
+            raise error
+        return original(source, destination)
+
+    monkeypatch.setattr(Path, 'replace', replace)
+    monkeypatch.setattr(mission_chat_turns.time, 'sleep', lambda _: None)
+    if failures == 5:
+        with pytest.raises(PermissionError):
+            mission_chat_turns._write_session_file(path, {'new': True})
+        assert json.loads(path.read_text(encoding='utf-8')) == {'old': True}
+        assert len(calls) == 5
+    else:
+        mission_chat_turns._write_session_file(path, {'new': True})
+        assert json.loads(path.read_text(encoding='utf-8')) == {'new': True}
+        assert len(calls) == 2
 
 
 # ---------------------------------------------------------------------------
