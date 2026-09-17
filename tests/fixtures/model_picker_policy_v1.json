@@ -4,7 +4,7 @@
     "openai-codex": {
       "schema": "hermes.model_picker_policy/v1",
       "billing_mode": "account",
-      "catalog_mode": "compatibility",
+      "catalog_mode": "verified",
       "source": "hermes_cli.codex_models",
       "model_ids": [
         "example-chat-model",
