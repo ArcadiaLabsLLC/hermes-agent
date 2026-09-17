@@ -245,6 +245,8 @@ def provider_login_catalog() -> list[dict]:
     disconnect_command}``. NEVER a credential value — this block describes what
     CAN be connected, never what is stored.
     """
+    from hermes_cli.model_picker_policy import model_picker_policy_for
+
     overrides = {row["id"]: row for row in OAUTH_FLOW_OVERRIDES}
     rows: list[dict] = []
     seen: set[str] = set()
@@ -272,6 +274,7 @@ def provider_login_catalog() -> list[dict]:
                 "models_dev_id": models_dev_id_for(slug),
                 "docs_url": (override or {}).get("docs_url") or docs_url or None,
                 "disconnect_command": disconnect_command_for(slug, flow),
+                "model_picker": model_picker_policy_for(slug),
             }
         )
 

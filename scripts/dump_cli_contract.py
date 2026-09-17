@@ -175,7 +175,10 @@ def _describe_positional(
     return {
         "name": action.dest,
         "nargs": _nargs(action),
-        "required": action.required,
+        # Python 3.11 marks a positional nargs='*' action required even
+        # though argparse accepts zero values; 3.12 does not. Record the
+        # parser's actual acceptance rule, independent of interpreter.
+        "required": bool(action.required) and action.nargs != argparse.ZERO_OR_MORE,
         "choices": _choices(action),
         "type": _type(action),
         "action": _action(action, action_names),
