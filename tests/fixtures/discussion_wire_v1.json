@@ -1,0 +1,1519 @@
+{
+  "capabilities": {
+    "accepting": true,
+    "auto_capacity": "auto",
+    "capacities": [
+      2,
+      4,
+      6,
+      8,
+      10,
+      12
+    ],
+    "contract_version": 1,
+    "features": {
+      "agent_invitations": false,
+      "automatic_failover": false,
+      "exact_stop": true,
+      "history": true,
+      "human_input": true,
+      "instance_presence": true,
+      "local_instances": true,
+      "presets": true,
+      "realm_replication": false,
+      "remote_members": false,
+      "same_profile_instances": true
+    },
+    "install_id": "install_A",
+    "member_states": [
+      "joining",
+      "active",
+      "removing",
+      "removed"
+    ],
+    "methods": {
+      "runtime.discussion.capabilities": {
+        "optional": [],
+        "required": [],
+        "tier": "read"
+      },
+      "runtime.discussion.preset.delete": {
+        "optional": [],
+        "required": [
+          "workspace_id",
+          "preset_id",
+          "expect_revision"
+        ],
+        "tier": "console"
+      },
+      "runtime.discussion.preset.get": {
+        "optional": [],
+        "required": [
+          "workspace_id",
+          "preset_id"
+        ],
+        "tier": "read"
+      },
+      "runtime.discussion.preset.list": {
+        "optional": [
+          "limit",
+          "after"
+        ],
+        "required": [
+          "workspace_id"
+        ],
+        "tier": "read"
+      },
+      "runtime.discussion.preset.save": {
+        "optional": [],
+        "required": [
+          "workspace_id",
+          "preset_id",
+          "expect_revision",
+          "spec"
+        ],
+        "tier": "console"
+      },
+      "runtime.discussion.roster": {
+        "optional": [],
+        "required": [
+          "workspace_id"
+        ],
+        "tier": "read"
+      },
+      "runtime.discussion.run.abandon": {
+        "optional": [],
+        "required": [
+          "workspace_id",
+          "run_id",
+          "expect_revision",
+          "idempotency_key",
+          "task_id",
+          "generation",
+          "native_id",
+          "confirm"
+        ],
+        "tier": "console"
+      },
+      "runtime.discussion.run.active": {
+        "optional": [],
+        "required": [
+          "workspace_id"
+        ],
+        "tier": "read"
+      },
+      "runtime.discussion.run.answer": {
+        "optional": [],
+        "required": [
+          "workspace_id",
+          "run_id",
+          "expect_revision",
+          "idempotency_key",
+          "task_id",
+          "generation",
+          "native_id",
+          "answer"
+        ],
+        "tier": "console"
+      },
+      "runtime.discussion.run.end": {
+        "optional": [],
+        "required": [
+          "workspace_id",
+          "run_id",
+          "expect_revision",
+          "idempotency_key"
+        ],
+        "tier": "console"
+      },
+      "runtime.discussion.run.get": {
+        "optional": [
+          "since_seq",
+          "limit"
+        ],
+        "required": [
+          "workspace_id",
+          "run_id"
+        ],
+        "tier": "read"
+      },
+      "runtime.discussion.run.invite": {
+        "optional": [],
+        "required": [
+          "workspace_id",
+          "run_id",
+          "expect_revision",
+          "idempotency_key",
+          "participant"
+        ],
+        "tier": "console"
+      },
+      "runtime.discussion.run.list": {
+        "optional": [
+          "limit",
+          "after"
+        ],
+        "required": [
+          "workspace_id"
+        ],
+        "tier": "read"
+      },
+      "runtime.discussion.run.remove": {
+        "optional": [],
+        "required": [
+          "workspace_id",
+          "run_id",
+          "expect_revision",
+          "idempotency_key",
+          "member_id"
+        ],
+        "tier": "console"
+      },
+      "runtime.discussion.run.retry": {
+        "optional": [],
+        "required": [
+          "workspace_id",
+          "run_id",
+          "expect_revision",
+          "idempotency_key",
+          "task_id",
+          "generation",
+          "confirm"
+        ],
+        "tier": "console"
+      },
+      "runtime.discussion.run.send": {
+        "optional": [],
+        "required": [
+          "workspace_id",
+          "run_id",
+          "expect_revision",
+          "idempotency_key",
+          "message"
+        ],
+        "tier": "console"
+      },
+      "runtime.discussion.run.start": {
+        "optional": [],
+        "required": [
+          "workspace_id",
+          "table_id",
+          "expect_revision",
+          "idempotency_key",
+          "topic"
+        ],
+        "tier": "console"
+      },
+      "runtime.discussion.run.stop": {
+        "optional": [],
+        "required": [
+          "workspace_id",
+          "run_id",
+          "expect_revision",
+          "idempotency_key"
+        ],
+        "tier": "console"
+      },
+      "runtime.discussion.table.custom": {
+        "optional": [],
+        "required": [
+          "workspace_id",
+          "table_id",
+          "expect_revision"
+        ],
+        "tier": "console"
+      },
+      "runtime.discussion.table.delete": {
+        "optional": [],
+        "required": [
+          "workspace_id",
+          "table_id",
+          "expect_revision"
+        ],
+        "tier": "console"
+      },
+      "runtime.discussion.table.get": {
+        "optional": [],
+        "required": [
+          "workspace_id",
+          "table_id"
+        ],
+        "tier": "read"
+      },
+      "runtime.discussion.table.list": {
+        "optional": [
+          "limit",
+          "after"
+        ],
+        "required": [
+          "workspace_id"
+        ],
+        "tier": "read"
+      },
+      "runtime.discussion.table.load_preset": {
+        "optional": [],
+        "required": [
+          "workspace_id",
+          "table_id",
+          "preset_id",
+          "expect_revision",
+          "expect_preset_revision"
+        ],
+        "tier": "console"
+      },
+      "runtime.discussion.table.revert": {
+        "optional": [],
+        "required": [
+          "workspace_id",
+          "table_id",
+          "expect_revision"
+        ],
+        "tier": "console"
+      },
+      "runtime.discussion.table.save": {
+        "optional": [],
+        "required": [
+          "workspace_id",
+          "table_id",
+          "expect_revision",
+          "spec"
+        ],
+        "tier": "console"
+      }
+    },
+    "participant_fields": [
+      "install_id",
+      "instance_id"
+    ],
+    "run_phases": [
+      "initializing",
+      "open",
+      "stopping",
+      "paused",
+      "ending",
+      "ended",
+      "failed"
+    ],
+    "styles": [
+      "round",
+      "conference"
+    ]
+  },
+  "ended": {
+    "commands": [
+      {
+        "command_key": "wire-end",
+        "created_at": 1789614218.0320103,
+        "operation": "end",
+        "state": "done"
+      }
+    ],
+    "contract_version": 1,
+    "history_error": null,
+    "log": {
+      "authority": {
+        "epoch": 1,
+        "gateway_id": "install_A"
+      },
+      "cursor": 8,
+      "events": [
+        {
+          "actor": {
+            "id": "operator",
+            "kind": "user"
+          },
+          "authority_epoch": 1,
+          "created_at": 1789614216.2702312,
+          "event_id": "user:8ebf66cb9878ee386638fea46d006108151a8230",
+          "idempotent": false,
+          "kind": "message.user",
+          "payload": {
+            "text": "Review the architecture",
+            "thread_id": "discussion"
+          },
+          "room_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+          "seq": 1
+        },
+        {
+          "actor": {
+            "display_name": "Same name",
+            "id": "m-807a12b0dcec4f0689b5d7c4",
+            "kind": "member",
+            "profile": "shared"
+          },
+          "authority_epoch": 1,
+          "created_at": 1789614216.808681,
+          "event_id": "dmessage:cbfe8d72a6bf7c70c85791e23035f085856f5915ceea85a9",
+          "idempotent": false,
+          "kind": "message.member",
+          "payload": {
+            "discussion_event_id": "user:8ebf66cb9878ee386638fea46d006108151a8230",
+            "member_id": "m-807a12b0dcec4f0689b5d7c4",
+            "member_index": 0,
+            "round_index": 0,
+            "task_id": "dtask:cbfe8d72a6bf7c70c85791e23035f085856f5915ceea85a9",
+            "text": "A considered reply.",
+            "thread_id": "discussion",
+            "turn_id": "d1.r0.p0.s1.ma18e1fd3264f1d4760133588"
+          },
+          "room_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+          "seq": 2
+        },
+        {
+          "actor": {
+            "id": "install_A",
+            "kind": "gateway"
+          },
+          "authority_epoch": 1,
+          "created_at": 1789614216.8166773,
+          "event_id": "dterminal:cbfe8d72a6bf7c70c85791e23035f085856f5915ceea85a9",
+          "idempotent": false,
+          "kind": "turn.settled",
+          "payload": {
+            "discussion_event_id": "user:8ebf66cb9878ee386638fea46d006108151a8230",
+            "member_id": "m-807a12b0dcec4f0689b5d7c4",
+            "member_index": 0,
+            "message_event_id": "dmessage:cbfe8d72a6bf7c70c85791e23035f085856f5915ceea85a9",
+            "passed": false,
+            "round_index": 0,
+            "seen_through_seq": 1,
+            "task_id": "dtask:cbfe8d72a6bf7c70c85791e23035f085856f5915ceea85a9",
+            "thread_id": "discussion",
+            "turn_id": "d1.r0.p0.s1.ma18e1fd3264f1d4760133588"
+          },
+          "room_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+          "seq": 3
+        },
+        {
+          "actor": {
+            "display_name": "Same name",
+            "id": "m-46b307e1b192610cfaffc022",
+            "kind": "member",
+            "profile": "shared"
+          },
+          "authority_epoch": 1,
+          "created_at": 1789614217.4631221,
+          "event_id": "dmessage:f7c4f65b0feecc400508b7ea59395d042c33da0b509065e5",
+          "idempotent": false,
+          "kind": "message.member",
+          "payload": {
+            "discussion_event_id": "user:8ebf66cb9878ee386638fea46d006108151a8230",
+            "member_id": "m-46b307e1b192610cfaffc022",
+            "member_index": 1,
+            "round_index": 0,
+            "task_id": "dtask:f7c4f65b0feecc400508b7ea59395d042c33da0b509065e5",
+            "text": "A considered reply.",
+            "thread_id": "discussion",
+            "turn_id": "d1.r0.p1.s2.mfb15c69a51aeba29f7f58510"
+          },
+          "room_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+          "seq": 4
+        },
+        {
+          "actor": {
+            "id": "install_A",
+            "kind": "gateway"
+          },
+          "authority_epoch": 1,
+          "created_at": 1789614217.4727204,
+          "event_id": "dterminal:f7c4f65b0feecc400508b7ea59395d042c33da0b509065e5",
+          "idempotent": false,
+          "kind": "turn.settled",
+          "payload": {
+            "discussion_event_id": "user:8ebf66cb9878ee386638fea46d006108151a8230",
+            "member_id": "m-46b307e1b192610cfaffc022",
+            "member_index": 1,
+            "message_event_id": "dmessage:f7c4f65b0feecc400508b7ea59395d042c33da0b509065e5",
+            "passed": false,
+            "round_index": 0,
+            "seen_through_seq": 2,
+            "task_id": "dtask:f7c4f65b0feecc400508b7ea59395d042c33da0b509065e5",
+            "thread_id": "discussion",
+            "turn_id": "d1.r0.p1.s2.mfb15c69a51aeba29f7f58510"
+          },
+          "room_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+          "seq": 5
+        },
+        {
+          "actor": {
+            "id": "install_A",
+            "kind": "gateway"
+          },
+          "authority_epoch": 1,
+          "created_at": 1789614217.698577,
+          "event_id": "dactivity:user:8ebf66cb9878ee386638fea46d006108151a8230:silent_round",
+          "idempotent": false,
+          "kind": "room.activity",
+          "payload": {
+            "discussion_event_id": "user:8ebf66cb9878ee386638fea46d006108151a8230",
+            "reason_code": "silent_round",
+            "status": "settled",
+            "thread_id": "discussion"
+          },
+          "room_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+          "seq": 6
+        },
+        {
+          "actor": {
+            "id": "install_A",
+            "kind": "gateway"
+          },
+          "authority_epoch": 1,
+          "created_at": 1789614218.0590107,
+          "event_id": "room-stop:bdb11e60185bcae3b245b60cd2acd4ea",
+          "idempotent": false,
+          "kind": "room.stop_requested",
+          "payload": {
+            "cancel_id": "wire-end"
+          },
+          "room_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+          "seq": 7
+        },
+        {
+          "actor": {
+            "id": "room-control",
+            "kind": "system"
+          },
+          "authority_epoch": 1,
+          "created_at": 1789614218.1602178,
+          "event_id": "system:room-disbanded",
+          "idempotent": false,
+          "kind": "room.disbanded",
+          "payload": {
+            "room_id": "discussion-f0ac8a8c4b29bfebb43d2085"
+          },
+          "room_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+          "seq": 8
+        }
+      ],
+      "has_more": false,
+      "latest_seq": 8
+    },
+    "members": [
+      {
+        "display_name": "Same name",
+        "handle": "agent-807a12b0dcec",
+        "install_id": "install_A",
+        "instance_id": "personainst_0",
+        "member_id": "m-807a12b0dcec4f0689b5d7c4",
+        "ordinal": 0,
+        "persona_id": "shared_persona",
+        "profile": "shared",
+        "run_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+        "seat": 0,
+        "session_id": "persona_chat_personainst_0_4f8bd7c0ad29",
+        "status": "active"
+      },
+      {
+        "display_name": "Same name",
+        "handle": "agent-46b307e1b192",
+        "install_id": "install_A",
+        "instance_id": "personainst_1",
+        "member_id": "m-46b307e1b192610cfaffc022",
+        "ordinal": 1,
+        "persona_id": "shared_persona",
+        "profile": "shared",
+        "run_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+        "seat": 1,
+        "session_id": "persona_chat_personainst_1_debfff376d92",
+        "status": "active"
+      }
+    ],
+    "run": {
+      "actor_id": "operator",
+      "created_at": 1789614215.7412927,
+      "error": null,
+      "initial": {
+        "seat_plan": {
+          "assignments": [
+            {
+              "participant": {
+                "install_id": "install_A",
+                "instance_id": "personainst_0"
+              },
+              "seat": 0
+            },
+            {
+              "participant": {
+                "install_id": "install_A",
+                "instance_id": "personainst_1"
+              },
+              "seat": 1
+            }
+          ],
+          "capacity": 2
+        },
+        "table": {
+          "definition_id": "table",
+          "kind": "table",
+          "preset_modified": false,
+          "preset_origin": {
+            "configuration": {
+              "participants": [
+                {
+                  "install_id": "install_A",
+                  "instance_id": "personainst_0"
+                },
+                {
+                  "install_id": "install_A",
+                  "instance_id": "personainst_1"
+                }
+              ],
+              "seat_preferences": [],
+              "settings": {
+                "allow_invitations": true,
+                "moderator": null,
+                "rounds": 3,
+                "user_participates": true
+              }
+            },
+            "preset_id": "engineering",
+            "revision": 1
+          },
+          "revision": 2,
+          "spec": {
+            "capacity": "auto",
+            "configuration": {
+              "participants": [
+                {
+                  "install_id": "install_A",
+                  "instance_id": "personainst_0"
+                },
+                {
+                  "install_id": "install_A",
+                  "instance_id": "personainst_1"
+                }
+              ],
+              "seat_preferences": [],
+              "settings": {
+                "allow_invitations": true,
+                "moderator": null,
+                "rounds": 3,
+                "user_participates": true
+              }
+            },
+            "name": "Engineering",
+            "style": "round",
+            "transform": {
+              "position": [
+                120.0,
+                240.0
+              ],
+              "rotation_radians": 0.0,
+              "scale": 1.0
+            }
+          },
+          "workspace_id": "ws"
+        }
+      },
+      "phase": "ended",
+      "revision": 5,
+      "run_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+      "start_key": "wire-start",
+      "table_id": "table",
+      "topic": "Review the architecture",
+      "updated_at": 1789614218.188644,
+      "workspace_id": "ws"
+    },
+    "tasks": [
+      {
+        "attempt_stage": "terminal",
+        "error": null,
+        "generation": 1,
+        "member_id": "m-807a12b0dcec4f0689b5d7c4",
+        "native_id": "room-turn-1aabbb1fa3ff44e0ae839729b2525b2b6f53aa7f",
+        "question": null,
+        "status": "settled",
+        "task_id": "dtask:cbfe8d72a6bf7c70c85791e23035f085856f5915ceea85a9"
+      },
+      {
+        "attempt_stage": "terminal",
+        "error": null,
+        "generation": 1,
+        "member_id": "m-46b307e1b192610cfaffc022",
+        "native_id": "room-turn-3a9984483e5066c8586df64b9cfd79f930e8b9f8",
+        "question": null,
+        "status": "settled",
+        "task_id": "dtask:f7c4f65b0feecc400508b7ea59395d042c33da0b509065e5"
+      }
+    ]
+  },
+  "live": {
+    "commands": [],
+    "contract_version": 1,
+    "history_error": null,
+    "log": {
+      "authority": {
+        "epoch": 1,
+        "gateway_id": "install_A"
+      },
+      "cursor": 6,
+      "events": [
+        {
+          "actor": {
+            "id": "operator",
+            "kind": "user"
+          },
+          "authority_epoch": 1,
+          "created_at": 1789614216.2702312,
+          "event_id": "user:8ebf66cb9878ee386638fea46d006108151a8230",
+          "idempotent": false,
+          "kind": "message.user",
+          "payload": {
+            "text": "Review the architecture",
+            "thread_id": "discussion"
+          },
+          "room_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+          "seq": 1
+        },
+        {
+          "actor": {
+            "display_name": "Same name",
+            "id": "m-807a12b0dcec4f0689b5d7c4",
+            "kind": "member",
+            "profile": "shared"
+          },
+          "authority_epoch": 1,
+          "created_at": 1789614216.808681,
+          "event_id": "dmessage:cbfe8d72a6bf7c70c85791e23035f085856f5915ceea85a9",
+          "idempotent": false,
+          "kind": "message.member",
+          "payload": {
+            "discussion_event_id": "user:8ebf66cb9878ee386638fea46d006108151a8230",
+            "member_id": "m-807a12b0dcec4f0689b5d7c4",
+            "member_index": 0,
+            "round_index": 0,
+            "task_id": "dtask:cbfe8d72a6bf7c70c85791e23035f085856f5915ceea85a9",
+            "text": "A considered reply.",
+            "thread_id": "discussion",
+            "turn_id": "d1.r0.p0.s1.ma18e1fd3264f1d4760133588"
+          },
+          "room_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+          "seq": 2
+        },
+        {
+          "actor": {
+            "id": "install_A",
+            "kind": "gateway"
+          },
+          "authority_epoch": 1,
+          "created_at": 1789614216.8166773,
+          "event_id": "dterminal:cbfe8d72a6bf7c70c85791e23035f085856f5915ceea85a9",
+          "idempotent": false,
+          "kind": "turn.settled",
+          "payload": {
+            "discussion_event_id": "user:8ebf66cb9878ee386638fea46d006108151a8230",
+            "member_id": "m-807a12b0dcec4f0689b5d7c4",
+            "member_index": 0,
+            "message_event_id": "dmessage:cbfe8d72a6bf7c70c85791e23035f085856f5915ceea85a9",
+            "passed": false,
+            "round_index": 0,
+            "seen_through_seq": 1,
+            "task_id": "dtask:cbfe8d72a6bf7c70c85791e23035f085856f5915ceea85a9",
+            "thread_id": "discussion",
+            "turn_id": "d1.r0.p0.s1.ma18e1fd3264f1d4760133588"
+          },
+          "room_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+          "seq": 3
+        },
+        {
+          "actor": {
+            "display_name": "Same name",
+            "id": "m-46b307e1b192610cfaffc022",
+            "kind": "member",
+            "profile": "shared"
+          },
+          "authority_epoch": 1,
+          "created_at": 1789614217.4631221,
+          "event_id": "dmessage:f7c4f65b0feecc400508b7ea59395d042c33da0b509065e5",
+          "idempotent": false,
+          "kind": "message.member",
+          "payload": {
+            "discussion_event_id": "user:8ebf66cb9878ee386638fea46d006108151a8230",
+            "member_id": "m-46b307e1b192610cfaffc022",
+            "member_index": 1,
+            "round_index": 0,
+            "task_id": "dtask:f7c4f65b0feecc400508b7ea59395d042c33da0b509065e5",
+            "text": "A considered reply.",
+            "thread_id": "discussion",
+            "turn_id": "d1.r0.p1.s2.mfb15c69a51aeba29f7f58510"
+          },
+          "room_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+          "seq": 4
+        },
+        {
+          "actor": {
+            "id": "install_A",
+            "kind": "gateway"
+          },
+          "authority_epoch": 1,
+          "created_at": 1789614217.4727204,
+          "event_id": "dterminal:f7c4f65b0feecc400508b7ea59395d042c33da0b509065e5",
+          "idempotent": false,
+          "kind": "turn.settled",
+          "payload": {
+            "discussion_event_id": "user:8ebf66cb9878ee386638fea46d006108151a8230",
+            "member_id": "m-46b307e1b192610cfaffc022",
+            "member_index": 1,
+            "message_event_id": "dmessage:f7c4f65b0feecc400508b7ea59395d042c33da0b509065e5",
+            "passed": false,
+            "round_index": 0,
+            "seen_through_seq": 2,
+            "task_id": "dtask:f7c4f65b0feecc400508b7ea59395d042c33da0b509065e5",
+            "thread_id": "discussion",
+            "turn_id": "d1.r0.p1.s2.mfb15c69a51aeba29f7f58510"
+          },
+          "room_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+          "seq": 5
+        },
+        {
+          "actor": {
+            "id": "install_A",
+            "kind": "gateway"
+          },
+          "authority_epoch": 1,
+          "created_at": 1789614217.698577,
+          "event_id": "dactivity:user:8ebf66cb9878ee386638fea46d006108151a8230:silent_round",
+          "idempotent": false,
+          "kind": "room.activity",
+          "payload": {
+            "discussion_event_id": "user:8ebf66cb9878ee386638fea46d006108151a8230",
+            "reason_code": "silent_round",
+            "status": "settled",
+            "thread_id": "discussion"
+          },
+          "room_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+          "seq": 6
+        }
+      ],
+      "has_more": false,
+      "latest_seq": 6
+    },
+    "members": [
+      {
+        "display_name": "Same name",
+        "handle": "agent-807a12b0dcec",
+        "install_id": "install_A",
+        "instance_id": "personainst_0",
+        "member_id": "m-807a12b0dcec4f0689b5d7c4",
+        "ordinal": 0,
+        "persona_id": "shared_persona",
+        "profile": "shared",
+        "run_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+        "seat": 0,
+        "session_id": "persona_chat_personainst_0_4f8bd7c0ad29",
+        "status": "active"
+      },
+      {
+        "display_name": "Same name",
+        "handle": "agent-46b307e1b192",
+        "install_id": "install_A",
+        "instance_id": "personainst_1",
+        "member_id": "m-46b307e1b192610cfaffc022",
+        "ordinal": 1,
+        "persona_id": "shared_persona",
+        "profile": "shared",
+        "run_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+        "seat": 1,
+        "session_id": "persona_chat_personainst_1_debfff376d92",
+        "status": "active"
+      }
+    ],
+    "run": {
+      "actor_id": "operator",
+      "created_at": 1789614215.7412927,
+      "error": null,
+      "initial": {
+        "seat_plan": {
+          "assignments": [
+            {
+              "participant": {
+                "install_id": "install_A",
+                "instance_id": "personainst_0"
+              },
+              "seat": 0
+            },
+            {
+              "participant": {
+                "install_id": "install_A",
+                "instance_id": "personainst_1"
+              },
+              "seat": 1
+            }
+          ],
+          "capacity": 2
+        },
+        "table": {
+          "definition_id": "table",
+          "kind": "table",
+          "preset_modified": false,
+          "preset_origin": {
+            "configuration": {
+              "participants": [
+                {
+                  "install_id": "install_A",
+                  "instance_id": "personainst_0"
+                },
+                {
+                  "install_id": "install_A",
+                  "instance_id": "personainst_1"
+                }
+              ],
+              "seat_preferences": [],
+              "settings": {
+                "allow_invitations": true,
+                "moderator": null,
+                "rounds": 3,
+                "user_participates": true
+              }
+            },
+            "preset_id": "engineering",
+            "revision": 1
+          },
+          "revision": 2,
+          "spec": {
+            "capacity": "auto",
+            "configuration": {
+              "participants": [
+                {
+                  "install_id": "install_A",
+                  "instance_id": "personainst_0"
+                },
+                {
+                  "install_id": "install_A",
+                  "instance_id": "personainst_1"
+                }
+              ],
+              "seat_preferences": [],
+              "settings": {
+                "allow_invitations": true,
+                "moderator": null,
+                "rounds": 3,
+                "user_participates": true
+              }
+            },
+            "name": "Engineering",
+            "style": "round",
+            "transform": {
+              "position": [
+                120.0,
+                240.0
+              ],
+              "rotation_radians": 0.0,
+              "scale": 1.0
+            }
+          },
+          "workspace_id": "ws"
+        }
+      },
+      "phase": "open",
+      "revision": 2,
+      "run_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+      "start_key": "wire-start",
+      "table_id": "table",
+      "topic": "Review the architecture",
+      "updated_at": 1789614216.291232,
+      "workspace_id": "ws"
+    },
+    "tasks": [
+      {
+        "attempt_stage": "terminal",
+        "error": null,
+        "generation": 1,
+        "member_id": "m-807a12b0dcec4f0689b5d7c4",
+        "native_id": "room-turn-1aabbb1fa3ff44e0ae839729b2525b2b6f53aa7f",
+        "question": null,
+        "status": "settled",
+        "task_id": "dtask:cbfe8d72a6bf7c70c85791e23035f085856f5915ceea85a9"
+      },
+      {
+        "attempt_stage": "terminal",
+        "error": null,
+        "generation": 1,
+        "member_id": "m-46b307e1b192610cfaffc022",
+        "native_id": "room-turn-3a9984483e5066c8586df64b9cfd79f930e8b9f8",
+        "question": null,
+        "status": "settled",
+        "task_id": "dtask:f7c4f65b0feecc400508b7ea59395d042c33da0b509065e5"
+      }
+    ]
+  },
+  "presence": {
+    "contract_version": 1,
+    "rooms": [
+      {
+        "members": [
+          {
+            "display_name": "Same name",
+            "handle": "agent-807a12b0dcec",
+            "install_id": "install_A",
+            "instance_id": "personainst_0",
+            "member_id": "m-807a12b0dcec4f0689b5d7c4",
+            "ordinal": 0,
+            "persona_id": "shared_persona",
+            "profile": "shared",
+            "run_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+            "seat": 0,
+            "session_id": "persona_chat_personainst_0_4f8bd7c0ad29",
+            "status": "active"
+          },
+          {
+            "display_name": "Same name",
+            "handle": "agent-46b307e1b192",
+            "install_id": "install_A",
+            "instance_id": "personainst_1",
+            "member_id": "m-46b307e1b192610cfaffc022",
+            "ordinal": 1,
+            "persona_id": "shared_persona",
+            "profile": "shared",
+            "run_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+            "seat": 1,
+            "session_id": "persona_chat_personainst_1_debfff376d92",
+            "status": "active"
+          }
+        ],
+        "run": {
+          "actor_id": "operator",
+          "created_at": 1789614215.7412927,
+          "error": null,
+          "initial": {
+            "seat_plan": {
+              "assignments": [
+                {
+                  "participant": {
+                    "install_id": "install_A",
+                    "instance_id": "personainst_0"
+                  },
+                  "seat": 0
+                },
+                {
+                  "participant": {
+                    "install_id": "install_A",
+                    "instance_id": "personainst_1"
+                  },
+                  "seat": 1
+                }
+              ],
+              "capacity": 2
+            },
+            "table": {
+              "definition_id": "table",
+              "kind": "table",
+              "preset_modified": false,
+              "preset_origin": {
+                "configuration": {
+                  "participants": [
+                    {
+                      "install_id": "install_A",
+                      "instance_id": "personainst_0"
+                    },
+                    {
+                      "install_id": "install_A",
+                      "instance_id": "personainst_1"
+                    }
+                  ],
+                  "seat_preferences": [],
+                  "settings": {
+                    "allow_invitations": true,
+                    "moderator": null,
+                    "rounds": 3,
+                    "user_participates": true
+                  }
+                },
+                "preset_id": "engineering",
+                "revision": 1
+              },
+              "revision": 2,
+              "spec": {
+                "capacity": "auto",
+                "configuration": {
+                  "participants": [
+                    {
+                      "install_id": "install_A",
+                      "instance_id": "personainst_0"
+                    },
+                    {
+                      "install_id": "install_A",
+                      "instance_id": "personainst_1"
+                    }
+                  ],
+                  "seat_preferences": [],
+                  "settings": {
+                    "allow_invitations": true,
+                    "moderator": null,
+                    "rounds": 3,
+                    "user_participates": true
+                  }
+                },
+                "name": "Engineering",
+                "style": "round",
+                "transform": {
+                  "position": [
+                    120.0,
+                    240.0
+                  ],
+                  "rotation_radians": 0.0,
+                  "scale": 1.0
+                }
+              },
+              "workspace_id": "ws"
+            }
+          },
+          "phase": "open",
+          "revision": 2,
+          "run_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+          "start_key": "wire-start",
+          "table_id": "table",
+          "topic": "Review the architecture",
+          "updated_at": 1789614216.291232,
+          "workspace_id": "ws"
+        },
+        "tasks": [
+          {
+            "attempt_stage": "terminal",
+            "error": null,
+            "generation": 1,
+            "member_id": "m-807a12b0dcec4f0689b5d7c4",
+            "native_id": "room-turn-1aabbb1fa3ff44e0ae839729b2525b2b6f53aa7f",
+            "question": null,
+            "status": "settled",
+            "task_id": "dtask:cbfe8d72a6bf7c70c85791e23035f085856f5915ceea85a9"
+          },
+          {
+            "attempt_stage": "terminal",
+            "error": null,
+            "generation": 1,
+            "member_id": "m-46b307e1b192610cfaffc022",
+            "native_id": "room-turn-3a9984483e5066c8586df64b9cfd79f930e8b9f8",
+            "question": null,
+            "status": "settled",
+            "task_id": "dtask:f7c4f65b0feecc400508b7ea59395d042c33da0b509065e5"
+          }
+        ]
+      }
+    ]
+  },
+  "preset": {
+    "contract_version": 1,
+    "record": {
+      "definition_id": "engineering",
+      "kind": "preset",
+      "preset_modified": false,
+      "preset_origin": null,
+      "revision": 1,
+      "spec": {
+        "configuration": {
+          "participants": [
+            {
+              "install_id": "install_A",
+              "instance_id": "personainst_0"
+            },
+            {
+              "install_id": "install_A",
+              "instance_id": "personainst_1"
+            }
+          ],
+          "seat_preferences": [],
+          "settings": {
+            "allow_invitations": true,
+            "moderator": null,
+            "rounds": 3,
+            "user_participates": true
+          }
+        },
+        "name": "Engineering",
+        "preferred_capacity": "auto"
+      },
+      "workspace_id": "ws"
+    }
+  },
+  "roster": {
+    "agents": [
+      {
+        "available": true,
+        "display_name": "Same name",
+        "install_id": "install_A",
+        "instance_id": "personainst_0",
+        "persona_id": "shared_persona",
+        "profile": "shared",
+        "reason": null
+      },
+      {
+        "available": true,
+        "display_name": "Same name",
+        "install_id": "install_A",
+        "instance_id": "personainst_1",
+        "persona_id": "shared_persona",
+        "profile": "shared",
+        "reason": null
+      },
+      {
+        "available": true,
+        "display_name": "Same name",
+        "install_id": "install_A",
+        "instance_id": "personainst_2",
+        "persona_id": "shared_persona",
+        "profile": "shared",
+        "reason": null
+      },
+      {
+        "available": true,
+        "display_name": "Same name",
+        "install_id": "install_A",
+        "instance_id": "personainst_3",
+        "persona_id": "shared_persona",
+        "profile": "shared",
+        "reason": null
+      },
+      {
+        "available": true,
+        "display_name": "Same name",
+        "install_id": "install_A",
+        "instance_id": "personainst_4",
+        "persona_id": "shared_persona",
+        "profile": "shared",
+        "reason": null
+      },
+      {
+        "available": true,
+        "display_name": "Same name",
+        "install_id": "install_A",
+        "instance_id": "personainst_5",
+        "persona_id": "shared_persona",
+        "profile": "shared",
+        "reason": null
+      },
+      {
+        "available": true,
+        "display_name": "Same name",
+        "install_id": "install_A",
+        "instance_id": "personainst_6",
+        "persona_id": "shared_persona",
+        "profile": "shared",
+        "reason": null
+      },
+      {
+        "available": true,
+        "display_name": "Same name",
+        "install_id": "install_A",
+        "instance_id": "personainst_7",
+        "persona_id": "shared_persona",
+        "profile": "shared",
+        "reason": null
+      },
+      {
+        "available": true,
+        "display_name": "Same name",
+        "install_id": "install_A",
+        "instance_id": "personainst_8",
+        "persona_id": "shared_persona",
+        "profile": "shared",
+        "reason": null
+      },
+      {
+        "available": true,
+        "display_name": "Same name",
+        "install_id": "install_A",
+        "instance_id": "personainst_9",
+        "persona_id": "shared_persona",
+        "profile": "shared",
+        "reason": null
+      },
+      {
+        "available": true,
+        "display_name": "Same name",
+        "install_id": "install_A",
+        "instance_id": "personainst_10",
+        "persona_id": "shared_persona",
+        "profile": "shared",
+        "reason": null
+      },
+      {
+        "available": true,
+        "display_name": "Same name",
+        "install_id": "install_A",
+        "instance_id": "personainst_11",
+        "persona_id": "shared_persona",
+        "profile": "shared",
+        "reason": null
+      }
+    ],
+    "contract_version": 1,
+    "install_id": "install_A"
+  },
+  "runs": {
+    "contract_version": 1,
+    "next_cursor": null,
+    "runs": [
+      {
+        "actor_id": "operator",
+        "created_at": 1789614215.7412927,
+        "error": null,
+        "initial": {
+          "seat_plan": {
+            "assignments": [
+              {
+                "participant": {
+                  "install_id": "install_A",
+                  "instance_id": "personainst_0"
+                },
+                "seat": 0
+              },
+              {
+                "participant": {
+                  "install_id": "install_A",
+                  "instance_id": "personainst_1"
+                },
+                "seat": 1
+              }
+            ],
+            "capacity": 2
+          },
+          "table": {
+            "definition_id": "table",
+            "kind": "table",
+            "preset_modified": false,
+            "preset_origin": {
+              "configuration": {
+                "participants": [
+                  {
+                    "install_id": "install_A",
+                    "instance_id": "personainst_0"
+                  },
+                  {
+                    "install_id": "install_A",
+                    "instance_id": "personainst_1"
+                  }
+                ],
+                "seat_preferences": [],
+                "settings": {
+                  "allow_invitations": true,
+                  "moderator": null,
+                  "rounds": 3,
+                  "user_participates": true
+                }
+              },
+              "preset_id": "engineering",
+              "revision": 1
+            },
+            "revision": 2,
+            "spec": {
+              "capacity": "auto",
+              "configuration": {
+                "participants": [
+                  {
+                    "install_id": "install_A",
+                    "instance_id": "personainst_0"
+                  },
+                  {
+                    "install_id": "install_A",
+                    "instance_id": "personainst_1"
+                  }
+                ],
+                "seat_preferences": [],
+                "settings": {
+                  "allow_invitations": true,
+                  "moderator": null,
+                  "rounds": 3,
+                  "user_participates": true
+                }
+              },
+              "name": "Engineering",
+              "style": "round",
+              "transform": {
+                "position": [
+                  120.0,
+                  240.0
+                ],
+                "rotation_radians": 0.0,
+                "scale": 1.0
+              }
+            },
+            "workspace_id": "ws"
+          }
+        },
+        "phase": "open",
+        "revision": 2,
+        "run_id": "discussion-f0ac8a8c4b29bfebb43d2085",
+        "start_key": "wire-start",
+        "table_id": "table",
+        "topic": "Review the architecture",
+        "updated_at": 1789614216.291232,
+        "workspace_id": "ws"
+      }
+    ]
+  },
+  "table": {
+    "contract_version": 1,
+    "record": {
+      "definition_id": "table",
+      "kind": "table",
+      "preset_modified": false,
+      "preset_origin": {
+        "configuration": {
+          "participants": [
+            {
+              "install_id": "install_A",
+              "instance_id": "personainst_0"
+            },
+            {
+              "install_id": "install_A",
+              "instance_id": "personainst_1"
+            }
+          ],
+          "seat_preferences": [],
+          "settings": {
+            "allow_invitations": true,
+            "moderator": null,
+            "rounds": 3,
+            "user_participates": true
+          }
+        },
+        "preset_id": "engineering",
+        "revision": 1
+      },
+      "revision": 2,
+      "seat_plan": {
+        "assignments": [
+          {
+            "participant": {
+              "install_id": "install_A",
+              "instance_id": "personainst_0"
+            },
+            "seat": 0
+          },
+          {
+            "participant": {
+              "install_id": "install_A",
+              "instance_id": "personainst_1"
+            },
+            "seat": 1
+          }
+        ],
+        "capacity": 2,
+        "remapped": []
+      },
+      "spec": {
+        "capacity": "auto",
+        "configuration": {
+          "participants": [
+            {
+              "install_id": "install_A",
+              "instance_id": "personainst_0"
+            },
+            {
+              "install_id": "install_A",
+              "instance_id": "personainst_1"
+            }
+          ],
+          "seat_preferences": [],
+          "settings": {
+            "allow_invitations": true,
+            "moderator": null,
+            "rounds": 3,
+            "user_participates": true
+          }
+        },
+        "name": "Engineering",
+        "style": "round",
+        "transform": {
+          "position": [
+            120.0,
+            240.0
+          ],
+          "rotation_radians": 0.0,
+          "scale": 1.0
+        }
+      },
+      "workspace_id": "ws"
+    }
+  },
+  "tables": {
+    "contract_version": 1,
+    "next_cursor": null,
+    "records": [
+      {
+        "definition_id": "table",
+        "kind": "table",
+        "preset_modified": false,
+        "preset_origin": {
+          "configuration": {
+            "participants": [
+              {
+                "install_id": "install_A",
+                "instance_id": "personainst_0"
+              },
+              {
+                "install_id": "install_A",
+                "instance_id": "personainst_1"
+              }
+            ],
+            "seat_preferences": [],
+            "settings": {
+              "allow_invitations": true,
+              "moderator": null,
+              "rounds": 3,
+              "user_participates": true
+            }
+          },
+          "preset_id": "engineering",
+          "revision": 1
+        },
+        "revision": 2,
+        "seat_plan": {
+          "assignments": [
+            {
+              "participant": {
+                "install_id": "install_A",
+                "instance_id": "personainst_0"
+              },
+              "seat": 0
+            },
+            {
+              "participant": {
+                "install_id": "install_A",
+                "instance_id": "personainst_1"
+              },
+              "seat": 1
+            }
+          ],
+          "capacity": 2,
+          "remapped": []
+        },
+        "spec": {
+          "capacity": "auto",
+          "configuration": {
+            "participants": [
+              {
+                "install_id": "install_A",
+                "instance_id": "personainst_0"
+              },
+              {
+                "install_id": "install_A",
+                "instance_id": "personainst_1"
+              }
+            ],
+            "seat_preferences": [],
+            "settings": {
+              "allow_invitations": true,
+              "moderator": null,
+              "rounds": 3,
+              "user_participates": true
+            }
+          },
+          "name": "Engineering",
+          "style": "round",
+          "transform": {
+            "position": [
+              120.0,
+              240.0
+            ],
+            "rotation_radians": 0.0,
+            "scale": 1.0
+          }
+        },
+        "workspace_id": "ws"
+      }
+    ]
+  }
+}

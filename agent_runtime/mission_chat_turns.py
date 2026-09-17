@@ -1102,7 +1102,17 @@ def _write_session_file(path: Path, session: dict[str, Any]) -> None:
         json.dumps(session, ensure_ascii=False, separators=(",", ":"), sort_keys=True),
         encoding="utf-8",
     )
-    tmp.replace(path)
+    # Lock-free journal readers can briefly hold the destination open on
+    # Windows. Retry only the atomic rename; never truncate a committed journal
+    # as a fallback, and preserve the original error on persistent denial.
+    for attempt in range(5):
+        try:
+            tmp.replace(path)
+            break
+        except OSError as exc:
+            if getattr(exc, "winerror", None) not in {5, 32, 33} or attempt == 4:
+                raise
+            time.sleep(.02 * (attempt + 1))
 
 
 def _session_file_recency(path: Path) -> tuple[str, float]:

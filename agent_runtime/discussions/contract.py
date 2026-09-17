@@ -18,6 +18,7 @@ METHODS: dict[str, tuple[str, tuple[str, ...], tuple[str, ...]]] = {
     "table.delete": ("console", ("workspace_id", "table_id", "expect_revision"), ()),
     "table.load_preset": ("console", ("workspace_id", "table_id", "preset_id", "expect_revision", "expect_preset_revision"), ()),
     "table.revert": ("console", ("workspace_id", "table_id", "expect_revision"), ()),
+    "table.custom": ("console", ("workspace_id", "table_id", "expect_revision"), ()),
     "preset.list": ("read", ("workspace_id",), ("limit", "after")),
     "preset.get": ("read", ("workspace_id", "preset_id"), ()),
     "preset.save": ("console", ("workspace_id", "preset_id", "expect_revision", "spec"), ()),

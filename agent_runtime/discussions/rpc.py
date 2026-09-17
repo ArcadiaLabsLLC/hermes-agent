@@ -49,6 +49,8 @@ def execute(service: DiscussionService, operation: str, raw: Any, *, actor_id: s
         if action == "load_preset":
             row = service.definitions.load_preset(workspace, key, params["preset_id"],
                 expect_table_revision=params["expect_revision"], expect_preset_revision=params["expect_preset_revision"])
+        elif action == "custom":
+            row = service.definitions.custom_table(workspace, key, expect_revision=params["expect_revision"])
         else:
             row = service.definitions.revert_table(workspace, key, expect_revision=params["expect_revision"])
         return {"record": _record(row)}

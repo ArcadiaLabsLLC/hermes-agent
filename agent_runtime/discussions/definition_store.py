@@ -288,6 +288,15 @@ class DefinitionStore:
             origin = PresetOrigin(preset_id, preset.revision, preset.spec.configuration)
             return _write(conn, table_key, candidate, expected=expected, origin=origin)
 
+    def custom_table(self, workspace_id: str, table_id: str, *, expect_revision: int) -> DefinitionRecord:
+        """Detach the loaded recipe without changing the table or its team."""
+        key = _key(DefinitionKind.TABLE, workspace_id, table_id)
+        expected = revision(expect_revision, minimum=1)
+        with transaction(self._connect(), immediate=True) as conn:
+            current = _required(conn, key)
+            _expect(current, expected)
+            return _write(conn, key, current.spec, expected=expected)
+
     def revert_table(self, workspace_id: str, table_id: str, *, expect_revision: int) -> DefinitionRecord:
         key = _key(DefinitionKind.TABLE, workspace_id, table_id)
         expected = revision(expect_revision, minimum=1)

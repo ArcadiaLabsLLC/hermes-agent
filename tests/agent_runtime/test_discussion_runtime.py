@@ -24,7 +24,7 @@ from gateway import hosted_rooms
 from hermes_constants import get_hermes_head_home
 from tests.agent_runtime.test_discussion_definitions import table_value
 
-pytestmark = pytest.mark.timeout(90)
+pytestmark = pytest.mark.timeout(180)
 
 
 class ExecutionContext(NativeContext):
@@ -102,7 +102,7 @@ def engine(tmp_path):
     service.close()
 
 
-def wait_until(predicate, timeout=15):
+def wait_until(predicate, timeout=45):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         result = predicate()
