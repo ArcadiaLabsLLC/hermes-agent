@@ -222,6 +222,7 @@ def test_release_orphaned_leases_sweeps_profile_runtime_registries(
     root = tmp_path / "hermes"
     profile = root / "profiles" / "worker"
     profile.mkdir(parents=True)
+    (profile / "config.yaml").write_text("{}\n")  # identity marker: a bare dir is not a profile
     monkeypatch.setenv("HERMES_HOME", str(root))
 
     root_lease, root_error = active_sessions.try_acquire_active_session(
@@ -273,6 +274,7 @@ def test_release_under_profile_home_override_targets_acquisition_registry(
     root = tmp_path / "hermes"
     profile = root / "profiles" / "worker"
     profile.mkdir(parents=True)
+    (profile / "config.yaml").write_text("{}\n")  # identity marker: a bare dir is not a profile
     monkeypatch.setenv("HERMES_HOME", str(root))
 
     lease, error = active_sessions.try_acquire_active_session(
@@ -310,6 +312,7 @@ def test_transfer_under_profile_home_override_targets_acquisition_registry(
     root = tmp_path / "hermes"
     profile = root / "profiles" / "worker"
     profile.mkdir(parents=True)
+    (profile / "config.yaml").write_text("{}\n")  # identity marker: a bare dir is not a profile
     monkeypatch.setenv("HERMES_HOME", str(root))
 
     lease, error = active_sessions.try_acquire_active_session(

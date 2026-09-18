@@ -134,7 +134,7 @@ def profile_readiness_for_persona(
             # subprocess and drives no plugin, its skill/config/machine-root
             # reads all resolve through ``get_hermes_home()`` (ContextVar-first)
             # or an explicit path, and the ONE raw-env reader it does reach —
-            # ``hermes_cli.auth._global_auth_file_path`` on the provider probe
+            # ``hermes_cli.auth._auth_file_path`` on the provider probe
             # below — now reads ``get_hermes_auth_home()``, which this mode
             # binds context-locally. See ``persona_profile_scope``.
             with persona_profile_scope(binding):
@@ -327,9 +327,8 @@ def _provider_issue(persona) -> tuple[str, str] | None:
     # context-local — and under the env-exporting mode the two channels agree,
     # so the resolvers are correct in both and the raw reads were correct in
     # only one. The rule the auth component was always written to: the key must
-    # mirror the auth fallback's ACTUAL input, and
-    # ``hermes_cli/auth.py::_global_auth_file_path`` now consumes
-    # ``get_hermes_auth_home()``.
+    # mirror the auth store selection's ACTUAL input, and
+    # ``hermes_cli/auth.py::_auth_file_path`` consumes ``get_hermes_auth_home()``.
     key = (
         str(get_hermes_home()),
         get_hermes_auth_home(),

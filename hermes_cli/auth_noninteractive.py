@@ -80,13 +80,14 @@ def resolve_target_home(profile: Optional[str]) -> tuple[str, Optional[str]]:
     every other hermes surface would give.
 
     NOTE on ``HERMES_AUTH_HOME``: inside a profile context the runtime pins
-    that env var to the HEAD home (``agent_runtime/profile_context.py:304-307``)
-    so a persona borrows the head credential pool. That pin governs the
-    read-side fallback only — ``hermes_cli.auth._global_auth_file_path`` is
-    documented read-only, and the write path (``_auth_file_path``) resolves
-    ``get_hermes_home()``. So the home this function returns IS the home the
-    write lands in. It is not necessarily the home a persona READS from, which
-    is why naming it is the point rather than a nicety.
+    that env var to the HEAD home (``agent_runtime/profile_context.py``) so a
+    persona shares the head credential store. Since the 2026-09-17 theme-7
+    ruling that pin selects the ACTIVE store — ``hermes_cli.auth._auth_file_path``
+    consumes it for reads AND writes — so under a binding the credential this
+    function reports a home for actually lands in the HEAD's ``auth.json``, not
+    in the home returned here. The returned home is the profile identity the
+    caller asked about; naming it is the point precisely because the two can
+    differ.
     """
     from hermes_constants import get_hermes_home
 

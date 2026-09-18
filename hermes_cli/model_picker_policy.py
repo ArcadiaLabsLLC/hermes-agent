@@ -30,17 +30,17 @@ def model_picker_policy_for(slug: str) -> dict:
     policy["source"] = "hermes_cli.codex_models"
     try:
         from hermes_cli.auth_codex import _read_codex_tokens, _pool_codex_access_token
-        from hermes_cli.auth import _read_global_codex_tokens_if_usable
         from hermes_cli.codex_models import get_verified_codex_model_ids
 
-        # Match runtime's singleton > global > pool precedence using reads
-        # only. The runtime resolver can import/refresh/probe and write auth,
-        # which is inappropriate on the frequent provider-status path.
+        # Match runtime's singleton > pool precedence using reads only. The runtime resolver
+        # can import/refresh/probe and write auth, which is inappropriate on the frequent
+        # provider-status path. The global-root rung that used to sit between these two was
+        # retired by the 2026-09-17 theme-7 ruling: a persona that shares the head's
+        # credentials has that store bound as its ACTIVE one, so the singleton read IS it.
         try:
             token = _read_codex_tokens()["tokens"]["access_token"]
         except Exception:
-            global_tokens = _read_global_codex_tokens_if_usable()
-            token = (global_tokens or {}).get("access_token") or _pool_codex_access_token()
+            token = _pool_codex_access_token()
         model_ids = get_verified_codex_model_ids(token) if token else None
         if model_ids is not None and (not isinstance(model_ids, list) or any(
             not isinstance(mid, str) or not mid.strip() for mid in model_ids

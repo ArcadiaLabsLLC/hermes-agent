@@ -130,28 +130,6 @@ def write_pool_rotation_state(provider_id: str, state: Dict[str, Any]) -> Path:
         return _write_rotation_state_file(store)
 
 
-def _read_global_codex_tokens_if_usable() -> Dict[str, Any] | None:
-    """Return usable global-root Codex singleton tokens for profile fallback."""
-    # Import at use time: auth re-exports these downstream helpers.
-    from hermes_cli import auth
-
-    try:
-        global_store = auth._load_global_auth_store()
-        providers = global_store.get("providers") if isinstance(global_store, dict) else None
-        state = providers.get("openai-codex") if isinstance(providers, dict) else None
-        tokens = state.get("tokens") if isinstance(state, dict) else None
-        if not isinstance(tokens, dict):
-            return None
-        access_token = str(tokens.get("access_token", "") or "").strip()
-        refresh_token = str(tokens.get("refresh_token", "") or "").strip()
-        if not access_token or not refresh_token:
-            return None
-        return {"access_token": access_token, "refresh_token": refresh_token, "last_refresh": state.get("last_refresh")}
-    except Exception:
-        logger.debug("Global Codex singleton fallback lookup failed", exc_info=True)
-        return None
-
-
 def codex_auth_store_credentials_present() -> bool:
     """Would :func:`resolve_codex_runtime_credentials` find a credential to serve?
 
@@ -188,16 +166,18 @@ def codex_auth_store_credentials_present() -> bool:
         logger.debug("Codex singleton readiness read failed", exc_info=True)
         return False
 
-    # The resolver's global-root singleton fallback. Its OTHER fallback —
-    # ``_pool_codex_access_token`` — is deliberately NOT mirrored here: it is a
-    # second, looser read of the same credential pool the readiness caller has
-    # already asked with the pool's own availability rules, and it accepts an
-    # entry that those rules just refused (it consults only
-    # ``last_error_reset_at``, never the ``last_status`` cooldown). Mirroring it
-    # would mean readiness could never report attention while any pool row held
-    # any token string, including a long-dead one — which would retire the true
-    # positive along with the false one. Where the two pool reads disagree,
-    # readiness follows the stricter, and says so rather than leaving a reader
-    # to discover the divergence.
-    return bool(_read_global_codex_tokens_if_usable())
+    # The singleton read above is now the whole answer. The global-root fallback this used to
+    # mirror was retired with the 2026-09-17 theme-7 ruling: profiles are islands, and a persona
+    # that shares the head's credentials does so because ``HERMES_AUTH_HOME`` made the head store
+    # its ACTIVE store — so ``_read_codex_tokens()`` reads the singleton directly, with nothing
+    # left to fall back TO. The resolver's OTHER fallback, ``_pool_codex_access_token``, is
+    # deliberately still NOT mirrored here: it is a second, looser read of the same credential
+    # pool the readiness caller has already asked with the pool's own availability rules, and it
+    # accepts an entry that those rules just refused (it consults only ``last_error_reset_at``,
+    # never the ``last_status`` cooldown). Mirroring it would mean readiness could never report
+    # attention while any pool row held any token string, including a long-dead one — which would
+    # retire the true positive along with the false one. Where the two pool reads disagree,
+    # readiness follows the stricter, and says so rather than leaving a reader to discover the
+    # divergence.
+    return False
 

@@ -42,7 +42,6 @@ def test_failure_isolation_and_secret_redaction(monkeypatch):
     def fail(**kwargs):
         raise RuntimeError("secret-token-and-account-id")
     monkeypatch.setattr(auth_codex, "_read_codex_tokens", fail)
-    monkeypatch.setattr(auth, "_read_global_codex_tokens_if_usable", lambda: None)
     monkeypatch.setattr(auth_codex, "_pool_codex_access_token", lambda: "")
     monkeypatch.setattr(provider_catalog, "provider_catalog", lambda: [])
     rows = {row["id"]: row for row in provider_catalog.provider_login_catalog()}

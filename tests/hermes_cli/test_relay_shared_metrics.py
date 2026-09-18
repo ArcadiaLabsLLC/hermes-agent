@@ -720,6 +720,7 @@ def test_tool_outcome_is_bounded(status, expected):
         ("deny", "denied"),
         ("smart_deny", "denied"),
         ("timeout", "timed_out"),
+        ("cancelled", "cancelled"),
         (None, "unknown"),
     ],
 )

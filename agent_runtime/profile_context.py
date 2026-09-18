@@ -312,7 +312,7 @@ def persona_profile_context(
     #     tools/environments/local.py's factories (which DO bridge the
     #     override) would otherwise hand a child the head home. ContextVars
     #     never cross a subprocess boundary.
-    #   * HERMES_AUTH_HOME — hermes_cli/auth.py::_global_auth_file_path reads
+    #   * HERMES_AUTH_HOME — hermes_cli/auth.py::_auth_file_path reads
     #     this authority on the credential-resolution path of every turn. It is
     #     no longer env-ONLY: the value is mirrored into a ContextVar above and
     #     that reader consults ``get_hermes_auth_home()``, so an in-process lane

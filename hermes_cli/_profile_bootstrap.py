@@ -166,13 +166,13 @@ def _resolve_sudo_user_profile_env(name: str) -> str | None:
     """
     if name == "default":
         return None
-    from hermes_constants import sudo_invoker_default_home
+    from hermes_constants import named_profile_is_live, sudo_invoker_default_home
 
     sudo_home = sudo_invoker_default_home()
     if sudo_home is None:
         return None
     candidate = sudo_home / "profiles" / name
-    return str(candidate) if candidate.is_dir() else None
+    return str(candidate) if named_profile_is_live(candidate) else None
 
 def _looks_like_hermes_invocation() -> bool:
     """False when ``sys.argv`` belongs to a test runner rather than a ``hermes`` run.
@@ -298,6 +298,13 @@ def apply_profile_override() -> None:
     hermes_home_env = os.environ.get("HERMES_HOME", "")
     if profile_name is None and hermes_home_env and Path(hermes_home_env).parent.name == "profiles":
         os.environ["HERMES_PROFILE_RESOLUTION"] = "env_profile_dir"
+        return
+    # The post-swap updater child inherits the home its parent already resolved (possibly the
+    # root for `-p default`); re-reading the sticky active_profile here would finish the update
+    # — receipt, config migration, exit code — in another profile's home. The resolution receipt
+    # stays ``default``: no profile was SELECTED here, and the four rungs in
+    # ``gateway_home_receipt.py`` are a closed set this port does not widen.
+    if profile_name is None and hermes_home_env and os.environ.get("HERMES_UPDATE_POST_SWAP") == "1":
         return
 
     if profile_name is None and not _under_gateway_supervisor(argv) and not _desktop_ssh_backend(argv):

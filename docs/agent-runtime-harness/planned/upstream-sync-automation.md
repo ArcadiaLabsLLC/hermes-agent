@@ -646,3 +646,116 @@ theme-7 ruling and nothing else; it contains no upstream merge parent, and `main
 branch passes the fold guard. The auth policy decision in theme 7 is now **ruled** (above). Promote to
 `SOURCE_CANDIDATE` only when `cdceca42e1` (or a deliberately re-pinned later tip) is actually in ancestry
 and the theme-7 positive control has been recorded red-then-green.
+
+---
+
+# 2026-09-17 merge execution — `cdceca42e1` merged, one history-preserving merge commit
+
+State: **executed**. The pinned upstream target `cdceca42e1` is attached as a real merge parent on
+`automation/upstream-sync-merge`. Nothing was pushed to `main`. Acceptance state is recorded at the
+end of this section.
+
+## Preconditions, measured
+
+| check | result |
+| --- | --- |
+| fold guard on branch base (`dc172f0864`) | `git merge-base --is-ancestor 0d5b7b8abc HEAD` → **PASS** |
+| fork `main` contained before the upstream merge | `git merge --no-edit origin/main` → clean merge `94a5db103d` (fork main `0bd06e91d1`) |
+| fold guard after that merge | **PASS** |
+| pinned target | `cdceca42e1` exactly. `upstream/main` has since moved to `e83b1d51f1`; deliberately NOT re-pinned. |
+
+## Conflicting set versus the handoff's 26
+
+`git merge --no-ff --no-commit cdceca42e1` → rc=1; `git diff --name-only --diff-filter=U` → **26
+files, identical to the handoff's list, file for file.** The two fork commits that landed on `main`
+the same day — `ce557b3fb2` (*fix(mcp): stdio MCP child receives the bound profile's HERMES_HOME*)
+and `0bd06e91d1` (*fix(discussions): map room-store and room-policy refusals to the typed lane*, the
+Discussion Tables landing) — introduced **no new conflict**: both touch fork-owned trees
+(`agent_runtime/`, `tests/agent_runtime/`) that upstream does not have.
+
+## Per-file ledger
+
+`upstream` = upstream's implementation taken as-is. `fork-seam re-attached` = upstream's
+implementation with the fork's narrow call site put back on top. `both` = the two sides are additive
+and neither is a replacement for the other.
+
+| # | file | decision | why |
+| ---: | --- | --- | --- |
+| 1 | `website/docs/user-guide/features/kanban.md` | both | The `crashed` payload row. Both sides are live in the merged code (`kanban_db_dispatch.py:982` writes `worker_output`; `:1074` writes `classification`/`evidence_path`), so one row documents both — checked in the source, not inferred from the diff. |
+| 2 | `tools/registry.py` | fork-seam re-attached | Upstream's core-drop WARNING gate (`_check_fn_ever_good`, #112649) taken whole, including its demotion of the ordinary verdict to INFO. The fork's 3-tuple cache entry (explicit expiry, read by `get_cached_check_fn_result`) and `_check_fn_epoch` survive: upstream's 2-tuple writes are re-spelled with the expiry. |
+| 3 | `tools/process_registry.py` | fork-seam re-attached | Upstream's only change to the conflicted function is its new `-> bool` contract ("True when this call persisted the session"), consumed by its new `kill_process` re-write path. The fork's notify-request delivery body is kept and given that contract: `return False` on a duplicate move, `return True` on every path that persisted. The fork's `_completion_event_payload` was verified field-for-field against upstream's inline dict — nothing of upstream's payload is dropped. |
+| 4 | `tools/approval_detection.py` | upstream | Comment only. Upstream's wording carries the measured reason (GIL/Gateway starvation); the fork's near-duplicate comment two lines up was removed rather than left to disagree. |
+| 5 | `agent/session_persistence.py` | fork-seam re-attached | Upstream's `_mute_notification_reply` display marking taken whole; the fork's `msg_idx` argument to `_db_flush_row` re-attached. |
+| 6 | `tests/tools/test_approval.py` | both | Import line; both modules are used. |
+| 7 | `tools/skills_tool.py` | fork-seam re-attached | Upstream's same-root duplicate collapse (#112179) taken whole. The fork's `as_posix()` spelling of the refusal message is kept, and applied to upstream's new duplicate list too, which otherwise printed `str()` on the same paths. |
+| 8 | `agent/skill_utils.py` | both | `EXCLUDED_SKILL_DIRS`: upstream's `.locks` plus the fork's `.realm_inbox` / `.provenance`. |
+| 9 | `tests/tools/test_skills_tool.py` | both | Two additive test blocks at EOF (fork's `TestSkillSearch`; upstream's `TestSameRootDuplicationResolves` + `TestTrustWarningSymlinkAware`). |
+| 10 | `agent/chat_completion_helpers.py` | fork-seam re-attached | Upstream's `_consume_ephemeral_max_output` taken; the fork's `transport` binding, `header_cache_scope_id` and the cache-routing observability tail after the call all survive — upstream returned directly, which would have deleted that tail. |
+| 11 | `agent/conversation_compression.py` | fork-seam re-attached | Upstream's `_compression_child_source` taken; it subsumes the fork's `agent.platform or env` read and adds the parent-row source (#112550). The fork's `child_model_config(agent)` is kept over upstream's bare `_session_init_model_config` — it is a strict superset of it. |
+| 12 | `tui_gateway/session_notifications.py` | fork-seam re-attached | Upstream's `render_notification` wrapper taken; the fork's `_tui_background_agent_turns_enabled()` gate re-attached after the emit loop. |
+| 13 | `hermes_cli/main.py` | fork-seam re-attached | The 09-15 ruling holds: profile bootstrap stays in `hermes_cli/_profile_bootstrap.py` and `main.py` keeps its import-only form. Upstream's two behaviour changes inside the conflicted region were PORTED into that module, not restored inline — rows 13a/13b. Everything upstream added outside it (`_warn_if_unsupervised_pid1`, `_install_rebuilt_desktop_app`, `CLI_FAMILY_SOURCES`, `HERMES_SESSION_SOURCE_EXPLICIT`) auto-merged and was verified present. |
+| 13a | `hermes_cli/_profile_bootstrap.py` | upstream ported | `_resolve_sudo_user_profile_env`: `candidate.is_dir()` → `named_profile_is_live(candidate)`. |
+| 13b | `hermes_cli/_profile_bootstrap.py` | upstream ported | `apply_profile_override`: upstream's `HERMES_UPDATE_POST_SWAP` early return. The fork's resolution receipt stays `default` on that path — `gateway_home_receipt.py`'s four rungs are a closed set this port deliberately does not widen. |
+| 14 | `hermes_cli/doctor_platform.py` | fork-seam re-attached | Upstream's `resolve_journal_mode` and its docstring taken. Upstream's `from hermes_cli.doctor import HERMES_HOME` is NOT taken: a module-level frozen home is the exact bug class `docs/downstream-development.md` rule 3 bans. Call-time `get_hermes_home()` kept, with the reason stated at the site. |
+| 15 | `tests/hermes_cli/conftest.py` | both | Two additive autouse fixtures. |
+| 16 | `tests/hermes_cli/test_managed_uv.py` | upstream | Upstream `290bdc3c76` RETIRED `_windows_runtime_self_lock` with a live windows-latest receipt; the helper is gone from `managed_uv.py`, so `TestWindowsRuntimeSelfLock` was deleted with it. The fork's `TestExplicitPosixInstaller` (no upstream counterpart; `_install_uv_posix` still exists) was kept. |
+| 17 | `hermes_cli/profiles.py` | both | Upstream's `ProfileIdentitySettlementPending` class added; the fork's `force_unverified_writers` keyword kept on `delete_profile`. |
+| 18 | `hermes_cli/profile_cmd.py` | both | `except ProfileDeleteBlocked` (fork, first so it wins) then upstream's widened `(ValueError, FileNotFoundError, RuntimeError)`. |
+| 19 | `hermes_cli/web_routers/profiles.py` | both | Both typed answers survive: the fork's 409 refusal and upstream's `settlement_pending` partial success. The handler body had already auto-merged; only the two docstrings and the `ProfileDeleteBlocked` import conflicted. |
+| 20 | `tests/hermes_cli/test_apply_profile_override.py` | upstream | Upstream's `config.yaml` identity markers adopted (required by `named_profile_is_live`); the fork's explicit `encoding="utf-8"` kept on the `active_profile` write. |
+| 21 | `tests/hermes_cli/test_profiles.py` | both | Two additive test blocks. |
+| 22 | `agent/credential_pool.py` | fork-seam re-attached | **Not a theme-7 file in substance.** The fork's entire delta here is the pool-ROTATION extension (`agent_runtime/pool_rotation.py`), not the auth fallback, so "take upstream's side" does not reach it. Both mixins are on the class (`PoolRotationMixin` first in the MRO; no member of the three collides) and `_select_unlocked` carries both keywords. |
+| 23 | `hermes_cli/auth.py` | upstream + re-seat | See theme 7 below. |
+| 24 | `hermes_cli/runtime_provider.py` | fork-seam re-attached | Upstream's `_raise_for_credentialless_bare_custom` taken, raised outside the rotation scope where it belongs; the fork's `pool_rotation_scope` wrapper and `_select_pool_entry` seam kept, with upstream's new `model=` threaded THROUGH the seam so the model-cooldown filter is not lost on the non-persisting read path. |
+| 25 | `tests/hermes_cli/test_auth_profile_fallback.py` | upstream (DELETE) | The modify/delete resolved as delete, per the ruling. |
+| 26 | `uv.lock` | regenerated | Neither side taken. `uv lock` (uv 0.11.14) from the final merged `pyproject.toml`. |
+
+`pyproject.toml` (theme 8) auto-merged, as the handoff predicted, and all four recorded items were
+verified **in the real merge** rather than trusted from the note: `coverage==7.16.0` and
+`pytest-timeout==2.4.0` in `dev` (line 207), their two `[tool.uv.exclude-newer-package]` rows
+(481–482), upstream's `real_post_swap_handoff` marker (614), and the fork-owned `agent_runtime`
+packages, `--timeout=30 --timeout-method=thread`, ruff `F821`, `real_venv_pip` and
+`real_agent_browser_probe` all intact. Zero conflict markers.
+
+## Theme 7 — the ruling, applied
+
+**What the ruling turned out to require that the note did not say.** `HERMES_AUTH_HOME` had exactly
+one consumer on the credential path, and it was `_global_auth_file_path` — the read-only FALLBACK
+upstream deleted. `_auth_file_path()`, the ACTIVE store, read `get_hermes_home()` and had never
+consulted the pin. So deleting the fallback and stopping there would have deleted the sharing
+mechanism the ruling explicitly preserves. Ruling point 4 names the repair: *"plus the single call
+site where the auth store path is resolved"*. That re-seat is done here.
+
+| change | file | what |
+| --- | --- | --- |
+| fallback deleted | `hermes_cli/auth.py` | `_global_auth_file_path()` and `_load_global_auth_store()` removed with their mtime cache, as upstream `93889b770d` did. |
+| pin re-seated | `hermes_cli/auth.py:468` | `_auth_file_path()` resolves `get_hermes_auth_home()` first, `get_hermes_home()` otherwise. Unbound, byte-for-byte upstream's path. Bound, the head store IS the active store — so a single-use refresh chain lands in the one store and needs no write-through. The pytest seat belt is unchanged. |
+| import | `hermes_cli/auth.py:33` | `get_hermes_auth_home` added to the `hermes_constants` import. |
+| Codex singleton fallback removed | `agent_runtime/auth_extensions.py:133` | `_read_global_codex_tokens_if_usable()` deleted (ruling point 3). |
+| readiness mirror | `agent_runtime/auth_extensions.py` | `codex_auth_store_credentials_present()` returns `False` after the singleton read instead of consulting the deleted fallback; the `_pool_codex_access_token` non-mirroring rationale is kept and re-worded. |
+| resolver rung removed | `hermes_cli/auth_codex.py:456` | The `source="global-auth-store"` rung deleted; the reason is stated at the site. |
+| picker rung removed | `hermes_cli/model_picker_policy.py:31` | Precedence is now singleton → pool. |
+| re-export | `hermes_cli/auth.py` (tail) | `_read_global_codex_tokens_if_usable` dropped from the downstream re-export block. |
+| test repointed | `tests/agent_runtime/test_profile_context.py:176` | The context-local/env-mode agreement test now probes `_auth_file_path`. Its guarantee did not move; the call site did. |
+| stale monkeypatch | `tests/hermes_cli/test_model_picker_policy.py` | Patch of the deleted symbol removed. |
+| doc references | `agent_runtime/profile_context.py:315`, `agent_runtime/profile_readiness.py:137,331`, `hermes_cli/auth_noninteractive.py:82`, `tests/test_hermetic_env_blanking.py:92` | Repointed. `auth_noninteractive`'s note was materially WRONG after the re-seat — it said the pin "governs the read-side fallback only" — and now says the pin selects the active store for reads AND writes. |
+| modify/delete | `tests/hermes_cli/test_auth_profile_fallback.py` | DELETE; upstream's `tests/hermes_cli/test_auth_profile_isolation.py` adopted. |
+
+**Ruling item discharged by upstream, not by a fork edit:** `tools/managed_tool_gateway.py:45`. The
+fork comment the ruling names (profile-then-global-root fallback, `share_auth`,
+`manage_connections` vanishing) was itself replaced by upstream's post-isolation wording in this
+merge — the merged file reads *"Reads the profile's own `auth.json` through
+`get_provider_auth_state` like every other credential reader"*, which is correct under the new
+model. No edit to upstream-owned code was needed.
+
+**Left alone, filed instead:** `auth_json_path()` in that same file is a second resolver of the auth
+store path, still spelling `get_hermes_home() / "auth.json"`, which would disagree with
+`_auth_file_path()` under a binding. It has **zero callers** anywhere in the tree and is
+upstream-owned, so it was not edited. It is a queue row, not a merge decision.
+
+## Accepted risk, restated
+
+Upstream's original fallback existed for kanban/cron workers under named profiles **outside** any
+persona context. Such a worker authenticated only at the head will now refuse with "set a provider
+for profile X". Upstream's `hermes_cli/profile_credential_audit.py` prints that list on the first
+`hermes update`, so the failure is announced, not silent. The operator accepted this.

@@ -15,9 +15,11 @@ def pool_rotation_scope(persist):
         _persist_rotation.reset(token)
 
 
-def _select_pool_entry(pool, *, persist_pool_rotation=None):
+def _select_pool_entry(pool, *, persist_pool_rotation=None, model=None):
     persist = _persist_rotation.get() if persist_pool_rotation is None else persist_pool_rotation
-    return pool.select() if persist else pool.select_without_persisting_rotation()
+    if persist:
+        return pool.select(model=model)
+    return pool.select_without_persisting_rotation(model=model)
 
 
 def probe_runtime_provider(

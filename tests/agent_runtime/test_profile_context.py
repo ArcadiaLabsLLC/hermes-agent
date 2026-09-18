@@ -178,22 +178,27 @@ def test_the_context_local_scope_resolves_the_SAME_shared_auth_store(
 ):
     """The reader that decided whether this mode was shippable at all.
 
-    ``hermes_cli.auth._global_auth_file_path`` is reached by the readiness
-    walk's provider probe on EVERY walk (``_provider_issue`` →
-    ``load_pool`` / ``probe_runtime_provider`` → ``read_credential_pool`` →
-    ``_load_global_auth_store``), and it used to read ``HERMES_AUTH_HOME`` raw.
-    A context-local binding writes no such variable, so without the ContextVar
-    channel this probe would silently fall through to the global ROOT store and
-    judge a persona's credentials against the wrong ``auth.json`` — both files
-    exist on the live install.
+    ``hermes_cli.auth._auth_file_path`` is reached by the readiness walk's
+    provider probe on EVERY walk (``_provider_issue`` → ``load_pool`` /
+    ``probe_runtime_provider`` → ``read_credential_pool``), and it reads
+    ``HERMES_AUTH_HOME`` through ``get_hermes_auth_home()``. A context-local
+    binding writes no env variable, so without the ContextVar channel this
+    probe would silently resolve the persona's OWN ``auth.json`` and judge its
+    credentials against the wrong store — both files exist on the live install.
 
     The two modes must therefore agree byte-for-byte.
 
-    *Killing mutation:* restore ``os.environ.get("HERMES_AUTH_HOME")`` in
-    ``_global_auth_file_path``. *Probed field:* the path each mode resolves.
+    Re-pointed 2026-09-17 by the upstream sync: upstream ``93889b770d`` retired
+    the read-only global-root FALLBACK this test used to name
+    (``_global_auth_file_path`` / ``_load_global_auth_store``). The binding it
+    pins did not move — it moved onto the one call site that resolves the
+    ACTIVE store, which is what the theme-7 ruling made it.
+
+    *Killing mutation:* drop the ``get_hermes_auth_home()`` branch in
+    ``_auth_file_path``. *Probed field:* the path each mode resolves.
     """
 
-    from hermes_cli.auth import _global_auth_file_path
+    from hermes_cli.auth import _auth_file_path
 
     root = tmp_path / "hermes"
     profile = root / "profiles" / "qa"
@@ -205,9 +210,9 @@ def test_the_context_local_scope_resolves_the_SAME_shared_auth_store(
     monkeypatch.setattr(paths_module, "store_root", lambda: tmp_path / "resolved")
 
     with persona_profile_context(_bound(profile)):
-        env_mode = _global_auth_file_path()
+        env_mode = _auth_file_path()
     with persona_profile_scope(_bound(profile)):
-        scope_mode = _global_auth_file_path()
+        scope_mode = _auth_file_path()
 
     assert env_mode == head_home / "auth.json"
     assert scope_mode == env_mode, (

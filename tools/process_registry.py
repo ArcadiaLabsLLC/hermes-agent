@@ -817,9 +817,10 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
         """Terminate a host-visible PID and its descendants.
         ``expected_start`` (kernel start time at spawn) is re-validated first: a mismatch
         or dead PID means the number was recycled onto a stranger and we refuse to touch
-        it — a leaked orphan beats tree-killing someone's browser. POSIX: psutil SIGTERMs
-        children before the parent (so trees aren't reparented to init and survive), then
-        SIGKILLs survivors after ``terminal.daemon_term_grace_seconds``. Windows:
+        it — a leaked orphan beats tree-killing someone's browser. POSIX: snapshot descendants,
+        SIGTERM the parent alone so it can perform an orderly shutdown, then clean up snapshot
+        descendants that survive its grace window. Survivors are SIGKILLed after a second
+        ``terminal.daemon_term_grace_seconds`` window. Windows:
         ``taskkill /T /F`` (psutil's stale PPID links miss orphans there); ``os.kill``
         is the fallback."""
         if expected_start is not None and not cls._host_pid_is_ours(pid, expected_start):
@@ -849,26 +850,52 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
         except (OSError, PermissionError):
             _sigterm_quietly()
             return
-        # Snapshot the whole tree (children before parent) and SIGTERM each.
+        # Snapshot before signalling: once the parent exits, psutil can no longer
+        # reliably find children that it failed to reap.
         try:
-            targets = parent.children(recursive=True)
+            descendants = parent.children(recursive=True)
         except gone:
-            targets = []
-        targets.append(parent)
-        for proc in targets:
+            descendants = []
+
+        # Let self-managing parents (notably Chromium/Electron) shut down their
+        # tree before touching children. Killing their zygotes first can turn a
+        # graceful browser shutdown into a crash dump.
+        with suppress(gone):
+            parent.terminate()
+
+        grace = cls._daemon_term_grace_seconds()
+
+        def _wait_for_exit(targets) -> None:
+            if grace <= 0:
+                return
+            deadline = time.monotonic() + grace
+            while time.monotonic() < deadline and any(cls._proc_alive(p) for p in targets):
+                time.sleep(0.05)
+
+        # Preserve descendants during the parent's configured shutdown window.
+        _wait_for_exit([parent])
+
+        # The snapshot is an anti-orphan guarantee: only descendants still alive
+        # after the parent had its chance are asked to terminate themselves.
+        remaining = descendants if grace <= 0 else [
+            proc for proc in descendants if cls._proc_alive(proc)
+        ]
+        for proc in remaining:
             with suppress(gone):
                 proc.terminate()
+
+        # Preserve the existing SIGKILL escalation semantics for every owned
+        # process that remains after its SIGTERM grace window. The parent is
+        # included in case it ignored the first signal.
+        targets = [parent, *remaining]
         # Escalate to SIGKILL for anything that ignored SIGTERM within the grace window.
         # ``psutil.wait_procs``' gone/alive partition is deliberately NOT trusted: it
         # reaps via ``Process.wait()`` and mis-partitions across zombie transitions in a
         # parent/child tree, leaving survivors un-killed. Re-probing every target is
         # deterministic.
-        grace = cls._daemon_term_grace_seconds()
         if grace <= 0:
             return
-        deadline = time.monotonic() + grace
-        while time.monotonic() < deadline and any(cls._proc_alive(_p) for _p in targets):
-            time.sleep(0.05)
+        _wait_for_exit(targets)
         for proc in targets:
             with suppress(gone):
                 if cls._proc_alive(proc):
@@ -1354,10 +1381,11 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
         session.mark_exited(exit_code)
         self._move_to_finished(session)
 
-    def _move_to_finished(self, session: ProcessSession):
+    def _move_to_finished(self, session: ProcessSession) -> bool:
         """Move a session from running to finished.
         Idempotent: kill_process() and the reader thread can both call this; only
-        the FIRST move enqueues the completion notification, so no duplicates."""
+        the FIRST move enqueues the completion notification, so no duplicates.
+        Returns True when this call is the one that persisted the session."""
         with self._lock:
             was_running = session.id in self._running
             if was_running:
@@ -1380,15 +1408,16 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
         # Only enqueue completion notification on the FIRST move.  Without
         # this guard, kill_process() and the reader thread can both call
         # _move_to_finished(), producing duplicate [IMPORTANT: ...] messages.
+        # The same fact is the return value: only the first move persisted.
         if not was_running:
-            return
+            return False
         # A ``process notify`` request is the SECOND reason a completion is
         # owed — the first being a spawn-time notify_on_complete. Both produce
         # ONE event: a session that is armed twice over must not deliver twice.
         try:
             notify_row = self._notify_request_row(session.id)
             if not session.notify_on_complete and notify_row is None:
-                return
+                return True
             if notify_row is not None and not self._notify_target_is_live(notify_row):
                 # The persona instance that asked is gone. DROP it — the delivery
                 # lane's positive-ownership rule (#64484) says absence of the
@@ -1407,7 +1436,7 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
                 )
                 notify_row = None
                 if not session.notify_on_complete:
-                    return
+                    return True
             event = self._completion_event_payload(session)
             if notify_row is not None:
                 self._stamp_notify_routing(event, notify_row)
@@ -1416,6 +1445,7 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
         finally:
             # A finite owner must not wake before the completion is queued.
             session._completion_event.set()
+        return True
 
     @staticmethod
     def _exit_fields(session: ProcessSession) -> dict:
@@ -1898,7 +1928,12 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
                 session.exit_code = -15  # SIGTERM
                 session.completion_reason = "killed"
                 session.termination_source = source
-            self._move_to_finished(session)
+            # The reader thread can finalise the session while the signal path
+            # blocks in the SIGKILL grace window: its ``save_completed_result``
+            # then persists this kill as a plain ``exited``. Re-write the receipt
+            # so the durable record matches what the caller was told.
+            if not self._move_to_finished(session):
+                save_completed_result(session)
             self._write_checkpoint()
             return {
                 "status": "killed", "session_id": session.id, "completion_reason": session.completion_reason,
