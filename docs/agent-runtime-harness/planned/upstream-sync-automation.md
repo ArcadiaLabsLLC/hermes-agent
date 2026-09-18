@@ -651,9 +651,9 @@ and the theme-7 positive control has been recorded red-then-green.
 
 # 2026-09-17 merge execution — `cdceca42e1` merged, one history-preserving merge commit
 
-State: **HANDOFF_ONLY** — the merge is executed and the pinned upstream target `cdceca42e1` IS in
-ancestry, but verification is not green, so this is deliberately NOT promoted to
-`SOURCE_CANDIDATE`. The theme-7 positive control IS recorded red-then-green. Nothing was pushed
+State: **SOURCE_CANDIDATE** (promoted 2026-09-18 after the owner rulings; this section records the
+merge as executed, and the ruling outcomes are in the 2026-09-18 section at the end). The pinned
+upstream target `cdceca42e1` IS in ancestry. The theme-7 positive control IS recorded red-then-green. Nothing was pushed
 to `main`. The exact remaining list is in **Still red, with the diagnosis** below; the three
 promotion conditions and their status are restated at the end of this section.
 
@@ -897,3 +897,186 @@ Promote to `SOURCE_CANDIDATE` only after the four open items are closed or expli
 Owed to the Launcher, and not done in this branch by rule: the CLI contract gained
 `profile migrate-identity` and `profile purge-identity`. Additive only — no launcher operator
 button was removed — so nothing breaks today, but the vendored copy is stale until item 4 runs.
+
+---
+
+# 2026-09-18 — owner rulings applied, Linux leg run, state promoted
+
+State: **SOURCE_CANDIDATE.** Read the caveat before treating that as "all green": two tests are
+red on Windows and both are accounted for — one is red BY RULING (the CLI contract, ruling 5) and
+one is an upstream defect the merge imported rather than caused, proven green on Linux and proven
+not-a-resolution by blob identity. Every red that this merge actually caused is closed.
+
+Fork `main` was fast-forwarded to `229b1d43a4` by the parent while this work continued; the commits
+below sit ahead of it on the branch and `main` is an ancestor of the branch tip. No divergence.
+
+## Per-ruling outcome
+
+### Ruling 1 — pack health: adopt upstream's contract
+
+Done (`642bcba309`, corrected by `e71265fc2e`). The old assertion — "pack count must strictly
+decrease" — was the contract of `repack -a -d`; upstream replaced it with an incremental
+`repack -d --geometric=2 --write-midx` behind a once-per-clone-per-6h slot. The tests now pin
+liveness first (the slot lock exists, so the pass reached the repack), then "never GROWS", then the
+multi-pack-index where the flag exists, plus a second test for the slot no-op with a positive
+control that the FIRST pass does repack.
+
+**The measurement moved the answer, and found a real defect.** On git 2.31.1 (this workstation):
+
+```
+$ git repack -d --geometric=2 --write-midx --quiet
+error: unknown option `geometric=2'
+rc=129
+```
+
+`--geometric` / `--write-midx` landed in git 2.32. `_run_bounded_repack` sends both streams to
+DEVNULL and never reads the return code, so on any host with git < 2.32 pack maintenance claims its
+6-hour slot, runs a command that fails in milliseconds, reports nothing, and suppresses retries for
+six hours. Filed as a queue row; not repaired here (upstream-owned, and the fix is a behaviour
+decision, not a merge resolution).
+
+Killing mutation (`_claim_repack_slot` → `return True`) applied, red recorded verbatim in
+`642bcba309`, reverted, green. It also reddened the pre-existing
+`TestRepackStampede::test_one_repack_per_clone_per_interval` — the right neighbour to have caught it.
+
+**A correction worth keeping.** The first version of the capability probe grepped
+`git repack -h` for `"--geometric"`. Git 2.53 prints it as `-g, --[no-]geometric`, so the probe
+answered False on a git that runs the command perfectly — the multi-pack-index assertion would have
+been skipped on Windows (genuinely unsupported) AND on Linux (supported, spelled differently), i.e.
+never run anywhere while reading as covered. The probe now RUNS the command in a throwaway repo and
+keys on its return code. Verified live: `False` on git 2.31.1, `True` on git 2.53.0.
+
+### Ruling 2 — kanban worktree teardown: mark POSIX-only
+
+Done (`3de9a499d3`). `test_cleanup_proceeds_when_cwd_was_deleted` is marked `linux_only`. Its
+premise is POSIX, not an import: POSIX lets a process delete the directory it is standing in,
+Windows answers `WinError 32`. Not fixed — queue row handed over verbatim, as instructed.
+
+### Ruling 3 — gh auth probe: DIAGNOSE first
+
+**Neither branch of the ruling applies, and the evidence is conclusive.**
+
+It is not a mis-resolution, because there was no resolution: both files are byte-identical to
+upstream.
+
+| file | merged blob | upstream `cdceca42e1` blob |
+| --- | --- | --- |
+| `hermes_cli/web_routers/git.py` | `64ae36cf59e2d328b530175bc53ee155305de6b6` | identical |
+| `tests/hermes_cli/test_web_server_git.py` | `5449733654a73a5c81bbeee7d50cca858fc7d8fb` | identical |
+
+`git.py` was never in the 26 conflicted files, and the test is upstream's own — absent from fork
+`main` at `94a5db103d`, present at `cdceca42e1`. It arrived with the merge together with the
+implementation it covers. The merged code DOES carry the wait
+(`if not refresh or started >= asked: break`); nothing was lost.
+
+**Root cause: the guard compares two clock reads with `>=` on a clock that cannot resolve the
+interval between them.** Measured on this workstation:
+
+```
+monotonic resolution: 0.015625     (15.625 ms)
+identical back-to-back reads: 10000/10000
+```
+
+So the stale probe's `started` and the refresh's `asked` are the SAME float, `started >= asked` is
+true by equality, the loop breaks, and the refresh adopts the stale (logged-out) answer — then
+caches it for the full 5-minute TTL. Deterministic here: 3/3 runs.
+
+On Linux the same test PASSES (below). But the race is real there too, not merely absent:
+
+```
+monotonic resolution: 1e-09
+identical back-to-back reads: 1009/10000
+```
+
+~10% of back-to-back read pairs are still equal on Linux, so this is a genuine upstream bug that
+Windows makes deterministic rather than a Windows-only artifact. Not patched here:
+`hermes_cli/web_routers/git.py` is upstream-owned and the standing rule is never to edit upstream
+logic to suit the fork. Queue row filed for the upstream report; the one-character fix upstream
+would want is `>` rather than `>=`, or a monotonic counter instead of a timestamp.
+
+### Ruling 4 — OS markers for the POSIX-only tests
+
+Done (`3de9a499d3`), marker-only, 30 test defs across 6 files: `fcntl` (3), `pwd` (3),
+`signal.SIGKILL` (1), XDG desktop entry (21 defs / 24 node ids), WSL `/mnt` mount walk (1), plus
+ruling 2's cwd-deletion premise (1).
+
+Scope note: only `linux_only` / `macos_only` / `windows_only` exist and conftest makes carrying two
+a hard collection error, so a POSIX-generic test can only be spelled `linux_only` — which also drops
+it from the macOS lane. The in-tree alternative `skipif(sys.platform == "win32")` keeps macOS but is
+invisible to `scripts/ci/list_os_marked_tests.py`, which finds lane members by grepping marker
+NAMES; the repo has 75 of those. A `posix_only` marker would spell this honestly and is a one-line
+addition to `_OS_MARKS` plus pyproject — deliberately NOT taken, because the marker vocabulary is a
+repo-wide contract rather than a merge decision.
+
+21 of the 24 desktop-entry node ids were pre-existing failures on fork `main`, not merge-caused;
+marked with the rest because the marker is correct for all of them and 21 permanently-red tests are
+the noise that hides the next real one.
+
+### Ruling 5 — CLI contract
+
+Left red, as ruled. Additive only (`profile migrate-identity`, `profile purge-identity` from
+upstream `a41552fad4`), zero removals. Parent regenerates and re-vendors the launcher copy in one
+wave after landing.
+
+### Ruling 6 — pre-existing and never-ran
+
+Accepted for landing. Queue row handed over verbatim.
+
+## Linux leg
+
+A Linux-side clone of the branch tip in the WSL filesystem (`~/hermes-linux`, NOT `/mnt/x` — the
+`/mnt` walk is itself one of the failure causes), `uv`-provisioned CPython 3.11.15 against
+`uv.lock`, git 2.53.0, 16 cores.
+
+```
+bash scripts/run_tests.sh <27 files> -j 8 --file-timeout 180
+=== Summary: 27 files, 490 tests passed, 1 failed, 5 skipped (100% complete) in 92.5s (8 workers) ===
+rc=1
+```
+
+**The single Linux failure is `test_cli_contract_dump` — the one deliberately left red.**
+Everything else passes, including every newly-marked test, which is what makes the markers a finding
+rather than an excuse:
+
+| file | Linux | note |
+| --- | --- | --- |
+| `test_linux_desktop_entry.py` | 49 passed | all 21 marked defs RAN (Windows: 22 passed / 24 skipped) |
+| `test_orphan_desktop_serve_reap.py` | 13 passed | `fcntl` available |
+| `test_gateway_migrate_multiplex.py` | 31 passed | `pwd` available |
+| `test_update_serve_generation_recovery.py` | 60 passed | `signal.SIGKILL` available |
+| `test_node_runtime_npm_resolution.py` | 2 passed | the `/mnt` walk is a native mount here |
+| `test_kanban_worktree_teardown.py` | 14 passed | deleting a live CWD is legal on POSIX |
+| `test_worktree_selfheal.py` | 9 passed | midx assertion LIVE here (probe returns True on git 2.53) |
+| `test_web_server_git.py` | 8 passed | **ruling 3 confirmed** — the gh-auth race does not fire on a ns clock |
+| `test_dashboard_system_gateway_elevation.py` | 6 passed | one of the three that never ran on Windows |
+| `test_gateway.py` | 44 passed | never ran on Windows |
+| `test_gateway_peer_two_roots_e2e.py` | 9 passed | never ran on Windows (exit 124 there) |
+| `test_persona_head_auth_store.py` | 2 passed | the theme-7 positive control holds on Linux too |
+
+All three files that never ran on Windows run and pass on Linux, so they were Windows collection /
+timeout problems, not broken tests.
+
+## Windows verification re-run
+
+```
+bash scripts/run_tests.sh <22 files> -j 8 --file-timeout 180
+=== Summary: 22 files, 382 tests passed, 2 failed, 44 skipped (100% complete) in 149.0s (8 workers) ===
+rc=1   (captured unpiped)
+```
+
+Both failures are the accounted-for pair: `test_cli_contract_dump` (ruling 5, deliberate) and
+`test_gh_auth_refresh_waits_out_a_probe_started_before_it` (ruling 3, upstream defect, green on
+Linux). Of the 20 originally merge-caused tests, **18 are closed**, 1 is deliberate, 1 is an
+imported upstream defect.
+
+## Acceptance state
+
+| condition | status |
+| --- | --- |
+| pinned SHA `cdceca42e1` in ancestry | **YES** |
+| fold guard `0d5b7b8abc` | **PASS** on the final tip |
+| theme-7 positive control red-first | **YES** (`c941959441`), and green on Linux |
+| every merge-CAUSED red closed | **YES** — the 2 remaining are ruled-deliberate and upstream-imported |
+
+Owed after landing, none of it blocking: regenerate the CLI contract + re-vendor the launcher copy
+in one wave; the four queue rows below.
