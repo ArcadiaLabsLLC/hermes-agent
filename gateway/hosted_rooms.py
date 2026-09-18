@@ -36,6 +36,10 @@ MAX_ROOM_LIST_LIMIT = 500
 MAX_ACTIVE_ROOMS = 256
 MAX_DISBANDED_ROOM_TOMBSTONES = 512
 DISBANDED_ROOM_RETENTION_SECONDS = 90 * 24 * 60 * 60
+# Explicit meeting-transcript retention opt-ins (``pin_room_history``). Above the
+# tombstone cap on purpose: a pin survives the tombstone sweep, so its own cap is
+# what bounds the table. Reaching it is a typed refusal, never a stuck lifecycle.
+MAX_RETAINED_ROOM_HISTORIES = 1024
 MAX_EVENTS_PER_ROOM = 50_000
 MAX_ROOM_EVENT_BYTES = 256 * 1024 * 1024
 # Leave substantial headroom below the pre-update state.db snapshot ceiling: event accounting excludes
@@ -185,6 +189,10 @@ class RoomNotFoundError(HostedRoomError): """Raised when a room does not exist o
 class RoomHistoryExpiredError(RoomNotFoundError):
     """Raised when a retired room remains reserved after history compaction."""
     reason = "room_history_expired"
+
+class RoomHistoryRetentionFullError(HostedRoomError):
+    """Raised when no further meeting transcript can be retained on this host."""
+    reason = "history_retention_full"
 
 class RoomConflictError(HostedRoomError): """Raised when an idempotency key is reused for different room state."""
 
@@ -542,7 +550,7 @@ _DEPENDENT_TABLES = (
     "hosted_room_policy_transcript_state", "hosted_room_policy_transcript", "hosted_room_policy_publications",
     "hosted_room_policy_watermarks", "hosted_room_policy_events", "hosted_room_policy_threads",
     "hosted_room_policy_cursors", "hosted_room_driver_tasks", "hosted_room_driver_leases", "hosted_room_remote_runs",
-    "hosted_room_links", "hosted_room_peer_reservations", "hosted_room_events")
+    "hosted_room_links", "hosted_room_peer_reservations", "hosted_room_history_pins", "hosted_room_events")
 
 
 def _room_ids(conn: sqlite3.Connection, sql: str, params: tuple[Any, ...]) -> list[str]:
@@ -552,6 +560,12 @@ def _room_ids(conn: sqlite3.Connection, sql: str, params: tuple[Any, ...]) -> li
 def _prune_disbanded_rooms_locked(
     conn: sqlite3.Connection, *, now: float | None, max_gateway_event_bytes: int | None = None) -> int:
     candidates: set[str] = set()
+    # Explicitly retained meeting transcripts are exempt from the ordinary
+    # deleted-chat AGE and tombstone-cap sweeps. They are NOT exempt from the
+    # gateway byte budget: that lane reclaims pinned rooms LAST, so retention can
+    # never wedge a host below its own storage limit. With nothing pinned the
+    # reclaim order is byte-identical to stock Group Chat behaviour.
+    pinned = {str(row[0]) for row in conn.execute("SELECT room_id FROM hosted_room_history_pins")} if table_exists(conn, "hosted_room_history_pins") else set()
     if now is not None:
         candidates.update(_room_ids(
             conn, """SELECT room_id FROM hosted_rooms
@@ -559,12 +573,15 @@ def _prune_disbanded_rooms_locked(
     candidates.update(_room_ids(
         conn, """SELECT room_id FROM hosted_rooms WHERE disbanded_at IS NOT NULL
                 ORDER BY disbanded_at DESC, room_id ASC LIMIT -1 OFFSET ?""", (MAX_DISBANDED_ROOM_TOMBSTONES,)))
+    candidates.difference_update(pinned)
     if max_gateway_event_bytes is not None:
         retained_bytes = _gateway_event_bytes(conn)
         if retained_bytes > max_gateway_event_bytes:
-            for row in conn.execute("""SELECT room_id, event_bytes FROM hosted_rooms WHERE disbanded_at IS NOT NULL
-                    ORDER BY disbanded_at ASC, room_id ASC"""
-            ).fetchall():
+            rows = conn.execute("""SELECT room_id, event_bytes FROM hosted_rooms WHERE disbanded_at IS NOT NULL
+                    ORDER BY disbanded_at ASC, room_id ASC""").fetchall()
+            # ``sorted`` is stable: unpinned rooms keep their oldest-first order
+            # and pinned rooms follow in that same order behind them.
+            for row in sorted(rows, key=lambda candidate: str(candidate["room_id"]) in pinned):
                 candidates.add(str(row["room_id"]))
                 retained_bytes -= int(row["event_bytes"])
                 if retained_bytes <= max_gateway_event_bytes:
@@ -579,6 +596,57 @@ def _prune_disbanded_rooms_locked(
             conn.execute(f"DELETE FROM {table} WHERE room_id IN ({placeholders})", room_ids)
     conn.execute(f"DELETE FROM hosted_rooms WHERE room_id IN ({placeholders})", room_ids)
     return len(room_ids)
+
+
+def pin_room_history(
+    db_path: DbPath, *, room_id: Any, expected_gateway_id: Any, expected_epoch: Any
+) -> None:
+    """Retain a meeting's public log after disband, without retaining active writers.
+
+    A host embedding Group Chat as a finite meeting has a separate explicit End:
+    that ends execution, not the user's right to read its transcript. Pin BEFORE
+    disband, in the same owning gateway. This generic retention opt-in changes
+    neither stock deleted-chat behavior nor gateway byte limits.
+
+    Refusal is TYPED (``history_retention_full``) so a host can report it rather
+    than surface a bare storage message. A retention claim is never a lifecycle
+    authority: a caller that cannot pin must still be able to finish its meeting.
+    """
+    room_id = _room_id(room_id)
+    expected_gateway_id = _actor_id(expected_gateway_id, "expected_gateway_id")
+    _require_positive_int(expected_epoch, "expected_epoch")
+    with _transaction(db_path, immediate=True) as conn:
+        room = _room_row(conn, _SELECT_ROOM_WITH_BYTES, (room_id,), room_id)
+        _require_authority(room, expected_gateway_id, expected_epoch, "stale hosted room authority")
+        conn.execute("CREATE TABLE IF NOT EXISTS hosted_room_history_pins (room_id TEXT PRIMARY KEY)")
+        if conn.execute("SELECT 1 FROM hosted_room_history_pins WHERE room_id=?", (room_id,)).fetchone():
+            return
+        if conn.execute("SELECT COUNT(*) FROM hosted_room_history_pins").fetchone()[0] >= MAX_RETAINED_ROOM_HISTORIES:
+            raise RoomHistoryRetentionFullError("retained room history limit reached")
+        conn.execute("INSERT INTO hosted_room_history_pins VALUES(?)", (room_id,))
+
+
+def unpin_room_history(
+    db_path: DbPath, *, room_id: Any, expected_gateway_id: Any, expected_epoch: Any
+) -> bool:
+    """Release one retention opt-in; ordinary deleted-chat retention applies again.
+
+    The inverse of :func:`pin_room_history`, and the reason the pin table cannot
+    grow without a valve. A pin outlives its room row only as litter, so when the
+    room is already gone the leftover is dropped without an authority check —
+    there is nothing left to be authoritative about. Returns whether a pin was
+    actually removed.
+    """
+    room_id = _room_id(room_id)
+    expected_gateway_id = _actor_id(expected_gateway_id, "expected_gateway_id")
+    expected_epoch = _require_positive_int(expected_epoch, "expected_epoch")
+    with _transaction(db_path, immediate=True) as conn:
+        if not table_exists(conn, "hosted_room_history_pins"):
+            return False
+        room = conn.execute(_SELECT_ROOM_WITH_BYTES, (room_id,)).fetchone()
+        if room is not None:
+            _require_authority(room, expected_gateway_id, expected_epoch, "stale hosted room authority")
+        return conn.execute("DELETE FROM hosted_room_history_pins WHERE room_id=?", (room_id,)).rowcount > 0
 
 
 def prune_disbanded_rooms(db_path: DbPath, *, now: float | None = None) -> int:

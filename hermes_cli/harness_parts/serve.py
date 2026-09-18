@@ -3243,6 +3243,7 @@ def serve_loop(
 
     original_stdout, original_stderr = sys.stdout, sys.stderr
     local_llama_bound_root = None
+    discussion_owner = None
     sys.stdout, sys.stderr = stdout_proxy, stderr_proxy
     try:
         store_root_path: Any = None
@@ -3366,6 +3367,19 @@ def serve_loop(
                     from agent_runtime.config import harness_root_config_path
                     bind_local_llama(store_root_path, harness_root_config_path())
                     local_llama_bound_root = store_root_path
+                    # A corrupt optional discussion store must not take the
+                    # ordinary native socket/chat lane down with it.
+                    try:
+                        from agent_runtime.discussions.service import bind as bind_discussions
+                        from hermes_constants import get_hermes_head_home
+                        discussion_owner = bind_discussions(
+                            store_root_path, get_hermes_head_home(), install_block["install_id"])
+                    except Exception:
+                        import logging as _discussion_logging
+                        _discussion_logging.getLogger(__name__).warning(
+                            "discussion runtime unavailable; ordinary chat remains enabled",
+                            exc_info=True,
+                        )
                     socket_server = ServeSocketServer(
                         store_root_path,
                         boot_id=boot_id,
@@ -4119,6 +4133,17 @@ def serve_loop(
                 "agent_chat_send(wait=false) will be refused for this serve",
                 exc_info=True,
             )
+        # Independent lifecycle: failure in another delivery consumer does
+        # not disable room execution. Capabilities report accepting=False if
+        # this worker itself could not start.
+        if discussion_owner is not None:
+            try:
+                discussion_owner.start()
+            except Exception:
+                import logging as _discussion_logging
+                _discussion_logging.getLogger(__name__).warning(
+                    "discussion worker did not start", exc_info=True,
+                )
 
         def _unregister_instance(reason: str = "shutdown") -> None:
             """Drop this serve's registry entry. Idempotent, never raises.
@@ -6234,6 +6259,9 @@ def serve_loop(
         raise
     finally:
         sys.stdout, sys.stderr = original_stdout, original_stderr
+        if discussion_owner is not None:
+            from agent_runtime.discussions.service import shutdown as shutdown_discussions
+            shutdown_discussions(root=discussion_owner.context.root)
         from agent_runtime.local_llama.service import shutdown as shutdown_local_llama
         if local_llama_bound_root is not None:
             shutdown_local_llama(root=local_llama_bound_root)

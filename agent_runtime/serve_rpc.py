@@ -390,6 +390,12 @@ def method(name: str, tier: str):
     return dec
 
 
+def _ensure_discussion_methods():
+    if "runtime.discussion.capabilities" not in _METHODS:
+        from .discussions.rpc import register
+        register(method, ok, err)
+
+
 def _ensure_local_llama_methods():
     if "runtime.local_llama.status" not in _METHODS:
         from .local_llama.rpc import register
@@ -400,6 +406,7 @@ def method_names() -> list[str]:
     # Registration is lazy to keep imports one-directional and avoid eager
     # filesystem/process work on every client of the method manifest.
     _ensure_local_llama_methods()
+    _ensure_discussion_methods()
     return sorted(_METHODS)
 
 
@@ -571,6 +578,7 @@ def handle_request(req: Any, context: RpcContext | None = None) -> dict:
         return normalized
 
     _ensure_local_llama_methods()
+    _ensure_discussion_methods()
     rid, name, params = normalized
     fn = _METHODS.get(name)
     if fn is None:

@@ -2991,7 +2991,12 @@ def _cmd_mission_chat_message(args) -> int:
         0, int((time.monotonic() - _session_db_open_started) * 1000)
     )
     instance_store = PersonaInstanceStore()
-    instance_store.ensure_for_personas(ensure_persisted_personas(cfg))
+    from agent_runtime.auxiliary_chat import is_auxiliary_chat
+    if not is_auxiliary_chat(getattr(args, "persona_instance_id", None), getattr(args, "session_id", None)):
+        instance_store.ensure_for_personas(ensure_persisted_personas(cfg))
+    # Auxiliary sessions were admitted against an existing exact instance.
+    # They must not run the catalog's repairing projection writer (including
+    # display/profile fields) while another operator may be editing that row.
     # Canonicalize a caller-supplied instance id at THIS boundary (the same
     # chokepoint open_chat uses), so an instance-shaped target can never mint a
     # variant row.
@@ -3585,6 +3590,8 @@ def _mission_chat_commit_turn(plan, deferred, presence) -> int:
     from agent_runtime.mission_chat_turns import (
         TURN_PROFILE_TIMING_KEY as MISSION_CHAT_TURN_PROFILE_TIMING_KEY,
     )
+
+    from agent_runtime.auxiliary_chat import is_auxiliary_chat, auxiliary_result_metadata
 
     args = plan.args
     cfg = plan.cfg
@@ -4195,7 +4202,8 @@ def _mission_chat_commit_turn(plan, deferred, presence) -> int:
     instance.skill_manifest_hash = safe_assignment_token(
         prompt_context.get("skill_manifest_hash")
     )
-    instance = instance_store.update(instance)
+    if not is_auxiliary_chat(instance.id, session_id):
+        instance = instance_store.update(instance)
     stream = bool(getattr(args, "stream", False))
     stream_emitter = _ChatProtocolV2Emitter(
         turn_id=safe_assignment_token(client_message_id),
@@ -4778,6 +4786,9 @@ def _mission_chat_commit_turn(plan, deferred, presence) -> int:
             ),
             "native_revision": native_revision,
             "native_committed": True,
+            # Persist with the native receipt, before the external owner receives
+            # a callback. A crash must not lose a committed clarify question.
+            **auxiliary_result_metadata(instance.id, session_id, getattr(chat_result, "raw", None)),
             "stored_reply": reply_text,
             **budget_metadata,
             # The runner's per-run timing breakdown, riding the SAME persist as
@@ -4827,11 +4838,12 @@ def _mission_chat_commit_turn(plan, deferred, presence) -> int:
         # The scratch-session assignment lane (session_id=None) keeps its
         # explicit post-turn write.
         try:
-            instance.active_run_id = None
-            instance.current_assignment_id = None
-            instance.state = WorkerSessionState.IDLE
-            instance.default_chat_session_id = session_id
-            instance_store.update(instance)
+            if not is_auxiliary_chat(instance.id, session_id):
+                instance.active_run_id = None
+                instance.current_assignment_id = None
+                instance.state = WorkerSessionState.IDLE
+                instance.default_chat_session_id = session_id
+                instance_store.update(instance)
         except Exception as instance_commit_exc:
             # NOT silent any more. This write is what returns the agent to idle
             # and repoints its default thread; swallowing its failure is why a
