@@ -5,6 +5,9 @@ import logging
 import sqlite3
 from typing import Any
 
+from gateway.hosted_room_discussion import DiscussionReconstructionError, DiscussionValidationError
+from gateway.hosted_rooms import HostedRoomError
+
 from .contract import CONTRACT_VERSION, METHODS, PREFIX, command_body, contract_descriptor, validate_params
 from .definitions import DefinitionError, plan_seats
 from .run_store import DiscussionError, digest
@@ -84,6 +87,22 @@ def register(method, ok, err) -> None:
                 return err(rid, code, str(exc), {"reason": exc.reason, "field": exc.field, **exc.details})
             except DiscussionError as exc:
                 return err(rid, 4090, str(exc), {"reason": exc.reason, **exc.details})
+            except (DiscussionValidationError, DiscussionReconstructionError) as exc:
+                # Room policy raises plain ValueError subclasses that reach reads
+                # (run.get / run.active / run.list) outside any command's own
+                # refusal handling. Without this arm they land on serve_rpc's
+                # generic boundary as ``handler_failed`` carrying the raw
+                # exception text, which is neither branchable nor safe to show.
+                reason = ("discussion_invalid" if isinstance(exc, DiscussionValidationError)
+                          else "discussion_unreconstructable")
+                logger.warning("Discussion policy refused %s: %s", operation, reason)
+                return err(rid, 4090, "This discussion's state could not be read; reload it.", {"reason": reason})
+            except HostedRoomError as exc:
+                # Same class of escape from the hosted-room store itself. Typed
+                # subclasses already name themselves; the rest are one reason.
+                reason = getattr(exc, "reason", None) or "room_unavailable"
+                logger.warning("Hosted room refused %s: %s", operation, reason)
+                return err(rid, 4090, "This meeting room is unavailable; reload it.", {"reason": reason})
             except sqlite3.Error:
                 logger.exception("Discussion storage operation failed: %s", operation)
                 return err(rid, -32000, "Discussion storage unavailable; reconcile the original intent before retrying.", {"reason": "storage_unavailable"})

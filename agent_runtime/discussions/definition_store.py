@@ -1,9 +1,10 @@
 """Revision-checked, install-local table/preset definitions in an explicit DB.
 
 No implicit HERMES_HOME lookup, global connection, worker or model execution.
-This is authoring persistence, NOT room admission: before exposing mutations on
-RPC, the room service must fence edits/deletes against active runs inside this
-same write transaction. No RPC is registered by this foundation slice.
+This is authoring persistence, NOT room admission: the room service fences
+edits/deletes against active runs inside this same write transaction. The
+``runtime.discussion.table.*`` and ``preset.*`` methods registered by
+``agent_runtime.discussions.rpc`` reach this store only through that service.
 """
 from __future__ import annotations
 
