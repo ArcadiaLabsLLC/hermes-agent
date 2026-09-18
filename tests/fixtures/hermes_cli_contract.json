@@ -15056,6 +15056,8 @@
         "info",
         "install",
         "list",
+        "migrate-identity",
+        "purge-identity",
         "rename",
         "show",
         "update",
@@ -15575,6 +15577,86 @@
         "list"
       ],
       "positionals": [],
+      "subcommands": []
+    },
+    "profile migrate-identity": {
+      "exclusive_groups": [],
+      "options": {
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "profile",
+        "migrate-identity"
+      ],
+      "positionals": [
+        {
+          "action": "store",
+          "choices": null,
+          "name": "old_name",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        {
+          "action": "store",
+          "choices": null,
+          "name": "new_name",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        }
+      ],
+      "subcommands": []
+    },
+    "profile purge-identity": {
+      "exclusive_groups": [],
+      "options": {
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "profile",
+        "purge-identity"
+      ],
+      "positionals": [
+        {
+          "action": "store",
+          "choices": null,
+          "name": "profile_name",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        }
+      ],
       "subcommands": []
     },
     "profile rename": {
