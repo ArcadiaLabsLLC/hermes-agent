@@ -131,9 +131,14 @@ class DiscussionService:
         rooms.create_room(self.db_path, room_id=run["run_id"],
             name=run["initial"]["table"]["spec"]["name"][:200], members=self._roster(members),
             authority_gateway_id=self.context.install_id)
-        # Pin before any ending/recovery can disband: End is not Delete history.
-        rooms.pin_room_history(self.db_path, room_id=run["run_id"],
-            expected_gateway_id=self.context.install_id, expected_epoch=1)
+        # NOT pinned here. A retention pin only matters once the room is disbanded
+        # -- a live room is not a prune candidate at all -- and a pin taken at
+        # Start is never released for a run that is abandoned, crashes, or is
+        # simply left open, so the pin table grew by one per run FOREVER and a
+        # full table then refused every later Start. The pin is taken in
+        # _finalize_room, immediately before disband, which is the one moment it
+        # protects anything. See docs/agent-runtime-harness/planned/
+        # discussion-tables-local-handoff.md.
         self._append_user(run, "start", run["topic"], actor_id=run["actor_id"])
         self.runs.activate(run["run_id"])
 
@@ -272,6 +277,55 @@ class DiscussionService:
                 continue
             self.runtime.cancel(task["identity"], cancel_id=task.get("cancel_id") or key)
 
+    def _retain(self, run_id: str) -> str | None:
+        """Pin the meeting transcript; retention is host storage policy, not authority.
+
+        End is not Delete history, but a host that cannot retain one more
+        transcript must still be able to END the meeting: the transcript falls
+        back to ordinary deleted-chat retention and the typed refusal is surfaced
+        on the run, rather than stranding it in ``ending`` holding its table and
+        instance claims. Returns that reason, or None when the pin was taken.
+        """
+        try:
+            rooms.pin_room_history(self.db_path, room_id=run_id,
+                expected_gateway_id=self.context.install_id, expected_epoch=1)
+            return None
+        except rooms.HostedRoomError as exc:
+            reason = getattr(exc, "reason", None) or "history_retention_unavailable"
+            logger.warning("Discussion transcript not retained: %s (%s)", run_id, reason)
+            return reason
+
+    def _release(self, run_id: str) -> None:
+        """Drop a retention claim that no longer has a disbanded room behind it."""
+        try:
+            rooms.unpin_room_history(self.db_path, room_id=run_id,
+                expected_gateway_id=self.context.install_id, expected_epoch=1)
+        except rooms.HostedRoomError:
+            logger.warning("Discussion retention release deferred: %s", run_id)
+
+    def _finalize_room(self, run: Mapping[str, Any]) -> str | None:
+        """Publish, retain and disband, without being able to strand the run.
+
+        Returns a typed retention refusal to surface, or None.
+        """
+        rid, refusal = run["run_id"], None
+        try:
+            room = self._room(run, include_ended=True)
+            if room.get("disbanded_at") is None:
+                self._publish(run, room)
+                refusal = self._retain(rid)
+                try:
+                    rooms.disband_room(self.db_path, room_id=rid,
+                        expected_gateway_id=self.context.install_id, expected_epoch=1)
+                except Exception:
+                    if refusal is None:
+                        self._release(rid)  # Never leave a pin on a room still live.
+                    raise
+        except rooms.RoomNotFoundError:
+            if self.attempts.rows(rid):
+                raise
+        return refusal
+
     def _commands(self, initial: Mapping[str, Any]) -> None:
         rid = initial["run_id"]
         if rid in self._processing:
@@ -301,20 +355,14 @@ class DiscussionService:
                             raise
                     if self._unresolved(rid):
                         continue
+                    refusal = self._finalize_room(run) if op == "end" else None
                     if op == "end":
-                        try:
-                            room = self._room(run, include_ended=True)
-                            if room.get("disbanded_at") is None:
-                                self._publish(run, room)
-                                rooms.pin_room_history(self.db_path, room_id=rid,
-                                    expected_gateway_id=self.context.install_id, expected_epoch=1)
-                                rooms.disband_room(self.db_path, room_id=rid,
-                                    expected_gateway_id=self.context.install_id, expected_epoch=1)
-                        except rooms.RoomNotFoundError:
-                            if self.attempts.rows(rid):
-                                raise
                         self.runs.end(rid)
                     self.runs.finish_command(rid, key, phase="paused" if op == "stop" else None)
+                    if refusal is not None:
+                        # finish_command clears the run error, and a retention
+                        # refusal is not this command's outcome: End succeeded.
+                        self.runs.report_error(rid, refusal)
                 elif op == "send":
                     if self._unresolved(rid):
                         continue
