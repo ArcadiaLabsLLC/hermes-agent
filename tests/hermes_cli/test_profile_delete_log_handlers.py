@@ -26,10 +26,15 @@ def routed_profile(tmp_path, monkeypatch):
     home = tmp_path / ".hermes"
     home.mkdir()
     monkeypatch.setenv("HERMES_HOME", str(home))
-    monkeypatch.setattr(profiles, "_cleanup_gateway_service", lambda *_: None)
-    monkeypatch.setattr(profiles, "_maybe_unregister_gateway_service", lambda *_: None)
-    monkeypatch.setattr(profiles, "_stop_profile_backends", lambda *_: None)
-    monkeypatch.setattr(profiles, "_notify_multiplexer", lambda *_: None)
+    # ``**__`` on every stub: these stand in for functions this test does not own and
+    # whose keywords grow — ``_stop_profile_backends`` gained ``table=`` in the
+    # 2026-09-17 upstream merge. A positional-only stub is a second copy of a signature,
+    # and it fails as a TypeError from inside ``delete_profile`` rather than as anything
+    # about log handlers.
+    monkeypatch.setattr(profiles, "_cleanup_gateway_service", lambda *_, **__: None)
+    monkeypatch.setattr(profiles, "_maybe_unregister_gateway_service", lambda *_, **__: None)
+    monkeypatch.setattr(profiles, "_stop_profile_backends", lambda *_, **__: None)
+    monkeypatch.setattr(profiles, "_notify_multiplexer", lambda *_, **__: None)
     profile = profiles.create_profile("routed-log-delete", no_alias=True)
     hermes_logging.setup_logging(hermes_home=home, force=True)
     try:

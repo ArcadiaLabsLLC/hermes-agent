@@ -9,6 +9,8 @@ Pins:
   rows — the silent-miss tripwire.
 """
 
+import pytest
+
 from hermes_cli.update_inventory import (
     RuntimeRecord,
     UpdatePlan,
@@ -332,8 +334,31 @@ def test_unaccounted_serve_report_names_serve_remedy_not_gateway_restart(capsys)
     assert report_unaccounted_runtimes(outcomes) is True
     out = capsys.readouterr().out
     assert "serve [default] pid 900" in out
-    assert "hermes-serve.service" in out
+    # The remedy points at the SERVE process, never at a gateway verb that cannot reach it
+    # (#100479). The wording is host-independent; the systemd line is not — upstream gated
+    # ``systemctl --user restart hermes-serve.service`` behind ``sys.platform == "linux"`` in
+    # the 2026-09-17 merge, correctly, since systemctl does not exist elsewhere. That arm is
+    # its own Linux-marked test below rather than a platform branch inside this one.
+    assert "relaunch `hermes serve`" in out
     assert "hermes gateway restart" not in out
+
+
+@pytest.mark.linux_only
+def test_unaccounted_serve_report_names_the_systemd_unit_on_linux(capsys):
+    """The Linux half of the remedy above: a unit-managed serve is named by its unit.
+
+    Positive control for the platform gate — without it, "no systemd line" is equally true
+    on a host where the whole report failed to render.
+    """
+    outcomes = match_runtime_outcomes(
+        _plan(_serve("default", 900)),
+        restarted_services=["hermes-gateway"], relaunched_profiles=[],
+        externally_supervised_profiles=[], killed_pids=set(), failed_units=[],
+    )
+    assert report_unaccounted_runtimes(outcomes) is True
+    out = capsys.readouterr().out
+    assert "serve [default] pid 900" in out
+    assert "hermes-serve.service" in out
 
 
 def test_mixed_fleet_only_the_missed_one_escalates(capsys):

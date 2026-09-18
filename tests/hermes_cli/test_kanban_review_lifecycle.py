@@ -655,7 +655,12 @@ def test_dispatch_text_and_daemon_stuck_warning_name_guard_reason(
     assert "Guarded (active_pr): t_held" in out
     assert "Memory pressure elevated" in out
 
-    def _fake_daemon(*, interval, max_spawn, failure_limit, on_tick):
+    # ``**_`` rather than the keyword list of the day: this fake stands in for
+    # ``kbd.run_daemon``, whose signature grows (``ttl_seconds`` arrived with the
+    # 2026-09-17 upstream merge). A fake that enumerates the caller's keywords is a
+    # second copy of a signature it does not own, and it fails as a TypeError from
+    # inside the call rather than as anything about daemon health.
+    def _fake_daemon(*, on_tick, **_):
         for _ in range(6):  # HEALTH_WINDOW consecutive bad ticks
             on_tick(res)
 
