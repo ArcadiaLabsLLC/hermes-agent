@@ -108,6 +108,38 @@ _CONTEXT_VAR_RESOLVERS = {
     "workspaceFolderBasename": _workspace_basename, "pathSeparator": lambda: os.sep, "/": lambda: os.sep}
 
 
+def _inject_child_hermes_home(env: dict) -> None:
+    """Tell the stdio child which Hermes home it belongs to (downstream B-2).
+
+    ``_SAFE_ENV_KEYS`` passes ``HOME`` through raw but has never carried
+    ``HERMES_HOME``. Inside a persona turn ``persona_profile_context`` rewrites
+    ``HOME`` to ``<profile>/home``, so a child inheriting ``HOME`` and NOT
+    ``HERMES_HOME`` resolves its Hermes home to ``<profile>/home/.hermes`` — a
+    THIRD home, neither the persona's bound profile nor the operator's head.
+
+    Resolved through ``get_hermes_home()`` rather than ``os.environ`` on
+    purpose: that resolver is ContextVar-aware, and the in-process half of the
+    same gap is already closed by re-establishing the home ContextVar on the
+    MCP event loop; reading the env var here would let the child disagree with
+    the loop it was spawned from.
+
+    Precedence: layer 1 (safe baseline). A server config's own ``env:`` block
+    still overrides it, which is the documented merge order.
+
+    ``HERMES_AUTH_HOME`` is deliberately NOT propagated: it is head-pinned
+    inside profile contexts so every profile projects into one operator-visible
+    auth store, and forwarding it would be a credential-resolution change.
+    """
+    try:
+        from hermes_constants import get_hermes_home
+
+        resolved = str(get_hermes_home())
+    except Exception:  # pragma: no cover — bootstrap/import fallback
+        resolved = os.environ.get("HERMES_HOME", "")
+    if resolved:
+        env["HERMES_HOME"] = resolved
+
+
 def _build_safe_env(user_env: Optional[dict], *, server_name: Optional[str] = None, runtime_env: Optional[dict] = None) -> dict:
     """Filtered env for stdio subprocesses so API keys/tokens don't leak: the safe baseline
     keys, ``XDG_*``, vars injected by an external secret source (users configured that backend
@@ -127,6 +159,7 @@ def _build_safe_env(user_env: Optional[dict], *, server_name: Optional[str] = No
     for key in ("HERMES_KANBAN_DB", "HERMES_KANBAN_BOARD"):
         if key in os.environ:
             env[key] = os.environ[key]
+    _inject_child_hermes_home(env)
     if user_env:
         env.update(user_env)
     if server_name:
