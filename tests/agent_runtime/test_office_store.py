@@ -21,7 +21,6 @@ from agent_runtime.errors import (
 from agent_runtime.events import EventLog
 from agent_runtime.office_store import (
     ARCHIVED_LEDGER_CAP,
-    DuplicateDeskRefused,
     OfficeStore,
     merge_archived_ledgers,
 )
@@ -369,198 +368,222 @@ def test_conflict_sidecar_blocks_upsert_until_resolved():
     store.upsert_actor(ws, _actor_payload("dev"))
 
 
-# ── the desk fence: one persona, one live desk (D6) ────────────────────
+# ── the generic desk: furniture, unlimited, owned by nobody (2026-09-18) ──
 #
-# The rule was the LAUNCHER's alone until now — a gesture guard
-# (``hasAuthoredDeskForPersona``) plus a render-time count — and neither stands
-# in front of ``harness office actor-upsert``, which is the door the 2026-08-24
-# incident authored a second ``qa`` desk through. These tests pin the store's
-# half, and they pin the two ACCEPTANCES beside the refusal on purpose: a fence
-# that refuses everything is not a fence, it is an outage, and both "move your
-# own desk" and "the holder is archived" are writes an operator makes routinely.
+# The one-desk-per-persona fence (D6) lived here — a refusal, two acceptances,
+# a dry-run pin, an unreadable-directory pin, an id-vs-row narrowing, and a CLI
+# exit-code translation. All of it is deleted with the fence, not rewritten:
+# every one of those tests asserted a REFUSAL of a write that is now correct,
+# and a test of deleted behaviour rewritten into "the write succeeds" would be
+# a tautology over the whole store rather than a pin on anything.
+#
+# What replaces them are the three properties the ruling actually creates. The
+# owner, 2026-09-18: *"i want desks to just be one type all agents can use, no
+# more per persona desk, just one single desk object."*
+#
+# The launcher mints a generic desk under its OWN synthetic id
+# (``desk_<8 base36>``) and uses that id as the item's ``persona_id`` too, so a
+# desk is its own actor file. These fixtures spell exactly that shape.
 
 
-def _desk_only_payload(persona_id: str, item_id: str, *, instance: str | None = None) -> dict:
-    payload = {
-        "persona_id": persona_id,
+def _generic_desk_payload(desk_id: str, position=(0.0, 0.0)) -> dict:
+    """A generic desk: one item, addressed by its own synthetic id.
+
+    ``persona_id`` at BOTH levels is the desk's own id, which is the whole shape
+    the ruling creates — the actor key is the desk id, the item's address is the
+    desk id, and no persona appears anywhere. Hand-spelled here rather than
+    imported from the launcher because hermes has no minter and needs none: the
+    store's contract is that it does not know what an id MEANS.
+    """
+
+    return {
+        "persona_id": desk_id,
         "items": [
-            {"item_id": item_id, "persona_id": persona_id, "kind": "desk", "position": [0.0, 0.0]}
+            {
+                "item_id": desk_id,
+                "persona_id": desk_id,
+                "kind": "desk",
+                "position": [float(position[0]), float(position[1])],
+                "folder": "Desks",
+            }
         ],
     }
-    if instance is not None:
-        payload["persona_instance_id"] = instance
-    return payload
 
 
-def test_a_second_actor_desking_one_persona_is_refused_naming_the_holder():
-    """The refusal, and the fact that it wrote NOTHING.
+def test_two_generic_desks_in_one_workspace_both_persist_and_both_emit():
+    """THE ruling, at the store: two desks, two actor files, two events.
 
-    ANTI-VACUITY. The kill-mutation is deleting the guard call from
-    ``upsert_actor``. Under it the second write succeeds, so the ``pytest.raises``
-    fails outright — but a guard that raised AFTER writing would satisfy that
-    alone, which is why the actor list is re-read off disk afterwards. The
-    incoming actor is INSTANCE-keyed so the older class-key fence (which refuses
-    only class-keyed payloads) cannot be the thing doing the refusing, and the
-    item ids are distinct so its ``duplicate_item_placement`` arm cannot fire
-    either — a test that let either happen would pass against a store with no
-    desk fence at all.
+    HONEST ABOUT WHAT THIS DOES AND DOES NOT PROVE, because the red-first pass
+    corrected the claim it was first written with. The deleted fence was keyed
+    on the ITEM's persona, and two generic desks carry two DIFFERENT synthetic
+    personas — so the old fence would have accepted this pair too. Restoring it
+    leaves this test green, which was measured rather than assumed
+    (2026-09-18). The test that the restoration actually kills is the LEGACY one
+    below, where both desks name persona ``dev``.
 
-    The holder is named in both the message and ``safe_details``: a refusal that
-    does not say WHICH desk is already there is one the operator cannot act on.
+    So what this pins is not the fence's absence. It is the generic-desk SHAPE
+    reaching disk intact through the whole write path — a desk whose actor key,
+    item id and ``persona_id`` are one synthetic token and whose actor names no
+    instance — which is the shape slice 2 of the launcher plan starts minting
+    and which nothing in this store had ever been asked to hold before. A guard
+    that grew an opinion about an id it does not recognise reds here.
+
+    Both halves are asserted, because a store that took the write and then lost
+    it would satisfy the return values alone: the actor set is re-read off disk,
+    and the EventLog is counted — office store mutations MUST keep emitting, and
+    a fence deletion is exactly the kind of change that can silently cost an
+    emission if it took the wrong line with it.
     """
 
     ws = _make_workspace()
     store = OfficeStore()
-    store.upsert_actor(ws, _desk_only_payload("dev", "desk-dev"))
 
-    with pytest.raises(DuplicateDeskRefused) as excinfo:
-        store.upsert_actor(
-            ws,
-            _desk_only_payload("dev", "desk-dev-second", instance="personainst_dev_agent_1"),
-        )
+    first = store.upsert_actor(ws, _generic_desk_payload("desk_aaaaaaaa", (1.0, 1.0)))
+    second = store.upsert_actor(ws, _generic_desk_payload("desk_bbbbbbbb", (2.0, 2.0)))
 
-    details = excinfo.value.safe_details
-    assert details["persona_id"] == "dev"
-    assert details["holding_actor_key"] == "dev"
-    assert details["holding_item_id"] == "desk-dev"
-    assert details["item_id"] == "desk-dev-second"
-    assert excinfo.value.code == "duplicate_desk"
-    assert "'dev' already holds 'desk-dev'" in str(excinfo.value)
-    # Nothing was written: one actor, one desk, and no event for the refusal.
-    assert [a.actor_key for a in store.scan_actors(ws).actors] == ["dev"]
-    assert _event_types().count("office.actor.upserted") == 1
+    assert first.actor_key == "desk_aaaaaaaa"
+    assert second.actor_key == "desk_bbbbbbbb"
+
+    # Read back off disk, not off the return values.
+    on_disk = {a.actor_key: a for a in store.scan_actors(ws).actors}
+    assert set(on_disk) == {"desk_aaaaaaaa", "desk_bbbbbbbb"}
+    assert [i.kind for i in on_disk["desk_aaaaaaaa"].items] == ["desk"]
+    assert [i.kind for i in on_disk["desk_bbbbbbbb"].items] == ["desk"]
+    assert [list(i.position) for i in on_disk["desk_bbbbbbbb"].items] == [[2.0, 2.0]]
+
+    # One event per mutation, for EACH desk. Not ">= 1": a fence deletion that
+    # also dropped an emission would pass a floor check.
+    assert _event_types().count("office.actor.upserted") == 2
 
 
-def test_moving_the_same_desk_is_not_a_duplicate():
-    """The acceptance the naive predicate gets wrong.
+def test_a_third_and_fourth_desk_are_not_a_cap_either():
+    """Unlimited means unlimited, and the boundary is worth one test.
 
-    An upsert REPLACES the target actor's items, so the desk an actor is moving
-    is the same desk it already holds — a fence that scanned every live actor
-    INCLUDING the one being written would refuse every drag of every desk on the
-    canvas. Two moves, not one, so a mutant that accepted only the first write
-    (an off-by-one on the scan) is caught too.
+    A fence rewritten as "at most two" — or a predicate that only ever compared
+    the incoming payload against ONE existing holder — would pass the test above
+    and fail here. Cheap, and it pins the word the ruling actually used.
     """
 
     ws = _make_workspace()
     store = OfficeStore()
-    store.upsert_actor(ws, _desk_only_payload("dev", "desk-dev"))
+    for token in ("desk_aaaaaaaa", "desk_bbbbbbbb", "desk_cccccccc", "desk_dddddddd"):
+        store.upsert_actor(ws, _generic_desk_payload(token))
 
-    moved = store.upsert_actor(
-        ws,
-        {
-            "persona_id": "dev",
-            "items": [
-                {"item_id": "desk-dev", "persona_id": "dev", "kind": "desk", "position": [4.0, 5.0]}
-            ],
-        },
+    assert len(store.scan_actors(ws).actors) == 4
+    assert _event_types().count("office.actor.upserted") == 4
+
+
+def test_two_desks_under_one_legacy_persona_key_are_no_longer_refused():
+    """The LEGACY shape, and the launcher owns cleaning it up — not this store.
+
+    A pre-ruling desk carries a persona's id as its address
+    (``<persona>_desk`` / ``desk-<persona>``), and two of them for one persona
+    is precisely what the deleted fence existed to refuse. It is accepted now,
+    because this store never knew what an id meant and the invariant that gave
+    the id meaning is gone.
+
+    That acceptance is NOT a migration path and must not be read as one. Old
+    per-persona desks are dropped-and-reported at the LAUNCHER's one load
+    chokepoint (``MissionOfficeLayout.fromJson``), by the owner's ruling that
+    old schema is reported so it can be deleted and replaced rather than kept
+    alive by a compatibility path. Hermes holds no migration and needs none.
+
+    KILLING MUTATION, applied and recorded red 2026-09-18: restore a
+    persona-keyed desk fence in ``upsert_actor``. This reds on the second write
+    (``duplicate_desk: dev already holds a desk``) while EVERY generic-desk test
+    beside it stays green — which is the measurement that makes this the ONLY
+    witness to the fence's deletion in this file. Two generic desks carry two
+    different synthetic personas and were never what the fence refused; a
+    legacy pair for one persona is.
+    """
+
+    ws = _make_workspace()
+    store = OfficeStore()
+
+    legacy_one = {
+        "persona_id": "dev",
+        "items": [
+            {"item_id": "dev_desk", "persona_id": "dev", "kind": "desk", "position": [0.0, 0.0]}
+        ],
+    }
+    legacy_two = {
+        "persona_id": "dev",
+        "persona_instance_id": "personainst_dev_agent_1",
+        "items": [
+            {"item_id": "desk-dev", "persona_id": "dev", "kind": "desk", "position": [3.0, 0.0]}
+        ],
+    }
+
+    store.upsert_actor(ws, legacy_one)
+    store.upsert_actor(ws, legacy_two)
+
+    held = {
+        item.item_id
+        for actor in store.scan_actors(ws).actors
+        for item in actor.items
+        if item.kind == "desk"
+    }
+    assert held == {"dev_desk", "desk-dev"}
+    assert _event_types().count("office.actor.upserted") == 2
+
+
+def test_a_generic_desk_write_pays_the_CLASS_KEY_scan_and_only_that_one():
+    """The cost claim, stated accurately rather than optimistically.
+
+    MEASURED, not assumed, and the measurement corrected the claim this test was
+    first written to make. A generic desk actor carries no
+    ``persona_instance_id`` — a desk has no instance to name — so from the
+    store's point of view it is a CLASS-KEYED payload, and
+    ``_guard_class_keyed_write`` scans the actor directory for it. That fence
+    refuses ``ActorsUnreadable`` over a directory it could only partly read, for
+    its own reasons (EG-6.6), and it is untouched by the desk fence's deletion.
+
+    So the honest accounting is: a desk write used to pay TWO full
+    ``scan_actors`` calls — the class-key fence's and the desk fence's — and now
+    pays ONE. It does not pay zero, and a reader who took "the fence cost a scan
+    per desk write" as "desk writes no longer scan" would be wrong.
+
+    The refusal below is the class-key fence's, identified by its own SENTENCE
+    rather than by the exception type: both fences raised ``ActorsUnreadable``,
+    so a type-only assertion would have passed against the deleted one and this
+    test would have been pinning a ghost.
+
+    KILLING MUTATION: drop the ``scan.unreadable`` arm from
+    ``office_class_key_guard.class_key_collision`` — the write then succeeds and
+    the ``raises`` reds. That is the correct killing mutation because it is the
+    fence that actually answers here.
+    """
+
+    ws = _make_workspace()
+    store = OfficeStore()
+    store.ensure_surface(ws, created_by="seed")
+    actors_dir = paths.office_actors_dir(ws)
+    actors_dir.mkdir(parents=True, exist_ok=True)
+    (actors_dir / "broken.json").write_text("{not json", encoding="utf-8")
+
+    with pytest.raises(ActorsUnreadable) as excinfo:
+        store.upsert_actor(ws, _generic_desk_payload("desk_aaaaaaaa"))
+
+    assert "the class-key fence cannot prove" in str(excinfo.value), (
+        "the refusal did not come from the class-key fence — if it came from a "
+        "restored desk fence this test is measuring the wrong thing"
     )
-    assert moved.revision == 2
-    assert [list(i.position) for i in moved.items] == [[4.0, 5.0]]
-
-    # And again, with the desk RE-IDENTIFIED. Still one desk after the write, so
-    # still legal: the invariant is one live desk per persona, not one immortal
-    # item id.
-    rekeyed = store.upsert_actor(ws, _desk_only_payload("dev", "desk-dev-v2"))
-    assert rekeyed.revision == 3
-    assert [i.item_id for i in rekeyed.items] == ["desk-dev-v2"]
 
 
-def test_a_desk_whose_only_holder_is_archived_is_accepted():
-    """Archive is not a holding.
+def test_an_instance_keyed_placement_still_never_pays_for_the_scan():
+    """The twin, and the boundary: an INSTANCE-keyed write scans nothing.
 
-    ``remove_actor`` archives rather than deletes, and the archived copy is where
-    the revision token lives — so a fence that scanned ``include_archived=True``
-    would look correct, keep every other test green, and quietly make an archived
-    desk permanent: no verb could ever place that persona's desk again. THE
-    killing mutation for this test is exactly that flag.
-    """
+    This is the old ``test_a_desk_free_payload_never_pays_for_the_scan`` under a
+    name that says what actually decides it. It never was the desk-freeness: the
+    class-key fence skips an instance-keyed payload ("an instance-keyed write IS
+    the migration's shape"), and the desk fence skipped a desk-free one. With
+    the desk fence gone only the first clause remains, and it is what keeps the
+    launcher's drop and ``agent create``'s placement leg — both instance-keyed —
+    off the directory scan even on a store holding one stale file.
 
-    ws = _make_workspace()
-    store = OfficeStore()
-    store.upsert_actor(ws, _desk_only_payload("dev", "desk-dev"))
-    store.remove_actor(ws, "dev")
-
-    placed = store.upsert_actor(
-        ws, _desk_only_payload("dev", "desk-dev-new", instance="personainst_dev_agent_1")
-    )
-    assert placed.actor_key == "personainst_dev_agent_1"
-    assert [i.item_id for i in placed.items] == ["desk-dev-new"]
-    # The archived holder is still on disk — the acceptance is not a deletion.
-    assert paths.office_archived_actor_path(ws, "dev").exists()
-
-
-def test_two_desks_for_one_persona_in_a_single_payload_are_refused():
-    """The hole a state-only predicate would leave.
-
-    The whole fence is walkable in one call if it only asks "does another actor
-    hold a desk" — the writer it was built for (a hand-assembled
-    ``--actor-json``) can simply put both desks in one payload. The predicate
-    asks about the POST-WRITE state instead, so this falls out of the same
-    sentence rather than needing a second branch.
-    """
-
-    ws = _make_workspace()
-    store = OfficeStore()
-    with pytest.raises(DuplicateDeskRefused) as excinfo:
-        store.upsert_actor(
-            ws,
-            {
-                "persona_id": "dev",
-                "items": [
-                    {"item_id": "desk-a", "persona_id": "dev", "kind": "desk", "position": [0.0, 0.0]},
-                    {"item_id": "desk-b", "persona_id": "dev", "kind": "desk", "position": [1.0, 1.0]},
-                ],
-            },
-        )
-    assert excinfo.value.safe_details["holding_item_id"] == "desk-a"
-    assert store.scan_actors(ws).actors == []
-
-
-def test_the_desk_fence_refuses_on_dry_run_too():
-    """A preview whose job is to show what the real run would do must show the
-    refusal — the same rule ``_guard_class_keyed_write`` records. A ``dry_run``
-    that returned the would-be actor here teaches the operator that the write is
-    fine and then fails it."""
-
-    ws = _make_workspace()
-    store = OfficeStore()
-    store.upsert_actor(ws, _desk_only_payload("dev", "desk-dev"))
-    with pytest.raises(DuplicateDeskRefused):
-        store.upsert_actor(
-            ws,
-            _desk_only_payload("dev", "desk-2", instance="personainst_dev_agent_1"),
-            dry_run=True,
-        )
-
-
-def test_the_desk_fence_refuses_rather_than_answering_from_half_a_directory():
-    """Unknowable is not "no holder" (EG-6.6's rule, applied to this fence).
-
-    A desk holder can only be proven ABSENT by reading every actor that might be
-    one. A fence that answered "no conflict" from a directory it could only
-    partly read would fail open on exactly the corrupt store where a duplicate is
-    most likely. The mutation is dropping the ``scan.unreadable`` arm: the write
-    then succeeds and this ``raises`` fails.
-    """
-
-    ws = _make_workspace()
-    store = OfficeStore()
-    store.upsert_actor(ws, _desk_only_payload("dev", "desk-dev"))
-    (paths.office_actors_dir(ws) / "broken.json").write_text("{not json", encoding="utf-8")
-
-    with pytest.raises(ActorsUnreadable):
-        store.upsert_actor(
-            ws, _desk_only_payload("ops", "desk-ops", instance="personainst_ops_agent_1")
-        )
-
-
-def test_a_desk_free_payload_never_pays_for_the_scan():
-    """The fence is desk-triggered, which is what keeps every agent placement —
-    the launcher's drop and ``agent create``'s placement leg, neither of which
-    authors a desk (D6) — off the directory scan. Proven by leaving an UNREADABLE
-    file in the directory: a fence that scanned unconditionally would raise
-    ``ActorsUnreadable`` here, and an agent drop onto a store holding one stale
-    file would start failing."""
+    Kept beside the test above so the pair is a boundary rather than one
+    assertion twice: same fixture, same unreadable file, opposite outcomes,
+    decided by the presence of ``persona_instance_id`` alone."""
 
     ws = _make_workspace()
     store = OfficeStore()
@@ -582,98 +605,62 @@ def test_a_desk_free_payload_never_pays_for_the_scan():
     assert placed.actor_key == "personainst_dev_agent_1"
 
 
-def test_one_desk_claimed_by_two_rows_is_not_two_desks():
-    """The narrowing, pinned where it is load-bearing.
+def test_a_retire_does_not_take_a_neighbouring_generic_desk():
+    """The second property the ruling depends on, VERIFIED rather than assumed.
 
-    A desk's identity is its ``item_id``. One desk id claimed by two actor rows
-    is a duplicate PLACEMENT — ``office_class_key_guard``'s
-    ``duplicate_item_placement``, a different fault with a different cure — and
-    it is the state the class→instance re-key migration deliberately passes
-    through: ``scripts/office_actor_rekey_to_instance.py::_apply`` mints the
-    instance-keyed actor with the class-keyed actor's items COPIED VERBATIM and
-    only then archives the old key.
+    ``archive_actors_for_instance`` selects on ``_instance_bound_actor``, which
+    answers ``False`` for an actor carrying no ``persona_instance_id``. A
+    generic desk actor names no instance — its key is ``desk_<8 base36>`` — so
+    a retire of an agent standing beside it cannot reach it. The audit ASSERTED
+    this; this proves it, which is the difference the task asked for.
 
-    So counting ROWS instead of ids would refuse the one operator script whose
-    whole job is to move a placement, while catching nothing this fence exists
-    for. THE killing mutation is exactly that: count holders rather than
-    distinct ids, and this goes red while
-    ``test_a_second_actor_desking_one_persona_is_refused_naming_the_holder``
-    stays green — which is what makes the two tests a boundary rather than one
-    assertion twice.
+    POSITIVE CONTROL, and it is the load-bearing half: the agent's OWN actor IS
+    archived by the same call. Without it, "the desk survived" is satisfied by a
+    retire that archived nothing at all — a prune that silently matched no rows
+    would look identical to a prune that correctly spared one.
+
+    KILLING MUTATION, applied and recorded red 2026-09-18: make
+    ``_instance_bound_actor`` answer ``True`` for an unbound actor
+    (``if not bound: return True``), which is the code shape of "put the desk's
+    key into the retire archive set". Observed:
+    ``assert ['desk_aaaaaaaa', 'personainst_goal9_qa'] == ['personainst_goal9_qa']``
+    — the desk joined the archive list, and the control's own key is still in
+    it, which is what says the retire ran rather than that it matched nothing.
     """
 
     ws = _make_workspace()
     store = OfficeStore()
-    store.upsert_actor(ws, _desk_only_payload("dev", "desk-dev"))
 
-    # The migration's shape: same persona, same item, new key, old row still live.
-    minted = store.upsert_actor(
-        ws, _desk_only_payload("dev", "desk-dev", instance="personainst_dev_agent_1")
-    )
-    assert minted.actor_key == "personainst_dev_agent_1"
-    assert {a.actor_key for a in store.scan_actors(ws).actors} == {"dev", "personainst_dev_agent_1"}
-
-    # …and the migration's second half still runs, leaving exactly one holder.
-    store.remove_actor(ws, "dev")
-    assert [a.actor_key for a in store.scan_actors(ws).actors] == ["personainst_dev_agent_1"]
-
-
-def test_the_cli_door_translates_the_refusal_into_exit_4_naming_the_holder():
-    """The OTHER door's translation — the exit code and the envelope.
-
-    The store tests above prove the fence; this proves ``harness office
-    actor-upsert`` renders it as ``duplicate_desk`` in exit family 4 rather than
-    as ``internal_error`` (exit 1), which is what an unmapped code falls through
-    to (``ERROR_EXIT_CODES.get(code, 1)``). That fall-through is not
-    hypothetical: it is exactly the failure ``archive_unreadable`` was added to
-    the taxonomy to fix — a refused write reported as a harness crash.
-
-    In-process rather than a child, for the reason
-    ``test_office_class_key_one_fence`` records: the registered function IS the
-    code the CLI reaches, and a subprocess costs two orders of magnitude more.
-
-    ANTI-VACUITY. Three probes, killed by three different mutations: drop the
-    ``except DuplicateDeskRefused`` arm and the exit becomes 1 with
-    ``internal_error``; drop the taxonomy ROW and the code is right while the
-    exit is 1; drop ``message=str(exc)`` and the holder vanishes from an
-    envelope whose ``safe_details`` never carried it.
-    """
-
-    import contextlib
-    import io
-    import json
-    from types import SimpleNamespace
-
-    from hermes_cli.harness_parts import office as office_cli
-
-    ws = _make_workspace()
-    store = OfficeStore()
-    store.upsert_actor(ws, _desk_only_payload("dev", "desk-dev"))
-
-    args = SimpleNamespace(
-        workspace=ws,
-        actor_json=json.dumps(
-            _desk_only_payload("dev", "desk-dev-2", instance="personainst_dev_agent_1")
-        ),
-        persona_instance_id=None,
-        updated_by=None,
-        expect_revision=None,
-        allow_class_key=False,
-        dry_run=False,
-        json=True,
+    store.upsert_actor(ws, _generic_desk_payload("desk_aaaaaaaa"))
+    store.upsert_actor(
+        ws,
+        {
+            "persona_id": "qa",
+            "persona_instance_id": "personainst_goal9_qa",
+            "items": [
+                {
+                    "item_id": "personainst_goal9_qa",
+                    "kind": "agent",
+                    "position": [5.0, 5.0],
+                    "folder": "Agents",
+                }
+            ],
+        },
     )
 
-    buffer = io.StringIO()
-    with contextlib.redirect_stdout(buffer):
-        exit_code = office_cli._cmd_office_actor_upsert(args)
+    result = store.archive_actors_for_instance("persona_personainst_goal9_qa")
 
-    assert exit_code == 4, buffer.getvalue()
-    envelope = json.loads(buffer.getvalue())
-    assert envelope["kind"] == "error"
-    assert envelope["error"]["code"] == "duplicate_desk"
-    assert "'dev' already holds 'desk-dev'" in envelope["error"]["message"]
-    # And it wrote nothing.
-    assert [a.actor_key for a in store.scan_actors(ws).actors] == ["dev"]
+    # POSITIVE CONTROL: the retire DID run and DID take the agent's actor.
+    assert result["archived_actor_keys"] == ["personainst_goal9_qa"]
+    assert result["failed"] == 0
+    assert not store.actor_exists(ws, "personainst_goal9_qa")
+
+    # And the desk beside it is untouched — still live, still a desk, not merely
+    # still named somewhere.
+    assert store.actor_exists(ws, "desk_aaaaaaaa")
+    survivor = store.get_actor(ws, "desk_aaaaaaaa")
+    assert [i.kind for i in survivor.items] == ["desk"]
+    assert "desk_aaaaaaaa" not in store.get_surface(ws).archived_actor_keys
 
 
 # ── prune lane (plan §4.3) ─────────────────────────────────────────────────
@@ -1989,27 +1976,38 @@ def test_a_fence_refusal_authors_no_office_either(monkeypatch):
     """The same property, asked of the FENCE lane rather than the revision check.
 
     The revision guard and the fences sit on either side of the position-policy
-    hook and the archive read, so proving one says nothing about the other. This
-    drives the desk fence — the one this order defect was found beside — by
-    making it refuse on a workspace where no desk exists, which is what a fence
-    on a fresh workspace looks like from the store's point of view.
+    hook and the archive read, so proving one says nothing about the other. It
+    drives a fence by making it refuse on a FRESH workspace, which is what any
+    fence looks like from the store's point of view when there is nothing on the
+    canvas yet to collide with.
+
+    This used to drive the DESK fence, which was deleted 2026-09-18 with the
+    invariant it enforced. It is repointed at the class-key fence rather than
+    deleted, because the property under test is the store's WRITE ORDER — the
+    office is authored under the lock, after the fences, never by the attempt —
+    and that property is about the order, not about which fence occupies a slot
+    in it. ``_guard_class_keyed_write`` is the FIRST fence inside the lock, so a
+    refusal from it is the earliest one this ordering has to survive.
     """
 
+    from agent_runtime.office_class_key_guard import ClassKeyedPlacementRefused
     from agent_runtime.office_store import OfficeStore as _Store
 
     ws = _make_workspace()
     store = OfficeStore()
 
-    def _always_refuses(self, workspace_id, *, actor_key, items):
-        raise DuplicateDeskRefused("duplicate_desk", safe_details={"actor_key": actor_key})
+    def _always_refuses(self, workspace_id, payload, *, allow_class_key):
+        raise ClassKeyedPlacementRefused(
+            "class_key_collision", safe_details={"workspace_id": workspace_id}
+        )
 
-    monkeypatch.setattr(_Store, "_guard_duplicate_desk", _always_refuses)
+    monkeypatch.setattr(_Store, "_guard_class_keyed_write", _always_refuses)
 
-    with pytest.raises(DuplicateDeskRefused):
+    with pytest.raises(ClassKeyedPlacementRefused):
         store.upsert_actor(ws, _actor_payload("dev"))
 
     assert not store.surface_exists(ws), (
-        "the desk fence refused and the store still authored the office the "
+        "a fence refused and the store still authored the office the "
         "refused placement would have gone into"
     )
 

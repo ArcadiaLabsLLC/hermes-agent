@@ -79,14 +79,13 @@ def test_harness_doctor_reports_snapshot_null_ids(isolate_agent_runtime_root):
         "orphan_worktrees",
         "snapshot_null_id_rows",
         "misplaced_root_only_keys",
-        # The census contributes FOUR counts, because they are four verdicts:
+        # The census contributes THREE counts, because they are three verdicts:
         # an orphan actor is a defect, an unplaced row is a legal state of a
-        # supported door, a litter desk is authored furniture standing where its
-        # agent no longer is, and a duplicate placement is two live actors
-        # claiming one item id.
+        # supported door, and a duplicate placement is two live actors claiming
+        # one item id. A fourth, ``desk_litter``, left on 2026-09-18 with the
+        # agent/desk pairing it counted (schema 10).
         "orphan_actors",
         "unplaced_rows",
-        "desk_litter",
         "duplicate_placements",
     }
     assert report["findings"]["snapshot_null_id_rows"] == [
@@ -123,7 +122,6 @@ def test_harness_doctor_fix_is_idempotent(isolate_agent_runtime_root):
         "misplaced_root_only_keys": 0,
         "orphan_actors": 0,
         "unplaced_rows": 0,
-        "desk_litter": 0,
         "duplicate_placements": 0,
     }
 
@@ -733,380 +731,175 @@ def test_a_short_world_is_unknown_rather_than_a_fabricated_orphan(
     assert census["placed"] is None
 
 
-# ── desk litter: the item-level sweep the join cannot see (plan DL-H1) ────────
+# ── the generic desk is NOT a doctor finding (2026-09-18) ────────────────────
+#
+# Eight tests stood here, pinning the desk-litter census (DL-H1): its four-reason
+# vocabulary, the pure classifier, one fixture per reason, the healthy pair, and
+# the short-world `None`. All deleted with the census. They are not rewritten
+# into "the reason is never returned" assertions — a classifier that no longer
+# exists has no behaviour to assert about, and the constant that named its
+# vocabulary is gone, so such a test could only re-implement the deletion.
+#
+# The owner's ruling, 2026-09-18: a desk is one generic furniture object every
+# agent can use, addressed by its own synthetic id. Every one of the four
+# reasons was a statement about a desk's AGENT HALF, and a generic desk has none
+# — `agent_missing` would have fired on every correctly-placed desk, forever.
+#
+# What stands in their place is the one property the deletion has to earn: the
+# doctor must be SILENT about desks, and must still be LOUD about everything
+# else in the same breath.
 
 
-def _class_keyed_item(
-    store, workspace_id: str, item_id: str, *, kind: str = "desk", persona_id: str = "qa"
-):
-    """One CLASS-KEYED item, written through the store's own verb.
+def _generic_desk(store, workspace_id: str, desk_id: str):
+    """A generic desk actor, written through the store's own verb.
 
-    The shape §1 of the plan measures: a desk minted by the launcher's
-    ``materializeAgentDesk`` carries the persona CLASS id and no instance
-    binding, so it lands in its own class-keyed actor file while the agent it
-    belongs to lands in the instance-keyed one. Hand-writing the JSON would pin
-    the census against this fixture's idea of a desk rather than the store's —
-    and since H-H12 it would also skip ``minted_kind``, which only the store
-    stamps.
-
-    ``kind`` is a parameter so a fixture can RE-KIND an item under the same
-    ``item_id``: two calls, ``agent`` then ``desk``, are the mis-kinding the
-    minted-kind clause exists to catch.
+    Its ``persona_id`` is the desk's own id at both levels, which is what makes
+    it its own actor file and what makes it join to no agent anywhere. Hand-
+    written JSON is deliberately avoided for the reason ``_create`` gives: a
+    fixture's idea of a desk is not the store's, and ``minted_kind`` is stamped
+    only by the store.
     """
 
     return store.upsert_actor(
         workspace_id,
         {
-            "persona_id": persona_id,
+            "persona_id": desk_id,
             "items": [
                 {
-                    "item_id": item_id,
-                    "persona_id": persona_id,
-                    "kind": kind,
+                    "item_id": desk_id,
+                    "persona_id": desk_id,
+                    "kind": "desk",
                     "position": [1.0, 1.4],
                 }
             ],
         },
-        updated_by="desk litter fixture",
+        updated_by="generic desk fixture",
     )
 
 
-def _desk_actor(store, workspace_id: str, item_id: str, *, persona_id: str = "qa"):
-    return _class_keyed_item(store, workspace_id, item_id, persona_id=persona_id)
+def test_a_workspace_of_generic_desks_produces_no_census_finding_at_all(
+    isolate_agent_runtime_root,
+):
+    """THE property the deletion has to earn, with its positive control attached.
 
+    Three generic desks and one healthy placement: under the deleted census
+    every desk would have reported ``agent_missing`` — no ``kind: "agent"`` item
+    shares a generic desk's persona, by construction, and never will — so the
+    operator would have opened `harness doctor` to three permanent notices they
+    could not clear.
 
-def test_the_desk_litter_vocabulary_is_closed():
-    """The four reasons ARE the vocabulary, and the classifier never invents one.
+    POSITIVE CONTROL, in the SAME fixture and the same run: an orphan actor is
+    planted beside the desks and IS still reported, with its reason. Without it
+    the silence above is satisfied by a doctor that observed nothing — a census
+    that crashed into ``unknown``, or one whose office scan found no workspace,
+    reports zero desk findings just as convincingly as one that looked and
+    correctly found none. The control is what makes ``health == "defect"`` and
+    ``observed is True`` mean the census ran over these exact actors.
 
-    Pinned because the buckets are the whole point of the sweep: DL-H2's reap
-    branches on them, so a fifth reason appearing without a decision is a write
-    verb meeting a value it has no arm for.
-    """
-
-    from agent_runtime import harness_doctor as doctor
-
-    assert doctor.DESK_LITTER_REASONS == (
-        "agent_missing",
-        "agent_scope_stale",
-        "persona_retired",
-        "desk_kind_agent_binding",
-    )
-    assert len(set(doctor.DESK_LITTER_REASONS)) == 4
-    assert {
-        doctor.DESK_LITTER_AGENT_MISSING,
-        doctor.DESK_LITTER_AGENT_SCOPE_STALE,
-        doctor.DESK_LITTER_PERSONA_RETIRED,
-        doctor.DESK_LITTER_DESK_KIND_AGENT_BINDING,
-    } == set(doctor.DESK_LITTER_REASONS)
-
-
-def test_the_minted_kind_is_what_the_store_recorded_not_what_the_id_looks_like():
-    """H-H12: the mis-kinded test asks a stored FACT, and absence is not "no".
-
-    This replaces ``_office_item_id_shape``, which answered the same question by
-    parsing the ``item_id`` for three launcher minting conventions — none of
-    them enforced anywhere, so a launcher rename would have silently
-    reclassified every mis-kinded agent as a widowed desk. It is the gate rule
-    of this repo applied to a classifier: a POSITIVE claim ("this was an
-    agent") may not rest on a spelling.
-
-    THE TWO PROPERTIES THAT MATTER, and neither is reachable through a store
-    fixture, which is why they are pinned here:
-
-    * ``minted_kind == "agent"`` on a ``kind: "desk"`` item IS the mis-kinding,
-      with no live binding needed — that is the whole reason the field exists
-      for class-keyed actors, which have no binding to consult;
-    * ``minted_kind is None`` — every item written before the field, and every
-      one adopted from a peer that has not upgraded — is CANNOT SAY. It must
-      fall through to the absence buckets and be judged on whether its agent
-      exists, exactly as an unreadable id used to be. Over-claiming here folds
-      widowed desks into the mis-kinded bucket, which is the conflation the
-      plan's §0 was written to stop.
-
-    KILLING MUTATION: read ``minted_kind != "desk"`` instead of
-    ``== "agent"`` and the ``None`` row reds.
-    """
-
-    from agent_runtime import harness_doctor as doctor
-
-    def _reason(minted_kind, **overrides):
-        kwargs = {
-            "minted_kind": minted_kind,
-            "on_live_instance_actor": False,
-            "agent_item_bindings": (),
-            "live_instance_ids": frozenset(),
-            "persona_known": True,
-        }
-        kwargs.update(overrides)
-        return doctor._desk_litter_reason(**kwargs)
-
-    assert _reason("agent") == doctor.DESK_LITTER_DESK_KIND_AGENT_BINDING
-    # Recorded as a desk, and no live binding: an ordinary widowed desk.
-    assert _reason("desk") == doctor.DESK_LITTER_AGENT_MISSING
-    # Cannot say — NOT "no", and NOT "yes".
-    assert _reason(None) == doctor.DESK_LITTER_AGENT_MISSING
-    # And a live instance binding still decides it on its own, whatever the
-    # store recorded: the fact no spelling could forge is still consulted FIRST.
-    assert (
-        _reason(None, on_live_instance_actor=True)
-        == doctor.DESK_LITTER_DESK_KIND_AGENT_BINDING
-    )
-
-
-def test_a_widowed_class_keyed_desk_is_agent_missing(isolate_agent_runtime_root):
-    """The retire seam's own litter: the agent's actor goes, the desk's stays.
-
-    ``OfficeStore.archive_actors_for_instance`` archives only actors BOUND to
-    the instance, and the desk lives in the class-keyed actor, which is bound to
-    nothing — so every retire that does not go through the launcher's scene
-    removal leaves this behind. Invisible to ``orphan_actors``, which skips
-    class-keyed actors by construction.
-
-    KILLING MUTATION: skip class-keyed actors in the desk sweep the way the
-    join does, and this reds with an empty list.
-    """
-
-    workspace = "ws_litter_widowed"
-    _qa_persona_saved()
-    store = _seed_office(workspace)
-
-    agent = _create(workspace, "qa_widow_agent_2")
-    _desk_actor(store, workspace, f"desk-{agent['persona_instance_id']}")
-    store.remove_actor(workspace, agent["actor_key"], reason="retire seam")
-
-    report, census = _census()
-
-    from agent_runtime.harness_doctor import DESK_LITTER_REASONS
-
-    assert [row["reason"] for row in census["desk_litter"]] == ["agent_missing"]
-    assert {row["reason"] for row in census["desk_litter"]} <= set(DESK_LITTER_REASONS)
-    assert census["desk_litter"][0]["item_id"] == f"desk-{agent['persona_instance_id']}"
-    assert census["desk_litter"][0]["persona_id"] == "qa"
-    # A class-keyed actor carries no binding, and the row says so rather than
-    # inventing one.
-    assert census["desk_litter"][0]["persona_instance_id"] is None
-    assert census["workspaces"][workspace]["desk_litter"] == census["desk_litter"]
-    assert report["summary"]["finding_counts"]["desk_litter"] == 1
-    # Never a DEFECT: the desk renders as a desk. Promoting litter would turn
-    # ``needs_fix`` on for a store whose only fault is furniture. The
-    # ``notice`` half is pinned on the mis-kinded fixture below, where litter
-    # is the sole cause — here the archived agent actor also leaves an unplaced
-    # row, so a ``notice`` assertion would pass with the litter term removed.
-    assert report["summary"]["needs_fix"] is False
-    assert report["summary"]["section_health"]["placement_census"] != "defect"
-
-
-def test_a_desk_beside_a_dead_instance_is_agent_scope_stale(isolate_agent_runtime_root):
-    """The store-side shadow of the launcher's projection scope drop.
-
-    The agent item is still there; every one of them is bound to an instance no
-    live roster row backs, so the launcher's scope policy drops the character
-    node and the desk renders on alone. The overlap with ``orphan_actors`` is
-    DELIBERATE and asserted here: that row names the actor, this one names the
-    desk left standing — two pointers to one fault, not a duplicate.
-
-    KILLING MUTATION: treat "an agent item exists" as healthy without testing
-    its binding, and this reds with an empty list.
+    KILLING MUTATION, applied and recorded red 2026-09-18: put the
+    ``"desk_litter"`` key back into the census report and the
+    ``("desk_litter", "desk_litter")`` row back into the section's ``counts``.
+    Observed: ``assert 'desk_litter' not in {...}`` on the census, and the
+    ``finding_counts`` set equality reds with a fourth member. Two sibling
+    rosters in this file reddened on the same mutation
+    (``test_harness_doctor_reports_snapshot_null_ids``,
+    ``test_harness_doctor_fix_is_idempotent``), which is the section table
+    working as designed — one declaration, four derived rosters.
     """
 
     from agent_runtime import paths
 
-    workspace = "ws_litter_stale"
+    workspace = "ws_generic_desks"
     _qa_persona_saved()
     store = _seed_office(workspace)
 
-    agent = _create(workspace, "qa_stale_agent_2")
-    _desk_actor(store, workspace, f"desk-{agent['persona_instance_id']}")
-    paths.persona_instance_path(agent["persona_instance_id"]).unlink()
+    placed = _create(workspace, "qa_desk_neighbour_agent_2")
+    for token in ("desk_aaaaaaaa", "desk_bbbbbbbb", "desk_cccccccc"):
+        _generic_desk(store, workspace, token)
 
-    _report, census = _census()
+    # POSITIVE CONTROL: a real orphan — the ROW goes, the actor survives.
+    orphan = _create(workspace, "qa_desk_orphan_agent_2")
+    paths.persona_instance_path(orphan["persona_instance_id"]).unlink()
 
-    assert [row["reason"] for row in census["desk_litter"]] == ["agent_scope_stale"]
+    report, census = _census()
+
+    # The census OBSERVED this world — not an outage that reports nothing.
+    assert census["observed"] is True
+    assert census["placed"] == 1
+    assert [row["actor_key"] for row in census["placed_actors"]] == [placed["actor_key"]]
+
+    # POSITIVE CONTROL fires: the orphan beside the desks is still reported,
+    # still a defect, still with the reason H-H4 added.
     assert [row["persona_instance_id"] for row in census["orphan_actors"]] == [
-        agent["persona_instance_id"]
+        orphan["persona_instance_id"]
     ]
-    # The agent item IS present — otherwise this is indistinguishable from the
-    # widowed case above and proves nothing about the binding test.
-    assert store.get_actor(workspace, agent["actor_key"]).items[0].kind == "agent"
-
-
-def test_a_mis_kinded_agent_item_is_never_reported_as_a_widowed_desk(
-    isolate_agent_runtime_root,
-):
-    """Cause 1, kept out of ``agent_missing`` — the confusion the lane paid for.
-
-    Two rows, one per clause, so neither can carry the other. They sit in
-    separate workspaces because the store allows a persona ONE live desk per
-    level (``DuplicateDeskRefused``) — the fence is per workspace, and a fixture
-    that fought it would be authoring a shape the store refuses:
-
-    * the LIVE INSTANCE BINDING clause — a ``kind: "desk"`` item riding an
-      actor whose ``persona_instance_id`` names a live roster row. This is the
-      shape measured on the operator's store on 2026-08-30. Its id is
-      desk-shaped, so only the binding clause can fire.
-    * the MINTED-KIND clause (H-H12) — a ``kind: "desk"`` item on a CLASS-KEYED
-      actor that the store recorded as minted ``agent``. A class-keyed actor
-      has no binding to consult, so this clause is the only one that can fire
-      for it; before H-H12 the question was put to the ``item_id`` spelling
-      instead, which is a launcher convention nothing enforces.
-
-    KILLING MUTATIONS: drop the binding clause and the first row vanishes (its
-    persona has a live agent item, so it reads healthy); drop the minted-kind
-    clause and the second vanishes for the same reason; make ``minted_kind``
-    follow the payload's ``kind`` on every write instead of sticking at the
-    first, and the second vanishes too — which is the point of the re-kinding
-    write below. Reorder the classifier so the absence buckets are tested first
-    and both come back as ``agent_missing`` — the misreport that sends an
-    operator to reap an agent.
-    """
-
-    bound_ws = "ws_litter_miskinded_binding"
-    id_ws = "ws_litter_miskinded_id"
-    _qa_persona_saved()
-    store = _seed_office(bound_ws)
-    _seed_office(id_ws)
-
-    agent = _create(bound_ws, "qa_live_agent_2")
-    instance_id = agent["persona_instance_id"]
-    # The agent's OWN actor, re-written to carry its agent item plus a desk
-    # item — the mixed-actor shape §1 says older stores hold.
-    store.upsert_actor(
-        bound_ws,
-        {
-            "persona_id": "qa",
-            "persona_instance_id": instance_id,
-            "items": [
-                {
-                    "item_id": instance_id,
-                    "persona_id": "qa",
-                    "kind": "agent",
-                    "position": [0.0, 0.0],
-                },
-                {
-                    "item_id": "desk-qa_agent",
-                    "persona_id": "qa",
-                    "kind": "desk",
-                    "position": [0.0, 1.4],
-                },
-            ],
-        },
-        updated_by="desk litter fixture",
+    assert census["orphan_actors"][0]["reason"] == (
+        harness_doctor.ORPHAN_ACTOR_INSTANCE_UNKNOWN
     )
+    assert census["health"] == "defect"
 
-    # Second workspace: a LIVE agent placement beside a class-keyed actor whose
-    # item was MINTED as an agent and later re-spelled a desk. The re-kinding
-    # write is the whole fixture — it is the shape a spelling could only ever
-    # guess at, and the one the store can now answer from its own record.
-    # Without the minted-kind clause this row reads healthy.
-    other = _create(id_ws, "qa_other_agent_2")
-    _class_keyed_item(store, id_ws, "qa_rekinded_item", kind="agent")
-    _class_keyed_item(store, id_ws, "qa_rekinded_item", kind="desk")
-
-    report, census = _census()
-
-    assert {row["reason"] for row in census["desk_litter"]} == {
-        "desk_kind_agent_binding"
+    # And the desks are invisible to it — no key, no count, no row anywhere.
+    assert "desk_litter" not in census
+    assert "desk_litter" not in (census["workspaces"][workspace])
+    assert "desk_litter" not in report["summary"]["finding_counts"]
+    assert set(report["summary"]["finding_counts"]) == {
+        "orphan_worktrees",
+        "snapshot_null_id_rows",
+        "misplaced_root_only_keys",
+        "orphan_actors",
+        "unplaced_rows",
+        "duplicate_placements",
     }
-    assert {row["item_id"] for row in census["desk_litter"]} == {
-        "desk-qa_agent",
-        "qa_rekinded_item",
-    }
-    by_item = {row["item_id"]: row for row in census["desk_litter"]}
-    assert by_item["desk-qa_agent"]["persona_instance_id"] == instance_id
-    assert by_item["desk-qa_agent"]["workspace_id"] == bound_ws
-    assert by_item["qa_rekinded_item"]["persona_instance_id"] is None
-    assert by_item["qa_rekinded_item"]["workspace_id"] == id_ws
-    # The store kept what it recorded, not what the last write said.
-    rekinded = store.get_actor(id_ws, "qa").items[0]
-    assert (rekinded.kind, rekinded.minted_kind) == ("desk", "agent")
-    # Both personas are alive and placed — so ``agent_missing`` was never the
-    # honest answer for either row.
-    assert census["placed"] == 2
-    assert other["persona_instance_id"] != instance_id
-    # THE health pin lives here rather than on the widowed fixture, because
-    # this is the only one of the four where litter is the SOLE cause: nothing
-    # is orphaned and nothing is unplaced, so ``notice`` can have come from
-    # nowhere else. (Measured: on the widowed fixture the archived agent actor
-    # leaves a live roster row behind, which is an unplaced row, which raises
-    # the same notice — an assertion there proves nothing about litter.)
-    assert census["orphan_actors"] == []
-    assert census["unplaced_rows"] == []
-    assert census["health"] == "notice"
-    assert report["summary"]["needs_fix"] is False
-    assert report["summary"]["finding_counts"]["desk_litter"] == 2
 
-
-def test_a_healthy_split_agent_and_desk_pair_reports_nothing(
-    isolate_agent_runtime_root,
-):
-    """The CURRENT common shape, and it must produce no row at all.
-
-    The agent lands in the instance-keyed actor, its desk in the class-keyed
-    one (§1) — two files, one persona, nothing wrong. This is the anti-vacuity
-    half of the four tests above: a sweep that flagged every desk would pass all
-    of them and fail only here.
-    """
-
-    workspace = "ws_litter_healthy"
-    _qa_persona_saved()
-    store = _seed_office(workspace)
-
-    agent = _create(workspace, "qa_healthy_agent_2")
-    _desk_actor(store, workspace, f"desk-{agent['persona_instance_id']}")
-
-    report, census = _census()
-
-    assert census["desk_litter"] == []
-    assert census["workspaces"][workspace]["desk_litter"] == []
-    assert report["summary"]["finding_counts"]["desk_litter"] == 0
-    assert census["health"] == "ok"
-    # The desk EXISTS — otherwise the empty list above is satisfied by a store
-    # with no desks in it and proves nothing.
-    assert any(
-        item.kind == "desk"
+    # ANTI-VACUITY for the silence: the desks really are on the level. Without
+    # this, "no desk findings" is satisfied by a store holding no desks.
+    on_level = {
+        item.item_id
         for actor in store.scan_actors(workspace).actors
         for item in actor.items
-    )
+        if item.kind == "desk"
+    }
+    assert on_level == {"desk_aaaaaaaa", "desk_bbbbbbbb", "desk_cccccccc"}
 
 
-def test_one_unreadable_actor_file_makes_the_whole_census_unknown(
-    isolate_agent_runtime_root,
-):
-    """WHOLE-world-or-nothing, and ``desk_litter`` is ``None`` — not ``[]``.
+def test_generic_desks_alone_leave_the_census_OK(isolate_agent_runtime_root):
+    """The other side of the verdict: desks must not move health either.
 
-    Every one of the four buckets is a statement about ABSENCE ("no live agent
-    item for this persona", "no roster row backs this binding"), and a file that
-    will not decode is exactly what absence is indistinguishable from. A sweep
-    over the readable remainder would report a perfectly healthy pair as
-    widowed, because the file that would not open is the agent's — inventing
-    the reap target out of an outage.
+    The test above proves the desks are not COUNTED, with a defect beside them.
+    This one removes the defect: a workspace whose only contents are generic
+    desks reports ``ok``, ``needs_fix: false`` and ``report["ok"] is True``.
+    A census that filed desks into some surviving bucket — or a health arm that
+    still had a desk term in it — would keep this at ``notice``.
 
-    KILLING MUTATION: partition the readable remainder anyway, or seed the key
-    with ``[]`` in ``_census_unknown``, and this reds on the count, which would
-    read ``0`` — "looked, found none" — for a class nothing looked at.
+    ANTI-VACUITY is the same as above and stated separately because it is doing
+    different work here: the desk items are re-read off the store, so an ``ok``
+    from an empty office cannot pass for an ``ok`` about desks.
     """
 
-    from agent_runtime import paths
-
-    workspace = "ws_litter_short"
+    workspace = "ws_generic_desks_only"
     _qa_persona_saved()
     store = _seed_office(workspace)
-
-    agent = _create(workspace, "qa_short_agent_2")
-    _desk_actor(store, workspace, f"desk-{agent['persona_instance_id']}")
-    # The AGENT's file is the one that will not open — the case that would turn
-    # a healthy desk into ``agent_missing`` under the mutation.
-    paths.office_actor_path(workspace, agent["actor_key"]).write_text(
-        "{ this is not json", encoding="utf-8"
-    )
+    _generic_desk(store, workspace, "desk_aaaaaaaa")
+    _generic_desk(store, workspace, "desk_bbbbbbbb")
 
     report, census = _census()
 
-    assert census["health"] == "unknown"
-    assert census["observed"] is False
-    assert census["desk_litter"] is None
-    assert report["summary"]["finding_counts"]["desk_litter"] is None
-    assert "placement_census" in report["summary"]["unexamined_sections"]
+    assert census["health"] == "ok"
+    assert report["summary"]["section_health"]["placement_census"] == "ok"
+    assert report["summary"]["needs_fix"] is False
+    assert report["ok"] is True
+    assert report["summary"]["finding_counts"]["orphan_actors"] == 0
+    assert report["summary"]["finding_counts"]["duplicate_placements"] == 0
+
+    assert (
+        sum(
+            1
+            for actor in store.scan_actors(workspace).actors
+            for item in actor.items
+            if item.kind == "desk"
+        )
+        == 2
+    )
 
 
 # ── duplicate placements: one item id, two live actor rows (H-H8) ─────────────
@@ -1159,14 +952,21 @@ def _adopt_actor(
 
 
 def test_two_live_actors_holding_one_desk_id_are_seen(isolate_agent_runtime_root):
-    """The residual the two write fences leave, now READ by the census.
+    """The residual the two write fences left, READ by the census — and it
+    OUTLIVED one of those fences.
 
     Doc 06's write-verbs section stated it and had nothing to point at: the
-    class-key fence guards class-keyed payloads only and the desk fence counts
+    class-key fence guarded class-keyed payloads only and the desk fence counted
     distinct ids, so an instance-keyed write claiming a desk id another live
-    actor holds passes both. The census could not see it either — it joins on
+    actor held passed both. The census could not see it either — it joins on
     ``persona_instance_id`` and never opened ``actor.items``, so BOTH holders
     counted as ``placed`` and the section reported ``ok``.
+
+    The desk fence was deleted 2026-09-18 and this reader is unaffected, which
+    is the point of keeping the test on a DESK item id: what it asks is whether
+    two live actor ROWS claim one id, a question with no kind in it. The
+    desk-litter census in the same section had to go because every question it
+    asked WAS about a kind.
 
     ANTI-VACUITY: both holders are live and both are counted ``placed`` in the
     same report. A census that had merely stopped counting one of them would
@@ -1340,8 +1140,11 @@ def test_distinct_ids_on_two_actors_are_not_a_duplicate(isolate_agent_runtime_ro
     workspace = "ws_duplicate_healthy"
     _qa_persona_saved()
     store = _seed_office(workspace)
-    agent = _create(workspace, "qa_healthy_dupe_agent_2")
-    _desk_actor(store, workspace, f"desk-{agent['persona_instance_id']}")
+    _create(workspace, "qa_healthy_dupe_agent_2")
+    # A second live actor holding a DIFFERENT item id. A generic desk since
+    # 2026-09-18 — the old ``_desk_actor`` helper minted a persona-addressed one
+    # and left with the desk-litter suite.
+    _generic_desk(store, workspace, "desk_aaaaaaaa")
 
     report, census = _census()
 
@@ -1483,11 +1286,17 @@ def test_the_doctor_report_declares_its_schema_version(isolate_agent_runtime_roo
 
     9 (2026-09-04, w12/m5): ``findings.root_config_misplacement`` gained
     ``remediation`` and ``scope``. Additive; the deliberate edit is here.
+
+    10 (2026-09-18): ``findings.placement_census.desk_litter`` and its
+    ``finding_counts`` entry were REMOVED with the agent/desk pairing they
+    counted. The first non-additive change this payload has made — which is
+    precisely the shape a consumer keying off a version number has to be told
+    about, and the reason a removal moves the version rather than riding along.
     """
 
     report = run_harness_doctor(include_worktrees=False, snapshot_builder=lambda: {})
 
-    assert report["schema_version"] == 9
+    assert report["schema_version"] == 10
 
 
 # ── H-H4: which orphan, keyed on facts the store holds ───────────────────────
@@ -1529,9 +1338,10 @@ def test_the_orphan_partition_is_a_pure_function_of_two_facts(
 ):
     """The partition, unit-tested off the filesystem.
 
-    The census's other partition (:func:`_desk_litter_reason`) is pure for the
-    stated reason that the decision is the part worth testing and must not be
-    reachable only through a store fixture. This one is pure for the same
+    The census's other surviving partition
+    (:func:`_duplicate_placement_reason`) is pure for the stated reason that the
+    decision is the part worth testing and must not be reachable only through a
+    store fixture. This one is pure for the same
     reason, and the two facts it reads — a tombstone, and a receipt naming this
     ACTOR KEY — are both things the store recorded about itself. Neither is a
     spelling.
@@ -1610,15 +1420,14 @@ def test_the_census_names_a_retire_that_left_its_desk_standing(
     assert _report["summary"]["finding_counts"]["orphan_actors"] == 2
 
 
-# ── the four sweeps, asked directly ─────────────────────────────────────────
+# ── the sweeps, asked directly ─────────────────────────────────────────
 #
 # The census's read-and-gate is one thing and its four questions are another,
 # and until the extraction only the first was reachable: every case below had to
 # be posed by writing two real stores and running the whole doctor. These ask
 # each sweep the one thing it decides, on a world handed to it — which is what
-# the classifiers beside them (``_desk_litter_reason``,
-# ``_duplicate_placement_reason``, ``_orphan_actor_reason``) have always had and
-# the loop around them never did.
+# the classifiers beside them (``_duplicate_placement_reason``,
+# ``_orphan_actor_reason``) have always had and the loop around them never did.
 
 
 def _item(kind: str, item_id: str, *, persona_id=None, minted_kind=None):
@@ -1711,42 +1520,11 @@ def test_the_join_sweep_reads_a_receipt_only_for_an_orphan(isolate_agent_runtime
     assert asked == ["i-gone"]
 
 
-def test_the_desk_sweep_needs_the_agent_items_of_actors_it_has_not_reached(
-    isolate_agent_runtime_root,
-):
-    """Why the agent-item pass is separate and comes first. The desk on the FIRST
-    actor is paired by an agent item on the SECOND, so a single fused pass would
-    call it widowed on any directory order that read the desk first."""
-
-    from agent_runtime.harness_doctor import (
-        DESK_LITTER_AGENT_MISSING,
-        _census_agent_item_bindings,
-        _census_desk_litter,
-    )
-
-    desk_holder = _actor(
-        "a-desks", persona_id="qa", instance_id="i-live",
-        items=[_item("desk", "desk-1", persona_id="qa"),
-               _item("desk", "desk-2", persona_id="widow")],
-    )
-    agent_holder = _actor(
-        "a-agents", persona_id="qa", instance_id="i-live",
-        items=[_item("agent", "agent-1", persona_id="qa")],
-    )
-    bindings = [(desk_holder, ""), (agent_holder, "i-live")]
-
-    litter = _census_desk_litter(
-        "ws1",
-        bindings,
-        agent_bindings=_census_agent_item_bindings(bindings),
-        live_instance_ids=frozenset({"i-live"}),
-        live_persona_ids={"qa", "widow"},
-        retired=frozenset(),
-    )
-
-    assert [row["item_id"] for row in litter] == ["desk-2"]
-    assert litter[0]["reason"] == DESK_LITTER_AGENT_MISSING
-    assert litter[0]["persona_id"] == "widow"
+# ``test_the_desk_sweep_needs_the_agent_items_of_actors_it_has_not_reached``
+# stood here. It pinned WHY the agent-item pass ran separately and first — a
+# fused pass would have called a desk widowed on any directory order that read
+# it before its agent. Both the sweep and the pass are deleted (2026-09-18) with
+# the pairing they existed to resolve; the reason no longer has a subject.
 
 
 def test_the_duplicate_sweep_counts_holders_and_not_mentions(

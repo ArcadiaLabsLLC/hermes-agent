@@ -187,79 +187,99 @@ def test_an_upsert_of_an_existing_actor_updates_it_and_never_forks_a_second_file
     assert [a.actor_key for a in _store().scan_actors(WORKSPACE).actors] == [QA_INSTANCE]
 
 
-# ── the desk fence, on this lane (D6) ───────────────────────────────────────
+# ── the generic desk, on this lane (2026-09-18) ─────────────────────────────
+#
+# Two tests stood here: the desk fence's refusal asserted as a whole 4090 frame
+# with ``data.reason: "duplicate_desk"``, and the acceptance beside it (an actor
+# may still move its OWN desk). Both are deleted with the fence and the
+# translation arm that carried it. They are NOT rewritten into "the second desk
+# succeeds with a result frame" one-for-one, because the refusal test's whole
+# subject — a typed frame, its message and its five ``data`` keys — no longer
+# exists; what replaces it is the one property this lane still owes, below.
 
 
 def _desk_payload(item_id: str, *, instance: str | None = None) -> dict:
-    """A desk-only actor for persona ``qa`` — the shape the 2026-08-24 incident
-    hand-assembled, minus the item ids that would trip the OLDER fence."""
+    """A generic desk over the wire: one item addressed by its own id.
+
+    The shape the launcher sends after the 2026-09-18 ruling — ``persona_id`` at
+    both levels is the desk's own synthetic id, so the actor key IS the desk id
+    and no persona is named anywhere in the payload.
+    """
 
     payload: dict = {
-        "persona_id": "qa",
-        "items": [{"item_id": item_id, "kind": "desk", "position": [0.0, 0.0], "folder": "Desks"}],
+        "persona_id": item_id,
+        "items": [{"item_id": item_id, "persona_id": item_id, "kind": "desk", "position": [0.0, 0.0], "folder": "Desks"}],
     }
     if instance is not None:
         payload["persona_instance_id"] = instance
     return payload
 
 
-def test_a_second_desk_for_one_persona_is_refused_as_a_whole_frame():
-    """The store's fence, TRANSLATED — asserted as a whole frame.
+def test_two_generic_desks_land_over_this_lane_and_the_ack_is_still_light():
+    """The ruling, on the METHOD lane, with the ack asserted as a whole frame.
 
-    The seed already places ``qa_desk`` under the instance-keyed actor, so this
-    write is the second desk for one persona. It is instance-keyed (a different
-    instance) with a distinct item id, so neither arm of the class-key fence can
-    be the thing refusing it — a test that let ``class_key_collision`` answer
-    here would pass against a runtime with no desk fence at all.
+    The seed already places ``qa_desk`` under the instance-keyed actor, so the
+    two writes below are the second and third desks in this workspace. Both
+    return the ordinary light ack — which is the property the store tests prove,
+    carried across the transport.
 
-    Whole-frame equality rather than ``data["reason"] == ...`` because the
-    ``data`` is the whole point: a client that cannot see WHICH actor holds the
-    desk has nothing to offer the operator but a retry, and a retry never clears
-    this. The message is this lane's own sentence — the store's ends by naming
-    ``harness office actor-remove``, a verb no wire caller has.
+    MEASURED AND STATED HONESTLY: the deleted fence was keyed on the ITEM's
+    persona, and these desks carry their own synthetic personas, so restoring it
+    leaves this green. What the transport half owes is not the fence's absence
+    but that a desk-only, instance-less actor survives the METHOD lane's
+    parameter validation and comes back as an ordinary ack — the wire shape the
+    launcher will start sending in slice 2, which nothing on this lane had ever
+    been handed before. The fence's deletion is witnessed in
+    ``test_office_store.py`` by the legacy-persona pair, which is the only
+    fixture the restoration actually reds.
+
+    Whole-frame equality on both acks, not ``"result" in reply``: this lane's
+    contract (point 1 of the module docstring) is that the ack is LIGHT, and a
+    handler that answered with the whole actor on a desk write would satisfy a
+    membership check.
+
+    ANTI-VACUITY: the store is re-read afterwards, so a handler that answered a
+    correct-looking ack without writing anything fails — which is point 3 of the
+    module docstring read in the other direction.
     """
 
     _seed()
-    reply = _upsert(
-        "desk-dup",
-        {
-            "workspace_id": WORKSPACE,
-            "actor": _desk_payload("qa_desk_second", instance="personainst_qa_agent_00000002"),
-        },
+
+    first = _upsert(
+        "desk-one", {"workspace_id": WORKSPACE, "actor": _desk_payload("desk_aaaaaaaa")}
+    )
+    second = _upsert(
+        "desk-two", {"workspace_id": WORKSPACE, "actor": _desk_payload("desk_bbbbbbbb")}
     )
 
-    assert reply == {
+    assert first == {
         "jsonrpc": "2.0",
-        "id": "desk-dup",
-        "error": {
-            "code": 4090,
-            "message": (
-                "desk write for persona 'qa' refused: "
-                f"{QA_INSTANCE!r} already holds desk 'qa_desk'. A persona has one "
-                "desk on a level; move that desk, or remove it with "
-                "runtime.office.remove before placing another."
-            ),
-            "data": {
-                "reason": "duplicate_desk",
-                "workspace_id": WORKSPACE,
-                "persona_id": "qa",
-                "holding_actor_key": QA_INSTANCE,
-                "holding_item_id": "qa_desk",
-            },
-        },
+        "id": "desk-one",
+        "result": {"actor_key": "desk_aaaaaaaa", "revision": 1},
     }
-    # A typed refusal in front of a store that took the write is the worst
-    # outcome: the client rolls its prediction back and the server keeps it.
-    assert [a.actor_key for a in _store().scan_actors(WORKSPACE).actors] == [QA_INSTANCE]
-    assert _positions() == {QA_INSTANCE: [-8.0, -2.0], "qa_desk": [-8.0, -4.5]}
+    assert second == {
+        "jsonrpc": "2.0",
+        "id": "desk-two",
+        "result": {"actor_key": "desk_bbbbbbbb", "revision": 1},
+    }
+
+    # Both are on the level, beside the seeded placement.
+    assert {a.actor_key for a in _store().scan_actors(WORKSPACE).actors} == {
+        QA_INSTANCE,
+        "desk_aaaaaaaa",
+        "desk_bbbbbbbb",
+    }
 
 
 def test_the_seeded_actor_may_still_move_its_own_desk_over_this_lane():
-    """The acceptance beside the refusal, on the SAME lane.
+    """The acceptance that must survive the fence's deletion.
 
-    Without it the test above passes against a fence that refuses every desk
-    write, which would take the office canvas offline for every desk drag while
-    reporting a correct-looking refusal reason.
+    It was written as the anti-vacuity twin of the refusal — without it, that
+    test passed against a fence that refused every desk write and took the
+    office canvas offline for every desk drag. The refusal is gone and this
+    stays, now guarding the opposite mutation: a deletion that took an
+    ordinary bundled-desk write with it would red here while the two-desk test
+    above, which writes desk-only actors, stayed green.
     """
 
     _seed()

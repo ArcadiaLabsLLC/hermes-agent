@@ -45,7 +45,6 @@ from . import office_layout_policy, office_models, paths
 from .errors import (
     ActorArchived,
     ActorsUnreadable,
-    AgentRuntimeError,
     AlreadyExists,
     ArchiveUnreadable,
     NotFound,
@@ -83,46 +82,29 @@ def merge_archived_ledgers(peer_keys, local_keys) -> list[str]:
     return _merge_archived_ledgers(peer_keys, local_keys, cap=ARCHIVED_LEDGER_CAP)
 
 
-#: Stage-42 error code for the desk fence, and the wire's ``data.reason``.
-#: One spelling per lane rather than two vocabularies for one refusal, and the
-#: same word the launcher's render-time detector already prints
-#: (``MissionOfficeRenderResolver._scanDeskInvariants``) — the fence and the
-#: detector name the same fault, so an operator who has seen one recognizes the
-#: other. Exit family 4 beside ``duplicate_conflict``: same operator move
-#: (something is already placed; move or remove it), different WHICH.
-DUPLICATE_DESK_REFUSAL_CODE = "duplicate_desk"
-
-
-class DuplicateDeskRefused(AgentRuntimeError):
-    """Raised when an actor write would give one persona a SECOND live desk.
-
-    The one-desk-per-persona rule was a LAUNCHER rule only (plan
-    ``agent-placement-verb`` F9, deleted 2026-08-27 by the S10 fold-in commit —
-    see ``docs/agent-runtime-harness/06-office-and-board.md`` §Supersedes for
-    the sha and where its decisions live on):
-    ``MissionOfficeLayout.hasAuthoredDeskForPersona`` guards the authoring
-    gesture and ``MissionOfficeRenderResolver`` counts desk
-    render nodes afterwards, so the client refuses what the client authors and
-    reports what it finds. Neither is a fence: the 2026-08-24 incident authored
-    a second ``qa`` desk through ``harness office actor-upsert``, a door no
-    launcher predicate can stand in front of, and the store took the write.
-
-    So the rule moves to the write chokepoint as defence in depth (D6). The
-    launcher guard stays — refusing at the gesture is a better experience than
-    refusing at the ack — and the render warning stays, because it is the only
-    thing that can see data that PREDATES this fence (a realm pull, per D6, is
-    deliberately outside it: ``office_sync.apply_office_pull`` writes files
-    directly and a pulled duplicate is a conflict-lane fact, not a local write).
-
-    ``safe_details`` carries keys and ids only — never positions, display names
-    or any other placement content.
-    """
-
-    code = DUPLICATE_DESK_REFUSAL_CODE
-
-    def __init__(self, message: str, *, safe_details: dict | None = None):
-        super().__init__(message)
-        self.safe_details = dict(safe_details or {})
+# THE ONE-DESK-PER-PERSONA FENCE IS GONE (retired 2026-09-18, owner ruling).
+#
+# ``DUPLICATE_DESK_REFUSAL_CODE``, ``DuplicateDeskRefused``,
+# ``_duplicate_desk_collision``, ``_duplicate_desk_message`` and
+# ``OfficeStore._guard_duplicate_desk`` lived here until that date. They enforced
+# "one persona holds one live desk on a level" (D6) at the write chokepoint,
+# which cost a full ``scan_actors`` per desk write.
+#
+# The owner's ruling: *"i want desks to just be one type all agents can use, no
+# more per persona desk, just one single desk object."* A desk is pure furniture
+# — there is no seating, occupancy, home position or pathing to one in either
+# repo — so a desk's ``persona_id`` is an ADDRESS (the actor-file key,
+# CONTRACT 43) and never an owner. The launcher now mints a generic desk under
+# its OWN synthetic id (``desk_<8 base36>``, one actor file per desk, unlimited
+# per workspace), which makes "two desks for one persona" the NORMAL shape
+# rather than the refused one. A fence for an invariant that no longer exists
+# refuses correct writes, so it is deleted rather than re-keyed.
+#
+# What did NOT change: the class-key fence, the archived-key (tombstone) fence,
+# the conflict guard, the revision check and every EventLog emission on the
+# write path. Handling of legacy per-persona desks is the LAUNCHER's, at its one
+# load chokepoint (drop-and-report) — see the plan
+# ``EterniaLauncher/docs/mission_control/planned/generic-desk-and-inspector-tables.md``.
 
 
 #: The hook :meth:`OfficeStore.upsert_actor` calls INSIDE ``office_lock`` to
@@ -668,141 +650,6 @@ def _normalize_folders(values: Any) -> list[str]:
             if len(folders) >= MAX_FOLDERS:
                 break
     return folders
-
-
-def _duplicate_desk_collision(
-    store: "OfficeStore",
-    workspace_id: str,
-    *,
-    actor_key: str,
-    items: list[OfficeItem],
-) -> dict | None:
-    """Would this write leave one persona holding TWO live desks? ``None`` if not.
-
-    THE predicate — one derivation authority, the shape
-    ``office_class_key_guard.class_key_collision`` established. The fence that
-    spends it is ``OfficeStore._guard_duplicate_desk``; both doors
-    (``serve_rpc._runtime_office_upsert``, ``harness office actor-upsert``) keep
-    only a TRANSLATION of the typed refusal into their transport's taxonomy,
-    never a second copy of the decision.
-
-    The question is asked about the POST-WRITE state, not about the payload
-    alone, because ``upsert_actor`` REPLACES the target actor's items: after the
-    write persona ``P`` holds exactly the desks in this payload plus the desks
-    every OTHER live actor holds for ``P``. Stating it that way is what makes
-    the three cases in D6 fall out of one predicate instead of three branches:
-
-    * a second actor authoring a desk for a persona another actor already
-      desks → refused;
-    * the SAME actor re-writing (moving, re-folding, re-scaling) its own desk →
-      accepted, because its own row is excluded from the scan it is replacing;
-    * a desk whose only holder is ARCHIVED → accepted, because
-      ``scan_actors`` reads the LIVE directory and an archive is not a holding.
-
-    Desks are keyed on the ITEM's persona, not the actor's. ``_normalize_item``
-    lets an item carry its own ``persona_id`` (defaulting to the actor's), the
-    launcher's guard is persona-keyed (``hasAuthoredDeskForPersona``), and an
-    actor-keyed test would wave through the one shape the launcher already
-    refuses: two actors of one persona, each desking it.
-
-    A desk's IDENTITY is its ``item_id``, and the count is of DISTINCT ids —
-    which is the same narrowing ``office_class_key_guard`` records for its own
-    predicate, and for the same reason. One desk owned by two actor files is a
-    duplicate PLACEMENT (``duplicate_item_placement``), a different fault with a
-    different cure, and it is a state the class→instance re-key migration
-    deliberately passes through: ``scripts/office_actor_rekey_to_instance.py``
-    mints the instance-keyed actor with the class-keyed actor's items COPIED
-    VERBATIM and only then archives the old key, so both rows briefly claim the
-    same desk. Counting rows instead of ids would refuse that migration — the
-    one operator script whose whole job is to move a placement — while catching
-    nothing this fence is for. What this fence is for is a SECOND desk: a
-    different id, which is what the 2026-08-24 incident authored and what the
-    launcher's render-time detector counts.
-
-    Read-only against the store, and NOT total — it raises
-    :class:`~.errors.ActorsUnreadable` when the answer is unknowable rather than
-    answering "no holder" from a directory it could only partly read. Same
-    reasoning as the class-key fence's (EG-6.6): a desk holder can only be
-    proven ABSENT by reading every actor that might be one, and a fence that
-    reports "no conflict" from half a directory is a fence that fails open on
-    exactly the corrupt store where it matters most.
-
-    Costs a directory scan only when the payload actually carries a desk. The
-    placement verb authors none (D6), so no ``agent create`` and no canvas drop
-    pays for this.
-    """
-
-    incoming = [(item.persona_id, item.item_id) for item in items if item.kind == "desk"]
-    if not incoming:
-        return None
-
-    scan = store.scan_actors(workspace_id)
-    if scan.unreadable:
-        raise ActorsUnreadable(
-            f"actors_unreadable:{workspace_id} ({scan.unreadable} of "
-            f"{len(scan.actors) + scan.unreadable} actor files) — the desk fence "
-            "cannot prove this persona does not already hold a desk. Repair or "
-            "remove the unreadable actor file and retry the same write."
-        )
-
-    # persona -> {desk item_id: the actor key holding it}. ``scan_actors`` sorts
-    # by actor key and ``setdefault`` keeps the first, so the refusal names the
-    # same holder on every machine and every retry.
-    held: dict[str, dict[str, str]] = {}
-    for actor in scan.actors:
-        if actor.actor_key == actor_key:
-            continue  # this write replaces its own items
-        for item in actor.items:
-            if item.kind == "desk":
-                held.setdefault(item.persona_id, {}).setdefault(item.item_id, actor.actor_key)
-
-    # The payload's own desks count too. Two desks for one persona inside ONE
-    # payload is the same invariant reached without any existing row, and
-    # excluding it would leave the fence trivially walkable by the very writer
-    # it was built for (a hand-assembled ``--actor-json``).
-    staged: dict[str, dict[str, str]] = {}
-    for persona_id, item_id in incoming:
-        others = held.get(persona_id) or {}
-        mine = staged.setdefault(persona_id, {})
-        mine.setdefault(item_id, actor_key)
-        # Every DISTINCT desk this persona would hold after the write, with the
-        # actor that holds each. More than one is the refusal.
-        after = {**others, **{k: v for k, v in mine.items() if k not in others}}
-        if len(after) > 1:
-            holder_id, holder_key = next(
-                (k, v) for k, v in after.items() if k != item_id
-            )
-            return {
-                "workspace_id": workspace_id,
-                "actor_key": actor_key,
-                "persona_id": persona_id,
-                "item_id": item_id,
-                "holding_actor_key": holder_key,
-                "holding_item_id": holder_id,
-            }
-    return None
-
-
-def _duplicate_desk_message(collision: dict) -> str:
-    """One operator-readable line naming the holder and the way out.
-
-    It names the holding actor and item because ``emit_harness_error`` merges
-    ``safe_details`` for three exception types it lists explicitly and this is
-    not one of them — a refusal that does not name what is already there is a
-    refusal nobody can act on. Same reason ``office_class_key_guard
-    .refusal_message`` carries its conflicting keys.
-    """
-
-    return (
-        f"office write for persona {collision['persona_id']!r} into "
-        f"{collision['workspace_id']!r} refused: desk item "
-        f"{collision['item_id']!r} would be a SECOND live desk — "
-        f"{collision['holding_actor_key']!r} already holds "
-        f"{collision['holding_item_id']!r}. A persona has one desk on a level "
-        "(desks are shared across that persona's instances). Move the existing "
-        "desk instead of authoring another, or remove it with `harness office "
-        "actor-remove` first."
-    )
 
 
 class OfficeStore:
@@ -1382,7 +1229,7 @@ class OfficeStore:
         made "this workspace has an office" a side effect of ATTEMPTING a
         placement rather than of making one — a refused write left a default
         ``office.json`` behind on a workspace that had none, for every guard
-        (class-key, desk, tombstone, conflict, revision) and by construction.
+        (class-key, tombstone, conflict, revision) and by construction.
         The creation could not simply move down into the existing lock as an
         ``ensure_surface`` call, because ``office_lock`` is not reentrant
         (``locks._file_lock``) and this frame already holds it; the creation half
@@ -1469,7 +1316,7 @@ class OfficeStore:
             # The REFUSAL here, the CREATION under the lock (see the write half
             # below). This used to be one ``ensure_surface`` call, and it
             # authored a default ``office.json`` BEFORE any fence had run — so a
-            # write the class-key, desk, tombstone, conflict or revision guard
+            # write the class-key, tombstone, conflict or revision guard
             # was about to refuse still left a live office behind on a
             # surface-less workspace, for every guard and by construction. The
             # refusal keeps its old position on purpose: it is the first thing
@@ -1499,16 +1346,13 @@ class OfficeStore:
                         position=position_policy(self.scan_actors(wsid)),
                     )
                 ]
-            # THE desk fence (D6), inside the same lock and before any write.
-            # After the class-key fence and the conflict guard on purpose: those
-            # two refuse writes that are illegitimate whatever they carry, and a
-            # payload that is both class-keyed AND desk-duplicating should hear
-            # the older, narrower refusal first — its remedy (send the binding)
-            # is the one that also dissolves this one. Before the revision check
-            # because a stale prediction is a retryable race and a second desk is
-            # not: telling the operator to refetch and replay a write this fence
-            # will refuse again is advice that cannot work.
-            self._guard_duplicate_desk(wsid, actor_key=actor_key, items=items)
+            # The DESK fence stood here, between the conflict guard and the
+            # archive read, until 2026-09-18. It is gone with the invariant it
+            # enforced (see the note at the top of this module): a desk is
+            # furniture addressed by its own synthetic id, so a workspace holds
+            # as many as an operator places. Nothing replaced it — no reader was
+            # moved down into the write path, and the two fences either side of
+            # this line are unchanged.
             existing: OfficeActor | None = None
             if self.actor_exists(wsid, actor_key):
                 existing = self.get_actor(wsid, actor_key)
@@ -1867,13 +1711,15 @@ class OfficeStore:
 
         NOT fenced — a RULING (operator, 2026-08-30, plan
         ``realm-actor-lifecycle-refactor`` D3), no longer an open carve-out.
-        The class-key fence, the tombstone fence and the desk fence that
-        ``upsert_actor`` spends all refuse LOCAL authoring intent, and a pull
+        The class-key fence and the tombstone fence that ``upsert_actor``
+        spends both refuse LOCAL authoring intent, and a pull
         has no operator behind it to offer consent, so fencing it would mean
         refusing to hold a fact a peer already published with nobody present to
-        take the override. A pulled duplicate desk (or a peer's un-migrated
-        class key) is a conflict-lane fact about what a peer published, which is
-        why the launcher's render-time ``duplicate_desk`` warning stays. The two
+        take the override. A peer's un-migrated class key is a conflict-lane
+        fact about what that peer published, not a placement this store may
+        refuse. (The DESK fence was the third of these until 2026-09-18; it is
+        gone with its invariant, so the pull has one fewer thing to be outside
+        of and nothing about this ruling's two remaining arms moved.) The two
         REAL holes task #33 had bundled with this one were closed instead: the
         surface arm's tombstone-ledger overwrite (C1,
         :func:`merge_archived_ledgers`) and the pull archive arm's discarded
@@ -2477,50 +2323,6 @@ class OfficeStore:
                 "workspace_id": workspace_id,
                 "persona_instance_id": persona_instance_id,
             },
-        )
-
-    def _guard_duplicate_desk(self, workspace_id: str, *, actor_key: str, items: list[OfficeItem]) -> None:
-        """THE one-desk-per-persona fence for ``upsert_actor`` (D6).
-
-        A fence at the store rather than at its callers, for the reason EG-6.6
-        recorded when it hoisted the class-key one out of four writers: a
-        caller-side fence is invisible in the store's contract, so the next
-        writer ships unfenced with every reply-shape test green. There are
-        already four writers reaching ``upsert_actor`` and the incident that
-        motivated this one came through the CLI verb, not through the launcher
-        the client-side guard protects.
-
-        No ``allow_...`` override, and that asymmetry with
-        ``_guard_class_keyed_write`` is deliberate. That fence guards a
-        MIGRATION, and an operator can legitimately want the pre-migration shape
-        back (``actor-restore``, ``--allow-class-key``). This one guards an
-        INVARIANT the render layer depends on — the implicit desk is drawn under
-        an agent only while its persona has no authored desk, so a second
-        authored desk is not a placement an operator can mean, it is two desks
-        one of which will never be reachable. The way past it is to move or
-        remove the desk that is already there, which the message names.
-
-        Fires on ``dry_run`` too, for the same reason the class-key fence does:
-        a preview whose whole job is to show what the real run would do must
-        show the refusal, or the operator learns about it from the write.
-
-        Realm pull is deliberately NOT behind this fence.
-        ``office_sync.apply_office_pull`` writes actor files directly and never
-        reaches ``upsert_actor``; a workspace pulled from a peer can therefore
-        still arrive holding two desks for one persona. That is the correct
-        boundary — a pulled duplicate is a conflict-lane fact about what a peer
-        published, not a local write this store may refuse — and it is why the
-        launcher's render-time ``duplicate_desk`` warning stays: it is the only
-        thing that can see data predating or bypassing this fence.
-        """
-
-        collision = _duplicate_desk_collision(
-            self, workspace_id, actor_key=actor_key, items=items
-        )
-        if collision is None:
-            return
-        raise DuplicateDeskRefused(
-            _duplicate_desk_message(collision), safe_details=collision
         )
 
     def _guard_class_keyed_write(self, workspace_id: str, payload: dict[str, Any], *, allow_class_key: bool) -> None:

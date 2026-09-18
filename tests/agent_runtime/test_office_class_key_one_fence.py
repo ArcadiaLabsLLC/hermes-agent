@@ -424,16 +424,23 @@ def test_no_lane_holds_a_second_copy_of_the_predicate():
 #: ``upsert_actor``'s DESK fence (D6) and TOMBSTONE fence (D1) were pinned by
 #: nothing at all. That is not a gap in the rows; it is the shape of the table
 #: choosing which question can be asked of it. A one-fence table cannot notice a
-#: second fence going missing, and a five-fence store cannot be described by a
+#: second fence going missing, and a multi-fence store cannot be described by a
 #: one-column pin.
-ACTOR_FENCES = ("class_key", "desk", "tombstone")
+#:
+#: ``"desk"`` was the middle column until 2026-09-18 and left with the fence it
+#: named (owner ruling: one generic desk type, unlimited per workspace — see
+#: ``docs/agent-runtime-harness/06-office-and-board.md`` §The desk fence,
+#: RETIRED). Removing a fence is a DELIBERATE edit here rather than a silent
+#: one, which is this table working as designed in the other direction: the
+#: ``stray`` assertion below reds on any writer whose row still answers a column
+#: that no longer exists, so a half-deleted fence cannot pass.
+ACTOR_FENCES = ("class_key", "tombstone")
 
 #: Which store guard each fence is spent through. The witness reads these out of
 #: a writer's source, so the table's words are CHECKED rather than believed:
 #: "FENCED" must name the guard, and every other verdict must not.
 FENCE_GUARDS: dict[str, tuple[str, ...]] = {
     "class_key": ("_guard_class_keyed_write", "_guard_class_keyed_adoption"),
-    "desk": ("_guard_duplicate_desk",),
     "tombstone": ("_guard_archived_actor",),
 }
 
@@ -456,14 +463,6 @@ FENCED_ACTOR_WRITERS: dict[tuple[str, str], dict[str, str]] = {
             "FENCED — _guard_class_keyed_write, first inside the lock; override is the "
             "explicit allow_class_key parameter"
         ),
-        "desk": (
-            "FENCED — _guard_duplicate_desk (D6), inside the same lock, after the "
-            "class-key fence and the conflict guard and before the revision check. NO "
-            "override parameter, and that asymmetry is deliberate: the class-key fence "
-            "guards a MIGRATION an operator may legitimately want undone, this one "
-            "guards an invariant the render layer depends on, so the way past it is to "
-            "move or remove the desk that is already there."
-        ),
         "tombstone": (
             "FENCED — _guard_archived_actor (D1), on the ``existing is None`` arm and "
             "before the archive file is read; override is the explicit resurrect "
@@ -474,13 +473,6 @@ FENCED_ACTOR_WRITERS: dict[tuple[str, str], dict[str, str]] = {
         "class_key": (
             "FENCED — _guard_class_keyed_adoption (peer-authored record, past upsert_actor); "
             "override is the explicit allow_class_key parameter"
-        ),
-        "desk": (
-            "UNFENCED — the verb adopts a record a PEER already published, so a duplicate "
-            "desk arriving through it is a conflict-lane fact about what the peer holds, "
-            "not a local placement this store may refuse. Same boundary the realm pull's "
-            "adopt arm was ruled onto (D3), and the same reason the launcher's "
-            "render-time duplicate_desk warning stays."
         ),
         "tombstone": (
             "UNFENCED — resolving a conflict is deciding between two versions of a row "
@@ -494,12 +486,6 @@ FENCED_ACTOR_WRITERS: dict[tuple[str, str], dict[str, str]] = {
             "refuses elsewhere, and the exit refusal_message points at. Fencing it would "
             "make the refusal a dead end."
         ),
-        "desk": (
-            "SANCTIONED OVERRIDE — restore puts BACK the actor that was archived, items "
-            "and all. Refusing it on a desk that was authored elsewhere in the meantime "
-            "would make the archive a one-way door; the operator's remedy is the same as "
-            "the desk fence's own (move or remove the other desk) and they can see both."
-        ),
         "tombstone": (
             "SANCTIONED OVERRIDE — this verb IS the tombstone fence's exit. It is what "
             "the D1 refusal names, so fencing it would be the same dead end."
@@ -509,10 +495,6 @@ FENCED_ACTOR_WRITERS: dict[tuple[str, str], dict[str, str]] = {
         "class_key": (
             "THE PRIMITIVE — the one-line atomic write every entry above funnels into. "
             "Not a writer, the thing writers use."
-        ),
-        "desk": (
-            "THE PRIMITIVE — same. A fence here would fire under restore_actor and under "
-            "the pull's adopt arm, both of which are ruled unfenced above."
         ),
         "tombstone": (
             "THE PRIMITIVE — same, and most sharply so: restore_actor reaches this "
@@ -544,25 +526,20 @@ CARVED_OUT_ACTOR_WRITERS: dict[tuple[str, str], dict[str, str]] = {
             "state.patched pair. H1 changed WHERE the unfenced write lives and what it "
             "emits; it did not change WHETHER it is fenced. "
             "RULED 2026-08-30 (operator, realm-actor-lifecycle-refactor D3): the adopt "
-            "arm STAYS UNFENCED. A pull is REPLICATION, not authoring — the class-key, "
-            "tombstone and desk fences all refuse local operator intent, and a pull has "
+            "arm STAYS UNFENCED. A pull is REPLICATION, not authoring — the fences all "
+            "refuse local operator intent, and a pull has "
             "no operator behind it to offer consent, so fencing it would mean refusing "
             "to hold a fact a peer already published. What #33 named as one hole was "
             "three: the two REAL ones are closed instead — the surface arm no longer "
             "overwrites the local tombstone ledger (C1, office_store.merge_archived_"
             "ledgers) and the archive arm no longer discards the outcome of a delete "
             "it could not take (C2, office_sync.OfficeArchiveOutcome). What remains is "
-            "the DISPOSITION above, not an open question: a pulled duplicate desk or a "
-            "peer's un-migrated class key is a conflict-lane fact, which is why the "
-            "launcher's render-time duplicate_desk warning stays. This entry no longer "
-            "moves to FENCED_ACTOR_WRITERS on a future ruling — it is the ruling."
-        ),
-        "desk": (
-            "UNFENCED, BY THE SAME D3 RULING — a pulled duplicate desk is a fact about "
-            "what a peer published, not a placement this store may refuse. Stated as its "
-            "own row rather than left implied by the class-key paragraph above: the "
-            "ruling covers all three fences, and a table that records only one of them "
-            "is how the desk fence went un-enumerated in the first place."
+            "the DISPOSITION above, not an open question: a peer's un-migrated class "
+            "key is a conflict-lane fact. This entry no longer "
+            "moves to FENCED_ACTOR_WRITERS on a future ruling — it is the ruling. "
+            "(That ruling covered a THIRD fence, the one-desk-per-persona one, which "
+            "was deleted with its invariant on 2026-09-18 — its column left this table "
+            "then and the ruling's two remaining arms are unaffected.)"
         ),
         "tombstone": (
             "UNFENCED, BY THE SAME D3 RULING — the resurrection question is answered "
@@ -691,7 +668,10 @@ def test_every_writer_declares_itself_against_every_fence():
     about the class-key fence, so ``upsert_actor``'s desk fence (D6) and
     tombstone fence (D1) were pinned by nothing — not because a row was missing
     but because there was nowhere for one to go. A witness that cannot represent
-    the second fence cannot notice it disappearing, and the store has three.
+    the second fence cannot notice it disappearing. (It also cannot notice one
+    being RETIRED on purpose, which is the direction 2026-09-18 exercised: the
+    desk column was deleted from ``ACTOR_FENCES`` and from every writer's row in
+    the same commit as the fence, and a half-done deletion reds on ``stray``.)
 
     So the key is (writer × fence) and the equality is on the FENCE SET, per
     writer, in both tables. A new fence is a column every writer must fill in

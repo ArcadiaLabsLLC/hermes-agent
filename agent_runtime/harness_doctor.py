@@ -232,6 +232,8 @@ def run_harness_doctor(
         # the ITEM-level desk sweep the actor-level join is blind to, with
         # ``summary.finding_counts`` gaining ``desk_litter``. No new section:
         # the census's own health absorbs it, at ``notice``.
+        # (RETIRED at 10, below. Kept in this list because the list is a
+        # HISTORY of the schema, not a description of the current one.)
         # 7: ``findings.placement_census.duplicate_placements`` is new (H-H8) —
         # item ids held by more than one live actor, with
         # ``summary.finding_counts`` gaining ``duplicate_placements``. No new
@@ -253,7 +255,19 @@ def run_harness_doctor(
         # denominator a misplacement COUNT has to be read against before two
         # machines' numbers are compared). Additive only: no health change, no
         # new section, no new count.
-        "schema_version": 9,
+        # 10: ``findings.placement_census.desk_litter`` is REMOVED, and with it
+        # ``summary.finding_counts.desk_litter`` and the per-workspace key —
+        # the first REMOVAL this schema has made, which is why it moves the
+        # version rather than riding as an additive change. The census existed
+        # to pair a desk with the agent that "owned" it; the owner ruled on
+        # 2026-09-18 that a desk is one generic furniture object every agent can
+        # use, addressed by its own synthetic id, so there is no pairing left to
+        # be broken and every one of the four ``DESK_LITTER_*`` reasons would
+        # have fired on every correctly-placed generic desk forever. A finding
+        # class that cannot be cleared is a finding class that stops being read.
+        # ``orphan_actors``, ``unplaced_rows`` and ``duplicate_placements`` are
+        # untouched — they are kind-agnostic and ask about ACTORS, not desks.
+        "schema_version": 10,
         "generated_at": ref,
         "ok": not defective and not unexamined,
         "mode": {"fix": bool(fix), "dry_run": bool(dry_run)},
@@ -610,14 +624,6 @@ def _census_unknown(detail: str, *, unreadable: list[str] | None = None) -> dict
         "placed": None,
         "unplaced_rows": None,
         "orphan_actors": None,
-        # Desk litter inherits the rule rather than reasoning about it again.
-        # Every one of its four buckets is a statement about ABSENCE ("no live
-        # agent item for this persona", "no roster row for this binding"), and
-        # a file that would not open is exactly what absence is
-        # indistinguishable from. So the whole census answers unknown — not
-        # "unknown for the workspace whose directory was short" — and this key
-        # is ``None`` beside the other three.
-        "desk_litter": None,
         # Same rule again, and for a reason of its own: "no OTHER live actor
         # holds this id" is the absence a duplicate sweep asserts, and a file
         # that would not open is one that might be holding it.
@@ -629,50 +635,29 @@ def _census_unknown(detail: str, *, unreadable: list[str] | None = None) -> dict
     return report
 
 
-# ── desk litter: the item-level sweep the actor-level join cannot see ─────────
+# The DESK-LITTER CENSUS stood here (plan DL-H1) — four ``DESK_LITTER_*``
+# reasons, the pure ``_desk_litter_reason`` classifier that filed a live
+# ``kind: "desk"`` item into one of them, and the ``_census_desk_litter`` /
+# ``_census_agent_item_bindings`` sweeps below that fed it. All retired
+# 2026-09-18 by owner ruling: *"i want desks to just be one type all agents can
+# use, no more per persona desk, just one single desk object."*
 #
-# Four reasons, four different faults, deliberately NOT collapsed (plan DL-H1
-# §0/§6). The first day of the lane was spent conflating the mis-kinded agent
-# with the widowed desk, which have opposite cures — one is re-placed, one is
-# reaped — so folding them into a single "desk litter" count would reproduce
-# the confusion the census exists to end. A row carries exactly one of these,
-# and the classifier below is total over its inputs.
+# Every one of the four reasons was a statement about a desk's AGENT HALF —
+# missing, scope-stale, persona-retired, or never a desk at all. A generic desk
+# has no agent half by construction: its ``persona_id`` is its own synthetic id
+# (``desk_<8 base36>``), so no ``kind: "agent"`` item will ever share it and
+# ``agent_missing`` would have fired on every correctly-placed desk, forever. A
+# notice an operator cannot clear is a notice they stop reading, which is the
+# failure this whole doctor is written against — so the class goes rather than
+# being re-keyed. The plan is
+# ``EterniaLauncher/docs/mission_control/planned/generic-desk-and-inspector-tables.md``
+# (slice 1).
+#
+# What KEPT its place, because none of it was about desks: ``orphan_actors``
+# (an ACTOR whose instance is retired or missing — kind-agnostic),
+# ``unplaced_rows``, and ``duplicate_placements`` (one item id held by two live
+# actor rows, which is a claim about ROWS and fires on any kind).
 
-#: No live ``kind: "agent"`` item exists for this desk's persona anywhere in the
-#: workspace. Era litter: placement used to mint agent+desk pairs, and
-#: ``OfficeStore.archive_actors_for_instance`` still archives only the
-#: INSTANCE-bound actor, so a roster-side retire leaves the class-keyed desk
-#: actor live. The reap's target.
-DESK_LITTER_AGENT_MISSING = "agent_missing"
-
-#: Live agent items exist for the persona, and every one of them rides an actor
-#: whose instance binding no live roster row backs. The store-side shadow of the
-#: launcher's projection scope drop: the agent half vanishes from the canvas and
-#: the desk renders on. Overlaps ``orphan_actors`` ON PURPOSE — that row names
-#: the actor, this one names the desk left standing; two pointers to one fault.
-DESK_LITTER_AGENT_SCOPE_STALE = "agent_scope_stale"
-
-#: The persona itself is gone: no live roster row carries it and no retirement
-#: tombstone names an instance of it either. A refinement of
-#: ``agent_missing`` — the desk is not merely widowed, there is nothing left to
-#: re-place — and it is reported separately because the cures differ.
-DESK_LITTER_PERSONA_RETIRED = "persona_retired"
-
-#: The item is structurally an AGENT's that persisted with ``kind: "desk"``:
-#: it rides an actor whose ``persona_instance_id`` names a LIVE roster row, or
-#: the store recorded that it was MINTED as an agent (``minted_kind``, H-H12 —
-#: this used to read the ``item_id`` for launcher naming conventions instead).
-#: This is the shape MEASURED on the live store 2026-08-30, and it is kept out
-#: of ``agent_missing`` by design — an operator reading "widowed desk" goes
-#: looking for a reap, when what this row wants is a re-place.
-DESK_LITTER_DESK_KIND_AGENT_BINDING = "desk_kind_agent_binding"
-
-DESK_LITTER_REASONS = (
-    DESK_LITTER_AGENT_MISSING,
-    DESK_LITTER_AGENT_SCOPE_STALE,
-    DESK_LITTER_PERSONA_RETIRED,
-    DESK_LITTER_DESK_KIND_AGENT_BINDING,
-)
 
 #: The retire that archived this actor's roster row RECORDED that it could not
 #: archive this actor (H-H5's receipt names the key). This is the "row archived,
@@ -740,88 +725,26 @@ def _orphan_actor_reason(
     return ORPHAN_ACTOR_INSTANCE_RETIRED
 
 
-def _desk_litter_reason(
-    *,
-    minted_kind: str | None,
-    on_live_instance_actor: bool,
-    agent_item_bindings: tuple[str, ...],
-    live_instance_ids: frozenset[str],
-    persona_known: bool,
-) -> str | None:
-    """Which of the four faults this desk item is, or ``None`` when it is fine.
-
-    Pure — every store read the decision needs has already happened, and been
-    gated on a fully-read world, before this is called. That is deliberate: the
-    partition is the part worth unit-testing, and it must not be reachable only
-    through a filesystem fixture.
-
-    ``minted_kind`` is the STORE's record of what this item was written as
-    (H-H12). It replaced ``_office_item_id_shape``, which answered the same
-    question by parsing the ``item_id`` for launcher naming conventions — three
-    minting sites' worth of them, none enforced anywhere, so a launcher rename
-    would have silently reclassified every mis-kinded agent as a widowed desk.
-    The reader now asks the store what it recorded rather than asking a string
-    what it looks like. ``None`` means the item predates the field (or was
-    adopted from a peer that has not upgraded) and is "cannot say", never "no":
-    such a desk falls through to the absence buckets and is judged on whether
-    its agent actually exists, which is the softer and safer answer and the same
-    one an unreadable id used to get.
-
-    ``agent_item_bindings`` is the instance binding of EVERY live
-    ``kind: "agent"`` item that shares this desk's persona in this workspace,
-    ``""`` for the class-keyed ones. Empty means the desk is widowed.
-
-    THE ORDER IS THE DESIGN:
-
-    1. ``desk_kind_agent_binding`` first, because a mis-kinded agent item is
-       also, by construction, a persona with no live agent item — so any other
-       order silently reports every one of them as widowed.
-    2. Then the agent items themselves. Some binding that a live roster row
-       backs (including a class-keyed one, which is not instance-bound and
-       therefore cannot scope-drop) means the pair is whole: no row.
-    3. ``persona_retired`` before ``agent_missing`` — it is the narrower
-       statement of the same absence, and the operator's next move differs
-       (nothing to re-place versus an agent to re-place).
-
-    ``live_instance_ids`` is the only staleness test, and the retirement
-    archive is deliberately NOT unioned into it. Retirement is the ARCHIVE half
-    of the predicate whose live half a roster row already answers, and
-    ``retired_persona_instance_ids``' own contract is that a live row wins; a
-    union would call a re-created instance stale on the strength of its own
-    tombstone. The archive is still read — it is what makes ``persona_retired``
-    distinguishable from ``agent_missing`` — just not here.
-    """
-
-    if on_live_instance_actor or minted_kind == "agent":
-        return DESK_LITTER_DESK_KIND_AGENT_BINDING
-    if agent_item_bindings:
-        if all(
-            binding and binding not in live_instance_ids
-            for binding in agent_item_bindings
-        ):
-            return DESK_LITTER_AGENT_SCOPE_STALE
-        return None
-    if not persona_known:
-        return DESK_LITTER_PERSONA_RETIRED
-    return DESK_LITTER_AGENT_MISSING
-
-
 # ── duplicate placements: one item id, two live actor rows (H-H8) ────────────
 #
-# The residual the two write fences leave between them, stated in doc 06's
+# The residual the two write fences left between them, stated in doc 06's
 # write-verbs section: the class-key fence guards class-keyed payloads only (an
-# instance-keyed write "IS the migration's shape"), and the duplicate-desk fence
-# counts DISTINCT desk ids per persona, so an instance-keyed write claiming an
-# item id another live actor already holds passes both. Until now nothing
-# server-side could see it — the census joins on ``persona_instance_id`` and
-# never opened ``actor.items``, so both holders counted as ``placed`` and the
-# section reported ``ok``, leaving the launcher's render-time ``duplicate_desk``
-# warning as the only detector.
+# instance-keyed write "IS the migration's shape"), and the desk fence counted
+# DISTINCT desk ids per persona, so an instance-keyed write claiming an item id
+# another live actor already held passed both. Nothing server-side could see it
+# — the census joins on ``persona_instance_id`` and never opened
+# ``actor.items``, so both holders counted as ``placed`` and the section
+# reported ``ok``.
 #
-# This is a READER and deliberately not a third fence: doc 06's D6 ruling says
-# the persona-keyed desk fence must NOT be re-keyed toward instances, because
-# desks are a placeholder for standalone artifacts and the invariant should stop
-# existing rather than move. A census row moves no fence.
+# One of those two fences is gone (2026-09-18) and THIS SWEEP IS UNCHANGED BY
+# THAT, which is worth stating because the desk-litter census beside it had to
+# be deleted on the same day. The difference is what each one asks. This asks
+# whether two live actor ROWS claim one item id — a question with no kind in it,
+# true of an agent, a desk, or whatever ``ITEM_KINDS`` grows next. The
+# desk-litter census asked whether a desk's AGENT HALF was present, and a
+# generic desk has none by construction.
+#
+# It is a READER and was never a fence: a census row moves no write path.
 
 #: Every holder is bound to the SAME live-ish instance — one instance's
 #: placement claimed by two live actor rows. A DEFECT: nothing legitimate mints
@@ -868,39 +791,15 @@ def _duplicate_placement_reason(bindings: tuple[str, ...]) -> str:
     return DUPLICATE_PLACEMENT_CROSS_INSTANCE
 
 
-def _persona_has_retired_instance(persona_id: str, retired: frozenset[str]) -> bool:
-    """Did any instance of this persona carry a retirement tombstone?
-
-    The join is on the id SCHEME, because a retirement archive keeps ids, not
-    persona pointers: every instance of a persona is either that persona's
-    canonical operator channel (``persona_instance_id_for``) or a
-    placement-derived id built by extending it with ``_<placement>``. Both are
-    minted by the one derivation authority, so the prefix test asks that
-    authority's question rather than inventing a second spelling rule.
-
-    Used for ONE discrimination — telling ``persona_retired`` (nothing of this
-    persona was ever, or is any longer, on the roster) from ``agent_missing``
-    (the persona is alive, its agent item is not). A false NEGATIVE here
-    reports the softer of the two reasons, which is the safe direction: the
-    desk is still counted, still named, still reaped by the same verb.
-    """
-
-    from .persona_assignments import persona_instance_id_for
-
-    canonical = persona_instance_id_for(persona_id)
-    if not canonical:
-        return False
-    return any(
-        instance_id == canonical or instance_id.startswith(f"{canonical}_")
-        for instance_id in retired
-    )
-
-
-# ── the census's four per-workspace sweeps ───────────────────────────────────
+# ── the census's per-workspace sweeps ────────────────────────────────────────
+#
+# THREE of them since 2026-09-18: the desk-litter sweep and the agent-item pass
+# that fed it left with the desk-litter census (see the note above the orphan
+# reasons). The extraction below is unchanged for the three that remain.
 #
 # Lifted out of :func:`_placement_census_report`, which read the two stores,
-# gated them, and then ran four different questions over one workspace loop with
-# a pure classifier beside each. The READ and the GATE stay where they are —
+# gated them, and then ran several different questions over one workspace loop
+# with a pure classifier beside each. The READ and the GATE stay where they are —
 # they are the part that has to happen once, in order, for the whole census —
 # and what moves is everything after them: each sweep now takes the already-
 # gated world and answers with rows, so it can be asked a question directly
@@ -981,89 +880,6 @@ def _census_join_workspace(
     return ws_placed, ws_orphans, referenced
 
 
-def _census_agent_item_bindings(
-    bindings: list[tuple[Any, str]],
-) -> dict[str, list[str]]:
-    """Per persona, the instance bindings of every ``agent`` ITEM in the workspace.
-
-    A separate pass from the desk sweep and not a fold into it. The desk sweep
-    must be able to ask "does an agent item for this persona exist ANYWHERE in
-    this workspace", and a single pass could only ask "…in an actor I have
-    already read", which is an answer that depends on directory order.
-    """
-
-    from .office_store import _normalize_persona_id
-
-    agent_bindings: dict[str, list[str]] = {}
-    for actor, binding in bindings:
-        for item in actor.items or ():
-            if getattr(item, "kind", None) != "agent":
-                continue
-            persona = _normalize_persona_id(item.persona_id) or _normalize_persona_id(
-                actor.persona_id
-            )
-            if persona:
-                agent_bindings.setdefault(persona, []).append(binding)
-    return agent_bindings
-
-
-def _census_desk_litter(
-    workspace_id: str,
-    bindings: list[tuple[Any, str]],
-    *,
-    agent_bindings: dict[str, list[str]],
-    live_instance_ids: frozenset[str],
-    live_persona_ids: set[str],
-    retired: frozenset[str],
-) -> list[dict[str, Any]]:
-    """Desk items whose agent half is missing, stale, personaless or never was.
-
-    Over the SAME live actors of the SAME fully-read world as the join, and a
-    ``notice`` rather than a defect for the reason the section docstring gives:
-    a litter desk renders as exactly what it is.
-    """
-
-    from .office_store import _normalize_persona_id
-
-    ws_litter: list[dict[str, Any]] = []
-    for actor, binding in bindings:
-        for item in actor.items or ():
-            if getattr(item, "kind", None) != "desk":
-                continue
-            persona = _normalize_persona_id(item.persona_id) or _normalize_persona_id(
-                actor.persona_id
-            )
-            if not persona:
-                # A persona-less desk answers no pairing question — there is
-                # nothing to pair it WITH. Out of the sweep by construction,
-                # which is also the shape the parked "desks become standalone
-                # artifacts" ruling would make the common one.
-                continue
-            reason = _desk_litter_reason(
-                minted_kind=item.minted_kind,
-                on_live_instance_actor=bool(binding) and binding in live_instance_ids,
-                agent_item_bindings=tuple(agent_bindings.get(persona, ())),
-                live_instance_ids=live_instance_ids,
-                persona_known=(
-                    persona in live_persona_ids
-                    or _persona_has_retired_instance(persona, retired)
-                ),
-            )
-            if reason is None:
-                continue
-            ws_litter.append(
-                {
-                    "workspace_id": workspace_id,
-                    "actor_key": actor.actor_key,
-                    "item_id": item.item_id,
-                    "persona_id": persona,
-                    "persona_instance_id": binding or None,
-                    "reason": reason,
-                }
-            )
-    return ws_litter
-
-
 def _census_duplicate_placements(
     workspace_id: str, bindings: list[tuple[Any, str]]
 ) -> list[dict[str, Any]]:
@@ -1135,21 +951,11 @@ def _placement_census_report(_context: _DoctorProbeContext | None = None) -> dic
       ``retire_incomplete`` is the close-the-loop half of the retire's office
       report: a failure the ack named and nothing could see once the ack was
       gone now has a standing detector.
-    * ``desk_litter`` (plan DL-H1) — a live ``kind: "desk"`` ITEM whose agent
-      half is missing, stale, personaless, or never was a desk at all, one of
-      the four ``DESK_LITTER_*`` reasons each. A ``notice``, never a defect:
-      unlike an orphan actor, nothing here mis-renders — the desk is authored
-      furniture standing where its agent no longer is, and the operator's act
-      is the reap (DL-H2), not a repair the doctor could suggest inline.
-
-      It is a SEPARATE finding from the three above rather than an extension of
-      them because the join above is actor-level and instance-keyed, and desk
-      litter is neither: a desk minted by ``materializeAgentDesk`` carries the
-      persona CLASS id and no binding, so it lands in the class-keyed actor
-      that the join skips by construction, while its agent lands in the
-      instance-keyed one. That split — the pairing is persona-level, the
-      storage is actor-level — is why this walk is over ITEMS and why it joins
-      per workspace on ``persona_id``.
+    A fourth finding, ``desk_litter`` (plan DL-H1), lived here until 2026-09-18
+    and was REMOVED with the pairing it asked about — schema 10, and the note
+    above the orphan reasons has the ruling. Nothing below it is kind-aware:
+    every row this section still reports is a claim about an ACTOR or an item
+    ID, and a desk answers both exactly as an agent does.
 
     * ``duplicate_placements`` (H-H8) — an ITEM id held by more than one live
       actor, with every holder named and one of the three
@@ -1167,12 +973,13 @@ def _placement_census_report(_context: _DoctorProbeContext | None = None) -> dic
     to forbid.
     """
 
-    # ``_normalize_persona_id`` is the STORE's own spelling of a persona id, and
-    # it is imported rather than re-derived for the reason
-    # ``office_class_key_guard`` states at its own import of it: a second
-    # normalization beside the one the write path used is how the two halves of
-    # a join come to disagree about the same persona.
-    from .office_store import OfficeStore, _normalize_persona_id
+    # ``_normalize_persona_id`` was imported here beside ``OfficeStore`` — the
+    # STORE's own spelling of a persona id, borrowed rather than re-derived so
+    # the two halves of a persona-level join could not disagree. Its only
+    # readers were the desk sweeps (2026-09-18), and the joins that remain are
+    # keyed on ``persona_instance_id`` through :func:`_census_instance_key`,
+    # which is that same borrow-the-authority rule applied to the other id.
+    from .office_store import OfficeStore
     from .persona_assignments import (
         PersonaInstanceStore,
         is_canonical_persona_channel,
@@ -1201,7 +1008,6 @@ def _placement_census_report(_context: _DoctorProbeContext | None = None) -> dic
 
     placed: list[dict[str, Any]] = []
     orphan_actors: list[dict[str, Any]] = []
-    desk_litter: list[dict[str, Any]] = []
     duplicate_placements: list[dict[str, Any]] = []
     per_workspace: dict[str, dict[str, Any]] = {}
     referenced: set[str] = set()
@@ -1231,18 +1037,10 @@ def _placement_census_report(_context: _DoctorProbeContext | None = None) -> dic
     # Read ONCE for the whole census, never per row. The archive is one
     # directory per retire, forever, and ``retired_persona_instance_ids`` says
     # so at its own docstring. It NEVER raises — a listing it could not walk
-    # answers the empty set — so it cannot re-open the unreadable gate above,
-    # and the consequence of that outage is only that ``persona_retired``
-    # degrades to ``agent_missing``: the softer reason, same row, same reap.
+    # answers the empty set — so it cannot re-open the unreadable gate above.
+    # Its remaining reader is the orphan partition (H-H4), which tells an
+    # instance this install tombstoned from one it never held.
     retired_instances = retired_persona_instance_ids()
-    live_persona_ids = {
-        normalized
-        for normalized in (
-            _normalize_persona_id(row.persona_id) for row in roster.instances
-        )
-        if normalized
-    }
-    live_instance_ids = frozenset(live_rows)
     #: One receipt read per orphaned instance, for the whole census (H-H4).
     retire_receipts: dict[str, dict[str, Any] | None] = {}
 
@@ -1266,7 +1064,7 @@ def _placement_census_report(_context: _DoctorProbeContext | None = None) -> dic
         return retire_receipts[instance_id]
 
     for workspace_id, scan in scans:
-        # Four sweeps, four functions, one resolved binding list between them.
+        # Two sweeps, two functions, one resolved binding list between them.
         # The read and the gate above are what had to happen once and in order;
         # everything from here is a question asked of the world they produced.
         bindings = _census_live_actor_bindings(scan)
@@ -1278,25 +1076,15 @@ def _placement_census_report(_context: _DoctorProbeContext | None = None) -> dic
             receipt_for=_retire_receipt_for,
         )
         referenced |= ws_referenced
-        ws_litter = _census_desk_litter(
-            workspace_id,
-            bindings,
-            agent_bindings=_census_agent_item_bindings(bindings),
-            live_instance_ids=live_instance_ids,
-            live_persona_ids=live_persona_ids,
-            retired=retired_instances,
-        )
         ws_duplicates = _census_duplicate_placements(workspace_id, bindings)
 
         placed.extend(ws_placed)
         orphan_actors.extend(ws_orphans)
-        desk_litter.extend(ws_litter)
         duplicate_placements.extend(ws_duplicates)
         per_workspace[workspace_id] = {
             "placed": len(ws_placed),
             "unplaced_rows": [],
             "orphan_actors": ws_orphans,
-            "desk_litter": ws_litter,
             "duplicate_placements": ws_duplicates,
             "observed": True,
         }
@@ -1328,15 +1116,17 @@ def _placement_census_report(_context: _DoctorProbeContext | None = None) -> dic
     ]
     if orphan_actors or same_instance_duplicates:
         health = HEALTH_DEFECT
-    elif unplaced_rows or desk_litter or duplicate_placements:
-        # Litter raises the census to ``notice`` and NEVER past it. An orphan
-        # actor is a defect because it renders as an agent nothing can message;
-        # a litter desk renders as exactly what it is — a desk. Promoting it
-        # would turn ``needs_fix`` on for a store whose only fault is furniture,
-        # and the doctor's whole contract is that its flags mean something.
+    elif unplaced_rows or duplicate_placements:
+        # An unplaced row or a non-``same_instance`` duplicate raises the census
+        # to ``notice`` and NEVER past it: an orphan actor is a defect because
+        # it renders as an agent nothing can message, while neither of these
+        # mis-renders anything. Promoting either would turn ``needs_fix`` on for
+        # a store with no actual fault, and the doctor's whole contract is that
+        # its flags mean something.
         #
-        # A duplicate placement splits on the SAME line, and the D6 ruling is
-        # where the line comes from — see :func:`_duplicate_placement_reason`.
+        # A duplicate placement splits on that same line — see
+        # :func:`_duplicate_placement_reason`. (The ``desk_litter`` term rode
+        # this arm until 2026-09-18 and left with the census that produced it.)
         health = HEALTH_NOTICE
     else:
         health = HEALTH_OK
@@ -1347,7 +1137,6 @@ def _placement_census_report(_context: _DoctorProbeContext | None = None) -> dic
         "placed_actors": placed,
         "unplaced_rows": unplaced_rows,
         "orphan_actors": orphan_actors,
-        "desk_litter": desk_litter,
         "duplicate_placements": duplicate_placements,
         "workspaces": per_workspace,
         # A4. The orphan half used to read "retiring or re-creating its agent",
@@ -1389,8 +1178,7 @@ def _placement_census_report(_context: _DoctorProbeContext | None = None) -> dic
             "mean to delete the placement realm-wide, which is what the "
             "launcher's own delete does); an unplaced row is either awaiting a "
             "placement or is the roster-only recovery door working as designed; "
-            "a desk_litter row reading desk_kind_agent_binding wants a re-place, "
-            "and the other three want a reap; a duplicate_placements row reading "
+            "a duplicate_placements row reading "
             "same_instance is one instance's placement claimed by two live actor "
             "rows — remove or re-place one holder, whose actor_key is named"
         ),
@@ -1454,12 +1242,12 @@ DOCTOR_SECTIONS: tuple[DoctorSection, ...] = (
         detail_source="findings.root_config_misplacement",
         counts=(("misplaced_root_only_keys", "misplaced"),),
     ),
-    # The census contributes FOUR counts because they are four different
+    # The census contributes THREE counts because they are three different
     # verdicts: an orphan actor is a defect, an unplaced row is a legal state of
-    # a supported door, a litter desk is authored furniture standing where its
-    # agent no longer is, and a duplicate placement is two live actors claiming
+    # a supported door, and a duplicate placement is two live actors claiming
     # one item id. Folding them into one number would make the doctor's headline
     # count climb every time the roster-only recovery door is used correctly.
+    # A fourth, ``desk_litter``, left on 2026-09-18 with the pairing it counted.
     DoctorSection(
         name="placement_census",
         probe=_placement_census_report,
@@ -1468,7 +1256,6 @@ DOCTOR_SECTIONS: tuple[DoctorSection, ...] = (
         counts=(
             ("orphan_actors", "orphan_actors"),
             ("unplaced_rows", "unplaced_rows"),
-            ("desk_litter", "desk_litter"),
             ("duplicate_placements", "duplicate_placements"),
         ),
     ),

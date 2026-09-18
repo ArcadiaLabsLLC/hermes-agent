@@ -213,11 +213,6 @@ def _cmd_office_actor_upsert(args) -> int:
         CLASS_KEY_REFUSAL_CODE,
         ClassKeyedPlacementRefused,
     )
-    from agent_runtime.office_store import (
-        DUPLICATE_DESK_REFUSAL_CODE,
-        DuplicateDeskRefused,
-    )
-
     store = _office_store()
     workspace = _office_workspace_for(args)
     if not workspace:
@@ -281,30 +276,20 @@ def _cmd_office_actor_upsert(args) -> int:
         # a divergence between the two would have to be written deliberately.
         return emit_harness_error(exc, args=args, code=exc.code, message=str(exc))
     except ActorArchived as exc:
-        # The tombstone fence (D1), translated. Terminal on this lane too, but
-        # unlike the desk fence it DOES have a consent flag, because unlike a
-        # second desk there is a legitimate reason to want this key back — the
+        # The tombstone fence (D1), translated. Terminal on this lane, but it
+        # DOES have a consent flag, because there is a legitimate reason to want
+        # a deleted key back — the
         # operator simply has to say so. ``message=str(exc)`` hands over the
         # store's own sentence, which names both doors (``actor-restore`` and
         # ``--resurrect``); reconstructing it here is the second copy EG-6.6
         # removed.
         return emit_harness_error(exc, args=args, code=exc.code, message=str(exc))
-    except DuplicateDeskRefused as exc:
-        # The desk fence (D6), translated into the stage-42 taxonomy and NOT
-        # given a consent flag. ``--allow-class-key`` exists because an operator
-        # can legitimately want the pre-migration shape back; there is no
-        # legitimate second desk, so there is no flag and this arm is terminal.
-        #
-        # ``message=str(exc)`` hands over the store's own sentence — which names
-        # the holding actor, the holding item and `harness office actor-remove`
-        # — rather than a reconstruction: ``emit_harness_error`` merges
-        # ``safe_details`` only for three exception types it lists, and this is
-        # not one of them, so the message is the only place the holder can ride.
-        # ``code=`` explicitly rather than through ``_error_code_for_exception``
-        # so a divergence between the two would have to be written on purpose.
-        return emit_harness_error(
-            exc, args=args, code=DUPLICATE_DESK_REFUSAL_CODE, message=str(exc)
-        )
+    # An ``except DuplicateDeskRefused`` arm stood here, translating the store's
+    # one-desk-per-persona fence into exit family 4 with code ``duplicate_desk``.
+    # Both the fence and the taxonomy row are gone (2026-09-18, owner ruling:
+    # one generic desk type, addressed by its own synthetic id, unlimited per
+    # workspace) — so this verb now writes a second desk exactly the way it
+    # writes a second chair would be, and no consent flag was needed to say so.
     except ClassKeyedPlacementRefused as exc:
         collision = exc.safe_details
         if not bool(getattr(args, "allow_class_key", False)):

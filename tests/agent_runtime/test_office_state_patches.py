@@ -827,12 +827,13 @@ def test_a_workspace_that_reads_SHORT_keeps_the_honest_refresh_too(
     from agent_runtime import paths
 
     def _agent_only(x: float) -> dict:
-        # DESK-LESS on purpose. ``_guard_duplicate_desk`` already refuses a
-        # desk-carrying write outright over an unreadable directory (it cannot
-        # prove the persona holds no desk), so a payload with a desk never
-        # reaches the patch lane at all and could not observe this demote. The
-        # agent-only write is the case that DOES get written and therefore the
-        # only one where "which patch did it emit" is a question.
+        # DESK-LESS, and it no longer HAS to be. Until 2026-09-18 the deleted
+        # ``_guard_duplicate_desk`` refused a desk-carrying write outright over
+        # an unreadable directory (it could not prove the persona held no desk),
+        # so such a payload never reached the patch lane and could not observe
+        # this demote. With the fence gone a desk write reaches here like any
+        # other; the fixture stays agent-only because the subject is "which
+        # patch did this write emit", not what kind the item was.
         return {
             "persona_id": "qa",
             "persona_instance_id": "personainst_qa_agent_0001",

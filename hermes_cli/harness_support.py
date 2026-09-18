@@ -155,13 +155,13 @@ ERROR_EXIT_CODES = {
     # this process, and the cure is outside hermes entirely.
     "local_policy": 2,
     "duplicate_conflict": 4,
-    # The office desk fence (D6): this persona already holds a live desk on this
-    # level. Family 4 beside ``duplicate_conflict`` because the operator's next
-    # MOVE is the same (something is already placed — move or remove it); its own
-    # CODE because WHICH thing differs, and because the word has to match the
-    # wire's ``data.reason`` and the launcher's render-time detector or one
-    # refusal ends up with three names.
-    "duplicate_desk": 4,
+    # ``duplicate_desk`` sat here, family 4, produced by the office desk fence
+    # (D6). The fence was deleted 2026-09-18 with the invariant it enforced —
+    # one generic desk type, unlimited per workspace (owner ruling) — and the
+    # row leaves WITH it rather than staying behind as a code nothing can
+    # produce. ``test_every_exit_code_has_a_producer`` is the gate that says so:
+    # a taxonomy row nothing can spend reads as documentation of a state this
+    # runtime can reach.
     # An upsert of an actor key this server DELETED (``ActorArchived``). It
     # declared ``code = "actor_archived"`` from the day it was written and could
     # never spend it: the catch-all answered ``internal_error`` for it until the
@@ -485,11 +485,8 @@ def _error_hint(code: str) -> str:
         # receipt is intact and correct about the gesture that wrote it.
         "idempotency_key_verb_mismatch": "That --idempotency-key already belongs to a different board verb on this board (the message names both). One key names one gesture: re-run with a key of its own. Retrying this command unchanged will be refused identically.",
         "actors_unreadable": "Repair or remove the undecodable actor file named in the message, or pass --persona-instance-id to place the instance, then retry.",
-        # Its own hint rather than the default: the default sends the operator to
-        # ``safe_details``, and this refusal's facts ride the MESSAGE (
-        # ``emit_harness_error`` merges details for three named types and this is
-        # not one of them), so the default would point at an empty object.
-        "duplicate_desk": "Move the desk this persona already holds — named in the message — or remove it with `harness office actor-remove`, then retry.",
+        # ``duplicate_desk``'s hint stood here until 2026-09-18 and left with
+        # its code and the fence that produced it (see ERROR_EXIT_CODES above).
         # Its own hint for the reason the default is wrong here: "retry after
         # correcting the request" invites exactly the re-add this refusal
         # exists to stop. The cure is a NEW create, and the same wording is on
