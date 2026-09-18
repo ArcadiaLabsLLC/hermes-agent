@@ -12,7 +12,10 @@ Two behaviors:
    threshold; no-op below it.
 """
 
+import functools
+import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -24,21 +27,38 @@ def _git(cwd, *args, check=True):
     )
 
 
+@functools.lru_cache(maxsize=1)
 def _geometric_repack_supported() -> bool:
-    """Does THIS git have the flags upstream's repack actually runs?
+    """Does THIS git RUN the command upstream's repack actually issues?
 
-    ``git repack --geometric`` / ``--write-midx`` landed in git 2.32. Older git exits 129
-    with "unknown option `geometric=2'", and ``_run_bounded_repack`` sends both streams to
-    DEVNULL and never reads the return code — so on such a host pack maintenance claims its
-    6-hour slot, runs a command that fails instantly, and reports nothing. Measured on this
-    workstation (git 2.31.1.windows.1) while resolving the 2026-09-17 upstream merge.
+    ``git repack --geometric`` / ``--write-midx`` landed in git 2.32. Older git exits 129 with
+    "unknown option `geometric=2'", and ``_run_bounded_repack`` sends both streams to DEVNULL
+    and never reads the return code — so on such a host pack maintenance claims its 6-hour
+    slot, runs a command that fails in milliseconds, reports nothing, and then suppresses
+    retries for six hours. Measured on this workstation (git 2.31.1.windows.1) while resolving
+    the 2026-09-17 upstream merge.
 
-    Feature-detected from the binary's own usage text rather than parsed from a version
-    string: the question is "does this git accept the flag", and the binary is the authority.
+    This RUNS the command in a throwaway repo instead of grepping ``git repack -h``. The first
+    version of this helper did grep, for ``"--geometric" in usage`` — and git 2.53 prints the
+    flag as ``-g, --[no-]geometric``, so the probe answered False on a git that supports it
+    perfectly and would have skipped the multi-pack-index assertion on the one platform that
+    can make it. A capability question asked of help TEXT is a question about a spelling; ask
+    the binary to do the thing instead.
     """
-    probe = subprocess.run(["git", "repack", "-h"], capture_output=True, text=True)
-    usage = (probe.stdout or "") + (probe.stderr or "")
-    return "--geometric" in usage and "--write-midx" in usage
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "probe"
+        repo.mkdir()
+        env = {**os.environ, "GIT_AUTHOR_NAME": "probe", "GIT_AUTHOR_EMAIL": "probe@example.com",
+               "GIT_COMMITTER_NAME": "probe", "GIT_COMMITTER_EMAIL": "probe@example.com"}
+        def run(*args, check=True):
+            return subprocess.run(["git", *args], cwd=str(repo), env=env,
+                                  capture_output=True, text=True, check=check)
+        run("init", "-q", ".")
+        (repo / "a.txt").write_text("a\n")
+        run("add", "-A")
+        run("commit", "-qm", "probe")
+        return run("repack", "-d", "--geometric=2", "--write-midx", "--quiet",
+                   check=False).returncode == 0
 
 
 @pytest.fixture
