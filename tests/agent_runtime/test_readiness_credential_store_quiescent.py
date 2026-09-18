@@ -118,13 +118,20 @@ def _count_pool_selections(monkeypatch) -> dict[str, int]:
     real_select = CredentialPool.select
     real_probe = CredentialPool.select_without_persisting_rotation
 
-    def counted_select(self):
+    # ``**kwargs`` rather than the arguments of the day: both entry points take
+    # ``model=`` since upstream's model-scoped cooldowns (merged 2026-09-17), and
+    # a spy that froze the old no-argument signature does not fail LOUDLY — the
+    # TypeError is swallowed on the readiness probe's own except path, the count
+    # stays 0, and gate 1 reds as "vacuous" while pointing at nothing. Forwarding
+    # whatever the caller passed keeps this a vehicle for the count rather than a
+    # second, stale copy of the signature.
+    def counted_select(self, **kwargs):
         counts["persisting"] += 1
-        return real_select(self)
+        return real_select(self, **kwargs)
 
-    def counted_probe(self):
+    def counted_probe(self, **kwargs):
         counts["non_persisting"] += 1
-        return real_probe(self)
+        return real_probe(self, **kwargs)
 
     monkeypatch.setattr(CredentialPool, "select", counted_select)
     monkeypatch.setattr(

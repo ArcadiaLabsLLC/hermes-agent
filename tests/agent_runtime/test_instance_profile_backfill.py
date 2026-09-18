@@ -46,10 +46,18 @@ def store_root(tmp_path, monkeypatch):
     The runtime STORE root is already redirected per-test by the autouse
     fixture in ``tests/agent_runtime/conftest.py``; this only supplies the
     profile directories ``profile_exists`` checks.
+
+    Each home carries an identity marker. Since upstream ``93889b770d``'s
+    profile-identity work (merged 2026-09-17), ``profile_exists`` is
+    ``named_profile_is_live``: a bare directory is a GHOST shell and resolves as
+    ``missing_profile``, so a marker-less fixture would make every binding here
+    unready for a reason that has nothing to do with what is under test.
     """
     home = tmp_path / "hermes-home"
     for name in ("launcher-qa", "base"):
-        (home / "profiles" / name).mkdir(parents=True, exist_ok=True)
+        profile_home = home / "profiles" / name
+        profile_home.mkdir(parents=True, exist_ok=True)
+        (profile_home / "config.yaml").write_text("{}\n", encoding="utf-8")
     monkeypatch.setenv("HERMES_HOME", str(home))
     return home
 

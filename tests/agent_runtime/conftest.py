@@ -104,7 +104,15 @@ def bounded_chat_session():
 
 @pytest.fixture
 def bundled_persona_profiles():
-    """Provision the explicit profile homes used by legacy runtime test data."""
+    """Provision the explicit profile homes used by legacy runtime test data.
+
+    Each home carries an identity marker. Since upstream ``93889b770d``'s
+    profile-identity work (merged 2026-09-17), ``profile_exists`` is
+    ``named_profile_is_live``: a bare directory is a GHOST shell that resolves
+    as ``missing_profile``, so a marker-less home would make every persona
+    binding built on this fixture unready for a reason unrelated to the test.
+    ``config.yaml`` is the marker upstream's own fixtures use.
+    """
 
     from hermes_cli.profiles import get_profile_dir
 
@@ -112,6 +120,7 @@ def bundled_persona_profiles():
     for profile in ("gpt-launcher", "backend-dev", "qa"):
         home = get_profile_dir(profile)
         home.mkdir(parents=True, exist_ok=True)
+        (home / "config.yaml").write_text("{}\n", encoding="utf-8")
         homes.append(home)
     return homes
 
