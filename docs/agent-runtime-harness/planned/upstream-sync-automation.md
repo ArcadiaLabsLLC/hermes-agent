@@ -594,6 +594,55 @@ One merge commit is still the goal — preserving real upstream ancestry, per th
 
 Verification after resolution, per this handoff's continuation list and `docs/downstream-development.md`: `scripts/run_tests.sh` only (never bare pytest), the validated four-directory scope `tests/agent_runtime tests/hermes_cli tests/cli tests/state`, plus `python scripts/dump_cli_contract.py --check` and `python scripts/dump_payload_contract.py --check` — the fork's model-picker work already moves the CLI contract, and themes 6–7 touch the profile CLI directly. Budget at least 25 minutes for the suite scope. Nothing in this section was tested; it is Git/source analysis only. No shell test, `uv` run, generator or runtime probe was executed for it.
 
+## Theme 7 ruling — RULED 2026-09-17 (operator): adopt upstream isolation, keep the fork's explicit store binding
+
+Upstream `93889b770d` (2026-09-16, "named profiles no longer inherit the root profile's auth.json") is a
+policy reversal, not a code conflict, and the operator ruled on it rather than leaving it to a per-file
+merge. Background the ruling rests on: the fork isolates persona profiles' environments (its own
+`HERMES_HOME` per profile, which upstream did not do at the time), so it needed a way for those profiles
+to reach credentials held at the head — and it built its own, explicit one, alongside the general
+(head/root) profile it also runs. That mechanism is **`HERMES_AUTH_HOME`**, fork-only (zero hits on
+upstream `main`): `agent_runtime/profile_context.py` pins every persona profile's *active auth store* to
+the head's, mirrored into both the ContextVar (`set_hermes_auth_home_override`) and the spawn env. That
+is store **selection**, not the inheritance **fallback** upstream deleted.
+
+Ruling:
+
+1. **Runtime default = upstream's.** Profiles are islands. Take upstream's side of
+   `agent/credential_pool.py`, `hermes_cli/auth.py`, `hermes_cli/auth_oauth_grants.py`,
+   `agent/anthropic_credentials.py` and the related modules; accept the deletion of
+   `tests/hermes_cli/test_auth_profile_fallback.py` (the modify/delete resolves as **delete**) and adopt
+   upstream's `tests/hermes_cli/test_auth_profile_isolation.py`. No implicit root fallback, no root
+   write-through, no borrowed-row bookkeeping survive in the fork. The auth cluster returns to
+   upstream-owned code the fork stops re-patching every sync.
+2. **Sharing survives only through the fork's one seam.** A persona profile shares credentials because
+   Mission Control bound its active auth store to the head via `HERMES_AUTH_HOME` — explicit,
+   one-directional, chosen by the operator's runtime. Token rotation lands in the head store because
+   it *is* the active store, so single-use refresh chains (Codex/ChatGPT) never fork and no
+   write-through logic is needed. Upstream's ruling ("never handed another profile's auth") is honoured:
+   nobody inherits.
+3. **Re-seat the two fork extensions that still lean on the deleted fallback:**
+   `agent_runtime/auth_extensions.py` (the Codex "global-root singleton fallback", ~lines 134–191 at
+   `68b24d4254`) and the comment in `tools/managed_tool_gateway.py:45`. With the head store active the
+   singleton is simply *in* the store; the fallback branch is removed, not ported.
+4. **Fork-owned surface after the merge:** `get_hermes_auth_home()` / `set_hermes_auth_home_override()`
+   in `hermes_constants.py`, plus the single call site where the auth store path is resolved. Narrow
+   call site in a shared file, owned module for the behaviour — the shape the 2026-09-15 note asked for.
+5. **Positive control, red-first, on this branch before `SOURCE_CANDIDATE`:** a persona profile with an
+   *empty* auth store of its own, bound under `persona_profile_context`, resolves the head's Codex
+   provider with upstream's fallback code gone; the same profile *outside* the context does not.
+   Name the killing mutation (drop the `HERMES_AUTH_HOME` pin in `profile_context.py`) and record the red.
+
+Named risk: upstream's original fallback (`33bf5f62`) existed for kanban/cron workers under named
+profiles **outside** any persona context. Any such worker that authenticates only at the head will start
+refusing with "set a provider for profile X" after this sync. Upstream's `hermes update` audit
+(`hermes_cli/profile_credential_audit.py`) prints exactly that list on the first update, so the failure
+is announced, not silent; the operator accepts it.
+
 ## Acceptance state after this section
 
-State stays **ANALYSIS_ONLY / HANDOFF_ONLY**. `automation/upstream-sync-next` carries this ledger and nothing else; it contains no upstream merge parent, and `main` is untouched. The branch passes the fold guard. Promote to `SOURCE_CANDIDATE` only when `cdceca42e1` (or a deliberately re-pinned later tip) is actually in ancestry and the auth policy decision in theme 7 has been ruled on.
+State stays **ANALYSIS_ONLY / HANDOFF_ONLY**. `automation/upstream-sync-next` carries this ledger and the
+theme-7 ruling and nothing else; it contains no upstream merge parent, and `main` is untouched. The
+branch passes the fold guard. The auth policy decision in theme 7 is now **ruled** (above). Promote to
+`SOURCE_CANDIDATE` only when `cdceca42e1` (or a deliberately re-pinned later tip) is actually in ancestry
+and the theme-7 positive control has been recorded red-then-green.
