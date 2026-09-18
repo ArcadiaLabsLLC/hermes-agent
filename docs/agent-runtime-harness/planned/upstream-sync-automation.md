@@ -651,9 +651,11 @@ and the theme-7 positive control has been recorded red-then-green.
 
 # 2026-09-17 merge execution — `cdceca42e1` merged, one history-preserving merge commit
 
-State: **executed**. The pinned upstream target `cdceca42e1` is attached as a real merge parent on
-`automation/upstream-sync-merge`. Nothing was pushed to `main`. Acceptance state is recorded at the
-end of this section.
+State: **HANDOFF_ONLY** — the merge is executed and the pinned upstream target `cdceca42e1` IS in
+ancestry, but verification is not green, so this is deliberately NOT promoted to
+`SOURCE_CANDIDATE`. The theme-7 positive control IS recorded red-then-green. Nothing was pushed
+to `main`. The exact remaining list is in **Still red, with the diagnosis** below; the three
+promotion conditions and their status are restated at the end of this section.
 
 ## Preconditions, measured
 
@@ -759,3 +761,139 @@ Upstream's original fallback existed for kanban/cron workers under named profile
 persona context. Such a worker authenticated only at the head will now refuse with "set a provider
 for profile X". Upstream's `hermes_cli/profile_credential_audit.py` prints that list on the first
 `hermes update`, so the failure is announced, not silent. The operator accepted this.
+
+## Verification — executed once at tip `8be2431138`, then triaged against the pre-merge tip
+
+```
+bash scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/cli tests/state -j 8 --file-timeout 180
+=== Summary: 1719 files, 20968 tests passed, 268 failed, 378 skipped (100% complete) in 6756.0s (8 workers) ===
+=== 85 files with test failures (268 tests failed) ===          exit 1
+```
+
+`-j 8` is the ruled full-suite lane (`docs/downstream-development.md`, hermes-suite-perf R3), not
+the `-j 4` the task text suggested; at 4 workers the same scope was on track for ~4.5 hours and was
+restarted rather than finished, because the restart also gave one clean pass over a tree that
+already carried the first round of fixes. **`tests/cli` and `tests/state` are completely green** —
+every failure is in `tests/agent_runtime` (13 files) or `tests/hermes_cli` (76 files).
+
+Three files never ran at all (collection/import error, or timeout before collection) and are
+counted as neither pass nor fail: `tests/hermes_cli/test_dashboard_system_gateway_elevation.py`,
+`tests/agent_runtime/test_gateway_peer_two_roots_e2e.py` (exit 124), `tests/hermes_cli/test_gateway.py`.
+
+### The split, and how it was taken
+
+A raw failure count says nothing about a merge. Every failing file was re-run at the **pre-merge
+tip** `94a5db103d` — fork `main` plus this branch, without the upstream merge — in a throwaway
+detached worktree:
+
+```
+89 failing files at 94a5db103d   ->  70 files / 250 tests fail there too
+```
+
+so **250 of the 268 are pre-existing on fork `main` and have nothing to do with upstream.** The
+17 candidate files were then re-run at BOTH tips under the same worker count and load, because the
+first pass compared a 112-minute loaded run against a 9-minute light one and that difference alone
+produced two false positives (`test_goal_workspace_realm_stage42` and `test_harness_tool_inventory`
+are load-sensitive: they failed under `-j 4`, passed under `-j 8`, and fail at the pre-merge tip
+too). Matched-load result: **16 files / 20 tests genuinely merge-caused.**
+
+Guard on the method itself: `main` and `origin/main` were `0bd06e91d1` before and after the
+baseline run, and all worktree registrations survived — recorded because that baseline set includes
+`test_worktree.py` and the updater tests that run `git branch -f main origin/main`.
+
+### The 20, and what happened to them
+
+| root cause | tests | outcome |
+| --- | ---: | --- |
+| fork fixtures froze a signature upstream extended | 9 | **fixed** (`fb4e6206f6`, `8be2431138`) |
+| fork profile fixtures had no identity marker | (of the 9) | **fixed** — see below |
+| upstream's two new `monkeypatch.undo()` sites vs a fork safety gate | 1 | **fixed**, gate kept |
+| upstream message/behaviour the fork test must adopt | 3 | **fixed** |
+| an upstream test that cannot pass on Windows (regex-unsafe path) | 1 | **fixed**, worth sending upstream |
+| POSIX-only code/tests reaching a Windows host | 8 | **open — environmental** |
+| behaviour changes needing a decision, not a guess | 3 | **open — diagnosed below** |
+| the CLI contract fixture | 1 | **open by choice** |
+
+Four of the nine signature failures were the SAME defect shape, which is the finding rather than
+the four instances: a stub that re-declares a signature it does not own cannot fail as "the thing I
+stubbed changed" — it fails as a `TypeError` raised from inside somebody else's call stack. One of
+them was worse: `test_readiness_credential_store_quiescent`'s spy raised into a readiness probe that
+CATCHES exceptions, so the counter stayed 0 and the gate reported *"vacuous gate: the readiness pass
+did not take exactly one non-persisting pool selection"* — a true sentence pointing at nothing. The
+instrument was vacuous, not the pass. All four now forward `**kwargs`.
+
+The identity-marker fix had a second-order lesson worth keeping: the first attempt wrote
+`config.yaml` as the marker, which broke `test_toolset_declaration`'s "a missing config file
+resolves the lane default" — that test DELETES `config.yaml`, so the marker and the subject were
+the same file and deleting it un-existed the profile. The marker is now `profile.yaml`.
+
+### Still red, with the diagnosis
+
+**POSIX-only on a Windows host (8 tests, 5 files) — not fixable by this merge.** Upstream code or
+tests reach an import that does not exist here: `fcntl` (`test_orphan_desktop_serve_reap`, 3),
+`pwd` (`test_gateway_migrate_multiplex`, 2 of its 3), `signal.SIGKILL`
+(`test_update_serve_generation_recovery`, 1), a Linux desktop entry (`test_linux_desktop_entry`, 1
+of its 24 — the other 23 are pre-existing), and a WSL `/mnt/...` mount walk
+(`test_node_runtime_npm_resolution`, 1). `AGENTS.md` prescribes the repair: an OS marker
+(`linux_only` / `macos_only`), never a faked `sys.platform`. That is a clean ~5-file follow-up on
+upstream-owned tests and is deliberately not bundled into a merge commit.
+
+**Three that need a ruling, not a patch.** Each passes at the pre-merge tip and fails serially (so
+not load flakes):
+
+- `test_worktree_selfheal::TestMaintainPackHealth::test_repacks_at_threshold` — "pack count must
+  strictly decrease (made=12, after=12)". Upstream replaced the full `repack -a -d` with a
+  **bounded incremental geometric repack** (`repack -d --geometric=2 --write-midx`) behind a
+  one-slot-per-clone-per-6h lock (`_claim_repack_slot`). Geometric repacking does not guarantee a
+  strict decrease, so the fork's assertion encodes a contract upstream deliberately dropped. What
+  the new guarantee *is* — decrease, or just "a multi-pack-index now exists" — is a decision;
+  inventing a replacement assertion here would encode a belief rather than a measured behaviour.
+- `test_kanban_worktree_teardown::test_cleanup_proceeds_when_cwd_was_deleted` — `WinError 32`:
+  Windows refuses to delete a directory that is a live process's CWD, which POSIX permits. The test
+  is POSIX-shaped in its premise, not just its imports.
+- `test_web_server_git::test_gh_auth_refresh_waits_out_a_probe_started_before_it` —
+  `{'authenticated': False} != {'authenticated': True}`; a concurrency pin on the `gh` auth probe,
+  in a file the merge changed (`hermes_cli/web_routers/git.py`, `web_server.py`).
+
+**`test_cli_contract_dump` is red on purpose.** See the contract section below.
+
+### Contract checks
+
+- `python scripts/dump_payload_contract.py --check` — **clean**, exit 0
+  ("4 kinds, 152 keys, sha256 622681856d6c12e8").
+- `python scripts/dump_cli_contract.py --check` — **DRIFTED**, exit 1, and **deliberately not
+  regenerated**. The drift is **purely additive**: two new subcommands, `profile migrate-identity`
+  and `profile purge-identity`, from upstream `a41552fad4`. Zero removals — checked line by line,
+  because a removed command or flag is a launcher operator button that now exits 2, and that is the
+  dangerous half. Nothing the Launcher calls disappeared.
+
+  It is left red because `tests/fixtures/hermes_cli_contract.json` is a FORK-only file (it does not
+  exist upstream) whose whole purpose is that the repo that MOVED goes red, and because the Launcher
+  vendors its own copy: regenerating here without re-syncing
+  `tool/hermes_cli_contract/` in the same wave would leave the launcher's copy lying, which is the
+  exact failure the gate exists to prevent. Regenerate + re-vendor + record the sync in that
+  README as one wave.
+
+## Acceptance state after the merge execution
+
+**`HANDOFF_ONLY`.** The three promotion conditions, measured:
+
+| condition | status |
+| --- | --- |
+| pinned SHA `cdceca42e1` in ancestry | **YES** — `git merge-base --is-ancestor cdceca42e1 HEAD` passes; merge commit `30d89c05e1` carries it as a real second parent |
+| fold guard | **PASS** — `git merge-base --is-ancestor 0d5b7b8abc HEAD` |
+| theme-7 positive control recorded red-first | **YES** — `c941959441`, killing mutation applied, red output pasted into the commit message, reverted, green |
+| verification green | **NO** — 12 merge-caused tests remain red (8 POSIX-on-Windows, 3 needing a ruling, 1 the deliberately un-regenerated CLI contract) |
+
+Promote to `SOURCE_CANDIDATE` only after the four open items are closed or explicitly accepted:
+
+1. OS-mark the five POSIX-only files (`AGENTS.md`: a marker, never a faked `sys.platform`).
+2. Rule on the pack-health contract after upstream's geometric-repack change.
+3. Decide the two remaining POSIX-premise/concurrency tests
+   (`test_cleanup_proceeds_when_cwd_was_deleted`, `test_gh_auth_refresh_waits_out_a_probe_started_before_it`).
+4. Regenerate `tests/fixtures/hermes_cli_contract.json` and re-vendor the Launcher's
+   `tool/hermes_cli_contract/` in the SAME wave, recording the sha256 in that README.
+
+Owed to the Launcher, and not done in this branch by rule: the CLI contract gained
+`profile migrate-identity` and `profile purge-identity`. Additive only — no launcher operator
+button was removed — so nothing breaks today, but the vendored copy is stale until item 4 runs.
