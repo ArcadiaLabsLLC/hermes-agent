@@ -435,15 +435,20 @@ class GatewaySlashCommandsMixin(
             await _stop(session_key, "stop_command_handler")
             return EphemeralReply(t("gateway.stop.stopped"))
 
-        # No run under the caller's own key. In a per-user thread (thread_sessions_per_user=True) a
-        # run another user started lives under a different key, yet authorized users must still be
-        # able to /stop it: fall back to sibling runs in this thread, gated on authorization.
-        sibling_keys = self._sibling_thread_run_keys(source, session_key)
-        if sibling_keys and self._is_user_authorized_for_source(source):
-            for sibling_key in sibling_keys:
-                await _stop(sibling_key, "stop_command_thread_sibling")
-            logger.info("STOP (thread sibling) by %s — interrupted %d run(s) in thread: %s",
-                        session_key, len(sibling_keys), ", ".join(sibling_keys))
+        # No run under the caller's own key: a live turn in THIS chat may still carry a differently
+        # shaped key. Narrowest tier first (another participant's run in the caller's own thread),
+        # then any run in the chat; both are authorization-gated. See `_chat_scoped_run_keys` for the
+        # shapes it covers and its isolation bounds.
+        fallback_keys = self._sibling_thread_run_keys(source, session_key)
+        reason = "stop_command_thread_sibling"
+        if not fallback_keys:
+            fallback_keys = self._chat_scoped_run_keys(source, session_key)
+            reason = "stop_command_chat_scope"
+        if fallback_keys and self._is_user_authorized_for_source(source):
+            for fallback_key in fallback_keys:
+                await _stop(fallback_key, reason)
+            logger.info("STOP (%s) by %s — interrupted %d run(s): %s",
+                        reason, session_key, len(fallback_keys), ", ".join(fallback_keys))
             return EphemeralReply(t("gateway.stop.stopped"))
 
         # No running agent anywhere for this scope. A platform status indicator can still be stuck —

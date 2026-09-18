@@ -1,6 +1,7 @@
 import {
   type ConnectionState,
   type GatewayEvent,
+  isGatewayReauthRequired,
   reconnectBackoffDelayMs,
   registryBackendScopeKey,
   resolveGatewayWsUrl,
@@ -10,7 +11,9 @@ import { atom } from 'nanostores'
 
 import type { HermesConnection } from '@/global'
 import { HermesGateway, setApiRequestConnection } from '@/hermes'
+import { translateNow } from '@/i18n'
 import { isTimeoutError, RECONNECT_ATTEMPT_TIMEOUT_MS, withTimeout } from '@/lib/with-timeout'
+import { notifyError, RECOVERY_ACTIONS } from '@/store/notifications'
 import { markNativeNotifyBaseline } from '@/store/notify-baseline'
 import { setConnection, setGatewayState } from '@/store/session'
 import { stampSecondaryProfileOwner } from '@/store/session-event-provenance'
@@ -188,6 +191,8 @@ interface GatewayRegistryState {
   activeKey: string
   activationEpoch: number
   secondaries: Map<string, Secondary>
+  // Auth rejection outlives the disposable socket, including background request leases.
+  reauthFailures: Map<string, { connectionId: string | null; error: Error }>
   /** Scopes that opened in this renderer generation, even if later pruned. */
   openedSecondaryScopes?: Set<string>
   /** Routed prompt sockets held until their terminal turn event arrives. */
@@ -210,6 +215,7 @@ function createRegistryState(): GatewayRegistryState {
     activeKey: 'default',
     activationEpoch: 0,
     secondaries: new Map<string, Secondary>(),
+    reauthFailures: new Map(),
     openedSecondaryScopes: new Set<string>(),
     turnLeases: new Map<string, () => void>(),
     turnLeaseReleaseTimers: new Map<string, ReturnType<typeof setTimeout>>(),
@@ -240,6 +246,7 @@ function gatewayState(): GatewayRegistryState {
     store[STATE_KEY] ??= createRegistryState()
 
     // Existing dev-HMR containers predate whole-turn leases.
+    store[STATE_KEY].reauthFailures ??= new Map()
     store[STATE_KEY].turnLeases ??= new Map()
     store[STATE_KEY].turnLeaseReleaseTimers ??= new Map()
 
@@ -600,6 +607,11 @@ function clearTimer(entry: Secondary): void {
 async function openSecondary(entry: Secondary, spawnPriority: SpawnPriority = 'background'): Promise<void> {
   const desktop = window.hermesDesktop
 
+  const reauthError = g.reauthFailures.get(entry.scope)?.error
+  if (reauthError) {
+    throw reauthError
+  }
+
   if (!desktop) {
     return
   }
@@ -735,6 +747,13 @@ async function openSecondary(entry: Secondary, spawnPriority: SpawnPriority = 'b
 
   try {
     await pending
+  } catch (error) {
+    if (isGatewayReauthRequired(error) && g.secondaries.get(entry.scope) === entry) {
+      g.reauthFailures.set(entry.scope, { connectionId: entry.connectionId, error })
+      entry.wantOpen = false
+      clearTimer(entry)
+    }
+    throw error
   } finally {
     if (entry.connectPromise === pending) {
       entry.connectPromise = null
@@ -765,6 +784,12 @@ function isStalledDialError(error: unknown): boolean {
 }
 
 function rearmSecondary(entry: Secondary, priority: SpawnPriority = 'foreground'): void {
+  const reauthError = g.reauthFailures.get(entry.scope)?.error
+  if (reauthError && priority !== 'foreground') {
+    throw reauthError
+  }
+  g.reauthFailures.delete(entry.scope)
+
   if (entry.retiredByPool && priority !== 'foreground') {
     throw new Error(`Backend for "${entry.profile}" was retired; open it explicitly to reconnect.`)
   }
@@ -800,6 +825,11 @@ async function reconnectSecondary(entry: Secondary): Promise<void> {
     await openSecondary(entry)
     entry.reconnectAttempt = 0
   } catch (error) {
+    if (isGatewayReauthRequired(error)) {
+      notifyError(error, translateNow('boot.errors.gatewaySignInRequired'), { action: RECOVERY_ACTIONS.openGateways() })
+      return
+    }
+
     // The registry no longer knows this connection (removed while we were
     // backing off), or Electron's deletion guard reports the profile itself
     // gone/mid-delete. Both are permanent for this scoped socket — retrying
@@ -1256,7 +1286,9 @@ export function retainGatewayForRelay(connectionId: null | string, profile: stri
   }
 
   entry.relayRetainCount += 1
-  rearmSecondary(entry)
+  if (!g.reauthFailures.has(entry.scope)) {
+    rearmSecondary(entry)
+  }
 
   let released = false
 
@@ -1772,7 +1804,7 @@ export async function ensureActiveGatewayOpen(): Promise<HermesGateway | null> {
 
   const entry = g.secondaries.get(g.activeKey)
 
-  if (!entry) {
+  if (!entry || g.reauthFailures.has(entry.scope)) {
     return null
   }
 
@@ -1814,7 +1846,7 @@ export function reconnectSecondaryGateways({ forceOpenSockets = false }: { force
     // A backend main retired for a foreground open stays parked: redialing it
     // from a focus/wake nudge would queue a background spawn for the slot the
     // retirement just freed. Its tile still shows; the next click re-arms it.
-    if (entry.retiredByPool) {
+    if (entry.retiredByPool || g.reauthFailures.has(entry.scope)) {
       continue
     }
 
@@ -2038,6 +2070,11 @@ function isLegacySecondary(entry: Secondary): boolean {
  * retired because their endpoint is derived from the v1 config being changed.
  */
 export function closeLegacySecondaryGateways(): void {
+  for (const [scope, failure] of g.reauthFailures) {
+    if (failure.connectionId === null) {
+      g.reauthFailures.delete(scope)
+    }
+  }
   closeSecondariesWhere(isLegacySecondary)
 }
 
@@ -2059,6 +2096,7 @@ export function closeSecondaryGateways(): void {
 
   closeSecondariesWhere(() => true)
   openedSecondaryScopes().clear()
+  g.reauthFailures.clear()
 }
 
 // A local profile can have two renderer-owned sockets: the legacy bare
@@ -2117,6 +2155,12 @@ export function disposeSecondariesForConnection(connectionId: string, opts: { re
 
   if (!id) {
     return
+  }
+
+  for (const [scope, failure] of g.reauthFailures) {
+    if (failure.connectionId === id) {
+      g.reauthFailures.delete(scope)
+    }
   }
 
   for (const [key, entry] of [...g.secondaries]) {
