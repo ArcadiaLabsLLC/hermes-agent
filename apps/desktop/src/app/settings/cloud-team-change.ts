@@ -25,6 +25,7 @@ export async function reconnectMovedCloudAgent(
   if (!isCurrent()) {
     return false
   }
+
   const result = await desktop.cloud.agentSignIn(url)
 
   if (!isCurrent() || !result.connected) {
