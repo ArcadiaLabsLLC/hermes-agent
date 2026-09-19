@@ -489,17 +489,15 @@ def test_cli_unbound_placement_sharing_a_persona_but_not_items_is_allowed():
     separate unbound placement of the same persona class is a legal canvas and
     must stay writable — otherwise the fence outlaws a supported shape.
 
-    The spare item is an AGENT, and that is load-bearing rather than incidental.
-    It used to be a second DESK, which the class-key guard correctly waved
-    through (different item id, no migration undone) and which the store's desk
-    fence now refuses under a different rule — one persona, one live desk
-    (``OfficeStore._guard_duplicate_desk``, D6). Two fences, two questions: this
-    test asks the class-key one, so its fixture must not also trip the other, or
-    a green here would stop meaning what the docstring says. The companion
-    assertion below pins the new boundary so the two rules are stated together
-    instead of one silently shadowing the other — and an agent item is also what
-    the launcher actually emits for an unbound group, since its drop authors no
-    desk at all.
+    The spare item is an AGENT because that is what the launcher actually emits
+    for an unbound group — its drop authors no desk at all. It was chosen for a
+    sharper reason between 2026-08-27 and 2026-09-18: a second DESK here would
+    have tripped the store's one-desk-per-persona fence, so a green would have
+    stopped meaning what this docstring says. That fence is deleted, and the
+    companion test below is now the ACCEPTANCE of the same write with the kind
+    flipped — which is what proves this test's green comes from the class-key
+    guard waving the write through rather than from the fixture dodging a second
+    rule.
     """
 
     workspace = _workspace("Mixed Office")
@@ -519,15 +517,25 @@ def test_cli_unbound_placement_sharing_a_persona_but_not_items_is_allowed():
     assert _keys(workspace) == {"backend_dev", INSTANCE}
 
 
-def test_the_same_write_carrying_a_second_desk_is_refused_by_the_other_fence():
-    """The boundary between the two fences, stated once.
+def test_the_same_write_carrying_a_second_desk_is_now_simply_ACCEPTED():
+    """What used to be the boundary between two fences is now one fence.
 
     Byte-for-byte the write above with ``kind`` flipped to ``desk`` and an id to
-    match. The class-key guard still has nothing to say — no archived key, no
-    overlapping item id — so a pass here would mean the desk rule does not exist
-    on this lane. Exit 4 with ``duplicate_desk`` is what says it does, and
-    naming a DIFFERENT code from ``duplicate_conflict`` is what stops the two
-    rules from being read as one.
+    match. Until 2026-09-18 this was exit 4 / ``duplicate_desk`` from the store's
+    one-desk-per-persona fence, and the test existed so a reader could not
+    mistake the class-key guard's silence for permission. The desk fence is
+    deleted with its invariant (owner ruling: one generic desk type, unlimited
+    per workspace), so the class-key guard's silence IS the whole answer and the
+    write lands.
+
+    Kept as an ACCEPTANCE rather than deleted, because the thing it now pins is
+    the thing that would otherwise regress silently: the class-key guard must
+    not grow a desk opinion to replace the fence that left. No archived key, no
+    overlapping item id — so a refusal here would mean a second desk rule had
+    been reinvented inside the guard that was always correct to ignore desks.
+
+    KILLING MUTATION: restore ``_guard_duplicate_desk`` and its CLI translation
+    arm — this reds with returncode 4 and a ``duplicate_desk`` envelope.
     """
 
     workspace = _workspace("Second Desk Office")
@@ -543,12 +551,10 @@ def test_the_same_write_carrying_a_second_desk_is_refused_by_the_other_fence():
         ),
         "--json",
     )
-    assert result.returncode == 4, result.stdout + result.stderr
-    envelope = json.loads(result.stdout)
-    assert envelope["error"]["code"] == "duplicate_desk"
-    assert "already holds 'desk-backend_dev'" in envelope["error"]["message"]
-    # Refused before any write: the class-keyed actor never appeared.
-    assert _keys(workspace) == {INSTANCE}
+    assert result.returncode == 0, result.stdout + result.stderr
+    # The class-keyed actor DID appear, beside the instance-keyed one: an exit 0
+    # from a verb that wrote nothing would satisfy the returncode alone.
+    assert _keys(workspace) == {"backend_dev", INSTANCE}
 
 
 # -- writer 3: OfficeStore.resolve_conflict(take="remote") -----------------

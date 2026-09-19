@@ -6508,7 +6508,6 @@ def _cmd_doctor(args) -> int:
                 f"placement census: placed={census.get('placed')} "
                 f"unplaced_rows={len(census.get('unplaced_rows') or [])} "
                 f"orphan_actors={len(census.get('orphan_actors') or [])} "
-                f"desk_litter={len(census.get('desk_litter') or [])} "
                 f"duplicate_placements={len(census.get('duplicate_placements') or [])}"
             )
             for orphan in census.get("orphan_actors") or []:
@@ -6517,19 +6516,10 @@ def _cmd_doctor(args) -> int:
                     f"{orphan.get('actor_key')} -> "
                     f"{orphan.get('persona_instance_id')} (no live roster row)"
                 )
-            # Named individually for the same reason orphans are, and with the
-            # REASON on the line: the four buckets have two different cures, and
-            # a bare count would send an operator to reap a desk that is really
-            # a mis-kinded agent. Uncapped, like the orphan block above — the
-            # doctor's contract forbids a silent truncation, and a store with
-            # enough litter to make this long is a store that needs to see it.
-            for litter in census.get("desk_litter") or []:
-                print(
-                    f"  desk litter: {litter.get('workspace_id')}/"
-                    f"{litter.get('actor_key')} item={litter.get('item_id')} "
-                    f"persona={litter.get('persona_id')} "
-                    f"({litter.get('reason')})"
-                )
+            # A ``desk litter:`` block stood here, one line per litter row with
+            # its reason. It left on 2026-09-18 with the census that produced it
+            # (schema 10) — a desk is one generic furniture object addressed by
+            # its own id, so it has no agent half for a census to find missing.
             # Every HOLDER on the line, for the same reason the orphan block
             # names its actor: the repair is to remove or re-place one of them,
             # and a row that named only the item id would leave the operator to

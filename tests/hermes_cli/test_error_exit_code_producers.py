@@ -424,10 +424,14 @@ def _declared_code_classes() -> dict[str, str]:
 
     # ``__subclasses__`` only sees classes whose module has been IMPORTED, so an
     # enumeration that skips this silently drops every subclass defined outside
-    # ``errors.py`` — ``DuplicateDeskRefused`` (office_store),
-    # ``ClassKeyedPlacementRefused`` (office_class_key_guard), the two
-    # persona_assignments errors. Measured: 8 classes without this sweep, 10
-    # with it, and the two it was missing are both live refusals.
+    # ``errors.py`` — ``ClassKeyedPlacementRefused`` (office_class_key_guard)
+    # and the persona_assignments errors. Measured when it was written: 8
+    # classes without this sweep, 10 with it, and the two it was missing were
+    # both live refusals. One of those two, ``DuplicateDeskRefused``
+    # (office_store), was deleted 2026-09-18 with the desk fence, so the counts
+    # no longer read as they did; they are left as the dated MEASUREMENT that
+    # justified the sweep rather than restated as a live claim, because the walk
+    # below enumerates and never compares against a number.
     for module in pkgutil.iter_modules(agent_runtime.__path__):
         try:
             importlib.import_module(f"agent_runtime.{module.name}")
@@ -469,7 +473,13 @@ def test_a_class_that_declares_its_code_is_the_code_the_mapping_spends():
     from hermes_cli.harness_support import _error_code_for_exception
 
     declared = _declared_code_classes()
-    assert len(declared) >= 10, declared
+    # An ANTI-VACUITY floor, not a roster: the walk below asserts over whatever
+    # it enumerated, and an enumeration that silently collapsed to one class
+    # would pass. It was 10 until 2026-09-18, when ``DuplicateDeskRefused`` was
+    # deleted with the office desk fence — the deliberate edit for a deliberate
+    # deletion, which is what the floor is FOR. It must not be raised back
+    # without a class to raise it for.
+    assert len(declared) >= 9, declared
 
     subclasses = {name: None for name in declared}
 

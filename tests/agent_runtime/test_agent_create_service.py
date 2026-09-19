@@ -265,21 +265,24 @@ def test_the_rpc_handler_holds_no_second_copy_of_the_sequence():
 def test_verb_authors_no_desk(qa_persona):
     """D6, proven at RUNTIME rather than by reading ``placement_actor_payload``.
 
-    Two independent witnesses, because either alone is walkable:
+    The actor the create WROTE is read back off the store and must hold exactly
+    one item, of ``kind: "agent"``. A source walk over
+    ``placement_actor_payload`` would answer a question about a SPELLING
+    instead — every legal respelling of a desk item walks through one.
 
-    1. The actor the create WROTE, read back off the store, holds exactly one
-       item and it is ``kind: "agent"``. A source walk over
-       ``placement_actor_payload`` would answer a question about a SPELLING —
-       every legal respelling of a desk item walks through it.
-    2. The create succeeds into a workspace where another actor ALREADY holds a
-       desk for this persona. That is the strong form: the store's desk fence
-       (``_guard_duplicate_desk``) is armed and pointed straight at this write,
-       so a payload that authored a desk would be REFUSED here, not merely
-       different. ``duplicate_desk`` is unreachable from ``agent create`` and
-       this is what makes that a fact rather than a claim.
+    It USED to carry a second witness: the create succeeds into a workspace
+    where another actor already holds a desk for this persona, which the store's
+    one-desk-per-persona fence was armed against, so a create that authored a
+    desk would have been REFUSED rather than merely different. That fence was
+    deleted 2026-09-18 with its invariant (owner ruling: one generic desk type,
+    unlimited per workspace), so the second witness proves nothing now and the
+    claim is stated honestly as one witness rather than left reading as two.
+    The pre-existing desk stays in the fixture — it is what the last assertion
+    below is about, and a create that "won" by replacing a neighbouring holder
+    is a real failure mode with or without a fence.
 
     THE killing mutation is adding a desk item to ``placement_actor_payload``:
-    witness 1 reds on the item list and witness 2 reds on the refusal.
+    the item-list assertion reds.
     """
 
     store = _seed_workspace()

@@ -528,7 +528,10 @@ only `section_health`'s key set pinned, so a section added to three of the four
 was counted and verdicted while rendering no operator line at all. Adding a
 section is now one table row; a missing roster entry is unspellable.
 
-The sections, each contributing one health value (`schema_version: 8`):
+The sections, each contributing one health value (`schema_version: 10` — take it
+from the numbered list in `harness_doctor.py`, which is the history; this line
+carried a stale `8` through version 9 and is corrected here rather than
+re-copied a third time):
 
 | Section | What it observes | Verdict weight |
 |---|---|---|
@@ -538,7 +541,7 @@ The sections, each contributing one health value (`schema_version: 8`):
 | `model_authority` | shadowing/redundant pins (`describe_runtime_default_authority`) | notice only |
 | `persona_binding` | config-vs-store divergence (`binding_index`) | defect, with the remediation command |
 | `root_config_misplacement` | root-only keys set in a PROFILE, where nothing reads them | defect when inert, notice when duplicated |
-| `placement_census` | the roster/office join + the desk-litter item sweep + the duplicate-placement sweep — see below | defect on an orphan actor or a `same_instance` duplicate, notice on an unplaced row, a litter desk or any other duplicate |
+| `placement_census` | the roster/office join + the duplicate-placement sweep — see below | defect on an orphan actor or a `same_instance` duplicate, notice on an unplaced row or any other duplicate |
 
 **`placement_census`** (placement plan D8) is the join nothing watched:
 `persona instance reconcile` prunes orphan ROWS without ever opening the office,
@@ -581,72 +584,58 @@ the "row archived, desk still live" half-state that the retire ack alone used to
 witness. The reason never reads an id's spelling; an absent or unreadable
 receipt degrades to `instance_retired`, which is the safe direction.
 
-**`desk_litter`** (desk-litter plan DL-H1) is the same section's ITEM-level
-sweep, added because the join above is structurally blind to it: that join is
-actor-level and instance-keyed, and a desk minted by `materializeAgentDesk`
-carries the persona CLASS id with no binding, so it lands in the class-keyed
-actor the join skips while its agent lands in the instance-keyed one. The sweep
-walks live `kind: "desk"` items of the same fully-read world and files each into
-exactly one of four reasons — `agent_missing` (widowed: no live agent item for
-the persona in the workspace), `agent_scope_stale` (every live agent item for
-the persona is bound to an instance no live roster row backs — the store-side
-shadow of the launcher's projection scope drop, deliberately overlapping
-`orphan_actors`), `persona_retired` (no live row and no retirement tombstone
-names the persona at all) and `desk_kind_agent_binding` (the item is
-structurally an agent's: it rides an actor with a LIVE instance binding, or the
-store recorded that it was MINTED as an agent). The last is kept out of
-`agent_missing` by design — it wants a re-place, the other three want a reap,
-and conflating them is what the 2026-08-30 incident cost a day to. Litter raises
-the census to `notice` and never past it: nothing mis-renders, so `needs_fix`
-stays off.
+**`desk_litter` is GONE — schema 10, 2026-09-18.** From DL-H1 until that date
+this section carried a fourth finding: an ITEM-level sweep over live
+`kind: "desk"` items, filing each into one of four `DESK_LITTER_*` reasons
+(`agent_missing`, `agent_scope_stale`, `persona_retired`,
+`desk_kind_agent_binding`), plus a `finding_counts.desk_litter` entry and a
+per-workspace key. All of it is deleted, along with the `_desk_litter_reason`
+classifier, the `_census_desk_litter` sweep and the `_census_agent_item_bindings`
+pass that fed it.
 
-**The minted-kind clause asks the store, not the id (H-H12, 2026-08-30).** It
-used to parse the `item_id` for the launcher's three minting conventions
-(`<persona>_<kind>`, `desk-<agentItemId>`, the bare instance id) — none of which
-anything enforces, so a launcher rename would have silently reclassified every
-mis-kinded agent as a widowed desk. `OfficeItem.minted_kind` is now stamped by
-`OfficeStore.upsert_actor` at an item's FIRST write, keyed on `item_id` and
-sticky thereafter (a resurrection carries it forward from the archive, the same
-precedence `base_revision` uses), and it is never read off the payload — a value
-a client could send would be the self-declaration the field replaced a spelling
-with. `None` — every item written before the field, and every one adopted from a
-peer that has not upgraded — is CANNOT SAY: such a desk falls through to the
-absence buckets and is judged on whether its agent exists, which is the same
-softer answer an unreadable id used to get. The field is deliberately not on the
-wire; no client decides anything with it — and it is excluded from
-`office_content_hash` for the same reason (`office_models._ITEM_HASH_EXCLUDE`).
-That exclusion was the ruling on this stage's one open migration question. As
-first built, the field rode inside the hash, so the first status or publish
-after the upgrade would have seen every actor's hash move once and reported it
-as a local change: an unmeasured drift spike on the lane whose whole job is
-detecting real drift, and — for as long as any peer ran a store that decoded the
-field away — a disagreement between two installs holding identical content. The
-hash filter drops the KEY rather than nulling it, which is what makes the fix
-provable instead of plausible: the encoded payload is byte-identical to the one
-the function produced before the field existed, so no hash on any existing store
-moves at all. Nothing real hides there, because `kind` IS content and is still
-hashed.
+Every one of those four reasons was a statement about a desk's AGENT HALF. The
+operator ruled on 2026-08-30 that nothing pairs an agent and a desk, and on
+2026-09-18 that a desk is one generic furniture object addressed by its own
+synthetic id (`desk_<8 base36>`) — so a generic desk shares its `persona_id`
+with no `kind: "agent"` item anywhere, ever, and `agent_missing` would have
+fired on every correctly-placed desk in every workspace, permanently. **A
+finding class an operator cannot clear is a finding class they stop reading**,
+which is the exact false-signal failure this doctor is written against, so the
+class was deleted rather than re-keyed. 06 § The desk fence, RETIRED 2026-09-18
+has the ruling and the store half.
 
-**`duplicate_placements`** (H-H8) is the same section's third sweep, and the
-reader the two write fences' known residual needed: an instance-keyed write
-claiming an item id another live actor holds passes both fences, and the census
+This is the first REMOVAL the doctor's schema has made — every earlier version
+bump was additive — which is why it moved `schema_version` rather than riding
+as a compatible change. Nothing in the launcher read the key (checked
+repo-wide), and `orphan_actors`, `unplaced_rows` and `duplicate_placements` are
+untouched: all three ask about ACTORS and item IDs, never about kinds.
+
+`OfficeItem.minted_kind` (H-H12) was stamped for that classifier and is now
+stamped with NO reader. It is deliberately left in place: it is persisted
+provenance on every item every store has written since 2026-08-30, it is
+excluded from `office_content_hash` (`office_models._ITEM_HASH_EXCLUDE`) and
+from the wire, and removing it is a stored-data change that belongs to whoever
+decides it is worth one. Recorded here rather than left to be rediscovered.
+
+**`duplicate_placements`** (H-H8) is the section's second sweep, and it
+OUTLIVED the residual it was written for: an instance-keyed write claiming an
+item id another live actor held used to pass both write fences, and the census
 could not see it either — the join is actor-level, so both holders counted as
-`placed` and the section reported `ok`. It now opens `actor.items` and reports
-one row per item id held by more than one live actor, naming every holder. The
-three reasons split on D6's ruling that the INSTANCE, not the persona, is the
-unit: `same_instance` (every holder bound to one instance) is a defect;
-`cross_instance` is a notice, because two instances of one persona each
-authoring a desk mint the same persona-scoped id and that is the instantiated
-system working; `unbound_holder` (a class-keyed holder) is a notice, because it
-is the class→instance re-key migration's own mint-then-archive transient. It is
-a READ, not a third fence — 06's D6 forbids re-keying that fence toward
-instances at all.
+`placed` and the section reported `ok`. One of those two fences is gone, and
+this sweep is unchanged by that, because it was never a desk reader: it opens
+`actor.items` and reports one row per item ID held by more than one live actor,
+naming every holder, on any kind. The three reasons split on the ruling that the
+INSTANCE, not the persona, is the unit: `same_instance` (every holder bound to
+one instance) is a defect; `cross_instance` is a notice, because two instances
+legitimately author their own items; `unbound_holder` (a class-keyed holder) is
+a notice, because it is the class→instance re-key migration's own
+mint-then-archive transient. It is a READ and never a fence.
 
 The text renderer prints every non-`ok` section with its own error text, then
 names each orphan actor individually — that id is the remediation argument —
-each litter desk with its reason, and each duplicate placement with all of its
-holders, while counting unplaced rows, since a healthy runtime can legitimately
-carry several.
+and each duplicate placement with all of its holders, while counting unplaced
+rows, since a healthy runtime can legitimately carry several. (A `desk litter:`
+block stood between those two until 2026-09-18.)
 
 ## The BO-1 fixture mirror
 

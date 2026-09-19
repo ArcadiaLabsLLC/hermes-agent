@@ -1,7 +1,9 @@
 # 06 — The office surface: how Mission Control's level writes and reads scene state
 
-The Mission Office is the canvas where a persona placement is a desk, a drag is a
-write, and a palette drop mints an agent. This doc is the CURRENT truth of that
+The Mission Office is the canvas where a drag is a write and a palette drop mints
+an agent. (This line read "where a persona placement is a desk" until
+2026-09-18; it never was — a placement is a `kind: "agent"` item — and a desk is
+now unambiguously furniture nobody owns.) This doc is the CURRENT truth of that
 surface: which verbs the level may call, how a write comes back as a fold instead
 of a 5-second rebuild, and what the operator sees between letting go of a chip and
 the runtime agreeing the actor exists. Every claim below was re-checked against
@@ -149,10 +151,14 @@ store method, and every guard lives in that method rather than in either door
 (`OfficeStore.upsert_actor`, all of it inside `office_lock`). In order:
 `_guard_class_keyed_write` (the class→instance re-key fence, hoisted out of four
 callers by EG-6.6), `_guard_no_conflict` (an unresolved realm-sync sidecar),
-`_guard_duplicate_desk`, `_guard_archived_actor` (the tombstone fence, asked only
+`_guard_archived_actor` (the tombstone fence, asked only
 when no live row exists), then `_check_revision`. Each door keeps only a
 TRANSLATION of the typed refusal into its own taxonomy — never a copy of the
 predicate — so deleting a fence does not leave either door guarded.
+
+A fourth, `_guard_duplicate_desk`, sat between the conflict guard and the
+tombstone fence until **2026-09-18**. It is gone — see "The desk fence,
+RETIRED 2026-09-18" below for the ruling and what left with it.
 
 **`_guard_archived_actor` is the tombstone fence (D1, 2026-08-27), and it ends
 the store's most dangerous courtesy.** Until then an upsert whose key had an
@@ -173,153 +179,121 @@ office actor-upsert`), deliberately NOT implied by `--allow-class-key`: one
 consent answers "may this write use a class key", the other "may this write raise
 the dead", and an operator who typed the first was never asked the second.
 
-**`_guard_duplicate_desk` is the newest, and it is a store fence for a rule that
-used to be the launcher's alone.** One persona holds ONE live desk per level.
-The launcher has always guarded the authoring gesture
-(`MissionOfficeLayout.hasAuthoredDeskForPersona`) and warned at render time when
-it found two (`MissionOfficeRenderResolver._scanDeskInvariants`), but neither
-stands in front of `harness office actor-upsert` — which is exactly the door the
-2026-08-24 incident authored a second `qa` desk through. The predicate
-(`office_store._duplicate_desk_collision`) asks about the POST-WRITE state,
-because an upsert REPLACES the target actor's items: after the write a persona
-holds the desks in this payload plus the desks every OTHER live actor holds for
-it. Three consequences fall out of that one sentence rather than three branches
-— moving your own desk is accepted, a second actor desking the same persona is
-refused, and a desk whose only holder is ARCHIVED is accepted, because
-`scan_actors` reads the live directory and an archive is not a holding. Desks
-are keyed on the ITEM's persona, not the actor's, matching the launcher's guard.
+### The desk fence, RETIRED 2026-09-18
 
-**The persona keying is PROVISIONAL, and D6 was ruled against it 2026-08-27.**
-The operator's ruling is that duplicate desks are fine and only a duplicate on
-the SAME INSTANCE is not — "it's an instantiated system", so the persona is a
-template and keying a placement invariant to it is a category error. The ruling
-was NOT implemented, deliberately: the same conversation established that desks
-are a **placeholder for artifacts**, that they do not connect to agents yet, and
-that artifacts "should be stand-alone things" — which the launcher already
-half-records as an operator ruling of 2026-08-20 ("desks shouldn't be part of the
-agent — they are separate things", `mission_office_layout.dart`).
+**There is no one-desk-per-persona fence any more.** `_guard_duplicate_desk`,
+the `_duplicate_desk_collision` predicate behind it, the `DuplicateDeskRefused`
+exception, the `duplicate_desk` CLI exit-code row and its hint, and the
+`data.reason: "duplicate_desk"` arm on `runtime.office.upsert` were all deleted
+that day, together with the desk-litter census in `harness_doctor` (doc 07).
 
-Re-keying persona → instance would therefore harden a coupling the design is
-moving AWAY from. If artifacts are standalone scene objects, this fence should
-key on neither persona nor instance, and the duplicate-desk invariant stops
-existing rather than moving. **Do not "fix" this fence toward instance keying.**
-Revisit it when artifacts are actually built; until then the persona-keyed fence
-is scaffolding that refuses a shape nothing yet produces. The field both sides
-would need already exists (`OfficeItem.persona_instance_id`, the launcher's
-nullable `personaInstanceId`), so no migration is being deferred — only a
-decision that should not be taken before the feature it guards exists.
-Like the class-key fence it refuses rather than answering from a directory it
-could only partly read (`ActorsUnreadable`), and it fires on `--dry-run`.
+The ruling, from the operator:
 
-**A desk's identity is its `item_id`, and the count is of DISTINCT ids** — the
-same narrowing `office_class_key_guard` records for its own predicate, and for
-the same reason. One desk claimed by two actor rows is a duplicate PLACEMENT
-(`duplicate_item_placement`), a different fault with a different cure, and it is
-a state the class→instance re-key migration deliberately passes through:
-`scripts/office_actor_rekey_to_instance.py::_apply` mints the instance-keyed
-actor with the class-keyed actor's items **copied verbatim** and only then
-archives the old key, so both rows briefly claim the same desk. Counting rows
-instead of ids would refuse the one operator script whose whole job is to move a
-placement, while catching nothing the fence is for — what it is for is a SECOND
-desk, a different id, which is what the incident authored and what the
-launcher's detector counts. Pinned both ways:
-`test_office_store.py::test_one_desk_claimed_by_two_rows_is_not_two_desks` and
-`::test_a_second_actor_desking_one_persona_is_refused_naming_the_holder` are a
-boundary, not one assertion twice.
+> i want desks to just be one type all agents can use, no more per persona desk,
+> just one single desk object
 
-**Known residual, and since 2026-08-30 it has a READER.** Between the two
-fences, an INSTANCE-keyed write that claims a desk id another live actor already
-holds passes both: the class-key fence guards only class-keyed payloads (an
-instance-keyed write "IS the migration's shape"), and this one counts distinct
-ids. That is the migration's transient made permanent if nobody finishes the
-migration. The residual is unchanged — no third fence was added, because D6
-rules that this predicate must not be re-keyed toward instances at all — but it
-is no longer invisible server-side: `placement_census` now opens `actor.items`
-and reports `duplicate_placements`, one row per item id held by more than one
-LIVE actor, naming every holder (H-H8, plan `realm-actor-lifecycle-refactor`).
-It used to join the two stores on `persona_instance_id` only, so two live actors
-holding one desk id were both counted `placed` and the section reported `ok`.
+A desk is pure furniture. There is no seating, occupancy, home position or
+pathing to a desk anywhere in either repo — so "all agents can use it" is not a
+feature to build, it is a statement that desks stop being LABELLED and ADDRESSED
+by persona. An item's `persona_id` is by ruling an ADDRESS (the actor-file key,
+CONTRACT 43) and never an owner; the launcher now mints a generic desk under its
+own synthetic id, `desk_<8 base36>`, so each desk is its own actor file, the
+class-key guard passes, a retire keyed on `persona_instance_id` can never take
+one, and a workspace holds as many desks as an operator places.
 
-The row carries one of three reasons, and D6 is what draws the line between
-them: `same_instance` (every holder bound to the same instance) is a **defect**
-— one instance's placement claimed by two rows, which nothing legitimate mints;
-`cross_instance` is a **notice**, because "duplicate desks are fine and only a
-duplicate on the SAME INSTANCE is not" and item ids are minted persona-scoped,
-so two instances of one persona each authoring a desk produce exactly this; and
+That makes "two desks for one persona" the NORMAL shape rather than the refused
+one, so the fence was refusing correct writes. It is deleted rather than
+re-keyed — which is exactly what D6 said would happen to it (the 2026-08-27
+block predicted "the duplicate-desk invariant does not move to a better key, it
+stops having a premise"), and the 2026-09-18 ruling is that prediction coming
+true rather than a reversal of anything.
+
+**NOTHING ELSE ON THE WRITE PATH MOVED.** No wire change,
+`RPC_CONTRACT_VERSION` did not move, `ITEM_KINDS` is still `("agent", "desk")`,
+`DEFAULT_FOLDERS` still carries `Desks`, the desk lane's diagonal nudge
+(`office_layout_policy.DESK_LANE_OFFSET`) still keys on `kind` and has never
+known about personas, the hermes CLI contract fixture is byte-unchanged, and
+every EventLog emission on the write path is untouched. The three remaining
+fences, the conflict guard and the revision check are all exactly as they were.
+What the store no longer pays is a full `scan_actors` per desk write.
+
+**Legacy per-persona desks are the LAUNCHER's to handle**, at its one load
+chokepoint, by the owner's general ruling that old schema is reported so it can
+be deleted and replaced rather than kept alive by a compatibility path. Hermes
+holds no migration for them and needs none: an old `<persona>_desk` item still
+decodes and still writes here, because this store never knew what the id meant.
+
+The plan is `EterniaLauncher/docs/mission_control/planned/generic-desk-and-inspector-tables.md`
+(slice 1 is this change), cited in prose rather than linked because a cross-repo
+link is a dead link the docs gate takes.
+
+### `duplicate_placements` — the reader that OUTLIVED both fences
+
+`placement_census` opens `actor.items` and reports `duplicate_placements`, one
+row per item id held by more than one LIVE actor, naming every holder (H-H8,
+plan `realm-actor-lifecycle-refactor`). It used to join the two stores on
+`persona_instance_id` alone, so two live actors holding one item id were both
+counted `placed` and the section reported `ok`.
+
+It arrived as a reader for the residual BETWEEN the class-key fence and the desk
+fence: an instance-keyed write claiming an id another live actor already held
+passed both. One of those fences is now gone, and this reader is unchanged by
+that, because it was never about desks. It is a claim about ROWS — two actor
+files claiming one item id — and it fires identically on an agent, a desk, or
+any kind `ITEM_KINDS` grows later. Where the desk-litter census had to be
+deleted (every reason it could report was a statement about a desk's agent
+half), this one keeps every case it ever had.
+
+The row carries one of three reasons: `same_instance` (every holder bound to the
+same instance) is a **defect** — one instance's placement claimed by two rows,
+which nothing legitimate mints; `cross_instance` is a **notice**, because two
+instances legitimately author their own items and nothing pairs them;
 `unbound_holder` (at least one class-keyed holder) is a **notice** because it is
-the re-key migration's own mint-then-archive transient. The launcher's
-render-time `duplicate_desk` warning stays — it is still the only thing that
-sees a duplicate on a canvas the store never wrote.
+the re-key migration's own mint-then-archive transient.
 
-It has **no override on either lane**, which is the deliberate asymmetry with
-`--allow-class-key`: that flag exists because an operator can legitimately want
-the pre-migration shape back, whereas the render layer draws the implicit desk
-only while a persona has no authored one — so a second authored desk is not a
-placement anyone can mean, it is two desks one of which is unreachable. The way
-past it is to move or remove the desk already there, and the refusal names it.
+**The placement verb still authors no desk at all**
+(`agent_create.placement_actor_payload` writes exactly one `kind: "agent"`
+item), which is the model rather than a coincidence — see the 2026-08-30
+addition below. Pinned by
+`test_agent_create_service.py::test_verb_authors_no_desk`, and independently by
+`test_office_store.py::test_a_retire_does_not_take_a_neighbouring_generic_desk`,
+which proves the other half: a retire keyed on `persona_instance_id` cannot take
+a desk actor, because a desk actor names no instance.
 
-Refusal wire: `ERR_CONFLICT` 4090, `data.reason = "duplicate_desk"`, with
-`data.persona_id`, `data.holding_actor_key`, `data.holding_item_id`; CLI exit
-code `duplicate_desk` (family 4, beside `duplicate_conflict`). **Realm pull is
-deliberately outside the fence** — `office_sync.apply_office_pull` writes actor
-files directly and never reaches `upsert_actor`, so a workspace pulled from a
-peer can still arrive holding two desks for one persona. That is the correct
-boundary (a pulled duplicate is a conflict-lane fact about what a peer
-published, not a local write), and it is why the launcher's render-time
-`duplicate_desk` warning stays: it is the only thing that can see data
-predating or bypassing this fence. The placement verb authors no desk at all
-(`agent_create.placement_actor_payload` writes one `kind: "agent"` item), so no
-`agent create` and no canvas drop pays for the fence's directory scan — pinned
-by `test_agent_create_service.py::test_verb_authors_no_desk`.
+**ADDITION 2026-08-30 — the same D6, ruled on the MODEL and not only on the
+keying; SPENT 2026-09-18.** This was not a second D6 and did not reverse the
+2026-08-27 one. What that earlier ruling left parked was the model itself — it
+said what not to do (do not re-key the desk fence toward instances) and deferred
+the rest to "revisit when artifacts are actually built". The operator ruled the
+model on 2026-08-30: **one item, one kind, nothing pairs them.** A desk is a
+standalone scene object and an agent is a standalone scene object; there is no
+"an agent's desk" relation for any reader to hold, infer, or repair.
 
-**ADDITION 2026-08-30 — the same D6, now ruled on the MODEL and not only on the
-keying.** This is not a second D6 and does not reverse the one above; the
-2026-08-27 direction stands unchanged, including its last instruction: do not
-"fix" `_guard_duplicate_desk` toward instance keying. What that ruling left
-parked was the model itself — it said what not to do and deferred the rest to
-"revisit when artifacts are actually built". The operator ruled the model on
-2026-08-30: **one item, one kind, nothing pairs them.** A desk is a standalone
-scene object and an agent is a standalone scene object; there is no "an agent's
-desk" relation for any reader to hold, infer, or repair. The pairing model — the
-one the store's as-is behaviour still documents, where an actor file may hold an
-agent item and a desk item that belong together — is superseded as of that date.
+It is recorded here rather than deleted because the 2026-09-18 retirement above
+is its EXECUTION, and the three consequences it named each landed:
 
-Three things follow, and only the third is a change to this tree:
+1. **Nothing new was fenced.** Invariant 12 is unchanged and no third fence ever
+   appeared. Under a standalone model the duplicate-desk invariant did not move
+   to a better key — it lost its premise and was deleted, which is exactly what
+   both rulings predicted.
+2. **The mint side already agreed.** `agent_create.placement_actor_payload`
+   writes exactly one `kind: "agent"` item. A mixed-kind actor file is an ERA
+   shape, minted by nothing this runtime still runs.
+3. **Enforcement was to be a REAP, reported before it was written, and it was
+   never built** — deliberately, because every store ever measured reported zero
+   candidates (the 2026-08-30 Windows census: `orphan_actors: 0`, `desk_litter:
+   0` in all four buckets), and building a verb with no possible input is the
+   placeholder-architecture class that wave was deleting. That restraint paid:
+   the standing detector it deferred to, `harness doctor`'s `desk_litter`
+   buckets, is itself deleted in 2026-09-18's schema 10, so a reap built against
+   it would have been written and retired inside three weeks.
 
-1. **Nothing new is fenced.** Invariant 12 is unchanged and no third fence
-   appears. Under a standalone model the duplicate-desk invariant does not move
-   to a better key, it stops having a premise — which is exactly what the
-   2026-08-27 block predicted, so the persona-keyed fence stays as the
-   scaffolding it was already described as.
-2. **The mint side already agrees.** `agent_create.placement_actor_payload`
-   writes exactly one `kind: "agent"` item, and this fence's own note above says
-   the placement verb authors no desk at all. Under the ruling that is the model
-   rather than a coincidence: a mixed-kind actor file is an ERA shape, minted by
-   nothing this runtime still runs.
-3. **Enforcement is a REAP, reported before it is written.** Era desk actors are
-   archived by the desk-litter reap, and a mis-kinded agent-binding is REPORTED
-   for archive and re-place — never auto-converted, because converting a row in
-   place would make the store guess which of two models an old file was written
-   under. That reap is NOT BUILT, deliberately: every store ever measured
-   reports zero candidates (the 2026-08-30 Windows census: `orphan_actors: 0`,
-   `desk_litter: 0` in all four buckets), and building a verb with no possible
-   input is the placeholder-architecture class the same wave is deleting. The
-   standing detector is the live census this repo already ships — `harness
-   doctor`'s `desk_litter` buckets, doc 07 — and the reap gets built the first
-   time a census reports a nonzero one.
-
-Cited in prose rather than linked, because both documents are LAUNCHER-side and
-a cross-repo link is a dead link the pre-push gate takes: the reap's staged
-design is §DL-H2 of the launcher's `office-desk-litter-cleanup.md`, and the
-decision record is §Decisions D5/D6 of its `realm-actor-lifecycle-refactor.md`,
-both under `docs/mission_control/planned/`.
-
-One narrowing that rides the same ruling does NOT apply here, stated so a reader
-does not go looking for it: DL-L2's `desk_without_agent` warning shrinks to
-persona-labeled era desks only. That warning is a launcher render-side proxy and
-has no counterpart in this tree — hermes carries no `desk_without_agent` code or
-claim anywhere — so nothing in this doc narrows with it. Hermes's half of the
-same fact is the census bucket named above.
+The launcher-side documents this used to cite in prose — `office-desk-litter-
+cleanup.md` §DL-H2 and `realm-actor-lifecycle-refactor.md` §D5/D6, both under
+`EterniaLauncher/docs/mission_control/planned/` — are superseded for desks by
+`generic-desk-and-inspector-tables.md` in the same folder. All four are cited in
+prose rather than linked, because a cross-repo link is a dead link the docs gate
+takes.
 
 Launcher side, all four are RPC-first through one writer
 (`office/mission_office_rpc_writer.dart`: `upsertActor:76`, `removeActor:167`,
@@ -1331,13 +1305,13 @@ Two decisions ride with it:
     `mission_office_lane_reattach_test.dart`,
     `mission_office_mass_archive_incident_repro_test.dart` — an edit to any of
     them is a stage-stopping event, not a test update.
-12. **One persona, one live desk per level, refused at the STORE.** The
-    launcher's gesture guard and render warning are the client's half; the
-    fence that a raw `actor-upsert` cannot walk around is
-    `OfficeStore._guard_duplicate_desk`. Realm pull is outside it by design.
-    The residual the two fences leave between them — one item id held by two
-    live actors — is not a third fence and never will be under D6: it is READ
-    by `placement_census.duplicate_placements`, a defect only for
+12. **A desk is FURNITURE: one generic kind, unlimited per workspace, owned by
+    nobody.** RULED 2026-09-18. This invariant read "one persona, one live desk
+    per level, refused at the STORE" until that date, and the fence that
+    enforced it is deleted. An item's `persona_id` is an ADDRESS, never an
+    owner, so no store predicate may ask whether a persona "already has" a desk.
+    What remains was never a desk rule: one item id held by two live actors is
+    READ by `placement_census.duplicate_placements`, a defect only for
     `same_instance`.
 13. **Dead-symbol claims are repo-scoped or they are nothing.** A file-scoped grep
     answers "is it used here", not "is it dead"; and a `file:line` citation goes

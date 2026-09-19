@@ -507,15 +507,6 @@ def test_harness_doctor_human_branch_renders_the_placement_census(
                             "persona_instance_id": "personainst_qa_agent_2",
                         }
                     ],
-                    "desk_litter": [
-                        {
-                            "workspace_id": "ws_demo",
-                            "actor_key": "qa",
-                            "item_id": "qa_desk",
-                            "persona_id": "qa",
-                            "reason": "agent_missing",
-                        }
-                    ],
                     "duplicate_placements": [
                         {
                             "workspace_id": "ws_demo",
@@ -537,15 +528,18 @@ def test_harness_doctor_human_branch_renders_the_placement_census(
     out = capsys.readouterr().out
     assert (
         "placement census: placed=2 unplaced_rows=1 orphan_actors=1 "
-        "desk_litter=1 duplicate_placements=1" in out
+        "duplicate_placements=1" in out
     )
     assert (
         "  orphan actor: ws_demo/personainst_qa_agent_2 -> "
         "personainst_qa_agent_2 (no live roster row)" in out
     )
-    assert (
-        "  desk litter: ws_demo/qa item=qa_desk persona=qa (agent_missing)" in out
-    )
+    # ``desk litter:`` lines were rendered between these two until 2026-09-18.
+    # The census that produced them is deleted, so the renderer prints none —
+    # and it must not print an EMPTY block either, which the substring check
+    # below cannot see. Asserted directly:
+    assert "desk litter" not in out
+    assert "desk_litter" not in out
     assert (
         "  duplicate placement: ws_demo/qa_desk_2 held by "
         "personainst_qa_agent_2, peer_qa_desk_holder (same_instance)" in out
@@ -589,7 +583,6 @@ def test_harness_doctor_human_branch_says_nothing_about_an_unexamined_census(
                     "placed": None,
                     "unplaced_rows": None,
                     "orphan_actors": None,
-                    "desk_litter": None,
                     "duplicate_placements": None,
                 },
             },
