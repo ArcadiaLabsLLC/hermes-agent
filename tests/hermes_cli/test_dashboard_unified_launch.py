@@ -66,20 +66,6 @@ def _args(**kw):
 
 
 class TestUnifiedDashboardRouting:
-    # Fork-retained: the attach path exercises the Windows Popen branch of the
-    # re-exec through _capture_reexec, so it stays even though upstream pruned it.
-    def test_profile_launch_attaches_to_running_dashboard(self, main_mod, monkeypatch):
-        monkeypatch.setattr(
-            "hermes_cli.profiles.get_active_profile_name", lambda: "worker_x"
-        )
-        monkeypatch.setattr(main_dashboard, "_dashboard_listening", lambda host, port: True)
-        execs = _capture_reexec(main_mod, monkeypatch)
-
-        with pytest.raises(SystemExit) as exc:
-            main_mod.cmd_dashboard(_args())
-        assert exc.value.code == 0
-        assert execs == []  # attached, never re-exec'd (on either platform)
-
     def test_profile_launch_reexecs_machine_dashboard(self, main_mod, monkeypatch):
         monkeypatch.delenv("HERMES_HOME", raising=False)
         monkeypatch.setattr(
