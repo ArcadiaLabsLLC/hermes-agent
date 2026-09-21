@@ -136,10 +136,15 @@ def test_probe_returns_unknown_when_schtasks_fails():
 
 
 def _run_refresh(*, console_less: bool | None, capsys):
+    # is_task_registered / reconcile_scheduled_task are mocked because the refresh now also
+    # runs upstream's template-drift reconcile (#113670) — an elevated WRITE that must never
+    # reach the host's real Task Scheduler from a unit test.
     with mock.patch.object(cli_main, "_is_windows", return_value=True), mock.patch.object(
         gateway_windows, "is_installed", return_value=True
     ), mock.patch.object(gateway_windows, "_write_task_script", return_value=_SCRIPT), mock.patch.object(
         gateway_windows, "task_action_is_console_less", return_value=console_less
+    ), mock.patch.object(gateway_windows, "is_task_registered", return_value=False), mock.patch.object(
+        gateway_windows, "reconcile_scheduled_task", return_value=True
     ), mock.patch.object(gateway_windows, "get_task_name", return_value="Hermes_Gateway_alice"):
         cli_main._refresh_windows_gateway_launchers()
     return capsys.readouterr().out
