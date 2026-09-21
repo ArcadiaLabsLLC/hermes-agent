@@ -1298,6 +1298,7 @@ def terminal_tool(
             notify_on_complete=notify_on_complete,
             watch_patterns=watch_patterns,
             _host_local=_host_local,
+            _completion_output_chars=_completion_output_chars,
         ),
         provenance,
     )
@@ -1314,6 +1315,7 @@ def _terminal_tool_run(
     notify_on_complete: bool = False,
     watch_patterns: Optional[List[str]] = None,
     _host_local: bool = False,
+    _completion_output_chars: int = 0,
 ) -> str:
     """Execute *command* in the configured terminal environment; returns a JSON string.
 
