@@ -1,0 +1,193 @@
+# Planned — the harness as a plugin, and the fork's seams into upstream: toward easy syncs and an optional detach
+
+**Status:** PLANNED 2026-09-21 (Fable, read-only against `main` @ `9e0f7a5472` and `upstream/main` @ `ea0c2b820b`). Not dispatched. Stage 0 waits on the running upstream merge (`merge/upstream-2026-09-21`). Field notes: [`harness-plugin-and-upstream-seams-field-notes-2026-09-21.md`](harness-plugin-and-upstream-seams-field-notes-2026-09-21.md). **Owner docs:** [`../01-system-architecture.md`](../01-system-architecture.md) (command surface), [`../04-boot-and-lifecycle.md`](../04-boot-and-lifecycle.md) (the boot cost this plan measures). **Brain:** `Harness_Brain/10 — Programs/Upstream Sync.md`, `Harness_Brain/00 — Maps/Fork Boundary Map.md`, ADR 0006. **Sibling plan:** [`downstream-god-file-refactor.md`](downstream-god-file-refactor.md) — shares the upstream fence (its W0-G2) and lands its lanes independently; nothing here waits on it.
+
+**The operator's brief (2026-09-21).** *Easy upstream syncs without much conflict. A hybrid end state: stay a fork if need be, fully detach if possible, because I like making core changes sometimes. Keep it minimal. Some things are proprietary to the launcher and stay ours; open review of the code is fine. Start with registering the harness as a plugin, then walk through what's next.*
+
+**The answer in one paragraph.** Conflicts come from exactly one place: fork edits inside upstream-owned files where upstream also moves (449 files today, 22 of them heavy; 40 conflicts and 51 hunks on a three-day gap). Upstream's own model for capability is "plugins never touch core": a plugin registers commands, tools, prompt sections, hooks and skills through a `PluginContext` whose surface is a stated additive-only compatibility contract, and ships as its own repo, private or public. So the harness becomes a plugin package inside the fork, the fork becomes the thin vehicle for core changes, and **every remaining edit to an upstream file carries one of three dispositions — upstream it, hook it, carry it — and a ratchet counts the carried ones down.** Detaching is then a measurement (the ratchet at zero), never a decision made in advance. Core changes stay welcome; a carried change is additive where possible and the ratchet makes its price visible.
+
+This note cites SYMBOLS and FILES, never line numbers.
+
+---
+
+## 0. Ground truth (2026-09-21)
+
+### 0.1 Upstream's direction, read from its tree (not from talk)
+
+- **Core is a narrow waist; capability lives at the edges** (`AGENTS.md` § Contribution Rubric, upstream). The Footprint Ladder: extend existing code → CLI command + skill → service-gated tool → plugin → MCP server in the catalog → new core tool (last resort). "Huge mechanical extraction PRs are wanted work."
+- **Plugins never touch core** (`plugins/AGENTS.md`, Teknium, May 2026). A plugin that needs a missing capability gets the generic surface widened by PR; special-casing in core is refused. In-tree memory providers closed May 2026; third-party product plugins closed June 2026 — they ship as standalone repos (`~/.hermes/plugins/` or a pip entry point `hermes_agent.plugins`). **Extraction to partner repos is for products, not for the core** — the agent loop, gateway, CLI and core tools stay in-tree.
+- **The plugin surface** (`hermes_cli/plugins.py::PluginContext`): `register_cli_command(name, help, setup_fn, handler_fn)` (an argparse subparser tree wired into `hermes` at startup, no `main.py` change), `register_tool(name, toolset, schema, handler, check_fn, …)`, `register_system_prompt_section(id, content|callable, position, max_chars)`, `register_skill(name, path)` (explicit loads only — NOT installed into `<available_skills>`), `register_hook` over 28 named hooks (`pre_command`, `on_session_start/end`, `pre/post_tool_call`, `pre/post_llm_call`, `on_stream_*`, `pre_gateway_dispatch`, …), `register_middleware`, `register_platform`, `register_memory_provider`, `register_context_engine`, `emit`/`subscribe`, `register_command` (slash), `spawn_task`, `state`, `get_config`. Manifest v2 (`manifest_version`, `api_version`, `requires_plugins`, `python_dependencies`, `config_schema`, `capabilities`).
+- **The compatibility contract** (`website/docs/developer-guide/plugins/index.md`): hook payloads grow by keyword fields; `PluginContext` methods are never removed or renamed; deprecations warn once and last ≥ 2 minor releases. The Sep-2026 decomposition compat window (old import paths through `PLUGIN-COMPAT` `__getattr__` blocks) **ended 2026-09-14**; `scripts/check_compat_pointers.py` reds in-tree uses.
+- **Discovery:** `plugin-catalog/` (SHA-pinned YAML, human-merged PR, 117 entries and churning daily) is the ONLY discovery for out-of-tree plugins — and only for plugins that want listing. A private repo installs by path or pip and never touches the catalog.
+- **The CLI attach path and its cost** (`hermes_cli/main.py::_register_plugin_cli_commands`, identical on the fork and upstream except for the fork's parser seam beside it): plugin CLI commands are attached only when `_plugin_cli_discovery_needed()` — the first positional argv token is NOT in `_BUILTIN_SUBCOMMANDS`. Then `discover_plugins()` imports every bundled plugin module: **500–650 ms by upstream's own comment**. Bundled platforms avoid it by being *deferred* entries materialized by name (`_resolve_deferred_platform_cli_command`, issue #54678); no equivalent exists for a general plugin's CLI command. `harness` is not a built-in upstream, so a plugin-registered harness pays discovery on every `hermes harness …` process.
+- **Signals to weigh:** `hermes-example-plugins` (the companion repo) last pushed 2026-05-10; external-process model-provider plugins landed 2026-09-20 (`13fe9c7171`); gateway god-file extractions land daily (`4a641d7e92`, `ae85aaa366`, `70fceb80ab`); the issue tracker carries dozens of open "god-file decomposition" rows. Discussions are disabled on the repo; the roadmap is the rubric.
+
+### 0.2 The fork's footprint in upstream files (against merge base `c62bd9f207`)
+
+| measure | value |
+|---|---|
+| upstream files with fork edits | **449** (+18,323 / −2,258 lines) |
+| of which test files | 246 (13,705 lines; `tests/hermes_cli/conftest.py` +1,266, `tests/conftest.py` +569, `tests/tools/conftest.py` +406, `tests/agent/conftest.py` +165) |
+| production files | ~140 (hermes_cli 59, tools 40, agent 29, gateway 15, scripts 10, .github 8) |
+| files with ≤ 5 changed lines | 118 |
+| files with > 200 changed lines | **22** |
+| upstream lines the fork DELETES | 2,258 — the replacement-shaped edits; the conflict generators |
+| trial merge today | 40 conflicted files, 51 hunks, all in the heavy tail; none in `agent_runtime/` or `harness_parts/` |
+
+### 0.3 `hermes_cli/main.py`, hunk by hunk (the worked example every other heavy file follows)
+
+| hunk | what | disposition |
+|---|---|---|
+| boot-clock marks: `mark_main_import_started` (module top), `mark_main_entered` (`_default_to_chat`), `mark_main_import_completed` (module tail) | 3 one-liners | **hook** (`pre_command`) for "entered"; the two import-time marks have no hook that early → **upstream** a generic startup-timing hook, or **carry** as one-liners |
+| the profile bootstrap: upstream's ~200-line block (`_scan_profile_flag`, `_apply_profile_override`, `_under_gateway_supervisor`, `_desktop_ssh_backend`, `_resolve_sudo_user_profile_env`, `_inside_mcp_add_args`) replaced by imports from `hermes_cli/_profile_bootstrap.py`, plus ONE behaviour change: `is_hermes_cli_entrypoint(__name__)` gates the override off unless the process is a genuine hermes entrypoint | −187 / +12 | **upstream** — a mechanical extraction of their own code (the shape their rubric asks for) carrying a real bug fix (an import under pytest re-parsing argv and pointing the session at the operator's live profile; `tests/test_no_frozen_hermes_home.py` is the evidence). Until merged, this hunk conflicts on every upstream edit to that block |
+| `"harness", "postinstall"` in `cmd_console`'s command list | 1 line | **hook** — gone with Stage 1 |
+| `process_registry.restore_durable_completions()` in `_prepare_agent_startup` | 6 guarded lines | **upstream** (generic); fallback `on_session_start` hook |
+| `build_downstream_parsers(subparsers)` in `_build_cli_parser` | 2 lines | **hook** — Stage 1 |
+| `dispatch_command` wrapper in `main()`: `_capture_core_cache_fingerprint_home` before the command; harness error formatting on exception | 2 lines | **hook** (`pre_command`) + error formatting inside the harness handlers — Stage 1 |
+| `from hermes_cli.update_cmd_windows import _warn_legacy_console_gateway_task` at module tail | 1 line | **carry or delete** — no caller in `main.py` found by grep; the Stage 1 lane confirms and deletes |
+
+After Stage 1 and the profile-bootstrap PR: ≤ 3 additive one-liners remain in `main.py`.
+
+### 0.4 The other heavy seams (dispositions to confirm at their stage)
+
+| upstream file | fork delta | what it is | likely disposition |
+|---|---|---|---|
+| `hermes_constants.py` | +286 / −15 | profile-aware home resolution (`get_hermes_home` at call time, `display_hermes_home`, sudo/supervisor arms) | **upstream** what upstream lacks (upstream now runs one process for several profiles, scope bound per call — much may already exist); **carry** the rest |
+| `hermes_cli/profiles.py` | +301 / −29 | profile store extensions | same as above; Stage 4 diffs them |
+| `tools/registry.py` | +194 / −36 | a TTL cache for `check_fn` probes + probe accounting | **upstream** (generic perf; the fork measured it) |
+| `agent/prompt_builder.py` | +58 / −11 | skill environment matching, `agent_runtime.prompt_guidance` constants, a `SKILLS_GUIDANCE` sentence | **hook** (`register_system_prompt_section`) for the guidance; `skill_matches_environment` is already re-exported by upstream's `tools/skills_tool.py` — likely already upstream |
+| `agent/skill_utils.py` | +41 / −4 | shared skills dir, `.realm_inbox`/`.provenance` ignore, lookup normalization | **carry** (realm-specific) as additive lines; or a skill-dirs hook PR |
+| `tools/skills_tool.py` | +137 / −70 | skill resolution and search delegating to `agent_runtime.skill_resolution` / `skill_search` | **hook** — the plugin's own tool via `register_tool(override=…)`, or **carry** |
+| `scripts/run_tests_parallel.py`, `scripts/run_tests.sh` | +183 / −42, +193 / −5 | the fork's hermetic runner | **upstream** the runner improvements (they ship `run_tests_parallel.py` themselves); **carry** the hermetic-env rows |
+| the four `conftest.py` | +2,400 | hermetic-home fixtures, env-gap fence | **fork-only** pytest plugin, loaded by one line (Stage 5) |
+| `apps/desktop/src/app/skills/*` (32 desktop files) | edits to core pages | **hook** via the desktop plugin SDK (`HermesPlugin`, `$HERMES_HOME/desktop-plugins/`) where the SDK reaches; **carry** the rest (Stage 6) |
+
+---
+
+## 1. The rules
+
+1. **Three dispositions, one per edit to an upstream file.** `upstream` (a PR to NousResearch; generic fix or extraction), `hook` (moved behind the plugin surface; if the surface lacks it, a PR that widens the generic surface with this plugin as the concrete consumer), `carry` (ours; additive where possible; on the ratchet with a named reason). A carried edit that REPLACES upstream lines is allowed and is the one kind that conflicts; the reason says why replacement was unavoidable.
+2. **The ratchet only goes down.** `scripts/upstream_footprint.py` prints `[up-fp] files=<n> deleted_lines=<n> heavy=<n>` over the fork's diff against the merge base restricted to the upstream manifest; `tests/tooling/test_upstream_footprint.py` reds if any of the three rises above `tests/fixtures/upstream_footprint.json`, and reds if the fixture is not lowered when the tree is lower (the list only shrinks). A core change the operator wants raises the fixture in the SAME commit with a `reason:` row — the price is paid visibly, never silently.
+3. **The plugin never imports the fork's edits to upstream files.** It reaches upstream only through `PluginContext` and public upstream APIs; `scripts/check_compat_pointers.py` and a plugin-side import fence (`tests/tooling/test_plugin_imports_public_surface.py`) keep it so. This is what makes the package installable on stock upstream.
+4. **Proprietary stays proprietary; open review is fine.** The plugin's home is the fork (public) until Stage 7 moves it to its own repo — private if the operator says so. Nothing proprietary is offered upstream. The three dispositions apply to the fork's edits in upstream files only; the plugin's own code has no disposition because it lives in no upstream file.
+5. **Each stage lands with a measurement, not a belief.** Stage 1's is the boot cost; Stage 3's is the PR merged (or declined, with the fallback applied); Stages 4–6 are the ratchet line before/after.
+6. **Detach is a measurement.** `[up-fp] files=0` (or only `carry` rows the operator has ruled permanent) means the harness plugin runs on stock upstream and the fork is optional. Stage 7 executes only when that line is read.
+7. The god-file refactor's rules (flat ceiling, MOVE/CHANGE separation, bulk mode, terse briefs, the upstream fence) apply to every lane here. Sibling plan §1 and §6.
+
+---
+
+## 2. Stages
+
+### Stage 0 — land the merge; baseline the ratchet
+
+- **0a.** The running merge lane's branch `merge/upstream-2026-09-21` lands (its own initiative: `Harness_Brain/20 — Active Initiatives/upstream-merge-2026-09-21.md`). Every measurement below is re-taken on the merged tree; §0.2's numbers are pre-merge.
+- **0b. ONE commit:** `scripts/upstream_footprint.py` + `tests/tooling/test_upstream_footprint.py` + `tests/fixtures/upstream_footprint.json` baselined at the merged tree's numbers; `tests/fixtures/upstream_manifest.txt` shared with the refactor's W0 (whichever lands first creates it; the other reuses it). Killing mutations: (a) add one line to an untouched upstream file → `files` rises → red; (b) lower the fixture below the tree → red; (c) delete an upstream line in a carried file → `deleted_lines` rises → red.
+- **0c.** The disposition table (§0.3 + §0.4) becomes `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md`: one row per upstream file the fork edits, `disposition`, `reason`, `stage`. Generated by the script's `--ledger` arm from the diff; hand-edited dispositions survive regeneration (the script merges on path).
+
+Gate: `[up-fp]` line quoted in the commit; validated suite unchanged.
+
+### Stage 1 — the harness registers itself as a plugin (CLI) — **the first step**
+
+**Files.** New `plugins/eternia-harness/plugin.yaml` (manifest v2: `name: eternia-harness`, `api_version: 1`, `tags: [harness, mission-control]`, `config_schema` empty) and `plugins/eternia-harness/__init__.py` with `register(ctx)`. `plugins/` is upstream's directory but `eternia-harness` is a name upstream never creates; the package is fork-only by construction and moves whole in Stage 7.
+
+**What `register(ctx)` does — and only this:**
+```python
+def register(ctx):
+    ctx.register_cli_command(
+        "harness", help="Agent Runtime Harness (Mission Control runtime)",
+        setup_fn=_setup_harness_parser,     # imports hermes_cli.harness.build_parser LAZILY, inside the call
+        handler_fn=None,                    # every harness subparser sets its own func= today
+    )
+    ctx.register_cli_command("postinstall", help="…", setup_fn=_setup_postinstall_parser, handler_fn=cmd_postinstall)
+    ctx.register_hook("pre_command", _capture_core_cache_fingerprint_home_hook)   # replaces dispatch_command's capture
+```
+Harness error formatting (`emit_harness_error` on an exception escaping a handler) moves INTO `build_parser`'s handler wiring: every `set_defaults(func=…)` target is wrapped once by a `_harness_entry(fn)` decorator in `harness.py` that formats and exits. `dispatch_command`, `build_downstream_parsers` and `hermes_cli/_downstream_cli.py` are then deleted; `main.py` loses the parser seam, the console-list entry and the dispatch wrapper (three of its eight hunks). The `_warn_legacy_console_gateway_task` tail import is confirmed dead and deleted, or its caller named.
+
+**The measurement (before any deletion is committed):**
+
+| number | how | today | threshold |
+|---|---|---|---|
+| `harness_parser_ms` (the fork's own boot-clock field, read from the serve boot timeline line and `agent_runtime/tool_visibility.py`'s note "2110 → 593") | same instrument, plugin path | ~593 ms | ≤ today + 50 ms |
+| cold `hermes harness doctor` wall time, 5 runs, median | `Measure-Command` / `time` on the launcher's own interpreter chain | (take it) | ≤ today + 150 ms |
+| serve boot: `harness serve boot timeline:` line | byte-identical keys; `plugin_discovery_ms` may APPEAR as a new key (a receipt, allowed) | (take it) | numbers within noise; the launcher's `ready.json` recapture per its code_tree hash rule |
+| what `discover_plugins()` imports on this tree | `HERMES_DEBUG` log at CLI startup; count of bundled plugin modules imported | (take it) | informs the fallback |
+
+**If discovery costs more than the threshold** — expected, given upstream's 500–650 ms figure — the lane does NOT land the deletion and instead lands the **fallback**: a manifest-declared deferred CLI entry. The generic widening: `plugin.yaml` gains `cli_commands: [{name, help, description}]`; `PluginManager.discover_and_load` records such entries WITHOUT importing the plugin (the deferred-platform pattern generalized); `_register_plugin_cli_commands` attaches a stub whose `setup_fn` materializes the plugin by name on first parse. This is an upstream PR with this plugin as its concrete consumer (rule: "a hook with a real, stated use case is not speculative"). Until it merges, the fork carries the same change as an additive edit in `plugins.py` and `main.py` (two files on the ratchet, `hook-pending` reason), and Stage 1 lands on top of it. Either way the parser seam in `main.py` is gone.
+
+**Gates.** `scripts/dump_cli_contract.py --check` byte-identical (the harness surface is unchanged); `hermes harness serve` boots under the launcher with the timeline line's keys unchanged; `tests/hermes_cli/test_harness_*` green; the god-file refactor's W0-G4 (thin harness namespace) unaffected — `register()` imports `hermes_cli.harness` lazily and only its public `build_parser`; `[up-fp] files` −3 (or −3 +2 with the carried fallback).
+
+**Owed by the operator:** one launcher boot on the Stage 1 build (the boot is the measurement's field half).
+
+### Stage 2 — tools and prompt sections through the plugin
+
+- **Tools:** `tools/agent_chat_tool.py` (`agent_chat_send`, `agent_chat_threads`, dispatch), `tools/board_tool.py` register via `ctx.register_tool(name, toolset="harness", schema, handler, check_fn)`; the fork's edits to `tools/registry.py` that exist only to register them go; the `check_fn` TTL cache stays as an upstream PR candidate (Stage 3). The fork's `toolset_manifest`/`downstream_schema` gate reads the plugin's registrations through the same registry.
+- **Prompt sections:** the `agent_runtime.prompt_guidance` constants the fork splices into `agent/prompt_builder.py` become `ctx.register_system_prompt_section("harness.guidance", content, position="after_memory")` and siblings; the `SKILLS_GUIDANCE` sentence becomes a section or an upstream one-line PR. The runtime HUD stays where it is (it is built per turn inside the harness's own chat lane, not the core prompt builder).
+- **Skills:** NOT `register_skill` — it is explicit-load only and the harness needs its four skills in `<available_skills>` of every profile. `install_harness_skills_at_boot` and the `post-merge` hook stay. Recorded so nobody re-tries it.
+- Gates: the prompt goldens (canon 07's byte pins) unchanged or re-pinned with the diff read; `tests/fixtures/*toolset*` regenerated with the diff read; `[up-fp]` −2 (registry, prompt_builder) or the reason rows for what stays.
+
+### Stage 3 — upstream what upstream would take
+
+One PR each, in this order (smallest and most obviously wanted first), each with its fallback if declined:
+
+| PR | contents | fallback |
+|---|---|---|
+| **P1 profile bootstrap extraction** | `hermes_cli/_profile_bootstrap.py` as an extraction of `main.py`'s block + the `is_hermes_cli_entrypoint` gate + `tests/test_no_frozen_hermes_home.py`'s evidence | carry (it conflicts; the ledger row says so) |
+| P2 durable-completion restore at startup | the 6 guarded lines | `on_session_start` hook |
+| P3 `check_fn` TTL cache | `tools/registry.py` +194 with the fork's measurement | carry as additive |
+| P4 startup-timing hook | a generic `on_cli_import` / `pre_command` payload carrying import-start/complete stamps; the boot-clock marks become its consumer | carry the two one-liners |
+| P5 runner improvements | the parts of `run_tests_parallel.py` / `run_tests.sh` that are not hermetic-env specific | carry |
+
+Each merged PR: the ledger row flips to `upstream`, the next merge brings the code back as upstream's own, `[up-fp]` drops. Each declined PR: the fallback lands within the same stage; the row's reason quotes the decline.
+
+### Stage 4 — the profile-home delta
+
+`hermes_constants.py` (+286) and `hermes_cli/profiles.py` (+301) diffed function by function against upstream's current tree (upstream runs several profiles per process now; `hermes_home_key()`, `_run_release_in_profile_scope`). Three buckets: already upstream (delete ours), generic (PR, as P6/P7), ours (carry as additive one-liners or a hook PR). Gate: `tests/test_no_frozen_hermes_home.py` ledger unchanged or shorter; `[up-fp] deleted_lines` down.
+
+### Stage 5 — fork tests leave upstream test files
+
+- `tests/hermes_cli/conftest.py` (+1,266), `tests/conftest.py`, `tests/tools/conftest.py`, `tests/agent/conftest.py`: the fork's fixtures become `tests/_downstream/conftest_plugin.py` (a pytest plugin) loaded by ONE `pytest_plugins = [...]` line per upstream conftest — one additive line each.
+- The 242 other upstream test files with fork test cases: each fork test moves to a fork-only sibling (`tests/<dir>/test_<name>_downstream.py`), source-pin census first (refactor rule 1.6). Mechanical; one lane per top-level test dir; MOVE-only commits.
+- Gate: the validated suite selects the same test ids (a `--collect-only` diff before/after is empty modulo file names); `[up-fp] files` −242.
+
+### Stage 6 — desktop
+
+`apps/desktop/src/app/skills/*` and the other 32 desktop edits: what the desktop plugin SDK reaches (`HermesPlugin` default export, the inventory/enable contract, `$HERMES_HOME/desktop-plugins/`) moves into `plugins/eternia-harness/desktop/`; the rest is carried with a reason (the SDK forbids reaching into app stores — a needed capability is an SDK hook PR). Gate: the desktop `vitest` + `eslint` run; `[up-fp]` down.
+
+### Stage 7 — the detach read (executes only on the measurement)
+
+When `[up-fp]` reads `files=0`, or only rows the operator has ruled `carry-permanent`: `plugins/eternia-harness/` moves whole to its own repo (private on the operator's word; a pip entry point `hermes_agent.plugins = eternia_harness:register`, or a `~/.hermes/plugins/eternia-harness` checkout); the launcher's installer (`scripts/install-mission-control-hermes.ps1` and the launcher's own) installs stock upstream + the plugin; the fork keeps only its carried rows and becomes optional per machine. Until that read, the plugin lives in the fork and both paths work.
+
+---
+
+## 3. Order and parallelism
+
+```
+S0 (merge lands; ratchet) ──► S1 (plugin CLI; MEASURE) ──► S2 (tools, sections) ──► S7 (detach read)
+                          └──► S3 (PRs P1–P5, serial, one at a time) ──► S4 (profile-home) ─┘
+                          └──► S5 (tests out) · S6 (desktop) — any time after S0, in parallel
+```
+
+Hard orderings: S0 before all; S1 before S2; P1 before S4 (S4 diffs against the tree P1 leaves). S5 and S6 are independent of everything but S0. The god-file refactor's lanes interleave freely (shared fence; disjoint files except `harness.py`, which S1 touches only at `build_parser`'s handler wiring — S1 lands before the refactor's H2, or rebases onto it).
+
+---
+
+## 4. What the operator owes
+
+1. One launcher boot on the Stage 1 build (the boot-cost measurement's field half).
+2. The private/public ruling for the plugin's Stage 7 home (not before Stage 7).
+3. Per PR in Stage 3: nothing — the fallback is pre-decided; the lane reports merged/declined.
+
+---
+
+## 5. Ledger
+
+| stage | status | commits | `[up-fp]` after | notes |
+|---|---|---|---|---|
+| S0 | waits on the merge | 1 | baseline | ratchet + ledger |
+| S1 | planned | 1–2 | −3 (or −3 +2 pending) | measure first; fallback = deferred CLI entry PR |
+| S2 | planned | 1 | −2 | skills stay installed, not registered |
+| S3 | planned | 5 PRs | −1 per merge | P1 first |
+| S4 | planned | 1–2 | deleted_lines ↓ | after P1 |
+| S5 | planned | 4 MOVE | −242 | mechanical, parallel |
+| S6 | planned | 1 | ↓ | SDK reach decides |
+| S7 | on the read | 1 + installer | 0 | private on the operator's word |

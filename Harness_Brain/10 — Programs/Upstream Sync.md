@@ -25,13 +25,14 @@ Goal (owner, 2026-09-21): **easy upstream syncs without much conflict.** The for
 - Cadence: a history-preserving `git merge upstream/main` **weekly**, in a worktree, conflicts resolved by rule, the validated suite run, landed fast-forward by the operator. A three-day gap already costs 40 conflicts.
 - Conflict resolution rules (the merge lane's brief): keep both when additive; prefer upstream's version of upstream logic and re-apply the fork's addition on top; the fork's seams must survive (`_downstream_cli`, `_profile_bootstrap`, `_boot_clock`, harness registration, `process_registry` durable completions, profile scoping); never drop a fork test; keep the fork's `pyproject`/`uv.lock` pair plus new upstream rows.
 
-## The seam program (not yet a plan — rows in [[fork-hygiene-queue]])
+## The plan: the harness as a plugin, the fork as the thin vehicle for core changes
 
-1. Every fork touch on an upstream file becomes additive: one import, one call, at a stable anchor. The 22 heavy files are the work; `hermes_cli/main.py`'s replaced 200-line block is the pattern to undo.
-2. Fork tests leave upstream test files: fork-only test modules; the 1,266 lines in `tests/hermes_cli/conftest.py` become a fork conftest plugin loaded by one line.
-3. Upstream what upstream would take (boot-clock marks, durable-completion restore, generic fixes) — a merged PR is zero delta. Material for PRs: `docs/upstream-prs/` (not yet populated), `agent_runtime/docs/upstream_sync_workflow.md`.
-4. Two ratchets: the refactor plan's W0-G2 (no new fork edits to upstream files from refactor lanes) and a new gate counting upstream files the fork edits + upstream lines it deletes, both only going down.
-5. `scripts/upstream_sync_gate.py` exists — read what it checks before writing a new gate.
+[`docs/agent-runtime-harness/planned/harness-plugin-and-upstream-seams.md`](../../docs/agent-runtime-harness/planned/harness-plugin-and-upstream-seams.md) (2026-09-21). The hybrid end state the owner asked for: stay a fork if need be, detach if the measurement allows, keep core changes welcome.
+
+- **Three dispositions** for every fork edit in an upstream file — `upstream` (PR), `hook` (behind the plugin surface, widening it by PR when it lacks something), `carry` (ours, additive where possible, on the ratchet with a reason).
+- **The ratchet** `[up-fp] files= deleted_lines= heavy=` only goes down; a wanted core change raises the fixture in the same commit with a `reason:` row. **Detach is a measurement:** `files=0` means the plugin runs on stock upstream and the fork is optional.
+- **Stages:** S0 merge + ratchet → **S1 the harness registers its CLI as a plugin (first step; measured against the 500–650 ms plugin-discovery cost; fallback = a manifest-declared deferred CLI entry PR)** → S2 tools + prompt sections → S3 five upstream PRs (P1 = the profile-bootstrap extraction, the one replacement-shaped hunk in `main.py`) → S4 profile-home diff → S5 fork tests out of upstream test files (−242 files) → S6 desktop → S7 detach on the read (private repo on the owner's word).
+- Upstream's own direction, read from its tree: core stays a narrow waist; products go to standalone repos; "plugins never touch core"; the plugin surface is an additive-only contract; the catalog is discovery only for plugins that want listing. `scripts/upstream_sync_gate.py` is read before Stage 0b writes the ratchet.
 
 ## Related
 
