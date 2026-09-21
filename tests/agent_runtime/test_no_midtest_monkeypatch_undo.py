@@ -94,6 +94,25 @@ The detector flags **every** ``<expr>.undo()`` call, not only receivers spelled
   ``MonkeyPatch.context()`` needs no ``undo()`` call at all, so the pressure to
   widen is close to zero by construction.
 
+AND THE SCOPE IS THE FORK'S CODE, WHICH IS NOT AN ALLOWLIST
+-----------------------------------------------------------
+
+This is a fork-only gate enforcing a fork ruling, and since the 2026-09-21
+``upstream/main`` merge the tree it walks also holds upstream's tests. A
+finding is reported only when the FORK wrote the line
+(``tests/_fork_scope.is_fork_authored``): a file byte-identical to
+``upstream/main`` is upstream's to police, and in a file the fork extended, the
+fork owns the lines it added and nothing else. Owner ruling, 2026-09-21:
+upstream code and upstream tests are never edited — additively or not at all —
+so a finding on an upstream line is one this repo is forbidden to fix, and a
+gate that reports it is a standing red, which is the camouflage this suite has
+been bitten by before. It is scope, not an exemption: nothing is named, nothing
+is waived, and the filter is derived from the ref, per finding. Upstream's own
+lines keep the BEHAVIOURAL witness, the root conftest's autouse
+``_shared_monkeypatch_pin_tripwire``, which runs for every test in the tree
+whoever wrote it. When the ``upstream/main`` ref is absent the filter fails
+CLOSED and this gate scans exactly what it scanned before.
+
 =============================================================================
 THE WIDENING: tests/agent_runtime -> tests (2026-08-17, ML-4)
 =============================================================================
@@ -163,6 +182,8 @@ import functools
 from pathlib import Path
 
 import pytest
+
+from tests._fork_scope import is_fork_authored, is_fork_touched, upstream_blobs
 
 
 #: The tree this gate polices: the WHOLE test tree, since 2026-08-17 (ML-4).
@@ -298,6 +319,12 @@ def test_no_test_in_the_tree_unwinds_the_shared_monkeypatch():
         if tree is None:
             continue
         for lineno, spelling in undo_calls(tree):
+            # The FINDING is filtered, never the walk: the walk's floors below
+            # ("did this reach a real tree?") stay measured against the whole
+            # tree, the scope question is asked only about a line that would
+            # otherwise be reported, and a green gate asks it zero times.
+            if not is_fork_authored(path, lineno):
+                continue
             offenders.append(f"{path}:{lineno}: {spelling}")
 
     assert offenders == [], (
@@ -361,6 +388,89 @@ def test_the_gate_scanned_a_real_tree():
             f"{expected_path} is not in the scanned set — the ML-4 widening to "
             f"{SCANNED_ROOT!r} is not actually reaching that directory"
         )
+
+
+def test_the_fork_scope_filter_still_reports_the_forks_own_lines():
+    """Anti-vacuity, direction 1: the filter is not a blanket "not ours".
+
+    This file is fork-authored and absent from ``upstream/main``, so every line
+    in it is inside the gate. If this ever reads False the gate has stopped
+    reporting anything at all and every test above it passes vacuously.
+    """
+
+    own_path = str(Path(__file__).resolve())
+    assert is_fork_touched(own_path) is True
+    assert is_fork_authored(own_path, 1) is True
+
+
+def test_the_fork_scope_filter_actually_removes_upstream_from_the_scan():
+    """Anti-vacuity, direction 2: the filter is not a blanket "ours".
+
+    A helper that answered True for everything would be indistinguishable from
+    no filter at all — it would pass the test above, and the fork would think
+    it had scoped a gate it had not. So prove the other side: at least one
+    module this gate WALKS is byte-identical to ``upstream/main`` and therefore
+    outside the gate. Derived from the ref, not named here, so it cannot go
+    stale against a file someone edits tomorrow.
+    """
+
+    blobs = upstream_blobs()
+    assert blobs is not None, (
+        "the upstream/main ref is not in this checkout, so the scope filter is "
+        "in its fail-closed mode and this direction cannot be driven; fetch "
+        "upstream (`git fetch upstream main`) to run it"
+    )
+
+    root = _repo_root()
+    walked = [Path(p).relative_to(root).as_posix() for p in _scanned()]
+    listed = [p for p in walked if p in blobs]
+    # A generator, stopped at the first hit: the filter hashes the file it is
+    # asked about, and asking it about all ~3,000 walked modules to prove a
+    # claim about ONE of them would cost more than the gate itself.
+    found = next((p for p in listed if not is_fork_touched(p)), None)
+
+    assert found is not None, (
+        "every module this gate walks reads as fork-touched, though "
+        f"{len(listed)} of them are listed in {len(blobs)} upstream/main "
+        "entries — the filter is answering True unconditionally and is not "
+        "scoping anything"
+    )
+
+
+def test_the_fork_scope_filter_fails_closed_without_the_upstream_ref():
+    """The fence the whole scoping rests on, driven rather than argued.
+
+    On a clone with no ``upstream`` remote, a CI job that fetches one branch, or
+    any git failure at all, the filter must answer "fork-touched" for every
+    file so this gate keeps scanning what it scanned before it was scoped. A
+    scope helper that failed OPEN would turn the ban into a silent no-op on
+    exactly the machine nobody is watching.
+    """
+
+    from tests import _fork_scope
+
+    assert _fork_scope.is_fork_touched("hermes_cli/send_cmd.py", blobs=None) is True
+    assert _fork_scope.is_fork_touched(__file__, blobs=None) is True
+
+
+def test_the_fork_scope_filter_fails_closed_against_a_real_refless_repo(tmp_path):
+    """...and not only when ``blobs=None`` is handed in by hand.
+
+    The reader is pointed at a REAL repository that has no ``upstream/main``,
+    so the ls-tree it runs fails the way it would fail in CI, and the failure
+    is the one the contract above promises.
+    """
+
+    import subprocess
+
+    from tests import _fork_scope
+
+    subprocess.run(
+        ["git", "init", "--quiet", str(tmp_path)], check=True, capture_output=True
+    )
+
+    assert _fork_scope.read_upstream_blobs(tmp_path) is None
+    assert _fork_scope.read_upstream_blobs(_repo_root(), ref="no/such/ref") is None
 
 
 @pytest.mark.parametrize(

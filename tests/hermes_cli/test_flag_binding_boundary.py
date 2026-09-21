@@ -46,6 +46,25 @@ WHAT EACH GATE IS, AND WHY IT IS THAT KIND
   argparse element model -- the actual ``Action`` object built by the real
   ``build_parser`` -- because "this flag can express absence" is a question
   about what argparse holds, not about how a line is typed.
+
+WHOSE LINES THE BAN IS OVER
+===========================
+
+``hermes_cli/`` is a package this fork shares with upstream, and the ban is a
+fork ruling about fork code: it reports a collapse only where the FORK wrote
+the line (``tests/_fork_scope.is_fork_authored``). A module byte-identical to
+``upstream/main`` is upstream's to police, and in a module the fork extended,
+the fork owns the lines it added and nothing else. Owner ruling, 2026-09-21:
+upstream code is never edited -- additively or not at all -- so a collapse on
+an upstream line (``send_cmd.py``'s ``mentions or []``, which the 2026-09-21
+merge brought in) is one this repo is forbidden to fix, and a ban that reports
+it is a standing red rather than a finding. This is scope, not an allowlist:
+nothing is named here, nothing is waived, and the answer is derived from the
+ref per finding. The readers and the parser tier below are unscoped on purpose
+-- both are POSITIVE guarantees executed against live objects, and the flags
+they check are the fork's whoever declared them. When the ``upstream/main`` ref
+is absent the filter fails CLOSED and this ban reports the whole package, as it
+did before it was scoped.
 """
 
 from __future__ import annotations
@@ -62,6 +81,7 @@ from hermes_cli.flag_binding import (
     list_flag_or_absent,
     list_flag_or_empty,
 )
+from tests._fork_scope import is_fork_authored, is_fork_touched, upstream_blobs
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -214,8 +234,13 @@ def _is_empty_collection(node: ast.AST) -> bool:
     return False
 
 
-def _collapse_sites(path: Path) -> list[str]:
-    """Every ``<read of args> or <empty collection>`` in one module."""
+def _collapse_sites(path: Path) -> list[tuple[str, int]]:
+    """Every ``<read of args> or <empty collection>`` in one module.
+
+    ``(repo-relative path, line)`` rather than a formatted string, because the
+    caller has to ask the scope filter about the LINE before it decides the
+    site is this fork's to report.
+    """
 
     tree = ast.parse(path.read_text(encoding="utf-8"))
     found = []
@@ -225,7 +250,9 @@ def _collapse_sites(path: Path) -> list[str]:
         values = node.values
         for left, right in zip(values, values[1:]):
             if _is_args_read(left) and _is_empty_collection(right):
-                found.append(f"{path.relative_to(REPO_ROOT).as_posix()}:{node.lineno}")
+                found.append(
+                    (path.relative_to(REPO_ROOT).as_posix(), node.lineno)
+                )
     return found
 
 
@@ -245,7 +272,15 @@ def test_no_handler_collapses_an_absent_flag_into_an_empty_collection():
     # A walk that reaches nothing passes vacuously; say so instead.
     assert len(modules) > 50, f"only {len(modules)} modules walked — is the path right?"
 
-    offenders = sorted(site for path in modules for site in _collapse_sites(path))
+    # The FINDING is filtered, never the walk: the floor above stays measured
+    # against the whole package, and the scope question is asked only about a
+    # line that would otherwise be reported (a green gate asks it zero times).
+    offenders = sorted(
+        f"{relative}:{lineno}"
+        for path in modules
+        for relative, lineno in _collapse_sites(path)
+        if is_fork_authored(path, lineno)
+    )
 
     assert offenders == [], (
         "`<args flag> or []` collapses ABSENT into EMPTY where nobody can see "
@@ -306,6 +341,50 @@ def test_the_ban_leaves_a_non_empty_or_default_alone():
     ]
 
     assert hits == []
+
+
+def test_the_fork_scope_filter_still_reports_the_forks_own_lines():
+    """Anti-vacuity for the scope, direction 1: it is not a blanket "not ours".
+
+    ``flag_binding.py`` is the seam this whole file exists for and is absent
+    from ``upstream/main``, so every line of it is inside the ban. A filter
+    that answered False here would silence the ban over the code it was
+    written for, and every assertion above would pass vacuously.
+    """
+
+    assert is_fork_touched(BINDING_MODULE) is True
+    assert is_fork_authored(BINDING_MODULE, 1) is True
+
+
+def test_the_fork_scope_filter_actually_removes_upstream_from_the_ban():
+    """Anti-vacuity for the scope, direction 2: it is not a blanket "ours".
+
+    A filter that answered True for everything is indistinguishable from no
+    filter, and would still pass the test above. So prove the other side: at
+    least one module this ban WALKS is byte-identical to ``upstream/main`` and
+    is therefore outside it. Derived from the ref rather than named here, so no
+    entry in this file goes stale when someone edits that module tomorrow.
+    """
+
+    blobs = upstream_blobs()
+    assert blobs is not None, (
+        "the upstream/main ref is not in this checkout, so the scope filter is "
+        "in its fail-closed mode and this direction cannot be driven; fetch "
+        "upstream (`git fetch upstream main`) to run it"
+    )
+
+    walked = [p.relative_to(REPO_ROOT).as_posix() for p in _package_modules()]
+    listed = [p for p in walked if p in blobs]
+    # A generator, stopped at the first hit: the filter hashes the file it is
+    # asked about, and a claim about ONE module does not justify hashing the
+    # whole package to make it.
+    found = next((p for p in listed if not is_fork_touched(p)), None)
+
+    assert found is not None, (
+        "every module this ban walks reads as fork-touched, though "
+        f"{len(listed)} of them are listed in upstream/main — the filter is "
+        "answering True unconditionally and is not scoping anything"
+    )
 
 
 # ---------------------------------------------------------------------------
