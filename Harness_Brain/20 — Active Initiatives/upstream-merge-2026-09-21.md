@@ -1,8 +1,8 @@
 ---
 type: initiative
 program: upstream-sync
-status: in-progress
-blocking: "the merge lane's report; then the validated suite on the candidate; then operator landing"
+status: ready-to-land
+blocking: "operator: push main, then fast-forward the candidate onto main"
 docs: "docs/agent-runtime-harness/planned/"
 tags: [initiative, program/upstream-sync]
 ---
@@ -19,6 +19,12 @@ Bring `main` (56 ahead, 3,002 behind `NousResearch/hermes-agent:main` at `ea0c2b
 **Worktree:** `X:/Eternia/worktrees/merge-upstream-20260921`, branch `merge/upstream-2026-09-21`, cut from `main` @ `042f58edf8`.
 **Measured before dispatch** (`git merge-tree --write-tree main upstream/main`): 40 conflicted files, 51 hunks — 29 production (`agent/` 7, `gateway/` 3, `hermes_cli/` 9, `tools/` 8, `hermes_constants.py`, `scripts/run_tests_parallel.py`) and 11 tests/docs. Worst file: `tests/hermes_cli/test_doctor.py` (3 hunks). Nothing in `agent_runtime/` or `harness_parts/` conflicts.
 **Resolution rules given to the lane:** keep both when additive; upstream's version of upstream logic with the fork's addition re-applied; the seams survive (`_downstream_cli`, `_profile_bootstrap`, `_boot_clock`, harness registration, `process_registry.restore_durable_completions`, profile scoping); never drop a fork test; `pyproject`/`uv.lock` = fork pair + new upstream rows.
+
+## Landing state (2026-09-21 evening)
+
+Candidate tip carries: the merge, the lane's two fixes, `c86bd3efed` (terminal_tool), `cae43faa67` (slash registry + dashboard test), lane B `1ca2a7e779` (gates judge per line), lane A `0db5e8e353` (doctor serves `HERMES_HOME`/`_DHH` live via PEP 562), and `main` merged in. Landing checks on the landed tip: touched tests + tooling gates + docs gate = 1,325 passed, 3 failed, all three named and rowed (the residual doctor vendor-slug test; `test_no_frozen_hermes_home` on two upstream names; the docket gate, pre-existing). Contract dumps fresh (CLI 196 paths, payload 152 keys). The mutation inventory cannot run on `main` (stale desk-litter entry, rowed). Branch pushed.
+
+**Operator lands it:** `git -C X:/Eternia/hermes-agent push origin main` then `git -C X:/Eternia/hermes-agent push origin merge/upstream-2026-09-21:main` (fast-forward verified at push time).
 
 ## Resume
 

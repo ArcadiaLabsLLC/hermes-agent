@@ -2,7 +2,7 @@
 type: program
 program: upstream-sync
 status: active
-cursor: "2026-09-21 — main is 3,002 upstream commits behind (merge base c62bd9f207, 2026-09-18); a merge lane is running on branch merge/upstream-2026-09-21 in worktree X:/Eternia/worktrees/merge-upstream-20260921 (40 conflicted files, 51 hunks measured by merge-tree before dispatch). The per-file Codex reconciliation branches were DELETED 2026-09-21 (backup refs kept locally). Next: land the merge, retarget the scheduled Codex job to produce a tested merge candidate weekly, start the seam program."
+cursor: "2026-09-21 — merge candidate merge/upstream-2026-09-21 is READY TO LAND (worktree X:/Eternia/worktrees/merge-upstream-20260921): upstream ea0c2b820b merged, 40 files resolved, validated suite run (21,587 pass; every red classified), four fork-side merge fixes landed, main merged in, branch pushed. Three named reds remain by ruling (residual doctor test, frozen-home gate over upstream names, docket gate). Next: operator pushes main then `git push origin merge/upstream-2026-09-21:main`; then retarget the Codex job; then the seam program S0."
 tags: [program/upstream-sync, program, upstream]
 ---
 
