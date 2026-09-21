@@ -1,0 +1,241 @@
+{
+  "main": {
+    "id": "00969c9076e441e3",
+    "type": "split",
+    "children": [
+      {
+        "id": "1d3273e715835e85",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "6a62685e3cac57c1",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Welcome.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Welcome"
+            }
+          }
+        ]
+      },
+      {
+        "id": "e6f848fa95f190e4",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "dc3e2ac011e01329",
+            "type": "leaf",
+            "state": {
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "Graph view"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "045b76f1187b9d44",
+    "type": "split",
+    "children": [
+      {
+        "id": "2ca56f8332aa7b23",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "755c88777955d6cd",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "93db1b06e061ce3e",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "c2f96622ff8740e5",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "075a5e4d0ce24f9a",
+    "type": "split",
+    "children": [
+      {
+        "id": "a7291029d213a7c5",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "ad8380b6632c4cff",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "Welcome.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for Welcome"
+            }
+          },
+          {
+            "id": "c8233b62fee918e9",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "Welcome.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from Welcome"
+            }
+          },
+          {
+            "id": "c691bda72dc08efe",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "9112e6e0a793e989",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "da7d0baa0ed02023",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "Welcome.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of Welcome"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "6a62685e3cac57c1",
+  "lastOpenFiles": [
+    "50 — Agent Handoffs/Touching a chat turn.md",
+    "50 — Agent Handoffs/Touching a chat turn.md.tmp.9928.67a44fca6065",
+    "50 — Agent Handoffs/Touching the harness CLI.md",
+    "50 — Agent Handoffs/Touching the harness CLI.md.tmp.9928.b963376ab154",
+    "50 — Agent Handoffs/Handoffs Index.md",
+    "50 — Agent Handoffs/Handoffs Index.md.tmp.9928.1624200893f5",
+    "50 — Agent Handoffs",
+    "40 — Cross-Brain/Open Questions for Launcher.md",
+    "40 — Cross-Brain/Backend Brain Pointer.md",
+    "40 — Cross-Brain/Backend Brain Pointer.md.tmp.9928.35f512b73dbc",
+    "40 — Cross-Brain/Parent Brain Pointer.md",
+    "40 — Cross-Brain/Parent Brain Pointer.md.tmp.9928.1b65c388be96",
+    "40 — Cross-Brain/Launcher Brain Pointer.md",
+    "40 — Cross-Brain/Launcher Brain Pointer.md.tmp.9928.dd00b910f3a5",
+    "40 — Cross-Brain",
+    "30 — Decisions/0011 — One brain per repo, one Mission Control queue in the launcher.md",
+    "30 — Decisions/0011 — One brain per repo, one Mission Control queue in the launcher.md.tmp.9928.5c089cddf139",
+    "30 — Decisions/0010 — Stale sweep and ratchets first, never baseline.md",
+    "30 — Decisions/0010 — Stale sweep and ratchets first, never baseline.md.tmp.9928.c81d7a5d2d02",
+    "30 — Decisions/0009 — Profile declaration is the sole MCP admission authority.md",
+    "30 — Decisions/0008 — Chat is the only lane.md",
+    "30 — Decisions/0007 — Flat 800-line ceiling and bulk mode.md",
+    "30 — Decisions/0006 — Upstream sync is a real merge, per-file reconciliation retired.md",
+    "30 — Decisions/0005 — Fork history reconstruction 2026-09-15.md",
+    "30 — Decisions/0004 — Fable plans first, Opus builds, field notes per lane.md",
+    "30 — Decisions/0003 — RPC route first.md",
+    "30 — Decisions/0002 — No push gates, checks are tests.md",
+    "30 — Decisions/0001 — Fork boundary, PUSH vs RPC union.md",
+    "30 — Decisions/Decisions Index.md",
+    "20 — Active Initiatives/downstream-god-file-refactor.md",
+    "20 — Active Initiatives/upstream-merge-2026-09-21.md",
+    "20 — Active Initiatives/Initiatives Index.md",
+    "20 — Active Initiatives/fork-hygiene-queue.md",
+    "10 — Programs/Charsheet.md",
+    "10 — Programs/Downstream Refactor.md",
+    "10 — Programs/Upstream Sync.md"
+  ]
+}
