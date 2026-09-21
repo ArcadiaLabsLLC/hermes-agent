@@ -3,7 +3,6 @@ inline ``!`cmd``` shell expansion."""
 
 import logging
 import re
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -50,17 +49,14 @@ def run_inline_shell(command: str, cwd: Path | None, timeout: int) -> str:
     _popen_kwargs = {"creationflags": windows_hide_flags()} if IS_WINDOWS else {}
     from agent.delegation_context import delegated_child_subprocess_env
     try:
-        bash_exe = shutil.which("bash")
-        if IS_WINDOWS and bash_exe and "\\windows\\system32\\bash.exe" in bash_exe.lower():
-            # System32 bash.exe is the WSL launcher and can block forever when
-            # no distro is initialized. Prefer Git Bash for the POSIX snippets
-            # this feature promises to execute.
-            git_bash = Path(r"C:\Program Files\Git\bin\bash.exe")
-            bash_exe = str(git_bash) if git_bash.is_file() else bash_exe
-        if not bash_exe:
-            return "[inline-shell error: bash not found]"
+        bash = "bash"
+        if IS_WINDOWS:
+            # CreateProcess searches System32 before PATH and may pick WSL's
+            # launcher. Reuse the terminal's native Git Bash resolution.
+            from tools.environments.local import _find_bash
+            bash = _find_bash()
         completed = subprocess.run(
-            [bash_exe, "-c", command],
+            [bash, "-c", command],
             cwd=str(cwd) if cwd else None,
             capture_output=True,
             text=True, encoding='utf-8', errors='replace',
@@ -81,6 +77,10 @@ def run_inline_shell(command: str, cwd: Path | None, timeout: int) -> str:
             return f"[inline-shell timeout after {timeout}s: {command}]"
         return f"[inline-shell error: {exc}]"
     output = (completed.stdout or "").rstrip("\n") or (completed.stderr or "").rstrip("\n")
+    if completed.returncode != 0 and not output:
+        # rc!=0 with no output at all is indistinguishable from a legit empty result; it is the
+        # "interpreter never ran the command" signature (WSL stub without a distro) — say so.
+        return f"[inline-shell exit {completed.returncode} with no output: {command}]"
     if len(output) > _INLINE_SHELL_MAX_OUTPUT:
         output = output[:_INLINE_SHELL_MAX_OUTPUT] + "...[truncated]"
     return output

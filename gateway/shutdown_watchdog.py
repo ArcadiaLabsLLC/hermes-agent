@@ -146,10 +146,21 @@ def start_loop_liveness_watchdog(
 
 
 def _mark_exited_quietly(exit_code: int, reason: str) -> None:
-    """Best-effort lifecycle-ledger stamp so the next boot names the watchdog, not SIGKILL/OOM."""
+    """Best-effort terminal stamp on BOTH lifecycle records before ``os._exit`` skips teardown:
+    the lifecycle ledger (so the next boot names the watchdog, not SIGKILL/OOM) and
+    ``gateway_state.json`` (so ``hermes gateway status`` and every other reader of that file stop
+    seeing ``running`` for a process the watchdog killed — #113372). The runtime-status write goes
+    LAST: it is the record housekeeping refreshes, so nothing may overwrite it after we stamp it."""
     with contextlib.suppress(Exception):
         from gateway.lifecycle_ledger import mark_exited
         mark_exited(exit_code, reason=reason)
+    with contextlib.suppress(Exception):
+        from gateway.status import write_runtime_status
+        # Only the supervisor-restart code asserts a restart; other codes leave the recorded
+        # operator intent (a restart-drain that wedged is still a requested restart) untouched.
+        restart = {"restart_requested": True} if exit_code == GATEWAY_SERVICE_RESTART_EXIT_CODE else {}
+        write_runtime_status(
+            gateway_state="degraded", exit_reason=reason, wait_timeout=0.25, **restart)
 
 
 def _process_hermes_home() -> Path:
