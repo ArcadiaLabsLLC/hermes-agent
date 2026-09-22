@@ -4,11 +4,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from hermes_cli import gateway, main, update_cmd_fleet as fleet
+from hermes_cli import gateway, main, update_cmd_fleet as fleet, update_receipt
 
 
 @pytest.mark.linux_only
-@pytest.mark.parametrize("failure", ["listing", "timeout", "missing", "restart", "inactive", "running", None])
+@pytest.mark.parametrize("failure", ["listing", "timeout", "missing", "restart", "inactive", "running", "missing-owned", None])
 def test_pending_marker_requires_complete_systemd_recovery(monkeypatch, tmp_path, failure):
     stopped = []
     monkeypatch.setattr(gateway, "find_gateway_pids", lambda **kw: [123] if failure == "running" and not stopped else [])
@@ -31,7 +31,7 @@ def test_pending_marker_requires_complete_systemd_recovery(monkeypatch, tmp_path
                 raise FileNotFoundError("systemctl")
             return SimpleNamespace(returncode=int(failure == "listing"), stdout=(
                 "hermes-gateway-one.service loaded active running\n"
-                "hermes-gateway-two.service loaded failed failed\n"), stderr="")
+                + ("" if failure == "missing-owned" else "hermes-gateway-two.service loaded failed failed\n")), stderr="")
         bad = cmd[-1] == "hermes-gateway-two"
         if "restart" in cmd:
             recovered.append(cmd[-1])
@@ -42,8 +42,15 @@ def test_pending_marker_requires_complete_systemd_recovery(monkeypatch, tmp_path
         return SimpleNamespace(returncode=0, stdout="0s")
 
     monkeypatch.setattr(fleet, "_systemctl", systemctl)
+    monkeypatch.setattr(fleet, "_current_checkout_sha", lambda: "pending")
+    monkeypatch.setattr(update_receipt, "collect_fleet_versions", lambda **kw: [
+        {"profile": name.removeprefix("hermes-gateway-"), "state": "current", "code_sha": "pending"}
+        for name in recovered
+    ])
+    fleet._write_fleet_restart_pending_marker(expected_sha="pending", runtimes=[
+        {"kind": "gateway", "profile": profile} for profile in ("one", "two")
+    ])
     marker = fleet._fleet_restart_pending_marker_path()
-    marker.write_text("expected_sha=pending\n")
     if failure not in (None, "running"):
         with pytest.raises(SystemExit, match="1"):
             fleet._apply_pending_fleet_restart_catchup()
@@ -76,3 +83,16 @@ def test_pending_launchd_requires_complete_supervision(monkeypatch, tmp_path, fa
     fleet._restart_macos_launchd_gateways(restarted, failed, 0, require_supervision=True)
     assert bool(failed) is bool(failure)
     assert (sibling in restarted) is (failure is None)
+
+
+def test_legacy_launchd_labels_answer_no_units_on_a_host_without_pwd(monkeypatch, tmp_path):
+    """The launchd restart pass reaches ``legacy_launchd_labels_for_install`` on every host.
+    ``pwd`` is POSIX-only; a Windows host used to die with ModuleNotFoundError before the helper's
+    fail-closed guard could answer. An unimportable ``pwd`` now reads as "no legacy units"."""
+    import sys
+
+    import hermes_constants
+
+    monkeypatch.setattr(hermes_constants, "get_default_hermes_root", lambda: tmp_path / "hermes-root")
+    monkeypatch.setitem(sys.modules, "pwd", None)  # ``import pwd`` raises ImportError on any platform
+    assert gateway.legacy_launchd_labels_for_install() == []

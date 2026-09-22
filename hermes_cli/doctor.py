@@ -12,7 +12,15 @@ from hermes_cli.env_loader import load_hermes_dotenv
 from hermes_constants import display_hermes_home
 
 PROJECT_ROOT = get_project_root()
-_DHH = display_hermes_home()  # user-facing display path (e.g. ~/.hermes or ~/.hermes/profiles/coder)
+# ``HERMES_HOME`` and ``_DHH`` (the user-facing display path, e.g. ~/.hermes or
+# ~/.hermes/profiles/coder) are served live by ``__getattr__`` at the foot of this module.
+
+
+def _dhh() -> str:
+    """``_DHH`` for THIS module's own code: a module ``__getattr__`` does not serve a module's
+    own global lookups, and going through the module object also honors a test's
+    ``monkeypatch.setattr(doctor, "_DHH", …)``, which a direct call would bypass."""
+    return sys.modules[__name__]._DHH
 
 from hermes_cli.colors import Colors, color
 from hermes_cli.doctor_report import Finding, _section, check_bool, check_info, doctor_check, warn_on_error
@@ -131,7 +139,7 @@ def _ack_advisory(ack_target: str) -> None:
     if ack_advisory(ack_target):
         print(color(f"  ✓ Acknowledged advisory {ack_target}. It will no longer trigger startup banners.", Colors.GREEN))
     else:
-        print(color(f"  ✗ Could not save the acknowledgement for {ack_target}. Make sure {_DHH}/config.yaml is "
+        print(color(f"  ✗ Could not save the acknowledgement for {ack_target}. Make sure {_dhh()}/config.yaml is "
                     f"writable (`hermes config path` prints the exact file), then re-run "
                     f"`hermes doctor --ack {ack_target}`.", Colors.RED))
         sys.exit(1)
@@ -185,6 +193,7 @@ def _run_doctor(args):
         from hermes_cli.doctor_live import maybe_run_live_checks
         maybe_run_live_checks(args, total.manual_issues)
     _print_summary(should_fix, total)
+    return int(bool(total.issues or total.manual_issues))
 
 
 # ---- BEGIN PLUGIN-COMPAT (revert-scheduled; see COMPAT_MANIFEST.md) ----
@@ -237,6 +246,26 @@ def __getattr__(name):  # PEP 562 — lazy so no import cycles
     warn_once(__name__, name, *target)
     return getattr(importlib.import_module(target[0]), target[1])
 # ---- END PLUGIN-COMPAT ----
+
+
+_plugin_compat_getattr = __getattr__
+
+#: Home-derived names upstream binds at module scope. The fork resolves the home at CALL time
+#: (a module constant freezes it at import and drifts the moment ``HERMES_HOME`` moves), but
+#: upstream's tests patch ``doctor.HERMES_HOME`` / ``doctor._DHH`` with ``raising=True``, which
+#: needs the NAME to exist. PEP 562 gives both: the attribute answers, and it answers live.
+#: ``monkeypatch.setattr`` still shadows it with a real attribute, so isolation keeps working.
+_LIVE_HOME_NAMES = {
+    'HERMES_HOME': lambda: get_hermes_home(),
+    '_DHH': lambda: display_hermes_home(),
+}
+
+
+def __getattr__(name):  # PEP 562 — live home names first, then the plugin-compat shims
+    resolve = _LIVE_HOME_NAMES.get(name)
+    if resolve is not None:
+        return resolve()
+    return _plugin_compat_getattr(name)
 
 
 def run_doctor(args, *, agent_browser_runnable_override=None):

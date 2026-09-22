@@ -340,7 +340,8 @@ scripts/run_tests.sh -v --tb=long                       # pytest flags pass thro
 ```
 
 - **Flake policy:** a failing FILE is retried once in a fresh subprocess (`--file-retries`;
-  `HERMES_TEST_FILE_RETRIES=0` disables). Pass-on-retry is green but printed under `⚠ FLAKY`
+  `HERMES_TEST_FILE_RETRIES=0` disables); a worker killed by signal or the file timeout is never
+  retried (relaunching a runaway doubles the damage). Pass-on-retry is green but printed under `⚠ FLAKY`
   with both outputs — a bug to fix, not noise. Timing tests must not assume a quiet runner:
   wall-clock bounds ≥ 2s, event-based sync, no `assert not _wait_until(...)` races.
 - **Placement mirrors the source tree.** A test lives in `tests/<top-level source dir>/` (`tests/hermes_cli/`,
@@ -447,4 +448,4 @@ session-storage, ...). Workflow rules (PR/issue/review/salvage process) live in 
 
 ## Downstream development contract
 
-Before working in this fork, also read [docs/downstream-development.md](docs/downstream-development.md). Its call-time profile resolution and hermetic test-runner rules apply throughout this repository.
+Before working in this fork, also read [docs/downstream-development.md](docs/downstream-development.md). Its call-time profile resolution and hermetic test-runner rules apply throughout this repository. Session rules for this fork — the project brain (`Harness_Brain/`), subagent briefs, heavy-command and end-of-lane test discipline, git and upstream-merge rules — are in [CLAUDE.md](CLAUDE.md); read it before dispatching or landing work.

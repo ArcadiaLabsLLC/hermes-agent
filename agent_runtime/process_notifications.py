@@ -97,13 +97,16 @@ class ProcessNotificationMixin:
             return 0
 
     def _completion_event_payload(self, session) -> dict:
-        from tools.process_registry import _output_tail, _redact_process_result
+        from tools.process_registry import _completion_output, _redact_process_result
         result = {
             "type": "completion", "session_id": session.id,
             "session_key": session.session_key, "task_id": session.task_id,
             "owner_task_id": session.owner_task_id or session.task_id,
             "command": session.command, **self._exit_fields(session),
-            "output": _output_tail(session, 2000), "started_at": session.started_at,
+            # ``_completion_output`` sizes the tail by the session's own budget and stamps
+            # ``output_cut`` when it trimmed: a consumer that relays the output must know it
+            # is not whole (upstream #115334).
+            **_completion_output(session), "started_at": session.started_at,
             **({"handoff_note": session.handoff_note} if session.handoff_note else {}),
         }
         return _redact_process_result(result)

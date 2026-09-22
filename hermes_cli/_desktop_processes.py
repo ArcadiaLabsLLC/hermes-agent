@@ -55,7 +55,7 @@ _DESKTOP_PROCESS_LISTER = _PsutilDesktopProcessLister()
 
 _DESKTOP_LOCK_RELEASE_TIMEOUT = 5.0
 
-def _stop_desktop_processes_locking_build(desktop_dir: Path) -> list[int]:
+def _stop_desktop_processes_locking_build(desktop_dir: Path, *, also_posix: bool = False) -> list[int]:
     """Terminate any running desktop app executing from this build's ``release``
     dir so a rebuild can replace its (otherwise locked) executable.
 
@@ -65,7 +65,10 @@ def _stop_desktop_processes_locking_build(desktop_dir: Path) -> list[int]:
     denied`` / ``ERR_ELECTRON_BUILDER_CANNOT_EXECUTE`` (before-pack hits the same
     EPERM cleaning the dir). The retry path repeats the failure because the lock
     is still held. POSIX lets you unlink a running binary, so this is a no-op
-    off-Windows.
+    off-Windows unless the caller passes ``also_posix=True``: a renderer left
+    alive through the stage-and-swap promotion keeps fetching its OLD hashed
+    chunks by path after the swap and dies on the next lazy import (#109643),
+    so the swap point stops it on every platform.
 
     Scope is deliberately narrow: only processes whose executable lives *inside*
     this desktop's ``release`` tree are stopped — a packaged install elsewhere or
@@ -79,7 +82,7 @@ def _stop_desktop_processes_locking_build(desktop_dir: Path) -> list[int]:
     re-resolving its pid, because between the walk and the act a pid can belong
     to something else.
     """
-    if sys.platform != "win32":
+    if sys.platform != "win32" and not also_posix:
         return []
     try:
         release_dir = (desktop_dir / "release").resolve()

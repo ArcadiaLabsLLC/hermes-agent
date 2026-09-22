@@ -136,10 +136,15 @@ def test_probe_returns_unknown_when_schtasks_fails():
 
 
 def _run_refresh(*, console_less: bool | None, capsys):
+    # is_task_registered / reconcile_scheduled_task are mocked because the refresh now also
+    # runs upstream's template-drift reconcile (#113670) — an elevated WRITE that must never
+    # reach the host's real Task Scheduler from a unit test.
     with mock.patch.object(cli_main, "_is_windows", return_value=True), mock.patch.object(
         gateway_windows, "is_installed", return_value=True
     ), mock.patch.object(gateway_windows, "_write_task_script", return_value=_SCRIPT), mock.patch.object(
         gateway_windows, "task_action_is_console_less", return_value=console_less
+    ), mock.patch.object(gateway_windows, "is_task_registered", return_value=False), mock.patch.object(
+        gateway_windows, "reconcile_scheduled_task", return_value=True
     ), mock.patch.object(gateway_windows, "get_task_name", return_value="Hermes_Gateway_alice"):
         cli_main._refresh_windows_gateway_launchers()
     return capsys.readouterr().out
@@ -198,9 +203,19 @@ def test_status_stays_quiet_for_a_console_less_task(capsys):
     out = _run_status(console_less=True, capsys=capsys)
 
     assert "VISIBLE console window" not in out
+def test_update_launcher_refresh_reregisters_drifted_scheduled_task(monkeypatch):
+    """``hermes update`` must not only rewrite the launcher scripts but also re-register a Scheduled
+    Task that predates the current template (#113670) — otherwise template hardening never reaches
+    existing installs."""
+    monkeypatch.setattr(cli_main, "_is_windows", lambda: True)
+    monkeypatch.setattr(gateway_windows, "is_installed", lambda: True)
+    monkeypatch.setattr(gateway_windows, "is_task_registered", lambda: True)
+    monkeypatch.setattr(gateway_windows, "get_task_name", lambda: "Hermes_Gateway")
+    monkeypatch.setattr(gateway_windows, "_write_task_script", lambda: Path("gateway.cmd"))
+    reconciled: list[str] = []
+    monkeypatch.setattr(gateway_windows, "reconcile_scheduled_task", lambda name: reconciled.append(name) or True)
+    monkeypatch.setattr("builtins.print", lambda *a, **k: None)
 
+    update_cmd._refresh_windows_gateway_launchers()
 
-
-
-
-
+    assert reconciled == ["Hermes_Gateway"]
