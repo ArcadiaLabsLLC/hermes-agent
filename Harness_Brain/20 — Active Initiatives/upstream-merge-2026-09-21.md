@@ -1,8 +1,8 @@
 ---
 type: initiative
 program: upstream-sync
-status: ready-to-land
-blocking: "operator: push main, then fast-forward the candidate onto main"
+status: landed
+blocking: "nothing — landed 2026-09-22 at 24fac52fbf; kept as the record of the run"
 docs: "docs/agent-runtime-harness/planned/"
 tags: [initiative, program/upstream-sync]
 ---

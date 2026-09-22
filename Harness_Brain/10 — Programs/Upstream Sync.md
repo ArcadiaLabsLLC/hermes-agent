@@ -2,7 +2,7 @@
 type: program
 program: upstream-sync
 status: active
-cursor: "2026-09-21 — merge candidate merge/upstream-2026-09-21 is READY TO LAND (worktree X:/Eternia/worktrees/merge-upstream-20260921): upstream ea0c2b820b merged, 40 files resolved, validated suite run (21,587 pass; every red classified), four fork-side merge fixes landed, main merged in, branch pushed. Three named reds remain by ruling (residual doctor test, frozen-home gate over upstream names, docket gate). Next: operator pushes main then `git push origin merge/upstream-2026-09-21:main`; then retarget the Codex job; then the seam program S0."
+cursor: "2026-09-22 — LANDED: upstream ea0c2b820b merged into main (candidate tip 24fac52fbf, fast-forwarded by the operator). Merge base is now 2026-09-21. Three named reds carried by ruling (residual doctor vendor-slug test, frozen-home gate on two upstream names, docket gate), all rowed in fork-hygiene-queue. Next: retarget the scheduled Codex job to produce a tested weekly merge candidate; then the seam program S0 (ratchet) on the merged tree."
 tags: [program/upstream-sync, program, upstream]
 ---
 
