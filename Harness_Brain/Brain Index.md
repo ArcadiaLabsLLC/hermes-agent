@@ -25,7 +25,7 @@ X:/
     └── Harness_Brain/                        ← you are here: the runtime + the fork
 ```
 
-- Sibling (launcher): [[Launcher Brain Pointer]] — Mission Control's queue lives THERE and covers both repos.
+- Sibling (launcher): [[Launcher Brain Pointer]] — the launcher half of Mission Control's queue lives THERE; the hermes half is [[runtime-queue]] here.
 - Parent: [[Parent Brain Pointer]]
 - Sibling (backend): [[Backend Brain Pointer]]
 
@@ -38,7 +38,7 @@ X:/
 | "What's a hard rule?" | [[Architecture Invariants]] |
 | "Term I don't know?" | [[Glossary]] |
 | Per-program cursor + entry | `10 — Programs/` — [[Agent Runtime Harness]] · [[Mission Control]] · [[Upstream Sync]] · [[Downstream Refactor]] · [[Charsheet]] |
-| **"What is LEFT?"** | [[TODO]] → the queue. Mission Control rows are in the launcher's queue; fork-hygiene rows are in [[fork-hygiene-queue]]. |
+| **"What is LEFT?"** | [[TODO]] → the queues. Mission Control's hermes half is [[runtime-queue]] (split fork-owned / seams / upstream-owned); its launcher half is the launcher's `mission-control-queue.md`; fork-hygiene rows are [[fork-hygiene-queue]]. |
 | What's mid-flight | [[Initiatives Index]] |
 | Why we chose X | [[Decisions Index]] |
 | Cross-brain coordination | [[Launcher Brain Pointer]] · [[Parent Brain Pointer]] · [[Backend Brain Pointer]] · [[Open Questions for Launcher]] |
@@ -56,7 +56,7 @@ X:/
 - `docs/downstream-development.md` owns the fork's working contract: profile-safe code, the test runner and its validated scope, the contract dumps, the unattended report, worktree discipline.
 - `AGENTS.md` is upstream's development guide (the fork appends one "Downstream development contract" section). `CLAUDE.md` is fork-owned and carries session rules (subagent briefs, repo facts).
 - **This brain** owns: navigation, the fork boundary as a MAP, decision rationale (ADRs), cross-brain coordination, in-flight snapshots, handoff primers, operational gotchas.
-- **The entry point for "what is left?" is [[TODO]]** — pointers only. Mission Control's queue is the launcher's `mission-control-queue.md` and covers both repos (rule: [[0011 — One brain per repo, one Mission Control queue in the launcher]]).
+- **The entry point for "what is left?" is [[TODO]]** — pointers only. Mission Control's queue is split by repository: the hermes half is [[runtime-queue]], the launcher half is the launcher's `mission-control-queue.md` (rule: [[0012 — The hermes half of Mission Control is queued here, split by ownership]], amending [[0011 — One brain per repo, one Mission Control queue in the launcher]]).
 - Session memory (`~/.claude/projects/X--Eternia-hermes-agent/memory/`) is per-machine, per-operator scratch. Anything durable graduates from there into this brain or the canon.
 
 ## Maintenance

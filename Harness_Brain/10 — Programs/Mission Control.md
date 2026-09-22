@@ -2,19 +2,19 @@
 type: program
 program: mission-control
 status: active
-cursor: "2026-09-21 — the SURFACE program is the launcher's; this note is the runtime-side pointer. The launcher's own refactor program (wave 4) is at 4 grandfathered units; its chat-panel tranche merged 2026-09-21."
+cursor: "2026-09-22 — the hermes half of the queue moved here (runtime-queue, 27 rows) by ADR 0012. 2026-09-21 — the SURFACE program is the launcher's; this note is the runtime-side pointer. The launcher's own refactor program (wave 4) is at 4 grandfathered units; its chat-panel tranche merged 2026-09-21."
 tags: [program/mission-control, program]
 ---
 
 # Mission Control (runtime side)
 
-Mission Control is the launcher's command deck for this runtime: the spatial office, per-agent chat, the board, the read model. **The program note, the canon and the queue all live in the launcher's brain.** This note exists so a hermes session knows where to go and what the runtime owes the surface.
+Mission Control is the launcher's command deck for this runtime: the spatial office, per-agent chat, the board, the read model. **The program note and the canon live in the launcher's brain; the queue is split by repository — the hermes half is [[runtime-queue]] here.** This note exists so a hermes session knows where to go and what the runtime owes the surface.
 
 ## Where the truth lives
 
 - Program note: `EterniaLauncher/Launcher_Brain/10 — Programs/Mission Control.md`.
 - Canon: `EterniaLauncher/docs/mission_control/00-index.md` (surface) ↔ [`docs/agent-runtime-harness/00-index.md`](../../docs/agent-runtime-harness/00-index.md) (runtime). Cross-linked, never duplicated.
-- Queue: `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md` — **both repos**. A runtime finding is filed there, on arrival, claimed with `TAKEN` before work starts.
+- Queue: [[runtime-queue]] for rows whose fix lives in this repository (split fork-owned / seams / upstream-owned); `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md` for the launcher half. A finding is filed on the side that must move first, on arrival, and claimed with `TAKEN` before work starts ([[0012 — The hermes half of Mission Control is queued here, split by ownership]]).
 - Stage C QA (driving the launcher through the `launcher_qa` MCP surface): `EterniaLauncher/docs/stages/qa-reboot/`; the hermes-side skill is `launcher-mcp-operations`.
 
 ## What the runtime owes the surface (the contracts)

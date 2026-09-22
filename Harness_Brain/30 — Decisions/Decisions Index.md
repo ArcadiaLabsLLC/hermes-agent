@@ -31,4 +31,5 @@ Pointers, in case Dataview is off:
 - [[0008 — Chat is the only lane]] — 2026-07-30
 - [[0009 — Profile declaration is the sole MCP admission authority]] — 2026-08
 - [[0010 — Stale sweep and ratchets first, never baseline]] — 2026-09-02
-- [[0011 — One brain per repo, one Mission Control queue in the launcher]] — 2026-09-21
+- [[0011 — One brain per repo, one Mission Control queue in the launcher]] — 2026-09-21 (queue clause amended by 0012)
+- [[0012 — The hermes half of Mission Control is queued here, split by ownership]] — 2026-09-22

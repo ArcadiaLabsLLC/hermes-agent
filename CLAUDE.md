@@ -28,11 +28,16 @@ Unreal tree, not beside this checkout):
 Brain-routing rules:
 
 - Runtime and fork truth belongs in `docs/`; the brain cites it and records the WHY.
-- Mission Control is the runtime's only product surface, and its work queue lives in the
-  launcher's vault (`Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`) for
-  BOTH repos. Runtime findings are filed there, on arrival. This vault holds exactly one
-  queue, `Harness_Brain/20 — Active Initiatives/fork-hygiene-queue.md`, for the repository
-  as a fork. Ruling: `Harness_Brain/30 — Decisions/0011`.
+- Mission Control is the runtime's only product surface, and its queue is split by
+  REPOSITORY: a row lives where its fix lives. The hermes half is
+  `Harness_Brain/20 — Active Initiatives/runtime-queue.md`, grouped by the Fork Boundary
+  Map's three kinds of file (fork-owned / seams / upstream-owned) so the heading says what
+  a lane may edit; the launcher half is the launcher's
+  `Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`. A cross-repo finding
+  is filed on the side that must move first and names the other. Fork findings (CI, the
+  suite, the mutation gate, upstream reds) go to
+  `Harness_Brain/20 — Active Initiatives/fork-hygiene-queue.md` whichever repo noticed
+  them. Rulings: `Harness_Brain/30 — Decisions/0012` (amending `0011`).
 - Cite a file in another repo with its repo prefix in backticks
   (`EterniaLauncher/docs/…`, `eternia-backend/…`), never as a link. No machine paths in
   committed notes.

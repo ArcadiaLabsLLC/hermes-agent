@@ -1,7 +1,7 @@
 ---
 type: adr
 id: 0011
-status: accepted
+status: amended-by-0012
 date: 2026-09-21
 tags: [adr, brain, process]
 ---
@@ -10,6 +10,9 @@ tags: [adr, brain, process]
 
 > [!summary]
 > This vault (`Harness_Brain/`) is the hermes fork's child brain, shaped like `Launcher_Brain/` and routed from the same parent. It adopts the launcher's ADR 0025 work-tracking rule (one master TODO of pointers, one queue per DOMAIN, reports split on arrival, claim-before-start). **Mission Control's queue stays in the launcher's vault and covers both repos** — the domain is the surface, not the checkout. This vault holds exactly one queue, [[fork-hygiene-queue]], for the repository as a fork.
+
+> [!note] Amended 2026-09-22
+> The queue clause is superseded: the hermes half of Mission Control is now [[runtime-queue]] in this vault, split by ownership — [[0012 — The hermes half of Mission Control is queued here, split by ownership]]. The rest stands.
 
 ## Context
 
