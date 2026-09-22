@@ -34,6 +34,15 @@ Goal (owner, 2026-09-21): **easy upstream syncs without much conflict.** The for
 - **Stages:** S0 merge + ratchet → **S1 the harness registers its CLI as a plugin (first step; measured against the 500–650 ms plugin-discovery cost; fallback = a manifest-declared deferred CLI entry PR)** → S2 tools + prompt sections → S3 five upstream PRs (P1 = the profile-bootstrap extraction, the one replacement-shaped hunk in `main.py`) → S4 profile-home diff → S5 fork tests out of upstream test files (−242 files) → S6 desktop → S7 detach on the read (private repo on the owner's word).
 - Upstream's own direction, read from its tree: core stays a narrow waist; products go to standalone repos; "plugins never touch core"; the plugin surface is an additive-only contract; the catalog is discovery only for plugins that want listing. `scripts/upstream_sync_gate.py` is read before Stage 0b writes the ratchet.
 
+## Open upstream PRs (the pending-PR fallback: the same commit is carried on `main` and deleted when the weekly merge brings it back)
+
+| PR | what | carried on `main` as | opened |
+|---|---|---|---|
+| NousResearch/hermes-agent#119069 | `fix(gateway)`: guard the POSIX-only `pwd` import in `legacy_launchd_labels_for_install` — `hermes update` crashed on Windows | `743277a3d5` (cherry-pick -x) | 2026-09-22 |
+| NousResearch/hermes-agent#119071 | `test(kanban)`: the dispatcher fakes answer `poll()` so the Windows zombie-reaper branch runs under the tests | `801c24abcd` (cherry-pick -x) | 2026-09-22 |
+
+Rules used: branch cut from `upstream/main` (never from the fork), `fix/…` / `test/…` branch names, Conventional Commit subject, upstream's PR template filled in full, `scripts/check-windows-footguns.py` on the staged diff, platform named (Windows 11 native), the affected test files run before and after with the counts in the body. Rebase a PR only on request. The next seam PR is Stage 1's fallback: manifest-declared deferred CLI entries (`cli_commands:` in `plugin.yaml`), after Stage 1 measures the discovery cost on the merged tree.
+
 ## Related
 
 - The fork's own CI has not run on `main` since 2026-09-07 (gh run list) — a merge candidate nobody tests is the old branch again. Row in [[fork-hygiene-queue]].
