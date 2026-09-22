@@ -33,3 +33,4 @@ Pointers, in case Dataview is off:
 - [[0010 — Stale sweep and ratchets first, never baseline]] — 2026-09-02
 - [[0011 — One brain per repo, one Mission Control queue in the launcher]] — 2026-09-21 (queue clause amended by 0012)
 - [[0012 — The hermes half of Mission Control is queued here, split by ownership]] — 2026-09-22
+- [[0013 — Seams before the god-file refactor, and main's reds classified first]] — 2026-09-22

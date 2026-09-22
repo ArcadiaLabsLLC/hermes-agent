@@ -28,4 +28,8 @@ Domain queues — work filed by the SURFACE it serves, never the layer it lives 
 - `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md` — Mission Control, **the launcher half**: the surface, its Flutter code and tests. A finding that needs both sides is filed on the side that must move first and names the other.
 - [[fork-hygiene-queue]] — the repository as a fork: upstream sync and the boundary, CI, the suite and its gates, the mutation gate, docs gates, the god-file refactor, this vault.
 
+## The order of programs
+
+When two staged plans are both ready, the order is a ruling, not a queue row: [[0013 — Seams before the god-file refactor, and main's reds classified first]] — classify `main`'s reds, then seam Stage 0b + Stage 1, then the god-file refactor Wave 0 → H4, then seam Stage 2 onward. The rows themselves live in [[fork-hygiene-queue]].
+
 Program notes in `10 — Programs/` carry a cursor, never rows. Field notes under `docs/agent-runtime-harness/planned/` carry evidence, never rows.
