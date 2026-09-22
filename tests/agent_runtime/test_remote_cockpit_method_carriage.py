@@ -1,4 +1,4 @@
-"""The seven method lanes a REMOTE-aimed cockpit refuses are answerable to a paired device.
+"""The ten method lanes a REMOTE-aimed cockpit refuses are answerable to a paired device.
 
 Why this file exists
 --------------------
@@ -9,7 +9,7 @@ about the WRONG machine. That refusal is right and it is not the end state —
 the carriage that replaces it routes the same call at the remote install's
 connector instead.
 
-That carriage is a launcher change, and it rests on a hermes fact: these seven
+That carriage is a launcher change, and it rests on a hermes fact: these ten
 verbs must be answerable to a paired ``console``-tier device. At the time this
 file was written they already were, and nothing said so. ``LOCAL_CONSOLE_METHODS``
 is a hand-maintained frozenset whose whole purpose is to make a strong-enough
@@ -19,7 +19,7 @@ find out in the field, against an install it cannot debug.
 
 So this is a NEGATIVE guarantee stated positively: not "these are the verbs a
 device may run" (the tier vocabulary says that, per verb, and says it well) but
-"none of the seven the cockpit currently refuses is kind-restricted, and each is
+"none of the ten the cockpit currently refuses is kind-restricted, and each is
 declared, registered and authorized". A cross-stack precondition, pinned in the
 repo that can break it.
 
@@ -77,7 +77,7 @@ def _console_device() -> RpcCaller:
     )
 
 
-#: The seven lanes ``mission_method_lane_aim`` refuses when the cockpit is aimed
+#: The ten lanes ``mission_method_lane_aim`` refuses when the cockpit is aimed
 #: at a remote install, each with the tier hermes declares for it. The tier is
 #: REPEATED here rather than read off ``method_tiers()`` on purpose: a table that
 #: derived the expected value from the thing under test would go green through a
@@ -93,6 +93,15 @@ REMOTE_COCKPIT_METHODS: dict[str, str] = {
     # emits no event and mints no id. A viewer device that may not place an agent
     # may certainly warm the cache that makes its own reads fast.
     "runtime.persona.prewarm": TIER_READ,
+    # The workspace-level family (2026-09-22): the launcher's
+    # ``HermesWorkspaceSceneStore`` binds all three through
+    # ``missionAimedMethodLaneCallProvider``, the same aim seam as the seven
+    # above, so a remote-aimed cockpit refuses them the same way. All three are
+    # console — the read too, argued on ``_runtime_level_get`` (1 MB of raw
+    # document bytes, and the read tier is open to ``unknown``).
+    "runtime.level.get": TIER_CONSOLE,
+    "runtime.level.set": TIER_CONSOLE,
+    "runtime.level.clear": TIER_CONSOLE,
 }
 
 
@@ -142,11 +151,13 @@ def test_a_console_tier_paired_device_is_authorized_for_every_lane(
 def test_the_table_is_the_launchers_refusal_set_and_not_a_sample():
     """The table above is a claim about the OTHER repo, so it says so out loud.
 
-    Seven is the count ``mission_method_lane_aim``'s own docstring records
-    ("Seven bindings shared the shape"). A table that drifted to six would keep
-    passing while the eighth lane the launcher refuses went unpinned, which is
-    the vacuity this house sweeps for.
+    Ten is the launcher's count: the seven bindings ``mission_method_lane_aim``'s
+    own docstring records ("Seven bindings shared the shape") plus the three
+    level verbs ``HermesWorkspaceSceneStore`` bound through the same seam on
+    2026-09-22. A table that drifted to nine would keep passing while the tenth
+    lane the launcher refuses went unpinned, which is the vacuity this house
+    sweeps for.
     """
 
-    assert len(REMOTE_COCKPIT_METHODS) == 7
+    assert len(REMOTE_COCKPIT_METHODS) == 10
     assert set(REMOTE_COCKPIT_METHODS) <= set(serve_rpc.method_names())
