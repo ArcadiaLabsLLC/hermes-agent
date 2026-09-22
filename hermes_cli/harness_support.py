@@ -190,6 +190,13 @@ ERROR_EXIT_CODES = {
     # writerless assignment store, and the launcher had already tombstoned the
     # spelling with the retired bridge-error vocabulary — so no producer on
     # either side of the wire could reach this row.
+    # `harness level set/clear --expect-sha256` refused: the stored level is not
+    # the bytes the caller read. Family 4 beside `stale_revision` for the same
+    # reason and with the same cure — nothing about the request is malformed,
+    # the WORLD moved under it, and the operator re-reads the level and retries.
+    # The RPC lane answers the identical condition with `ERR_CONFLICT` and
+    # `reason: sha256_mismatch`; one refusal, one family across the two lanes.
+    "level_sha256_mismatch": 4,
     "spawn_scope_exhausted": 4,
     "sync_conflict": 4,
     "sync_behind": 4,
@@ -455,6 +462,11 @@ def _error_hint(code: str) -> str:
         "workspace_not_found": "Run `hermes harness workspace list --json` and retry with a listed id.",
         "default_scope_reconciliation_required": "Run `hermes harness realm default-scope --dry-run --json`; no identities will change without explicit approval.",
         "sync_conflict": "Resolve conflicts in the realm sync git repo, then retry.",
+        # NOT the default hint: nothing about the request is wrong, so "correct
+        # the request and retry" would send an operator hunting a typo that is
+        # not there. The cure is to look at what is stored now and decide, which
+        # is the same move the launcher's adapter makes on ``ERR_CONFLICT``.
+        "level_sha256_mismatch": "Run `hermes harness level show --workspace <id> --json` to read the stored sha256, then retry with --expect-sha256 set to it (or drop the flag to overwrite unconditionally).",
         "sync_behind": "Run `hermes harness realm sync pull <realm> --json` before publishing.",
         "sync_repo_missing": "Run `hermes harness realm sync pull <realm> --json` first — a revert reconciles against the last-pulled subtree.",
         "sync_secret_excluded": "Remove secrets/state from the realm sync allowlist source before retrying.",

@@ -1062,8 +1062,22 @@ def build_parser(parent_subparsers) -> None:
         required=True,
         help="Level document: a PATH to a JSON file (use this — a level can be 1 MB and a Windows command line caps at ~32 KB), or inline JSON",
     )
+    level_set.add_argument(
+        "--expect-sha256",
+        default=None,
+        help="Compare-and-set: the sha256 of the stored bytes this write is based on, or 'none' if the workspace must have no level yet",
+    )
     _add_stage42_global_args(level_set, controls=frozenset({"dry_run"}))
     level_set.set_defaults(func=_cmd_level_set)
+    level_clear = level_subs.add_parser("clear", help="Remove a workspace's level (local only — a level the realm still publishes returns on the next pull)")
+    level_clear.add_argument("--workspace", "--workspace-id", default=None)
+    level_clear.add_argument(
+        "--expect-sha256",
+        default=None,
+        help="Compare-and-set: the sha256 of the stored bytes this clear is based on, or 'none' if the workspace must have no level",
+    )
+    _add_stage42_global_args(level_clear, controls=frozenset({"dry_run"}))
+    level_clear.set_defaults(func=_cmd_level_clear)
 
     persona = subs.add_parser("persona", help="Run bounded live-token diagnostics for one persona")
     persona_subs = persona.add_subparsers(dest="persona_command")

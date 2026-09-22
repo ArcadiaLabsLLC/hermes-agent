@@ -1,4 +1,4 @@
-"""`hermes harness level {show,set}` — the two verbs the launcher drives.
+"""`hermes harness level {show,set,clear}` — the argv mirror of the RPC family.
 
 THE contract these hold, and it is the only interesting thing about them: the
 launcher owns the level document's FORMAT and hermes owns its transport. So
@@ -168,3 +168,109 @@ def test_a_stored_document_that_stops_reading_is_still_handed_back(
     assert body["present"] is True
     assert body["version"] is None
     assert body["document"] == "{half a document"
+
+
+# ── the compare-and-set mirror (2026-09-22) ─────────────────────────────────
+#
+# ``--expect-sha256`` and ``clear`` exist so an operator repairing by hand and
+# the launcher's adapter spend the SAME token against the same store door. The
+# RPC lane's own cases are ``tests/agent_runtime/test_level_rpc.py``; what these
+# add is argv's third state, which JSON gets for free and a command line does
+# not: ``--expect-sha256 none`` is how argv says ``null``.
+
+
+def _sha_of(document: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(document.encode("utf-8")).hexdigest()
+
+
+def test_set_with_a_matching_expectation_is_accepted(isolate_agent_runtime_root):
+    LevelStore().write(WS, _document().encode("utf-8"))
+    updated = _document(prop_x=9.0)
+
+    result = _run(
+        "set", "--workspace", WS, "--document", updated,
+        "--expect-sha256", _sha_of(_document()), "--json",
+    )
+
+    assert result.returncode == 0
+    assert LevelStore().read(WS) == updated.encode("utf-8")
+
+
+def test_set_with_a_stale_expectation_is_a_conflict_and_writes_nothing(
+    isolate_agent_runtime_root,
+):
+    """Exit family 4 and the same ``sha256_mismatch`` reason the RPC lane
+    spends — one refusal, one vocabulary across the two lanes."""
+
+    LevelStore().write(WS, _document().encode("utf-8"))
+
+    result = _run(
+        "set", "--workspace", WS, "--document", _document(prop_x=9.0),
+        "--expect-sha256", _sha_of(_document(prop_x=42.0)), "--json",
+    )
+
+    assert result.returncode == 4
+    body = _payload(result)
+    assert body["error"]["code"] == "level_sha256_mismatch"
+    assert body["error"]["reason"] == "sha256_mismatch"
+    assert LevelStore().read(WS) == _document().encode("utf-8")
+
+
+def test_expect_none_means_the_workspace_must_have_no_level_yet(
+    isolate_agent_runtime_root,
+):
+    first = _run(
+        "set", "--workspace", WS, "--document", _document(), "--expect-sha256", "none", "--json"
+    )
+    assert first.returncode == 0
+
+    second = _run(
+        "set", "--workspace", WS, "--document", _document(prop_x=9.0),
+        "--expect-sha256", "none", "--json",
+    )
+    assert second.returncode == 4
+    assert LevelStore().read(WS) == _document().encode("utf-8")
+
+
+def test_a_malformed_expectation_is_an_invalid_request_not_a_conflict(
+    isolate_agent_runtime_root,
+):
+    LevelStore().write(WS, _document().encode("utf-8"))
+
+    result = _run(
+        "set", "--workspace", WS, "--document", _document(), "--expect-sha256", "beef", "--json"
+    )
+
+    assert _payload(result)["error"]["code"] == "invalid_request"
+
+
+def test_clear_removes_the_level_and_a_second_clear_is_an_accepted_no_op(
+    isolate_agent_runtime_root,
+):
+    LevelStore().write(WS, _document().encode("utf-8"))
+
+    first = _payload(_run("clear", "--workspace", WS, "--json"))
+    assert first["cleared"] is True
+    assert LevelStore().read(WS) is None
+    assert not runtime_paths.level_path(WS).exists()
+
+    second = _payload(_run("clear", "--workspace", WS, "--json"))
+    assert second["cleared"] is False
+
+
+def test_clear_honours_the_expectation_and_its_dry_run_writes_nothing(
+    isolate_agent_runtime_root,
+):
+    LevelStore().write(WS, _document().encode("utf-8"))
+
+    stale = _run("clear", "--workspace", WS, "--expect-sha256", _sha_of("{}"), "--json")
+    assert stale.returncode == 4
+    assert LevelStore().read(WS) is not None
+
+    dry = _payload(
+        _run("clear", "--workspace", WS, "--expect-sha256", _sha_of(_document()), "--dry-run", "--json")
+    )
+    assert dry["cleared"] is True and dry["dry_run"] is True
+    assert LevelStore().read(WS) is not None

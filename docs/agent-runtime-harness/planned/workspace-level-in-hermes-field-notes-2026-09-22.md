@@ -4,7 +4,37 @@ Running record for the plan [workspace-level-in-hermes.md](workspace-level-in-he
 
 ## Stage H — hermes (runtime.level.get / set / clear)
 
-_not started_
+**Landed 2026-09-22**, branch `feat/level-rpc`. The three methods, `LevelStore.clear`, the argv mirror (`level set --expect-sha256`, `level clear`), the receipts and the tier rows.
+
+### What the tree said that the plan did not
+
+- **There is no tier TABLE in `tests/agent_runtime/test_peer_authorization.py`.** That suite is registry-driven by design ("loops, never literals") and asserts a property over every registered method, so a new verb is covered by it the moment it registers and there is nothing to add. The hand-written tier table the plan meant lives in `tests/agent_runtime/test_serve_rpc_method_tiers.py::test_level_mutations_are_console_and_reads_are_read`; the three rows went there.
+- **`test_remote_cockpit_method_carriage.py` could not take the three rows yet, and it says why itself.** Its table is a claim about the OTHER repo — `test_the_table_is_the_launchers_refusal_set_and_not_a_sample` asserts `len(...) == 7` against the count `mission_method_lane_aim`'s own docstring records. Adding the level family made it 10 and red. The launcher does not bind these verbs yet (that is Stage L), so pinning them here would have been a false cross-repo claim in the one file whose job is to catch exactly that drift. The three rows belong in the SAME wave as Stage L's aim bindings, with the count moved to 10 in that commit. The hermes-side tier claim went to `test_serve_rpc_method_tiers.py` instead, which is the file that owns it.
+- **The CLI already had a row builder the RPC needed.** `hermes_cli/harness_parts/level.py::_level_row` built the exact `{workspace_id, workspace_token, present, bytes, sha256, version, document}` shape §3 specifies for `runtime.level.get`. A second copy in `serve_rpc.py` would have been a duplicate-helper body AND a second authority for the launcher's compare-and-set token, so it was lifted to `level_sync.level_document_row` and the CLI helper now delegates to it. Same for the hash: `stored_level_sha256` is now a named function beside `level_document_hash`, because the whole family's defect surface is confusing the two.
+- **`ERROR_EXIT_CODES` had no conflict code that fit.** `stale_revision` is the office's integer-revision guard and `sync_conflict` is realm sync's; spending either for a sha mismatch would have put two conditions under one word. A new row `level_sha256_mismatch: 4` landed with its comment, its hint (the default hint — "correct the request and retry" — is the one thing that cannot help here) and a literal producer, which is what `test_every_exit_code_has_a_producer` demands.
+- **argv has no `null`.** The RPC's three-state `expect_sha256` (omitted / `null` / hex) needs a third spelling on the command line: `--expect-sha256 none` is "the workspace must have no level yet". `--expect-sha256` is checked on `--dry-run` too — a dry run that validated the document while ignoring the expectation would promise a write the real call refuses.
+- **`runtime.level.get` is `console`, which the one-line tier rule does not say.** The rule ("a level MUTATION is console, everything else read") would make it `read`. It follows `runtime.media.get` instead: it hands back up to 1 MB of raw document bytes and the read tier is open to `unknown`. The cost is real — a `read`-tier viewer device cannot load the environment its office draws on — and is filed as a queue row rather than decided here.
+
+### The positive control, as run
+
+`level_expectation_matches(..., provided=expect_provided)` in `_runtime_level_set` changed to `provided=False` (the shape of "`expect_sha256` ignored"), then `tests/agent_runtime/test_level_rpc.py`:
+
+```
+_________ test_set_with_a_stale_sha_is_a_conflict_and_writes_nothing __________
+E       KeyError: 'error'
+_____ test_set_with_a_null_expectation_over_a_present_level_is_a_conflict _____
+E       KeyError: 'error'
+_ test_a_reserialised_document_is_a_conflict_even_though_the_merge_would_converge _
+E       KeyError: 'error'
+3 failed, 16 passed in 2.43s
+```
+
+Reverted. The three that red are the three arms of the compare-and-set and nothing else, which is the shape a control should have: the remaining sixteen cannot tell a guarded write from an unguarded one.
+
+### Left for a row
+
+- `runtime.level.get`'s tier (above): the launcher's adapter and any `read`-tier device.
+- Stage L still owns the `SceneStore` adapter, the bridge deletion and the live proof; nothing here publishes, and nothing here migrates a level out of SharedPreferences.
 
 ## Stage L — launcher (HermesWorkspaceSceneStore)
 
