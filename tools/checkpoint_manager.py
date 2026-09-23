@@ -20,7 +20,6 @@ import shutil
 import stat as stat_mod
 import subprocess
 import time
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterator, List, NamedTuple, Optional, Set, Tuple
@@ -28,7 +27,7 @@ from typing import Dict, Iterator, List, NamedTuple, Optional, Set, Tuple
 from hermes_constants import get_hermes_home
 from hermes_cli._subprocess_compat import windows_hide_flags
 from hermes_cli.gitlock import clear_stale_tmp_packs
-from utils import env_int
+from utils import env_int, rmtree_readonly
 
 logger = logging.getLogger(__name__)
 
@@ -1051,7 +1050,7 @@ def _rmtree_counted(child: Path, result: Dict[str, int], key: str, fail_fmt: str
     """rmtree ``child``, crediting bytes + ``result[key]``; failures count as ``errors`` when tracked."""
     try:
         size = _dir_size_bytes(child)
-        _rmtree_force(child)
+        rmtree_readonly(child)
         result["bytes_freed"] += size
         result[key] += 1
     except OSError as exc:
@@ -1272,7 +1271,7 @@ def clear_all(checkpoint_base: Optional[Path] = None) -> Dict[str, int]:
         return out
     size = _dir_size_bytes(base)
     try:
-        _rmtree_force(base)
+        rmtree_readonly(base)
         out.update(bytes_freed=size, deleted=True)
     except OSError as exc:
         logger.warning("Could not clear checkpoint base %s: %s", base, exc)
@@ -1288,31 +1287,3 @@ def clear_legacy(checkpoint_base: Optional[Path] = None) -> Dict[str, int]:
     for child in _legacy_archives(base):
         _rmtree_counted(child, out, "deleted", "Could not delete legacy archive %s: %s", child)
     return out
-
-
-def _clear_readonly_and_retry(func, path, _exc) -> None:
-    """``shutil.rmtree`` error handler: drop the read-only bit, then retry.
-
-    Git writes loose objects and packfiles read-only (mode 444). On POSIX
-    ``unlink`` only needs write permission on the containing DIRECTORY, so
-    rmtree removes them regardless; on Windows ``FILE_ATTRIBUTE_READONLY``
-    makes the unlink itself fail with ``PermissionError: [WinError 5]``. Every
-    checkpoint-store deletion below therefore failed on Windows the moment the
-    store held a single committed object — and each call site only logged a
-    warning, so ``clear_all``/``clear_legacy``/prune reported "nothing freed"
-    forever instead of erroring.
-    """
-    os.chmod(path, stat_mod.S_IWRITE)
-    func(path)
-
-def _rmtree_force(path) -> None:
-    """``shutil.rmtree`` that can also remove read-only files.
-
-    See :func:`_clear_readonly_and_retry`. ``onexc`` replaced ``onerror`` in
-    3.12 (``onerror`` warns there); both hand the callback the same three
-    arguments, so one handler serves both.
-    """
-    if sys.version_info >= (3, 12):
-        shutil.rmtree(path, onexc=_clear_readonly_and_retry)
-    else:
-        shutil.rmtree(path, onerror=_clear_readonly_and_retry)
