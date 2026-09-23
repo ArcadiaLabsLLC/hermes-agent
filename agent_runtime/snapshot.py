@@ -575,6 +575,11 @@ def build_snapshot(
             snapshot=injected,
         )
         return injected
+    # Profile discovery is a bounded write-side admission step, not a projection
+    # guessed by Launcher. Run it before the persisted-core fingerprint so a
+    # newly promoted Persona invalidates that cache in this very request.
+    # Injected-store builds above remain read-only fixture projections.
+    _maybe_reconcile_profile_personas()
     # The persisted core is consulted BEFORE the coalescer, deliberately. A
     # fingerprint check is ~50 ms of stat work with no shared state; putting it
     # behind the build lock would serialize the cheap answer behind whatever
@@ -2618,6 +2623,32 @@ def _agent_summary(agent, *, include_tool_details: bool = False, readiness=None)
 # new profile appears on the first core built after the TTL lapses.
 _PROFILE_TEMPLATE_TTL_SECONDS = 15.0
 _profile_template_memo: dict = {"at": 0.0, "rows": None, "fn": None}
+
+_profile_persona_reconcile_lock = threading.Lock()
+_profile_persona_reconcile_tick: dict = {"root": None, "at": 0.0}
+
+def _maybe_reconcile_profile_personas() -> None:
+    """Admit new local profiles at most once per root per discovery window.
+
+    A failed scan does not advance the tick, so the next snapshot retries.
+    Other snapshot paths still work, with the failure visible in runtime logs.
+    """
+    root = str(paths.store_root())
+    with _profile_persona_reconcile_lock:
+        at = time.monotonic()
+        if (
+            root == _profile_persona_reconcile_tick["root"]
+            and at - _profile_persona_reconcile_tick["at"] < _PROFILE_TEMPLATE_TTL_SECONDS
+        ):
+            return
+        try:
+            from .profile_persona_discovery import reconcile_profile_personas
+
+            reconcile_profile_personas()
+        except Exception:
+            logger.exception("Named Hermes profile auto-discovery failed")
+            return
+        _profile_persona_reconcile_tick.update(root=root, at=at)
 
 
 def _profile_templates_cached() -> list:
