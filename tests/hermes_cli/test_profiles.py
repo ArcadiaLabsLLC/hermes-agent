@@ -104,6 +104,21 @@ def test_available_profile_template_summaries_skip_runtime_config(
     assert rows[0].provider is None
 
 
+def test_available_profile_summaries_do_not_offer_ghost_or_crash_shell(profile_env):
+    root = profile_env / ".hermes" / "profiles"
+    ghost = root / "ghost"
+    ghost.mkdir(parents=True)
+    (ghost / "logs").mkdir()
+    crashed = root / "crashed"
+    crashed.mkdir()
+    (crashed / ".env").touch()
+    valid = root / "valid"
+    valid.mkdir()
+    (valid / "config.yaml").write_text("{}\n", encoding="utf-8")
+
+    assert [row.name for row in profiles.available_profile_template_summaries()] == ["valid"]
+
+
 class TestValidateProfileName:
     """Tests for validate_profile_name()."""
 

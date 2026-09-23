@@ -19,7 +19,8 @@ from typing import Callable, Dict, Iterable, Iterator, List, Mapping, Optional, 
 from hermes_cli.archive_safe import archive_root_dirs, make_targz, normalize_archive_parts, safe_extract_targz
 from hermes_constants import (
     LOCAL_RUNTIME_ROOT_DIRS, PROFILE_ID_RE, clear_named_profile_deleted, mark_named_profile_deleted,
-    named_profile_has_identity, named_profile_is_deleted, named_profile_is_live,
+    named_profile_has_identity, named_profile_has_servable_identity,
+    named_profile_is_deleted, named_profile_is_live,
 )
 
 logger = logging.getLogger(__name__)
@@ -2407,7 +2408,7 @@ def available_profile_templates() -> List[ProfileTemplateInfo]:
     return profiles
 
 def available_profile_template_summaries() -> List[ProfileTemplateInfo]:
-    """Return profile metadata without parsing every runtime config.
+    """Return live, servable profile metadata without parsing runtime config.
 
     Mission Control's available-persona roster uses only the profile name,
     path, and description. Reading every large ``config.yaml`` merely to
@@ -2418,14 +2419,15 @@ def available_profile_template_summaries() -> List[ProfileTemplateInfo]:
 
     profiles: list[ProfileTemplateInfo] = []
     try:
-        profiles_root = _get_profiles_root()
-        entries = sorted(profiles_root.iterdir()) if profiles_root.is_dir() else []
+        # A raw directory walk admits tombstones, ghost shells and crashed
+        # empty-.env profiles as placeable Launcher personas.
+        entries = _iter_named_profile_dirs()
     except Exception:
         return []
 
     for entry in entries:
         try:
-            if not entry.is_dir():
+            if not named_profile_has_servable_identity(entry):
                 continue
             name = entry.name
             if name == "default" or not _PROFILE_ID_RE.match(name):
