@@ -341,6 +341,57 @@ def level_conflict_path(realm_id: str, workspace_token: str) -> Path:
     )
 
 
+#: The MAP CATALOGUE family's store directory name.
+#:
+#: Sibling of :data:`LEVELS_DIRNAME`, and the distinction is the whole point of
+#: the family: ``store/levels/<workspace>.json`` answers "what environment is
+#: THIS workspace standing in", while ``store/maps/<map>.json`` answers "what
+#: named scenes does this realm know about at all". A workspace's level is a
+#: COPY of a catalogue map's document and stays one — the launcher resolves the
+#: caption's display name from the sidecar's ``SavedMapId`` against the
+#: catalogue, which is precisely the resolution that answered ``unnamed`` on a
+#: second machine while the catalogue was machine-local SharedPreferences.
+MAPS_DIRNAME = "maps"
+
+
+def maps_root() -> Path:
+    return store_root() / MAPS_DIRNAME
+
+
+def map_path(map_id: str) -> Path:
+    """One catalogue map's document, keyed by the map id's path token.
+
+    Keyed by the TOKEN for :func:`level_path`'s reason and one more of its own:
+    the map id is minted by the launcher (``SavedMapId``) and is the key the
+    sidecar stores, so hermes must not re-key the document on anything it reads
+    out of the bytes. The id is the address; the ``name`` inside is a label that
+    an operator is free to change without moving the file.
+    """
+
+    return maps_root() / f"{safe_path_token(map_id)}.json"
+
+
+def map_baseline_path(realm_id: str) -> Path:
+    # realm-sync baseline sidecar for the MAP CATALOGUE family; NEVER synced,
+    # NEVER published — under the realm-sync root rather than beside the maps it
+    # describes, so the publish walk that ships ``store/maps/`` cannot pick it up.
+    return realm_sync_root() / safe_path_token(realm_id) / "map_baseline.json"
+
+
+def map_conflict_path(realm_id: str, map_token: str) -> Path:
+    # Where a HELD map's remote bytes are parked, for the reason
+    # ``level_conflict_path`` states: two authors, one map id, no natural
+    # three-way resolution at whole-document granularity — and a hold that left
+    # no copy of what it refused would make "pull again and hope" the operator's
+    # only exit.
+    return (
+        realm_sync_root()
+        / safe_path_token(realm_id)
+        / "map_conflicts"
+        / f"{safe_path_token(map_token)}.json"
+    )
+
+
 def flow_graph_baseline_path(realm_id: str) -> Path:
     # realm-sync baseline sidecar for the replicated CANVAS family; NEVER synced,
     # NEVER published. Under the realm-sync root rather than beside the graphs it

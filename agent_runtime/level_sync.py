@@ -150,6 +150,87 @@ def level_document_hash(raw: bytes) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def stored_level_sha256(raw: bytes) -> str:
+    """Hash of the STORED BYTES — the compare-and-set token, not the merge key.
+
+    Named apart from :func:`level_document_hash` because the two answer
+    different questions and only one of them is safe to guard a write with.
+    This one answers "are the bytes I read still the bytes you hold": a
+    re-indentation changes it, which is exactly what a caller doing
+    compare-and-set needs, while the semantic hash would call that write a no-op
+    and let a lost update through.
+    """
+
+    return hashlib.sha256(raw).hexdigest()
+
+
+def level_expectation_matches(
+    stored: bytes | None, expect_sha256: str | None, *, provided: bool
+) -> bool:
+    """Does the store still hold what a compare-and-set caller last read?
+
+    Three meanings, and the third is the one a bool parameter is carrying
+    because ``None`` is already spoken for:
+
+    - ``provided=False`` (the caller omitted the key) — UNCONDITIONAL, always
+      true. A launcher that never read the level is not forced to invent a token.
+    - ``expect_sha256 is None`` — "there must be nothing stored". This is how a
+      first write says *I believe I am authoring this workspace's level*, and it
+      is the arm that catches two machines authoring one workspace at once.
+    - a hex string — it must equal the sha256 of the STORED BYTES.
+
+    Compared case-insensitively, because a client that upper-cases its hex is
+    not making a different claim. Keyed on the stored-byte hash and never on
+    :func:`level_document_hash`: the semantic hash calls a re-serialisation a
+    no-op, which is precisely the lost update a compare-and-set exists to refuse.
+    """
+
+    if not provided:
+        return True
+    current = stored_level_sha256(stored) if stored is not None else None
+    if expect_sha256 is None:
+        return current is None
+    return current is not None and current.lower() == str(expect_sha256).lower()
+
+
+def level_document_row(
+    workspace_id: str, raw: bytes | None, *, full: bool = False
+) -> dict[str, Any]:
+    """ONE level row, for every lane that reports a level.
+
+    ``present: false`` is an honest empty, never an error — most workspaces
+    never had a level applied.
+
+    The CLI's ``level show``/``set`` and the RPC's ``runtime.level.get``/``set``
+    both print it, and they print it from HERE rather than from two builders
+    that happen to agree today: the launcher's store compares the ``sha256`` it
+    read on one lane against the one it is handed on the other, so a key or a
+    hash that differed between them would be a permanent false conflict.
+
+    ``version`` is read for the CALLER's accounting only. A stored document that
+    will not parse leaves it ``null`` and keeps the row — a level this runtime
+    cannot read is a fact about the store, and ``full`` still hands the bytes
+    over, which is the only way an operator repairs one.
+    """
+
+    row: dict[str, Any] = {
+        "workspace_id": workspace_id,
+        "workspace_token": paths.safe_path_token(workspace_id),
+        "present": raw is not None,
+        "bytes": len(raw) if raw is not None else 0,
+        "sha256": stored_level_sha256(raw) if raw is not None else None,
+        "version": None,
+    }
+    if raw is not None:
+        try:
+            row["version"] = validate_level_document(raw).get("version")
+        except LevelDocumentError:
+            row["version"] = None
+    if full:
+        row["document"] = raw.decode("utf-8", errors="replace") if raw is not None else None
+    return row
+
+
 def level_baseline_key(workspace_token: str) -> str:
     """This family's baseline key, namespaced like every sibling family's."""
 
@@ -235,6 +316,34 @@ class LevelStore:
             return {"path": path, "changed": False}
         atomic_write_text(path, raw.decode("utf-8"), newline="")
         return {"path": path, "changed": True}
+
+    def clear(self, workspace_id: str) -> dict[str, Any]:
+        """Delete this workspace's level, and say whether one was there.
+
+        Beside :meth:`write` because it is the same door: "hermes no longer
+        holds a level for this workspace" has to mean one thing on this machine,
+        and a caller unlinking ``paths.level_path`` itself would be the second
+        author this class exists to prevent.
+
+        ``changed: False`` for a workspace that had no level is an honest
+        answer, not an error — the same reading :meth:`read` gives absence, and
+        the one that makes a clear IDEMPOTENT for a launcher that retries.
+
+        **A clear is local.** It removes nothing from a realm and writes no
+        baseline: the pull's ``upstream_absent`` arm is deliberately never a
+        delete, so a cleared level that the realm still publishes comes back on
+        the next pull. That is the family's ruling, not an oversight here.
+        """
+
+        path = paths.level_path(workspace_id)
+        existed = path.is_file()
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            if path.is_file():
+                raise
+            existed = False
+        return {"path": path, "changed": existed}
 
     def list_workspace_tokens(self) -> list[str]:
         """Every workspace token this store holds a level for, sorted."""

@@ -344,6 +344,42 @@ def realm_sync_status(
         # The workspace LEVEL family's accounting, same shape and same
         # absent-tolerant contract as the row above it.
         "levels": _level_status_row(realm.id, workspaces),
+        # The MAP CATALOGUE family's accounting. Same shape and same
+        # absent-tolerant contract as the row above it, minus the workspace
+        # argument: a map id is not addressed by a workspace, so the scan has no
+        # realm filter to take.
+        "maps": _map_status_row(realm.id),
+    }
+
+
+def _map_status_row(realm_id: str) -> dict[str, Any]:
+    """``{publishable, unpublished, held, refused}`` for the map catalogue.
+
+    A top-level key and NOT a ``store_drift`` family, for the reason
+    :func:`_level_status_row` spells out one function down: ``realm_revert``
+    subscripts ``_PROCESS_ORDER[row.family]`` directly and dispatches on family
+    for the upstream lookup, the baseline and the store door, so a family added
+    there without a revert arm hands ``revert --all`` a ``KeyError`` and offers
+    the operator an exit that does not exist. The map family's revert arm is a
+    follow-up with its own row, exactly as the level family's is.
+    """
+
+    from .map_sync import map_baseline_key, read_map_baseline
+
+    scan = _map_publish_scan()
+    baseline = read_map_baseline(realm_id)
+    unpublished = sum(
+        1
+        for token, body_hash in scan.hashes.items()
+        if baseline.get(map_baseline_key(token)) != body_hash
+    )
+    conflicts = paths.realm_sync_root() / paths.safe_path_token(realm_id) / "map_conflicts"
+    held = sorted(path.stem for path in conflicts.glob("*.json")) if conflicts.is_dir() else []
+    return {
+        "publishable": len(scan.artifacts),
+        "unpublished": unpublished,
+        "held": held,
+        "refused": list(scan.refused),
     }
 
 
@@ -461,6 +497,7 @@ def publish_realm_sync(
         result["office_sync"] = {"refused": list(resolved.office_refused or [])}
         result["board_sync"] = {"refused": list(resolved.board_refused or [])}
         result["level_sync"] = {"refused": list(resolved.level_refused or [])}
+        result["map_sync"] = {"refused": list(resolved.map_refused or [])}
         if resolved.instance_projection is not None:
             result["persona_instance_projection"] = _persona_instance_row(
                 resolved.instance_projection, resolved.instance_rows_unreadable
@@ -597,6 +634,17 @@ def publish_realm_sync(
             update_level_baseline_after_publish(realm.id, dict(resolved.level_hashes))
     except Exception:  # noqa: BLE001 — baseline is best-effort; never fail publish
         pass
+    # The MAP CATALOGUE family: the level family's baseline discipline, for the
+    # level family's reason — whole-document granularity means a two-sided
+    # divergence is a HOLD, and without this the publisher's very next pull hands
+    # them a held catalogue over the bytes they themselves just shipped.
+    from .map_sync import update_map_baseline_after_publish
+
+    try:
+        if resolved.map_hashes:
+            update_map_baseline_after_publish(realm.id, dict(resolved.map_hashes))
+    except Exception:  # noqa: BLE001 — baseline is best-effort; never fail publish
+        pass
     # The SKILL family: the same baseline discipline as every family above, plus
     # one step none of them needs. The skill lane decides against a MIRROR of the
     # realm (the per-realm inbox), not against the subtree directly, so recording
@@ -632,6 +680,13 @@ def publish_realm_sync(
     result["level_sync"] = {
         "published": sorted(resolved.level_hashes or {}),
         "refused": list(resolved.level_refused or []),
+    }
+    # Additive and unconditional for the key above it's reason: an omitted key
+    # cannot tell "this realm ships no catalogue" apart from "this ack came from
+    # a hermes that has no map family", and the launcher's skew rule needs both.
+    result["map_sync"] = {
+        "published": sorted(resolved.map_hashes or {}),
+        "refused": list(resolved.map_refused or []),
     }
     if resolved.instance_projection is not None:
         result["persona_instance_projection"] = _persona_instance_row(
@@ -710,6 +765,18 @@ def pull_realm_sync(
 
     level_summary = apply_level_pull(realm.id, subtree)
     if level_summary.changed:
+        changed = True
+    # The MAP CATALOGUE: same exclusion (store/maps/* ->
+    # _destination_for_sync_path None), same whole-document 3-way shape. It has
+    # no ordering argument against the workspace records — a map is addressed by
+    # a MAP ID, not by a workspace — and none against the level pull either:
+    # neither applier reads the other's files. The level's sidecar names a map
+    # id and resolving that id to a display name is the LAUNCHER's step, after
+    # both families have landed.
+    from .map_sync import apply_map_pull
+
+    map_summary = apply_map_pull(realm.id, subtree)
+    if map_summary.changed:
         changed = True
     # Realm skills: excluded from the generic loop too (skills/* →
     # _destination_for_sync_path None). Mirror them into the resolver-invisible
@@ -823,6 +890,11 @@ def pull_realm_sync(
     # (L1/L2) has to tell those two apart. ``source: null`` inside it is the
     # first of those.
     result["level_sync"] = level_summary.as_dict()
+    # Unconditional for the key above it's reason, and the launcher's adapter
+    # reads it the same way: ``source: null`` says "this peer runs a hermes with
+    # no map family", which is the one case where a missing catalogue entry is
+    # expected rather than a defect.
+    result["map_sync"] = map_summary.as_dict()
     result["profile_artifact_sync"] = profile_files_summary.as_dict()
     # THE contract seam with the launcher (plan §6). Emitted UNCONDITIONALLY,
     # carrying ``source: null`` when the peer published no projection, because
@@ -1107,6 +1179,17 @@ class _ResolvedPublish:
     #: typed row, never a silent omission — and here silence would let a peer
     #: read the absence as "the realm removed this level".
     level_refused: list[dict[str, Any]] = ()  # type: ignore[assignment]
+    #: The MAP CATALOGUE family's published content hashes, keyed by map token.
+    #: Out of the SAME pass that minted the artifacts, for ``level_hashes``'s
+    #: reason — a second walk of ``store/maps/`` could disagree with the bytes
+    #: actually written, and the disagreement surfaces as a HOLD on the
+    #: publisher's own catalogue.
+    map_hashes: dict[str, str] = ()  # type: ignore[assignment]
+    #: Maps this pass would not publish because the document would not read.
+    #: A typed row, never a silent omission: silence would let a peer read the
+    #: absence as "the realm removed this map", which is the ``unnamed`` caption
+    #: this family exists to stop.
+    map_refused: list[dict[str, Any]] = ()  # type: ignore[assignment]
 
 
 def resolve_realm_sync_artifacts(realm_id: str) -> list[RealmSyncArtifact]:
@@ -1135,6 +1218,14 @@ def _resolve_artifacts_with_projection(realm_id: str) -> _ResolvedPublish:
     # directory, and a workspace whose office refuses still publishes its level.
     level_scan = _level_publish_scan(workspaces)
     artifacts.extend(level_scan.artifacts)
+    # The MAP CATALOGUE family. Takes NO workspace argument, and that is the one
+    # structural difference from every scan above it: a level is addressed BY a
+    # workspace and a workspace belongs to a realm, but a map id belongs to
+    # nothing smaller than the install, so there is no id set to filter against.
+    # A realm carries the whole catalogue — see ``map_sync``'s module docstring
+    # for why that trade is the cheaper half.
+    map_scan = _map_publish_scan()
+    artifacts.extend(map_scan.artifacts)
     # Personas referenced by synced office placements travel with the office
     # (plan §5): an office-only persona must be materializable on pull. The
     # wanted set was workspace.agent_ids only, which would sync a placement
@@ -1203,6 +1294,8 @@ def _resolve_artifacts_with_projection(realm_id: str) -> _ResolvedPublish:
         flow_graph_projection=flow_graph_projection,
         level_hashes=level_scan.hashes,
         level_refused=level_scan.refused,
+        map_hashes=map_scan.hashes,
+        map_refused=map_scan.refused,
     )
 
 
@@ -2457,6 +2550,75 @@ def _level_publish_scan(workspaces: list[Workspace]) -> LevelPublishScan:
     return LevelPublishScan(artifacts=artifacts, hashes=hashes, refused=refused)
 
 
+class MapPublishScan(NamedTuple):
+    """What ONE pass over the map catalogue says this realm publishes.
+
+    Three facts from one walk, for ``LevelPublishScan``'s reason: the artifacts,
+    the content hashes the publish records as its new baseline, and the maps that
+    would not travel.
+    """
+
+    artifacts: list[RealmSyncArtifact]
+    hashes: dict[str, str]
+    refused: list[dict[str, Any]]
+
+
+def _map_publish_scan() -> MapPublishScan:
+    """The MAP CATALOGUE family: one document per named map on this install.
+
+    **No realm filter, and no workspace argument.** Every scan above this one
+    narrows by the realm's workspaces; this one cannot, because a map id is the
+    launcher's ``SavedMapId`` and belongs to the install rather than to a
+    workspace or a realm. The realm therefore carries the whole catalogue. The
+    cost — a member pulls catalogue entries it has no workspace standing on — is
+    strictly smaller than the alternative, which is a catalogue missing exactly
+    the entry an incoming level's sidecar names: the ``unnamed · yours`` caption
+    the owner reported on 2026-09-22.
+
+    **A map that will not read publishes NOTHING and is refused typed**, the
+    level scan's rule for the level scan's reason: publish copies verbatim, so an
+    undecodable document would travel and every peer's :func:`apply_map_pull`
+    would refuse it on arrival, keeping the failure from the one operator whose
+    disk holds the broken file.
+    """
+
+    from .map_sync import (
+        MapDocumentError,
+        MapStore,
+        map_document_hash,
+        published_relative_path,
+    )
+
+    store = MapStore()
+    artifacts: list[RealmSyncArtifact] = []
+    hashes: dict[str, str] = {}
+    refused: list[dict[str, Any]] = []
+    for token in store.list_map_tokens():
+        raw = store.read(token)
+        if raw is None:
+            # Listed by the directory walk and unreadable by the store's own
+            # read (an OSError it swallows). The same typed row an undecodable
+            # document gets, because from the publish's side the two are one
+            # fact — this install has a map here that cannot travel.
+            refused.append({"map_token": token, "reason": "map_unreadable", "error": "OSError"})
+            continue
+        try:
+            hashes[token] = map_document_hash(raw)
+        except MapDocumentError as exc:
+            refused.append({"map_token": token, "reason": exc.code, "error": type(exc).__name__})
+            continue
+        source = paths.map_path(token)
+        artifacts.append(
+            RealmSyncArtifact(
+                kind="map",
+                source=source,
+                relative_path=published_relative_path(token),
+                destination=source,
+            )
+        )
+    return MapPublishScan(artifacts=artifacts, hashes=hashes, refused=refused)
+
+
 def _office_wanted_persona_ids(workspaces: list[Workspace]) -> list[str]:
     """Persona ids referenced by office placements in this realm's workspaces
     (plan §5's one-line union — office-only personas travel with the office).
@@ -3214,6 +3376,18 @@ def _destination_for_sync_path(rel: str) -> Path | None:
         # the final fallthrough (which is what made the launcher unable to do
         # this from its side at all); the line records the OWNERSHIP.
         return None
+    if len(parts) == 3 and parts[0] == "store" and parts[1] == "maps":
+        # The MAP CATALOGUE family. Owned by ``map_sync.apply_map_pull``
+        # (adopt-or-hold at whole-document granularity against the 3-way
+        # baseline), never the generic overwrite loop: a raw write would put a
+        # peer's catalogue entry on this disk without passing the store door
+        # that validates it — including the ``name`` check, which is the one
+        # fact the whole family exists for — and it would do so LAST-WRITE-WINS
+        # over an entry this operator may have renamed.
+        #
+        # Like the branch above it this ALREADY resolved to None through the
+        # final fallthrough; the line records the OWNERSHIP.
+        return None
     if len(parts) > 2 and parts[0] == "store" and parts[1] == "profile_files":
         # The per-profile FILE family (MEMORY.md, core context, persona prompts).
         # Owned by ``profile_artifact_sync.apply_profile_artifact_pull``.
@@ -3276,6 +3450,8 @@ def _kind_for_sync_path(rel: str) -> str:
         return "flow_graph_config"
     if rel.startswith("store/levels/"):
         return "level"
+    if rel.startswith("store/maps/"):
+        return "map"
     if rel.startswith("store/profile_files/"):
         # Kind is derived from the DESTINATION the published tail names — the
         # same authority the pull applier uses, never a second spelling.

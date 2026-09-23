@@ -104,6 +104,7 @@
         "init",
         "install-harness-skills",
         "level",
+        "map",
         "migrate",
         "mission-chat",
         "observe",
@@ -4863,9 +4864,136 @@
       ],
       "positionals": [],
       "subcommands": [
+        "clear",
         "set",
         "show"
       ]
+    },
+    "harness level clear": {
+      "exclusive_groups": [],
+      "options": {
+        "--dry-run": {
+          "action": "store_true",
+          "canonical": "--dry-run",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--expect-sha256": {
+          "action": "store",
+          "canonical": "--expect-sha256",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--fields": {
+          "action": "store",
+          "canonical": "--fields",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--no-color": {
+          "action": "store_true",
+          "canonical": "--no-color",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--output": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--quiet": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--workspace": {
+          "action": "store",
+          "canonical": "--workspace-id",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--workspace-id": {
+          "action": "store",
+          "canonical": "--workspace-id",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-o": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-q": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "level",
+        "clear"
+      ],
+      "positionals": [],
+      "subcommands": []
     },
     "harness level set": {
       "exclusive_groups": [],
@@ -4883,6 +5011,14 @@
           "canonical": "--dry-run",
           "choices": null,
           "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--expect-sha256": {
+          "action": "store",
+          "canonical": "--expect-sha256",
+          "choices": null,
+          "nargs": 1,
           "required": false,
           "type": null
         },
@@ -5106,6 +5242,510 @@
       "path": [
         "harness",
         "level",
+        "show"
+      ],
+      "positionals": [],
+      "subcommands": []
+    },
+    "harness map": {
+      "exclusive_groups": [],
+      "options": {
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "map"
+      ],
+      "positionals": [],
+      "subcommands": [
+        "clear",
+        "list",
+        "set",
+        "show"
+      ]
+    },
+    "harness map clear": {
+      "exclusive_groups": [],
+      "options": {
+        "--dry-run": {
+          "action": "store_true",
+          "canonical": "--dry-run",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--expect-sha256": {
+          "action": "store",
+          "canonical": "--expect-sha256",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--fields": {
+          "action": "store",
+          "canonical": "--fields",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--map": {
+          "action": "store",
+          "canonical": "--map-id",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--map-id": {
+          "action": "store",
+          "canonical": "--map-id",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--no-color": {
+          "action": "store_true",
+          "canonical": "--no-color",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--output": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--quiet": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-o": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-q": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "map",
+        "clear"
+      ],
+      "positionals": [],
+      "subcommands": []
+    },
+    "harness map list": {
+      "exclusive_groups": [],
+      "options": {
+        "--fields": {
+          "action": "store",
+          "canonical": "--fields",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--no-color": {
+          "action": "store_true",
+          "canonical": "--no-color",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--output": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--quiet": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-o": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-q": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "map",
+        "list"
+      ],
+      "positionals": [],
+      "subcommands": []
+    },
+    "harness map set": {
+      "exclusive_groups": [],
+      "options": {
+        "--document": {
+          "action": "store",
+          "canonical": "--document",
+          "choices": null,
+          "nargs": 1,
+          "required": true,
+          "type": null
+        },
+        "--dry-run": {
+          "action": "store_true",
+          "canonical": "--dry-run",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--expect-sha256": {
+          "action": "store",
+          "canonical": "--expect-sha256",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--fields": {
+          "action": "store",
+          "canonical": "--fields",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--map": {
+          "action": "store",
+          "canonical": "--map-id",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--map-id": {
+          "action": "store",
+          "canonical": "--map-id",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--no-color": {
+          "action": "store_true",
+          "canonical": "--no-color",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--output": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--quiet": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-o": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-q": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "map",
+        "set"
+      ],
+      "positionals": [],
+      "subcommands": []
+    },
+    "harness map show": {
+      "exclusive_groups": [],
+      "options": {
+        "--fields": {
+          "action": "store",
+          "canonical": "--fields",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--full": {
+          "action": "store_true",
+          "canonical": "--full",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--map": {
+          "action": "store",
+          "canonical": "--map-id",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--map-id": {
+          "action": "store",
+          "canonical": "--map-id",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--no-color": {
+          "action": "store_true",
+          "canonical": "--no-color",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--output": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--quiet": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-o": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-q": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "map",
         "show"
       ],
       "positionals": [],

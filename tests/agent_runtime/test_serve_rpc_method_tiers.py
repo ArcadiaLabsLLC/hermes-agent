@@ -100,6 +100,29 @@ def test_level_mutations_are_console_and_reads_are_read() -> None:
     # egress wants. What actually admits a peer is the allowlist, never a tier
     # — ``test_peer_authorization`` owns that half.
     assert tiers["peer.media.get"] == TIER_CONSOLE
+    # The LEVEL family (2026-09-22 ruling: a workspace's level lives in hermes).
+    # Both writes are level mutations and the one-line rule decides them. The
+    # READ is the third row worth arguing and it says ``console`` for the media
+    # verbs' reason: it hands back up to 1 MB of a document's raw bytes, and the
+    # read tier is deliberately open to ``unknown`` — a caller the transport
+    # authenticated and could not place. The cost is real and is named on
+    # ``_runtime_level_get``: a ``read``-tier viewer cannot load the environment
+    # its office draws on.
+    assert tiers["runtime.level.get"] == TIER_CONSOLE
+    assert tiers["runtime.level.set"] == TIER_CONSOLE
+    assert tiers["runtime.level.clear"] == TIER_CONSOLE
+    # The MAP CATALOGUE family (the level family's sibling, keyed by map id).
+    # The two writes are decided by the one-line rule. Both READS say ``console``
+    # for ``runtime.level.get``'s reason and ``.list`` is the fourth row worth
+    # arguing: it carries no document bytes at all, so the rule as stated would
+    # say ``read`` — it says ``console`` because the catalogue is the complete
+    # inventory of named environments on this machine, and the read tier is
+    # deliberately open to ``unknown``, a caller the transport authenticated and
+    # could not place.
+    assert tiers["runtime.map.list"] == TIER_CONSOLE
+    assert tiers["runtime.map.get"] == TIER_CONSOLE
+    assert tiers["runtime.map.set"] == TIER_CONSOLE
+    assert tiers["runtime.map.clear"] == TIER_CONSOLE
 
 
 def test_adding_the_tiers_block_did_not_move_the_contract_integer() -> None:
