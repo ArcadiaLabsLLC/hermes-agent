@@ -197,6 +197,10 @@ ERROR_EXIT_CODES = {
     # The RPC lane answers the identical condition with `ERR_CONFLICT` and
     # `reason: sha256_mismatch`; one refusal, one family across the two lanes.
     "level_sha256_mismatch": 4,
+    # `harness map set/clear --expect-sha256` refused: the stored catalogue map
+    # is not the bytes the caller read. The row above it, one family over, for
+    # the identical reason and with the identical cure.
+    "map_sha256_mismatch": 4,
     "spawn_scope_exhausted": 4,
     "sync_conflict": 4,
     "sync_behind": 4,
@@ -467,6 +471,7 @@ def _error_hint(code: str) -> str:
         # not there. The cure is to look at what is stored now and decide, which
         # is the same move the launcher's adapter makes on ``ERR_CONFLICT``.
         "level_sha256_mismatch": "Run `hermes harness level show --workspace <id> --json` to read the stored sha256, then retry with --expect-sha256 set to it (or drop the flag to overwrite unconditionally).",
+        "map_sha256_mismatch": "Run `hermes harness map show --map <id> --json` to read the stored sha256, then retry with --expect-sha256 set to it (or drop the flag to overwrite unconditionally).",
         "sync_behind": "Run `hermes harness realm sync pull <realm> --json` before publishing.",
         "sync_repo_missing": "Run `hermes harness realm sync pull <realm> --json` first — a revert reconciles against the last-pulled subtree.",
         "sync_secret_excluded": "Remove secrets/state from the realm sync allowlist source before retrying.",

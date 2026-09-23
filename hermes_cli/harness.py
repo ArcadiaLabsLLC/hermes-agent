@@ -1078,6 +1078,42 @@ def build_parser(parent_subparsers) -> None:
     )
     _add_stage42_global_args(level_clear, controls=frozenset({"dry_run"}))
     level_clear.set_defaults(func=_cmd_level_clear)
+    map_parser = subs.add_parser(
+        "map",
+        help="Map CATALOGUE: the named scenes this install knows about, carried by the realm",
+    )
+    map_subs = map_parser.add_subparsers(dest="map_command", required=True)
+    map_list = map_subs.add_parser("list", help="List the catalogue (names and hashes; never the documents)")
+    _add_stage42_global_args(map_list)
+    map_list.set_defaults(func=_cmd_map_list)
+    map_show = map_subs.add_parser("show", help="Show one catalogue map (metadata; --full carries the document)")
+    map_show.add_argument("--map", "--map-id", default=None)
+    map_show.add_argument("--full", action="store_true", help="Include the map document itself, byte for byte as stored")
+    _add_stage42_global_args(map_show)
+    map_show.set_defaults(func=_cmd_map_show)
+    map_set = map_subs.add_parser("set", help="Store a catalogue map VERBATIM (hermes validates that it is JSON with a version and a name, and reformats nothing)")
+    map_set.add_argument("--map", "--map-id", default=None)
+    map_set.add_argument(
+        "--document",
+        required=True,
+        help="Map document: a PATH to a JSON file (use this — a map carries a scene and a Windows command line caps at ~32 KB), or inline JSON",
+    )
+    map_set.add_argument(
+        "--expect-sha256",
+        default=None,
+        help="Compare-and-set: the sha256 of the stored bytes this write is based on, or 'none' if the catalogue must not hold this map yet",
+    )
+    _add_stage42_global_args(map_set, controls=frozenset({"dry_run"}))
+    map_set.set_defaults(func=_cmd_map_set)
+    map_clear = map_subs.add_parser("clear", help="Remove a catalogue map (local only — a map the realm still publishes returns on the next pull)")
+    map_clear.add_argument("--map", "--map-id", default=None)
+    map_clear.add_argument(
+        "--expect-sha256",
+        default=None,
+        help="Compare-and-set: the sha256 of the stored bytes this clear is based on, or 'none' if the catalogue must not hold this map",
+    )
+    _add_stage42_global_args(map_clear, controls=frozenset({"dry_run"}))
+    map_clear.set_defaults(func=_cmd_map_clear)
 
     persona = subs.add_parser("persona", help="Run bounded live-token diagnostics for one persona")
     persona_subs = persona.add_subparsers(dest="persona_command")
@@ -6578,7 +6614,7 @@ def _cmd_serve_connect(args) -> int:
 
 def _load_command_parts() -> None:
     parts_dir = Path(__file__).with_name("harness_parts")
-    for filename in ("persona_commands.py", "runtime_commands.py", "board.py", "office.py", "level.py", "flow_commands.py", "checkpoint_commands.py"):
+    for filename in ("persona_commands.py", "runtime_commands.py", "board.py", "office.py", "level.py", "map.py", "flow_commands.py", "checkpoint_commands.py"):
         path = parts_dir / filename
         exec(compile(path.read_text(encoding="utf-8"), str(path), "exec"), globals())
 
