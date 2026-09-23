@@ -9,6 +9,11 @@ tags: [queue, program/fork-hygiene]
 
 The repository AS A FORK: upstream sync and the boundary, CI, the suite and its gates, the god-file refactor, this vault. Runtime and Mission Control rows do NOT go here — the hermes half is [[runtime-queue]], the launcher half is `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`. Rows: one line + a pointer, never a restatement; claim with `**TAKEN <date> <who>**` before starting; a landing deletes its row.
 
+## Release validation — 2026-09-23
+
+- [ ] **Six new upstream v0.21.4 tests fail on Windows** · `fork / upstream` · three `test_container_boot.py` cases call POSIX-only `os.chown`; three `test_update_host_obligation.py` cases assume POSIX chmod/path spelling; upstream implementation/test parity verified, marker-only pending upstream fix · evidence: [[upstream-release-2026-09-23]] **UNCLAIMED**
+- [ ] **Sidebar cache concurrency and serve socket disconnect tests are flaky** · `fork / suite` · `test_projects_tree_coalesces_concurrent_scans_and_returns_copies` and `test_a_disconnect_unsubscribes_and_does_nothing_else` fail then pass bounded retries on the exact release merge; do not count retry success as stable proof · evidence: [[upstream-release-2026-09-23]] **UNCLAIMED**
+
 ## Filed on the move — 2026-09-22 (fork rows the launcher queue had carried since 2026-09-02)
 
 Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`; they are about the repository as a fork, not about the surface. Upstream-owned ones are tagged so: never patched here, a marker or an upstream issue.

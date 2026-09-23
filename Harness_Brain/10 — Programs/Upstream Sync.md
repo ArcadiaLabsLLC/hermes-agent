@@ -2,7 +2,7 @@
 type: program
 program: upstream-sync
 status: active
-cursor: "2026-09-22 — LANDED: upstream ea0c2b820b merged into main (candidate tip 24fac52fbf, fast-forwarded by the operator). Merge base is now 2026-09-21. Three named reds carried by ruling (residual doctor vendor-slug test, frozen-home gate on two upstream names, docket gate), all rowed in fork-hygiene-queue. Next: retarget the scheduled Codex job to produce a tested weekly merge candidate; then the seam program S0 (ratchet) on the merged tree."
+cursor: "2026-09-23 — Release v2026.9.21 (v0.21.4), upstream d337b736aa, integrated by history-preserving merge b592010a65: all 148 missing commits, custom history retained. Validation and carried reds: [[upstream-release-2026-09-23]]. Next: weekly cadence and seam ratchet; runtime migration remains separate."
 tags: [program/upstream-sync, program, upstream]
 ---
 
