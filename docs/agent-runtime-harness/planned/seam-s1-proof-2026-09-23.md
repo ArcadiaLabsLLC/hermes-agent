@@ -105,3 +105,41 @@ the number is over. Nothing here is landed on `main`.
 Together ≈ −17 to −23 ms → parser ≈ +28 to +34 ms, inside the threshold with margin. Re-take the A/B above
 on that tree before Stage 1 comes off hold; the launcher boot (`python -m hermes_cli.main harness serve`,
 same `harness` entry — no different entry needed) is still owed by the operator on the passing build.
+
+## 4. The next shape, built and re-measured — **FAIL**, Stage 1 stays ON HOLD
+
+Built on the same branch: `adfb6c872d` + `eefea56fa3` (`cli_commands` is a `PluginManifest` field; the
+second manifest read is gone — **§2's "Parallel to upstream" row 1 is CLOSED**, 0 rows open; the follow-up
+commit made the manifest edit purely additive), `e858df653a` (`plugin_compat.disable_reason` returns None
+for bundled plugins — one clean upstream-liftable commit), `79cd47f548` (one config read for both gate
+lists; ratchet fixture re-baselined with a `reasons` row). Contract fixture: `--check` fresh, 202 paths,
+sha256 `d347e98255146d8c` — byte-identical.
+
+Same interleaved A/B as §2 (baseline worktree at `5732265aaf` rebuilt; 7 samples each after one warm-up,
+fresh `HERMES_HOME` per sample). Round 1 ran on a loaded box (base parser samples 950–1306 ms, spread
+larger than the effect) and is discarded; round 2, box idle (CPU 3–9 %), is the record:
+
+| # | what | base median / min | built median / min | Δ median | Δ min | threshold |
+|---|---|---|---|---|---|---|
+| (a) | `harness --help`, wall | 1305.6 / 1293.3 | 1365.9 / 1328.0 | +60.3 | +34.7 | — |
+| (b) | `harness doctor`, wall | 2027.2 / 1956.2 | 1976.3 / 1863.2 | **−50.9** | −93.0 | ≤ +150 → PASS |
+| (c) | `_build_cli_parser()` [harness doctor] | 792.0 / 789.6 | 862.3 / 841.8 | **+70.3** | +52.2 | ≤ +50 → **FAIL** |
+| (c2) | `_build_cli_parser()` [status] | 784.3 / 764.4 | 844.0 / 825.5 | +59.7 | +61.1 | — |
+| (e) | `status`, wall | 3396.3 / 3382.1 | 3340.7 / 3276.8 | −55.6 | −105.3 | — |
+
+**The three changes bought nothing measurable on the real path.** A direct A/B of the previous tip
+`446fcabd0b` against this one, parser only, same method: 828.2 / 807.3 → 827.2 / 801.5 (Δ −1.0 median,
+−5.8 min). In-process the pieces did shrink (single-plugin load 10 → 2.6 ms, config 4 → 2, second read
+gone), but ~15 ms is below this box's run-to-run spread, and the §2 "+51" was itself a low draw of that
+spread: the baseline median moved 781.6 → 792.0 between the two A/B sessions and the built side by more.
+
+**What the +50–70 ms is, measured on the baseline tree after its own parser build:** `import
+hermes_cli.plugins` +10 ms (deps already loaded), `collect_directory_manifests()` **32–37 ms** (59
+manifests, every `plugin.yaml` YAML-parsed and ~370 `stat` calls), then gate + one-plugin load + attach
+≈ 5 ms. The manifest sweep is the budget; nothing left to trim around it.
+
+**Next shape (one item):** the declared scan stops calling `collect_directory_manifests()`. It reads each
+candidate `plugin.yaml` as TEXT and YAML-parses/gates only the ones containing `cli_commands` (one today),
+keeping precedence by checking for a same-key manifest in later sources before trusting an earlier one.
+Expected: the 32–37 ms sweep becomes ~60 small reads (~5–10 ms), parser ≈ +25–35 ms. That is a
+generic-surface change to the PR (a manifest pre-filter), not a fork parallel. Re-take this A/B on it.
