@@ -398,7 +398,7 @@ def _ensure_discussion_methods():
 
 def _ensure_local_llama_methods():
     if "runtime.local_llama.status" not in _METHODS:
-        from .local_llama.rpc import register
+        from .local_llama_adapter.rpc import register
         register(method, ok, err)
 
 
