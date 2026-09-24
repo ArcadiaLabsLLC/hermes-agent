@@ -824,6 +824,17 @@ if _WIN:
     })
 
 
+# Upstream web-server tests whose restart / desktop-startup path runs the REAL
+# gateway orphan reap and its 30 s exit wait (fixture: conftest_plugin).
+ID_MARKS.update({
+    node: (pytest.mark.no_real_orphan_reap,)
+    for node in (
+        "tests/hermes_cli/test_web_server.py::TestWebServerEndpoints::"
+        "test_telegram_onboarding_apply_reports_restart_failure_after_save",
+        "tests/hermes_cli/test_web_server.py::TestDesktopCronTicker::test_ticker_runs_when_desktop",
+    )
+})
+
 # ── CARRY3: upstream tests that call monkeypatch.undo() mid-body (see _SCOPED_UNDO).
 ID_MARKS.update({
     node: (_SCOPED_UNDO,)

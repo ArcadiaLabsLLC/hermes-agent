@@ -602,6 +602,30 @@ def _config_reads_through_load_config(request, monkeypatch):
     monkeypatch.setattr(_config, "load_config_readonly", lambda: _config.load_config())
 
 
+_NO_REAL_ORPHAN_REAP_MARK = "no_real_orphan_reap"
+
+
+@pytest.fixture(autouse=True)
+def _no_real_orphan_reap(request, monkeypatch):
+    """Keep an upstream web-server test off the machine's real process table.
+
+    ``hermes_cli.web_server._spawn_gateway_restart`` (and the desktop backend's
+    startup) call ``hermes_cli.gateway._reap_unsupervised_gateway_orphans``,
+    which scans the REAL process table and then waits up to
+    ``_ORPHAN_EXIT_GRACE_SECONDS`` (30 s) for every unsupervised gateway it
+    found. Any such process on the box — an operator's, or a test-leaked
+    ``gateway run --replace`` — turns the wait into the fork's 30 s per-test
+    timeout. For the ids ``tests/_downstream/id_markers.py`` marks, the reap
+    finds nothing; the behaviour under test (the restart report, the ticker)
+    is unchanged.
+    """
+    if request.node.get_closest_marker(_NO_REAL_ORPHAN_REAP_MARK) is None:
+        return
+    import hermes_cli.gateway as _gateway
+
+    monkeypatch.setattr(_gateway, "_reap_unsupervised_gateway_orphans", lambda *_a, **_k: False)
+
+
 _BACKGROUND_AGENT_TURNS_MARK = "background_agent_turns"
 
 
@@ -736,6 +760,12 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         "on this machine (it reads the real fleet process table); it skips, naming "
         "the live pids, where one does (applied by id from "
         "tests/_downstream/id_markers.py).",
+    )
+    config.addinivalue_line(
+        "markers",
+        f"{_NO_REAL_ORPHAN_REAP_MARK}: the gateway orphan reap finds nothing, so the "
+        "test never waits on this machine's real unsupervised gateways (applied by "
+        "id from tests/_downstream/id_markers.py).",
     )
     config.addinivalue_line(
         "markers",
