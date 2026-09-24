@@ -1078,6 +1078,19 @@ IMPORT_TIME_POSIX_SHIMS: dict[str, dict[str, object]] = {
 
 if _WIN:
     ID_MARKS.update({
+        **{
+            f"tests/gateway/test_runtime_footer.py::{test}": (
+                _up_red(f"{why}; twin: tests/gateway/test_runtime_footer_downstream.py"),
+            )
+            for test, why in (
+                ("test_home_relative_cwd_collapses_home", "HOME patched, USERPROFILE not (class c-C, #121222)"),
+                ("test_format_footer_all_fields", "HOME patched, USERPROFILE not (class c-C, #121222)"),
+                ("test_format_footer_latency_in_field_order", "HOME patched, USERPROFILE not (class c-C, #121222)"),
+                ("test_format_footer_skips_missing_context_length", "a POSIX cwd literal is drive-qualified (class c-D)"),
+                ("test_default_build_footer_line_ignores_turn_seconds", "a POSIX cwd literal is drive-qualified (class c-D)"),
+            )
+        },
+        **{
         f"tests/agent/test_prompt_builder.py::{test}": (
             _posix_only("chmod(0) does not make a directory unreadable on Windows"),
         )
@@ -1085,6 +1098,7 @@ if _WIN:
             "TestFindHermesMd::test_unreadable_cwd_is_treated_as_not_found",
             "TestCursorrulesCandidates::test_unreadable_cwd_is_treated_as_absent",
         )
+        },
     })
 
 

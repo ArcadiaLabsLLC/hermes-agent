@@ -15,7 +15,7 @@ from agent_runtime.config import AgentRuntimeConfig
 from agent_runtime import paths
 from agent_runtime.tool_permissions import default_permission_mode
 from agent_runtime.events import EventLog
-from agent_runtime.models import AgentPersona, AgentRun, PersonaInstance
+from agent_runtime.models import AgentPersona, AgentRun, PersonaAssignment, PersonaInstance
 
 Task = SimpleNamespace
 from agent_runtime.mission_chat_turns import (

@@ -678,13 +678,13 @@ select = ["PLW1514", "F821", "ASYNC210", "ASYNC220", "ASYNC221", "ASYNC251"]
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can intentionally exercise locale-encoding edge cases.
-"tests/**" = ["PLW1514", "ASYNC210", "ASYNC220", "ASYNC221", "ASYNC251", "F821"]
+"tests/**" = ["PLW1514", "ASYNC210", "ASYNC220", "ASYNC221", "ASYNC251"]
 # Skills and plugins are partially user-authored — their own conventions.
 "skills/**" = ["PLW1514"]
-"optional-skills/**" = ["PLW1514", "F821"]
+"optional-skills/**" = ["PLW1514"]
 # Plugin platform adapters run ON the gateway event loop — the ASYNC gate
 # applies to them with full force; only PLW1514 stays relaxed.
-"plugins/**" = ["PLW1514", "F821"]
+"plugins/**" = ["PLW1514"]
 # ---------------------------------------------------------------------------
 # ASYNC ratchet baseline — legacy blocking sites that predate the gate.
 # Each entry is an EXISTING violation being fixed in its own PR; do NOT add
@@ -702,9 +702,64 @@ select = ["PLW1514", "F821", "ASYNC210", "ASYNC220", "ASYNC221", "ASYNC251"]
 "plugins/platforms/whatsapp/adapter.py" = ["ASYNC220", "ASYNC221"]
 "plugins/platforms/photon/adapter.py" = ["ASYNC220"]
 
-"agent/**" = ["F821"]
-"gateway/**" = ["F821"]
-"tools/**" = ["F821"]
-"tui_gateway/**" = ["F821"]
-"hermes_cli/web_server.py" = ["F821"]
+# ---------------------------------------------------------------------------
+# F821 (undefined name) is a FORK-selected rule, so it is ignored only where a
+# name is defined outside the file's own text, or on an upstream-owned line.
+# Never a directory glob: a glob hid a merge-dropped `import os` in a test and
+# a production NameError in tools/terminal_tool.py (fork-hygiene 2026-09-24).
+# ---------------------------------------------------------------------------
+# Exec-assembled / rebound parts: their bodies resolve against the host's
+# globals (harness.py exec's its parts; tui_gateway's method_ctx.bind_module).
 "hermes_cli/harness.py" = ["F821"]
+"tui_gateway/agent_callbacks.py" = ["F821"]
+"tui_gateway/change_watcher.py" = ["F821"]
+"tui_gateway/compute_host_bridge.py" = ["F821"]
+"tui_gateway/methods_bot_relay.py" = ["F821"]
+"tui_gateway/methods_browser.py" = ["F821"]
+"tui_gateway/methods_browser_control.py" = ["F821"]
+"tui_gateway/methods_complete.py" = ["F821"]
+"tui_gateway/methods_complete_helpers.py" = ["F821"]
+"tui_gateway/methods_config.py" = ["F821"]
+"tui_gateway/methods_config_set.py" = ["F821"]
+"tui_gateway/methods_connectors.py" = ["F821"]
+"tui_gateway/methods_connectors_account.py" = ["F821"]
+"tui_gateway/methods_display.py" = ["F821"]
+"tui_gateway/methods_display_watch.py" = ["F821"]
+"tui_gateway/methods_free_tier.py" = ["F821"]
+"tui_gateway/methods_groups.py" = ["F821"]
+"tui_gateway/methods_images.py" = ["F821"]
+"tui_gateway/methods_onboarding.py" = ["F821"]
+"tui_gateway/methods_profiles.py" = ["F821"]
+"tui_gateway/methods_projects.py" = ["F821"]
+"tui_gateway/methods_prompt.py" = ["F821"]
+"tui_gateway/methods_session.py" = ["F821"]
+"tui_gateway/methods_session_control.py" = ["F821"]
+"tui_gateway/methods_session_foreign.py" = ["F821"]
+"tui_gateway/methods_slash.py" = ["F821"]
+"tui_gateway/methods_subagents.py" = ["F821"]
+"tui_gateway/methods_tools.py" = ["F821"]
+"tui_gateway/methods_vault.py" = ["F821"]
+"tui_gateway/methods_voice.py" = ["F821"]
+"tui_gateway/model_switch.py" = ["F821"]
+"tui_gateway/prompt_attachments.py" = ["F821"]
+"tui_gateway/prompt_turn.py" = ["F821"]
+"tui_gateway/rpc_dispatch.py" = ["F821"]
+"tui_gateway/server.py" = ["F821"]
+"tui_gateway/session_auto_continue.py" = ["F821"]
+"tui_gateway/session_compression.py" = ["F821"]
+"tui_gateway/session_history.py" = ["F821"]
+"tui_gateway/session_lifecycle.py" = ["F821"]
+"tui_gateway/session_notifications.py" = ["F821"]
+"tui_gateway/session_reaper.py" = ["F821"]
+"tui_gateway/session_transports.py" = ["F821"]
+"tui_gateway/session_workdir.py" = ["F821"]
+"tui_gateway/tool_progress.py" = ["F821"]
+# Upstream-owned lines (byte-identical to upstream; PR candidates, never patched):
+# lazy SDK names bound at runtime (feishu), a module constant upstream dropped
+# (router), a skill script's optional imports, a unittest main guard, and a
+# closure over a deleted `except ... as e` (cli_init_mixin).
+"plugins/platforms/feishu/adapter.py" = ["F821"]
+"plugins/model-providers/router/__init__.py" = ["F821"]
+"optional-skills/security/godmode/scripts/auto_jailbreak.py" = ["F821"]
+"tests/tools/test_delegate_fallback_matrix.py" = ["F821"]
+"hermes_cli/cli_init_mixin.py" = ["F821"]

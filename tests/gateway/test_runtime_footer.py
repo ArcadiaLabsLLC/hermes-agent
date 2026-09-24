@@ -6,8 +6,6 @@ from __future__ import annotations
 
 import pytest
 
-from tests._home_env import point_home_at
-
 from gateway.runtime_footer import (
     _home_relative_cwd,
     _model_short,
@@ -36,18 +34,11 @@ def test_model_short_drops_vendor_prefix(model, expected):
 
 
 def test_home_relative_cwd_collapses_home(tmp_path, monkeypatch):
-    # point_home_at, not a bare HOME setenv: _home_relative_cwd resolves home
-    # with os.path.expanduser("~"), and ntpath.expanduser prefers USERPROFILE,
-    # so a HOME-only patch left home pointing at the real profile — under
-    # which pytest's tmp_path lives on Windows, collapsing the wrong prefix.
-    point_home_at(monkeypatch, tmp_path)
+    monkeypatch.setenv("HOME", str(tmp_path))
     sub = tmp_path / "projects" / "hermes"
     sub.mkdir(parents=True)
     result = _home_relative_cwd(str(sub))
-    # The guarantee is the collapse (home replaced by "~", remainder kept),
-    # not the separator character — _home_relative_cwd rebuilds natively, so
-    # the POSIX literal only ever asserted os.sep == "/".
-    assert result == os.path.join("~", "projects", "hermes")
+    assert result == "~/projects/hermes"
 
 
 # ---------------------------------------------------------------------------
@@ -55,11 +46,7 @@ def test_home_relative_cwd_collapses_home(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_format_footer_all_fields(monkeypatch, tmp_path):
-    # point_home_at, not a bare HOME setenv: _home_relative_cwd resolves home
-    # with os.path.expanduser("~"), and ntpath.expanduser prefers USERPROFILE,
-    # so a HOME-only patch left home pointing at the real profile — under
-    # which pytest's tmp_path lives on Windows, collapsing the wrong prefix.
-    point_home_at(monkeypatch, tmp_path)
+    monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("TERMINAL_CWD", str(tmp_path / "projects" / "hermes"))
     (tmp_path / "projects" / "hermes").mkdir(parents=True)
     out = format_runtime_footer(
@@ -69,27 +56,21 @@ def test_format_footer_all_fields(monkeypatch, tmp_path):
         cwd=None,  # falls back to TERMINAL_CWD env var
         fields=("model", "context_pct", "cwd"),
     )
-    assert out == "gpt-5.4 · 68% · " + os.path.join("~", "projects", "hermes")
+    assert out == "gpt-5.4 · 68% · ~/projects/hermes"
 
 
 def test_format_footer_skips_missing_context_length():
-    # Build the operand from the platform rather than hardcoding a POSIX
-    # spelling: _home_relative_cwd runs os.path.abspath, which drive-qualifies
-    # a root-relative "/tmp/wd" against the current drive on Windows, so the
-    # literal could never survive. An already-absolute path outside home is
-    # what the pass-through guarantee is actually about.
-    cwd = os.path.abspath(os.path.join(os.sep, "wd"))
     out = format_runtime_footer(
         model="openai/gpt-5.4",
         context_tokens=500,
         context_length=None,
-        cwd=cwd,
+        cwd="/tmp/wd",
         fields=("model", "context_pct", "cwd"),
     )
     # context_pct dropped silently; no "?%" artifact
     assert "%" not in out
     assert "gpt-5.4" in out
-    assert cwd in out
+    assert "/tmp/wd" in out
 
 
 # ---------------------------------------------------------------------------
