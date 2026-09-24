@@ -72,7 +72,7 @@ Verification commands:
 
 ```bash
 cd C:/Users/beast/AppData/Local/hermes/hermes-agent
-venv/Scripts/python.exe -m pytest -o addopts='' -p no:timeout tests/gateway/test_background_process_notifications.py tests/gateway/test_gateway_inactivity_timeout.py tests/e2e/test_platform_commands.py tests/test_tui_gateway_server.py::test_notification_poller_delivers_status_only_by_default tests/test_tui_gateway_server.py::test_notification_poller_legacy_agent_turn_env_opt_in tests/test_tui_gateway_server.py::test_tui_background_agent_turns_can_be_enabled_by_config tests/test_tui_gateway_server.py::test_notification_poller_status_only_when_busy_by_default tests/test_tui_gateway_server.py::test_notification_poller_skips_consumed -q
+venv/Scripts/python.exe -m pytest -o addopts='' -p no:timeout tests/gateway/test_background_process_notifications.py tests/gateway/test_gateway_inactivity_timeout.py tests/e2e/test_platform_commands.py tests/test_tui_gateway_server.py::test_notification_poller_delivers_status_only_by_default tests/test_tui_gateway_server_downstream.py::test_notification_poller_legacy_agent_turn_env_opt_in tests/test_tui_gateway_server_downstream.py::test_tui_background_agent_turns_can_be_enabled_by_config tests/test_tui_gateway_server.py::test_notification_poller_status_only_when_busy_by_default tests/test_tui_gateway_server.py::test_notification_poller_skips_consumed -q
 venv/Scripts/python.exe -m compileall -q gateway/run.py tui_gateway/server.py hermes_cli/config.py tools/process_registry.py tools/terminal_tool.py tests/gateway/test_background_process_notifications.py tests/test_tui_gateway_server.py
 git diff --check
 ```
