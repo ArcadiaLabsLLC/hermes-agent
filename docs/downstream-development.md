@@ -127,6 +127,11 @@ canonical shared test venv on its own (`$HERMES_TEST_VENV`, else
 `~/.venvs/hermes-test`) — a worktree with no `.venv` of its own needs nothing
 set.
 
+### The fork landing gate
+
+`scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli` — `--scope fork` (the default): the files absent from `tests/fixtures/upstream_manifest.txt` plus the inherited files the change (`git diff origin/main...HEAD`, or `--since <ref>`) reaches by name, import or conftest; the weekly upstream merge lane runs `--scope full`, every discovered file. Same hermetic env, up to 20 files per pytest process (`--bundle-size`); a red bundle re-runs its red members one file per process and names any ISOLATION LEAK (red bundled, green alone → `scripts/test_bundles_unbundled.txt`, with the observed diff).
+`scripts/run_tests.sh` stays the per-file authority: a single file, a leak or any disagreement between the two is settled there.
+
 ### Unattended reporting
 
 Pushes are instant now (2026-09-03 ruling: both repos' pre-push hooks are

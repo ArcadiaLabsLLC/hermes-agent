@@ -69,7 +69,7 @@
       "change": "lane META (seam/carry-meta-2026-09-24)",
       "files": "348 (after lane ADOPT) -> 346",
       "deleted_lines": "2222 -> 2131",
-      "reason": "groups 1+2 of the carry census: .gitignore back to stock (every fork entry's producer now writes a self-ignoring dir; /profiles/ was upstream's own line; .claude/ is the up/gitignore-claude-dir PR); .gitattributes keeps only the root eol rule, ruled carry-permanent; uv.lock back to stock (coverage/pytest-timeout -> requirements-fork-dev.txt, installed by scripts/ensure_fork_dev_deps.py from run_tests.sh), pyproject markers + timeout addopts -> tests/_downstream/conftest_plugin.py, pyproject ruled carry-permanent (agent_runtime include, Stage 7); heavy 9 -> 8 (uv.lock)",
+      "reason": "groups 1+2 of the carry census: .gitignore back to stock (every fork entry's producer now writes a self-ignoring dir; /profiles/ was upstream's own line; .claude/ is the up/gitignore-claude-dir PR); .gitattributes keeps only the root eol rule, ruled carry-permanent; uv.lock back to stock (coverage/pytest-timeout -> requirements-fork-dev.txt, installed by scripts/ensure_fork_dev_deps.py from run_tests.sh), pyproject markers + timeout addopts -> tests/_downstream/conftest_plugin.py, pyproject ruled carry-permanent (agent_runtime include, Stage 7); heavy 9 -> 8 (uv.lock); AGENTS.md trimmed to a one-line fork pointer (landing-gate bullet -> docs/downstream-development.md), ruled carry-permanent; README.md ruled carry-permanent (licence notice)",
       "heavy": "8 -> 7"
     }
   ]
