@@ -1347,6 +1347,46 @@ def _orphaned_persona_root(evt: dict[str, Any]) -> str | None:
     return orphan
 
 
+#: How long the drain waits for a live turn to acknowledge a completion steer. The turn's
+#: inbox watcher polls every 50 ms; past this the completion is re-queued for its idle turn.
+STEER_ACK_SECONDS = 2.0
+
+
+def _steer_into_busy_turn(
+    evt: dict[str, Any], root: str, owner: tuple[str, str], text: str, key: str
+) -> bool:
+    """Deliver a PROCESS completion into the turn running on ``root``. True when accepted.
+
+    Owner ruling 2026-09-24: a background-process completion that arrives while its
+    thread is mid-turn is a STEER into that turn, not a separate turn queued after it.
+    The path is upstream's steer door, ``AIAgent.steer(text)`` (appended to the next tool
+    result by ``apply_pending_steer_to_tool_results``), reached through the mission-chat
+    steer inbox the live turn already watches (``mission_chat_steer``). A turn with no
+    steer handle, or one that ends before acknowledging, answers "not accepted" and the
+    caller re-queues — the idle turn then carries it, so nothing is lost.
+    """
+
+    if str(evt.get("type") or "") != "completion":
+        return False
+    try:
+        from .mission_chat_steer import submit_mission_chat_steer
+        from .paths import store_root
+
+        result = submit_mission_chat_steer(
+            runtime_root=store_root(),
+            session_id=root,
+            message=text,
+            client_message_id=f"bg-steer-{key}",
+            persona_id=owner[0],
+            persona_instance_id=owner[1],
+            timeout_seconds=STEER_ACK_SECONDS,
+        )
+    except Exception:
+        logger.debug("completion steer into %s failed", root, exc_info=True)
+        return False
+    return bool(result.get("ok")) and result.get("execution_state") == "accepted"
+
+
 def _claim_durable_completion(evt: dict[str, Any]) -> str | None:
     """Claim a queued completion's durable row. ``""`` when it has none.
 
@@ -1491,6 +1531,7 @@ def drain_background_completions(*, forge: Callable | None = None) -> dict[str, 
         "abandoned": 0,
         "unclaimed": 0,
         "dropped": 0,
+        "steered": 0,
     }
     forge = forge or forge_delivery_turn
     try:
@@ -1558,6 +1599,10 @@ def drain_background_completions(*, forge: Callable | None = None) -> dict[str, 
             _telemetry.record_bounce(key, reason, detail, root=root or "")
             continue
         if not _sender_is_idle(root):
+            if _steer_into_busy_turn(evt, root, owner, text, key):
+                tally["steered"] += 1
+                _telemetry.record_bounce(key, "steered", f"root={root}", root=root)  # A
+                continue
             process_registry.completion_queue.put(evt)
             tally["requeued"] += 1
             _record_sender_busy(key, root)  # A

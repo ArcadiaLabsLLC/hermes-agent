@@ -26,7 +26,10 @@ PERSONA = "chara_a2"
 
 
 @pytest.fixture()
-def owners(monkeypatch):
+def owners(monkeypatch, tmp_path):
+    import agent_runtime.paths as runtime_paths
+
+    monkeypatch.setattr(runtime_paths, "store_root", lambda: tmp_path / "runtime")
     table = {ROOT: (PERSONA, INSTANCE)}
     monkeypatch.setattr(dispatch_delivery, "_sender_persona", lambda session_id: table.get(session_id))
     return table
@@ -111,7 +114,41 @@ def test_an_unreadable_owner_lookup_is_not_proof_of_absence(owners, monkeypatch)
     assert registry.completion_queue.qsize() == 1
 
 
-def test_a_busy_thread_requeues_rather_than_forging_a_second_turn(owners, monkeypatch):
+class _SteerableAgent:
+    def __init__(self):
+        self.steered: list[str] = []
+
+    def steer(self, text):
+        self.steered.append(text)
+        return True
+
+
+def test_a_completion_mid_turn_is_steered_into_the_running_turn(owners, monkeypatch, tmp_path):
+    """Owner ruling 2026-09-24: busy thread -> STEER (upstream ``AIAgent.steer``), no new turn."""
+    from agent_runtime.mission_chat_steer import start_active_mission_chat_turn
+
+    agent = _SteerableAgent()
+    handle = start_active_mission_chat_turn(
+        runtime_root=tmp_path / "runtime", session_id=ROOT, agent=agent,
+        persona_id=PERSONA, persona_instance_id=INSTANCE, poll_seconds=0.01,
+    )
+    try:
+        registry = ProcessRegistry()
+        tally = _drain_with(
+            registry, monkeypatch, _exited_spawn_event(registry), idle=False,
+            forge=lambda **kwargs: pytest.fail("a steered completion must not forge a second turn"),
+        )
+    finally:
+        handle.close()
+
+    assert tally["steered"] == 1
+    assert tally["requeued"] == 0
+    assert registry.completion_queue.qsize() == 0
+    assert len(agent.steered) == 1 and "rows --draft d1" in agent.steered[0]
+
+
+def test_a_busy_thread_with_no_steerable_turn_requeues_for_its_idle_turn(owners, monkeypatch):
+    """Positive control for the steer: same busy thread, no live turn handle -> re-queued."""
     registry = ProcessRegistry()
     tally = _drain_with(
         registry, monkeypatch, _exited_spawn_event(registry), idle=False,

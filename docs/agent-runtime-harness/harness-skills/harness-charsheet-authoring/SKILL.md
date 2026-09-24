@@ -53,8 +53,8 @@ ask one question per decision, and hand back an installed sheet.
 - **Wait cadence.** One generation is 1–2 minutes; a full `rows` batch is 10–20.
   Fire the batch with `terminal(background=true)` — completion notice is ON by
   default — and **end your turn**: a new turn arrives when the process exits,
-  opening with `[IMPORTANT: Background process … exited …]`; it waits for your
-  thread to go idle. If you would rather block, pass `timeout: 600` to
+  opening with `[IMPORTANT: Background process … exited …]` (if you are still
+  mid-turn it is steered into that turn instead). If you would rather block, pass `timeout: 600` to
   `process_manage` `wait` and never less — every expiry is a full API
   round-trip that re-sends the whole prompt.
   Between waits do QA that is already available — thumb the rows that already
