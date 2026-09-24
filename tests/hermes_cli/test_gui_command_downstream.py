@@ -6,6 +6,7 @@ Same names, same bodies; the upstream file is byte-identical to upstream.
 from __future__ import annotations
 import sys
 import pytest
+from hermes_cli import _desktop_processes as desktop_processes
 from hermes_cli import main as cli_main
 
 from tests.hermes_cli.test_gui_command import (  # noqa: F401 — upstream names the moved tests use
@@ -110,7 +111,11 @@ class _DrivenDesktopLister:
 
 @pytest.mark.skipif(sys.platform != "win32", reason="the sweep is win32-only")
 class TestDesktopBuildLockSweepSeam:
-    """The sweep reads the injected table, never the machine's."""
+    """The sweep reads the injected table, never the machine's.
+
+    The seam and the sweep live in ``hermes_cli/_desktop_processes.py`` (the
+    desktop split moved them out of ``hermes_cli.main``); patched where it is read.
+    """
 
     def test_a_locking_process_is_terminated_and_reported(self, tmp_path, monkeypatch):
         desktop = tmp_path / "apps" / "desktop"
@@ -125,9 +130,9 @@ class TestDesktopBuildLockSweepSeam:
         lister = _DrivenDesktopLister(
             _driven_table([_row(locker), _row(outsider), _row(myself)])
         )
-        monkeypatch.setattr(cli_main, "_DESKTOP_PROCESS_LISTER", lister)
+        monkeypatch.setattr(desktop_processes, "_DESKTOP_PROCESS_LISTER", lister)
 
-        assert cli_main._stop_desktop_processes_locking_build(desktop) == [4242]
+        assert desktop_processes._stop_desktop_processes_locking_build(desktop) == [4242]
         assert lister.reads == 1
         assert locker.terminated is True
         assert outsider.terminated is False
@@ -142,12 +147,12 @@ class TestDesktopBuildLockSweepSeam:
         )
 
         monkeypatch.setattr(
-            cli_main,
+            desktop_processes,
             "_DESKTOP_PROCESS_LISTER",
             _DrivenDesktopLister(_driven_table([_row(stubborn)])),
         )
 
-        assert cli_main._stop_desktop_processes_locking_build(desktop) == [5151]
+        assert desktop_processes._stop_desktop_processes_locking_build(desktop) == [5151]
         assert stubborn.terminated is True
         assert stubborn.killed is True
         assert len(stubborn.waits) == 1
@@ -160,5 +165,5 @@ class TestDesktopBuildLockSweepSeam:
             def read(self):
                 return None
 
-        monkeypatch.setattr(cli_main, "_DESKTOP_PROCESS_LISTER", _NoInspector())
-        assert cli_main._stop_desktop_processes_locking_build(desktop) == []
+        monkeypatch.setattr(desktop_processes, "_DESKTOP_PROCESS_LISTER", _NoInspector())
+        assert desktop_processes._stop_desktop_processes_locking_build(desktop) == []
