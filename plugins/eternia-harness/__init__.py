@@ -205,8 +205,17 @@ def default_kanban_claim_ttl() -> None:
     os.environ.setdefault("HERMES_KANBAN_CLAIM_TTL_SECONDS", str(KANBAN_CLAIM_TTL_SECONDS))
 
 
+def default_no_venv_lazy_installs() -> None:
+    """Owner ruling 2026-09-24 (1): lazy installs go through upstream's door. With
+    ``HERMES_DISABLE_LAZY_INSTALLS=1`` ``tools.lazy_deps`` refuses to mutate the running venv,
+    or redirects into ``HERMES_LAZY_INSTALL_TARGET`` when the operator set one; setting the
+    env yourself (``0``) is the opt-out."""
+    os.environ.setdefault("HERMES_DISABLE_LAZY_INSTALLS", "1")
+
+
 def register(ctx) -> None:
     default_kanban_claim_ttl()
+    default_no_venv_lazy_installs()
     ctx.register_system_prompt_section("eternia-harness.tool-guidance", render_tool_guidance)
     ctx.register_middleware("llm_request", brief_tool_descriptions)
     ctx.register_middleware("tool_request", default_background_notify)

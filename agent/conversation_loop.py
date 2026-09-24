@@ -33,9 +33,7 @@ from agent.runtime_cwd import resolve_agent_cwd
 from agent.surface_switch import (
     identity_line_value, note_inert_pinned_tools, runtime_host_value, stage_surface_switch_note,
 )
-from agent_runtime.conversation_observability import (
-    _emit_conversation_timing, _emit_request_assembled_marker,
-)
+from agent_runtime.conversation_observability import _emit_conversation_timing
 
 from agent.turn_context import PreflightCompressionTimedOut, build_turn_context
 from agent.turn_retry_state import TurnRetryState
@@ -1618,7 +1616,7 @@ def _run_conversation_turn(
     return result
 
 
-def _run_conversation(
+def run_conversation(
     agent,
     user_message: Any,
     system_message: str = None,
@@ -1709,45 +1707,6 @@ def _close_durable_failed_turn(agent, result: Any) -> None:
         agent._flush_messages_to_session_db(messages)
     except Exception:
         logger.debug("failed-turn boundary not written", exc_info=True)
-
-
-def run_conversation(
-    agent,
-    user_message: Any,
-    system_message: str = None,
-    conversation_history: List[Dict[str, Any]] = None,
-    task_id: str = None,
-    stream_callback: Optional[callable] = None,
-    persist_user_message: Optional[Any] = None,
-    persist_user_timestamp: Optional[float] = None,
-    persist_user_display_kind: Optional[str] = None,
-    persist_user_display_metadata: Optional[Dict[str, Any]] = None,
-    moa_config: Optional[dict[str, Any]] = None,
-    reuse_current_user_message: bool = False,
-    persist_user_platform_id: Optional[str] = None,
-    turn_author: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    """Run every model turn with mutation of its interpreter barred."""
-    from tools.lazy_deps import deny_venv_installs, venv_install_denial
-
-    reason = venv_install_denial() or "an agent turn (conversation loop)"
-    with deny_venv_installs(reason):
-        return _run_conversation(
-            agent,
-            user_message,
-            system_message=system_message,
-            conversation_history=conversation_history,
-            task_id=task_id,
-            stream_callback=stream_callback,
-            persist_user_message=persist_user_message,
-            persist_user_timestamp=persist_user_timestamp,
-            persist_user_display_kind=persist_user_display_kind,
-            persist_user_display_metadata=persist_user_display_metadata,
-            moa_config=moa_config,
-            reuse_current_user_message=reuse_current_user_message,
-            persist_user_platform_id=persist_user_platform_id,
-            turn_author=turn_author,
-        )
 
 
 __all__ = ["run_conversation"]

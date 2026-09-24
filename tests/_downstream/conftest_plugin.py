@@ -167,6 +167,10 @@ _DOWNSTREAM_BEHAVIORAL_VARS = frozenset({
     # already-sandboxed HERMES_HOME. Tests of head-home behavior set it
     # explicitly in their own fixtures, which run after this one.
     "HERMES_HEAD_HOME",
+    # The eternia-harness plugin ``os.environ.setdefault()``s this at register() (lane
+    # DOORS-A 2026-09-24); a discovery in one test would otherwise raise every later
+    # test's kanban claim TTL from upstream's 900 s to 2700 s.
+    "HERMES_KANBAN_CLAIM_TTL_SECONDS",
     # The detached-service marker, and it SHORT-CIRCUITS a fallback rather than
     # merely tinting one. ``_windows_gateway_should_absorb_console_controls``
     # (``hermes_cli/gateway.py:1737``) returns True the moment this reads as a

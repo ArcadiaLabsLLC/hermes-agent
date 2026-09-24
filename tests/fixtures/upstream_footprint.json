@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 202,
-  "deleted_lines": 997,
+  "files": 199,
+  "deleted_lines": 994,
   "heavy": 4,
   "reasons": [
     {
@@ -192,6 +192,12 @@
       "files": "203 -> 202",
       "deleted_lines": "998 -> 997",
       "reason": "the request_assembled mark and provider_dispatch span move onto upstream's llm_execution middleware (agent_runtime.conversation_observability.time_provider_dispatch, registered by the eternia-harness plugin; sink = a ContextVar profile_runner binds around run_conversation). agent/turn_api_call.py at f24a1d7f92 bytes"
+    },
+    {
+      "change": "lane DOORS-A lazy installs (seam/doors-a-2026-09-24)",
+      "files": "202 -> 199",
+      "deleted_lines": "997 -> 994",
+      "reason": "owner ruling 2026-09-24 (1): lazy installs go through upstream's door. The eternia-harness plugin setdefault()s HERMES_DISABLE_LAZY_INSTALLS=1 (upstream _allow_lazy_installs; a durable HERMES_LAZY_INSTALL_TARGET still redirects); installs outside a turn are not kept. tools/lazy_deps.py, hermes_cli/tools_config_cua.py and agent/anthropic_adapter.py at f24a1d7f92 bytes; agent/conversation_loop.py loses the run_conversation barrier wrapper and rename"
     }
   ]
 }

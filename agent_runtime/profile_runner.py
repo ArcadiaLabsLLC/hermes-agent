@@ -687,29 +687,19 @@ class ProfileAgentRunner:
         self._session_db = session_db
 
     def run(self, request: AgentRunRequest) -> AgentRunResult:
-        """Execute one turn with venv mutation barred for its whole duration.
+        """Execute one turn.
 
         Every harness lane — operator mission chat, mission-run workers, and
-        dispatch — reaches the agent through this method, which makes it the
-        one place that can promise the 2026-08-09 rule: a live turn never
-        mutates the venv it is running in. Arming it here (rather than at the
-        ~40 ``lazy_deps.ensure`` call sites) covers the installs a turn triggers
-        indirectly and unpredictably — the auxiliary client resolving to
-        Anthropic for a summarisation side-call, a model-invoked tool reaching
-        a backend the operator never configured, a memory provider recalling
-        mid-turn. Declaring provider packages up front (see
-        ``hermes_cli.runtime_environment``) closes the predictable half; this
-        closes the rest.
+        dispatch — reaches the agent through this method. The 2026-08-09 rule
+        (a live turn never mutates the venv it is running in) is upstream's
+        lazy-install door now, defaulted shut by the eternia-harness plugin
+        (``HERMES_DISABLE_LAZY_INSTALLS``); see ``hermes_cli.runtime_environment``.
         """
-        from tools.lazy_deps import deny_venv_installs
-
-        # ``_counted_agent_run`` is OUTSIDE the deny scope and covers the whole
-        # method: a background prewarm must see this run from its first
-        # instruction, not from the point it reaches the workdir lock.
+        # ``_counted_agent_run`` covers the whole method: a background prewarm
+        # must see this run from its first instruction, not from the point it
+        # reaches the workdir lock.
         from .local_llama_adapter.provider import turn_scope
-        with _counted_agent_run(), turn_scope(request), deny_venv_installs(
-            f"an agent turn (profile={request.profile!r})"
-        ):
+        with _counted_agent_run(), turn_scope(request):
             return self._run(request)
 
     def prewarm(self, request: AgentRunRequest) -> dict[str, Any]:
@@ -736,16 +726,11 @@ class ProfileAgentRunner:
 
         if not request.prewarm_only:
             raise ProfileRunnerError("prewarm requires a prewarm_only request")
-        from tools.lazy_deps import deny_venv_installs
-
         _validate_workdir(request.workdir)
         binding = _binding_for_profile(request.profile)
         if binding.readiness != "ready":
             raise ProfileRunnerError(binding.summary)
-        with deny_venv_installs(
-            f"a chat-actor prewarm (profile={request.profile!r})"
-        ):
-            _, _, profile_timing = self._execute_agent_run(binding, request)
+        _, _, profile_timing = self._execute_agent_run(binding, request)
         return profile_timing
 
     def _run(self, request: AgentRunRequest) -> AgentRunResult:

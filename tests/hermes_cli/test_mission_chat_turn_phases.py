@@ -29,7 +29,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from agent.conversation_loop import _emit_request_assembled_marker
+from agent_runtime.conversation_observability import _emit_request_assembled_marker
 from agent_runtime import mission_chat_phases
 from agent_runtime.mission_chat_phases import (
     PHASE_ORDER,
@@ -450,7 +450,7 @@ def test_the_loop_marker_and_the_mapper_agree_on_the_step():
     because a misspelling fails silently as an absent (never-wrong) mark.
     """
 
-    from agent.conversation_loop import _emit_request_assembled_marker
+    from agent_runtime.conversation_observability import _emit_request_assembled_marker
 
     captured: list[dict] = []
     agent = SimpleNamespace(status_callback=captured.append)
