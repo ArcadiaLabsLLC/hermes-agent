@@ -57,21 +57,21 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `contributors/emails/uperLu@users.noreply.github.com` | 2 | 2 | carry | unreviewed | - |
 | `evals/completion_backlog_probe.py` | 2 | 0 | carry | unreviewed | - |
 | `evals/postmortem/live_ab/cache_concurrency_probe.py` | 12 | 0 | carry | unreviewed | - |
-| `gateway/hosted_room_discussion.py` | 85 | 33 | carry | unreviewed | - |
-| `gateway/hosted_room_policy_checkpoint.py` | 6 | 3 | carry | unreviewed | - |
-| `gateway/hosted_rooms.py` | 72 | 4 | carry | unreviewed | - |
-| `gateway/kanban_watchers_dispatcher.py` | 10 | 0 | carry | unreviewed | - |
-| `gateway/lifecycle_ledger.py` | 12 | 4 | carry | unreviewed | - |
-| `gateway/platforms/base.py` | 4 | 2 | carry | unreviewed | - |
-| `gateway/run.py` | 11 | 6 | carry | unreviewed | - |
-| `gateway/run_busy.py` | 1 | 1 | carry | unreviewed | - |
-| `gateway/run_config_loaders.py` | 4 | 4 | carry | unreviewed | - |
-| `gateway/run_notifications.py` | 11 | 1 | carry | unreviewed | - |
-| `gateway/run_startup.py` | 1 | 1 | carry | unreviewed | - |
-| `gateway/run_turn.py` | 3 | 1 | carry | unreviewed | - |
-| `gateway/session_context.py` | 34 | 0 | carry | unreviewed | - |
-| `gateway/shutdown_watchdog.py` | 12 | 3 | carry | unreviewed | - |
-| `gateway/status.py` | 13 | 3 | carry | unreviewed | - |
+| `gateway/hosted_room_discussion.py` | 85 | 33 | hook | seam: widen the Group Chat host surface — host-declared `DiscussionLimits` + `active_member_ids`, consumer `agent_runtime/discussions/service.py`; a PR widening the generic surface with this host as consumer | S3 |
+| `gateway/hosted_room_policy_checkpoint.py` | 6 | 3 | hook | seam: same Group Chat host-surface PR — host-declared `max_active_events` budget | S3 |
+| `gateway/hosted_rooms.py` | 72 | 4 | hook | seam: same Group Chat host-surface PR — `pin_room_history`/`unpin_room_history` retention opt-in (written as generic, stock behaviour unchanged with nothing pinned) | S3 |
+| `gateway/kanban_watchers_dispatcher.py` | 10 | 0 | upstream | PR candidate: the gateway dispatcher honours `kanban.claim_ttl_seconds` (passed to `dispatch_once` via `asdict`) | S3 |
+| `gateway/lifecycle_ledger.py` | 12 | 4 | upstream | PR candidate: `_process_hermes_home` must not fall back to the override-honouring `get_hermes_home()` when `HERMES_HOME` is unset (issue #56986 class); upstream/main still falls back | S3 |
+| `gateway/platforms/base.py` | 4 | 2 | upstream | PR candidate: media hardening — `$HOME` for the delivery denylist, backslash as a MEDIA-path terminator, drop NUL paths in `_add` (upstream's `~\x00` catch covers only the expanduser arm) | S3 |
+| `gateway/run.py` | 11 | 6 | carry | ours: `DownstreamGatewayMixin` in `GatewayRunner` bases — additive; not movable (class bases). The approvals-warning hunk replaces 5 upstream lines to honour `TIRITH_ENABLED` (PR with `cli.py`); the `restore_durable_completions` startup hunk is P2 | - |
+| `gateway/run_busy.py` | 1 | 1 | hook | seam: `queue-status` in `_PLAIN_COMMANDS` follows the fork's `CommandDef`; retires when the command registers through the plugin `register_command` | - |
+| `gateway/run_config_loaders.py` | 4 | 4 | carry | replaces upstream lines: background-completion default `concise`→`result`. Movable → the fork's profile config seed (`display.background_process_notifications: result`), then REVERT | - |
+| `gateway/run_notifications.py` | 11 | 1 | carry | ours: compact completion notice instead of an agent turn when `background_process_agent_turns` is off — additive branch. PR candidate: `reply_to=watcher message_id` on watcher sends | - |
+| `gateway/run_startup.py` | 1 | 1 | hook | seam: `_kanban_blocked_pm_hook_watcher` (fork mixin) in the pre-reconnect watcher tuple; needs a gateway watcher-registration hook PR | S3 |
+| `gateway/run_turn.py` | 3 | 1 | carry | replaces upstream lines: long-running heartbeat text via the fork mixin's `_format_long_running_heartbeat`; not movable (inline in the turn loop) | - |
+| `gateway/session_context.py` | 34 | 0 | carry | ours: `declare_async_delivery_channel`/`async_delivery_declared` — additive; not movable (reads the module-private `_SESSION_ASYNC_DELIVERY`/`_UNSET`) | - |
+| `gateway/shutdown_watchdog.py` | 12 | 3 | upstream | PR candidate: `_process_hermes_home` must not fall back to the override-honouring `get_hermes_home()` (issue #56986 class); upstream/main still falls back | S3 |
+| `gateway/status.py` | 13 | 3 | upstream | REVERT: dead edit — a duplicate `from hermes_constants import …` (base already imports it at line 24) and a docstring rewrite; `_get_process_hermes_home` was already `get_process_hermes_home()` at the base | - |
 | `hermes_cli/approvals_test.py` | 2 | 1 | carry | unreviewed | - |
 | `hermes_cli/auth.py` | 23 | 2 | carry | unreviewed | - |
 | `hermes_cli/auth_codex.py` | 5 | 0 | carry | unreviewed | - |
