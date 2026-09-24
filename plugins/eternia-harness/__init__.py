@@ -77,8 +77,73 @@ def render_tool_guidance(session_info) -> str:
     return "\n".join(getattr(prompt_guidance, attr) for tool, attr in _TOOL_GUIDANCE if tool in tools)
 
 
+SKILL_SEARCH_SCHEMA = {
+    "name": "skill_search",
+    "description": "Search installed skills + the Hermes Skills Hub by query without loading SKILL.md bodies (compact ids/descriptions). Disambiguator: skill_view loads an installed match; `hermes skills install` fetches an external one.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Search query, e.g. 'flutter qa', 'github review', or 'kubernetes'.",
+            },
+            "source": {
+                "type": "string",
+                "enum": [
+                    "all",
+                    "installed",
+                    "official",
+                    "hermes-index",
+                    "skills-sh",
+                    "well-known",
+                    "github",
+                    "clawhub",
+                    "claude-marketplace",
+                    "lobehub",
+                    "browse-sh",
+                ],
+                "description": "Optional source filter. Default 'all'. Use 'installed' to avoid remote hub search.",
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum results to return; capped at 50.",
+            },
+            "include_installed": {
+                "type": "boolean",
+                "description": "When true, include installed local/profile skills before hub results. Default true.",
+            },
+        },
+        "required": ["query"],
+    },
+}
+
+
+def _handle_skill_search(args, **kw):
+    from agent_runtime.skill_search import skill_search
+
+    return skill_search(
+        query=args.get("query", ""),
+        source=args.get("source", "all"),
+        limit=args.get("limit", 10),
+        include_installed=args.get("include_installed", True),
+        task_id=kw.get("task_id"),
+    )
+
+
+def _check_skill_search() -> bool:
+    from tools.skills_tool import check_skills_requirements
+
+    return check_skills_requirements()
+
+
 def register(ctx) -> None:
     ctx.register_system_prompt_section("eternia-harness.tool-guidance", render_tool_guidance)
+    # Joins the built-in `skills` toolset by registry membership; the platform bundles
+    # still name it in toolsets.py until a register-toolset PR lets a plugin join them.
+    ctx.register_tool(
+        "skill_search", toolset="skills", schema=SKILL_SEARCH_SCHEMA, handler=_handle_skill_search,
+        check_fn=_check_skill_search, emoji="🔎",
+    )
     # handler_fn=None: every harness subparser sets its own func= (behind _harness_entry).
     ctx.register_cli_command("harness", help=_HARNESS_HELP, setup_fn=_setup_harness_parser, handler_fn=None)
     ctx.register_cli_command(
