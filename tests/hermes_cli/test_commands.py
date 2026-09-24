@@ -7,7 +7,7 @@ import pytest
 from prompt_toolkit.completion import CompleteEvent
 from prompt_toolkit.document import Document
 
-from tests.hermes_cli import conftest as package_conftest
+from tests._downstream import hermes_cli_conftest as package_conftest
 import hermes_cli.commands_platforms as commands_module
 from hermes_cli.commands import COMMAND_REGISTRY, COMMANDS, COMMANDS_BY_CATEGORY, CommandDef, GATEWAY_KNOWN_COMMANDS, SUBCOMMANDS, command_desktop_meta, gateway_help_lines, infer_argument_mode, resolve_command
 from hermes_cli.commands_completion import SlashCommandAutoSuggest, SlashCommandCompleter

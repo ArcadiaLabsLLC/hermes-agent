@@ -56,7 +56,12 @@ from pathlib import Path
 
 import pytest
 
-from tests.conftest import _HERMES_BEHAVIORAL_VARS
+from tests._downstream.conftest_plugin import _DOWNSTREAM_BEHAVIORAL_VARS
+from tests.conftest import _HERMES_BEHAVIORAL_VARS as _UPSTREAM_BEHAVIORAL_VARS
+
+#: What the two autouse deletions blank together: upstream's tuple, deleted by
+#: ``_hermetic_environment``, and the fork's, deleted by the root plugin.
+_HERMES_BEHAVIORAL_VARS = _UPSTREAM_BEHAVIORAL_VARS | _DOWNSTREAM_BEHAVIORAL_VARS
 
 
 def _repo_root() -> Path:

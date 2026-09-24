@@ -8,7 +8,7 @@ temp out from under it.
 import os
 import time
 
-from tests.conftest import _maybe_redirect_test_tmp
+from tests._downstream.conftest_plugin import _maybe_redirect_test_tmp
 
 
 def test_absent_var_changes_nothing():
