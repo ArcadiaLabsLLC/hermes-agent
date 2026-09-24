@@ -448,9 +448,8 @@ def _drop_tree_index_between_modules(request):
     cache pays one no-op call. See the lifetime section of the module
     docstring in ``_tree_index.py``.
 
-    The four removal gates that used to share a deferred clear here (s27, s29,
-    s49, s50) read ``_removal_walk``'s import index instead of ASTs, so there
-    is no family exception any more: every module clears at its own teardown.
+    Every module clears at its own teardown; the deferred-clear "family" for
+    the s27/s29/s49/s50 removal gates went with those gates (2026-09-24).
     """
     yield
     from tests.agent_runtime import _tree_index

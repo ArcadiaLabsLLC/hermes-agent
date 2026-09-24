@@ -7,7 +7,7 @@
 # false-GREEN when a symbol is deleted but a mention of it survives, and
 # false-RED when a refactor moves the line to a neighbouring function.
 #
-# grandfathered violations: 76
+# grandfathered violations: 71
 #
 # THIS REGISTER IS CLOSED TO ADDITIONS. The gate does not offer a way to
 # ledger a new violation: a new positive source grep is a red build, not a
@@ -41,13 +41,11 @@ tests/agent_runtime/test_mcp_admission_budget.py::test_the_dispatch_seam_the_bud
 tests/agent_runtime/test_mcp_admission_budget.py::test_upstream_registers_mcp_tools_synchronously::'is_async=False' in source
 tests/agent_runtime/test_mcp_lane_agent_context_line.py::test_the_role_policy_is_imported_never_re_implemented::'_effective_required_mcp_servers' in source
 tests/agent_runtime/test_persona_chat_wire_boundary.py::test_the_wire_bound_is_documented_as_a_wire_bound::'WIRE BOUND, NOT A PERSISTENCE BOUND' in header
-tests/agent_runtime/test_s24_delivery_directive_residue_removal.py::test_the_live_janitor_still_emits_its_registered_event_type::'worktree.orphans_reaped' in source
 tests/agent_runtime/test_s27_tool_diff_task_goal_flags.py::test_the_live_task_goal_threading_is_kept::'"goal_id": visibility.get("goal_id")' in wire
 tests/agent_runtime/test_s27_tool_diff_task_goal_flags.py::test_the_live_task_goal_threading_is_kept::'"task_id": visibility.get("task_id")' in wire
 tests/agent_runtime/test_s27_tool_diff_task_goal_flags.py::test_the_live_task_goal_threading_is_kept::'goal_id=instance.goal_id' in source
 tests/agent_runtime/test_s27_tool_diff_task_goal_flags.py::test_the_live_task_goal_threading_is_kept::'task_id=instance.current_task_id' in source
 tests/agent_runtime/test_s29_agent_context_shape_retirement.py::test_the_contract_45_situational_hud_observability_field_survives_s39::'"situational_hud"' in source
-tests/agent_runtime/test_s29_persona_runtime_context_lane_removal.py::test_the_profile_runner_namesake_is_untouched::'_blocked_tool_names_for_run(request)' in inspect.getsource(profile_runner)
 tests/agent_runtime/test_s30_retired_mission_chat_task_id_response.py::test_mission_chat_message_still_emits_every_key_the_launcher_reads::kept in source
 tests/agent_runtime/test_s32_persona_runtime_run_lane_residue.py::test_the_shared_progress_import_line_keeps_its_live_sibling::'ChatProgressSink(' in inspect.getsource(persona_runtime)
 tests/agent_runtime/test_s33_repo_baseline_retirement.py::test_the_worktree_creator_trio_stays_live_as_regression_infrastructure::'_ensure_isolated_worktree(' in source
@@ -60,9 +58,6 @@ tests/agent_runtime/test_s48_cli_entity_row_consolidation.py::test_the_projectio
 tests/agent_runtime/test_s48_cli_entity_row_consolidation.py::test_the_projection_bounds_live_in_exactly_one_place::'actors_truncated' in office_row
 tests/agent_runtime/test_s48_cli_entity_row_consolidation.py::test_the_projection_bounds_live_in_exactly_one_place::'cards_truncated' in board_row
 tests/agent_runtime/test_s48_cli_entity_row_consolidation.py::test_the_row_delegates_to_its_builder::builder in _row_source(name)
-tests/agent_runtime/test_s57_unruled_config_debt_removal.py::test_the_surviving_scalar_is_still_there_and_still_read::SURVIVING_SCALAR in inspect.getsource(locks)
-tests/agent_runtime/test_s57_unruled_config_debt_removal.py::test_validation_still_has_a_real_arm_left::'schema_version' in src
-tests/agent_runtime/test_s57_unruled_config_debt_removal.py::test_validation_still_has_a_real_arm_left::SURVIVING_SCALAR in src
 tests/gateway/test_aiohttp_body_caps.py::test_bluebubbles_app_sets_client_max_size::'client_max_size=_WEBHOOK_MAX_BODY_BYTES' in src
 tests/gateway/test_async_delegation_session_binding.py::TestResetHandlerInterruptsDelegations.test_reset_command_calls_interrupt_for_session::'interrupt_for_session' in src
 tests/gateway/test_async_delegation_session_binding.py::TestResetHandlerInterruptsDelegations.test_reset_command_calls_interrupt_for_session::'session_reset' in src

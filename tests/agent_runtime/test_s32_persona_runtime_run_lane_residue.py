@@ -50,7 +50,7 @@ repo-wide; ``test_s28_status_observe_shrink``'s own docstring already records
 that ``_attach_repo_baseline`` "has had zero callers since S5"). The cut is
 blocked on a CONTESTED file, not on evidence: dropping them makes
 ``capture_repo_baseline`` and ``RepoExecutionContext`` last-use imports, and
-``tests/agent_runtime/test_s20_small_module_removal.py`` asserted both were still
+``tests/agent_runtime/test_s20_small_module_removal.py`` (deleted 2026-09-24) asserted both were still
 bound on ``persona_runtime``. S33 owns the follow-up ruling and retargets that
 pin in the same commit as the cut.
 """

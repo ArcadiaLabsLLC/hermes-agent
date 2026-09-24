@@ -125,7 +125,7 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     # that landed. S15 already de-registered the other six foreground_runtime.*
     # types when the mission lane went; this is the last of that family. The
     # store's READ side stays live -- status.py projects lanes off list_all. See
-    # tests/agent_runtime/test_s53_lane_write_lane_removal.py.
+    # tests/agent_runtime/test_s53_lane_write_lane_removal.py (deleted 2026-09-24).
     # S17 de-registered run.heartbeat (RunStore.heartbeat) and run.approved
     # (RunStore.approve_continuation) with their writers; S25 finished the set
     # with run.opened once the two filler appends that were its last minters
@@ -155,7 +155,7 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     # EventLog.append accepts and no reader will ever see. Historical rows are
     # unaffected (append type-checks on WRITE only), and none of the six was in
     # events.OPERATOR_SUMMARY_EVENT_TYPES, so no summary arm went with them. See
-    # tests/agent_runtime/test_s44_role_envelope_family_removal.py.
+    # tests/agent_runtime/test_s44_role_envelope_family_removal.py (deleted 2026-09-24).
     "persona_instance.created": EventContract("persona_instance.created", "Persona instance created", ("persona_instance_id",), ("persona_id",)),
     # A replication mint is a THIRD intent class, neither authored create nor
     # diagnostic repair (instance-replication plan §3.5), so it gets its own
@@ -190,7 +190,7 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     # capability id — it was a string in the function's own return dict. Same
     # rule as S25/S36/S37/S44: a contract with no writer is a shape
     # EventLog.append accepts and no reader will ever see. See
-    # tests/agent_runtime/test_s49_operator_control_removal.py.
+    # tests/agent_runtime/test_s49_operator_control_removal.py (deleted 2026-09-24).
     "persona_instance.chat_opened": EventContract("persona_instance.chat_opened", "Persona instance chat opened", ("persona_instance_id", "session_id"), ("persona_id",)),
     "persona_chat.projected": EventContract("persona_chat.projected", "Persona chat turn projection committed", ("persona_instance_id", "root_chat_session_id", "client_message_id", "turn_id", "change_kind"), ("active_session_id", "native_revision")),
     "persona_chat.metadata_updated": EventContract("persona_chat.metadata_updated", "Persona chat session metadata updated", ("persona_instance_id", "root_chat_session_id", "change_kind"), ()),
@@ -252,7 +252,7 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     # operator_event_summary went with them -- the S21/S25 rule that the
     # frozenset may not name a de-registered type. The store's READ side stays
     # live; status.py still projects bundles off list_all. See
-    # tests/agent_runtime/test_s52_repo_bundle_write_lane_removal.py.
+    # tests/agent_runtime/test_s52_repo_bundle_write_lane_removal.py (deleted 2026-09-24).
     # S56 (2026-08-01) de-registered ALL TEN worker_session.* contracts --
     # opened / assigned / resumed / heartbeat / context_absorbed / steered /
     # possessed / released / watchdog_warning / closed -- in the SAME commit
@@ -263,7 +263,7 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     # Emitter and registration move together on purpose: S55's gate asserts
     # every registered type HAS an emitter, so splitting the two across commits
     # would turn this cut red rather than let it land silently.
-    # See tests/agent_runtime/test_s56_worker_session_lane_removal.py. The final
+    # See tests/agent_runtime/test_s56_worker_session_lane_removal.py (deleted 2026-09-24). The final
     # dead-code pass also retired the callerless IncidentStore writers, so
     # incident.opened/closed are read-compatible historical types only.
     # Realm store mutations. Every RealmStore write MUST ride one of

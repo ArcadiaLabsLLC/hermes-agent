@@ -191,13 +191,7 @@ LANE_CONTRACT_MODULE_HOMES = {
 
 #: Integer literals bound to a contract-version name that are NOT restatements,
 #: each with the reason it cannot rot. Witnessed below rather than trusted.
-FLOOR_ALLOWLIST = {
-    ("test_s47_wire_constant_field_removal.py", "S47_CONTRACT_VERSION"): (
-        "historical floor, not a pin: asserted only with `>=` against the "
-        "emitted value, so it stays true across every future bump and moving "
-        "it would be the bug"
-    ),
-}
+FLOOR_ALLOWLIST: dict[tuple[str, str], str] = {}
 
 
 def _repo_root() -> Path:
@@ -482,7 +476,6 @@ def test_the_gate_scanned_a_real_tree():
         "snapshot.py",
         "test_stage19_visibility.py",
         "test_office_store.py",
-        "test_s47_wire_constant_field_removal.py",
         "test_stream_contract_fixture.py",
     ):
         assert expected in names, f"{expected} is not in the scanned set"
