@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 214,
-  "deleted_lines": 1027,
+  "files": 216,
+  "deleted_lines": 1032,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "ACP named-provider identity correction (owner requested 2026-09-24)",
+      "files": "214 -> 216: acp_adapter/session.py and server.py",
+      "deleted_lines": "1027 -> 1032; heavy unchanged at 4",
+      "reason": "Temporary generic correctness carry: preserve the resolver's existing requested_provider across ACP model readback, unqualified switch, fork and persistence. No plugin hook controls these ACP projection/restore sites; replacing five call-site lines avoids a duplicate runtime or Launcher alias bridge. Retire when upstream carries the equivalent invariant. Reproduced on unchanged main; two route-contract tests and isolated real ACP apply/reply/restart smoke."
+    },
     {
       "change": "seam Stage 1 (seam/s1-proof)",
       "files": "+2 (459 -> 461)",
