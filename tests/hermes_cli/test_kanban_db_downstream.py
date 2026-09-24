@@ -5,7 +5,7 @@ Same names, same bodies; the upstream file keeps only upstream's tests.
 
 from __future__ import annotations
 
-from hermes_cli import kanban_db as kb
+from hermes_cli import kanban_crash_evidence as kb
 
 
 def test_redact_secrets_strips_common_credentials():
