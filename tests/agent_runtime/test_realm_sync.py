@@ -7,7 +7,8 @@ import pytest
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
-from hermes_constants import get_hermes_home, get_shared_skills_dir
+from hermes_constants import get_hermes_home
+from agent_runtime.profile_home import get_shared_skills_dir
 
 from agent_runtime import paths as runtime_paths
 from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config

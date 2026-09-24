@@ -15,7 +15,7 @@ maps ``<root>/profiles/<x>`` back to ``<root>``, so every profile shares ONE
 ``default_chat_session_id`` per instance.
 
 The chat ``SessionDB`` those pointers dereference did **not** collapse.
-``hermes_constants.get_hermes_head_home()`` falls back to
+``agent_runtime.profile_home.get_hermes_head_home()`` falls back to
 ``get_hermes_home()`` whenever no head authority is named — and only the
 Launcher names one (``HERMES_HEAD_HOME=<root>/profiles/base``, set in
 ``mission_control_settings.dart``). So a CLI-lane turn running under a
@@ -429,11 +429,8 @@ def resolve_process_chat_scope() -> ChatSessionScope:
 def _resolve_chat_scope(session_id: str | None) -> ChatSessionScope:
     """The shared ladder behind both public entry points. Never raises."""
 
-    from hermes_constants import (
-        get_hermes_head_home,
-        get_hermes_home,
-        hermes_head_home_is_authoritative,
-    )
+    from hermes_constants import get_hermes_home
+    from agent_runtime.profile_home import get_hermes_head_home, hermes_head_home_is_authoritative
 
     instance_head = (
         recorded_instance_chat_head(session_id) if session_id else None

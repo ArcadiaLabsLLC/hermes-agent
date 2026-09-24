@@ -9,6 +9,7 @@ from agent_runtime.profile_persona_discovery import reconcile_profile_personas
 from agent_runtime import snapshot as snapshot_mod
 from agent_runtime.snapshot import build_snapshot
 from agent_runtime.store import AgentStore
+from agent_runtime import profile_home
 from hermes_cli import profiles as profile_mod
 import hermes_constants
 
@@ -21,7 +22,7 @@ def _discover(monkeypatch, *, names, templates=None):
     monkeypatch.setattr(hermes_constants, "named_profile_has_servable_identity", lambda path: True)
     monkeypatch.setattr(profile_mod, "list_profile_names", lambda: ["default", *names])
     monkeypatch.setattr(
-        profile_mod,
+        profile_home,
         "available_profile_template_summaries",
         lambda: [_profile(name) for name in (templates if templates is not None else names)],
     )
@@ -74,7 +75,7 @@ def test_discovery_failure_does_not_write_partial_personas(monkeypatch):
     _discover(monkeypatch, names=["alice"])
     def fail():
         raise OSError("cannot read profile root")
-    monkeypatch.setattr(profile_mod, "available_profile_template_summaries", fail)
+    monkeypatch.setattr(profile_home, "available_profile_template_summaries", fail)
     with pytest.raises(OSError, match="cannot read profile root"):
         reconcile_profile_personas(AgentRuntimeConfig())
     assert AgentStore().list_all() == []

@@ -14,7 +14,8 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 import yaml
 
 from agent.skill_utils import EXCLUDED_SKILL_DIRS, SKILL_SUPPORT_DIRS
-from hermes_constants import get_config_path, get_hermes_home, get_shared_skills_dir
+from hermes_constants import get_config_path, get_hermes_home
+from agent_runtime.profile_home import get_shared_skills_dir
 from hermes_time import now
 from utils import atomic_json_write
 
@@ -1052,7 +1053,7 @@ def _apply_skill_tombstones(realm: Realm) -> dict[str, list]:
     if not root.exists():
         return summary
 
-    from hermes_constants import CANONICAL_SHARED_SKILL_IDS
+    from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS
 
     from .skill_promotion import _archive_package
 

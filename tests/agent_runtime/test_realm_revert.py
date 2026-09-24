@@ -877,7 +877,7 @@ def _skill_env(tmp_path):
     """A realm with a pulled subtree on disk (the revert refuses without one) and
     the shared skills root isolated under this test's HERMES_HOME."""
 
-    from hermes_constants import get_shared_skills_dir
+    from agent_runtime.profile_home import get_shared_skills_dir
 
     realm_id, _ws = _make_realm_workspace(tmp_path)
     _subtree(realm_id, tmp_path)
@@ -910,7 +910,7 @@ _MINE_BYTES = b"---\nname: foo\n---\n# Mine v2\n"
 
 
 def _archived_skill_copies(slug: str = "foo"):
-    from hermes_constants import get_shared_skills_dir
+    from agent_runtime.profile_home import get_shared_skills_dir
 
     return sorted((get_shared_skills_dir() / ".archive").glob(f"*/{slug}/SKILL.md"))
 
@@ -981,7 +981,7 @@ def test_a_removed_skill_reverts_by_reinstalling_the_realms_copy(tmp_path):
 
     from agent_runtime.skill_promotion import skill_package_sync_hash
     from agent_runtime.skill_sync import skill_baseline_key, write_skill_baseline
-    from hermes_constants import get_shared_skills_dir
+    from agent_runtime.profile_home import get_shared_skills_dir
 
     realm_id, _root = _skill_env(tmp_path)
     inbox_pkg = _realm_copy(realm_id, "foo", _REALM_BYTES)

@@ -28,7 +28,7 @@ import pytest
 from agent.skill_utils import _content_hash_cache_clear
 from agent_runtime import paths
 from agent_runtime.store import RealmStore, active_skill_tombstones
-from hermes_constants import CANONICAL_SHARED_SKILL_IDS, get_shared_skills_dir
+from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS, get_shared_skills_dir
 
 
 @pytest.fixture(autouse=True)

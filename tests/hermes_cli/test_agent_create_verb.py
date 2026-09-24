@@ -860,7 +860,7 @@ def isolated_shared_skills(tmp_path, monkeypatch):
     rather than inherited from ``tests/conftest.py``'s blanking.
     """
 
-    from hermes_constants import get_shared_skills_dir
+    from agent_runtime.profile_home import get_shared_skills_dir
 
     shared = tmp_path / "shared-skills"
     monkeypatch.setenv("HERMES_SHARED_SKILLS", str(shared))

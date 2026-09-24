@@ -374,7 +374,7 @@ def test_a_capture_taken_during_a_persona_scope_pins_that_scopes_home(two_profil
     """THE RESIDUAL, asserted rather than left as prose.
 
     ``resolved_fingerprint_home`` resolves through
-    ``hermes_constants.get_hermes_head_home``, which FALLS BACK to the ambient
+    ``agent_runtime.profile_home.get_hermes_head_home``, which FALLS BACK to the ambient
     home when no head authority is present — and under an active persona
     override that fallback IS the override. So resolving "through the head" does
     not make the closure pure on its own; taking the resolution ONCE, before any

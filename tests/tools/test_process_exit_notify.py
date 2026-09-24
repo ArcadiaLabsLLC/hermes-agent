@@ -43,12 +43,12 @@ PERSONA = "chara_a2"
 def notify_home(tmp_path, monkeypatch):
     """Isolate the drain file — it lives beside ``processes.json``."""
 
-    import hermes_constants
+    import agent_runtime.profile_home as profile_home
 
     home = tmp_path / "background-home"
     home.mkdir()
     monkeypatch.setattr(
-        hermes_constants, "get_hermes_background_work_home", lambda: home
+        profile_home, "get_hermes_background_work_home", lambda: home
     )
     import tools.process_notify_store as store
 

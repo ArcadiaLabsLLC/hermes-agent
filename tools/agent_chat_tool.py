@@ -714,7 +714,8 @@ def _dispatch_homes() -> tuple[str, str]:
     exactly where this parent, the drain and the Activity projection read.
     """
 
-    from hermes_constants import get_hermes_background_work_home, get_hermes_home
+    from hermes_constants import get_hermes_home
+    from agent_runtime.profile_home import get_hermes_background_work_home
 
     return str(get_hermes_home()), str(get_hermes_background_work_home())
 

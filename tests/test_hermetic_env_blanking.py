@@ -81,9 +81,9 @@ LEAK_PRONE_VARS: dict[str, tuple[str, str]] = {
         "SIG_IGN for SIGINT/SIGBREAK and SetConsoleCtrlHandler(NULL, TRUE)",
     ),
     "HERMES_HEAD_HOME": (
-        "hermes_constants.py",
-        ":107 returns it verbatim and it OUTRANKS the sandboxed HERMES_HOME; it "
-        "selects the SessionDB the transcript store WRITES to, and :130 flips "
+        "agent_runtime/profile_home.py",
+        ":104 returns it verbatim and it OUTRANKS the sandboxed HERMES_HOME; it "
+        "selects the SessionDB the transcript store WRITES to, and :127 flips "
         "hermes_head_home_is_authoritative() with it",
     ),
     "HERMES_PROFILE": (
@@ -92,8 +92,8 @@ LEAK_PRONE_VARS: dict[str, tuple[str, str]] = {
         "and tools/kanban_tools.py:877 default the author name to it",
     ),
     "HERMES_AUTH_HOME": (
-        "hermes_constants.py",
-        ":109 is the ONE reader of this authority — `get_hermes_auth_home()`, "
+        "agent_runtime/profile_home.py",
+        ":67 is the ONE reader of this authority — `get_hermes_auth_home()`, "
         "context-local override first and this env var second. "
         "`hermes_cli/auth.py::_auth_file_path` consumes it to select the ACTIVE "
         "auth store; it was read out of raw `os.environ` by the since-retired "
@@ -117,8 +117,8 @@ LEAK_PRONE_VARS: dict[str, tuple[str, str]] = {
         ":350 overrides the bundled-skill discovery root",
     ),
     "HERMES_SHARED_SKILLS": (
-        "hermes_constants.py",
-        ":380 overrides the shared-skill root — and three test files already pop "
+        "agent_runtime/profile_home.py",
+        ":183 overrides the shared-skill root — and three test files already pop "
         "it by hand (test_realm_sync_skill_inbox.py:56, test_skill_promotion.py:35, "
         "tests/agent/test_external_skills.py:88), which is the argument for "
         "blanking it centrally instead",

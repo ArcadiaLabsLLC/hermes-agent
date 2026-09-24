@@ -946,7 +946,7 @@ class RealmStore:
         ``dry_run`` runs the full validation and returns the WOULD-BE realm
         (in-memory only) without saving and without emitting the store event.
         """
-        from hermes_constants import CANONICAL_SHARED_SKILL_IDS
+        from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS
 
         from .skill_promotion import validate_skill_slug
 
@@ -964,7 +964,7 @@ class RealmStore:
                 (
                     f"{clean!r} is a hermes-installed harness skill: every realm pull "
                     "reinstalls it from repo source, so a realm tombstone can never "
-                    "hold. Delete it from hermes_constants.CANONICAL_SHARED_SKILL_IDS "
+                    "hold. Delete it from agent_runtime.profile_home.CANONICAL_SHARED_SKILL_IDS "
                     "and docs/agent-runtime-harness/harness-skills/ instead."
                 ),
                 safe_details={"slug": clean},

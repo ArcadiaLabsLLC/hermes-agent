@@ -13,7 +13,7 @@ class TestSharedSkillsDir:
         # resolves to <root>/shared/skills — the SAME path for every persona,
         # with no env injection. That convergence is what makes one physical
         # skills dir reachable by all personas.
-        from hermes_constants import get_shared_skills_dir
+        from agent_runtime.profile_home import get_shared_skills_dir
 
         root = tmp_path / ".hermes"
         alice = root / "profiles" / "alice"
@@ -32,7 +32,7 @@ class TestSharedSkillsDir:
         assert alice_shared == neko_shared
 
     def test_env_override_wins(self, tmp_path):
-        from hermes_constants import get_shared_skills_dir
+        from agent_runtime.profile_home import get_shared_skills_dir
 
         override = tmp_path / "custom-shared-skills"
         with patch.dict(os.environ, {"HERMES_SHARED_SKILLS": str(override)}):

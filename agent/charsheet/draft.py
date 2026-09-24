@@ -73,7 +73,8 @@ from agent.charsheet.spec import (
     parse_states,
 )
 from agent.pet.constants import DEFAULT_SCALE, LOOP_MS
-from hermes_constants import get_hermes_home, get_shared_characters_dir
+from hermes_constants import get_hermes_home
+from agent_runtime.profile_home import get_shared_characters_dir
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +143,7 @@ _SLUG_RE = re.compile(r"[^a-z0-9]+")
 def characters_dir() -> Path:
     """The ONE install-wide character library (created on demand).
 
-    Delegates to :func:`hermes_constants.get_shared_characters_dir` and adds
+    Delegates to :func:`agent_runtime.profile_home.get_shared_characters_dir` and adds
     nothing but the mkdir. This is the single site in hermes that spells the
     characters location: ``drafts_dir``, ``create``, ``load``, ``list_drafts``,
     the install writer and the CLI's installed-character rows all resolve

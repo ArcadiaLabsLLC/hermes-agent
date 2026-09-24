@@ -7,7 +7,7 @@ already typed by :func:`agent.skill_utils.skill_source_kind`:
 ``source_kind``         root                                        publishes?
 ======================  ==========================================  ============
 ``profile_local``       ``<profile_home>/skills`` (index 0, WINS)   **no**
-``shared_core``         :func:`hermes_constants.get_shared_skills_dir`  **yes**
+``shared_core``         :func:`agent_runtime.profile_home.get_shared_skills_dir`  **yes**
 ``external``            ``skills.external_dirs`` from config.yaml   **no**
 ======================  ==========================================  ============
 
@@ -377,7 +377,7 @@ def owning_profile_skills_root(path: Path) -> Path | None:
     Returns ``None`` when nothing above ``path`` is installer-managed.
     """
 
-    from hermes_constants import get_shared_skills_dir
+    from agent_runtime.profile_home import get_shared_skills_dir
 
     try:
         shared = _resolved(get_shared_skills_dir())

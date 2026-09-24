@@ -1123,7 +1123,7 @@ def isolated_shared_skills(tmp_path, monkeypatch):
     id, i.e. a test failing for a reason that has nothing to do with its subject.
     """
 
-    from hermes_constants import get_shared_skills_dir
+    from agent_runtime.profile_home import get_shared_skills_dir
 
     shared = tmp_path / "shared-skills"
     monkeypatch.setenv("HERMES_SHARED_SKILLS", str(shared))

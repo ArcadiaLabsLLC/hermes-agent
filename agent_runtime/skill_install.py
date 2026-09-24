@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from hermes_constants import CANONICAL_SHARED_SKILL_IDS, get_shared_skills_dir
+from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS, get_shared_skills_dir
 
 HARNESS_SKILLS = CANONICAL_SHARED_SKILL_IDS
 

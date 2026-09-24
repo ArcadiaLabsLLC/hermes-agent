@@ -11,11 +11,11 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from hermes_constants import (
     get_config_path,
-    get_shared_skills_dir,
     get_skills_dir,
     get_subprocess_home,
     is_termux,
 )
+from agent_runtime.profile_home import get_shared_skills_dir
 
 logger = logging.getLogger(__name__)
 

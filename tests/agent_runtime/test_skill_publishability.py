@@ -36,7 +36,7 @@ from agent.skill_utils import (
 )
 from agent_runtime import skill_publishability as sp
 from agent_runtime.skill_promotion import classify_promotion, execute_promotion
-from hermes_constants import get_shared_skills_dir
+from agent_runtime.profile_home import get_shared_skills_dir
 
 
 @pytest.fixture(autouse=True)

@@ -212,7 +212,7 @@ def record_converged_skill_baselines(realm_id: str, inbox_dir: Path) -> list[str
     agreement (the phantom the operator measured).
     """
 
-    from hermes_constants import get_shared_skills_dir
+    from agent_runtime.profile_home import get_shared_skills_dir
 
     from .skill_promotion import _iter_packages, skill_package_sync_hash
 

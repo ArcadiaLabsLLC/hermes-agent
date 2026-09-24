@@ -2607,7 +2607,7 @@ def _rel_to_shared_skills(path) -> str | None:
 
     if path is None:
         return None
-    from hermes_constants import get_shared_skills_dir
+    from agent_runtime.profile_home import get_shared_skills_dir
 
     path = Path(path)
     try:
@@ -2855,7 +2855,7 @@ def _canonical_packages_covered(slug: str) -> list[tuple[str, Path]]:
 
     from agent_runtime.skill_promotion import iter_skill_packages
     from agent_runtime.store import skill_tombstone_matches
-    from hermes_constants import get_shared_skills_dir
+    from agent_runtime.profile_home import get_shared_skills_dir
 
     return [
         (pkg_slug, pkg_dir)
@@ -2962,7 +2962,8 @@ def _archive_content_hint(slug: str) -> dict:
     slug leaves several archived copies, and the newest is a choice, not a fact.
     """
 
-    from hermes_constants import get_default_hermes_root, get_shared_skills_dir
+    from hermes_constants import get_default_hermes_root
+    from agent_runtime.profile_home import get_shared_skills_dir
 
     shared = get_shared_skills_dir()
     flat = slug.replace("/", "__")
@@ -3017,7 +3018,7 @@ def _cmd_skills_delete(args) -> int:
     from agent_runtime.errors import SkillTombstoneRefused
     from agent_runtime.skill_promotion import _archive_package, validate_skill_slug
     from agent_runtime.store import active_skill_tombstones, skill_tombstoned
-    from hermes_constants import CANONICAL_SHARED_SKILL_IDS
+    from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS
 
     slug = str(getattr(args, "skill", "") or "").strip()
     dry_run = bool(getattr(args, "dry_run", False))
@@ -3051,7 +3052,7 @@ def _cmd_skills_delete(args) -> int:
                 (
                     f"{slug!r} is a hermes-installed harness skill: every realm pull "
                     "reinstalls it from repo source, so a realm tombstone can never "
-                    "hold. Delete it from hermes_constants.CANONICAL_SHARED_SKILL_IDS "
+                    "hold. Delete it from agent_runtime.profile_home.CANONICAL_SHARED_SKILL_IDS "
                     "and docs/agent-runtime-harness/harness-skills/ instead."
                 ),
                 safe_details={"skill": slug},
@@ -4817,7 +4818,8 @@ def _cmd_characters_migrate_home(args) -> int:
     a store.
     """
     from agent.charsheet.draft import migrate_characters_home
-    from hermes_constants import get_hermes_home, get_shared_characters_dir
+    from hermes_constants import get_hermes_home
+    from agent_runtime.profile_home import get_shared_characters_dir
 
     home = get_hermes_home()
     try:

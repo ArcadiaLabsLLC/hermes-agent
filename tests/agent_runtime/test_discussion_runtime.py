@@ -21,7 +21,7 @@ from agent_runtime.discussions.definitions import DefinitionError, ParticipantRe
 from agent_runtime.discussions.rpc import execute
 from agent_runtime.mission_chat_turns import transition_mission_chat_turn, MissionChatTurnPersistOutcome
 from gateway import hosted_rooms
-from hermes_constants import get_hermes_head_home
+from agent_runtime.profile_home import get_hermes_head_home
 from tests.agent_runtime.test_discussion_definitions import table_value
 
 pytestmark = pytest.mark.timeout(180)

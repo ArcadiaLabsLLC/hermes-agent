@@ -784,7 +784,7 @@ def _archive_local_skill(item: StoreDriftItem) -> None:
     not "delete this skill for the realm".
     """
 
-    from hermes_constants import get_shared_skills_dir
+    from agent_runtime.profile_home import get_shared_skills_dir
 
     from .skill_promotion import _archive_package
 
@@ -997,7 +997,7 @@ def _current_content_hash(item: StoreDriftItem, *, office_store, board_store) ->
     """
 
     if item.family == DRIFT_FAMILY_SKILL:
-        from hermes_constants import get_shared_skills_dir
+        from agent_runtime.profile_home import get_shared_skills_dir
 
         from .skill_promotion import skill_package_sync_hash
 

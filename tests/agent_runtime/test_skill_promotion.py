@@ -28,7 +28,7 @@ from agent_runtime.skill_promotion import (
     realm_inbox_root,
     skill_package_sync_hash,
 )
-from hermes_constants import get_shared_skills_dir
+from agent_runtime.profile_home import get_shared_skills_dir
 
 
 @pytest.fixture(autouse=True)

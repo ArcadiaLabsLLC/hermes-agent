@@ -192,7 +192,7 @@ def _describe_target(path: str) -> str:
 
 
 def _canonical_ids() -> list[str]:
-    from hermes_constants import CANONICAL_SHARED_SKILL_IDS
+    from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS
 
     return sorted(CANONICAL_SHARED_SKILL_IDS)
 
