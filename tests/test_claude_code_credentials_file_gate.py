@@ -489,7 +489,7 @@ def _table_scopes(tree: ast.Module, path: Path) -> list[tuple[str, ast.AST]]:
         if file_part != rel:
             continue
         scope: ast.AST | None = tree
-        for name in qual.split("::"):
+        for name in qual.split("::") if qual else ():
             scope = next(
                 (
                     child
@@ -503,8 +503,17 @@ def _table_scopes(tree: ast.Module, path: Path) -> list[tuple[str, ast.AST]]:
                 break
         # An id naming nothing is the table's own UsageError at collection.
         if scope is not None:
-            scopes.append((qual, scope))
+            scopes.append((qual or "<module>", scope))
     return scopes
+
+
+def _table_redirected_ids() -> set[str]:
+    """Table ids that also carry ``claude_home_is_tmp_path``: the fork's
+    ``_claude_home_is_tmp_path`` fixture points ``Path.home()`` at ``tmp_path``
+    for them (pinned by ``test_table_redirect_marker_points_home_at_tmp_path``)."""
+    from tests._downstream.id_markers import ids_marked
+
+    return ids_marked("claude_home_is_tmp_path")
 
 
 def _marked_scopes(tree: ast.Module, path: Path | None = None) -> list[tuple[str, ast.AST]]:
@@ -548,7 +557,14 @@ def test_gate_opt_in_requires_a_redirected_home():
         if tree is None:
             continue
         defs = _function_defs(tree)
+        redirected = {
+            node.partition("::")[2] or "<module>"
+            for node in _table_redirected_ids()
+            if node.partition("::")[0] == _rel(path)
+        }
         for name, scope in _marked_scopes(tree, path):
+            if name in redirected:
+                continue
             if not _redirects_home(scope, defs):
                 offenders.append(f"{path.name}::{name}")
 
@@ -627,7 +643,10 @@ def test_gate_sees_every_scope_the_id_table_marks():
             continue
         tree = _parse(path)
         assert tree is not None, f"{_rel(path)} is table-marked but was not parsed"
-        seen |= {f"{_rel(path)}::{qual}" for qual, _ in _table_scopes(tree, path)}
+        seen |= {
+            _rel(path) if qual == "<module>" else f"{_rel(path)}::{qual}"
+            for qual, _ in _table_scopes(tree, path)
+        }
     assert seen == ids, f"table ids with no scope in the census: {sorted(ids - seen)}"
 
 
@@ -676,3 +695,19 @@ class TestOptInStillNeverTouchesTheHostFile:
         assert written == [tmp_path / ".claude" / ".credentials.json"]
         payload = json.loads(written[0].read_text(encoding="utf-8"))
         assert payload["claudeAiOauth"]["accessToken"] == _SYNTHETIC_ACCESS
+
+
+@pytest.mark.claude_home_is_tmp_path
+def test_table_redirect_marker_points_home_at_tmp_path(tmp_path):
+    """The gate waives the source redirect for a table scope carrying
+    ``claude_home_is_tmp_path``; this is what makes that waiver true."""
+    from pathlib import Path
+
+    assert Path.home() == tmp_path
+
+
+def test_table_redirect_marker_is_inert_unmarked(tmp_path):
+    """Positive control for the one above: without the mark, home is untouched."""
+    from pathlib import Path
+
+    assert Path.home() != tmp_path

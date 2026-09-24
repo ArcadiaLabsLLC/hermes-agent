@@ -167,31 +167,18 @@ class TestResolveChildCwd(unittest.TestCase):
 
 class TestModeAwareSchema(unittest.TestCase):
 
-    def test_description_is_mode_independent_brief(self):
-        """T6b: the wire description no longer varies by execution mode — it is a
-        static brief. The mode-specific cwd guidance (temp dir vs session CWD)
-        moved out of the wire; the T6b report records this as a fidelity note
-        (tool_describe serves the default-mode full text).
-
-        Supersedes upstream's ``test_strict_description_mentions_temp_dir``:
-        the fork's brief wire description deliberately drops the "temp dir"
-        sentence, so that assertion is false by construction here.
-        """
-        strict = build_execute_code_schema(mode="strict")["description"]
-        project = build_execute_code_schema(mode="project")["description"]
-        self.assertEqual(strict, project)
 
 
 
-    def test_default_mode_description_is_static(self):
-        """T6b: the description is mode-independent, so the config-driven mode no
-        longer changes it (execution still honors the mode; only the wire text
-        is static now)."""
+
+    def test_default_mode_reads_config(self):
+        """build_execute_code_schema() with mode=None reads config.yaml."""
         with _mock_mode("strict"):
-            strict = build_execute_code_schema()["description"]
+            desc = build_execute_code_schema()["description"]
+            self.assertIn("temp dir", desc)
         with _mock_mode("project"):
-            project = build_execute_code_schema()["description"]
-        self.assertEqual(strict, project)
+            desc = build_execute_code_schema()["description"]
+            self.assertIn("session", desc)
 
 
 # ---------------------------------------------------------------------------

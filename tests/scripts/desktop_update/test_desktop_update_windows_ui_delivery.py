@@ -15,8 +15,7 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-# Allow the existing 30s startup and 25s no-client exit budgets to report.
-pytestmark = [pytest.mark.windows_only, pytest.mark.timeout(75)]
+pytestmark = pytest.mark.windows_only
 SCRIPT = Path(__file__).resolve().parents[3] / "scripts/desktop-update/windows.ps1"
 
 

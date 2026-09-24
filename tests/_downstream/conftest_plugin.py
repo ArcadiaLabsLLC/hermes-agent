@@ -552,6 +552,28 @@ def tmp_path(request, tmp_path_factory):
     return path
 
 
+_CLAUDE_HOME_IS_TMP_PATH_MARK = "claude_home_is_tmp_path"
+
+
+@pytest.fixture(autouse=True)
+def _claude_home_is_tmp_path(request, monkeypatch):
+    """Point ``Path.home()`` at the test's own ``tmp_path``, by id.
+
+    The redirect ``allow_claude_code_credentials_file`` REQUIRES
+    (``tests/test_claude_code_credentials_file_gate.py``), for an upstream file
+    that exercises the real ``~/.claude/.credentials.json`` reader/writer and
+    carries no redirect of its own. ``tests/_downstream/id_markers.py`` applies
+    both marks together; the gate accepts a table scope carrying this mark as
+    redirected. ``tmp_path`` is resolved only for marked tests.
+    """
+    if request.node.get_closest_marker(_CLAUDE_HOME_IS_TMP_PATH_MARK) is None:
+        return
+    from pathlib import Path
+
+    home = request.getfixturevalue("tmp_path")
+    monkeypatch.setattr(Path, "home", lambda: home)
+
+
 _CONFIG_READS_THROUGH_LOAD_CONFIG_MARK = "config_reads_through_load_config"
 
 
@@ -653,4 +675,10 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         "completion delivery, which the fork gates behind "
         "HERMES_BACKGROUND_AGENT_TURNS; the fixture sets it (applied by id from "
         "tests/_downstream/id_markers.py).",
+    )
+    config.addinivalue_line(
+        "markers",
+        f"{_CLAUDE_HOME_IS_TMP_PATH_MARK}: Path.home() is the test's tmp_path "
+        "(applied by id from tests/_downstream/id_markers.py, together with "
+        "allow_claude_code_credentials_file).",
     )

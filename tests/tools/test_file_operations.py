@@ -248,6 +248,16 @@ class TestShellFileOpsHelpers:
 
 
 
+    @pytest.mark.windows_only
+    def test_escape_shell_arg_rewrites_forward_slash_native_paths(self, file_ops):
+        """Windows-only: ``_bash_safe_path`` only rewrites drive paths to the
+        Git Bash form on Windows, where the MSYS path mangling it works around
+        actually happens."""
+        assert file_ops._escape_shell_arg(
+            "C:/Users/alice/notes.txt"
+        ) == "'/c/Users/alice/notes.txt'"
+
+
     def test_is_likely_binary_by_extension(self, file_ops):
         assert file_ops._is_likely_binary("photo.png") is True
         assert file_ops._is_likely_binary("data.db") is True

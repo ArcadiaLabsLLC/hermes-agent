@@ -7001,12 +7001,6 @@ def test_notification_poller_live_loop_requeues_foreign_completion_for_owner(
         session["running"] = False
 
     monkeypatch.setattr(server, "_run_prompt_submit", _deliver)
-    # The completion -> agent-turn hand-off is opt-in
-    # (_tui_background_agent_turns_enabled); with it off the poller emits the
-    # status.update and consumes the event without ever scheduling a turn, so
-    # _run_prompt_submit is the wrong probe. Turn it on to keep pinning WHICH
-    # session the owned event is handed to.
-    monkeypatch.setenv("HERMES_BACKGROUND_AGENT_TURNS", "true")
     server._sessions.update(
         {
             "sid-a-live-handoff": session_a,
@@ -7221,12 +7215,6 @@ def test_notification_poller_delivers_owned_events(
         lambda _rid, _sid, _session, text, **_kw: delivered.append(text),
     )
     monkeypatch.setattr(server, "_get_db", lambda: _CompressionDB())
-    # The completion -> agent-turn hand-off is opt-in
-    # (_tui_background_agent_turns_enabled). Visibility (status.update) is
-    # unconditional, but delivery through _run_prompt_submit is not, so the
-    # ownership routing this test exists to pin is only observable on the
-    # delivery path with the opt-in on.
-    monkeypatch.setenv("HERMES_BACKGROUND_AGENT_TURNS", "true")
 
     isolated_queue: _queue_mod.Queue = _queue_mod.Queue()
     monkeypatch.setattr(process_registry, "completion_queue", isolated_queue)
@@ -7454,7 +7442,6 @@ def test_run_prompt_submit_requeues_foreign_completion(
 
 
 def test_run_prompt_submit_delivers_completion_observed_by_poll(monkeypatch, tmp_path):
-    monkeypatch.setenv("HERMES_BACKGROUND_AGENT_TURNS", "true")
     import queue as _queue_mod
 
     from tools.process_registry import process_registry
@@ -7497,7 +7484,6 @@ def test_run_prompt_submit_delivers_completion_observed_by_poll(monkeypatch, tmp
 def test_run_prompt_submit_requeues_all_unstarted_notifications_with_real_threading(
     monkeypatch, tmp_path
 ):
-    monkeypatch.setenv("HERMES_BACKGROUND_AGENT_TURNS", "true")
     import queue as _queue_mod
 
     from tools.process_registry import process_registry
@@ -7592,7 +7578,6 @@ def test_run_prompt_submit_requeues_all_unstarted_notifications_with_real_thread
 def test_run_prompt_submit_delivers_completion_owned_through_compression_lineage(
     monkeypatch, tmp_path
 ):
-    monkeypatch.setenv("HERMES_BACKGROUND_AGENT_TURNS", "true")
     import queue as _queue_mod
 
     from tools.process_registry import process_registry
@@ -7646,7 +7631,6 @@ def test_run_prompt_submit_delivers_completion_owned_through_compression_lineage
 
 
 def test_run_prompt_submit_prefers_origin_ui_session_id(monkeypatch, tmp_path):
-    monkeypatch.setenv("HERMES_BACKGROUND_AGENT_TURNS", "true")
     import queue as _queue_mod
 
     from tools.process_registry import process_registry
@@ -18122,8 +18106,8 @@ def test_background_agent_kwargs_handles_null_agent_config(monkeypatch):
 
 
 
-def test_notification_poller_delivers_status_only_by_default(monkeypatch):
-    """Poller surfaces completion as status only; agent turns are legacy opt-in."""
+def test_notification_poller_delivers_completion(monkeypatch):
+    """Poller picks up completion events and triggers agent turns."""
     import queue as _queue_mod
 
     from tools.process_registry import process_registry
@@ -18171,9 +18155,9 @@ def test_notification_poller_delivers_status_only_by_default(monkeypatch):
     isolated_queue.put({
         "type": "completion",
         "session_id": "proc_poller_test",
-        "command": "echo hello OPENAI_API_KEY=sk-testsecret1234567890",
+        "command": "echo hello",
         "exit_code": 0,
-        "output": "hello\nOPENAI_API_KEY=sk-outputsecret1234567890",
+        "output": "hello",
     })
     stop.set()
 
@@ -18184,13 +18168,10 @@ def test_notification_poller_delivers_status_only_by_default(monkeypatch):
         status_calls = [a for a in emitted if a[0] == "status.update"]
         assert len(status_calls) >= 1
         assert status_calls[0][2]["kind"] == "process"
-        status_text = status_calls[0][2]["text"]
-        assert "Background Process Finished:" in status_text
-        assert "sk-testsecret" not in status_text
-        assert "sk-outputsecret" not in status_text
 
-        # Should not trigger an agent turn unless legacy opt-in is enabled.
-        assert len(turns) == 0
+        # Should have triggered an agent turn
+        assert len(turns) == 1
+        assert "proc_poller_test" in turns[0]
     finally:
         server._sessions.pop("sid_poll", None)
         while not process_registry.completion_queue.empty():
@@ -18252,8 +18233,8 @@ def test_notification_poller_skips_consumed(monkeypatch):
             process_registry.completion_queue.get_nowait()
 
 
-def test_notification_poller_status_only_when_busy_by_default(monkeypatch):
-    """When the agent is busy, default status-only notifications do not requeue."""
+def test_notification_poller_requeues_when_busy(monkeypatch):
+    """When the agent is busy, the poller requeues the event."""
     import queue as _queue_mod
 
     from tools.process_registry import process_registry
@@ -18292,9 +18273,10 @@ def test_notification_poller_status_only_when_busy_by_default(monkeypatch):
         status_calls = [a for a in emitted if a[0] == "status.update"]
         assert len(status_calls) == 1
 
-        # Event is consumed after the status-only update; no synthetic agent turn
-        # should be queued ahead of a human message unless legacy opt-in is set.
-        assert isolated_queue.empty()
+        # Event was requeued (agent was busy, no turn triggered)
+        assert not isolated_queue.empty()
+        requeued = isolated_queue.get_nowait()
+        assert requeued["session_id"] == "proc_busy_test"
     finally:
         server._sessions.pop("sid_busy", None)
         while not process_registry.completion_queue.empty():
@@ -18408,7 +18390,6 @@ def test_notification_poller_emits_distinct_watch_matches_once(monkeypatch):
 
     from tools.process_registry import process_registry
 
-    monkeypatch.setenv("HERMES_BACKGROUND_AGENT_TURNS", "1")
     turns = []
     emitted = []
 

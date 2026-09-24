@@ -109,6 +109,18 @@ class TestBuildContextFilesPrompt:
         assert "Cursor loads" in result
 
 
+    def test_hermes_md_and_override_both_load_in_priority_order(self, tmp_path):
+        """Fork half of upstream's ``test_hermes_md_still_wins_over_agents_override``
+        (a strict xfail row): the fork's ``build_context_files_prompt`` loads context
+        sources additively, in priority order."""
+        (tmp_path / ".hermes.md").write_text("Hermes-first context.")
+        (tmp_path / "AGENTS.override.md").write_text("Override context.")
+        result = build_context_files_prompt(cwd=str(tmp_path))
+        assert "Hermes-first context" in result
+        assert "Override context" in result
+        assert result.index("Hermes-first context") < result.index("Override context")
+
+
 class TestBuildSkillsSystemPromptConditional:
     # upstream's class-scoped autouse fixture, imported by name
     _clear_skills_cache = _upstream.TestBuildSkillsSystemPromptConditional._clear_skills_cache

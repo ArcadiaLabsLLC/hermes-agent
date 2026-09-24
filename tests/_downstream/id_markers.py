@@ -6,7 +6,8 @@ bytes, and the mark moves here. The file then leaves the ``[up-fp]`` ratchet and
 the weekly merge stops conflicting on it.
 
 ``ID_MARKS`` maps a node id WITHOUT its parametrize suffix — or a class id,
-which covers every test in the class — to the marks the fork applies. ``_WIN`` / ``_NOT_WIN`` rows are platform treatments; each names what
+which covers every test in the class, or a bare file path, which covers every
+test in the file — to the marks the fork applies. ``_WIN`` / ``_NOT_WIN`` rows are platform treatments; each names what
 retires it. A row whose file is collected but whose id no longer exists is a
 UsageError, not a silent no-op: an unmatched row would read as coverage it no
 longer gives.
@@ -492,14 +493,160 @@ if _WIN:
     })
 
 
+# ── CARRY2B: agent, hermes_state, plugins, providers, cron, scripts, tui_gateway, tests/*.py
+_CLAUDE_HOME_TMP = pytest.mark.claude_home_is_tmp_path
+
+
+def _fork_replaces(symbol: str, sibling: str) -> pytest.MarkDecorator:
+    return pytest.mark.xfail(strict=True, reason=(
+        f"the fork's {symbol} makes this upstream assertion false; fork half: {sibling}"
+    ))
+
+
+ID_MARKS.update({
+    # MCF-66: these files drive the real ~/.claude/.credentials.json
+    # reader/writer; the fork opts them in AND points Path.home() at tmp_path.
+    **{
+        f"tests/agent/{name}.py": (_CREDENTIALS_FILE, _CLAUDE_HOME_TMP)
+        for name in (
+            "test_anthropic_borrowed_row_authority",
+            "test_anthropic_credential_persist_failure",
+            "test_anthropic_spent_rotation_verdict",
+        )
+    },
+    # macOS-only classes; each _setup redirects Path.home() itself.
+    **{
+        f"tests/agent/test_anthropic_keychain.py::{cls}": (_CREDENTIALS_FILE,)
+        for cls in ("TestReadClaudeCodeCredentialsPriority", "TestReadClaudeCodeCredentialsDesync")
+    },
+    **{
+        node: (_MIDTEST_UNDO,)
+        for node in (
+            "tests/agent/test_anthropic_credential_persist_failure.py::"
+            "test_reauthentication_clears_the_persist_failure_quarantine",
+            "tests/agent/test_canon_args_memo_parity.py::TestComplexityProof::"
+            "test_json_loads_linear_not_quadratic",
+            "tests/cron/test_cron_profile_isolation.py::test_cron_storage_anchors_at_profile_home",
+            "tests/hermes_state/test_append_messages_batch.py::TestAppendMessagesBatch::"
+            "test_atomicity_all_or_nothing",
+            "tests/hermes_state/test_retired_wal_generation_capture.py::"
+            "test_close_refuses_to_settle_without_a_capture",
+            "tests/hermes_state/test_retired_wal_generation_capture.py::"
+            "test_failed_capture_still_pins_the_handle_and_surfaces_through_the_registry",
+            "tests/hermes_state/test_session_db_read_conn_pool.py::"
+            "test_permits_are_not_stranded_by_a_failed_open",
+            "tests/plugins/memory/test_holographic_store.py::TestConcurrency::"
+            "test_failed_write_does_not_pin_write_lock",
+            "tests/plugins/platforms/photon/test_sidecar_paths.py::"
+            "test_adapter_import_does_not_resolve_sidecar_dir",
+        )
+    },
+    "tests/agent/test_external_skills.py::TestGetAllSkillsDirs::test_local_always_first": (
+        _fork_replaces(
+            "agent.skill_utils.get_all_skills_dirs (shared skills root second)",
+            "tests/agent/test_external_skills_downstream.py",
+        ),
+    ),
+    # The module cannot collect on Windows (os.geteuid at import; fork-hygiene
+    # row filed), so this row is checked on POSIX only.
+    "tests/agent/test_prompt_builder.py::TestBuildContextFilesPrompt::"
+    "test_hermes_md_still_wins_over_agents_override": (
+        _fork_replaces(
+            "agent.prompt_builder.build_context_files_prompt (context sources load additively)",
+            "tests/agent/test_prompt_builder_downstream.py",
+        ),
+    ),
+    **{
+        f"tests/providers/test_entry_point_discovery.py::{test}": (
+            _fork_replaces(
+                "hermes_cli.plugins_discovery split (the enable lists are read there, "
+                "not on hermes_cli.plugins)",
+                "tests/providers/test_entry_point_discovery_downstream.py",
+            ),
+        )
+        for test in (
+            "test_entry_point_callable_and_module_targets",
+            "test_entry_point_failure_is_isolated",
+        )
+    },
+    **{
+        node: (_CONFIG_READ_THROUGH,)
+        for node in (
+            "tests/plugins/dashboard_auth/test_nous_provider.py::TestConfigYamlSource",
+            "tests/plugins/dashboard_auth/test_nous_provider_downstream.py::TestConfigYamlSource",
+            "tests/plugins/dashboard_auth/test_self_hosted_provider.py::TestPluginRegister",
+        )
+    },
+    **{
+        f"tests/test_live_system_guard.py::{test}": (
+            _fork_replaces(
+                "_live_system_guard backend-spawn arm (tests/conftest.py)",
+                "tests/test_live_system_guard_downstream.py",
+            ),
+        )
+        for test in (
+            "test_gateway_start_inside_a_container_exec_is_not_blocked",
+            "test_gateway_start_on_the_host_is_still_blocked",
+        )
+    },
+    "tests/test_live_system_guard_self_test.py::"
+    "test_subprocess_run_gateway_status_passes_through": (_LOOKALIKE,),
+    **{
+        f"tests/tui_gateway/test_tui_gateway_server.py::{test}": (_AGENT_TURNS,)
+        for test in (
+            "test_notification_poller_live_loop_requeues_foreign_completion_for_owner",
+            "test_notification_poller_delivers_owned_events",
+            "test_run_prompt_submit_delivers_completion_observed_by_poll",
+            "test_run_prompt_submit_requeues_all_unstarted_notifications_with_real_threading",
+            "test_run_prompt_submit_delivers_completion_owned_through_compression_lineage",
+            "test_run_prompt_submit_prefers_origin_ui_session_id",
+            "test_notification_poller_delivers_completion",
+            "test_notification_poller_requeues_when_busy",
+            "test_notification_poller_emits_distinct_watch_matches_once",
+        )
+    },
+    # The fork runs the whole tree under --timeout=30; these PowerShell
+    # harnesses carry their own child budgets above that.
+    "tests/scripts/desktop_update/test_desktop_update_windows_cwd.py": (pytest.mark.timeout(75),),
+    "tests/scripts/desktop_update/test_desktop_update_windows_progress.py": (pytest.mark.timeout(120),),
+    "tests/scripts/desktop_update/test_desktop_update_windows_ui_delivery.py": (pytest.mark.timeout(75),),
+    "tests/scripts/desktop_update/test_desktop_update_windows_pipe_drain.py::"
+    "test_update_step_survives_pipe_leak_flood_and_live_child_stall": (pytest.mark.timeout(330),),
+    "tests/scripts/install/test_install_ps1_managed_python_provenance.py::"
+    "test_python_find_timeout_kills_uv_and_fails_stage": (pytest.mark.timeout(60),),
+})
+
+
+ID_MARKS.update({
+    "tests/tools/test_tool_search_multiquery.py::TestBatchedDescribe::"
+    "test_registered_direct_surface_name_keeps_exact_error": (
+        _fork_replaces(
+            "tools.tool_search.dispatch_tool_describe (details for an in-session direct tool)",
+            "tests/tools/test_tool_search_multiquery_downstream.py",
+        ),
+    ),
+})
+
+if _WIN:
+    ID_MARKS.update({
+        "tests/tools/test_file_operations.py::TestShellFileOpsHelpers::"
+        "test_escape_shell_arg_rewrites_forward_slash_native_paths": (
+            _fork_replaces(
+                "ShellFileOperations._escape_shell_arg (native Windows paths, no /c/ rewrite)",
+                "tests/tools/test_file_operations_downstream.py",
+            ),
+        ),
+    })
+
+
 def _base_id(nodeid: str) -> str:
     return nodeid.split("[", 1)[0]
 
 
 def _keys_for(base: str) -> list[str]:
-    """``a::B::c`` -> ``["a::B::c", "a::B"]``: the test id, then each enclosing class."""
+    """``a::B::c`` -> ``["a::B::c", "a::B", "a"]``: the test id, each enclosing class, the file."""
     parts = base.split("::")
-    return ["::".join(parts[:n]) for n in range(len(parts), 1, -1)]
+    return ["::".join(parts[:n]) for n in range(len(parts), 0, -1)]
 
 
 def ids_marked(mark_name: str) -> set[str]:

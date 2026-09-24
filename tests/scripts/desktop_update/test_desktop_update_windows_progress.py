@@ -20,8 +20,7 @@ from urllib.request import urlopen
 
 import pytest
 
-# Startup/publication polls plus the deliberately 30s-held orchestrator and exit.
-pytestmark = [pytest.mark.windows_only, pytest.mark.timeout(120)]
+pytestmark = pytest.mark.windows_only
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 WINDOWS_UPDATE_PS1 = REPO_ROOT / "scripts" / "desktop-update" / "windows.ps1"

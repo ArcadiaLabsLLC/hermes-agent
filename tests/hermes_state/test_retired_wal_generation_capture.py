@@ -148,12 +148,13 @@ def test_close_refuses_to_settle_without_a_capture(tmp_path, force_wal, monkeypa
     def refuse(*args, **kwargs):
         raise RetiredGenerationCaptureError("no space left on device")
 
-    with monkeypatch.context() as fault:
-        fault.setattr(hermes_state, "capture_retired_wal_generation", refuse)
-        with pytest.raises(RetiredGenerationCaptureError, match="no space left"):
-            db.close()
-        assert db._conn is not None, "shutdown must not settle while the retired generation is uncaptured"
-        assert db._retired_generation_capture is None
+    monkeypatch.setattr(hermes_state, "capture_retired_wal_generation", refuse)
+    with pytest.raises(RetiredGenerationCaptureError, match="no space left"):
+        db.close()
+    assert db._conn is not None, "shutdown must not settle while the retired generation is uncaptured"
+    assert db._retired_generation_capture is None
+
+    monkeypatch.undo()
     db.close()
     artifact = db._retired_generation_capture
     assert artifact is not None and db._conn is None
@@ -183,17 +184,19 @@ def test_failed_capture_still_pins_the_handle_and_surfaces_through_the_registry(
     def refuse(*args, **kwargs):
         raise RetiredGenerationCaptureError("no space left on device")
 
-    with monkeypatch.context() as fault:
-        fault.setattr(hermes_state, "capture_retired_wal_generation", refuse)
-        with caplog.at_level("ERROR"):
-            release_or_close(db)  # must not raise
+    monkeypatch.setattr(hermes_state, "capture_retired_wal_generation", refuse)
+    with caplog.at_level("ERROR"):
+        release_or_close(db)  # must not raise
     assert db._conn is not None
     assert "no space left on device" in caplog.text
     if db._retire_connection is not None:  # no setconfig: the pin must already be taken
         assert pins == [db._conn]
+        monkeypatch.undo()
+        monkeypatch.setattr(db, "_retire_connection", pins.append)
         db.close()  # retry succeeds and must not pin a second time
         assert pins == [pins[0]]
     else:
+        monkeypatch.undo()
         db.close()
     assert db._conn is None and db._retired_generation_capture is not None
 
