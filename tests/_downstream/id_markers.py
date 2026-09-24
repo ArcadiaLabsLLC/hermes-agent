@@ -1076,8 +1076,32 @@ IMPORT_TIME_POSIX_SHIMS: dict[str, dict[str, object]] = {
     "tests/agent/test_prompt_builder.py": {"geteuid": lambda: -1},
 } if _WIN else {}
 
+_NEEDS_ACP = pytest.mark.skipif(
+    importlib.util.find_spec("acp") is None,
+    reason="imports `acp` inside the test (agent-client-protocol, extra [acp]), "
+    "which the canonical test venv does not carry; runs once it is installed",
+)
+ID_MARKS.update({
+    "tests/acp_adapter/test_acp_dashboard_model_switch_validation.py": (_NEEDS_ACP,),
+    "tests/acp_adapter/test_edit_approval.py::"
+    "test_acp_permission_tool_call_uses_edit_kind_and_diff_content": (_NEEDS_ACP,),
+    "tests/acp_adapter/test_failed_turn_closure.py::"
+    "test_acp_refusal_closes_the_turn_and_is_not_replayed_into_the_next_prompt": (_NEEDS_ACP,),
+})
+
 if _WIN:
     ID_MARKS.update({
+        **{
+            f"tests/acp_adapter/test_session.py::TestSymlinkAliasNormalization::{test}": (
+                _up_red("realpath over a Windows drive: an alias does not resolve to its "
+                        "target and a POSIX literal is drive-qualified (class c-D)"),
+            )
+            for test in (
+                "test_symlink_alias_compares_equal",
+                "test_missing_path_keeps_lexical_normalization",
+                "test_list_sessions_matches_symlink_alias_cwd",
+            )
+        },
         **{
             f"tests/gateway/test_runtime_footer.py::{test}": (
                 _up_red(f"{why}; twin: tests/gateway/test_runtime_footer_downstream.py"),
@@ -1102,18 +1126,48 @@ if _WIN:
     })
 
 
+#: Test directories whose modules import an OPTIONAL distribution at import. The
+#: canonical test venv is the live install plus a test runner, and the live
+#: install does not carry these extras, so the modules cannot collect there.
+#: The probe is the import spec: the day the distribution is installed, the
+#: modules collect and run again, with nothing here to delete. Only a module
+#: whose collection FAILED on exactly that missing import is skipped; the rest
+#: of the directory runs.
+REQUIRES_DISTRIBUTION: dict[str, tuple[str, str]] = {
+    "tests/acp_adapter/": ("acp", "agent-client-protocol, extra [acp]"),
+}
+
+
 @pytest.hookimpl(wrapper=True)
 def pytest_make_collect_report(collector):  # noqa: D401 — pytest hook
-    """Lend ``IMPORT_TIME_POSIX_SHIMS`` to one module's import, then take them back."""
+    """Lend ``IMPORT_TIME_POSIX_SHIMS`` to one module's import, then take them back;
+    turn a collection that failed on a ``REQUIRES_DISTRIBUTION`` import into a skip."""
     shims = IMPORT_TIME_POSIX_SHIMS.get(collector.nodeid)
     lent = [name for name in (shims or {}) if not hasattr(os, name)]
     for name in lent:
         setattr(os, name, shims[name])
     try:
-        return (yield)
+        report = yield
     finally:
         for name in lent:
             delattr(os, name)
+    return _skip_if_distribution_missing(collector, report)
+
+
+def _skip_if_distribution_missing(collector, report):
+    if not report.failed:
+        return report
+    for prefix, (module, distribution) in REQUIRES_DISTRIBUTION.items():
+        if (
+            collector.nodeid.startswith(prefix)
+            and importlib.util.find_spec(module) is None
+            and f"No module named '{module}'" in str(report.longrepr)
+        ):
+            from _pytest.reports import CollectReport
+
+            reason = f"Skipped: optional distribution {distribution} is not installed (no `{module}`)"
+            return CollectReport(report.nodeid, "skipped", (str(collector.path), 0, reason), [])
+    return report
 
 
 def _base_id(nodeid: str) -> str:
