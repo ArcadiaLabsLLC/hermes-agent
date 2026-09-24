@@ -55,7 +55,7 @@ Goal (owner, 2026-09-21): **easy upstream syncs without much conflict.** The for
 
 **Dropped 2026-09-24 (lane UPREV, never opened):** `up/win-text-encoding` (upstream's `run_tests.sh` sets `PYTHONUTF8=1`, no red), `up/monkeypatch-undo-scoped` (no red), `up/profile-home-generic` (P7; perf memo, no red), `up/profiles-delete-guard` (P6; psutil is a pinned core dep, refusal unreachable). Their ledger rows are `carry` with reason "PR dropped 2026-09-24: …".
 
-Rules used: branch cut from `upstream/main` (never from the fork), `fix/…` / `test/…` branch names, Conventional Commit subject, upstream's PR template filled in full, `scripts/check-windows-footguns.py` on the staged diff, platform named (Windows 11 native), the affected test files run before and after with the counts in the body. Rebase a PR only on request. The next seam PR is Stage 1's fallback: manifest-declared deferred CLI entries (`cli_commands:` in `plugin.yaml`), after Stage 1 measures the discovery cost on the merged tree.
+Rules used: branch cut from `upstream/main` (never from the fork), `fix/…` / `test/…` branch names, Conventional Commit subject, upstream's PR template filled in full, `scripts/check-windows-footguns.py` on the staged diff, platform named (this box: Windows 10 Home 22H2, build 19045 — read it from `winver`/`[System.Environment]::OSVersion`, never assume), the affected test files run before and after with the counts in the body. Rebase a PR only on request. The next seam PR is Stage 1's fallback: manifest-declared deferred CLI entries (`cli_commands:` in `plugin.yaml`), after Stage 1 measures the discovery cost on the merged tree.
 
 ## Related
 
