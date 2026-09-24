@@ -55,10 +55,10 @@ the create receipt (`agent_create_phases.py:23-24`) then inherited verbatim.
 1. **Absent is never zero.** A phase that did not happen has no key — not `0`,
    not `null`, not present-and-empty. `safe_turn_phases`
    (`agent_runtime/mission_chat_phases.py:472`) drops keys it
-   cannot read rather than defaulting them; `_format_ttfb_token`
-   (`agent_runtime/conversation_observability.py::_format_ttfb_token`) emits no `ttfb=` token rather than
-   `ttfb=0.0s`, "which reads as an instantaneous provider and is a lie no
-   downstream reader can detect"; `_log_agents_readiness_split`
+   cannot read rather than defaulting them; upstream's `post_api_request` hook
+   passes `first_chunk_at=None` rather than a zero when no first chunk was seen
+   (the fork's `ttfb=` log token that said the same was retired 2026-09-24 as a
+   duplicate of it); `_log_agents_readiness_split`
    (`snapshot.py:437-454`) prints nothing when the section never ran, and two
    honest zeros when it ran and cost nothing. **Absent-as-zero is the canonical
    lie of this codebase** — it is how a census once MEASURED A FALSE ZERO

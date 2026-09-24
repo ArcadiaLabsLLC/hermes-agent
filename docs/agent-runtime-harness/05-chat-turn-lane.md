@@ -646,12 +646,12 @@ sides read, so producer and consumer cannot drift apart again.
 The live measurement that motivated the split (turn `c59ab99e`, 2026-08-22): **1,762 ms of a 13,532
 ms "provider" span elapsed before the request client existed** — prologue, tool-schema
 serialization, prompt-cache decoration, request middleware, the `pre_api_request` hook and the
-per-request client build all sat inside the span the launcher rendered as provider time. The
-sibling receipt for every non-mission-chat lane is the `ttfb=` token on the `API call #N` log
-line (`_format_ttfb_token`, `agent_runtime/conversation_observability.py::_format_ttfb_token`, commit `74702c193e`). Same
-absent-never-zero rule: `None` means no first-byte instant was observed — a non-streaming call, or a
-stream whose first-delta callback never fired — and the token vanishes rather than printing
-`ttfb=0.0s`, which reads as an instantaneous provider and is a lie no reader can detect.
+per-request client build all sat inside the span the launcher rendered as provider time. Every
+other lane reads provider first-byte from upstream's `post_api_request` hook: `first_chunk_at`
+(`agent._last_api_first_chunk_at`, upstream `e17276c7b4`) minus `started_at`. Same absent-never-zero
+rule: `first_chunk_at` is `None` when no first chunk was observed (a non-streaming call). The fork's
+`ttfb=` token on the `API call #N` log line (`74702c193e`) was a second copy of that instant and was
+retired 2026-09-24 (lane MECH) with `_fork_first_byte_s`.
 
 **Outcome recording is launcher-side, one line, at the settle chokepoint.** A turn that settles
 WITHOUT acceptance emits `[MissionChatOutcome] turn_id=… status=… error_kind=… message="…"` through
@@ -664,7 +664,7 @@ operator's text.
 1. **One id for the turn, minted launcher-side**: `idempotencyKey` → `client_message_id` →
    `turn_id`, byte-equal at every hop. Nothing re-mints it; nothing joins on time proximity.
 2. **An unresolved phase is ABSENT, never a fake zero** — `mission_chat_phases`,
-   `agent_create_phases`, and the `ttfb=` token alike. First mark wins, monotonic clock only, and no
+   `agent_create_phases`, and upstream's `post_api_request.first_chunk_at` alike. First mark wins, monotonic clock only, and no
    mark is ever subtracted from one taken in another process.
 3. **An instrument may never steer what it measures.** `TurnPhaseMarks.get` serves one caller; no
    turn decision may branch on a mark.
