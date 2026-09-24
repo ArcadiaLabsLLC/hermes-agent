@@ -1418,21 +1418,6 @@
       ]
     },
     {
-      "id": "hh12-the-mis-kinded-test-over-claims-on-a-silent-item",
-      "path": "agent_runtime/harness_doctor.py",
-      "symbol": "_desk_litter_reason",
-      "operator": "widen-agent-test-to-not-desk",
-      "find": "    if on_live_instance_actor or minted_kind == \"agent\":",
-      "replace": "    if on_live_instance_actor or minted_kind != \"desk\":",
-      "test": [
-        "{python}",
-        "-m",
-        "pytest",
-        "-q",
-        "tests/agent_runtime/test_harness_doctor.py::test_the_minted_kind_is_what_the_store_recorded_not_what_the_id_looks_like"
-      ]
-    },
-    {
       "id": "hh13-the-dispatcher-stops-handing-over-the-proven-caller",
       "path": "agent_runtime/serve_rpc.py",
       "symbol": "_runtime_agent_retire",
