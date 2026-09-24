@@ -164,7 +164,10 @@ follows:
   `unknown`) and `classification_reason` its finer word — the same two keys the
   aggregate report's rows already carry.
 * **A `live` row says nothing.** That is this boot's own entry on every boot, and
-  a line every boot is how a channel stops being read.
+  a line every boot is how a channel stops being read. The pruner's OWN row,
+  matched by `boot_id`, says nothing whatever it classifies as. Its command
+  line is only a hint, and under pytest, or in a checkout whose path lacks
+  `hermes`, it reads `cmdline_not_serve_like` (2026-09-24).
 * **`boot_id` is the PRUNER's**, so an event joins that boot's `ready` frame the
   way `serve_instances_pruned` does; the pruned row's own boot rides as
   `row_boot_id`. Best effort throughout: a sink that raises changes nothing about
