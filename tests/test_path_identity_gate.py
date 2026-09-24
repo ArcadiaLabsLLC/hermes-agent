@@ -64,6 +64,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._fork_scope import is_fork_authored
+
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOLS_ROOT = REPO_ROOT / "tools"
@@ -104,39 +106,6 @@ _RAW_PATH_COMPARISON_EXEMPTIONS: dict[tuple[str, str], str] = {
         "temp. Replacing it with denotes_same_file would delete the traversal "
         "rejection outright. The identity half of the same function — that the "
         "operand still resolves into temp — DOES go through path_identity."
-    ),
-    ("tools/file_tools.py", "_is_blocked_device"): (
-        "Not a path guard: 'target in seen' is the cycle breaker for the "
-        "symlink-hop walk. It compares a path against paths already VISITED IN "
-        "THIS WALK, all produced by the same normpath call two lines above, so "
-        "spelling agreement is guaranteed by construction. Resolving here would "
-        "collapse the hops the walk exists to inspect one at a time — every "
-        "device check in the loop already runs through _posix_match_forms."
-    ),
-    ("tools/terminal_tool.py", "_resolve_config_cwd"): (
-        "Classifies a cwd as host-shaped vs container-shaped by SPELLING, which "
-        "is the question being asked: _HOST_CWD_PREFIXES is ('/Users/', "
-        "'/home/', 'C:\\\\', 'C:/') and '/workspace'//root' are container-side "
-        "roots that need not exist on this host. A resolution-based test cannot "
-        "answer 'does this look like a host path' — realpath would anchor the "
-        "container spellings to the host filesystem and invert the verdict."
-    ),
-    ("tools/terminal_tool.py", "_resolve_task_host_cwd"): (
-        "Host/container spelling classification, extracted from _get_env_config; "
-        "container roots cannot be resolved against the host filesystem."
-    ),
-    ("tools/file_operations_lint.py", "_has_ancestor_tsconfig"): (
-        "Root termination of a dirname walk over one absolute spelling; resolving "
-        "symlinks would change which lexical ancestors the project search visits."
-    ),
-    ("tools/file_operations_search.py", "_effective_macos_search_exclusions"): (
-        "Remote POSIX search-root spelling and deduplication, as well as local roots; "
-        "a remote path cannot be resolved against the host filesystem. Local keys "
-        "already use normcase and all entries share the same normalizer."
-    ),
-    ("tools/read_extract.py", "_extract_xlsx"): (
-        "ZIP member names, not host files: POSIX-normalized relationship targets "
-        "must match case-sensitive archive member spellings."
     ),
 }
 
@@ -245,7 +214,15 @@ def _scan_tools() -> tuple[dict[tuple[str, str], list[int]], int]:
         if rel == AUTHORITY:
             continue
         for fn_name, lines in scan_tree(tree).items():
-            findings[(rel, fn_name)] = sorted(lines)
+            # Fork gates police fork lines only (ruling 2026-09-24): a finding
+            # on a line upstream wrote is upstream's, answered by an upstream
+            # PR, never by an entry here. The walk still covers the whole tree,
+            # so the anti-vacuity floor measures everything; only FINDINGS are
+            # filtered, and tests/_fork_scope fails closed (no upstream ref ->
+            # every line is ours).
+            ours = sorted(line for line in lines if is_fork_authored(py, line))
+            if ours:
+                findings[(rel, fn_name)] = ours
     return findings, scanned
 
 
