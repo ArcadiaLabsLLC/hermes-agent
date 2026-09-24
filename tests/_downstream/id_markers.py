@@ -448,14 +448,6 @@ ID_MARKS.update({
     "test_api_work_still_live_at_settle_exit_is_reinterrupted": (_MIDTEST_UNDO,),
     "tests/gateway/test_mirror.py::TestSessionsIndexProfileScoping::"
     "test_fallback_follows_active_profile_home": (_MIDTEST_UNDO,),
-    "tests/gateway/test_background_process_notifications.py::"
-    "TestLoadBackgroundNotificationsMode::test_unknown_mode_falls_back_to_concise": (
-        pytest.mark.xfail(strict=True, reason=(
-            "the fork's gateway.run_config_loaders._load_background_notifications_mode "
-            "falls back to 'result'; fork half: "
-            "tests/gateway/test_background_process_notifications_downstream.py"
-        )),
-    ),
     # DEPENDENCY-bound: plugins/platforms/wecom/callback_adapter.py falls back
     # to ET=None without defusedxml; installing it retires these.
     **{

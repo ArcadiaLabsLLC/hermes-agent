@@ -475,7 +475,7 @@ class GatewayConfigLoadersMixin:
 
     @staticmethod
     def _load_background_notifications_mode() -> str:
-        """Background process notification mode from env/config (default ``result``), resolved for
+        """Background process notification mode from env/config (default ``concise``), resolved for
         the AMBIENT profile — callers deciding for another profile's event enter its scope first
         (``_completion_event_scope``). The env override reads through the secret scope so a served
         secondary sees its own ``.env`` value, not the launch profile's ``os.environ``."""
@@ -488,10 +488,10 @@ class GatewayConfigLoadersMixin:
                 mode = "off"
             elif raw not in {None, ""}:
                 mode = str(raw)
-        mode = (mode or "result").strip().lower()
+        mode = (mode or "concise").strip().lower()
         if mode not in {"concise", "all", "result", "error", "off"}:
-            logger.warning("Unknown background_process_notifications '%s', defaulting to 'result'", mode)
-            return "result"
+            logger.warning("Unknown background_process_notifications '%s', defaulting to 'concise'", mode)
+            return "concise"
         return mode
 
     @staticmethod

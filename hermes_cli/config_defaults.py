@@ -839,7 +839,7 @@ DEFAULT_CONFIG = {
         # Gateway notices when a terminal(background=true) process finishes: "concise" (one line;
         # failures append an output tail) | "all" (running updates + final raw output) | "result"
         # (final raw only) | "error" (raw only on non-zero exit) | "off".
-        "background_process_notifications": "result",
+        "background_process_notifications": "concise",
         "streaming": False,
         "timestamps": False,      # message timestamps (CLI labels, TUI rows, desktop transcript)
         "timestamp_format": "%H:%M",  # strftime format, e.g. "%b-%d %H:%M"

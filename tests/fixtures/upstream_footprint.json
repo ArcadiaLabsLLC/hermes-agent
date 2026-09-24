@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 216,
-  "deleted_lines": 1043,
+  "files": 215,
+  "deleted_lines": 1036,
   "heavy": 4,
   "reasons": [
     {
@@ -132,6 +132,12 @@
       "files": "flat (216)",
       "deleted_lines": "1044 -> 1043",
       "reason": "tools/vision_tools.py registers upstream's VISION_ANALYZE_SCHEMA again: upstream's own diet (#97339) made its text shorter than the fork brief, so the brief and its brief_schema wrap leave; read_file's brief joins BRIEF_DESCRIPTIONS (llm_request middleware) and its stale tool_full_descriptions mirror row is deleted"
+    },
+    {
+      "change": "lane CLOSE (seam/close-2026-09-24)",
+      "files": "216 -> 215",
+      "deleted_lines": "1043 -> 1036",
+      "reason": "owner ruling 2026-09-24: adopt upstream's `concise` background_process_notifications default. gateway/run_config_loaders.py byte-identical to f24a1d7f92 (-4); cli-config.yaml.example and hermes_cli/config_defaults.py lose the concise->result line (-2, -1); only the BG-PR background_process_agent_turns lines remain in them"
     }
   ]
 }
