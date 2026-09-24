@@ -143,3 +143,5 @@ candidate `plugin.yaml` as TEXT and YAML-parses/gates only the ones containing `
 keeping precedence by checking for a same-key manifest in later sources before trusting an earlier one.
 Expected: the 32–37 ms sweep becomes ~60 small reads (~5–10 ms), parser ≈ +25–35 ms. That is a
 generic-surface change to the PR (a manifest pre-filter), not a fork parallel. Re-take this A/B on it.
+
+**VERDICT (owner, 2026-09-23): threshold waived; +70.3 ms parser / +60 ms --help accepted as recorded debt; retire path = text pre-scan (§4 next shape).** Stage 1 comes off hold at the measured number.

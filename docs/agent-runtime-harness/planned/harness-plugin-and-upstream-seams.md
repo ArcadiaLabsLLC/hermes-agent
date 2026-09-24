@@ -118,7 +118,7 @@ Harness error formatting (`emit_harness_error` on an exception escaping a handle
 
 **Owed by the operator:** one launcher boot on the Stage 1 build (the boot is the measurement's field half).
 
-**CORRECTED 2026-09-23 (Fable, read against `main` @ `bcf8012e6a`, merge base `d337b736aa`) — three of the mechanics above were assumed on 2026-09-21 and are wrong against the code. Stage 1 is ON HOLD until a lane proves the corrected entry and boot-cost contracts below; nothing in this block was implemented.**
+**CORRECTED 2026-09-23 (Fable, read against `main` @ `bcf8012e6a`, merge base `d337b736aa`) — three of the mechanics above were assumed on 2026-09-21 and are wrong against the code. Stage 1 is BUILT on seam/s1-proof af093265e1, cost waived by owner 2026-09-23, see note §4 ([`seam-s1-proof-2026-09-23.md`](seam-s1-proof-2026-09-23.md)).**
 
 1. **`pre_command` cannot carry the fingerprint capture.** `hermes_cli.plugins.fire_pre_command_hook` is invoked from exactly two places, `cli.py::HermesCLI.process_command` and `gateway/run_inbound.py` — the REPL and gateway SLASH-command paths. Nothing fires it on the argparse path that `main()` dispatches; a `register_hook("pre_command", …)` would never run for `hermes harness …`. Correction: `_capture_core_cache_fingerprint_home` moves INTO the `_harness_entry(fn)` wrapper in `hermes_cli/harness.py` (fork-only) beside the error formatting the plan already puts there; `dispatch_command` then has nothing left and is deleted. No hook, no `main.py` edit.
 2. **The built-in list is the gate, and the fork's own edit to it defeats the plugin.** The fork ADDED `"harness", "postinstall"` to `hermes_cli/main.py::_BUILTIN_SUBCOMMANDS` (one replaced upstream line). Upstream's comment on that set says it: "an extra entry would let a plugin command silently fail to parse" — with the names present, `_plugin_cli_discovery_needed()` is False for every `hermes harness …`, `_register_plugin_cli_commands` returns before discovery, and a plugin-registered `harness` never attaches. Stage 1 therefore MUST drop both names from the set (which also retires that hunk), and from that moment every `hermes harness …` process is on the discovery path.
@@ -196,7 +196,7 @@ Hard orderings: S0 before all; S1 before S2; P1 before S4 (S4 diffs against the 
 | stage | status | commits | `[up-fp]` after | notes |
 |---|---|---|---|---|
 | S0 | 0a landed (`b592010a65`, v0.21.4, base `d337b736aa`); 0b landed `d4d12ae12b` (ratchet) + ledger commit on `seam/s0b-upstream-footprint`; not yet on `main` | 3 | `[up-fp] files=459 deleted_lines=2834 heavy=24` | ratchet + ledger; tests in `tests/scripts/`, not `tests/tooling/` |
-| S1 | ON HOLD (corrected 2026-09-23; see the CORRECTED block) | 1–2 | `files` flat, `deleted_lines` −1, main.py hunks 8 → ~5; +2 files `hook-pending` while the PR is open | pre-discovery manifest scan is the only branch; capture moves into `_harness_entry`; `_BUILTIN_SUBCOMMANDS` loses the fork's two names |
+| S1 | BUILT — `seam/s1-proof` tip `af093265e1`; cost +70 ms parser (median, A/B 2026-09-23) recorded as debt, waived by owner (note §4) | 1–2 | `[up-fp]` 461/2834 (two `hook-pending` carries: `plugins_manifest.py`, `plugin_compat.py`); main.py hunks 8 → 7 | pre-discovery manifest scan is the only branch; capture moves into `_harness_entry`; `_BUILTIN_SUBCOMMANDS` loses the fork's two names |
 | S2 | planned | 1 | −2 | skills stay installed, not registered |
 | S3 | planned | 5 PRs | −1 per merge | P1 first |
 | S4 | planned | 1–2 | deleted_lines ↓ | after P1 |

@@ -427,6 +427,13 @@ plan at the canon fold; lane shipped as `45abf82803` + `32f41be19f` +
   vocabulary rather than a private `office_actor`-only restatement
   (`agent_runtime/serve_office_subscriptions.py:140-163,285`).
 
+**From the seam Stage 1 proof (2026-09-23):**
+
+- `hermes harness` parser build **+70 ms** (median, A/B 2026-09-23) from reading 59 plugin manifests at
+  pre-discovery; every launcher-spawned harness process pays it; retire = text pre-scan then parse only
+  manifests declaring `cli_commands` (note §4), or the upstream PR carrying the scan. Accepted by the
+  owner 2026-09-23. Evidence: [`planned/seam-s1-proof-2026-09-23.md`](planned/seam-s1-proof-2026-09-23.md) §4.
+
 ---
 
 ## Unverified carry-forward
