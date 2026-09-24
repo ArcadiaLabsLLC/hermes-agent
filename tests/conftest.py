@@ -1906,10 +1906,36 @@ def _live_system_guard(request, monkeypatch):
         # backslashes in a Windows path) so the entry point inside it is
         # reachable. Splitting cannot invent an entry point: a path containing
         # spaces still ends in its own basename.
+        # A multi-line script's shell COMMENTS are not commands: prose like
+        # "Hermes loads $HERMES_HOME/.env" followed anywhere later by the word
+        # "gateway" used to read as ``hermes ... gateway`` (fork-hygiene
+        # 2026-09-24, docker/stage2-hook.sh's keygen block). Only a script
+        # token (one with a newline) is stripped; a single-line argv is not.
         tokens = []
         for token in raw:
+            if "\n" in token:
+                token = _strip_shell_comments(token)
             tokens.extend(token.split())
         return tokens
+
+    def _strip_shell_comments(script: str) -> str:
+        """*script* with each ``#`` comment removed, the way sh reads one: a
+        ``#`` that begins a word and is outside quotes runs to end of line."""
+        kept = []
+        for line in script.splitlines():
+            quote = None
+            cut = len(line)
+            for index, char in enumerate(line):
+                if quote:
+                    if char == quote:
+                        quote = None
+                elif char in ("'", '"'):
+                    quote = char
+                elif char == "#" and (index == 0 or line[index - 1].isspace()):
+                    cut = index
+                    break
+            kept.append(line[:cut])
+        return "\n".join(kept)
 
     def _backend_spawn_subcommand(cmd):
         """Which backend subcommand this argv would START, or ``None``."""

@@ -318,21 +318,6 @@ ID_MARKS.update({
             "tests/tools/test_async_delegation_downstream.py"
         )),
     ),
-    # sh runs the extracted stage2 keygen text in a tmp HERMES_HOME; the fork's
-    # _live_system_guard argv classifier reads "gateway" in its comments.
-    **{
-        f"tests/tools/test_stage2_hook_api_server_keygen.py::{test}": (_LOOKALIKE,)
-        for test in (
-            "test_keygen_appends_to_existing_env_without_key",
-            "test_keygen_never_overwrites_operator_key",
-            "test_keygen_refuses_symlinked_env",
-            "test_keygen_skips_when_container_env_provides_key",
-            "test_keygen_env_key_with_existing_env_file_key_warns_not_clobbers",
-            "test_keygen_env_key_drops_stale_empty_assignment",
-            "test_keygen_warns_on_weak_container_env_key",
-            "test_keygen_weak_env_key_warning_suppressed_when_env_file_key_wins",
-        )
-    },
 })
 
 if _WIN:
