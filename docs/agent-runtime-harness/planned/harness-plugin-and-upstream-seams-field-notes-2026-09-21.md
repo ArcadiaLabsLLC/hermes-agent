@@ -16,6 +16,8 @@ Field notes for [`harness-plugin-and-upstream-seams.md`](harness-plugin-and-upst
 - Whether upstream's native profile support already covers parts of `hermes_constants.py` / `profiles.py` (Stage 4's diff).
 - Whether the desktop plugin SDK reaches the skills pages' needs (Stage 6).
 - What `scripts/upstream_sync_gate.py` gates today (fork-hygiene queue row) — read before Stage 0b writes the ratchet.
+- **Answered 2026-09-23:** `scripts/upstream_sync_gate.py` is a test-runner recipe, not a boundary gate — it picks lanes by whether a sync touched `AGENT_TOOL_SEAMS` and runs them; nothing invokes it but `agent_runtime/docs/upstream_sync_workflow.md`. It does not overlap the ratchet.
+- **Stage 1 corrected 2026-09-23** (plan §2 Stage 1, the CORRECTED block): `pre_command` fires only on slash paths; the fork's own `"harness", "postinstall"` entries in `_BUILTIN_SUBCOMMANDS` stop a plugin command from attaching; `discover_plugins()` measured 875 ms cold on this tree (59 plugins, 77 modules; `import hermes_cli.plugins` 436 ms before it); `_downstream_cli.py` is fork-only so its deletion moves no ratchet number. Stage 1 is on hold pending the pre-discovery manifest-scan design's proof. Verification session: launcher Claude session `f0b2a308`, read-only, nothing implemented.
 
 ## 2. Lane sections (appended by builders)
 
