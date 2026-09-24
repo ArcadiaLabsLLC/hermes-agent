@@ -72,7 +72,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-21 (brain)
 
-- [ ] **Session memory facts that belong here** · `fork / brain` · the operator's Claude session memory (`~/.claude/projects/X--Eternia-hermes-agent/memory/`) holds ~50 project entries; the standing rulings are now ADRs 0001–0011 and the cursors are on the program notes; the remaining per-program detail (queue waves, delete audit, skills realm) graduates on the next touch of each program, not as a sweep · evidence: [[Brain Index]] § source-of-truth routing **UNCLAIMED** **TAKEN 2026-09-24 LEDGER-DOCS**
 
 ## Filed on arrival — 2026-09-24 (lane CARRY2B)
 
