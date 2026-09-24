@@ -8,18 +8,18 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 
 | path | added | deleted | disposition | reason | stage |
 |---|---|---|---|---|---|
-| `.gitattributes` | 48 | 0 | carry | unreviewed | - |
-| `.github/workflows/ci.yaml` | 104 | 0 | carry | unreviewed | - |
-| `.github/workflows/contributor-check.yml` | 1 | 1 | carry | unreviewed | - |
-| `.github/workflows/e2e-desktop.yml` | 2 | 1 | carry | unreviewed | - |
-| `.github/workflows/js-tests.yml` | 2 | 1 | carry | unreviewed | - |
-| `.github/workflows/nix.yml` | 2 | 1 | carry | unreviewed | - |
-| `.github/workflows/rust-tests.yml` | 2 | 1 | carry | unreviewed | - |
-| `.github/workflows/tests-os.yml` | 2 | 1 | carry | unreviewed | - |
-| `.github/workflows/tests.yml` | 108 | 3 | carry | unreviewed | - |
-| `.gitignore` | 32 | 0 | carry | unreviewed | - |
-| `AGENTS.md` | 4 | 0 | carry | unreviewed | - |
-| `README.md` | 6 | 1 | carry | unreviewed | - |
+| `.gitattributes` | 48 | 0 | carry | ours: `* text=auto eol=lf` + byte-pinned fork fixture `-text` pins — additive. Partly movable → `tests/fixtures/{office_layout,response_envelopes,stream_frames}/.gitattributes` and `.githooks/.gitattributes` (fork-only dirs); the `*` rule is not movable (root-only) | - |
+| `.github/workflows/ci.yaml` | 104 | 0 | carry | ours: `notify-main-red` issue upsert job — additive. Fork need not edit ci.yaml: movable → `.github/workflows/fork-ci-red-notify.yml` on `workflow_run` of this workflow | - |
+| `.github/workflows/contributor-check.yml` | 1 | 1 | upstream | PR candidate: accept `contributors/emails/case-variants/` (case-colliding emails break Windows checkouts); with `scripts/audit_pr_attribution.py` + `scripts/release.py` | S3 |
+| `.github/workflows/e2e-desktop.yml` | 2 | 1 | upstream | PR candidate: fork-friendly runner — larger runners only when `github.repository == NousResearch/hermes-agent` | S3 |
+| `.github/workflows/js-tests.yml` | 2 | 1 | upstream | PR candidate: fork-friendly runner — larger runners only when `github.repository == NousResearch/hermes-agent` | S3 |
+| `.github/workflows/nix.yml` | 2 | 1 | upstream | PR candidate: fork-friendly runner — larger runners only when `github.repository == NousResearch/hermes-agent` | S3 |
+| `.github/workflows/rust-tests.yml` | 2 | 1 | upstream | PR candidate: fork-friendly runner — larger runners only when `github.repository == NousResearch/hermes-agent` | S3 |
+| `.github/workflows/tests-os.yml` | 2 | 1 | upstream | PR candidate: fork-friendly runner — larger runners only when `github.repository == NousResearch/hermes-agent` | S3 |
+| `.github/workflows/tests.yml` | 108 | 3 | carry | ours: `mutation-claims` job + `fetch-depth: 0`/`blob:none` for history-reading fork gates. Movable → `.github/workflows/fork-gates.yml`; the runner/timeout/worker conditionals are the same PR candidate as the other five workflows | - |
+| `.gitignore` | 32 | 0 | carry | ours: fork runtime litter (`/profiles/`, `.mutation_gate.lock`, `.bytecode-sweep.lock`, `/.acl-probe-*/`, `/qa-artifacts/*`) — additive. REVERT hunk: `.install_method` duplicates base's `/.install_method` (dead edit). PR candidate: `.claude/` beside `.codex/`. Movable → `qa-artifacts/.gitignore` for that pair; the root-level lock/probe patterns are not movable | - |
+| `AGENTS.md` | 4 | 0 | carry | ours: downstream contract pointer — additive (4 lines at EOF). Not movable: AGENTS.md is what non-Claude agents read | - |
+| `README.md` | 7 | 1 | carry | replaces upstream lines: the License line must state the PolyForm contribution terms beside MIT; not movable (legal notice belongs in README) | - |
 | `agent/agent_init.py` | 30 | 4 | carry | unreviewed | - |
 | `agent/anthropic_adapter.py` | 37 | 2 | carry | unreviewed | - |
 | `agent/auxiliary_client.py` | 19 | 42 | carry | unreviewed | - |
@@ -50,28 +50,28 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `agent/turn_response_intake.py` | 12 | 1 | carry | unreviewed | - |
 | `agent/turn_usage.py` | 5 | 2 | carry | unreviewed | - |
 | `agent/usage_pricing.py` | 63 | 3 | carry | unreviewed | - |
-| `apps/desktop/src/app/settings/uninstall-section.tsx` | 6 | 0 | carry | unreviewed | - |
-| `apps/desktop/src/lib/desktop-slash-registry.json` | 2 | 0 | carry | unreviewed | - |
-| `cli-config.yaml.example` | 6 | 2 | carry | unreviewed | - |
-| `cli.py` | 2 | 1 | carry | unreviewed | - |
-| `contributors/emails/uperLu@users.noreply.github.com` | 2 | 2 | carry | unreviewed | - |
-| `evals/completion_backlog_probe.py` | 2 | 0 | carry | unreviewed | - |
-| `evals/postmortem/live_ab/cache_concurrency_probe.py` | 12 | 0 | carry | unreviewed | - |
-| `gateway/hosted_room_discussion.py` | 85 | 33 | carry | unreviewed | - |
-| `gateway/hosted_room_policy_checkpoint.py` | 6 | 3 | carry | unreviewed | - |
-| `gateway/hosted_rooms.py` | 72 | 4 | carry | unreviewed | - |
-| `gateway/kanban_watchers_dispatcher.py` | 10 | 0 | carry | unreviewed | - |
-| `gateway/lifecycle_ledger.py` | 12 | 4 | carry | unreviewed | - |
-| `gateway/platforms/base.py` | 4 | 2 | carry | unreviewed | - |
-| `gateway/run.py` | 11 | 6 | carry | unreviewed | - |
-| `gateway/run_busy.py` | 1 | 1 | carry | unreviewed | - |
-| `gateway/run_config_loaders.py` | 4 | 4 | carry | unreviewed | - |
-| `gateway/run_notifications.py` | 11 | 1 | carry | unreviewed | - |
-| `gateway/run_startup.py` | 1 | 1 | carry | unreviewed | - |
-| `gateway/run_turn.py` | 3 | 1 | carry | unreviewed | - |
-| `gateway/session_context.py` | 34 | 0 | carry | unreviewed | - |
-| `gateway/shutdown_watchdog.py` | 12 | 3 | carry | unreviewed | - |
-| `gateway/status.py` | 13 | 3 | carry | unreviewed | - |
+| `apps/desktop/src/app/settings/uninstall-section.tsx` | 6 | 0 | upstream | PR candidate: warn that uninstalling the agent deletes the checkout's git history (holds for every upstream user; no SDK slot inside the confirm step) | S6 |
+| `apps/desktop/src/lib/desktop-slash-registry.json` | 2 | 0 | hook | seam: generated from `desktop_surface_registry`; follows the fork's `queue-status` `CommandDef`. Retires when the command registers through the plugin `register_command` and the dump reads plugin commands (it does not today) | S6 |
+| `cli-config.yaml.example` | 6 | 2 | carry | replaces upstream lines: background-completion family (default `concise`→`result`, new `background_process_agent_turns: false`). Movable → the fork's profile config seed (set the value, keep upstream's default); the new key is a PR candidate with the gateway/TUI family | - |
+| `cli.py` | 2 | 1 | upstream | PR candidate: the tirith startup check reads `hermes_cli/tirith_config.tirith_enabled` (config + `TIRITH_ENABLED` env) instead of the raw config key; ships with that resolver | S3 |
+| `contributors/emails/uperLu@users.noreply.github.com` | 2 | 2 | upstream | PR candidate: normalize the one CRLF contributor file upstream (fork LF rule, `tests/test_line_endings.py`); fallback: accept upstream's bytes via a `-text` keeper | S3 |
+| `evals/completion_backlog_probe.py` | 2 | 0 | carry | ours: pins `HERMES_BACKGROUND_AGENT_TURNS=true` so the probe measures the agent-turn mode the fork turned off by default — additive; retires with that family | - |
+| `evals/postmortem/live_ab/cache_concurrency_probe.py` | 12 | 0 | upstream | PR candidate: fixes a NameError — `m`, `sys_sha`, `tools_sha`, `msg_shas` are used but never defined in upstream's `patched_stream` | S3 |
+| `gateway/hosted_room_discussion.py` | 85 | 33 | hook | seam: widen the Group Chat host surface — host-declared `DiscussionLimits` + `active_member_ids`, consumer `agent_runtime/discussions/service.py`; a PR widening the generic surface with this host as consumer | S3 |
+| `gateway/hosted_room_policy_checkpoint.py` | 6 | 3 | hook | seam: same Group Chat host-surface PR — host-declared `max_active_events` budget | S3 |
+| `gateway/hosted_rooms.py` | 72 | 4 | hook | seam: same Group Chat host-surface PR — `pin_room_history`/`unpin_room_history` retention opt-in (written as generic, stock behaviour unchanged with nothing pinned) | S3 |
+| `gateway/kanban_watchers_dispatcher.py` | 10 | 0 | upstream | PR candidate: the gateway dispatcher honours `kanban.claim_ttl_seconds` (passed to `dispatch_once` via `asdict`) | S3 |
+| `gateway/lifecycle_ledger.py` | 12 | 4 | upstream | PR candidate: `_process_hermes_home` must not fall back to the override-honouring `get_hermes_home()` when `HERMES_HOME` is unset (issue #56986 class); upstream/main still falls back | S3 |
+| `gateway/platforms/base.py` | 4 | 2 | upstream | PR candidate: media hardening — `$HOME` for the delivery denylist, backslash as a MEDIA-path terminator, drop NUL paths in `_add` (upstream's `~\x00` catch covers only the expanduser arm) | S3 |
+| `gateway/run.py` | 11 | 6 | carry | ours: `DownstreamGatewayMixin` in `GatewayRunner` bases — additive; not movable (class bases). The approvals-warning hunk replaces 5 upstream lines to honour `TIRITH_ENABLED` (PR with `cli.py`); the `restore_durable_completions` startup hunk is P2 | - |
+| `gateway/run_busy.py` | 1 | 1 | hook | seam: `queue-status` in `_PLAIN_COMMANDS` follows the fork's `CommandDef`; retires when the command registers through the plugin `register_command` | - |
+| `gateway/run_config_loaders.py` | 4 | 4 | carry | replaces upstream lines: background-completion default `concise`→`result`. Movable → the fork's profile config seed (`display.background_process_notifications: result`), then REVERT | - |
+| `gateway/run_notifications.py` | 11 | 1 | carry | ours: compact completion notice instead of an agent turn when `background_process_agent_turns` is off — additive branch. PR candidate: `reply_to=watcher message_id` on watcher sends | - |
+| `gateway/run_startup.py` | 1 | 1 | hook | seam: `_kanban_blocked_pm_hook_watcher` (fork mixin) in the pre-reconnect watcher tuple; needs a gateway watcher-registration hook PR | S3 |
+| `gateway/run_turn.py` | 3 | 1 | carry | replaces upstream lines: long-running heartbeat text via the fork mixin's `_format_long_running_heartbeat`; not movable (inline in the turn loop) | - |
+| `gateway/session_context.py` | 34 | 0 | carry | ours: `declare_async_delivery_channel`/`async_delivery_declared` — additive; not movable (reads the module-private `_SESSION_ASYNC_DELIVERY`/`_UNSET`) | - |
+| `gateway/shutdown_watchdog.py` | 12 | 3 | upstream | PR candidate: `_process_hermes_home` must not fall back to the override-honouring `get_hermes_home()` (issue #56986 class); upstream/main still falls back | S3 |
+| `gateway/status.py` | 13 | 3 | upstream | REVERT: dead edit — a duplicate `from hermes_constants import …` (base already imports it at line 24) and a docstring rewrite; `_get_process_hermes_home` was already `get_process_hermes_home()` at the base | - |
 | `hermes_cli/approvals_test.py` | 2 | 1 | carry | unreviewed | - |
 | `hermes_cli/auth.py` | 23 | 2 | carry | unreviewed | - |
 | `hermes_cli/auth_codex.py` | 5 | 0 | carry | unreviewed | - |
@@ -136,25 +136,25 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `hermes_cli/web_server_oauth.py` | 8 | 31 | carry | unreviewed | - |
 | `hermes_cli/worktree_ops.py` | 1 | 1 | carry | unreviewed | - |
 | `hermes_constants.py` | 17 | 1 | upstream | S4 (2026-09-23): the root-cache parallel is deleted (upstream `_default_hermes_root_memo` adopted); the 14 fork home authorities live in `agent_runtime/profile_home.py`. What is left is P7, the agent-browser probe memo, byte-identical to `up/profile-home-generic` @ `1f4923c350` | S4 |
-| `hermes_state.py` | 7 | 0 | carry | unreviewed | - |
-| `hermes_state_messages.py` | 3 | 1 | carry | unreviewed | - |
-| `hermes_state_sessions.py` | 2 | 2 | carry | unreviewed | - |
-| `model_tools.py` | 58 | 3 | carry | unreviewed | - |
-| `nix/checks.nix` | 1 | 1 | carry | unreviewed | - |
-| `plugins/dashboard_auth/_shared.py` | 4 | 3 | carry | unreviewed | - |
-| `plugins/memory/__init__.py` | 69 | 1 | carry | unreviewed | - |
-| `plugins/platforms/feishu/adapter.py` | 63 | 5 | carry | unreviewed | - |
-| `providers/__init__.py` | 1 | 1 | carry | unreviewed | - |
-| `pyproject.toml` | 19 | 7 | carry | unreviewed | - |
-| `run_agent.py` | 2 | 0 | carry | unreviewed | - |
-| `scripts/audit_pr_attribution.py` | 4 | 1 | carry | unreviewed | - |
-| `scripts/check_subprocess_stdin.py` | 2 | 2 | carry | unreviewed | - |
-| `scripts/desktop-update/posix.sh` | 7 | 0 | carry | unreviewed | - |
-| `scripts/desktop-update/retry-policy.ps1` | 4 | 1 | carry | unreviewed | - |
-| `scripts/desktop-update/windows.ps1` | 5 | 2 | carry | unreviewed | - |
-| `scripts/install.ps1` | 95 | 2 | carry | unreviewed | - |
-| `scripts/install.sh` | 61 | 4 | carry | unreviewed | - |
-| `scripts/release.py` | 3 | 1 | carry | unreviewed | - |
+| `hermes_state.py` | 7 | 0 | carry | ours: `RuntimeSessionMixin` in `SessionDB` bases — additive; not movable (class bases). REVERT hunk: the `_resolve_default_db_path` alias is superseded by upstream `_default_db_path`; retire by respelling `tests/hermes_state/test_downstream_session_contracts.py` (2 sites) and 3 comments in `tests/test_no_frozen_hermes_home.py` | - |
+| `hermes_state_messages.py` | 3 | 1 | upstream | PR candidate: surface `finish_reason` on every role, not only assistant rows (upstream still gates it on assistant) | S3 |
+| `hermes_state_sessions.py` | 2 | 2 | upstream | PR candidate: deterministic `ORDER BY started_at DESC, id DESC` tie-break in session listing (2 queries) | S3 |
+| `model_tools.py` | 58 | 3 | hook | seam: per-run tool-name filter (`blocked_tool_names`) + tool-defs memo hit/miss counters + `ensure_tool_describe_present` injection; needs a tool-filter hook PR (surface lacks it). Partly superseded: `get_registered_toolset_names` wrapper — upstream `tools.registry.registry.get_registered_toolset_names` exists; `agent_runtime/personas.py` can call it and drop the wrapper | S3 |
+| `nix/checks.nix` | 1 | 1 | upstream | PR candidate: the `mcp catalog` check no longer swallows the command's failure (`2>/dev/null` + `true` fallback) | S3 |
+| `plugins/dashboard_auth/_shared.py` | 4 | 3 | upstream | PR candidate: read-only config load (upstream `load_config_readonly`) + deepcopy of the returned section | S3 |
+| `plugins/memory/__init__.py` | 69 | 1 | upstream | PR candidate: `_publish_module` binds the loaded provider on its parent package as real imports do (and unbinds on failure) | S3 |
+| `plugins/platforms/feishu/adapter.py` | 63 | 5 | upstream | PR candidate: dedup-state path resolved per call, cache hydrated on first use — no `HERMES_HOME` frozen at construction (the `test_no_frozen_hermes_home` class) | S3 |
+| `providers/__init__.py` | 1 | 1 | upstream | REVERT: dead edit — respells `hermes_cli.plugins` → `hermes_cli.plugins_discovery` for two names `hermes_cli/plugins.py` still re-exports (upstream/main imports them the upstream way) | - |
+| `pyproject.toml` | 19 | 7 | carry | ours: `agent_runtime` package include (not movable: packaging), fork test markers (movable → `tests/_downstream/` `pytest_configure` addinivalue_line), coverage/pytest-timeout dev deps + `--timeout=30`. PR candidate: the ruff `F821` select | - |
+| `run_agent.py` | 2 | 0 | hook | seam: `blocked_tool_names` kwarg (same tool-filter hook as `model_tools.py`) + `session_usage_ledger` init (fork usage ledger — `on_session_start` hook) | S3 |
+| `scripts/audit_pr_attribution.py` | 4 | 1 | upstream | PR candidate: exact-name contributor lookup incl. `case-variants/` (Windows case-insensitive FS); with `contributor-check.yml` + `release.py` | S3 |
+| `scripts/check_subprocess_stdin.py` | 2 | 2 | upstream | PR candidate: `as_posix()` path compares so the allowlist and `/tests/` skip work on Windows | S3 |
+| `scripts/desktop-update/posix.sh` | 7 | 0 | carry | ours: stop without retry on `HERMES_UPDATE_HISTORY_REVIEW_REQUIRED` (fork history-fold review) — additive; not movable (upstream updater script) | - |
+| `scripts/desktop-update/retry-policy.ps1` | 4 | 1 | carry | ours: history-review sentinel is non-retryable — replaces 1 upstream line (param list); not movable | - |
+| `scripts/desktop-update/windows.ps1` | 5 | 2 | carry | ours: history-review sentinel stop + message — replaces 2 upstream lines; not movable | - |
+| `scripts/install.ps1` | 95 | 2 | upstream | PR candidate: install into the existing checkout the installer runs from (forks keep their origin), segment-wise PATH dedup, `git`/`git-bash` in `--ensure` | S3 |
+| `scripts/install.sh` | 61 | 4 | upstream | PR candidate: install into the existing checkout the installer runs from (forks keep their origin); idempotent `resolve_install_layout` | S3 |
+| `scripts/release.py` | 3 | 1 | upstream | PR candidate: read `contributors/emails/` recursively for `case-variants/`; with `contributor-check.yml` + `audit_pr_attribution.py` | S3 |
 | `scripts/run_tests.sh` | 193 | 5 | upstream | §0.4: runner improvements (P5); carry the hermetic-env rows | S3 |
 | `scripts/run_tests_parallel.py` | 181 | 42 | upstream | §0.4: runner improvements (P5); carry the hermetic-env rows | S3 |
 | `tests/agent/conftest.py` | 1 | 0 | carry | §0.4 / S5 landed: fork fixtures and hooks live in `tests/_downstream/` (root plugin + three star-imported modules); this file carries one added line | S5 |
@@ -434,25 +434,25 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tools/tts_tool_delivery.py` | 3 | 2 | carry | unreviewed | - |
 | `tools/vision_tools.py` | 6 | 8 | carry | unreviewed | - |
 | `tools/web_tools.py` | 2 | 2 | carry | unreviewed | - |
-| `toolsets.py` | 70 | 2 | carry | unreviewed | - |
-| `tui_gateway/entry.py` | 14 | 0 | carry | unreviewed | - |
-| `tui_gateway/hosted_room_driver.py` | 15 | 2 | carry | unreviewed | - |
-| `tui_gateway/server.py` | 1 | 1 | carry | unreviewed | - |
-| `tui_gateway/session_notifications.py` | 20 | 0 | carry | unreviewed | - |
-| `utils.py` | 46 | 6 | carry | unreviewed | - |
-| `uv.lock` | 82 | 10 | carry | unreviewed | - |
-| `website/docs/developer-guide/billing-lifecycle.md` | 7 | 5 | carry | unreviewed | - |
-| `website/docs/developer-guide/chronos-managed-cron-contract.md` | 1 | 1 | carry | unreviewed | - |
-| `website/docs/developer-guide/context-compression-and-caching.md` | 4 | 4 | carry | unreviewed | - |
-| `website/docs/developer-guide/gateway-session-lifecycle.md` | 3 | 2 | carry | unreviewed | - |
-| `website/docs/developer-guide/relay-connector-contract.md` | 9 | 1 | carry | unreviewed | - |
-| `website/docs/guides/use-mcp-with-hermes.md` | 38 | 0 | carry | unreviewed | - |
-| `website/docs/reference/mcp-config-reference.md` | 58 | 0 | carry | unreviewed | - |
-| `website/docs/reference/slash-commands.md` | 1 | 0 | carry | unreviewed | - |
-| `website/docs/user-guide/docker.md` | 1 | 1 | carry | unreviewed | - |
-| `website/docs/user-guide/egress/network-isolation.md` | 1 | 1 | carry | unreviewed | - |
-| `website/docs/user-guide/features/kanban.md` | 33 | 1 | carry | unreviewed | - |
-| `website/docs/user-guide/features/tool-search.md` | 3 | 0 | carry | unreviewed | - |
-| `website/docs/user-guide/messaging/index.md` | 2 | 1 | carry | unreviewed | - |
-| `website/i18n/zh-Hans/docusaurus-plugin-content-docs/current/user-guide/messaging/index.md` | 2 | 1 | carry | unreviewed | - |
-| `website/static/api/model-catalog.json` | 13 | 13 | carry | unreviewed | - |
+| `toolsets.py` | 70 | 2 | hook | seam: plugin toolset registration — `skill_search` in core/skills lists (fork tool), `harness_core` composite, `expand_toolset_names`; the composite needs a register-toolset PR (register_tool covers leaves only) | S3 |
+| `tui_gateway/entry.py` | 14 | 0 | upstream | P2: durable-completion restore at TUI startup (fallback: `on_session_start` hook) | S3 |
+| `tui_gateway/hosted_room_driver.py` | 15 | 2 | hook | seam: Group Chat host-surface PR — `request_reconciliation`; its three settlement fixes (`stop_unresolved`, active inspection, terminal `error`) go in the same PR as plain fixes | S3 |
+| `tui_gateway/server.py` | 1 | 1 | upstream | REVERT: dead edit — comment-only (renames the stale test name in `register_method`'s docstring) | - |
+| `tui_gateway/session_notifications.py` | 20 | 0 | carry | ours: visibility-only completion delivery when `background_process_agent_turns` is off — additive branches; not movable (inline in the notification poll) | - |
+| `utils.py` | 46 | 6 | upstream | PR candidate: `newline=` passthrough on `atomic_write_text`/`_atomic_write` (3 fork callers). REVERT hunks: `_replace_with_windows_contention_retry` superseded by upstream dcbe175423 (winerror 5/32/33 bounded retry) — take theirs at the next merge | S3 |
+| `uv.lock` | 82 | 10 | carry | ours: lock follows `pyproject.toml` (coverage, pytest-timeout); regenerated, never hand-edited; retires with those dev deps | - |
+| `website/docs/developer-guide/billing-lifecycle.md` | 7 | 5 | upstream | PR candidate (website docs): poll loop moved to `apps/shared/src/charge-settlement.ts` upstream; the upstream page is stale | S3 |
+| `website/docs/developer-guide/chronos-managed-cron-contract.md` | 1 | 1 | upstream | PR candidate (website docs): verifier path is `plugins/cron_providers/chronos/verify.py` upstream; the upstream page is stale | S3 |
+| `website/docs/developer-guide/context-compression-and-caching.md` | 4 | 4 | upstream | REVERT: superseded by upstream 79ec1f2a34 (same GPT-6 `-900k` text; the fork carries it as f0d6d10a9c) | - |
+| `website/docs/developer-guide/gateway-session-lifecycle.md` | 3 | 2 | upstream | PR candidate (website docs): stuck-loop file is `.restart_failure_counts` and `session_store_max_age_days` defaults to 90 in upstream code; the upstream page is stale | S3 |
+| `website/docs/developer-guide/relay-connector-contract.md` | 9 | 1 | upstream | PR candidate (website docs): `prospective_thread_id`, `profile`, `auto_thread_*` wire fields and the local-only trust signals exist in upstream code but not in its table | S3 |
+| `website/docs/guides/use-mcp-with-hermes.md` | 38 | 0 | carry | ours: one-shot MCP env overrides (`agent_runtime/mcp_environment.py`) — additive. The fork need not edit the upstream site: movable → a fork doc under `docs/` | - |
+| `website/docs/reference/mcp-config-reference.md` | 58 | 0 | carry | ours: one-shot MCP env overrides reference — additive. The fork need not edit the upstream site: movable → a fork doc under `docs/` | - |
+| `website/docs/reference/slash-commands.md` | 1 | 0 | hook | seam: `/queue-status` row follows the fork's command; leaves with it when the command registers through the plugin `register_command` | - |
+| `website/docs/user-guide/docker.md` | 1 | 1 | carry | replaces upstream lines: notes the fork's agent-runtime `gateway.port` key. The fork need not edit the upstream site: movable → a fork doc under `docs/` | - |
+| `website/docs/user-guide/egress/network-isolation.md` | 1 | 1 | upstream | PR candidate (website docs): the dashboard health route is `/api/health` (`hermes_cli/web_routers/status.py`) | S3 |
+| `website/docs/user-guide/features/kanban.md` | 33 | 1 | carry | ours: crash-artifact docs for the fork's `hermes_cli/kanban_crash_evidence.py` — additive plus one replaced table row. The fork need not edit the upstream site: movable → a fork doc under `docs/` | - |
+| `website/docs/user-guide/features/tool-search.md` | 3 | 0 | carry | ours: `never_defer` (fork `tools/tool_search.py` key; built-ins are fork tools) — additive. The fork need not edit the upstream site: movable → a fork doc under `docs/` | - |
+| `website/docs/user-guide/messaging/index.md` | 2 | 1 | carry | replaces upstream lines: background-completion family (default `result`, `background_process_agent_turns`). The fork need not edit the upstream site: movable → a fork doc under `docs/` | - |
+| `website/i18n/zh-Hans/docusaurus-plugin-content-docs/current/user-guide/messaging/index.md` | 2 | 1 | carry | replaces upstream lines: zh copy of the background-completion family. The fork need not edit the upstream site: movable → a fork doc under `docs/` | - |
+| `website/static/api/model-catalog.json` | 13 | 13 | upstream | REVERT: superseded by upstream 79ec1f2a34 (fork's f0d6d10a9c is the same catalog change); upstream 38c289c014 since dropped gpt-6-terra, so the fork copy is also stale. Generated — apply with the next merge | - |
