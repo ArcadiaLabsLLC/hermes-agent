@@ -133,9 +133,6 @@ def bare_bash_resolves_by_path():
     if sys.platform != "win32" or shutil.which("bash") is None:
         yield
         return
-    patched = pytest.MonkeyPatch()
-    patched.setattr(subprocess, "Popen", _PathBashPopen)
-    try:
+    with pytest.MonkeyPatch.context() as patched:
+        patched.setattr(subprocess, "Popen", _PathBashPopen)
         yield
-    finally:
-        patched.undo()
