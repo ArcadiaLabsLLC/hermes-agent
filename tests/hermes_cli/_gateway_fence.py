@@ -265,7 +265,8 @@ def classify(cmd, env=None) -> str | None:
     #
     # All three now have one, each the same shape (``None`` on every production
     # call site, so behavior is unchanged):
-    #   * ``doctor.run_doctor(agent_browser_runnable_override=...)``  (2026-09-03)
+    #   * ``doctor`` (2026-09-03; since 2026-09-24 upstream's own
+    #     ``doctor_tools.agent_browser_runnable``, stubbed by the directory conftest)
     #   * ``dep_ensure._browser_available`` / ``dependency_status`` /
     #     ``ensure_dependency``, threaded from
     #     ``main.cmd_postinstall(agent_browser_runnable_override=...)``  (2026-09-04)

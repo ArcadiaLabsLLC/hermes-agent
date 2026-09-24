@@ -1,21 +1,6 @@
-"""Downstream diagnostics and context-local browser-probe injection."""
-from contextlib import contextmanager
-from contextvars import ContextVar
+"""Downstream diagnostics."""
 from pathlib import Path
 from hermes_cli.doctor_report import _section, check_fail, check_info, check_ok, check_warn, doctor_check, Finding
-
-_browser_probe = ContextVar("doctor_browser_probe", default=None)
-
-@contextmanager
-def browser_probe_scope(probe):
-    token = _browser_probe.set(probe)
-    try:
-        yield
-    finally:
-        _browser_probe.reset(token)
-
-def browser_runnable(candidate, default):
-    return (_browser_probe.get() or default)(candidate)
 
 def _check_gateway_launcher_interpreter(issues: list[str]) -> None:
     """Fail when the autostart launcher names an interpreter updates don't sync.

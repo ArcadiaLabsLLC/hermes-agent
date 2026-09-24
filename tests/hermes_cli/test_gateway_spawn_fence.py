@@ -135,8 +135,9 @@ def test_the_agent_browser_capability_probe_is_refused_like_anything_else():
     operator's PATH (which ``run_tests.sh`` forwards verbatim, and no profile
     redirection can touch).
 
-    All three now take an ``agent_browser_runnable_override`` -- ``run_doctor``
-    (2026-09-03), ``cmd_postinstall`` -> ``dep_ensure``, and
+    All three now have a seam -- ``doctor`` (2026-09-03; since 2026-09-24 the
+    conftest stubs ``doctor_tools.agent_browser_runnable``), ``cmd_postinstall`` ->
+    ``dep_ensure``, and
     ``nous_subscription``'s ``_has_agent_browser`` chain (both 2026-09-04) --
     so a test that does not care what is installed injects a stub, and an argv
     naming the real root is refused whatever it was going to do there.

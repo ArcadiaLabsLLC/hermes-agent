@@ -21,39 +21,6 @@ from hermes_cli import doctor_config
 from tools import browser_tool_install as bt_install
 
 
-def _no_op_agent_browser_runnable(path):
-    """The stub every plain-report test below injects via ``run_doctor``'s
-    ``agent_browser_runnable_override`` seam.
-
-    The real ``hermes_constants.agent_browser_runnable`` SPAWNS the candidate
-    with ``--version`` to tell a genuinely runnable binary from a dangling npm
-    symlink (#48521). A test that only wants doctor's printed report, not an
-    opinion on browser tooling, has no reason to pay for that spawn — and
-    without this seam it does not get a choice: `run_doctor` resolves
-    ``shutil.which("agent-browser")`` against the operator's real PATH, which
-    `run_tests.sh` forwards verbatim, so on a box with agent-browser installed
-    (a live Hermes profile's Node prefix, or a global npm install) the suite
-    was actually executing it. Returning ``False`` unconditionally is fine:
-    every test using this stub either does not assert on the agent-browser
-    line at all, or (the two Termux/managed-browser tests) supplies its own
-    override and does not use this one.
-    """
-    return False
-
-
-def _run_doctor(args, **kwargs):
-    """``doctor_mod.run_doctor``, defaulting to the no-spawn browser stub.
-
-    Tests that need to control agent-browser resolution themselves (the
-    Termux and managed-node-prefix cases) call ``doctor_mod.run_doctor``
-    directly and monkeypatch ``doctor_mod.agent_browser_runnable`` or
-    ``shutil.which`` the way they always have — the override parameter falls
-    back to that live global when nothing is passed, so both styles coexist.
-    """
-    kwargs.setdefault("agent_browser_runnable_override", _no_op_agent_browser_runnable)
-    return doctor_mod.run_doctor(args, **kwargs)
-
-
 class TestDoctorPlatformHints:
 
 
@@ -368,7 +335,7 @@ class TestDoctorMemoryProviderSection:
         import io, contextlib
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            _run_doctor(Namespace(fix=False))
+            doctor_mod.run_doctor(Namespace(fix=False))
         return buf.getvalue()
 
     def test_no_provider_shows_builtin_ok(self, monkeypatch, tmp_path):
@@ -928,7 +895,7 @@ def test_run_doctor_kimi_cn_env_is_detected_and_probe_is_null_safe(monkeypatch, 
     import io, contextlib
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        _run_doctor(Namespace(fix=False))
+        doctor_mod.run_doctor(Namespace(fix=False))
     out = buf.getvalue()
 
     assert "API key or custom endpoint configured" in out

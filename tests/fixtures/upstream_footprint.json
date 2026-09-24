@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 349,
-  "deleted_lines": 2225,
+  "files": 348,
+  "deleted_lines": 2222,
   "heavy": 8,
   "reasons": [
     {
@@ -58,6 +58,12 @@
       "files": "350 -> 349",
       "deleted_lines": "2304 -> 2225",
       "reason": "hermes_cli/main_desktop.py back to merge-base bytes (upstream _stop_desktop_processes_locking_build; hermes_cli/_desktop_processes.py deleted); hermes_cli/profiles.py 14/20 -> 2/0 (upstream psutil loop, agent_runtime/profile_processes.py deleted; the orphan hook stays); tests/hermes_cli/test_profiles.py 308/1 -> 58/0; the hermetic fence patches psutil.process_iter; heavy 9 -> 8"
+    },
+    {
+      "change": "lane ADOPT group 16 (seam/carry-adopt-2026-09-24)",
+      "files": "349 -> 348",
+      "deleted_lines": "2225 -> 2222",
+      "reason": "hermes_cli/doctor_tools.py back to merge-base bytes (upstream agent_browser_runnable call); browser_probe_scope/browser_runnable deleted from agent_runtime/doctor_extensions.py and the agent_browser_runnable_override kwarg from run_doctor; tests/hermes_cli/test_doctor.py 43/5 -> 3/3"
     }
   ]
 }
