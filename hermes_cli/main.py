@@ -3513,5 +3513,3 @@ def __getattr__(name):  # PEP 562 — chained onto the module's own __getattr__
     warn_once(__name__, name, *target)
     return getattr(importlib.import_module(target[0]), target[1])
 # ---- END PLUGIN-COMPAT ----
-
-from hermes_cli.update_cmd_windows import _warn_legacy_console_gateway_task
