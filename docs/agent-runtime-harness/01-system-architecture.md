@@ -687,7 +687,7 @@ root-relative, not per-profile, so every persona references one copy and realm
 sync publishes it (`skill_install.py:38-43`). Never edit the installed copy.
 
 The directories present match `agent_runtime.profile_home.CANONICAL_SHARED_SKILL_IDS`
-(`agent_runtime/profile_home.py:27`) exactly — four since 2026-08-28:
+(`agent_runtime/profile_home.py:33`) exactly — four since 2026-08-28:
 `harness-dev-delivery`, `harness-qa-verdict`, `harness-runtime-model` and
 `harness-charsheet-authoring`. `harness-continuity` folded into
 `harness-runtime-model` the same day (lean-preload rule: the digest in
