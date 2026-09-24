@@ -179,7 +179,6 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tests/gateway/test_runtime_footer.py` | 25 | 6 | upstream | lifted: up/win-tilde-home, up/win-path-spelling | up/win-tilde-home+up/win-path-spelling |
 | `tests/gateway/test_status_command.py` | 9 | 0 | carry | fork test infra: needed only under the fork's shared-process runner (upstream isolates each file under env -i); passes upstream | - |
 | `tests/hermes_cli/conftest.py` | 1 | 0 | carry | §0.4 / S5 landed: fork fixtures and hooks live in `tests/_downstream/` (root plugin + three star-imported modules); this file carries one added line | S5 |
-| `tests/hermes_cli/test_active_sessions.py` | 37 | 5 | carry | fork test infra: pytest-timeout marker / bounds sized for the fork's repo-wide --timeout=30 runner | - |
 | `tests/hermes_cli/test_apply_profile_override.py` | 24 | 2 | upstream | PR candidate: win platform-default root pin (_get_platform_default_hermes_home) + encoding not in up/win-text-encoding | S3 |
 | `tests/hermes_cli/test_auth_nous_provider.py` | 33 | 4 | upstream | lifted: up/win-posix-only-apis | up/win-posix-only-apis |
 | `tests/hermes_cli/test_backup.py` | 33 | 7 | upstream | lifted: up/win-path-spelling, up/win-posix-only-apis; rest PR candidate: held, test stays red on Windows for another reason (R10): .bat wrapper hunk | up/win-path-spelling+up/win-posix-only-apis |
@@ -202,15 +201,12 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tests/hermes_cli/test_kanban_boards.py` | 2 | 2 | carry | depends on fork prod code `kanban_db_connect.connect_closing`; re-checked at the 2026-09-24 merge: upstream's version is red on the merged tree (2 red), so the carry stays | - |
 | `tests/hermes_cli/test_kanban_core_functionality.py` | 3 | 0 | carry | depends on fork prod code hermes_cli kanban Windows reaper poll branch | - |
 | `tests/hermes_cli/test_kanban_db.py` | 3 | 0 | carry | lane CARRY: fork tests moved to test_kanban_db_crashed_workers_downstream.py; the worktree spelling test is an id-table xfail on win32. Left, additive: `_FakePopen.poll` in `TestSharedBoardPaths` — the fork's Windows reaper branch (`hermes_cli.kanban_db_dispatch`) polls every live worker, which upstream's fake cannot answer (the leaked reaper error reds a later test in the file) | - |
-| `tests/hermes_cli/test_kanban_reclaim_claim_lock_guard.py` | 6 | 3 | carry | fork test infra: needed only under the fork's shared-process runner (upstream isolates each file under env -i); true/sleep resolve via Git on PATH; passes | - |
 | `tests/hermes_cli/test_kanban_worker_pid_fingerprint.py` | 13 | 7 | carry | PR dropped 2026-09-24: up/monkeypatch-undo-scoped (no red on upstream). RULED KEPT 2026-09-24 (lane MECH): the fork tripwire tests/_downstream/conftest_plugin.py::_shared_monkeypatch_pin_tripwire reds any test calling undo(), fork-authored or not | - |
 | `tests/hermes_cli/test_kanban_worktree_teardown.py` | 1 | 0 | upstream | PR candidate: linux-only markers (@pytest.mark.linux_only; needs per-test proof the behaviour is Linux-specific) | S3 |
 | `tests/hermes_cli/test_lazy_command_exports.py` | 1 | 0 | carry | fork test infra: real_windows_gateway_pause marker | - |
 | `tests/hermes_cli/test_linux_desktop_entry.py` | 20 | 0 | upstream | PR candidate: linux-only markers (@pytest.mark.linux_only; needs per-test proof the behaviour is Linux-specific) | S3 |
-| `tests/hermes_cli/test_local_quickstart.py` | 10 | 11 | carry | depends on fork prod code hermes_cli local-runtime catalog refresh | - |
 | `tests/hermes_cli/test_local_runtime.py` | 5 | 0 | carry | depends on fork prod code hermes_cli local-runtime unload confirmation | - |
 | `tests/hermes_cli/test_macos_tcc_anchor.py` | 2 | 2 | carry | PR dropped 2026-09-24: up/monkeypatch-undo-scoped (no red on upstream). RULED KEPT 2026-09-24 (lane MECH): the fork tripwire tests/_downstream/conftest_plugin.py::_shared_monkeypatch_pin_tripwire reds any test calling undo(), fork-authored or not | - |
-| `tests/hermes_cli/test_managed_uv.py` | 34 | 1 | carry | fork test infra: host-OS fake (platform.system pin, R3 class) + nt skip + subprocess.run stub; upstream bans faking the host OS | - |
 | `tests/hermes_cli/test_mcp_config.py` | 134 | 0 | carry | S5: 1 fork test unit(s) cannot leave — share upstream autouse fixture _isolate_config (a move would drop or duplicate it) | S5 |
 | `tests/hermes_cli/test_node_runtime_npm_resolution.py` | 3 | 0 | upstream | PR candidate: linux-only markers (@pytest.mark.linux_only; needs per-test proof the behaviour is Linux-specific) | S3 |
 | `tests/hermes_cli/test_orphan_desktop_serve_reap.py` | 5 | 0 | upstream | PR candidate: linux-only markers (@pytest.mark.linux_only; needs per-test proof the behaviour is Linux-specific) | S3 |
@@ -220,18 +216,13 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tests/hermes_cli/test_projects_db.py` | 19 | 7 | upstream | lifted: up/win-path-spelling | up/win-path-spelling |
 | `tests/hermes_cli/test_prompt_compose_command.py` | 25 | 11 | upstream | lifted: up/win-shell-invocation | up/win-shell-invocation |
 | `tests/hermes_cli/test_relaunch.py` | 24 | 0 | carry | fork test infra: host-OS fake (platform patch fakes linux); upstream AGENTS.md bans faking the host OS, so no PR | - |
-| `tests/hermes_cli/test_relay_shared_metrics.py` | 52 | 7 | carry | fork test infra: pytest-timeout marker / bounds sized for the fork's repo-wide --timeout=30 runner | - |
 | `tests/hermes_cli/test_setup_hermes_script.py` | 19 | 1 | upstream | lifted: up/win-shell-invocation | up/win-shell-invocation |
 | `tests/hermes_cli/test_stderr_timestamp.py` | 0 | 288 | carry | fork relocation to `tests/gateway/` (content identical to upstream's at the 2026-09-24 merge): at upstream's path the tests/hermes_cli gateway fence blocks `-m hermes_cli.main gateway run` children (GatewayFenceViolation, 2 red in the merge lane). Retires when the fence honours `spawns_gateway_lookalike` | S5 |
 | `tests/hermes_cli/test_subagent_notification_display.py` | 2 | 0 | carry | depends on fork prod code HERMES_BACKGROUND_AGENT_TURNS (background agent turns) | - |
 | `tests/hermes_cli/test_tui_resume_flow.py` | 4 | 1 | upstream | lifted: up/win-line-endings | up/win-line-endings |
-| `tests/hermes_cli/test_update_autostash.py` | 20 | 0 | carry | fork test infra: stub for the fork's update venv-process walk | - |
-| `tests/hermes_cli/test_update_fleet_restart_pending.py` | 8 | 0 | carry | depends on fork prod code hermes_cli update fleet settle clock | - |
 | `tests/hermes_cli/test_update_serve_generation_recovery.py` | 1 | 0 | upstream | PR candidate: linux-only markers (@pytest.mark.linux_only; needs per-test proof the behaviour is Linux-specific) | S3 |
-| `tests/hermes_cli/test_update_stale_dashboard.py` | 34 | 7 | carry | fork test infra: host-OS fake (platform patch); upstream AGENTS.md bans faking the host OS, so no PR | - |
 | `tests/hermes_cli/test_update_zip_two_phase.py` | 38 | 39 | carry | PR dropped 2026-09-24: up/monkeypatch-undo-scoped (no red on upstream). RULED KEPT 2026-09-24 (lane MECH): the fork tripwire tests/_downstream/conftest_plugin.py::_shared_monkeypatch_pin_tripwire reds any test calling undo(), fork-authored or not | - |
 | `tests/hermes_cli/test_win_pty_bridge.py` | 41 | 3 | upstream | lifted: up/win-conpty-line-wrap | up/win-conpty-line-wrap |
-| `tests/hermes_cli/test_worktree_selfheal.py` | 92 | 5 | carry | S5: 1 fork test unit(s) cannot leave — share upstream module fixture repo (a move would drop or duplicate it) | S5 |
 | `tests/hermes_state/test_append_messages_batch.py` | 4 | 4 | carry | PR dropped 2026-09-24: up/monkeypatch-undo-scoped (no red on upstream). RULED KEPT 2026-09-24 (lane MECH): the fork tripwire tests/_downstream/conftest_plugin.py::_shared_monkeypatch_pin_tripwire reds any test calling undo(), fork-authored or not | - |
 | `tests/hermes_state/test_retired_wal_generation_capture.py` | 10 | 13 | carry | PR dropped 2026-09-24: up/monkeypatch-undo-scoped (no red on upstream). RULED KEPT 2026-09-24 (lane MECH): the fork tripwire tests/_downstream/conftest_plugin.py::_shared_monkeypatch_pin_tripwire reds any test calling undo(), fork-authored or not | - |
 | `tests/hermes_state/test_session_db_read_conn_pool.py` | 5 | 5 | carry | PR dropped 2026-09-24: up/monkeypatch-undo-scoped (no red on upstream). RULED KEPT 2026-09-24 (lane MECH): the fork tripwire tests/_downstream/conftest_plugin.py::_shared_monkeypatch_pin_tripwire reds any test calling undo(), fork-authored or not | - |

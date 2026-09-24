@@ -130,14 +130,6 @@ def _patch_update_deps(monkeypatch, tmp_path, run_side_effect):
     monkeypatch.setattr(update_cmd, "_update_node_dependencies", lambda: [])
     monkeypatch.setattr(update_cmd_deps, "_update_node_dependencies", lambda: [])
 
-    # Fleet convergence is tested separately; this fixture reports no runtimes.
-    # Advance its settle clock rather than spending the real 30-second window.
-    from itertools import count
-    ticks = count(step=31)
-    monkeypatch.setattr(update_cmd_fleet, "_time", SimpleNamespace(
-        monotonic=lambda: next(ticks), sleep=lambda _seconds: None, time=lambda: 1000.0,
-    ))
-
     import hermes_cli.gateway as hermes_gateway
 
     monkeypatch.setattr(

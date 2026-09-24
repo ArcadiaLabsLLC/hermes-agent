@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 335,
-  "deleted_lines": 2120,
+  "files": 326,
+  "deleted_lines": 2081,
   "heavy": 7,
   "reasons": [
     {
@@ -74,9 +74,9 @@
     },
     {
       "change": "lane CARRY2A (seam/test-carries-cli-2026-09-24)",
-      "files": "346 -> 335",
-      "deleted_lines": "2131 -> 2120",
-      "reason": "tests/hermes_cli carries restored to upstream's bytes (the fork's marks ride tests/_downstream/id_markers.py, fork tests ride *_downstream.py siblings). Class A1: 11 files whose fork hunks were dead on this runner — comments, reload removals and sys.modules restores already done by the directory's _sys_modules_identity_is_restored, the AWS scrub tests/conftest.py already does, doctor HERMES_HOME re-spellings the fork's PEP 562 _LIVE_HOME_NAMES already answers, a call re-routed to _bytecode_sweep that main still re-exports"
+      "files": "346 -> 326",
+      "deleted_lines": "2131 -> 2081",
+      "reason": "tests/hermes_cli carries restored to upstream's bytes (the fork's marks ride tests/_downstream/id_markers.py, fork tests ride *_downstream.py siblings). Class A1: 11 files whose fork hunks were dead on this runner — comments, reload removals and sys.modules restores already done by the directory's _sys_modules_identity_is_restored, the AWS scrub tests/conftest.py already does, doctor HERMES_HOME re-spellings the fork's PEP 562 _LIVE_HOME_NAMES already answers, a call re-routed to _bytecode_sweep that main still re-exports. Class A2: 9 files whose hardening upstream's bytes no longer need on this host — hang-bound widenings (active_sessions, relay_shared_metrics), host-OS fakes (managed_uv, update_stale_dashboard, owner 2026-09-24: drop the fakes), stubs for walks that fit the cap (update_autostash, update_fleet_restart_pending, local_quickstart), a Git-on-PATH respelling (kanban_reclaim_claim_lock_guard), and worktree_selfheal's pre-2.32-git hedge plus a second-pass test upstream's TestRepackStampede now owns"
     }
   ]
 }
