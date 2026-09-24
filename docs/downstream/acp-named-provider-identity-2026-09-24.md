@@ -106,6 +106,34 @@ A separate running Hermes Desktop installation was then observed at upstream
 Launcher-configured partner-fork installation. Neither installation was stopped
 or overwritten; future cutover must coordinate writers to this shared profile.
 
-The installation remains on 0.19.1 pending safe archive/replacement approval
-and local TLS qualification. The committed ACP correction is not a claim that
-the live installation or native Launcher smoke has been completed.
+## Approved cutover — 2026-09-24
+
+The owner approved archiving the Launcher-linked installation while preserving
+Amelia and leaving the separate Hermes Desktop installation untouched.
+
+- Archived the complete 0.19.1 checkout and environment; repaired its linked
+  worktree registrations without changing their source. No old Git history was
+  reset or merged into the rebuilt fork.
+- Installed the partner fork at the existing Launcher executable path, then
+  fast-forwarded to `8573c5d415`. The incoming batch after `6f9aa0aa63` changes
+  tests, tooling and documentation, not production modules or dependency pins.
+  The installed environment reports 0.21.5 / Python 3.13.15 / SQLite 3.53.1.
+- Took a second verified backup: 10,945 files and 18 SQLite snapshots. All 583
+  checked Amelia skill, memory, hook, plugin, identity, config and credential
+  files remain byte-identical after restart. Live history still contains
+  1,447 sessions and 225,181 messages.
+- Drained the old gateway through its planned-stop protocol, without forced
+  termination. Restarted through its unchanged Windows Scheduled Task. The
+  new gateway reports `running`, Telegram `connected`, and session store `ok`.
+- Repeated the real ACP conversation/apply/restart smoke using the installed
+  interpreter and isolated test data: all four checks pass.
+- The installed Mission Control serve passes ready, ping and successful
+  `harness status --json` through Launcher's isolated capture helper; its ready
+  frame identifies `8573c5d415` and advertises 78 RPC methods.
+- Hermes Desktop remains at upstream `749220ef00`; its existing modified
+  `package-lock.json` has the same hash. Its files and configuration were not
+  updated. Launcher still points at the original executable and profile root.
+
+The live update is complete. Native Launcher UI acceptance was not rerun;
+Norton's interception of pinned gateway TLS remains a separate local limitation.
+No antivirus setting or certificate check was changed.
