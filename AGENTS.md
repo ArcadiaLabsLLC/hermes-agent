@@ -339,6 +339,9 @@ scripts/run_tests.sh tests/agent/test_foo.py -k test_x  # runner is file-granula
 scripts/run_tests.sh -v --tb=long                       # pytest flags pass through
 ```
 
+- **Fork landing gate (downstream only):** `scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli` — same hermetic env, up to 20 files per pytest process (`--bundle-size`); a red bundle re-runs its red members one file per process and names any ISOLATION LEAK (red bundled, green alone → `scripts/test_bundles_unbundled.txt`, with the observed diff).
+  `scripts/run_tests.sh` stays the per-file authority: a single file, a leak or any disagreement between the two is settled there.
+
 - **Flake policy:** a failing FILE is retried once in a fresh subprocess (`--file-retries`;
   `HERMES_TEST_FILE_RETRIES=0` disables); a worker killed by signal or the file timeout is never
   retried (relaunching a runaway doubles the damage). Pass-on-retry is green but printed under `⚠ FLAKY`
