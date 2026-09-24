@@ -1117,7 +1117,7 @@ def isolated_shared_skills(tmp_path, monkeypatch):
     packages the operator's live agents load.
 
     The ENV var and not a monkeypatched attribute: ``skill_install`` and
-    ``agent.skill_utils.skill_source_kind`` both resolve the shared root
+    ``agent_runtime.skill_resolution.skill_source_kind`` both resolve the shared root
     independently, and patching one would leave the resolver classifying the
     installed copy as ``external`` — which is ``invalid_source`` for a canonical
     id, i.e. a test failing for a reason that has nothing to do with its subject.
@@ -1772,7 +1772,7 @@ def test_a_traversal_shaped_skill_id_never_reaches_the_filesystem(
     def _never(*args, **kwargs):
         raise AssertionError("a traversal-shaped id reached the skill resolver")
 
-    monkeypatch.setattr("agent.skill_utils.resolve_skills", _never)
+    monkeypatch.setattr("agent_runtime.skill_resolution.resolve_skills", _never)
 
     outcome = perform_agent_create(
         _params(

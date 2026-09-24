@@ -81,7 +81,7 @@ def _skill_files(skill_dir: Path) -> list[Path]:
 #: so a support-script edit moves these bytes while leaving it identical. The
 #: key here is therefore a fingerprint of exactly the file set this function
 #: hashes — the same ``(relpath, mtime_ns, size)`` shape
-#: ``skill_utils.skill_package_content_hash`` already uses over that identical
+#: ``skill_resolution.skill_package_content_hash`` already uses over that identical
 #: set, copied rather than re-invented so the two cannot drift apart.
 #:
 #: Bounded by identity, not by age: one entry per package, replaced when its own

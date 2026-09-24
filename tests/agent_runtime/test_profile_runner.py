@@ -160,7 +160,7 @@ def test_runner_passes_toolsets_and_blocked_tools_to_ai_agent(monkeypatch):
 
 
 def test_runner_binds_and_resets_skill_runtime_surface():
-    from agent.skill_utils import current_skill_runtime_context
+    from agent_runtime.skill_resolution import current_skill_runtime_context
 
     seen = []
 

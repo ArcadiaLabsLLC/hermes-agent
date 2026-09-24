@@ -126,7 +126,7 @@ class TestBuildSkillsSystemPromptConditional:
     _clear_skills_cache = _upstream.TestBuildSkillsSystemPromptConditional._clear_skills_cache
 
     def test_mission_chat_hides_root_node_only_skills(self, monkeypatch, tmp_path):
-        from agent.skill_utils import skill_runtime_scope
+        from agent_runtime.skill_resolution import skill_runtime_scope
 
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         root_only = tmp_path / "skills" / "harness" / "harness-mission-lead"

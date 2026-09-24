@@ -6,8 +6,8 @@ Same names, same bodies; the upstream file keeps only upstream's tests.
 from agent import skill_utils
 import pytest
 from agent_runtime import skill_resolution
-from agent.skill_utils import (
-    extract_skill_conditions,
+from agent.skill_utils import extract_skill_conditions
+from agent_runtime.skill_resolution import (
     required_preload_skill_ids,
     resolve_skill,
     skill_frontmatter_runtime_compatibility,
@@ -197,7 +197,7 @@ def test_skill_package_content_hash_mtime_cache_invalidates_on_edit(tmp_path):
     it is never process-lifetime stale for changed content."""
     import os
 
-    from agent.skill_utils import _content_hash_cache_clear, skill_package_content_hash
+    from agent_runtime.skill_resolution import _content_hash_cache_clear, skill_package_content_hash
 
     _content_hash_cache_clear()
     skill_dir = tmp_path / "s"
@@ -227,7 +227,7 @@ def test_skill_runtime_compatibility_mtime_cache_reflects_edit(tmp_path):
     cache never masks an on-disk change."""
     import os
 
-    from agent.skill_utils import (
+    from agent_runtime.skill_resolution import (
         SkillResolutionCandidate,
         skill_runtime_compatibility,
     )
@@ -261,7 +261,7 @@ def test_resolve_skills_batched_matches_per_name_resolve_skill(tmp_path):
     """Item 2: the batched resolve_skills is behavior-equivalent to per-name
     resolve_skill (same status + same candidate manifests) for present, missing,
     and collision names."""
-    from agent.skill_utils import resolve_skill, resolve_skills
+    from agent_runtime.skill_resolution import resolve_skill, resolve_skills
 
     local = tmp_path / "local"
     shared = tmp_path / "shared"
@@ -290,7 +290,7 @@ def test_skill_root_registry_reuses_unchanged_roots_and_invalidates_only_changed
 ):
     import os
 
-    from agent.skill_utils import (
+    from agent_runtime.skill_resolution import (
         _skill_root_registry,
         _skill_root_registry_cache_clear,
     )
@@ -327,11 +327,11 @@ def test_cached_skill_registry_preserves_root_precedence_and_profile_classificat
     shared.mkdir()
     _write_skill(local, "same")
     _write_skill(shared, "same")
-    skill_utils._skill_root_registry_cache_clear()
+    skill_resolution._skill_root_registry_cache_clear()
 
     monkeypatch.setattr(skill_resolution, "get_skills_dir", lambda: local)
     monkeypatch.setattr(skill_resolution, "get_shared_skills_dir", lambda: shared)
-    first = skill_utils.resolve_skills(["same"], roots=[local, shared])["same"]
+    first = skill_resolution.resolve_skills(["same"], roots=[local, shared])["same"]
     assert first.status == "collision"
     assert [candidate.root for candidate in first.candidates] == [local, shared]
     assert [candidate.source_kind for candidate in first.candidates] == [
@@ -343,7 +343,7 @@ def test_cached_skill_registry_preserves_root_precedence_and_profile_classificat
     # source metadata is projected per call, never cached into the root entry.
     other_profile = tmp_path / "other-profile"
     monkeypatch.setattr(skill_resolution, "get_skills_dir", lambda: other_profile)
-    second = skill_utils.resolve_skills(["same"], roots=[shared, local])["same"]
+    second = skill_resolution.resolve_skills(["same"], roots=[shared, local])["same"]
     assert [candidate.root for candidate in second.candidates] == [shared, local]
     assert [candidate.source_kind for candidate in second.candidates] == [
         "shared_core",
@@ -371,20 +371,20 @@ def test_one_registry_fingerprint_walk_per_root_per_turn(tmp_path, monkeypatch):
     _write_skill(shared, "beta")
     roots = [local, shared]
     monkeypatch.setattr(skill_utils, "get_all_skills_dirs", lambda: list(roots))
-    skill_utils._skill_root_registry_cache_clear()
+    skill_resolution._skill_root_registry_cache_clear()
 
     # One turn: one map, handed to every site.
     registries: dict = {}
-    skill_utils.reset_skill_root_walks_for_tests()
+    skill_resolution.reset_skill_root_walks_for_tests()
 
-    skill_utils.required_preload_skill_ids(
+    skill_resolution.required_preload_skill_ids(
         ["alpha"], surface="mission_chat", _root_registries=registries
     )
-    skill_utils.resolve_skills(["alpha", "beta"], _root_registries=registries)
+    skill_resolution.resolve_skills(["alpha", "beta"], _root_registries=registries)
     for name in ("alpha", "beta", "alpha", "beta"):
-        skill_utils.resolve_skill(name, _root_registries=registries)
+        skill_resolution.resolve_skill(name, _root_registries=registries)
 
-    walks = skill_utils.skill_root_walks_this_thread()
+    walks = skill_resolution.skill_root_walks_this_thread()
     assert walks == len(roots), (
         f"one turn must walk each root exactly once; walked {walks} times for "
         f"{len(roots)} roots"
@@ -393,9 +393,9 @@ def test_one_registry_fingerprint_walk_per_root_per_turn(tmp_path, monkeypatch):
     # A SECOND turn is a second map, and must re-validate the filesystem — the
     # freshness half of CP-4a. "Zero additional walks" is within a turn, never
     # forever.
-    skill_utils.reset_skill_root_walks_for_tests()
-    skill_utils.resolve_skills(["alpha"], _root_registries={})
-    assert skill_utils.skill_root_walks_this_thread() == len(roots), (
+    skill_resolution.reset_skill_root_walks_for_tests()
+    skill_resolution.resolve_skills(["alpha"], _root_registries={})
+    assert skill_resolution.skill_root_walks_this_thread() == len(roots), (
         "a later turn must re-stat its roots; a memo that outlived the turn "
         "would be a staleness window, which CP-4 refuses"
     )
@@ -412,13 +412,13 @@ def test_unshared_resolution_still_walks_per_site(tmp_path, monkeypatch):
     local = tmp_path / "local"
     _write_skill(local, "alpha")
     monkeypatch.setattr(skill_utils, "get_all_skills_dirs", lambda: [local])
-    skill_utils._skill_root_registry_cache_clear()
+    skill_resolution._skill_root_registry_cache_clear()
 
-    skill_utils.reset_skill_root_walks_for_tests()
-    skill_utils.resolve_skills(["alpha"])
-    skill_utils.resolve_skill("alpha")
-    skill_utils.resolve_skill("alpha")
-    assert skill_utils.skill_root_walks_this_thread() == 3, (
+    skill_resolution.reset_skill_root_walks_for_tests()
+    skill_resolution.resolve_skills(["alpha"])
+    skill_resolution.resolve_skill("alpha")
+    skill_resolution.resolve_skill("alpha")
+    assert skill_resolution.skill_root_walks_this_thread() == 3, (
         "each unshared site pays its own walk — if this drops, the counter is "
         "measuring calls rather than filesystem work"
     )
@@ -441,20 +441,20 @@ def test_next_turn_manifest_add_edit_delete_and_org_flip_invalidate(
     _write_skill(shared, "beta")
     roots = [local, shared]
     monkeypatch.setattr(skill_utils, "get_all_skills_dirs", lambda: list(roots))
-    skill_utils._skill_root_registry_cache_clear()
+    skill_resolution._skill_root_registry_cache_clear()
 
-    first = skill_utils.resolve_skills(["alpha", "beta", "gamma"], _root_registries={})
+    first = skill_resolution.resolve_skills(["alpha", "beta", "gamma"], _root_registries={})
     assert first["alpha"].status == "resolved"
     assert first["gamma"].status == "missing"
 
     # ADD, on the next turn's own map.
     _write_skill(local, "gamma")
-    after_add = skill_utils.resolve_skills(["gamma"], _root_registries={})
+    after_add = skill_resolution.resolve_skills(["gamma"], _root_registries={})
     assert after_add["gamma"].status == "resolved", "an added skill must appear"
 
     # COLLISION: the same name in a second root is still two candidates.
     _write_skill(shared, "gamma")
-    after_collision = skill_utils.resolve_skills(["gamma"], _root_registries={})
+    after_collision = skill_resolution.resolve_skills(["gamma"], _root_registries={})
     assert after_collision["gamma"].status == "collision", (
         "a shared walk must not flatten a collision into a silent winner"
     )
@@ -462,11 +462,11 @@ def test_next_turn_manifest_add_edit_delete_and_org_flip_invalidate(
     # DELETE one side; the collision resolves back to a single candidate.
     (shared / "gamma" / "SKILL.md").unlink()
     (shared / "gamma").rmdir()
-    after_delete = skill_utils.resolve_skills(["gamma"], _root_registries={})
+    after_delete = skill_resolution.resolve_skills(["gamma"], _root_registries={})
     assert after_delete["gamma"].status == "resolved"
 
     # The unrelated root was never disturbed by any of it.
-    assert skill_utils.resolve_skills(["beta"], _root_registries={})["beta"].status == (
+    assert skill_resolution.resolve_skills(["beta"], _root_registries={})["beta"].status == (
         "resolved"
     )
 
@@ -488,28 +488,28 @@ def test_a_shared_map_is_keyed_by_root_so_lanes_with_different_roots_are_safe(
     b = tmp_path / "b"
     _write_skill(a, "alpha")
     _write_skill(b, "beta")
-    skill_utils._skill_root_registry_cache_clear()
+    skill_resolution._skill_root_registry_cache_clear()
 
     registries: dict = {}
-    skill_utils.reset_skill_root_walks_for_tests()
+    skill_resolution.reset_skill_root_walks_for_tests()
 
     # Lane one sees only `a`.
-    first = skill_utils.resolve_skills(["alpha"], roots=[a], _root_registries=registries)
+    first = skill_resolution.resolve_skills(["alpha"], roots=[a], _root_registries=registries)
     assert first["alpha"].status == "resolved"
-    assert skill_utils.skill_root_walks_this_thread() == 1
+    assert skill_resolution.skill_root_walks_this_thread() == 1
 
     # Lane two sees `a` and `b`: it reuses `a` and walks only the new root.
-    second = skill_utils.resolve_skills(
+    second = skill_resolution.resolve_skills(
         ["alpha", "beta"], roots=[a, b], _root_registries=registries
     )
     assert second["alpha"].status == "resolved"
     assert second["beta"].status == "resolved"
-    assert skill_utils.skill_root_walks_this_thread() == 2, (
+    assert skill_resolution.skill_root_walks_this_thread() == 2, (
         "the second lane must walk only the root the first had not already taken"
     )
 
     # And a lane restricted to `b` is not handed `a`'s skills.
-    third = skill_utils.resolve_skills(["alpha"], roots=[b], _root_registries=registries)
+    third = skill_resolution.resolve_skills(["alpha"], roots=[b], _root_registries=registries)
     assert third["alpha"].status == "missing", (
         "a shared map must never widen a lane's root list"
     )
@@ -526,9 +526,9 @@ def test_shared_resolver_excludes_package_markdown_but_keeps_legacy_skills(tmp_p
     legacy.parent.mkdir()
     legacy.write_text("Legacy standalone skill", encoding="utf-8")
     names = ["research", "character/prompts/research", "legacy/standalone"]
-    batch = skill_utils.resolve_skills(names, roots=[tmp_path])
+    batch = skill_resolution.resolve_skills(names, roots=[tmp_path])
     for name in names:
-        single = skill_utils.resolve_skill(name, roots=[tmp_path])
+        single = skill_resolution.resolve_skill(name, roots=[tmp_path])
         assert single.status == batch[name].status
         assert single.candidates == batch[name].candidates
     assert batch["research"].status == "resolved"

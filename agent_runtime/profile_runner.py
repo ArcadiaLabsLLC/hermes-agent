@@ -978,7 +978,7 @@ class ProfileAgentRunner:
             tool_execution_scope,
         )
         from .terminal_envelope import terminal_envelope_scope
-        from agent.skill_utils import skill_runtime_scope
+        from agent_runtime.skill_resolution import skill_runtime_scope
         from .local_llama_adapter.provider import prewarm_scope, construction_kwargs, actor_signature
 
         with (

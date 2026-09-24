@@ -1560,7 +1560,7 @@ def _skill_slug_selected(slug: str, selection: set[str]) -> bool:
 def _append_skill_package_artifacts(
     artifacts: list[RealmSyncArtifact], root: Path, slug: str, package_dir: Path
 ) -> None:
-    from agent.skill_utils import resolve_skill
+    from agent_runtime.skill_resolution import resolve_skill
 
     resolution = resolve_skill(slug)
     selected = resolution.candidate

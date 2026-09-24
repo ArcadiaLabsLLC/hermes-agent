@@ -228,7 +228,7 @@ def skill_package_sync_hash(package_dir: Path) -> str:
     """EOL-agnostic content hash of a skill package — the SYNC hash.
 
     Same walk, same exclusions, same digest shape as
-    :func:`agent.skill_utils.skill_package_content_hash` (relative posix path,
+    :func:`agent_runtime.skill_resolution.skill_package_content_hash` (relative posix path,
     NUL, bytes, NUL, in sorted order) with ONE difference: each file's bytes go
     through :func:`agent_runtime.sync_text.canonicalize_text_bytes` first, so a
     CRLF working copy and an LF published copy of the same content hash equal.
@@ -276,7 +276,7 @@ def skill_package_sync_hash(package_dir: Path) -> str:
 
 def _package_hash(package_dir: Path) -> str:
     """The hash every promotion DECISION is made on — EOL-agnostic since
-    2026-09-12. ``agent.skill_utils.skill_package_content_hash`` — the BYTE hash
+    2026-09-12. ``agent_runtime.skill_resolution.skill_package_content_hash`` — the BYTE hash
     this module used to call here — is untouched and keeps its own consumers (the
     resolver cache, the installer-ownership manifest); it is simply no longer
     imported by this module, because a promotion decision never wants it."""

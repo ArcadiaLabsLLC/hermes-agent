@@ -5157,7 +5157,7 @@ def _cmd_mission_chat_queue_skill(args) -> int:
         }
         print(emit_json(data) if args.json else data["error"])
         return 2
-    from agent.skill_utils import resolve_skill, skill_runtime_compatibility
+    from agent_runtime.skill_resolution import resolve_skill, skill_runtime_compatibility
 
     resolutions = {skill: resolve_skill(skill) for skill in skills}
     rejected = {
@@ -6405,7 +6405,7 @@ def _unresolvable_skill_ids(skills: list[str]) -> list[str]:
     if not skills:
         return []
     try:
-        from agent.skill_utils import resolve_skills
+        from agent_runtime.skill_resolution import resolve_skills
 
         resolutions = resolve_skills(list(skills))
     except Exception:  # noqa: BLE001 - advisory warning list, never a gate

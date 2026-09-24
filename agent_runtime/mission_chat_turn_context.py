@@ -198,7 +198,7 @@ def _default_consume_queued_skills(*, persona_id: str, session_id: str) -> list[
 def _default_required_preload_skills(
     skills: Sequence[Any], *, root_registries: dict[str, Any] | None = None
 ) -> list[str]:
-    from agent.skill_utils import required_preload_skill_ids
+    from agent_runtime.skill_resolution import required_preload_skill_ids
 
     return list(
         required_preload_skill_ids(

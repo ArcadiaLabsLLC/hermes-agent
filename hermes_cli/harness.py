@@ -3020,7 +3020,7 @@ def _cmd_skills_delete(args) -> int:
     next publish straight back into the realm. The ledger is that instruction.
     """
 
-    from agent.skill_utils import skill_package_content_hash
+    from agent_runtime.skill_resolution import skill_package_content_hash
     from agent_runtime.errors import SkillTombstoneRefused
     from agent_runtime.skill_promotion import _archive_package, validate_skill_slug
     from agent_runtime.store import active_skill_tombstones, skill_tombstoned

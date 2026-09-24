@@ -199,7 +199,7 @@ def _canonical_ids() -> list[str]:
 
 def _report(skills: list[str]) -> list[str]:
     """One line per canonical skill: repo size/hash vs installed size/hash."""
-    from agent.skill_utils import skill_package_content_hash
+    from agent_runtime.skill_resolution import skill_package_content_hash
     from agent_runtime.skill_install import (
         SKILL_SIZE_CEILINGS,
         harness_skill_destination,

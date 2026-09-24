@@ -28,7 +28,7 @@ from agent.skill_utils import (
     skill_matches_platform, skill_matches_platform_list,
 )
 from tools.threat_patterns import scan_for_threats as _scan_for_threats
-from agent.skill_utils import current_skill_runtime_context, skill_frontmatter_runtime_compatibility
+from agent_runtime.skill_resolution import current_skill_runtime_context, skill_frontmatter_runtime_compatibility
 from agent_runtime.prompt_guidance import _WINDOWS_NATIVE_TOOLING_HINT
 from utils import atomic_json_write, file_signature
 

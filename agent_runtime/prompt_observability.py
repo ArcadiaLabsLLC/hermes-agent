@@ -2462,7 +2462,8 @@ class _SkillObservabilityResolver:
         return self._realm_rows
 
     def resolve(self, identifiers: Iterable[str]) -> dict[str, Any]:
-        from agent.skill_utils import get_all_skills_dirs, resolve_skills
+        from agent.skill_utils import get_all_skills_dirs
+        from agent_runtime.skill_resolution import resolve_skills
 
         names = list(
             dict.fromkeys(
@@ -2501,7 +2502,7 @@ class _SkillObservabilityResolver:
     def content_hash(self, candidate: Any | None) -> str | None:
         if candidate is None:
             return None
-        from agent.skill_utils import skill_package_content_hash
+        from agent_runtime.skill_resolution import skill_package_content_hash
 
         key = (str(candidate.skill_dir or ""), str(candidate.skill_md))
         if key not in self._hashes:
@@ -2577,7 +2578,7 @@ def _accessible_skills_context(
         mismatched = set(harness_skill_hash_mismatches(sorted(tracked), hermes_home=profile_home))
     except Exception:
         pass
-    from agent.skill_utils import (
+    from agent_runtime.skill_resolution import (
         resolve_skills,
         skill_runtime_compatibility,
     )
@@ -2768,7 +2769,7 @@ def available_skills_context(
         except Exception:
             pass
     installed = _installed_skill_catalog()
-    from agent.skill_utils import (
+    from agent_runtime.skill_resolution import (
         resolve_skills,
         skill_runtime_compatibility,
     )
@@ -3011,7 +3012,7 @@ def used_skills_context(
 def _resolved_skill_receipt(
     name: str, *, root_registries: dict[str, Any] | None = None
 ) -> dict[str, Any]:
-    from agent.skill_utils import resolve_skill, skill_package_content_hash
+    from agent_runtime.skill_resolution import resolve_skill, skill_package_content_hash
 
     # CP-5: one shared registry snapshot per root per turn, not one per NAME.
     resolution = resolve_skill(name, _root_registries=root_registries)
@@ -3051,7 +3052,7 @@ def _skill_md_bytes(candidate: Any | None) -> int | None:
 def _skill_candidate_content_hash(candidate: Any | None) -> str | None:
     if candidate is None:
         return None
-    from agent.skill_utils import skill_package_content_hash
+    from agent_runtime.skill_resolution import skill_package_content_hash
 
     return skill_package_content_hash(candidate.skill_dir, candidate.skill_md)
 

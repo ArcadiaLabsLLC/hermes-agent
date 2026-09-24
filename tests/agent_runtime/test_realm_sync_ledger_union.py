@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from agent.skill_utils import _content_hash_cache_clear
+from agent_runtime.skill_resolution import _content_hash_cache_clear
 from agent_runtime import paths as runtime_paths
 from agent_runtime import store as store_module
 from agent_runtime.realm_sync import (

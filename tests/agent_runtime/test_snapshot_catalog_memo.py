@@ -93,6 +93,7 @@ def test_skill_observability_resolver_is_linear_across_production_shaped_roster(
     from types import SimpleNamespace
 
     import agent.skill_utils as skill_utils
+    from agent_runtime import skill_resolution
 
     root = tmp_path / "shared"
     names = [f"skill-{index}" for index in range(60)]
@@ -106,8 +107,8 @@ def test_skill_observability_resolver_is_linear_across_production_shaped_roster(
         )
 
     monkeypatch.setattr(skill_utils, "get_all_skills_dirs", lambda: [root])
-    real_resolve_skills = skill_utils.resolve_skills
-    real_content_hash = skill_utils.skill_package_content_hash
+    real_resolve_skills = skill_resolution.resolve_skills
+    real_content_hash = skill_resolution.skill_package_content_hash
     resolve_calls = 0
     hash_calls = 0
 
@@ -121,8 +122,8 @@ def test_skill_observability_resolver_is_linear_across_production_shaped_roster(
         hash_calls += 1
         return real_content_hash(skill_dir, skill_md)
 
-    monkeypatch.setattr(skill_utils, "resolve_skills", counting_resolve)
-    monkeypatch.setattr(skill_utils, "skill_package_content_hash", counting_hash)
+    monkeypatch.setattr(skill_resolution, "resolve_skills", counting_resolve)
+    monkeypatch.setattr(skill_resolution, "skill_package_content_hash", counting_hash)
 
     resolver = po._SkillObservabilityResolver()
     for index in range(8):

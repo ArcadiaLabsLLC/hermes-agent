@@ -793,7 +793,7 @@ def skills_create_fixture(tmp_path, monkeypatch):
     """An isolated shared skills root, a seeded office, and the ``qa`` persona.
 
     ``HERMES_SHARED_SKILLS`` and not a monkeypatched attribute: ``skill_install``
-    and ``agent.skill_utils.skill_source_kind`` resolve the shared root
+    and ``agent_runtime.skill_resolution.skill_source_kind`` resolve the shared root
     independently, and pinning only one leaves the resolver classifying the
     installed copy as ``external`` — which is ``invalid_source`` for a canonical
     id, i.e. a red that has nothing to do with the subject. The assertion below

@@ -1093,7 +1093,7 @@ def run_skills_phase(
 
     # Gate 2 — every id resolves, in the runtime this create is answering out of.
     if ids:
-        from agent.skill_utils import resolve_skills
+        from agent_runtime.skill_resolution import resolve_skills
 
         resolutions = resolve_skills(list(ids))
         for identifier in ids:

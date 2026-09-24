@@ -29,11 +29,11 @@ from tools.skills_tool_dedup import (  # noqa: F401
     _check_skill_view_dedup, _record_skill_view, reset_skill_view_dedup)
 from tools.skill_provenance import is_background_review
 
-from agent.skill_utils import (
-    current_skill_runtime_context, get_all_skills_dirs, resolve_skill,
-    skill_package_content_hash, skill_frontmatter_runtime_compatibility,
+from agent.skill_utils import get_all_skills_dirs
+from agent_runtime.skill_resolution import (
+    current_skill_runtime_context, resolve_skill, skill_package_content_hash,
+    skill_frontmatter_runtime_compatibility, skill_source_kind,
 )
-from agent_runtime.skill_resolution import skill_source_kind
 
 logger = logging.getLogger(__name__)
 

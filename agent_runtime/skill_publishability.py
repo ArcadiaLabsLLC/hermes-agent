@@ -1,7 +1,7 @@
 """Can a resolvable skill actually reach a realm — and may it be promoted?
 
 The resolver (:func:`agent.skill_utils.get_all_skills_dirs`) walks three tiers,
-already typed by :func:`agent.skill_utils.skill_source_kind`:
+already typed by :func:`agent_runtime.skill_resolution.skill_source_kind`:
 
 ======================  ==========================================  ============
 ``source_kind``         root                                        publishes?
@@ -134,7 +134,7 @@ class SkillPublishability:
 
     ``root_label`` is a *label* (``shared`` / ``profile:<name>`` /
     ``external:<dirname>``), never an absolute path — the same discipline
-    :func:`agent.skill_utils.skill_source_kind` follows so a runtime root is
+    :func:`agent_runtime.skill_resolution.skill_source_kind` follows so a runtime root is
     never leaked on the wire.
     """
 
@@ -261,7 +261,7 @@ def _cached_dir_hash(package_dir: Path) -> str | None:
     The digest is byte-identical to the uncached call; the cache only skips
     re-reading files whose ``(relpath, mtime_ns, size)`` stamp is unchanged —
     the same invalidation contract as
-    ``agent.skill_utils._CONTENT_HASH_CACHE``. Returns ``None`` when the
+    ``agent_runtime.skill_resolution._CONTENT_HASH_CACHE``. Returns ``None`` when the
     upstream primitive is unavailable.
     """
 
@@ -589,7 +589,7 @@ def classify_publishability(
 ) -> SkillPublishability:
     """Full typed publishability + promotability for one resolvable package."""
 
-    from agent.skill_utils import skill_source_kind
+    from agent_runtime.skill_resolution import skill_source_kind
 
     if source_kind is None:
         try:
@@ -638,8 +638,8 @@ def build_publishability_rows(roots: Iterable[Path] | None = None) -> list[dict[
     tier first so the unpublishable set reads as a block.
     """
 
-    from agent.skill_utils import (
-        get_all_skills_dirs,
+    from agent.skill_utils import get_all_skills_dirs
+    from agent_runtime.skill_resolution import (
         skill_package_content_hash,
         skill_source_kind,
     )

@@ -30,10 +30,10 @@ from pathlib import Path
 import pytest
 
 from agent.skill_utils import (
-    _content_hash_cache_clear,
     _external_dirs_cache_clear,
     get_skills_dir,
 )
+from agent_runtime.skill_resolution import _content_hash_cache_clear
 from agent_runtime import skill_publishability as sp
 from agent_runtime.skill_promotion import classify_promotion, execute_promotion
 from agent_runtime.profile_home import get_shared_skills_dir

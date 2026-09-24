@@ -75,7 +75,7 @@ def _skill_hash_split(skills: list[str], *, hermes_home=None) -> tuple[list[str]
 #
 # What an HONEST key would therefore cost: the resolver walk to learn which
 # packages are selected, then the per-package stat set over each. That is
-# precisely the key ``agent.skill_utils.skill_package_content_hash`` already
+# precisely the key ``agent_runtime.skill_resolution.skill_package_content_hash`` already
 # computes and already caches for the process (``_CONTENT_HASH_CACHE``, keyed on
 # every package file's mtime_ns+size), one layer below this function — so the
 # memo's key would duplicate, at this layer, the majority of the work it was
@@ -510,7 +510,7 @@ def _persona_path_token_issues(persona) -> list[dict[str, Any]]:
 def _resolve_skill_names(
     skill_names: list[str], *, skill_resolver=None
 ) -> list[dict[str, Any]]:
-    from agent.skill_utils import (
+    from agent_runtime.skill_resolution import (
         resolve_skills,
         skill_package_content_hash,
         skill_runtime_compatibility,
