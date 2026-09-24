@@ -140,6 +140,7 @@ from pathlib import Path
 import pytest
 
 from agent_runtime.events import ALLOWED_EVENT_TYPES
+from tests import _fork_scope
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
 
@@ -4297,6 +4298,66 @@ def _historical_test_sources(root: Path, base: str) -> dict[str, str]:
     return sources
 
 
+def _subject_definition_line(subject: tuple[str, str]) -> int | None:
+    """1-based line of ``subject``'s top-level definition, or ``None``."""
+
+    module_name, symbol = subject
+    source_path = HERMES_ROOT / f"{module_name.replace('.', '/')}.py"
+    tree = _parsed(source_path.read_text(encoding="utf-8", errors="replace"))
+    for node in tree.body if tree else ():
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.name == symbol:
+            return node.lineno
+    return None
+
+
+def _top_level_test_names(lines: list[str] | None) -> frozenset[str] | None:
+    tree = _parsed("\n".join(lines)) if lines is not None else None
+    if tree is None:
+        return None
+    return frozenset(
+        node.name for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    )
+
+
+@functools.lru_cache(maxsize=None)
+def _upstream_side_test_names(relative: str) -> tuple[frozenset[str] | None, frozenset[str] | None]:
+    """``relative``'s top-level test names at the upstream point the base had
+    merged, and at ``upstream/main`` — ``None`` where that side lacks the file."""
+
+    root = _fork_scope.repo_root()
+    merged = _fork_scope._git(
+        ["merge-base", _ROUND4_COVERAGE_BASE, _fork_scope.UPSTREAM_REF], cwd=root
+    )
+    if merged is None:
+        return None, None
+    then = _fork_scope._git(["cat-file", "blob", f"{merged.decode().strip()}:{relative}"], cwd=root)
+    then_lines = then.decode("utf-8", errors="replace").splitlines() if then is not None else None
+    return _top_level_test_names(then_lines), _top_level_test_names(_fork_scope._upstream_text(relative))
+
+
+def _upstream_retired_its_own_coverage(relative: str, test_name: str, subject: tuple[str, str]) -> bool:
+    """Is this lost reference UPSTREAM's loss rather than the fork's?
+
+    True only when all three hold: upstream wrote the subject's definition
+    (``_fork_scope.is_fork_authored`` on its ``def`` line), upstream carried
+    the deleted test at the point the base had merged, and ``upstream/main`` no
+    longer does — upstream retired its own test of its own code, and a merge
+    brought the deletion in. The fork's gates police the fork's lines; the fork
+    may not re-add an upstream test it would then owe at every merge. Anything
+    unresolvable answers False, so the finding stays counted (fail closed).
+    """
+
+    if _fork_scope.upstream_blobs() is None:
+        return False
+    line = _subject_definition_line(subject)
+    source = f"{subject[0].replace('.', '/')}.py"
+    if line is None or _fork_scope.is_fork_authored(source, line):
+        return False
+    then, now = _upstream_side_test_names(relative)
+    return then is not None and test_name in then and (now is None or test_name not in now)
+
+
 @functools.lru_cache(maxsize=1)
 def _round4_uncovered_subjects() -> tuple[str, ...]:
     """Live production symbols whose last direct test reference a deletion took.
@@ -4347,7 +4408,11 @@ def _round4_uncovered_subjects() -> tuple[str, ...]:
                 module_imports | local_imports,
             )
             for subject in subjects:
-                if _live_production_symbol(subject) and subject not in covered:
+                if (
+                    _live_production_symbol(subject)
+                    and subject not in covered
+                    and not _upstream_retired_its_own_coverage(relative, old_test.name, subject)
+                ):
                     uncovered.append(
                         f"{relative}::{old_test.name} deleted the last direct test "
                         f"reference to {subject[0]}.{subject[1]}"
@@ -4371,6 +4436,45 @@ def test_round4_deleted_tests_left_no_live_production_subject_uncovered():
 
     uncovered = _round4_uncovered_subjects()
     assert uncovered == (), "\n".join(uncovered)
+
+
+def test_upstreams_own_retired_test_of_its_own_code_is_upstreams_loss():
+    """The scope filter removes a real merge-borne deletion (negative arm).
+
+    ``tests/gateway/test_version_command.py`` was upstream's file, upstream
+    deleted it, and its subject ``hermes_cli.banner.format_banner_version_label``
+    is upstream's definition; the 2026-09-24 merge brought that deletion in.
+    """
+
+    if _fork_scope.upstream_blobs() is None:
+        pytest.skip("no upstream/main ref: the filter fails closed and counts everything")
+    assert _upstream_retired_its_own_coverage(
+        "tests/gateway/test_version_command.py",
+        "test_gateway_version_command_returns_release_line",
+        ("hermes_cli.banner", "format_banner_version_label"),
+    )
+
+
+def test_a_fork_authored_subject_is_never_upstreams_loss():
+    """Positive control: the same upstream-retired test, but a subject the fork
+    wrote, stays COUNTED — the filter keys on the subject's author."""
+
+    assert not _upstream_retired_its_own_coverage(
+        "tests/gateway/test_version_command.py",
+        "test_gateway_version_command_returns_release_line",
+        ("agent_runtime.chat_session_scope", "configured_head_home"),
+    )
+
+
+def test_a_test_upstream_still_carries_is_the_forks_loss():
+    """Positive control: an upstream subject whose test upstream still ships
+    was deleted by the FORK, so it stays counted."""
+
+    assert not _upstream_retired_its_own_coverage(
+        "tests/hermes_cli/test_curator_status.py",
+        "test_this_name_is_no_test_upstream_ever_carried",
+        ("hermes_cli.curator", "register_cli"),
+    )
 
 
 def test_the_round4_git_walk_is_also_paid_at_import():
