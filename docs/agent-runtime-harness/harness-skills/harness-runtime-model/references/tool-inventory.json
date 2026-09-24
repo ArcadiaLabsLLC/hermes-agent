@@ -340,7 +340,7 @@
       "toolset": "terminal",
       "mutating": false,
       "gated": false,
-      "description": "Background processes: wait returns partial output on timeout. submit appends Enter to answer prompts; write sends raw bytes, no newline. notify requests a re..."
+      "description": "Poll, wait on, or kill background terminal processes (from terminal(background=true)). Completed results remain retrievable by session_id when resuming their..."
     },
     {
       "name": "read_file",
@@ -410,7 +410,7 @@
       "toolset": "vision",
       "mutating": false,
       "gated": true,
-      "description": "Load an image (URL, local path, or data URL) into the conversation so you can see it. Native-vision models read the pixels next turn; others get an auxiliary..."
+      "description": "Load an image into the conversation so you can see it. Call it any time the user references an image — then answer from what you see."
     },
     {
       "name": "web_extract",
