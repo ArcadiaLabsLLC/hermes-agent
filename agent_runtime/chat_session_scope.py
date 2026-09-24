@@ -135,6 +135,7 @@ __all__ = [
     "declared_chat_head_home",
     "is_canonical_session_persistence",
     "open_chat_session_db",
+    "configured_head_home",
     "publish_chat_head_home",
     "recorded_chat_head_home",
     "recorded_instance_chat_head",
@@ -710,6 +711,19 @@ def declared_chat_head_home() -> Path | None:
     return candidate
 
 
+def configured_head_home() -> str:
+    """The ``ENV_HEAD_HOME`` rung, raw: the operator-supplied ``HERMES_HEAD_HOME``
+    stripped, or ``""`` when the Launcher named none.
+
+    The ONE reader of that variable. ``agent_runtime.profile_home``'s head
+    resolvers take the value from here rather than asking the environment
+    themselves, so the ladder and the primitive under it cannot disagree about
+    what the environment said.
+    """
+
+    return os.environ.get("HERMES_HEAD_HOME", "").strip()
+
+
 def publish_chat_head_home(scope: ChatSessionScope | None = None) -> Path | None:
     """Record this process's EXPLICIT head home for the shared runtime root.
 
@@ -758,7 +772,7 @@ def _explicit_source(head: Path) -> ChatHeadSource:
     env value is precisely the nesting case ``RELAY_CONTEXT`` exists to name.
     """
 
-    configured = os.environ.get("HERMES_HEAD_HOME", "").strip()
+    configured = configured_head_home()
     if configured and _same_path(Path(configured).expanduser(), head):
         return ChatHeadSource.ENV_HEAD_HOME
     return ChatHeadSource.RELAY_CONTEXT

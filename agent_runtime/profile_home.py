@@ -8,7 +8,8 @@ home is the Mission Control operator home across persona relay hops, the auth
 home is the harness's one shared operator auth, and the shared skills /
 characters roots are the realm's install-wide libraries.
 
-Stdlib + ``hermes_constants`` only, so it stays importable from anywhere
+Stdlib + ``hermes_constants`` + ``agent_runtime.chat_session_scope`` (itself
+stdlib-only at import) only, so it stays importable from anywhere
 ``hermes_constants`` is. Upstream helpers are read through the module
 (``_hc.get_hermes_home()``) at call time, so a test that patches them on
 ``hermes_constants`` still reaches these functions.
@@ -23,6 +24,9 @@ from pathlib import Path
 from typing import List, Optional
 
 import hermes_constants as _hc
+# The ENV_HEAD_HOME rung is read by the resolution authority, never here
+# (tests/agent_runtime/test_hermes_home_env_gate.py). Stdlib-only at import.
+from agent_runtime.chat_session_scope import configured_head_home
 
 _UNSET = object()
 
@@ -103,7 +107,7 @@ def get_hermes_head_home() -> Path:
     head = _HERMES_HEAD_HOME.get()
     if head is not _UNSET and head:
         return Path(head)
-    configured = os.environ.get("HERMES_HEAD_HOME", "").strip()
+    configured = configured_head_home()
     if configured:
         return Path(configured).expanduser()
     return _hc.get_hermes_home()
@@ -126,7 +130,7 @@ def hermes_head_home_is_authoritative() -> bool:
     head = _HERMES_HEAD_HOME.get()
     if head is not _UNSET and head:
         return True
-    return bool(os.environ.get("HERMES_HEAD_HOME", "").strip())
+    return bool(configured_head_home())
 
 
 def get_hermes_background_work_home() -> Path:
