@@ -34,8 +34,6 @@ _HERMES_AUTH_HOME_OVERRIDE: ContextVar[str | object] = ContextVar(
     "_HERMES_AUTH_HOME_OVERRIDE", default=_UNSET
 )
 
-_DEFAULT_HERMES_ROOT_CACHE: dict[tuple[str, str], Path] = {}
-
 _AGENT_BROWSER_PROBE_CACHE: dict[str, bool] = {}
 
 CONVERSATION_REQUEST_ASSEMBLED_STEP = "conversation_request_assembled"
@@ -198,38 +196,23 @@ _default_hermes_root_memo: "tuple[str, str, Path] | None" = None
 
 
 def get_default_hermes_root() -> Path:
-    """Return the root Hermes directory for profile-level operations.
-
-    In standard deployments this is the platform-native Hermes home
-    (``~/.hermes`` on POSIX, ``%LOCALAPPDATA%\\hermes`` on native Windows).
-
-    In Docker or custom deployments where ``HERMES_HOME`` points outside
-    ``~/.hermes`` (e.g. ``/opt/data``), returns ``HERMES_HOME`` directly
-    — that IS the root.
-
-    In profile mode where ``HERMES_HOME`` is ``<root>/profiles/<name>``,
-    returns ``<root>`` so that ``profile list`` can see all profiles.
-    Works both for standard (``~/.hermes/profiles/coder``) and Docker
-    (``/opt/data/profiles/coder``) layouts.
-
-    Import-safe — no dependencies beyond stdlib.
-
-    Memoised on ``(HERMES_HOME, platform default)``; the reasoning, the
-    measurement that motivates it and the one staleness window it admits are at
-    :data:`_DEFAULT_HERMES_ROOT_CACHE`.
-    """
+    """Root Hermes dir for profile-level ops: ``<root>`` when ``HERMES_HOME=<root>/profiles/<name>``."""
+    global _default_hermes_root_memo
     native_home = _get_platform_default_hermes_home()
     env_home = os.environ.get("HERMES_HOME", "").strip()
-    if not env_home:
-        return native_home
-    key = (env_home, str(native_home))
-    cached = _DEFAULT_HERMES_ROOT_CACHE.get(key)
-    if cached is not None:
-        return cached
-    _DEFAULT_HERMES_ROOT_CACHE[key] = resolved = _resolve_default_hermes_root(
-        env_home, native_home
-    )
-    return resolved
+    env_path = _expand_hermes_home(env_home) if env_home else None
+    memo_key = (str(native_home), str(env_path) if env_path is not None else "")
+    memo = _default_hermes_root_memo
+    if memo is not None and memo[:2] == memo_key:
+        return memo[2]
+    result = native_home
+    if env_path is not None:
+        try:
+            env_path.resolve().relative_to(native_home.resolve())  # under ~/.hermes (normal or profile mode)
+        except ValueError:  # Docker/custom root: <root>/profiles/<name> -> <root>, else HERMES_HOME itself
+            result = env_path.parent.parent if env_path.parent.name == "profiles" else env_path
+    _default_hermes_root_memo = (*memo_key, result)
+    return result
 
 
 # Tombstone lives beside the profile dir (not inside) so a stale mkdir or rmtree cannot erase it.
@@ -1828,45 +1811,6 @@ def get_hermes_background_work_home() -> Path:
     """
 
     return get_hermes_head_home()
-
-def reset_default_hermes_root_cache() -> None:
-    """Forget every memoised default-root resolution.
-
-    Clearing is always safe: the next call simply pays the two ``resolve()``
-    calls again. Exposed for tests that re-point the Hermes root under a live
-    process, which production never does.
-    """
-
-    _DEFAULT_HERMES_ROOT_CACHE.clear()
-
-def _resolve_default_hermes_root(env_home: str, native_home: Path) -> Path:
-    """The uncached body of :func:`get_default_hermes_root`.
-
-    Its own function so the memo above wraps a NAMED computation rather than an
-    inlined branch — the two ``resolve()`` calls it makes are the whole reason
-    the memo exists, and they must stay findable from the constant that explains
-    them.
-    """
-
-    # ``_expand_hermes_home`` handles ``~``/``$VAR`` spellings (``python -m gateway.run``
-    # skips the CLI normalizer that would otherwise have expanded them).
-    env_path = _expand_hermes_home(env_home)
-    try:
-        env_path.resolve().relative_to(native_home.resolve())
-        # HERMES_HOME is under ~/.hermes (normal or profile mode)
-        return native_home
-    except ValueError:
-        pass
-
-    # Docker / custom deployment.
-    # Check if this is a profile path: <root>/profiles/<name>
-    # If the immediate parent dir is named "profiles", the root is
-    # the grandparent — this covers Docker profiles correctly.
-    if env_path.parent.name == "profiles":
-        return env_path.parent.parent
-
-    # Not a profile path — HERMES_HOME itself is the root
-    return env_path
 
 def get_shared_skills_dir(default: Path | None = None) -> Path:
     """Return the canonical shared skills root every persona references.
