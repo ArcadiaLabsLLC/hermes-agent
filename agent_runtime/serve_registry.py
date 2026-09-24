@@ -541,6 +541,12 @@ def classify_serve_instance(
         return CLASSIFICATION_STALE_RECYCLED_PID, "start_time_mismatch"
     else:
         start_time_reason = ""
+        if pid == os.getpid():
+            # This process's OWN row, proven by a matching start time: the
+            # command line is only the recycled-pid fallback for FOREIGN rows,
+            # and ours is whatever launched us (a pytest path, a relative
+            # entry point) — never evidence against our own identity.
+            return CLASSIFICATION_LIVE, ""
 
     cmdline = _safe(lambda: prober.cmdline(pid))
     if cmdline is None:

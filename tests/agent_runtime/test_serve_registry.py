@@ -452,6 +452,31 @@ def test_a_record_without_a_usable_pid_is_unknown(tmp_path, pid):
     assert reason == "pid_missing"
 
 
+def test_this_process_own_row_is_live_whatever_its_command_line():
+    """A matching start time on OUR pid is identity; argv is never consulted.
+
+    Under pytest the command line is the test path, which need not contain
+    ``hermes`` — the boot must not refuse its own row over that.
+    """
+
+    from agent_runtime.serve_registry import classify_serve_instance
+
+    odd_argv = _probe(cmdline="python -m pytest tests/agent_runtime/test_x.py")
+    own = classify_serve_instance(
+        {"pid": os.getpid(), "started_at_ticks": 1000}, probe=odd_argv
+    )
+    assert own == (CLASSIFICATION_LIVE, "")
+    # Positive control: a FOREIGN row with the same facts still falls back to argv.
+    foreign = classify_serve_instance(
+        {"pid": os.getpid() + 1, "started_at_ticks": 1000}, probe=odd_argv
+    )
+    assert foreign == (CLASSIFICATION_UNKNOWN, "cmdline_not_serve_like")
+    # And our own pid with a MISMATCHED start time is still recycled.
+    assert classify_serve_instance(
+        {"pid": os.getpid(), "started_at_ticks": 999}, probe=odd_argv
+    ) == (CLASSIFICATION_STALE_RECYCLED_PID, "start_time_mismatch")
+
+
 # ── the socket lane's additive fields (slice 3) ─────────────────────────────
 
 
