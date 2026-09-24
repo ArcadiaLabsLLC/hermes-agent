@@ -42,6 +42,7 @@ import pathlib as _owner_pathlib
 
 import ast
 import json
+import subprocess
 import warnings
 from pathlib import Path
 
@@ -331,19 +332,59 @@ _PARSE_CACHE: dict[Path, "ast.Module | None"] = {}
 _RELEVANT_TOKENS = (_MARKER, *_SURFACE)
 
 
+_CANDIDATES: list["set[Path] | None"] = []
+
+
+def _token_candidates() -> set[Path] | None:
+    """Files under ``tests/`` that contain a relevant token, by ONE ``git grep``.
+
+    Reading every test module from Python is the cost this avoids: measured
+    2026-09-24, 5,452 ``read_text`` calls took 15.4 s on a worktree outside the
+    Defender exclusion and the whole test hit the 30 s ``--timeout`` cold. The
+    grep covers untracked files too, so a module written a minute ago is seen.
+    ``None`` (no git, not a checkout) falls back to reading every file.
+    """
+    if not _CANDIDATES:
+        tests_root = Path(__file__).resolve().parent
+        argv = ["git", "grep", "-l", "--untracked", "-F"]
+        for token in _RELEVANT_TOKENS:
+            argv += ["-e", token]
+        try:
+            proc = subprocess.run(
+                [*argv, "--", "."], cwd=tests_root, capture_output=True,
+                text=True, encoding="utf-8", timeout=60,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            proc = None
+        _CANDIDATES.append(
+            {(tests_root / line).resolve() for line in proc.stdout.splitlines() if line}
+            if proc is not None and proc.returncode in (0, 1)
+            else None
+        )
+    return _CANDIDATES[0]
+
+
 def _parse(path: Path) -> ast.Module | None:
     """Parse once per session. ``ast.parse`` compiles, so it re-emits every
     SyntaxWarning already present in the suite — silenced here so the census
     reports its own findings and nothing else."""
     if path not in _PARSE_CACHE:
+        candidates = _token_candidates()
         try:
-            source = path.read_text(encoding="utf-8")
-            tree = (
-                None
-                if not any(token in source for token in _RELEVANT_TOKENS)
+            if (
+                candidates is not None
+                and path not in candidates
                 and _rel(path) not in _table_files()
-                else _compile(source, path)
-            )
+            ):
+                tree = None
+            else:
+                source = path.read_text(encoding="utf-8")
+                tree = (
+                    None
+                    if not any(token in source for token in _RELEVANT_TOKENS)
+                    and _rel(path) not in _table_files()
+                    else _compile(source, path)
+                )
         except (OSError, UnicodeDecodeError):
             tree = None
         _PARSE_CACHE[path] = tree
@@ -628,6 +669,22 @@ def test_gate_census_actually_sees_the_suite():
     assert marked, (
         "no scope anywhere declares the opt-in marker — either the marker was "
         "renamed or the census is looking in the wrong place"
+    )
+
+    # Positive control for the git-grep pre-filter: a DECORATED scope (not a
+    # table row, which is parsed regardless) must survive it, so a grep that
+    # stopped matching the marker token reds here instead of shrinking the census.
+    # The module must carry no surface token, or the surface half of the grep
+    # would have selected it anyway.
+    decorated_only = [
+        path.name
+        for path in parsed
+        if _marked_scopes(_parse(path))  # type: ignore[arg-type]
+        and not any(token in path.read_text(encoding="utf-8") for token in _SURFACE)
+    ]
+    assert decorated_only, (
+        f"no parsed module carries @pytest.mark.{_MARKER} without also naming a "
+        "surface function — the pre-filter no longer selects files by the marker token"
     )
 
 
