@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 197,
-  "deleted_lines": 992,
+  "files": 196,
+  "deleted_lines": 990,
   "heavy": 4,
   "reasons": [
     {
@@ -204,6 +204,12 @@
       "files": "199 -> 197",
       "deleted_lines": "994 -> 992",
       "reason": "the persona prompt-cache key, the Codex scope headers and the cache-routing observability move onto upstream's llm_request middleware (agent_runtime.cache_routing.route_persona_cache, composed into the eternia-harness callback after the wire briefs; the persona agent comes from a ContextVar profile_runner binds). agent/transports/codex.py and agent/chat_completion_helpers.py at f24a1d7f92 bytes"
+    },
+    {
+      "change": "lane DOORS-A required-skill note (seam/doors-a-2026-09-24)",
+      "files": "197 -> 196",
+      "deleted_lines": "992 -> 990",
+      "reason": "the required-on-this-surface skill emphasis moves off upstream's build_preloaded_skills_prompt parameter onto the fork's mission-chat preload resolver, one line over upstream's own preload note. agent/skill_commands.py at f24a1d7f92 bytes"
     }
   ]
 }

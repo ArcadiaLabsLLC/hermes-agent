@@ -215,11 +215,20 @@ def _default_build_preloaded_skills_prompt(
 ) -> tuple[str, list[str], list[str]]:
     from agent.skill_commands import build_preloaded_skills_prompt
 
-    kwargs = {"required_skill_names": required_skill_names} if required_skill_names else {}
-    prompt, loaded, missing = build_preloaded_skills_prompt(
-        list(names), task_id=task_id, **kwargs
-    )
-    return str(prompt or ""), list(loaded or []), list(missing or [])
+    prompt, loaded, missing = build_preloaded_skills_prompt(list(names), task_id=task_id)
+    prompt = str(prompt or "")
+    loaded = list(loaded or [])
+    required = [name for name in loaded if name in (required_skill_names or ())]
+    if prompt and required:
+        # Upstream's per-skill preload note already marks each skill active for the
+        # session; the "required on this surface" emphasis is one fork line on top of
+        # it (lane DOORS-A 2026-09-24 — it used to be a parameter threaded into
+        # upstream's ``build_preloaded_skills_prompt``).
+        quoted = ", ".join(f'"{name}"' for name in required)
+        prompt = (f"[IMPORTANT: Runtime policy requires the {quoted} skill"
+                  f"{'s' if len(required) > 1 else ''} on this surface. Their instructions "
+                  "are active for this turn.]\n\n" + prompt)
+    return prompt, loaded, list(missing or [])
 
 
 def _default_admitted_operating_skills(persona: Any, *, session_id: str | None) -> list[str]:
