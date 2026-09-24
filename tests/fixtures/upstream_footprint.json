@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 216,
-  "deleted_lines": 1032,
+  "files": 215,
+  "deleted_lines": 1023,
   "heavy": 4,
   "reasons": [
     {
@@ -150,6 +150,12 @@
       "files": "215 -> 214",
       "deleted_lines": "1036 -> 1027",
       "reason": "lane REDS3 (594b94e750) restored tests/hermes_cli/test_completion.py to f24a1d7f92's bytes (16/9 -> 0; its Windows reds ride tests/_downstream/id_markers.py) without lowering this fixture, so main's ratchet read FELL; the ledger row leaves and tests/conftest.py's added count is re-measured (130 -> 158)"
+    },
+    {
+      "change": "lane TESTS (fork/test-rows-2026-09-24)",
+      "files": "216 -> 215: tests/gateway/test_runtime_footer.py back to f24a1d7f92 bytes (its fork edit lives in test_runtime_footer_downstream.py)",
+      "deleted_lines": "1032 -> 1023 (that file's edits)",
+      "reason": "row-11 comment stripping lives in tests/_downstream/live_guard_classify.py (conftest hunk +2/-1); the run_tests.sh PATHEXT carry is one additive line, so heavy stays 4"
     }
   ]
 }
