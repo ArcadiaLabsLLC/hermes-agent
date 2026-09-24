@@ -3151,12 +3151,46 @@ def _attach_plugin_cli_command(subparsers, cmd_info) -> None:
         plugin_parser.set_defaults(func=cmd_info["handler_fn"])
 
 
+# fork: hook-pending (seam Stage 1) — upstream PR candidate beside plugins.discover_declared_cli_commands.
+def _attach_declared_plugin_cli_commands(subparsers) -> set:
+    """Attach every ``plugin.yaml``-declared top-level command; returns the names attached.
+
+    A declared name that is a built-in is refused (it would break every invocation, not just its
+    own). One plugin failing to materialise costs only its own command.
+    """
+    declared: set = set()
+    try:
+        from hermes_cli.plugins import discover_declared_cli_commands
+
+        commands = discover_declared_cli_commands()
+    except Exception as exc:
+        logging.getLogger(__name__).warning("Declared plugin CLI scan failed: %s", exc)
+        return declared
+    for cmd_info in commands:
+        name = cmd_info["name"]
+        if name in _BUILTIN_SUBCOMMANDS or name in declared:
+            logging.getLogger(__name__).warning(
+                "Plugin %s declares CLI command %r, which is already taken; skipping", cmd_info["plugin_key"], name)
+            continue
+        declared.add(name)
+        try:
+            _attach_plugin_cli_command(subparsers, cmd_info)
+        except Exception as exc:
+            logging.getLogger(__name__).warning("Plugin CLI command %r failed to materialise: %s", name, exc)
+    return declared
+
+
 def _register_plugin_cli_commands(subparsers) -> None:
     """Register plugin-provided top-level commands (each plugin builds its own argparse tree).
 
     Skipped when the invocation targets a known built-in — eagerly importing
     every bundled plugin module costs 500-650ms.
     """
+    # fork: hook-pending (seam Stage 1) — manifest-declared commands attach BEFORE the discovery
+    # gate and materialise only their own plugin, so invoking one never pays discover_plugins().
+    declared = _attach_declared_plugin_cli_commands(subparsers)
+    if _first_positional_argv() in declared:
+        return
     if not _plugin_cli_discovery_needed():
         return
     try:
@@ -3164,6 +3198,7 @@ def _register_plugin_cli_commands(subparsers) -> None:
         from hermes_cli.plugins import discover_plugins, get_plugin_manager
 
         seen_plugin_commands = set()
+        seen_plugin_commands.update(declared)  # fork: hook-pending (seam Stage 1)
         for cmd_info in discover_plugin_cli_commands():
             _attach_plugin_cli_command(subparsers, cmd_info)
             seen_plugin_commands.add(cmd_info["name"])
