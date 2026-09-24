@@ -151,6 +151,20 @@ def brief_tool_descriptions(request=None, **_context):
     return {"request": rewritten, "source": "eternia-harness", "reason": "tool wire briefs"}
 
 
+def default_background_notify(tool_name=None, args=None, **_context):
+    """``tool_request`` middleware: a background ``terminal`` spawn notifies on exit by default.
+
+    Owner ruling 2026-09-24 — completion is decided once, at spawn, through upstream's own
+    ``notify`` parameter; an explicit ``notify`` (``false`` included) is left alone.
+    """
+    from agent_runtime.background_completion import default_background_notify as _default
+
+    rewritten = _default(tool_name, args)
+    if rewritten is None:
+        return None
+    return {"args": rewritten, "source": "eternia-harness", "reason": "background notify default"}
+
+
 def record_usage_ledger_row(**kwargs):
     """``post_api_request`` hook: one per-call usage row for a bound persona-turn ledger."""
     from agent_runtime.usage_ledger import on_post_api_request
@@ -161,6 +175,7 @@ def record_usage_ledger_row(**kwargs):
 def register(ctx) -> None:
     ctx.register_system_prompt_section("eternia-harness.tool-guidance", render_tool_guidance)
     ctx.register_middleware("llm_request", brief_tool_descriptions)
+    ctx.register_middleware("tool_request", default_background_notify)
     ctx.register_hook("post_api_request", record_usage_ledger_row)
     # Joins the built-in `skills` toolset by registry membership; the platform bundles
     # still name it in toolsets.py until a register-toolset PR lets a plugin join them.

@@ -35,7 +35,7 @@ from hermes_cli.config import get_hermes_home
 from tools.process_registry_notifications import format_process_notification
 from tools.process_registry_checkpoint import ProcessCheckpointMixin
 from agent_runtime.process_notifications import (
-    ProcessNotificationMixin, checkpoint_path, wait_ceiling_seconds, MISSION_CHAT_WAIT_MAX_SECONDS,
+    ProcessNotificationMixin, checkpoint_path, wait_ceiling_seconds,
 )
 from tools.process_registry_results import load_completed_results, save_completed_result
 
@@ -1602,47 +1602,26 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
         # buffered ``output_buffer``, never from the pipe.
         self._release_finished_handles(session)
         self._write_checkpoint()
-        # Only enqueue completion notification on the FIRST move.  Without
-        # this guard, kill_process() and the reader thread can both call
-        # _move_to_finished(), producing duplicate [IMPORTANT: ...] messages.
-        # The same fact is the return value: only the first move persisted.
-        if not was_running:
-            return False
-        # A ``process notify`` request is the SECOND reason a completion is
-        # owed — the first being a spawn-time notify_on_complete. Both produce
-        # ONE event: a session that is armed twice over must not deliver twice.
-        try:
-            notify_row = self._notify_request_row(session.id)
-            if not session.notify_on_complete and notify_row is None:
-                return True
-            if notify_row is not None and not self._notify_target_is_live(notify_row):
-                # The persona instance that asked is gone. DROP it — the delivery
-                # lane's positive-ownership rule (#64484) says absence of the
-                # instance means "do not deliver", never "deliver anyway" — and say
-                # so out loud, because a silently abandoned completion is the exact
-                # failure class this lane exists to retire.
-                logger.warning(
-                    "process-exit notify for %s dropped: persona instance %s no longer"
-                    " owns chat root %s",
-                    session.id,
-                    notify_row.get("persona_instance_id") or "?",
-                    notify_row.get("chat_session_id") or "?",
-                )
-                self._settle_notify_request(
-                    session.id, fired=False, detail="persona_instance_missing"
-                )
-                notify_row = None
-                if not session.notify_on_complete:
-                    return True
-            event = self._completion_event_payload(session)
-            if notify_row is not None:
-                self._stamp_notify_routing(event, notify_row)
-                self._settle_notify_request(session.id, fired=True)
-            self.completion_queue.put(event)
-        finally:
-            # A finite owner must not wake before the completion is queued.
-            session._completion_event.set()
-        return True
+        if was_running and session.notify_on_complete:
+            notification = {
+                "type": "completion",
+                "session_id": session.id,
+                "session_key": session.session_key,
+                "task_id": session.task_id,
+                "owner_task_id": session.owner_task_id or session.task_id,
+                "command": session.command,
+                **({"handoff_note": session.handoff_note} if session.handoff_note else {}),
+                **self._exit_fields(session),
+                # A consumer that relays the output (a bot DM's reply) must know it is not whole.
+                **_completion_output(session),
+                # Stable producer identity across checkpoint recovery (unlike a
+                # consumer-observed completion timestamp).
+                "started_at": session.started_at,
+            }
+            _redact_process_result(notification)
+            self.completion_queue.put(notification)
+        session._completion_event.set()
+        return was_running
 
     @staticmethod
     def _exit_fields(session: ProcessSession) -> dict:
@@ -1844,7 +1823,7 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
             # Routing happened first so a foreign session cannot drop the owner's
             # event via its own consumed/observed state.
             _evt_sid = evt.get("session_id", "")
-            if evt.get("type") == "completion" and not evt.get("notify_requested") and self._drain_should_skip(
+            if evt.get("type") == "completion" and self._drain_should_skip(
                 _evt_sid, skip_poll_observed=skip_poll_observed):
                 continue
             # Subagent-owned process notifications are suppressed by default — the
@@ -2477,7 +2456,6 @@ PROCESS_SCHEMA = {
         "until exit or timeout (partial output on timeout). write vs "
         "submit: submit appends Enter — use it to answer prompts; write "
         "sends raw bytes, no newline. close: EOF stdin. kill: terminate. "
-        "notify: request a completion receipt in a new persona chat turn, then end this turn. "
         "handoff (subagents only): transfer a running process you started to your parent agent, which then "
         "receives its completion; `data` = one sentence on its purpose. Subagent-owned processes are otherwise "
         "killed when the subagent finishes and their notifications never reach the parent."
@@ -2487,7 +2465,7 @@ PROCESS_SCHEMA = {
         "properties": {
             "action": {
                 "type": "string",
-                "enum": ["list", "poll", "log", "wait", "kill", "write", "submit", "close", "handoff", "notify"]
+                "enum": ["list", "poll", "log", "wait", "kill", "write", "submit", "close", "handoff"]
             },
             "session_id": {
                 "type": "string",
@@ -2571,7 +2549,6 @@ def _list_processes(task_id) -> dict:
 # action -> (handler(session_id, args) -> dict, redact output?). Output-bearing
 # actions are redacted; stdin actions return only status.
 _SESSION_ACTIONS = {
-    "notify": (lambda sid, a: process_registry.notify_on_exit(sid), True),
     "poll": (lambda sid, a: process_registry.poll(sid), True),
     "log": (lambda sid, a: process_registry.read_log(sid, offset=a.get("offset"), limit=a.get("limit", 200)), True),
     "wait": (lambda sid, a: process_registry.wait(sid, timeout=a.get("timeout")), True),
@@ -2639,7 +2616,7 @@ def _handle_process(args, **kw):
         handler, redact = _SESSION_ACTIONS[action]
         result = handler(session_id, args)
         return json.dumps(_redact_process_result(result) if redact else result, ensure_ascii=False)
-    return tool_error(f"Unknown process action: {action}. Use: list, poll, log, wait, kill, write, submit, close, handoff, notify")
+    return tool_error(f"Unknown process action: {action}. Use: list, poll, log, wait, kill, write, submit, close, handoff")
 
 
 registry.register(

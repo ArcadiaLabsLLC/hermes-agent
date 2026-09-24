@@ -51,17 +51,16 @@ ask one question per decision, and hand back an installed sheet.
   Control persona id inside the parenthesis, never a slug of your display name.
   A draft with no resolvable `authored_by` refuses to resume at all.
 - **Wait cadence.** One generation is 1–2 minutes; a full `rows` batch is 10–20.
-  Fire the batch with `terminal(background=true)`, call `process` with
-  `action: "notify"` and the returned `session_id`, and **end your turn** — a
-  new turn arrives when the process exits, opening with
-  `[BACKGROUND PROCESS COMPLETE — …]`; it waits for your thread to go idle, and
-  a duplicate or post-exit notify is safe. If notify answers
-  `status: "unavailable"`, fall back to blocking: pass `timeout: 600` and never
-  less — every expiry is a full API round-trip that re-sends the whole prompt.
+  Fire the batch with `terminal(background=true)` — completion notice is ON by
+  default — and **end your turn**: a new turn arrives when the process exits,
+  opening with `[IMPORTANT: Background process … exited …]`; it waits for your
+  thread to go idle. If you would rather block, pass `timeout: 600` to
+  `process_manage` `wait` and never less — every expiry is a full API
+  round-trip that re-sends the whole prompt.
   Between waits do QA that is already available — thumb the rows that already
   landed — rather than polling empty-handed. When the operator asked for the
   WHOLE thing in one go, `characters auto` is that same shape as one process:
-  fire it in the background, `notify`, end your turn, and report every receipt
+  fire it in the background, end your turn, and report every receipt
   line it printed.
 - **Batch: many verbs, one tool call.** Ten thumbs in one command —
 

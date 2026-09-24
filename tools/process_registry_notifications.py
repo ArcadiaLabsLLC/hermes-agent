@@ -468,20 +468,6 @@ def format_process_notification(evt: dict) -> "str | None":
         # Say so where the output is the payload (a teammate's reply): a silent tail reads as whole.
         _out = (f"...(first {evt['output_cut']} characters cut — process(action=\"log\", "
                 f"session_id=\"{_sid}\") has the full output)\n{_out}")
-    if evt.get("notify_requested"):
-        # Self-contained, for the same reason ``dispatch_delivery.
-        # format_dispatch_delivery`` is: by the time this re-enters the
-        # conversation the agent's turn has ENDED and a new one is reading it
-        # cold. It must say why this arrived without being asked.
-        return (
-            f"[BACKGROUND PROCESS COMPLETE — {_sid} {_completion_status(evt)} "
-            f"(exit code {_exit}{_signal}).\n"
-            "You asked to be told when this finished (process notify) and ended "
-            "your turn. This is that receipt — you may have moved on since, so "
-            "check it against what you were doing.\n"
-            f"Command: {_cmd}\n"
-            f"Output:\n{_out}]"
-        )
     return (
         f"[IMPORTANT: Background process {_sid} {_completion_status(evt)} (exit code {_exit}{_signal}).\n"
         f"{attribution}Command: {_cmd}\nOutput:\n{_out}]")

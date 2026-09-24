@@ -110,8 +110,8 @@ def test_plugin_registers_the_middleware_and_returns_the_rewrite():
             registered.append((kind, callback))
 
     plugin.register(_Ctx())
-    assert [kind for kind, _ in registered] == ["llm_request"]
-    callback = registered[0][1]
+    assert [kind for kind, _ in registered].count("llm_request") == 1
+    callback = dict(registered)["llm_request"]
     request = {"tools": [{"name": "clarify", "description": _FULL, "input_schema": _PARAMS}]}
     result = callback(request=request, session_id="s", api_mode="anthropic_messages")
     assert result["request"]["tools"][0]["description"] == BRIEF_DESCRIPTIONS["clarify"]

@@ -19,14 +19,14 @@ BRIEF_DESCRIPTIONS = {
     'write_file': 'Replace a whole file, creating parent directories and reporting new syntax '
                   'errors. Read existing files first; unread or changed-file overwrites are '
                   'refused. Use patch for targeted edits; prefer this over shell writes.',
-    'terminal': 'Run shell commands; cwd/exported env persist. Use background=true with '
-                'notify=true for long tasks; pty=true for interactive CLIs. Prefer file tools '
+    'terminal': 'Run shell commands; cwd/exported env persist. Use background=true for '
+                'long tasks (exit notice by default; notify=false opts out); pty=true for interactive CLIs. Prefer file tools '
                 'for file work. Call tool_describe for lifecycle/platform details.',
     # Moved out of the upstream tool files 2026-09-24 (lane MECH): the fork's
     # trimmed wire text, upstream's schema text left as shipped.
     "todo_list": "Session task list for 3+ steps; no args reads it. For requested batches, enumerate every instance; split phases via parent. Keep ONE item in_progress; mark complete only when verified done. If a task fails, cancel it and add a revised item. Not durable memory.",
     "close_terminal": "Close the read-only GUI tab for a background process (desktop only): drops the view, does NOT kill the process (output keeps buffering; reopen from the status stack). Disambiguator: to stop the process use process_manage(action='kill').",
-    "process_manage": "Background processes: wait returns partial output on timeout. submit appends Enter to answer prompts; write sends raw bytes, no newline. notify requests a receipt in a new persona turn: end this turn. Subagents must handoff surviving processes. Call tool_describe for ownership and retention details.",
+    "process_manage": "Background processes: wait returns partial output on timeout. submit appends Enter to answer prompts; write sends raw bytes, no newline. Subagents must handoff surviving processes. Call tool_describe for ownership and retention details.",
     "read_terminal": "Read what is currently shown in the Hermes desktop GUI's embedded terminal pane (desktop only). No args = visible screen + total_lines; pass start_line/count to page scrollback. Returns a JSON viewport.",
     "web_search": "Search the web (up to 5 results: title, URL, description). Backend operators like site:, filetype:, intitle:, -term, and \"exact phrase\" may work. Disambiguator: use web_extract to read a specific page.",
     "web_extract": "Extract clean markdown/text from web page or PDF URLs (no LLM summarization). Large pages return a head+tail window with a saved-file path to read the rest. Disambiguator: for interactive or failed pages use the browser tools; to find pages use web_search.",

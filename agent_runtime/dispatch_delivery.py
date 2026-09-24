@@ -573,6 +573,8 @@ def _owns_event_with_accounting(evt: dict[str, Any]) -> bool:
     """
 
     root = _chat_root_of_completion(evt)
+    if root is None and _orphaned_persona_root(evt) is not None:
+        return True  # taken off the queue to be DROPPED, loudly, by the drain
     if root is None:
         try:  # A — accounting must never be able to change the answer below
             _telemetry.record_bounce(
@@ -1316,6 +1318,35 @@ def _chat_root_of_completion(evt: dict[str, Any]) -> str | None:
     return None
 
 
+def _orphaned_persona_root(evt: dict[str, Any]) -> str | None:
+    """The persona chat root a PROCESS completion names when nobody owns it now, else None.
+
+    The persona-instance-gone drop the owner ruling of 2026-09-24 gives this lane (it used
+    to live in ``tools/process_registry.py``'s late-notify block): a ``terminal``
+    completion stamped with a ``persona_chat_`` root whose instance was retired has
+    nowhere to land, and re-queueing it would spin forever. Only a store that ANSWERS
+    "no owner" counts — an unreadable lookup returns None (absence of proof is not
+    proof of absence), and any owned candidate means the event is deliverable.
+    """
+
+    if str(evt.get("type") or "") != "completion":
+        return None
+    orphan = None
+    for key in ("origin_ui_session_id", "parent_session_id", "session_key", "session_id"):
+        candidate = str(evt.get(key) or "").strip()
+        if not candidate.startswith("persona_chat_"):
+            continue
+        try:
+            owner = _sender_persona(candidate)
+        except Exception:
+            logger.debug("owner lookup failed for %s", candidate, exc_info=True)
+            return None
+        if owner is not None:
+            return None
+        orphan = orphan or candidate
+    return orphan
+
+
 def _claim_durable_completion(evt: dict[str, Any]) -> str | None:
     """Claim a queued completion's durable row. ``""`` when it has none.
 
@@ -1459,6 +1490,7 @@ def drain_background_completions(*, forge: Callable | None = None) -> dict[str, 
         "failed": 0,
         "abandoned": 0,
         "unclaimed": 0,
+        "dropped": 0,
     }
     forge = forge or forge_delivery_turn
     try:
@@ -1495,6 +1527,18 @@ def drain_background_completions(*, forge: Callable | None = None) -> dict[str, 
         # reused by both the forge's client_message_id below and the accounting
         # rows, so the two can never name the same completion differently.
         key = _event_key(evt)
+        orphan = _orphaned_persona_root(evt) if root is None else None
+        if orphan is not None:
+            # The instance that spawned it is gone: DROP, and say so. A silently
+            # abandoned completion is the failure class this lane exists to retire.
+            logger.warning(
+                "process completion %s dropped: no persona instance owns chat root %s",
+                key,
+                orphan,
+            )
+            tally["dropped"] += 1
+            _telemetry.record_bounce(key, "persona_instance_missing", f"root={orphan}", root=orphan)
+            continue
         if root is None or owner is None or not text:
             # Ownership was proven at drain time; if it cannot be re-proven now
             # the event goes BACK on the queue rather than being dropped.

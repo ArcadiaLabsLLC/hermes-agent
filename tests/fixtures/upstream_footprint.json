@@ -2,7 +2,7 @@
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
   "files": 215,
-  "deleted_lines": 1023,
+  "deleted_lines": 1000,
   "heavy": 4,
   "reasons": [
     {
@@ -156,6 +156,12 @@
       "files": "216 -> 215: tests/gateway/test_runtime_footer.py back to f24a1d7f92 bytes (its fork edit lives in test_runtime_footer_downstream.py)",
       "deleted_lines": "1032 -> 1023 (that file's edits)",
       "reason": "row-11 comment stripping lives in tests/_downstream/live_guard_classify.py (conftest hunk +2/-1); the run_tests.sh PATHEXT carry is one additive line, so heavy stays 4"
+    },
+    {
+      "change": "lane DOORS-A process notify (seam/doors-a-2026-09-24)",
+      "files": "flat (215)",
+      "deleted_lines": "1023 -> 1000",
+      "reason": "owner ruling 2026-09-24: the late process-notify second door is deleted. tools/process_registry.py returns _move_to_finished, the drain-skip clause and the notify action/enum/schema line to upstream bytes (-23); tools/process_registry_notifications.py loses the notify_requested receipt (-14 added). The ledger's 1036 -> 1027 drift from earlier landings is folded in: the fixture follows the measurement"
     }
   ]
 }
