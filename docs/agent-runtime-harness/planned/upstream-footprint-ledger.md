@@ -276,64 +276,64 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tests/hermes_cli/test_noninteractive_git.py` | 5 | 2 | upstream | superseded by upstream 96c9cc9ac6: upstream removed the vacuous `or True` | merge |
 | `tests/hermes_cli/test_nous_inference_url_validation.py` | 92 | 29 | carry | fork test infra: fork source-reading gate; replaces upstream lines: source-read assertion rewritten behaviourally | - |
 | `tests/hermes_cli/test_orphan_desktop_serve_reap.py` | 5 | 0 | upstream | PR candidate: linux-only markers (@pytest.mark.linux_only; needs per-test proof the behaviour is Linux-specific) | S3 |
-| `tests/hermes_cli/test_plugins.py` | 10 | 6 | carry | unreviewed | - |
-| `tests/hermes_cli/test_process_notification_display.py` | 1 | 0 | carry | unreviewed | - |
-| `tests/hermes_cli/test_profile_delete_log_handlers.py` | 9 | 4 | carry | unreviewed | - |
+| `tests/hermes_cli/test_plugins.py` | 10 | 6 | upstream | lifted: up/monkeypatch-undo-scoped | up/monkeypatch-undo-scoped |
+| `tests/hermes_cli/test_process_notification_display.py` | 1 | 0 | carry | depends on fork prod code HERMES_BACKGROUND_AGENT_TURNS (background agent turns) | - |
+| `tests/hermes_cli/test_profile_delete_log_handlers.py` | 9 | 4 | upstream | lifted: up/profiles-delete-guard (the **__ stub signatures) | up/profiles-delete-guard |
 | `tests/hermes_cli/test_profiles.py` | 435 | 1 | carry | S5: 6 fork test unit(s) cannot leave — share upstream module fixture profile_env (a move would drop or duplicate it) | S5 |
-| `tests/hermes_cli/test_projects_db.py` | 19 | 7 | carry | unreviewed | - |
-| `tests/hermes_cli/test_prompt_compose_command.py` | 25 | 11 | carry | unreviewed | - |
-| `tests/hermes_cli/test_relaunch.py` | 24 | 0 | carry | unreviewed | - |
-| `tests/hermes_cli/test_relay_shared_metrics.py` | 52 | 7 | carry | unreviewed | - |
-| `tests/hermes_cli/test_resolve_provider_openrouter_pool.py` | 9 | 1 | carry | unreviewed | - |
-| `tests/hermes_cli/test_restart_plan_reconciliation.py` | 6 | 0 | carry | unreviewed | - |
-| `tests/hermes_cli/test_setup_blank_slate.py` | 2 | 2 | carry | unreviewed | - |
-| `tests/hermes_cli/test_setup_hermes_script.py` | 19 | 1 | carry | unreviewed | - |
-| `tests/hermes_cli/test_setup_matrix_e2ee.py` | 12 | 7 | carry | unreviewed | - |
-| `tests/hermes_cli/test_skin_cmd.py` | 5 | 3 | carry | unreviewed | - |
-| `tests/hermes_cli/test_slack_cli.py` | 0 | 1 | carry | unreviewed | - |
-| `tests/hermes_cli/test_stderr_timestamp.py` | 0 | 259 | carry | unreviewed | - |
-| `tests/hermes_cli/test_subagent_notification_display.py` | 2 | 0 | carry | unreviewed | - |
-| `tests/hermes_cli/test_subcommands_batch.py` | 0 | 1 | carry | unreviewed | - |
-| `tests/hermes_cli/test_subprocess_timeouts.py` | 1 | 1 | carry | unreviewed | - |
-| `tests/hermes_cli/test_tui_resume_flow.py` | 4 | 1 | carry | unreviewed | - |
-| `tests/hermes_cli/test_update_autostash.py` | 20 | 0 | carry | unreviewed | - |
-| `tests/hermes_cli/test_update_concurrent_quarantine.py` | 13 | 0 | carry | unreviewed | - |
-| `tests/hermes_cli/test_update_fleet_restart_pending.py` | 8 | 0 | carry | unreviewed | - |
-| `tests/hermes_cli/test_update_serve_generation_recovery.py` | 1 | 0 | carry | unreviewed | - |
-| `tests/hermes_cli/test_update_stale_dashboard.py` | 34 | 7 | carry | unreviewed | - |
-| `tests/hermes_cli/test_update_zip_two_phase.py` | 38 | 39 | carry | unreviewed | - |
-| `tests/hermes_cli/test_voice_wrapper.py` | 4 | 0 | carry | unreviewed | - |
+| `tests/hermes_cli/test_projects_db.py` | 19 | 7 | upstream | lifted: up/win-path-spelling | up/win-path-spelling |
+| `tests/hermes_cli/test_prompt_compose_command.py` | 25 | 11 | upstream | lifted: up/win-shell-invocation | up/win-shell-invocation |
+| `tests/hermes_cli/test_relaunch.py` | 24 | 0 | carry | fork test infra: host-OS fake (platform patch fakes linux); upstream AGENTS.md bans faking the host OS, so no PR | - |
+| `tests/hermes_cli/test_relay_shared_metrics.py` | 52 | 7 | carry | fork test infra: pytest-timeout marker / bounds sized for the fork's repo-wide --timeout=30 runner | - |
+| `tests/hermes_cli/test_resolve_provider_openrouter_pool.py` | 9 | 1 | carry | fork test infra: needed only under the fork's shared-process runner (upstream isolates each file under env -i); AWS scrub already in tests/conftest.py + env -i | - |
+| `tests/hermes_cli/test_restart_plan_reconciliation.py` | 6 | 0 | upstream | REVERT: comment-only S5 residue (points at a test that moved) | merge |
+| `tests/hermes_cli/test_setup_blank_slate.py` | 2 | 2 | hook | seam: plugin tool registration + register_system_prompt_section (T6b tool_describe) | S2 |
+| `tests/hermes_cli/test_setup_hermes_script.py` | 19 | 1 | upstream | lifted: up/win-shell-invocation | up/win-shell-invocation |
+| `tests/hermes_cli/test_setup_matrix_e2ee.py` | 12 | 7 | upstream | superseded by upstream 4b67380698: file deleted upstream (purge lane); next merge takes the deletion or keeps it fork-only | merge |
+| `tests/hermes_cli/test_skin_cmd.py` | 5 | 3 | upstream | lifted: up/win-text-encoding | up/win-text-encoding |
+| `tests/hermes_cli/test_slack_cli.py` | 0 | 1 | upstream | REVERT: whitespace-only S5 residue (trailing blank line) | merge |
+| `tests/hermes_cli/test_stderr_timestamp.py` | 0 | 259 | upstream | superseded by upstream 67f385f2d8: the fork relocated upstream's file to tests/gateway/ and that copy is stale (-29 lines); restore upstream's path, delete the fork copy | merge |
+| `tests/hermes_cli/test_subagent_notification_display.py` | 2 | 0 | carry | depends on fork prod code HERMES_BACKGROUND_AGENT_TURNS (background agent turns) | - |
+| `tests/hermes_cli/test_subcommands_batch.py` | 0 | 1 | upstream | REVERT: whitespace-only S5 residue (blank line) | merge |
+| `tests/hermes_cli/test_subprocess_timeouts.py` | 1 | 1 | upstream | lifted: up/win-text-encoding | up/win-text-encoding |
+| `tests/hermes_cli/test_tui_resume_flow.py` | 4 | 1 | upstream | lifted: up/win-line-endings | up/win-line-endings |
+| `tests/hermes_cli/test_update_autostash.py` | 20 | 0 | carry | fork test infra: stub for the fork's update venv-process walk | - |
+| `tests/hermes_cli/test_update_concurrent_quarantine.py` | 13 | 0 | carry | fork test infra: real_windows_gateway_pause marker | - |
+| `tests/hermes_cli/test_update_fleet_restart_pending.py` | 8 | 0 | carry | depends on fork prod code hermes_cli update fleet settle clock | - |
+| `tests/hermes_cli/test_update_serve_generation_recovery.py` | 1 | 0 | upstream | PR candidate: linux-only markers (@pytest.mark.linux_only; needs per-test proof the behaviour is Linux-specific) | S3 |
+| `tests/hermes_cli/test_update_stale_dashboard.py` | 34 | 7 | carry | fork test infra: host-OS fake (platform patch); upstream AGENTS.md bans faking the host OS, so no PR | - |
+| `tests/hermes_cli/test_update_zip_two_phase.py` | 38 | 39 | upstream | lifted: up/monkeypatch-undo-scoped | up/monkeypatch-undo-scoped |
+| `tests/hermes_cli/test_voice_wrapper.py` | 4 | 0 | carry | fork test infra: tests/conftest.py PROJECT_ROOT sys.path insert (a local tests/-relative insert shadowed hermes_cli) | - |
 | `tests/hermes_cli/test_web_ui_build.py` | 62 | 2 | carry | S5: 1 fork test unit(s) cannot leave — share upstream autouse fixture _isolated_hermes_home (a move would drop or duplicate it) | S5 |
-| `tests/hermes_cli/test_win_pty_bridge.py` | 41 | 3 | carry | unreviewed | - |
+| `tests/hermes_cli/test_win_pty_bridge.py` | 41 | 3 | upstream | lifted: up/win-conpty-line-wrap | up/win-conpty-line-wrap |
 | `tests/hermes_cli/test_worktree_selfheal.py` | 92 | 5 | carry | S5: 1 fork test unit(s) cannot leave — share upstream module fixture repo (a move would drop or duplicate it) | S5 |
-| `tests/hermes_cli/test_worktree_sync_base.py` | 10 | 1 | carry | unreviewed | - |
-| `tests/hermes_cli/test_xai_provider_labels.py` | 45 | 3 | carry | unreviewed | - |
-| `tests/hermes_state/test_append_messages_batch.py` | 4 | 4 | carry | unreviewed | - |
-| `tests/hermes_state/test_retired_wal_generation_capture.py` | 10 | 13 | carry | unreviewed | - |
-| `tests/hermes_state/test_session_db_read_conn_pool.py` | 5 | 5 | carry | unreviewed | - |
+| `tests/hermes_cli/test_worktree_sync_base.py` | 10 | 1 | upstream | REVERT: comment-only fork note (explains the fork's retired pre-push hook, 7bbf6db3b); no behaviour | merge |
+| `tests/hermes_cli/test_xai_provider_labels.py` | 45 | 3 | upstream | superseded by upstream 8f6109e493: upstream made the assertion relative | merge |
+| `tests/hermes_state/test_append_messages_batch.py` | 4 | 4 | upstream | lifted: up/monkeypatch-undo-scoped | up/monkeypatch-undo-scoped |
+| `tests/hermes_state/test_retired_wal_generation_capture.py` | 10 | 13 | upstream | lifted: up/monkeypatch-undo-scoped | up/monkeypatch-undo-scoped |
+| `tests/hermes_state/test_session_db_read_conn_pool.py` | 5 | 5 | upstream | lifted: up/monkeypatch-undo-scoped | up/monkeypatch-undo-scoped |
 | `tests/plugins/dashboard_auth/test_nous_provider.py` | 30 | 5 | carry | S5: 1 fork test unit(s) cannot leave — share class TestConfigYamlSource carries upstream setup/members (patch_config) (a move would drop or duplicate it) | S5 |
-| `tests/plugins/dashboard_auth/test_self_hosted_provider.py` | 14 | 2 | carry | unreviewed | - |
-| `tests/plugins/memory/test_holographic_store.py` | 19 | 9 | carry | unreviewed | - |
-| `tests/plugins/platforms/photon/test_sidecar_paths.py` | 20 | 15 | carry | unreviewed | - |
-| `tests/providers/test_entry_point_discovery.py` | 1 | 1 | carry | unreviewed | - |
-| `tests/scripts/desktop_update/test_desktop_update_windows_cwd.py` | 2 | 1 | carry | unreviewed | - |
-| `tests/scripts/desktop_update/test_desktop_update_windows_pipe_drain.py` | 1 | 0 | carry | unreviewed | - |
-| `tests/scripts/desktop_update/test_desktop_update_windows_progress.py` | 2 | 1 | carry | unreviewed | - |
-| `tests/scripts/desktop_update/test_desktop_update_windows_retry_policy.py` | 4 | 1 | carry | unreviewed | - |
-| `tests/scripts/desktop_update/test_desktop_update_windows_ui_delivery.py` | 2 | 1 | carry | unreviewed | - |
-| `tests/scripts/install/test_install_ps1_managed_python_provenance.py` | 1 | 0 | carry | unreviewed | - |
-| `tests/scripts/test_contributor_map.py` | 2 | 1 | carry | unreviewed | - |
-| `tests/scripts/test_run_tests_parallel.py` | 56 | 7 | carry | unreviewed | - |
-| `tests/test_hermes_constants.py` | 9 | 1 | carry | unreviewed | - |
-| `tests/test_live_system_guard.py` | 14 | 11 | carry | unreviewed | - |
+| `tests/plugins/dashboard_auth/test_self_hosted_provider.py` | 14 | 2 | carry | depends on fork prod code plugins/dashboard_auth/_shared.py load_config_readonly caller (96cfc09a34) | - |
+| `tests/plugins/memory/test_holographic_store.py` | 19 | 9 | upstream | lifted: up/monkeypatch-undo-scoped | up/monkeypatch-undo-scoped |
+| `tests/plugins/platforms/photon/test_sidecar_paths.py` | 20 | 15 | upstream | lifted: up/monkeypatch-undo-scoped | up/monkeypatch-undo-scoped |
+| `tests/providers/test_entry_point_discovery.py` | 1 | 1 | carry | depends on fork prod code hermes_cli/plugins_discovery.py split (symbol since adopted upstream; supersession re-check owed at next merge) | - |
+| `tests/scripts/desktop_update/test_desktop_update_windows_cwd.py` | 2 | 1 | carry | fork test infra: pytest-timeout marker / bounds sized for the fork's repo-wide --timeout=30 runner | - |
+| `tests/scripts/desktop_update/test_desktop_update_windows_pipe_drain.py` | 1 | 0 | carry | fork test infra: pytest-timeout marker / bounds sized for the fork's repo-wide --timeout=30 runner | - |
+| `tests/scripts/desktop_update/test_desktop_update_windows_progress.py` | 2 | 1 | carry | fork test infra: pytest-timeout marker / bounds sized for the fork's repo-wide --timeout=30 runner | - |
+| `tests/scripts/desktop_update/test_desktop_update_windows_retry_policy.py` | 4 | 1 | carry | depends on fork prod code desktop-update history-refusal arm (+ fork-runner timeout marker, R7) | - |
+| `tests/scripts/desktop_update/test_desktop_update_windows_ui_delivery.py` | 2 | 1 | carry | fork test infra: pytest-timeout marker / bounds sized for the fork's repo-wide --timeout=30 runner | - |
+| `tests/scripts/install/test_install_ps1_managed_python_provenance.py` | 1 | 0 | carry | fork test infra: pytest-timeout marker / bounds sized for the fork's repo-wide --timeout=30 runner | - |
+| `tests/scripts/test_contributor_map.py` | 2 | 1 | upstream | PR candidate: case-insensitive filesystem (exists() on a case-folded name is True on Windows) | S3 |
+| `tests/scripts/test_run_tests_parallel.py` | 56 | 7 | upstream | PR candidate: probe rootdir anchor (pytest.ini) + utf-8 decode not in up/win-text-encoding; REVERT orphan S5 banners; 1 hunk already upstream (524c38a98a) | S3 |
+| `tests/test_hermes_constants.py` | 9 | 1 | upstream | PR candidate: win platform-default root pin (sys.platform, mirrors upstream's own win32 sibling) | S3 |
+| `tests/test_live_system_guard.py` | 14 | 11 | carry | fork test infra: _live_system_guard backend-spawn arm; replaces upstream lines: upstream's container-exec exemption test inverted into a fork test | - |
 | `tests/test_live_system_guard_self_test.py` | 80 | 1 | carry | S5: 11 fork test unit(s) cannot leave — share upstream autouse fixture _refuse_to_fire_live_weapons (a move would drop or duplicate it) | S5 |
 | `tests/tools/conftest.py` | 1 | 0 | carry | §0.4 / S5 landed: fork fixtures and hooks live in `tests/_downstream/` (root plugin + three star-imported modules); this file carries one added line | S5 |
-| `tests/tools/test_approval.py` | 72 | 12 | carry | unreviewed | - |
-| `tests/tools/test_approved_command_clean_slate.py` | 20 | 2 | carry | unreviewed | - |
-| `tests/tools/test_async_delegation.py` | 30 | 3 | carry | unreviewed | - |
-| `tests/tools/test_base_environment.py` | 27 | 9 | carry | unreviewed | - |
-| `tests/tools/test_browser_console.py` | 3 | 3 | carry | unreviewed | - |
-| `tests/tools/test_browser_content_none_guard.py` | 65 | 13 | carry | unreviewed | - |
+| `tests/tools/test_approval.py` | 72 | 12 | carry | depends on fork prod code tools/path_identity.py (_windows_spelling_of_msys_path) + hermes_cli/tirith_config.py; replaces upstream lines: /tmp fixture replaced by the platform temp dir | - |
+| `tests/tools/test_approved_command_clean_slate.py` | 20 | 2 | upstream | lifted: up/win-shell-invocation | up/win-shell-invocation |
+| `tests/tools/test_async_delegation.py` | 30 | 3 | carry | depends on fork prod code async delegation restore_durable_completions (96cfc09a34) | - |
+| `tests/tools/test_base_environment.py` | 27 | 9 | upstream | PR candidate: held, test stays red on Windows for another reason (R10): bash resolution (win-shell-invocation class), then the 0600 test fails on NTFS mode bits; its concurrency hunk targets tests upstream deleted (524c38a98a) | S3 |
+| `tests/tools/test_browser_console.py` | 3 | 3 | carry | depends on fork prod code vision-config caller switched to load_config_readonly | - |
+| `tests/tools/test_browser_content_none_guard.py` | 65 | 13 | upstream | superseded by upstream 524c38a98a: file deleted upstream; next merge takes the deletion or keeps it fork-only | merge |
 | `tests/tools/test_browser_homebrew_paths.py` | 2 | 1 | carry | unreviewed | - |
 | `tests/tools/test_browser_orphan_reaper.py` | 61 | 0 | carry | S5: 3 fork test unit(s) cannot leave — share upstream autouse fixture _isolate_sessions (a move would drop or duplicate it) | S5 |
 | `tests/tools/test_checkpoint_manager.py` | 3 | 1 | carry | unreviewed | - |
