@@ -173,6 +173,13 @@ def record_usage_ledger_row(**kwargs):
     on_post_api_request(**kwargs)
 
 
+def route_blocked_kanban_cards(**kwargs):
+    """``on_kanban_dispatch_tick`` hook: route the ticking board's new ``blocked`` cards to PM."""
+    from agent_runtime.kanban_blocked_pm_tick import on_kanban_dispatch_tick
+
+    on_kanban_dispatch_tick(**kwargs)
+
+
 #: The harness's kanban claim lifetime. Long supervisor-style cards can spend more than
 #: upstream's 15 minutes inside one external call before they can `kanban_heartbeat`.
 KANBAN_CLAIM_TTL_SECONDS = 45 * 60
@@ -190,6 +197,7 @@ def register(ctx) -> None:
     ctx.register_middleware("llm_request", brief_tool_descriptions)
     ctx.register_middleware("tool_request", default_background_notify)
     ctx.register_hook("post_api_request", record_usage_ledger_row)
+    ctx.register_hook("on_kanban_dispatch_tick", route_blocked_kanban_cards)
     # Joins the built-in `skills` toolset by registry membership; the platform bundles
     # still name it in toolsets.py until a register-toolset PR lets a plugin join them.
     ctx.register_tool(

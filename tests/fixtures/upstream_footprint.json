@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 208,
-  "deleted_lines": 1000,
+  "files": 207,
+  "deleted_lines": 999,
   "heavy": 4,
   "reasons": [
     {
@@ -174,6 +174,12 @@
       "files": "212 -> 208",
       "deleted_lines": "flat (1000)",
       "reason": "G9 onto upstream's door: kanban_db._resolve_claim_ttl_seconds reads HERMES_KANBAN_CLAIM_TTL_SECONDS for every claim and the heartbeat extension; the eternia-harness plugin os.environ.setdefault()s it to 2700 at register(). gateway/kanban_watchers_dispatcher.py, hermes_cli/kanban_ops.py, hermes_cli/kanban_parser.py and hermes_cli/config_defaults.py at f24a1d7f92 bytes; kanban_db_dispatch.py loses run_daemon's ttl_seconds half"
+    },
+    {
+      "change": "lane DOORS-A PM watcher (seam/doors-a-2026-09-24)",
+      "files": "208 -> 207",
+      "deleted_lines": "1000 -> 999",
+      "reason": "the Kanban blocked-card PM router moves onto upstream's on_kanban_dispatch_tick (agent_runtime/kanban_blocked_pm_tick.py, registered by the eternia-harness plugin); gateway/run_startup.py at f24a1d7f92 bytes and the 5 s watcher leaves the gateway mixin"
     }
   ]
 }
