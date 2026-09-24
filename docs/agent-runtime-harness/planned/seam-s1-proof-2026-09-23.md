@@ -145,3 +145,45 @@ Expected: the 32–37 ms sweep becomes ~60 small reads (~5–10 ms), parser ≈ 
 generic-surface change to the PR (a manifest pre-filter), not a fork parallel. Re-take this A/B on it.
 
 **VERDICT (owner, 2026-09-23): threshold waived; +70.3 ms parser / +60 ms --help accepted as recorded debt; retire path = text pre-scan (§4 next shape).** Stage 1 comes off hold at the measured number.
+
+## 5. The text pre-scan (§4 next shape), built and measured — no measurable gain; not carried here
+
+Built as `d9e862938e` on the side branch `seam/s1-textscan` (cut from `0ec9af5783`), NOT on this branch.
+`collect_declared_cli_manifests()` walks the same roots as `collect_directory_manifests()` (both
+re-expressed over one shared `iter_manifest_candidates` / `manifest_roots` walk, so there is no second
+walker) and YAML-parses only manifests whose text mentions `cli_commands`, plus any manifest that could
+share a declaring key, so precedence stays exact. Tests: parse count == declaring manifests only (mutation
+"parse every manifest" red), and a later manifest without `cli_commands` still overrides (mutation red).
+Contract fixture: fresh, 202 paths, byte-identical.
+
+Two interleaved A/Bs, 7 samples each after one warm-up, fresh `HERMES_HOME` per sample. The box was NOT
+idle (about 21 % CPU; another lane was running), so the walls are noisy and the parser rows carry the
+weight. The baseline and `af093265e1` worktrees were rebuilt and then removed.
+
+| # | what | vs baseline `5732265aaf`: base → built (Δ median / Δ min) | vs `af093265e1`: prev → built (Δ median / Δ min) |
+|---|---|---|---|
+| (c) | `_build_cli_parser()` [harness doctor] | 829.8 → 881.3 (**+51.5 / +50.3**) | 1043.1 → 1033.1 (**−10.0 / −19.1**) |
+| (b) | `harness doctor`, wall | 2314.9 → 2164.3 (−150.6 / +25.7) | 2438.8 → 2180.4 (−258.4 / −293.8) |
+| (a) | `harness --help`, wall | 1612.8 → 1580.0 (−32.8 / +94.7) | 1430.9 → 1428.4 (−2.5 / −5.3) |
+
+**Why it bought ~nothing.** §4's estimate assumed YAML parsing was the 32–37 ms. A profile of the new
+scan says it never was: in-process the declared scan costs **21 ms before and 21–25 ms after**. The time
+goes to the directory walk's 344 `stat` calls (~13 ms) and the first `load_config_readonly()` of the
+process (~10 ms, a deepcopy on a fresh home). The pre-filter removes ~2 ms of YAML parsing. The parser
+is still over +50 against the baseline (+51.5 median, +50.3 min on a loaded box), and the change would
+cost the ratchet **+39 `deleted_lines`**, because `scan_directory` and `collect_directory_manifests` are
+re-expressed over the shared walk. That is not worth carrying, and there is no measured speed-up to
+submit upstream, so it stays on the side branch.
+
+**Cherry-pick onto `upstream/main` (`35b14ad5e2`): NOT clean.** It conflicts in `plugins.py` and
+`plugins_discovery.py` (the declared-CLI mechanism and the reader edits it builds on do not exist
+upstream), and in the fork-only fixture and test file (modify/delete). A clean upstream commit would have
+to be the whole mechanism, squashed and cut from `upstream/main`.
+
+**What would actually move the number** (not built): (1) no walk at all on the CLI path — cache the
+declared rows under `HERMES_HOME`, keyed on the plugin roots' directory mtimes, so a warm start is one
+`stat` per root plus one JSON read; (2) skip the gate's config read when no declaring manifest is
+disabled-able (a bundled `backend` never is). Together these address about 20 of the ~21 ms the scan
+costs; the rest of the +50–70 ms is `import hermes_cli.plugins` and attach.
+
+Debt stands as recorded in §4: parser **+70.3 ms** (idle A/B) / +51.5 ms (loaded A/B), waived by owner.
