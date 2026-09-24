@@ -16,6 +16,17 @@ from tests.gateway.test_background_process_notifications import (  # noqa: F401 
 
 
 class TestLoadBackgroundNotificationsMode:
+    def test_unknown_mode_falls_back_to_result(self, monkeypatch, tmp_path):
+        """Fork half of upstream's ``test_unknown_mode_falls_back_to_concise``
+        (a strict xfail row): the fork's fallback is ``'result'``."""
+        (tmp_path / "config.yaml").write_text(
+            "display:\n  background_process_notifications: bogus\n"
+        )
+        import gateway.run as gw
+        monkeypatch.setattr(gw, "_hermes_home", tmp_path)
+        monkeypatch.delenv("HERMES_BACKGROUND_NOTIFICATIONS", raising=False)
+        assert GatewayRunner._load_background_notifications_mode() == "result"
+
     def test_defaults_to_result(self, monkeypatch, tmp_path):
         import gateway.run as gw
         monkeypatch.setattr(gw, "_hermes_home", tmp_path)

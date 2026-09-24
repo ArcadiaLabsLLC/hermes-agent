@@ -259,7 +259,6 @@ class TestNotificationPollerLoopKanbanWiring:
     """
 
     def _start_poller(self, session: dict, monkeypatch):
-        monkeypatch.setenv("HERMES_BACKGROUND_AGENT_TURNS", "1")
         import threading
         import tui_gateway.server as server
 

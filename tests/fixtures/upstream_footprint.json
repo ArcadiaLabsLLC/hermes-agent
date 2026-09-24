@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 275,
-  "deleted_lines": 1826,
+  "files": 262,
+  "deleted_lines": 1785,
   "heavy": 7,
   "reasons": [
     {
@@ -104,9 +104,9 @@
     },
     {
       "change": "lane CARRY2B (seam/test-carries-rest-2026-09-24)",
-      "files": "295 -> 275",
-      "deleted_lines": "1876 -> 1826",
-      "reason": "upstream test files outside tests/hermes_cli restored to the merge base's bytes: tests/tools (20 files). Fork tests ride *_downstream.py siblings with upstream fixtures imported by name; POSIX-only reds are id-table skips reading 'POSIX-only; upstream fix = @pytest.mark.linux_only'; fork behaviour that makes an upstream assertion false is a strict xfail row naming the fork symbol; readers the fork moved to load_config_readonly get a by-id read-through to upstream's patched load_config"
+      "files": "295 -> 262",
+      "deleted_lines": "1876 -> 1785",
+      "reason": "upstream test files outside tests/hermes_cli restored to the merge base's bytes: tests/tools (20 files). Fork tests ride *_downstream.py siblings with upstream fixtures imported by name; POSIX-only reds are id-table skips reading 'POSIX-only; upstream fix = @pytest.mark.linux_only'; fork behaviour that makes an upstream assertion false is a strict xfail row naming the fork symbol; readers the fork moved to load_config_readonly get a by-id read-through to upstream's patched load_config; tests/gateway (11 files + conftest) and tui_gateway's kanban poller: the agent-turn lane is opted in by id (background_agent_turns, now one root fixture for the whole tree), mid-test monkeypatch.undo() tests are skip rows with scoped-context siblings, conftest env-gap skips are id rows"
     }
   ]
 }

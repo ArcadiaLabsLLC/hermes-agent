@@ -50,10 +50,8 @@ def _stub_mautrix():
         TRUSTED_PRIVATE = "trusted_private_chat"
 
     class TrustState:
-        pass
-
-    setattr(TrustState, "UN" + "VER" + "IFIED", 0)
-    setattr(TrustState, "VER" + "IFIED", 1)
+        UNVERIFIED = 0
+        VERIFIED = 1
 
     for attr in ("ContentURI", "EventID", "RoomID", "SyncToken", "UserID"):
         setattr(m, attr, str)

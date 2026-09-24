@@ -14,6 +14,7 @@ longer gives.
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -400,6 +401,93 @@ if _WIN:
         "tests/tools/test_process_registry.py::TestKillProcess::"
         "test_kill_detached_session_uses_host_pid": (
             _posix_only("pins the psutil terminate seam; Windows kills the tree via taskkill"),
+        ),
+    })
+
+
+# ── CARRY2B: tests/gateway (+ tui_gateway's agent-turn lane) ───────────────
+_AGENT_TURNS = pytest.mark.background_agent_turns
+_MIDTEST_UNDO = pytest.mark.skip(reason=(
+    "calls monkeypatch.undo(), which unwinds the shared per-test MonkeyPatch "
+    "(the root conftest's hermetic pins included) and is red under the fork's "
+    "_shared_monkeypatch_pin_tripwire; the scoped-context version is the "
+    "_downstream sibling"
+))
+
+ID_MARKS.update({
+    **{
+        node: (_AGENT_TURNS,)
+        for node in (
+            "tests/gateway/test_completion_session_boundary.py::"
+            "test_watcher_stamps_parent_session_id_on_completion_event",
+            "tests/gateway/test_completion_session_boundary.py::"
+            "test_watcher_falls_back_to_process_session_stamp",
+            "tests/gateway/test_completion_session_boundary.py::"
+            "test_completion_after_idle_end_still_delivers",
+            "tests/gateway/test_completion_session_boundary.py::"
+            "test_completion_from_live_session_delivers",
+            "tests/gateway/test_completion_session_boundary.py::"
+            "test_unstamped_legacy_completion_delivers",
+            "tests/gateway/test_completion_delivery.py::"
+            "test_autonomous_completion_redacts_real_command_and_output_secrets",
+            "tests/gateway/test_completion_delivery.py::"
+            "test_concurrent_process_watchers_coalesce_one_session_completion_turn",
+            "tests/gateway/test_internal_event_bypass_pairing.py::"
+            "test_notify_on_complete_uses_session_store_origin_for_group_topic",
+            "tests/tui_gateway/test_kanban_notify_poller.py::"
+            "TestNotificationPollerLoopKanbanWiring",
+        )
+    },
+    "tests/gateway/test_api_server_active_work_drain.py::TestShutdownSettleWindow::"
+    "test_api_work_still_live_at_settle_exit_is_reinterrupted": (_MIDTEST_UNDO,),
+    "tests/gateway/test_mirror.py::TestSessionsIndexProfileScoping::"
+    "test_fallback_follows_active_profile_home": (_MIDTEST_UNDO,),
+    "tests/gateway/test_background_process_notifications.py::"
+    "TestLoadBackgroundNotificationsMode::test_unknown_mode_falls_back_to_concise": (
+        pytest.mark.xfail(strict=True, reason=(
+            "the fork's gateway.run_config_loaders._load_background_notifications_mode "
+            "falls back to 'result'; fork half: "
+            "tests/gateway/test_background_process_notifications_downstream.py"
+        )),
+    ),
+    # DEPENDENCY-bound: plugins/platforms/wecom/callback_adapter.py falls back
+    # to ET=None without defusedxml; installing it retires these.
+    **{
+        f"tests/gateway/test_wecom_callback.py::{node}": (
+            pytest.mark.skipif(
+                importlib.util.find_spec("defusedxml") is None,
+                reason="optional dependency 'defusedxml' is not installed",
+            ),
+        )
+        for node in (
+            "TestWecomCallbackEventConstruction::test_build_event_extracts_text_message",
+            "TestWecomCallbackPollLoop::test_poll_loop_dispatches_handle_message",
+        )
+    },
+})
+
+if _WIN:
+    ID_MARKS.update({
+        **{
+            f"tests/gateway/test_systemd_notify.py::{test}": (
+                _posix_only("no socket.AF_UNIX, so no systemd notify socket"),
+            )
+            for test in (
+                "test_notify_uses_nonblocking_datagram_send",
+                "test_watchdog_sends_ready_heartbeat_and_stopping",
+            )
+        },
+        "tests/gateway/test_update_command.py::TestHandleUpdateCommand::"
+        "test_fallback_when_no_setsid": (
+            _posix_only("pins the bash -c / setsid spawn; win32 spawns the interpreter"),
+        ),
+        "tests/gateway/test_update_streaming.py::TestUpdateCommandGatewayFlag::"
+        "test_spawns_with_gateway_flag": (
+            _posix_only("reads the bash -c command string; win32 spawns an argv list"),
+        ),
+        "tests/gateway/test_complete_path_at_filter.py::"
+        "test_leading_slash_prefers_a_real_absolute_path": (
+            _posix_only('"/etc" is drive-relative on Windows'),
         ),
     })
 

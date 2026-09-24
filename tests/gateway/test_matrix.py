@@ -71,10 +71,8 @@ def _make_fake_mautrix():
         UNAVAILABLE = "unavailable"
 
     class TrustState:
-        pass
-
-    setattr(TrustState, "UN" + "VER" + "IFIED", 0)
-    setattr(TrustState, "VER" + "IFIED", 1)
+        UNVERIFIED = 0
+        VERIFIED = 1
 
     class PaginationDirection:
         BACKWARD = "b"

@@ -77,7 +77,7 @@ def _run_gateway_import(
         "HOMEPATH",
         "LOCALAPPDATA",
         "APPDATA",
-        "SYSTEMROOT", "SystemRoot", "SystemDrive",
+        "SYSTEMROOT",
         "TEMP",
         "TMP",
     ):

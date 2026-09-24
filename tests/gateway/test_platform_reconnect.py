@@ -122,11 +122,7 @@ class TestStartupPlatformIsolation:
 
         def fake_create_task(coro):
             coro.close()
-            # Startup now awaits bounded boot-send tasks. Return a real settled
-            # future so asyncio.wait can observe completion without a live loop.
-            done = asyncio.get_running_loop().create_future()
-            done.set_result(None)
-            return done
+            return MagicMock()
 
         with patch("gateway.status.publish_runtime_status"):
             with patch("hermes_cli.plugins.discover_plugins"):
@@ -724,11 +720,7 @@ class TestVoiceInputCallbackWiring:
 
         def fake_create_task(coro):
             coro.close()
-            # Startup now awaits bounded boot-send tasks. Return a real settled
-            # future so asyncio.wait can observe completion without a live loop.
-            done = asyncio.get_running_loop().create_future()
-            done.set_result(None)
-            return done
+            return MagicMock()
 
         with patch.object(runner, "_create_adapter", return_value=adapter):
             with patch("gateway.status.publish_runtime_status"):

@@ -95,14 +95,14 @@ def _watch_event(session_id="proc_watch", thread_id="42"):
 class TestLoadBackgroundNotificationsMode:
 
 
-    def test_unknown_mode_falls_back_to_result(self, monkeypatch, tmp_path):
+    def test_unknown_mode_falls_back_to_concise(self, monkeypatch, tmp_path):
         (tmp_path / "config.yaml").write_text(
             "display:\n  background_process_notifications: bogus\n"
         )
         import gateway.run as gw
         monkeypatch.setattr(gw, "_hermes_home", tmp_path)
         monkeypatch.delenv("HERMES_BACKGROUND_NOTIFICATIONS", raising=False)
-        assert GatewayRunner._load_background_notifications_mode() == "result"
+        assert GatewayRunner._load_background_notifications_mode() == "concise"
 
     def test_reads_config_yaml(self, monkeypatch, tmp_path):
         (tmp_path / "config.yaml").write_text(

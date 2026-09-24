@@ -4,8 +4,6 @@ import importlib
 import json
 from unittest.mock import patch, MagicMock
 
-import pytest
-
 import gateway.mirror as mirror_mod
 from gateway.mirror import (
     mirror_to_session,
@@ -190,20 +188,15 @@ class TestSessionsIndexProfileScoping:
         self._write_index(launch_home, "sess_launch")
         self._write_index(active_home, "sess_active")
 
-        # A SCOPED context, not ``monkeypatch.undo()``: ``undo()`` takes no argument and
-        # drops every patch on the shared per-test instance, including the root conftest's
-        # autouse hermetic pins (HERMES_HOME redirected to a tempdir, credential env vars
-        # blanked). Everything after it would run against the operator's live root — the
-        # 2026-08-17 leak. ``tests/agent_runtime/test_no_midtest_monkeypatch_undo.py`` gates it.
+        # Re-import the module with the launch home live: this is the import-time capture.
+        monkeypatch.setenv("HERMES_HOME", str(launch_home))
+        importlib.reload(mirror_mod)
         try:
-            with pytest.MonkeyPatch.context() as patched:
-                # Re-import the module with the launch home live: the import-time capture.
-                patched.setenv("HERMES_HOME", str(launch_home))
-                importlib.reload(mirror_mod)
-                # A request for a different profile is now served by the same process.
-                patched.setenv("HERMES_HOME", str(active_home))
-                assert mirror_mod._find_session_id("telegram", "12345") == "sess_active"
+            # A request for a different profile is now served by the same process.
+            monkeypatch.setenv("HERMES_HOME", str(active_home))
+            assert mirror_mod._find_session_id("telegram", "12345") == "sess_active"
         finally:
+            monkeypatch.undo()
             importlib.reload(mirror_mod)
 
     def test_patched_constant_still_wins(self, tmp_path, monkeypatch):
