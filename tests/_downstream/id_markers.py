@@ -173,6 +173,15 @@ ID_MARKS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
         # A live gateway anywhere on the machine answers the fleet-wide poll.
         pytest.mark.requires_no_live_gateway,
     ),
+    "tests/test_tests_tree_layout.py::"
+    "test_every_test_directory_mirrors_a_source_directory_or_is_declared": (
+        pytest.mark.xfail(strict=True, reason=(
+            "the fork's tests/_downstream/ (id marks, conftest plugin) and "
+            "tests/tooling/ (fork gates) mirror no source package and upstream's "
+            "_NON_MIRROR_DIRS cannot name them; fork half: "
+            "tests/test_tests_tree_layout_downstream.py"
+        )),
+    ),
     "tests/hermes_cli/test_config_read_guard.py::"
     "test_no_raw_config_yaml_reads_outside_owner_modules": (
         pytest.mark.xfail(reason=_FORK_PERSONA_CONFIG_SYNC, strict=True),
