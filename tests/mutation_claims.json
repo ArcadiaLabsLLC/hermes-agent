@@ -63,7 +63,7 @@
     {
       "id": "stage42-work-list-refuses-cursor",
       "path": "hermes_cli/harness.py",
-      "symbol": "build_parser/work_list",
+      "symbol": "populate_parser/work_list",
       "operator": "advertise-unread-control",
       "find": "work_list, controls=frozenset({\"limit\", \"sort\"})",
       "replace": "work_list, controls=frozenset({\"cursor\", \"limit\", \"sort\"})",
@@ -634,7 +634,7 @@
     {
       "id": "s8b-b-persona-instance-retire-door-has-no-token",
       "path": "hermes_cli/harness.py",
-      "symbol": "build_parser/persona_instance_retire",
+      "symbol": "populate_parser/persona_instance_retire",
       "operator": "withhold-flag-from-second-door",
       "find": "    persona_instance_retire.add_argument(\"--correlation-id\", dest=\"correlation_id\", default=None)\n",
       "replace": "",
