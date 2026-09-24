@@ -23,6 +23,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-09-24 (seam lane S5)
+
+- [ ] **tests/tools/test_tool_search.py: 67 tests fail on a clean venv — ModuleNotFoundError snowballstemmer** · tests · the canonical test venv lacks the dep; the file is red before and after S5. Evidence: lane S5 log move_tools.log · filed by lane S5 2026-09-24 **UNCLAIMED**
+- [ ] **tests/test_env_gap_registry.py [hermes_cli]: stale _ENV_GAP_SKIPS rows (test_update_eol_churn x4 probe no longer gaps; test_container_boot row names a deleted test)** · tests · red on main before S5. Evidence: lane S5 conftest_tests.log · filed by lane S5 2026-09-24 **UNCLAIMED**
+
 ### Filed on arrival — 2026-09-24 (seam lane S4)
 
 - [ ] **`tests/hermes_cli/test_profile_delete_mcp_log.py` is red on main: its `_stop_profile_backends` stub `lambda *_: None` rejects the `table=` keyword the fork's P6 delete passes** · `fork / tests` · the fix is `lambda *_, **__: None`, but it edits an upstream test file (`[up-fp] files` +1). It retires when P6 (`up/profiles-delete-guard` @ `9b1d5506aa`, which carries the same line) merges, or it lands with a `reasons` row in `tests/fixtures/upstream_footprint.json`. Evidence: lane S4 commits `6a6e539763` / `70595f8fe7` · filed by lane S4 2026-09-24 **UNCLAIMED**

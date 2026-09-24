@@ -32,3 +32,4 @@ The refactor touches fork-owned files only, so it never changes the upstream foo
 - The queue rows for the two dispatches carry their order in the row text; a lane that claims the refactor's Wave 0 before seam Stage 1 has landed is out of order.
 - The seam plan's Stage 0 gains the classification read as its first act.
 - This ADR is the pointer [[TODO]] carries for program order; the queues carry the rows.
+- 2026-09-23 owner: every seam stage precedes the refactor, not only 0b+1; the refactor's start is decided after the ratchet is re-measured.

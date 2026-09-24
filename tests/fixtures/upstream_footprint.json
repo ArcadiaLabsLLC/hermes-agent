@@ -1,8 +1,21 @@
 {
   "measured_at": "2026-09-24",
   "base": "d337b736aa",
-  "files": 446,
-  "deleted_lines": 2816,
-  "heavy": 13,
-  "reasons": []
+  "files": 448,
+  "deleted_lines": 2800,
+  "heavy": 12,
+  "reasons": [
+    {
+      "change": "seam Stage 1 (seam/s1-proof)",
+      "files": "+2 (459 -> 461)",
+      "deleted_lines": "flat (2834)",
+      "reason": "hook-pending: hermes_cli/plugins_manifest.py (cli_commands manifest field, +20/-0) and hermes_cli/plugin_compat.py (bundled skip, +4/-0, upstream-lift candidate) join the list; plugins_discovery.py's readers take an optional config (2 def lines). Stage 1 itself returned 2 deleted lines (builtin list, dispatch line). All leave with the upstream lift."
+    },
+    {
+      "change": "S4+S5 landing (seam/s45-landing)",
+      "files": "448 = S5's 446 + the 2 S1 hook-pending carries above (S5 was cut before S1 landed and dropped this reason)",
+      "deleted_lines": "2816 -> 2800 (S4's hermes_constants.py 16 -> 1, profiles.py 30 -> 29, main.py 193 -> 191 from S1)",
+      "reason": "merge of S1 (main), S5 and S4; no merge re-added footprint"
+    }
+  ]
 }
