@@ -69,7 +69,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-24 (lane CARRY3)
 
-- [ ] **CARRY2B's `_MIDTEST_UNDO` skip rows copy upstream test bodies into scoped-context siblings; the `scoped_monkeypatch_undo` id mark runs upstream's bytes instead** · `fork / tests` · `tests/_downstream/conftest_plugin.py::pytest_pyfunc_call` narrows `monkeypatch.undo()` to the body's own stack tail for a marked test (proven on four tests/hermes_cli files, lane CARRY3 commit "tests/ — eleven upstream test files byte-identical"); convert every `_MIDTEST_UNDO` row in `tests/_downstream/id_markers.py` to that mark and delete the sibling copies whose only reason is the scoped rewrite · filed by lane CARRY3 2026-09-24 **UNCLAIMED** **TAKEN 2026-09-24 TESTS**
 - [ ] **`test_readiness_pass_leaves_credential_store_byte_identical`'s digest assertion cannot red: the fork's rotation cursor is a sidecar, so a PERSISTING readiness selection leaves `auth.json` byte-identical** · `fork / tests` · with `pool_rotation_scope` mutated to always persist, the digest assertion PASSED and only the counter reddened (lane CARRY3); the docstring's killing mutation claims "the digest moves". Point the digest at the file `write_pool_rotation_cursor` writes (or add it), and re-record the red · filed by lane CARRY3 2026-09-24 **UNCLAIMED** **TAKEN 2026-09-24 TESTS**
 
 ## Filed on arrival — 2026-09-24 (lane REDS3)

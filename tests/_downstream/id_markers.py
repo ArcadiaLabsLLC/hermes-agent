@@ -408,12 +408,10 @@ if _WIN:
 
 # ── CARRY2B: tests/gateway (+ tui_gateway's agent-turn lane) ───────────────
 _AGENT_TURNS = pytest.mark.background_agent_turns
-_MIDTEST_UNDO = pytest.mark.skip(reason=(
-    "calls monkeypatch.undo(), which unwinds the shared per-test MonkeyPatch "
-    "(the root conftest's hermetic pins included) and is red under the fork's "
-    "_shared_monkeypatch_pin_tripwire; the scoped-context version is the "
-    "_downstream sibling"
-))
+# Upstream tests that call monkeypatch.undo() mid-body run upstream's bytes with
+# undo narrowed to their own patches (conftest_plugin.pytest_pyfunc_call, lane
+# CARRY3); no sibling copy.
+_SCOPED_UNDO = pytest.mark.scoped_monkeypatch_undo
 
 ID_MARKS.update({
     **{
@@ -440,9 +438,9 @@ ID_MARKS.update({
         )
     },
     "tests/gateway/test_api_server_active_work_drain.py::TestShutdownSettleWindow::"
-    "test_api_work_still_live_at_settle_exit_is_reinterrupted": (_MIDTEST_UNDO,),
+    "test_api_work_still_live_at_settle_exit_is_reinterrupted": (_SCOPED_UNDO,),
     "tests/gateway/test_mirror.py::TestSessionsIndexProfileScoping::"
-    "test_fallback_follows_active_profile_home": (_MIDTEST_UNDO,),
+    "test_fallback_follows_active_profile_home": (_SCOPED_UNDO,),
     # DEPENDENCY-bound: plugins/platforms/wecom/callback_adapter.py falls back
     # to ET=None without defusedxml; installing it retires these.
     **{
@@ -512,7 +510,7 @@ ID_MARKS.update({
         for cls in ("TestReadClaudeCodeCredentialsPriority", "TestReadClaudeCodeCredentialsDesync")
     },
     **{
-        node: (_MIDTEST_UNDO,)
+        node: (_SCOPED_UNDO,)
         for node in (
             "tests/agent/test_anthropic_credential_persist_failure.py::"
             "test_reauthentication_clears_the_persist_failure_quarantine",
@@ -826,9 +824,7 @@ if _WIN:
     })
 
 
-# ── CARRY3: upstream tests that call monkeypatch.undo() mid-body run upstream's
-# bytes with undo narrowed to their own patches (conftest_plugin.pytest_pyfunc_call).
-_SCOPED_UNDO = pytest.mark.scoped_monkeypatch_undo
+# ── CARRY3: upstream tests that call monkeypatch.undo() mid-body (see _SCOPED_UNDO).
 ID_MARKS.update({
     node: (_SCOPED_UNDO,)
     for node in (

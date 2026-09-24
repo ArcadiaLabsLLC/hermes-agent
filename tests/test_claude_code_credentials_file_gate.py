@@ -671,21 +671,27 @@ def test_gate_census_actually_sees_the_suite():
         "renamed or the census is looking in the wrong place"
     )
 
-    # Positive control for the git-grep pre-filter: a DECORATED scope (not a
-    # table row, which is parsed regardless) must survive it, so a grep that
-    # stopped matching the marker token reds here instead of shrinking the census.
-    # The module must carry no surface token, or the surface half of the grep
-    # would have selected it anyway.
-    decorated_only = [
-        path.name
-        for path in parsed
-        if _marked_scopes(_parse(path))  # type: ignore[arg-type]
-        and not any(token in path.read_text(encoding="utf-8") for token in _SURFACE)
-    ]
-    assert decorated_only, (
-        f"no parsed module carries @pytest.mark.{_MARKER} without also naming a "
-        "surface function — the pre-filter no longer selects files by the marker token"
-    )
+
+def test_pre_filter_selects_a_file_by_the_marker_token_alone():
+    """Positive control for the ``git grep`` pre-filter.
+
+    An untracked file under ``tests/`` that names ONLY the marker token must be
+    a candidate; a grep that stopped matching that token would otherwise shrink
+    the census silently (every decorated module today also names a surface
+    function, or is read through the id table).
+    """
+    probe = Path(__file__).resolve().parent / "_credentials_census_probe.txt"
+    probe.write_text(f"pytestmark = pytest.mark.{_MARKER}\n", encoding="utf-8")
+    _CANDIDATES.clear()
+    try:
+        candidates = _token_candidates()
+        assert candidates is None or probe in candidates, (
+            "the git-grep pre-filter did not select a file that names the "
+            f"marker token {_MARKER!r} and nothing else"
+        )
+    finally:
+        probe.unlink()
+        _CANDIDATES.clear()
 
 
 def test_gate_sees_every_scope_the_id_table_marks():
