@@ -37,6 +37,9 @@ def test_the_handler_prints_the_link_report(monkeypatch, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True
     assert payload["summary"]["linked"] == 1
+    # The linked shared root is resolved from the runtime root, so the envelope
+    # says which one answered (test_harness_json_root_observability.py).
+    assert payload["resolution"]["store_root"]
 
     assert harness._cmd_skills_link_external(argparse.Namespace(json=False)) == 0
     assert capsys.readouterr().out.strip() == external_skill_links.format_report(report).strip()

@@ -6525,7 +6525,12 @@ def _cmd_skills_link_external(args) -> int:
     from agent_runtime.external_skill_links import format_report, link_shared_skills_into_external_harnesses
 
     report = link_shared_skills_into_external_harnesses()
-    print(emit_json(report.to_dict()) if getattr(args, "json", False) else format_report(report))
+    if getattr(args, "json", False):
+        # The shared skills root being linked is resolved from the runtime root,
+        # so the envelope states which root answered.
+        print(emit_json(attach_root_observability(report.to_dict())))
+    else:
+        print(format_report(report))
     return 0
 
 
