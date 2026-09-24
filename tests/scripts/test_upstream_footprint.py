@@ -118,3 +118,19 @@ def test_a_ruled_permanent_row_still_counts_in_files():
     remerged = merge_ledger(ruled, fp)
     assert "| `hermes_cli/main.py` | 3 | 0 | carry-permanent |" in remerged
     assert fp.files == 5  # the ruling settles the row, it does not remove it from the count
+
+
+def test_no_row_under_a_code_tree_is_ruled_permanent():
+    """Plan §1 rule 7: agent/, tools/, gateway/, hermes_cli/ never carry-permanent."""
+    from scripts.upstream_footprint import DEFAULT_LEDGER, forbidden_permanent, ledger_rows
+
+    text = DEFAULT_LEDGER.read_text(encoding="utf-8")
+    assert forbidden_permanent(text) == []
+
+    # Positive control: the same ledger with one hermes_cli/ row ruled permanent IS caught.
+    path = next(p for p in ledger_rows(text) if p.startswith("hermes_cli/"))
+    row = ledger_rows(text)[path]
+    old = f"| `{path}` | {row['added']} | {row['deleted']} | {row['disposition']} |"
+    bad = text.replace(old, f"| `{path}` | {row['added']} | {row['deleted']} | carry-permanent |", 1)
+    assert bad != text
+    assert forbidden_permanent(bad) == [path]

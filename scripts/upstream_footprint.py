@@ -45,6 +45,9 @@ LEDGER_COLUMNS = ("path", "added", "deleted", "disposition", "reason", "stage")
 #: still counted in ``files=`` (it is still an edit to an upstream file), settled for
 #: the detach read (``files=0`` or only ruled rows).
 DISPOSITIONS = ("upstream", "hook", "carry", "carry-permanent")
+#: Plan §1 rule 7: nothing under these trees may be ``carry-permanent`` — it
+#: moves to a fork-only file, hooks through a widening, or is adopted.
+NEVER_PERMANENT_PREFIXES = ("agent/", "tools/", "gateway/", "hermes_cli/")
 NEW_ROW_DEFAULTS = {"disposition": "carry", "reason": "unreviewed", "stage": "-"}
 LEDGER_PREAMBLE = """# Upstream footprint ledger — one row per upstream file the fork edits
 
@@ -178,6 +181,15 @@ def unknown_dispositions(text: str) -> dict[str, str]:
         for path, row in ledger_rows(text).items()
         if row.get("disposition", "") not in DISPOSITIONS
     }
+
+
+def forbidden_permanent(text: str) -> list[str]:
+    """Paths ruled ``carry-permanent`` under a :data:`NEVER_PERMANENT_PREFIXES` tree."""
+    return sorted(
+        path
+        for path, row in ledger_rows(text).items()
+        if row.get("disposition") == "carry-permanent" and path.startswith(NEVER_PERMANENT_PREFIXES)
+    )
 
 
 def merge_ledger(existing: str | None, footprint: Footprint) -> str:
