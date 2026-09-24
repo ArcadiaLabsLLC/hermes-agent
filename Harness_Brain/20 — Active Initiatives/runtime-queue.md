@@ -136,6 +136,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Upstream-owned — never edited here
 
+- [ ] **Native Windows ACP qualification has five baseline failures: resource-link file paths, ping pipe handles and three cwd symlink/lexical cases.** · Reproduced unchanged at `2455c606b4`; exact cases and comparison in `docs/downstream/acp-named-provider-identity-2026-09-24.md`. Review upstream-owned behavior/tests without broadening the named-provider correction. **UNCLAIMED**
+
 - [ ] **Test runs leave `hermes_cli.main gateway run --replace` processes orphaned** · `upstream` · upstream test `tests/hermes_cli/test_update_shim_parent_wait.py` spawns the detached watcher with pid 4; upstream issue #121622, fix PR #121630; closes when that PR lands in a merge · moved from `fork-hygiene-queue.md` 2026-09-24 (owner ruling) **UNCLAIMED**
 - [ ] **`hermes_cli/cli_init_mixin.py:347` reads the `except … as e` name inside a deferred closure (`_present_store_warning`), after Python has unbound it** · `upstream` · ruff F821 under the repo config — the one error keeping `ruff check .` red, on `main` at `37ca422c25` and on `upstream/main`; if `render_notification` defers the callback the warning path raises NameError. Upstream PR candidate (bind `err = e` before the closure) · evidence: [[upstream-release-2026-09-24]] § Gates · filed by lane MERGE 2026-09-24 **UNCLAIMED**
 - [ ] **`scripts/check_subprocess_stdin.py` fails on Windows over `plugins\security-guidance\patterns.py`, which is example text, not real calls** · `hermes` · its exclusion appears not to match backslash paths; upstream-owned script — PR candidate. Evidence: `up/win-text-encoding` commit body (48a7527049) · filed by lane UPPR 2026-09-24 **UNCLAIMED**

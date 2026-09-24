@@ -34,7 +34,7 @@ from acp_adapter.events import (
 from acp_adapter.model_catalog import build_model_state, encode_model_choice
 from acp_adapter.permissions import make_approval_callback
 from acp_adapter.provenance import session_provenance_meta
-from acp_adapter.session import SessionManager, SessionState, _expand_acp_enabled_toolsets
+from acp_adapter.session import SessionManager, SessionState, _expand_acp_enabled_toolsets, agent_provider_identity
 from acp_adapter.tools import build_tool_complete, build_tool_start, coerce_tool_args
 from agent.context_compressor import (COMPRESSED_SUMMARY_METADATA_KEY, ContextCompressor)
 from agent.interrupt_compat import request_hard_interrupt
@@ -299,7 +299,7 @@ class HermesACPAgent(SlashCommandsMixin, acp.Agent):
         """Authenticated providers + models, from the shared Hermes inventory (same substrate
         as ``hermes model``/TUI/dashboard) so the selector isn't just the current curated list."""
         model = str(state.model or getattr(state.agent, "model", "") or "").strip()
-        provider = getattr(state.agent, "provider", None) or detect_provider() or "openrouter"
+        provider = agent_provider_identity(state.agent) or detect_provider() or "openrouter"
         try:
             picker = build_model_state(model, provider, str(getattr(state.agent, "base_url", "") or ""))
             if picker is not None:
@@ -326,7 +326,7 @@ class HermesACPAgent(SlashCommandsMixin, acp.Agent):
         from hermes_cli.model_switch import switch_model
         from hermes_cli.models import parse_model_input
 
-        current_provider = getattr(state.agent, "provider", None)
+        current_provider = agent_provider_identity(state.agent)
         explicit_provider, model_input = parse_model_input(raw_model, "")
         cfg = load_config()
         result = switch_model(
