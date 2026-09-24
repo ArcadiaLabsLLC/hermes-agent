@@ -198,6 +198,6 @@ Hard orderings: S0 before all; S1 before S2; P1 before S4 (S4 diffs against the 
 | S2 | planned | 1 | −2 | skills stay installed, not registered |
 | S3 | planned | 5 PRs | −1 per merge | P1 first |
 | S4 | planned | 1–2 | deleted_lines ↓ | after P1 |
-| S5 | planned | 4 MOVE | "−242" withdrawn; MOVE ceiling 28 files, and the 177 in-place-edit files need a disposition pass (`docs/agent-runtime-harness/planned/seam-s4-s5-s6-inventory-2026-09-23.md` §1.1–§1.5) | mechanical, parallel |
+| S5 | landed on `seam/s5-tests-out` (MOVE tip `aae22df30c`, landing commit on top); not yet on `main` | 1 conftest + 8 MOVE + 1 landing | `[up-fp] files=446 deleted_lines=2816 heavy=13` (from 459 / 2834 / 24: −13 files, all byte-identical to the base) | 189 fork tests + 1 fixture moved to `*_downstream.py` siblings out of 45 upstream files; conftests → `tests/_downstream/` (3 of 4 now upstream + 1 line); tests pinned by an upstream autouse/module fixture stay with a ledger reason; the 177 in-place-edit files are the owner's upstream-PR verdict (runtime queue) |
 | S6 | planned | 1 | ↓ | SDK reach decides |
 | S7 | on the read | 1 + installer | 0 | private on the operator's word |
