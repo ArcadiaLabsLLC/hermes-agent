@@ -662,22 +662,6 @@ ID_MARKS.update({
     ),
 })
 
-if _WIN:
-    ID_MARKS.update({
-        # Upstream's own contract lets a `spawns_gateway_lookalike` test spawn a
-        # `gateway run` stand-in (tests/conftest.py honours it); the fork's
-        # tests/hermes_cli/_gateway_fence.py arming fixture does not.
-        "tests/hermes_cli/test_plan_reconciliation_windows_live.py::"
-        "test_plan_reconciliation_live_windows": (
-            pytest.mark.xfail(strict=True, reason=(
-                "the fork's tests/hermes_cli gateway fence refuses the "
-                "`hermes gateway run` stand-in that the module's "
-                "spawns_gateway_lookalike mark permits under upstream's guard"
-            )),
-        ),
-    })
-
-
 # Upstream test files back at upstream's bytes: upstream's own Windows reds at
 # the tag (X:/wt/_holds/upstream-reds-v2026.9.24.md). No open fork PR covers any.
 _UP_RED = "upstream-red on Windows at v2026.9.24; no fix yet"
