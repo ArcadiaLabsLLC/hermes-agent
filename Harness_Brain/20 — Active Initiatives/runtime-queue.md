@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-09-24 (seam lane S2)
+
+- [ ] **`read_file`'s wire brief (603 chars) is LONGER than its full docs (541), so T6b ships more bytes for it than no brief at all** · `fork / tools` · `tests/tools/test_t6b_brief_descriptions.py::test_wire_ships_brief_shorter_than_full_docs` is red on main (base `37ca422c25`); the brief lives in `tools/downstream_schema.py` since lane MECH · evidence: lane S2 base run · filed by lane S2 2026-09-24 **UNCLAIMED**
+
 ### Filed on arrival — 2026-09-24 (lanes UPREV, DISP-M)
 
 - [ ] **`tests/hermes_cli/test_profile_delete_mcp_log.py`'s stub edit (S4 row below) cannot retire via P6: `up/profiles-delete-guard` was dropped 2026-09-24** · `fork / tests` · it needs a `reason:` row in `tests/fixtures/upstream_footprint.json` (or the `**__` stub edit carried with a reason) in place of the P6 retire condition · evidence: lane UPREV report · filed by lane UPREV 2026-09-24 **UNCLAIMED**
@@ -93,6 +97,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 - **No CLI-level test pins the `realm sync resolve --key skill::<slug>` envelope the launcher's held-skill buttons call — only the python seam (`skill_sync.resolve_held_skill`) and the argparse dump are covered, nothing drives `main()` end-to-end** · `hermes` · handed over by the hermes lane 2026-09-12; evidence `docs/agent-runtime-harness/planned/skill-three-way-sync-mutation-record-2026-09-12.md`, contract §4.6 of `EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md` · `tests/hermes_cli/` **UNCLAIMED**
 
 ## Seams — fork edits inside upstream files (additive only)
+
+### Filed on arrival — 2026-09-24 (seam lane S2)
+
+- [ ] **Nine Stage 2 rows the ledger said the surface "has" wait on five widening PRs nobody owns, and none is on §Stage 3's P-list** · `seams / upstream` · `register_command` with gateway context + `busy_policy` (`/queue-status`, 4 rows); a terminal command-guard hook consulted by `_check_all_guards` with a typed result (the envelope gate); a per-call usage ledger in the turn result (`usage_ledger`, 3 rows); a tool-schema transform hook (wire briefs); a register-toolset PR (bundle membership, `harness_core`). Each needs a P-number, an owner and a fallback in `docs/agent-runtime-harness/planned/harness-plugin-and-upstream-seams.md` §Stage 3 · evidence: `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md` rows marked "DESIGN (lane S2)" / "waits on" · filed by lane S2 2026-09-24 **UNCLAIMED**
+- [ ] **The fork's `_load_tools` edit breaks upstream's own test: `_emit_tool_defs_receipt(agent.status_callback, …)` reads an attribute upstream's `_load_tools` never needed** · `seams / agent` · `tests/agent/test_system_prompt.py::test_kanban_guidance_requires_worker_task_at_agent_init` (both params) is red on main (base `37ca422c25`) with `AttributeError: … 'status_callback'` at `agent/agent_init.py:1078`; a seam edit must tolerate the agent shapes upstream's tests build (`getattr(agent, "status_callback", None)`) · evidence: lane S2 base run · filed by lane S2 2026-09-24 **UNCLAIMED**
 
 ### Filed on arrival — 2026-09-24 (disposition wave, lane DISP-C)
 
