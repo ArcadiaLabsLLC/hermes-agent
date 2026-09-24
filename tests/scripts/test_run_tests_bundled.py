@@ -7,6 +7,8 @@ spawning pytest — the bundle and solo launchers are injected:
 * every discovered file runs exactly once, in a bundle or alone;
 * a failing bundle re-runs its unclean members ONE FILE PER PROCESS, and a
   member red in the bundle but green alone is reported as an isolation leak;
+* ``--scope fork`` runs the fork-only files plus the inherited files the
+  change reaches, and leaves an untouched inherited file to ``--scope full``;
 * a file named in ``scripts/test_bundles_unbundled.txt`` never enters a bundle.
 """
 
@@ -297,3 +299,87 @@ def test_members_of_a_bundle_that_died_are_unreached_not_leaks(tmp_path):
 
     assert sorted(leak.kind for leak in result.leaks) == ["unreached"] * 3
     assert {leak.stopped_in for leak in result.leaks} == {rels[1]}
+
+
+# ── scope: fork-only plus the inherited files the change reaches ────────────
+
+
+def _scope_tree(root: Path) -> tuple[list[Path], set[str]]:
+    files = _tree(
+        root,
+        [
+            "tests/pkg/test_forkonly.py",
+            "tests/pkg/test_untouched.py",
+            "tests/pkg/test_widget.py",
+            "tests/pkg/test_uses_helper.py",
+            "tests/pkg/test_relative.py",
+            "tests/other/test_below_conftest.py",
+        ],
+    )
+    (root / "tests/pkg/test_uses_helper.py").write_text(
+        "from pkg.helper import thing\n\ndef test_ok():\n    assert thing\n", encoding="utf-8"
+    )
+    (root / "tests/pkg/test_relative.py").write_text(
+        "from ._support import x\n\ndef test_ok():\n    assert x\n", encoding="utf-8"
+    )
+    inherited = {_rels(root, [f])[0] for f in files} - {"tests/pkg/test_forkonly.py"}
+    return files, inherited
+
+
+def _selected(root: Path, sel) -> dict[str, list[str]]:
+    return {
+        reason: sorted(_rels(root, getattr(sel, reason)))
+        for reason in ("fork_only", "touched", "source", "importer", "conftest", "named", "excluded")
+    }
+
+
+def test_fork_scope_takes_fork_only_files_and_leaves_untouched_inherited_ones(tmp_path):
+    files, inherited = _scope_tree(tmp_path)
+
+    sel = bundled.select_scope(files, tmp_path, inherited, changed=set())
+
+    got = _selected(tmp_path, sel)
+    assert got["fork_only"] == ["tests/pkg/test_forkonly.py"]
+    assert "tests/pkg/test_untouched.py" in got["excluded"]
+    assert _rels(tmp_path, sel.selected) == ["tests/pkg/test_forkonly.py"]
+
+
+def test_fork_scope_takes_an_inherited_file_whose_source_the_change_touched(tmp_path):
+    files, inherited = _scope_tree(tmp_path)
+    changed = {"pkg/widget.py", "pkg/helper.py", "tests/other/conftest.py", "tests/pkg/_support.py"}
+
+    got = _selected(tmp_path, bundled.select_scope(files, tmp_path, inherited, changed))
+
+    assert got["source"] == ["tests/pkg/test_widget.py"]
+    assert got["importer"] == ["tests/pkg/test_relative.py", "tests/pkg/test_uses_helper.py"]
+    assert got["conftest"] == ["tests/other/test_below_conftest.py"]
+    assert got["excluded"] == ["tests/pkg/test_untouched.py"]
+
+
+def test_fork_scope_takes_a_changed_or_named_inherited_test_file(tmp_path):
+    files, inherited = _scope_tree(tmp_path)
+    named = [tmp_path / "tests/pkg/test_widget.py"]
+
+    got = _selected(
+        tmp_path,
+        bundled.select_scope(files, tmp_path, inherited, {"tests/pkg/test_untouched.py"}, named=named),
+    )
+
+    assert got["touched"] == ["tests/pkg/test_untouched.py"]
+    assert got["named"] == ["tests/pkg/test_widget.py"]
+
+
+def test_the_convention_maps_a_test_file_to_its_module_under_test():
+    assert bundled.convention_sources("tests/hermes_cli/test_gateway.py") == [
+        "hermes_cli/gateway.py",
+        "hermes_cli/gateway/__init__.py",
+    ]
+    assert bundled.convention_sources("tests/test_run_agent.py") == ["run_agent.py", "run_agent/__init__.py"]
+    assert bundled.convention_sources("tests/pkg/helpers.py") == []
+
+
+def test_the_manifest_is_read_without_its_comment_lines(tmp_path):
+    manifest = tmp_path / "m.txt"
+    manifest.write_text("# base abc\ntests/a/test_x.py\n\n", encoding="utf-8")
+
+    assert bundled.load_manifest(manifest) == {"tests/a/test_x.py"}

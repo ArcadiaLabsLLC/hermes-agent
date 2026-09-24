@@ -357,7 +357,7 @@ scripts/run_tests.sh tests/agent/test_foo.py -k test_x  # runner is file-granula
 scripts/run_tests.sh -v --tb=long                       # pytest flags pass through
 ```
 
-- **Fork landing gate (downstream only):** `scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli` — same hermetic env, up to 20 files per pytest process (`--bundle-size`); a red bundle re-runs its red members one file per process and names any ISOLATION LEAK (red bundled, green alone → `scripts/test_bundles_unbundled.txt`, with the observed diff).
+- **Fork landing gate (downstream only):** `scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli` — `--scope fork` (the default): the files absent from `tests/fixtures/upstream_manifest.txt` plus the inherited files the change (`git diff origin/main...HEAD`, or `--since <ref>`) reaches by name, import or conftest; the weekly upstream merge lane runs `--scope full`, every discovered file. Same hermetic env, up to 20 files per pytest process (`--bundle-size`); a red bundle re-runs its red members one file per process and names any ISOLATION LEAK (red bundled, green alone → `scripts/test_bundles_unbundled.txt`, with the observed diff).
   `scripts/run_tests.sh` stays the per-file authority: a single file, a leak or any disagreement between the two is settled there.
 
 - **Flake policy:** a failing FILE is retried once in a fresh subprocess (`--file-retries`;
