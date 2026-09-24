@@ -30,6 +30,11 @@ _WSL_FAKE = (
     "patches is_wsl but not platform.system/shutil.which, so a native-Windows "
     "host takes the Windows branch; the premise is a Linux (WSL) host"
 )
+_SEPARATOR_SPELLING = (
+    "the tool under test (git worktree --porcelain, find via the POSIX shell) "
+    "echoes forward slashes, upstream compares against str(Path) backslashes; "
+    "a test-side spelling fix, PR candidate class win-path-spelling"
+)
 _FORK_SYSTEM_PATH = (
     "the fork's tools/environments/local.py _augment_windows_system_path appends "
     "the System32 dirs, so upstream's verbatim equality cannot hold on Windows; "
@@ -49,6 +54,18 @@ if _WIN:
         "test_make_run_env_preserves_windows_mixed_case_path_key": (
             pytest.mark.xfail(reason=_FORK_SYSTEM_PATH, strict=True),
         ),
+        "tests/hermes_cli/test_kanban_db.py::"
+        "test_worktree_workspace_explicit_target_materializes_linked_worktree": (
+            pytest.mark.xfail(reason=_SEPARATOR_SPELLING, strict=True),
+        ),
+        "tests/tools/test_file_operations.py::TestSearchFilesFallbackHiddenPaths::"
+        "test_hidden_root_with_hidden_ancestor_includes_files": (
+            pytest.mark.xfail(reason=_SEPARATOR_SPELLING, strict=True),
+        ),
+        "tests/tools/test_file_operations.py::TestSearchFilesFallbackHiddenPaths::"
+        "test_normal_root_still_excludes_hidden_descendants": (
+            pytest.mark.xfail(reason=_SEPARATOR_SPELLING, strict=True),
+        ),
         "tests/tools/test_voice_mode.py::TestDetectAudioEnvironment::"
         "test_wsl_without_pulse_blocks_voice": (pytest.mark.skip(reason=_WSL_FAKE),),
         "tests/tools/test_voice_mode.py::TestWSL2PowerShellFallback::"
@@ -62,6 +79,20 @@ if _WIN:
 
 def _base_id(nodeid: str) -> str:
     return nodeid.split("[", 1)[0]
+
+
+def _keys_for(base: str) -> list[str]:
+    """``a::B::c`` -> ``["a::B::c", "a::B"]``: the test id, then each enclosing class."""
+    parts = base.split("::")
+    return ["::".join(parts[:n]) for n in range(len(parts), 1, -1)]
+
+
+def ids_marked(mark_name: str) -> set[str]:
+    """Table ids carrying *mark_name* on this host (read by the fork's gates)."""
+    return {
+        node for node, marks in ID_MARKS.items()
+        if any(mark.name == mark_name for mark in marks)
+    }
 
 
 def _narrowed_files(config) -> set[str]:
@@ -82,19 +113,18 @@ def _narrowed_files(config) -> set[str]:
 @pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(config, items):  # noqa: D401 — pytest hook
     """Apply ``ID_MARKS`` before upstream's own modifyitems reads the marks."""
-    if not ID_MARKS:
-        return
     matched: set[str] = set()
     collected_files: set[str] = set()
     for item in items:
         base = _base_id(item.nodeid)
         collected_files.add(base.split("::", 1)[0])
-        marks = ID_MARKS.get(base)
-        if marks is None:
-            continue
-        matched.add(base)
-        for mark in marks:
-            item.add_marker(mark)
+        for key in _keys_for(base):
+            marks = ID_MARKS.get(key)
+            if marks is None:
+                continue
+            matched.add(key)
+            for mark in marks:
+                item.add_marker(mark)
     checkable = collected_files - _narrowed_files(config)
     stale = sorted(
         node for node in ID_MARKS

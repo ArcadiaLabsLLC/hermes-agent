@@ -5,59 +5,14 @@ import os
 import subprocess
 import sys
 import textwrap
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 
 import pytest
-
-# ``pty`` is POSIX-only (it imports ``termios``). Importing it unconditionally
-# at module scope made the WHOLE file fail to collect on native Windows, which
-# takes every non-PTY test in here down with it — the one PTY test below is
-# already skipif'd on win32, so keep the import optional to match.
-if sys.platform == "win32":  # pragma: no cover - platform guard
-    pty = None
-else:
-    import pty
 
 import hermes_cli.gateway as gateway
 
 
 _BREAKAWAY_MARKER = "_HERMES_GATEWAY_BREAKAWAY"
-
-
-def _install_fake_gateway_run(monkeypatch, start_gateway):
-    module = ModuleType("gateway.run")
-    module.start_gateway = start_gateway
-
-    def _exit_after_graceful_shutdown(code):
-        if code:
-            raise SystemExit(code)
-
-    setattr(module, "_exit_after_graceful_shutdown", _exit_after_graceful_shutdown)
-    monkeypatch.setitem(sys.modules, "gateway.run", module)
-    # ``run_gateway()`` calls ``refresh_systemd_unit_if_needed()`` on every
-    # invocation so that restart settings stay current after exit-code-75
-    # respawns. That helper writes to ``Path.home() / ".config/systemd/user
-    # /hermes-gateway.service"`` and runs ``systemctl --user daemon-reload``
-    # — both target the *real* user environment because the conftest only
-    # sandboxes ``HERMES_HOME``, not ``HOME``. Tests that drive
-    # ``run_gateway()`` end-to-end with a fake ``start_gateway`` MUST stub
-    # the refresh call too, or every run rewrites the developer's installed
-    # unit (baking in the test's pytest-tmp ``HERMES_HOME`` value, which
-    # systemd then uses on the next boot — silently breaking the gateway
-    # for the developer).
-    monkeypatch.setattr(gateway, "supports_systemd_services", lambda: False)
-    monkeypatch.setattr(
-        gateway, "refresh_systemd_unit_if_needed", lambda system=False: False
-    )
-    # Neutralize the supervised-gateway conflict guard by default so these
-    # end-to-end tests don't trip over a launchd/systemd gateway that happens
-    # to be installed+running on the developer's machine. Conflict-guard tests
-    # override this snapshot after calling the helper.
-    monkeypatch.setattr(
-        gateway,
-        "get_gateway_runtime_snapshot",
-        lambda *a, **k: gateway.GatewayRuntimeSnapshot(manager="manual process"),
-    )
 
 
 @pytest.fixture(autouse=True)
@@ -287,116 +242,6 @@ def test_s6_runtime_snapshot_reports_supervised_service(monkeypatch, tmp_path):
     assert snapshot.gateway_pids == (123,)
 
 
-
-
-# Fork-owned: `_command_matches_profile` is the fork's profile-aware gateway
-# matcher (upstream has no equivalent), so these two have no upstream
-# counterpart and must survive the sync. They pin the boundary rules that stop
-# `alice` from matching `aliceimagecron` in either the CLI selector or the
-# HERMES_HOME path.
-def test_command_matches_profile_does_not_match_prefix_collision():
-    alice_home = r"x:\\eternia\\.hermes\\profiles\\alice"
-
-    assert gateway._command_matches_profile(
-        r'"pythonw.exe" -m hermes_cli.main --profile alice gateway run',
-        profile_name="alice",
-        hermes_home=alice_home,
-    )
-    assert gateway._command_matches_profile(
-        r'"pythonw.exe" -m hermes_cli.main -p alice gateway run',
-        profile_name="alice",
-        hermes_home=alice_home,
-    )
-    assert not gateway._command_matches_profile(
-        r'"pythonw.exe" -m hermes_cli.main --profile aliceimagecron gateway run',
-        profile_name="alice",
-        hermes_home=alice_home,
-    )
-    assert not gateway._command_matches_profile(
-        r'"pythonw.exe" -m hermes_cli.main -p aliceimagecron gateway run',
-        profile_name="alice",
-        hermes_home=alice_home,
-    )
-
-
-def test_command_matches_profile_home_uses_path_boundary():
-    alice_home = r"x:\\eternia\\.hermes\\profiles\\alice"
-
-    assert gateway._command_matches_profile(
-        r'set HERMES_HOME=X:\\Eternia\\.hermes\\profiles\\alice && hermes gateway run',
-        profile_name="alice",
-        hermes_home=alice_home,
-    )
-    assert not gateway._command_matches_profile(
-        r'set HERMES_HOME=X:\\Eternia\\.hermes\\profiles\\aliceimagecron && hermes gateway run',
-        profile_name="alice",
-        hermes_home=alice_home,
-    )
-
-
-# Fork-retained: Windows console-control behavior is load-bearing for this
-# Windows-first fork, and these are the only callers of the
-# ``_install_fake_gateway_run`` helper upstream still ships.
-def test_run_gateway_windows_foreground_keeps_ctrl_c_enabled(monkeypatch):
-    calls = []
-
-    def fake_start_gateway(*, replace, verbosity, force=False):
-        calls.append((replace, verbosity))
-        return object()
-
-    class _TTY:
-        def isatty(self):
-            return True
-
-    signal_calls = []
-
-    def fake_signal(sig, handler):
-        signal_calls.append((sig, handler))
-
-    _install_fake_gateway_run(monkeypatch, fake_start_gateway)
-    monkeypatch.setattr(gateway, "is_windows", lambda: True)
-    monkeypatch.setattr(gateway, "supports_systemd_services", lambda: False)
-    monkeypatch.setattr(gateway.sys, "stdin", _TTY())
-    monkeypatch.delenv("HERMES_GATEWAY_DETACHED", raising=False)
-    monkeypatch.setattr(gateway.signal, "signal", fake_signal)
-    monkeypatch.setattr(gateway.asyncio, "run", lambda coro: True)
-
-    gateway.run_gateway()
-
-    assert calls == [(False, 0)]
-    assert (gateway.signal.SIGINT, gateway.signal.SIG_IGN) not in signal_calls
-
-
-def test_run_gateway_windows_detached_absorbs_console_controls(monkeypatch):
-    calls = []
-
-    def fake_start_gateway(*, replace, verbosity, force=False):
-        calls.append((replace, verbosity))
-        return object()
-
-    class _TTY:
-        def isatty(self):
-            return True
-
-    signal_calls = []
-
-    def fake_signal(sig, handler):
-        signal_calls.append((sig, handler))
-
-    _install_fake_gateway_run(monkeypatch, fake_start_gateway)
-    monkeypatch.setattr(gateway, "is_windows", lambda: True)
-    monkeypatch.setattr(gateway, "supports_systemd_services", lambda: False)
-    monkeypatch.setattr(gateway.sys, "stdin", _TTY())
-    monkeypatch.setenv("HERMES_GATEWAY_DETACHED", "1")
-    monkeypatch.setattr(gateway.signal, "signal", fake_signal)
-    monkeypatch.setattr(gateway.asyncio, "run", lambda coro: True)
-
-    gateway.run_gateway()
-
-    assert calls == [(False, 0)]
-    assert (gateway.signal.SIGINT, gateway.signal.SIG_IGN) in signal_calls
-
-
 class TestSystemdLingerStatus:
     def test_reports_enabled(self, monkeypatch):
         monkeypatch.setattr(gateway, "is_linux", lambda: True)
@@ -495,7 +340,6 @@ def test_systemd_install_checks_linger_status(monkeypatch, tmp_path):
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(gateway.subprocess, "run", fake_run)
-    monkeypatch.setattr(gateway, "_ensure_user_systemd_env", lambda: None)
     monkeypatch.setattr(gateway, "_ensure_linger_enabled", lambda: helper_calls.append(True))
 
     gateway.systemd_install(force=False)

