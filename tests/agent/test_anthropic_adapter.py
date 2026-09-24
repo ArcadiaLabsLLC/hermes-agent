@@ -129,7 +129,15 @@ class TestBuildAnthropicClient:
             assert kwargs["max_retries"] == 0
 
 
+@pytest.mark.allow_claude_code_credentials_file
 class TestReadClaudeCodeCredentials:
+    """Exercises the real ~/.claude/.credentials.json reader.
+
+    Opts out of the suite-wide neutralization, and every test below points
+    ``Path.home()`` at its own ``tmp_path`` first — the marker on its own
+    would hand back the operator's live Claude Code login (MCF-66).
+    """
+
     """Exercises the real ~/.claude/.credentials.json reader.
 
     Opts out of the suite-wide neutralization, and every test below points
@@ -385,7 +393,13 @@ class TestResolveAnthropicToken:
         assert resolve_anthropic_token() == "cc-auto-token"
 
 
+@pytest.mark.allow_claude_code_credentials_file
 class TestRefreshOauthToken:
+    """The refresh path persists the rotated pair, so these need the real
+    writer — every test redirects ``Path.home()`` at its own ``tmp_path``
+    first, which is the only thing between this class and the operator's live
+    Claude Code login (MCF-66)."""
+
     """The refresh path persists the rotated pair, so these need the real
     writer — every test redirects ``Path.home()`` at its own ``tmp_path``
     first, which is the only thing between this class and the operator's live
