@@ -89,3 +89,32 @@ def test_the_ledger_merge_keeps_hand_edits_on_path():
     assert "hermes_cli/main.py" not in merged  # no longer in the footprint → row gone
     assert "| `run_agent.py` | 0 | 0 | carry | unreviewed | - |" in merged
     assert merged.startswith(first.split("| path")[0])  # preamble kept verbatim
+
+
+def test_every_ledger_disposition_is_one_the_plan_names():
+    """``carry-permanent`` is accepted (a ruled carry, still counted in ``files=``);
+    anything else is a typo the detach read would silently miscount."""
+    from scripts.upstream_footprint import DEFAULT_LEDGER, DISPOSITIONS, ledger_rows, unknown_dispositions
+
+    text = DEFAULT_LEDGER.read_text(encoding="utf-8")
+    rows = ledger_rows(text)
+    assert len(rows) > 50, "the ledger parse found almost no rows — the walk is wrong"
+    assert unknown_dispositions(text) == {}
+    assert "carry-permanent" in DISPOSITIONS
+
+    # Positive control: the same ledger with one row's disposition misspelt IS caught.
+    path = next(iter(rows))
+    old = f"| `{path}` | {rows[path]['added']} | {rows[path]['deleted']} | {rows[path]['disposition']} |"
+    assert old in text
+    bad = text.replace(old, f"| `{path}` | {rows[path]['added']} | {rows[path]['deleted']} | carry-permanant |", 1)
+    assert unknown_dispositions(bad) == {path: "carry-permanant"}
+
+
+def test_a_ruled_permanent_row_still_counts_in_files():
+    fp = count_footprint(NUMSTAT_Z, MANIFEST_PATHS)
+    ruled = merge_ledger(None, fp).replace(
+        "| `hermes_cli/main.py` | 3 | 0 | carry |", "| `hermes_cli/main.py` | 3 | 0 | carry-permanent |"
+    )
+    remerged = merge_ledger(ruled, fp)
+    assert "| `hermes_cli/main.py` | 3 | 0 | carry-permanent |" in remerged
+    assert fp.files == 5  # the ruling settles the row, it does not remove it from the count
