@@ -38,8 +38,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-24 (seam lane S5)
 
-- [ ] **tests/tools/test_tool_search.py: 67 tests fail on a clean venv — ModuleNotFoundError snowballstemmer** · tests · the canonical test venv lacks the dep; the file is red before and after S5. Evidence: lane S5 log move_tools.log · filed by lane S5 2026-09-24 **UNCLAIMED**
-- [ ] **tests/test_env_gap_registry.py [hermes_cli]: stale _ENV_GAP_SKIPS rows (test_update_eol_churn x4 probe no longer gaps; test_container_boot row names a deleted test)** · tests · red on main before S5. Evidence: lane S5 conftest_tests.log · filed by lane S5 2026-09-24 **UNCLAIMED**
+- [ ] **tests/tools/test_tool_search.py: 67 tests fail on a clean venv — ModuleNotFoundError snowballstemmer** · tests · the canonical test venv lacks the dep; the file is red before and after S5. Evidence: lane S5 log move_tools.log · filed by lane S5 2026-09-24 **UNCLAIMED** **TAKEN 2026-09-24 TESTS**
+- [ ] **tests/test_env_gap_registry.py [hermes_cli]: stale _ENV_GAP_SKIPS rows (test_update_eol_churn x4 probe no longer gaps; test_container_boot row names a deleted test)** · tests · red on main before S5. Evidence: lane S5 conftest_tests.log · filed by lane S5 2026-09-24 **UNCLAIMED** **TAKEN 2026-09-24 TESTS**
 
 ### Filed on arrival — 2026-09-24 (seam lane S4)
 
