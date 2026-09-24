@@ -124,4 +124,4 @@ print()
 print(f"=== SAME-NAME PRIVATE HELPERS defined in >=3 files ({len(collisions)}) ===")
 for k, v in sorted(collisions.items(), key=lambda kv: -len(kv[1]))[:40]:
     print(f"  {k}: {len(v)} files: {', '.join(v)}")
-json.dump({"dead": dead, "dups": dups, "collisions": collisions}, open(sys.argv[2], "w"), indent=1)
+json.dump({"dead": dead, "dups": dups, "collisions": collisions}, open(sys.argv[2], "w", encoding="utf-8"), indent=1)
