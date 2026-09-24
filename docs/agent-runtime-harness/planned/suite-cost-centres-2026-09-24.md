@@ -31,7 +31,7 @@ per-file processes, were most of the wall. They are fixed in `76e6fb0dc8`.
 | run | files | tests | wall | state |
 |---|---|---|---|---|
 | fork, validated scope `tests/agent_runtime tests/hermes_cli` | 1,839 | 21,802 passed · 242 failed · 431 skipped | **4,904 s (81.7 min)** | idle |
-| upstream, full `tests/` | 4,702 discovered (~40,660 tests) | — | re-take idle (≈1,000 files done after 2 h loaded) | loaded |
+| upstream, full `tests/` | 4,702 discovered (~40,660 tests) | — | re-take idle — the run ended at 1,306 files (25.9 % of tests) with exit 255 and no summary; killed with the lane session, never finished | loaded |
 
 Two of the four directories the landing gate names, `tests/cli` and
 `tests/state`, do not exist; the runner accepts them silently. The scope is
