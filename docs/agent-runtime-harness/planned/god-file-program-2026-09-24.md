@@ -250,7 +250,9 @@ Per the scope rule; each sheet's § Doors carries the per-import table. The clas
 
 Fourteen lanes, ≤ 29 commits (plus ≤ 1 `style:` per lane), for 66 files.
 
-## 9. Open owner questions (each with the recommendation the lanes apply unless overruled)
+## 9. Owner questions — RULED 2026-09-24 (Tony)
+
+**Rulings:** Q1 **CODE lines** bind the ceiling (ADR 0007 stands unamended; the `[ds-size]` gate counts code lines only, so the program's ceiling population is the 34 files over by code, and the 28 over by raw alone are in scope for legibility work but not for the ceiling gate — Q3 is therefore moot for `patch_coverage.py`-class files: they are under the ceiling; relocate history where a sheet says so, never split them). Q2 yes. Q3 relocate history, no split. Q4 gate. Q5 one per package. Lanes apply these as facts.
 
 1. **Which counter binds the ceiling — raw lines (the owner's list, 62) or code lines (ADR 0007, 34)?** Recommend **raw** (a comment is a reader's cost too, which is the docstring argument of 09-21 §0.1 taken to its end), with ADR 0007 amended by one line; the gate prints both until then.
 2. **Do the four fork-only files in `agent/charsheet/` and `tools/` (C1, T1) stay in the program?** Recommend **yes** — they are fork code by the fence, and their new modules go under `agent/charsheet/` (already a fork-only package) and a new `tools/agent_chat/` package, never a top-level upstream file.
