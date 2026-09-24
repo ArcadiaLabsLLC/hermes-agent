@@ -258,7 +258,7 @@ def test_the_cli_harness_dispatch_captures_before_the_command_runs():
     there writes a sidecar the NEXT boot demotes. The capture is taken at command
     dispatch, before the handler."""
 
-    from hermes_cli._downstream_cli import (
+    from hermes_cli.harness import (
         _FINGERPRINT_HOME_CLI_BOOT_SITE,
         _capture_core_cache_fingerprint_home,
     )
@@ -275,7 +275,7 @@ def test_a_command_that_cannot_reach_this_lane_pays_nothing_for_it():
     modules and by nothing else under ``hermes_cli``. Every other command would
     pay a ~90ms import of a subtree it never touches."""
 
-    from hermes_cli.main import _capture_core_cache_fingerprint_home
+    from hermes_cli.harness import _capture_core_cache_fingerprint_home
 
     _capture_core_cache_fingerprint_home(SimpleNamespace(command="chat"))
 

@@ -2619,7 +2619,7 @@ def cmd_console(args):
 _BUILTIN_SUBCOMMANDS = frozenset(
     {
         "acp", "approvals", "auth", "backup", "bundles", "checkpoints", "claw", "codex-runtime", "completion",
-        "computer-use", "harness", "postinstall",
+        "computer-use",
         "config", "console", "cron", "curator", "dashboard", "serve", "debug", "doctor",
         "dump", "egress", "fallback", "gateway", "hooks", "import", "import-agent", "insights",
         "gui", "desktop", "kanban", "login", "logout", "logs", "lsp", "mcp", "memory", "migrate", "moa",
@@ -3234,8 +3234,6 @@ def _build_cli_parser():
     parser, subparsers, chat_parser = build_top_level_parser()
     chat_parser.set_defaults(func=cmd_chat)
 
-    from hermes_cli._downstream_cli import build_downstream_parsers
-    build_downstream_parsers(subparsers)
     build_model_parser(subparsers, cmd_model=cmd_model)
     build_moa_parser(subparsers)
     build_fallback_parser(subparsers)
@@ -3475,15 +3473,14 @@ def main():
 
     # A handler's int return code becomes the exit code (None = success).
     if hasattr(args, "func"):
-        from hermes_cli._downstream_cli import dispatch_command
-        rc = dispatch_command(args)
+        rc = args.func(args)
         if isinstance(rc, int) and rc != 0:
             sys.exit(rc)
     else:
         parser.print_help()
 
 
-from hermes_cli._downstream_cli import cmd_postinstall, _capture_core_cache_fingerprint_home
+from hermes_cli._downstream_cli import cmd_postinstall
 _boot_clock.mark_main_import_completed()
 
 if __name__ == "__main__":
