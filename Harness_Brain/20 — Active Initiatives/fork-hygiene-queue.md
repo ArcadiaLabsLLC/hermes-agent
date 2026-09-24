@@ -69,7 +69,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-24 (lane CARRY3)
 
-- [ ] **`test_readiness_pass_leaves_credential_store_byte_identical`'s digest assertion cannot red: the fork's rotation cursor is a sidecar, so a PERSISTING readiness selection leaves `auth.json` byte-identical** · `fork / tests` · with `pool_rotation_scope` mutated to always persist, the digest assertion PASSED and only the counter reddened (lane CARRY3); the docstring's killing mutation claims "the digest moves". Point the digest at the file `write_pool_rotation_cursor` writes (or add it), and re-record the red · filed by lane CARRY3 2026-09-24 **UNCLAIMED** **TAKEN 2026-09-24 TESTS**
 
 ## Filed on arrival — 2026-09-24 (lane REDS3)
 

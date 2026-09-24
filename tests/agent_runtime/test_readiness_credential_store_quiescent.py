@@ -102,7 +102,19 @@ def _seed_round_robin_store() -> Path:
 
 
 def _digest(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    """The CREDENTIAL STORE's bytes: ``auth.json`` AND its rotation sidecar.
+
+    Since MCF-44 the round-robin position lives in ``credential_rotation.json``
+    beside ``auth.json`` (``agent_runtime.auth_extensions._rotation_state_path``),
+    so a persisting selection leaves ``auth.json`` untouched. A digest of
+    ``auth.json`` alone could not red on the very write this gate exists to
+    forbid (fork-hygiene 2026-09-24); an absent sidecar hashes as absent.
+    """
+    digest = hashlib.sha256()
+    for member in (path, path.with_name("credential_rotation.json")):
+        digest.update(member.name.encode("utf-8") + b"\0")
+        digest.update(member.read_bytes() if member.exists() else b"<absent>")
+    return digest.hexdigest()
 
 
 def _count_pool_selections(monkeypatch) -> dict[str, int]:
@@ -190,10 +202,10 @@ def _clear_provider_issue_memo():
 def test_readiness_pass_leaves_credential_store_byte_identical(monkeypatch):
     """A readiness pass performs NO write to the credential store.
 
-    Killing mutation: restore the persisting selection in
-    ``profile_readiness::_compute_provider_issue`` (drop the
-    ``resolver = probe_runtime_provider`` line) — the round-robin cursor is
-    written back and the digest moves.
+    Killing mutation: make ``pool_rotation.pool_rotation_scope`` persist
+    whatever it is asked (``_persist_rotation.set(True)``) — the round-robin
+    cursor is written to the sidecar and the digest moves (recorded red,
+    lane TESTS 2026-09-24).
     """
     from agent_runtime.profile_readiness import profile_readiness_for_persona
 
@@ -206,7 +218,7 @@ def test_readiness_pass_leaves_credential_store_byte_identical(monkeypatch):
     # The guarantee first, so a regression reds on the CONSEQUENCE rather than
     # on the instrument.
     assert _digest(auth_path) == before, (
-        "the readiness pass rewrote auth.json with no credential change — the "
+        "the readiness pass rewrote the credential store (auth.json or its rotation sidecar) with no credential change — the "
         "build is perturbing an input it does not declare, so a REAL "
         "credential change on a quiescent store is served as a false cache HIT "
         f"(counts={counts})"
