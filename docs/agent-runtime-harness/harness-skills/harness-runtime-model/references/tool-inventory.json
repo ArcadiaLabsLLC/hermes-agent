@@ -186,7 +186,7 @@
       "toolset": "browser",
       "mutating": false,
       "gated": true,
-      "description": "Go back to the previous page in browser history."
+      "description": "Navigate back to the previous page in browser history. Requires browser_navigate to be called first."
     },
     {
       "name": "browser_cdp",
@@ -200,14 +200,14 @@
       "toolset": "browser",
       "mutating": false,
       "gated": true,
-      "description": "Click an element by its snapshot ref ID (e.g. @e5). Requires a prior browser_snapshot."
+      "description": "Click on an element identified by its ref ID from the snapshot (e.g., '@e5'). The ref IDs are shown in square brackets in the snapshot output. Requires brows..."
     },
     {
       "name": "browser_console",
       "toolset": "browser",
       "mutating": false,
       "gated": true,
-      "description": "Get the current page's console output and uncaught JS errors (log/warn/error/info); pass `expression` to evaluate JS in the page and return the result. Use t..."
+      "description": "Get browser console output and JavaScript errors from the current page. Returns console.log/warn/error/info messages and uncaught JS exceptions. Use this to..."
     },
     {
       "name": "browser_dialog",
@@ -221,42 +221,42 @@
       "toolset": "browser",
       "mutating": false,
       "gated": true,
-      "description": "List all images on the current page with URLs and alt text (find images to analyze with vision_analyze)."
+      "description": "Get a list of all images on the current page with their URLs and alt text. Useful for finding images to analyze with the vision tool. Requires browser_naviga..."
     },
     {
       "name": "browser_navigate",
       "toolset": "browser",
       "mutating": false,
       "gated": true,
-      "description": "Load a URL before other browser_* calls; returns a compact snapshot with ref IDs. Use for interactive pages; prefer text retrieval or terminal fetching for p..."
+      "description": "Navigate to a URL in the browser. Initializes the session and loads the page. Must be called before other browser tools. For simple information retrieval, pr..."
     },
     {
       "name": "browser_press",
       "toolset": "browser",
       "mutating": false,
       "gated": true,
-      "description": "Press a keyboard key (Enter to submit, Tab to navigate, or a shortcut)."
+      "description": "Press a keyboard key. Useful for submitting forms (Enter), navigating (Tab), or keyboard shortcuts. Requires browser_navigate to be called first."
     },
     {
       "name": "browser_scroll",
       "toolset": "browser",
       "mutating": false,
       "gated": true,
-      "description": "Scroll the page in a direction to reveal content above or below the viewport."
+      "description": "Scroll the page in a direction. Use this to reveal more content that may be below or above the current viewport. Requires browser_navigate to be called first."
     },
     {
       "name": "browser_snapshot",
       "toolset": "browser",
       "mutating": false,
       "gated": true,
-      "description": "Get a text accessibility-tree snapshot of the current page with ref IDs (@e1...) for browser_click/type. full=false compact (default), full=true complete. Ov..."
+      "description": "Get a text-based snapshot of the current page's accessibility tree. Returns interactive elements with ref IDs (like @e1, @e2) for browser_click and browser_t..."
     },
     {
       "name": "browser_type",
       "toolset": "browser",
       "mutating": false,
       "gated": true,
-      "description": "Type text into an input field by its snapshot ref ID (clears the field first)."
+      "description": "Type text into an input field identified by its ref ID. Clears the field first, then types the new text. Requires browser_navigate and browser_snapshot to be..."
     },
     {
       "name": "browser_vault_enter_code",
@@ -298,14 +298,14 @@
       "toolset": "browser",
       "mutating": false,
       "gated": true,
-      "description": "Screenshot the current page to inspect it visually (CAPTCHAs, layout, visual checks). Native-vision models see it next turn; others get an auxiliary text ana..."
+      "description": "Take a screenshot of the current page so you can inspect it visually. Use this when you need to understand what the page looks like - especially for CAPTCHAs..."
     },
     {
       "name": "clarify",
       "toolset": "clarify",
       "mutating": false,
       "gated": true,
-      "description": "Ask 1-5 independent questions in one call. Put options only in choices, recommended first; omit for free text. Responses preserve order. Decide low-stakes ma..."
+      "description": "Ask the user one or more questions when you need a decision, clarification, or feedback before proceeding. Pass every question in `questions` (1-5 entries) —..."
     },
     {
       "name": "delegate_task",
@@ -319,7 +319,7 @@
       "toolset": "code_execution",
       "mutating": false,
       "gated": true,
-      "description": "Run Python in a persistent session kernel via `from hermes_tools import ...` (web_search, web_extract, read_file, write_file, search_files, patch, terminal)...."
+      "description": "Run Python that calls Hermes tools programmatically. Use when you need 3+ tool calls with logic between them: filtering/reducing large outputs before they en..."
     },
     {
       "name": "memory",
@@ -333,7 +333,7 @@
       "toolset": "file",
       "mutating": true,
       "gated": true,
-      "description": "Targeted find-and-replace file edits with fuzzy matching; returns a unified diff and auto-runs syntax checks. Supply path, old_string and new_string. Disambi..."
+      "description": "Targeted find-and-replace edits in files. Use this instead of sed/awk in terminal. Uses fuzzy matching (9 strategies) so minor whitespace/indentation differe..."
     },
     {
       "name": "process_manage",
@@ -354,14 +354,14 @@
       "toolset": "file",
       "mutating": false,
       "gated": true,
-      "description": "Search file contents (target='content', regex, ripgrep-backed) or find files by name/glob (target='files', sorted by mtime). Disambiguator: use instead of sh..."
+      "description": "Search file contents or find files by name. Use this instead of grep/rg/find/ls in terminal. Ripgrep-backed, faster than shell equivalents. On macOS, broad s..."
     },
     {
       "name": "session_search",
       "toolset": "session_search",
       "mutating": false,
       "gated": true,
-      "description": "Search conversation history (FTS5): query to discover; session_id + around_message_id to scroll; session_id to read; no args for recent. Paste returned link..."
+      "description": "Recall past conversations: search or read old Hermes sessions (FTS5), or scroll inside one. Four shapes, picked by args: `query` = discovery (top-N matching..."
     },
     {
       "name": "skill_manage",
@@ -403,7 +403,7 @@
       "toolset": "todo",
       "mutating": false,
       "gated": true,
-      "description": "Session task list for 3+ steps; no args reads it. For requested batches, enumerate every instance; split phases via parent. Keep ONE item in_progress; mark c..."
+      "description": "Track a task list for multi-step work (3+ steps). Use for complex tasks with 3+ steps or when the user provides multiple tasks. For 'all N items' tasks, enum..."
     },
     {
       "name": "vision_analyze",
@@ -417,21 +417,21 @@
       "toolset": "web",
       "mutating": false,
       "gated": true,
-      "description": "Extract clean markdown/text from web page or PDF URLs (no LLM summarization). Large pages return a head+tail window with a saved-file path to read the rest...."
+      "description": "Extract content from web page URLs. Returns clean page content in markdown/text (no LLM summarization — fast). Also works with PDF URLs (arxiv papers, docume..."
     },
     {
       "name": "web_search",
       "toolset": "web",
       "mutating": false,
       "gated": true,
-      "description": "Search the web (up to 5 results: title, URL, description). Backend operators like site:, filetype:, intitle:, -term, and \"exact phrase\" may work. Disambiguat..."
+      "description": "Search the web for information. Returns up to 5 results by default with titles, URLs, and descriptions. The query is passed through to the configured backend..."
     },
     {
       "name": "write_file",
       "toolset": "file",
       "mutating": true,
       "gated": true,
-      "description": "Replace a whole file, creating parent directories and reporting new syntax errors. Read existing files first; unread or changed-file overwrites are refused...."
+      "description": "Write content to a file, completely replacing existing content. Use this instead of echo/cat heredoc in terminal. Creates parent directories automatically. O..."
     }
   ],
   "counts": {
