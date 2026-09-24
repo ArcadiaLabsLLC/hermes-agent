@@ -28,7 +28,7 @@ class GoalRuntimeInstanceStore:
     # ``lane.transition_rejected``, ``foreground_runtime.closed``) are
     # de-registered with them. The READ side below is LIVE — ``status.py``
     # projects lanes off ``list_all`` — so this is a write-lane cut, not a store
-    # removal. See tests/agent_runtime/test_s53_lane_write_lane_removal.py.
+    # removal. See tests/agent_runtime/test_s53_lane_write_lane_removal.py (deleted 2026-09-24).
 
     def get(self, instance_id: str) -> GoalRuntimeInstance:
         return from_jsonable(GoalRuntimeInstance, _read_json(paths.runtime_instance_path(instance_id)))

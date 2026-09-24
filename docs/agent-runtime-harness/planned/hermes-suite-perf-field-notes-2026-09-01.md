@@ -187,7 +187,7 @@ Call-time classes in the top of the ranking:
    `test_gateway_peer_two_roots_e2e.py` 26.4 s,
    `test_serve_socket_child_e2e.py` 23.2 s — ≈117 s across 3 files.
 2. **Whole-tree source-walk / AST / reachability gates**, each re-walking the
-   repo inside its own test: `test_s27_snapshot_orphan_tree_removal.py` 27.6 s,
+   repo inside its own test: `test_s27_snapshot_orphan_tree_removal.py` (deleted 2026-09-24) 27.6 s,
    `test_stream_stale_first_routing.py` 26.2 s, `test_s49…` 13.9 s,
    `test_s29…` 11.4 s, `test_s46…` 7.7 s, `test_s50…` 8.2 s, `test_s56…` ≥5.3 s,
    `test_persona_roster_bypass_contract.py` 5.7 s,

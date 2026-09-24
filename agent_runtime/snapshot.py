@@ -151,7 +151,7 @@ def snapshot_build_context_scope(context: SnapshotBuildContext):
 # reader, so ``_open_incidents_frame`` had no list left to split and
 # ``snapshot_section_bytes`` had no section left to weigh; both survived S27
 # only as extra reachability roots seeded from a TEST pin, which is not a
-# caller. See tests/agent_runtime/test_s29_snapshot_dead_local_removal.py.
+# caller. See tests/agent_runtime/test_s29_snapshot_dead_local_removal.py (deleted 2026-09-24).
 
 
 def _persona_chat_history_frame(rows: list) -> list:

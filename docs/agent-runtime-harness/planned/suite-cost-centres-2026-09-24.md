@@ -124,12 +124,12 @@ the floor was the start-up above.
 | 27.4 | `test_stream_stale_first_routing.py::test_the_pin_covers_every_production_call_site_there_is` |
 | 27.0 | `test_gateway_peer_two_roots_e2e.py::test_two_isolated_installs_pair_through_both_verbs_and_ping_across_the_edge` |
 | 23.8 | `test_serve_socket_child_e2e.py::test_probe_then_drain_over_the_socket_against_a_real_serve_child` |
-| 20.3 | `test_s27_snapshot_orphan_tree_removal.py::test_no_module_level_name_is_unreachable_from_the_external_surface` |
-| 18.8 | `test_s49_operator_control_removal.py::test_no_production_module_still_imports_it` |
+| 20.3 | `test_s27_snapshot_orphan_tree_removal.py::test_no_module_level_name_is_unreachable_from_the_external_surface` (deleted 2026-09-24) |
+| 18.8 | `test_s49_operator_control_removal.py::test_no_production_module_still_imports_it` (deleted 2026-09-24) |
 | 18.7 | `test_gateway_peer_two_roots_e2e.py::test_introduce_on_b_join_on_a_and_the_device_half_redeems` |
-| 18.6 | `test_s50_launcher_process_hygiene_removal.py::test_no_production_module_still_imports_it` |
+| 18.6 | `test_s50_launcher_process_hygiene_removal.py::test_no_production_module_still_imports_it` (deleted 2026-09-24) |
 | 18.1 | `test_gateway_peer_cross_install_media_e2e.py::test_a_device_on_A_opens_a_picture_that_exists_only_on_B` |
-| 18.0 | `test_s29_snapshot_dead_local_removal.py::test_the_reachability_roots_are_back_to_the_real_external_surface` |
+| 18.0 | `test_s29_snapshot_dead_local_removal.py::test_the_reachability_roots_are_back_to_the_real_external_surface` (deleted 2026-09-24) |
 | 17.8 | `test_gateway_peer_cross_install_chat_e2e.py::test_a_chat_turn_crosses_an_operator_approved_install_edge` |
 | 17.3 | `test_gateway_peer_two_roots_e2e.py::test_a_peer_code_scoped_to_one_install_is_refused_to_any_other_on_the_wire` |
 | 17.3 | `test_serve_ended_sidecar_child_e2e.py::test_a_hard_exit_writes_nothing_and_the_absence_is_the_reading` |

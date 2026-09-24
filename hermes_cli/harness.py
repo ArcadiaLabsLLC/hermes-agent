@@ -1871,7 +1871,7 @@ def populate_parser(parser) -> None:
     # through `build_snapshot()` and persists them under `<store_root>/serve_read_model/`
     # via `core_cache.write_back()`, which is a different store with a different
     # validity model. Operator ruling: RETIRE. Absence is pinned by
-    # `tests/agent_runtime/test_s46_incremental_projection_lane_removal.py` and
+    # `tests/agent_runtime/test_s46_incremental_projection_lane_removal.py` (deleted 2026-09-24) and
     # by the `agent_runtime.read_model` / `.projector` MODULE tombstones.
 
     # `harness work` — the operator's view of background work in flight

@@ -300,7 +300,7 @@ the evidence, what breaks, the kill proof, and the class of decision it needs.
 > directory and buy one demote-priced rebuild (11,980 ms vs 911 ms, open row 2)
 > to fix a collision that no longer exists. `CORE_CACHE_DIRNAME` is pinned
 > unchanged by
-> `tests/agent_runtime/test_s46_incremental_projection_lane_removal.py`, so a
+> `tests/agent_runtime/test_s46_incremental_projection_lane_removal.py` (deleted 2026-09-24), so a
 > later reader who lands on Stage 6 does not finish the job it looks like half
 > of. The naming-trap WARNING stays in doc 02 — the trap is that the directory
 > is named after something it is not, and deleting the other thing did not make
