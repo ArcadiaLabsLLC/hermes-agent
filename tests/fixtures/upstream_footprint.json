@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "d337b736aa",
-  "files": 408,
-  "deleted_lines": 2612,
+  "files": 406,
+  "deleted_lines": 2604,
   "heavy": 11,
   "reasons": [
     {
@@ -22,6 +22,12 @@
       "files": "448 -> 408: 40 files byte-identical to d337b736aa again (16 of them to upstream/main too) - 15 REVERT rows, 9 win-text-encoding tests, 7 website pages, the P6/P7 set (hermes_constants, profile_cmd, subcommands/profile, test_profile_delete_log_handlers), modal/singularity, ci.yaml, kanban_db, test_startup_latency_regressions",
       "deleted_lines": "2800 -> 2612 (profiles.py 29 -> 20, auxiliary_client 42 -> 2, turn_api_call 26 -> 1, the reverts and moves)",
       "reason": "applied the ledger's decided dispositions: REVERTs, adopt-upstream duplicates, the three § Seams defects, the four dropped-PR rulings, movable carries; heavy 12 -> 11"
+    },
+    {
+      "change": "lane S2 (seam/s2-plugin-surface-2026-09-24)",
+      "files": "408 -> 406: tests/agent/test_system_prompt.py and tests/tools/test_terminal_tool.py byte-identical to d337b736aa again",
+      "deleted_lines": "2612 -> 2604 (the two restored test files' 7, prompt_builder 11 -> 10)",
+      "reason": "seam Stage 2, prompt sections: the T6b guidance and the skill-confirm sentence ride the eternia-harness plugin's system-prompt section; prompt_builder adopts upstream's skill_matches_environment"
     }
   ]
 }
