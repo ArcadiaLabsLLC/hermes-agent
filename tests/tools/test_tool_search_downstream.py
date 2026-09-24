@@ -122,19 +122,23 @@ class TestBridgeDispatch:
         assert "error" in json.loads(result)
 
     def test_tool_describe_serves_core_tool_full_docs(self):
-        """T6b: tool_describe now serves the FULL docs for a core tool whose
-        wire schema ships a brief. It reads the full text from the fork-owned
-        mirror and the live (untrimmed) parameter schema off the registry."""
-        from tools.registry import discover_builtin_tools
+        """T6b: tool_describe serves the FULL docs for a core tool whose wire
+        description is a brief: the registry keeps upstream's text (the brief is
+        swapped in only on the wire, by the eternia-harness middleware), and the
+        live (untrimmed) parameter schema comes back."""
+        from tools.registry import discover_builtin_tools, registry
         discover_builtin_tools()
+        from tools.downstream_schema import BRIEF_DESCRIPTIONS
+        from tools.session_search_tool import SESSION_SEARCH_SCHEMA
         from tools.tool_search import dispatch_tool_describe
+        schema = registry.get_entry("session_search").schema
         result = json.loads(
-            dispatch_tool_describe({"name": "session_search"}, current_tool_defs=[_td("session_search", "brief", {"query": {"type": "string"}})])
+            dispatch_tool_describe({"name": "session_search"}, current_tool_defs=[{"type": "function", "function": schema}])
         )
         assert "error" not in result
-        # Full original text, not the trimmed brief.
-        from tools.session_search_tool import FULL_SESSION_SEARCH_DESCRIPTION
-        assert result["description"] == FULL_SESSION_SEARCH_DESCRIPTION
+        # Full upstream text, not the wire brief.
+        assert result["description"] == SESSION_SEARCH_SCHEMA["description"]
+        assert result["description"] != BRIEF_DESCRIPTIONS["session_search"]
         assert "inspect that first" in result["description"]
         # Parameters are never trimmed — live schema is returned.
         assert result["parameters"].get("properties")

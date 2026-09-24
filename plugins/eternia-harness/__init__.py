@@ -136,8 +136,24 @@ def _check_skill_search() -> bool:
     return check_skills_requirements()
 
 
+def brief_tool_descriptions(request=None, **_context):
+    """``llm_request`` middleware: the fork's short tool descriptions on the wire.
+
+    The registry keeps upstream's full text (``tool_describe`` serves it); this swaps
+    ``description`` by tool name in the final provider kwargs, for the chat, Responses
+    and Anthropic payload shapes. Parameters are never touched.
+    """
+    from tools.downstream_schema import brief_request_tools
+
+    rewritten = brief_request_tools(request)
+    if rewritten is None:
+        return None
+    return {"request": rewritten, "source": "eternia-harness", "reason": "tool wire briefs"}
+
+
 def register(ctx) -> None:
     ctx.register_system_prompt_section("eternia-harness.tool-guidance", render_tool_guidance)
+    ctx.register_middleware("llm_request", brief_tool_descriptions)
     # Joins the built-in `skills` toolset by registry membership; the platform bundles
     # still name it in toolsets.py until a register-toolset PR lets a plugin join them.
     ctx.register_tool(

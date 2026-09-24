@@ -1287,7 +1287,6 @@ def browser_vision(question: str, annotate: bool = False, task_id: Optional[str]
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
-from tools.downstream_schema import brief_schema
 from tools.registry import registry, tool_error
 from tools.browser_extension_router import extension_controller_available, routed_browser_handler
 
@@ -1346,7 +1345,7 @@ def _routed_handler(name: str, fallback):
 for _name, _emoji, _check_fn, _defaults, *_extra in _BROWSER_TOOL_TABLE:
     if _check_fn is None:  # also binds the legacy check_browser_<x>_requirements globals (tests + callers)
         _check_fn = globals()[f"check_{_name}_requirements"] = _routed_check_fn(_name)
-    registry.register(name=_name, toolset="browser", schema=brief_schema(_name, _BROWSER_SCHEMA_MAP[_name]),
+    registry.register(name=_name, toolset="browser", schema=_BROWSER_SCHEMA_MAP[_name],
                       handler=_routed_handler(_name, _fallback_call(_name, _defaults, *_extra)),
                       check_fn=_check_fn, emoji=_emoji)
 
