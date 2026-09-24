@@ -37,19 +37,64 @@ import pytest
 # caches its answer on first use, and pytest has usually asked before conftest
 # imports. Prior run-dirs older than 7 days are pruned best-effort — an
 # unbounded pile in a scan-excluded directory is its own small hazard.
+#
+# The prune runs at most once per `_PRUNE_INTERVAL_SECONDS` per root, not once
+# per process. This function runs at IMPORT in every per-file pytest process
+# (~1,840 per validated-scope run), and the unthrottled sweep was the fork's
+# largest suite cost: measured 2026-09-24 (lane SPEED, the note
+# `docs/agent-runtime-harness/planned/suite-cost-centres-2026-09-24.md`) the
+# operator's root held 14,901 run-dirs, 322 of them aged dirs that
+# `rmtree(ignore_errors=True)` could NOT remove — git writes its objects
+# read-only, and on Windows a read-only file refuses deletion — so every
+# process re-scanned the whole root and re-failed the same 322 trees. The
+# stamp makes the sweep a session-of-runs cost; the chmod-and-retry makes it
+# actually finish, so the same trees are not retried forever.
+_PRUNE_INTERVAL_SECONDS = 3600
+_PRUNE_STAMP = ".prune-stamp"
+
+
+def _rmtree_readonly_too(path: str) -> None:
+    def _retry_writable(func, target, _exc):
+        try:
+            os.chmod(target, 0o700)
+            func(target)
+        except OSError:
+            pass
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=_retry_writable)
+    else:  # pragma: no cover - 3.11 floor
+        shutil.rmtree(path, onerror=lambda f, p, e: _retry_writable(f, p, e[1]))
+
+
 def _maybe_redirect_test_tmp(environ: dict = os.environ) -> str | None:
     root = (environ.get("HERMES_TEST_TMP_ROOT") or "").strip()
     if not root or not os.path.isdir(root):
         return None
     import time
 
-    cutoff = time.time() - 7 * 24 * 3600
-    for entry in os.scandir(root):
+    now = time.time()
+    stamp = os.path.join(root, _PRUNE_STAMP)
+    try:
+        due = now - os.stat(stamp).st_mtime >= _PRUNE_INTERVAL_SECONDS
+    except OSError:
+        due = True
+    if due:
+        # Stamp BEFORE sweeping so the processes starting alongside this one
+        # skip instead of racing it through the same trees.
         try:
-            if entry.is_dir() and entry.stat().st_mtime < cutoff:
-                shutil.rmtree(entry.path, ignore_errors=True)
+            with open(stamp, "a", encoding="utf-8"):
+                pass
+            os.utime(stamp, (now, now))
         except OSError:
             pass
+        cutoff = now - 7 * 24 * 3600
+        for entry in os.scandir(root):
+            try:
+                if entry.is_dir() and entry.stat().st_mtime < cutoff:
+                    _rmtree_readonly_too(entry.path)
+            except OSError:
+                pass
     run_dir = tempfile.mkdtemp(prefix="run-", dir=root)
     for key in ("TMP", "TEMP", "TMPDIR"):
         environ[key] = run_dir

@@ -15,6 +15,7 @@ by its baseline in both directions.
 
 from __future__ import annotations
 
+import copy
 import json
 
 import pytest
@@ -24,6 +25,41 @@ from scripts import doc_cite_adjacency as probe
 
 LIVE_ROOT = "docs/agent-runtime-harness"
 LIVE_EXCLUDE = ["archive/", "planned/"]
+
+
+# The live-canon walk is a pure function of the tracked tree, and six tests
+# below ask it the same question with different baselines. Uncached, each paid
+# the whole walk (~6.5 s under the suite, measured by lane SPEED 2026-09-24,
+# `docs/agent-runtime-harness/planned/suite-cost-centres-2026-09-24.md`), so
+# this file spent ~40 s re-deriving one answer. The walk is now paid once per
+# distinct argument set per process, and every caller gets its own deep copy so
+# no test can see another's mutation of the result.
+_REAL_WALK = probe.walk
+_WALKS: dict[tuple, object] = {}
+_UNDERLYING_WALKS: list[tuple] = []
+
+
+def _walk_once(root, exclude, radius, ceiling=probe.MAX_SUBJECT_OCCURRENCES):
+    key = (root, tuple(exclude), radius, ceiling)
+    if key not in _WALKS:
+        _UNDERLYING_WALKS.append(key)
+        _WALKS[key] = _REAL_WALK(root, exclude, radius, ceiling)
+    return copy.deepcopy(_WALKS[key])
+
+
+@pytest.fixture(autouse=True)
+def _one_walk_per_question(monkeypatch):
+    monkeypatch.setattr(probe, "walk", _walk_once)
+
+
+def test_the_live_canon_is_walked_once_per_file():
+    first = probe.walk(LIVE_ROOT, LIVE_EXCLUDE, 3)
+    second = probe.walk(LIVE_ROOT, LIVE_EXCLUDE, 3)
+    key = (LIVE_ROOT, tuple(LIVE_EXCLUDE), 3, probe.MAX_SUBJECT_OCCURRENCES)
+    assert _UNDERLYING_WALKS.count(key) == 1
+    # The copy is a copy: the cache cannot leak one test's edits into the next.
+    assert first is not second and first.failures is not second.failures
+    assert first.cites_seen == second.cites_seen > 0
 
 
 MODULE = '''"""A module whose docstring names publish_chat_head_home and nothing else."""

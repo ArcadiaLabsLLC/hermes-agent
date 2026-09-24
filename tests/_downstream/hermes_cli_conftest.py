@@ -8,6 +8,7 @@ and hooks on the conftest module exactly as before (same directory scope).
 
 from __future__ import annotations
 
+import functools
 import importlib
 import importlib.util
 import os
@@ -600,7 +601,16 @@ def _web_build_prereq_failure() -> str | None:
     )
 
 
-_WEB_BUILD_PREREQ_REASON = _web_build_prereq_failure()
+# Probed LAZILY, the first time an item of a file that needs it is collected,
+# never at conftest import: this module is imported by every one of the ~1,260
+# per-file processes under tests/hermes_cli, and only two files consult it.
+# Measured 2026-09-24 (lane SPEED, `docs/agent-runtime-harness/planned/
+# suite-cost-centres-2026-09-24.md`): the two import-time probes cost every
+# hermes_cli process a `node --version` spawn and, on a host that drops SYN on
+# 127.0.0.1:11434, a 2 s connect timeout — ~2.5 s x 1,260 files.
+@functools.cache
+def _web_build_prereq_reason() -> str | None:
+    return _web_build_prereq_failure()
 
 
 # ── Prerequisite guard: tests that construct AIAgent against a local model ──
@@ -646,7 +656,10 @@ def _local_model_probe_failure() -> str | None:
     return None
 
 
-_LOCAL_MODEL_PROBE_REASON = _local_model_probe_failure()
+@functools.cache
+def _local_model_probe_reason() -> str | None:
+    """Lazy, once per process — see :func:`_web_build_prereq_reason`."""
+    return _local_model_probe_failure()
 
 # ── Environment-gap registry (audited 2026-08-10) ──────────────────────────
 #
@@ -1110,15 +1123,18 @@ def pytest_collection_modifyitems(items):  # noqa: D401 — pytest hook
         if not is_owned(item.path, _OWNER_DIR):
             continue
         if (
-            _WEB_BUILD_PREREQ_REASON is not None
-            and item.path.name in _WEB_BUILD_PREREQ_FILES
+            item.path.name in _WEB_BUILD_PREREQ_FILES
+            and _web_build_prereq_reason() is not None
         ):
-            item.add_marker(pytest.mark.skip(reason=_WEB_BUILD_PREREQ_REASON))
-        if _LOCAL_MODEL_PROBE_REASON is not None:
-            probe_ids = _LOCAL_MODEL_PROBE_NODE_IDS.get(item.path.name)
-            _, _, probe_name = item.nodeid.partition("::")
-            if probe_ids is not None and probe_name in probe_ids:
-                item.add_marker(pytest.mark.skip(reason=_LOCAL_MODEL_PROBE_REASON))
+            item.add_marker(pytest.mark.skip(reason=_web_build_prereq_reason()))
+        probe_ids = _LOCAL_MODEL_PROBE_NODE_IDS.get(item.path.name)
+        _, _, probe_name = item.nodeid.partition("::")
+        if (
+            probe_ids is not None
+            and probe_name in probe_ids
+            and _local_model_probe_reason() is not None
+        ):
+            item.add_marker(pytest.mark.skip(reason=_local_model_probe_reason()))
         groups = _ENV_GAPS.get(item.path.name)
         if groups is None:
             continue
@@ -1295,10 +1311,10 @@ __all__ = [
     "_VITE8_NODE_FLOOR",
     "_node_version",
     "_web_build_prereq_failure",
-    "_WEB_BUILD_PREREQ_REASON",
+    "_web_build_prereq_reason",
     "_LOCAL_MODEL_PROBE_NODE_IDS",
     "_local_model_probe_failure",
-    "_LOCAL_MODEL_PROBE_REASON",
+    "_local_model_probe_reason",
     "_ENV_GAPS",
     "_POSIX_MODE_BITS_PROBE",
     "_GIT_EOL_PROBE",
