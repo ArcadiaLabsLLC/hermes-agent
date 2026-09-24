@@ -1,4 +1,5 @@
 """Exercise production discussion producers with a deterministic model boundary."""
+from agent_runtime.discussions.contract import CONTRACT_VERSION
 from agent_runtime.discussions.rpc import execute
 from agent_runtime.discussions.service import DiscussionService
 from tests.agent_runtime.test_discussion_definitions import table_value
@@ -10,7 +11,7 @@ def wire_cases(tmp_path):
     service = DiscussionService(context, active_poll_interval=.02)
     service.start()
     def call(operation, **params):
-        return {"contract_version": 1, **execute(service, operation, params, actor_id="operator")}
+        return {"contract_version": CONTRACT_VERSION, **execute(service, operation, params, actor_id="operator")}
     try:
         spec = table_value()
         spec["configuration"]["settings"]["allow_invitations"] = True
