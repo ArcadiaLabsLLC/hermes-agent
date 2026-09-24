@@ -46,6 +46,8 @@ from tests.hermes_cli._gateway_fence import GatewayFenceViolation
         # Entry-point spellings.
         ["hermes", "gateway", "run"],
         ["hermes.exe", "serve"],
+        # An interpreter option before -m does not hide the module.
+        [sys.executable, "-u", "-X", "utf8", "-m", "hermes_cli.main", "serve"],
         ["/opt/hermes/.venv/bin/hermes", "dashboard"],
         # Wrapped in a shell: the subcommand lives inside one argv element.
         ["bash", "-c", "hermes gateway run"],
@@ -74,6 +76,10 @@ def test_classifier_refuses_live_gateway_commands(cmd):
         ["schtasks", "/Query", "/TN", "Hermes_Gateway_alice"],
         # "gateway" as a NOUN in a path is not a subcommand of a hermes entry.
         ["cat", "/var/log/gateway/run.log"],
+        # ``python -c CODE ARGS``: ARGS are CODE's sys.argv, never an entry point
+        # (the live venv-holder E2Es spawn this sleeper for psutil to classify).
+        [sys.executable, "-c", "import time; time.sleep(300)", "-m", "hermes_cli.main", "serve"],
+        [sys.executable, "-X", "utf8", "-c", "pass", "hermes", "dashboard"],
     ],
 )
 def test_classifier_allows_ordinary_commands(cmd):

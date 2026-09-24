@@ -1860,6 +1860,33 @@ def _live_system_guard(request, monkeypatch):
     # pass is a live backend on the operator's machine.
     _BACKEND_SUBCOMMANDS = ("gateway", "serve", "dashboard")
     _HERMES_ENTRYPOINT_BASENAMES = ("hermes", "hermes.exe")
+    _PYTHON_BASENAME_RE = re.compile(r"^pythonw?(\d+(\.\d+)*)?(\.exe)?$")
+
+    def _without_python_c_argv(raw: list) -> list:
+        """*raw* cut after CODE when it is ``python [opts] -c CODE ARGS...``.
+
+        ``python -c CODE ARGS...`` runs CODE; ARGS are only its ``sys.argv``, so a
+        ``-m hermes_cli.main serve`` tail there is inert data (the live venv-holder /
+        desktop-lifecycle E2Es spawn exactly that sleeper for psutil to classify) and
+        never an entry point. Keep CODE (it may itself spawn), drop ARGS.
+        Mirrored in ``tests/hermes_cli/_gateway_fence.py::_without_python_c_argv``.
+        """
+        if not raw or not _PYTHON_BASENAME_RE.match(
+            str(raw[0]).replace("\\", "/").rsplit("/", 1)[-1].lower()
+        ):
+            return raw
+        index = 1
+        while index < len(raw):
+            token = str(raw[index])
+            if token == "-c":
+                return raw[: index + 2]
+            if token in ("-X", "-W"):
+                index += 2
+                continue
+            if not token.startswith("-") or token == "-m":
+                return raw
+            index += 1
+        return raw
 
     def _cmd_tokens(cmd) -> list:
         # argv lists are tokenized by construction; only strings need shlex,
@@ -1872,6 +1899,7 @@ def _live_system_guard(request, monkeypatch):
                 raw = _shlex.split(cmd_str)
             except ValueError:
                 raw = cmd_str.split()
+        raw = _without_python_c_argv(raw)
         # A wrapper's argument is itself a whole command: ``["bash", "-c",
         # "hermes gateway run"]`` arrives as THREE elements, the last of which
         # is the command. Split on whitespace (not shlex — it would eat the
