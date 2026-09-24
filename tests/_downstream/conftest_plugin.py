@@ -26,6 +26,7 @@ import pytest
 from tests._downstream.id_markers import (  # noqa: F401 — hook re-exports
     NO_LIVE_GATEWAY_MARK,
     pytest_collection_modifyitems,
+    pytest_make_collect_report,
     pytest_runtest_setup,
 )
 

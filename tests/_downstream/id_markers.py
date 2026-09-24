@@ -17,6 +17,7 @@ longer gives.
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 from pathlib import Path
 
@@ -553,8 +554,6 @@ ID_MARKS.update({
             "tests/agent/test_external_skills_downstream.py",
         ),
     ),
-    # The module cannot collect on Windows (os.geteuid at import; fork-hygiene
-    # row filed), so this row is checked on POSIX only.
     "tests/agent/test_prompt_builder.py::TestBuildContextFilesPrompt::"
     "test_hermes_md_still_wins_over_agents_override": (
         _fork_replaces(
@@ -1067,6 +1066,41 @@ if _WIN:
                 "fixed by the open fork PR #121226 (shell invocation)")),
         ),
     })
+
+#: Upstream test modules that call a POSIX-only ``os`` attribute at IMPORT (a
+#: ``skipif`` argument), so they cannot even collect on Windows. The fork lends
+#: the attribute for that one module's import and takes it back; the tests the
+#: condition guarded carry a ``_posix_only`` row. Retires with the open PR
+#: branch ``up/win-posix-only-apis`` (the ``os.name != "nt" and`` form).
+IMPORT_TIME_POSIX_SHIMS: dict[str, dict[str, object]] = {
+    "tests/agent/test_prompt_builder.py": {"geteuid": lambda: -1},
+} if _WIN else {}
+
+if _WIN:
+    ID_MARKS.update({
+        f"tests/agent/test_prompt_builder.py::{test}": (
+            _posix_only("chmod(0) does not make a directory unreadable on Windows"),
+        )
+        for test in (
+            "TestFindHermesMd::test_unreadable_cwd_is_treated_as_not_found",
+            "TestCursorrulesCandidates::test_unreadable_cwd_is_treated_as_absent",
+        )
+    })
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_make_collect_report(collector):  # noqa: D401 — pytest hook
+    """Lend ``IMPORT_TIME_POSIX_SHIMS`` to one module's import, then take them back."""
+    shims = IMPORT_TIME_POSIX_SHIMS.get(collector.nodeid)
+    lent = [name for name in (shims or {}) if not hasattr(os, name)]
+    for name in lent:
+        setattr(os, name, shims[name])
+    try:
+        return (yield)
+    finally:
+        for name in lent:
+            delattr(os, name)
+
 
 def _base_id(nodeid: str) -> str:
     return nodeid.split("[", 1)[0]
