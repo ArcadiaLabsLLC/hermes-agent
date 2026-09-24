@@ -20,36 +20,36 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `.gitignore` | 32 | 0 | carry | unreviewed | - |
 | `AGENTS.md` | 4 | 0 | carry | unreviewed | - |
 | `README.md` | 6 | 1 | carry | unreviewed | - |
-| `agent/agent_init.py` | 30 | 4 | carry | unreviewed | - |
-| `agent/anthropic_adapter.py` | 37 | 2 | carry | unreviewed | - |
-| `agent/auxiliary_client.py` | 19 | 42 | carry | unreviewed | - |
-| `agent/chat_completion_helpers.py` | 8 | 2 | carry | unreviewed | - |
-| `agent/codex_runtime.py` | 39 | 22 | carry | unreviewed | - |
-| `agent/conversation_compression.py` | 11 | 2 | carry | unreviewed | - |
-| `agent/conversation_loop.py` | 59 | 1 | carry | unreviewed | - |
-| `agent/credential_pool.py` | 10 | 18 | carry | unreviewed | - |
-| `agent/image_routing.py` | 4 | 1 | carry | unreviewed | - |
-| `agent/model_metadata.py` | 49 | 17 | carry | unreviewed | - |
-| `agent/pet/generate/atlas.py` | 199 | 14 | carry | unreviewed | - |
-| `agent/process_bootstrap.py` | 70 | 3 | carry | unreviewed | - |
+| `agent/agent_init.py` | 30 | 4 | carry | ours: MC init-phase timing receipts (`agent_runtime.init_observability`), `blocked_tool_names` pass-through, `local-llama-hermes` managed-context floor exemption, `session_usage_ledger` seed — replaces upstream lines: the `_load_tools` signature/call and the MINIMUM_CONTEXT_LENGTH condition; not movable: call sites inside `init_agent`; the timing retires only through a widening PR (no init-phase hook in VALID_HOOKS) | - |
+| `agent/anthropic_adapter.py` | 37 | 2 | upstream | PR candidate: a lazy SDK install refused mid-turn is logged with its install command and does not latch None (class G1 turn-safe lazy installs, with `tools/lazy_deps.py`) | S3 |
+| `agent/auxiliary_client.py` | 19 | 42 | upstream | superseded by upstream `aux_probe_mode`/`_AuxProbeClientStub`@55f9e472a0: adopt theirs, delete ours — the fork deleted upstream's probe (−42) and aliased it to `agent_runtime.auxiliary_probe`; the gpt-6 tier tuple is upstream @79ec1f2a34; the `_note_client_construction` counter (3 sites) is ours, carry additively | S4 |
+| `agent/chat_completion_helpers.py` | 8 | 2 | carry | ours: persona `header_cache_scope_id` + cache-routing observability read off the transport — replaces upstream lines: `return build_kwargs(...)` needs the transport in a local; not movable: inline in `_build_codex_kwargs` | - |
+| `agent/codex_runtime.py` | 39 | 22 | hook | MC provider timing (`agent_runtime.codex_observability`) + `record_api_call_usage`: pre/post_api_request and on_stream_* exist (surface has the dispatch bracket, TTFB and usage); the client_resolve / stream_consume phase stamps need a widening PR; the −22 are a re-indent under `with measure_provider`, the conflict generator | S3 |
+| `agent/conversation_compression.py` | 11 | 2 | carry | ours: `local-llama-hermes` same-model aux floor exemption + `agent_runtime.compression_metadata.child_model_config` — replaces upstream lines: the floor condition and the `model_config=` argument; not movable: inline expressions | - |
+| `agent/conversation_loop.py` | 59 | 1 | carry | ours: `reuse_current_user_message` threading (persona native rows) and MC prompt/turn timing (`agent_runtime.conversation_observability`); the `deny_venv_installs` wrapper around every turn is G1 (PR candidate) — replaces upstream lines: `run_conversation` becomes `_run_conversation` under the wrapper; not movable: signature threading | - |
+| `agent/credential_pool.py` | 10 | 18 | carry | replaces upstream lines: `agent_runtime.pool_rotation.PoolRotationMixin` leads the MRO and the strategy branch in `_select_unlocked` (−18) becomes `_select_with_rotation` — a PARALLEL of upstream's rotation (persisted cursor, persist scope); unavoidable while that is fork policy; retires via a PR for a persisted rotation cursor; not movable: in-method | - |
+| `agent/image_routing.py` | 4 | 1 | upstream | PR candidate: `_LOCAL_IMAGE_PATH_RE` recognises Windows drive paths (class G2 Windows paths) | S3 |
+| `agent/model_metadata.py` | 49 | 17 | upstream | superseded by upstream gpt-6 tier rows + `fetch_codex_catalog_entries`/`CODEX_NEWEST_CLIENT_VERSION`@79ec1f2a34,1d10cef836: adopt theirs, delete ours (upstream dropped `gpt-6-terra`) | S4 |
+| `agent/pet/generate/atlas.py` | 199 | 14 | upstream | PR candidate: context-aware strip-scale long-axis line erase, vertical box merge, lenient-row validation (class G3 pet atlas extraction); `frame_x_bounds`/`_slot_bounds` are ours (charsheet QA crop), movable → `agent/charsheet/pipeline.py` | S3 |
+| `agent/process_bootstrap.py` | 70 | 3 | upstream | PR candidate: process-wide memoized httpx SSL context keyed on the CA inputs, explicit `verify` stays authoritative (class G4 SSL/CA cost); the copilot direct-client branch rides it | S3 |
 | `agent/prompt_builder.py` | 58 | 11 | hook | §0.4: guidance via `register_system_prompt_section`; `skill_matches_environment` likely already upstream (re-exported by `tools/skills_tool.py`) | S2 |
-| `agent/reasoning_effort.py` | 4 | 2 | carry | unreviewed | - |
-| `agent/session_persistence.py` | 5 | 2 | carry | unreviewed | - |
-| `agent/shell_hooks.py` | 4 | 1 | carry | unreviewed | - |
-| `agent/skill_commands.py` | 8 | 2 | carry | unreviewed | - |
+| `agent/reasoning_effort.py` | 4 | 2 | upstream | superseded by upstream `GPT6_TIER_PREFIXES`@79ec1f2a34: adopt theirs, delete ours | S4 |
+| `agent/session_persistence.py` | 5 | 2 | carry | ours: persona chat-root rows projected through `agent_runtime.native_persistence.project_native_message` (+`msg_idx`) — replaces upstream lines: `_db_flush_row` signature and call; not movable: inline in the flush row | - |
+| `agent/shell_hooks.py` | 4 | 1 | upstream | superseded by upstream `split_command_line`@ee472a7fdb: adopt theirs, delete ours — the `_split_command` alias has test readers only; the `os.sep` script-path fix is a PR candidate (G2) | S4 |
+| `agent/skill_commands.py` | 8 | 2 | hook | `required_skill_names` activation note for runtime-required skills: needs a widening PR (no skill-activation-note hook; `register_skill` is explicit-load only, plan Stage 2) | S3 |
 | `agent/skill_utils.py` | 41 | 4 | carry | §0.4: realm-specific (shared skills dir, `.realm_inbox`/`.provenance` ignore, lookup normalization) as additive lines; or a skill-dirs hook PR | - |
-| `agent/ssl_guard.py` | 32 | 4 | carry | unreviewed | - |
-| `agent/system_prompt.py` | 4 | 0 | carry | unreviewed | - |
-| `agent/transports/codex.py` | 20 | 0 | carry | unreviewed | - |
-| `agent/turn_api_call.py` | 45 | 26 | carry | unreviewed | - |
-| `agent/turn_api_request.py` | 11 | 0 | carry | unreviewed | - |
-| `agent/turn_context.py` | 18 | 8 | carry | unreviewed | - |
-| `agent/turn_facade.py` | 2 | 0 | carry | unreviewed | - |
-| `agent/turn_finalizer.py` | 1 | 0 | carry | unreviewed | - |
-| `agent/turn_response_check.py` | 6 | 0 | carry | unreviewed | - |
-| `agent/turn_response_intake.py` | 12 | 1 | carry | unreviewed | - |
-| `agent/turn_usage.py` | 5 | 2 | carry | unreviewed | - |
-| `agent/usage_pricing.py` | 63 | 3 | carry | unreviewed | - |
+| `agent/ssl_guard.py` | 32 | 4 | upstream | PR candidate: memoize a successful CA-bundle verification per CA fingerprint (class G4); DEFECT: the −4 delete upstream's `BEGIN PLUGIN-COMPAT` marker while its END marker stays — restore it | S3 |
+| `agent/system_prompt.py` | 4 | 0 | hook | tool-conditional guidance (`SHELL_TOOL_PREFERENCE`, `CLARIFY_CHOICES`, `BROWSER_PRECONDITION`, `TOOL_DESCRIBE`) → `register_system_prompt_section` with callable content (surface has it), with the `agent/prompt_builder.py` row | S2 |
+| `agent/transports/codex.py` | 20 | 0 | carry | ours: persona header cache scope → content-addressed `prompt_cache_key` + session headers (`agent_runtime.cache_routing`) and `_last_cache_routing_observability` — additive; not movable: inside `build_kwargs` | - |
+| `agent/turn_api_call.py` | 45 | 26 | upstream | superseded by upstream TTFB `_last_api_first_chunk_at` + post_api_request(first_chunk_at, api_duration)@e17276c7b4: adopt theirs, delete ours (`_fork_first_byte_s`, provider_dispatch timing); the request-assembled marker → pre_api_request hook (surface has it); the −26 are a re-indent | S4 |
+| `agent/turn_api_request.py` | 11 | 0 | hook | MC request_build / pre_api_hook / request_dump stamps: pre_api_request exists (surface has the bracket); per-phase build durations need a widening PR | S3 |
+| `agent/turn_context.py` | 18 | 8 | carry | ours: `reuse_current_user_message` (the persona native user row is already persisted) — replaces upstream lines: display-kind stamping and the append block go under the flag; not movable: inline in `_stage_turn_user_message`/`build_turn_context` | - |
+| `agent/turn_facade.py` | 2 | 0 | carry | ours: `reuse_current_user_message` forwarder kwarg — additive; not movable: signature | - |
+| `agent/turn_finalizer.py` | 1 | 0 | hook | `usage_ledger` in the turn result: post_api_request carries per-call `usage` (surface has it) — the ledger can be a plugin-side accumulator | - |
+| `agent/turn_response_check.py` | 6 | 0 | hook | MC response_validate stamp: no response-validation hook — needs a widening PR | S3 |
+| `agent/turn_response_intake.py` | 12 | 1 | upstream | PR candidate: relay NATIVE reasoning (`_extract_reasoning`) as `reasoning.available`, not only think-block content (class G5 reasoning relay) | S3 |
+| `agent/turn_usage.py` | 5 | 2 | upstream | superseded by upstream post_api_request(first_chunk_at)@e17276c7b4 for the TTFB log token: adopt theirs, delete ours; `record_api_call_usage` → post_api_request(usage) hook (surface has it) | S4 |
+| `agent/usage_pricing.py` | 63 | 3 | upstream | superseded by upstream gpt-6 Sol/Luna pricing rows@79ec1f2a34: adopt theirs, delete ours; `record_api_call_usage`/`USAGE_LEDGER_MAX_ROWS` are ours (fork callers only), movable → an `agent_runtime/` usage-ledger module or the post_api_request hook | S4 |
 | `apps/desktop/src/app/settings/uninstall-section.tsx` | 6 | 0 | carry | unreviewed | - |
 | `apps/desktop/src/lib/desktop-slash-registry.json` | 2 | 0 | carry | unreviewed | - |
 | `cli-config.yaml.example` | 6 | 2 | carry | unreviewed | - |
