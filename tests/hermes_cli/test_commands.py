@@ -1,10 +1,8 @@
 """Tests for the central command registry and autocomplete."""
 
-import pytest
 from prompt_toolkit.completion import CompleteEvent
 from prompt_toolkit.document import Document
 
-from tests._downstream import hermes_cli_conftest as package_conftest
 from hermes_cli.commands import COMMAND_REGISTRY, COMMANDS_BY_CATEGORY, CommandDef, GATEWAY_KNOWN_COMMANDS, gateway_help_lines, infer_argument_mode, resolve_command
 from hermes_cli.commands_completion import SlashCommandAutoSuggest, SlashCommandCompleter
 from hermes_cli.commands_platforms import _CMD_NAME_LIMIT, _SLACK_RESERVED_COMMANDS, _SLACK_VIA_HERMES_ONLY, _clamp_command_names, _sanitize_telegram_name, slack_app_manifest, slack_native_slashes, slack_subcommand_map, telegram_bot_commands, telegram_menu_commands
@@ -165,21 +163,8 @@ class TestSlackNativeSlashes:
                 assert ch.isalnum() or ch in "-_", f"invalid char {ch!r} in {name!r}"
 
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=package_conftest.TELEGRAM_PARITY_DEFECT_REASON,
-    )
     def test_telegram_parity(self):
         """Every Telegram bot command must be registerable on Slack too.
-
-        FENCED, NOT FIXED (ML-16 / B20(iv)). This has been red since the
-        registry outgrew Slack's 50-slash cap; closing it is product curation
-        and an owner call, so the defect stays. What could not stay is the
-        permanent red: a file that can never be green has no red left to spend
-        on a regression, and the canonical per-file runner's red definition
-        could never be all-green while it stood. ``strict=True`` is the half
-        that keeps this honest — the day parity actually holds this XPASSes and
-        goes red, and someone must delete the mark and the conftest row.
 
         This catches the old behavior where Slack users couldn't invoke
         commands like /btw natively. If a future command surfaces on

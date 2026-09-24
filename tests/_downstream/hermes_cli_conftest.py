@@ -1166,18 +1166,10 @@ _STALE_ENV_GAP_ENTRIES: list[str] = []
 # file have a different, independent cause and are registered in
 # _ENV_GAP_SKIPS above with a live probe.
 #: The one-line reason the ``xfail`` mark on ``test_telegram_parity`` carries.
-#: The mark IMPORTS this name (``tests/hermes_cli/test_commands.py``) rather
-#: than restating it, so the fence and the report cannot drift apart into two
+#: The mark (applied by id from ``tests/_downstream/id_markers.py``, which
+#: owns the text) and this banner share ONE string rather than restating it, so the fence and the report cannot drift apart into two
 #: accounts of one defect — the register-rot shape C25 is about.
-TELEGRAM_PARITY_DEFECT_REASON = (
-    "KNOWN DEFECT (owner call, not an environment gap): Slack's 50-slash app "
-    "cap drops '/platform', a canonical gateway command with no native Slack "
-    "slot, so Telegram/Slack parity cannot hold until an owner either pins it "
-    "a slot (something else loses one) or declares it _SLACK_VIA_HERMES_ONLY. "
-    "strict=True: the day parity holds, this XPASSes and reds — delete the "
-    "mark and this row. Full account: _KNOWN_DEFECTS in "
-    "tests/hermes_cli/conftest.py."
-)
+from tests._downstream.id_markers import TELEGRAM_PARITY_DEFECT_REASON  # noqa: E402 — single source, the table applies the mark
 
 _KNOWN_DEFECTS: dict[str, str] = {
     "test_commands.py": (

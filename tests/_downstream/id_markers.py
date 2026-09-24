@@ -5,8 +5,8 @@ Lane CARRY (2026-09-24): an upstream test file the fork used to edit in place
 bytes, and the mark moves here. The file then leaves the ``[up-fp]`` ratchet and
 the weekly merge stops conflicting on it.
 
-``ID_MARKS`` maps a node id WITHOUT its parametrize suffix to the marks the fork
-applies. ``_WIN`` / ``_NOT_WIN`` rows are platform treatments; each names what
+``ID_MARKS`` maps a node id WITHOUT its parametrize suffix — or a class id,
+which covers every test in the class — to the marks the fork applies. ``_WIN`` / ``_NOT_WIN`` rows are platform treatments; each names what
 retires it. A row whose file is collected but whose id no longer exists is a
 UsageError, not a silent no-op: an unmatched row would read as coverage it no
 longer gives.
@@ -53,7 +53,55 @@ _FORK_SYSTEM_PATH = (
     "retires with the G2 Windows-paths PR"
 )
 
+#: Single source: the banner in ``hermes_cli_conftest._KNOWN_DEFECTS`` and the
+#: strict xfail below carry this one string (ML-16).
+TELEGRAM_PARITY_DEFECT_REASON = (
+    "KNOWN DEFECT (owner call, not an environment gap): Slack's 50-slash app "
+    "cap drops '/platform', a canonical gateway command with no native Slack "
+    "slot, so Telegram/Slack parity cannot hold until an owner either pins it "
+    "a slot (something else loses one) or declares it _SLACK_VIA_HERMES_ONLY. "
+    "strict=True: the day parity holds, this XPASSes and reds — delete the "
+    "mark and this row. Full account: _KNOWN_DEFECTS in "
+    "tests/hermes_cli/conftest.py."
+)
+
+_CREDENTIALS_FILE = pytest.mark.allow_claude_code_credentials_file
+_REAL_PAUSE = pytest.mark.real_windows_gateway_pause
+
 ID_MARKS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
+    # MCF-66: these classes exercise the real ~/.claude/.credentials.json
+    # reader/writer; each redirects Path.home() at its tmp_path (enforced by
+    # tests/test_claude_code_credentials_file_gate.py, which reads this table).
+    **{
+        f"tests/agent/test_anthropic_adapter.py::{cls}": (_CREDENTIALS_FILE,)
+        for cls in (
+            "TestReadClaudeCodeCredentials",
+            "TestResolveAnthropicToken",
+            "TestRefreshOauthToken",
+            "TestWriteClaudeCodeCredentials",
+            "TestResolveWithRefresh",
+            "TestRunOauthSetupToken",
+        )
+    },
+    # ML-16 / B20(iv): a known, owner-owned defect, fenced strict.
+    "tests/hermes_cli/test_commands.py::TestSlackNativeSlashes::test_telegram_parity": (
+        pytest.mark.xfail(strict=True, reason=TELEGRAM_PARITY_DEFECT_REASON),
+    ),
+    # Tests ABOUT _pause_windows_gateways_for_update opt out of the fork
+    # conftest default that returns None; their service/process transports
+    # are mocked and the gateway fence still stands behind them.
+    **{
+        f"tests/hermes_cli/test_update_concurrent_quarantine.py::{test}": (_REAL_PAUSE,)
+        for test in (
+            "test_pause_windows_gateways_for_update_stops_profile_and_unmapped_pids",
+            "test_pause_and_resume_windows_gateway_service",
+            "test_pause_windows_gateway_service_failure_restores_every_attempted_service",
+            "test_pause_windows_gateway_service_surfaces_rollback_start_failure",
+            "test_pause_windows_gateways_aborts_when_service_discovery_is_indeterminate",
+            "test_pause_windows_gateways_aborts_when_gateway_pid_discovery_is_indeterminate",
+            "test_pause_kill_set_covers_venv_guard_abort_set",
+        )
+    },
     # The fork's hermes_cli.tirith_config lets TIRITH_* env win over config.yaml;
     # this upstream test pins the config value (fixture: tools_conftest).
     "tests/tools/test_approval.py::TestTirithImportErrorFailOpenPolicy::"

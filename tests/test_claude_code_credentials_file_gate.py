@@ -341,6 +341,7 @@ def _parse(path: Path) -> ast.Module | None:
             tree = (
                 None
                 if not any(token in source for token in _RELEVANT_TOKENS)
+                and _rel(path) not in _table_files()
                 else _compile(source, path)
             )
         except (OSError, UnicodeDecodeError):
@@ -461,11 +462,57 @@ def _redirects_home(node: ast.AST, defs: dict[str, ast.AST], _depth: int = 3) ->
     return False
 
 
-def _marked_scopes(tree: ast.Module) -> list[tuple[str, ast.AST]]:
+def _rel(path: Path) -> str:
+    return path.resolve().relative_to(Path(__file__).resolve().parents[1]).as_posix()
+
+
+def _table_ids() -> set[str]:
+    """Ids the fork marks with the opt-in BY ID (``tests/_downstream/id_markers.py``).
+
+    Read from the table the collection hook applies, not from a source walk,
+    so a scope marked there is held to the same redirect rule as a decorator.
+    """
+    from tests._downstream.id_markers import ids_marked
+
+    return ids_marked(_MARKER)
+
+
+def _table_files() -> set[str]:
+    return {node.split("::", 1)[0] for node in _table_ids()}
+
+
+def _table_scopes(tree: ast.Module, path: Path) -> list[tuple[str, ast.AST]]:
+    rel = _rel(path)
+    scopes: list[tuple[str, ast.AST]] = []
+    for node_id in sorted(_table_ids()):
+        file_part, _, qual = node_id.partition("::")
+        if file_part != rel:
+            continue
+        scope: ast.AST | None = tree
+        for name in qual.split("::"):
+            scope = next(
+                (
+                    child
+                    for child in getattr(scope, "body", [])
+                    if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+                    and child.name == name
+                ),
+                None,
+            )
+            if scope is None:
+                break
+        # An id naming nothing is the table's own UsageError at collection.
+        if scope is not None:
+            scopes.append((qual, scope))
+    return scopes
+
+
+def _marked_scopes(tree: ast.Module, path: Path | None = None) -> list[tuple[str, ast.AST]]:
     """Every scope carrying the opt-in marker, paired with the body that must
     redirect home. A function inside a class may satisfy the rule via a
     sibling helper, so the class body is what gets checked for class-level
-    markers — and for a function-level marker, the function itself."""
+    markers — and for a function-level marker, the function itself. Scopes
+    marked by id in the fork's table count exactly as decorated ones do."""
     scopes: list[tuple[str, ast.AST]] = []
     if _MARKER in _marker_names(tree):
         scopes.append(("<module>", tree))
@@ -473,6 +520,8 @@ def _marked_scopes(tree: ast.Module) -> list[tuple[str, ast.AST]]:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             if _MARKER in _marker_names(node):
                 scopes.append((node.name, node))
+    if path is not None:
+        scopes.extend(_table_scopes(tree, path))
     return scopes
 
 
@@ -499,7 +548,7 @@ def test_gate_opt_in_requires_a_redirected_home():
         if tree is None:
             continue
         defs = _function_defs(tree)
-        for name, scope in _marked_scopes(tree):
+        for name, scope in _marked_scopes(tree, path):
             if not _redirects_home(scope, defs):
                 offenders.append(f"{path.name}::{name}")
 
@@ -527,7 +576,7 @@ def test_gate_direct_surface_import_requires_opt_in():
         imported = _direct_surface_imports(tree)
         if not imported:
             continue
-        marked = {name for name, _ in _marked_scopes(tree)}
+        marked = {name for name, _ in _marked_scopes(tree, path)}
         if not marked:
             offenders.append(f"{path.name} (direct-imports {sorted(imported)})")
 
@@ -558,12 +607,28 @@ def test_gate_census_actually_sees_the_suite():
     marked = [
         path.name
         for path in parsed
-        if _marked_scopes(_parse(path))  # type: ignore[arg-type]
+        if _marked_scopes(_parse(path), path)  # type: ignore[arg-type]
     ]
     assert marked, (
         "no scope anywhere declares the opt-in marker — either the marker was "
         "renamed or the census is looking in the wrong place"
     )
+
+
+def test_gate_sees_every_scope_the_id_table_marks():
+    """The table arm must not census nothing: every id the fork marks with the
+    opt-in in ``tests/_downstream/id_markers.py`` resolves to a scope here, so
+    the redirect rule above is actually applied to it."""
+    ids = _table_ids()
+    assert ids, "the id table marks nothing with the opt-in; the table arm is vacuous"
+    seen: set[str] = set()
+    for path in _test_modules():
+        if _rel(path) not in _table_files():
+            continue
+        tree = _parse(path)
+        assert tree is not None, f"{_rel(path)} is table-marked but was not parsed"
+        seen |= {f"{_rel(path)}::{qual}" for qual, _ in _table_scopes(tree, path)}
+    assert seen == ids, f"table ids with no scope in the census: {sorted(ids - seen)}"
 
 
 def test_gate_marker_is_registered():

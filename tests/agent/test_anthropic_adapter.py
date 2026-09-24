@@ -129,22 +129,7 @@ class TestBuildAnthropicClient:
             assert kwargs["max_retries"] == 0
 
 
-@pytest.mark.allow_claude_code_credentials_file
 class TestReadClaudeCodeCredentials:
-    """Exercises the real ~/.claude/.credentials.json reader.
-
-    Opts out of the suite-wide neutralization, and every test below points
-    ``Path.home()`` at its own ``tmp_path`` first — the marker on its own
-    would hand back the operator's live Claude Code login (MCF-66).
-    """
-
-    """Exercises the real ~/.claude/.credentials.json reader.
-
-    Opts out of the suite-wide neutralization, and every test below points
-    ``Path.home()`` at its own ``tmp_path`` first — the marker on its own
-    would hand back the operator's live Claude Code login (MCF-66).
-    """
-
     @pytest.fixture(autouse=True)
     def no_keychain(self, monkeypatch):
         monkeypatch.setattr(
@@ -192,13 +177,7 @@ class TestIsClaudeCodeTokenValid:
         assert is_claude_code_token_valid(creds) is True
 
 
-@pytest.mark.allow_claude_code_credentials_file
 class TestResolveAnthropicToken:
-    """Resolution order across all five sources, one of which is the real
-    ~/.claude/.credentials.json reader — so this opts out of the suite-wide
-    neutralization, with ``Path.home()`` redirected at ``tmp_path`` in every
-    test that reaches source #3 (MCF-66)."""
-
     def _assert_not_called(*_args, **_kwargs):
         raise AssertionError("should not be called when API key is present")
 
@@ -393,18 +372,7 @@ class TestResolveAnthropicToken:
         assert resolve_anthropic_token() == "cc-auto-token"
 
 
-@pytest.mark.allow_claude_code_credentials_file
 class TestRefreshOauthToken:
-    """The refresh path persists the rotated pair, so these need the real
-    writer — every test redirects ``Path.home()`` at its own ``tmp_path``
-    first, which is the only thing between this class and the operator's live
-    Claude Code login (MCF-66)."""
-
-    """The refresh path persists the rotated pair, so these need the real
-    writer — every test redirects ``Path.home()`` at its own ``tmp_path``
-    first, which is the only thing between this class and the operator's live
-    Claude Code login (MCF-66)."""
-
     def test_returns_none_without_refresh_token(self, tmp_path, monkeypatch):
         monkeypatch.setattr("agent.anthropic_credentials.Path.home", lambda: tmp_path)
         # Neutralize live Claude Code sources (macOS Keychain + ~/.claude file)
@@ -467,16 +435,7 @@ class TestRefreshOauthToken:
             assert _refresh_oauth_token(creds) is None
 
 
-@pytest.mark.allow_claude_code_credentials_file
 class TestWriteClaudeCodeCredentials:
-    """Exercises the real writer. Each test redirects ``Path.home()`` FIRST.
-
-    This class also binds ``_write_claude_code_credentials`` by direct import
-    at module scope, which the conftest module-attribute patch cannot reach —
-    the redirected home is the only thing keeping these writes off the
-    operator's real credentials file (MCF-66).
-    """
-
     def test_writes_new_file(self, tmp_path, monkeypatch):
         monkeypatch.setattr("agent.anthropic_credentials.Path.home", lambda: tmp_path)
         _write_claude_code_credentials("tok", "ref", 12345)
@@ -517,11 +476,7 @@ class TestWriteClaudeCodeCredentials:
         assert mode == 0o600, f"creds file mode {oct(mode)} != 0o600 — TOCTOU race regressed"
 
 
-@pytest.mark.allow_claude_code_credentials_file
 class TestResolveWithRefresh:
-    """Resolution must see a credentials file, so it needs the real reader —
-    against a redirected ``Path.home()`` in every test (MCF-66)."""
-
     def test_auto_refresh_on_expired_creds(self, monkeypatch, tmp_path):
         """When cred file has expired token + refresh token, auto-refresh is attempted."""
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
@@ -568,10 +523,7 @@ class TestResolveWithRefresh:
         assert result == "refreshed-token"
 
 
-@pytest.mark.allow_claude_code_credentials_file
 class TestRunOauthSetupToken:
-    """Reads back the credential file the setup subprocess would have written
-    — real reader, redirected ``Path.home()`` in every test (MCF-66)."""
 
     def test_returns_token_from_credential_files(self, monkeypatch, tmp_path):
         """After subprocess completes, reads credentials from Claude Code files."""

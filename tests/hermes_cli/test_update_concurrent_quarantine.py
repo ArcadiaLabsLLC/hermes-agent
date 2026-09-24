@@ -175,12 +175,7 @@ def test_quarantine_reports_a_lock_it_cannot_break(tmp_path, capsys, monkeypatch
 # ---------------------------------------------------------------------------
 
 
-# The tests in this directory that are ABOUT _pause_windows_gateways_for_update
-# rather than merely downstream of it opt out of the fork conftest default that
-# returns None. Their service/process transports are mocked, and the
-# process-wide gateway fence still stands behind them either way.
 @pytest.mark.windows_only
-@pytest.mark.real_windows_gateway_pause  # Service/process transports are mocked below.
 def test_pause_windows_gateways_for_update_stops_profile_and_unmapped_pids(
     monkeypatch,
     tmp_path,
@@ -258,7 +253,6 @@ def test_pause_windows_gateways_for_update_stops_profile_and_unmapped_pids(
 
 
 @pytest.mark.windows_only
-@pytest.mark.real_windows_gateway_pause  # Service/process transports are mocked below.
 def test_pause_and_resume_windows_gateway_service(
     monkeypatch,
     tmp_path,
@@ -365,7 +359,6 @@ def _stop_times_out_on_picasso(name, **_kwargs):
 
 
 @pytest.mark.windows_only
-@pytest.mark.real_windows_gateway_pause  # Service/process transports are mocked below.
 def test_pause_windows_gateway_service_failure_restores_every_attempted_service(
     monkeypatch,
 ):
@@ -383,7 +376,6 @@ def test_pause_windows_gateway_service_failure_restores_every_attempted_service(
 
 
 @pytest.mark.windows_only
-@pytest.mark.real_windows_gateway_pause  # Service/process transports are mocked below.
 def test_pause_windows_gateway_service_surfaces_rollback_start_failure(
     monkeypatch,
 ):
@@ -401,7 +393,6 @@ def test_pause_windows_gateway_service_surfaces_rollback_start_failure(
 
 
 @pytest.mark.windows_only
-@pytest.mark.real_windows_gateway_pause  # Service/process transports are mocked below.
 def test_pause_windows_gateways_aborts_when_service_discovery_is_indeterminate(
     monkeypatch,
 ):
@@ -427,7 +418,6 @@ def test_pause_windows_gateways_aborts_when_service_discovery_is_indeterminate(
 
 
 @pytest.mark.windows_only
-@pytest.mark.real_windows_gateway_pause  # Service/process transports are mocked below.
 def test_pause_windows_gateways_aborts_when_gateway_pid_discovery_is_indeterminate(
     monkeypatch,
 ):
@@ -599,7 +589,6 @@ def test_venv_launcher_ancestors_ignores_non_venv_parents(monkeypatch):
 
 
 @pytest.mark.windows_only
-@pytest.mark.real_windows_gateway_pause  # Service/process transports are mocked below.
 def test_pause_kill_set_covers_venv_guard_abort_set(
     monkeypatch,
     tmp_path,

@@ -1,6 +1,5 @@
 """Tests for gateway service management helpers."""
 
-import argparse
 import os
 import plistlib
 import re
@@ -24,25 +23,6 @@ from gateway.restart import (
     GATEWAY_SERVICE_RESTART_EXIT_CODE,
     resolve_systemd_timeout_stop_sec,
 )
-from hermes_cli.subcommands.gateway import build_gateway_parser
-
-
-def _gateway_parser() -> argparse.ArgumentParser:
-    """A parser carrying the REAL ``gateway`` subcommand tree.
-
-    Built by the same factory ``hermes_cli.main`` wires in, so a parse here is
-    the parse the CLI would do. The handlers are stubs: argparse only stores
-    them on the namespace and nothing in this file dispatches.
-    """
-    parser = argparse.ArgumentParser(prog="hermes")
-    subparsers = parser.add_subparsers(dest="command")
-    build_gateway_parser(
-        subparsers,
-        cmd_gateway=lambda _args: None,
-        cmd_proxy=lambda _args: None,
-        cmd_gateway_enroll=lambda _args: None,
-    )
-    return parser
 
 
 def _osascript_exec_argv(program_args: list[str]) -> list[str]:

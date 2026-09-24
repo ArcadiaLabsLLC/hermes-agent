@@ -140,7 +140,6 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `scripts/run_tests_parallel.py` | 181 | 42 | upstream | §0.4: runner improvements (P5); carry the hermetic-env rows | S3 |
 | `tests/agent/conftest.py` | 1 | 0 | carry | §0.4 / S5 landed: fork fixtures and hooks live in `tests/_downstream/` (root plugin + three star-imported modules); this file carries one added line | S5 |
 | `tests/agent/lsp/test_workspace.py` | 9 | 3 | upstream | lifted: up/win-tilde-home | up/win-tilde-home |
-| `tests/agent/test_anthropic_adapter.py` | 48 | 0 | carry | fork test infra: allow_claude_code_credentials_file marker (MCF-66, tests/_downstream root plugin) | - |
 | `tests/agent/test_anthropic_borrowed_row_authority.py` | 8 | 0 | carry | fork test infra: allow_claude_code_credentials_file marker (MCF-66, tests/_downstream root plugin) | - |
 | `tests/agent/test_anthropic_credential_persist_failure.py` | 17 | 10 | carry | PR dropped 2026-09-24: up/monkeypatch-undo-scoped (no red on upstream). RULED KEPT 2026-09-24 (lane MECH): the fork tripwire tests/_downstream/conftest_plugin.py::_shared_monkeypatch_pin_tripwire reds any test calling undo(), fork-authored or not; rest fork test infra: allow_claude_code_credentials_file marker (MCF-66, tests/_downstream root plugin) | - |
 | `tests/agent/test_anthropic_keychain.py` | 10 | 1 | carry | fork test infra: allow_claude_code_credentials_file marker (MCF-66, tests/_downstream root plugin) | - |
@@ -193,7 +192,6 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tests/hermes_cli/test_bytecode_sweep.py` | 2 | 1 | carry | depends on fork prod code hermes_cli/_bytecode_sweep.py (sweep extracted from main.py); REVERT orphan S5 banner | - |
 | `tests/hermes_cli/test_cmd_update.py` | 16 | 1 | carry | depends on fork prod code hermes_cli update history guard | - |
 | `tests/hermes_cli/test_codex_cli_model_picker.py` | 7 | 1 | carry | fork test infra: allow_claude_code_credentials_file marker (MCF-66, tests/_downstream root plugin) | - |
-| `tests/hermes_cli/test_commands.py` | 15 | 0 | carry | fork test infra: xfail on tests/_downstream hermes_cli_conftest.TELEGRAM_PARITY_DEFECT_REASON (ML-16); REVERT unused imports discord_skill_commands, slack_clamped_slashes, telegram_menu_max_commands (S5 residue) | - |
 | `tests/hermes_cli/test_completion.py` | 16 | 9 | upstream | lifted: up/win-shell-invocation | up/win-shell-invocation |
 | `tests/hermes_cli/test_config_read_guard.py` | 61 | 21 | carry | depends on fork prod code agent_runtime/persona_config_sync.py (allowlist); replaces upstream lines: walk made drivable for .claude worktrees + pyvenv.cfg pruning | - |
 | `tests/hermes_cli/test_cross_profile_kill_refusal.py` | 0 | 221 | carry | fork relocation to `tests/gateway/` (the fork copy adds a 4-line docstring note): at upstream's path the tests/hermes_cli gateway fence (`tests/hermes_cli/_gateway_fence.py`) blocks its gateway-lookalike spawns, which upstream's `spawns_gateway_lookalike` mark does not lift. Retires when the fence honours that mark | S5 |
@@ -211,7 +209,6 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tests/hermes_cli/test_fireworks_provider.py` | 1 | 1 | carry | depends on fork prod code hermes_cli/doctor.py call-time HERMES_HOME resolution | - |
 | `tests/hermes_cli/test_gateway_job_teardown_live.py` | 4 | 0 | carry | fork test infra: pytest-timeout marker / bounds sized for the fork's repo-wide --timeout=30 runner | - |
 | `tests/hermes_cli/test_gateway_migrate_multiplex.py` | 3 | 0 | upstream | PR candidate: linux-only markers (@pytest.mark.linux_only; needs per-test proof the behaviour is Linux-specific) | S3 |
-| `tests/hermes_cli/test_gateway_service.py` | 20 | 0 | carry | fork test infra: _live_system_guard backend-spawn arm (ML-14); replaces upstream lines: rewritten so the test spawns nothing live | - |
 | `tests/hermes_cli/test_gateway_windows.py` | 1 | 97 | carry | depends on fork prod code hermes_cli/gateway.py resolve_managed_python + gateway_windows._spawn_detached(script_path); replaces upstream lines: 2 upstream breakaway tests deleted, covered by fork tests/gateway/test_windows_gateway_spawn.py | - |
 | `tests/hermes_cli/test_gmi_provider.py` | 1 | 1 | carry | depends on fork prod code hermes_cli/doctor.py call-time HERMES_HOME resolution | - |
 | `tests/hermes_cli/test_kanban_boards.py` | 2 | 2 | carry | depends on fork prod code `kanban_db_connect.connect_closing`; re-checked at the 2026-09-24 merge: upstream's version is red on the merged tree (2 red), so the carry stays | - |
@@ -244,7 +241,6 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tests/hermes_cli/test_subagent_notification_display.py` | 2 | 0 | carry | depends on fork prod code HERMES_BACKGROUND_AGENT_TURNS (background agent turns) | - |
 | `tests/hermes_cli/test_tui_resume_flow.py` | 4 | 1 | upstream | lifted: up/win-line-endings | up/win-line-endings |
 | `tests/hermes_cli/test_update_autostash.py` | 20 | 0 | carry | fork test infra: stub for the fork's update venv-process walk | - |
-| `tests/hermes_cli/test_update_concurrent_quarantine.py` | 11 | 0 | carry | fork test infra: real_windows_gateway_pause marker | - |
 | `tests/hermes_cli/test_update_fleet_restart_pending.py` | 8 | 0 | carry | depends on fork prod code hermes_cli update fleet settle clock | - |
 | `tests/hermes_cli/test_update_serve_generation_recovery.py` | 1 | 0 | upstream | PR candidate: linux-only markers (@pytest.mark.linux_only; needs per-test proof the behaviour is Linux-specific) | S3 |
 | `tests/hermes_cli/test_update_stale_dashboard.py` | 34 | 7 | carry | fork test infra: host-OS fake (platform patch); upstream AGENTS.md bans faking the host OS, so no PR | - |
