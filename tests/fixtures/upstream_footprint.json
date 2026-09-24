@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 346,
-  "deleted_lines": 2131,
+  "files": 335,
+  "deleted_lines": 2120,
   "heavy": 7,
   "reasons": [
     {
@@ -71,6 +71,12 @@
       "deleted_lines": "2222 -> 2131",
       "reason": "groups 1+2 of the carry census: .gitignore back to stock (every fork entry's producer now writes a self-ignoring dir; /profiles/ was upstream's own line; .claude/ is the up/gitignore-claude-dir PR); .gitattributes keeps only the root eol rule, ruled carry-permanent; uv.lock back to stock (coverage/pytest-timeout -> requirements-fork-dev.txt, installed by scripts/ensure_fork_dev_deps.py from run_tests.sh), pyproject markers + timeout addopts -> tests/_downstream/conftest_plugin.py, pyproject ruled carry-permanent (agent_runtime include, Stage 7); heavy -1 (uv.lock); AGENTS.md trimmed to a one-line fork pointer (landing-gate bullet -> docs/downstream-development.md), ruled carry-permanent; README.md ruled carry-permanent (licence notice)",
       "heavy": "8 -> 7"
+    },
+    {
+      "change": "lane CARRY2A (seam/test-carries-cli-2026-09-24)",
+      "files": "346 -> 335",
+      "deleted_lines": "2131 -> 2120",
+      "reason": "tests/hermes_cli carries restored to upstream's bytes (the fork's marks ride tests/_downstream/id_markers.py, fork tests ride *_downstream.py siblings). Class A1: 11 files whose fork hunks were dead on this runner — comments, reload removals and sys.modules restores already done by the directory's _sys_modules_identity_is_restored, the AWS scrub tests/conftest.py already does, doctor HERMES_HOME re-spellings the fork's PEP 562 _LIVE_HOME_NAMES already answers, a call re-routed to _bytecode_sweep that main still re-exports"
     }
   ]
 }

@@ -82,7 +82,7 @@ class TestFireworksDoctor:
         project = tmp_path / "project"
         project.mkdir()
 
-        monkeypatch.setenv("HERMES_HOME", str(home))
+        monkeypatch.setattr(doctor_mod, "HERMES_HOME", home)
         monkeypatch.setattr(doctor_mod, "PROJECT_ROOT", project)
         monkeypatch.setattr(doctor_mod, "_DHH", str(home))
         monkeypatch.setenv("FIREWORKS_API_KEY", "fw_test")

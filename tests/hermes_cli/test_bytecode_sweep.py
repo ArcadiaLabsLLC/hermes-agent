@@ -14,7 +14,6 @@ updaters).
 from pathlib import Path
 
 from hermes_cli import main as hermes_main
-from hermes_cli import _bytecode_sweep as sweep
 from hermes_cli import main_web_build
 
 
@@ -44,7 +43,7 @@ def test_sweep_clears_pycache_when_checkout_changed(monkeypatch, tmp_path):
         "git:refs/heads/main:" + "a" * 40, encoding="utf-8"
     )
 
-    sweep._sweep_stale_bytecode_if_checkout_changed()
+    hermes_main._sweep_stale_bytecode_if_checkout_changed()
 
     assert not cache.exists()
     # Stamp updated to the current fingerprint.
