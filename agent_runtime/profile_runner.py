@@ -381,7 +381,7 @@ class AgentRunResult:
     # in call order. The token fields above are turn-cumulative and answer "what
     # did this turn burn"; row 1 answers "how big was the assembled context",
     # which is the only honest source for Mission Control's context budget.
-    # Written at the accrual sites (agent.usage_pricing.record_api_call_usage).
+    # Collected per API call by agent_runtime.usage_ledger (bound around run_conversation).
     usage_ledger: list[dict[str, Any]] = field(default_factory=list)
     latency_ms: int | None = None
     # Mostly ``_ms`` / ``_count`` integers, plus the one structured entry
@@ -583,7 +583,6 @@ def _prepare_resident_persona_chat_agent(agent: Any, turn_state: dict[str, Any])
     ):
         if hasattr(agent, name):
             setattr(agent, name, 0.0 if name.endswith("cost_usd") else 0)
-    agent.session_usage_ledger = []
     for name, value in (
         ("_stream_callback", None), ("_interrupt_requested", False),
         ("_interrupt_reason", None), ("_current_api_request_id", ""),
@@ -1284,7 +1283,7 @@ class ProfileAgentRunner:
                         conversation_kwargs["reuse_current_user_message"] = True
                     if request.stream_callback is not None:
                         conversation_kwargs["stream_callback"] = request.stream_callback
-                    raw_result = agent.run_conversation(**conversation_kwargs)
+                    raw_result = _run_conversation_with_usage_ledger(agent, conversation_kwargs)
                     _attach_model_input_observability(raw_result, agent=agent, request=request)
                     timing["conversation_call_ms"] = _emit_request_timing(request, "conversation_call", conversation_started)
                     timing["run_budget"] = ledger.accounting()
@@ -1356,7 +1355,7 @@ class ProfileAgentRunner:
                     conversation_kwargs["reuse_current_user_message"] = True
                 if request.stream_callback is not None:
                     conversation_kwargs["stream_callback"] = request.stream_callback
-                raw_result = agent.run_conversation(**conversation_kwargs)
+                raw_result = _run_conversation_with_usage_ledger(agent, conversation_kwargs)
                 _attach_model_input_observability(raw_result, agent=agent, request=request)
                 timing["conversation_call_ms"] = _emit_request_timing(request, "conversation_call", conversation_started)
             except BaseException:
@@ -1557,6 +1556,17 @@ def _notify_agent_ready(request: AgentRunRequest, agent: Any) -> Callable[[], No
     except Exception as exc:
         _emit_agent_ready_callback_warning(request, exc, phase="start")
         return None
+
+
+def _run_conversation_with_usage_ledger(agent: Any, conversation_kwargs: dict[str, Any]) -> Any:
+    """Run the turn with a per-call usage ledger bound; a dict result carries it as ``usage_ledger``."""
+    from agent_runtime.usage_ledger import bind_usage_ledger
+
+    with bind_usage_ledger() as usage_ledger:
+        raw_result = agent.run_conversation(**conversation_kwargs)
+    if isinstance(raw_result, dict):
+        raw_result["usage_ledger"] = list(usage_ledger)
+    return raw_result
 
 
 def _cleanup_agent_ready(cleanup: Callable[[], None] | None, request: AgentRunRequest) -> None:

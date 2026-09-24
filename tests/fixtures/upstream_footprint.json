@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 304,
-  "deleted_lines": 1882,
+  "files": 300,
+  "deleted_lines": 1881,
   "heavy": 7,
   "reasons": [
     {
@@ -83,6 +83,12 @@
       "files": "313 -> 304",
       "deleted_lines": "1918 -> 1882",
       "reason": "tool wire briefs: the eternia-harness plugin registers llm_request middleware (tools/downstream_schema.brief_request_tools) that swaps tools[].description by name for the chat/Responses/Anthropic shapes; the registry keeps upstream's text, so the FULL_* copies and dead mirror rows are deleted; tools/{browser,clarify,close_terminal,code_execution,read_terminal,session_search,todo,web}_tool(s).py and tests/tools/test_execute_helper_contract.py are byte-identical to f24a1d7f92; persona scratch sessions adopt upstream's hidden 'tool' source"
+    },
+    {
+      "change": "lane MOVE-A group 12 (seam/carry-move-a-2026-09-24)",
+      "files": "304 -> 300",
+      "deleted_lines": "1882 -> 1881",
+      "reason": "usage ledger: agent_runtime/usage_ledger.py (ContextVar list bound by the persona runner around run_conversation) fed by the eternia-harness post_api_request hook; the Codex app-server path, which never fires that hook, calls record_usage itself; the session_usage_ledger seeds and the turn-result key are gone; agent/usage_pricing.py, turn_usage.py, turn_finalizer.py, auxiliary_client.py byte-identical to f24a1d7f92 (the construction counter moved into its only consumer, the test; agent_runtime/auxiliary_probe.py deleted)"
     }
   ]
 }

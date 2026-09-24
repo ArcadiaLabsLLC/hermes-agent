@@ -169,7 +169,7 @@ def _record_codex_app_server_usage(agent, turn, messages=None) -> dict[str, Any]
         _queue_token_counts(agent, "Codex app-server api-call persistence failed (session=%s): %s",
                             counts=lambda: billing(billing_mode="subscription_included"))
         return {}
-    from agent.usage_pricing import CanonicalUsage, estimate_usage_cost, record_api_call_usage
+    from agent.usage_pricing import CanonicalUsage, estimate_usage_cost
     # ``inputTokens`` is INCLUSIVE of ``cachedInputTokens`` (same contract as the Responses API, see
     # normalize_usage's codex_responses branch); CanonicalUsage.prompt_tokens re-adds cache_read on top of
     # input_tokens, so the canonical input bucket must be the UNCACHED remainder or cached tokens count twice.
@@ -202,7 +202,8 @@ def _record_codex_app_server_usage(agent, turn, messages=None) -> dict[str, Any]
             set_usage_anchor(agent, anchor)
     for key, value in usage_dict.items():
         setattr(agent, f"session_{key}", getattr(agent, f"session_{key}") + value)
-    record_api_call_usage(agent, canonical_usage)
+    from agent_runtime.usage_ledger import record_usage  # this path never fires post_api_request
+    record_usage(canonical_usage)
     cost_result = estimate_usage_cost(
         agent.model, canonical_usage, provider=agent.provider, base_url=agent.base_url, api_key=getattr(agent, "api_key", ""),
     )

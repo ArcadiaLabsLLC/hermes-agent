@@ -422,7 +422,6 @@ class AIAgent(
             "session_reasoning_tokens", "session_api_calls",
         ):
             setattr(self, counter, 0)
-        self.session_usage_ledger = []
         self.session_estimated_cost_usd = 0.0
         self.session_cost_status = "unknown"
         self.session_cost_source = "none"

@@ -65,7 +65,6 @@ class _OpenAIProxy:
     __slots__ = ()
 
     def __call__(self, *args, **kwargs):
-        _note_client_construction()
         return _load_openai_cls()(*args, **kwargs)
 
     def __instancecheck__(self, obj):
@@ -115,10 +114,6 @@ def aux_probe_mode():
         yield
     finally:
         _aux_probe_state.active = prev
-
-
-# Fork: construction accounting only (additive); the probe is upstream's above.
-from agent_runtime.auxiliary_probe import client_construction_count, _note_client_construction  # noqa: E402,F401
 
 
 from agent.credential_pool import load_pool
@@ -3043,7 +3038,6 @@ def _try_anthropic(explicit_api_key: Optional[Union[str, Callable[[], str]]] = N
         return _AuxProbeClientStub(api_key="", base_url=base_url), model
     logger.debug("Auxiliary client: Anthropic native (%s) at %s (oauth=%s)", model, base_url, is_oauth)
     try:
-        _note_client_construction()
         real_client = build_anthropic_client(token, base_url)
     except ImportError:
         return None, None  # Adapter imports fine but the anthropic SDK itself is missing.
@@ -4686,7 +4680,6 @@ def _to_async_client(sync_client, model: str, is_vision: bool = False):
     # Hermes owns the auxiliary retry/timeout budget; disable SDK-internal retries.
     # See #54465.
     async_kwargs.setdefault("max_retries", 0)
-    _note_client_construction()
     return AsyncOpenAI(**async_kwargs), model
 
 

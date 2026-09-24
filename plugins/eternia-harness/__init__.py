@@ -151,9 +151,17 @@ def brief_tool_descriptions(request=None, **_context):
     return {"request": rewritten, "source": "eternia-harness", "reason": "tool wire briefs"}
 
 
+def record_usage_ledger_row(**kwargs):
+    """``post_api_request`` hook: one per-call usage row for a bound persona-turn ledger."""
+    from agent_runtime.usage_ledger import on_post_api_request
+
+    on_post_api_request(**kwargs)
+
+
 def register(ctx) -> None:
     ctx.register_system_prompt_section("eternia-harness.tool-guidance", render_tool_guidance)
     ctx.register_middleware("llm_request", brief_tool_descriptions)
+    ctx.register_hook("post_api_request", record_usage_ledger_row)
     # Joins the built-in `skills` toolset by registry membership; the platform bundles
     # still name it in toolsets.py until a register-toolset PR lets a plugin join them.
     ctx.register_tool(
