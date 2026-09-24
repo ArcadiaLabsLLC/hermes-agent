@@ -34,8 +34,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-24 (seam lane S2)
 
-- [ ] **`read_file`'s wire brief (603 chars) is LONGER than its full docs (541), so T6b ships more bytes for it than no brief at all** · `fork / tools` · `tests/tools/test_t6b_brief_descriptions.py::test_wire_ships_brief_shorter_than_full_docs` is red on main (base `37ca422c25`); the brief lives in `tools/downstream_schema.py` since lane MECH · evidence: lane S2 base run · filed by lane S2 2026-09-24 **UNCLAIMED** **TAKEN 2026-09-24 FORK-CODE**
-
 ### Filed on arrival — 2026-09-24 (lanes UPREV, DISP-M)
 
 - [ ] **`tests/hermes_cli/test_profile_delete_mcp_log.py`'s stub edit (S4 row below) cannot retire via P6: `up/profiles-delete-guard` was dropped 2026-09-24** · `fork / tests` · it needs a `reason:` row in `tests/fixtures/upstream_footprint.json` (or the `**__` stub edit carried with a reason) in place of the P6 retire condition · evidence: lane UPREV report · filed by lane UPREV 2026-09-24 **UNCLAIMED** **TAKEN 2026-09-24 FORK-CODE**
