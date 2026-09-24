@@ -6,12 +6,18 @@ from __future__ import annotations
 import logging
 import os
 import ssl
+import threading
 from pathlib import Path
 
 from agent.errors import SSLConfigurationError
 from utils import is_truthy_value
 
 logger = logging.getLogger(__name__)
+
+# Fingerprint of the last CA configuration that verified. The check parses the whole CA bundle
+# and runs on every agent construction; success is memoized, failure never is.
+_VERIFIED_FINGERPRINT: tuple | None = None
+_VERIFIED_LOCK = threading.Lock()
 
 _CA_BUNDLE_ENV_VARS = ("HERMES_CA_BUNDLE", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE")
 _REPAIR_HINT = (
@@ -46,12 +52,30 @@ def _validate_bundle_path(label: str, value: str, *, require_substantial: bool =
         raise _ssl_err(f"{label} CA bundle at {value} did not load any certificates")
 
 
+def _ca_config_fingerprint() -> tuple:
+    """The CA-bundle env vars plus the certifi bundle's identity (path, mtime, size)."""
+    parts: list = [os.getenv(env_var) or "" for env_var in _CA_BUNDLE_ENV_VARS]
+    try:
+        import certifi
+        path = str(certifi.where())
+        st = os.stat(path)
+        parts.append((path, st.st_mtime_ns, st.st_size))
+    except Exception:
+        parts.append(None)
+    return tuple(parts)
+
+
 def verify_ca_bundle() -> None:
     """Raise SSLConfigurationError when a CA-bundle env var points at a bad path or certifi's ``cacert.pem``
-    is missing/corrupt."""
+    is missing/corrupt. A configuration that already verified is not parsed again."""
+    global _VERIFIED_FINGERPRINT
     if is_truthy_value(os.getenv("HERMES_SKIP_SSL_GUARD", "")):
         logger.debug("SSL CA bundle guard skipped via HERMES_SKIP_SSL_GUARD")
         return
+    fingerprint = _ca_config_fingerprint()
+    with _VERIFIED_LOCK:
+        if _VERIFIED_FINGERPRINT == fingerprint:
+            return
     for env_var in _CA_BUNDLE_ENV_VARS:
         if value := os.getenv(env_var):
             _validate_bundle_path(env_var, value)
@@ -60,6 +84,8 @@ def verify_ca_bundle() -> None:
     except Exception as exc:
         raise _ssl_err(f"certifi is not importable: {exc}") from exc
     _validate_bundle_path("certifi", str(certifi.where()), require_substantial=True)
+    with _VERIFIED_LOCK:
+        _VERIFIED_FINGERPRINT = fingerprint
 
 
 # ---- BEGIN PLUGIN-COMPAT (revert-scheduled; see COMPAT_MANIFEST.md) ----

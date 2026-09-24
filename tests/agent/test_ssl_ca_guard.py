@@ -5,8 +5,14 @@ from pathlib import Path
 import certifi
 import pytest
 
+from agent import ssl_guard
 from agent.errors import SSLConfigurationError
 from agent.ssl_guard import verify_ca_bundle
+
+
+@pytest.fixture(autouse=True)
+def _reset_verified_memo(monkeypatch):
+    monkeypatch.setattr(ssl_guard, "_VERIFIED_FINGERPRINT", None)
 
 
 def test_healthy_bundle_passes(monkeypatch):

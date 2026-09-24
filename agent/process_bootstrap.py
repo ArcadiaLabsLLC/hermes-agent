@@ -5,10 +5,13 @@ Lazy OpenAI SDK import (``_OpenAIProxy`` keeps ``isinstance`` and
 (``_SafeWriter``), env-only HTTP proxy resolution, and the httpcore backend that
 runs sync httpx connects through the process-wide Happy Eyeballs racer
 (``hermes_bootstrap``).
+
+The default-verification SSL context is built once per CA configuration and shared.
 """
 
 from __future__ import annotations
 
+import os
 import socket
 import sys
 import threading
@@ -173,6 +176,44 @@ def _get_proxy_from_env() -> Optional[str]:
     return normalize_proxy_url(value) if value else None
 
 
+# (fingerprint, ssl.SSLContext) for default verification; rebuilt when the CA inputs change.
+_SSL_CONTEXT_CACHE: Optional[tuple] = None
+_SSL_CONTEXT_LOCK = threading.Lock()
+
+
+def _ssl_context_fingerprint() -> tuple:
+    """The CA inputs of httpx's default context: ``SSL_CERT_FILE`` / ``SSL_CERT_DIR`` (trust_env)
+    and the certifi bundle's identity, so a certifi reinstall rebuilds the context."""
+    parts: list = [os.environ.get("SSL_CERT_FILE") or "", os.environ.get("SSL_CERT_DIR") or ""]
+    try:
+        import certifi
+        path = certifi.where()
+        st = os.stat(path)
+        parts.append((path, st.st_mtime_ns, st.st_size))
+    except Exception:
+        parts.append(None)
+    return tuple(parts)
+
+
+def shared_ssl_context() -> Optional[Any]:
+    """Process-wide httpx default SSL context, memoized per CA fingerprint (None if it cannot be
+    built, so the caller falls back to httpx's own default). Building one parses the whole CA
+    bundle; using one is thread-safe, so every default-verify transport can share it."""
+    global _SSL_CONTEXT_CACHE
+    fingerprint = _ssl_context_fingerprint()
+    with _SSL_CONTEXT_LOCK:
+        if _SSL_CONTEXT_CACHE is not None and _SSL_CONTEXT_CACHE[0] == fingerprint:
+            return _SSL_CONTEXT_CACHE[1]
+    try:
+        from httpx._config import create_ssl_context
+        context = create_ssl_context()
+    except Exception:
+        return None
+    with _SSL_CONTEXT_LOCK:
+        _SSL_CONTEXT_CACHE = (fingerprint, context)
+    return context
+
+
 def _get_proxy_for_base_url(base_url: Optional[str]) -> Optional[str]:
     """Env-configured proxy unless NO_PROXY excludes this base URL (same matcher as the
     gateway adapters: CIDR, ``*.`` wildcards and host:port entries all count)."""
@@ -285,6 +326,13 @@ def build_keepalive_http_client(base_url: str = "", *, async_mode: bool = False,
     """
     try:
         import httpx
+        # Only default verification uses the shared context; an explicit ``verify`` (a CA path,
+        # an SSLContext, or False) is passed through unchanged.
+        if verify is True:
+            shared = shared_ssl_context()
+            effective_verify = shared if shared is not None else True
+        else:
+            effective_verify = verify
         proxy = _get_proxy_for_base_url(base_url)
         limits = httpx.Limits(max_keepalive_connections=20, max_connections=100, keepalive_expiry=20.0)
         timeout = httpx.Timeout(connect=15.0, read=None, write=15.0, pool=10.0)  # read=None for SSE streaming
@@ -301,7 +349,7 @@ def build_keepalive_http_client(base_url: str = "", *, async_mode: bool = False,
             )
 
             def _build_direct():
-                transport = transport_cls(verify=verify, limits=direct_limits)
+                transport = transport_cls(verify=effective_verify, limits=direct_limits)
                 # Async transports race natively (anyio happy_eyeballs_delay=0.25).
                 if happy_eyeballs:
                     _enable_happy_eyeballs(transport)
@@ -310,7 +358,7 @@ def build_keepalive_http_client(base_url: str = "", *, async_mode: bool = False,
             if async_mode:
                 mounts = {"http://": _build_direct(), "https://": _build_direct()}
             else:
-                key = _shared_transport_key(base_url, verify, proxy)
+                key = _shared_transport_key(base_url, effective_verify, proxy)
                 view_cls = _shared_transport_cls()
                 mounts = {
                     f"{scheme}://": view_cls(_get_shared_transport((scheme, *key), _build_direct))
@@ -319,7 +367,7 @@ def build_keepalive_http_client(base_url: str = "", *, async_mode: bool = False,
                 # Default transport = the https view; otherwise httpx builds a third, never-used
                 # direct transport (pool + SSL context) per client.
                 return client_cls(limits=limits, timeout=timeout, transport=mounts["https://"], mounts=mounts)
-        return client_cls(limits=limits, timeout=timeout, proxy=proxy, mounts=mounts or None, verify=verify)
+        return client_cls(limits=limits, timeout=timeout, proxy=proxy, mounts=mounts or None, verify=effective_verify)
     except Exception:
         return None
 
@@ -339,5 +387,5 @@ OpenAI = _OpenAIProxy()
 __all__ = [
     "OpenAI", "_OpenAIProxy", "_load_openai_cls", "_SafeWriter", "_install_safe_stdio", "_get_proxy_from_env",
     "_get_proxy_for_base_url", "build_keepalive_http_client", "close_shared_transports",
-    "enable_happy_eyeballs_on_client",
+    "enable_happy_eyeballs_on_client", "shared_ssl_context",
 ]
