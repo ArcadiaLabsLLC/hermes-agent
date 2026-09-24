@@ -219,6 +219,12 @@ for _win_var in USERPROFILE HOMEDRIVE HOMEPATH LOCALAPPDATA APPDATA SYSTEMROOT T
     WIN_ENV+=("$_win_var=${!_win_var}")
   fi
 done
+# Fork (PR candidate): PATHEXT too. Without it a native child resolves no bare
+# command name to its .exe — pwsh's `Get-Command git` found nothing although
+# Git's mingw64/bin was on PATH (install.ps1 autostash-recovery test, lane TESTS).
+if [ -n "${PATHEXT:-}" ]; then
+  WIN_ENV+=("PATHEXT=$PATHEXT")
+fi
 
 # ── Test-runner knobs (computed before we drop env) ────────────────────────
 # The runner's own documented environment knobs must survive the hermetic
