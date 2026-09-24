@@ -119,7 +119,7 @@ Harness error formatting (`emit_harness_error` on an exception escaping a handle
 
 **Gates.** `scripts/dump_cli_contract.py --check` byte-identical (the harness surface is unchanged); `hermes harness serve` boots under the launcher with the timeline line's keys unchanged; `tests/hermes_cli/test_harness_*` green; the god-file refactor's W0-G4 (thin harness namespace) unaffected — `register()` imports `hermes_cli.harness` lazily and only its public `build_parser`; `[up-fp] files` −3 (or −3 +2 with the carried fallback).
 
-**Owed by the operator:** one launcher boot on the Stage 1 build (the boot is the measurement's field half).
+**Owed by the operator:** none — the Stage 1 boot measurement was waived 2026-09-24 (cost waived 2026-09-23; the fork-scope gate exercises the parser path).
 
 **CORRECTED 2026-09-23 (Fable, read against `main` @ `bcf8012e6a`, merge base `d337b736aa`) — three of the mechanics above were assumed on 2026-09-21 and are wrong against the code. Stage 1 is BUILT on seam/s1-proof af093265e1, cost waived by owner 2026-09-23, see note §4 ([`seam-s1-proof-2026-09-23.md`](seam-s1-proof-2026-09-23.md)).**
 
@@ -189,7 +189,7 @@ Hard orderings: S0 before all; S1 before S2; P1 before S4 (S4 diffs against the 
 
 ## 4. What the operator owes
 
-1. One launcher boot on the Stage 1 build (the boot-cost measurement's field half).
+1. ~~One launcher boot on the Stage 1 build (the boot-cost measurement's field half).~~ None — waived 2026-09-24 (cost waived 2026-09-23; the fork-scope gate exercises the parser path).
 2. The private/public ruling for the plugin's Stage 7 home (not before Stage 7).
 3. Per PR in Stage 3: nothing — the fallback is pre-decided; the lane reports merged/declined.
 
