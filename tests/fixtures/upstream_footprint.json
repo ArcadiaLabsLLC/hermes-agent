@@ -1,6 +1,6 @@
 {
   "measured_at": "2026-09-24",
-  "base": "f24a1d7f92",
+  "base": "749220ef00",
   "files": 195,
   "deleted_lines": 990,
   "heavy": 4,
@@ -216,6 +216,12 @@
       "files": "196 -> 195",
       "deleted_lines": "flat (990)",
       "reason": "owner ruling 2026-09-24 (3): profile delete adopts upstream's tombstone. hermes_cli/profiles.py at f24a1d7f92 bytes; the harness derives 'this persona's profile is gone' from named_profile_is_deleted at read time (backed_persona_identity), so the reconcile/snapshot lanes clear its placements as orphan-no-profile"
+    },
+    {
+      "change": "weekly merge upstream/main 749220ef00 (merge/upstream-2026-09-24)",
+      "files": "flat (195): base f24a1d7f92 -> 749220ef00, 417 upstream commits, no conflicts; the manifest is re-cut (base tree UNION upstream/main 26b5494667)",
+      "deleted_lines": "flat (990)",
+      "reason": "history-preserving merge and the supersession pass: 1 hunk retired (tests/hermes_cli/test_doctor_journal_modes.py's win32 skip on test_partial_holder_scan_is_never_an_all_clear, 14 -> 7 added: upstream now scans holders on Windows); no ledger row left, all 19 open upstream PRs still open; heavy flat at 4"
     }
   ]
 }
