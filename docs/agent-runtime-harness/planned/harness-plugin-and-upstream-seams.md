@@ -72,7 +72,8 @@ After Stage 1 and the profile-bootstrap PR: ≤ 3 additive one-liners remain in 
 4. **Proprietary stays proprietary; open review is fine.** The plugin's home is the fork (public) until Stage 7 moves it to its own repo — private if the operator says so. Nothing proprietary is offered upstream. The three dispositions apply to the fork's edits in upstream files only; the plugin's own code has no disposition because it lives in no upstream file.
 5. **Each stage lands with a measurement, not a belief.** Stage 1's is the boot cost; Stage 3's is the PR merged (or declined, with the fallback applied); Stages 4–6 are the ratchet line before/after.
 6. **Detach is a measurement.** `[up-fp] files=0` (or only `carry` rows the operator has ruled permanent) means the harness plugin runs on stock upstream and the fork is optional. Stage 7 executes only when that line is read.
-7. The god-file refactor's rules (flat ceiling, MOVE/CHANGE separation, bulk mode, terse briefs, the upstream fence) apply to every lane here. Sibling plan §1 and §6.
+7. **Permanent carry is the exception, ruled per file (owner, 2026-09-24).** Only a file with no override point — the README licence line, the AGENTS.md pointer, root `.gitignore`/`.gitattributes` litter lines, `uv.lock` — may be `carry-permanent`. Nothing under `agent/`, `tools/`, `gateway/`, `hermes_cli/` is permanent: it moves to a fork-only file, hooks through a widening, or is adopted from upstream.
+8. The god-file refactor's rules (flat ceiling, MOVE/CHANGE separation, bulk mode, terse briefs, the upstream fence) apply to every lane here. Sibling plan §1 and §6.
 
 
 No duplicate authority (owner 2026-09-23): every stage inventory buckets each fork name as already-upstream (adopt theirs, delete ours), generic (PR) or ours; an unavoidable parallel is a ledger row naming the upstream symbol it shadows, why, and what retires it. Each weekly merge gets a supersession pass.
