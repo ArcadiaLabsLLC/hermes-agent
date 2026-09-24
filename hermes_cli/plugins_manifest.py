@@ -36,7 +36,8 @@ _KNOWN_MANIFEST_FIELDS: Set[str] = {
     "pip_dependencies", "provides_browser_providers", "provides_web_providers",
     "manifest_version", "api_version", "requires_plugins", "python_dependencies", "config_schema",
     "license", "homepage", "tags", "capabilities", "emits", "listens", "hermes", "depends",
-    "requires_hermes", "python_runtime", "cli_commands",
+    "requires_hermes", "python_runtime",
+    "cli_commands",
 }
 
 # Highest manifest schema version this Hermes understands.
@@ -179,7 +180,8 @@ def _parse_manifest_v2_fields(data: Mapping, key: str) -> Dict[str, Any]:
     return {
         "manifest_version": mv, "api_version": api, "requires_plugins": deps, "python_dependencies": pydeps,
         "config_schema": schema, "license": str(data.get("license") or ""),
-        "homepage": str(data.get("homepage") or ""), "tags": tags, "cli_commands": cli_commands,
+        "homepage": str(data.get("homepage") or ""), "tags": tags,
+        "cli_commands": cli_commands,
     }
 
 
