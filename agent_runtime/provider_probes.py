@@ -1,25 +1,7 @@
 """Provider readiness and context-local non-persisting credential selection."""
-from contextlib import contextmanager
-from contextvars import ContextVar
 from typing import Optional, Dict, Any
-from hermes_cli import auth as auth_mod
-
-_persist_rotation = ContextVar("hermes_persist_provider_rotation", default=True)
-
-@contextmanager
-def pool_rotation_scope(persist):
-    token = _persist_rotation.set(bool(persist))
-    try:
-        yield
-    finally:
-        _persist_rotation.reset(token)
-
-
-def _select_pool_entry(pool, *, persist_pool_rotation=None, model=None):
-    persist = _persist_rotation.get() if persist_pool_rotation is None else persist_pool_rotation
-    if persist:
-        return pool.select(model=model)
-    return pool.select_without_persisting_rotation(model=model)
+from agent_runtime import auth_extensions as auth_ext
+from agent_runtime.pool_rotation import pool_rotation_scope
 
 
 def probe_runtime_provider(
@@ -45,11 +27,8 @@ def probe_runtime_provider(
     for them, and round-robin genuinely needs the write-back.
     """
     from hermes_cli.runtime_provider import resolve_runtime_provider
-    return resolve_runtime_provider(
-        requested=requested,
-        target_model=target_model,
-        persist_pool_rotation=False,
-    )
+    with pool_rotation_scope(False):
+        return resolve_runtime_provider(requested=requested, target_model=target_model)
 
 def codex_credentials_resolvable_read_only() -> bool:
     """Can a Codex turn resolve a credential right now — asked without spending one.
@@ -72,7 +51,7 @@ def codex_credentials_resolvable_read_only() -> bool:
     1. the credential pool's own availability rules (``peek()``: cooldowns,
        dead entries, refresh needs), and
     2. the auth store the Codex client actually reads
-       (:func:`hermes_cli.auth.codex_auth_store_credentials_present`).
+       (:func:`agent_runtime.auth_extensions.codex_auth_store_credentials_present`).
 
     Attention is reported only when NEITHER can serve a turn. A genuinely dead
     lane — no pool entry with a token and no singleton/global token set — still
@@ -101,4 +80,4 @@ def codex_credentials_resolvable_read_only() -> bool:
         or getattr(entry, "access_token", None)
     ):
         return True
-    return auth_mod.codex_auth_store_credentials_present()
+    return auth_ext.codex_auth_store_credentials_present()

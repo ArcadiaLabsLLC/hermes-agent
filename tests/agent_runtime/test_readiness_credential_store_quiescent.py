@@ -106,37 +106,33 @@ def _digest(path: Path) -> str:
 
 
 def _count_pool_selections(monkeypatch) -> dict[str, int]:
-    """Count both selection entry points on the REAL pool class.
+    """Count pool selections on the REAL pool class, by whether they persist.
 
     This is the anti-vacuity pin for gate 1. "The store did not move" is
     trivially true for a probe that never reaches a credential pool at all, so
     the byte assertion is only evidence when paired with a counted selection.
+
+    Every selection enters through ``CredentialPool.select`` (the non-persisting
+    one is ``select`` under ``pool_rotation_scope(False)``), so the count is
+    classified by the scope in force at the call — the thing that decides
+    whether the cursor is written — rather than by which name was spelled.
     """
     from agent.credential_pool import CredentialPool
+    from agent_runtime.pool_rotation import _persist_rotation
 
     counts = {"persisting": 0, "non_persisting": 0}
     real_select = CredentialPool.select
-    real_probe = CredentialPool.select_without_persisting_rotation
 
-    # ``**kwargs`` rather than the arguments of the day: both entry points take
+    # ``**kwargs`` rather than the arguments of the day: ``select`` takes
     # ``model=`` since upstream's model-scoped cooldowns (merged 2026-09-17), and
     # a spy that froze the old no-argument signature does not fail LOUDLY — the
     # TypeError is swallowed on the readiness probe's own except path, the count
-    # stays 0, and gate 1 reds as "vacuous" while pointing at nothing. Forwarding
-    # whatever the caller passed keeps this a vehicle for the count rather than a
-    # second, stale copy of the signature.
+    # stays 0, and gate 1 reds as "vacuous" while pointing at nothing.
     def counted_select(self, **kwargs):
-        counts["persisting"] += 1
+        counts["persisting" if _persist_rotation.get() else "non_persisting"] += 1
         return real_select(self, **kwargs)
 
-    def counted_probe(self, **kwargs):
-        counts["non_persisting"] += 1
-        return real_probe(self, **kwargs)
-
     monkeypatch.setattr(CredentialPool, "select", counted_select)
-    monkeypatch.setattr(
-        CredentialPool, "select_without_persisting_rotation", counted_probe
-    )
     return counts
 
 

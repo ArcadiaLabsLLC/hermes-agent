@@ -2126,7 +2126,6 @@ class CredentialPool(PoolRotationMixin, CredentialPoolAdminMixin, CredentialPool
 
     def _select_unlocked(
         self, *, refresh: bool = True, count: bool = True, model: Optional[str] = None,
-        persist_rotation: bool = True,
     ) -> Tuple[Optional[PooledCredential], List[PooledCredential]]:
         """Select the best available entry; returns ``(entry, pending_refresh)``.
 
@@ -2143,7 +2142,7 @@ class CredentialPool(PoolRotationMixin, CredentialPoolAdminMixin, CredentialPool
         # logs immediately.
         self._last_no_entries_log_at = None
 
-        entry = self._select_with_rotation(available, count=count, persist_rotation=persist_rotation)
+        entry = self._select_with_rotation(available, count=count)
         self._current_id = entry.id
         return entry, pending_refresh
 

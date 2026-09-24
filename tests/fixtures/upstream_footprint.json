@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 219,
-  "deleted_lines": 1058,
+  "files": 216,
+  "deleted_lines": 1044,
   "heavy": 4,
   "reasons": [
     {
@@ -120,6 +120,12 @@
       "files": "flat (219)",
       "deleted_lines": "1072 -> 1058",
       "reason": "tools/process_registry.py 67/50 -> 55/36: the process_manage wire brief rides tools/downstream_schema.BRIEF_DESCRIPTIONS (llm_request middleware), FULL_PROCESS_DESCRIPTION and its tool_full_descriptions mirror are deleted (the registry keeps upstream's text plus one notify line), the #17327 comment block is upstream's again. The five tools/ carry rows are recorded parallels flipped to hook (HOME-PR, G13 widening, on_process_exit + wait-ceiling, G19)"
+    },
+    {
+      "change": "lane CARRY3 hermes_cli/ (seam/carry-pass-2026-09-24)",
+      "files": "219 -> 216",
+      "deleted_lines": "1058 -> 1044",
+      "reason": "hermes_cli/runtime_provider.py and runtime_provider_custom.py byte-identical: the non-persisting selection scope moved into agent_runtime.pool_rotation (a ContextVar PoolRotationMixin._select_with_rotation reads, select_without_persisting_rotation = select under pool_rotation_scope(False)), so the ladder calls upstream's pool.select(); probe_runtime_provider opens the scope around resolve_runtime_provider instead of a persist_pool_rotation kwarg (agent/credential_pool.py 10/18 -> 9/18: _select_unlocked's persist_rotation parameter is gone). hermes_cli/web_routers/profiles.py byte-identical: the promote route is the eternia-harness dashboard plugin API route /api/plugins/eternia-harness/profiles/{name}/promote (no caller outside the fork's own test). hermes_cli/auth.py 23/2 -> 13/1: the auth_extensions tail re-export (callers import it), the duplicate hermes_cli.config top import and the hermes_constants re-wrap leave"
     }
   ]
 }

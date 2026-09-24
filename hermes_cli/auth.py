@@ -28,11 +28,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Optional, Tuple
 from urllib.parse import urlparse
 
-from hermes_cli.config import (
-    get_hermes_home, get_config_path, read_raw_config, require_readable_config_before_write)
-from hermes_constants import (
-    OPENROUTER_BASE_URL, hermes_home_key, secure_parent_dir)
-from agent_runtime.profile_home import get_hermes_auth_home
+from hermes_constants import OPENROUTER_BASE_URL, hermes_home_key, secure_parent_dir
 from agent.credential_persistence import sanitize_borrowed_credential_payload
 from utils import atomic_json_write, env_float, file_signature, is_truthy_value  # noqa: F401  (env_float: agent.credential_pool reads auth_mod.env_float)
 from hermes_cli.auth_zai_kimi import (  # noqa: F401  re-exported
@@ -493,6 +489,7 @@ def _auth_file_path() -> Path:
     # active store. One store, so a single-use refresh chain (Codex/ChatGPT) cannot fork and
     # no write-through bookkeeping is needed. Unbound, this is byte-for-byte upstream's path.
     # This is the ONE call site that resolves the auth store path.
+    from agent_runtime.profile_home import get_hermes_auth_home
     auth_home = get_hermes_auth_home()
     path = (Path(auth_home) if auth_home else get_hermes_home()) / "auth.json"
     # Seat belt: under pytest, refuse to touch the real user's auth store (tests that forgot to
@@ -2469,9 +2466,3 @@ def __getattr__(name):  # PEP 562 — lazy so no import cycles
     warn_once(__name__, name, *target)
     return getattr(importlib.import_module(target[0]), target[1])
 # ---- END PLUGIN-COMPAT ----
-
-# Downstream additions retain their public auth API while living in the fork.
-from agent_runtime.auth_extensions import (
-    read_pool_rotation_state, write_pool_rotation_state,
-    codex_auth_store_credentials_present,
-)

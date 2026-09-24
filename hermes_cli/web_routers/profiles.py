@@ -26,7 +26,6 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
 
 from hermes_cli.web_deps import late
 from hermes_cli.config import get_process_hermes_home
@@ -47,17 +46,6 @@ from hermes_cli.web_models import (
     ProfileSoulUpdate, ProfileDescriptionUpdate, ProfileModelUpdate, ProfileDescribeAuto,
     SessionPrScanBody)
 from hermes_cli.web_server_profiles import _config_profile_scope, _hermes_home_scope
-
-
-class ProfilePromoteRequest(BaseModel):
-    """Body for ``POST /api/profiles/{name}/promote`` (fork-owned route).
-
-    Declared here rather than in :mod:`hermes_cli.web_models` because the
-    promote route is fork-only: keeping the model next to its single consumer
-    means the shared model module stays a pure mirror of the upstream surface.
-    """
-
-    slot_role: str = "builder"
 
 # Same logger the handlers used before extraction (identical logger object).
 _log = logging.getLogger("hermes_cli.web_server")
@@ -784,51 +772,6 @@ async def create_profile_endpoint(body: ProfileCreate):
     return {"ok": True, "name": body.name, "path": str(path), "model_set": model_set, "model_error": model_error,
             "mcp_written": mcp_written, "skills_disabled": skills_disabled,
             "hub_installs": hub_installs}
-
-
-@router.post("/api/profiles/{name}/promote")
-async def promote_profile_endpoint(name: str, body: ProfilePromoteRequest):
-    """Mint (and persist) an agent-runtime persona backed by a raw profile.
-
-    Fork-owned route, ported into this router when upstream extracted the
-    profile endpoints out of ``web_server.py``. Registered here — between the
-    ``POST /api/profiles`` and ``GET /api/profiles/active`` handlers — so the
-    global route-registration order matches the pre-extraction file exactly.
-
-    Promotion resolves through the permanent
-    :mod:`agent_runtime.blueprints.resolve` shim, which re-exports
-    ``promote_profile_to_persona`` from :mod:`agent_runtime.personas`. Behavior
-    (mission-lane removal, S11): an explicit matching persona template is
-    cloned; otherwise a profile-backed persona is minted from the agent-runtime
-    defaults while the supplied ``slot_role`` is retained as data.
-    """
-    from hermes_cli import profiles as profiles_mod
-
-    try:
-        profile_name = profiles_mod.normalize_profile_name(name)
-        if not profiles_mod.profile_exists(profile_name):
-            raise HTTPException(status_code=404, detail=f"Profile '{profile_name}' does not exist")
-        from agent_runtime.blueprints.resolve import promote_profile_to_persona
-
-        persona = promote_profile_to_persona(profile_name, slot_role=body.slot_role)
-        return {
-            "ok": True,
-            "profile": profile_name,
-            "persona_id": persona.id,
-            "persona": {
-                "id": persona.id,
-                "display_name": persona.display_name,
-                "role": persona.role,
-                "hermes_profile": persona.hermes_profile,
-            },
-        }
-    except HTTPException:
-        raise
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    except Exception as exc:
-        _log.exception("POST /api/profiles/%s/promote failed", name)
-        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.get("/api/profiles/active")

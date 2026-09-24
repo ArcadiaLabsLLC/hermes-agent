@@ -12,10 +12,6 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional
 
-from agent_runtime.provider_probes import (
-    _select_pool_entry, pool_rotation_scope, probe_runtime_provider, codex_credentials_resolvable_read_only,
-)
-
 logger = logging.getLogger(__name__)
 
 from hermes_cli import auth as auth_mod
@@ -640,7 +636,7 @@ def _resolve_from_pool(provider: str, requested_provider: str, model_cfg: Dict[s
         pool = None
     if not (pool and pool.has_credentials()):
         return None
-    entry = _select_pool_entry(pool, model=target_model or None)
+    entry = pool.select(model=target_model or None)
     if entry is None:
         return None
     pool_api_key = _pool_entry_api_key(entry)
@@ -977,8 +973,7 @@ def _openrouter_fallback(requested_provider, explicit_api_key, explicit_base_url
 
 
 def resolve_runtime_provider(*, requested: Optional[str] = None, explicit_api_key: Optional[str] = None,
-                             explicit_base_url: Optional[str] = None, target_model: Optional[str] = None,
-                             persist_pool_rotation: bool = True) -> Dict[str, Any]:
+                             explicit_base_url: Optional[str] = None, target_model: Optional[str] = None) -> Dict[str, Any]:
     """Resolve runtime provider credentials for agent execution. Ladder (order is behavior — each
     rung returns or raises, else falls to the next):
       1. disabled-provider guard (``providers.<name>.enabled: false``)
@@ -995,17 +990,16 @@ def resolve_runtime_provider(*, requested: Optional[str] = None, explicit_api_ke
          api_mode to ``codex_app_server``; the rung's credential/endpoint is then not used
     target_model overrides model_cfg["default"] when computing provider-specific api_mode (e.g.
     OpenCode Zen/Go where different models route through different API surfaces)."""
-    with pool_rotation_scope(persist_pool_rotation):
-        requested_provider = resolve_requested_provider(requested)
-        _raise_if_provider_disabled(requested_provider)
-        # Same alias expansion the auxiliary client applies, so ``provider: openai`` means one thing on
-        # every path (background review, curator, MoA slots, delegation) instead of "Unknown provider".
-        # The pre-expansion name is what the codex_app_server overlay judges: ``openai`` is eligible,
-        # the anonymous ``custom`` it expands to is not.
-        requested_alias = requested_provider
-        requested_provider, explicit_base_url = expand_direct_api_alias(requested_provider, explicit_base_url)
-        _raise_if_local_alias_missing_endpoint(requested_provider, explicit_base_url)
-        runtime = next(r for r in _ladder_rungs(requested_provider, explicit_api_key, explicit_base_url, target_model) if r)
+    requested_provider = resolve_requested_provider(requested)
+    _raise_if_provider_disabled(requested_provider)
+    # Same alias expansion the auxiliary client applies, so ``provider: openai`` means one thing on
+    # every path (background review, curator, MoA slots, delegation) instead of "Unknown provider".
+    # The pre-expansion name is what the codex_app_server overlay judges: ``openai`` is eligible,
+    # the anonymous ``custom`` it expands to is not.
+    requested_alias = requested_provider
+    requested_provider, explicit_base_url = expand_direct_api_alias(requested_provider, explicit_base_url)
+    _raise_if_local_alias_missing_endpoint(requested_provider, explicit_base_url)
+    runtime = next(r for r in _ladder_rungs(requested_provider, explicit_api_key, explicit_base_url, target_model) if r)
     _raise_for_credentialless_bare_custom(requested_provider, runtime)
     # model.openai_runtime is applied ONCE, after the ladder: every rung (pool, OAuth store,
     # explicit --api-key/--base-url, env key) hardcodes the wire api_mode for openai/openai-codex,

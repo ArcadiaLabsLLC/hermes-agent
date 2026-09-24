@@ -4,7 +4,8 @@ from typing import Any
 
 from hermes_cli.auth import AuthError
 from hermes_cli.runtime_environment import missing_runtime_packages_for
-from hermes_cli.runtime_provider import probe_runtime_provider, resolve_runtime_provider
+from agent_runtime.provider_probes import probe_runtime_provider
+from hermes_cli.runtime_provider import resolve_runtime_provider
 
 from .machine_roots import (
     contains_path_tokens,
@@ -389,7 +390,7 @@ def _codex_provider_issue() -> tuple[str, str] | None:
     succeeded.
 
     The order and both sources now live beside the run path they mirror, in
-    ``hermes_cli.runtime_provider.codex_credentials_resolvable_read_only``; the
+    ``agent_runtime.provider_probes.codex_credentials_resolvable_read_only``; the
     reason they cannot be answered by simply calling the resolver is written
     there and at ``codex_auth_store_credentials_present``. What has NOT changed
     is why this branch exists at all (MCF-16): readiness refreshes no token,
@@ -399,7 +400,7 @@ def _codex_provider_issue() -> tuple[str, str] | None:
     """
 
     try:
-        from hermes_cli.runtime_provider import (
+        from agent_runtime.provider_probes import (
             codex_credentials_resolvable_read_only,
         )
 

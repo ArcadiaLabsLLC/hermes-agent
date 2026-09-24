@@ -2,6 +2,8 @@
 from __future__ import annotations
 import logging
 import random
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from agent_runtime.auth_extensions import read_pool_rotation_state, write_pool_rotation_state
@@ -9,6 +11,21 @@ if TYPE_CHECKING:
     from agent.credential_pool import PooledCredential
 logger = logging.getLogger(__name__)
 _rotation_persist_warned = set()
+
+#: Whether a pool selection made in this context writes the rotation cursor back.
+#: ``False`` only inside :func:`pool_rotation_scope` — the readiness probe's
+#: non-persisting resolution (MCF-16); every other selection persists, as upstream's does.
+_persist_rotation = ContextVar("hermes_persist_provider_rotation", default=True)
+
+
+@contextmanager
+def pool_rotation_scope(persist):
+    """Selections inside this block persist the rotation cursor iff ``persist``."""
+    token = _persist_rotation.set(bool(persist))
+    try:
+        yield
+    finally:
+        _persist_rotation.reset(token)
 
 @dataclass(frozen=True)
 class PoolRotationCursor:
@@ -31,7 +48,7 @@ class PoolRotationCursor:
     the same answer.
 
     Persisted in its own sidecar beside ``auth.json``
-    (:func:`hermes_cli.auth.write_pool_rotation_state`). Selecting writes this
+    (:func:`agent_runtime.auth_extensions.write_pool_rotation_state`). Selecting writes this
     record and NOTHING else — no credential row moves, and no token material is
     ever stored here: only ids the pool itself minted, and integers.
     """
@@ -165,7 +182,9 @@ class PoolRotationMixin:
                 return picked
         return available[0]
 
-    def _select_with_rotation(self, available, *, count=True, persist_rotation=True):
+    def _select_with_rotation(self, available, *, count=True, persist_rotation=None):
+        if persist_rotation is None:
+            persist_rotation = _persist_rotation.get()
         from agent.credential_pool import STRATEGY_RANDOM, STRATEGY_LEAST_USED, STRATEGY_ROUND_ROBIN
         if self._strategy == STRATEGY_RANDOM:
             entry = random.choice(available)
@@ -192,13 +211,5 @@ class PoolRotationMixin:
         ``model`` is forwarded for the same reason ``CredentialPool.select`` forwards it: the
         model-scoped cooldown filter lives in ``_available_entries``, so a read-only selection
         that dropped it would hand back an entry the persisting path would have skipped."""
-        with self._lock:
-            entry, pending = self._select_unlocked(persist_rotation=False, model=model)
-        if pending:
-            self._refresh_pending_entries(pending)
-            if entry is None:
-                with self._lock:
-                    entry, _ = self._select_unlocked(persist_rotation=False, model=model)
-        if entry is not None:
-            self._unmatched_rotation_streak = 0
-        return entry
+        with pool_rotation_scope(False):
+            return self.select(model=model)

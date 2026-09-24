@@ -38,7 +38,9 @@ def test_profile_promote_endpoint_persists_persona(client, monkeypatch):
 
     monkeypatch.setattr(profiles_mod, "profile_exists", lambda name: name == "fresh")
 
-    response = client.post("/api/profiles/fresh/promote", json={"slot_role": "builder"})
+    response = client.post(
+        "/api/plugins/eternia-harness/profiles/fresh/promote", json={"slot_role": "builder"}
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -50,3 +52,10 @@ def test_profile_promote_endpoint_persists_persona(client, monkeypatch):
     persona = AgentStore().get("fresh")
     assert persona.hermes_profile == "fresh"
     assert persona.role == "builder"
+
+
+def test_profile_promote_left_the_upstream_router(client):
+    """The fork route lives on the plugin's API mount, not in upstream's profiles router."""
+    response = client.post("/api/profiles/fresh/promote", json={"slot_role": "builder"})
+
+    assert response.status_code in (404, 405)
