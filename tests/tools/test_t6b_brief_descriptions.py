@@ -81,15 +81,26 @@ def test_full_tool_description_resolves_for_every_trimmed_tool():
 
 def test_wire_ships_brief_shorter_than_full_docs():
     """Each trimmed tool's on-the-wire description is no longer than the full docs
-    tool_describe serves — and the lane-wide reduction is large."""
+    tool_describe serves — and the lane-wide reduction is large.
+
+    Every offender is collected before asserting: stopping at the first one hid
+    three stale briefs (read_file, skill_search, vision_analyze) behind one red
+    for three days (lane REDS3).
+    """
     wire_total = 0
     full_total = 0
+    offenders: list[str] = []
     for name in TRIMMED_TOOLS:
+        if registry.get_entry(name) is None:
+            offenders.append(f"{name}: not in the registry")
+            continue
         wb = len(_wire(name).encode("utf-8"))
         fb = len(_full(name).encode("utf-8"))
         wire_total += wb
         full_total += fb
-        assert wb <= fb, f"{name}: wire brief ({wb}) longer than full ({fb})"
+        if wb > fb:
+            offenders.append(f"{name}: wire brief ({wb}) longer than full ({fb})")
+    assert not offenders, "\n".join(offenders)
     # Aggregate cut is dramatic (the workstream target was >= ~68%).
     assert wire_total < full_total * 0.4, (wire_total, full_total)
 
