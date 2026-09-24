@@ -183,7 +183,7 @@ Hard orderings: S0 before all; S1 before S2; P1 before S4 (S4 diffs against the 
 
 | stage | status | commits | `[up-fp]` after | notes |
 |---|---|---|---|---|
-| S0 | waits on the merge | 1 | baseline | ratchet + ledger |
+| S0 | 0b landed `d4d12ae12b` (ratchet) + ledger commit on `seam/s0b-upstream-footprint`, base `d337b736aa`; not yet on `main` | 3 | `[up-fp] files=459 deleted_lines=2834 heavy=24` | ratchet + ledger; tests in `tests/scripts/`, not `tests/tooling/` |
 | S1 | planned | 1–2 | −3 (or −3 +2 pending) | measure first; fallback = deferred CLI entry PR |
 | S2 | planned | 1 | −2 | skills stay installed, not registered |
 | S3 | planned | 5 PRs | −1 per merge | P1 first |
