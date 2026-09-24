@@ -1687,10 +1687,11 @@ def _cmd_persona_chat_delete(args) -> int:
             print(emit_json(data) if args.json else data["error"])
             return 2
     try:
-        lineage_delete = getattr(session_db, "delete_compression_lineage", None)
-        if callable(lineage_delete):
+        from agent_runtime.session_extensions import delete_compression_lineage
+
+        if callable(getattr(session_db, "_execute_write", None)):  # a real SessionDB
             deleted_session = bool(
-                lineage_delete(session_id, sessions_dir=get_hermes_home() / "sessions")
+                delete_compression_lineage(session_db, session_id, sessions_dir=get_hermes_home() / "sessions")
             )
         else:
             deleted_session = bool(session_db.delete_session(session_id, sessions_dir=get_hermes_home() / "sessions"))

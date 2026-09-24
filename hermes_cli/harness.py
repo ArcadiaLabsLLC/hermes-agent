@@ -5749,8 +5749,8 @@ def build_provider_visibility() -> dict:
     }
     # v2 additions (transport plan W4): the fields the launcher used to
     # scrape out of the human `hermes status` ◆-box — model/provider, API-key
-    # presence (STATUS_API_KEYS is the box's own registry, hoisted so this
-    # cannot drift from it), and OAuth login state. Each block is
+    # presence (upstream's `status_auth._API_KEYS` is the box's own registry,
+    # read directly so this cannot drift from it), and OAuth login state. Each block is
     # failure-isolated: a broken import or status probe drops the block, it
     # NEVER breaks the credential payload above (which the launcher's model
     # switcher depends on). Consumers treat an absent block as "fall back to
@@ -5795,18 +5795,15 @@ def _provider_visibility_environment() -> dict:
 
 
 def _provider_visibility_api_keys() -> list[dict]:
+    """The status box's API-key rows, in its order: upstream's ``_API_KEYS``
+    registry, then Anthropic, which the box renders last through the dedicated
+    lookup (it also resolves OAuth tokens)."""
     from hermes_cli.auth import get_anthropic_key
-    from hermes_cli.status import STATUS_API_KEYS, resolve_status_env
+    from hermes_cli.status import _first_env_value
+    from hermes_cli.status_auth import _API_KEYS
 
-    out: list[dict] = []
-    for name, env_ref in STATUS_API_KEYS.items():
-        if name == "Anthropic":
-            # Same single source of truth the status box uses (also resolves
-            # OAuth tokens).
-            configured = bool(get_anthropic_key())
-        else:
-            configured = bool(resolve_status_env(env_ref))
-        out.append({"name": name, "configured": configured})
+    out = [{"name": name, "configured": bool(_first_env_value(env_ref))} for name, env_ref in _API_KEYS.items()]
+    out.append({"name": "Anthropic", "configured": bool(get_anthropic_key())})
     return out
 
 

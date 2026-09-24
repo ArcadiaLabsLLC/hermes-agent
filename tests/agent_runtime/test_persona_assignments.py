@@ -5331,3 +5331,43 @@ def test_both_live_clear_callers_reach_a_client_through_the_full_core(
     assert not batch_is_patch_coverable(event for _, event in sweep_batch)
     frames = _frames_for(sweep_batch, base_offset=base)
     assert frames and all(isinstance(frame.get("core"), dict) for frame in frames)
+
+
+def test_persona_chat_delete_takes_the_compression_lineage_with_a_real_session_db(
+    monkeypatch, capsys, isolate_agent_runtime_root, tmp_path
+):
+    """A real SessionDB goes through ``session_extensions.delete_compression_lineage``:
+    the root's compression continuation leaves with it, an explicit branch stays."""
+    from hermes_cli import harness
+    from hermes_state import SessionDB
+
+    cfg = _assignment_config()
+    db = SessionDB(tmp_path / "state.db")
+    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
+
+    instance = PersonaInstanceStore().create_operator_chat(
+        persona_id="profile:reviewer",
+        display_name="Reviewer",
+    )
+    root = instance.session_id
+    db.create_session(root, "agent_runtime_persona_chat")
+    db.end_session(root, "compression")
+    db.create_session("tip", "agent_runtime_persona_chat", parent_session_id=root)
+    db.create_session("branch", "agent_runtime_persona_chat", parent_session_id=root,
+                      model_config={"_branched_from": root})
+
+    code = harness._cmd_persona_chat_delete(
+        SimpleNamespace(
+            session_id=root,
+            persona_id=instance.persona_id,
+            persona_instance_id=instance.id,
+            requested_by="test",
+            json=True,
+        )
+    )
+
+    assert code == 0, capsys.readouterr()
+    assert db.get_session(root) is None
+    assert db.get_session("tip") is None
+    assert db.get_session("branch")["parent_session_id"] is None

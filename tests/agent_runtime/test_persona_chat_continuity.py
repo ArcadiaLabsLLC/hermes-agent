@@ -302,7 +302,9 @@ def test_26_delete_root_removes_compression_lineage_but_preserves_branch(tmp_pat
     db.end_session("root", "compression")
     db.create_session("tip", "agent_runtime_persona_chat", parent_session_id="root")
     db.create_session("branch", "agent_runtime_persona_chat", parent_session_id="root", model_config={"_branched_from": "root"})
-    assert db.delete_compression_lineage("root") == ["root", "tip"]
+    from agent_runtime.session_extensions import delete_compression_lineage
+
+    assert delete_compression_lineage(db, "root") == ["root", "tip"]
     assert db.get_session("branch")["parent_session_id"] is None
 
 

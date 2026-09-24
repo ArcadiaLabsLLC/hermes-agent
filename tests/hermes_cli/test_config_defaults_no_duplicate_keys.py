@@ -61,20 +61,16 @@ def test_no_dict_literal_in_config_defaults_declares_a_key_twice():
     )
 
 
-def test_the_remote_gateway_block_survives_into_the_loaded_defaults():
-    """The regression the AST check generalises, asserted on the object too.
+def test_remote_gateway_is_a_harness_key_not_an_upstream_default():
+    """The block Stage 0a lost to a duplicate key, asserted on the object too.
 
-    Both halves are worth keeping. The AST test would catch a future duplicate
-    anywhere in the file; this one catches the narrower thing that actually
-    happened — a block that exists in the source and not in the config — and it
-    is the assertion Stage 0a's receipts believed they were making.
+    ``remote_gateway.*`` is the harness's key (read by
+    ``hermes_cli/harness_parts/serve.py::gateway_listen_config``, off when
+    absent), so it is not declared in upstream's ``DEFAULT_CONFIG`` (lane
+    MOVE-A). The messaging gateway is still itself, unmerged and untouched: the
+    two lanes share the word and must never share the key.
     """
 
-    block = config_defaults.DEFAULT_CONFIG["remote_gateway"]
-
-    assert block["listen"] is False
-    assert block["port"] == 0
-    # And the messaging gateway is still itself, unmerged and untouched: the two
-    # lanes share the word and must never share the key.
+    assert "remote_gateway" not in config_defaults.DEFAULT_CONFIG
     assert "listen" not in config_defaults.DEFAULT_CONFIG["gateway"]
     assert "delivery_ledger" in config_defaults.DEFAULT_CONFIG["gateway"]

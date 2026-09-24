@@ -27,13 +27,14 @@ def test_v2_environment_block_carries_model_and_provider():
 
 
 def test_v2_api_keys_mirror_the_status_box_registry():
-    from hermes_cli.status import STATUS_API_KEYS
+    from hermes_cli.status_auth import _API_KEYS
 
     payload = harness.build_provider_visibility()
     api_keys = payload.get("api_keys")
     assert isinstance(api_keys, list)
-    names = {row["name"] for row in api_keys}
-    assert names == set(STATUS_API_KEYS.keys()), (
+    names = [row["name"] for row in api_keys]
+    # The box renders upstream's registry, then Anthropic through its dedicated lookup.
+    assert names == [*_API_KEYS, "Anthropic"], (
         "the typed contract reports the SAME registry the status box renders "
         "— hoisted, not copied, so drift is structurally impossible"
     )

@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 300,
-  "deleted_lines": 1881,
+  "files": 296,
+  "deleted_lines": 1876,
   "heavy": 7,
   "reasons": [
     {
@@ -89,6 +89,12 @@
       "files": "304 -> 300",
       "deleted_lines": "1882 -> 1881",
       "reason": "usage ledger: agent_runtime/usage_ledger.py (ContextVar list bound by the persona runner around run_conversation) fed by the eternia-harness post_api_request hook; the Codex app-server path, which never fires that hook, calls record_usage itself; the session_usage_ledger seeds and the turn-result key are gone; agent/usage_pricing.py, turn_usage.py, turn_finalizer.py, auxiliary_client.py byte-identical to f24a1d7f92 (the construction counter moved into its only consumer, the test; agent_runtime/auxiliary_probe.py deleted)"
+    },
+    {
+      "change": "lane MOVE-A group 16 (seam/carry-move-a-2026-09-24)",
+      "files": "300 -> 296",
+      "deleted_lines": "1881 -> 1876",
+      "reason": "harness keys remote_gateway/charsheet/display.busy_text_mode leave DEFAULT_CONFIG (readers default in code) and the comment rewraps revert; hermes_cli/web_server_config.py, status.py, status_auth.py, hermes_state.py byte-identical to f24a1d7f92: the provider report in hermes_cli/harness.py reads status_auth._API_KEYS / status._first_env_value directly and appends its own Anthropic row; RuntimeSessionMixin becomes agent_runtime.session_extensions.delete_compression_lineage(db, ...), called from persona_commands.py"
     }
   ]
 }

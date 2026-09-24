@@ -51,9 +51,11 @@ def config(monkeypatch):
 
 
 def test_the_shipped_default_is_off(config):
+    """No ``remote_gateway`` block at all (the harness key has no upstream default) is off."""
     from hermes_cli.config_defaults import DEFAULT_CONFIG
 
-    config(DEFAULT_CONFIG["remote_gateway"])
+    assert "remote_gateway" not in DEFAULT_CONFIG
+    config(None)
 
     assert gateway_listen_config() == (None, 0)
 

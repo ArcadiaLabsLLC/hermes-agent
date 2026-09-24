@@ -448,11 +448,7 @@ def _foreign_state_db_holders(db_path: Path) -> List[Tuple[int, str]]:
 # one-shots, recovery flows, and read-only cross-profile opens use SessionDB() directly with their own close().
 
 
-from agent_runtime.session_extensions import RuntimeSessionMixin
-
-
 class SessionDB(
-    RuntimeSessionMixin,
     SessionSessionsMixin, SessionFtsSetupMixin, SessionSearchMixin, SessionSchemaMixin,
     SessionPortabilityMixin, SessionTelegramTopicsMixin, SessionCompressionMixin,
     SessionGatewayMixin, SessionMaintenanceMixin, SessionUsageMixin, SessionTitlesMixin,
