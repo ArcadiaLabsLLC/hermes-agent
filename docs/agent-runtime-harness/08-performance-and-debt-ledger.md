@@ -317,8 +317,8 @@ Executed history stays archived. The duplicate-implementation retirement's rows
 
 - `head_agent_profile` — inert config field; recommendation *defer*, trigger "next
   contract bump" (2 lines are not worth a cross-stack golden regeneration).
-- `backfill_instance_profile_ids` — land `harness agent set-profile --backfill-instances`
-  or retire 138 + 302 test lines (recommendation: land the verb).
+- `backfill_instance_profile_ids` — RETIRED 2026-09-24 (lane FORK-CODE, per
+  `planned/downstream-god-file-refactor.md` §4.1): the function and its six tests deleted.
 - `set_entry_point_lane` — recommendation *cut*; move its two suites to the env-var
   spelling.
 - `realm bind-server` / `workspace add-agent|remove-agent` — is `server_id`/`agent_ids`
