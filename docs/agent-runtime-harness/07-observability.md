@@ -196,7 +196,7 @@ what the fixture mirror below enforces.
 | `persona_chat_actor_prewarm pass candidates=… queued=… skipped=… elapsed_ms=…` | const `persona_chat_actor_prewarm.py` (`CHAT_ACTOR_PREWARM_PASS_RECEIPT`), emitted in `prewarm_chat_actors_on_boot` | one line per boot pass; the `candidates`/`queued` gap is `max_hot_sessions` doing its job |
 | `resident_signature_diff root=… components=…` | const `persona_chat_continuity.py` (`RESIDENT_SIGNATURE_DIFF_RECEIPT`), emitted in `PersonaChatRuntimeRegistry.acquire` | why a resident actor was NOT reused: the signature component NAMES that moved (never digests, never values — the components include prompt- and policy-adjacent material). Twin of the turn record's `resident_rebuild_component_<name>` flags; format pinned at `tests/agent_runtime/test_persona_chat_continuity.py` |
 | `agent_create_phases persona=… instance_ms=… phases=… pid=…` | const `agent_create_phases.py:88-90`, emitted `:232-237` | drop-latency attribution; pinned at `tests/agent_runtime/test_agent_create_subphases.py:152` |
-| `harness serve boot timeline: <k=v …>` | `hermes_cli/harness_parts/serve.py:4002-4006`, line built by `BootTimeline.log_line` (`boot_timeline.py:173-178`) | operator grep; the same block also rides the `ready` frame (`serve.py:3928`) |
+| `harness serve boot timeline: <k=v …>` | `hermes_cli/harness_parts/serve.py:4018-4020`, line built by `BootTimeline.log_line` (`boot_timeline.py:173-178`) | operator grep; the same block also rides the `ready` frame (`serve.py:3928`) |
 | `API call #N: model=… provider=… in=… out=… total=… latency=…s[ cache=…][ ttfb=…s]` | `agent/conversation_loop.py:3473-3479` | provider-vs-hermes attribution; `tests/run_agent/test_api_call_ttfb.py` |
 | turn-record `phases` block (schema v3) | `agent_runtime/mission_chat_phases.py`; the key lands via `_safe_journal_metadata` (`mission_chat_turns.py::_safe_journal_metadata`) → `mission_chat_phases.py::safe_turn_phases` | `tool/mission_chat_latency_audit.dart` |
 | `[MissionChatTiming]` / `[MissionChatOutcome]` / `[MissionDropTiming]` | launcher — see the launcher section below | `tool/mission_chat_latency_audit.dart`; drop line read by eye |
@@ -440,7 +440,7 @@ results attached at `:664`, persisted through **one** chokepoint —
 skills catalogs, writes compactly, updates the latest-pointer index and applies
 retention. Layout: `<store>/prompt_observability/<context_id>.json`,
 `prompt_observability_catalogs/<hash>.json`, `prompt_observability_archive/`,
-`prompt_observability_index.json` (`agent_runtime/paths.py:450-471`). Retention
+`prompt_observability_index.json` (`agent_runtime/paths.py:512-534`). Retention
 keeps the newest 2 rows per `(persona_instance_id, session_id)` lane and ARCHIVES
 the rest, never deletes (`PROMPT_OBSERVABILITY_RETAIN_PER_LANE`, `:1287-1289`);
 an absent catalog is honest absence, never a fake empty list (`:1319-1321`).
@@ -677,7 +677,7 @@ not by trusting the audit's own status.**
 
 | finding | then | now |
 |---|---|---|
-| `serve_rpc.py` baseline `or 0` — an unreadable event log became watermark 0, killing the sink's baseline gate and re-opening the resync↔restart loop | `baseline_offset = int(...) or 0` | typed absence: `baseline_offset = event_offset_of(watermark)` then an explicit `is None` arm — `agent_runtime/serve_rpc.py:1066-1067` |
+| `serve_rpc.py` baseline `or 0` — an unreadable event log became watermark 0, killing the sink's baseline gate and re-opening the resync↔restart loop | `baseline_offset = int(...) or 0` | typed absence: `baseline_offset = event_offset_of(watermark)` then an explicit `is None` arm — `agent_runtime/serve_rpc.py:1074-1075` |
 | empty `patches` shipped as a `patch` frame — the client advanced its watermark having folded nothing | coverable ⇒ promoted | promotion now also requires `batch_carries_patch_rows(batch)`; the honest answer for a pair-less batch is the full core — `agent_runtime/stream.py:927-938`, argued at `:673-700` |
 | `office_surface` could never satisfy the office scope gate, so every folder-only patch frame was dropped with no patch and no resync | `entity == OFFICE_ACTOR_ENTITY` and a slash-prefixed id | one predicate: `office_patch_scope(patch) == workspace_id` — `agent_runtime/serve_office_subscriptions.py:486` |
 | `_usage_lane_detected` — a credential fault DELETED the lane from the Limits panel, and an empty envelope rendered as a positive claim that no provider is signed in | `except Exception: return False` | three outcomes, not two: true / false / **raise**, with the raise caught per provider and the lane emitted `unavailable` naming the exception class — `hermes_cli/harness.py::_usage_lane_detected`, `hermes_cli/harness.py::build_account_usage` |

@@ -270,7 +270,7 @@ PRAGMA is a query-that-sets. The upstream guard also refuses unsafe WAL use
 with vulnerable SQLite builds; `hermes_state_wal.py::is_sqlite_wal_reset_vulnerable`
 and `apply_wal_with_fallback` own that decision. Deployment must verify the
 linked SQLite version rather than disabling the guard. The snapshot's `persona_chat` section reads this
-database through `chat_session_scope.open_chat_session_db` (`snapshot.py:2378`).
+database through `chat_session_scope.open_chat_session_db` (`agent_runtime/snapshot.py::_default_persona_session_db`).
 
 ---
 
