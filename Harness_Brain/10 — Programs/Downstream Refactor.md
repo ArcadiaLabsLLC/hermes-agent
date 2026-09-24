@@ -2,7 +2,7 @@
 type: program
 program: downstream-refactor
 status: active
-cursor: "2026-09-21 — plan LANDED (042f58edf8), not dispatched: 41 fork-owned production files over 800 code lines, 13 lanes, ≤27 commits. Next: Wave 0 (gates) + S1 in one sitting, then H1 alone (the exec'd-parts trap), then parallel lanes, H4 (serve) last."
+cursor: "2026-09-24 — DESIGN refresh on branch docs/god-file-design-2026-09-24 (lane GOD-D): 62 fork files over 800 raw lines (34 by code lines), the owner's enterprise bar as rules 12–17 with gates W0-G5/G6/G7, three wave-1 layout sheets (persona_commands, harness, serve), the dead-code queue, weakness escalation in CLAUDE.md; five owner questions in the program note §9. First executable unit after owner review: Wave 0 + H1, unchanged from the 09-21 plan."
 tags: [program/downstream-refactor, program, refactor]
 ---
 
@@ -15,7 +15,8 @@ Every fork-owned production file under a flat 800-code-line ceiling, split to a 
 
 ## Where the truth lives
 
-- **The plan:** [`docs/agent-runtime-harness/planned/downstream-god-file-refactor.md`](../../docs/agent-runtime-harness/planned/downstream-god-file-refactor.md) — §0 ground truth, §1 rules, §2 lanes with a layout for every file, §3 order, §4 dead-code list, §5 duplicate list, §6 method (the launcher playbook applied), §7 what the operator owes, §8 ledger.
+- **The 2026-09-24 refresh (reads first):** [`docs/agent-runtime-harness/planned/god-file-program-2026-09-24.md`](../../docs/agent-runtime-harness/planned/god-file-program-2026-09-24.md) — the scope rule, the 62 measured, rules 12–17 and their gates, which §§ of the 09-21 plan it supersedes; layout sheets in [`god-file-layout-sheets/`](../../docs/agent-runtime-harness/planned/god-file-layout-sheets/); deletions in [[dead-code-burn-down-queue]].
+- **The plan (the spine):** [`docs/agent-runtime-harness/planned/downstream-god-file-refactor.md`](../../docs/agent-runtime-harness/planned/downstream-god-file-refactor.md) — §0 ground truth, §1 rules, §2 lanes with a layout for every file, §3 order, §4 dead-code list, §5 duplicate list, §6 method (the launcher playbook applied), §7 what the operator owes, §8 ledger.
 - **Field notes:** [`downstream-god-file-refactor-field-notes-2026-09-21.md`](../../docs/agent-runtime-harness/planned/downstream-god-file-refactor-field-notes-2026-09-21.md) — how every number was taken; lane sections appended by builders.
 - **The instrument:** `scripts/refactor_census.py` — code-line counter (matches the operator's table), per-file survey, dead-name census, duplicate-body census.
 - **The method's origin:** `EterniaLauncher/docs/mission_control/planned/mission-control-refactor-program.md` (four owner amendments) and `EterniaLauncher/docs/tooling/SUBAGENT_DEPLOYMENT_PLAYBOOK_2026-09-21.md`.
