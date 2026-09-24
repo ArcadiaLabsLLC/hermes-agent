@@ -34,7 +34,7 @@ import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-WORKFLOW = REPO_ROOT / ".github" / "workflows" / "tests.yml"
+WORKFLOW = REPO_ROOT / ".github" / "workflows" / "fork-gates.yml"
 README = REPO_ROOT / "tool" / "test_quality" / "README.md"
 
 JOB_ID = "mutation-claims"

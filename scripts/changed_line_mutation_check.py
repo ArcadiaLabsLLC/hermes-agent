@@ -38,7 +38,7 @@ The budget is checked before the mutating phase begins and again before each
 claim, so a run that outgrows it STOPS with what it has done and what remains
 — it does not discover the overrun by being killed. The enforced number stays
 readable beside the command that enforces it: CI passes its own in
-``.github/workflows/tests.yml``, and a multi-stage LANDING run passes its own
+``.github/workflows/fork-gates.yml``, and a multi-stage LANDING run passes its own
 the same way. See ``tool/test_quality/README.md``.
 """
 
