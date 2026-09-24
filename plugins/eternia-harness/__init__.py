@@ -9,6 +9,7 @@ a prompt is being rendered. ``plugin.yaml`` declares both commands under
 
 from __future__ import annotations
 
+import os
 import time
 
 _HARNESS_HELP = "Experimental Agent Runtime Harness"
@@ -172,7 +173,19 @@ def record_usage_ledger_row(**kwargs):
     on_post_api_request(**kwargs)
 
 
+#: The harness's kanban claim lifetime. Long supervisor-style cards can spend more than
+#: upstream's 15 minutes inside one external call before they can `kanban_heartbeat`.
+KANBAN_CLAIM_TTL_SECONDS = 45 * 60
+
+
+def default_kanban_claim_ttl() -> None:
+    """Upstream reads ``HERMES_KANBAN_CLAIM_TTL_SECONDS`` for every claim AND the heartbeat
+    extension; a default here, with the operator's own env as the opt-out."""
+    os.environ.setdefault("HERMES_KANBAN_CLAIM_TTL_SECONDS", str(KANBAN_CLAIM_TTL_SECONDS))
+
+
 def register(ctx) -> None:
+    default_kanban_claim_ttl()
     ctx.register_system_prompt_section("eternia-harness.tool-guidance", render_tool_guidance)
     ctx.register_middleware("llm_request", brief_tool_descriptions)
     ctx.register_middleware("tool_request", default_background_notify)

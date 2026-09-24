@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 212,
+  "files": 208,
   "deleted_lines": 1000,
   "heavy": 4,
   "reasons": [
@@ -168,6 +168,12 @@
       "files": "215 -> 212",
       "deleted_lines": "flat (1000)",
       "reason": "owner ruling 2026-09-24 (2): BG on means notify on by default AND an agent turn on completion. The BG-PR gate is deleted: tui_gateway/session_notifications.py, evals/completion_backlog_probe.py and cli-config.yaml.example at f24a1d7f92 bytes; gateway/run_notifications.py loses the compact-send branch (only the reply_to watcher line is left); hermes_cli/config_defaults.py loses display.background_process_agent_turns"
+    },
+    {
+      "change": "lane DOORS-A claim TTL (seam/doors-a-2026-09-24)",
+      "files": "212 -> 208",
+      "deleted_lines": "flat (1000)",
+      "reason": "G9 onto upstream's door: kanban_db._resolve_claim_ttl_seconds reads HERMES_KANBAN_CLAIM_TTL_SECONDS for every claim and the heartbeat extension; the eternia-harness plugin os.environ.setdefault()s it to 2700 at register(). gateway/kanban_watchers_dispatcher.py, hermes_cli/kanban_ops.py, hermes_cli/kanban_parser.py and hermes_cli/config_defaults.py at f24a1d7f92 bytes; kanban_db_dispatch.py loses run_daemon's ttl_seconds half"
     }
   ]
 }

@@ -1867,13 +1867,6 @@ DEFAULT_CONFIG = {
         "review_dispatch": True,
         # Seconds between dispatcher ticks. Lower = snappier pickup; higher = less SQL pressure.
         "dispatch_interval_seconds": 60,
-        # Seconds before a running task claim is considered stale if the
-        # worker does not heartbeat. Long supervisor-style cards can spend
-        # >15 minutes inside one external agent/tool call before they can
-        # emit `kanban_heartbeat`, so keep the default comfortably above the
-        # old 15m hardcoded TTL while still allowing genuinely dead workers
-        # to recover automatically.
-        "claim_ttl_seconds": 45 * 60,
         # Auto-block after this many consecutive non-success attempts (spawn_failed, timed_out,
         # crashed) for the same task/profile. Reassignment resets the streak.
         "failure_limit": 2,
