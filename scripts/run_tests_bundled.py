@@ -14,8 +14,12 @@ contract, by calling its helpers rather than re-spelling them:
   plugin (``scripts/_bundle_plugin/hermes_bundle_report.py``) that writes one
   JSON line per collected module and per test report;
 * per-bundle timeout scaled from the members' cached durations;
+* a bundle whose process DIED before its session ended (pytest-timeout's
+  thread method — the only one on Windows, which has no SIGALRM — kills the
+  whole process) runs the member it died in alone and sends the members
+  that never started back out as ONE new bundle (``Death``);
 * retry-on-fail, with isolation added: a bundle that exits non-zero re-runs
-  every member that did not record a clean pass ONE FILE PER PROCESS
+  every other member that did not record a clean pass ONE FILE PER PROCESS
   (``_run_one_file``, with the per-file runner's own flake retry). A member
   red in its bundle and green alone is reported as an ISOLATION LEAK, with the
   members that ran before it — that is the observed diff an entry in
@@ -457,6 +461,19 @@ class RunResult:
     bundles: List[List[Path]]
     solos: List[Path]
     reruns: int
+    deaths: List["Death"] = field(default_factory=list)
+    rebundles: int = 0
+
+
+@dataclass
+class Death:
+    """A bundle process that died before its session ended: the member it
+    died in (run alone next) and the members behind it that never started
+    (re-bundled together)."""
+
+    bundle_index: int
+    stopped_in: str
+    unreached: List[str]
 
 
 BundleRunner = Callable[[Path, List[str], Path, float], Tuple[Path, int, str, Dict[str, int], float]]
@@ -491,6 +508,8 @@ def run(
     outcomes: List[FileOutcome] = []
     leaks: List[Leak] = []
     bundle_walls: List[Tuple[int, float, int]] = []
+    deaths: List[Death] = []
+    first_pass_bundles = len(bundles)
     futures: List[Future] = []
     reruns = 0
     scratch = Path(tempfile.mkdtemp(prefix="bundles-", dir=rtp._runner_scratch_root()))
@@ -533,15 +552,21 @@ def run(
             startup_share = max(0.0, events.session_start - started) / len(members)
         rerun = set(members_to_rerun(rels, events, rc))
         stopped_in = None
+        unreached: List[Path] = []
         if rc != 0 and events.session_end is None:
             ran = [rel for rel in rels if rel in events.files and events.files[rel].counts]
             stopped_in = ran[-1] if ran else rels[0]
+            unreached = [m for m, rel in zip(members, rels) if rels.index(rel) > rels.index(stopped_in)]
+            with lock:
+                deaths.append(Death(index, stopped_in, [_rel(m, repo_root) for m in unreached]))
         for position, (member, rel) in enumerate(zip(members, rels)):
             tally = events.files.get(rel, FileTally())
             if rel not in rerun:
                 seconds = startup_share + tally.collect_seconds + tally.test_seconds
                 _record(FileOutcome(member, 0, "", tally.summary(), seconds, "bundle", index))
                 continue
+            if member in unreached:
+                continue  # never started: re-bundled below, not run alone
             leak = Leak(
                 member,
                 index,
@@ -554,6 +579,19 @@ def run(
             with lock:
                 reruns += 1
                 futures.append(executor.submit(_solo, member, "rerun", index, leak))
+        # The process died in ``stopped_in`` (which goes solo above); the members
+        # queued behind it never started, so nothing about them needs a process
+        # of its own — they go back out as one bundle. Each re-bundle is shorter
+        # by at least the file it died in, so this terminates.
+        if len(unreached) >= 2:
+            with lock:
+                new_index = len(bundles)
+                bundles.append(unreached)
+                futures.append(executor.submit(_bundle, new_index, unreached, executor))
+        elif unreached:
+            with lock:
+                reruns += 1
+                futures.append(executor.submit(_solo, unreached[0], "rerun", index, None))
 
     with ThreadPoolExecutor(max_workers=max(1, jobs)) as executor:
         order = sorted(
@@ -591,7 +629,9 @@ def run(
         if on_outcome is not None:
             on_outcome(outcomes[position])
 
-    return RunResult(outcomes, leaks, bundle_walls, bundles, solos, reruns)
+    return RunResult(
+        outcomes, leaks, bundle_walls, bundles, solos, reruns, deaths, len(bundles) - first_pass_bundles
+    )
 
 
 # ── CLI ─────────────────────────────────────────────────────────────────────
@@ -637,7 +677,8 @@ def _print_summary(result: RunResult, files: Sequence[Path], repo_root: Path, el
     crashed = sum(1 for o in result.outcomes if o.summary.get("crashed"))
     print()
     print(
-        f"=== Summary: {len(files)} files ({len(result.bundles)} bundles, {len(result.solos)} solo, "
+        f"=== Summary: {len(files)} files ({len(result.bundles) - result.rebundles} bundles + "
+        f"{result.rebundles} re-bundled, {len(result.solos)} solo, "
         f"{result.reruns} re-run alone), {totals['passed']} tests passed, {totals['failed']} failed, "
         f"{totals['errors']} errors, {totals['skipped']} skipped in {elapsed:.1f}s ({jobs} workers) ==="
     )
@@ -664,17 +705,19 @@ def _print_summary(result: RunResult, files: Sequence[Path], repo_root: Path, el
                 print(f"      red in bundle: {nodeid}")
             if leak.earlier:
                 print(f"      earlier members: {', '.join(leak.earlier)}")
-    if unreached:
-        died: Dict[Tuple[int, str], List[str]] = {}
-        for leak in unreached:
-            died.setdefault((leak.bundle_index, leak.stopped_in or "?"), []).append(_rel(leak.file, repo_root))
+    if result.deaths:
+        passed_alone = {_rel(leak.file, repo_root) for leak in unreached}
         print()
         print(
-            f"=== {len(unreached)} member(s) never finished because {len(died)} bundle process(es) died; "
-            "each passed alone. The file a bundle died in is the unbundled-list candidate ==="
+            f"=== {len(result.deaths)} bundle process(es) died before their session ended. The file each died in "
+            "ran alone; the members behind it were re-bundled. The file is the unbundled-list candidate ==="
         )
-        for (index, stopped_in), members in sorted(died.items()):
-            print(f"  {stopped_in}  # observed: bundle #{index} died in this file; {len(members)} later member(s) unreached")
+        for death in sorted(result.deaths, key=lambda d: d.bundle_index):
+            alone = "passed alone" if death.stopped_in in passed_alone else "red alone too"
+            print(
+                f"  {death.stopped_in}  # observed: bundle #{death.bundle_index} died in this file ({alone}); "
+                f"{len(death.unreached)} later member(s) re-bundled"
+            )
     if rtp._FLAKY_RESULTS:
         print()
         print(f"=== ⚠ {len(rtp._FLAKY_RESULTS)} FLAKY file(s) (failed once alone, passed on retry) ===")
@@ -741,7 +784,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not files:
         print("No test files to run", file=sys.stderr)
         return 1
-
     if args.scope == SCOPE_FORK:
         manifest = args.manifest or repo_root / _DEFAULT_MANIFEST
         try:
