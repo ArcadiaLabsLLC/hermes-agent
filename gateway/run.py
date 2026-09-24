@@ -3389,11 +3389,10 @@ def _instantiate_builtin_adapter(platform: Platform, config: Any) -> Optional[Ba
     return adapter_cls(config)
 
 
-from gateway.downstream_extensions import DownstreamGatewayMixin, _needs_risk_assessor_warning
+from gateway.downstream_extensions import _needs_risk_assessor_warning
 
 
 class GatewayRunner(
-    DownstreamGatewayMixin,
     GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, GatewaySlashCommandsMixin,
     GatewayVoiceMixin, GatewayAdapterLifecycleMixin, GatewayTopicThreadsMixin, GatewayTurnMixin,
     GatewayShutdownMixin, GatewayBusySessionMixin, GatewayConfigLoadersMixin, GatewayStartupMixin,

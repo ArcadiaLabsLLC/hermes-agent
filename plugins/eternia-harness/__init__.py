@@ -173,6 +173,13 @@ def record_usage_ledger_row(**kwargs):
     on_post_api_request(**kwargs)
 
 
+async def answer_queue_status(**kwargs):
+    """``pre_gateway_dispatch`` hook: answer ``/queue-status`` (``/qstatus``), busy path included."""
+    from agent_runtime.gateway_queue_status import answer_queue_status as _answer
+
+    return await _answer(**kwargs)
+
+
 def route_blocked_kanban_cards(**kwargs):
     """``on_kanban_dispatch_tick`` hook: route the ticking board's new ``blocked`` cards to PM."""
     from agent_runtime.kanban_blocked_pm_tick import on_kanban_dispatch_tick
@@ -198,6 +205,7 @@ def register(ctx) -> None:
     ctx.register_middleware("tool_request", default_background_notify)
     ctx.register_hook("post_api_request", record_usage_ledger_row)
     ctx.register_hook("on_kanban_dispatch_tick", route_blocked_kanban_cards)
+    ctx.register_hook("pre_gateway_dispatch", answer_queue_status)
     # Joins the built-in `skills` toolset by registry membership; the platform bundles
     # still name it in toolsets.py until a register-toolset PR lets a plugin join them.
     ctx.register_tool(
