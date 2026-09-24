@@ -863,7 +863,9 @@ VISION_ANALYZE_SCHEMA = {
         # Dieted (#95681): routing mechanics (native attach vs aux-model text fallback) removed — the route
         # is automatic and the native path's own tool result says "you can see it natively now"; the schema
         # doesn't need to predict plumbing.
-        'Load an image (URL, local path, or data URL) into the conversation so you can see it. Native-vision models read the pixels next turn; others get an auxiliary text description. Disambiguator: use whenever the user references an image; read_file cannot read binaries.'
+        "Load an image into the conversation so you can see it. Call it "
+        "any time the user references an image — then answer from what "
+        "you see."
     ),
     "parameters": {
         "type": "object",
@@ -924,10 +926,11 @@ async def _handle_vision_analyze(args: Dict[str, Any], **kw: Any) -> str:
     return await vision_analyze_tool(image_url, full_prompt, model, task_id=task_id, region=region)
 
 
+from tools.downstream_schema import brief_schema
 registry.register(
     name="vision_analyze",
     toolset="vision",
-    schema=VISION_ANALYZE_SCHEMA,
+    schema=brief_schema("vision_analyze", VISION_ANALYZE_SCHEMA),
     handler=_handle_vision_analyze,
     check_fn=check_vision_requirements,
     is_async=True,

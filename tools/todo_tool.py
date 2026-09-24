@@ -221,7 +221,17 @@ def check_todo_requirements() -> bool:
 TODO_SCHEMA = {
     "name": "todo_list",
     "description": (
-        "Session task list for 3+ steps; no args reads it. For requested batches, enumerate every instance; split phases via parent. Keep ONE item in_progress; mark complete only when verified done. If a task fails, cancel it and add a revised item. Not durable memory."
+        # See #95681.
+        "Track a task list for multi-step work (3+ steps). Use for complex tasks "
+        "with 3+ steps or when the user provides multiple tasks. "
+        "For 'all N items' tasks, enumerate every instance as its own checklist "
+        "item so none are silently dropped. "
+        "Call with no parameters to read the current list.\n"
+        "List order is priority. Only ONE item in_progress at a time. "
+        "Break large phases into subtasks via parent. "
+        "Mark an item completed only after the work is verified done, never "
+        "based on intent. If something fails, cancel it and add a revised "
+        "item. Always returns the full current list."
     ),
     "parameters": {
         "type": "object",
@@ -267,8 +277,9 @@ TODO_SCHEMA = {
 
 from tools.registry import registry, tool_error
 
+from tools.downstream_schema import brief_schema
 registry.register(
-    name="todo_list", toolset="todo", schema=TODO_SCHEMA, check_fn=check_todo_requirements,
+    name="todo_list", toolset="todo", schema=brief_schema("todo_list", TODO_SCHEMA), check_fn=check_todo_requirements,
     handler=lambda args, **kw: todo_tool(
         todos=args.get("todos"), merge=args.get("merge", False), store=kw.get("store")),
     emoji="📋")
