@@ -127,3 +127,22 @@ def test_cli_commands_is_a_manifest_field_and_invalid_rows_are_skipped(tmp_path)
     # Positive control: with no cli_commands key the field is empty, not absent.
     (plugin / "plugin.yaml").write_text("name: gamma\n", encoding="utf-8")
     assert parse_manifest_file(plugin / "plugin.yaml", plugin, "bundled", "").cli_commands == []
+
+
+def test_the_declared_scan_reads_config_once(two_bundled_plugins, monkeypatch):
+    import hermes_cli.config as config_mod
+
+    reads = []
+
+    def _read():
+        reads.append(1)
+        return {"plugins": {"disabled": ["beta"]}}
+
+    monkeypatch.setattr(config_mod, "load_config_readonly", _read)
+    monkeypatch.setattr(plugins_mod, "load_config_readonly", _read)
+
+    names = [c["name"] for c in plugins_mod.discover_declared_cli_commands()]
+
+    assert len(reads) == 1
+    # The one read is the one the gate used: beta is disabled by it.
+    assert names == ["alpha"]

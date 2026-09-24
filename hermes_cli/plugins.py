@@ -1631,7 +1631,8 @@ def discover_declared_cli_commands() -> List[Dict[str, Any]]:
     if _env_enabled("HERMES_SAFE_MODE"):
         return []
     winners = {manifest_key(m): m for m in collect_directory_manifests()}
-    disabled, enabled = _get_disabled_plugins(), _get_enabled_plugins()
+    config = load_config_readonly()  # one read serves both lists
+    disabled, enabled = _get_disabled_plugins(config), _get_enabled_plugins(config)
     commands: List[Dict[str, Any]] = []
     for key, manifest in winners.items():
         if gate_manifest(manifest, disabled, enabled).action not in ("load", "load_now"):
