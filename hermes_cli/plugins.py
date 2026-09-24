@@ -1602,35 +1602,6 @@ def discover_plugins(force: bool = False) -> None:
 
 
 # fork: hook-pending (seam Stage 1) — manifest-declared CLI commands, the upstream PR's generic half.
-_DECLARED_CLI_NAME_RE = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
-
-
-def _declared_cli_rows(manifest: PluginManifest) -> List[Dict[str, str]]:
-    """``cli_commands:`` rows of one directory manifest: ``[{name, help, description}]``, invalid rows
-    skipped (warned). Reads the YAML file only; imports nothing."""
-    if manifest.portable or not manifest.path:
-        return []
-    manifest_file = next((f for f in (Path(manifest.path) / "plugin.yaml", Path(manifest.path) / "plugin.yml")
-                          if f.exists()), None)
-    if manifest_file is None:
-        return []
-    text = manifest_file.read_text(encoding="utf-8")
-    if "cli_commands" not in text:  # the common case: no second parse
-        return []
-    from utils import fast_safe_load
-    raw = (fast_safe_load(text) or {}).get("cli_commands") or []
-    rows: List[Dict[str, str]] = []
-    for item in raw if isinstance(raw, list) else []:
-        name = item.get("name") if isinstance(item, Mapping) else None
-        if not isinstance(name, str) or not _DECLARED_CLI_NAME_RE.fullmatch(name):
-            logger.warning("Plugin %s: cli_commands entry %r needs a name matching %s; skipping",
-                           manifest_key(manifest), item, _DECLARED_CLI_NAME_RE.pattern)
-            continue
-        rows.append({"name": name, "help": str(item.get("help") or manifest.description or ""),
-                     "description": str(item.get("description") or "")})
-    return rows
-
-
 def _materialize_declared_cli_command(manifest: PluginManifest, name: str, parser: Any) -> None:
     """Stub ``setup_fn``: load ONLY ``manifest``'s plugin, then run the parser setup its ``register(ctx)``
     registered for ``name``. Never runs :func:`discover_plugins`."""
@@ -1665,14 +1636,9 @@ def discover_declared_cli_commands() -> List[Dict[str, Any]]:
     for key, manifest in winners.items():
         if gate_manifest(manifest, disabled, enabled).action not in ("load", "load_now"):
             continue
-        try:
-            rows = _declared_cli_rows(manifest)
-        except Exception as exc:  # an unreadable manifest must not break the CLI; discovery reports it
-            logger.warning("Plugin %s: unreadable cli_commands: %s", key, exc)
-            continue
-        for row in rows:
+        for row in manifest.cli_commands:
             commands.append({
-                **row, "handler_fn": None, "plugin": manifest.name, "plugin_key": key,
+                **row, "help": row["help"] or manifest.description or "", "handler_fn": None, "plugin": manifest.name, "plugin_key": key,
                 "setup_fn": lambda parser, _m=manifest, _n=row["name"]: _materialize_declared_cli_command(
                     _m, _n, parser),
             })

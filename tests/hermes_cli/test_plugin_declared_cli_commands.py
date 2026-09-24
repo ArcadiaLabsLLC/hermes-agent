@@ -105,3 +105,25 @@ def test_hermes_harness_verb_never_runs_plugin_discovery(monkeypatch):
     # through the very patch the assertion above relies on.
     calls, _, _ = _parse_under(["no-such-command-s1p"], monkeypatch)
     assert calls == ["discover_plugins"]
+
+
+def test_cli_commands_is_a_manifest_field_and_invalid_rows_are_skipped(tmp_path):
+    from hermes_cli.plugins_manifest import parse_manifest_file
+
+    plugin = tmp_path / "gamma"
+    plugin.mkdir()
+    (plugin / "plugin.yaml").write_text(textwrap.dedent("""\
+        name: gamma
+        description: the gamma plugin
+        cli_commands:
+          - name: gamma
+            description: long form
+          - name: Not A Name
+          - just-a-string
+        """), encoding="utf-8")
+    manifest = parse_manifest_file(plugin / "plugin.yaml", plugin, "bundled", "")
+
+    assert manifest.cli_commands == [{"name": "gamma", "help": "", "description": "long form"}]
+    # Positive control: with no cli_commands key the field is empty, not absent.
+    (plugin / "plugin.yaml").write_text("name: gamma\n", encoding="utf-8")
+    assert parse_manifest_file(plugin / "plugin.yaml", plugin, "bundled", "").cli_commands == []
