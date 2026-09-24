@@ -20,36 +20,36 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `.gitignore` | 32 | 0 | carry | ours: fork runtime litter (`/profiles/`, `.mutation_gate.lock`, `.bytecode-sweep.lock`, `/.acl-probe-*/`, `/qa-artifacts/*`) — additive. REVERT hunk: `.install_method` duplicates base's `/.install_method` (dead edit). PR candidate: `.claude/` beside `.codex/`. Movable → `qa-artifacts/.gitignore` for that pair; the root-level lock/probe patterns are not movable | - |
 | `AGENTS.md` | 4 | 0 | carry | ours: downstream contract pointer — additive (4 lines at EOF). Not movable: AGENTS.md is what non-Claude agents read | - |
 | `README.md` | 7 | 1 | carry | replaces upstream lines: the License line must state the PolyForm contribution terms beside MIT; not movable (legal notice belongs in README) | - |
-| `agent/agent_init.py` | 30 | 4 | carry | unreviewed | - |
-| `agent/anthropic_adapter.py` | 37 | 2 | carry | unreviewed | - |
-| `agent/auxiliary_client.py` | 19 | 42 | carry | unreviewed | - |
-| `agent/chat_completion_helpers.py` | 8 | 2 | carry | unreviewed | - |
-| `agent/codex_runtime.py` | 39 | 22 | carry | unreviewed | - |
-| `agent/conversation_compression.py` | 11 | 2 | carry | unreviewed | - |
-| `agent/conversation_loop.py` | 59 | 1 | carry | unreviewed | - |
-| `agent/credential_pool.py` | 10 | 18 | carry | unreviewed | - |
-| `agent/image_routing.py` | 4 | 1 | carry | unreviewed | - |
-| `agent/model_metadata.py` | 49 | 17 | carry | unreviewed | - |
-| `agent/pet/generate/atlas.py` | 199 | 14 | carry | unreviewed | - |
-| `agent/process_bootstrap.py` | 70 | 3 | carry | unreviewed | - |
+| `agent/agent_init.py` | 30 | 4 | carry | ours: MC init-phase timing receipts (`agent_runtime.init_observability`), `blocked_tool_names` pass-through, `local-llama-hermes` managed-context floor exemption, `session_usage_ledger` seed — replaces upstream lines: the `_load_tools` signature/call and the MINIMUM_CONTEXT_LENGTH condition; not movable: call sites inside `init_agent`; the timing retires only through a widening PR (no init-phase hook in VALID_HOOKS) | - |
+| `agent/anthropic_adapter.py` | 37 | 2 | upstream | PR candidate: a lazy SDK install refused mid-turn is logged with its install command and does not latch None (class G1 turn-safe lazy installs, with `tools/lazy_deps.py`) | S3 |
+| `agent/auxiliary_client.py` | 19 | 42 | upstream | superseded by upstream `aux_probe_mode`/`_AuxProbeClientStub`@55f9e472a0: adopt theirs, delete ours — the fork deleted upstream's probe (−42) and aliased it to `agent_runtime.auxiliary_probe`; the gpt-6 tier tuple is upstream @79ec1f2a34; the `_note_client_construction` counter (3 sites) is ours, carry additively | S4 |
+| `agent/chat_completion_helpers.py` | 8 | 2 | carry | ours: persona `header_cache_scope_id` + cache-routing observability read off the transport — replaces upstream lines: `return build_kwargs(...)` needs the transport in a local; not movable: inline in `_build_codex_kwargs` | - |
+| `agent/codex_runtime.py` | 39 | 22 | hook | MC provider timing (`agent_runtime.codex_observability`) + `record_api_call_usage`: pre/post_api_request and on_stream_* exist (surface has the dispatch bracket, TTFB and usage); the client_resolve / stream_consume phase stamps need a widening PR; the −22 are a re-indent under `with measure_provider`, the conflict generator | S3 |
+| `agent/conversation_compression.py` | 11 | 2 | carry | ours: `local-llama-hermes` same-model aux floor exemption + `agent_runtime.compression_metadata.child_model_config` — replaces upstream lines: the floor condition and the `model_config=` argument; not movable: inline expressions | - |
+| `agent/conversation_loop.py` | 59 | 1 | carry | ours: `reuse_current_user_message` threading (persona native rows) and MC prompt/turn timing (`agent_runtime.conversation_observability`); the `deny_venv_installs` wrapper around every turn is G1 (PR candidate) — replaces upstream lines: `run_conversation` becomes `_run_conversation` under the wrapper; not movable: signature threading | - |
+| `agent/credential_pool.py` | 10 | 18 | carry | replaces upstream lines: `agent_runtime.pool_rotation.PoolRotationMixin` leads the MRO and the strategy branch in `_select_unlocked` (−18) becomes `_select_with_rotation` — a PARALLEL of upstream's rotation (persisted cursor, persist scope); unavoidable while that is fork policy; retires via a PR for a persisted rotation cursor; not movable: in-method | - |
+| `agent/image_routing.py` | 4 | 1 | upstream | PR candidate: `_LOCAL_IMAGE_PATH_RE` recognises Windows drive paths (class G2 Windows paths) | S3 |
+| `agent/model_metadata.py` | 49 | 17 | upstream | superseded by upstream gpt-6 tier rows + `fetch_codex_catalog_entries`/`CODEX_NEWEST_CLIENT_VERSION`@79ec1f2a34,1d10cef836: adopt theirs, delete ours (upstream dropped `gpt-6-terra`) | S4 |
+| `agent/pet/generate/atlas.py` | 199 | 14 | upstream | PR candidate: context-aware strip-scale long-axis line erase, vertical box merge, lenient-row validation (class G3 pet atlas extraction); `frame_x_bounds`/`_slot_bounds` are ours (charsheet QA crop), movable → `agent/charsheet/pipeline.py` | S3 |
+| `agent/process_bootstrap.py` | 70 | 3 | upstream | PR candidate: process-wide memoized httpx SSL context keyed on the CA inputs, explicit `verify` stays authoritative (class G4 SSL/CA cost); the copilot direct-client branch rides it | S3 |
 | `agent/prompt_builder.py` | 58 | 11 | hook | §0.4: guidance via `register_system_prompt_section`; `skill_matches_environment` likely already upstream (re-exported by `tools/skills_tool.py`) | S2 |
-| `agent/reasoning_effort.py` | 4 | 2 | carry | unreviewed | - |
-| `agent/session_persistence.py` | 5 | 2 | carry | unreviewed | - |
-| `agent/shell_hooks.py` | 4 | 1 | carry | unreviewed | - |
-| `agent/skill_commands.py` | 8 | 2 | carry | unreviewed | - |
+| `agent/reasoning_effort.py` | 4 | 2 | upstream | superseded by upstream `GPT6_TIER_PREFIXES`@79ec1f2a34: adopt theirs, delete ours | S4 |
+| `agent/session_persistence.py` | 5 | 2 | carry | ours: persona chat-root rows projected through `agent_runtime.native_persistence.project_native_message` (+`msg_idx`) — replaces upstream lines: `_db_flush_row` signature and call; not movable: inline in the flush row | - |
+| `agent/shell_hooks.py` | 4 | 1 | upstream | superseded by upstream `split_command_line`@ee472a7fdb: adopt theirs, delete ours — the `_split_command` alias has test readers only; the `os.sep` script-path fix is a PR candidate (G2) | S4 |
+| `agent/skill_commands.py` | 8 | 2 | hook | `required_skill_names` activation note for runtime-required skills: needs a widening PR (no skill-activation-note hook; `register_skill` is explicit-load only, plan Stage 2) | S3 |
 | `agent/skill_utils.py` | 41 | 4 | carry | §0.4: realm-specific (shared skills dir, `.realm_inbox`/`.provenance` ignore, lookup normalization) as additive lines; or a skill-dirs hook PR | - |
-| `agent/ssl_guard.py` | 32 | 4 | carry | unreviewed | - |
-| `agent/system_prompt.py` | 4 | 0 | carry | unreviewed | - |
-| `agent/transports/codex.py` | 20 | 0 | carry | unreviewed | - |
-| `agent/turn_api_call.py` | 45 | 26 | carry | unreviewed | - |
-| `agent/turn_api_request.py` | 11 | 0 | carry | unreviewed | - |
-| `agent/turn_context.py` | 18 | 8 | carry | unreviewed | - |
-| `agent/turn_facade.py` | 2 | 0 | carry | unreviewed | - |
-| `agent/turn_finalizer.py` | 1 | 0 | carry | unreviewed | - |
-| `agent/turn_response_check.py` | 6 | 0 | carry | unreviewed | - |
-| `agent/turn_response_intake.py` | 12 | 1 | carry | unreviewed | - |
-| `agent/turn_usage.py` | 5 | 2 | carry | unreviewed | - |
-| `agent/usage_pricing.py` | 63 | 3 | carry | unreviewed | - |
+| `agent/ssl_guard.py` | 32 | 4 | upstream | PR candidate: memoize a successful CA-bundle verification per CA fingerprint (class G4); DEFECT: the −4 delete upstream's `BEGIN PLUGIN-COMPAT` marker while its END marker stays — restore it | S3 |
+| `agent/system_prompt.py` | 4 | 0 | hook | tool-conditional guidance (`SHELL_TOOL_PREFERENCE`, `CLARIFY_CHOICES`, `BROWSER_PRECONDITION`, `TOOL_DESCRIBE`) → `register_system_prompt_section` with callable content (surface has it), with the `agent/prompt_builder.py` row | S2 |
+| `agent/transports/codex.py` | 20 | 0 | carry | ours: persona header cache scope → content-addressed `prompt_cache_key` + session headers (`agent_runtime.cache_routing`) and `_last_cache_routing_observability` — additive; not movable: inside `build_kwargs` | - |
+| `agent/turn_api_call.py` | 45 | 26 | upstream | superseded by upstream TTFB `_last_api_first_chunk_at` + post_api_request(first_chunk_at, api_duration)@e17276c7b4: adopt theirs, delete ours (`_fork_first_byte_s`, provider_dispatch timing); the request-assembled marker → pre_api_request hook (surface has it); the −26 are a re-indent | S4 |
+| `agent/turn_api_request.py` | 11 | 0 | hook | MC request_build / pre_api_hook / request_dump stamps: pre_api_request exists (surface has the bracket); per-phase build durations need a widening PR | S3 |
+| `agent/turn_context.py` | 18 | 8 | carry | ours: `reuse_current_user_message` (the persona native user row is already persisted) — replaces upstream lines: display-kind stamping and the append block go under the flag; not movable: inline in `_stage_turn_user_message`/`build_turn_context` | - |
+| `agent/turn_facade.py` | 2 | 0 | carry | ours: `reuse_current_user_message` forwarder kwarg — additive; not movable: signature | - |
+| `agent/turn_finalizer.py` | 1 | 0 | hook | `usage_ledger` in the turn result: post_api_request carries per-call `usage` (surface has it) — the ledger can be a plugin-side accumulator | - |
+| `agent/turn_response_check.py` | 6 | 0 | hook | MC response_validate stamp: no response-validation hook — needs a widening PR | S3 |
+| `agent/turn_response_intake.py` | 12 | 1 | upstream | PR candidate: relay NATIVE reasoning (`_extract_reasoning`) as `reasoning.available`, not only think-block content (class G5 reasoning relay) | S3 |
+| `agent/turn_usage.py` | 5 | 2 | upstream | superseded by upstream post_api_request(first_chunk_at)@e17276c7b4 for the TTFB log token: adopt theirs, delete ours; `record_api_call_usage` → post_api_request(usage) hook (surface has it) | S4 |
+| `agent/usage_pricing.py` | 63 | 3 | upstream | superseded by upstream gpt-6 Sol/Luna pricing rows@79ec1f2a34: adopt theirs, delete ours; `record_api_call_usage`/`USAGE_LEDGER_MAX_ROWS` are ours (fork callers only), movable → an `agent_runtime/` usage-ledger module or the post_api_request hook | S4 |
 | `apps/desktop/src/app/settings/uninstall-section.tsx` | 6 | 0 | upstream | PR candidate: warn that uninstalling the agent deletes the checkout's git history (holds for every upstream user; no SDK slot inside the confirm step) | S6 |
 | `apps/desktop/src/lib/desktop-slash-registry.json` | 2 | 0 | hook | seam: generated from `desktop_surface_registry`; follows the fork's `queue-status` `CommandDef`. Retires when the command registers through the plugin `register_command` and the dump reads plugin commands (it does not today) | S6 |
 | `cli-config.yaml.example` | 6 | 2 | carry | replaces upstream lines: background-completion family (default `concise`→`result`, new `background_process_agent_turns: false`). Movable → the fork's profile config seed (set the value, keep upstream's default); the new key is a PR candidate with the gateway/TUI family | - |
@@ -72,69 +72,69 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `gateway/session_context.py` | 34 | 0 | carry | ours: `declare_async_delivery_channel`/`async_delivery_declared` — additive; not movable (reads the module-private `_SESSION_ASYNC_DELIVERY`/`_UNSET`) | - |
 | `gateway/shutdown_watchdog.py` | 12 | 3 | upstream | PR candidate: `_process_hermes_home` must not fall back to the override-honouring `get_hermes_home()` (issue #56986 class); upstream/main still falls back | S3 |
 | `gateway/status.py` | 13 | 3 | upstream | REVERT: dead edit — a duplicate `from hermes_constants import …` (base already imports it at line 24) and a docstring rewrite; `_get_process_hermes_home` was already `get_process_hermes_home()` at the base | - |
-| `hermes_cli/approvals_test.py` | 2 | 1 | carry | unreviewed | - |
-| `hermes_cli/auth.py` | 23 | 2 | carry | unreviewed | - |
-| `hermes_cli/auth_codex.py` | 5 | 0 | carry | unreviewed | - |
-| `hermes_cli/auth_commands.py` | 7 | 0 | carry | unreviewed | - |
-| `hermes_cli/auth_nous.py` | 2 | 1 | carry | unreviewed | - |
-| `hermes_cli/bundles.py` | 2 | 1 | carry | unreviewed | - |
-| `hermes_cli/codex_models.py` | 108 | 6 | carry | unreviewed | - |
-| `hermes_cli/commands.py` | 18 | 3 | carry | unreviewed | - |
-| `hermes_cli/commands_platforms.py` | 53 | 4 | carry | unreviewed | - |
-| `hermes_cli/config.py` | 10 | 6 | carry | unreviewed | - |
-| `hermes_cli/config_defaults.py` | 78 | 5 | carry | unreviewed | - |
-| `hermes_cli/curator.py` | 3 | 1 | carry | unreviewed | - |
-| `hermes_cli/dep_ensure.py` | 58 | 2 | carry | unreviewed | - |
-| `hermes_cli/doctor.py` | 42 | 7 | carry | unreviewed | - |
-| `hermes_cli/doctor_config.py` | 8 | 3 | carry | unreviewed | - |
-| `hermes_cli/doctor_live.py` | 3 | 1 | carry | unreviewed | - |
-| `hermes_cli/doctor_platform.py` | 5 | 1 | carry | unreviewed | - |
-| `hermes_cli/doctor_state.py` | 13 | 5 | carry | unreviewed | - |
-| `hermes_cli/doctor_tools.py` | 2 | 1 | carry | unreviewed | - |
-| `hermes_cli/gateway.py` | 150 | 19 | carry | unreviewed | - |
-| `hermes_cli/gateway_windows.py` | 123 | 2 | carry | unreviewed | - |
-| `hermes_cli/kanban.py` | 7 | 6 | carry | unreviewed | - |
-| `hermes_cli/kanban_db.py` | 20 | 0 | carry | unreviewed | - |
-| `hermes_cli/kanban_db_dispatch.py` | 17 | 0 | carry | unreviewed | - |
-| `hermes_cli/kanban_ops.py` | 2 | 0 | carry | unreviewed | - |
-| `hermes_cli/kanban_parser.py` | 2 | 0 | carry | unreviewed | - |
+| `hermes_cli/approvals_test.py` | 2 | 1 | upstream | REVERT: supports the retired UNSCOPED flag-binding ban — `tests/hermes_cli/test_flag_binding_boundary.py` now reports only fork-authored lines (owner ruling 2026-09-21), so this behaviour-neutral `list_flag_or_empty` respelling of an upstream line polices nothing; restore upstream's bytes | S4 |
+| `hermes_cli/auth.py` | 23 | 2 | carry | ours: head-bound auth store selection in `_auth_file_path` via `agent_runtime.profile_home.get_hermes_auth_home` (theme-7 ruling) + tail re-export of `agent_runtime.auth_extensions` — replaces upstream lines: the import block and the path line; the path seam is not movable (the one resolver); the re-export is movable → callers import `agent_runtime.auth_extensions` | - |
+| `hermes_cli/auth_codex.py` | 5 | 0 | upstream | REVERT: comment-only hunk narrating the retired global-root fallback (theme-7 ruling 2026-09-17; upstream 93889b770d already removed the code) — nothing left to support; delete | S4 |
+| `hermes_cli/auth_commands.py` | 7 | 0 | hook | `auth set-key` / `auth login` non-interactive verbs for the launcher (`hermes_cli/auth_noninteractive.py`): `register_cli_command` is top-level only — needs a widening PR (sub-verbs on builtin parsers), or rehome under `hermes harness auth …` (S1) | S1 |
+| `hermes_cli/auth_nous.py` | 2 | 1 | upstream | PR candidate: validate the portal-provided `inference_base_url` through upstream's own `_validate_nous_inference_url_from_network` (class G6 security hardening) | S3 |
+| `hermes_cli/bundles.py` | 2 | 1 | upstream | REVERT: supports the retired UNSCOPED flag-binding ban — `tests/hermes_cli/test_flag_binding_boundary.py` now reports only fork-authored lines (owner ruling 2026-09-21), so this behaviour-neutral `list_flag_or_empty` respelling of an upstream line polices nothing; restore upstream's bytes | S4 |
+| `hermes_cli/codex_models.py` | 108 | 6 | upstream | superseded by upstream gpt-6 defaults/templates + `fetch_codex_catalog_entries`@79ec1f2a34,1d10cef836 and by `agent.codex_headers.codex_account_headers`@0bbf7b7997 (ours: `_extract_chatgpt_account_id`): adopt theirs, delete ours; `get_verified_codex_model_ids`/`_picker_cache_path`/`_fetch_verified_models_from_api` are ours, movable → `hermes_cli/model_picker_policy.py` (only caller); DEFECT: `_fetch_verified_models_from_api` imports `CODEX_MODELS_CATALOG_URL`, which the fork deleted, so every live verification returns None | S4 |
+| `hermes_cli/commands.py` | 18 | 3 | upstream | REVERT: `deprecated_aliases` + `alias_deprecation_warning` are test-only (no production caller; `tests/hermes_cli/test_command_deprecations.py`) and announce a `/tasks` removal 'after Stage 44'; the `queue-status` CommandDef → hook `register_command` (surface has it; handler already in `gateway/downstream_extensions.py`) | S4 |
+| `hermes_cli/commands_platforms.py` | 53 | 4 | upstream | superseded by upstream `hermes_cli.commands.discord_skill_commands`@8ffd44a6f9: adopt theirs, delete ours — a byte copy with no caller; the Slack clamp accounting (`slack_clamped_slashes` + warning) is a PR candidate (class G7 no silent caps) | S4 |
+| `hermes_cli/config.py` | 10 | 6 | upstream | PR candidate: `load_config_readonly` refuses mutation (`hermes_cli/config_read_scope.py`) and never scaffolds the home (`ensure_home=False`) (class G8 read-only config) | S3 |
+| `hermes_cli/config_defaults.py` | 78 | 5 | carry | ours: `remote_gateway` (harness serve listener), `charsheet.provider_timeout_seconds`, `display.background_process_agent_turns`/`busy_text_mode` — additive blocks; replaces upstream lines: `background_process_notifications` concise→result and two comment rewraps; kanban `claim_ttl_seconds` is G9; movable → the harness plugin manifest `config_schema` (manifest v2) for the harness keys | S4 |
+| `hermes_cli/curator.py` | 3 | 1 | upstream | REVERT: supports the retired UNSCOPED flag-binding ban — `tests/hermes_cli/test_flag_binding_boundary.py` now reports only fork-authored lines (owner ruling 2026-09-21), so this behaviour-neutral `list_flag_or_empty` respelling of an upstream line polices nothing; restore upstream's bytes | S4 |
+| `hermes_cli/dep_ensure.py` | 58 | 2 | upstream | PR candidate: `ensure_git_bash` provisioning + git / git-bash dep checks, `-NoProfile -NonInteractive` and stdin DEVNULL for install.ps1 (class G2 Windows); `_git_bash_available` rides the fork's `_find_windows_git_bash`, a duplicate of upstream `_find_bash` (see `tools/environments/local.py`); `reset_agent_browser_probe_cache` is S4's P7 generic | S3 |
+| `hermes_cli/doctor.py` | 42 | 7 | upstream | PR candidate: doctor resolves `HERMES_HOME`/`_DHH` at call time (module `__getattr__`) and loads dotenv per run (class G10 call-time home); `check_gateway_launcher` / `browser_probe_scope` from `agent_runtime.doctor_extensions` are ours — a doctor-check registration needs a widening PR | S3 |
+| `hermes_cli/doctor_config.py` | 8 | 3 | upstream | PR candidate: call-time home instead of importing `doctor.HERMES_HOME` (G10) | S3 |
+| `hermes_cli/doctor_live.py` | 3 | 1 | upstream | PR candidate: call-time home (G10) | S3 |
+| `hermes_cli/doctor_platform.py` | 5 | 1 | upstream | PR candidate: call-time home (G10) | S3 |
+| `hermes_cli/doctor_state.py` | 13 | 5 | upstream | PR candidate: call-time home (G10) | S3 |
+| `hermes_cli/doctor_tools.py` | 2 | 1 | carry | ours: `agent_runtime.doctor_extensions.browser_runnable` override seam for the doctor browser probe — replaces one upstream line; not movable: call site (goes with `doctor.py`'s `browser_probe_scope`) | - |
+| `hermes_cli/gateway.py` | 150 | 19 | upstream | PR candidate: `resolve_managed_python`/`ManagedPythonUnavailable` (a persisted launcher never pins `sys.executable`), POSIX-only `getuid`/`pwd` guards, the gateway home-resolution receipt (`hermes_cli/gateway_home_receipt.py`) (class G11 gateway launcher hardening); `_command_matches_profile` is upstream's own matcher extracted (−15), a named parallel of `_scan_gateway_pids._matches_current_profile` until the PR | S3 |
+| `hermes_cli/gateway_windows.py` | 123 | 2 | upstream | PR candidate: launcher interpreter via `resolve_managed_python`, refuse a single-pinned named-profile wrapper, console-less task detection + status warning (G11) | S3 |
+| `hermes_cli/kanban.py` | 7 | 6 | upstream | REVERT: supports the retired UNSCOPED flag-binding ban — `tests/hermes_cli/test_flag_binding_boundary.py` now reports only fork-authored lines (owner ruling 2026-09-21), so this behaviour-neutral `list_flag_or_empty` respelling of an upstream line polices nothing; restore upstream's bytes | S4 |
+| `hermes_cli/kanban_db.py` | 20 | 0 | carry | ours: tail re-export of `hermes_cli/kanban_crash_evidence.py` names 'for dashboards and tests' — additive; movable → readers import `hermes_cli.kanban_crash_evidence` directly (the capture itself is G9) | S4 |
+| `hermes_cli/kanban_db_dispatch.py` | 17 | 0 | upstream | PR candidate: crash-evidence capture on dead-worker reclaim + `run_daemon(ttl_seconds)` (class G9 kanban) | S3 |
+| `hermes_cli/kanban_ops.py` | 2 | 0 | upstream | PR candidate: `--claim-ttl` threaded into dispatch/daemon (G9) | S3 |
+| `hermes_cli/kanban_parser.py` | 2 | 0 | upstream | PR candidate: `--claim-ttl` flag (G9) | S3 |
 | `hermes_cli/main.py` | 67 | 191 | hook | §0.3, hunk by hunk: parser seam `build_downstream_parsers`, `harness`/`postinstall` in `cmd_console`, `dispatch_command` wrapper → hook (S1); `mark_main_entered` → hook `pre_command`; the two import-time boot-clock marks → upstream P4 or carry as one-liners; profile-bootstrap replacement (−187, `_profile_bootstrap.py` + `is_hermes_cli_entrypoint` gate) → upstream P1; `restore_durable_completions()` → upstream P2, fallback `on_session_start`; `_warn_legacy_console_gateway_task` tail import → confirm dead and delete (S1). After S1 + P1: ≤ 3 additive one-liners | S1, S3 |
 | `hermes_cli/main_desktop.py` | 1 | 58 | carry | PARALLEL: the fork `hermes_cli/_desktop_processes.py::_stop_desktop_processes_locking_build` shadows upstream `hermes_cli/main_desktop.py::_stop_desktop_processes_locking_build` (the −58 here), reading the P6 process-table seam so a kill goes through the inspector handle (no pid-recycle window). Retires when P6 merges and the sweep is proposed on that seam; not reviewed further in S4 | - |
-| `hermes_cli/main_web_build.py` | 10 | 49 | carry | unreviewed | - |
-| `hermes_cli/mcp_config.py` | 19 | 3 | carry | unreviewed | - |
-| `hermes_cli/model_switch.py` | 3 | 2 | carry | unreviewed | - |
-| `hermes_cli/models_catalog_static.py` | 3 | 2 | carry | unreviewed | - |
-| `hermes_cli/plugin_compat.py` | 4 | 0 | carry | unreviewed | - |
-| `hermes_cli/plugins.py` | 50 | 2 | carry | unreviewed | - |
-| `hermes_cli/plugins_discovery.py` | 6 | 6 | carry | unreviewed | - |
-| `hermes_cli/plugins_manifest.py` | 20 | 0 | carry | unreviewed | - |
+| `hermes_cli/main_web_build.py` | 10 | 49 | upstream | PR candidate: single-winner lock for the stale-bytecode launch sweep (`hermes_cli/_bytecode_sweep.py`) + loud build-stamp failures (class G12 boot/build robustness); until merged `_bytecode_sweep` shadows upstream `_sweep_stale_bytecode_if_checkout_changed`/`_record_bytecode_fingerprint` (the −49), a named parallel | S3 |
+| `hermes_cli/mcp_config.py` | 19 | 3 | upstream | PR candidate: `hermes mcp test --env` one-shot runtime env (class G13 MCP env); ours: machine-root path tokens (`agent_runtime.machine_roots`); `_ENV_VAR_NAME_RE` re-homed to `agent_runtime.mcp_environment` replaces upstream's constant (a parallel, restore it); the `cmd_args` line is the flag-binding REVERT | S3 |
+| `hermes_cli/model_switch.py` | 3 | 2 | upstream | superseded by upstream `astra` suffix rank@79ec1f2a34: adopt theirs, delete ours | S4 |
+| `hermes_cli/models_catalog_static.py` | 3 | 2 | upstream | superseded by upstream gpt-6 OpenRouter / openai-api rows@79ec1f2a34: adopt theirs, delete ours | S4 |
+| `hermes_cli/plugin_compat.py` | 4 | 0 | upstream | PR candidate: skip the compat AST scan for bundled plugins (class G14 plugin-loader cost) | S3 |
+| `hermes_cli/plugins.py` | 50 | 2 | hook | Stage 1 seam: `discover_declared_cli_commands` / `_materialize_declared_cli_command` (manifest-declared CLI commands without discovery) — needs the widening PR, harness as consumer; the discovery `elapsed_ms` log is G14 | S1 |
+| `hermes_cli/plugins_discovery.py` | 6 | 6 | upstream | PR candidate: enable/disable lists read through `load_config_readonly`, one shared config read (G14) | S3 |
+| `hermes_cli/plugins_manifest.py` | 20 | 0 | hook | Stage 1 widening PR: the manifest `cli_commands` field (with `hermes_cli/plugins.py`) | S1 |
 | `hermes_cli/profile_cmd.py` | 5 | 2 | upstream | P6: the `ProfileDeleteBlocked` refusal (`up/profiles-delete-guard` @ `9b1d5506aa`) | S4 |
 | `hermes_cli/profiles.py` | 204 | 29 | upstream | S4 (2026-09-23): `available_profile_templates` deleted for upstream `list_profile_names()`; the MC roster moved to `agent_runtime/profile_home.py`. What is left: P6, the delete guard + process-table seam (`up/profiles-delete-guard` @ `9b1d5506aa`); the carried `mark_profile_personas_orphaned` call (retires with an `on_profile_deleted` hook PR); `_ProcessFacts.exe` / `inspector_handle`, which only the `hermes_cli/main_desktop.py` parallel reads | S4 |
-| `hermes_cli/provider_catalog.py` | 189 | 0 | carry | unreviewed | - |
-| `hermes_cli/runtime_provider.py` | 18 | 12 | carry | unreviewed | - |
-| `hermes_cli/runtime_provider_custom.py` | 1 | 1 | carry | unreviewed | - |
-| `hermes_cli/service_manager.py` | 1 | 1 | carry | unreviewed | - |
-| `hermes_cli/skills_hub.py` | 19 | 1 | carry | unreviewed | - |
-| `hermes_cli/slack_cli.py` | 17 | 0 | carry | unreviewed | - |
-| `hermes_cli/status.py` | 4 | 0 | carry | unreviewed | - |
-| `hermes_cli/status_auth.py` | 4 | 1 | carry | unreviewed | - |
-| `hermes_cli/subcommands/auth.py` | 35 | 0 | carry | unreviewed | - |
-| `hermes_cli/subcommands/computer_use.py` | 3 | 2 | carry | unreviewed | - |
-| `hermes_cli/subcommands/mcp.py` | 10 | 0 | carry | unreviewed | - |
+| `hermes_cli/provider_catalog.py` | 189 | 0 | upstream | PR candidate: hoist the OAuth login-flow rows (`OAUTH_FLOW_OVERRIDES`, `disconnect_command_for`) out of the dashboard into the catalog whose docstring says it unifies them (class G15, with `web_server_oauth.py`/`web_routers/oauth.py`); `provider_login_catalog`/`MODELS_DEV_LANE_IDS`/`models_dev_id_for`/`_default_flow_for` are ours (launcher roster), movable → a fork module beside `hermes_cli/model_picker_policy.py` | S3 |
+| `hermes_cli/runtime_provider.py` | 18 | 12 | carry | ours: pool-rotation persist scope + probes (`agent_runtime.provider_probes`: `_select_pool_entry`, `pool_rotation_scope`) — replaces upstream lines: the ladder is re-indented under `with pool_rotation_scope` (−10 whitespace) and `pool.select` swapped; not movable; paired with `agent/credential_pool.py`'s rotation parallel | - |
+| `hermes_cli/runtime_provider_custom.py` | 1 | 1 | carry | ours: `pool.select()` → `_select_pool_entry` (rotation parallel) — replaces one upstream line; not movable: call site | - |
+| `hermes_cli/service_manager.py` | 1 | 1 | upstream | PR candidate: comment names `tests/docker/test_uid_remap.py`, which upstream does not have; its file is `test_puid_pgid_remap.py` (class G16 doc accuracy) | S3 |
+| `hermes_cli/skills_hub.py` | 19 | 1 | hook | `hermes skills link-external` (shared skills root into ~/.claude, ~/.codex; `agent_runtime.external_skill_links`): rehome as a harness verb via `register_cli_command` (surface has it, S1); the usage-string edit replaces one upstream line | S1 |
+| `hermes_cli/slack_cli.py` | 17 | 0 | upstream | PR candidate: `slack manifest` names the slash commands Slack's 50-cap dropped (class G7 no silent caps) | S3 |
+| `hermes_cli/status.py` | 4 | 0 | carry | ours: `STATUS_API_KEYS`/`resolve_status_env` re-export for `hermes_cli/harness.py`'s provider report — additive; movable → `hermes_cli/harness.py` importing `status_auth._API_KEYS` and `status._first_env_value` directly | S4 |
+| `hermes_cli/status_auth.py` | 4 | 1 | carry | ours: the Anthropic row folded into `_API_KEYS` so the harness report sees it — replaces upstream's appended tuple; movable → the harness report adds the Anthropic row itself | S4 |
+| `hermes_cli/subcommands/auth.py` | 35 | 0 | hook | `auth set-key` / `auth login` parsers (with `auth_commands.py`): needs a widening PR for sub-verbs on a builtin parser, or rehome under `hermes harness auth …` (S1) | S1 |
+| `hermes_cli/subcommands/computer_use.py` | 3 | 2 | upstream | REVERT: supports the retired UNSCOPED flag-binding ban — `tests/hermes_cli/test_flag_binding_boundary.py` now reports only fork-authored lines (owner ruling 2026-09-21), so this behaviour-neutral `list_flag_or_empty` respelling of an upstream line polices nothing; restore upstream's bytes | S4 |
+| `hermes_cli/subcommands/mcp.py` | 10 | 0 | upstream | PR candidate: `hermes mcp test --env KEY=VALUE` (G13) | S3 |
 | `hermes_cli/subcommands/profile.py` | 10 | 1 | upstream | P6: `--force-unverified-writers` (`up/profiles-delete-guard` @ `9b1d5506aa`) | S4 |
-| `hermes_cli/subcommands/skills.py` | 8 | 0 | carry | unreviewed | - |
-| `hermes_cli/tools_config_cua.py` | 7 | 0 | carry | unreviewed | - |
-| `hermes_cli/uninstall.py` | 26 | 3 | carry | unreviewed | - |
-| `hermes_cli/update_cmd.py` | 11 | 0 | carry | unreviewed | - |
-| `hermes_cli/update_cmd_git.py` | 5 | 2 | carry | unreviewed | - |
-| `hermes_cli/update_cmd_windows.py` | 30 | 1 | carry | unreviewed | - |
-| `hermes_cli/update_inventory.py` | 15 | 0 | carry | unreviewed | - |
-| `hermes_cli/web_routers/oauth.py` | 2 | 13 | carry | unreviewed | - |
+| `hermes_cli/subcommands/skills.py` | 8 | 0 | hook | `skills link-external` parser (with `skills_hub.py`): harness verb via `register_cli_command` (surface has it, S1) | S1 |
+| `hermes_cli/tools_config_cua.py` | 7 | 0 | upstream | PR candidate: the CUA pip install honours the mid-turn venv-mutation barrier (G1) | S3 |
+| `hermes_cli/uninstall.py` | 26 | 3 | upstream | PR candidate: Windows extended-length readlink spelling (`_comparable_path`), remove the installer's `bin/`, warn that the checkout's git history is deleted (G2 / G16) | S3 |
+| `hermes_cli/update_cmd.py` | 11 | 0 | upstream | PR candidate: fork-history guard — a fork's failed fast-forward never resets (`hermes_cli/update_history.py`) (class G17 updater fork safety); the tail import of `_warn_legacy_console_gateway_task` is dead (no reader by grep), REVERT that line | S3 |
+| `hermes_cli/update_cmd_git.py` | 5 | 2 | upstream | PR candidate: fork sync pushes without `--force-with-lease`; diverged-fork message (G17) | S3 |
+| `hermes_cli/update_cmd_windows.py` | 30 | 1 | upstream | PR candidate: launcher refresh tolerates `ManagedPythonUnavailable` and warns about a legacy visible-console task (G11) | S3 |
+| `hermes_cli/update_inventory.py` | 15 | 0 | upstream | PR candidate: cached fork-history assessment in the update plan (G17) | S3 |
+| `hermes_cli/web_routers/oauth.py` | 2 | 13 | upstream | PR candidate (G15): disconnect command read from `provider_catalog.disconnect_command_for` — replaces upstream's inline helper until merged | S3 |
 | `hermes_cli/web_routers/profiles.py` | 69 | 2 | carry | the P6 409 mapping is on `up/profiles-delete-guard` @ `9b1d5506aa`; the fork-only `/api/profiles/{name}/promote` route stays carry | S4 |
-| `hermes_cli/web_server.py` | 3 | 0 | carry | unreviewed | - |
-| `hermes_cli/web_server_config.py` | 1 | 0 | carry | unreviewed | - |
-| `hermes_cli/web_server_oauth.py` | 8 | 31 | carry | unreviewed | - |
-| `hermes_cli/worktree_ops.py` | 1 | 1 | carry | unreviewed | - |
+| `hermes_cli/web_server.py` | 3 | 0 | upstream | REVERT: dead re-export — `promote_profile_endpoint` has no reader through `web_server` (grep); the route lives in `hermes_cli/web_routers/profiles.py` | S4 |
+| `hermes_cli/web_server_config.py` | 1 | 0 | carry | ours: `charsheet` config category merged under agent — additive one-liner; movable → the harness plugin manifest `config_schema` (with `config_defaults.py`) | S4 |
+| `hermes_cli/web_server_oauth.py` | 8 | 31 | upstream | PR candidate (G15): `_OAUTH_PROVIDER_CATALOG` built from `provider_catalog.OAUTH_FLOW_OVERRIDES` + status fns — replaces upstream's table until merged | S3 |
+| `hermes_cli/worktree_ops.py` | 1 | 1 | upstream | PR candidate: the docstring names a pre-push stale-base gate neither tree has (G16 doc accuracy) | S3 |
 | `hermes_constants.py` | 17 | 1 | upstream | S4 (2026-09-23): the root-cache parallel is deleted (upstream `_default_hermes_root_memo` adopted); the 14 fork home authorities live in `agent_runtime/profile_home.py`. What is left is P7, the agent-browser probe memo, byte-identical to `up/profile-home-generic` @ `1f4923c350` | S4 |
 | `hermes_state.py` | 7 | 0 | carry | ours: `RuntimeSessionMixin` in `SessionDB` bases — additive; not movable (class bases). REVERT hunk: the `_resolve_default_db_path` alias is superseded by upstream `_default_db_path`; retire by respelling `tests/hermes_state/test_downstream_session_contracts.py` (2 sites) and 3 comments in `tests/test_no_frozen_hermes_home.py` | - |
 | `hermes_state_messages.py` | 3 | 1 | upstream | PR candidate: surface `finish_reason` on every role, not only assistant rows (upstream still gates it on assistant) | S3 |
@@ -396,44 +396,44 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tests/tui_gateway/test_hosted_room_driver_runtime.py` | 114 | 0 | carry | S5: 2 fork test unit(s) cannot leave — share upstream module fixture db (a move would drop or duplicate it) | S5 |
 | `tests/tui_gateway/test_kanban_notify_poller.py` | 1 | 0 | carry | depends on fork prod code HERMES_BACKGROUND_AGENT_TURNS gate (tui_gateway notification poller) | - |
 | `tests/tui_gateway/test_tui_gateway_server.py` | 97 | 13 | carry | S5: 2 fork test unit(s) cannot leave — share upstream autouse fixture _neuter_agent_prewarm_timer, _reap_leaked_notification_pollers (a move would drop or duplicate it) | S5 |
-| `tools/approval_context.py` | 3 | 9 | carry | unreviewed | - |
-| `tools/approval_detection.py` | 43 | 7 | carry | unreviewed | - |
-| `tools/async_delegation.py` | 15 | 1 | carry | unreviewed | - |
-| `tools/browser_tool.py` | 11 | 10 | carry | unreviewed | - |
-| `tools/browser_tool_lifecycle.py` | 2 | 1 | carry | unreviewed | - |
-| `tools/clarify_tool.py` | 7 | 3 | carry | unreviewed | - |
-| `tools/close_terminal_tool.py` | 1 | 6 | carry | unreviewed | - |
-| `tools/code_execution_env.py` | 3 | 2 | carry | unreviewed | - |
-| `tools/code_execution_tool.py` | 11 | 1 | carry | unreviewed | - |
-| `tools/credential_files.py` | 2 | 2 | carry | unreviewed | - |
-| `tools/environments/daytona.py` | 3 | 1 | carry | unreviewed | - |
-| `tools/environments/local.py` | 180 | 8 | carry | unreviewed | - |
-| `tools/environments/modal.py` | 4 | 0 | carry | unreviewed | - |
-| `tools/environments/singularity.py` | 4 | 0 | carry | unreviewed | - |
-| `tools/file_operations.py` | 6 | 13 | carry | unreviewed | - |
-| `tools/file_tools.py` | 28 | 8 | carry | unreviewed | - |
-| `tools/file_tools_write_guards.py` | 5 | 4 | carry | unreviewed | - |
-| `tools/image_generation_tool.py` | 2 | 2 | carry | unreviewed | - |
-| `tools/lazy_deps.py` | 85 | 0 | carry | unreviewed | - |
-| `tools/mcp_tool_config.py` | 41 | 1 | carry | unreviewed | - |
-| `tools/mcp_tool_transport.py` | 1 | 1 | carry | unreviewed | - |
-| `tools/process_registry.py` | 67 | 50 | carry | unreviewed | - |
-| `tools/process_registry_notifications.py` | 43 | 1 | carry | unreviewed | - |
-| `tools/read_terminal_tool.py` | 1 | 4 | carry | unreviewed | - |
+| `tools/approval_context.py` | 3 | 9 | upstream | PR candidate: `_tirith_fail_open` reads the one tirith flag authority with env overrides (`hermes_cli/tirith_config.py`) (class G18 tirith config authority) | S3 |
+| `tools/approval_detection.py` | 43 | 7 | upstream | PR candidate: the verification-artifact cleanup exemption accepts the MSYS spelling and asks identity through `tools/path_identity` (G2 Windows paths) | S3 |
+| `tools/async_delegation.py` | 15 | 1 | carry | ours: the delegation store resolves through `agent_runtime.profile_home.get_hermes_background_work_home` (head home inside persona turns) — replaces upstream's `_db_path` body; not movable: the one resolver (S4 names this caller) | - |
+| `tools/browser_tool.py` | 11 | 10 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only (already wired here for `browser_navigate`) | S2 |
+| `tools/browser_tool_lifecycle.py` | 2 | 1 | upstream | PR candidate: daemon socket-dir binding compared by file identity (`tools/path_identity.denotes_same_file`) (G2) | S3 |
+| `tools/clarify_tool.py` | 7 | 3 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only (full text already kept as `FULL_CLARIFY_DESCRIPTION`) | S2 |
+| `tools/close_terminal_tool.py` | 1 | 6 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only | S2 |
+| `tools/code_execution_env.py` | 3 | 2 | upstream | PR candidate: interpreter / prefix identity via `denotes_same_file` (G2) | S3 |
+| `tools/code_execution_tool.py` | 11 | 1 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only (`_full_description` flag) | S2 |
+| `tools/credential_files.py` | 2 | 2 | upstream | PR candidate: container-side paths via `as_posix()` on Windows hosts (G2) | S3 |
+| `tools/environments/daytona.py` | 3 | 1 | upstream | PR candidate: sandbox mkdir via `posixpath.dirname` (G2) | S3 |
+| `tools/environments/local.py` | 180 | 8 | upstream | PR candidate: Git Bash found via `git.exe` and the System32 WSL shim excluded, Windows system dirs appended to PATH (G2); `_find_windows_git_bash` duplicates upstream `_find_bash`@c4622a1d5b and `_shell_arg_safe_path` supersedes upstream `_escape_native_tool_arg`@07ee4a2ec8 — adopt theirs, delete ours; `_bash_probe_failure_details` has no caller | S3 |
+| `tools/environments/modal.py` | 4 | 0 | upstream | superseded by upstream lazy `_snapshot_store()`@adf23550f5: adopt theirs, delete ours — `_snapshot_store_path` has no caller | S4 |
+| `tools/environments/singularity.py` | 4 | 0 | upstream | superseded by upstream lazy `_snapshot_store()`@adf23550f5: adopt theirs, delete ours — `_snapshot_store_path` has no caller | S4 |
+| `tools/file_operations.py` | 6 | 13 | upstream | superseded by upstream `ShellFileOperations._escape_native_tool_arg`@07ee4a2ec8: adopt theirs, delete ours — the fork collapsed both escapes onto `_shell_arg_safe_path`, which also moves `_escape_shell_arg` off the `/c/` form upstream chose so shell ops and `cd` agree | S4 |
+| `tools/file_tools.py` | 28 | 8 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only (PATCH / SEARCH; `write_file` already via `brief_schema`); `_posix_match_forms` for the device-path guard is G2 | S2 |
+| `tools/file_tools_write_guards.py` | 5 | 4 | upstream | PR candidate: sensitive / config / instruction path guards compare by identity and POSIX match forms (G2) | S3 |
+| `tools/image_generation_tool.py` | 2 | 2 | upstream | PR candidate: config read through `load_config_readonly` (G8) | S3 |
+| `tools/lazy_deps.py` | 85 | 0 | upstream | PR candidate: `deny_venv_installs` barrier + `RuntimeInstallDenied` — no lazy install mutates the running venv during a turn (G1) | S3 |
+| `tools/mcp_tool_config.py` | 41 | 1 | carry | ours: per-server process env overrides and machine-root tokens (`agent_runtime.mcp_environment`); child `HERMES_HOME` injection and `runtime_env` are G13 (PR candidates) — replaces upstream lines: the `_build_safe_env` signature; not movable: inline env layering | - |
+| `tools/mcp_tool_transport.py` | 1 | 1 | carry | ours: passes `server_name` / `runtime_env` into `_build_safe_env` — replaces one upstream line; goes with `mcp_tool_config.py` | - |
+| `tools/process_registry.py` | 67 | 50 | carry | ours: `agent_runtime.process_notifications` (persona `process notify` receipts, head-home checkpoint path, mission-chat wait ceiling) — replaces upstream lines: `_move_to_finished`'s completion block and the PROCESS_SCHEMA text; the startup rehydrate moves to main.py's `restore_durable_completions()` (P2); Windows PTY EOF is G2; the brief description is movable → `tools/downstream_schema.py` | - |
+| `tools/process_registry_notifications.py` | 43 | 1 | upstream | PR candidate: redact, ANSI-strip and bound every field of a process notification before it re-enters the conversation (class G6 security hardening); the `notify_requested` receipt text is ours (with `process_registry.py`) | S3 |
+| `tools/read_terminal_tool.py` | 1 | 4 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only | S2 |
 | `tools/registry.py` | 194 | 36 | upstream | §0.4: `check_fn` TTL cache + probe accounting — generic perf the fork measured (P3); tool-registration edits go with S2 | S3 |
-| `tools/session_search_tool.py` | 20 | 14 | carry | unreviewed | - |
-| `tools/skills_hub_official.py` | 1 | 1 | carry | unreviewed | - |
+| `tools/session_search_tool.py` | 20 | 14 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only; hiding `agent_runtime_persona_chat_scratch` sessions needs a widening PR (no session-source filter hook) | S2 |
+| `tools/skills_hub_official.py` | 1 | 1 | upstream | PR candidate: bundle keys via `as_posix()` (G2) | S3 |
 | `tools/skills_tool.py` | 137 | 70 | hook | §0.4: resolution/search delegate to `agent_runtime.skill_resolution`/`skill_search` — the plugin's own tool via `register_tool(override=…)`, or carry | S2 |
-| `tools/skills_tool_plugin.py` | 11 | 1 | carry | unreviewed | - |
-| `tools/terminal_tool.py` | 84 | 1 | carry | unreviewed | - |
-| `tools/terminal_tool_result.py` | 2 | 1 | carry | unreviewed | - |
-| `tools/tirith_security.py` | 60 | 11 | carry | unreviewed | - |
-| `tools/todo_tool.py` | 1 | 11 | carry | unreviewed | - |
-| `tools/tool_search.py` | 117 | 16 | carry | unreviewed | - |
-| `tools/tts_tool.py` | 5 | 4 | carry | unreviewed | - |
-| `tools/tts_tool_delivery.py` | 3 | 2 | carry | unreviewed | - |
-| `tools/vision_tools.py` | 6 | 8 | carry | unreviewed | - |
-| `tools/web_tools.py` | 2 | 2 | carry | unreviewed | - |
+| `tools/skills_tool_plugin.py` | 11 | 1 | hook | active-surface skill compatibility gate (`agent.skill_utils.current_skill_runtime_context`, root-node mode): pre_tool_call can refuse the skill view (surface has it); the `as_posix` rel path is G2 | S2 |
+| `tools/terminal_tool.py` | 84 | 1 | hook | harness envelope gate + provenance (`agent_runtime.terminal_policy`), persona chat container scope, `brief_schema('terminal')`: pre_tool_call (block) and transform_tool_result (provenance) exist — surface has it; the wrapper split renames upstream's body to `_terminal_tool_run` | S2 |
+| `tools/terminal_tool_result.py` | 2 | 1 | upstream | PR candidate: cwd change detected by file identity (G2) | S3 |
+| `tools/tirith_security.py` | 60 | 11 | upstream | PR candidate: tirith flags through one authority (`hermes_cli/tirith_config.py`) + an unsupported-platform fail-closed warning instead of a silent allow (G18) | S3 |
+| `tools/todo_tool.py` | 1 | 11 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only | S2 |
+| `tools/tool_search.py` | 117 | 16 | carry | ours: hardcoded `never_defer` harness tools, parameters inlined in top search hits, an always-present standalone `tool_describe` (single `name`, a second schema for upstream's bridge tool, which takes `names`) + full-description lookup, legacy single `query`/`name` args — replaces upstream lines: classify/deferrable signatures, describe over all tools, the search description; the `never_defer` config key is a PR candidate (G19 tool search); not movable: in-module policy | - |
+| `tools/tts_tool.py` | 5 | 4 | upstream | PR candidate: readonly config copy (G8) + artifact identity via `denotes_same_file` (G2) | S3 |
+| `tools/tts_tool_delivery.py` | 3 | 2 | upstream | PR candidate: audio paths compared by identity (G2) | S3 |
+| `tools/vision_tools.py` | 6 | 8 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only; the readonly config reads are G8 | S2 |
+| `tools/web_tools.py` | 2 | 2 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only | S2 |
 | `toolsets.py` | 70 | 2 | hook | seam: plugin toolset registration — `skill_search` in core/skills lists (fork tool), `harness_core` composite, `expand_toolset_names`; the composite needs a register-toolset PR (register_tool covers leaves only) | S3 |
 | `tui_gateway/entry.py` | 14 | 0 | upstream | P2: durable-completion restore at TUI startup (fallback: `on_session_start` hook) | S3 |
 | `tui_gateway/hosted_room_driver.py` | 15 | 2 | hook | seam: Group Chat host-surface PR — `request_reconciliation`; its three settlement fixes (`stop_unresolved`, active inspection, terminal `error`) go in the same PR as plain fixes | S3 |
