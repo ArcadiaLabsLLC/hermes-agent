@@ -128,7 +128,6 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             'has no shebang handling, so a POSIX hook script is not directly '
             'executable and the callback fails before the payload is produced',
             {
-                'TestCallbackSubprocess::test_block_translation_end_to_end',
                 'TestCallbackSubprocess::test_block_aggregation_through_plugin_manager',
                 'TestCallbackSubprocess::test_matcher_regex_filters_callback',
                 'TestCallbackSubprocess::test_payload_schema_delivered',

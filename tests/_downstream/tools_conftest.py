@@ -120,7 +120,6 @@ import pathlib
 import os
 import socket
 import stat
-import subprocess
 import tempfile
 
 import pytest
@@ -198,26 +197,6 @@ def _no_unwritable_dir_via_chmod() -> bool:
         finally:
             os.chmod(target, 0o755)
         return True
-
-
-@_cached
-def _no_shebang_exec() -> bool:
-    """True where the OS cannot execute a ``#!`` script as a program image.
-
-    CreateProcess requires a PE image and rejects a shebang script with
-    WinError 193 ("not a valid Win32 application"); execve honours the
-    interpreter line. Measured by actually spawning one.
-    """
-    with tempfile.TemporaryDirectory() as tmp:
-        script = os.path.join(tmp, "shebang_probe")
-        with open(script, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write("#!/bin/sh\nexit 0\n")
-        os.chmod(script, 0o755)
-        try:
-            subprocess.run([script], capture_output=True, timeout=30)
-        except OSError:
-            return True
-        return False
 
 
 def _no_af_unix() -> bool:
@@ -298,23 +277,6 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             'there is no error to assert on',
             {
                 'TestAbiStamp::test_readonly_target_reports_error',
-            },
-        ),
-    ],
-    # ── the OS cannot run a shebang script as a program image ──────────────
-    'test_execution_flag_detection.py': [
-        (
-            _no_shebang_exec,
-            'the payload these cases try to get executed is a `#!`-shebang '
-            'script, which CreateProcess rejects (WinError 193) because it is '
-            'not a PE image — so the marker file the assertion reads is never '
-            'written, whatever the option-ownership logic decided. The sibling '
-            'parametrisations that do NOT depend on executing a shebang were '
-            'registered here too and now pass',
-            {
-                'test_real_binaries_execute_leading_dash_program_payload[rg-args0-None-False]',
-                'test_real_binaries_execute_leading_dash_program_payload[rg-args1-None-False]',
-                'test_real_binaries_execute_leading_dash_program_payload[sort-args2-{bulk}-False]',
             },
         ),
     ],
@@ -445,7 +407,6 @@ __all__ = [
     "_no_posix_file_modes",
     "_no_posix_exec_bit",
     "_no_unwritable_dir_via_chmod",
-    "_no_shebang_exec",
     "_no_af_unix",
     "_no_process_groups",
     "_ENV_GAPS",

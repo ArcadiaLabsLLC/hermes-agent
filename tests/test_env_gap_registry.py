@@ -52,21 +52,39 @@ TESTS_ROOT = Path(__file__).resolve().parent
 _FENCED_DIRS = ("agent", "gateway", "hermes_cli", "tools")
 
 
-def _load_registry(directory: str) -> tuple[EnvGapSkipRegistry, Path] | None:
-    """Import ``tests/<directory>/conftest.py`` and return its skip registry."""
-    conftest = TESTS_ROOT / directory / "conftest.py"
-    if not conftest.is_file():
-        return None
-    spec = importlib.util.spec_from_file_location(
-        f"_env_gap_probe_{directory}", conftest
-    )
+def _registry_module_path(directory: str) -> Path:
+    """Where ``tests/<directory>``'s registry lives.
+
+    Lane CARRY3 moved the fork's per-directory fences out of the upstream
+    conftests into ``tests/_downstream/<directory>_conftest.py`` (ridden by the
+    root ``conftest.py``); a directory without one still reads its own
+    conftest. Reading only the upstream conftest after that move made every
+    check here SKIP — green by blindness (fork-hygiene 2026-09-24).
+    """
+    downstream = TESTS_ROOT / "_downstream" / f"{directory}_conftest.py"
+    return downstream if downstream.is_file() else TESTS_ROOT / directory / "conftest.py"
+
+
+def _exec_registry_module(directory: str, prefix: str):
+    path = _registry_module_path(directory)
+    if not path.is_file():
+        return None, path
+    spec = importlib.util.spec_from_file_location(f"{prefix}_{directory}", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    return module, path
+
+
+def _load_registry(directory: str) -> tuple[EnvGapSkipRegistry, Path] | None:
+    """Import the directory's fence module and return its skip registry."""
+    module, path = _exec_registry_module(directory, "_env_gap_probe")
+    if module is None:
+        return None
     registry = getattr(module, "_ENV_GAP_SKIPS", None)
     if not registry:
         return None
-    return registry, conftest
+    return registry, path
 
 
 def _this_host_carries_the_gaps() -> bool:
@@ -150,15 +168,9 @@ def test_no_directory_still_uses_the_mark_only_registry(directory: str) -> None:
     a terminal-summary print, which cannot fail a run. So the gate has to
     assert the mark-only lane is EMPTY rather than merely preferring probes.
     """
-    conftest = TESTS_ROOT / directory / "conftest.py"
-    if not conftest.is_file():
+    module, conftest = _exec_registry_module(directory, "_env_gap_marks")
+    if module is None:
         pytest.skip(f"tests/{directory} has no conftest")
-    spec = importlib.util.spec_from_file_location(
-        f"_env_gap_marks_{directory}", conftest
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
 
     rows = {
         f"{file_name}::{node_id}"
@@ -167,7 +179,7 @@ def test_no_directory_still_uses_the_mark_only_registry(directory: str) -> None:
         for node_id in node_ids
     }
     assert not rows, (
-        f"tests/{directory}/conftest.py still registers rows in the mark-only "
+        f"{conftest.relative_to(TESTS_ROOT.parent).as_posix()} still registers rows in the mark-only "
         "_ENV_GAPS registry, which neither the staleness nor the orphan check "
         "above can see. Move them to _ENV_GAP_SKIPS with a live probe, or "
         "delete them:\n  " + "\n  ".join(sorted(rows))

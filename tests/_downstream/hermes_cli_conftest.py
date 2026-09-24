@@ -745,7 +745,6 @@ def _local_model_probe_reason() -> str | None:
 _ENV_GAPS: dict[str, list[tuple[str, str, set[str]]]] = {}
 
 _POSIX_MODE_BITS_PROBE = None
-_GIT_EOL_PROBE = None
 
 
 def _no_module(name: str):
@@ -824,34 +823,6 @@ def _posix_only_branch() -> bool:
     genuinely is the mechanism rather than a stand-in for one.
     """
     return sys.platform == "win32"
-
-
-def _git_name_only_ignores_cr_at_eol() -> bool:
-    """True where `git diff --name-only --ignore-cr-at-eol` is not honoured.
-
-    _normalize_managed_eol() derives its EOL-only set as
-    ``dirty - dirty(--ignore-cr-at-eol)``. Below git 2.32 the --name-only
-    output is decided before the content-level ignore rules run, so that set is
-    always empty and the function pins core.autocrlf without restoring
-    anything. A toolchain version, not a platform.
-    """
-    global _GIT_EOL_PROBE
-    if _GIT_EOL_PROBE is None:
-        import re as _re
-        import subprocess as _sp
-
-        try:
-            raw = _sp.run(
-                ["git", "--version"], capture_output=True, text=True, timeout=15
-            ).stdout
-            match = _re.search(r"(\d+)\.(\d+)", raw or "")
-            _GIT_EOL_PROBE = (
-                True if match is None
-                else (int(match.group(1)), int(match.group(2))) < (2, 32)
-            )
-        except Exception:
-            _GIT_EOL_PROBE = True
-    return _GIT_EOL_PROBE
 
 
 _SHEBANG_EXEC_PROBE = None
@@ -956,7 +927,6 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
                 'test_profiles_default_subdir_is_skipped_with_warning',
                 'test_register_service_overwrites_existing_slot',
                 'test_registered_profile_has_finish_script',
-                'test_running_profile_is_registered_and_autostarted',
             },
         ),
     ],
@@ -968,8 +938,6 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             'same guard the sibling TestSecureDirChown in this file already '
             'carries',
             {
-                'TestChownToHermesUid::test_attributeerror_swallowed_for_windows_compat',
-                'TestChownToHermesUid::test_calls_os_chown_when_both_set',
                 'TestChownToHermesUid::test_eperm_is_silently_swallowed',
                 'TestResolveHermesUidGid::test_returns_parsed_values_when_both_set',
             },
@@ -1077,23 +1045,6 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             'test is unreachable here',
             {
                 'TestBuildWebUIFlock::test_contended_lock_without_dist_waits_then_skips_fresh_build',
-            },
-        ),
-    ],
-    # ── toolchain version ──────────────────────────────────────────────────
-    'test_update_eol_churn.py': [
-        (
-            _git_name_only_ignores_cr_at_eol,
-            'git toolchain floor: below 2.32 `git diff --name-only '
-            '--ignore-cr-at-eol` still lists a file whose full '
-            '--ignore-cr-at-eol diff is empty, so _normalize_managed_eol() '
-            'derives an always-empty EOL-only set and pins core.autocrlf '
-            'without restoring anything',
-            {
-                'test_churn_across_more_files_than_fit_in_one_argv',
-                'test_churn_invisible_under_autocrlf_true_is_still_found',
-                'test_churn_is_cleared_and_the_pin_is_persisted',
-                'test_real_edits_survive_even_when_line_endings_also_flipped',
             },
         ),
     ],
@@ -1367,14 +1318,12 @@ __all__ = [
     "_local_model_probe_reason",
     "_ENV_GAPS",
     "_POSIX_MODE_BITS_PROBE",
-    "_GIT_EOL_PROBE",
     "_no_module",
     "_no_posix_mode_bits",
     "_no_os_chown",
     "_no_posix_wait_status",
     "_no_posix_privilege_api",
     "_posix_only_branch",
-    "_git_name_only_ignores_cr_at_eol",
     "_SHEBANG_EXEC_PROBE",
     "_no_shebang_script_execution",
     "_ENV_GAP_SKIPS",
