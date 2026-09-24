@@ -1,9 +1,9 @@
 {
   "measured_at": "2026-09-24",
   "base": "d337b736aa",
-  "files": 448,
-  "deleted_lines": 2800,
-  "heavy": 12,
+  "files": 408,
+  "deleted_lines": 2612,
+  "heavy": 11,
   "reasons": [
     {
       "change": "seam Stage 1 (seam/s1-proof)",
@@ -16,6 +16,12 @@
       "files": "448 = S5's 446 + the 2 S1 hook-pending carries above (S5 was cut before S1 landed and dropped this reason)",
       "deleted_lines": "2816 -> 2800 (S4's hermes_constants.py 16 -> 1, profiles.py 30 -> 29, main.py 193 -> 191 from S1)",
       "reason": "merge of S1 (main), S5 and S4; no merge re-added footprint"
+    },
+    {
+      "change": "lane MECH (seam/mech-apply-2026-09-24)",
+      "files": "448 -> 408: 40 files byte-identical to d337b736aa again (16 of them to upstream/main too) - 15 REVERT rows, 9 win-text-encoding tests, 7 website pages, the P6/P7 set (hermes_constants, profile_cmd, subcommands/profile, test_profile_delete_log_handlers), modal/singularity, ci.yaml, kanban_db, test_startup_latency_regressions",
+      "deleted_lines": "2800 -> 2612 (profiles.py 29 -> 20, auxiliary_client 42 -> 2, turn_api_call 26 -> 1, the reverts and moves)",
+      "reason": "applied the ledger's decided dispositions: REVERTs, adopt-upstream duplicates, the three § Seams defects, the four dropped-PR rulings, movable carries; heavy 12 -> 11"
     }
   ]
 }
