@@ -26,6 +26,10 @@ Goal (owner, 2026-09-21): **easy upstream syncs without much conflict.** The for
 - Conflict resolution rules (the merge lane's brief): keep both when additive; prefer upstream's version of upstream logic and re-apply the fork's addition on top; the fork's seams must survive (`_downstream_cli`, `_profile_bootstrap`, `_boot_clock`, harness registration, `process_registry` durable completions, profile scoping); never drop a fork test; keep the fork's `pyproject`/`uv.lock` pair plus new upstream rows.
 - Fork gates apply to fork-authored lines only (`tests/_fork_scope.is_fork_authored`); no registers of upstream tests — owner 2026-09-24.
 
+## Each merge — the supersession pass
+
+After the conflicts are resolved and before the suite: for every upstream commit in the merge that touches a file on the footprint ledger or an area the fork carries (a `hook`/`carry` row, a recorded parallel, a second-door row), ask whether upstream now ships what the fork's edit does. If it does, adopt upstream's and delete the fork's in the merge lane (the ledger row leaves or is re-dispositioned, the ratchet follows down); if it only partly does, file an adopt row on arrival. Report the pass as rows retired / kept. Rule: rules 9 and 10 of `docs/agent-runtime-harness/planned/harness-plugin-and-upstream-seams.md` §1; evidence of the pattern: the 2026-09-24 merge's pass (22 retired / 6 kept).
+
 ## The plan: the harness as a plugin, the fork as the thin vehicle for core changes
 
 [`docs/agent-runtime-harness/planned/harness-plugin-and-upstream-seams.md`](../../docs/agent-runtime-harness/planned/harness-plugin-and-upstream-seams.md) (2026-09-21). The hybrid end state the owner asked for: stay a fork if need be, detach if the measurement allows, keep core changes welcome.
