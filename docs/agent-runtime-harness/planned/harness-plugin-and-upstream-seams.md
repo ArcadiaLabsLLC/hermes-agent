@@ -155,6 +155,7 @@ Each merged PR: the ledger row flips to `upstream`, the next merge brings the co
 ### Stage 5 — fork tests leave upstream test files
 
 - `tests/hermes_cli/conftest.py` (+1,266), `tests/conftest.py`, `tests/tools/conftest.py`, `tests/agent/conftest.py`: the fork's fixtures become `tests/_downstream/conftest_plugin.py` (a pytest plugin) loaded by ONE `pytest_plugins = [...]` line per upstream conftest — one additive line each.
+- The one-line-per-conftest shape is rejected by pytest 9.0.3 for the three non-root conftests (`pytest_plugins` outside the top-level conftest is refused), so they take a star import instead; see `docs/agent-runtime-harness/planned/seam-s4-s5-s6-inventory-2026-09-23.md` §1.5.
 - The 242 other upstream test files with fork test cases: each fork test moves to a fork-only sibling (`tests/<dir>/test_<name>_downstream.py`), source-pin census first (refactor rule 1.6). Mechanical; one lane per top-level test dir; MOVE-only commits.
 - Gate: the validated suite selects the same test ids (a `--collect-only` diff before/after is empty modulo file names); `[up-fp] files` −242.
 
@@ -197,6 +198,6 @@ Hard orderings: S0 before all; S1 before S2; P1 before S4 (S4 diffs against the 
 | S2 | planned | 1 | −2 | skills stay installed, not registered |
 | S3 | planned | 5 PRs | −1 per merge | P1 first |
 | S4 | planned | 1–2 | deleted_lines ↓ | after P1 |
-| S5 | planned | 4 MOVE | −242 | mechanical, parallel |
+| S5 | planned | 4 MOVE | "−242" withdrawn; MOVE ceiling 28 files, and the 177 in-place-edit files need a disposition pass (`docs/agent-runtime-harness/planned/seam-s4-s5-s6-inventory-2026-09-23.md` §1.1–§1.5) | mechanical, parallel |
 | S6 | planned | 1 | ↓ | SDK reach decides |
 | S7 | on the read | 1 + installer | 0 | private on the operator's word |
