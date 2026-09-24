@@ -276,3 +276,52 @@ the commit body.
 ## Measured after the fix
 
 2026-09-24 04:33–05:14, idle box, X:/wt/h-suite @ 1b6349e88f, `scripts/run_tests.sh tests/agent_runtime tests/hermes_cli`, 8 workers: 2,442.7 s (40.7 min), 1,840 files, 21,761 passed / 242 failed / 431 skipped — the same 242 known reds as the 82-min before-run (4,904 s, 21,802/242/431).
+
+## 10. Lane SUITE2 — bundled runner, measured (2026-09-24)
+
+Branch `fork/suite-bundled-2026-09-24`. What changed before the run: the
+bundled runner (`scripts/run_tests_bundled.py`, 20 files per pytest process,
+failing bundles re-run their unclean members one file per process); a green
+test process removes its own TMP run-dir, old ones kept 1 day instead of 7;
+the gateway-peer pairs boot side by side (sharing one serve per module was
+examined and refuted — the tests assert on state outside `gateway/`, event-log
+tail included); and the 30 `test_s*_removal.py` gates deleted by owner ruling
+2026-09-24, with their live-behaviour checks moved first into
+`tests/agent_runtime/test_retired_surfaces_live_behaviour.py`.
+
+Run: 06:29–06:59, box idle (no `flutter_tester`, no other lane's python),
+`scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli`, 8 workers,
+durations cache seeded from the primary checkout's Sep 21 file.
+
+| run | files | tests | wall |
+|---|---|---|---|
+| per-file, after the §1 fix (reference) | 1,840 | 21,761 passed · 242 failed · 431 skipped | 2,442.7 s (40.7 min) |
+| bundled, this lane | 1,811 in 91 bundles, 0 solo; 146 re-run alone | 21,494 passed · 232 failed · 7 errors · 426 skipped | **1,802 s (30.0 min)** |
+
+Reconciliation: the 30 deleted gates held 276 tests; 21,761 − 276 + 12 moved
+= 21,497 expected passes, 21,494 observed. Reds 239 against 242. All 87 red
+files were red on the per-file baseline scope; the only red file this lane
+touched (`test_goal_workspace_realm_stage42.py`, a CLI-wording assertion) is red
+on `origin/main` @ `37ca422c25` too.
+
+Where the bundled wall went. Per-file seconds the plugin could attribute sum
+to 8,298 s of 14,432 s worker capacity (8 × 1,804 s):
+
+| class (by `tests/fixtures/upstream_manifest.txt`) | files | attributed s | share | re-run alone |
+|---|---|---|---|---|
+| fork-only | 548 | 2,753 s | 33.2 % | 18 files, 283 s |
+| upstream-inherited | 1,263 | 5,546 s | 66.8 % | 121 files, 2,754 s |
+
+The rest is the bundles that failed: a failing bundle's own time is not
+attributed per file for the members that are re-run, and the re-runs happen
+after it. Six bundles DIED mid-run — pytest-timeout's thread method kills the
+whole process when a known-red file times out (`test_web_server.py`,
+`test_gateway.py`, `test_process_identity.py`, …) — and 52 members that never
+ran in them were re-run alone; the runner labelled them isolation leaks in this
+run, which was wrong and is fixed (`4e1a2a099b`: "unreached", with the file the
+bundle died in named). True isolation leaks: 5. The 11 files are now in
+`scripts/test_bundles_unbundled.txt` with their observed lines. The slowest
+bundles ran 332 s and 302 s (both green), so the tail is set by bundle length,
+not by one file. The next lever is the re-run strategy (queue row: re-bundle a
+dead bundle's remainder instead of running it one file at a time), not bundle
+size.
