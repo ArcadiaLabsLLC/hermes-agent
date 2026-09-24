@@ -31,6 +31,17 @@ evaluation only, subject to the following:
    MIT License for the upstream base software. Where a file or portion is
    substantially the upstream MIT work, the MIT License governs it.
 
+4. **Contributions submitted upstream or published elsewhere are NOT under
+   this notice.** Where the contributor submits any of the Contributions to
+   the upstream Hermes Agent project (for example as a pull request or patch
+   to Nous Research's repository), or publishes them in any other repository,
+   package or venue, that submitted or published copy is licensed under the
+   terms of the receiving project or venue — for upstream, the MIT License —
+   and the restrictions in this notice do not apply to it. This notice
+   governs only the Contributions as they appear in this repository. The
+   contributor's grant of a copy elsewhere under other terms does not
+   relicense the copy that remains here.
+
 All rights in the Contributions not expressly granted above are reserved. For
 any use beyond review and evaluation — including any commercial use — obtain a
 separate written license from the contributor.
