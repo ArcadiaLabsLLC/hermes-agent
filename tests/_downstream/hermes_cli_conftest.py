@@ -368,29 +368,9 @@ def _no_windows_gateway_pause_token(request, monkeypatch):
         raising=False,
     )
 
-class _EmptyProcessTable:
-    """A process-table lister that reports a machine running nothing.
-
-    The hermetic default for this directory. It answers the same shape the
-    production lister answers, so the code under test takes its normal path
-    and simply finds no candidates — as opposed to ``None``, which is the
-    typed "no inspector available at all" arm and would exercise a different
-    branch.
-    """
-
-    def __init__(self) -> None:
-        self.reads = 0
-
-    def read(self):
-        from hermes_cli import profiles
-
-        self.reads += 1
-        return profiles._ProcessTable(
-            self_pid=os.getpid(),
-            ancestor_pids=frozenset(),
-            current_username=None,
-            processes=(),
-        )
+def _empty_process_iter(*_args, **_kwargs):
+    """``psutil.process_iter`` for a machine running nothing."""
+    return iter(())
 
 
 @pytest.fixture(autouse=True)
@@ -398,42 +378,30 @@ def _no_live_process_table(monkeypatch):
     """No test in this directory reads this machine's real process table.
 
     ``hermes profile delete`` scans for backends bound to the profile being
-    deleted, and the production lister walks every process on the box (and,
-    for candidates, reads their environment). Measured on this workstation
-    2026-08-18: 448 processes, ~4.2s per scan, three scans in
-    ``test_profiles.py`` alone — which is what made ``tests/hermes_cli`` time
-    out as a directory (ledger row F1). The live table is also not a fact any
-    test can drive: what it holds depends on what the developer happens to be
-    running, so a test that reads it is asking a question with no defined
-    answer.
+    deleted, and the scan walks every process on the box (and, for candidates,
+    reads their environment). Measured on this workstation 2026-08-18: 448
+    processes, ~4.2s per scan, three scans in ``test_profiles.py`` alone —
+    which is what made ``tests/hermes_cli`` time out as a directory (ledger
+    row F1). The live table is also not a fact any test can drive: what it
+    holds depends on what the developer happens to be running.
 
-    The desktop build-lock sweep (``hermes_cli._desktop_processes._DESKTOP_PROCESS_LISTER``,
-    reached from ``cmd_gui``) is the SECOND consumer of the same seam and is
-    defaulted here too rather than in a fixture of its own — one place that
-    answers "does any test in this directory touch the live process table",
-    because two places is how one of them silently stops covering a call site
-    (measured: ``test_gui_command.py`` walked the real table once per run,
-    ledger row B20(vi)).
+    Both consumers — ``profiles._profile_bound_backend_pids`` and the desktop
+    build-lock sweep ``main_desktop._stop_desktop_processes_locking_build``
+    (reached from ``cmd_gui``, ledger row B20(vi)) — are upstream's inline
+    ``psutil`` loops since lane ADOPT (2026-09-24) retired the fork's
+    process-table seam, so the default is set where they read it:
+    ``psutil.process_iter``. Tests that are ABOUT a scan replace ``psutil``
+    themselves (``monkeypatch.setitem(sys.modules, "psutil", fake)`` or
+    ``monkeypatch.setattr(psutil, "process_iter", ...)``) and drive the rows.
 
-    Tests that are ABOUT a scan install their own lister on top of this one
-    (``monkeypatch.setattr(profiles, "_PROCESS_LISTER", ...)``) and drive the
-    rows they mean to filter.
-
-    ``raising`` is left at its default of True deliberately: if either seam is
-    ever renamed, this fixture must fail loudly rather than silently stop
-    guarding — a guard that can quietly become a no-op is how the hole
-    reopens.
+    ``raising`` stays True: if ``psutil`` ever loses ``process_iter`` this
+    fixture must fail loudly rather than silently stop guarding.
     """
     try:
-        from hermes_cli import profiles
+        import psutil  # type: ignore
     except Exception:
         return
-    monkeypatch.setattr(profiles, "_PROCESS_LISTER", _EmptyProcessTable())
-    try:
-        from hermes_cli import _desktop_processes
-    except Exception:
-        return
-    monkeypatch.setattr(_desktop_processes, "_DESKTOP_PROCESS_LISTER", _EmptyProcessTable())
+    monkeypatch.setattr(psutil, "process_iter", _empty_process_iter)
 
 
 # ── Pre-existing environment-gap fence (2026-07-30) ─────────────────────────
@@ -1295,7 +1263,7 @@ __all__ = [
     "_pairing_dir_follows_the_test_home",
     "_sys_modules_identity_is_restored",
     "_no_windows_gateway_pause_token",
-    "_EmptyProcessTable",
+    "_empty_process_iter",
     "_no_live_process_table",
     "_WINDOWS",
     "_HOST",

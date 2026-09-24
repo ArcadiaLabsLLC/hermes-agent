@@ -1,13 +1,16 @@
 """Fork-owned tests moved out of ``tests/hermes_cli/test_gui_command.py`` (lane CARRY).
 
-Same names, same bodies; the upstream file is byte-identical to upstream.
+The upstream file is byte-identical to upstream. Since lane ADOPT (2026-09-24)
+the sweep under test is upstream's own
+``hermes_cli.main_desktop._stop_desktop_processes_locking_build``; these pins
+drive it through ``psutil.process_iter`` / ``psutil.wait_procs``, where it reads.
 """
 
 from __future__ import annotations
+import os
 import sys
 import pytest
-from hermes_cli import _desktop_processes as desktop_processes
-from hermes_cli import main as cli_main
+from hermes_cli import main_desktop
 
 from tests.hermes_cli.test_gui_command import (  # noqa: F401 — upstream names the moved tests use
     _isolate_xdg_data_home,
@@ -16,20 +19,13 @@ from tests.hermes_cli.test_gui_command import (  # noqa: F401 — upstream names
 
 
 class _FakeProc:
-    """Minimal psutil.Process stand-in for the lock-breaker tests.
+    """Minimal psutil.Process stand-in for the lock-breaker tests."""
 
-    ``still_locked_after_terminate`` makes ``wait`` raise the way psutil's does
-    when a terminated process outlives the timeout, which is the only way the
-    kill escalation is reachable at all.
-    """
-
-    def __init__(self, pid: int, exe: str | None, *, still_locked_after_terminate=False):
+    def __init__(self, pid: int, exe: str | None):
         self.pid = pid
         self.info = {"pid": pid, "exe": exe}
         self.terminated = False
         self.killed = False
-        self.waits: list[float] = []
-        self._still_locked = still_locked_after_terminate
 
     def terminate(self):
         self.terminated = True
@@ -37,85 +33,30 @@ class _FakeProc:
     def kill(self):
         self.killed = True
 
-    def wait(self, timeout=None):
-        self.waits.append(timeout)
-        if self._still_locked:
-            raise TimeoutError("still holding the lock")
-        return 0
 
-
-class _RefusingProcessIter:
-    """Stands in for ``psutil.process_iter`` and refuses to enumerate.
-
-    Counting alone would let a mutant walk the live table and still pass on a
-    machine that happens to be running nothing from this build's release tree;
-    raising makes the bypass fatal wherever it happens. Same instrument as
-    ``tests/hermes_cli/test_profiles.py``'s ``_RealEnumeratorRecorder``.
-    """
-
-    def __init__(self):
-        self.calls = 0
-
-    def __call__(self, *args, **kwargs):
-        self.calls += 1
-        raise AssertionError(
-            "the desktop build-lock sweep reached the live process table"
-        )
-
-
-@pytest.fixture(autouse=True)
-def _no_live_process_iter(monkeypatch):
-    """No test in THIS FILE may enumerate the machine's processes.
-
-    ``cmd_gui`` -> ``_stop_desktop_processes_locking_build`` used to call
-    ``psutil.process_iter`` once per run of this file (ledger B20(vi)). The
-    directory conftest already defaults the seam to an empty table; this pins
-    the stronger claim at the layer underneath it — nothing here reaches psutil
-    at all, whichever way it tries.
-    """
+def _drive_psutil(monkeypatch, rows, *, still_locked=()):
+    """Serve ``rows`` from ``psutil.process_iter``; ``still_locked`` outlive terminate."""
     psutil = pytest.importorskip("psutil")
-    recorder = _RefusingProcessIter()
-    monkeypatch.setattr(psutil, "process_iter", recorder)
-    yield recorder
-    assert recorder.calls == 0
+    calls = {"iter": 0, "waits": []}
 
+    def process_iter(attrs=None):
+        calls["iter"] += 1
+        return iter(rows)
 
-def _driven_table(rows, *, self_pid=424242):
-    from hermes_cli import profiles
+    def wait_procs(procs, timeout=None):
+        procs = list(procs)
+        calls["waits"].append([p.pid for p in procs])
+        alive = [p for p in procs if p in still_locked and not p.killed]
+        return [p for p in procs if p not in alive], alive
 
-    return profiles._ProcessTable(
-        self_pid=self_pid,
-        ancestor_pids=frozenset(),
-        current_username=None,
-        processes=tuple(rows),
-    )
-
-
-def _row(proc: _FakeProc):
-    from hermes_cli import profiles
-
-    return profiles._ProcessFacts(
-        pid=proc.pid, exe=proc.info["exe"], inspector_handle=proc
-    )
-
-
-class _DrivenDesktopLister:
-    def __init__(self, table):
-        self._table = table
-        self.reads = 0
-
-    def read(self):
-        self.reads += 1
-        return self._table
+    monkeypatch.setattr(psutil, "process_iter", process_iter)
+    monkeypatch.setattr(psutil, "wait_procs", wait_procs)
+    return calls
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="the sweep is win32-only")
-class TestDesktopBuildLockSweepSeam:
-    """The sweep reads the injected table, never the machine's.
-
-    The seam and the sweep live in ``hermes_cli/_desktop_processes.py`` (the
-    desktop split moved them out of ``hermes_cli.main``); patched where it is read.
-    """
+class TestDesktopBuildLockSweep:
+    """Upstream's sweep stops exactly the processes executing from this release tree."""
 
     def test_a_locking_process_is_terminated_and_reported(self, tmp_path, monkeypatch):
         desktop = tmp_path / "apps" / "desktop"
@@ -125,15 +66,11 @@ class TestDesktopBuildLockSweepSeam:
         # Two rows the filter must reject, for the two different reasons:
         # an exe outside the release tree, and this very process.
         outsider = _FakeProc(4343, str(tmp_path / "elsewhere" / "Hermes.exe"))
-        myself = _FakeProc(424242, str(release / "Hermes.exe"))
+        myself = _FakeProc(os.getpid(), str(release / "Hermes.exe"))
+        calls = _drive_psutil(monkeypatch, [locker, outsider, myself])
 
-        lister = _DrivenDesktopLister(
-            _driven_table([_row(locker), _row(outsider), _row(myself)])
-        )
-        monkeypatch.setattr(desktop_processes, "_DESKTOP_PROCESS_LISTER", lister)
-
-        assert desktop_processes._stop_desktop_processes_locking_build(desktop) == [4242]
-        assert lister.reads == 1
+        assert main_desktop._stop_desktop_processes_locking_build(desktop) == [4242]
+        assert calls["iter"] == 1
         assert locker.terminated is True
         assert outsider.terminated is False
         assert myself.terminated is False
@@ -142,28 +79,24 @@ class TestDesktopBuildLockSweepSeam:
         desktop = tmp_path / "apps" / "desktop"
         release = desktop / "release" / "win-unpacked"
         release.mkdir(parents=True)
-        stubborn = _FakeProc(
-            5151, str(release / "Hermes.exe"), still_locked_after_terminate=True
-        )
+        stubborn = _FakeProc(5151, str(release / "Hermes.exe"))
+        calls = _drive_psutil(monkeypatch, [stubborn], still_locked=(stubborn,))
 
-        monkeypatch.setattr(
-            desktop_processes,
-            "_DESKTOP_PROCESS_LISTER",
-            _DrivenDesktopLister(_driven_table([_row(stubborn)])),
-        )
-
-        assert desktop_processes._stop_desktop_processes_locking_build(desktop) == [5151]
+        assert main_desktop._stop_desktop_processes_locking_build(desktop) == [5151]
         assert stubborn.terminated is True
         assert stubborn.killed is True
-        assert len(stubborn.waits) == 1
+        assert calls["waits"] == [[5151], [5151]]
 
     def test_no_inspector_stops_nothing(self, tmp_path, monkeypatch):
         desktop = tmp_path / "apps" / "desktop"
         (desktop / "release").mkdir(parents=True)
+        monkeypatch.setitem(sys.modules, "psutil", None)  # ``import psutil`` raises
+        assert main_desktop._stop_desktop_processes_locking_build(desktop) == []
 
-        class _NoInspector:
-            def read(self):
-                return None
 
-        monkeypatch.setattr(desktop_processes, "_DESKTOP_PROCESS_LISTER", _NoInspector())
-        assert desktop_processes._stop_desktop_processes_locking_build(desktop) == []
+def test_the_directory_fence_hands_every_scan_an_empty_process_table():
+    """``tests/_downstream/hermes_cli_conftest._no_live_process_table`` reaches the
+    call both upstream scans make. Positive control: the sweep tests above drive
+    rows through the same attribute and see them."""
+    psutil = pytest.importorskip("psutil")
+    assert list(psutil.process_iter(["pid", "exe"])) == []

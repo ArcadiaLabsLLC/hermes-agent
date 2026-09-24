@@ -1490,25 +1490,37 @@ def _profile_bound_backend_pids(canon: str, profile_dir: Path) -> list[int]:
     the messaging gateway). Tightly scoped: current-user processes, backend subcommands only
     (never an interactive ``chat``/``tui``), never this process or its ancestors. Empty when
     ``psutil`` can't inspect anything."""
-    table = _PROCESS_LISTER.read()
-    if table is None:
+    try:
+        import psutil  # type: ignore
+    except Exception:
         return []
     try:
         resolved_dir = profile_dir.resolve()
     except OSError:
         resolved_dir = profile_dir
 
-    skip = {table.self_pid} | set(table.ancestor_pids)
-    current_user = table.current_username
+    # Never terminate ourselves or a parent (`hermes -p <canon> profile delete` runs under
+    # the very profile it's deleting).
+    skip: set[int] = {os.getpid()}
+    with contextlib.suppress(Exception):
+        parent = psutil.Process(os.getpid()).parent()
+        while parent is not None:
+            skip.add(parent.pid)
+            parent = parent.parent()
+    try:
+        current_user = psutil.Process(os.getpid()).username()
+    except Exception:
+        current_user = None
     pids: list[int] = []
-    for proc in table.processes:
+    for proc in psutil.process_iter(["pid", "name", "username", "cmdline"]):
         try:
-            pid = proc.pid
+            info = proc.info
+            pid = info.get("pid")
             if pid is None or pid in skip:
                 continue
-            if current_user is not None and proc.username != current_user:
+            if current_user is not None and info.get("username") != current_user:
                 continue
-            argv = list(proc.cmdline)
+            argv = info.get("cmdline") or []
             if not argv or not _is_hermes_argv(argv):
                 continue
             if not ({tok.lower() for tok in argv} & _BACKEND_TOKENS):
@@ -2375,7 +2387,3 @@ def has_bundled_skills_opt_out(profile_dir: Path) -> bool:
     except OSError:
         return False
 # ---- END PLUGIN-COMPAT ----
-
-
-# Fork: the injectable process-table seam (hermetic tests pin an empty table through it).
-from agent_runtime.profile_processes import _PROCESS_LISTER, _ProcessFacts, _ProcessLister, _ProcessTable, _PsutilProcessLister  # noqa: E402,F401
