@@ -6,16 +6,18 @@ Disposition pass over the 177 in-place-edit files of [`seam-s4-s5-s6-inventory-2
 
 | Class | Branch | Commit | Files | What |
 |---|---|---|---|---|
-| A | `up/win-text-encoding` | `48a7527049` | 9 | encoding |
+| A | ~~`up/win-text-encoding`~~ dropped 2026-09-24 | `48a7527049` | 9 | encoding — hunks stay in the fork as `carry` |
 | B | `up/win-line-endings` | `92bb0b99bd` | 7 | line endings |
 | C | `up/win-tilde-home` | `d8dcb0664b` | 5 | ~ / USERPROFILE |
 | D | `up/win-path-spelling` | `4af8c623ff` | 13 | path spelling |
 | E | `up/win-shell-invocation` | `dc3b38ab36` | 10 | shell / executable resolution |
 | F | `up/win-posix-only-apis` | `7032d7bd5d` | 4 | POSIX-only os APIs / mode bits |
 | G | `up/win-env-var-case` | `610feaef09` | 2 | env-var name case |
-| H | `up/monkeypatch-undo-scoped` | `abbe273ab9` | 13 | mid-test monkeypatch.undo() |
+| H | ~~`up/monkeypatch-undo-scoped`~~ dropped 2026-09-24 | `abbe273ab9` | 13 | mid-test monkeypatch.undo() — hunks stay in the fork as `carry` |
 | K | `up/import-guard-relative-imports` | `b26e8ecfd2` | 1 | import-guard relative imports |
 | L | `up/win-conpty-line-wrap` | `98233cbb75` | 1 | ConPTY line wrap |
+
+**Dropped 2026-09-24 (lane UPREV, never opened):** classes A and H will not go upstream — upstream's `run_tests.sh` sets `PYTHONUTF8=1` (A) and neither class reproduces a red there (H). The branches are deleted from `origin`; their files' fork hunks are dispositioned `carry` with reason "PR dropped 2026-09-24: …" in the Upstream Sync ledger (`Harness_Brain/10 — Programs/Upstream Sync.md`), which is the authority for each file from here. The per-file rows below keep their class letter as provenance. The two other dropped branches, `up/profile-home-generic` (P7) and `up/profiles-delete-guard` (P6), were never classes of this doc.
 
 Files with at least one lifted hunk: **62**. Files with nothing lifted: **115**.
 

@@ -36,8 +36,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-24 (lanes UPREV, DISP-M)
 
-- [ ] **`docs/agent-runtime-harness/planned/upstream-test-fix-classes-2026-09-23.md` classes A/H still point at the 4 dropped branches** (`up/win-text-encoding`, `up/monkeypatch-undo-scoped`, `up/profile-home-generic`, `up/profiles-delete-guard`) · `fork / upstream` · LAND3 re-dispositioned the ledger rows `carry` ("PR dropped 2026-09-24: …"); left: the doc, and per row carry-with-reason vs retire the code · evidence: lane UPREV report · filed by lane UPREV 2026-09-24 **UNCLAIMED** **TAKEN 2026-09-24 FORK-CODE**
-
 ### Filed on arrival — 2026-09-24 (seam lane S5)
 
 - [ ] **tests/tools/test_tool_search.py: 67 tests fail on a clean venv — ModuleNotFoundError snowballstemmer** · tests · the canonical test venv lacks the dep; the file is red before and after S5. Evidence: lane S5 log move_tools.log · filed by lane S5 2026-09-24 **UNCLAIMED**
