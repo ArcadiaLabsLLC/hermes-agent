@@ -1,9 +1,9 @@
 {
   "measured_at": "2026-09-24",
-  "base": "d337b736aa",
-  "files": 408,
-  "deleted_lines": 2612,
-  "heavy": 11,
+  "base": "f24a1d7f92",
+  "files": 376,
+  "deleted_lines": 2410,
+  "heavy": 10,
   "reasons": [
     {
       "change": "seam Stage 1 (seam/s1-proof)",
@@ -22,6 +22,12 @@
       "files": "448 -> 408: 40 files byte-identical to d337b736aa again (16 of them to upstream/main too) - 15 REVERT rows, 9 win-text-encoding tests, 7 website pages, the P6/P7 set (hermes_constants, profile_cmd, subcommands/profile, test_profile_delete_log_handlers), modal/singularity, ci.yaml, kanban_db, test_startup_latency_regressions",
       "deleted_lines": "2800 -> 2612 (profiles.py 29 -> 20, auxiliary_client 42 -> 2, turn_api_call 26 -> 1, the reverts and moves)",
       "reason": "applied the ledger's decided dispositions: REVERTs, adopt-upstream duplicates, the three § Seams defects, the four dropped-PR rulings, movable carries; heavy 12 -> 11"
+    },
+    {
+      "change": "weekly merge upstream/main f24a1d7f92 (seam/upstream-merge-2026-09-24)",
+      "files": "408 at base d337b736aa -> 376 at base f24a1d7f92: the base moved, 39 rows left the ledger (upstream deleted 9 fork-edited tests in its purge lanes, 5 gpt-6 superseded prod rows, adopted-upstream test carries), 1 row joined (uninstall-section.test.tsx, add/add), the two relocated tests stay (gateway fence), 5 re-check carries stay",
+      "deleted_lines": "2612 -> 2410 (model_metadata 17, the purged tests, the adopted test carries); the 509 lines are the two tests/gateway relocations, unchanged since before the merge",
+      "reason": "history-preserving merge of 1,663 upstream commits and the supersession pass; no number rose against the pre-merge line; heavy 11 -> 10"
     }
   ]
 }
