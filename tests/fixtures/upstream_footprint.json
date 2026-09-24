@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 373,
-  "deleted_lines": 2404,
+  "files": 370,
+  "deleted_lines": 2399,
   "heavy": 10,
   "reasons": [
     {
@@ -34,6 +34,12 @@
       "files": "404 at base d337b736aa (after lane S2, merged in) -> 373 at base f24a1d7f92: the base moved, rows left the ledger (upstream deleted 9 fork-edited tests in its purge lanes, 5 gpt-6 superseded prod rows, adopted-upstream test carries), 1 row joined (uninstall-section.test.tsx, add/add), the two relocated tests stay (gateway fence), 5 re-check carries stay",
       "deleted_lines": "2602 -> 2404 (model_metadata 17, the purged tests, the adopted test carries); 509 of the 2404 are the two tests/gateway relocations, unchanged since before the merge",
       "reason": "history-preserving merge of 1,663 upstream commits and the supersession pass, then origin/main (lane S2) merged in; no number rose against the pre-merge line; heavy 10 -> 10"
+    },
+    {
+      "change": "lane CARRY (seam/test-carries-out-2026-09-24)",
+      "files": "373 -> 370",
+      "deleted_lines": "2404 -> 2399",
+      "reason": "upstream test files restored to upstream's bytes; the fork's marks ride tests/_downstream/id_markers.py by test id, fork assertions ride *_downstream.py siblings. Class 1 host-OS fakes (test_computer_use, test_local_env_blocklist, test_voice_mode) dropped"
     }
   ]
 }

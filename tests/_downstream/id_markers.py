@@ -1,0 +1,108 @@
+"""Markers the fork applies BY TEST ID to upstream test files it no longer edits.
+
+Lane CARRY (2026-09-24): an upstream test file the fork used to edit in place
+(a platform skip, an xfail, a timeout, a fork marker) is restored to upstream's
+bytes, and the mark moves here. The file then leaves the ``[up-fp]`` ratchet and
+the weekly merge stops conflicting on it.
+
+``ID_MARKS`` maps a node id WITHOUT its parametrize suffix to the marks the fork
+applies. ``_WIN`` / ``_NOT_WIN`` rows are platform treatments; each names what
+retires it. A row whose file is collected but whose id no longer exists is a
+UsageError, not a silent no-op: an unmatched row would read as coverage it no
+longer gives.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+
+_WIN = sys.platform == "win32"
+
+_PATH_SPELLING = (
+    "upstream interpolates a Windows tmp_path into a JSON string literal "
+    "(backslash-U and backslash-b are invalid escapes); fixed by the open PR "
+    "up/win-path-spelling"
+)
+_WSL_FAKE = (
+    "patches is_wsl but not platform.system/shutil.which, so a native-Windows "
+    "host takes the Windows branch; the premise is a Linux (WSL) host"
+)
+_FORK_SYSTEM_PATH = (
+    "the fork's tools/environments/local.py _augment_windows_system_path appends "
+    "the System32 dirs, so upstream's verbatim equality cannot hold on Windows; "
+    "the fork's assertion is tests/tools/test_local_env_blocklist_downstream.py; "
+    "retires with the G2 Windows-paths PR"
+)
+
+ID_MARKS: dict[str, tuple[pytest.MarkDecorator, ...]] = {}
+
+if _WIN:
+    ID_MARKS.update({
+        "tests/tools/test_computer_use.py::TestCuaDriverSessionReconnect::"
+        "test_cli_fallback_reads_screenshot_from_file": (
+            pytest.mark.xfail(reason=_PATH_SPELLING, strict=True),
+        ),
+        "tests/tools/test_local_env_blocklist.py::TestSanePathIncludesHomebrew::"
+        "test_make_run_env_preserves_windows_mixed_case_path_key": (
+            pytest.mark.xfail(reason=_FORK_SYSTEM_PATH, strict=True),
+        ),
+        "tests/tools/test_voice_mode.py::TestDetectAudioEnvironment::"
+        "test_wsl_without_pulse_blocks_voice": (pytest.mark.skip(reason=_WSL_FAKE),),
+        "tests/tools/test_voice_mode.py::TestWSL2PowerShellFallback::"
+        "test_powershell_pipeline_preserves_real_exit_status": (
+            pytest.mark.skip(reason=_WSL_FAKE),
+        ),
+        "tests/tools/test_voice_mode.py::TestWSL2PowerShellFallback::"
+        "test_wsl2_unique_temp_filename": (pytest.mark.skip(reason=_WSL_FAKE),),
+    })
+
+
+def _base_id(nodeid: str) -> str:
+    return nodeid.split("[", 1)[0]
+
+
+def _narrowed_files(config) -> set[str]:
+    """Files the command line narrowed to single ids (``file::test``)."""
+    out: set[str] = set()
+    for arg in config.args:
+        if "::" not in arg:
+            continue
+        path = Path(arg.split("::", 1)[0])
+        try:
+            path = path.resolve().relative_to(config.rootpath.resolve())
+        except (OSError, ValueError):
+            pass
+        out.add(path.as_posix())
+    return out
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(config, items):  # noqa: D401 — pytest hook
+    """Apply ``ID_MARKS`` before upstream's own modifyitems reads the marks."""
+    if not ID_MARKS:
+        return
+    matched: set[str] = set()
+    collected_files: set[str] = set()
+    for item in items:
+        base = _base_id(item.nodeid)
+        collected_files.add(base.split("::", 1)[0])
+        marks = ID_MARKS.get(base)
+        if marks is None:
+            continue
+        matched.add(base)
+        for mark in marks:
+            item.add_marker(mark)
+    checkable = collected_files - _narrowed_files(config)
+    stale = sorted(
+        node for node in ID_MARKS
+        if node not in matched and node.split("::", 1)[0] in checkable
+    )
+    if stale:
+        raise pytest.UsageError(
+            "tests/_downstream/id_markers.py names test ids that no longer exist "
+            "in their (collected) file; delete or re-point the rows:\n  "
+            + "\n  ".join(stale)
+        )

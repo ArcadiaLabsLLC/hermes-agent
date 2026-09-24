@@ -1648,15 +1648,8 @@ class TestSanePathIncludesHomebrew:
         monkeypatch.setattr(local_mod, "_git_bash_bin_dirs", lambda: [])
         with patch.object(local_mod.os, "environ", windows_env):
             result = _make_run_env({})
-        # The guarantee is about the KEY: completion writes back to the
-        # caller's own casing and never invents a second, differently-cased
-        # PATH. The VALUE is deliberately NOT preserved verbatim — on a real
-        # Windows host the system-tooling dirs are appended. What holds
-        # everywhere is that the caller's own entries survive, in order.
+        assert result["Path"] == windows_env["Path"]
         assert "PATH" not in result
-        entries = result["Path"].split(";")
-        original = windows_env["Path"].split(";")
-        assert [e for e in entries if e in original] == original
 
 
 class TestHermesBinDirOnPath:

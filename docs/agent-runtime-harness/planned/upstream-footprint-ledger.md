@@ -290,7 +290,6 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tests/tools/test_code_execution.py` | 121 | 10 | carry | S5: 8 fork test unit(s) cannot leave — share upstream autouse fixture _force_local_terminal, _fresh_kernel_registry (a move would drop or duplicate it) | S5 |
 | `tests/tools/test_code_execution_modes.py` | 20 | 7 | carry | S5: 1 fork test unit(s) cannot leave — share upstream autouse fixture _force_local_terminal, _fresh_kernel_registry (a move would drop or duplicate it) | S5 |
 | `tests/tools/test_completed_process_results.py` | 2 | 2 | carry | depends on fork prod code process-registry completion follow-up wording | - |
-| `tests/tools/test_computer_use.py` | 12 | 3 | carry | lifted: up/win-path-spelling; rest fork test infra: host-OS fake (gnome-shell hunk fakes linux); upstream AGENTS.md bans faking the host OS, so no PR | up/win-path-spelling |
 | `tests/tools/test_cron_approval_mode.py` | 7 | 0 | carry | depends on fork prod code hermes_cli/tirith_config.py resolution | - |
 | `tests/tools/test_delegate.py` | 2 | 2 | upstream | PR candidate: stale doc pointers (docstring/comment names a moved or never-existing test path) | S3 |
 | `tests/tools/test_execute_code_approval_cluster.py` | 50 | 0 | carry | S5: 1 fork test unit(s) cannot leave — share upstream module fixture gw_session (a move would drop or duplicate it) | S5 |
@@ -306,7 +305,6 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tests/tools/test_image_generation.py` | 15 | 4 | carry | depends on fork prod code tools/image_generation_tool.py load_config_readonly caller | - |
 | `tests/tools/test_interrupt.py` | 1 | 1 | upstream | PR candidate: stale doc pointers (docstring/comment names a moved or never-existing test path) | S3 |
 | `tests/tools/test_local_background_child_hang.py` | 10 | 3 | upstream | lifted: up/win-shell-invocation | up/win-shell-invocation |
-| `tests/tools/test_local_env_blocklist.py` | 8 | 1 | upstream | upstream's platform-agnostic PATH arms adopted at the 2026-09-24 merge; left: the windows_only mixed-case test asserts the KEY and the caller's entry order, not the value verbatim (upstream's equality is red on a real Windows host) — PR candidate with the up/win-path-spelling class | S3 |
 | `tests/tools/test_local_env_cwd_recovery.py` | 10 | 1 | upstream | lifted: up/win-path-spelling | up/win-path-spelling |
 | `tests/tools/test_local_env_relative_cwd.py` | 25 | 2 | upstream | lifted: up/win-shell-invocation | up/win-shell-invocation |
 | `tests/tools/test_local_env_windows_msys.py` | 15 | 3 | upstream | PR candidate: win-path-spelling extension (os.path.join); REVERT duplicated S5 banner | S3 |
@@ -326,7 +324,6 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tests/tools/test_tool_search_multiquery.py` | 10 | 2 | carry | depends on fork prod code tools/tool_search.py (dispatch_tool_describe details for in-session direct tools); replaces upstream lines: upstream test renamed | - |
 | `tests/tools/test_vision_native_fast_path.py` | 2 | 2 | carry | depends on fork prod code vision-config caller switched to load_config_readonly | - |
 | `tests/tools/test_vision_tools.py` | 3 | 3 | carry | depends on fork prod code vision-config caller switched to load_config_readonly | - |
-| `tests/tools/test_voice_mode.py` | 16 | 1 | carry | fork test infra: host-OS fake (platform.system patch); upstream AGENTS.md bans faking the host OS, so no PR | - |
 | `tests/tools/test_voice_wsl_pipewire.py` | 6 | 0 | carry | fork test infra: needed only under the fork's shared-process runner (upstream isolates each file under env -i); which stub; not in baseline red set | - |
 | `tests/tools/test_working_diff.py` | 12 | 1 | upstream | lifted: up/win-line-endings | up/win-line-endings |
 | `tests/tui_gateway/test_hosted_room_driver_runtime.py` | 114 | 0 | carry | S5: 2 fork test unit(s) cannot leave — share upstream module fixture db (a move would drop or duplicate it) | S5 |

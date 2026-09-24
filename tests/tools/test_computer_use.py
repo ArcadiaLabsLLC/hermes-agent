@@ -1373,18 +1373,9 @@ class TestCuaDriverSessionReconnect:
         class FakeProc:
             returncode = 0
             stderr = ""
-            # Daemon returns a path, not inline base64. Serialize with
-            # json.dumps rather than interpolating the path into a JSON
-            # string literal: a Windows tmp_path such as
-            # C:\Users\...\shot.png carries "\U" and "\b", which are invalid
-            # JSON escapes, so the fixture — not the code under test —
-            # produced unparseable stdout and the CLI fallback failed after
-            # its four retries.
-            stdout = json.dumps({
-                "element_count": 7,
-                "tree_markdown": "- [0] AXButton",
-                "screenshot_file_path": str(shot),
-            })
+            # Daemon returns a path, not inline base64.
+            stdout = ('{"element_count": 7, "tree_markdown": "- [0] AXButton",'
+                      ' "screenshot_file_path": "%s"}' % str(shot))
 
         import subprocess as _sp
         orig_run = _sp.run

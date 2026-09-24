@@ -22,6 +22,8 @@ import tempfile
 
 import pytest
 
+from tests._downstream.id_markers import pytest_collection_modifyitems  # noqa: F401 — hook re-export
+
 
 # ── Opt-in test-temp root (suite-perf Stage 7, ruled 2026-09-01) ─────────────
 # Defender real-time scanning taxes every test file-op 2.3–2.9× on
