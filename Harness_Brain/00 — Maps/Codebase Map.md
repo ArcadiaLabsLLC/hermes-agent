@@ -20,7 +20,7 @@ aliases: [Where does X live]
 | office + board | `office_store.py`, `office_layout_policy.py`, `board_store.py`, `level_sync.py`, `flow_graph_sync.py` | [06](../../docs/agent-runtime-harness/06-office-and-board.md) |
 | observability | `prompt_observability.py`, `parity.py`, `tool_turn_history.py`, `progress.py` | [07](../../docs/agent-runtime-harness/07-observability.md) |
 | sync | `realm_sync.py` (publish / pull / skill inbox / git), `persona_instance_sync.py`, `persona_config_sync.py`, `skills_inventory.py`, `skill_promotion.py` | [01](../../docs/agent-runtime-harness/01-system-architecture.md) § realm sync |
-| sub-packages | `discussions/` (definition/attempt/run stores, native), `local_llama/` (manager, setup — `planned/local-llama-agent-console.md`), `blueprints/`, `docs/` (five fork notes incl. `upstream_sync_workflow.md`) | |
+| sub-packages | `discussions/` (definition/attempt/run stores, native), `local_llama_adapter/` (the launcher's `runtime.local_llama.*` verbs over upstream `hermes_cli/local_runtime` — receipts, turn lease, log cursor, knobs; `planned/local-llama-agent-console.md`), `blueprints/`, `docs/` (five fork notes incl. `upstream_sync_workflow.md`) | |
 
 ## The CLI — `hermes_cli/harness.py` + `harness_parts/`
 

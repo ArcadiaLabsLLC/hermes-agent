@@ -1,9 +1,9 @@
-"""Real TLS device -> owning serve -> local manager; no transport mocks."""
+"""Real TLS device -> owning serve -> the local llama adapter; no transport mocks."""
 import time
 import uuid
 
 from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
-from agent_runtime.local_llama import service
+from agent_runtime.local_llama_adapter import rpc as service
 from tests.agent_runtime.test_serve_gateway_lane import (
     gateway_on, device_client, pair_device, running_serve, _rpc,
 )

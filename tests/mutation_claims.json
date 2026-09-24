@@ -4579,6 +4579,456 @@
         "-q",
         "tests/agent_runtime/test_codex_readiness_matches_run_path.py::test_a_servable_pool_entry_answers_alone"
       ]
+    },
+    {
+      "id": "llama-h-receipts-idempotent",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.submit",
+      "operator": "remove-guard",
+      "find": "if request_id in self.receipts:",
+      "replace": "if False:",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_duplicate_request_id_has_one_effect_and_a_changed_payload_is_refused"
+      ]
+    },
+    {
+      "id": "llama-h-epoch-guard",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.guard",
+      "operator": "remove-guard",
+      "find": "if normalized.get(\"expect_epoch\") != self.epoch:",
+      "replace": "if False:",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_new_epoch_refuses_the_old_one_and_replays_the_old_receipt"
+      ]
+    },
+    {
+      "id": "llama-h-revision-guard",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.guard",
+      "operator": "remove-guard",
+      "find": "if normalized[name] != actual:",
+      "replace": "if False:",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_stale_revision_and_a_busy_manager_are_refused"
+      ]
+    },
+    {
+      "id": "llama-h-interrupted-on-restart",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.__init__",
+      "operator": "remove-guard",
+      "find": "if row[\"operation\"][\"state\"] in _ACTIVE:",
+      "replace": "if False:",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_receipt_running_at_restart_reads_interrupted"
+      ]
+    },
+    {
+      "id": "llama-h-lease-refuses-unload-stop",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.submit",
+      "operator": "remove-guard",
+      "find": "if self.leases and kind in (\"start\", \"stop\", \"load\", \"unload\"):",
+      "replace": "if False:",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_the_turn_lease_refuses_unload_and_stop_and_releases_on_failure"
+      ]
+    },
+    {
+      "id": "llama-h-storage-failure-starts-nothing",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.submit",
+      "operator": "weaken-storage",
+      "find": "            except OSError as exc:\n                self.receipts.pop",
+      "replace": "            except ZeroDivisionError as exc:\n                self.receipts.pop",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_storage_failure_starts_no_unrecorded_process"
+      ]
+    },
+    {
+      "id": "llama-h-shutdown-refuses-new-ops",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.close",
+      "operator": "weaken-shutdown",
+      "find": "            self.closed = True\n            if self.operation",
+      "replace": "            if self.operation",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_shutdown_interrupts_the_pending_operation_and_refuses_new_ones"
+      ]
+    },
+    {
+      "id": "llama-h-failed-replacement-keeps-loaded",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager._load",
+      "operator": "weaken-failed",
+      "find": "        info = validate_model(Path(model[\"gguf_path\"]))",
+      "replace": "        if self.loaded:\n            self._unload(self.loaded)\n        info = validate_model(Path(model[\"gguf_path\"]))",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_failed_replacement_keeps_the_loaded_model"
+      ]
+    },
+    {
+      "id": "llama-h-status-carries-no-paths",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.status",
+      "operator": "weaken-status",
+      "find": "\"configured\": bool(self.config.get(\"executable_path\")),",
+      "replace": "\"configured\": self.config.get(\"executable_path\"),",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_status_and_config_never_carry_host_paths_or_the_engine_credential"
+      ]
+    },
+    {
+      "id": "llama-h-knobs-applied",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager._load",
+      "operator": "weaken-knobs",
+      "find": "model.update(load=params[\"load\"], generation=params[\"generation\"])",
+      "replace": "model.update(generation=params[\"generation\"])",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_load_applies_the_requested_knobs_to_the_router_preset"
+      ]
+    },
+    {
+      "id": "llama-h-route-is-upstream-llamacpp",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.runtime",
+      "operator": "weaken-route",
+      "find": "resolve_runtime_provider(requested=\"llamacpp\")",
+      "replace": "resolve_runtime_provider(requested=\"custom\")",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_the_turn_route_is_upstreams_llamacpp_resolution_pinned_to_this_engine"
+      ]
+    },
+    {
+      "id": "llama-h-foreign-endpoint-refused",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.runtime",
+      "operator": "remove-guard",
+      "find": "if resolved.get(\"base_url\") != base_url:",
+      "replace": "if False:",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_foreign_server_on_the_managed_endpoint_gets_no_turn"
+      ]
+    },
+    {
+      "id": "llama-h-projection-pins-window",
+      "path": "agent_runtime/local_llama_adapter/provider.py",
+      "symbol": "project_config",
+      "operator": "weaken-projection",
+      "find": "base_url=runtime[\"base_url\"],\n                 context_length=parameters[\"effective_context_size\"])",
+      "replace": "base_url=runtime[\"base_url\"])",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_the_read_projection_pins_the_window_and_routes_aux_without_credentials"
+      ]
+    },
+    {
+      "id": "llama-h-actor-signature-tracks-params",
+      "path": "agent_runtime/local_llama_adapter/provider.py",
+      "symbol": "actor_signature",
+      "operator": "weaken-actor",
+      "find": "json.dumps({\"parameters\": runtime[\"local_parameters\"],",
+      "replace": "json.dumps({\"parameters\": None,",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_generation_parameters_ride_the_factory_and_bust_the_resident_actor"
+      ]
+    },
+    {
+      "id": "llama-h-runner-bypasses-cloud",
+      "path": "agent_runtime/profile_runner.py",
+      "symbol": "_resolve_request_runtime",
+      "operator": "weaken-runner",
+      "find": "    if request.provider == PROVIDER_ID:\n        from .local_llama_adapter.provider import resolve",
+      "replace": "    if False:\n        from .local_llama_adapter.provider import resolve",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_the_runner_resolves_a_local_persona_through_the_adapter_never_the_cloud"
+      ]
+    },
+    {
+      "id": "llama-h-provider-profile-keyless-chat",
+      "path": "agent_runtime/local_llama_adapter/provider.py",
+      "symbol": "provider_profile",
+      "operator": "weaken-provider",
+      "find": "display_name=DISPLAY_NAME, api_mode=\"chat_completions\")",
+      "replace": "display_name=DISPLAY_NAME, api_mode=\"codex_responses\")",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_the_local_provider_profile_needs_no_api_key"
+      ]
+    },
+    {
+      "id": "llama-h-log-cursor-forward",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.logs_get",
+      "operator": "weaken-log",
+      "find": "rows = candidates[-limit:] if after is None else candidates[:limit]",
+      "replace": "rows = candidates[-limit:]",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_the_log_cursor_pages_forward_without_repeats"
+      ]
+    },
+    {
+      "id": "llama-h-log-credential-redacted",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager._tail_engine_log",
+      "operator": "weaken-log",
+      "find": "line = line.replace(secret, \"[redacted]\")",
+      "replace": "line = line",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_the_server_log_tail_reaches_the_cursor_with_the_credential_redacted"
+      ]
+    },
+    {
+      "id": "llama-h-rescan-adds-once",
+      "path": "agent_runtime/local_llama_adapter/engine.py",
+      "symbol": "scan",
+      "operator": "weaken-rescan",
+      "find": "        if os.path.normcase(str(path)) in existing:\n            continue",
+      "replace": "        if False:\n            continue",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_rescan_adds_each_complete_model_once_and_skips_projectors"
+      ]
+    },
+    {
+      "id": "llama-h-shards-must-match",
+      "path": "agent_runtime/local_llama_adapter/engine.py",
+      "symbol": "validate_model",
+      "operator": "weaken-shards",
+      "find": "if any(part.get(k) != info.get(k) for k in (\"general.name\", \"general.architecture\", \"split.count\")) or part.get(\"split.no\") != index:",
+      "replace": "if part.get(\"split.no\") != index:",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_split_model_needs_every_matching_shard"
+      ]
+    },
+    {
+      "id": "llama-h-engine-restart-reload-primary",
+      "path": "agent_runtime/local_llama_adapter/engine.py",
+      "symbol": "Engine.load",
+      "operator": "weaken-engine",
+      "find": "        supervisor.primary_model = alias",
+      "replace": "        supervisor.primary_model = None",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_the_engine_serves_one_resident_model_under_upstreams_supervisor"
+      ]
+    },
+    {
+      "id": "llama-h-every-verb-registered",
+      "path": "agent_runtime/local_llama_adapter/rpc.py",
+      "symbol": "register",
+      "operator": "weaken-every",
+      "find": "_setup) for suffix in SETUP_FIELDS]",
+      "replace": "_setup) for suffix in ()]",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_real_dispatch_serves_every_verb_with_typed_errors"
+      ]
+    },
+    {
+      "id": "llama-h-console-tier-enforced",
+      "path": "agent_runtime/local_llama_adapter/rpc.py",
+      "symbol": "register",
+      "operator": "weaken-console",
+      "find": "TIER_READ if suffix == \"setup.capabilities\" else TIER_CONSOLE",
+      "replace": "TIER_READ",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_an_unknown_caller_or_a_peer_reaches_no_console_verb"
+      ]
+    },
+    {
+      "id": "llama-h-install-lands-in-inventory",
+      "path": "agent_runtime/local_llama_adapter/setup.py",
+      "symbol": "SetupManager.inventory",
+      "operator": "weaken-install",
+      "find": "        return rows + [r for r in installed_runtimes() if r[\"executable_path\"] not in known]",
+      "replace": "        return rows",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_an_install_runs_upstreams_installer_and_stays_inactive_until_activated"
+      ]
+    },
+    {
+      "id": "llama-h-setup-epoch-guard",
+      "path": "agent_runtime/local_llama_adapter/setup.py",
+      "symbol": "SetupManager.submit",
+      "operator": "delete-guard",
+      "find": "            m.guard({key: params.get(key) for key in (\"expect_epoch\", \"expect_revision\", \"expect_config_revision\")})\n",
+      "replace": "",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_setup_mutations_pass_the_same_epoch_guard"
+      ]
+    },
+    {
+      "id": "llama-h-serve-binds-the-adapter",
+      "path": "hermes_cli/harness_parts/serve.py",
+      "symbol": "serve_loop",
+      "operator": "weaken-serve",
+      "find": "                    bind_local_llama(store_root_path, harness_root_config_path())\n",
+      "replace": "                    pass\n",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter_gateway.py::test_console_device_can_configure_only_the_served_host"
+      ]
+    },
+    {
+      "id": "llama-h-busy-guard",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.submit",
+      "operator": "delete-guard",
+      "find": "            if self.busy():\n                raise LocalLlamaError(\"operation_busy\", \"A local llama operation is already running\", code=4090)\n",
+      "replace": "",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_stale_revision_and_a_busy_manager_are_refused"
+      ]
+    },
+    {
+      "id": "llama-h-quantized-v-needs-flash-attention",
+      "path": "agent_runtime/local_llama_adapter/config.py",
+      "symbol": "validate_parameters",
+      "operator": "remove-guard",
+      "find": "if load[\"cache_type_v\"] != \"f16\" and load[\"flash_attention\"] != \"on\":",
+      "replace": "if False:",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_quantized_v_cache_needs_flash_attention_on"
+      ]
+    },
+    {
+      "id": "llama-h-journal-finishes-publication",
+      "path": "agent_runtime/local_llama_adapter/config.py",
+      "symbol": "recover_journal",
+      "operator": "weaken-journal",
+      "find": "        revision = row[\"revision\"]\n    elif",
+      "replace": "        revision = row[\"revision\"] - 1\n    elif",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_an_interrupted_config_publication_is_finished_on_restart"
+      ]
+    },
+    {
+      "id": "llama-h-router-alias-spelling",
+      "path": "agent_runtime/local_llama_adapter/__init__.py",
+      "symbol": "module",
+      "operator": "weaken-router",
+      "find": "MODEL_ALIAS_PREFIX = \"hermes-local-\"",
+      "replace": "MODEL_ALIAS_PREFIX = \"local-\"",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_the_turn_route_is_upstreams_llamacpp_resolution_pinned_to_this_engine"
+      ]
     }
   ]
 }
