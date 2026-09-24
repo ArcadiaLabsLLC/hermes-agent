@@ -373,6 +373,25 @@ def _empty_process_iter(*_args, **_kwargs):
     return iter(())
 
 
+_BACKGROUND_AGENT_TURNS_MARK = "background_agent_turns"
+
+
+@pytest.fixture(autouse=True)
+def _background_agent_turns_for_upstream_witness(request, monkeypatch):
+    """Turn the fork's background agent-turn opt-in ON for upstream tests that pin it.
+
+    Upstream always runs a follow-up agent turn when a background process or
+    subagent completes; the fork gates that behind ``HERMES_BACKGROUND_AGENT_TURNS``
+    (``tui_gateway/session_notifications.py``, ``gateway/downstream_extensions.py``),
+    default off. An upstream test that asserts the follow-up turn is given upstream's
+    configuration back by test id (``tests/_downstream/id_markers.py``), so its file
+    carries no edit.
+    """
+    if request.node.get_closest_marker(_BACKGROUND_AGENT_TURNS_MARK) is None:
+        return
+    monkeypatch.setenv("HERMES_BACKGROUND_AGENT_TURNS", "true")
+
+
 @pytest.fixture(autouse=True)
 def _no_live_process_table(monkeypatch):
     """No test in this directory reads this machine's real process table.
@@ -1056,6 +1075,11 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
     """Register the environment-gap marks (see the block comment above)."""
     config.addinivalue_line(
         "markers",
+        f"{_BACKGROUND_AGENT_TURNS_MARK}: set HERMES_BACKGROUND_AGENT_TURNS=true "
+        "for an upstream test that pins the follow-up agent turn the fork makes opt-in.",
+    )
+    config.addinivalue_line(
+        "markers",
         f"{_gateway_fence.REAL_PAUSE_MARK}: let this test drive the REAL "
         "_pause_windows_gateways_for_update (it reads this machine's live "
         "gateway table and Scheduled Task). The test must mock the spawn "
@@ -1253,6 +1277,8 @@ def pytest_terminal_summary(terminalreporter):  # noqa: D401 — pytest hook
 
 
 __all__ = [
+    "_BACKGROUND_AGENT_TURNS_MARK",
+    "_background_agent_turns_for_upstream_witness",
     "_OWNER_DIR",
     "_OWNER_NODEID_PREFIX",
     "_gateway_fence_is_armed_for_this_test",

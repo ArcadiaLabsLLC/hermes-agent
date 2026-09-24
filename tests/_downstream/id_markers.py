@@ -53,6 +53,38 @@ _FORK_SYSTEM_PATH = (
     "retires with the G2 Windows-paths PR"
 )
 
+_POSIX_ONLY_LINUX = "POSIX-only; upstream fix = @pytest.mark.linux_only"
+_FORK_LIVE_SYSTEM_GUARD = (
+    "the fork's live-system guard (tests/conftest.py) refuses the spawn of a real "
+    "`hermes dashboard` backend; the fork's in-process twin is the test's "
+    "*_downstream.py sibling"
+)
+_FORK_PERSONA_CONFIG_SYNC = (
+    "the fork's agent_runtime/persona_config_sync.py reads a pulled realm "
+    "subtree's config.yaml raw (not this machine's user config); the fork-scope "
+    "guard is tests/hermes_cli/test_config_read_guard_downstream.py"
+)
+_FORK_MANAGED_PYTHON = (
+    "the fork's hermes_cli.gateway.resolve_managed_python replaces get_python_path "
+    "in _build_gateway_argv, so upstream's patch no longer steers it; the fork twin "
+    "is tests/hermes_cli/test_gateway_windows_downstream.py"
+)
+_FORK_SPAWN_DETACHED = (
+    "the fork's hermes_cli.gateway_windows._spawn_detached(script_path) replaces "
+    "upstream's breakaway retry; covered by tests/gateway/test_windows_gateway_spawn.py"
+)
+_WIN_REEXEC_BRANCH = (
+    "cmd_dashboard re-execs via subprocess.Popen on win32 and upstream stubs only "
+    "os.execvpe, so a real dashboard child is spawned (the fork's live-system guard "
+    "refuses it); the twin stubbing both branches is "
+    "tests/hermes_cli/test_dashboard_unified_launch_downstream.py"
+)
+_SQLITE_HANDLE_LEFT_OPEN = (
+    "upstream's `with kbc.connect()` does not close the sqlite handle, and Windows "
+    "refuses to rename a board directory with an open file (WinError 32/5); "
+    "test-side fix = kbc.connect_closing, PR candidate class win-path-spelling"
+)
+
 #: Single source: the banner in ``hermes_cli_conftest._KNOWN_DEFECTS`` and the
 #: strict xfail below carry this one string (ML-16).
 TELEGRAM_PARITY_DEFECT_REASON = (
@@ -112,10 +144,64 @@ ID_MARKS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # budget; this upstream test needs the headroom.
     "tests/scripts/desktop_update/test_desktop_update_windows_retry_policy.py::"
     "test_retry_policy_distinguishes_self_lock_deferral": (pytest.mark.timeout(45),),
+    # The fork makes the background follow-up agent turn opt-in
+    # (HERMES_BACKGROUND_AGENT_TURNS); these upstream witnesses pin that turn
+    # (fixture: tests/_downstream/hermes_cli_conftest.py).
+    "tests/hermes_cli/test_process_notification_display.py::"
+    "test_process_completion_display_keeps_payload_separate_across_surfaces": (
+        pytest.mark.background_agent_turns,
+    ),
+    "tests/hermes_cli/test_subagent_notification_display.py::"
+    "test_completion_display_keeps_payload_separate_across_surfaces": (
+        pytest.mark.background_agent_turns,
+    ),
+    # MCF-66: reads the real ~/.claude/.credentials.json via the fixture's
+    # redirected Path.home() (gate: tests/test_claude_code_credentials_file_gate.py).
+    "tests/hermes_cli/test_codex_cli_model_picker.py::"
+    "test_claude_code_file_detected_by_model_picker": (_CREDENTIALS_FILE,),
+    # Identity-only inspection of the frozen updater surface; never invokes it.
+    "tests/hermes_cli/test_lazy_command_exports.py::"
+    "test_frozen_updater_surface_resolves_to_real_objects": (_REAL_PAUSE,),
+    # The real negative liveness poll takes 30 s plus process startup; the
+    # fork's repo-wide --timeout=30 cannot observe the expected refusal.
+    "tests/hermes_cli/test_gateway_job_teardown_live.py::TestResumeVerificationLive::"
+    "test_dead_relaunch_is_not_reported_as_success": (pytest.mark.timeout(90),),
+    "tests/hermes_cli/test_config_read_guard.py::"
+    "test_no_raw_config_yaml_reads_outside_owner_modules": (
+        pytest.mark.xfail(reason=_FORK_PERSONA_CONFIG_SYNC, strict=True),
+    ),
+    "tests/hermes_cli/test_dashboard_tui_backcompat.py::"
+    "test_dashboard_tui_flag_is_accepted_not_rejected": (
+        pytest.mark.xfail(reason=_FORK_LIVE_SYSTEM_GUARD, strict=True),
+    ),
+    "tests/hermes_cli/test_gateway_windows.py::"
+    "test_build_gateway_argv_keeps_venv_console_python_for_uv_venv": (
+        pytest.mark.xfail(reason=_FORK_MANAGED_PYTHON, strict=True),
+    ),
+    **{
+        f"tests/hermes_cli/test_gateway_windows.py::{test}": (
+            pytest.mark.xfail(reason=_FORK_SPAWN_DETACHED, strict=True),
+        )
+        for test in (
+            "test_spawn_detached_marks_primary_breakaway_success",
+            "test_spawn_detached_warns_and_marks_no_breakaway_fallback",
+        )
+    },
 }
 
 if _WIN:
     ID_MARKS.update({
+        "tests/hermes_cli/test_dashboard_unified_launch.py::TestUnifiedDashboardRouting::"
+        "test_profile_launch_reexecs_machine_dashboard": (
+            pytest.mark.xfail(reason=_WIN_REEXEC_BRANCH, strict=True),
+        ),
+        "tests/hermes_cli/test_kanban_boards.py::TestBoardCRUD::"
+        "test_remove_clears_init_cache_for_recreated_db": (
+            pytest.mark.xfail(reason=_SQLITE_HANDLE_LEFT_OPEN, strict=True),
+        ),
+        "tests/hermes_cli/test_relaunch.py::TestRelaunch::test_calls_execvp": (
+            pytest.mark.skip(reason=_POSIX_ONLY_LINUX),
+        ),
         "tests/tools/test_approval.py::TestDetectDangerousRm::test_nonrecursive_verification_artifact_cleanup_is_not_dangerous": (
             pytest.mark.xfail(reason=_TMP_LITERAL, strict=True),
         ),
