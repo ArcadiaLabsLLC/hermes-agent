@@ -396,44 +396,44 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tests/tui_gateway/test_hosted_room_driver_runtime.py` | 114 | 0 | carry | S5: 2 fork test unit(s) cannot leave — share upstream module fixture db (a move would drop or duplicate it) | S5 |
 | `tests/tui_gateway/test_kanban_notify_poller.py` | 1 | 0 | carry | unreviewed | - |
 | `tests/tui_gateway/test_tui_gateway_server.py` | 97 | 13 | carry | S5: 2 fork test unit(s) cannot leave — share upstream autouse fixture _neuter_agent_prewarm_timer, _reap_leaked_notification_pollers (a move would drop or duplicate it) | S5 |
-| `tools/approval_context.py` | 3 | 9 | carry | unreviewed | - |
-| `tools/approval_detection.py` | 43 | 7 | carry | unreviewed | - |
-| `tools/async_delegation.py` | 15 | 1 | carry | unreviewed | - |
-| `tools/browser_tool.py` | 11 | 10 | carry | unreviewed | - |
-| `tools/browser_tool_lifecycle.py` | 2 | 1 | carry | unreviewed | - |
-| `tools/clarify_tool.py` | 7 | 3 | carry | unreviewed | - |
-| `tools/close_terminal_tool.py` | 1 | 6 | carry | unreviewed | - |
-| `tools/code_execution_env.py` | 3 | 2 | carry | unreviewed | - |
-| `tools/code_execution_tool.py` | 11 | 1 | carry | unreviewed | - |
-| `tools/credential_files.py` | 2 | 2 | carry | unreviewed | - |
-| `tools/environments/daytona.py` | 3 | 1 | carry | unreviewed | - |
-| `tools/environments/local.py` | 180 | 8 | carry | unreviewed | - |
-| `tools/environments/modal.py` | 4 | 0 | carry | unreviewed | - |
-| `tools/environments/singularity.py` | 4 | 0 | carry | unreviewed | - |
-| `tools/file_operations.py` | 6 | 13 | carry | unreviewed | - |
-| `tools/file_tools.py` | 28 | 8 | carry | unreviewed | - |
-| `tools/file_tools_write_guards.py` | 5 | 4 | carry | unreviewed | - |
-| `tools/image_generation_tool.py` | 2 | 2 | carry | unreviewed | - |
-| `tools/lazy_deps.py` | 85 | 0 | carry | unreviewed | - |
-| `tools/mcp_tool_config.py` | 41 | 1 | carry | unreviewed | - |
-| `tools/mcp_tool_transport.py` | 1 | 1 | carry | unreviewed | - |
-| `tools/process_registry.py` | 67 | 50 | carry | unreviewed | - |
-| `tools/process_registry_notifications.py` | 43 | 1 | carry | unreviewed | - |
-| `tools/read_terminal_tool.py` | 1 | 4 | carry | unreviewed | - |
+| `tools/approval_context.py` | 3 | 9 | upstream | PR candidate: `_tirith_fail_open` reads the one tirith flag authority with env overrides (`hermes_cli/tirith_config.py`) (class G18 tirith config authority) | S3 |
+| `tools/approval_detection.py` | 43 | 7 | upstream | PR candidate: the verification-artifact cleanup exemption accepts the MSYS spelling and asks identity through `tools/path_identity` (G2 Windows paths) | S3 |
+| `tools/async_delegation.py` | 15 | 1 | carry | ours: the delegation store resolves through `agent_runtime.profile_home.get_hermes_background_work_home` (head home inside persona turns) — replaces upstream's `_db_path` body; not movable: the one resolver (S4 names this caller) | - |
+| `tools/browser_tool.py` | 11 | 10 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only (already wired here for `browser_navigate`) | S2 |
+| `tools/browser_tool_lifecycle.py` | 2 | 1 | upstream | PR candidate: daemon socket-dir binding compared by file identity (`tools/path_identity.denotes_same_file`) (G2) | S3 |
+| `tools/clarify_tool.py` | 7 | 3 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only (full text already kept as `FULL_CLARIFY_DESCRIPTION`) | S2 |
+| `tools/close_terminal_tool.py` | 1 | 6 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only | S2 |
+| `tools/code_execution_env.py` | 3 | 2 | upstream | PR candidate: interpreter / prefix identity via `denotes_same_file` (G2) | S3 |
+| `tools/code_execution_tool.py` | 11 | 1 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only (`_full_description` flag) | S2 |
+| `tools/credential_files.py` | 2 | 2 | upstream | PR candidate: container-side paths via `as_posix()` on Windows hosts (G2) | S3 |
+| `tools/environments/daytona.py` | 3 | 1 | upstream | PR candidate: sandbox mkdir via `posixpath.dirname` (G2) | S3 |
+| `tools/environments/local.py` | 180 | 8 | upstream | PR candidate: Git Bash found via `git.exe` and the System32 WSL shim excluded, Windows system dirs appended to PATH (G2); `_find_windows_git_bash` duplicates upstream `_find_bash`@c4622a1d5b and `_shell_arg_safe_path` supersedes upstream `_escape_native_tool_arg`@07ee4a2ec8 — adopt theirs, delete ours; `_bash_probe_failure_details` has no caller | S3 |
+| `tools/environments/modal.py` | 4 | 0 | upstream | superseded by upstream lazy `_snapshot_store()`@adf23550f5: adopt theirs, delete ours — `_snapshot_store_path` has no caller | S4 |
+| `tools/environments/singularity.py` | 4 | 0 | upstream | superseded by upstream lazy `_snapshot_store()`@adf23550f5: adopt theirs, delete ours — `_snapshot_store_path` has no caller | S4 |
+| `tools/file_operations.py` | 6 | 13 | upstream | superseded by upstream `ShellFileOperations._escape_native_tool_arg`@07ee4a2ec8: adopt theirs, delete ours — the fork collapsed both escapes onto `_shell_arg_safe_path`, which also moves `_escape_shell_arg` off the `/c/` form upstream chose so shell ops and `cd` agree | S4 |
+| `tools/file_tools.py` | 28 | 8 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only (PATCH / SEARCH; `write_file` already via `brief_schema`); `_posix_match_forms` for the device-path guard is G2 | S2 |
+| `tools/file_tools_write_guards.py` | 5 | 4 | upstream | PR candidate: sensitive / config / instruction path guards compare by identity and POSIX match forms (G2) | S3 |
+| `tools/image_generation_tool.py` | 2 | 2 | upstream | PR candidate: config read through `load_config_readonly` (G8) | S3 |
+| `tools/lazy_deps.py` | 85 | 0 | upstream | PR candidate: `deny_venv_installs` barrier + `RuntimeInstallDenied` — no lazy install mutates the running venv during a turn (G1) | S3 |
+| `tools/mcp_tool_config.py` | 41 | 1 | carry | ours: per-server process env overrides and machine-root tokens (`agent_runtime.mcp_environment`); child `HERMES_HOME` injection and `runtime_env` are G13 (PR candidates) — replaces upstream lines: the `_build_safe_env` signature; not movable: inline env layering | - |
+| `tools/mcp_tool_transport.py` | 1 | 1 | carry | ours: passes `server_name` / `runtime_env` into `_build_safe_env` — replaces one upstream line; goes with `mcp_tool_config.py` | - |
+| `tools/process_registry.py` | 67 | 50 | carry | ours: `agent_runtime.process_notifications` (persona `process notify` receipts, head-home checkpoint path, mission-chat wait ceiling) — replaces upstream lines: `_move_to_finished`'s completion block and the PROCESS_SCHEMA text; the startup rehydrate moves to main.py's `restore_durable_completions()` (P2); Windows PTY EOF is G2; the brief description is movable → `tools/downstream_schema.py` | - |
+| `tools/process_registry_notifications.py` | 43 | 1 | upstream | PR candidate: redact, ANSI-strip and bound every field of a process notification before it re-enters the conversation (class G6 security hardening); the `notify_requested` receipt text is ours (with `process_registry.py`) | S3 |
+| `tools/read_terminal_tool.py` | 1 | 4 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only | S2 |
 | `tools/registry.py` | 194 | 36 | upstream | §0.4: `check_fn` TTL cache + probe accounting — generic perf the fork measured (P3); tool-registration edits go with S2 | S3 |
-| `tools/session_search_tool.py` | 20 | 14 | carry | unreviewed | - |
-| `tools/skills_hub_official.py` | 1 | 1 | carry | unreviewed | - |
+| `tools/session_search_tool.py` | 20 | 14 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only; hiding `agent_runtime_persona_chat_scratch` sessions needs a widening PR (no session-source filter hook) | S2 |
+| `tools/skills_hub_official.py` | 1 | 1 | upstream | PR candidate: bundle keys via `as_posix()` (G2) | S3 |
 | `tools/skills_tool.py` | 137 | 70 | hook | §0.4: resolution/search delegate to `agent_runtime.skill_resolution`/`skill_search` — the plugin's own tool via `register_tool(override=…)`, or carry | S2 |
-| `tools/skills_tool_plugin.py` | 11 | 1 | carry | unreviewed | - |
-| `tools/terminal_tool.py` | 84 | 1 | carry | unreviewed | - |
-| `tools/terminal_tool_result.py` | 2 | 1 | carry | unreviewed | - |
-| `tools/tirith_security.py` | 60 | 11 | carry | unreviewed | - |
-| `tools/todo_tool.py` | 1 | 11 | carry | unreviewed | - |
-| `tools/tool_search.py` | 117 | 16 | carry | unreviewed | - |
-| `tools/tts_tool.py` | 5 | 4 | carry | unreviewed | - |
-| `tools/tts_tool_delivery.py` | 3 | 2 | carry | unreviewed | - |
-| `tools/vision_tools.py` | 6 | 8 | carry | unreviewed | - |
-| `tools/web_tools.py` | 2 | 2 | carry | unreviewed | - |
+| `tools/skills_tool_plugin.py` | 11 | 1 | hook | active-surface skill compatibility gate (`agent.skill_utils.current_skill_runtime_context`, root-node mode): pre_tool_call can refuse the skill view (surface has it); the `as_posix` rel path is G2 | S2 |
+| `tools/terminal_tool.py` | 84 | 1 | hook | harness envelope gate + provenance (`agent_runtime.terminal_policy`), persona chat container scope, `brief_schema('terminal')`: pre_tool_call (block) and transform_tool_result (provenance) exist — surface has it; the wrapper split renames upstream's body to `_terminal_tool_run` | S2 |
+| `tools/terminal_tool_result.py` | 2 | 1 | upstream | PR candidate: cwd change detected by file identity (G2) | S3 |
+| `tools/tirith_security.py` | 60 | 11 | upstream | PR candidate: tirith flags through one authority (`hermes_cli/tirith_config.py`) + an unsupported-platform fail-closed warning instead of a silent allow (G18) | S3 |
+| `tools/todo_tool.py` | 1 | 11 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only | S2 |
+| `tools/tool_search.py` | 117 | 16 | carry | ours: hardcoded `never_defer` harness tools, parameters inlined in top search hits, an always-present standalone `tool_describe` (single `name`, a second schema for upstream's bridge tool, which takes `names`) + full-description lookup, legacy single `query`/`name` args — replaces upstream lines: classify/deferrable signatures, describe over all tools, the search description; the `never_defer` config key is a PR candidate (G19 tool search); not movable: in-module policy | - |
+| `tools/tts_tool.py` | 5 | 4 | upstream | PR candidate: readonly config copy (G8) + artifact identity via `denotes_same_file` (G2) | S3 |
+| `tools/tts_tool_delivery.py` | 3 | 2 | upstream | PR candidate: audio paths compared by identity (G2) | S3 |
+| `tools/vision_tools.py` | 6 | 8 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only; the readonly config reads are G8 | S2 |
+| `tools/web_tools.py` | 2 | 2 | carry | ours: brief model-facing description rewritten IN PLACE, against the fork's own `brief_schema` pattern (`tools/downstream_schema.py`: keep upstream text, send the brief on the wire); movable → `tools/downstream_schema.py` BRIEF_DESCRIPTIONS, registration line only | S2 |
 | `toolsets.py` | 70 | 2 | carry | unreviewed | - |
 | `tui_gateway/entry.py` | 14 | 0 | carry | unreviewed | - |
 | `tui_gateway/hosted_room_driver.py` | 15 | 2 | carry | unreviewed | - |
