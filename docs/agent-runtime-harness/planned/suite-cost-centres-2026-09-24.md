@@ -272,3 +272,7 @@ this note could not). One bullet per would-be commit:
 `76e6fb0dc8 perf(suite): retire the fork's per-file session-start cost` —
 fixes 1–3 above, with the four killing mutations and their reds recorded in
 the commit body.
+
+## Measured after the fix
+
+2026-09-24 04:33–05:14, idle box, X:/wt/h-suite @ 1b6349e88f, `scripts/run_tests.sh tests/agent_runtime tests/hermes_cli`, 8 workers: 2,442.7 s (40.7 min), 1,840 files, 21,761 passed / 242 failed / 431 skipped — the same 242 known reds as the 82-min before-run (4,904 s, 21,802/242/431).
