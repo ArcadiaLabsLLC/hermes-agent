@@ -50,6 +50,8 @@ red: kanban_boards, entry_point_discovery, browser_homebrew_paths; e2e conftest 
 All eleven in the [[Upstream Sync]] table are OPEN upstream (`gh pr view`, 2026-09-24) and none is
 in `upstream/main`'s log; no carry was dropped.
 
+**Conflict count expected next merge** (lane CARRY, after the merge): the trial at 37ca422c25 vs f24a1d7f92 had 57 conflicting test files, 33 of them still fork-edited on `origin/main`; 15 remain (8 rule-4 carries that replace upstream behaviour, 7 `upstream`/`hook` rows owed to PRs), so at this week's churn expect about 66 - 18 = 48 or fewer. Trial against today's `upstream/main` (`git merge-tree --write-tree HEAD upstream/main | grep -c ^CONFLICT`): 1 before and after (`tools/process_registry.py`, not a test).
+
 ## Ratchet
 
 Before `[up-fp] files=408 deleted_lines=2612 heavy=11` at base `d337b736aa`;
