@@ -31,7 +31,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ### Filed on arrival — 2026-09-24 (lane MOVE-A)
 
 - [ ] **The harness config keys (`remote_gateway.*`, `charsheet.*`) are top-level keys nobody declares; the ruled home is the plugin manifest `config_schema` (`plugins.entries.eternia-harness.settings.*`)** · `fork / config` · cross-repo, hermes moves first: readers `hermes_cli/harness_parts/serve.py::gateway_listen_config` + `agent/charsheet/pipeline.py::provider_timeout_seconds` switch to the plugin settings path with a one-chokepoint delete-and-report of the old keys, then the launcher's `gateway_listen_policy.dart` / `gateway_port_owner.dart` write the new path · evidence: ledger row `hermes_cli/config_defaults.py` · filed by lane MOVE-A 2026-09-24
-- [ ] **Persona scratch sessions persisted before 2026-09-24 carry source `agent_runtime_persona_chat_scratch`, which left the hidden list when scratch adopted upstream's `"tool"` source — those rows are now recall-reachable** · `fork / sessions` · delete them at one chokepoint and report the count (no compat entry) · evidence: lane MOVE-A group 9 commit · filed by lane MOVE-A 2026-09-24 **TAKEN 2026-09-24 FORK-CODE**
 
 ### Filed on arrival — 2026-09-24 (seam lane S2)
 

@@ -685,3 +685,43 @@ def test_the_gate_itself_sees_a_sniff_a_formatter_wrapped():
         "the accepted gap has closed — this gate now catches more than its "
         "docstring claims, so the docstring is stale"
     )
+
+
+def test_opening_the_chat_db_deletes_retired_scratch_rows_and_reports_them(
+    tmp_path, caplog
+):
+    """Retired-source scratch rows go at the ONE acquisition, with a count."""
+
+    import logging
+
+    from hermes_state import SessionDB
+
+    from agent_runtime import chat_session_scope as scope_mod
+    from agent_runtime.chat_session_scope import ChatSessionScope, open_chat_session_db
+    from agent_runtime.session_extensions import RETIRED_SCRATCH_SOURCE
+
+    home = tmp_path / "home"
+    home.mkdir()
+    scope = ChatSessionScope(head_home=home, source=ChatHeadSource.ENV_HEAD_HOME)
+    seed = SessionDB(db_path=scope.db_path)
+    seed.create_session(session_id="old-scratch", source=RETIRED_SCRATCH_SOURCE)
+    seed.append_message("old-scratch", role="user", content="raw scratch")
+    seed.create_session(
+        session_id="child", source="tool", parent_session_id="old-scratch"
+    )
+    # Positive control: the same shape on upstream's hidden source survives.
+    seed.create_session(session_id="new-scratch", source="tool")
+    seed.close()
+
+    scope_mod._SCRATCH_PURGED.discard(str(scope.db_path))
+    with caplog.at_level(logging.WARNING, logger=scope_mod.__name__):
+        db = open_chat_session_db(scope)
+    try:
+        assert db.get_session("old-scratch") is None
+        assert db.get_messages("old-scratch") == []
+        assert db.get_session("new-scratch") is not None
+        assert db.get_session("child")["parent_session_id"] is None
+    finally:
+        db.close()
+    assert "retired_scratch_sessions_purged" in caplog.text
+    assert "count=1" in caplog.text

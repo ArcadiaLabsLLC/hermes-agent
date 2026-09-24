@@ -65,3 +65,45 @@ def delete_compression_lineage(
         db._remove_session_files(sessions_dir, session_id)
     return removed
 
+
+
+# The source persona scratch turns carried before they adopted upstream's hidden
+# ``"tool"`` source (``agent_runtime.persona_runtime.PERSONA_CHAT_SCRATCH_SOURCE``).
+# It left upstream's hidden list with that move, so a row still carrying it is
+# recall-reachable raw scratch. Retired rows are DELETED, never re-labelled.
+RETIRED_SCRATCH_SOURCE = "agent_runtime_persona_chat_scratch"
+
+
+def purge_retired_scratch_sessions(db: Any, sessions_dir: Optional[Path] = None) -> List[str]:
+    """Delete every session still carrying :data:`RETIRED_SCRATCH_SOURCE`.
+
+    Children of a purged row are detached, not deleted (``delete_session``'s
+    child semantics). Returns the purged ids so the caller reports the count.
+    """
+
+    removed: List[str] = []
+
+    def _do(conn):
+        ids = [
+            row[0]
+            for row in conn.execute(
+                "SELECT id FROM sessions WHERE source = ?", (RETIRED_SCRATCH_SOURCE,)
+            ).fetchall()
+        ]
+        if not ids:
+            return []
+        placeholders = ",".join("?" for _ in ids)
+        conn.execute(
+            f"UPDATE sessions SET parent_session_id = NULL "
+            f"WHERE parent_session_id IN ({placeholders}) AND id NOT IN ({placeholders})",
+            tuple(ids + ids),
+        )
+        conn.execute(f"DELETE FROM messages WHERE session_id IN ({placeholders})", tuple(ids))
+        conn.execute(f"DELETE FROM sessions WHERE id IN ({placeholders})", tuple(ids))
+        removed.extend(ids)
+        return ids
+
+    db._execute_write(_do)
+    for session_id in removed:
+        db._remove_session_files(sessions_dir, session_id)
+    return removed
