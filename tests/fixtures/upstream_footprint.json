@@ -2,7 +2,7 @@
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
   "files": 219,
-  "deleted_lines": 1072,
+  "deleted_lines": 1058,
   "heavy": 4,
   "reasons": [
     {
@@ -114,6 +114,12 @@
       "deleted_lines": "1635 -> 1072",
       "reason": "tests/{agent,tools,hermes_cli}/conftest.py byte-identical: the fork-only root conftest.py registers each tests/_downstream/<dir>_conftest module under a <dir>/_downstream_conftest.py name when pytest registers that directory's conftest (directory-scoped fixtures, as the star-import gave), and imports tests._downstream.conftest_plugin after tests/conftest.py (its pytest_plugins line leaves); four monkeypatch.undo() carries (kanban_worker_pid_fingerprint, macos_tcc_anchor, plugins, update_zip_two_phase) run upstream's bytes under the scoped_monkeypatch_undo id mark (undo narrowed to the body's own patches); test_cross_profile_kill_refusal and test_stderr_timestamp back at upstream's path (the tests/hermes_cli gateway fence honours spawns_gateway_lookalike; the tests/gateway relocations deleted, -509); kanban_core_functionality and kanban_db byte-identical (the hermes_cli conftest empties kanban_db_dispatch._live_worker_procs after each test); heavy 6 -> 4",
       "heavy": "6 -> 4"
+    },
+    {
+      "change": "lane CARRY3 tools/ (seam/carry-pass-2026-09-24)",
+      "files": "flat (219)",
+      "deleted_lines": "1072 -> 1058",
+      "reason": "tools/process_registry.py 67/50 -> 55/36: the process_manage wire brief rides tools/downstream_schema.BRIEF_DESCRIPTIONS (llm_request middleware), FULL_PROCESS_DESCRIPTION and its tool_full_descriptions mirror are deleted (the registry keeps upstream's text plus one notify line), the #17327 comment block is upstream's again. The five tools/ carry rows are recorded parallels flipped to hook (HOME-PR, G13 widening, on_process_exit + wait-ceiling, G19)"
     }
   ]
 }

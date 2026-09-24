@@ -1749,8 +1749,14 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
                         break
                     # Reconcile first so orphaned-pipe and detached exits fire the event.
                     with suppress(Exception):
-                        # A descendant can retain the pipe after the direct child exits
-                        # (#17327); reconcile real child state before waiting again.
+                        # Reconcile first: catches direct-child exits whose reader is blocked on a pipe held
+                        # open by a descendant (#17327) and detached/env sessions, so the event actually
+                        # fires.
+                        # Reconcile against real child state before reading session.exited. Guards against
+                        # orphaned-pipe reader hangs (issue #17327).
+                        # Reconcile against real child state — guards against orphaned- pipe reader hangs
+                        # where the reader is blocked but the direct child has already exited (issue
+                        # #17327).
                         self._reconcile_local_exit(session)
                         self._refresh_detached_session(session)
                     if session._completion_event.is_set():
@@ -2457,7 +2463,12 @@ process_registry = ProcessRegistry()
 # --- the "process_manage" tool schema + handler -----------------------------------
 from tools.registry import registry, tool_error
 
-FULL_PROCESS_DESCRIPTION = (
+PROCESS_SCHEMA = {
+    "name": "process_manage",
+    # The enum names the verbs; the description keeps only non-obvious semantics
+    # (write-vs-submit is the one real trap: a lone \n on a Windows PTY is not Enter).
+    # See #95681.
+    "description": (
         "Poll, wait on, or kill background terminal processes (from "
         "terminal(background=true)). "
         "Completed results remain retrievable by session_id when resuming their owning conversation "
@@ -2470,15 +2481,6 @@ FULL_PROCESS_DESCRIPTION = (
         "handoff (subagents only): transfer a running process you started to your parent agent, which then "
         "receives its completion; `data` = one sentence on its purpose. Subagent-owned processes are otherwise "
         "killed when the subagent finishes and their notifications never reach the parent."
-    )
-
-PROCESS_SCHEMA = {
-    "name": "process_manage",
-    "description": (
-        "Background processes: wait returns partial output on timeout. "
-        "submit appends Enter to answer prompts; write sends raw bytes, no newline. "
-        "notify requests a receipt in a new persona turn: end this turn. Subagents must handoff surviving "
-        "processes. Call tool_describe for ownership and retention details."
     ),
     "parameters": {
         "type": "object",

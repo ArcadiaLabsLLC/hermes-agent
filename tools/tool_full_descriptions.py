@@ -78,15 +78,9 @@ def _current_skill_manage_full() -> str:
     return _skill_manage_description(_display_create_dir())
 
 
-def _current_process_full() -> str:
-    from tools.process_registry import FULL_PROCESS_DESCRIPTION
-    return FULL_PROCESS_DESCRIPTION
-
-
 # These descriptions follow the new upstream batch/kernel contracts directly.
 FULL_TOOL_DESCRIPTIONS.update({
     "skill_manage": _current_skill_manage_full,
-    "process_manage": _current_process_full,
 })
 # Registry names were renamed upstream; the mirrors must follow their live owners.
 del FULL_TOOL_DESCRIPTIONS["process"]
