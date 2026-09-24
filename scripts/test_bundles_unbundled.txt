@@ -1,0 +1,6 @@
+# Test files scripts/run_tests_bundled.py runs ALONE, never inside a bundle.
+#
+# One repo-relative path per line, followed by `#` and the OBSERVED diff that
+# put it here: the runner's "ISOLATION LEAK" line (red in bundle #N after K
+# earlier members, green alone) and the test ids it printed. A suspicion is not
+# an entry — run the bundle, read the leak line, copy it.
