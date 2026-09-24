@@ -105,6 +105,7 @@ import {
 import { detectBundleSkew } from './bundle-skew'
 import { detectBundleSwap } from './bundle-swap'
 import { registerChatOnboardingWindow } from './chat-onboarding-window'
+import { shouldAttemptCloudBootCascade } from './cloud-boot-cascade'
 import { discoverWithTeamFallback } from './cloud-discovery'
 import { installCommandScreenshot } from './command-screenshot'
 import { writeComposerPaste } from './composer-paste'
@@ -286,6 +287,7 @@ import { createLinkTitleWindow, guardLinkTitleSession, readLinkTitleWindowTitle 
 import { CHROMIUM_LOG_FILENAME, enableLinuxCrashDiagnostics, linuxCrashDiagnostics } from './linux-crash-diagnostics'
 import { notifyLauncherWindowRevealed } from './linux-launcher-ready'
 import { createLocalBackendLifecycle, waitForTeardown } from './local-backend-lifecycle'
+import { localSkinProfileKey, readLocalSkinPayload } from './local-skin'
 import { ACTIVE_LOG_POLL_MS, planLogRotation, reclaimActiveLogIfOversized } from './log-rotation'
 import { ensureMainWindow } from './main-window-lifecycle'
 import {
@@ -495,6 +497,7 @@ import {
 import { isHermesOwnedVenvDaemon } from './venv-holder-select'
 import { fetchMarketplaceThemes, searchMarketplaceThemes } from './vscode-marketplace'
 import { createWakeIndicatorWindowController } from './wake-indicator-window'
+import { windowAcceleratorAction } from './window-accelerator'
 import { enumerateWindowsFrontToBack, enumerationFailed, readWindowBelow } from './window-below'
 import { bindWindowChromeEvents } from './window-chrome-events'
 import {
@@ -6886,6 +6889,39 @@ async function buildReadinessHealthProbe(baseUrl, authMode, token) {
   return { probeHealth: fetchPublicJson, probeIsCredentialed: false }
 }
 
+// Boot-time readiness for a remote connection object. For a Hermes Cloud agent
+// whose own session cookie has expired, `waitForHermes` ends in the terminal
+// reauth error even though the portal session that can silently re-mint that
+// cookie is still live: the per-agent cascade (`cloudAgentSilentSignIn`) was
+// only ever driven by the settings UI, never by boot, so every relaunch needed
+// a manual "Use gateway" click. Run the cascade once and retry once; anything
+// that is not that exact case surfaces unchanged.
+async function waitForRemoteHermes(remote) {
+  try {
+    await waitForHermes(remote.baseUrl, remote.token, undefined, remote.authMode, remote.headers)
+  } catch (error) {
+    if (!shouldAttemptCloudBootCascade(remote, error)) {
+      throw error
+    }
+
+    if (!(await hasLivePortalSession())) {
+      throw error
+    }
+
+    rememberLog('[cloud] boot: agent session rejected but portal session is live, running silent sign-in')
+
+    try {
+      await cloudAgentSilentSignIn(remote.baseUrl)
+    } catch (cascadeError) {
+      rememberLog(`[cloud] boot: silent sign-in did not complete: ${cascadeError?.message || cascadeError}`)
+
+      throw error
+    }
+
+    await waitForHermes(remote.baseUrl, remote.token, undefined, remote.authMode, remote.headers)
+  }
+}
+
 async function waitForHermes(baseUrl, token, signal?, authMode?, headers = {}) {
   const { probeHealth, probeIsCredentialed } = await buildReadinessHealthProbe(baseUrl, authMode, token)
 
@@ -7471,14 +7507,14 @@ function installDevToolsShortcut(window) {
 
 function installPreviewShortcut(window) {
   window.webContents.on('before-input-event', (event, input) => {
-    const key = String(input.key || '').toLowerCase()
-    const accel = (IS_MAC ? input.meta : input.control) && !input.alt
-    const isCloseTabShortcut = key === 'w' && accel && !input.shift
+    const action = windowAcceleratorAction(input, IS_MAC)
 
     // Always claim ⌘W here (the File>Close item deliberately has no
     // accelerator, so nothing else does). The renderer decides tab-vs-window
     // — no `previewShortcutActive` gate, so it works for every closeable tab.
-    if (isCloseTabShortcut) {
+    // keyUp is not a claim: a chord that started in another app can deliver
+    // its leftover keyup when this window inherits focus (#105498).
+    if (action === 'close-tab') {
       event.preventDefault()
 
       // ⌘W in the HUD is "leave HUD mode", not "close a tab in the app
@@ -7501,7 +7537,7 @@ function installPreviewShortcut(window) {
     // see #77845), so a menu accelerator would leave Windows and Linux with no
     // way to reload a page at all. ⇧⌘R is left alone — that is `forceReload`,
     // the unconditional whole-window escape hatch.
-    if (key === 'r' && accel && !input.shift) {
+    if (action === 'reload') {
       event.preventDefault()
       sendPreviewNavCommand('reload')
     }
@@ -7603,33 +7639,19 @@ function installZoomShortcuts(window) {
   // Chromium's default handler would use the full 0.2 step, so we intercept
   // here for consistency. Ctrl/Cmd+0 resets to DEFAULT_ZOOM_LEVEL, not Chromium 0.
   window.webContents.on('before-input-event', (event, input) => {
-    const mod = IS_MAC ? input.meta : input.control
+    const action = windowAcceleratorAction(input, IS_MAC)
 
-    if (!mod || input.alt) {
-      return
-    }
-
-    const key = input.key
-
-    if (key === '0') {
-      if (input.shift) {
-        return // Ctrl/Cmd+Shift+0 is not a zoom chord — leave it alone
-      }
-
+    if (action === 'zoom-reset') {
       event.preventDefault()
       setAndPersistZoomLevel(window, DEFAULT_ZOOM_LEVEL)
-    } else if (key === '=' || key === '+') {
+    } else if (action === 'zoom-in') {
       // Zoom-in must accept the shift modifier: on US layouts Plus is
       // physically Shift+=, so Cmd+Plus arrives as Cmd+Shift+'+' (or '='
       // depending on platform). The old blanket shift guard silently
       // dropped keyboard zoom-in on macOS (#43517).
       event.preventDefault()
       setAndPersistZoomLevel(window, window.webContents.getZoomLevel() + ZOOM_STEP)
-    } else if (key === '-') {
-      if (input.shift) {
-        return // Shift+'-' is '_' territory on most layouts, not zoom-out
-      }
-
+    } else if (action === 'zoom-out') {
       event.preventDefault()
       setAndPersistZoomLevel(window, window.webContents.getZoomLevel() - ZOOM_STEP)
     }
@@ -11882,7 +11904,7 @@ async function connectRegistryBackend(
     source.headers
   )
 
-  await waitForHermes(connection.baseUrl, connection.token, undefined, connection.authMode, connection.headers)
+  await waitForRemoteHermes(connection)
   poolEntry.remoteBaseUrl = connection.baseUrl
 
   // Remote/cloud backends live on another host too — disable the WSL path
@@ -12575,7 +12597,7 @@ async function runPoolBackendStart(
   profileDeletionGate.assertCanStart(profile)
 
   if (remote) {
-    await waitForHermes(remote.baseUrl, remote.token, undefined, remote.authMode, remote.headers)
+    await waitForRemoteHermes(remote)
 
     // Recorded on the entry so revalidation can probe this descriptor without
     // awaiting connectionPromise, which may still be pending for a sibling.
@@ -13368,7 +13390,7 @@ async function runHermesStart({ supervisorRecovery = false }: { supervisorRecove
       backendConnectionState.assertCurrentAttempt(connectionAttempt)
 
       await advanceBootProgress('backend.remote', `Connecting to remote Hermes backend at ${remote.baseUrl}`, 24)
-      await waitForHermes(remote.baseUrl, remote.token, undefined, remote.authMode, remote.headers)
+      await waitForRemoteHermes(remote)
 
       // Second async boundary: the health probe itself can outlive the
       // attempt. A late success here must not publish a stale descriptor.
@@ -14019,6 +14041,13 @@ function spawnSecondaryWindow({
   streamThrottle.register(win)
   wireCommonWindowHandlers(win, zoomWiringForWindowKind('chat'))
   attachRendererConsoleCapture(win, 'session-window', rememberLog)
+  // The preload asks for its skin before it can publish its own active route.
+  // Register the profile carried in the window URL before loading the renderer.
+  recordWindowConnectionRoute(win.webContents, {
+    connectionId: null,
+    profile: localSkinProfileKey(profile ?? primaryProfileKey()),
+    registryScoped: false
+  })
 
   // Renderer lifecycle diagnostics + recovery (#81290): a dead session-window
   // renderer used to log nothing and stay black; now it logs with its window
@@ -14919,6 +14948,13 @@ function spawnHudWindow(sessionId, profile) {
   // Log-only lifecycle (#81290): the HUD is a compact auxiliary surface the
   // user can re-toggle; a dead renderer should be diagnosable, not resurrected.
   installWindowRendererLifecycle(win, { kind: 'hud', callbacks: { log: rememberLog } })
+  // Same timing as a session window: the profile query is known now, while the
+  // renderer cannot announce its route until after preload has already run.
+  recordWindowConnectionRoute(win.webContents, {
+    connectionId: null,
+    profile: localSkinProfileKey(profile ?? primaryProfileKey()),
+    registryScoped: false
+  })
   loadWindowUrl(win, hudUrl(sessionId, profile), 'HUD')
 
   return win
@@ -18192,6 +18228,19 @@ ipcMain.on('hermes:logs:renderer-error', (_event, report) => {
   const { label, boundary, message, componentStack } = report && typeof report === 'object' ? report : {}
   rememberLog(formatRendererBoundaryReport(label, boundary, message, componentStack))
   flushDesktopLogBufferSync()
+})
+
+// The preload reads this small, sanitized payload synchronously so the renderer
+// can register the local skin before its first theme paint. It stays independent
+// of the selected gateway, which can be an offline remote primary.
+ipcMain.on('hermes:skin:local', event => {
+  // The window route is more specific than the global next-launch preference:
+  // a peer can be booting another profile while that preference changes.
+  event.returnValue = readLocalSkinPayload(
+    HERMES_HOME,
+    windowConnectionRoutes.get(event.sender.id)?.profile,
+    primaryProfileKey()
+  )
 })
 
 // Local filesystem + plugin-root IPC (readDir/reveal/rename/trash/…) — see fs-ipc.ts.
