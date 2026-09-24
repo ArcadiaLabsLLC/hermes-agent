@@ -9,11 +9,11 @@ Disposition pass over the 177 in-place-edit files of [`seam-s4-s5-s6-inventory-2
 | A | `up/win-text-encoding` | `48a7527049` | 9 | encoding |
 | B | `up/win-line-endings` | `92bb0b99bd` | 7 | line endings |
 | C | `up/win-tilde-home` | `d8dcb0664b` | 5 | ~ / USERPROFILE |
-| D | `up/win-path-spelling` | `ac09a91da4` | 13 | path spelling |
-| E | `up/win-shell-invocation` | `1a9e736a2e` | 10 | shell / executable resolution |
+| D | `up/win-path-spelling` | `4af8c623ff` | 13 | path spelling |
+| E | `up/win-shell-invocation` | `dc3b38ab36` | 10 | shell / executable resolution |
 | F | `up/win-posix-only-apis` | `7032d7bd5d` | 4 | POSIX-only os APIs / mode bits |
 | G | `up/win-env-var-case` | `610feaef09` | 2 | env-var name case |
-| H | `up/monkeypatch-undo-scoped` | `7031a0fdc3` | 13 | mid-test monkeypatch.undo() |
+| H | `up/monkeypatch-undo-scoped` | `abbe273ab9` | 13 | mid-test monkeypatch.undo() |
 | K | `up/import-guard-relative-imports` | `b26e8ecfd2` | 1 | import-guard relative imports |
 | L | `up/win-conpty-line-wrap` | `98233cbb75` | 1 | ConPTY line wrap |
 
@@ -220,10 +220,9 @@ Also not lifted as classes: a state-leak class (sys.modules restore, AWS scrub, 
 | `tests/tools/test_working_diff.py` | B | - |  |
 | `tests/tools/test_zombie_process_cleanup.py` | - | R2 | teardown rewrite cites the fork live-system guard; passes upstream |
 
-## Known blemishes in the pushed commits
+## Commit-body corrections (fixed 2026-09-24)
 
-- `up/win-path-spelling` says 17 tests turn green; the list it gives is 18.
-- `up/win-shell-invocation` says 14; its list is 13. It also keeps an `X:\wt\...` example path in a comment in `test_setup_hermes_script.py`.
-- `up/monkeypatch-undo-scoped` says 13 files; it lists 14.
-- Whoever opens the PRs can fix these in the PR body; the branches are not amended after push.
-
+- `up/win-path-spelling` said 17 tests turn green; its list is 18. Fixed in `4af8c623ff`.
+- `up/win-shell-invocation` said 14; its list is 13, and a comment in `test_setup_hermes_script.py` used a machine path, now `C:\work\hermes-agent\...`. Fixed in `dc3b38ab36`.
+- `up/monkeypatch-undo-scoped` said 13 files; it lists 14. Fixed in `abbe273ab9`.
+- All three were amended and force-pushed with lease (unopened branches); each still cherry-picks clean onto `upstream/main` `c22b0a240f`. Test results are unchanged; the only tree change is that comment.
