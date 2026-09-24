@@ -907,6 +907,167 @@ if _WIN:
         ),
     })
 
+# ── Lane REDS3 (wave-close gate on 6251144d09): upstream's own Windows reds that the
+# conftest reach now selects. Every id below is red at the tag on this box
+# (X:/wt/_holds/upstream-reds-v2026.9.24.md, class in each reason) unless named.
+if _WIN:
+    ID_MARKS.update({
+        **{node: (_posix_xfail('termios'),) for node in (
+            'tests/hermes_cli/test_cli_light_mode.py::TestOsc11DrainGuard::test_late_reply_is_consumed_not_leaked',
+            'tests/hermes_cli/test_cli_light_mode.py::TestOsc11DrainGuard::test_post_deadline_straggler_is_drained',
+        )},
+        **{node: (_posix_xfail('os.chown (s6 supervision)'),) for node in (
+            'tests/hermes_cli/test_container_boot.py::test_a_named_profile_slot_is_registered_but_never_autostarted',
+            'tests/hermes_cli/test_container_boot.py::test_the_retired_opt_out_cannot_boot_a_second_gateway_in_the_container[config-false]',
+            'tests/hermes_cli/test_container_boot.py::test_the_retired_opt_out_cannot_boot_a_second_gateway_in_the_container[env-false-overrides-config]',
+        )},
+        **{node: (_posix_xfail('os.geteuid / sudo (monkeypatched in setup)'),) for node in (
+            'tests/hermes_cli/test_dashboard_system_gateway_elevation.py::test_only_system_scope_lifecycle_verbs_are_spawned_under_sudo[subcommand0-False-True]',
+            'tests/hermes_cli/test_dashboard_system_gateway_elevation.py::test_only_system_scope_lifecycle_verbs_are_spawned_under_sudo[subcommand1-False-True]',
+            'tests/hermes_cli/test_dashboard_system_gateway_elevation.py::test_only_system_scope_lifecycle_verbs_are_spawned_under_sudo[subcommand2-False-False]',
+            'tests/hermes_cli/test_dashboard_system_gateway_elevation.py::test_only_system_scope_lifecycle_verbs_are_spawned_under_sudo[subcommand3-True-False]',
+            'tests/hermes_cli/test_dashboard_system_gateway_elevation.py::test_restart_without_passwordless_sudo_fails_the_request',
+            'tests/hermes_cli/test_dashboard_system_gateway_elevation.py::test_targeted_nopasswd_sudoers_still_elevates',
+        )},
+        **{node: (_posix_xfail('asyncio.start_unix_server'),) for node in (
+            'tests/hermes_cli/test_display_ws_drop_keeps_lease.py::test_only_a_clean_viewer_close_hands_the_screen_back[1006-True]',
+            'tests/hermes_cli/test_display_ws_drop_keeps_lease.py::test_only_a_clean_viewer_close_hands_the_screen_back[1005-True]',
+            'tests/hermes_cli/test_display_ws_drop_keeps_lease.py::test_only_a_clean_viewer_close_hands_the_screen_back[1000-False]',
+            'tests/hermes_cli/test_display_ws_drop_keeps_lease.py::test_a_takeover_made_by_another_process_stops_input_within_the_refresh_interval',
+            'tests/hermes_cli/test_display_ws_drop_keeps_lease.py::test_no_bridge_task_or_socket_outlives_the_bridge',
+        )},
+        **{node: (_posix_xfail('os.getuid (XDG runtime ownership)'),) for node in (
+            'tests/hermes_cli/test_gateway_foreign_xdg_runtime.py::TestRuntimeDirIsOurs::test_true_when_owned_by_current_uid',
+            'tests/hermes_cli/test_gateway_foreign_xdg_runtime.py::TestRuntimeDirIsOurs::test_false_when_owned_by_other_uid',
+            'tests/hermes_cli/test_gateway_foreign_xdg_runtime.py::TestRuntimeDirIsOurs::test_false_when_missing',
+            'tests/hermes_cli/test_gateway_foreign_xdg_runtime.py::TestEnsureUserSystemdEnvForeignRuntime::test_replaces_foreign_leaked_xdg_runtime_dir',
+            'tests/hermes_cli/test_gateway_foreign_xdg_runtime.py::TestEnsureUserSystemdEnvForeignRuntime::test_keeps_own_xdg_runtime_dir',
+            'tests/hermes_cli/test_gateway_foreign_xdg_runtime.py::TestEnsureUserSystemdEnvForeignRuntime::test_does_not_crash_when_foreign_bus_is_unreadable',
+        )},
+        **{node: (_posix_xfail('os.geteuid / pwd (systemd linger)'),) for node in (
+            'tests/hermes_cli/test_gateway_linger.py::TestEnsureLingerEnabled::test_loginctl_failure_shows_manual_guidance',
+            'tests/hermes_cli/test_gateway_linger.py::TestEnsureLingerEnabled::test_system_scope_warning_uses_system_restart',
+            'tests/hermes_cli/test_gateway_linger.py::TestEnsureSystemServiceLinger::test_fresh_enable_waits_on_target_uid_and_hints_restart_only_when_running[True]',
+            'tests/hermes_cli/test_gateway_linger.py::TestEnsureSystemServiceLinger::test_fresh_enable_waits_on_target_uid_and_hints_restart_only_when_running[False]',
+        )},
+        **{node: (_posix_xfail('os.geteuid (systemd linger)'),) for node in (
+            'tests/hermes_cli/test_multiplex_host_topology_reporting.py::test_doctor_checks_host_unit_linger_under_a_served_profile[False]',
+            'tests/hermes_cli/test_multiplex_host_topology_reporting.py::test_doctor_checks_host_unit_linger_under_a_served_profile[True]',
+        )},
+        **{node: (_posix_xfail('POSIX argv carries raw non-UTF-8 bytes; Windows argv is UTF-16'),) for node in (
+            'tests/hermes_cli/test_process_identity.py::test_register_self_survives_non_utf8_argv',
+        )},
+        **{node: (_posix_xfail('os.geteuid'),) for node in (
+            'tests/hermes_cli/test_ssh_ownership_endpoint.py::test_ssh_runtime_readonly_purelib_falls_back_to_stat',
+        )},
+        **{node: (_posix_xfail('chmod cannot make an NTFS directory unwritable'),) for node in (
+            'tests/hermes_cli/test_update_host_obligation.py::test_unwritable_host_state_dir_still_arms_the_obligation',
+        )},
+        **{node: (_posix_xfail('st_uid ownership; NTFS reports uid 0 for every file'),) for node in (
+            'tests/hermes_cli/test_update_venv_ownership_preflight.py::test_foreign_owned_dist_info_child_detected',
+            'tests/hermes_cli/test_update_venv_ownership_preflight.py::test_foreign_owned_refuses_with_chown_hint',
+        )},
+        # A SKIP: the red is a teardown error, which a strict xfail cannot cover (the
+        # call phase passes and reads XPASS(strict)).
+        **{node: (_up_red_skip("the Proactor loop close in tests/conftest.py _ensure_current_event_loop "
+                               "teardown calls time.monotonic, which the test's three-tick clock has "
+                               "exhausted"),) for node in (
+            'tests/hermes_cli/test_backup.py::TestSafeCopyDb::test_aborts_when_source_remains_busy_past_deadline',
+        )},
+        **{node: (_up_red('CRLF written where LF is asserted (class c-B, issue class #121221)'),) for node in (
+            'tests/hermes_cli/test_backup_stability.py::test_quick_snapshot_is_published_with_manifest',
+            'tests/hermes_cli/test_oneshot_surrogate.py::test_oneshot_replaces_lone_surrogate_and_exits_zero',
+        )},
+        **{node: (_up_red('HOME patched, USERPROFILE not, in a ~-expansion (class c-C, #121222)'),) for node in (
+            'tests/hermes_cli/test_resume_latest_and_in_dir.py::test_in_dir_expands_user_home',
+        )},
+        **{node: (_up_red('path spelling: separators or drive-qualified POSIX literals (class c-D, PR class win-path-spelling #121224)'),) for node in (
+            'tests/hermes_cli/test_agent_plugins.py::test_loads_manifest_skill_and_stdio_server',
+            'tests/hermes_cli/test_browser_connect_default_chromium.py::TestLinuxProfileDir::test_native_path_when_nothing_exists',
+            'tests/hermes_cli/test_browser_connect_default_chromium.py::TestLinuxProfileDir::test_snap_chromium_profile_is_found',
+            'tests/hermes_cli/test_browser_connect_default_chromium.py::TestLinuxProfileDir::test_flatpak_chrome_profile_is_found',
+            'tests/hermes_cli/test_browser_connect_default_chromium.py::TestLinuxProfileDir::test_native_profile_wins_when_present',
+            'tests/hermes_cli/test_plugin_manifest_v2.py::TestDirectoryPluginKeepsIdentityOverEntryPoint::test_loader_and_listing_prefer_the_installed_directory',
+            'tests/hermes_cli/test_ssh_session_token_parser.py::test_token_file_rejects_parent_escape',
+            'tests/hermes_cli/test_startup_fast_guards.py::test_literal_tilde_hermes_home_expands_before_any_reader',
+            'tests/hermes_cli/test_startup_fast_guards.py::test_normalize_hermes_home_env_rewrites_tilde_and_leaves_absolute_alone',
+            'tests/hermes_cli/test_update_host_obligation.py::test_recovery_host_state_dir_matches_the_gateway_resolver[env0]',
+            'tests/hermes_cli/test_update_host_obligation.py::test_recovery_host_state_dir_matches_the_gateway_resolver[env1]',
+            'tests/hermes_cli/test_worktree_command.py::test_list_shows_worktrees',
+            'tests/hermes_cli/test_worktree_pushed_tier.py::TestCronWorktreeMaintenance::test_repo_discovery_requires_worktrees_dir',
+        )},
+        **{node: (_up_red('bash invocation with Windows paths inside a POSIX command string (class c-E, #121226)'),) for node in (
+            'tests/hermes_cli/test_agent_env_advertisement.py::TestWrapCommandAdvertisesHarness::test_shell_sets_default_and_preserves_outer',
+            'tests/hermes_cli/test_bang_shell_mode.py::TestBangExecution::test_output_is_streamed_to_writer',
+            'tests/hermes_cli/test_bang_shell_mode.py::TestBangExecution::test_stderr_is_merged_into_output',
+            'tests/hermes_cli/test_bang_shell_mode.py::TestBangExecution::test_runs_in_requested_cwd',
+        )},
+        **{node: (_up_red('an open handle or read-only file blocks the delete, WinError 5 (class c-H)'),) for node in (
+            'tests/hermes_cli/test_plugin_install_ref.py::test_reinstall_after_manual_directory_removal_retains_pin',
+            'tests/hermes_cli/test_shallow_boundary_repair.py::test_repair_does_not_mask_unrelated_object_loss',
+        )},
+        **{node: (_up_red('asserts the POSIX branch of code that has a Windows branch (class e-BR)'),) for node in (
+            'tests/hermes_cli/test_agent_plugins.py::test_server_declaration_joins_mcp_and_preserves_liveness',
+            'tests/hermes_cli/test_backup.py::TestImport::test_import_auto_installs_gateway_service',
+            'tests/hermes_cli/test_cli_clarify_batch.py::TestClarifyBellOnPrompt::test_bell_on_prompt_rings_and_off_is_silent',
+            'tests/hermes_cli/test_cli_init.py::TestPromptToolkitTerminalCompatibility::test_lf_enter_binding_respects_multiline_shortcuts',
+            'tests/hermes_cli/test_cli_init.py::TestPromptToolkitTerminalCompatibility::test_cpr_gating_posix_suppresses_without_ssh',
+            'tests/hermes_cli/test_ctrl_enter_newline.py::test_ctrl_j_legacy_submit_when_multiline_shortcuts_disabled',
+            'tests/hermes_cli/test_external_process_auth_status.py::test_auth_verified_from_on_disk_credential_store',
+            'tests/hermes_cli/test_external_process_auth_status.py::test_auth_verified_from_copilot_cli_plaintext_store',
+            'tests/hermes_cli/test_external_process_auth_status.py::test_explicit_filter_keeps_signed_in_external_process_row',
+            'tests/hermes_cli/test_external_process_auth_status.py::test_catalog_key_resolves_from_copilot_cli_store',
+            'tests/hermes_cli/test_install_cua_driver.py::TestInstallCuaDriverUpgrade::test_upgrade_with_binary_present_runs_installer',
+            'tests/hermes_cli/test_install_cua_driver.py::TestInstallCuaDriverUpgrade::test_non_upgrade_without_binary_runs_installer',
+            'tests/hermes_cli/test_local_runtime_child_env.py::test_spawn_server_keeps_the_callers_environment',
+            'tests/hermes_cli/test_orphan_desktop_serve_reap.py::test_reap_passes_child_pid_exclude_to_scan',
+            'tests/hermes_cli/test_orphan_desktop_serve_reap.py::test_reap_kills_descendants_of_killed_roots_but_spares_a_failed_roots_subtree',
+            'tests/hermes_cli/test_plugins_cmd_catalog.py::test_catalog_platform_mismatch_refuses_before_install',
+            'tests/hermes_cli/test_stale_pid_guard.py::TestKillStaleDashboardProcesses::test_stop_only_targets_the_invoking_hermes_home',
+            'tests/hermes_cli/test_tui_npm_install.py::test_make_tui_argv_skips_build_only_on_termux_when_fresh',
+            'tests/hermes_cli/test_tui_npm_install.py::test_make_tui_argv_skips_install_on_termux_when_bundle_fresh',
+            'tests/hermes_cli/test_tui_npm_install.py::test_make_tui_argv_scopes_npm_install_on_termux_workspace',
+            'tests/hermes_cli/test_tui_npm_install.py::test_make_tui_argv_keeps_desktop_workspace_install_behaviour',
+            'tests/hermes_cli/test_tui_npm_install.py::test_make_tui_argv_npm_install_forces_include_dev',
+            'tests/hermes_cli/test_tui_npm_install.py::test_make_tui_argv_keeps_desktop_always_build_behaviour',
+            'tests/hermes_cli/test_tui_npm_install.py::test_make_tui_argv_decodes_dev_prebuild_with_utf8_replace',
+            'tests/hermes_cli/test_tui_npm_install.py::test_make_tui_argv_exits_with_recovery_hint_when_workspace_unrecoverable',
+            'tests/hermes_cli/test_tui_resume_flow.py::test_make_tui_argv_dev_prebuilds_hermes_ink',
+        )},
+        **{node: (_up_red('fake executable is an extensionless #! script, neither run nor found via PATHEXT (class e-EXE)'),) for node in (
+            'tests/hermes_cli/test_goal_gates.py::test_run_gate_fail_captures_output',
+            'tests/hermes_cli/test_web_server_git.py::test_gh_auth_refresh_waits_out_a_probe_started_before_it',
+            'tests/hermes_cli/test_worktree.py::TestPrMergedEscapeHatch::test_merged_pr_tree_is_reaped',
+            'tests/hermes_cli/test_worktree.py::TestPrMergedEscapeHatch::test_merged_verdict_memoized_by_branch_and_head',
+        )},
+        **{node: (_up_red('a same-size, pinned-mtime replacement keeps the NTFS file id and creation ctime (class e-ID)'),) for node in (
+            'tests/hermes_cli/test_cli_mcp_config_watch.py::test_pinned_mtime_same_size_replacement_triggers_reload',
+            'tests/hermes_cli/test_config_cache_signature.py::test_load_config_sees_replacement_with_pinned_mtime_and_size',
+        )},
+        **{node: (_up_red('the fixture path carries characters Windows rejects, WinError 123 (class e-NAME)'),) for node in (
+            'tests/hermes_cli/test_doctor_wal_checkpoint_guard.py::test_session_count_reads_a_home_with_uri_reserved_characters',
+        )},
+        **{node: (_up_red('prompt_toolkit needs a real Windows console; none under pytest (class e-TTY)'),) for node in (
+            'tests/hermes_cli/test_modify_other_keys_aliases.py::test_buffer_level_shift_space_no_raw_csi',
+            'tests/hermes_cli/test_modify_other_keys_aliases.py::test_buffer_level_shift_letter_no_raw_csi',
+        )},
+        **{node: (_up_red('no Windows marker in the failure text; red at the tag on this box (class f-?)'),) for node in (
+            'tests/hermes_cli/test_anon_sign_in_flow.py::test_the_scope_is_entered_for_the_preconditions_and_the_persist_but_never_around_a_wait',
+            'tests/hermes_cli/test_noninteractive_git.py::TestNoninteractiveGitEnv::test_safe_directory_reset_still_revokes_wildcard_for_real_git',
+            'tests/hermes_cli/test_plugin_ownership_ledger.py::test_shared_entrypoint_module_uses_the_active_profile_scope',
+            'tests/hermes_cli/test_plugin_ownership_ledger.py::test_provider_overlay_switches_profiles_and_reveals_fresh_global_fallback',
+            'tests/hermes_cli/test_plugin_ownership_ledger.py::test_direct_plugin_platform_registration_infers_immutable_scope',
+            'tests/hermes_cli/test_plugin_validate.py::test_portable_validation_fails_orphan_and_reports_availability',
+            'tests/hermes_cli/test_restore_own_holder_guard.py::test_safe_restore_fallback_still_works_without_holder',
+            'tests/hermes_cli/test_update_import_guard.py::test_import_probe_sees_a_stale_editable_finder_instead_of_the_checkout_cwd',
+        )},
+        "tests/hermes_cli/test_completion.py::TestGenerateBash::test_valid_bash_syntax": (
+            pytest.mark.xfail(strict=True, reason=(
+                "bash resolves a native temp path by POSIX rules and eats its backslashes; "
+                "fixed by the open fork PR #121226 (shell invocation)")),
+        ),
+    })
+
 def _base_id(nodeid: str) -> str:
     return nodeid.split("[", 1)[0]
 
