@@ -2,7 +2,7 @@
 type: program
 program: upstream-sync
 status: active
-cursor: "2026-09-23 — Release v2026.9.21 (v0.21.4), upstream d337b736aa, integrated by history-preserving merge b592010a65: all 148 missing commits, custom history retained. Validation and carried reds: [[upstream-release-2026-09-23]]. Next: weekly cadence and seam ratchet; runtime migration remains separate."
+cursor: "2026-09-24 — Weekly merge of upstream f24a1d7f92 (1,663 commits) as 075fb4eba4 on seam/upstream-merge-2026-09-24, NOT on main: 73 conflicts, supersession 22 retired / 6 kept, ratchet 408/2612/11 -> 376/2410/10 at base f24a1d7f92, all 11 open PRs still open. Evidence: [[upstream-release-2026-09-24]]. Next: the operator lands the branch; weekly cadence."
 tags: [program/upstream-sync, program, upstream]
 ---
 
@@ -49,6 +49,8 @@ Goal (owner, 2026-09-21): **easy upstream syncs without much conflict.** The for
 | NousResearch/hermes-agent#121224 | `test(paths)`: compare paths as paths, not POSIX spellings, on Windows (`up/win-path-spelling`) | the in-place test edits whose ledger rows name `up/win-path-spelling` | 2026-09-24 |
 | NousResearch/hermes-agent#121225 | `test(posix)`: stop assuming POSIX-only os APIs and mode bits on Windows (`up/win-posix-only-apis`) | the in-place test edits whose ledger rows name `up/win-posix-only-apis` | 2026-09-24 |
 | NousResearch/hermes-agent#121226 | `test(shell)`: resolve bash/python and pass bash POSIX paths on Windows (`up/win-shell-invocation`) | the in-place test edits whose ledger rows name `up/win-shell-invocation` | 2026-09-24 |
+
+**Checked 2026-09-24 (lane MERGE):** all eleven rows above are OPEN upstream and none is in `upstream/main`; every carry stays.
 
 **Dropped 2026-09-24 (lane UPREV, never opened):** `up/win-text-encoding` (upstream's `run_tests.sh` sets `PYTHONUTF8=1`, no red), `up/monkeypatch-undo-scoped` (no red), `up/profile-home-generic` (P7; perf memo, no red), `up/profiles-delete-guard` (P6; psutil is a pinned core dep, refusal unreachable). Their ledger rows are `carry` with reason "PR dropped 2026-09-24: …".
 
