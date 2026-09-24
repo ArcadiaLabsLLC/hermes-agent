@@ -45,3 +45,45 @@ No Launcher workaround, provider inspector or Mission Control routing change.
 
 Native Launcher acceptance and the installed-runtime cutover are separate
 qualification steps; the loopback ACP receipt does not claim either.
+
+## Installation qualification
+
+The owner's `nekwo/hermes-agent` URL redirects to `ArcadiaLabsLLC/hermes-agent`;
+these are not competing forks. The installed 0.19.1 checkout at `39fb8d426d`
+predates the rebuilt fork history. A fast-forward update cannot reconcile it.
+Its ACP shell-probe stdin correction is already present in 0.21.5.
+
+Before testing, the profile root was backed up outside both installations:
+10,945 verified files and 18 consistent SQLite snapshots. A disposable copy of
+Amelia's database passes the current SessionDB migration with 1,447 sessions,
+225,181 messages and `PRAGMA quick_check = ok` before/after. The live profiles,
+skills, credentials and running gateway were not changed.
+
+Qualification used Python 3.13.15 / SQLite 3.53.1, matching the installed
+interpreter. The candidate also received the current locked equivalents of
+the installation's messaging, voice, Edge TTS, Google and YouTube extras.
+
+- Fork landing run: 558 files; 9,336 passed, 72 failed, 14 skipped. This is
+  **not a green suite**. Certificate-pin mismatches dominate the gateway reds.
+- Standalone loopback TLS reproduction, outside pytest: the received issuer
+  is `Norton Web/Mail Shield Self-signed Root`, not the freshly generated
+  self-signed Hermes certificate. The fingerprint mismatch correctly refuses
+  that replacement. Untouched `2455c606b4` reproduces the TLS/scope failures.
+  No certificate checks or antivirus settings were weakened.
+- A stale `upstream/main` ref initially made upstream-owned code look
+  fork-authored to scope gates. After fetching upstream and installing the
+  missing messaging extra, a seven-file rerun passed 1,272 tests, failed five
+  and skipped one. Tombstone, flag-binding, shared-monkeypatch and frozen-home
+  gates pass. Remaining failures: four TLS/scope cases and the empty-WAL test;
+  all five also fail in the unchanged baseline.
+- `test_core_fingerprint_cache.py::test_a_key_written_with_an_empty_wal_matches_once_it_is_gone`
+  unlinks a WAL already removed during setup on this SQLite build. The
+  remaining 58 tests in that file pass in candidate and baseline.
+- `test_docket_stage_claims.py` fails unchanged because the Stage 6 desktop
+  owner-ruling heading cites no ancestor landing commit. This is a documentation
+  gate, not an ACP regression. CLI/payload dumps, duplicate-helper and upstream
+  footprint gates pass.
+
+The installation remains on 0.19.1 pending safe archive/replacement approval
+and local TLS qualification. The committed ACP correction is not a claim that
+the live installation or native Launcher smoke has been completed.
