@@ -83,6 +83,28 @@ the installation's messaging, voice, Edge TTS, Google and YouTube extras.
   owner-ruling heading cites no ancestor landing commit. This is a documentation
   gate, not an ACP regression. CLI/payload dumps, duplicate-helper and upstream
   footprint gates pass.
+- The Launcher's real serve-frame check completed; only `ready.json` differs
+  structurally from its committed capture. Its RPC contract remains 1, with
+  52 added methods and none removed. The real Dart
+  `MissionRuntimeRpcManifest.fromFrame` decodes all 78 methods and accepts
+  every advertised method. Other changes are build provenance. This is a
+  protocol check, not native UI acceptance; no Launcher fixture was replaced.
+
+The correction was replayed onto `4e73892724` after the partner's concurrent
+updates. Their new retired-scratch cleanup cannot select any row in Amelia's
+verified database copy: its count for `agent_runtime_persona_chat_scratch` is
+zero. The broader suite receipt above belongs to the earlier baseline, not a
+claim that every incoming change was retested.
+
+The seven post-rebase files (tooling gates plus the named-provider regression)
+pass. The full suite's separately proven environmental/baseline reds remain
+recorded above, not silently relabeled green.
+
+A separate running Hermes Desktop installation was then observed at upstream
+`749220ef00`, origin `NousResearch/hermes-agent`, with its own modified
+`package-lock.json`. Its Python child also uses Amelia's profile. It is not the
+Launcher-configured partner-fork installation. Neither installation was stopped
+or overwritten; future cutover must coordinate writers to this shared profile.
 
 The installation remains on 0.19.1 pending safe archive/replacement approval
 and local TLS qualification. The committed ACP correction is not a claim that
