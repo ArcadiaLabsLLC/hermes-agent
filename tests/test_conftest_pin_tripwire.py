@@ -70,6 +70,21 @@ _UNWIND_SPELLINGS = {
         "    monkeypatch.setattr('os.sep', '/', raising=False)\n"
         "    drop(monkeypatch)\n"
     ),
+    # The shape upstream's ``tests/hermes_cli/test_gateway.py`` uses — a
+    # fixture hands the body a MonkeyPatch and the body calls ``.undo()`` on
+    # the fixture value (its ``inert_task_scheduler_probe`` at :1349) — but
+    # with the fixture yielding the SHARED instance. That is the one way that
+    # upstream line could ever unwind the pins, and the fork cannot lint it:
+    # the structural gate is scoped off upstream-authored lines.
+    "fixture_yields_shared": (
+        "import pytest\n"
+        "@pytest.fixture\n"
+        "def probe(monkeypatch):\n"
+        "    monkeypatch.setattr('os.sep', '/', raising=False)\n"
+        "    yield monkeypatch\n"
+        "def test_body(probe):\n"
+        "    probe.undo()\n"
+    ),
     "fixture_value": (
         "def test_body(request):\n"
         "    handle = request.getfixturevalue('monkeypatch')\n"
@@ -108,6 +123,34 @@ def test_a_body_that_does_not_unwind_is_left_alone(pytester):
             "def test_body(monkeypatch):\n"
             "    monkeypatch.setattr('os.sep', '/', raising=False)\n"
             "    assert True\n"
+        )
+    )
+
+    result = pytester.runpytest_inprocess("-p", "no:cacheprovider")
+
+    result.assert_outcomes(passed=1, errors=0, failed=0)
+
+
+def test_undoing_a_fixtures_own_private_monkeypatch_is_left_alone(pytester):
+    """The control for ``fixture_yields_shared``: the same bytes with the one
+    variable changed — the fixture builds its OWN ``pytest.MonkeyPatch()``, as
+    upstream's ``inert_task_scheduler_probe`` does, and the body's ``.undo()``
+    drops only that. The shared pins are untouched, so the tripwire must stay
+    quiet; if it fired here, upstream's legitimate test would be red for
+    nothing."""
+
+    pytester.makeconftest(_INNER_CONFTEST)
+    pytester.makepyfile(
+        test_private=(
+            "import pytest\n"
+            "@pytest.fixture\n"
+            "def probe():\n"
+            "    mp = pytest.MonkeyPatch()\n"
+            "    mp.setattr('os.sep', '/', raising=False)\n"
+            "    yield mp\n"
+            "    mp.undo()\n"
+            "def test_body(probe):\n"
+            "    probe.undo()\n"
         )
     )
 
