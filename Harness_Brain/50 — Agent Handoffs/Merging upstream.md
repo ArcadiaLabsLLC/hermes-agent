@@ -26,6 +26,23 @@ The weekly merge of `NousResearch/hermes-agent:main` into the fork. Rule: [[0006
 6. `git push -u origin merge/upstream-<date>`. Report ≤ 30 lines.
 7. **Landing (operator or landing lane):** `scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/hermes_state` (≥ 25 min) + the two contract dumps `--check` + `scripts/doc_cite_adjacency.py` in its ruled scope; then `git push origin merge/upstream-<date>:main` if fast-forward. Update the cursor, delete the queue row, remove the worktree.
 
+## The scheduled job (Codex cloud, weekly)
+
+The job's whole description, pasted as its prompt — it runs the Steps above and nothing else ([[0006 — Upstream sync is a real merge, per-file reconciliation retired]]):
+
+```
+Weekly upstream merge candidate for ArcadiaLabsLLC/hermes-agent.
+Read Harness_Brain/50 — Agent Handoffs/Merging upstream.md (the one page) and follow its Steps 1-6 exactly.
+1. Fetch origin and upstream (NousResearch/hermes-agent). Branch merge/upstream-<YYYY-MM-DD> from origin/main.
+2. git merge upstream/main --no-ff (history-preserving; never cherry-pick or copy single files; never rebase).
+3. Resolve every conflict by the page's rules; commit "merge: upstream/main <sha> into main (<date>)", body = each conflicted file + the rule applied.
+4. Run the supersession pass (Upstream Sync, "Each merge"), then scripts/run_tests.sh on the validated scope named on the page.
+5. Push merge/upstream-<date>. Never push main, never force-push, never open a PR.
+6. Report (<= 30 lines): upstream sha merged, conflicts per file + rule, supersession rows retired/kept, the [up-fp] line before/after, suite counts with reds marked merge-caused / pre-existing (re-run on origin/main).
+```
+
+Retired with the old method: the per-file "reconcile X with upstream" prompt, its cumulative `automation/upstream-sync` branch, and `docs/agent-runtime-harness/planned/upstream-sync-automation.md` (deleted with this section).
+
 ## Known shapes
 
 - Conflicts cluster in the 22 heavy fork-edited upstream files ([[Fork Boundary Map]]); nothing in `agent_runtime/` or `harness_parts/` conflicts.
