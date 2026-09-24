@@ -706,7 +706,7 @@ class ProfileAgentRunner:
         # ``_counted_agent_run`` is OUTSIDE the deny scope and covers the whole
         # method: a background prewarm must see this run from its first
         # instruction, not from the point it reaches the workdir lock.
-        from .local_llama.provider import turn_scope
+        from .local_llama_adapter.provider import turn_scope
         with _counted_agent_run(), turn_scope(request), deny_venv_installs(
             f"an agent turn (profile={request.profile!r})"
         ):
@@ -979,7 +979,7 @@ class ProfileAgentRunner:
         )
         from .terminal_envelope import terminal_envelope_scope
         from agent.skill_utils import skill_runtime_scope
-        from .local_llama.provider import prewarm_scope, construction_kwargs, actor_signature
+        from .local_llama_adapter.provider import prewarm_scope, construction_kwargs, actor_signature
 
         with (
             _WORKDIR_LOCK,
@@ -1902,9 +1902,9 @@ def _runtime_resolve_cache_key(request: AgentRunRequest) -> tuple:
 def _resolve_request_runtime(
     request: AgentRunRequest, timing: dict[str, Any] | None = None
 ) -> dict[str, Any]:
-    from .local_llama import PROVIDER_ID
+    from .local_llama_adapter import PROVIDER_ID
     if request.provider == PROVIDER_ID:
-        from .local_llama.provider import resolve
+        from .local_llama_adapter.provider import resolve
         return resolve(request.model, root=request.runtime_root)
     if not request.provider:
         return {}

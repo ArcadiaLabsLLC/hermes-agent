@@ -5761,7 +5761,7 @@ def build_provider_visibility() -> dict:
     _record_visibility_block(payload, "environment", _provider_visibility_environment)
     _record_visibility_block(payload, "api_keys", _provider_visibility_api_keys)
     _record_visibility_block(payload, "auth_logins", _provider_visibility_auth_logins)
-    from agent_runtime.local_llama.provider import catalog_visibility as local_llama_catalog_visibility
+    from agent_runtime.local_llama_adapter.provider import catalog_visibility as local_llama_catalog_visibility
     _record_visibility_block(payload, "local_llama", local_llama_catalog_visibility)
     # The `catalog` block (plan PL-1). Additive and failure-isolated exactly
     # like the three blocks above, and — deliberately — WITHOUT a schema bump.
