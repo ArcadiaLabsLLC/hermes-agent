@@ -17,8 +17,6 @@ _profile_fallback_warned: bool = False
 _UNSET = object()
 _HERMES_HOME_OVERRIDE: ContextVar[str | object] = ContextVar("_HERMES_HOME_OVERRIDE", default=_UNSET)
 
-_AGENT_BROWSER_PROBE_CACHE: dict[str, bool] = {}
-
 # TUI busy-indicator styles (CLI /indicator, TUI gateway config, /help registry).
 # Keep in sync with INDICATOR_STYLES / DEFAULT_INDICATOR_STYLE in ui-tui/src/app/interfaces.ts.
 INDICATOR_STYLES: tuple[str, ...] = ("ascii", "emoji", "kaomoji", "unicode")
@@ -798,6 +796,17 @@ def with_hermes_node_path(env: dict[str, str] | None = None) -> dict[str, str]:
             parts.insert(0, entry)
     merged["PATH"] = os.pathsep.join(parts)
     return merged
+
+
+# path -> ``--version`` verdict. Only the spawn is memoised; the cheap existence gates in
+# ``agent_browser_runnable`` still run on every call, so a deleted binary or a dangling symlink
+# (#48521) is never answered from here. Cleared by ``reset_agent_browser_probe_cache``.
+_AGENT_BROWSER_PROBE_CACHE: dict[str, bool] = {}
+
+
+def reset_agent_browser_probe_cache() -> None:
+    """Forget every memoised ``--version`` verdict (after an install/repair that may fix a candidate)."""
+    _AGENT_BROWSER_PROBE_CACHE.clear()
 
 
 def agent_browser_runnable(path: str | None) -> bool:
@@ -1682,15 +1691,3 @@ def emit_partial_update_hint(exc: BaseException, *, file=None) -> bool:
     for line in (f"Error: {exc}", *lines):
         print(line, file=sys.stderr if file is None else file)
     return True
-
-
-# Downstream probe-cache reset (generic; proposed upstream as P7).
-def reset_agent_browser_probe_cache() -> None:
-    """Forget every memoised ``--version`` verdict.
-
-    Call this after anything that could change whether an agent-browser
-    candidate RUNS — an install, a heal, a node-tree repair. Clearing is always
-    safe: the next probe simply pays the subprocess again.
-    """
-
-    _AGENT_BROWSER_PROBE_CACHE.clear()
