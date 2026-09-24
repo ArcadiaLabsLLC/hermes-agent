@@ -89,7 +89,7 @@ from __future__ import annotations
 import pytest
 
 from agent_runtime.decision_contract_registry import event_catalog
-from tests.agent_runtime import _tree_index
+from tests.agent_runtime import _removal_walk
 from agent_runtime.events import ALLOWED_EVENT_TYPES, OPERATOR_SUMMARY_EVENT_TYPES
 
 
@@ -101,11 +101,10 @@ RETIRED_EVENT_TYPES = (
 )
 
 
-# A full first-time parse of the six scanned packages measures ~20-25 s cold
-# (2026-09-03) — close enough to the default 30 s pytest-timeout ceiling that
-# load tips it over. Sharing the cache with test_s50 (conftest's
-# `_SHARED_TREE_WALK_MODULES`) helps when both run together, but this test can
-# run alone or run first, so the margin does not depend on that.
+# A cold import walk of the six scanned packages is one parse per file
+# (``_removal_walk``: memoized per process, persisted per file on its stamp), so
+# it is paid once per checkout change rather than once per gate file; the margin
+# is for the cold case, which this test can still be.
 @pytest.mark.timeout(60)
 def test_no_production_module_still_imports_it():
     """The import graph, not just the file: a dead module that keeps an importer
@@ -118,7 +117,6 @@ def test_no_production_module_still_imports_it():
     the thing that can resurrect a module, so imports are what this asserts.
     """
 
-    import ast
     import pathlib
 
     import agent_runtime
@@ -127,33 +125,35 @@ def test_no_production_module_still_imports_it():
     packages = ("agent_runtime", "hermes_cli", "gateway", "agent", "acp_adapter", "tools")
     offenders = []
     scanned = 0
-    for package in packages:
-        for path in (root / package).rglob("*.py"):
-            if "__pycache__" in path.parts:
-                continue
-            try:
-                tree = _tree_index.parsed(str(path), errors="replace")
-            except SyntaxError:
-                continue
-            scanned += 1
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom):
-                    # BOTH halves of an ``ImportFrom``. Until the MCF-53 sweep only
-                    # ``node.module`` was read, so ``from agent_runtime import
-                    # operator_control`` — where the module name is an ALIAS and
-                    # ``node.module`` is just ``agent_runtime`` — was invisible to
-                    # this gate. That is the idiomatic spelling for importing a
-                    # submodule, and there are ~95 such sites across the six scanned
-                    # packages, so the one form most likely to resurrect the module
-                    # was the one form the gate could not see.
-                    if "operator_control" in (node.module or "") or any(
-                        alias.name == "operator_control" for alias in node.names
-                    ):
+    paths = [
+        path
+        for package in packages
+        for path in (root / package).rglob("*.py")
+        if "__pycache__" not in path.parts
+    ]
+    for key, record in _removal_walk.index(paths).items():
+        if record is None:  # does not parse
+            continue
+        path = pathlib.Path(key)
+        scanned += 1
+        for node in record.imports:
+            if node.kind == "from":
+                # BOTH halves of an ``ImportFrom``. Until the MCF-53 sweep only
+                # ``node.module`` was read, so ``from agent_runtime import
+                # operator_control`` — where the module name is an ALIAS and
+                # ``node.module`` is just ``agent_runtime`` — was invisible to
+                # this gate. That is the idiomatic spelling for importing a
+                # submodule, and there are ~95 such sites across the six scanned
+                # packages, so the one form most likely to resurrect the module
+                # was the one form the gate could not see.
+                if "operator_control" in (node.module or "") or any(
+                    alias.name == "operator_control" for alias in node.names
+                ):
+                    offenders.append(f"{path.relative_to(root)}:{node.lineno}")
+            elif node.kind == "import":
+                for alias in node.names:
+                    if "operator_control" in alias.name:
                         offenders.append(f"{path.relative_to(root)}:{node.lineno}")
-                elif isinstance(node, ast.Import):
-                    for alias in node.names:
-                        if "operator_control" in alias.name:
-                            offenders.append(f"{path.relative_to(root)}:{node.lineno}")
     # ANTI-VACUITY: an absence gate whose walk visited no file passes forever.
     assert scanned > 300, scanned
     assert offenders == [], offenders
