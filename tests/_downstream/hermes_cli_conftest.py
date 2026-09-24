@@ -889,6 +889,39 @@ def _no_shebang_script_execution() -> bool:
     return _SHEBANG_EXEC_PROBE
 
 
+def _test_python_outside_project_venv() -> bool:
+    """True where ``sys.executable`` is not under this checkout.
+
+    ``update_cmd_windows._detect_venv_python_processes`` reports only processes
+    whose exe lives under the project venv (or the checkout root), and the live
+    venv-holder E2Es spawn their sleepers from ``sys.executable``. A shared test
+    venv outside the checkout makes every sleeper invisible to the scan.
+    """
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    try:
+        Path(sys.executable).resolve().relative_to(root)
+    except ValueError:
+        return True
+    return False
+
+
+def _unelevated_windows_shell() -> bool:
+    """True on a Windows shell without administrator rights (schtasks /Create refuses)."""
+    import sys
+
+    if sys.platform != "win32":
+        return False
+    import ctypes
+
+    try:
+        return not ctypes.windll.shell32.IsUserAnAdmin()
+    except Exception:
+        return False
+
+
 _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
     # ── Spawn shapes the loader does not support ──────────────────────────
     #
@@ -1075,6 +1108,34 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             'the checkout — treat it as side-effecting',
             {
                 'TestCmdUpdateBranchFallback::test_update_on_fork_checks_upstream_when_origin_up_to_date',
+            },
+        ),
+    ],
+    # ── Lane REDS3: live Windows E2Es whose premise is this box, not the code ──
+    'test_venv_holder_windows_live.py': [
+        (
+            _test_python_outside_project_venv,
+            'the sleepers are spawned from sys.executable, a shared test venv '
+            'outside this checkout, and the holder scan reports only processes '
+            'running from the project venv or checkout; run the file from an '
+            'in-checkout .venv',
+            {
+                'TestDetection::test_detects_hermes_argv_process',
+                'TestDetection::test_long_runtime_path_gateway_detected_with_full_argv',
+                'TestClassification::test_pausable_exemption_sees_long_path_gateway',
+                'TestClassification::test_serve_backend_not_classified_pausable',
+                'TestHolderMessage::test_dashboard_not_labeled_desktop_backend',
+                'TestHolderMessage::test_substring_subcommand_not_mislabeled',
+            },
+        ),
+    ],
+    'test_legacy_launchers_windows_live.py': [
+        (
+            _unelevated_windows_shell,
+            'schtasks /Create answers "Access is denied" in an unelevated shell '
+            '(class d-P); the test registers a real scheduled task',
+            {
+                'test_status_warns_and_uninstall_removes_pre_suffix_launchers',
             },
         ),
     ],
