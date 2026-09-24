@@ -60,7 +60,7 @@ After Stage 1 and the profile-bootstrap PR: ≤ 3 additive one-liners remain in 
 | `tools/skills_tool.py` | +137 / −70 | skill resolution and search delegating to `agent_runtime.skill_resolution` / `skill_search` | **hook** — the plugin's own tool via `register_tool(override=…)`, or **carry** |
 | `scripts/run_tests_parallel.py`, `scripts/run_tests.sh` | +183 / −42, +193 / −5 | the fork's hermetic runner | **upstream** the runner improvements (they ship `run_tests_parallel.py` themselves); **carry** the hermetic-env rows |
 | the four `conftest.py` | +2,400 | hermetic-home fixtures, env-gap fence | **fork-only** pytest plugin, loaded by one line (Stage 5) |
-| `apps/desktop/src/app/skills/*` (32 desktop files) | edits to core pages | **hook** via the desktop plugin SDK (`HermesPlugin`, `$HERMES_HOME/desktop-plugins/`) where the SDK reaches; **carry** the rest (Stage 6) |
+| `apps/desktop/*` (4 files / 92 lines left, down from 32 files) | the uninstall git-history warning + its test, the slash-registry dump, one fork-only store test | **DONE as a stage (owner, 2026-09-24):** every remaining line is in a held bucket (the uninstall PR candidate, the `register_command` widening); no census, no plugin work — the fork does not edit upstream's electron app (Stage 6) |
 
 ---
 
@@ -167,7 +167,9 @@ Each merged PR: the ledger row flips to `upstream`, the next merge brings the co
 - The 242 other upstream test files with fork test cases: each fork test moves to a fork-only sibling (`tests/<dir>/test_<name>_downstream.py`), source-pin census first (refactor rule 1.6). Mechanical; one lane per top-level test dir; MOVE-only commits.
 - Gate: the validated suite selects the same test ids (a `--collect-only` diff before/after is empty modulo file names); `[up-fp] files` −242.
 
-### Stage 6 — desktop
+### Stage 6 — desktop — **DONE (owner ruling 2026-09-24)**
+
+> [!note] Closed as a stage, 2026-09-24. Only 4 files / 92 lines remain under `apps/desktop` (`settings/uninstall-section.tsx` +6 and its test +43/−1, `lib/desktop-slash-registry.json` +2, `store/session-dot-state-downstream.test.ts` +41), all in held buckets: the uninstall warning is an upstream PR candidate (PRs paused) and the slash-registry lines wait on the `register_command` widening PR. No census, no desktop-plugin work: the fork does not edit upstream's electron app. The paragraph below is the original plan, kept for the record.
 
 `apps/desktop/src/app/skills/*` and the other 32 desktop edits: what the desktop plugin SDK reaches (`HermesPlugin` default export, the inventory/enable contract, `$HERMES_HOME/desktop-plugins/`) moves into `plugins/eternia-harness/desktop/`; the rest is carried with a reason (the SDK forbids reaching into app stores — a needed capability is an SDK hook PR). Gate: the desktop `vitest` + `eslint` run; `[up-fp]` down.
 
@@ -209,5 +211,5 @@ Hard orderings: S0 before all; S1 before S2; P1 before S4 (S4 diffs against the 
 | S3 | planned | 5 PRs | −1 per merge | P1 first |
 | S4 | landed on `main` via `seam/s45-landing` (branch tip `9fa433d74a`) | 8 fork + 2 `up/*` (P6 `up/profiles-delete-guard` @ `9b1d5506aa`, P7 `up/profile-home-generic` @ `1f4923c350`, both cherry-pick clean, no PR) | `[up-fp] files=448 deleted_lines=2800 heavy=12` after the S4+S5 landing (S4 alone: 459 / 2818 / 22) | ran before P1 on the owner's order. Adopted upstream: the root memo, `list_profile_names()` (dual-roster fixed). Moved: 14 names from `hermes_constants.py` + 3 from `profiles.py` → `agent_runtime/profile_home.py`, and `CONVERSATION_REQUEST_ASSEMBLED_STEP` → `agent_runtime/conversation_observability.py`. `hermes_constants.py` is +17/−1 (P7 only) and `profiles.py` +204/−29 (P6 + one carried orphan-mark call). Frozen-home ledger unchanged |
 | S5 | landed on `main` via `seam/s45-landing` (branch tip `489b3ce373`, MOVE tip `aae22df30c`) | 1 conftest + 8 MOVE + 1 landing | `[up-fp] files=448 deleted_lines=2800 heavy=12` after the S4+S5 landing (S5 alone: 446 / 2816 / 13; the +2 files are S1's `hook-pending` carries S5 was cut before) | 189 fork tests + 1 fixture moved to `*_downstream.py` siblings out of 45 upstream files; conftests → `tests/_downstream/` (3 of 4 now upstream + 1 line); tests pinned by an upstream autouse/module fixture stay with a ledger reason; the 177 in-place-edit files are the owner's upstream-PR verdict (runtime queue) |
-| S6 | planned | 1 | ↓ | SDK reach decides |
+| S6 | DONE as a stage (owner ruling 2026-09-24) | 0 | `apps/desktop`: 4 files / 92 lines, all held (uninstall PR candidate, `register_command` widening) | no census, no plugin work; the fork does not edit upstream's electron app |
 | S7 | on the read | 1 + installer | 0 | private on the operator's word |
