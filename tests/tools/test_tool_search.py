@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from typing import Dict, Any
+from typing import List, Dict, Any
 
 import pytest
 

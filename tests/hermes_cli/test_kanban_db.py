@@ -1,5 +1,7 @@
 """Tests for the Kanban DB layer (hermes_cli.kanban_db)."""
 
+import hermes_cli.kanban_db_dispatch as _owner_hermes_cli_kanban_db_dispatch
+import hermes_cli.kanban_db_workspace as _owner_hermes_cli_kanban_db_workspace
 from __future__ import annotations
 
 import json

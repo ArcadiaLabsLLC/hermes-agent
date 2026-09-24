@@ -1,5 +1,6 @@
 """Tests for agent/skill_commands.py — skill slash command scanning and platform filtering."""
 
+from pathlib import Path
 import os
 from unittest.mock import patch
 

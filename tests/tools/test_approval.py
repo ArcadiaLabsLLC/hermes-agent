@@ -16,6 +16,7 @@ from tools import path_identity
 from tools import approval_context, approval_detection
 from tools import approval_smart
 from tools.approval import approve_session, detect_dangerous_command, detect_hardline_command, is_approved, load_permanent, prompt_dangerous_approval
+from tools.approval_detection import _is_verification_artifact_cleanup, _windows_spelling_of_msys_path
 from tools.approval_context import _get_approval_mode
 from tools.approval_context import _normalize_approval_mode
 from tools.approval_smart import _smart_approve

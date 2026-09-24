@@ -19,7 +19,7 @@ from unittest.mock import patch
 import pytest
 
 from hermes_cli.main_web_build import _build_web_ui
-from hermes_cli.main_web_build import _web_ui_build_needed, _missing_web_build_tool, _write_web_ui_build_stamp
+from hermes_cli.main_web_build import _web_ui_build_needed, _missing_web_build_tool, _web_ui_stamp_path, _write_web_ui_build_stamp
 from hermes_cli.update_cmd import _web_build_toolchain_ready
 
 
