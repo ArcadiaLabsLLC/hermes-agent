@@ -71,7 +71,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-24 (lane CARRY2B)
 
-- [ ] **`hermes_cli.plugins_discovery` reads the enable lists, so upstream's `_enable` patch on `hermes_cli.plugins` is dead: `test_entry_point_not_enabled_is_skipped` / `test_entry_point_disabled_wins_over_enabled` pass vacuously on the fork** · `fork / upstream` · the two enable-needing tests are strict xfails with a sibling; either keep the seam live on `hermes_cli.plugins` or accept the vacuous pair · evidence: `tests/providers/test_entry_point_discovery_downstream.py` · filed by lane CARRY2B 2026-09-24 **UNCLAIMED** **TAKEN 2026-09-24 FORK-CODE**
 - [ ] **`_live_system_guard`'s backend-spawn classifier (`tests/conftest.py`) reads `gateway` inside the comments of an `sh -c` script and refuses it as a backend start** · `fork / suite` · stage2 keygen's 8 tests ride `spawns_gateway_lookalike` by id to get past it; classify the executed command, not the script text · evidence: lane CARRY2B `.lane-logs/tools_up.log` (test_stage2_hook_api_server_keygen) · filed by lane CARRY2B 2026-09-24 **UNCLAIMED**
 
 ## Filed on arrival — 2026-09-24 (lane REDS2)

@@ -75,3 +75,35 @@ def test_entry_point_failure_is_isolated(monkeypatch):
         assert providers.get_provider_profile("ep-callable") is not None
     finally:
         _clear_provider_caches()
+
+
+def _ep_callable_loads(monkeypatch, *enabled, disabled=()) -> bool:
+    fake_eps = _FakeEntryPoints([_FakeEP("ep-callable", _register_via_callable)])
+    import importlib.metadata as md
+
+    monkeypatch.setattr(md, "entry_points", lambda: fake_eps)
+    _enable(monkeypatch, *enabled, disabled=disabled)
+    _clear_provider_caches()
+    try:
+        return providers.get_provider_profile("ep-callable") is not None
+    finally:
+        _clear_provider_caches()
+
+
+def test_entry_point_not_enabled_is_skipped(monkeypatch):
+    """Upstream's copy passes vacuously on the fork (its ``_enable`` never reaches
+    the gate, so nothing is enabled); this one gates through the real reader,
+    with the enabled case as its positive control."""
+
+    assert _ep_callable_loads(monkeypatch, "ep-callable") is True
+    assert _ep_callable_loads(monkeypatch, "some-other-plugin") is False
+
+
+def test_entry_point_disabled_wins_over_enabled(monkeypatch):
+    """Same vacuity as above; the enabled-only load is the control."""
+
+    assert _ep_callable_loads(monkeypatch, "ep-callable") is True
+    assert (
+        _ep_callable_loads(monkeypatch, "ep-callable", disabled=("ep-callable",))
+        is False
+    )
