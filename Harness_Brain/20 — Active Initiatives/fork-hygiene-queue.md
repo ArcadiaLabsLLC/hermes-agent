@@ -81,7 +81,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-24 (program-end gate on `c7652475cd`)
 
-- [ ] **`tests/hermes_cli/test_custom_provider_model_switch.py::test_custom_endpoint_switch_prunes_stale_model_config_pool_entry` hangs to the 30 s thread timeout under the bundled gate (rerun alone in the same run: timeout again)** · `fork / suite` · the trace ends in `self._condition.wait(timeout)` at line 101; find what the test waits on that never arrives when the box is loaded, or mark it with the real reason; not reproduced outside a gate run · evidence: `X:/wt/_holds/gate-final-2026-09-24.log` (program-end gate, 8 workers, 1231 s) **UNCLAIMED** **TAKEN 2026-09-24 TESTS**
 - [ ] **`tests/hermes_cli/test_minimax_oauth.py::test_refresh_error_body_bounded_and_readable_with_real_client` is red in its bundle and green on the rerun alone** · `fork / suite` · a co-member leaves a client or transport patched; bisect the bundle pairwise (REDS2 method, `016a6cd71e`) and fix the leak or add the observed pair to `scripts/test_bundles_unbundled.txt` · evidence: `X:/wt/_holds/gate-final-2026-09-24.log` ("red in bundle" line) **UNCLAIMED** **TAKEN 2026-09-24 TESTS**
 
 ## Filed on arrival — 2026-09-24 (lane LEDGER-DOCS)

@@ -626,6 +626,28 @@ def _no_real_orphan_reap(request, monkeypatch):
     monkeypatch.setattr(_gateway, "_reap_unsupervised_gateway_orphans", lambda *_a, **_k: False)
 
 
+_NO_OLLAMA_SHOW_PROBE_MARK = "no_ollama_show_probe"
+
+
+@pytest.fixture(autouse=True)
+def _no_ollama_show_probe(request, monkeypatch):
+    """Keep an upstream model-flow test off the network's DNS.
+
+    ``agent.model_metadata._ollama_show`` POSTs ``<base_url>/api/show`` with
+    httpx; its timeout bounds the connection, not the ``getaddrinfo`` in front
+    of it, so a slow resolver for a fixture host (``new.example.test``) hangs
+    the test past the fork's 30 s cap (measured in the program-end gate of
+    2026-09-24, stack ending in ``socket.getaddrinfo``). For the ids
+    ``tests/_downstream/id_markers.py`` marks, the probe answers "no Ollama
+    metadata", which is what an unreachable fixture host answers anyway.
+    """
+    if request.node.get_closest_marker(_NO_OLLAMA_SHOW_PROBE_MARK) is None:
+        return
+    import agent.model_metadata as _metadata
+
+    monkeypatch.setattr(_metadata, "_ollama_show", lambda *_a, **_k: None)
+
+
 _BACKGROUND_AGENT_TURNS_MARK = "background_agent_turns"
 
 
@@ -759,6 +781,12 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         f"{NO_LIVE_GATEWAY_MARK}: the test's premise is that no hermes gateway runs "
         "on this machine (it reads the real fleet process table); it skips, naming "
         "the live pids, where one does (applied by id from "
+        "tests/_downstream/id_markers.py).",
+    )
+    config.addinivalue_line(
+        "markers",
+        f"{_NO_OLLAMA_SHOW_PROBE_MARK}: agent.model_metadata._ollama_show answers None, "
+        "so a fixture endpoint never reaches DNS (applied by id from "
         "tests/_downstream/id_markers.py).",
     )
     config.addinivalue_line(
