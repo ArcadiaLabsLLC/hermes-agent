@@ -19,7 +19,7 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `.github/workflows/tests.yml` | 108 | 3 | carry | unreviewed | - |
 | `.gitignore` | 32 | 0 | carry | unreviewed | - |
 | `AGENTS.md` | 4 | 0 | carry | unreviewed | - |
-| `README.md` | 6 | 1 | carry | unreviewed | - |
+| `README.md` | 7 | 1 | carry | unreviewed | - |
 | `agent/agent_init.py` | 30 | 4 | carry | ours: MC init-phase timing receipts (`agent_runtime.init_observability`), `blocked_tool_names` pass-through, `local-llama-hermes` managed-context floor exemption, `session_usage_ledger` seed — replaces upstream lines: the `_load_tools` signature/call and the MINIMUM_CONTEXT_LENGTH condition; not movable: call sites inside `init_agent`; the timing retires only through a widening PR (no init-phase hook in VALID_HOOKS) | - |
 | `agent/anthropic_adapter.py` | 37 | 2 | upstream | PR candidate: a lazy SDK install refused mid-turn is logged with its install command and does not latch None (class G1 turn-safe lazy installs, with `tools/lazy_deps.py`) | S3 |
 | `agent/auxiliary_client.py` | 19 | 42 | upstream | superseded by upstream `aux_probe_mode`/`_AuxProbeClientStub`@55f9e472a0: adopt theirs, delete ours — the fork deleted upstream's probe (−42) and aliased it to `agent_runtime.auxiliary_probe`; the gpt-6 tier tuple is upstream @79ec1f2a34; the `_note_client_construction` counter (3 sites) is ours, carry additively | S4 |
