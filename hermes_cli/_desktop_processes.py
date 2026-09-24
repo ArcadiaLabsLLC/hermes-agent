@@ -7,7 +7,7 @@ from pathlib import Path
 class _PsutilDesktopProcessLister:
     """The production lister for the build-lock sweep: the live table.
 
-    Satisfies ``hermes_cli.profiles._ProcessLister``. Imports of the shared
+    Satisfies ``agent_runtime.profile_processes._ProcessLister``. Imports of the shared
     types are function-local because this module's import cost is measured
     (see ``_boot_clock``) and the sweep is a Windows-only, rebuild-time path.
     """
@@ -18,7 +18,7 @@ class _PsutilDesktopProcessLister:
         except Exception:
             # No inspector on this machine — the typed "cannot look" arm.
             return None
-        from hermes_cli.profiles import _ProcessTable
+        from agent_runtime.profile_processes import _ProcessTable
 
         return _ProcessTable(
             self_pid=os.getpid(),
@@ -33,7 +33,7 @@ class _PsutilDesktopProcessLister:
     @staticmethod
     def _iter_processes(psutil):
         """Yield lazily: the caller filters rows as they arrive."""
-        from hermes_cli.profiles import _ProcessFacts
+        from agent_runtime.profile_processes import _ProcessFacts
 
         try:
             rows = psutil.process_iter(["pid", "exe"])

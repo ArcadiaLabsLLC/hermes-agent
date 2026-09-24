@@ -107,8 +107,6 @@ def ensure_dependency(dep: str, interactive: bool = True) -> bool:
     result = subprocess.run(cmd, env=run_env, stdin=subprocess.DEVNULL)
     if result.returncode != 0:
         return False
-    from hermes_constants import reset_agent_browser_probe_cache
-    reset_agent_browser_probe_cache()
     return check()
 
 

@@ -15859,14 +15859,6 @@
     "profile delete": {
       "exclusive_groups": [],
       "options": {
-        "--force-unverified-writers": {
-          "action": "store_true",
-          "canonical": "--force-unverified-writers",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
         "--help": {
           "action": "help",
           "canonical": "--help",
