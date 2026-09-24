@@ -283,12 +283,9 @@ def _profile_create(args):
 
 
 def _profile_delete(args):
-    from hermes_cli.profiles import delete_profile, ProfileDeleteBlocked
+    from hermes_cli.profiles import delete_profile
     try:
-        delete_profile(args.profile_name, yes=getattr(args, "yes", False),
-            force_unverified_writers=getattr(args, "force_unverified_writers", False))
-    except ProfileDeleteBlocked as e:
-        _die(f"Refused [{e.code}]: {e}")
+        delete_profile(args.profile_name, yes=getattr(args, "yes", False))
     except (ValueError, FileNotFoundError, RuntimeError) as e:
         _die(f"Error: {e}")
 

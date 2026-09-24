@@ -798,17 +798,6 @@ def with_hermes_node_path(env: dict[str, str] | None = None) -> dict[str, str]:
     return merged
 
 
-# path -> ``--version`` verdict. Only the spawn is memoised; the cheap existence gates in
-# ``agent_browser_runnable`` still run on every call, so a deleted binary or a dangling symlink
-# (#48521) is never answered from here. Cleared by ``reset_agent_browser_probe_cache``.
-_AGENT_BROWSER_PROBE_CACHE: dict[str, bool] = {}
-
-
-def reset_agent_browser_probe_cache() -> None:
-    """Forget every memoised ``--version`` verdict (after an install/repair that may fix a candidate)."""
-    _AGENT_BROWSER_PROBE_CACHE.clear()
-
-
 def agent_browser_runnable(path: str | None) -> bool:
     """True when *path* is an agent-browser CLI that runs (``--version`` exits 0) or the npx fallback.
 
@@ -825,12 +814,7 @@ def agent_browser_runnable(path: str | None) -> bool:
     # The npx fallback is a two-token command string, not a path; npx validates at run time.
     if " " in path and path.split()[0].endswith("npx"):
         return True
-    if not _is_executable_file(path):
-        return False
-    cached = _AGENT_BROWSER_PROBE_CACHE.get(path)
-    if cached is None:
-        cached = _AGENT_BROWSER_PROBE_CACHE[path] = _version_probe_ok(path)
-    return cached
+    return _is_executable_file(path) and _version_probe_ok(path)
 
 
 def _legacy_path_has_content(path: Path) -> bool:
