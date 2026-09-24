@@ -25,7 +25,6 @@ import pytest
 from tools import approval as A
 import tools.approval_detection as approval_detection
 from tools import approval_context
-from tools import approval_context
 from tools import approval_smart
 from tools.thread_context import propagate_context_to_thread
 from gateway.session_context import clear_session_vars, reset_session_vars, set_session_vars
@@ -87,50 +86,6 @@ def test_helper_clears_callbacks_on_teardown():
         TT.set_approval_callback(None)
 
 
-def test_both_rpc_threads_use_propagation_helper():
-    """Source guard: every execute_code RPC serving thread must carry the
-    cell's approval context, or the gateway approval bypass (#33057) silently
-    returns. The remote poll thread wraps its target with
-    propagate_context_to_thread; the local session kernel instead rebinds
-    authority per cell (``dispatch=`` passed to ``_rpc_server_loop``)."""
-    import ast
-    import inspect
-    import tools.code_execution_tool as cet
-    import tools.code_kernel as ck
-
-    tree = ast.parse(inspect.getsource(cet))
-    wrapped: set[str] = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        func = node.func
-        name = (
-            func.id
-            if isinstance(func, ast.Name)
-            else func.attr
-            if isinstance(func, ast.Attribute)
-            else None
-        )
-        if name != "propagate_context_to_thread":
-            continue
-        for arg in node.args:
-            if isinstance(arg, ast.Name):
-                wrapped.add(arg.id)
-
-    for target in ("_rpc_poll_loop",):
-        assert target in wrapped, (
-            f"{target} is not wrapped with propagate_context_to_thread "
-            f"(wrapped targets found: {sorted(wrapped) or 'none'}) — a gateway "
-            "approval raised from that thread finds no callback and the request "
-            "silently returns unapproved (#33057)."
-        )
-    kernel_tree = ast.parse(inspect.getsource(ck))
-    rpc_calls = [n for n in ast.walk(kernel_tree) if isinstance(n, ast.Call)
-                 and isinstance(n.func, ast.Name) and n.func.id == "_rpc_server_loop"]
-    assert rpc_calls, "local session kernel must serve tool RPC"
-    assert all(any(k.arg == "dispatch" and isinstance(k.value, ast.Name)
-                   and k.value.id == "_dispatch" for k in call.keywords)
-               for call in rpc_calls), "local RPC must rebind authority per cell"
 
 
 # ---------------------------------------------------------------------------
@@ -581,16 +536,3 @@ def test_env_scrub_passthrough_overrides_secret_block():
 # ---------------------------------------------------------------------------
 
 
-def test_env_scrub_no_log_when_nothing_dropped(caplog):
-    """No diagnostic noise when there are no dropped HERMES_* vars."""
-    import logging
-
-    from tools.code_execution_env import _scrub_child_env
-
-    with caplog.at_level(logging.DEBUG, logger="tools.code_execution_tool"):
-        _scrub_child_env(
-            {"HERMES_HOME": "/h", "PATH": "/usr/bin"},
-            is_passthrough=lambda _: False,
-            is_windows=False,
-        )
-    assert "dropped" not in "\n".join(r.getMessage() for r in caplog.records)

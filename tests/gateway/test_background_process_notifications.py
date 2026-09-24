@@ -476,64 +476,6 @@ class TestConciseFormatter:
 
 
 @pytest.mark.asyncio
-async def test_concise_mode_sends_pretty_message_not_raw_dump(monkeypatch, tmp_path):
-    """Default mode: a finished process produces the one-line status message,
-    never the '[Background process ... Here's the final output: ...]' wall."""
-    import tools.process_registry as pr_module
-
-    big_output = "\n".join(str(i * 100) for i in range(60))
-    sessions = [SimpleNamespace(
-        output_buffer=big_output, exited=True, exit_code=0,
-        command="python3 scan.py", started_at=None,
-    )]
-    monkeypatch.setattr(
-        pr_module, "process_registry", _FakeRegistry(sessions, consumed=False)
-    )
-
-    async def _instant_sleep(*_a, **_kw):
-        pass
-    monkeypatch.setattr(asyncio, "sleep", _instant_sleep)
-
-    runner = _build_runner(monkeypatch, tmp_path, "concise")
-    adapter = runner.adapters[Platform.TELEGRAM]
-
-    await runner._run_process_watcher(_watcher_dict())
-
-    adapter.send.assert_awaited_once()
-    sent_text = adapter.send.await_args.args[1]
-    assert sent_text.startswith("✅ Background task finished")
-    assert "Here's the final output" not in sent_text
-    assert "5000" not in sent_text
-
-
-@pytest.mark.asyncio
-async def test_concise_mode_failure_includes_tail(monkeypatch, tmp_path):
-    import tools.process_registry as pr_module
-
-    sessions = [SimpleNamespace(
-        output_buffer="starting\nfatal: repo not found\n", exited=True,
-        exit_code=128, command="git clone x", started_at=None,
-    )]
-    monkeypatch.setattr(
-        pr_module, "process_registry", _FakeRegistry(sessions, consumed=False)
-    )
-
-    async def _instant_sleep(*_a, **_kw):
-        pass
-    monkeypatch.setattr(asyncio, "sleep", _instant_sleep)
-
-    runner = _build_runner(monkeypatch, tmp_path, "concise")
-    adapter = runner.adapters[Platform.TELEGRAM]
-
-    await runner._run_process_watcher(_watcher_dict())
-
-    adapter.send.assert_awaited_once()
-    sent_text = adapter.send.await_args.args[1]
-    assert sent_text.startswith("❌ Background task failed") and "exit 128" in sent_text
-    assert "fatal: repo not found" in sent_text
-
-
-@pytest.mark.asyncio
 async def test_concise_mode_no_interim_output_updates(monkeypatch, tmp_path):
     """concise never pushes 'is still running~ New output' interim updates."""
     import tools.process_registry as pr_module

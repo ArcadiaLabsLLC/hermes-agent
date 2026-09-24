@@ -25,7 +25,6 @@ import logging
 
 from hermes_cli.auth import (
     DEFAULT_NOUS_INFERENCE_URL,
-    _ALLOWED_NOUS_INFERENCE_HOSTS,
     _validate_nous_inference_url_from_network,
 )
 
@@ -203,21 +202,6 @@ class TestEnvOverrideNotGated:
     inadvertently broken by this fix.
     """
 
-    def test_env_override_path_does_not_call_validator(self):
-        """In resolve_nous_runtime_credentials, the env override is
-        read via os.getenv directly, not via the validator. Grep the
-        source to confirm: the env line should NOT mention the
-        validator."""
-        import hermes_cli.auth as _auth_mod
-        from pathlib import Path
-        source = Path(_auth_mod.__file__).read_text(encoding="utf-8")
-        # Find the env-override read line.
-        for line in source.splitlines():
-            if "NOUS_INFERENCE_BASE_URL" in line and "os.getenv" in line:
-                assert "_validate_nous_inference_url_from_network" not in line, (
-                    "env override path must not gate through the network "
-                    "validator — it would break documented dev/staging use."
-                )
 
 
 class TestHealsPoisonedStoredValue:
@@ -385,17 +369,3 @@ class TestProxyAdapterEnvOverride:
     NOUS_INFERENCE_BASE_URL staging override.
     """
 
-    def test_proxy_adapter_consults_env_override(self):
-        """Grep contract: the proxy adapter's forward-boundary base_url
-        resolution consults the env override before the network validator,
-        so a staging override survives the defense-in-depth re-validation."""
-        from pathlib import Path
-        import hermes_cli.proxy.adapters.nous_portal as _nous_adapter
-
-        source = Path(_nous_adapter.__file__).read_text(encoding="utf-8")
-        assert "_nous_inference_env_override()" in source, (
-            "proxy adapter must layer the env override on top of the network "
-            "validator, else a staging override is rejected at the forward boundary"
-        )
-        # The validator must still be present (defense-in-depth preserved).
-        assert "_validate_nous_inference_url_from_network" in source

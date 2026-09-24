@@ -275,12 +275,27 @@ def _under_gateway_supervisor(argv: list) -> bool:
 def _desktop_ssh_backend(argv: list) -> bool:
     """A Desktop-owned ``serve --ssh-session-token-file`` child has a fixed identity too.
 
-    The Desktop client names the remote profile explicitly (``--profile <name>``, or none for
-    the root home). Following the remote host's sticky ``active_profile`` instead silently
-    re-homes the backend into a profile the UI never asked for, so Settings read one
-    ``config.yaml`` and the user edits another (KC's "nothing sticks over SSH").
+    Upstream's authority is ``hermes_cli._startup_fast.is_desktop_ssh_backend_argv``;
+    this seam delegates to it rather than keeping a second spelling of the argv check.
     """
-    return "--ssh-session-token-file" in argv
+    from hermes_cli import _startup_fast
+
+    return _startup_fast.is_desktop_ssh_backend_argv(argv)
+
+def _s6_supervised_gateway_run(argv: list) -> bool:
+    """A bare ``gateway run`` inside the s6 image names the ``gateway-default`` slot too.
+
+    Ported from upstream ``hermes_cli.main._s6_supervised_gateway_run`` (the fork's
+    profile override lives here, not in ``main.py``). ``--no-supervise`` keeps the
+    foreground run, which follows ``active_profile`` as before (#22502).
+    """
+    words = [a for a in argv if not a.startswith("-")]
+    if words[:2] != ["gateway", "run"] or "--no-supervise" in argv:
+        return False
+    if os.environ.get("HERMES_GATEWAY_NO_SUPERVISE", "").lower() in ("1", "true", "yes"):
+        return False
+    from hermes_cli.service_manager import _s6_running
+    return _s6_running()
 
 def apply_profile_override() -> None:
     """Pre-parse --profile/-p and set HERMES_HOME before imports."""
@@ -307,7 +322,9 @@ def apply_profile_override() -> None:
     if profile_name is None and hermes_home_env and os.environ.get("HERMES_UPDATE_POST_SWAP") == "1":
         return
 
-    if profile_name is None and not _under_gateway_supervisor(argv) and not _desktop_ssh_backend(argv):
+    if (profile_name is None and not _under_gateway_supervisor(argv)
+            and not _desktop_ssh_backend(argv)
+            and not _s6_supervised_gateway_run(argv)):
         try:
             from hermes_constants import get_default_hermes_root
 

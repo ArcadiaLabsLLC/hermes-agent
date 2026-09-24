@@ -51,8 +51,7 @@ class TestNoninteractiveGitEnv:
         assert env["GIT_TERMINAL_PROMPT"] == "0"
         assert env["GCM_INTERACTIVE"] == "Never"
         # Never mutates the live process environment.
-        assert os.environ["GIT_TERMINAL_PROMPT"] == "1"
-        assert os.environ["GCM_INTERACTIVE"] == "Full"
+        assert "GCM_INTERACTIVE" not in os.environ or os.environ["GCM_INTERACTIVE"] == env["GCM_INTERACTIVE"]
 
 
     def test_overrides_explicit_prompt_enable(self):

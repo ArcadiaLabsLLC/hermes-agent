@@ -120,20 +120,8 @@ def _skill_utils_delegate(attr: str):
 
 skill_matches_platform = _skill_utils_delegate("skill_matches_platform")
 # Offer-time relevance gate (kanban/docker/s6), NOT hard compatibility; explicit loads bypass it.
-def skill_matches_environment(frontmatter: Dict[str, Any]) -> bool:
-    """Check if a skill is relevant to the current runtime environment.
-
-    Delegates to ``agent.skill_utils.skill_matches_environment`` — kept here
-    as a public re-export so existing callers don't need updating. This is an
-    offer-time relevance gate (kanban/docker/s6), NOT a hard-compatibility gate;
-    explicit skill loads bypass it.
-    """
-    try:
-        from agent.skill_utils import skill_matches_environment as _impl
-        return _impl(frontmatter)
-    except ImportError:
-        environments = frontmatter.get("environments") if isinstance(frontmatter, dict) else None
-        return not environments
+skill_matches_environment = _skill_utils_delegate("skill_matches_environment")
+skill_matches_apps = _skill_utils_delegate("skill_matches_apps")
 _parse_frontmatter = _skill_utils_delegate("parse_frontmatter")
 _get_disabled_skill_names = _skill_utils_delegate("get_disabled_skill_names")
 
@@ -232,7 +220,7 @@ def _find_all_skills(*, skip_disabled: bool = False) -> List[Dict[str, Any]]:
                 continue
             try:
                 frontmatter, body = _parse_frontmatter(_read_skill_text(skill_md)[:4000])
-                if not skill_matches_platform(frontmatter) or not skill_matches_environment(frontmatter):
+                if not skill_matches_platform(frontmatter) or not skill_matches_environment(frontmatter) or not skill_matches_apps(frontmatter):
                     continue
                 if active_surface and not skill_frontmatter_runtime_compatibility(
                     frontmatter, surface=active_surface, root_node_mode=root_node_mode).get("compatible"):

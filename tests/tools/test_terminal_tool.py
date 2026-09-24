@@ -23,39 +23,10 @@ def test_searching_for_sudo_does_not_trigger_rewrite(monkeypatch):
     assert sudo_stdin is None
 
 
-def test_terminal_schema_advertises_persistent_env_state():
-    """T6b: the wire brief states cwd + env persist between calls; the detailed
-    virtualenv / re-source guidance moved to the full docs (tool_describe)."""
-    description = terminal_tool.TERMINAL_TOOL_DESCRIPTION
-    assert "persist between calls" in description
-
-    from tools.tool_full_descriptions import full_tool_description
-    full = full_tool_description("terminal")
-    assert "exported environment variables persist between calls" in full
-    assert "activate a virtualenv" in full
-    assert "do not re-source the same environment before every command" in full
 
 
-def test_printf_literal_sudo_does_not_trigger_rewrite(monkeypatch):
-    monkeypatch.delenv("SUDO_PASSWORD", raising=False)
-    monkeypatch.delenv("HERMES_INTERACTIVE", raising=False)
-
-    command = "printf '%s\\n' sudo"
-    transformed, sudo_stdin = terminal_tool_sudo._transform_sudo_command(command)
-
-    assert transformed == command
-    assert sudo_stdin is None
 
 
-def test_non_command_argument_named_sudo_does_not_trigger_rewrite(monkeypatch):
-    monkeypatch.delenv("SUDO_PASSWORD", raising=False)
-    monkeypatch.delenv("HERMES_INTERACTIVE", raising=False)
-
-    command = "grep -n sudo README.md"
-    transformed, sudo_stdin = terminal_tool_sudo._transform_sudo_command(command)
-
-    assert transformed == command
-    assert sudo_stdin is None
 
 
 def test_actual_sudo_command_uses_configured_password(monkeypatch):

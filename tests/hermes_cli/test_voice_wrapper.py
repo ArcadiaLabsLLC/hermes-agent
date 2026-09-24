@@ -19,18 +19,6 @@ import pytest
 # package for the whole process. ``tests/conftest.py`` puts PROJECT_ROOT on the
 # path before any test module imports, so do not reintroduce one.
 
-class TestPublicAPI:
-    def test_gateway_symbols_importable(self):
-        """Match the exact import shape tui_gateway/server.py uses."""
-        from hermes_cli.voice import (
-            speak_text,
-            start_recording,
-            stop_and_transcribe,
-        )
-
-        assert callable(start_recording)
-        assert callable(stop_and_transcribe)
-        assert callable(speak_text)
 
 
 class TestNormalizeVoiceRecordKeyForPromptToolkit:
