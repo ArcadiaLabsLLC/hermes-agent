@@ -325,3 +325,49 @@ bundles ran 332 s and 302 s (both green), so the tail is set by bundle length,
 not by one file. The next lever is the re-run strategy (queue row: re-bundle a
 dead bundle's remainder instead of running it one file at a time), not bundle
 size.
+
+## 11. The fork-only gate (lane POLISH, 2026-09-24)
+
+Branch `fork/suite-polish-2026-09-24`. The landing gate stops running
+upstream's tests. Owner ruling 2026-09-24: the fork keeps a baseline of its
+own; the full inherited set runs at the weekly upstream merge.
+
+What changed. `scripts/run_tests_bundled.py --scope fork` (the default) runs
+every discovered file absent from `tests/fixtures/upstream_manifest.txt`, plus
+each inherited file the change reaches: the test file itself changed, its
+upstream-convention source (`tests/<pkg>/test_<mod>.py` → `<pkg>/<mod>.py`)
+changed, it imports a changed module, or a `conftest.py` above it changed. The
+change is `git diff --name-only origin/main...HEAD` (or `--since <ref>`) plus
+working-tree edits. `--scope full` is the old behaviour, for the weekly merge
+lane. A bundle process that dies now runs the file it died in alone and
+re-bundles the members behind it (§10's 52 one-file re-runs). The signal
+timeout method is not an option: the test venv has no `SIGALRM` on Windows,
+and pytest-timeout's default there is `thread`.
+
+Scope at the lane tip, validated directories: 1,819 discovered, **548
+fork-only**, 0 inherited reached by the lane's own diff, 1,271 left to `--scope
+full`. For comparison: a diff touching `hermes_cli/gateway.py` reaches 61
+inherited files, one touching `hermes_cli/config.py` 164, and one touching
+`tests/conftest.py` all 1,271. The selection costs ~5 s.
+
+Known reds in fork scope, probed file by file on this tree. The 2026-09-23
+class-(b) rows were already green on `main`. Two classes were still red, and
+both are fixed rather than xfailed: the serve boot's own-row refusal (class (c),
+9 tests), and the whole-tree parse in `test_stream_stale_first_routing.py`
+that killed its bundle. The red inventory of the fork-only files that neither
+source names comes from the gate run below.
+
+**The measurement — owner-run at the landing, once, idle box.** Before it
+starts, check that no `pytest` is running and no orphaned `python.exe` from
+`hermes-pytest` temp dirs is left:
+
+```
+HERMES_TEST_VENV=C:/Users/beast/.venvs/hermes-test scripts/run_tests_bundled.sh --scope fork tests/agent_runtime tests/hermes_cli > .lane-logs/gate-fork.log 2>&1; echo "EXIT=$?" >> .lane-logs/gate-fork.log
+```
+
+Record the header's `Scope fork` line, the summary line (files, bundles +
+re-bundled, passed/failed/errors/skipped, wall) and the bundle-death lines here,
+against §10's 1,802 s (30.0 min) for the whole validated scope. Take that as
+the fork gate's baseline. Classify any red that is left.
+
+Commits: `c1c1b8cbc1` (scope), `46c664dd04` (re-bundle), `bc499262d2` (the two red fixes), `030668cf4e` (quiet parse); each body carries its killing mutation and recorded red.
