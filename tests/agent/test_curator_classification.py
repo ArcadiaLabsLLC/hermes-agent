@@ -265,9 +265,7 @@ def test_reconcile_model_block_visible_in_full_report(curator_env):
     assert pruned["name"] == "stale-thing"
     assert pruned["reason"] == "pre-curator junk, no overlap with anything"
 
-    # encoding= is load-bearing: the curator writes UTF-8, and Python's
-    # Windows default (cp1252) mojibakes the em dashes this test matches on.
-    md = (run_dir / "REPORT.md").read_text(encoding="utf-8")
+    md = (run_dir / "REPORT.md").read_text()
     assert "duplicate content, now a subsection" in md
     assert "pre-curator junk" in md
 
