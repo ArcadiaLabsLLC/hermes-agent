@@ -17,7 +17,7 @@ from typing import Any, NamedTuple
 # The snapshot roster does not render per-profile model/provider settings. Use
 # the metadata-only catalog so a cold build does not parse every config.yaml.
 # Keep the local alias stable for existing monkeypatch seams/tests.
-from hermes_cli.profiles import available_profile_template_summaries as available_profile_templates
+from agent_runtime.profile_home import available_profile_template_summaries as available_profile_templates
 from hermes_time import now
 
 from . import core_cache, paths, snapshot_build_ledger

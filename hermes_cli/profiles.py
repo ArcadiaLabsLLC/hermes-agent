@@ -19,8 +19,7 @@ from typing import Callable, Dict, Iterable, Iterator, List, Mapping, Optional, 
 from hermes_cli.archive_safe import archive_root_dirs, make_targz, normalize_archive_parts, safe_extract_targz
 from hermes_constants import (
     LOCAL_RUNTIME_ROOT_DIRS, PROFILE_ID_RE, clear_named_profile_deleted, mark_named_profile_deleted,
-    named_profile_has_identity, named_profile_has_servable_identity,
-    named_profile_is_deleted, named_profile_is_live,
+    named_profile_has_identity, named_profile_is_deleted, named_profile_is_live,
 )
 
 logger = logging.getLogger(__name__)
@@ -1617,7 +1616,8 @@ def delete_profile(name: str, yes: bool = False, *, force_unverified_writers: bo
     _retarget_active_profile(canon, "default", "✓ Active profile reset to default")
     if remove_error is not None:
         raise RuntimeError(f"Could not remove profile directory {profile_dir}: {remove_error}") from remove_error
-    _mark_profile_personas_orphaned(canon)
+    from agent_runtime.profile_home import mark_profile_personas_orphaned  # fork: on_profile_deleted hook pending
+    mark_profile_personas_orphaned(canon)
     print(f"\nProfile '{canon}' deleted.")
     if not identity_settled:
         # Filesystem work and runtime teardown are done; the durable identity is not. Report the
@@ -2240,16 +2240,6 @@ class ProfileDeleteBlocked(Exception):
         self.code = code
         self.safe_details = dict(safe_details or {})
 
-@dataclass
-class ProfileTemplateInfo:
-    """Lightweight profile summary for read-only library surfaces."""
-
-    name: str
-    path: Path
-    model: Optional[str] = None
-    provider: Optional[str] = None
-    description: str = ""
-
 @dataclass(frozen=True)
 class _ProcessFacts:
     """The per-process view this module's process consumers actually read.
@@ -2373,59 +2363,3 @@ class _PsutilProcessLister:
                 continue
 
 _PROCESS_LISTER: _ProcessLister = _PsutilProcessLister()
-
-
-def available_profile_template_summaries() -> List[ProfileTemplateInfo]:
-    """Return live, servable profile metadata without parsing runtime config.
-
-    Mission Control's available-persona roster uses only the profile name,
-    path, and description. Reading every large ``config.yaml`` merely to
-    discard model/provider adds substantial latency to a cold snapshot. The
-    roster of names alone is upstream's :func:`list_profile_names`.
-    """
-
-    profiles: list[ProfileTemplateInfo] = []
-    try:
-        # A raw directory walk admits tombstones, ghost shells and crashed
-        # empty-.env profiles as placeable Launcher personas.
-        entries = _iter_named_profile_dirs()
-    except Exception:
-        return []
-
-    for entry in entries:
-        try:
-            if not named_profile_has_servable_identity(entry):
-                continue
-            name = entry.name
-            if name == "default" or not _PROFILE_ID_RE.match(name):
-                continue
-            meta = read_profile_meta(entry)
-            profiles.append(
-                ProfileTemplateInfo(
-                    name=name,
-                    path=entry,
-                    description=meta.get("description", ""),
-                )
-            )
-        except Exception:
-            continue
-
-    return profiles
-
-def _mark_profile_personas_orphaned(profile_name: str) -> None:
-    try:
-        from agent_runtime.store import AgentStore
-    except Exception:
-        return
-    store = AgentStore()
-    try:
-        personas = store.list_all()
-    except Exception:
-        return
-    for persona in personas:
-        if str(getattr(persona, "hermes_profile", "") or "") != profile_name:
-            continue
-        readiness = dict(getattr(persona, "readiness", {}) or {})
-        readiness.update({"orphaned": True, "orphaned_profile": profile_name})
-        persona.readiness = readiness
-        store.save(persona)

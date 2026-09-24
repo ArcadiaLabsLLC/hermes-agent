@@ -14,6 +14,7 @@ import pytest
 
 import hermes_constants
 from agent_runtime import profile_home
+from hermes_cli import profiles
 from hermes_constants import (
     mark_named_profile_deleted,
     reset_hermes_home_override,
@@ -153,3 +154,54 @@ class TestSharedCharactersDir:
         monkeypatch.setenv("HERMES_HOME", str(tmp_path / ".hermes" / "profiles" / "alice"))
 
         assert profile_home.get_shared_characters_dir() == override
+
+
+@pytest.fixture
+def profile_env(tmp_path, monkeypatch):
+    """``Path.home()`` -> ``tmp_path`` and ``HERMES_HOME`` -> ``tmp_path/.hermes``."""
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    default_home = tmp_path / ".hermes"
+    default_home.mkdir(exist_ok=True)
+    monkeypatch.setenv("HERMES_HOME", str(default_home))
+    monkeypatch.setattr(hermes_constants, "_default_hermes_root_memo", None)
+    return tmp_path
+
+
+def test_available_profile_template_summaries_skip_runtime_config(
+    profile_env, monkeypatch
+):
+    profile_dir = profile_env / ".hermes" / "profiles" / "alice"
+    profile_dir.mkdir(parents=True)
+    (profile_dir / "profile.yaml").write_text(
+        "description: Mission lead\n", encoding="utf-8"
+    )
+    (profile_dir / "config.yaml").write_text(
+        "model:\n  default: expensive-to-parse\n", encoding="utf-8"
+    )
+
+    def fail_config_read(_profile_dir):
+        raise AssertionError("metadata-only catalog must not parse config.yaml")
+
+    monkeypatch.setattr(profiles, "_read_config_model", fail_config_read)
+    rows = profile_home.available_profile_template_summaries()
+
+    assert [(row.name, row.description) for row in rows] == [
+        ("alice", "Mission lead")
+    ]
+    assert rows[0].model is None
+    assert rows[0].provider is None
+
+
+def test_available_profile_summaries_do_not_offer_ghost_or_crash_shell(profile_env):
+    root = profile_env / ".hermes" / "profiles"
+    ghost = root / "ghost"
+    ghost.mkdir(parents=True)
+    (ghost / "logs").mkdir()
+    crashed = root / "crashed"
+    crashed.mkdir()
+    (crashed / ".env").touch()
+    valid = root / "valid"
+    valid.mkdir()
+    (valid / "config.yaml").write_text("{}\n", encoding="utf-8")
+
+    assert [row.name for row in profile_home.available_profile_template_summaries()] == ["valid"]

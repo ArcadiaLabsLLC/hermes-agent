@@ -33,7 +33,8 @@ def reconcile_profile_personas(
     Failed discovery is never interpreted as an empty authoritative roster.
     This is an explicit write operation, not part of the config/store merge.
     """
-    from hermes_cli.profiles import available_profile_template_summaries, list_profile_names
+    from agent_runtime.profile_home import available_profile_template_summaries
+    from hermes_cli.profiles import list_profile_names
     from hermes_constants import named_profile_has_servable_identity
     from .config import load_agent_runtime_config, persona_records_from_config
     from .store import AgentStore

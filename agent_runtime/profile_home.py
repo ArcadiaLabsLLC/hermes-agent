@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import os
 from contextvars import ContextVar, Token
+from dataclasses import dataclass
 from pathlib import Path
+from typing import List, Optional
 
 import hermes_constants as _hc
 
@@ -228,3 +230,78 @@ def get_shared_characters_dir(default: Path | None = None) -> Path:
     home = _hc.get_hermes_home()
     root = home.parent.parent if home.parent.name == "profiles" else home
     return root / "shared" / "characters"
+
+
+@dataclass
+class ProfileTemplateInfo:
+    """Lightweight profile summary for read-only library surfaces."""
+
+    name: str
+    path: Path
+    model: Optional[str] = None
+    provider: Optional[str] = None
+    description: str = ""
+
+
+def available_profile_template_summaries() -> List[ProfileTemplateInfo]:
+    """Return live, servable profile metadata without parsing runtime config.
+
+    Mission Control's available-persona roster uses only the profile name,
+    path, and description. Reading every large ``config.yaml`` merely to
+    discard model/provider adds substantial latency to a cold snapshot. The
+    roster of names alone is upstream's :func:`list_profile_names`.
+    """
+
+    from hermes_cli.profiles import _PROFILE_ID_RE, _iter_named_profile_dirs, read_profile_meta
+
+    profiles: list[ProfileTemplateInfo] = []
+    try:
+        # A raw directory walk admits tombstones, ghost shells and crashed
+        # empty-.env profiles as placeable Launcher personas.
+        entries = _iter_named_profile_dirs()
+    except Exception:
+        return []
+
+    for entry in entries:
+        try:
+            if not _hc.named_profile_has_servable_identity(entry):
+                continue
+            name = entry.name
+            if name == "default" or not _PROFILE_ID_RE.match(name):
+                continue
+            meta = read_profile_meta(entry)
+            profiles.append(
+                ProfileTemplateInfo(
+                    name=name,
+                    path=entry,
+                    description=meta.get("description", ""),
+                )
+            )
+        except Exception:
+            continue
+
+    return profiles
+
+
+def mark_profile_personas_orphaned(profile_name: str) -> None:
+    """Mark every harness persona bound to a just-deleted profile as orphaned.
+
+    Called by ``hermes_cli.profiles.delete_profile`` (one carried call line until
+    upstream has an ``on_profile_deleted`` hook the harness plugin can consume).
+    """
+    try:
+        from agent_runtime.store import AgentStore
+    except Exception:
+        return
+    store = AgentStore()
+    try:
+        personas = store.list_all()
+    except Exception:
+        return
+    for persona in personas:
+        if str(getattr(persona, "hermes_profile", "") or "") != profile_name:
+            continue
+        readiness = dict(getattr(persona, "readiness", {}) or {})
+        readiness.update({"orphaned": True, "orphaned_profile": profile_name})
+        persona.readiness = readiness
+        store.save(persona)
