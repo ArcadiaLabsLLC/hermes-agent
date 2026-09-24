@@ -47,4 +47,4 @@ Retired with the old method: the per-file "reconcile X with upstream" prompt, it
 
 - Conflicts cluster in the 22 heavy fork-edited upstream files ([[Fork Boundary Map]]); nothing in `agent_runtime/` or `harness_parts/` conflicts.
 - Upstream renames tools (`cronjob`/`process`/`todo` → `*_manage`, `todo_list`); the fork's toolset manifest gate (`scripts/dump_toolset_manifest.py`) will red on a rename — regenerate after reading the diff.
-- The fork's CI is not a check until its trigger is fixed (queue row); assume nothing ran that you did not run.
+- The fork's CI runs on `main` but is red on every run (queue row); a red it reports is not yet a signal, so assume nothing passed that you did not run.

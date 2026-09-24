@@ -60,6 +60,6 @@ Rules used: branch cut from `upstream/main` (never from the fork), `fix/…` / `
 
 ## Related
 
-- The fork's own CI has not run on `main` since 2026-09-07 (gh run list) — a merge candidate nobody tests is the old branch again. Row in [[fork-hygiene-queue]].
+- The fork's own CI runs on every push to `main` (68 `ci.yaml` runs since 2026-09-15) but has not been green once — a merge candidate nobody gets a green signal on is the old branch again. Row in [[fork-hygiene-queue]] (lane LEDGER-DOCS, 2026-09-24).
 - The upstream tool dividend (26 upstream-only tool names, three renames) is recorded in the launcher's Mission Control program note as "planned, deliberately not rowed"; the SessionDB dividend (+146 upstream commits on `hermes_state*`, fork touch +98/−5) merges nearly free.
 - The 2026-09-15 history reconstruction pinned upstream `110baa095b` — [[0005 — Fork history reconstruction 2026-09-15]].
