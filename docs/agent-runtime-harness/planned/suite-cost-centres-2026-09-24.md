@@ -8,7 +8,7 @@ hermes landing's gate run take so long?" in `fork-hygiene-queue.md`.
 (process create → pytest session start) was **12.2 s in the fork against
 1.1 s upstream**, and a median file then spent **1.3 s running its tests**.
 Three fork-owned conftest costs paid at import, in every one of ~1,840
-per-file processes, were most of the wall. They are fixed in `180bb82d5f`.
+per-file processes, were most of the wall. They are fixed in `76e6fb0dc8`.
 
 ## How it was measured
 
@@ -269,6 +269,6 @@ this note could not). One bullet per would-be commit:
 
 ## Fixes landed in this lane
 
-`180bb82d5f perf(suite): retire the fork's per-file session-start cost` —
+`76e6fb0dc8 perf(suite): retire the fork's per-file session-start cost` —
 fixes 1–3 above, with the four killing mutations and their reds recorded in
 the commit body.
