@@ -44,6 +44,7 @@ from hermes_cli.plugins_manifest import (  # noqa: F401 — re-exported
 )
 from hermes_cli.plugins_discovery import (  # noqa: F401 — re-exported
     ENTRY_POINTS_GROUP, _get_disabled_plugins, _get_enabled_plugins, collect_directory_manifests,
+    collect_declared_cli_manifests,
     discover_entrypoint_manifests, gate_manifest, scan_directory,
 )
 from hermes_cli.plugins_loader import (
@@ -1630,7 +1631,7 @@ def discover_declared_cli_commands() -> List[Dict[str, Any]]:
     """
     if _env_enabled("HERMES_SAFE_MODE"):
         return []
-    winners = {manifest_key(m): m for m in collect_directory_manifests()}
+    winners = {manifest_key(m): m for m in collect_declared_cli_manifests()}
     config = load_config_readonly()  # one read serves both lists
     disabled, enabled = _get_disabled_plugins(config), _get_enabled_plugins(config)
     commands: List[Dict[str, Any]] = []

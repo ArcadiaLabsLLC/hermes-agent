@@ -146,3 +146,33 @@ def test_the_declared_scan_reads_config_once(two_bundled_plugins, monkeypatch):
     assert len(reads) == 1
     # The one read is the one the gate used: beta is disabled by it.
     assert names == ["alpha"]
+
+
+def test_the_declared_scan_parses_only_declaring_manifests(two_bundled_plugins, monkeypatch, tmp_path):
+    from hermes_cli import plugins_discovery
+
+    bundled = plugins_mod.get_bundled_plugins_dir()
+    for name in ("gamma", "delta"):  # no cli_commands: must never be parsed
+        (bundled / name).mkdir()
+        (bundled / name / "plugin.yaml").write_text(f"name: {name}\nkind: backend\n", encoding="utf-8")
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path / "home"))
+    parsed = []
+    real = plugins_discovery.parse_manifest_file
+    monkeypatch.setattr(plugins_discovery, "parse_manifest_file",
+                        lambda f, d, *a: parsed.append(d.name) or real(f, d, *a))
+
+    names = sorted(c["name"] for c in plugins_mod.discover_declared_cli_commands())
+
+    assert names == ["alpha", "beta"]
+    assert sorted(parsed) == ["alpha", "beta"]
+
+
+def test_a_later_manifest_without_cli_commands_still_overrides_a_declaring_one(
+        two_bundled_plugins, monkeypatch, tmp_path):
+    home = tmp_path / "home"
+    (home / "plugins" / "alpha").mkdir(parents=True)
+    (home / "plugins" / "alpha" / "plugin.yaml").write_text("name: alpha\nkind: backend\n", encoding="utf-8")
+    monkeypatch.setenv("HERMES_HOME", str(home))
+
+    # The user copy of alpha wins precedence and declares nothing: alpha's command is gone.
+    assert sorted(c["name"] for c in plugins_mod.discover_declared_cli_commands()) == ["beta"]

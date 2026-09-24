@@ -10,7 +10,7 @@ import importlib.metadata
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Optional, Set
+from typing import Any, Iterator, List, Optional, Set, Tuple
 
 from hermes_constants import get_hermes_home
 from hermes_cli.config import cfg_get
@@ -99,16 +99,15 @@ def _get_enabled_plugins(config: Optional[Any] = None) -> Optional[set]:
         return None
 
 
-def scan_directory(
-    path: Path, source: str, *, skip_names: Optional[Set[str]] = None, prefix: str = "", depth: int = 0
-) -> List[PluginManifest]:
-    """Read manifests under *path*: flat ``<root>/<name>/plugin.yaml`` (key ``name``) or category
-    ``<root>/<cat>/<name>/plugin.yaml`` (key ``cat/name``; a manifest-less directory recurses one level, depth
-    capped at two). *skip_names* ignores top-level names; portable ``plugin.json`` packages are accepted
-    alongside YAML manifests."""
-    manifests: List[PluginManifest] = []
+def iter_manifest_candidates(
+    path: Path, *, skip_names: Optional[Set[str]] = None, prefix: str = "", depth: int = 0
+) -> Iterator[Tuple[Path, Optional[Path], bool, str]]:
+    """Walk *path* the way :func:`scan_directory` does, reading no manifest: yields ``(plugin_dir,
+    yaml_manifest_or_None, has_portable_json, prefix)`` for every directory that holds a manifest —
+    flat ``<root>/<name>/plugin.yaml`` or category ``<root>/<cat>/<name>/plugin.yaml`` (a
+    manifest-less directory recurses one level, depth capped at two)."""
     if not path.is_dir():
-        return manifests
+        return
     for child in sorted(path.iterdir()):
         try:
             if not child.is_dir() or (depth == 0 and skip_names and child.name in skip_names):
@@ -121,50 +120,122 @@ def scan_directory(
             # mode-000 dir; one such plugin must not abort discovery for every other plugin (#111804).
             logger.warning("Skipping unreadable plugin directory %s: %s", child, exc)
             continue
-        if manifest_file is not None:
-            manifest = parse_manifest_file(manifest_file, child, source, prefix)
-            if manifest is not None:
-                manifests.append(manifest)
-        elif has_portable:
-            try:
-                manifests.append(portable_plugin_manifest(child, source, prefix))
-            except Exception as exc:
-                logger.warning("Failed to parse %s: %s", portable_file, exc)
+        if manifest_file is not None or has_portable:
+            yield child, manifest_file, has_portable, prefix
         elif depth >= 1:
             logger.debug("Skipping %s (no plugin.yaml, depth cap reached)", child)
         else:
             sub_prefix = f"{prefix}/{child.name}" if prefix else child.name
-            manifests.extend(scan_directory(child, source, prefix=sub_prefix, depth=depth + 1))
+            yield from iter_manifest_candidates(child, prefix=sub_prefix, depth=depth + 1)
+
+
+def scan_directory(
+    path: Path, source: str, *, skip_names: Optional[Set[str]] = None, prefix: str = "", depth: int = 0
+) -> List[PluginManifest]:
+    """Read manifests under *path*: flat ``<root>/<name>/plugin.yaml`` (key ``name``) or category
+    ``<root>/<cat>/<name>/plugin.yaml`` (key ``cat/name``; a manifest-less directory recurses one level, depth
+    capped at two). *skip_names* ignores top-level names; portable ``plugin.json`` packages are accepted
+    alongside YAML manifests."""
+    manifests: List[PluginManifest] = []
+    for child, manifest_file, _has_portable, child_prefix in iter_manifest_candidates(
+            path, skip_names=skip_names, prefix=prefix, depth=depth):
+        manifest = _parse_candidate(child, manifest_file, source, child_prefix)
+        if manifest is not None:
+            manifests.append(manifest)
     return manifests
+
+
+def _parse_candidate(
+    child: Path, manifest_file: Optional[Path], source: str, prefix: str
+) -> Optional[PluginManifest]:
+    """Parse one candidate from :func:`iter_manifest_candidates` (YAML wins over ``plugin.json``)."""
+    if manifest_file is not None:
+        return parse_manifest_file(manifest_file, child, source, prefix)
+    try:
+        return portable_plugin_manifest(child, source, prefix)
+    except Exception as exc:
+        logger.warning("Failed to parse %s: %s", child / "plugin.json", exc)
+        return None
+
+
+def manifest_roots() -> List[Tuple[str, Path, str, Optional[Set[str]]]]:
+    """``(label, directory, source, skip_names)`` in full-discovery order: bundled top-level (its
+    self-discovering categories skipped), bundled/platforms, user, opt-in project."""
+    from hermes_cli import plugins as _origin  # patched names resolve through the origin
+    repo_plugins = _origin.get_bundled_plugins_dir()
+    roots: List[Tuple[str, Path, str, Optional[Set[str]]]] = [
+        ("bundled (top-level)", repo_plugins, "bundled", {"memory", "context_engine", "platforms", "model-providers"}),
+        ("bundled/platforms", repo_plugins / "platforms", "bundled", None),
+        ("user", get_hermes_home() / "plugins", "user", None),
+    ]
+    if _origin._env_enabled("HERMES_ENABLE_PROJECT_PLUGINS"):
+        roots.append(("project", Path.cwd() / ".hermes" / "plugins", "project", None))
+    else:
+        logger.debug("Project plugins disabled (set HERMES_ENABLE_PROJECT_PLUGINS=1 to enable)")
+    return roots
 
 
 def collect_directory_manifests() -> List[PluginManifest]:
     """Read directory manifests in full-discovery order (bundled top-level, bundled/platforms, user, opt-in
     project) without loading or mutating anything, so startup probes share the exact precedence/containment
     rules of the real discovery sweep."""
-    from hermes_cli import plugins as _origin  # patched names resolve through the origin
     manifests: List[PluginManifest] = []
-
-    def _scan(label: str, directory: Path, source: str, skip_names: Optional[Set[str]] = None) -> None:
+    for label, directory, source, skip_names in manifest_roots():
         found = scan_directory(directory, source, skip_names=skip_names)
-        logger.debug("  %s: %d manifest(s)", label, len(found))
+        logger.debug("  %s: %d manifest(s) in %s", label, len(found), directory)
         manifests.extend(found)
-
-    # Excluded bundled top-level categories have their own discovery; platforms scan separately.
-    repo_plugins = _origin.get_bundled_plugins_dir()
-    logger.debug("Scanning bundled plugins: %s", repo_plugins)
-    _scan("bundled (top-level)", repo_plugins, "bundled", {"memory", "context_engine", "platforms", "model-providers"})
-    _scan("bundled/platforms", repo_plugins / "platforms", "bundled")
-    user_dir = get_hermes_home() / "plugins"
-    logger.debug("Scanning user plugins: %s", user_dir)
-    _scan("user", user_dir, "user")
-    if _origin._env_enabled("HERMES_ENABLE_PROJECT_PLUGINS"):
-        project_dir = Path.cwd() / ".hermes" / "plugins"
-        logger.debug("Scanning project plugins: %s", project_dir)
-        _scan("project", project_dir, "project")
-    else:
-        logger.debug("Project plugins disabled (set HERMES_ENABLE_PROJECT_PLUGINS=1 to enable)")
     return manifests
+
+
+def collect_declared_cli_manifests() -> List[PluginManifest]:
+    """The WINNING directory manifests that declare ``cli_commands``, parsing only what that needs.
+
+    Same walk and precedence as :func:`collect_directory_manifests`, but each manifest is read as text
+    first: only files mentioning ``cli_commands`` are parsed, plus any manifest that could share a
+    declaring manifest's key (a path-derived key equal to it, or a name-derived key whose directory name
+    or manifest text contains it). Nothing else is parsed, so a startup that only needs the declared
+    commands does not YAML-parse every installed plugin. The text test over-approximates in the safe
+    direction: it can only cause an extra parse, never a skipped override.
+    """
+    candidates = []
+    for _label, directory, source, skip_names in manifest_roots():
+        for child, manifest_file, _has_portable, prefix in iter_manifest_candidates(
+                directory, skip_names=skip_names):
+            text_file = manifest_file if manifest_file is not None else child / "plugin.json"
+            try:
+                text = text_file.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                text = ""  # unreadable: the parse reports it if it is ever needed
+            candidates.append((child, manifest_file, source, prefix, text))
+    parsed: dict = {}
+
+    def _parse(index: int) -> Optional[PluginManifest]:
+        if index not in parsed:
+            child, manifest_file, source, prefix, _text = candidates[index]
+            parsed[index] = _parse_candidate(child, manifest_file, source, prefix)
+        return parsed[index]
+
+    keys = set()
+    for index, (_child, manifest_file, _source, _prefix, text) in enumerate(candidates):
+        if manifest_file is not None and "cli_commands" in text:
+            manifest = _parse(index)
+            if manifest is not None and manifest.cli_commands:
+                keys.add(manifest_key(manifest))
+    if not keys:
+        return []
+
+    def _may_share_a_key(child: Path, prefix: str, text: str) -> bool:
+        if prefix:
+            return f"{prefix}/{child.name}" in keys
+        return child.name in keys or any(key in text for key in keys)
+
+    winners = {}
+    for index, (child, _manifest_file, _source, prefix, text) in enumerate(candidates):
+        if index in parsed or _may_share_a_key(child, prefix, text):
+            manifest = _parse(index)
+            if manifest is not None:
+                winners[manifest_key(manifest)] = manifest
+    return [m for key, m in winners.items() if key in keys and m.cli_commands]
 
 
 @dataclass(frozen=True)

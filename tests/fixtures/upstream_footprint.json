@@ -2,7 +2,7 @@
   "measured_at": "2026-09-23",
   "base": "d337b736aa",
   "files": 461,
-  "deleted_lines": 2834,
+  "deleted_lines": 2873,
   "heavy": 24,
   "reasons": [
     {
@@ -10,6 +10,11 @@
       "files": "+2 (459 -> 461)",
       "deleted_lines": "flat (2834)",
       "reason": "hook-pending: hermes_cli/plugins_manifest.py (cli_commands manifest field, +20/-0) and hermes_cli/plugin_compat.py (bundled skip, +4/-0, upstream-lift candidate) join the list; plugins_discovery.py's readers take an optional config (2 def lines). Stage 1 itself returned 2 deleted lines (builtin list, dispatch line). All leave with the upstream lift."
+    },
+    {
+      "change": "seam Stage 1 text pre-scan (seam/s1-proof)",
+      "deleted_lines": "+39 (2834 -> 2873)",
+      "reason": "hermes_cli/plugins_discovery.py: scan_directory and collect_directory_manifests re-expressed over the shared iter_manifest_candidates / manifest_roots walk so the declared-CLI scan reuses it instead of carrying a parallel walker (owner rule: no fork-side parallels). Upstream-PR shape; leaves with the lift."
     }
   ]
 }
