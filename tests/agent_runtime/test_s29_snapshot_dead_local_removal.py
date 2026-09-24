@@ -46,7 +46,7 @@ import pytest
 
 from agent_runtime import snapshot
 
-from tests.agent_runtime import _tree_index
+from tests.agent_runtime import _removal_walk
 
 
 #: The two helpers S27 kept as roots on a test-only pin.
@@ -197,7 +197,7 @@ def _production_sources(root: pathlib.Path):
     yield from sorted(root.glob("*.py"))
 
 
-def _imported_module(node: ast.ImportFrom, path: pathlib.Path, root: pathlib.Path) -> str:
+def _imported_module(node, path: pathlib.Path, root: pathlib.Path) -> str:
     """The absolute dotted module an ``ImportFrom`` reads, relative forms resolved.
 
     ``from .snapshot import X`` inside ``agent_runtime/`` names the same module
@@ -241,17 +241,16 @@ def _external_surface_of_snapshot() -> dict[str, set[str]]:
     root = _repo_root()
     this_module = pathlib.Path(snapshot.__file__).resolve()
     surface: dict[str, set[str]] = {}
-    for path in _production_sources(root):
-        if path.resolve() == this_module:
-            continue
-        try:
-            tree = _tree_index.parsed(str(path))
-        except (SyntaxError, UnicodeDecodeError):
+    paths = [path for path in _production_sources(root) if path.resolve() != this_module]
+    records = _removal_walk.index(paths)
+    for path in paths:
+        record = records[str(path)]
+        if record is None or not record.decode_ok:  # does not parse / not UTF-8
             continue
         where = path.relative_to(root).as_posix()
         module_aliases: set[str] = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom):
+        for node in record.imports:
+            if node.kind == "from":
                 imported = _imported_module(node, path, root)
                 if imported == "agent_runtime.snapshot":
                     for alias in node.names:
@@ -263,20 +262,15 @@ def _external_surface_of_snapshot() -> dict[str, set[str]]:
                         for alias in node.names
                         if alias.name == "snapshot"
                     )
-            elif isinstance(node, ast.Import):
+            elif node.kind == "import":
                 for alias in node.names:
                     if alias.name == "agent_runtime.snapshot" and alias.asname:
                         module_aliases.add(alias.asname)
         if not module_aliases:
             continue
-        for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.Attribute)
-                and isinstance(node.ctx, ast.Load)
-                and isinstance(node.value, ast.Name)
-                and node.value.id in module_aliases
-            ):
-                surface.setdefault(node.attr, set()).add(f"{where}:{node.lineno}")
+        for bound, attr, lineno in record.attribute_loads:
+            if bound in module_aliases:
+                surface.setdefault(attr, set()).add(f"{where}:{lineno}")
     return surface
 
 
@@ -474,10 +468,9 @@ def test_the_lookalike_live_locals_survive(isolate_agent_runtime_root):
     assert "persona_instances" in snapshot.build_snapshot()
 
 
-# Same full-production-tree parse as test_s27's walk (25-30 s cold, 2026-09-03
-# measurement) — sharing the cache (conftest's `_SHARED_TREE_WALK_MODULES`)
-# makes this fast when test_s27 already warmed it, but this test can also run
-# alone or run first, so it needs its own honest margin.
+# Same production-tree import walk as test_s27's, through the shared
+# ``_removal_walk`` index (one parse per file per checkout change); the margin
+# is for the cold case, which this test can still be.
 @pytest.mark.timeout(60)
 def test_the_reachability_roots_are_back_to_the_real_external_surface():
     """S27's gate seeded two extra roots to protect the test-pinned helpers.

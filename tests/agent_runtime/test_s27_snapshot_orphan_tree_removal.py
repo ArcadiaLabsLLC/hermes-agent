@@ -47,7 +47,7 @@ import pytest
 
 from agent_runtime import snapshot
 
-from tests.agent_runtime import _tree_index
+from tests.agent_runtime import _removal_walk
 
 
 #: The unreachable island. Grouped by the chain that used to reach it.
@@ -211,7 +211,7 @@ def _production_sources(root: pathlib.Path):
     yield from sorted(root.glob("*.py"))
 
 
-def _imported_module(node: ast.ImportFrom, path: pathlib.Path, root: pathlib.Path) -> str:
+def _imported_module(node, path: pathlib.Path, root: pathlib.Path) -> str:
     """The absolute dotted module an ``ImportFrom`` reads, relative forms resolved.
 
     ``from .snapshot import X`` inside ``agent_runtime/`` names the same module as
@@ -259,17 +259,16 @@ def _external_surface_of_snapshot() -> dict[str, set[str]]:
     root = _repo_root()
     this_module = pathlib.Path(snapshot.__file__).resolve()
     surface: dict[str, set[str]] = {}
-    for path in _production_sources(root):
-        if path.resolve() == this_module:
-            continue
-        try:
-            tree = _tree_index.parsed(str(path))
-        except (SyntaxError, UnicodeDecodeError):
+    paths = [path for path in _production_sources(root) if path.resolve() != this_module]
+    records = _removal_walk.index(paths)
+    for path in paths:
+        record = records[str(path)]
+        if record is None or not record.decode_ok:  # does not parse / not UTF-8
             continue
         where = path.relative_to(root).as_posix()
         module_aliases: set[str] = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom):
+        for node in record.imports:
+            if node.kind == "from":
                 imported = _imported_module(node, path, root)
                 if imported == "agent_runtime.snapshot":
                     for alias in node.names:
@@ -281,20 +280,15 @@ def _external_surface_of_snapshot() -> dict[str, set[str]]:
                         for alias in node.names
                         if alias.name == "snapshot"
                     )
-            elif isinstance(node, ast.Import):
+            elif node.kind == "import":
                 for alias in node.names:
                     if alias.name == "agent_runtime.snapshot" and alias.asname:
                         module_aliases.add(alias.asname)
         if not module_aliases:
             continue
-        for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.Attribute)
-                and isinstance(node.ctx, ast.Load)
-                and isinstance(node.value, ast.Name)
-                and node.value.id in module_aliases
-            ):
-                surface.setdefault(node.attr, set()).add(f"{where}:{node.lineno}")
+        for bound, attr, lineno in record.attribute_loads:
+            if bound in module_aliases:
+                surface.setdefault(attr, set()).add(f"{where}:{lineno}")
     return surface
 
 
@@ -343,10 +337,10 @@ def _unreachable_module_level_names(source: str, roots) -> list[str]:
 
 # A full first-time parse of the production tree measures 25-30 s on a plain
 # box (2026-09-03) — right at the default 30 s pytest-timeout ceiling, and
-# over it under load, which is the row this bump closes. Sharing the parse
-# cache with test_s29 (conftest's `_SHARED_TREE_WALK_MODULES`) helps when
-# both run together but this test can still run alone or run first; the
-# margin covers that case honestly instead of relying on run order.
+# over it under load, which is the row this bump closes. The walk is now the
+# shared ``_removal_walk`` import index (one parse per file per checkout
+# change, shared with test_s29/s49/s50), but this test can still be the one
+# that pays it cold; the margin covers that case instead of run order.
 @pytest.mark.timeout(60)
 def test_no_module_level_name_is_unreachable_from_the_external_surface():
     """The defect class this stage retires: an island that survives a cut because
