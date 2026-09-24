@@ -127,7 +127,13 @@ def collect(root: Path) -> dict[str, Any]:
     import model_tools  # noqa: F401 - importing IS what populates the registry
     from agent_runtime.personas import REGISTRY_HYGIENE_BLOCKED_TOOLS
     from agent_runtime.tool_visibility import _estimate_model_tool_tokens, _mutating_tools
+    from hermes_cli.plugins import discover_plugins
     from tools.registry import registry
+
+    # Plugin tools (``skill_search`` from ``plugins/eternia-harness``) register into
+    # the ACTIVE home's scope, and ``model_tools`` discovers only once per process —
+    # so discover for this home, or the inventory reads a toolset without its plugin.
+    discover_plugins()
 
     members = _declared_members()
     mutating = _mutating_tools()
@@ -138,8 +144,7 @@ def collect(root: Path) -> dict[str, Any]:
         names = sorted(registry.get_tool_names_for_toolset(toolset))
         toolsets.append({"name": toolset, "tools": names})
         for name in names:
-            entry = registry.get_tool(name) if hasattr(registry, "get_tool") else None
-            entry = entry or registry._tools.get(name)  # noqa: SLF001 - no public single-entry read
+            entry = registry.get_entry(name)  # active home's plugin overlay, then global
             tools.append(
                 {
                     "name": name,

@@ -228,7 +228,7 @@
       "toolset": "browser",
       "mutating": false,
       "gated": true,
-      "description": "Navigate to a URL and load the page; must be called before other browser_* tools. Returns a compact snapshot with ref IDs. Disambiguator: for plain info or p..."
+      "description": "Load a URL before other browser_* calls; returns a compact snapshot with ref IDs. Use for interactive pages; prefer text retrieval or terminal fetching for p..."
     },
     {
       "name": "browser_press",
@@ -347,7 +347,7 @@
       "toolset": "file",
       "mutating": false,
       "gated": true,
-      "description": "Read a text file with line numbers and pagination (offset/limit; large reads truncate on a line boundary with next_offset). Auto-extracts .ipynb/.docx/.xlsx/..."
+      "description": "Read a text file with line numbers and pagination. Use this instead of cat/head/tail in terminal. Output format: 'LINE_NUM\\|CONTENT'. Suggests similar filenam..."
     },
     {
       "name": "search_files",
@@ -396,7 +396,7 @@
       "toolset": "terminal",
       "mutating": true,
       "gated": true,
-      "description": "Run shell commands in the configured environment (cwd and exported env persist between calls). Foreground returns when done; background=true with notify_on_c..."
+      "description": "Run shell commands; cwd/exported env persist. Use background=true with notify=true for long tasks; pty=true for interactive CLIs. Prefer file tools for file..."
     },
     {
       "name": "todo_list",
@@ -431,7 +431,7 @@
       "toolset": "file",
       "mutating": true,
       "gated": true,
-      "description": "Write a file, completely replacing its contents (creates parent dirs; auto-syntax-checks and surfaces only NEW errors). Disambiguator: overwrites the whole f..."
+      "description": "Replace a whole file, creating parent directories and reporting new syntax errors. Read existing files first; unread or changed-file overwrites are refused...."
     }
   ],
   "counts": {
