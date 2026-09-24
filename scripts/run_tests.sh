@@ -119,12 +119,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 #
 #   <live venv>/Scripts/python.exe -m pip freeze  # minus the -e editable line
 #   python -m venv <shared>; <shared>/Scripts/python.exe -m pip install \
-#       -r <those pins> pytest pytest-asyncio pytest-timeout setuptools coverage
-#
-# ``coverage`` joined that list on 2026-09-04 and is measurement only — nothing
-# the product ships imports it, so the LIVE install is right not to carry it
-# and ``scripts/check_test_env_drift.py`` lists it as test-only. Its consumer is
-# ``scripts/unreachable_branch_report.py``; the pin is in pyproject's [dev].
+#       -r <those pins> pytest pytest-asyncio setuptools
+# (coverage + pytest-timeout come from scripts/ensure_fork_dev_deps.py below.)
 #
 # The editable ``-e ...#egg=hermes_agent`` line is dropped ON PURPOSE: it
 # resolves to ONE checkout, and a shared venv that imports the primary
@@ -195,6 +191,9 @@ else
   fi
   exit 1
 fi
+
+# Fork-only test deps (requirements-fork-dev.txt): the one place they install.
+"$PYTHON" "$REPO_ROOT/scripts/ensure_fork_dev_deps.py" || exit 1
 
 
 # ── Live-gateway plugin (computed before we drop env) ───────────────────────

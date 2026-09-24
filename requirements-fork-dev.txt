@@ -1,0 +1,6 @@
+# Fork-only test/dev tools, not in pyproject [dev] so uv.lock stays upstream's.
+# Installed into the test venv by scripts/ensure_fork_dev_deps.py, which
+# scripts/run_tests.sh runs. coverage: scripts/unreachable_branch_report.py.
+# pytest-timeout: the per-test cap set in tests/_downstream/conftest_plugin.py.
+coverage==7.16.0
+pytest-timeout==2.4.0

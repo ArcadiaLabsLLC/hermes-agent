@@ -552,8 +552,39 @@ def tmp_path(request, tmp_path_factory):
     return path
 
 
+#: The fork's per-test cap (seconds) and how it fires. ``thread`` dumps every
+#: stack and KILLS the process, which is the only method Windows has (no
+#: SIGALRM). Applied below as defaults, so an explicit ``--timeout`` /
+#: ``--timeout-method`` on the command line still wins, exactly as it did when
+#: these rode pyproject's ``addopts``.
+FORK_TEST_TIMEOUT_SECONDS = 30.0
+FORK_TEST_TIMEOUT_METHOD = "thread"
+
+
+@pytest.hookimpl(tryfirst=True)
 def pytest_configure(config):  # noqa: D401 — pytest hook
-    """Register the fork's markers (upstream's ``pytest_configure`` registers its own)."""
+    """Register the fork's markers and default the per-test timeout.
+
+    ``tryfirst`` because pytest-timeout reads ``config.option.timeout`` in its
+    own ``pytest_configure``; a default set after it would be ignored. Without
+    pytest-timeout installed (``requirements-fork-dev.txt``) the options do not
+    exist and nothing is set.
+    """
+    if config.pluginmanager.hasplugin("timeout"):
+        if getattr(config.option, "timeout", None) is None:
+            config.option.timeout = FORK_TEST_TIMEOUT_SECONDS
+        if getattr(config.option, "timeout_method", None) is None:
+            config.option.timeout_method = FORK_TEST_TIMEOUT_METHOD
+    config.addinivalue_line(
+        "markers",
+        "real_venv_pip: opt out of the autouse stub that replaces "
+        "lazy_deps._venv_pip_install (for the one test that probes that function itself)",
+    )
+    config.addinivalue_line(
+        "markers",
+        "real_agent_browser_probe: opt out of the autouse stub that stops "
+        "hermes_constants.agent_browser_runnable from EXECUTING an agent-browser off the operator PATH",
+    )
     config.addinivalue_line(
         "markers",
         f"{_ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK}: allow a test to "

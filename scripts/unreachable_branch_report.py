@@ -78,8 +78,8 @@ DEFAULT_SUITE = ("tests/agent/test_charsheet_*.py",)
 #: block that buries the real findings.
 DEFAULT_SOURCES = ("agent/charsheet",)
 
-#: Tracing costs wall time per test, and the repo's ``addopts`` passes
-#: ``--timeout=30`` unconditionally. A traced run of an image-pipeline test can
+#: Tracing costs wall time per test, and the fork's test plugin defaults
+#: ``--timeout`` to 30 s (``tests/_downstream/conftest_plugin.py``). A traced run of an image-pipeline test can
 #: cross that on a busy box and report a timeout as a failure, which would make
 #: the whole measurement look red for a reason that is not about branches.
 DEFAULT_TEST_TIMEOUT = 120
