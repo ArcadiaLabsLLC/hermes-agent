@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-09-23 (seam lane S45)
+
+- [ ] **Two profile rosters answer "which profiles exist" differently: the orphan prune reads the raw `iterdir` one** · `fork / runtime` · `hermes_cli/profiles.py::available_profile_templates` walks `profiles/` raw, so tombstoned and ghost-shell dirs count as live. `available_profile_template_summaries` (fixed at `bcf8012e6a`) and upstream `list_profile_names()` filter identity and tombstones. `agent_runtime/persona_instance_identity.py::_profile_template_names` feeds the prune from the raw walk, so a persona bound to a deleted profile whose dir a stale writer re-created is not prunable. One authority, `list_profile_names()`. Evidence: `docs/agent-runtime-harness/planned/seam-s4-s5-s6-inventory-2026-09-23.md` §2.2 · filed by lane S45 2026-09-23 **UNCLAIMED**
+
 ### Owner asks — 2026-09-22, filed on arrival
 
 
@@ -78,6 +82,13 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 - **No CLI-level test pins the `realm sync resolve --key skill::<slug>` envelope the launcher's held-skill buttons call — only the python seam (`skill_sync.resolve_held_skill`) and the argparse dump are covered, nothing drives `main()` end-to-end** · `hermes` · handed over by the hermes lane 2026-09-12; evidence `docs/agent-runtime-harness/planned/skill-three-way-sync-mutation-record-2026-09-12.md`, contract §4.6 of `EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md` · `tests/hermes_cli/` **UNCLAIMED**
 
 ## Seams — fork edits inside upstream files (additive only)
+
+### Filed on arrival — 2026-09-23 (seam lane S45, Stage 4/5/6 inventories)
+
+- [ ] **Stage 5's "one `pytest_plugins` line per upstream conftest" is rejected by pytest for three of the four conftests** · `seams / tests` · pytest 9.0.3 `_check_non_top_pytest_plugins` fails a non-root conftest that defines `pytest_plugins` once config is configured (a bare `pytest tests`), and moving the three into the root line would make the seven `tests/hermes_cli/` autouse fixtures suite-wide. The shape that works is four `tests/_downstream/` modules: root by `pytest_plugins`, the other three by a star import with `__all__`. Evidence: `docs/agent-runtime-harness/planned/seam-s4-s5-s6-inventory-2026-09-23.md` §1.5 · filed by lane S45 2026-09-23 **UNCLAIMED**
+- [ ] **177 of the 252 upstream test files the fork edits hold in-place edits, not fork tests. Stage 5's MOVE lanes cannot retire them, and its `[up-fp] files −242` target is not reachable (MOVE ceiling 28)** · `seams / tests` · these need a disposition pass (a batched portability/hermeticity PR upstream, or carry with a reason) before Stage 5's gate means anything. Evidence: the same note §1.1–§1.3 · filed by lane S45 2026-09-23 **UNCLAIMED**
+
+### Standing
 
 - **Discussion Tables (hermes half): pin exempts rooms from the gateway byte budget while its own comment says it does not, and no test touches any new gateway symbol** (`pin_room_history`, `max_active_events`, `DiscussionLimits`, `request_reconciliation`, `stop_unresolved`) · `hermes` · `gateway/hosted_rooms.py:556-577`; degrades stock Group Chat retention, not only discussions. Same review @ `f4abe884a9`. · `d33dff5bbd` covered the three symbols; the exemption-versus-comment question is still open **UNCLAIMED**
 - **A `manual:device_code` Codex pool entry can never be rescued by a re-auth, so a stale exhausted mark only ever clears on the TTL** · `hermes` · `CredentialPool._sync_codex_entry_from_auth_store` is gated on `entry.source == "device_code"` and the field row's source is `manual:device_code`, so fresh tokens sitting on disk never reach it; the naive widening is the #39236 regression, because `_sync_codex_pool_entries` syncs a `manual:device_code` entry ONLY when its access token matched the PREVIOUS singleton (the same source string is also produced by independent-account additions), so the fix needs that legacy-alias test — deliberately NOT bundled into the readiness fix, which is why the false amber was narrowed rather than its cause removed · `agent/credential_pool.py` `_sync_codex_entry_from_auth_store` against `hermes_cli/auth.py` `_sync_codex_pool_entries`, evidence in hermes `3c3a5631c8`. **UNCLAIMED**
