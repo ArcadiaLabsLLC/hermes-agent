@@ -3760,7 +3760,7 @@
         "-m",
         "pytest",
         "-q",
-        "tests/hermes_cli/test_doctor.py::TestDoctorResolvesTheHomeAtCallTime::test_the_env_var_alone_redirects_every_profile_relative_read"
+        "tests/hermes_cli/test_doctor_downstream.py::TestDoctorResolvesTheHomeAtCallTime::test_the_env_var_alone_redirects_every_profile_relative_read"
       ]
     },
     {
