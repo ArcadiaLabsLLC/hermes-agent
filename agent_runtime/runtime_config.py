@@ -40,7 +40,7 @@ from agent_runtime.permission_modes import SHIPPED_DEFAULT_PERMISSION_MODE
 # store family the block governed; the config lane outlived it as a knob no
 # code reads that still shipped on the snapshot wire — reading ``enabled:
 # true`` on the live root. See
-# ``tests/agent_runtime/test_s47_wire_constant_field_removal.py``.
+# ``tests/agent_runtime/test_s47_wire_constant_field_removal.py`` (deleted 2026-09-24).
 
 
 #: What ``agent_runtime.read_model.delta_patches`` SHIPS as.

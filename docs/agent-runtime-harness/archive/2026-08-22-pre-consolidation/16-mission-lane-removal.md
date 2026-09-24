@@ -587,7 +587,7 @@ Both were executed on `main` with red-first removal contracts.
   is a snapshot contract change needing Launcher lockstep, the same shape as
   item 5. **Closed 2026-08-01 by S47**, which took items 8 and 5 together and
   bumped `contract_version` 45 → 46 with the Launcher pin in the same wave; see
-  doc 19 and `tests/agent_runtime/test_s47_wire_constant_field_removal.py`.
+  doc 19 and `tests/agent_runtime/test_s47_wire_constant_field_removal.py` (deleted 2026-09-24).
 
 ### Operator-owned leftovers — nothing in this repo will clean these up
 

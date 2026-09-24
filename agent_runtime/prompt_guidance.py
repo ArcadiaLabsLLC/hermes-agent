@@ -24,6 +24,8 @@ BROWSER_PRECONDITION_GUIDANCE = (
     "browser_type also require a prior browser_snapshot."
 )
 
+SKILL_MANAGE_CONFIRM_GUIDANCE = "Confirm with the user before creating or deleting a skill."
+
 _WINDOWS_NATIVE_TOOLING_HINT = (
     "Windows-native tooling: your terminal is bash, but when a task genuinely "
     "needs PowerShell or cmd (a cmdlet, a `.ps1` script, a Windows-only CLI), "

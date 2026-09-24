@@ -35,8 +35,11 @@ import pytest
 # missing, NOTHING changes: the opt-in degrades to today's behavior, never to
 # an error. `tempfile.tempdir` is set as well as the env because the module
 # caches its answer on first use, and pytest has usually asked before conftest
-# imports. Prior run-dirs older than 7 days are pruned best-effort — an
-# unbounded pile in a scan-excluded directory is its own small hazard.
+# imports. Each process removes its OWN run-dir when its session ends green
+# (kept on a red session, for debugging); whatever is left — red sessions,
+# killed processes — is pruned once it is a day old. The keep was 7 days until
+# 2026-09-24, when every process also KEPT its dir: ~1,840 dirs per gate run,
+# 14,901 in the operator's root that day (lane SUITE2).
 #
 # The prune runs at most once per `_PRUNE_INTERVAL_SECONDS` per root, not once
 # per process. This function runs at IMPORT in every per-file pytest process
@@ -51,6 +54,7 @@ import pytest
 # actually finish, so the same trees are not retried forever.
 _PRUNE_INTERVAL_SECONDS = 3600
 _PRUNE_STAMP = ".prune-stamp"
+_RUN_DIR_KEEP_SECONDS = 24 * 3600
 
 
 def _rmtree_readonly_too(path: str) -> None:
@@ -88,7 +92,7 @@ def _maybe_redirect_test_tmp(environ: dict = os.environ) -> str | None:
             os.utime(stamp, (now, now))
         except OSError:
             pass
-        cutoff = now - 7 * 24 * 3600
+        cutoff = now - _RUN_DIR_KEEP_SECONDS
         for entry in os.scandir(root):
             try:
                 if entry.is_dir() and entry.stat().st_mtime < cutoff:
@@ -104,6 +108,37 @@ def _maybe_redirect_test_tmp(environ: dict = os.environ) -> str | None:
 
 
 _TEST_TMP_RUN_DIR = _maybe_redirect_test_tmp()
+
+
+def _release_test_tmp_run_dir(run_dir: str | None, exitstatus: int | None) -> bool:
+    """Remove this process's run-dir if its session ended green (exit 0, or 5 =
+    nothing collected). A red or unfinished session keeps it for debugging; the
+    day-old prune above reclaims it. Returns whether it removed the dir."""
+
+    if not run_dir or exitstatus not in (0, 5):
+        return False
+    _rmtree_readonly_too(run_dir)
+    return not os.path.exists(run_dir)
+
+
+_SESSION_EXIT: dict[str, int] = {}
+
+
+def pytest_sessionfinish(session, exitstatus):  # noqa: D401 — pytest hook
+    """Record the exit status for the at-exit release below."""
+    _SESSION_EXIT["status"] = int(exitstatus)
+
+
+if _TEST_TMP_RUN_DIR is not None:
+    import atexit
+
+    # At EXIT, not at sessionfinish: ``tempfile.tempdir`` points into the
+    # run-dir, and pytest's own teardown after sessionfinish may still ask for
+    # a temp file. Registered at import, so atexit's LIFO order runs it after
+    # every handler registered later in the session.
+    atexit.register(
+        lambda: _release_test_tmp_run_dir(_TEST_TMP_RUN_DIR, _SESSION_EXIT.get("status"))
+    )
 
 
 # HERMES_* vars the FORK blanks before every test, in addition to upstream's

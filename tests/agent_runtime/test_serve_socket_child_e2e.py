@@ -145,6 +145,11 @@ def _connect(env: dict[str, str], *args: str) -> tuple[int, dict | None, str]:
 _REAL_CHILD_SPAWN = pytest.mark.live_system_guard_bypass
 
 
+# ONE serve per test, on purpose (lane SUITE2, 2026-09-24, suite-cost note §2
+# row): every test here is about one serve's LIFECYCLE — a kill and its
+# successor, a drain to zero, a second starter losing the lane, an ending on
+# stdin EOF or a stdio shutdown, a boot's own prune log — so the boot and its
+# end are the subject, and a shared serve would have ended in the first test.
 def _spawn_serve(
     env: dict[str, str], *extra_args: str, detached_stdin: bool = False
 ) -> "_Child":

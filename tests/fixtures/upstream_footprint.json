@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 376,
-  "deleted_lines": 2410,
+  "files": 373,
+  "deleted_lines": 2404,
   "heavy": 10,
   "reasons": [
     {
@@ -24,10 +24,16 @@
       "reason": "applied the ledger's decided dispositions: REVERTs, adopt-upstream duplicates, the three § Seams defects, the four dropped-PR rulings, movable carries; heavy 12 -> 11"
     },
     {
+      "change": "lane S2 (seam/s2-plugin-surface-2026-09-24)",
+      "files": "408 -> 404: hermes_cli/skills_hub.py and hermes_cli/subcommands/skills.py (link-external rehomed as `hermes harness skills link-external`), tests/agent/test_system_prompt.py and tests/tools/test_terminal_tool.py byte-identical to d337b736aa again",
+      "deleted_lines": "2612 -> 2602 (the four restored files' 8, prompt_builder 11 -> 10, skills_tool 70 -> 69)",
+      "reason": "seam Stage 2: the T6b guidance and the skill-confirm sentence ride the eternia-harness plugin's system-prompt section; skill_search is a plugin register_tool; link-external is a harness verb; prompt_builder and skills_tool adopt upstream's skill_matches_environment; heavy 11 -> 10 (tools/skills_tool.py 207 -> 136)"
+    },
+    {
       "change": "weekly merge upstream/main f24a1d7f92 (seam/upstream-merge-2026-09-24)",
-      "files": "408 at base d337b736aa -> 376 at base f24a1d7f92: the base moved, 39 rows left the ledger (upstream deleted 9 fork-edited tests in its purge lanes, 5 gpt-6 superseded prod rows, adopted-upstream test carries), 1 row joined (uninstall-section.test.tsx, add/add), the two relocated tests stay (gateway fence), 5 re-check carries stay",
-      "deleted_lines": "2612 -> 2410 (model_metadata 17, the purged tests, the adopted test carries); the 509 lines are the two tests/gateway relocations, unchanged since before the merge",
-      "reason": "history-preserving merge of 1,663 upstream commits and the supersession pass; no number rose against the pre-merge line; heavy 11 -> 10"
+      "files": "404 at base d337b736aa (after lane S2, merged in) -> 373 at base f24a1d7f92: the base moved, rows left the ledger (upstream deleted 9 fork-edited tests in its purge lanes, 5 gpt-6 superseded prod rows, adopted-upstream test carries), 1 row joined (uninstall-section.test.tsx, add/add), the two relocated tests stay (gateway fence), 5 re-check carries stay",
+      "deleted_lines": "2602 -> 2404 (model_metadata 17, the purged tests, the adopted test carries); 509 of the 2404 are the two tests/gateway relocations, unchanged since before the merge",
+      "reason": "history-preserving merge of 1,663 upstream commits and the supersession pass, then origin/main (lane S2) merged in; no number rose against the pre-merge line; heavy 10 -> 10"
     }
   ]
 }

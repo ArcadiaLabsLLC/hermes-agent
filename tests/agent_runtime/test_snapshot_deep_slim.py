@@ -13,7 +13,7 @@ snapshot residue cut removed the builders that fed it — ``_goal_head``,
 head/detail assertions below now pin the *absence* of that lane; the surviving
 on-demand detail lane is ``persona_instance_detail_for_id``. The archived
 operator-channel transcript eviction went with the same cut and is pinned by
-``test_s18_snapshot_residue_removal.py`` instead.
+``test_s18_snapshot_residue_removal.py`` (deleted 2026-09-24) instead.
 """
 
 from __future__ import annotations

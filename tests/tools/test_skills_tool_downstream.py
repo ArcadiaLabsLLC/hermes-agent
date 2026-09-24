@@ -6,8 +6,8 @@ Same names, same bodies; the upstream file keeps only upstream's tests.
 import json
 from unittest.mock import patch
 import tools.skills_tool as skills_tool_module
+from agent_runtime.skill_search import skill_search
 from tools.skills_tool import (
-    skill_search,
     skills_list,
     skill_view,
 )
@@ -146,6 +146,10 @@ class TestSkillSearch:
         assert "trust_level" in result["results"][1]
 
     def test_tool_is_registered_under_skills_toolset(self):
+        """The harness plugin registers it (seam Stage 2), into the built-in ``skills`` toolset."""
+        from hermes_cli.plugins import discover_plugins
+
+        discover_plugins()
         entry = skills_tool_module.registry.get_entry("skill_search")
 
         assert entry is not None
@@ -160,8 +164,10 @@ class TestSkillSearch:
         isn't wired into that composition, ``get_tool_definitions`` never sends
         the schema to the model and the tool is silently unreachable by default.
         """
+        from hermes_cli.plugins import discover_plugins
         from model_tools import get_tool_definitions, _clear_tool_defs_cache
 
+        discover_plugins()  # agent init does this before the tool snapshot (skill_search is a plugin tool)
         _clear_tool_defs_cache()
         tools = get_tool_definitions(enabled_toolsets=["hermes-cli"], quiet_mode=True)
         names = {t.get("function", {}).get("name") for t in tools}
@@ -182,8 +188,10 @@ class TestSkillSearch:
         skills (``skills_list``) must also be able to search them
         (``skill_search``). This fails loudly if a future edit exposes one
         without the other."""
+        from hermes_cli.plugins import discover_plugins
         from model_tools import get_tool_definitions, _clear_tool_defs_cache
 
+        discover_plugins()  # agent init does this before the tool snapshot (skill_search is a plugin tool)
         _clear_tool_defs_cache()
         tools = get_tool_definitions(enabled_toolsets=["hermes-cli"], quiet_mode=True)
         names = {t.get("function", {}).get("name") for t in tools}

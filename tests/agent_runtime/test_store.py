@@ -142,7 +142,7 @@ def test_run_store_is_historical_read_only():
 # The duplicate-active-run guard went with its writer: it lived inside
 # RunStore.open_run, which S17 removed as write-dead (zero production callers
 # after the mission lane). The removal itself is pinned in
-# tests/agent_runtime/test_s17_run_store_residue_removal.py, not weakened here.
+# tests/agent_runtime/test_s17_run_store_residue_removal.py (deleted 2026-09-24), not weakened here.
 
 
 def test_mission_proof_store_is_removed():

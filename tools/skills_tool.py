@@ -34,7 +34,6 @@ from agent.skill_utils import (
     skill_package_content_hash, skill_frontmatter_runtime_compatibility,
 )
 from agent_runtime.skill_resolution import skill_source_kind
-from agent_runtime.skill_search import skill_search
 
 logger = logging.getLogger(__name__)
 
@@ -747,58 +746,3 @@ def _runtime_skill_dirs() -> List[Path]:
             seen.add(key)
             result.append(path)
     return result
-
-SKILL_SEARCH_SCHEMA = {
-    "name": "skill_search",
-    "description": "Search installed skills + the Hermes Skills Hub by query without loading SKILL.md bodies (compact ids/descriptions). Disambiguator: skill_view loads an installed match; `hermes skills install` fetches an external one.",
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "query": {
-                "type": "string",
-                "description": "Search query, e.g. 'flutter qa', 'github review', or 'kubernetes'.",
-            },
-            "source": {
-                "type": "string",
-                "enum": [
-                    "all",
-                    "installed",
-                    "official",
-                    "hermes-index",
-                    "skills-sh",
-                    "well-known",
-                    "github",
-                    "clawhub",
-                    "claude-marketplace",
-                    "lobehub",
-                    "browse-sh",
-                ],
-                "description": "Optional source filter. Default 'all'. Use 'installed' to avoid remote hub search.",
-            },
-            "limit": {
-                "type": "integer",
-                "description": "Maximum results to return; capped at 50.",
-            },
-            "include_installed": {
-                "type": "boolean",
-                "description": "When true, include installed local/profile skills before hub results. Default true.",
-            },
-        },
-        "required": ["query"],
-    },
-}
-
-registry.register(
-    name="skill_search",
-    toolset="skills",
-    schema=SKILL_SEARCH_SCHEMA,
-    handler=lambda args, **kw: skill_search(
-        query=args.get("query", ""),
-        source=args.get("source", "all"),
-        limit=args.get("limit", 10),
-        include_installed=args.get("include_installed", True),
-        task_id=kw.get("task_id"),
-    ),
-    check_fn=check_skills_requirements,
-    emoji="🔎",
-)

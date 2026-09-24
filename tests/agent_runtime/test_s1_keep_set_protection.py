@@ -173,7 +173,7 @@ def test_promotion_unknown_role_does_not_clone_an_unrelated_stored_persona():
 # items therefore have nothing left to protect and their tests went with
 # ``agent_runtime/stagec_command_policy.py``, ``stagec_trace_parsers.py``,
 # ``proof_capture.py``, and ``stagec_mcp_visual_provider.py``.
-# The removal itself is pinned in ``test_s14_stagec_python_capture_removal.py``.
+# The removal itself is pinned in ``test_s14_stagec_python_capture_removal.py`` (deleted 2026-09-24).
 
 
 

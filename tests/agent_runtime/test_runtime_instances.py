@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 Task = SimpleNamespace
 from agent_runtime.runtime_instances import GoalRuntimeInstanceStore, runtime_instance_summary
-from tests.agent_runtime.test_s53_lane_write_lane_removal import seed_lane_row
+from tests.agent_runtime._lane_seed import seed_lane_row
 from agent_runtime.states import RunState, TaskState
 from agent_runtime.store import RunStore, TaskStore
 

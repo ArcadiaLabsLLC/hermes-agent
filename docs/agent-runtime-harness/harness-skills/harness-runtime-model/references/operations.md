@@ -472,8 +472,8 @@ hazards are listed in `proof.md`.
 - **There is no read-model to rebuild.** `harness rebuild-read-model` and `harness read`
   were unregistered on 2026-08-22 and `agent_runtime/read_model.py` + `projector.py` are
   deleted (tombstones at `hermes_cli/harness.py:1659` and
-  `hermes_cli/harness_parts/runtime_commands.py:569`; absence pinned by
-  `test_s46_incremental_projection_lane_removal.py`). The standing architecture is an
+  `hermes_cli/harness_parts/runtime_commands.py:569`; the S46 removal gate that
+  pinned the absence was deleted with the other removal gates on 2026-09-24). The standing architecture is an
   O(world) snapshot built per call by `build_snapshot()`, cached under
   `<store_root>/serve_read_model/` by the serve process. Quoting the rebuild verb to an
   operator is a reporting error.

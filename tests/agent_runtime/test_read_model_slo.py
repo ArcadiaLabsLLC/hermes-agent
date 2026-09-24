@@ -36,7 +36,7 @@ def test_synthetic_snapshot_full_build_within_rd0_slo(isolate_agent_runtime_root
 
 # S46: ``test_synthetic_incremental_apply_within_rd3_slo`` stood here, timing
 # ``Projector.apply_pending`` against the retired incremental lane. Absence is
-# asserted by ``test_s46_incremental_projection_lane_removal.py`` rather than
+# asserted by ``test_s46_incremental_projection_lane_removal.py`` (deleted 2026-09-24) rather than
 # left to a reader noticing the gap.
 
 

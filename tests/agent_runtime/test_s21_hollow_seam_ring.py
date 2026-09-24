@@ -35,7 +35,7 @@ from agent_runtime import observability
 from agent_runtime.decision_contract_registry import event_catalog
 from agent_runtime.events import ALLOWED_EVENT_TYPES, OPERATOR_SUMMARY_EVENT_TYPES, Event, operator_event_summary
 from agent_runtime.runtime_instances import GoalRuntimeInstanceStore, runtime_instances_summary
-from tests.agent_runtime.test_s53_lane_write_lane_removal import seed_lane_row
+from tests.agent_runtime._lane_seed import seed_lane_row
 from agent_runtime.status import build_status
 from agent_runtime.stream import _delta_op
 from hermes_time import now

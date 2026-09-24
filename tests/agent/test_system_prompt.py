@@ -440,18 +440,16 @@ def test_build_system_prompt_records_stable_prefix():
 def test_coding_prompt_orders_shared_context_before_workspace(monkeypatch):
     """Keep workspace guidance intact after the shared context."""
     import agent.system_prompt as system_prompt
-    from agent.prompt_builder import TOOL_DESCRIBE_GUIDANCE
 
     agent = _make_agent(
         valid_tool_names=["read_file"],
         _parallel_tool_call_guidance=False,
     )
-    hermes_home = Path("/hermes")
     monkeypatch.setattr(system_prompt, "DEFAULT_AGENT_IDENTITY", "IDENTITY")
     monkeypatch.setattr(system_prompt, "HERMES_AGENT_HELP_GUIDANCE", "HELP")
     monkeypatch.setattr(system_prompt, "HERMES_AGENT_HELP_GUIDANCE_NO_SKILLS", "HELP")
     monkeypatch.setattr(system_prompt, "STEER_CHANNEL_NOTE", "STEER")
-    monkeypatch.setattr(system_prompt, "get_hermes_home", lambda: hermes_home)
+    monkeypatch.setattr(system_prompt, "get_hermes_home", lambda: Path("/hermes"))
 
     # Production renders this as str(get_hermes_home()) + "/profiles/<name>/",
     # and str(Path("/hermes")) is platform-dependent (backslash on Windows) —
@@ -459,23 +457,16 @@ def test_coding_prompt_orders_shared_context_before_workspace(monkeypatch):
     _home_str = str(Path("/hermes"))
     expected_profile = (
         "Active Hermes profile: default. Other profiles (if any) live "
-        f"under {hermes_home}/profiles/<name>/. Each profile has its own skills/, "
+        f"under {_home_str}/profiles/<name>/. Each profile has its own skills/, "
         "plugins/, cron/, and memories/ that affect a different session than "
         "this one. Do not modify another profile's skills/plugins/cron/memories "
         "unless the user explicitly directs you to."
     )
-    # Fork: the T6b details-on-demand pointer is a static, tool-gated stable-tier
-    # line that sits between the help guidance and the steer note (see
-    # TestT6bToolGuidance above). It is part of the byte-stable prefix.
-    stable_blocks = (
+    expected = "\n\n".join((
         "IDENTITY",
         "HELP",
-        TOOL_DESCRIBE_GUIDANCE,
         "STEER",
         "CODING_STABLE",
-    )
-    expected = "\n\n".join((
-        *stable_blocks,
         "SYSTEM_MESSAGE",
         "CONTEXT_FILES",
         "WORKSPACE",
@@ -502,7 +493,7 @@ def test_coding_prompt_orders_shared_context_before_workspace(monkeypatch):
         prompt = build_system_prompt(agent, system_message="SYSTEM_MESSAGE")
 
     assert prompt == expected
-    assert agent._cached_system_prompt_static == "\n\n".join(stable_blocks)
+    assert agent._cached_system_prompt_static == "\n\n".join(expected.split("\n\n")[:4])
 
 
 class TestTelegramRichMessagesHint:

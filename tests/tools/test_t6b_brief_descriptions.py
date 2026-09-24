@@ -110,3 +110,15 @@ def test_tool_describe_injected_into_resolved_lane():
     names = [d["function"]["name"] for d in defs]
     assert TOOL_DESCRIBE_NAME in names
     assert names.count(TOOL_DESCRIBE_NAME) == 1
+
+
+def test_terminal_wire_brief_states_persistence_full_docs_keep_the_detail():
+    """Moved from ``tests/tools/test_terminal_tool.py`` (seam Stage 2): the wire
+    brief states cwd + env persist between calls; the virtualenv / re-source
+    detail lives in the full docs (tool_describe)."""
+    wire = (registry.get_entry("terminal").schema or {}).get("description", "")
+    assert "cwd/exported env persist" in wire
+    full = full_tool_description("terminal")
+    assert "exported environment variables persist between calls" in full
+    assert "activate a virtualenv" in full
+    assert "once per session" in full
