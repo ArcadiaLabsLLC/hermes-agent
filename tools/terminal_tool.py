@@ -1325,6 +1325,7 @@ def terminal_tool(
             watch_patterns=watch_patterns,
             _host_local=_host_local,
             _completion_output_chars=_completion_output_chars,
+            heartbeat=heartbeat,
         ),
         provenance,
     )
@@ -1342,6 +1343,7 @@ def _terminal_tool_run(
     watch_patterns: Optional[List[str]] = None,
     _host_local: bool = False,
     _completion_output_chars: int = 0,
+    heartbeat: int = 0,
 ) -> str:
     """Execute *command* in the configured terminal environment; returns a JSON string.
 
