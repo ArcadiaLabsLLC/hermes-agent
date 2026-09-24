@@ -1770,8 +1770,6 @@ def delete_profile(name: str, yes: bool = False) -> Path:
     _retarget_active_profile(canon, "default", "✓ Active profile reset to default")
     if remove_error is not None:
         raise RuntimeError(f"Could not remove profile directory {profile_dir}: {remove_error}") from remove_error
-    from agent_runtime.profile_home import mark_profile_personas_orphaned  # fork: on_profile_deleted hook pending
-    mark_profile_personas_orphaned(canon)
     print(f"\nProfile '{canon}' deleted.")
     if not identity_settled:
         # Filesystem work and runtime teardown are done; the durable identity is not. Report the

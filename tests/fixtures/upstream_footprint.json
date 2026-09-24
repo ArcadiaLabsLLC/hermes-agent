@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 196,
+  "files": 195,
   "deleted_lines": 990,
   "heavy": 4,
   "reasons": [
@@ -210,6 +210,12 @@
       "files": "197 -> 196",
       "deleted_lines": "992 -> 990",
       "reason": "the required-on-this-surface skill emphasis moves off upstream's build_preloaded_skills_prompt parameter onto the fork's mission-chat preload resolver, one line over upstream's own preload note. agent/skill_commands.py at f24a1d7f92 bytes"
+    },
+    {
+      "change": "lane DOORS-A profile tombstone (seam/doors-a-2026-09-24)",
+      "files": "196 -> 195",
+      "deleted_lines": "flat (990)",
+      "reason": "owner ruling 2026-09-24 (3): profile delete adopts upstream's tombstone. hermes_cli/profiles.py at f24a1d7f92 bytes; the harness derives 'this persona's profile is gone' from named_profile_is_deleted at read time (backed_persona_identity), so the reconcile/snapshot lanes clear its placements as orphan-no-profile"
     }
   ]
 }

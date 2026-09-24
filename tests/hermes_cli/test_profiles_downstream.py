@@ -43,31 +43,34 @@ class TestDeleteProfile:
             delete_profile("coder", yes=True)
         assert not profile_dir.is_dir()
 
-    def test_delete_marks_persisted_profile_persona_orphaned(self, profile_env, tmp_path, monkeypatch):
-        profile_dir = create_profile("coder", no_alias=True)
+    def test_delete_unbacks_the_profiles_personas_through_upstreams_tombstone(
+        self, profile_env, tmp_path, monkeypatch
+    ):
+        """Owner ruling 2026-09-24 (3): the harness reads upstream's delete tombstone; a
+        persona bound to a deleted profile backs nothing, so its placements classify as
+        ``orphan-no-profile`` for the reconcile/snapshot lanes to clear."""
+        create_profile("coder", no_alias=True)
+        create_profile("keeper", no_alias=True)
         monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "runtime"))
 
         from agent_runtime.models import AgentPersona
+        from agent_runtime.persona_instance_identity import backed_persona_identity
         from agent_runtime.store import AgentStore
 
         store = AgentStore()
-        store.save(
-            AgentPersona(
-                id="coder_persona",
-                display_name="Coder",
-                role="dev",
-                model=None,
-                provider=None,
-                api_mode=None,
-                toolsets=[],
-                system_prompt_path="personas/dev/system.md",
-                hermes_profile="coder",
+        for pid, profile in (("coder_persona", "coder"), ("keeper_persona", "keeper")):
+            store.save(
+                AgentPersona(
+                    id=pid, display_name=pid, role="dev", model=None, provider=None,
+                    api_mode=None, toolsets=[], system_prompt_path="personas/dev/system.md",
+                    hermes_profile=profile,
+                )
             )
-        )
 
         with patch("hermes_cli.profiles._cleanup_gateway_service"):
             delete_profile("coder", yes=True)
 
-        assert not profile_dir.is_dir()
-        persona = store.get("coder_persona")
-        assert persona.readiness["orphaned"] is True
+        persona_ids, profile_names = backed_persona_identity(profile_names=[])
+        assert "coder_persona" not in persona_ids and "coder" not in profile_names
+        # Positive control: the same store, the live profile's persona stays backed.
+        assert "keeper_persona" in persona_ids and "keeper" in profile_names

@@ -187,7 +187,8 @@ def backed_persona_identity(
     profile_names: Any = None,
 ) -> tuple[set[str], set[str]]:
     """The persona-id / profile-name universe that a persona instance can legitimately
-    back onto: the persisted agent store and live profile templates. Single-sourced
+    back onto: the persisted agent store (minus personas whose profile upstream has
+    tombstoned) and live profile templates. Single-sourced
     so the reconcile and snapshot
     lanes classify orphans identically. ``agents`` accepts ``AgentPersona`` objects or
     snapshot agent-summary dicts; ``profile_names`` is the profile-template name list."""
@@ -200,11 +201,18 @@ def backed_persona_identity(
             agents = AgentStore().list_all()
         except Exception:
             agents = []
+    from .profile_home import profile_is_tombstoned
+
     for agent in agents or []:
+        hp = _extract_field(agent, "hermes_profile")
+        if hp and profile_is_tombstoned(hp):
+            # Its profile was deleted (upstream's tombstone): the persona backs nothing,
+            # so its placements classify ``orphan-no-profile`` and the reconcile /
+            # snapshot lanes clear them (owner ruling 2026-09-24 (3), lane DOORS-A).
+            continue
         pid = _extract_field(agent, "id", "persona_id")
         if pid:
             persona_ids.add(pid)
-        hp = _extract_field(agent, "hermes_profile")
         if hp:
             profile_set.add(hp)
     for name in profile_names or []:
