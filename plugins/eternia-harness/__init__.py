@@ -138,18 +138,26 @@ def _check_skill_search() -> bool:
 
 
 def brief_tool_descriptions(request=None, **_context):
-    """``llm_request`` middleware: the fork's short tool descriptions on the wire.
+    """``llm_request`` middleware: the fork's short tool descriptions on the wire, then the
+    persona prompt-cache routing (``agent_runtime.cache_routing.route_persona_cache``).
 
     The registry keeps upstream's full text (``tool_describe`` serves it); this swaps
     ``description`` by tool name in the final provider kwargs, for the chat, Responses
     and Anthropic payload shapes. Parameters are never touched.
     """
+    from agent_runtime.cache_routing import route_persona_cache
     from tools.downstream_schema import brief_request_tools
 
-    rewritten = brief_request_tools(request)
+    # ONE callback, both rewrites: upstream feeds every llm_request callback the same
+    # original request and keeps the LAST result, so two callbacks would drop the first.
+    # Briefs first, so the persona cache key hashes the briefed wire tools.
+    briefed = brief_request_tools(request)
+    routed = route_persona_cache(briefed if briefed is not None else request, **_context)
+    rewritten = routed if routed is not None else briefed
     if rewritten is None:
         return None
-    return {"request": rewritten, "source": "eternia-harness", "reason": "tool wire briefs"}
+    reasons = [r for r, done in (("tool wire briefs", briefed is not None), ("persona cache routing", routed is not None)) if done]
+    return {"request": rewritten, "source": "eternia-harness", "reason": " + ".join(reasons)}
 
 
 def default_background_notify(tool_name=None, args=None, **_context):

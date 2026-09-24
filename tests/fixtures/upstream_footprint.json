@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 199,
-  "deleted_lines": 994,
+  "files": 197,
+  "deleted_lines": 992,
   "heavy": 4,
   "reasons": [
     {
@@ -198,6 +198,12 @@
       "files": "202 -> 199",
       "deleted_lines": "997 -> 994",
       "reason": "owner ruling 2026-09-24 (1): lazy installs go through upstream's door. The eternia-harness plugin setdefault()s HERMES_DISABLE_LAZY_INSTALLS=1 (upstream _allow_lazy_installs; a durable HERMES_LAZY_INSTALL_TARGET still redirects); installs outside a turn are not kept. tools/lazy_deps.py, hermes_cli/tools_config_cua.py and agent/anthropic_adapter.py at f24a1d7f92 bytes; agent/conversation_loop.py loses the run_conversation barrier wrapper and rename"
+    },
+    {
+      "change": "lane DOORS-A persona cache routing (seam/doors-a-2026-09-24)",
+      "files": "199 -> 197",
+      "deleted_lines": "994 -> 992",
+      "reason": "the persona prompt-cache key, the Codex scope headers and the cache-routing observability move onto upstream's llm_request middleware (agent_runtime.cache_routing.route_persona_cache, composed into the eternia-harness callback after the wire briefs; the persona agent comes from a ContextVar profile_runner binds). agent/transports/codex.py and agent/chat_completion_helpers.py at f24a1d7f92 bytes"
     }
   ]
 }

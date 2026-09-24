@@ -1,9 +1,7 @@
 """Fork turn timing and dispatch receipts, shared by upstream turn phases."""
 import logging
 import time
-from contextlib import contextmanager
-from contextvars import ContextVar
-from typing import Any, Iterator, Optional
+from typing import Any, Optional
 CONVERSATION_REQUEST_ASSEMBLED_STEP = "conversation_request_assembled"
 logger = logging.getLogger(__name__)
 
@@ -69,22 +67,6 @@ def _emit_request_assembled_marker(agent: Any, **extra: Any) -> None:
     except Exception:
         logger.debug("request-assembled marker callback failed", exc_info=True)
 
-#: The agent whose ``status_callback`` receives the dispatch timing of the current turn.
-#: Bound by the persona runner around ``run_conversation`` (``profile_runner``, which
-#: builds that callback); the ``llm_execution`` middleware runs synchronously in the turn
-#: thread, so it reads the binding without the middleware context having to carry it.
-_TIMING_AGENT: ContextVar[Any] = ContextVar("eternia_timing_agent", default=None)
-
-
-@contextmanager
-def bind_timing_agent(agent: Any) -> Iterator[None]:
-    token = _TIMING_AGENT.set(agent)
-    try:
-        yield
-    finally:
-        _TIMING_AGENT.reset(token)
-
-
 def _dispatch_streams(agent: Any) -> bool:
     try:
         from agent.turn_api_call import _should_stream
@@ -115,7 +97,9 @@ def time_provider_dispatch(
     turn) -> a pass-through.
     """
 
-    agent = _TIMING_AGENT.get()
+    from agent_runtime.persona_turn_binding import current_persona_turn_agent
+
+    agent = current_persona_turn_agent()
     if agent is None:
         return next_call()
     meta = {"api_call_count": api_call_count, "api_mode": api_mode, "provider": provider, "model": model}

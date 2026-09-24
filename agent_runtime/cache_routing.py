@@ -122,3 +122,87 @@ def _cache_routing_observability(
         ),
         "raw_values_omitted": True,
     }
+
+
+def apply_persona_cache_routing(
+    request: Dict[str, Any],
+    *,
+    cache_scope_id: Any,
+    session_id: Any,
+    is_codex_backend: bool,
+    is_github_responses: bool,
+    is_xai_responses: bool,
+) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    """``(request, observability)`` for one FINAL Responses request (lane DOORS-A 2026-09-24).
+
+    Runs as ``llm_request`` middleware on the kwargs upstream's
+    ``ResponsesApiTransport.build_kwargs`` produced, so it overwrites the values IN PLACE
+    wherever upstream put them (top-level ``prompt_cache_key``, xAI's ``extra_body`` copy,
+    the Codex ``session_id`` / ``x-client-request-id`` headers) instead of re-deriving the
+    placement. With a persona ``cache_scope_id``: the body key becomes the
+    content-addressed :func:`persona_content_cache_key` (instructions + wire tools; the
+    scope never enters it) and both Codex headers carry the bounded scope. Without one the
+    request is untouched. Either way the observability block describes the final bytes.
+    """
+
+    from agent.transports.codex import (
+        _bounded_prompt_cache_key,
+        _cache_scope_from_session_id,
+        _content_cache_key,
+    )
+
+    req = dict(request)
+    instructions = req.get("instructions")
+    tools = req.get("tools")
+    scope = str(cache_scope_id or "").strip()
+    if scope:
+        key = persona_content_cache_key(instructions, tools) or session_id
+        bounded = _bounded_prompt_cache_key(key)
+        if "prompt_cache_key" in req:
+            if bounded:
+                req["prompt_cache_key"] = bounded
+            else:
+                req.pop("prompt_cache_key", None)
+        extra_body = req.get("extra_body")
+        if isinstance(extra_body, dict) and "prompt_cache_key" in extra_body and bounded:
+            req["extra_body"] = {**extra_body, "prompt_cache_key": bounded}
+        if is_codex_backend:
+            scoped = _bounded_prompt_cache_key(scope)
+            existing = req.get("extra_headers")
+            headers = dict(existing) if isinstance(existing, dict) else {}
+            headers.update({"session_id": scoped, "x-client-request-id": scoped})
+            req["extra_headers"] = headers
+    else:
+        upstream_scope = _cache_scope_from_session_id(session_id)
+        key = _content_cache_key(instructions, tools, upstream_scope) or upstream_scope
+    source = "static_prefix" if instructions or tools else "session_fallback" if key else "none"
+    observability = _cache_routing_observability(
+        req, computed_cache_key=_bounded_prompt_cache_key(key) or key,
+        computed_cache_key_source=source, cache_scope_id=scope or None, session_id=session_id,
+        is_codex_backend=is_codex_backend, is_github_responses=is_github_responses,
+        is_xai_responses=is_xai_responses,
+    )
+    return req, observability
+
+
+def route_persona_cache(request: Any, *, api_mode: Any = None, **_context: Any) -> Optional[Dict[str, Any]]:
+    """The eternia-harness ``llm_request`` half for cache routing; None when not a persona
+    Codex/Responses turn. Records the observability block on the bound agent."""
+
+    if api_mode != "codex_responses" or not isinstance(request, dict):
+        return None
+    from agent_runtime.persona_turn_binding import current_persona_turn_agent
+
+    agent = current_persona_turn_agent()
+    if agent is None:
+        return None
+    from agent.codex_responses_adapter import classify_responses_route
+
+    is_codex_backend, is_xai_responses, is_github_responses = classify_responses_route(agent)
+    rewritten, observability = apply_persona_cache_routing(
+        request, cache_scope_id=getattr(agent, "cache_scope_id", None),
+        session_id=getattr(agent, "session_id", None), is_codex_backend=is_codex_backend,
+        is_github_responses=is_github_responses, is_xai_responses=is_xai_responses,
+    )
+    agent._last_cache_routing_observability = observability
+    return rewritten if rewritten != request else None

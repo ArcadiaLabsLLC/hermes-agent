@@ -20,10 +20,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agent_runtime.conversation_observability import (
-    CONVERSATION_REQUEST_ASSEMBLED_STEP,
-    bind_timing_agent,
-)
+from agent_runtime.conversation_observability import CONVERSATION_REQUEST_ASSEMBLED_STEP
+from agent_runtime.persona_turn_binding import bind_persona_turn_agent
 
 
 @pytest.fixture()
@@ -80,7 +78,7 @@ def _run_observed(loop_agent, *, bound: bool) -> list[str]:
         patch.object(loop_agent, "_persist_session"),
         patch.object(loop_agent, "_save_trajectory"),
         patch.object(loop_agent, "_cleanup_task_resources"),
-        bind_timing_agent(loop_agent) if bound else nullcontext(),
+        bind_persona_turn_agent(loop_agent) if bound else nullcontext(),
     ):
         result = loop_agent.run_conversation("say done")
 
