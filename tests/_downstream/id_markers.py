@@ -844,6 +844,50 @@ ID_MARKS.update({
 })
 
 
+
+# ── Lane REDS3: upstream's own Windows reds in byte-identical files, no fork PR
+# covers any (X:/wt/_holds/upstream-reds-v2026.9.24.md, classes e-BR and e-ID).
+# After the CARRY3 block: a row that already carries a mark keeps it.
+_TCC_POSIX_VENV = _posix_xfail(
+    "the fixture builds a POSIX venv (bin/, symlinked interpreters) and patches only "
+    "platform.system; venv_python_path follows sys.platform to Scripts/python.exe"
+)
+if _WIN:
+    for _node in (
+        *(f"tests/hermes_cli/test_macos_tcc_anchor.py::TestEnsureTccAnchor::{test}" for test in (
+            "test_noop_on_non_macos",
+            "test_install_signs_the_anchor_copy",
+            "test_anchors_repair_generation_interpreter",
+            "test_anchors_uv_managed_interpreter",
+            "test_idempotent",
+            "test_repairs_alias_symlinks_left_by_predecessor",
+            "test_reanchors_after_patch_bump",
+            "test_skips_homebrew_interpreter",
+            "test_provisions_libpython_as_hardlink_when_present",
+            "test_boot_gate_refusal_leaves_venv_untouched",
+            "test_alias_failure_leaves_anchor_unmarked",
+        )),
+        *(f"tests/hermes_cli/test_macos_tcc_anchor.py::TestTccAnchorState::{test}" for test in (
+            "test_state_active_through_unpatched_home_symlink",
+            "test_state_missing_then_active",
+            "test_state_skip_for_homebrew",
+            "test_state_stale_after_patch_bump",
+        )),
+    ):
+        ID_MARKS[_node] = (*ID_MARKS.get(_node, ()), _TCC_POSIX_VENV)
+    ID_MARKS.update({
+        "tests/hermes_cli/test_plugins.py::TestPluginDiscovery::"
+        "test_enabled_portable_plugin_registers_components": (
+            _up_red("app.darwin.location is str(tmp_path), a drive-letter path the declaration "
+                    "rejects as not absolute, so the plugin is disabled at load (class c-D)"),
+        ),
+        "tests/tui_gateway/test_tui_gateway_server.py::"
+        "test_load_cfg_raw_sees_replacement_with_pinned_mtime_and_size": (
+            _up_red("shutil.copy2 over an existing file keeps its NTFS file id and creation "
+                    "ctime, so no field of the cache signature moves (class e-ID)"),
+        ),
+    })
+
 def _base_id(nodeid: str) -> str:
     return nodeid.split("[", 1)[0]
 
