@@ -130,9 +130,6 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `run_agent.py` | 2 | 0 | hook | `blocked_tool_names` kwarg (the `model_tools.py` tool-filter hook PR) + `session_usage_ledger` init (the usage-ledger PR candidate, see `agent/turn_finalizer.py`) | S3 |
 | `scripts/audit_pr_attribution.py` | 4 | 1 | upstream | PR candidate: exact-name contributor lookup incl. `case-variants/` (Windows case-insensitive FS); with `contributor-check.yml` + `release.py` | S3 |
 | `scripts/check_subprocess_stdin.py` | 2 | 2 | upstream | PR candidate: `as_posix()` path compares so the allowlist and `/tests/` skip work on Windows | S3 |
-| `scripts/desktop-update/posix.sh` | 7 | 0 | carry | ours: stop without retry on `HERMES_UPDATE_HISTORY_REVIEW_REQUIRED` (fork history-fold review) — additive; not movable (upstream updater script) | - |
-| `scripts/desktop-update/retry-policy.ps1` | 4 | 1 | carry | ours: history-review sentinel is non-retryable — replaces 1 upstream line (param list); not movable | - |
-| `scripts/desktop-update/windows.ps1` | 5 | 2 | carry | ours: history-review sentinel stop + message — replaces 2 upstream lines; not movable | - |
 | `scripts/install.ps1` | 95 | 2 | upstream | PR candidate: install into the existing checkout the installer runs from (forks keep their origin), segment-wise PATH dedup, `git`/`git-bash` in `--ensure` | S3 |
 | `scripts/install.sh` | 61 | 4 | upstream | PR candidate: install into the existing checkout the installer runs from (forks keep their origin); idempotent `resolve_install_layout` | S3 |
 | `scripts/release.py` | 3 | 1 | upstream | PR candidate: read `contributors/emails/` recursively for `case-variants/`; with `contributor-check.yml` + `audit_pr_attribution.py` | S3 |
@@ -259,7 +256,6 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tests/scripts/desktop_update/test_desktop_update_windows_cwd.py` | 2 | 1 | carry | fork test infra: pytest-timeout marker / bounds sized for the fork's repo-wide --timeout=30 runner | - |
 | `tests/scripts/desktop_update/test_desktop_update_windows_pipe_drain.py` | 1 | 0 | carry | fork test infra: pytest-timeout marker / bounds sized for the fork's repo-wide --timeout=30 runner | - |
 | `tests/scripts/desktop_update/test_desktop_update_windows_progress.py` | 2 | 1 | carry | fork test infra: pytest-timeout marker / bounds sized for the fork's repo-wide --timeout=30 runner | - |
-| `tests/scripts/desktop_update/test_desktop_update_windows_retry_policy.py` | 4 | 1 | carry | depends on fork prod code desktop-update history-refusal arm (+ fork-runner timeout marker, R7) | - |
 | `tests/scripts/desktop_update/test_desktop_update_windows_ui_delivery.py` | 2 | 1 | carry | fork test infra: pytest-timeout marker / bounds sized for the fork's repo-wide --timeout=30 runner | - |
 | `tests/scripts/install/test_install_ps1_managed_python_provenance.py` | 1 | 0 | carry | fork test infra: pytest-timeout marker / bounds sized for the fork's repo-wide --timeout=30 runner | - |
 | `tests/scripts/test_run_tests_parallel.py` | 43 | 5 | upstream | PR candidate: probe rootdir anchor (pytest.ini) + utf-8 decode not in up/win-text-encoding; REVERT orphan S5 banners; 1 hunk already upstream (524c38a98a) | S3 |

@@ -108,6 +108,10 @@ ID_MARKS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     "test_fail_open_false_escalates_to_approval_on_import_error": (
         pytest.mark.tirith_config_value_under_test,
     ),
+    # The fork runner's 30s default is below the child PowerShell's own 30s
+    # budget; this upstream test needs the headroom.
+    "tests/scripts/desktop_update/test_desktop_update_windows_retry_policy.py::"
+    "test_retry_policy_distinguishes_self_lock_deferral": (pytest.mark.timeout(45),),
 }
 
 if _WIN:

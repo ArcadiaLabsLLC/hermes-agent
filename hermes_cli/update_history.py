@@ -6,6 +6,10 @@ from pathlib import Path
 import subprocess
 import uuid
 
+#: Exit 2 is the desktop updaters' non-retryable safety refusal (upstream
+#: ``scripts/desktop-update``: posix.sh skips the retry, retry-policy.ps1 retries
+#: exit 2 only when ``.update-incomplete`` exists). A fold review is deterministic.
+HISTORY_REVIEW_EXIT = 2
 
 @dataclass(frozen=True)
 class HistoryAssessment:
@@ -86,7 +90,7 @@ def guard_fork_history(git_cmd, cwd: Path, target: str) -> HistoryAssessment:
         result = _git(git_cmd, cwd, "update-ref", "--stdin", input="\n".join(commands) + "\n")
         if result.returncode:
             print("Update stopped: recovery refs could not be written. Checkout unchanged.")
-            raise SystemExit(1)
+            raise SystemExit(HISTORY_REVIEW_EXIT)
     print(f"Update stopped: fork history is {history.relationship} against {target}.")
     if history.same_tree:
         print("The tracked trees match, but ancestry differs (possibly folded commits).")
@@ -95,4 +99,4 @@ def guard_fork_history(git_cmd, cwd: Path, target: str) -> HistoryAssessment:
     print("Review contributors, merge ancestry and patch equivalence on a dedicated codex/ branch.")
     print("Keep consolidation as a review series; deliver a history-preserving descendant of published main.")
     print("No checkout files or published branches were changed. --yes does not override this guard.")
-    raise SystemExit(1)
+    raise SystemExit(HISTORY_REVIEW_EXIT)

@@ -52,8 +52,10 @@ def test_fold_refusal_preserves_dirty_files_index_and_both_histories(repo, capsy
     (repo / "untracked.txt").write_text("untracked intent", encoding="utf-8")
     staged = git(repo, "diff", "--cached")
     status = git(repo, "status", "--porcelain")
-    with pytest.raises(SystemExit, match="1"):
+    with pytest.raises(SystemExit) as refused:
         history.guard_fork_history(["git"], repo, "origin/main")
+    # Exit 2: upstream's desktop updaters treat it as a non-retryable refusal.
+    assert refused.value.code == 2
     assert git(repo, "rev-parse", "HEAD") == old
     assert git(repo, "rev-parse", "origin/main") == tip
     assert git(repo, "diff", "--cached") == staged
