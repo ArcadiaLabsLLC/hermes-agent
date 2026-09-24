@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 296,
+  "files": 295,
   "deleted_lines": 1876,
   "heavy": 7,
   "reasons": [
@@ -95,6 +95,12 @@
       "files": "300 -> 296",
       "deleted_lines": "1881 -> 1876",
       "reason": "harness keys remote_gateway/charsheet/display.busy_text_mode leave DEFAULT_CONFIG (readers default in code) and the comment rewraps revert; hermes_cli/web_server_config.py, status.py, status_auth.py, hermes_state.py byte-identical to f24a1d7f92: the provider report in hermes_cli/harness.py reads status_auth._API_KEYS / status._first_env_value directly and appends its own Anthropic row; RuntimeSessionMixin becomes agent_runtime.session_extensions.delete_compression_lineage(db, ...), called from persona_commands.py"
+    },
+    {
+      "change": "lane MOVE-A group 4 (seam/carry-move-a-2026-09-24)",
+      "files": "296 -> 295",
+      "deleted_lines": "1876 -> 1876",
+      "reason": "the two async-delivery readers moved to agent_runtime/delivery_capability.py, which imports upstream's module-private _SESSION_ASYNC_DELIVERY/_UNSET (recorded in the ledger's private-name table with the two-function PR that retires it); gateway/session_context.py byte-identical to f24a1d7f92; gateway/run_config_loaders.py stays - no profile config seed exists to carry background_process_notifications: result"
     }
   ]
 }

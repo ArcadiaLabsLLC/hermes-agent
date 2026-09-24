@@ -60,7 +60,8 @@ def deliverable_lane(monkeypatch):
     forge a turn back into.
     """
 
-    from gateway.session_context import _SESSION_ASYNC_DELIVERY, declare_async_delivery_channel
+    from agent_runtime.delivery_capability import declare_async_delivery_channel
+    from gateway.session_context import _SESSION_ASYNC_DELIVERY
 
     # The REAL contextvar, not a stub of the getter: the lane now requires a
     # POSITIVE declaration, so a test that stubbed only the value would pass
@@ -216,7 +217,7 @@ def test_a_sender_root_the_drain_cannot_resolve_is_refused_before_running(
     could not deliver never runs.
     """
 
-    from gateway.session_context import declare_async_delivery_channel
+    from agent_runtime.delivery_capability import declare_async_delivery_channel
 
     declare_async_delivery_channel()
     monkeypatch.setattr(dispatch_delivery, "_sender_persona", lambda root: None)

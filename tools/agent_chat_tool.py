@@ -650,10 +650,8 @@ def _async_delivery_available() -> bool:
     """
 
     try:
-        from gateway.session_context import (
-            async_delivery_declared,
-            async_delivery_supported,
-        )
+        from agent_runtime.delivery_capability import async_delivery_declared
+        from gateway.session_context import async_delivery_supported
 
         # A POSITIVE declaration is required, not merely a non-False answer.
         # `async_delivery_supported()` returns True for an unbound session, and

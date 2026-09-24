@@ -2445,10 +2445,8 @@ def _bind_mission_chat_delivery_capability() -> bool:
     """
 
     from agent_runtime.dispatch_delivery import delivery_drain_is_live
-    from gateway.session_context import (
-        declare_async_delivery_channel,
-        declare_stateless_channel,
-    )
+    from agent_runtime.delivery_capability import declare_async_delivery_channel
+    from gateway.session_context import declare_stateless_channel
 
     can_deliver = delivery_drain_is_live()
     if can_deliver:

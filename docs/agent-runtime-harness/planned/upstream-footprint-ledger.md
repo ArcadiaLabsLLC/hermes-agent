@@ -63,7 +63,6 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `gateway/run_config_loaders.py` | 4 | 4 | carry | replaces upstream lines: background-completion default `concise`->`result`. VERDICT 2026-09-24 (lane MECH): DESIGN - no fork profile config seed exists, and `_load_gateway_config` does no DEFAULT_CONFIG merge, so reverting flips every config without the key to `concise` (test_background_process_notifications pins `result`) | - |
 | `gateway/run_notifications.py` | 11 | 1 | carry | ours: compact completion notice instead of an agent turn when `background_process_agent_turns` is off — additive branch. PR candidate: `reply_to=watcher message_id` on watcher sends | - |
 | `gateway/run_startup.py` | 1 | 1 | hook | seam: `_kanban_blocked_pm_hook_watcher` (fork mixin) in the pre-reconnect watcher tuple; needs a gateway watcher-registration hook PR | S3 |
-| `gateway/session_context.py` | 34 | 0 | carry | ours: `declare_async_delivery_channel`/`async_delivery_declared` — additive; not movable (reads the module-private `_SESSION_ASYNC_DELIVERY`/`_UNSET`) | - |
 | `gateway/shutdown_watchdog.py` | 12 | 3 | upstream | PR candidate: `_process_hermes_home` must not fall back to the override-honouring `get_hermes_home()` (issue #56986 class); upstream/main still falls back | S3 |
 | `hermes_cli/auth.py` | 23 | 2 | carry | ours: head-bound auth store selection in `_auth_file_path` via `agent_runtime.profile_home.get_hermes_auth_home` (theme-7 ruling) + tail re-export of `agent_runtime.auth_extensions` — replaces upstream lines: the import block and the path line; the path seam is not movable (the one resolver); the re-export is movable → callers import `agent_runtime.auth_extensions` | - |
 | `hermes_cli/auth_commands.py` | 7 | 0 | hook | `auth set-key` / `auth login` (`hermes_cli/auth_noninteractive.py`): the launcher's argv builds these spellings (`provider_connect_controller.dart`), so they stay (lane S2). Waits on the widening PR for plugin sub-verbs on a builtin parser (`register_cli_command` is top-level only), or a launcher move to a harness spelling | S3 |
@@ -306,3 +305,13 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `website/docs/developer-guide/relay-connector-contract.md` | 9 | 1 | upstream | PR candidate (website docs): `prospective_thread_id`, `profile`, `auto_thread_*` wire fields and the local-only trust signals exist in upstream code but not in its table | S3 |
 | `website/docs/reference/slash-commands.md` | 1 | 0 | hook | `/queue-status` row follows the fork's command. DESIGN (lane S2): a plugin slash handler gets `raw_args` only (no gateway runner or event) and the busy path never dispatches plugin commands; `/queue-status` needs both. Waits on a PR widening `register_command` (gateway context + `busy_policy`) | S3 |
 | `website/docs/user-guide/egress/network-isolation.md` | 1 | 1 | upstream | PR candidate (website docs): the dashboard health route is `/api/health` (`hermes_cli/web_routers/status.py`) | S3 |
+
+## Stock files a fork module reads by private name (no diff row, recorded here)
+
+A file that is byte-identical to upstream has no row above; these fork modules
+reach into it by a module-private name, so an upstream rename breaks them
+without touching the ratchet. Each carries the PR that retires the import.
+
+| upstream file | private names | fork reader | retires with |
+|---|---|---|---|
+| `gateway/session_context.py` | `_SESSION_ASYNC_DELIVERY`, `_UNSET` | `agent_runtime/delivery_capability.py` (`declare_async_delivery_channel`, `async_delivery_declared`; lane MOVE-A) | a two-function upstream PR adding those two readers beside `declare_stateless_channel` / `async_delivery_supported` |

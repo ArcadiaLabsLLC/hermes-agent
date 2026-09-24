@@ -75,10 +75,8 @@ def runtime_root(tmp_path, monkeypatch):
 
 @pytest.fixture
 def deliverable_lane(monkeypatch):
-    from gateway.session_context import (
-        _SESSION_ASYNC_DELIVERY,
-        declare_async_delivery_channel,
-    )
+    from agent_runtime.delivery_capability import declare_async_delivery_channel
+    from gateway.session_context import _SESSION_ASYNC_DELIVERY
 
     token = _SESSION_ASYNC_DELIVERY.set(_SESSION_ASYNC_DELIVERY.get())
     declare_async_delivery_channel()
