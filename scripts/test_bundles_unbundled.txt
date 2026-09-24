@@ -20,3 +20,4 @@ tests/hermes_cli/test_dashboard_param_clamps.py  # observed: bundle #38 {'failed
 tests/hermes_cli/test_install_identity.py  # observed: bundle #47 {'failed': 1, 'passed': 2} after 18 earlier members; passed alone
 tests/hermes_cli/test_resolve_provider_custom_endpoint.py  # observed: bundle #69 {'failed': 1, 'passed': 8} after 18 earlier members; passed alone
 tests/hermes_cli/test_startup_model_routing.py  # observed: bundle #77 {'passed': 11, 'failed': 1} after 14 earlier members; passed alone
+tests/agent_runtime/test_local_llama_manager.py  # observed: bundle #6 {'passed': 12, 'failed': 1} after 4 earlier members; passed alone
