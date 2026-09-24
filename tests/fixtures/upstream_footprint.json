@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 215,
-  "deleted_lines": 1036,
+  "files": 214,
+  "deleted_lines": 1027,
   "heavy": 4,
   "reasons": [
     {
@@ -138,6 +138,12 @@
       "files": "216 -> 215",
       "deleted_lines": "1043 -> 1036",
       "reason": "owner ruling 2026-09-24: adopt upstream's `concise` background_process_notifications default. gateway/run_config_loaders.py byte-identical to f24a1d7f92 (-4); cli-config.yaml.example and hermes_cli/config_defaults.py lose the concise->result line (-2, -1); only the BG-PR background_process_agent_turns lines remain in them"
+    },
+    {
+      "change": "lane LEDGER-DOCS follow-down (fork/ledger-rows-2026-09-24)",
+      "files": "215 -> 214",
+      "deleted_lines": "1036 -> 1027",
+      "reason": "lane REDS3 (594b94e750) restored tests/hermes_cli/test_completion.py to f24a1d7f92's bytes (16/9 -> 0; its Windows reds ride tests/_downstream/id_markers.py) without lowering this fixture, so main's ratchet read FELL; the ledger row leaves and tests/conftest.py's added count is re-measured (130 -> 158)"
     }
   ]
 }
