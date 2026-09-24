@@ -1,8 +1,5 @@
 """Tests for hermes_cli.doctor."""
 
-import hermes_cli.doctor_tools as _owner_hermes_cli_doctor_tools
-import shutil as _owner_shutil
-
 import importlib.util
 import subprocess
 import sys
@@ -199,7 +196,7 @@ class TestDoctorEnvFileEncoding:
             encoding="utf-8",
         )
 
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setattr(doctor_mod, "HERMES_HOME", hermes_home)
 
         orig_read_text = pathlib.Path.read_text
 
@@ -225,7 +222,7 @@ class TestDoctorEnvFileEncoding:
         # Run doctor. If the .env read still uses locale encoding, this
         # raises UnicodeDecodeError and the test fails.
         with pytest.raises(SystemExit):
-            _run_doctor(Namespace(fix=False))
+            doctor_mod.run_doctor(Namespace(fix=False))
 
 
     def test_doctor_reads_invalid_utf8_env_via_latin1_fallback(
@@ -239,7 +236,7 @@ class TestDoctorEnvFileEncoding:
         # so the scan still reports a configured endpoint/key.
         env_path.write_bytes(b"OPENAI_API_KEY=sk-test\xff\n")
 
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setattr(doctor_mod, "HERMES_HOME", hermes_home)
 
         fake_model_tools = types.SimpleNamespace(
             check_tool_availability=lambda *a, **kw: (_ for _ in ()).throw(SystemExit(0)),
@@ -248,7 +245,7 @@ class TestDoctorEnvFileEncoding:
         monkeypatch.setitem(sys.modules, "model_tools", fake_model_tools)
 
         with pytest.raises(SystemExit):
-            _run_doctor(Namespace(fix=False))
+            doctor_mod.run_doctor(Namespace(fix=False))
 
 
 class TestDoctorToolAvailabilityOverrides:
@@ -306,7 +303,7 @@ def test_doctor_reports_vercel_backend_diagnostics(monkeypatch, tmp_path):
 
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        _run_doctor(Namespace(fix=False))
+        doctor_mod.run_doctor(Namespace(fix=False))
 
     out = buf.getvalue()
     assert "VERCEL_PROJECT_ID" in out  # names the missing auth var
@@ -438,7 +435,7 @@ def test_run_doctor_accepts_named_provider_from_providers_section(monkeypatch, t
         )
     , encoding="utf-8")
 
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setattr(doctor_mod, "HERMES_HOME", home)
     monkeypatch.setattr(doctor_mod, "PROJECT_ROOT", tmp_path / "project")
     monkeypatch.setattr(doctor_mod, "_DHH", str(home))
     (tmp_path / "project").mkdir(exist_ok=True)
@@ -459,7 +456,7 @@ def test_run_doctor_accepts_named_provider_from_providers_section(monkeypatch, t
 
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        _run_doctor(Namespace(fix=False))
+        doctor_mod.run_doctor(Namespace(fix=False))
 
     out = buf.getvalue()
     assert "model.provider 'volcengine-plan' is not a recognised provider" not in out
@@ -482,7 +479,7 @@ def test_run_doctor_accepts_stable_key_when_provider_name_differs(
         encoding="utf-8",
     )
 
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setattr(doctor_mod, "HERMES_HOME", home)
     monkeypatch.setattr(doctor_mod, "PROJECT_ROOT", tmp_path / "project")
     monkeypatch.setattr(doctor_mod, "_DHH", str(home))
     (tmp_path / "project").mkdir(exist_ok=True)
@@ -503,7 +500,7 @@ def test_run_doctor_accepts_stable_key_when_provider_name_differs(
 
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        _run_doctor(Namespace(fix=False))
+        doctor_mod.run_doctor(Namespace(fix=False))
 
     out = buf.getvalue()
     assert (
@@ -524,7 +521,7 @@ def test_run_doctor_accepts_bare_custom_provider(monkeypatch, tmp_path):
         encoding="utf-8",
     )
 
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setattr(doctor_mod, "HERMES_HOME", home)
     monkeypatch.setattr(doctor_mod, "PROJECT_ROOT", tmp_path / "project")
     monkeypatch.setattr(doctor_mod, "_DHH", str(home))
     (tmp_path / "project").mkdir(exist_ok=True)
@@ -615,7 +612,7 @@ def test_run_doctor_accepts_hermes_provider_ids_that_catalog_aliases(
         encoding="utf-8",
     )
 
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setattr(doctor_mod, "HERMES_HOME", home)
     monkeypatch.setattr(doctor_mod, "PROJECT_ROOT", tmp_path / "project")
     monkeypatch.setattr(doctor_mod, "_DHH", str(home))
     (tmp_path / "project").mkdir(exist_ok=True)
@@ -662,7 +659,7 @@ def test_run_doctor_accepts_vendor_slugs_for_named_custom_provider(monkeypatch, 
         encoding="utf-8",
     )
 
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setattr(doctor_mod, "HERMES_HOME", home)
     monkeypatch.setattr(doctor_mod, "PROJECT_ROOT", tmp_path / "project")
     monkeypatch.setattr(doctor_mod, "_DHH", str(home))
     (tmp_path / "project").mkdir(exist_ok=True)
@@ -683,7 +680,7 @@ def test_run_doctor_accepts_vendor_slugs_for_named_custom_provider(monkeypatch, 
 
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        _run_doctor(Namespace(fix=False))
+        doctor_mod.run_doctor(Namespace(fix=False))
 
     out = buf.getvalue()
     assert "model.provider 'custom:hpc-ai' is not a recognised provider" not in out
@@ -694,64 +691,6 @@ def test_run_doctor_accepts_vendor_slugs_for_named_custom_provider(monkeypatch, 
         not in out
     )
     assert "Either set model.provider to 'openrouter', or drop the vendor prefix." not in out
-
-
-def _run_doctor_with_managed_agent_browser(monkeypatch, tmp_path, runnable):
-    """Set up run_doctor with node present, agent-browser only in the
-    Hermes-managed node bin (~/.hermes/node/bin), not on PATH or in
-    PROJECT_ROOT/node_modules. Returns the captured stdout."""
-    home = tmp_path / ".hermes"
-    (home / "node" / "bin").mkdir(parents=True, exist_ok=True)
-    (home / "config.yaml").write_text("memory: {}\n", encoding="utf-8")
-    managed_ab = home / "node" / "bin" / "agent-browser"
-    managed_ab.write_text("#!/bin/sh\n", encoding="utf-8")
-    managed_ab.chmod(0o755)
-    project = tmp_path / "project"
-    project.mkdir(exist_ok=True)  # no node_modules/agent-browser here
-
-    monkeypatch.delenv("TERMUX_VERSION", raising=False)
-    monkeypatch.delenv("PREFIX", raising=False)
-    monkeypatch.setenv("HERMES_HOME", str(home))
-    monkeypatch.setattr(doctor_mod, "PROJECT_ROOT", project)
-    monkeypatch.setattr(doctor_mod, "_DHH", str(home))
-
-    # node on PATH, agent-browser is NOT on PATH (only in the managed bin).
-    # The managed-dir rung resolves via shutil.which(..., path=<dir>) so
-    # Windows picks the .cmd shim — mirror that shape here.
-    def _fake_which(cmd, path=None):
-        if path is not None:
-            if cmd == "agent-browser" and str(managed_ab.parent) == str(path):
-                return str(managed_ab)
-            return None
-        return "/usr/bin/node" if cmd in {"node", "npm"} else None
-
-    monkeypatch.setattr(_owner_shutil, "which", _fake_which)
-    # agent_browser_runnable is imported into doctor's namespace
-    monkeypatch.setattr(
-        _owner_hermes_cli_doctor_tools,
-        "agent_browser_runnable",
-        lambda path: runnable and str(path) == str(managed_ab),
-    )
-
-    fake_model_tools = types.SimpleNamespace(
-        check_tool_availability=lambda *a, **kw: ([], []),
-        TOOLSET_REQUIREMENTS={},
-    )
-    monkeypatch.setitem(sys.modules, "model_tools", fake_model_tools)
-
-    try:
-        from hermes_cli import auth as _auth_mod
-        monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", lambda: {})
-    except Exception:
-        pass
-
-    buf = io.StringIO()
-    with contextlib.redirect_stdout(buf):
-        doctor_mod.run_doctor(Namespace(fix=False))
-    return buf.getvalue()
-
 
 
 @pytest.mark.parametrize(
@@ -819,7 +758,7 @@ def test_run_doctor_accepts_kimi_coding_cn_provider(monkeypatch, tmp_path):
         encoding="utf-8",
     )
 
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setattr(doctor_mod, "HERMES_HOME", home)
     monkeypatch.setattr(doctor_mod, "PROJECT_ROOT", tmp_path / "project")
     monkeypatch.setattr(doctor_mod, "_DHH", str(home))
     (tmp_path / "project").mkdir(exist_ok=True)
@@ -860,7 +799,7 @@ def _doctor_env_for_agent_browser(monkeypatch, tmp_path):
 
     monkeypatch.delenv("TERMUX_VERSION", raising=False)
     monkeypatch.setenv("PREFIX", "/usr")
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setattr(doctor_mod, "HERMES_HOME", home)
     monkeypatch.setattr(doctor_mod, "PROJECT_ROOT", project)
     monkeypatch.setattr(doctor_mod, "_DHH", str(home))
     monkeypatch.setattr(
@@ -878,15 +817,6 @@ def _doctor_env_for_agent_browser(monkeypatch, tmp_path):
     try:
         from hermes_cli import auth as _auth_mod
         monkeypatch.setattr(_auth_mod, "get_nous_auth_status", lambda: {})
-        # Both Nous spellings, on purpose. ``get_nous_auth_status`` and
-        # ``get_nous_auth_status_local`` are two real functions in
-        # ``hermes_cli/auth.py``. Until 2026-09-04 this file defined each of
-        # these five tests TWICE -- an earlier block that patched the
-        # ``_local`` spelling and a later one that patched the bare name.
-        # Python keeps only the later definition, so the ``_local`` half was
-        # never executed. The earlier block is gone; patching both names here
-        # is the union it carried.
-        monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", lambda: {})
         monkeypatch.setattr(_auth_mod, "get_codex_auth_status", lambda: {})
         monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", lambda: {})
     except Exception:
@@ -1015,7 +945,7 @@ def test_run_doctor_dashscope_retries_china_endpoint_after_intl_unauthorized(mon
     project = tmp_path / "project"
     project.mkdir(exist_ok=True)
 
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setattr(doctor_mod, "HERMES_HOME", home)
     monkeypatch.setattr(doctor_mod, "PROJECT_ROOT", project)
     monkeypatch.setattr(doctor_mod, "_DHH", str(home))
     monkeypatch.setenv("DASHSCOPE_API_KEY", "sk-test")
@@ -1047,7 +977,7 @@ def test_run_doctor_dashscope_retries_china_endpoint_after_intl_unauthorized(mon
 
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        _run_doctor(Namespace(fix=False))
+        doctor_mod.run_doctor(Namespace(fix=False))
     out = buf.getvalue()
 
     assert "Alibaba/DashScope" in out
@@ -1071,7 +1001,7 @@ def test_run_doctor_opencode_go_skips_invalid_models_probe(monkeypatch, tmp_path
     project = tmp_path / "project"
     project.mkdir(exist_ok=True)
 
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setattr(doctor_mod, "HERMES_HOME", home)
     monkeypatch.setattr(doctor_mod, "PROJECT_ROOT", project)
     monkeypatch.setattr(doctor_mod, "_DHH", str(home))
     monkeypatch.setenv("OPENCODE_GO_API_KEY", "sk-test")
@@ -1106,7 +1036,7 @@ def test_run_doctor_opencode_go_skips_invalid_models_probe(monkeypatch, tmp_path
     import io, contextlib
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        _run_doctor(Namespace(fix=False))
+        doctor_mod.run_doctor(Namespace(fix=False))
     out = buf.getvalue()
 
     assert any(
@@ -1162,7 +1092,7 @@ def _run_doctor_with_healthy_oauth_fallback(
     project = tmp_path / "project"
     project.mkdir(exist_ok=True)
 
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setattr(doctor_mod, "HERMES_HOME", home)
     monkeypatch.setattr(doctor_mod, "PROJECT_ROOT", project)
     monkeypatch.setattr(doctor_mod, "_DHH", str(home))
     monkeypatch.setenv(env_key, bad_key)
@@ -1198,7 +1128,7 @@ def _run_doctor_with_healthy_oauth_fallback(
 
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        _run_doctor(Namespace(fix=False))
+        doctor_mod.run_doctor(Namespace(fix=False))
     return buf.getvalue()
 
 
@@ -1272,7 +1202,7 @@ class TestDoctorXaiOAuthStatus:
         project = tmp_path / "project"
         project.mkdir(exist_ok=True)
 
-        monkeypatch.setenv("HERMES_HOME", str(home))
+        monkeypatch.setattr(doctor_mod, "HERMES_HOME", home)
         monkeypatch.setattr(doctor_mod, "PROJECT_ROOT", project)
         monkeypatch.setattr(doctor_mod, "_DHH", str(home))
 
@@ -1290,7 +1220,7 @@ class TestDoctorXaiOAuthStatus:
 
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            _run_doctor(Namespace(fix=False))
+            doctor_mod.run_doctor(Namespace(fix=False))
         return buf.getvalue()
 
 
@@ -1314,7 +1244,7 @@ class TestDoctorXaiOAuthStatus:
         project = tmp_path / "project"
         project.mkdir(exist_ok=True)
 
-        monkeypatch.setenv("HERMES_HOME", str(home))
+        monkeypatch.setattr(doctor_mod, "HERMES_HOME", home)
         monkeypatch.setattr(doctor_mod, "PROJECT_ROOT", project)
         monkeypatch.setattr(doctor_mod, "_DHH", str(home))
 
@@ -1332,7 +1262,7 @@ class TestDoctorXaiOAuthStatus:
 
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            _run_doctor(Namespace(fix=False))
+            doctor_mod.run_doctor(Namespace(fix=False))
         out = buf.getvalue()
         assert "Nous Portal auth" in out
         assert "logged in" in out
@@ -1380,9 +1310,10 @@ class TestDoctorStaleMaxIterationsDrift:
             env_lines.append(f"HERMES_MAX_ITERATIONS={ghost}\n")
         (hermes_home / ".env").write_text("".join(env_lines), encoding="utf-8")
 
-        # Point doctor AND the config helpers at the temp home.
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setattr(doctor_mod, "HERMES_HOME", hermes_home)
         monkeypatch.setattr(doctor_mod, "get_hermes_home", lambda: hermes_home)
+        # Point the config helpers at the temp home.
+        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
         if os_environ_value is not None:
             # Simulate the gateway bridge having already overridden os.environ.
             monkeypatch.setenv("HERMES_MAX_ITERATIONS", str(os_environ_value))
@@ -1399,7 +1330,7 @@ class TestDoctorStaleMaxIterationsDrift:
 
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf), pytest.raises(SystemExit):
-            _run_doctor(Namespace(fix=fix))
+            doctor_mod.run_doctor(Namespace(fix=fix))
         return buf.getvalue(), hermes_home
 
     def test_detects_drift_warn_only(self, monkeypatch, tmp_path):

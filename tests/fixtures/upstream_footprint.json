@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 361,
-  "deleted_lines": 2352,
+  "files": 359,
+  "deleted_lines": 2309,
   "heavy": 9,
   "reasons": [
     {
@@ -37,9 +37,9 @@
     },
     {
       "change": "lane CARRY (seam/test-carries-out-2026-09-24)",
-      "files": "373 -> 361",
-      "deleted_lines": "2404 -> 2352",
-      "reason": "upstream test files restored to upstream's bytes; the fork's marks ride tests/_downstream/id_markers.py by test id, fork tests ride *_downstream.py siblings with upstream fixtures imported by name. Class 1 host-OS fakes dropped (3 files); class 2 shared-fixture carries moved (8 files leave, test_nous_inference_url_validation leaves; prompt_builder, kanban_db, file_operations, tui_gateway_server keep only the in-place hunks that replace upstream behaviour, named in their ledger rows); class 3 shared-process carries leave (dashboard_auth_gate: subsumed by _web_server_app_is_pristine; file_tools_cwd_resolution: Windows spelling, id-table xfails)"
+      "files": "373 -> 359",
+      "deleted_lines": "2404 -> 2309",
+      "reason": "upstream test files restored to upstream's bytes; the fork's marks ride tests/_downstream/id_markers.py by test id, fork tests ride *_downstream.py siblings with upstream fixtures imported by name. Class 1 host-OS fakes dropped (3 files); class 2 shared-fixture carries moved (8 files leave, test_nous_inference_url_validation leaves; prompt_builder, kanban_db, file_operations, tui_gateway_server keep only the in-place hunks that replace upstream behaviour, named in their ledger rows); class 3 shared-process carries leave (dashboard_auth_gate: subsumed by _web_server_app_is_pristine; file_tools_cwd_resolution: Windows spelling, id-table xfails); class 4 fork-prod carries: test_approval and test_doctor_command_install leave, background_process_notifications / test_doctor / tool_search_multiquery keep only the replacing hunks"
     }
   ]
 }

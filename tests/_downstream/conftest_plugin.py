@@ -561,3 +561,9 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         "test MUST also point Path.home() at its own tmpdir — the marker "
         "alone hands back the operator's live Claude Code login.",
     )
+    config.addinivalue_line(
+        "markers",
+        "tirith_config_value_under_test: the test pins tirith's config.yaml value, so "
+        "the fork's tools conftest drops the suite-wide TIRITH_* env for it "
+        "(applied by id from tests/_downstream/id_markers.py).",
+    )

@@ -1,8 +1,6 @@
 """Tests for the dangerous command approval module."""
 
 import os
-import shlex
-import tempfile
 import threading
 import time
 from pathlib import Path
@@ -12,11 +10,9 @@ from unittest.mock import patch as mock_patch
 import pytest
 
 import tools.approval as approval_module
-from tools import path_identity
 from tools import approval_context, approval_detection
 from tools import approval_smart
 from tools.approval import approve_session, detect_dangerous_command, detect_hardline_command, is_approved, load_permanent, prompt_dangerous_approval
-from tools.approval_detection import _is_verification_artifact_cleanup, _windows_spelling_of_msys_path
 from tools.approval_context import _get_approval_mode
 from tools.approval_context import _normalize_approval_mode
 from tools.approval_smart import _smart_approve
@@ -99,15 +95,6 @@ class TestSmartApproval:
         assert is_approved(session_key, pattern_key) is False
 
 
-def _rm_f(path) -> str:
-    """Spell ``rm -f <path>`` the way a shell argument is actually spelled.
-
-    The exemption tokenizes with ``shlex.split(posix=True)``, which eats a
-    bare Windows separator (``C:\\Temp\\x`` -> ``C:Tempx``). Quoting is how a
-    caller passes such a path through a POSIX-tokenized command line, and it
-    keeps this fixture identical on POSIX (no metacharacters -> unquoted).
-    """
-    return f"rm -f {shlex.quote(str(path))}"
 class TestDetectDangerousRm:
     def test_rm_flags_after_operands_detected(self):
         # GNU rm permutes options: `rm build/ -rf` == `rm -rf build/`.
@@ -125,23 +112,13 @@ class TestDetectDangerousRm:
 
 
     def test_nonrecursive_verification_artifact_cleanup_is_not_dangerous(self):
-        # Drive the fixture off the platform's own temp dir rather than a
-        # hardcoded POSIX "/tmp". The exemption compares the operand against
-        # ``os.path.join(os.path.realpath(gettempdir()), basename)``, and on
-        # Windows ``os.path.realpath("/tmp")`` resolves a rooted POSIX path
-        # against the current drive (-> "X:\\tmp"), so a "/tmp" literal can
-        # never match there and the guarantee would go unpinned.
-        temp_dir = os.path.realpath(tempfile.gettempdir())
-        with mock_patch("tempfile.gettempdir", return_value=temp_dir):
+        with mock_patch("tempfile.gettempdir", return_value="/tmp"):
             for prefix in ("hermes-verify-", "hermes-ad-hoc-"):
-                command = _rm_f(os.path.join(temp_dir, f"{prefix}example.py"))
-                # Assert the exemption FIRED, not merely that the verdict is
-                # "not dangerous". A Windows-native path matches none of the
-                # DANGEROUS_PATTERNS anyway (they anchor on a leading POSIX
-                # "/"), so the end-to-end verdict alone is vacuous there —
-                # it stays green even if the exemption is deleted outright.
-                assert _is_verification_artifact_cleanup(command) is True
-                assert detect_dangerous_command(command) == (False, None, None)
+                assert detect_dangerous_command(f"rm -f /tmp/{prefix}example.py") == (
+                    False,
+                    None,
+                    None,
+                )
 
     def test_symlinked_temp_dir_only_exempts_canonical_target(self, tmp_path):
         real_temp = tmp_path / "real-temp"
@@ -151,41 +128,12 @@ class TestDetectDangerousRm:
         basename = "hermes-verify-example.py"
 
         with mock_patch("tempfile.gettempdir", return_value=str(linked_temp)):
-            # The exemption keys on the CANONICAL temp dir (gettempdir() is
-            # realpath'd), so a symlinked spelling of the very same file is
-            # NOT exempt -- exemptions apply to one exact path spelling only.
-            # Asserted on the decision seam itself rather than on
-            # detect_dangerous_command: whether a *non-exempt* single-file
-            # ``rm -f`` is then flagged depends on the unrelated POSIX
-            # "delete in root path" rule, which no Windows-native path can
-            # match, so the end-to-end spelling only pins this on POSIX.
-            assert _is_verification_artifact_cleanup(_rm_f(linked_temp / basename)) is False
-            # ...while the canonical spelling is exempt, on every platform.
-            canonical = _rm_f(real_temp / basename)
-            assert _is_verification_artifact_cleanup(canonical) is True
-            assert detect_dangerous_command(canonical) == (False, None, None)
-    def test_msys_translation_is_windows_only_and_narrow(self):
-        """``/c/...`` is a real POSIX path; only Windows may reinterpret it.
-
-        The platform gate moved with the function into ``tools.path_identity``
-        (approval re-exports it), so the patch target is the authority's global.
-        The imported ``_windows_spelling_of_msys_path`` name below is the same
-        object — pinning it here keeps the guarantee attached to the guard that
-        depends on it, not only to the module that implements it.
-        """
-        with mock_patch.object(path_identity, "_IS_WINDOWS", True):
-            assert _windows_spelling_of_msys_path("/c/Users/x/hermes-verify-a.py") == (
-                r"C:\Users\x\hermes-verify-a.py"
+            assert detect_dangerous_command(f"rm -f {linked_temp / basename}")[0] is True
+            assert detect_dangerous_command(f"rm -f {real_temp / basename}") == (
+                False,
+                None,
+                None,
             )
-            # Not an MSYS drive path: a multi-character first component.
-            assert _windows_spelling_of_msys_path("/tmp/hermes-verify-a.py") is None
-            # Relative and bare-root spellings name no file to remove.
-            assert _windows_spelling_of_msys_path("c/Users/x") is None
-            assert _windows_spelling_of_msys_path("/c/") is None
-            # Already carries a native separator -- not a clean MSYS spelling.
-            assert _windows_spelling_of_msys_path("/c/Users\\x") is None
-        with mock_patch.object(path_identity, "_IS_WINDOWS", False):
-            assert _windows_spelling_of_msys_path("/c/Users/x/hermes-verify-a.py") is None
 
     def test_verification_cleanup_exemption_rejects_broader_deletions(self):
         commands = (
@@ -2004,19 +1952,11 @@ class TestTirithImportErrorFailOpenPolicy:
 
         assert result.get("approved") is True
 
-    def test_fail_open_false_escalates_to_approval_on_import_error(self, monkeypatch):
+    def test_fail_open_false_escalates_to_approval_on_import_error(self):
         """Fail-closed: ImportError must NOT silently allow when tirith_fail_open=false."""
         import builtins
         from unittest.mock import patch as _patch
         from tools.approval import check_all_command_guards
-
-        # This case pins the CONFIG value. The flag is now resolved through
-        # hermes_cli.tirith_config, so the suite-wide TIRITH_ENABLED=false that
-        # tests/conftest.py sets (to keep tirith's auto-install off the network)
-        # would otherwise win here and force fail-open. The env-var lane has its
-        # own coverage in tests/tools/test_tirith_config_call_sites.py.
-        monkeypatch.delenv("TIRITH_ENABLED", raising=False)
-        monkeypatch.delenv("TIRITH_FAIL_OPEN", raising=False)
 
         cfg = {
             "approvals": {"mode": "manual"},

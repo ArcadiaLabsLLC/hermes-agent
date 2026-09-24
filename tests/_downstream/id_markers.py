@@ -40,6 +40,12 @@ _CONTAINER_SPELLING = (
     "{!r}; on Windows tmp_path is drive-anchored (not POSIX-absolute) and repr "
     "doubles backslashes. Test-side spelling, PR candidate class win-path-spelling"
 )
+_TMP_LITERAL = (
+    "upstream mocks gettempdir() as the literal \"/tmp\" and spells the operand "
+    "unquoted; on Windows realpath(\"/tmp\") lands on the current drive and "
+    "shlex eats the separators. Test-side spelling, PR candidate class "
+    "win-path-spelling"
+)
 _FORK_SYSTEM_PATH = (
     "the fork's tools/environments/local.py _augment_windows_system_path appends "
     "the System32 dirs, so upstream's verbatim equality cannot hold on Windows; "
@@ -47,10 +53,23 @@ _FORK_SYSTEM_PATH = (
     "retires with the G2 Windows-paths PR"
 )
 
-ID_MARKS: dict[str, tuple[pytest.MarkDecorator, ...]] = {}
+ID_MARKS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
+    # The fork's hermes_cli.tirith_config lets TIRITH_* env win over config.yaml;
+    # this upstream test pins the config value (fixture: tools_conftest).
+    "tests/tools/test_approval.py::TestTirithImportErrorFailOpenPolicy::"
+    "test_fail_open_false_escalates_to_approval_on_import_error": (
+        pytest.mark.tirith_config_value_under_test,
+    ),
+}
 
 if _WIN:
     ID_MARKS.update({
+        "tests/tools/test_approval.py::TestDetectDangerousRm::test_nonrecursive_verification_artifact_cleanup_is_not_dangerous": (
+            pytest.mark.xfail(reason=_TMP_LITERAL, strict=True),
+        ),
+        "tests/tools/test_approval.py::TestDetectDangerousRm::test_symlinked_temp_dir_only_exempts_canonical_target": (
+            pytest.mark.xfail(reason=_TMP_LITERAL, strict=True),
+        ),
         "tests/tools/test_computer_use.py::TestCuaDriverSessionReconnect::"
         "test_cli_fallback_reads_screenshot_from_file": (
             pytest.mark.xfail(reason=_PATH_SPELLING, strict=True),
