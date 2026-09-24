@@ -244,9 +244,12 @@ def imported_modules(path: Path, rel: str) -> set[str]:
     does not parse yields nothing (its own run will say why)."""
 
     import ast
+    import warnings
 
     try:
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # a test's own SyntaxWarning is its run's to report
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel)
     except (OSError, SyntaxError, UnicodeDecodeError, ValueError):
         return set()
     package = rel.split("/")[:-1]
