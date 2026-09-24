@@ -36,7 +36,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-24 (lanes UPREV, DISP-M)
 
-- [ ] **`tests/hermes_cli/test_profile_delete_mcp_log.py`'s stub edit (S4 row below) cannot retire via P6: `up/profiles-delete-guard` was dropped 2026-09-24** · `fork / tests` · it needs a `reason:` row in `tests/fixtures/upstream_footprint.json` (or the `**__` stub edit carried with a reason) in place of the P6 retire condition · evidence: lane UPREV report · filed by lane UPREV 2026-09-24 **UNCLAIMED** **TAKEN 2026-09-24 FORK-CODE**
 - [ ] **`docs/agent-runtime-harness/planned/upstream-test-fix-classes-2026-09-23.md` classes A/H still point at the 4 dropped branches** (`up/win-text-encoding`, `up/monkeypatch-undo-scoped`, `up/profile-home-generic`, `up/profiles-delete-guard`) · `fork / upstream` · LAND3 re-dispositioned the ledger rows `carry` ("PR dropped 2026-09-24: …"); left: the doc, and per row carry-with-reason vs retire the code · evidence: lane UPREV report · filed by lane UPREV 2026-09-24 **UNCLAIMED** **TAKEN 2026-09-24 FORK-CODE**
 
 ### Filed on arrival — 2026-09-24 (seam lane S5)
