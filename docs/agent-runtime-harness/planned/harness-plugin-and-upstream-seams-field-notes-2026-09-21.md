@@ -22,3 +22,12 @@ Field notes for [`harness-plugin-and-upstream-seams.md`](harness-plugin-and-upst
 <!-- S0 / S1 / S2 / S3-P1..P5 / S4 / S5 / S6 / S7 — one section each: worktree + branch + base SHA, the measurement taken (numbers, instrument, command), the disposition rows changed, the `[up-fp]` line before/after, the commits, the PR link and its outcome where one was opened. -->
 
 S0 disposition: hermes_cli/doctor.py `HERMES_HOME` (with `_DHH`) = carry the NAME, not the constant — served live by a PEP 562 `__getattr__` so upstream's tests can patch it while `tests/test_no_frozen_hermes_home.py` sees no module-level freeze; the fork keeps call-time dotenv loading.
+
+### S0 — the `[up-fp]` ratchet and the disposition ledger (lane S0b, 2026-09-23)
+
+- **Worktree / branch / base:** `X:/wt/h-upfp`, `seam/s0b-upstream-footprint`, cut at `bcf8012e6a`; merge base with upstream `d337b736aa` (`upstream/main` @ `5f47c35d37`). Not yet on `main`.
+- **The line:** `[up-fp] files=459 deleted_lines=2834 heavy=24` — `git diff --numstat -z --no-renames d337b736aa` (working tree) restricted to `tests/fixtures/upstream_manifest.txt` (14,987 paths, `# base d337b736aa`); heavy = added + deleted > 200. Pre-merge §0.2 read 449 / 2,258 / 22 against `c62bd9f207`.
+- **Commits:** `0c2c6725ef` (claim), `d4d12ae12b` (script + test + both fixtures), then the ledger commit carrying this section.
+- **Placement:** the test is `tests/scripts/test_upstream_footprint.py` (tests mirror the source tree), not the plan's `tests/tooling/`.
+- **Mutation receipts** (the ratchet test on the real tree, each reverted): (a) one line appended to `batch_runner.py` → `ROSE {'files': (459, 460)}`; (b) fixture `files` 459 → 458 → `ROSE {'files': (458, 459)}`; (b′) fixture 459 → 460 → `FELL {'files': (460, 459)}`; (c) line 1 of `hermes_cli/main.py` deleted → `ROSE {'deleted_lines': (2834, 2835)}`. Full output in `d4d12ae12b`'s body.
+- **Ledger:** `upstream-footprint-ledger.md`, 459 rows from `--ledger`; §0.3 applied to `hermes_cli/main.py` and §0.4 to twelve rows (13 hand-edited in all); a second `--ledger` run left the file byte-identical (hand edits survive the merge on path). §0.4's `apps/desktop/src/app/skills/*` row (32 files pre-merge) matched NO row on the merged tree — the only upstream desktop files the fork edits now are `apps/desktop/src/app/settings/uninstall-section.tsx` and `apps/desktop/src/lib/desktop-slash-registry.json`, left `carry` / `unreviewed`.
