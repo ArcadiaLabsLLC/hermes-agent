@@ -280,7 +280,11 @@ def _add_coordinator_permission_args(parser) -> None:
 
 
 def build_parser(parent_subparsers) -> None:
-    parser = parent_subparsers.add_parser("harness", help="Experimental Agent Runtime Harness")
+    populate_parser(parent_subparsers.add_parser("harness", help="Experimental Agent Runtime Harness"))
+
+
+def populate_parser(parser) -> None:
+    """Build the whole ``hermes harness`` tree onto an existing ``harness`` parser."""
     _add_stage42_global_args(parser)
     subs = parser.add_subparsers(dest="harness_command")
     parser.set_defaults(func=harness_command)
@@ -2046,6 +2050,99 @@ def build_parser(parent_subparsers) -> None:
 def harness_command(args) -> int:
     print("Use `hermes harness --help`.")
     return 0
+
+
+# --- The CLI entry: what `hermes harness …` runs through (seam Stage 1) ---------
+# The site keeps its pre-plugin spelling: receipts and sidecars already carry it.
+_FINGERPRINT_HOME_CLI_BOOT_SITE = "hermes_cli.main:harness_command_dispatch"
+
+
+def _capture_core_cache_fingerprint_home(args) -> None:
+    """Capture the core cache's fingerprint home BEFORE the command runs (HC-1).
+
+    THE RULE, and why it is applied here and only here. ``core_cache`` freezes
+    the Hermes home its input closure is stat'd under on FIRST USE, and a first
+    use that lands inside ``profile_context.persona_profile_context`` pins that
+    persona's home for the life of the process — after which any sidecar this
+    process writes is keyed under it, and the NEXT boot demotes the pair
+    ``reason=home_mismatch``. A one-shot CLI is not exempt from that: ``hermes
+    harness chat send`` runs a persona turn through
+    ``profile_runner._execute_agent_run``, whose whole body is inside that
+    scope, and a tool in that turn reaching the snapshot is a first fingerprint
+    taken under the override. The poisoned pair then outlives the process.
+
+    SCOPE, decided on evidence rather than on caution: only ``hermes harness …``
+    can reach this lane at all — ``core_cache``/``agent_runtime.snapshot`` are
+    imported by ``hermes_cli.harness``, ``harness_support`` and the four
+    ``harness_parts`` modules, and by nothing else under ``hermes_cli``. It runs
+    from :func:`_harness_entry`, which only the harness tree's handlers carry, so
+    no other command pays for it.
+
+    ``hermes harness serve`` passes through here too, and that is deliberate
+    rather than redundant: this is the earliest instant in the process the
+    command owns, and ``serve_loop`` re-declares its own, more specific site
+    under it. Capture-once means the second call is an observation, not a
+    second answer.
+
+    Best effort by contract: an instrument must never be why a command fails.
+    """
+
+    if getattr(args, "command", None) != "harness":
+        return
+    try:
+        from agent_runtime import core_cache
+
+        core_cache.declare_fingerprint_home_boot_site(_FINGERPRINT_HOME_CLI_BOOT_SITE)
+        core_cache.capture_fingerprint_home()
+    except Exception:
+        pass
+
+
+def _harness_entry(fn):
+    """Wrap one harness handler: capture the fingerprint home first, and render an
+    exception escaping the handler as the harness error envelope (exit code from
+    ``emit_harness_error``). Idempotent."""
+
+    import functools
+
+    if getattr(fn, "__harness_entry__", False):
+        return fn
+
+    @functools.wraps(fn)
+    def entry(args, *rest, **kwargs):
+        _capture_core_cache_fingerprint_home(args)
+        try:
+            return fn(args, *rest, **kwargs)
+        except Exception as exc:
+            sys.exit(emit_harness_error(exc, args=args))
+
+    entry.__harness_entry__ = True
+    return entry
+
+
+def _install_harness_entries(parser) -> None:
+    """Wrap every ``func=`` default in ``parser``'s tree with :func:`_harness_entry`."""
+
+    stack, seen = [parser], set()
+    while stack:
+        node = stack.pop()
+        if id(node) in seen:
+            continue  # aliases share one parser
+        seen.add(id(node))
+        func = node._defaults.get("func")
+        if func is not None:
+            node._defaults["func"] = _harness_entry(func)
+        for action in node._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                stack.extend(action.choices.values())
+
+
+def build_cli_parser(parser) -> None:
+    """The ``harness`` plugin command's parser setup: the tree, every handler behind
+    :func:`_harness_entry`. :func:`build_parser` (contract dump, tests) stays unwrapped."""
+
+    populate_parser(parser)
+    _install_harness_entries(parser)
 
 
 def _machine_root_config_paths(explicit: list[str] | None) -> list[Path]:

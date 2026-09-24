@@ -20,6 +20,12 @@ def build_postinstall_parser(subparsers, *, cmd_postinstall: Callable) -> None:
         description="One-shot post-install for pip users. Installs system "
         "dependencies that pip cannot provide, then runs setup if needed.",
     )
+    add_postinstall_arguments(postinstall_parser)
+    postinstall_parser.set_defaults(func=cmd_postinstall)
+
+
+def add_postinstall_arguments(postinstall_parser) -> None:
+    """The ``postinstall`` flags, onto an existing parser (the harness plugin's setup)."""
     postinstall_parser.add_argument(
         "--yes",
         "-y",
@@ -37,4 +43,3 @@ def build_postinstall_parser(subparsers, *, cmd_postinstall: Callable) -> None:
         help="Emit a machine-readable summary (shell provisioning + PATH) as "
         "the final stdout line.",
     )
-    postinstall_parser.set_defaults(func=cmd_postinstall)

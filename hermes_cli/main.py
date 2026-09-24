@@ -2619,7 +2619,7 @@ def cmd_console(args):
 _BUILTIN_SUBCOMMANDS = frozenset(
     {
         "acp", "approvals", "auth", "backup", "bundles", "checkpoints", "claw", "codex-runtime", "completion",
-        "computer-use", "harness", "postinstall",
+        "computer-use",
         "config", "console", "cron", "curator", "dashboard", "serve", "debug", "doctor",
         "dump", "egress", "fallback", "gateway", "hooks", "import", "import-agent", "insights",
         "gui", "desktop", "kanban", "login", "logout", "logs", "lsp", "mcp", "memory", "migrate", "moa",
@@ -3151,12 +3151,46 @@ def _attach_plugin_cli_command(subparsers, cmd_info) -> None:
         plugin_parser.set_defaults(func=cmd_info["handler_fn"])
 
 
+# fork: hook-pending (seam Stage 1) — upstream PR candidate beside plugins.discover_declared_cli_commands.
+def _attach_declared_plugin_cli_commands(subparsers) -> set:
+    """Attach every ``plugin.yaml``-declared top-level command; returns the names attached.
+
+    A declared name that is a built-in is refused (it would break every invocation, not just its
+    own). One plugin failing to materialise costs only its own command.
+    """
+    declared: set = set()
+    try:
+        from hermes_cli.plugins import discover_declared_cli_commands
+
+        commands = discover_declared_cli_commands()
+    except Exception as exc:
+        logging.getLogger(__name__).warning("Declared plugin CLI scan failed: %s", exc)
+        return declared
+    for cmd_info in commands:
+        name = cmd_info["name"]
+        if name in _BUILTIN_SUBCOMMANDS or name in declared:
+            logging.getLogger(__name__).warning(
+                "Plugin %s declares CLI command %r, which is already taken; skipping", cmd_info["plugin_key"], name)
+            continue
+        declared.add(name)
+        try:
+            _attach_plugin_cli_command(subparsers, cmd_info)
+        except Exception as exc:
+            logging.getLogger(__name__).warning("Plugin CLI command %r failed to materialise: %s", name, exc)
+    return declared
+
+
 def _register_plugin_cli_commands(subparsers) -> None:
     """Register plugin-provided top-level commands (each plugin builds its own argparse tree).
 
     Skipped when the invocation targets a known built-in — eagerly importing
     every bundled plugin module costs 500-650ms.
     """
+    # fork: hook-pending (seam Stage 1) — manifest-declared commands attach BEFORE the discovery
+    # gate and materialise only their own plugin, so invoking one never pays discover_plugins().
+    declared = _attach_declared_plugin_cli_commands(subparsers)
+    if _first_positional_argv() in declared:
+        return
     if not _plugin_cli_discovery_needed():
         return
     try:
@@ -3164,6 +3198,7 @@ def _register_plugin_cli_commands(subparsers) -> None:
         from hermes_cli.plugins import discover_plugins, get_plugin_manager
 
         seen_plugin_commands = set()
+        seen_plugin_commands.update(declared)  # fork: hook-pending (seam Stage 1)
         for cmd_info in discover_plugin_cli_commands():
             _attach_plugin_cli_command(subparsers, cmd_info)
             seen_plugin_commands.add(cmd_info["name"])
@@ -3199,8 +3234,6 @@ def _build_cli_parser():
     parser, subparsers, chat_parser = build_top_level_parser()
     chat_parser.set_defaults(func=cmd_chat)
 
-    from hermes_cli._downstream_cli import build_downstream_parsers
-    build_downstream_parsers(subparsers)
     build_model_parser(subparsers, cmd_model=cmd_model)
     build_moa_parser(subparsers)
     build_fallback_parser(subparsers)
@@ -3440,15 +3473,14 @@ def main():
 
     # A handler's int return code becomes the exit code (None = success).
     if hasattr(args, "func"):
-        from hermes_cli._downstream_cli import dispatch_command
-        rc = dispatch_command(args)
+        rc = args.func(args)
         if isinstance(rc, int) and rc != 0:
             sys.exit(rc)
     else:
         parser.print_help()
 
 
-from hermes_cli._downstream_cli import cmd_postinstall, _capture_core_cache_fingerprint_home
+from hermes_cli._downstream_cli import cmd_postinstall
 _boot_clock.mark_main_import_completed()
 
 if __name__ == "__main__":
@@ -3481,5 +3513,3 @@ def __getattr__(name):  # PEP 562 — chained onto the module's own __getattr__
     warn_once(__name__, name, *target)
     return getattr(importlib.import_module(target[0]), target[1])
 # ---- END PLUGIN-COMPAT ----
-
-from hermes_cli.update_cmd_windows import _warn_legacy_console_gateway_task

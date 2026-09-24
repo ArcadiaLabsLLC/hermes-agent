@@ -1,0 +1,22 @@
+# The Eternia Agent Runtime Harness as a Hermes plugin (seam Stage 1).
+# Fork-only by name; moves whole to its own repo in plan Stage 7
+# (docs/agent-runtime-harness/planned/harness-plugin-and-upstream-seams.md).
+name: eternia-harness
+version: "1"
+description: Agent Runtime Harness — the Mission Control runtime
+author: Arcadia Labs
+# `backend` is the one kind a BUNDLED general plugin auto-loads under (gate_manifest);
+# the harness is always on for this fork, so no `plugins.enabled` entry is needed.
+kind: backend
+api_version: 1
+tags: [harness, mission-control]
+# Attached before plugin discovery, materialising only this plugin
+# (hermes_cli/plugins.py::discover_declared_cli_commands).
+cli_commands:
+  - name: harness
+    help: Experimental Agent Runtime Harness
+  - name: postinstall
+    help: Bootstrap non-Python deps for pip installs (node, browser, ripgrep, ffmpeg)
+    description: >-
+      One-shot post-install for pip users. Installs system dependencies that
+      pip cannot provide, then runs setup if needed.

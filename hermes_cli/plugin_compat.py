@@ -307,6 +307,10 @@ def allow_deprecated_imports(config: Optional[dict] = None) -> bool:
 
 def disable_reason(manifest, *, today: Optional[_dt.date] = None) -> Optional[str]:
     """Why the loader must skip this plugin now, or None. Only ever non-None after the removal date."""
+    # Bundled plugins ship in this tree, which never uses compat paths (check_compat_pointers.py in CI),
+    # so scanning them only costs a config read and an AST walk on every bundled load.
+    if getattr(manifest, "source", None) == "bundled":
+        return None
     if not removal_in_effect(today) or allow_deprecated_imports():
         return None
     hits = plugin_hits(manifest)
