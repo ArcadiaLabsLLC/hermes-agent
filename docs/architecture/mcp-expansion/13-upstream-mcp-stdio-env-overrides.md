@@ -88,8 +88,8 @@ Name normalization:
   - `launcher-qa` -> `LAUNCHER_QA`
   - `stagec-launcher-qa` -> `STAGEC_LAUNCHER_QA`
 - `<KEY>` must still match `_ENV_VAR_NAME_RE` after parsing.
-- Example input: `HERMES_MCP_ENV_LAUNCHER_QA_RUNTIME_FILE=/tmp/runtime.json`
-- Resulting child env key: `RUNTIME_FILE=/tmp/runtime.json`
+- Example input: `HERMES_MCP_ENV_LAUNCHER_QA_RUNTIME_FILE=$TMPDIR/runtime.json`
+- Resulting child env key: `RUNTIME_FILE=$TMPDIR/runtime.json`
 
 Merge order for stdio MCP subprocess env:
 
