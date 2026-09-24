@@ -23,6 +23,12 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-09-24 (lanes UPREV, DISP-M)
+
+- [ ] **`tests/hermes_cli/test_profile_delete_mcp_log.py`'s stub edit (S4 row below) cannot retire via P6: `up/profiles-delete-guard` was dropped 2026-09-24** · `fork / tests` · it needs a `reason:` row in `tests/fixtures/upstream_footprint.json` (or the `**__` stub edit carried with a reason) in place of the P6 retire condition · evidence: lane UPREV report · filed by lane UPREV 2026-09-24 **UNCLAIMED**
+- [ ] **`docs/agent-runtime-harness/planned/upstream-test-fix-classes-2026-09-23.md` classes A/H still point at the 4 dropped branches** (`up/win-text-encoding`, `up/monkeypatch-undo-scoped`, `up/profile-home-generic`, `up/profiles-delete-guard`) · `fork / upstream` · LAND3 re-dispositioned the ledger rows `carry` ("PR dropped 2026-09-24: …"); left: the doc, and per row carry-with-reason vs retire the code · evidence: lane UPREV report · filed by lane UPREV 2026-09-24 **UNCLAIMED**
+- [ ] **`website/static/api/model-catalog.json` still lists `gpt-6-terra`, which upstream `38c289c014` dropped** · `fork / upstream` · the fork copy is stale; `git checkout upstream/main -- website/static/api/model-catalog.json` at/after the next merge (generated file) · evidence: `docs/agent-runtime-harness/planned/disposition-misc-2026-09-24.md` §2 · filed by lane DISP-M 2026-09-24 **UNCLAIMED**
+
 ### Filed on arrival — 2026-09-24 (seam lane S5)
 
 - [ ] **tests/tools/test_tool_search.py: 67 tests fail on a clean venv — ModuleNotFoundError snowballstemmer** · tests · the canonical test venv lacks the dep; the file is red before and after S5. Evidence: lane S5 log move_tools.log · filed by lane S5 2026-09-24 **UNCLAIMED**
@@ -87,6 +93,13 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 - **No CLI-level test pins the `realm sync resolve --key skill::<slug>` envelope the launcher's held-skill buttons call — only the python seam (`skill_sync.resolve_held_skill`) and the argparse dump are covered, nothing drives `main()` end-to-end** · `hermes` · handed over by the hermes lane 2026-09-12; evidence `docs/agent-runtime-harness/planned/skill-three-way-sync-mutation-record-2026-09-12.md`, contract §4.6 of `EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md` · `tests/hermes_cli/` **UNCLAIMED**
 
 ## Seams — fork edits inside upstream files (additive only)
+
+### Filed on arrival — 2026-09-24 (disposition wave, lane DISP-C)
+
+- [ ] **`hermes_cli/codex_models.py::_fetch_verified_models_from_api` imports the deleted `CODEX_MODELS_CATALOG_URL` and swallows the ImportError, so live Codex catalog verification ALWAYS returns None** · `seams / codex` · adopt upstream `fetch_codex_catalog_entries` + `codex_account_headers` · evidence: `docs/agent-runtime-harness/planned/disposition-core-2026-09-24.md` §2, §7.1 · filed by lane DISP-C 2026-09-24 **UNCLAIMED**
+- [ ] **`agent/auxiliary_client.py` deletes upstream `aux_probe_mode` / `_AuxProbeClientStub` (−42): duplicate authority** · `seams / agent` · adopt upstream's, delete the fork's parallel · evidence: `docs/agent-runtime-harness/planned/disposition-core-2026-09-24.md` §2 · filed by lane DISP-C 2026-09-24 **UNCLAIMED**
+- [ ] **`agent/turn_api_call.py` / `agent/turn_usage.py` `_fork_first_byte_s` duplicates upstream's first-byte timing `_last_api_first_chunk_at` (`e17276c7b4`)** · `seams / agent` · delete the fork field, read upstream's · evidence: `docs/agent-runtime-harness/planned/disposition-core-2026-09-24.md` §7.3 · filed by lane DISP-C 2026-09-24 **UNCLAIMED**
+- [ ] **`agent/ssl_guard.py`: the fork hunk deletes upstream's `# ---- BEGIN PLUGIN-COMPAT` marker and keeps its `END`, so `verify_ca_bundle_with_fallback` sits in an unopened compat block** · `seams / agent` · restore the BEGIN marker (part of the ledger's −4) · evidence: `docs/agent-runtime-harness/planned/disposition-core-2026-09-24.md` §7.2 · filed by lane DISP-C 2026-09-24 **UNCLAIMED**
 
 ### Filed on arrival — 2026-09-23 (seam lane S45, Stage 4/5/6 inventories)
 
