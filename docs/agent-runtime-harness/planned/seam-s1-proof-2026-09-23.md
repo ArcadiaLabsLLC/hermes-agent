@@ -1,0 +1,45 @@
+# Seam Stage 1 proof — the harness CLI as a manifest-declared plugin (2026-09-23)
+
+**Lane:** S1P (proving lane, branch `seam/s1-proof`, cut from `origin/main` @ `5732265aaf`).
+**Plan:** [`harness-plugin-and-upstream-seams.md`](harness-plugin-and-upstream-seams.md) § Stage 1, the
+"CORRECTED 2026-09-23" block, points 1–5 (design of record). Stage 1 stays ON HOLD unless §3 says PASS.
+
+## 1. Baseline (before any edit, tree @ `5732265aaf`)
+
+Machine: Windows 10, 16 logical processors, Python 3.12.5 (`C:/Users/beast/.venvs/hermes-test`).
+Not guaranteed idle — other lanes were live on the box; min is reported beside median for that reason.
+
+**Method.** Every sample is a fresh process with `HERMES_HOME` a fresh `tempfile.mkdtemp()` directory,
+`HERMES_BUNDLED_PLUGINS` unset, cwd the worktree root (so `hermes_cli` resolves to this tree — checked:
+`hermes_cli.__file__` = `X:\wt\h-s1p\hermes_cli\__init__.py`). One discarded warm-up per series (it pays
+the bytecode compile), then 5 samples. (a)/(b) are the whole CLI process's wall time measured by the
+parent; (c)/(d) are `time.perf_counter()` spans inside the fresh process. The driver is
+`.lane-logs/measure_s1p.py` (lane-local, not committed); its three probes, verbatim:
+
+```text
+CLI      : python -c "import sys; sys.argv=['hermes']+sys.argv[1:]; from hermes_cli.main import main; main()" <args>
+PARSER   : sys.argv=['hermes',<args>]; import hermes_cli.main as m; t=perf_counter(); m._build_cli_parser(); span
+DISCOVER : t=perf_counter(); import hermes_cli.plugins as p; span1; p.discover_plugins(); span2
+```
+
+`python` is the one interpreter named above; `S1P_RUNS=5`.
+
+| # | what | median ms | min ms | samples ms | receipt |
+|---|---|---|---|---|---|
+| (a) | `hermes harness --help`, wall | 2252.8 | 2173.8 | 2173.8 2252.8 2339.4 2558.2 2221.9 | exit 0 |
+| (b) | `hermes harness doctor`, wall | 2618.1 | 2460.7 | 2618.1 2662.2 2749.3 2566.4 2460.7 | exit 0, `verdict: ok` |
+| (c) | `_build_cli_parser()`, argv `harness doctor` | 768.1 | 755.8 | 755.8 766.5 769.9 768.1 790.1 | `harness_parser_ms` 530–561 of it; `hermes_cli.plugins` NOT imported; `import hermes_cli.main` 363 ms before it |
+| (c2) | `_build_cli_parser()`, argv `status` | 740.3 | 736.9 | 756.0 740.3 739.7 750.0 736.9 | same — the harness tree is built for every command today |
+| (d1) | `import hermes_cli.plugins`, bare process | 410.9 | 390.1 | 390.1 412.5 410.9 403.1 447.1 | |
+| (d2) | `discover_plugins()` after (d1) | 623.4 | 601.2 | 633.1 623.4 602.8 601.2 643.1 | 59 found, 112 `plugins.*`/`hermes_plugins.*` modules in `sys.modules`, `_cli_commands` empty |
+
+**What a pre-discovery scan costs INSIDE the CLI process** (one probe, 3 runs, after `import
+hermes_cli.main` + `_build_cli_parser()`): `import hermes_cli.plugins` **+10 ms** (its dependencies are
+already loaded by then — the 411 ms of (d1) is a bare-process figure), `collect_directory_manifests()`
+**32 ms** for 59 manifests, `gate_manifest` over all of them **4 ms**. So the corrected shape's floor is
+~46 ms against the +50 ms parser threshold, before the plugin itself is materialised.
+
+**Ratchet before:** `python scripts/upstream_footprint.py --base d337b736aa` →
+`[up-fp] files=459 deleted_lines=2834 heavy=24`. `hermes_cli/main.py` row: +39 / −193, heavy;
+**8 hunks** at default context (`git diff d337b736aa -- hermes_cli/main.py | grep -c '^@@'`), 23 at `-U0`.
+`hermes_cli/plugins.py` is already on the list (+5 / −2).
