@@ -35,6 +35,11 @@ _SEPARATOR_SPELLING = (
     "echoes forward slashes, upstream compares against str(Path) backslashes; "
     "a test-side spelling fix, PR candidate class win-path-spelling"
 )
+_CONTAINER_SPELLING = (
+    "upstream spells a container path as str(tmp_path) and a warning's path via "
+    "{!r}; on Windows tmp_path is drive-anchored (not POSIX-absolute) and repr "
+    "doubles backslashes. Test-side spelling, PR candidate class win-path-spelling"
+)
 _FORK_SYSTEM_PATH = (
     "the fork's tools/environments/local.py _augment_windows_system_path appends "
     "the System32 dirs, so upstream's verbatim equality cannot hold on Windows; "
@@ -65,6 +70,18 @@ if _WIN:
         "tests/tools/test_file_operations.py::TestSearchFilesFallbackHiddenPaths::"
         "test_normal_root_still_excludes_hidden_descendants": (
             pytest.mark.xfail(reason=_SEPARATOR_SPELLING, strict=True),
+        ),
+        "tests/tools/test_file_tools_cwd_resolution.py::test_container_absolute_input_path_does_not_follow_host_symlink": (
+            pytest.mark.xfail(reason=_CONTAINER_SPELLING, strict=True),
+        ),
+        "tests/tools/test_file_tools_cwd_resolution.py::test_container_relative_path_keeps_container_cwd_symlink": (
+            pytest.mark.xfail(reason=_CONTAINER_SPELLING, strict=True),
+        ),
+        "tests/tools/test_file_tools_cwd_resolution.py::test_warning_fires_when_relative_path_escapes_workspace": (
+            pytest.mark.xfail(reason=_CONTAINER_SPELLING, strict=True),
+        ),
+        "tests/tools/test_file_tools_cwd_resolution.py::test_warning_fires_from_terminal_cwd_when_registry_empty": (
+            pytest.mark.xfail(reason=_CONTAINER_SPELLING, strict=True),
         ),
         "tests/tools/test_voice_mode.py::TestDetectAudioEnvironment::"
         "test_wsl_without_pulse_blocks_voice": (pytest.mark.skip(reason=_WSL_FAKE),),

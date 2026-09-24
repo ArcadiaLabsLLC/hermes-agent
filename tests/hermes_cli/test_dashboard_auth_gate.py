@@ -20,24 +20,6 @@ from starlette.websockets import WebSocketDisconnect
 from hermes_cli import web_server
 
 
-@pytest.fixture(autouse=True)
-def restore_server_binding_state(monkeypatch):
-    """Keep start_server's process-global bind metadata inside each test."""
-    missing = object()
-    previous_host = getattr(web_server.app.state, "bound_host", missing)
-    previous_port = getattr(web_server.app.state, "bound_port", missing)
-    yield
-    for name, previous in (
-        ("bound_host", previous_host),
-        ("bound_port", previous_port),
-    ):
-        if previous is missing:
-            if hasattr(web_server.app.state, name):
-                delattr(web_server.app.state, name)
-        else:
-            setattr(web_server.app.state, name, previous)
-
-
 # ---------------------------------------------------------------------------
 # should_require_auth predicate (Task 0.2)
 # ---------------------------------------------------------------------------
@@ -129,12 +111,13 @@ def _stub_uvicorn_run(monkeypatch):
 
 
 def _restore_app_state_after_test(monkeypatch, *names):
-    """Restore mutable Starlette state through its dictionary, once."""
+    """Restore app.state attributes after start_server mutates them."""
     for name in names:
-        monkeypatch.setitem(
-            web_server.app.state._state,
+        monkeypatch.setattr(
+            web_server.app.state,
             name,
             getattr(web_server.app.state, name, None),
+            raising=False,
         )
 
 
