@@ -1,47 +1,70 @@
 # Hermes upstream-sync automation handoff
 
-State: **HANDOFF_ONLY**. The frozen upstream target for this cycle is `eb8960fead33a8d312a91f5b2f566ad7635815e7`; it is **not** attached as a complete merge parent. The persistent branch is `automation/upstream-sync`; only the operator lands an exact locally verified candidate to `main`.
+State: **HANDOFF_ONLY**. The frozen upstream target for this cycle is `e7552113274e990805f625ab91a8fe186a43df6a`; it is **not** attached as a complete merge parent. The persistent branch is `automation/upstream-sync`; only the operator lands an exact locally verified candidate to `main`.
 
-## Frozen inputs — 2026-09-23
+## Frozen inputs — 2026-09-24
 
-- Fork `main` (`F`): `c219b17be3a7c724d14f1e2019ca2ee59a342348`
-- Sync tip at cycle start (`S`): `2cc847e2871d9ead5ccffbdf84949778c02389be`
-- Upstream `main` (`U`): `eb8960fead33a8d312a91f5b2f566ad7635815e7`
-- Fork/upstream merge base observed for this frontier: `d337b736f78f3a5deb1a59f2c428aad7f01a794e`
-- Fork-refresh + source-reconciliation merge: `017a4af39142aa48bba88baaa7ac720528a30ed6`
-- First cumulative handoff update after that merge: `a018a637c0e89937264d012d5e881ff8f90568a3`
+- Fork `main` (`F`): `b93ce5e66c3e405c0ea3fb30ef43458a601f5243`
+- Sync tip at cycle start (`S`): `63bd6ffe2ee7107f2a7816ae81eff9159bb7cc67`
+- Upstream `main` (`U`): `e7552113274e990805f625ab91a8fe186a43df6a`
+- Fork-refresh merge created this cycle: `5a6a71e6de90cad34f4e35b7dd01f9b7548a7dba`
+- Source-reconciliation tip before this handoff update: `45cd0641d58ee301c176291a8135cb4345e72f3d`
 
-Fork `main` was re-read after reconciliation and remained exactly `c219b17be3a7c724d14f1e2019ca2ee59a342348`. Upstream moved after the cycle freeze; the final live upstream ref observed before this handoff correction was `0f1544f903197431ded4109cd737f495347284b5`. That newer movement is explicitly deferred to the next cycle rather than chased mid-run.
+Fork `main` was re-read after source reconciliation and remained exactly `b93ce5e66c3e405c0ea3fb30ef43458a601f5243`. Upstream moved after the cycle freeze; the final live upstream ref observed before this handoff update was `deb4bd2c085757b3a5329d3a684d0ce395cc9a05`. That newer movement is deferred to the next cycle rather than chased mid-run.
 
-## Fork-main refresh and source reconciliation completed this cycle
+## Fork-main refresh completed this cycle
 
-`017a4af39142aa48bba88baaa7ac720528a30ed6` is a genuine two-parent history-preserving refresh. First parent: prior sync line `2cc847e2871d9ead5ccffbdf84949778c02389be`. Second parent: current fork `main` `c219b17be3a7c724d14f1e2019ca2ee59a342348`. Fork `main` itself was not modified.
+`5a6a71e6de90cad34f4e35b7dd01f9b7548a7dba` is a genuine two-parent history-preserving refresh. First parent: prior sync line `63bd6ffe2ee7107f2a7816ae81eff9159bb7cc67`. Second parent: current fork `main` `b93ce5e66c3e405c0ea3fb30ef43458a601f5243`. Fork `main` itself was not modified.
 
-The merge tree is based on current fork `main` and preserves the cumulative sync handoff while resolving two source overlaps against the frozen upstream target.
-
-### `agent/model_metadata.py`
-
-Classification before the merge: **SAFE_CLOUD_RESOLUTION**.
-
-Relevant blobs:
-- cycle-start sync branch: `421700f6be996e54082fae09a4ec9f2e2f9df2f4`
-- current fork `main`: `4d6bc477f9e856cfd9e9c7e7821f7561dfc79bcb`
-- frozen upstream: `9b468e5f25b310e69073c233fb542ff0dbebcc5b`
-
-The fork had moved upstream-owned Codex catalog/model metadata forward while the sync line carried the earlier Mimo v2.6 reconciliation. Frozen upstream contains the current upstream combination, including the newer Codex catalog semantics and Mimo v2.6 context-window entries. The merge therefore adopts the frozen-upstream blob instead of regressing either behavior line.
+The refresh tree is based on current fork `main`, preserves this cumulative handoff, and deliberately preserves the already-reconciled upstream `agent/moonshot_schema.py` blob `99a8f2333e2081fee69d6f8679e55027893a5e09` rather than regressing to fork-main's older blob. Current fork `agent/model_metadata.py` was retained because fork main had independently advanced that file after the previous sync cycle; it was not overwritten with the older sync blob.
 
 Tests: **NOT RUN**.
 
-### `agent/moonshot_schema.py`
+## Source reconciliation completed this cycle
 
-Classification before the merge: **SAFE_CLOUD_RESOLUTION**.
+Four new upstream overlaps were proven safe from blob history: for each path, current fork `main` still matched the previous reviewed upstream baseline exactly, while frozen upstream changed the file. Therefore the frozen-upstream blob could be adopted without overwriting Arcadia-specific edits.
 
-Relevant blobs:
-- cycle-start sync branch: `99a8f2333e2081fee69d6f8679e55027893a5e09`
-- current fork `main`: `079280cfbb85fbfb52cab2d1a85294a978712365`
-- frozen upstream: `99a8f2333e2081fee69d6f8679e55027893a5e09`
+### `agent/command_token_source.py`
 
-The sync line had already reconciled upstream's conditional-schema repair while current fork `main` did not yet contain it. The refresh preserves the already-current upstream blob rather than regressing the fix. The implementation recursively repairs JSON-Schema `if` / `then` / `else` nodes and avoids incorrectly defaulting a bare conditional schema to `type: string`.
+Classification: **SAFE_CLOUD_RESOLUTION → ALREADY_RESOLVED**.
+
+Commit: `f8b710260958c9c43147be7118e3a49dfc272f40` — `sync: reconcile command token profile env with upstream e755211`.
+
+Previous fork/upstream-baseline blob: `38ace243248b93e6195011264d979416ff88c850`. Frozen-upstream blob adopted: `08c6d0476306cbcd7ac255048e00d416caf37fa3`.
+
+The upstream source now mints `key_cmd` credentials with `served_profile_child_env(inherit_credentials=True)`, so a served profile's command helper executes in that profile's own secrets/HERMES_HOME environment instead of inheriting the multiplexer's launch environment.
+
+Tests: **NOT RUN**.
+
+### `agent/error_classifier.py`
+
+Classification: **SAFE_CLOUD_RESOLUTION → ALREADY_RESOLVED**.
+
+Commit: `853fea07d608734c1b44188171cd53596f9ab210` — `sync: reconcile error classification with upstream e755211`.
+
+Previous fork/upstream-baseline blob: `530ea1ebe5d1452b208746275e2c453b146cfdb1`. Frozen-upstream blob adopted: `d471e781b4681bd0757ac01753711100e4d60966`.
+
+This is the exact frozen-upstream classifier blob. No downstream edit existed in this file relative to the prior reviewed upstream baseline, so no fork behavior was selected away.
+
+Tests: **NOT RUN**.
+
+### `agent/video_gen_provider.py`
+
+Classification: **SAFE_CLOUD_RESOLUTION → ALREADY_RESOLVED**.
+
+Commit: `ff7dba6d1178084109eba2085b09f3c1580383e7` — `sync: reconcile video generation provider with upstream e755211`.
+
+Previous fork/upstream-baseline blob: `4b1644ba1b3d92535c83e5db32dd4e6173c93569`. Frozen-upstream blob adopted: `56b3bd8e6c00adbd0ceda915098cf693a4fb7bfd`.
+
+Tests: **NOT RUN**.
+
+### `agent/web_search_provider.py`
+
+Classification: **SAFE_CLOUD_RESOLUTION → ALREADY_RESOLVED**.
+
+Commit: `45cd0641d58ee301c176291a8135cb4345e72f3d` — `sync: reconcile web search provider with upstream e755211`.
+
+Previous fork/upstream-baseline blob: `4c5e393241d440cd189948fb64c9198da0119768`. Frozen-upstream blob adopted: `947b95cc044a66c0f51f2fa083e118a21ee8781d`.
 
 Tests: **NOT RUN**.
 
@@ -67,22 +90,26 @@ Pre-existing operator/local work retained — **do not attribute to automation**
 
 ### ALREADY_RESOLVED
 
-- Fork-main refresh through `c219b17be3a7c724d14f1e2019ca2ee59a342348` — `017a4af39142aa48bba88baaa7ac720528a30ed6`.
-- `agent/model_metadata.py` through frozen upstream `eb8960f...` — resolved in `017a4af...` with upstream blob `9b468e5...`.
-- `agent/moonshot_schema.py` through frozen upstream `eb8960f...` — resolved in `017a4af...` with upstream blob `99a8f23...`.
-- Earlier focused source reconciliations listed above remain preserved.
+- Fork-main refresh through `b93ce5e66c3e405c0ea3fb30ef43458a601f5243` — `5a6a71e6de90cad34f4e35b7dd01f9b7548a7dba`.
+- `agent/moonshot_schema.py` — prior upstream conditional-schema repair preserved through the fork refresh.
+- `agent/command_token_source.py` — `f8b710260958c9c43147be7118e3a49dfc272f40`.
+- `agent/error_classifier.py` — `853fea07d608734c1b44188171cd53596f9ab210`.
+- `agent/video_gen_provider.py` — `ff7dba6d1178084109eba2085b09f3c1580383e7`.
+- `agent/web_search_provider.py` — `45cd0641d58ee301c176291a8135cb4345e72f3d`.
+- Earlier focused reconciliations listed above remain preserved.
 
 ### LOCAL_GENERATOR_REQUIRED
 
-- Dependency-input + lock pair remains a real generated frontier. After the fork refresh the current sync tree has `pyproject.toml` blob `79f11516b005000da7971ccab3de3d0830f3f035` and `uv.lock` blob `937c66b01054a5ab2eb38275e69057143e78dcfd`.
-- Frozen-upstream `pyproject.toml` was source-read at `eb8960f...` and is semantically different from the current fork input: the fork retains downstream development/test inputs including `coverage==7.16.0` and `pytest-timeout==2.4.0` plus its downstream `hindsight` extra, while the frozen upstream source does not carry those fork-only additions.
-- The exact frozen-upstream contents-metadata read for `pyproject.toml` / `uv.lock` hit a transient GitHub connector 429 during this bounded cycle, so this handoff does **not** invent a frozen-upstream blob SHA. The dependency inputs are nevertheless confirmed divergent. Reconcile the final combined `pyproject.toml` deliberately, then regenerate `uv.lock` using the repository's canonical `uv lock` workflow in a real checkout. Never select either lock wholesale or fabricate generated bytes cloud-side.
+- Dependency-input + lock pair remains a real generated frontier. Current sync has `pyproject.toml` blob `79f11516b005000da7971ccab3de3d0830f3f035` and `uv.lock` blob `937c66b01054a5ab2eb38275e69057143e78dcfd`.
+- Frozen upstream `e755211...` has `pyproject.toml` blob `1a98d5528c88ddc3d4e32439d3e8322487ce31bc` and `uv.lock` blob `852ac06d0e91c52da50448d9e7bf0251df00b704`.
+- Both dependency input and generated lock differ. Reconcile the final combined `pyproject.toml` deliberately, preserving intentional fork-only development/test/downstream inputs, then regenerate `uv.lock` using the repository's canonical `uv lock` workflow in a real checkout. Never select either lock wholesale or fabricate generated bytes cloud-side.
 
 ### LOCAL_TEST_OR_RUNTIME_REQUIRED
 
-- Hosted provider context-window cap stack from upstream commit `24f03c41c16323a28b53223ef5a00fc6bc9e15da`: upstream changes `agent/agent_loop.py`, `agent/turn_overflow.py`, and `tests/agent/test_turn_overflow.py`. The current fork's `agent/turn_overflow.py` still matches that upstream commit's parent blob `41292cf0d675f8e16ea6cd3858f2ce943bf2e9af`, but the fork no longer has upstream's `agent/agent_loop.py` owner at that path. A verbatim three-file port would be incomplete. Map the effective-context-window handoff to the fork's current extracted orchestration owner, then exercise focused overflow/provider-cap tests.
+- Hosted provider context-window cap stack from upstream commit `24f03c41c16323a28b53223ef5a00fc6bc9e15da`: upstream changes `agent/agent_loop.py`, `agent/turn_overflow.py`, and `tests/agent/test_turn_overflow.py`. The fork no longer has upstream's `agent/agent_loop.py` owner at that path. Map the effective-context-window handoff to the fork's current extracted orchestration owner, then exercise focused overflow/provider-cap tests.
 - `gateway/run_busy.py` `/stop` semantics remain a carry-forward runtime-sensitive overlap: upstream's same-thread partial-stop/canonical-identifier work intersects fork session/profile/key-shape behavior. Combine against the current fork owner and exercise gateway stop cases rather than wholesale-selecting a side.
 - The previously identified auxiliary/billing/credits owner stack remains coupled (`agent/auxiliary_wire.py`, `agent/rate_limit_credits.py`, `agent/billing_usage.py` plus sibling transport/accounting owners). Do not treat an individual file as independently safe until current call/ownership closure is re-censused and focused behavior is executable.
+- `agent/stream_delivery.py` is not a direct-copy candidate: current fork and the prior reviewed upstream baseline already differed before frozen upstream changed it again. Preserve fork stream-delivery semantics while reviewing the new upstream delta, then run focused stream tests.
 
 ### OPERATOR_DECISION_REQUIRED
 
@@ -90,21 +117,22 @@ Pre-existing operator/local work retained — **do not attribute to automation**
 
 ## Remaining review frontier
 
-Frozen upstream `eb8960f...` is not fully represented by source ancestry or by a complete reconciled tree. Continue three-way review path by path. The generated lock blocker is not permission to stop unrelated source work: any newly proven `SAFE_CLOUD_RESOLUTION` item must still be committed. Live upstream `0f1544f903197431ded4109cd737f495347284b5` was observed after the freeze and is deferred to the next cycle.
+Frozen upstream `e755211...` is not fully represented by source ancestry or by a complete reconciled tree. Continue three-way review path by path. The generated lock blocker is not permission to stop unrelated source work: any newly proven `SAFE_CLOUD_RESOLUTION` item must still be committed. Live upstream `deb4bd2c085757b3a5329d3a684d0ce395cc9a05` was observed after the freeze and is deferred to the next cycle.
+
+Current fork `agent/model_metadata.py` was advanced independently after the previous sync cycle, while frozen upstream also moved the file; it was intentionally left on the fork version during this refresh rather than overwritten without a fresh three-way audit. Treat that file as a next-cycle review frontier, not as already resolved through `e755211...`.
 
 ## Verification status
 
 Executed/source-reviewed this cycle:
-- read current fork root, downstream-development, Agent, upstream-sync, Local llama, and downstream-schema instructions/contracts relevant to this task;
+- read current fork root, downstream-development, nested Agent instructions, and the cumulative upstream-sync handoff;
 - froze F/S/U and checked ancestry/merge-base relationships rather than relying on dates alone;
-- re-read the live sync ref before publication and found no concurrent branch movement;
+- re-read the live sync ref before every branch publication and found no concurrent movement;
 - refreshed the sync branch from current fork `main` with a genuine two-parent merge preserving first-parent sync history;
-- compared retained model/schema blobs across starting sync, current fork, and frozen upstream before selecting merge-tree contents;
-- re-read the published sync ref and verified the source merge at `017a4af39142aa48bba88baaa7ac720528a30ed6`;
-- source-reviewed upstream hosted-context-window commit `24f03c41...` and rejected a partial verbatim port after confirming the fork lacks upstream's `agent/agent_loop.py` owner path;
-- re-read fork `main` and confirmed it remained `c219b17...`;
-- re-read upstream `main` after publication and observed newer live tip `0f1544f903197431ded4109cd737f495347284b5`, deferred rather than chased;
-- published and re-read the cumulative handoff.
+- compared prior-upstream/current-fork/current-upstream blobs for four newly reconciled files and only adopted upstream where fork equaled the prior upstream baseline;
+- published four focused source-reconciliation commits;
+- re-read fork `main` and confirmed it remained `b93ce5e66c3e405c0ea3fb30ef43458a601f5243`;
+- re-read upstream `main` and observed newer live tip `deb4bd2c085757b3a5329d3a684d0ce395cc9a05`, deferred rather than chased;
+- revalidated the dependency/lock blocker by exact blob IDs.
 
 Not run:
 - `scripts/run_tests.sh` / Python tests;
@@ -119,12 +147,13 @@ Continue only on `automation/upstream-sync`; do not reset, rebase, force-push, o
 
 1. Reconcile the final combined `pyproject.toml`, preserving intentional fork-only dev/test and downstream inputs while taking applicable upstream dependency changes; regenerate `uv.lock` canonically.
 2. Map upstream hosted-context-window cap behavior from the removed upstream `agent/agent_loop.py` owner into the fork's current orchestration seam, and run focused overflow/provider-cap tests.
-3. Revisit gateway `/stop` and the coupled auxiliary/billing/credits frontiers against the refreshed fork tree.
-4. Run affected Python coverage through `scripts/run_tests.sh`; run relevant JS/Electron coverage for desktop changes already on the branch; run `scripts/dump_cli_contract.py --check` if the eventual combined candidate touches a CLI contract surface.
-5. Commit local completion to this same branch and update this handoff. Later cloud cycles must preserve that work.
+3. Revisit gateway `/stop`, `agent/stream_delivery.py`, and the coupled auxiliary/billing/credits frontiers against the refreshed fork tree.
+4. Re-audit `agent/model_metadata.py` against current fork and the next frozen upstream before selecting a side; current fork was intentionally preserved this cycle.
+5. Run affected Python coverage through `scripts/run_tests.sh`; run relevant JS/Electron coverage for desktop changes already on the branch; run `scripts/dump_cli_contract.py --check` if the eventual combined candidate touches a CLI contract surface.
+6. Commit local completion to this same branch and update this handoff. Later cloud cycles must preserve that work.
 
 ## Consumer / acceptance boundary
 
-No new Hermes CLI/RPC/payload contract was changed by this cycle's two source resolutions (`agent/model_metadata.py`, `agent/moonshot_schema.py`), so this cycle identifies no new Launcher-specific consumer action. Broader branch history may still carry existing consumer-alignment requirements; do not read or modify Launcher here.
+This cycle changes internal provider token/environment handling, error classification, and media/search provider internals. No new Hermes CLI/RPC/payload contract was identified from these four source reconciliations, so no new Launcher-specific consumer action is recorded. Broader branch history may still carry existing consumer-alignment requirements; do not read or modify Launcher here.
 
-This remains `HANDOFF_ONLY`. Frozen upstream `eb8960fead33a8d312a91f5b2f566ad7635815e7` is not claimed as fully integrated, and live upstream `0f1544f903197431ded4109cd737f495347284b5` is explicitly deferred. After all source overlaps and generated artifacts are complete, construct genuine history-preserving upstream merge ancestry, test the exact immutable candidate locally, and let the operator decide acceptance.
+This remains `HANDOFF_ONLY`. Frozen upstream `e7552113274e990805f625ab91a8fe186a43df6a` is not claimed as fully integrated, and live upstream `deb4bd2c085757b3a5329d3a684d0ce395cc9a05` is explicitly deferred. After all source overlaps and generated artifacts are complete, construct genuine history-preserving upstream merge ancestry, test the exact immutable candidate locally, and let the operator decide acceptance.
