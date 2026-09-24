@@ -82,7 +82,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-24 (lane CLOSE)
 
-- [ ] **`tests/gateway/test_background_process_notifications.py::test_agent_notify_receipt_only_while_launching_turn_is_busy[True|False]` is red: `_enqueue_process_completion_notification` is awaited 0 times under `notify_on_complete`** · `fork / gateway` · upstream test at upstream bytes, red on `6251144d09` before lane CLOSE touched anything; suspect the fork's `background_process_agent_turns: false` direct-status lane (BG-PR) skipping the enqueue — needs an id row naming the fork symbol or a fix · evidence: lane CLOSE job 1 (`pytest` of the file alone at `6251144d09`: 2 failed) **TAKEN 2026-09-24 DOORS-A**
 
 ## Filed on arrival — 2026-09-24 (program-end gate on `c7652475cd`)
 

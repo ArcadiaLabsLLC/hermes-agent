@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 215,
+  "files": 212,
   "deleted_lines": 1000,
   "heavy": 4,
   "reasons": [
@@ -162,6 +162,12 @@
       "files": "flat (215)",
       "deleted_lines": "1023 -> 1000",
       "reason": "owner ruling 2026-09-24: the late process-notify second door is deleted. tools/process_registry.py returns _move_to_finished, the drain-skip clause and the notify action/enum/schema line to upstream bytes (-23); tools/process_registry_notifications.py loses the notify_requested receipt (-14 added). The ledger's 1036 -> 1027 drift from earlier landings is folded in: the fixture follows the measurement"
+    },
+    {
+      "change": "lane DOORS-A BG ruling (seam/doors-a-2026-09-24)",
+      "files": "215 -> 212",
+      "deleted_lines": "flat (1000)",
+      "reason": "owner ruling 2026-09-24 (2): BG on means notify on by default AND an agent turn on completion. The BG-PR gate is deleted: tui_gateway/session_notifications.py, evals/completion_backlog_probe.py and cli-config.yaml.example at f24a1d7f92 bytes; gateway/run_notifications.py loses the compact-send branch (only the reply_to watcher line is left); hermes_cli/config_defaults.py loses display.background_process_agent_turns"
     }
   ]
 }

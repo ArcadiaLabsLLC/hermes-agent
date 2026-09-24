@@ -81,9 +81,7 @@ Status: implemented locally. Targeted tests, compile, and diff hygiene passed.
 
 Implementation proof points:
 
-- Gateway watcher `notify_on_complete=True` compact direct-sends by default.
-- Legacy completion-as-agent-turn behavior requires `HERMES_BACKGROUND_AGENT_TURNS=true` or `display.background_process_agent_turns: true`.
-- TUI notification poller emits process status only by default and supports the same legacy opt-in.
+- SUPERSEDED 2026-09-24 (owner ruling, lane DOORS-A): the compact direct-send default, `HERMES_BACKGROUND_AGENT_TURNS` / `display.background_process_agent_turns` and the TUI status-only default are deleted; `notify_on_complete` runs upstream's agent turn.
 - Background notification defaults and examples now prefer `result` over noisy `all`.
 - Process notification command/output text is ANSI-stripped, bounded, and redacted before UI/status delivery.
 - Long-running heartbeat text now includes `/stop` guidance.

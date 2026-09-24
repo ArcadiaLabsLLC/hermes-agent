@@ -173,13 +173,11 @@ tools:
 
 ## Messaging: background-completion notifications
 
-Was: `website/docs/user-guide/messaging/index.md` (and its zh-Hans copy). The
-fork's profile config seed sets `display.background_process_notifications:
-result` and `display.background_process_agent_turns: false` (legacy full-agent
-completion turns); upstream's default is `concise`.
-
-```yaml
-display:
-  background_process_notifications: result # concise | all | result | error | off
-  background_process_agent_turns: false    # legacy full-agent completion turns
-```
+Owner ruling 2026-09-24 (lane DOORS-A): the fork no longer gates background-completion
+agent turns. A background `terminal` spawn notifies on exit by default (the
+eternia-harness plugin defaults upstream's `notify` on at spawn; `notify=false` opts
+out) and completion runs an agent turn, upstream's behaviour — the former
+`display.background_process_agent_turns` key and `HERMES_BACKGROUND_AGENT_TURNS` are gone.
+In Mission Control the serve drain delivers it: a busy turn is steered, an idle thread
+gets a turn, an orphaned chat root drops it. `display.background_process_notifications`
+is upstream's (`concise`).

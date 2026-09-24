@@ -806,7 +806,6 @@ DEFAULT_CONFIG = {
         # calls: ...]` lines; False shows them inline.
         "resume_skip_tool_only": True,
         "busy_input_mode": "interrupt",  # interrupt | queue | steer
-        "background_process_agent_turns": False,  # legacy notify_on_complete full agent turn
         # steer mode: false hides only the "Steered into current run" bubble; steering itself still
         # happens.
         "busy_steer_ack_enabled": True,

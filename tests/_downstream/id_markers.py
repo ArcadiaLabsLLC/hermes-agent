@@ -148,17 +148,6 @@ ID_MARKS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # budget; this upstream test needs the headroom.
     "tests/scripts/desktop_update/test_desktop_update_windows_retry_policy.py::"
     "test_retry_policy_distinguishes_self_lock_deferral": (pytest.mark.timeout(45),),
-    # The fork makes the background follow-up agent turn opt-in
-    # (HERMES_BACKGROUND_AGENT_TURNS); these upstream witnesses pin that turn
-    # (fixture: tests/_downstream/hermes_cli_conftest.py).
-    "tests/hermes_cli/test_process_notification_display.py::"
-    "test_process_completion_display_keeps_payload_separate_across_surfaces": (
-        pytest.mark.background_agent_turns,
-    ),
-    "tests/hermes_cli/test_subagent_notification_display.py::"
-    "test_completion_display_keeps_payload_separate_across_surfaces": (
-        pytest.mark.background_agent_turns,
-    ),
     # MCF-66: reads the real ~/.claude/.credentials.json via the fixture's
     # redirected Path.home() (gate: tests/test_claude_code_credentials_file_gate.py).
     "tests/hermes_cli/test_codex_cli_model_picker.py::"
@@ -406,37 +395,13 @@ if _WIN:
     })
 
 
-# ── CARRY2B: tests/gateway (+ tui_gateway's agent-turn lane) ───────────────
-_AGENT_TURNS = pytest.mark.background_agent_turns
+# ── CARRY2B: tests/gateway ──────────────────────────────────────────────────
 # Upstream tests that call monkeypatch.undo() mid-body run upstream's bytes with
 # undo narrowed to their own patches (conftest_plugin.pytest_pyfunc_call, lane
 # CARRY3); no sibling copy.
 _SCOPED_UNDO = pytest.mark.scoped_monkeypatch_undo
 
 ID_MARKS.update({
-    **{
-        node: (_AGENT_TURNS,)
-        for node in (
-            "tests/gateway/test_completion_session_boundary.py::"
-            "test_watcher_stamps_parent_session_id_on_completion_event",
-            "tests/gateway/test_completion_session_boundary.py::"
-            "test_watcher_falls_back_to_process_session_stamp",
-            "tests/gateway/test_completion_session_boundary.py::"
-            "test_completion_after_idle_end_still_delivers",
-            "tests/gateway/test_completion_session_boundary.py::"
-            "test_completion_from_live_session_delivers",
-            "tests/gateway/test_completion_session_boundary.py::"
-            "test_unstamped_legacy_completion_delivers",
-            "tests/gateway/test_completion_delivery.py::"
-            "test_autonomous_completion_redacts_real_command_and_output_secrets",
-            "tests/gateway/test_completion_delivery.py::"
-            "test_concurrent_process_watchers_coalesce_one_session_completion_turn",
-            "tests/gateway/test_internal_event_bypass_pairing.py::"
-            "test_notify_on_complete_uses_session_store_origin_for_group_topic",
-            "tests/tui_gateway/test_kanban_notify_poller.py::"
-            "TestNotificationPollerLoopKanbanWiring",
-        )
-    },
     "tests/gateway/test_api_server_active_work_drain.py::TestShutdownSettleWindow::"
     "test_api_work_still_live_at_settle_exit_is_reinterrupted": (_SCOPED_UNDO,),
     "tests/gateway/test_mirror.py::TestSessionsIndexProfileScoping::"
@@ -579,20 +544,6 @@ ID_MARKS.update({
     },
     "tests/test_live_system_guard_self_test.py::"
     "test_subprocess_run_gateway_status_passes_through": (_LOOKALIKE,),
-    **{
-        f"tests/tui_gateway/test_tui_gateway_server.py::{test}": (_AGENT_TURNS,)
-        for test in (
-            "test_notification_poller_live_loop_requeues_foreign_completion_for_owner",
-            "test_notification_poller_delivers_owned_events",
-            "test_run_prompt_submit_delivers_completion_observed_by_poll",
-            "test_run_prompt_submit_requeues_all_unstarted_notifications_with_real_threading",
-            "test_run_prompt_submit_delivers_completion_owned_through_compression_lineage",
-            "test_run_prompt_submit_prefers_origin_ui_session_id",
-            "test_notification_poller_delivers_completion",
-            "test_notification_poller_requeues_when_busy",
-            "test_notification_poller_emits_distinct_watch_matches_once",
-        )
-    },
     # The fork runs the whole tree under --timeout=30; these PowerShell
     # harnesses carry their own child budgets above that.
     "tests/scripts/desktop_update/test_desktop_update_windows_cwd.py": (pytest.mark.timeout(75),),

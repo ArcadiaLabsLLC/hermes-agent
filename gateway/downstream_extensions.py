@@ -40,56 +40,6 @@ def _needs_risk_assessor_warning(config: dict) -> bool:
     return not cfg_get(config, "auxiliary", "approval", default=None)
 
 class DownstreamGatewayMixin:
-    @staticmethod
-    def _background_agent_turns_enabled() -> bool:
-        """Return True only when legacy agent-turn completion notifications are enabled.
-
-        Background process completions used to synthesize an internal user
-        message and run a full agent turn.  That is expensive and can starve a
-        real human message behind monitor traffic.  Keep it as an explicit
-        compatibility opt-in; compact direct sends are the default.
-        """
-        raw = os.getenv("HERMES_BACKGROUND_AGENT_TURNS", "").strip().lower()
-        if not raw:
-            from gateway.run import _load_gateway_config
-            cfg = _load_gateway_config()
-            raw = str(
-                cfg_get(
-                    cfg,
-                    "display",
-                    "background_process_agent_turns",
-                    default="",
-                ) or ""
-            ).strip().lower()
-        return raw in {"1", "true", "yes", "on", "agent", "legacy"}
-
-    @staticmethod
-    def _format_background_completion_notification(
-        *,
-        session_id: str,
-        exit_code: int | None,
-        command: str,
-        output: str,
-        limit: int = 2000,
-    ) -> str:
-        """Build a compact, bounded, redacted process-completion message."""
-        from agent.redact import redact_sensitive_text
-        from tools.ansi_strip import strip_ansi
-
-        clean_output = strip_ansi(output or "")
-        if len(clean_output) > limit:
-            tail = clean_output[-limit:]
-            nl = tail.find("\n")
-            tail = tail[nl + 1:] if nl != -1 else tail
-            clean_output = f"[… output truncated — showing last {len(tail)} chars]\n{tail}"
-        clean_command = redact_sensitive_text(str(command or ""))
-        clean_output = redact_sensitive_text(clean_output)
-        return (
-            f"[Background process {session_id} finished with exit code {exit_code}.\n"
-            f"Command: {clean_command}\n"
-            f"Output:\n{clean_output}]"
-        )
-
     async def _handle_queue_status_command(self, event: MessageEvent) -> str:
         """Handle /queue-status command with active-run and queue visibility."""
         from gateway.run import _AGENT_PENDING_SENTINEL

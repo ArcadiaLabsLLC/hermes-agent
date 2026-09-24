@@ -648,26 +648,6 @@ def _no_ollama_show_probe(request, monkeypatch):
     monkeypatch.setattr(_metadata, "_ollama_show", lambda *_a, **_k: None)
 
 
-_BACKGROUND_AGENT_TURNS_MARK = "background_agent_turns"
-
-
-@pytest.fixture(autouse=True)
-def _background_agent_turns(request, _hermetic_environment, monkeypatch):
-    """Turn on the agent-turn lane for an upstream test that exercises it.
-
-    The fork delivers background-process completions as status text unless
-    ``HERMES_BACKGROUND_AGENT_TURNS`` is set (``gateway.downstream_extensions``
-    and ``tui_gateway.session_notifications``); upstream's delivery is an agent
-    turn. For the ids ``tests/_downstream/id_markers.py`` marks, the opt-in is
-    set, so the upstream test runs the lane it was written against, unedited.
-    The one authority for this mark, tree-wide (it replaced a tests/hermes_cli
-    copy that covered that directory alone).
-    """
-    if request.node.get_closest_marker(_BACKGROUND_AGENT_TURNS_MARK) is None:
-        return
-    monkeypatch.setenv("HERMES_BACKGROUND_AGENT_TURNS", "1")
-
-
 #: The fork's per-test cap (seconds) and how it fires. ``thread`` dumps every
 #: stack and KILLS the process, which is the only method Windows has (no
 #: SIGALRM). Applied below as defaults, so an explicit ``--timeout`` /
@@ -762,13 +742,6 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         "hermes_cli.config.load_config for a reader the fork moved to "
         "load_config_readonly; the readonly loader defers to it (applied by id "
         "from tests/_downstream/id_markers.py).",
-    )
-    config.addinivalue_line(
-        "markers",
-        f"{_BACKGROUND_AGENT_TURNS_MARK}: the upstream test exercises agent-turn "
-        "completion delivery, which the fork gates behind "
-        "HERMES_BACKGROUND_AGENT_TURNS; the fixture sets it (applied by id from "
-        "tests/_downstream/id_markers.py).",
     )
     config.addinivalue_line(
         "markers",
