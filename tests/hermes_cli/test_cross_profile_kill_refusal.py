@@ -9,10 +9,6 @@ mutual cross-profile SIGTERM restart loop from the issue report.
 These tests exercise the REAL code paths against real PID files, a real
 flock-held gateway lock, and a real dummy child process — no mocks of the
 code under test.
-
-Lives with the gateway process-ownership tests: the CLI directory forbids every
-backend-shaped subprocess, including these test-owned sleep stubs. The root
-live-system guard stays active, with only its explicit lookalike spawn marker.
 """
 
 import json
