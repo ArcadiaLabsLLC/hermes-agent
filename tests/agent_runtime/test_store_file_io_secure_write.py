@@ -217,6 +217,9 @@ def hostile_directory(monkeypatch):
         )
     monkeypatch.setenv("USERNAME", user)
     directory = Path(tempfile.mkdtemp(prefix=".acl-probe-", dir=str(REPO_ROOT)))
+    # Self-ignoring, so a run killed between here and teardown leaves no
+    # untracked litter and the root `.gitignore` needs no fork entry.
+    (directory / ".gitignore").write_text("*\n", encoding="utf-8", newline="\n")
     stripped = _icacls(
         str(directory), "/inheritance:r", "/grant:r", f"{user}:(OI)(CI)(RX,W)"
     )

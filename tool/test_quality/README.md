@@ -56,7 +56,7 @@ isolation. At the console that is indistinguishable from a real defect; the H
 landing lost ten minutes to exactly that before the concurrency was identified.
 
 A second *mutating* run against the same tree is refused: the script
-exclusive-creates `.mutation_gate.lock` at the repo root, prints the holder's
+exclusive-creates `.mutation-gate/lock` (a self-ignoring directory) at the repo root, prints the holder's
 pid and start time on a collision, and exits 2. There is deliberately no
 liveness probe on the recorded pid (`os.kill(pid, 0)` KILLS the process on
 Windows), so a lock left behind by a crashed run is cleared by hand — the

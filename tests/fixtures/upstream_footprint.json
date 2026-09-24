@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 348,
+  "files": 347,
   "deleted_lines": 2222,
   "heavy": 8,
   "reasons": [
@@ -64,6 +64,12 @@
       "files": "349 -> 348",
       "deleted_lines": "2225 -> 2222",
       "reason": "hermes_cli/doctor_tools.py back to merge-base bytes (upstream agent_browser_runnable call); browser_probe_scope/browser_runnable deleted from agent_runtime/doctor_extensions.py and the agent_browser_runnable_override kwarg from run_doctor; tests/hermes_cli/test_doctor.py 43/5 -> 3/3"
+    },
+    {
+      "change": "lane META (seam/carry-meta-2026-09-24)",
+      "files": "348 (after lane ADOPT) -> 347",
+      "deleted_lines": "2222 -> 2222",
+      "reason": "groups 1+2 of the carry census: .gitignore back to stock (every fork entry's producer now writes a self-ignoring dir; /profiles/ was upstream's own line; .claude/ is the up/gitignore-claude-dir PR); .gitattributes keeps only the root eol rule, ruled carry-permanent"
     }
   ]
 }

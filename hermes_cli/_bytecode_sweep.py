@@ -8,7 +8,18 @@ logger = logging.getLogger(__name__)
 
 _BYTECODE_FINGERPRINT_FILE = ".bytecode-fingerprint"
 
-_BYTECODE_SWEEP_LOCK_FILE = ".bytecode-sweep.lock"
+#: The single-winner lock lives in its own directory, and that directory ignores
+#: itself (a ``.gitignore`` holding ``*``), so the lock never reads as an
+#: untracked file to ``git status`` or ``hermes update``'s autostash and the
+#: checkout's root ``.gitignore`` stays upstream's.
+_BYTECODE_SWEEP_DIR = ".bytecode-sweep"
+
+_BYTECODE_SWEEP_LOCK_FILE = "lock"
+
+#: Where the lock lived before it had a directory. A crashed sweeper could leave
+#: one behind, and the root `.gitignore` no longer names it, so the lock path's
+#: one reader deletes it and says so.
+_LEGACY_BYTECODE_SWEEP_LOCK_FILE = ".bytecode-sweep.lock"
 
 _BYTECODE_SWEEP_LOCK_WAIT_SECONDS = 20.0
 
@@ -20,9 +31,29 @@ _SWEEP_OUTCOME_WAITED = "waited_for_winner"
 
 _SWEEP_OUTCOME_UNSWEPT = "proceeded_unswept"
 
+def _ensure_self_ignoring_dir(directory: Path) -> None:
+    """Create *directory* with a ``.gitignore`` of ``*``. Never raises."""
+
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        marker = directory / ".gitignore"
+        if not marker.exists():
+            marker.write_text("*\n", encoding="utf-8", newline="\n")
+    except OSError:
+        pass
+
+
 def _bytecode_sweep_lock_path() -> Path:
     from hermes_cli.main import PROJECT_ROOT
-    return PROJECT_ROOT / _BYTECODE_SWEEP_LOCK_FILE
+    directory = PROJECT_ROOT / _BYTECODE_SWEEP_DIR
+    _ensure_self_ignoring_dir(directory)
+    legacy = PROJECT_ROOT / _LEGACY_BYTECODE_SWEEP_LOCK_FILE
+    try:
+        legacy.unlink()
+        logger.info("Removed the pre-2026-09-24 root bytecode-sweep lock: %s", legacy)
+    except OSError:
+        pass
+    return directory / _BYTECODE_SWEEP_LOCK_FILE
 
 def _break_stale_bytecode_sweep_lock(lock_path: Path) -> bool:
     """Remove a sweep lock old enough that its holder cannot still be alive.
