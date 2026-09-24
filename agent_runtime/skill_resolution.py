@@ -7,7 +7,8 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Set, Tuple
-from hermes_constants import CANONICAL_SHARED_SKILL_IDS, get_shared_skills_dir, get_skills_dir
+from hermes_constants import get_skills_dir
+from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS, get_shared_skills_dir
 # Import skill_utils only inside consumers: its compatibility aliases import us.
 
 _SKILL_RUNTIME_SURFACE: ContextVar[str | None] = ContextVar(

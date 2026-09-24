@@ -45,7 +45,7 @@ from agent_runtime.store import (
     lift_deleted_workspace,
     skill_tombstoned,
 )
-from hermes_constants import get_shared_skills_dir
+from agent_runtime.profile_home import get_shared_skills_dir
 
 T0 = datetime(2026, 8, 31, 12, 0, 0, tzinfo=timezone.utc)
 

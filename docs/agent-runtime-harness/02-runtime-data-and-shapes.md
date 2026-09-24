@@ -357,7 +357,7 @@ resolve through `get_hermes_home()` (ContextVar-first) or an explicit path;
 `get_default_hermes_root()` collapses to the same answer either way, because a
 binding's `profile_home` is always `<root>/profiles/<name>`; and the one raw-env
 reader it does reach — `hermes_cli.auth._global_auth_file_path`, on the provider
-probe — now reads `hermes_constants.get_hermes_auth_home()`, which resolves the
+probe — now reads `agent_runtime.profile_home.get_hermes_auth_home()`, which resolves the
 ContextVar first and the `HERMES_AUTH_HOME` env var second. The named residue is
 `HOME`: POSIX `os.path.expanduser` has no context-scoped hook, so a `~` expanded
 under the binding (a `skills.external_dirs` entry, the `~/.codex` / `~/.qwen`

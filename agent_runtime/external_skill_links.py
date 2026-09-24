@@ -1,7 +1,7 @@
 """Link the shared canonical skills into external agent harnesses.
 
 Mission Control keeps one physical skills root at
-:func:`hermes_constants.get_shared_skills_dir` (``<hermes_root>/shared/skills``).
+:func:`agent_runtime.profile_home.get_shared_skills_dir` (``<hermes_root>/shared/skills``).
 Other harnesses on the same machine — Claude Code (``~/.claude/skills``) and
 Codex (``~/.codex/skills``) — discover skills from their own directories. This
 module makes those directories *reference* the shared root by placing a
@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-from hermes_constants import get_shared_skills_dir
+from agent_runtime.profile_home import get_shared_skills_dir
 
 
 def default_external_skill_dirs() -> list[Path]:

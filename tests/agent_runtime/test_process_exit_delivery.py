@@ -32,13 +32,13 @@ PERSONA = "chara_a2"
 
 @pytest.fixture()
 def notify_home(tmp_path, monkeypatch):
-    import hermes_constants
+    import agent_runtime.profile_home as profile_home
     import tools.process_notify_store as store
 
     home = tmp_path / "background-home"
     home.mkdir()
     monkeypatch.setattr(
-        hermes_constants, "get_hermes_background_work_home", lambda: home
+        profile_home, "get_hermes_background_work_home", lambda: home
     )
     store.reset_cache()
     return home

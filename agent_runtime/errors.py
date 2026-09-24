@@ -250,7 +250,7 @@ class SkillTombstoneRefused(AgentRuntimeError):
     vocabulary for "a delete chokepoint refused", not two.
 
     - ``skill_installer_owned`` — the slug is one of
-      ``hermes_constants.CANONICAL_SHARED_SKILL_IDS``, which every pull
+      ``agent_runtime.profile_home.CANONICAL_SHARED_SKILL_IDS``, which every pull
       REINSTALLS from repo source (``realm_sync``'s ``install_harness_skills``).
       A ledger entry for such a slug is a fight the installer wins on every
       pull, so the door refuses instead of minting a tombstone that silently

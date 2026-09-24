@@ -561,7 +561,7 @@ id must be identical under BOTH `serde.safe_id` and the store's own
 `safe_assignment_token` before any root is walked — that is what makes "never
 path-joined from input" true and what makes the ack's `assigned` the list the
 store HOLDS rather than one it quietly re-spelled. Then every canonical id
-(`hermes_constants.CANONICAL_SHARED_SKILL_IDS`) goes through
+(`agent_runtime.profile_home.CANONICAL_SHARED_SKILL_IDS`) goes through
 `skill_install.install_and_verify_harness_skill`, which refuses unless the
 destination exists, the install receipt is `ok`, AND an independent
 `harness_skill_hash_mismatches` re-read is empty — three conditions because the
@@ -628,7 +628,7 @@ PHYSICAL dispatch attempt, right after the transport preflight (so a codex token
 the hermes side of the split) and right before the provider call; it carries no
 `duration_ms`/`timing_key` because it names an INSTANT, which also keeps it out of the
 profile-timing dict. Step constant: `CONVERSATION_REQUEST_ASSEMBLED_STEP =
-"conversation_request_assembled"` (`hermes_constants.py:1606`); `mark_from_trace_payload`
+"conversation_request_assembled"` (`agent_runtime/conversation_observability.py:5`); `mark_from_trace_payload`
 (`mission_chat_phases.py:433-469`) is the only converter, and it takes nothing from a malformed one.
 
 **The payload has to survive the sink to reach that converter.** Its real route is

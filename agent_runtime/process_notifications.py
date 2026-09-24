@@ -13,7 +13,7 @@ MISSION_CHAT_WAIT_MAX_SECONDS = 600
 def checkpoint_path():
     """Path to the crash-recovery checkpoint, resolved at call time."""
 
-    from hermes_constants import get_hermes_background_work_home
+    from agent_runtime.profile_home import get_hermes_background_work_home
 
     return get_hermes_background_work_home() / "processes.json"
 

@@ -9,15 +9,17 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from hermes_constants import (
+    get_hermes_home,
+    reset_hermes_home_override,
+    set_hermes_home_override,
+)
+from agent_runtime.profile_home import (
     get_hermes_auth_home,
     get_hermes_head_home,
-    get_hermes_home,
     record_hermes_head_home_if_unset,
     reset_hermes_auth_home_override,
     reset_hermes_head_home,
-    reset_hermes_home_override,
     set_hermes_auth_home_override,
-    set_hermes_home_override,
 )
 from hermes_cli.profiles import (
     get_active_profile,

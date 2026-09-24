@@ -40,7 +40,7 @@ def _make_skill(
 
 
 def _patch_root(monkeypatch, root: Path) -> None:
-    monkeypatch.setattr("hermes_constants.get_shared_skills_dir", lambda: root)
+    monkeypatch.setattr("agent_runtime.profile_home.get_shared_skills_dir", lambda: root)
 
 
 def test_shared_catalog_walks_only_manifest_dirs(tmp_path, monkeypatch):

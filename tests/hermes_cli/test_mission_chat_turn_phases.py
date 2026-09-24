@@ -42,7 +42,7 @@ from agent_runtime.mission_chat_phases import (
 from agent_runtime.mission_chat_turns import TURN_PROFILE_TIMING_KEY
 from agent_runtime.persona_runtime import _chat_trace_callback
 from agent_runtime.profile_runner import AgentRunRequest, _profile_status_callback
-from hermes_constants import CONVERSATION_REQUEST_ASSEMBLED_STEP
+from agent_runtime.conversation_observability import CONVERSATION_REQUEST_ASSEMBLED_STEP
 
 from tests.hermes_cli.test_mission_chat_budget_payload import (  # type: ignore
     _SESSION_ID,

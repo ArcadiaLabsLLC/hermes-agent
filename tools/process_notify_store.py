@@ -19,7 +19,7 @@ starts working (``agent_runtime.dispatch_store``).
 Where the file lives — and why that is not ``get_hermes_home()``
 ----------------------------------------------------------------
 Beside ``processes.json``, through the SAME resolver
-(:func:`hermes_constants.get_hermes_background_work_home`) the process
+(:func:`agent_runtime.profile_home.get_hermes_background_work_home`) the process
 checkpoint, the ``async_delegations`` store and the ``running_work`` projection
 already agree on. ``persona_profile_context`` flips ``HERMES_HOME``
 process-globally for the duration of a persona turn, and a notify request is
@@ -108,7 +108,7 @@ def notify_store_path() -> Path:
     unless both go through the one background-work authority.
     """
 
-    from hermes_constants import get_hermes_background_work_home
+    from agent_runtime.profile_home import get_hermes_background_work_home
 
     return Path(get_hermes_background_work_home()) / NOTIFY_STORE_FILENAME
 

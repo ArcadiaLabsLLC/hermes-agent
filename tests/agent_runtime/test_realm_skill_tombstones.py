@@ -24,7 +24,7 @@ from agent_runtime.errors import SkillTombstoneRefused
 from agent_runtime.models import Realm, SkillTombstone
 from agent_runtime.serde import from_jsonable, to_jsonable
 from agent_runtime.store import RealmStore, active_skill_tombstones, skill_tombstoned
-from hermes_constants import CANONICAL_SHARED_SKILL_IDS
+from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS
 
 
 def _realm(name: str = "Tombstone Realm") -> Realm:

@@ -56,7 +56,7 @@ from agent_runtime.skill_sync import (
     skill_baseline_key,
 )
 from agent_runtime.store import RealmStore
-from hermes_constants import CANONICAL_SHARED_SKILL_IDS, get_shared_skills_dir
+from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS, get_shared_skills_dir
 
 
 @pytest.fixture(autouse=True)

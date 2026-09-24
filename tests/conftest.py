@@ -390,7 +390,7 @@ _HERMES_BEHAVIORAL_VARS = frozenset({
     "HERMES_EXEC_ASK",
     "HERMES_HOME_MODE",
     # HERMES_HOME is sandboxed below (step 3), but HERMES_HEAD_HOME OUTRANKS it:
-    # get_hermes_head_home() (hermes_constants.py:94-108) returns HERMES_HEAD_HOME
+    # get_hermes_head_home() (agent_runtime/profile_home.py:91-107) returns HERMES_HEAD_HOME
     # verbatim and only falls back to get_hermes_home() when it is unset. The
     # Launcher's serve exports HERMES_HEAD_HOME=<root>/profiles/base, so a suite
     # run from a Launcher-shaped shell inherited the operator's LIVE head home

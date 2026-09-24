@@ -2,7 +2,7 @@
 
 This module is the ONE guarded door through which downloaded / authored /
 profile-local skill packages become canonical in the shared skills root
-(:func:`hermes_constants.get_shared_skills_dir`). It is a pure decision layer
+(:func:`agent_runtime.profile_home.get_shared_skills_dir`). It is a pure decision layer
 (:func:`classify_promotion`) plus a guarded, atomic, never-delete executor
 (:func:`execute_promotion`).
 
@@ -43,7 +43,7 @@ from pathlib import Path
 from typing import Any
 
 from agent.skill_utils import EXCLUDED_SKILL_DIRS, SKILL_SUPPORT_DIRS
-from hermes_constants import get_shared_skills_dir
+from agent_runtime.profile_home import get_shared_skills_dir
 from hermes_time import now
 from utils import atomic_json_write
 

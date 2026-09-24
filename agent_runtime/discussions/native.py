@@ -14,8 +14,12 @@ from typing import Any, Callable, Iterator, Mapping
 from agent.interrupt_scope import InterruptScope, bind_interrupt_scope
 from agent_runtime.auxiliary_chat import auxiliary_chat
 from agent_runtime.resolution import resolve_runtime, runtime_resolution_scope
-from hermes_constants import (record_hermes_head_home_if_unset, reset_hermes_head_home,
-    set_hermes_home_override, reset_hermes_home_override, get_hermes_head_home)
+from hermes_constants import (set_hermes_home_override, reset_hermes_home_override)
+from agent_runtime.profile_home import (
+    record_hermes_head_home_if_unset,
+    reset_hermes_head_home,
+    get_hermes_head_home,
+)
 
 from .attempt_store import AttemptStore
 from .definitions import ParticipantRef

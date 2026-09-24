@@ -7,7 +7,7 @@ import pytest
 
 from agent_runtime import repo_context as _repo_context
 from agent_runtime.config import harness_root_config_path
-from hermes_constants import get_hermes_head_home
+from agent_runtime.profile_home import get_hermes_head_home
 
 
 _PRODUCTION_WORKTREE_BASE_DIR = _repo_context._worktree_base_dir
@@ -406,7 +406,7 @@ def assert_root_config_resolution_is_hermetic(tmp_path, _hermetic_environment):
     assert_under(
         get_hermes_head_home(),
         tmp_path,
-        what="hermes_constants.get_hermes_head_home()",
+        what="agent_runtime.profile_home.get_hermes_head_home()",
     )
     yield
 

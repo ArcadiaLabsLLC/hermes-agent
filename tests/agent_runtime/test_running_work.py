@@ -227,10 +227,7 @@ def test_a_recorded_head_survives_a_persona_profile_flip(tmp_path, monkeypatch):
     where the operator's projection reads it.
     """
 
-    from hermes_constants import (
-        record_hermes_head_home_if_unset,
-        reset_hermes_head_home,
-    )
+    from agent_runtime.profile_home import record_hermes_head_home_if_unset, reset_hermes_head_home
     from tools import process_registry
 
     operator = tmp_path / "operator"

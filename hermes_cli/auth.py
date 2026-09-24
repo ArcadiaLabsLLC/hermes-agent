@@ -31,7 +31,8 @@ from urllib.parse import urlparse
 from hermes_cli.config import (
     get_hermes_home, get_config_path, read_raw_config, require_readable_config_before_write)
 from hermes_constants import (
-    OPENROUTER_BASE_URL, get_hermes_auth_home, hermes_home_key, secure_parent_dir)
+    OPENROUTER_BASE_URL, hermes_home_key, secure_parent_dir)
+from agent_runtime.profile_home import get_hermes_auth_home
 from agent.credential_persistence import sanitize_borrowed_credential_payload
 from utils import atomic_json_write, atomic_yaml_write, env_float, file_signature, is_truthy_value  # noqa: F401  (env_float: agent.credential_pool reads auth_mod.env_float)
 from hermes_cli.auth_zai_kimi import (  # noqa: F401  re-exported

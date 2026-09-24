@@ -165,7 +165,7 @@ def peer_store_root() -> Path:
     """The runtime root whose ``gateway/peers.json`` this install's edges live in.
 
     NOT ``paths.store_root()``, and the difference is the same one
-    ``hermes_constants.get_hermes_background_work_home`` exists to name.
+    ``agent_runtime.profile_home.get_hermes_background_work_home`` exists to name.
     ``resolve_runtime`` consults ``HERMES_HOME``'s ``config.yaml`` whenever
     ``HERMES_AGENT_RUNTIME_ROOT`` is unset, and ``persona_profile_context``
     flips ``HERMES_HOME`` PROCESS-GLOBALLY for the length of every persona turn
@@ -182,7 +182,7 @@ def peer_store_root() -> Path:
     dials) call this, so they cannot read two different stores.
     """
 
-    from hermes_constants import get_hermes_background_work_home
+    from agent_runtime.profile_home import get_hermes_background_work_home
 
     from .resolution import resolve_runtime
 

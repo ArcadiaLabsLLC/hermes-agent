@@ -2,7 +2,7 @@
 import logging
 import time
 from typing import Any, List, Optional
-from hermes_constants import CONVERSATION_REQUEST_ASSEMBLED_STEP
+CONVERSATION_REQUEST_ASSEMBLED_STEP = "conversation_request_assembled"
 logger = logging.getLogger(__name__)
 
 def _emit_conversation_timing(
