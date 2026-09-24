@@ -21,7 +21,6 @@ from tools.environments.local import (
     _augment_windows_system_path,
     _bash_from_git,
     _find_bash,
-    _find_windows_git_bash,
     _is_windows_system_shim,
     _windows_system_path_dirs,
 )
@@ -42,6 +41,16 @@ def clean_win_env(tmp_path):
     with patch.dict(os.environ, env, clear=False):
         os.environ.pop("HERMES_GIT_BASH_PATH", None)
         yield tmp_path
+
+
+def _find_windows_bash():
+    """Upstream's ``_find_bash`` on its Windows branch, every candidate startable.
+
+    The fork's ``_find_windows_git_bash`` duplicate is retired (upstream c4622a1d5b);
+    the candidate ORDER these tests pin is ``_windows_bash_candidates``, shared by both.
+    """
+    with patch.object(local, "_IS_WINDOWS", True),             patch.object(local, "_bash_starts", return_value=True):
+        return _find_bash()
 
 
 def _make(path):
@@ -73,8 +82,10 @@ class TestFindWindowsGitBash:
         def which(name):
             return {"bash": stub, "git": None}.get(name)
 
-        with patch.object(local.shutil, "which", side_effect=which):
-            assert _find_windows_git_bash() is None
+        from hermes_cli.dep_ensure import _resolve_windows_git_bash
+
+        with patch.object(local, "_IS_WINDOWS", True),                 patch.object(local.shutil, "which", side_effect=which):
+            assert _resolve_windows_git_bash() is None
 
     def test_find_bash_raises_on_wsl_stub_only(self, clean_win_env):
         stub = _make(str(clean_win_env / "Windows" / "System32" / "bash.exe"))
@@ -104,7 +115,7 @@ class TestFindWindowsGitBash:
             return {"git": git, "bash": None}.get(name)
 
         with patch.object(local.shutil, "which", side_effect=which):
-            assert _find_windows_git_bash() == bash
+            assert _find_windows_bash() == bash
             assert _bash_from_git() == bash
 
     def test_hermes_git_bash_path_takes_precedence(self, clean_win_env):
@@ -114,7 +125,7 @@ class TestFindWindowsGitBash:
         _make(str(clean_win_env / "Program Files" / "Git" / "bin" / "bash.exe"))
         with patch.dict(os.environ, {"HERMES_GIT_BASH_PATH": override}):
             with patch.object(local.shutil, "which", return_value=None):
-                assert _find_windows_git_bash() == override
+                assert _find_windows_bash() == override
 
     def test_portable_git_precedes_git_derived(self, clean_win_env):
         portable = _make(
@@ -127,13 +138,13 @@ class TestFindWindowsGitBash:
             return {"git": git, "bash": None}.get(name)
 
         with patch.object(local.shutil, "which", side_effect=which):
-            assert _find_windows_git_bash() == portable
+            assert _find_windows_bash() == portable
 
     def test_standard_location_fallback(self, clean_win_env):
         """No git on PATH, no portable — standard Program Files install is found."""
         bash = _make(str(clean_win_env / "Program Files" / "Git" / "bin" / "bash.exe"))
         with patch.object(local.shutil, "which", return_value=None):
-            assert _find_windows_git_bash() == bash
+            assert _find_windows_bash() == bash
 
 
 class TestWindowsSystemPathAugmentation:

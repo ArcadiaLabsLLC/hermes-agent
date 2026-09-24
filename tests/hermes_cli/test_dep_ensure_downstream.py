@@ -19,7 +19,7 @@ def test_ensure_git_bash_windows_resolves_and_persists():
     bash = r"C:\Program Files\Git\bin\bash.exe"
     persisted = {}
     with patch("hermes_cli.dep_ensure._IS_WINDOWS", True), \
-         patch("tools.environments.local._find_windows_git_bash", return_value=bash), \
+         patch("hermes_cli.dep_ensure._resolve_windows_git_bash", return_value=bash), \
          patch("hermes_cli.windows_env.set_user_env",
                side_effect=lambda name, value: persisted.setdefault(name, value) or True), \
          patch("hermes_cli.windows_env.broadcast_environment_change") as mock_bcast:
@@ -35,7 +35,7 @@ def test_ensure_git_bash_windows_falls_back_to_install_then_reresolves():
     resolves = iter([None, bash])  # first miss, then present after install
     install_calls = []
     with patch("hermes_cli.dep_ensure._IS_WINDOWS", True), \
-         patch("tools.environments.local._find_windows_git_bash",
+         patch("hermes_cli.dep_ensure._resolve_windows_git_bash",
                side_effect=lambda: next(resolves)), \
          patch.object(dep_ensure, "ensure_dependency",
                       side_effect=lambda dep, interactive=True: install_calls.append(dep) or True), \
@@ -49,7 +49,7 @@ def test_ensure_git_bash_windows_falls_back_to_install_then_reresolves():
 def test_ensure_git_bash_windows_returns_none_when_unprovisionable():
     from hermes_cli import dep_ensure
     with patch("hermes_cli.dep_ensure._IS_WINDOWS", True), \
-         patch("tools.environments.local._find_windows_git_bash", return_value=None), \
+         patch("hermes_cli.dep_ensure._resolve_windows_git_bash", return_value=None), \
          patch.object(dep_ensure, "ensure_dependency", return_value=False), \
          patch("hermes_cli.windows_env.set_user_env") as mock_set:
         result = dep_ensure.ensure_git_bash(interactive=False)

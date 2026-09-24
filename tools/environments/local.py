@@ -1139,11 +1139,3 @@ def _augment_windows_system_path(existing_path: str) -> str:
     return _WINDOWS_PATH_SEP.join(entries)
 
 _WINDOWS_PATH_SEP = ";"
-
-def _find_windows_git_bash() -> "str | None":
-    """First usable Git Bash; never return the Windows WSL launcher."""
-    candidates = _windows_bash_candidates(os.environ.get("HERMES_GIT_BASH_PATH"))
-    for candidate in candidates:
-        if _bash_starts(candidate):
-            return candidate
-    return candidates[0] if candidates else None

@@ -491,19 +491,19 @@ class TestCommandTokenization:
     def test_platform_path_survives_tokenization(self, tmp_path):
         script = _write_script(tmp_path, "hook.sh", "#!/bin/sh\nexit 0\n")
         command = str(script)
-        assert shell_hooks._split_command(command) == [command]
+        assert shell_hooks.split_command_line(command) == [command]
 
     def test_interpreter_prefixed_platform_path_survives(self, tmp_path):
         script = _write_script(tmp_path, "hook.py", "print('{}')\n")
         command = f"python {script}"
-        assert shell_hooks._split_command(command) == ["python", str(script)]
+        assert shell_hooks.split_command_line(command) == ["python", str(script)]
         assert shell_hooks._command_script_path(command) == str(script)
 
     def test_quoted_path_with_spaces_yields_a_bare_token(self, tmp_path):
         spaced = tmp_path / "dir with spaces"
         spaced.mkdir()
         script = _write_script(spaced, "hook.sh", "#!/bin/sh\nexit 0\n")
-        assert shell_hooks._split_command(f'"{script}"') == [str(script)]
+        assert shell_hooks.split_command_line(f'"{script}"') == [str(script)]
 
     def test_mtime_resolves_for_a_platform_spelled_path(self, tmp_path):
         script = _write_script(tmp_path, "hook.sh", "#!/bin/sh\nexit 0\n")

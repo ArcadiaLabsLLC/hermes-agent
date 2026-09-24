@@ -152,8 +152,8 @@ FROZEN_LEDGER: dict[str, tuple[frozenset[str], str]] = {
     # for exactly the reason recorded for ``singularity.py`` below and on the
     # same import chain — ``tools/terminal_tool.py`` imports both, so
     # ``spawn_local`` resolved BOTH homes at first-call import time. Retiring
-    # only one just moved the traceback down a frame. Now the lazy
-    # ``_snapshot_store_path()``.
+    # only one just moved the traceback down a frame. Now upstream's lazy
+    # ``_snapshot_store()`` (adf23550f5).
     # ``tools/environments/singularity.py`` used to sit here for
     # ``_SNAPSHOT_STORE``. The freeze was not merely untidy: this module is
     # imported at the top of ``tools/terminal_tool.py``, which
@@ -162,7 +162,7 @@ FROZEN_LEDGER: dict[str, tuple[frozenset[str], str]] = {
     # first spawn happened to have. A caller that legitimately scrubs the
     # environment took a ``RuntimeError: Could not determine home directory``
     # out of a *snapshot-store path* it never touches. Now the lazy
-    # ``_snapshot_store_path()``, matching ``vercel_sandbox.py``.
+    # ``_snapshot_store()`` (upstream adf23550f5).
     "tools/process_registry.py": (
         frozenset({"CHECKPOINT_PATH", "_CHECKPOINT_PATH_AT_IMPORT"}),
         "upstream compatibility sentinel: _checkpoint_path resolves the active home "
