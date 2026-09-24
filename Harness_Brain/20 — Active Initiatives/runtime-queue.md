@@ -23,6 +23,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-09-24 (lane LLAMA-H)
+
+- [ ] **The launcher still speaks the fork's local-llama contract: the persona provider rename to upstream's `llamacpp` and the pinned-tag setup wizard are a launcher re-vendor** · `fork / local llama` · cross-repo, hermes moves first: accept `llamacpp` as a persona provider (set-model, then the turn through `agent_runtime/local_llama_adapter/provider.py::turn_scope`'s lease), then `EterniaLauncher/lib/features/mission_control/` switches the model-menu id (`kHermesLocalLlamaProviderId`), the visibility `provider_id` and the QA keys, and its wizard drops `destination_parent` and asset sizes (`installation.plan` now names upstream's `runtimes_root()` install dir, `download_bytes` is 0) · evidence: the module docstrings of `agent_runtime/local_llama_adapter/provider.py` and `setup.py` · filed by lane LLAMA-H 2026-09-24 **UNCLAIMED**
+- [ ] **GAP-PR-1 (`local_runtime.executable_path`) and GAP-PR-2 (`local_runtime.model_dirs`) are held while upstream PRs are paused; the adapter carries both, and the row-9 knob preset, as recorded parallels** · `fork / upstream` · when PRs resume, file each as a generic upstream PR, then delete `Engine.start`'s executable path and `engine.scan` for upstream's; the knob preset retires only on a per-model override upstream has refused in principle · evidence: `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md` § Fork modules that shadow an upstream symbol · filed by lane LLAMA-H 2026-09-24 **UNCLAIMED**
+
 ### Filed on arrival — 2026-09-24 (lane MOVE-A)
 
 - [ ] **The harness config keys (`remote_gateway.*`, `charsheet.*`) are top-level keys nobody declares; the ruled home is the plugin manifest `config_schema` (`plugins.entries.eternia-harness.settings.*`)** · `fork / config` · cross-repo, hermes moves first: readers `hermes_cli/harness_parts/serve.py::gateway_listen_config` + `agent/charsheet/pipeline.py::provider_timeout_seconds` switch to the plugin settings path with a one-chokepoint delete-and-report of the old keys, then the launcher's `gateway_listen_policy.dart` / `gateway_port_owner.dart` write the new path · evidence: ledger row `hermes_cli/config_defaults.py` · filed by lane MOVE-A 2026-09-24
