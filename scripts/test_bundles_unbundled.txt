@@ -20,9 +20,3 @@ tests/hermes_cli/test_dashboard_param_clamps.py  # observed: bundle #38 {'failed
 tests/hermes_cli/test_install_identity.py  # observed: bundle #47 {'failed': 1, 'passed': 2} after 18 earlier members; passed alone
 tests/hermes_cli/test_resolve_provider_custom_endpoint.py  # observed: bundle #69 {'failed': 1, 'passed': 8} after 18 earlier members; passed alone
 tests/hermes_cli/test_startup_model_routing.py  # observed: bundle #77 {'passed': 11, 'failed': 1} after 14 earlier members; passed alone
-# ── Observed 2026-09-24, lane REDS2, fork-scope gate over the wave (768 files) ──
-# Both are COLLECTION leaks, not order leaks: a bundle imports every member
-# before it runs any, and an upstream sibling installs a fake `dotenv` module
-# (no `dotenv.main`) into sys.modules at import when none is loaded yet.
-tests/hermes_cli/test_env_export_prefix.py  # observed: bundle #26 {'passed': 2, 'failed': 1} after 5 earlier members (doctor_terminal_backends, doctor_wal_holder_guard, empty_session_hygiene, entity_row_characterization, entity_row_regressions); passed alone. Red: test_has_any_provider_configured_with_export_prefix. Cause, reproduced: collecting later member test_fireworks_provider.py with it (pytest both --deselect fireworks) -> 1 failed, 2 passed; red since 87b5744288 dropped the fork's reload hunk
-tests/hermes_cli/test_gateway_migrate_multiplex.py  # observed: bundle #27 {'failed': 7, 'passed': 28, 'skipped': 3} after 0 earlier members; passed alone. Cause, reproduced: collecting later member test_gmi_provider.py with it (pytest both --deselect gmi) -> the same 7 failed, 28 passed, 3 skipped; also red at 20ba905b5f

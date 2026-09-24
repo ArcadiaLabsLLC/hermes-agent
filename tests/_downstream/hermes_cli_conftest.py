@@ -18,6 +18,14 @@ import sys
 
 import pytest
 
+# The REAL python-dotenv, loaded before any tests/hermes_cli module is imported.
+# Upstream's test_gmi_provider / test_fireworks_provider / test_upstage_provider
+# install a fake `dotenv` (no `dotenv.main`) at import when none is loaded yet,
+# and a bundle imports every member before it runs any, so the fake reached
+# every co-member (lane REDS2's two observed pairs). With the real module in
+# sys.modules their own guard is a no-op; upstream bytes untouched.
+import dotenv  # noqa: F401
+
 from tests._env_gap_fence import EnvGapSkipRegistry, apply_skips, is_owned
 from tests.hermes_cli import _gateway_fence, _module_identity
 

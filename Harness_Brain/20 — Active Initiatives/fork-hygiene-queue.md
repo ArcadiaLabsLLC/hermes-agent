@@ -66,7 +66,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-24 (lane REDS2)
 
-- [ ] **Upstream test files install a fake `dotenv` (no `dotenv.main`) into `sys.modules` at import — `test_gmi_provider.py`, `test_fireworks_provider.py`, `test_upstage_provider.py` — and a bundle imports every member before running any, so the fake reaches every co-member** · `fork / suite` · two files moved to `scripts/test_bundles_unbundled.txt` for it; the structural answer is a collection-time restore of `sys.modules["dotenv"]` in the bundle plugin or `tests/_downstream/hermes_cli_conftest.py`, then take the two lines back out · evidence: lane REDS2 job-4 commit (pairwise repros) **UNCLAIMED** **TAKEN 2026-09-24 TESTS**
 
 ## Filed on arrival — 2026-09-24 (lane CARRY3)
 
