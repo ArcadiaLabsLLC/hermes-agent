@@ -452,13 +452,6 @@ class TestConfiguredDeleteNeverApplied:
         assert f"state.db is held by PID {sqlite_pid}" in out and "state.db" in out.split("held by PID")[1]
         assert "no other process holds it" not in out and "cannot prove" not in out
 
-    # Same guard, same reason, as the sibling above. Upstream's ``_report_database_holders``
-    # (merged 2026-09-17) returns before consulting ``foreign_state_db_holders`` at all on
-    # Windows — it warns "cannot prove the database is quiet (holder scan is unavailable on
-    # Windows)" and stops — so the partial-scan branch this test pins is unreachable there and
-    # the patched scanner is never called. Guarding it is adopting upstream's behaviour; the
-    # assertion still runs on the POSIX hosts where the branch exists.
-    @pytest.mark.skipif(sys.platform == "win32", reason="holder scan has no Windows backend")
     def test_partial_holder_scan_is_never_an_all_clear(self, tmp_path, capsys, monkeypatch):
         _make_db(tmp_path / "state.db", journal_mode="WAL")
         monkeypatch.setattr("hermes_state_wal.resolve_journal_mode", lambda: "delete")
