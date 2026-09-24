@@ -1,0 +1,124 @@
+name: Fork CI red notifier
+
+# ─────────────────────────────────────────────────────────────────────
+# Notifier: ONE open issue titled "CI red on main", upserted every time a
+# push to main leaves the gate red.
+#
+# Why an issue rather than the default pusher email. That email is already
+# wired and had fired, unread, on 55 consecutive pushes while all eight
+# test slices died ~8 s in (the 2026-09-05 read of run 33969282189). A
+# channel whose reader has been trained to ignore it is not a notification.
+# So this one is deliberately SINGLE — one issue for the condition, reused,
+# never one per red push — and it carries the failed job NAMES out of
+# ``all-checks-pass``'s existing ``needs-json`` output, so the reader knows
+# what broke without opening the run.
+#
+# SECURITY, and the reason this may hold ``issues: write`` in a workflow
+# that also runs PR-controlled code: this job checks nothing out and runs no
+# repository code at all — one ``actions/github-script`` step with the
+# built-in token, gated to pushes on main. ``needs-json`` reaches the script
+# through ``env`` and is read with ``process.env``, never interpolated into
+# the script body, so a job name can never become script.
+#
+# It cannot be proven by the run that adds it: the trigger is a FAILING push
+# to main, so the first evidence is the next red main push. Watch that run.
+# ─────────────────────────────────────────────────────────────────────
+#
+# Moved out of upstream's ci.yaml (disposition-misc-2026-09-24.md §5): it runs
+# on `workflow_run` of the "CI" workflow, so it reads the failed job names from
+# the run's own jobs list instead of ci.yaml's `all-checks-pass` needs-json.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  actions: read
+  issues: write
+
+jobs:
+  notify-main-red:
+    name: Open the CI-red issue
+    if: >-
+      github.event.workflow_run.conclusion == 'failure'
+      && github.event.workflow_run.event == 'push'
+      && github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Upsert the "CI red on main" issue
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        with:
+          script: |
+            const TITLE = 'CI red on main'
+            const runUrl = process.env.RUN_URL
+            const sha = process.env.HEAD_SHA
+
+            // A malformed or absent needs-json must still produce the issue —
+            // "main is red and the gate could not say which job" is exactly
+            // when a reader most needs the run link.
+            let failed = []
+            try {
+              const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: Number(process.env.RUN_ID),
+                per_page: 100,
+              })
+              failed = jobs.filter(job => job.conclusion === 'failure').map(job => job.name).sort()
+            } catch (error) {
+              core.warning(`could not list the run's jobs: ${error.message}`)
+            }
+            const failedLine = failed.length
+              ? failed.map(name => `\`${name}\``).join(', ')
+              : '_the gate named none — read the run_'
+
+            const body = [
+              '`main` is red.',
+              '',
+              `- run: ${runUrl}`,
+              `- commit: \`${sha}\``,
+              `- failed jobs: ${failedLine}`,
+              '',
+              'This issue is REUSED: one issue for the condition, its body',
+              'rewritten and a comment added on every red push to `main`.',
+              'Close it when a main push goes green — the next red push opens',
+              'a fresh one.',
+            ].join('\n')
+
+            const open = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            })
+            const existing = open.find(issue => issue.title === TITLE && !issue.pull_request)
+
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              })
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `Still red at \`${sha.slice(0, 10)}\`: ${failedLine}\n\n${runUrl}`,
+              })
+              core.notice(`updated #${existing.number} (${TITLE})`)
+            } else {
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: TITLE,
+                body,
+              })
+              core.notice(`opened #${created.data.number} (${TITLE})`)
+            }

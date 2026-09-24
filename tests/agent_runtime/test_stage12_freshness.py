@@ -166,7 +166,7 @@ def test_scope_fingerprint_covers_head_home_session_db():
     import sqlite3
     import time as _time
 
-    from hermes_constants import get_hermes_head_home
+    from agent_runtime.profile_home import get_hermes_head_home
 
     from agent_runtime.stream import _scope_fingerprint
 
@@ -197,7 +197,7 @@ def test_scope_fingerprint_covers_running_work_stores():
 
     import time as _time
 
-    from hermes_constants import get_hermes_background_work_home
+    from agent_runtime.profile_home import get_hermes_background_work_home
 
     from agent_runtime.stream import _scope_fingerprint
 
@@ -226,7 +226,7 @@ def _wal_mode_head_home_db():
 
     import sqlite3
 
-    from hermes_constants import get_hermes_head_home
+    from agent_runtime.profile_home import get_hermes_head_home
 
     db_path = get_hermes_head_home() / "state.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -373,7 +373,7 @@ def test_scope_fingerprint_absent_session_db_is_stable_and_its_arrival_moves_it(
 
     import sqlite3
 
-    from hermes_constants import get_hermes_head_home
+    from agent_runtime.profile_home import get_hermes_head_home
 
     from agent_runtime.stream import _scope_fingerprint
 

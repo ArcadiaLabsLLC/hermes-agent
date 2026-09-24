@@ -2,91 +2,13 @@
 
 from __future__ import annotations
 
-import base64
-import hashlib
 import json
 import logging
 import os
-import tempfile
-import threading
-import time
 from pathlib import Path
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
-
-# Process-local only. The key is a one-way token digest; neither credentials nor
-# account identifiers cross the provider-visibility wire.
-_picker_lock = threading.Lock()
-
-
-def _picker_cache_path() -> Path:
-    root = Path(os.getenv("HERMES_HOME", "").strip() or str(Path.home() / ".hermes"))
-    return root / "cache" / "codex-model-picker.json"
-
-
-def get_verified_codex_model_ids(access_token: str) -> Optional[List[str]]:
-    """Visible live base IDs plus Hermes-local 900K context aliases.
-
-    None means unverified; an empty list is a valid live empty account catalog.
-    The bounded disk cache spans short-lived `harness providers` processes.
-    No unverified base models (including Astra or Spark) are synthesized.
-    """
-    if not access_token or not _extract_chatgpt_account_id(access_token):
-        return None
-    key = hashlib.sha256(access_token.encode("utf-8")).hexdigest()
-    now = time.time()
-    with _picker_lock:
-        path = _picker_cache_path()
-        try:
-            cached = json.loads(path.read_text(encoding="utf-8"))
-            if (cached.get("key") == key and cached.get("expires", 0) > now
-                    and isinstance(cached.get("models"), list)
-                    and all(isinstance(mid, str) for mid in cached["models"])):
-                return list(cached["models"]) if cached.get("verified") else None
-        except (OSError, ValueError, TypeError, AttributeError):
-            pass
-        models = _fetch_verified_models_from_api(access_token)
-        temporary = None
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with tempfile.NamedTemporaryFile(
-                mode="w", encoding="utf-8", dir=path.parent, delete=False
-            ) as handle:
-                json.dump({"key": key, "expires": time.time() + (300 if models is not None else 30),
-                           "verified": models is not None, "models": models or []}, handle)
-                temporary = Path(handle.name)
-            os.replace(temporary, path)
-        except OSError:
-            if temporary is not None:
-                try:
-                    temporary.unlink(missing_ok=True)
-                except OSError:
-                    pass
-        return models
-
-
-def _fetch_verified_models_from_api(access_token: str) -> Optional[List[str]]:
-    try:
-        import httpx
-        from agent.model_metadata import CODEX_MODELS_CATALOG_URL
-        response = httpx.get(
-            CODEX_MODELS_CATALOG_URL,
-            headers={
-                "Authorization": f"Bearer {access_token}",
-                "ChatGPT-Account-Id": _extract_chatgpt_account_id(access_token),
-            },
-            timeout=5,
-        )
-        if response.status_code != 200:
-            return None
-        payload = response.json()
-        if not isinstance(payload, dict) or not isinstance(payload.get("models"), list):
-            return None
-        return _add_context_variants(_ranked_slugs(payload["models"]))
-    except Exception:
-        # HTTP exception messages may contain request headers. Never log them.
-        return None
 
 # Curated offline fallback (first-run, transient API failure). Only slugs the ChatGPT Codex
 # OAuth backend actually accepts: the public API's "-pro" variants and the retired
@@ -96,7 +18,6 @@ def _fetch_verified_models_from_api(access_token: str) -> Optional[List[str]]:
 # up automatically.
 DEFAULT_CODEX_MODELS: List[str] = [
     "gpt-6-sol",
-    "gpt-6-terra",
     "gpt-6-luna",
     "gpt-5.6-sol",
     "gpt-5.6-terra",
@@ -120,7 +41,6 @@ DEFAULT_CODEX_MODELS: List[str] = [
 # in `/model` when live discovery is unavailable (offline first run, transient API failure).
 _FORWARD_COMPAT_TEMPLATE_MODELS: List[tuple[str, tuple[str, ...]]] = [
     ("gpt-6-sol", ("gpt-5.6-sol", "gpt-5.5")),
-    ("gpt-6-terra", ("gpt-5.6-terra", "gpt-5.5")),
     ("gpt-6-luna", ("gpt-5.6-luna", "gpt-5.5")),
     ("gpt-5.6-sol", ("gpt-5.5", "gpt-5.4")),
     ("gpt-5.6-terra", ("gpt-5.5", "gpt-5.4")),
@@ -180,28 +100,6 @@ def _drop_undiscovered_astra(model_ids: List[str]) -> List[str]:
     from agent.reasoning_effort import is_astra_model
 
     return [model for model in model_ids if not is_astra_model(model)]
-
-
-def _extract_chatgpt_account_id(access_token: str) -> Optional[str]:
-    """Best-effort ``chatgpt_account_id`` from the OAuth JWT; None on any parse error.
-
-    The Codex backend requires the ``ChatGPT-Account-Id`` header for the per-account catalog;
-    without it ``GET /backend-api/codex/models`` returns ``{"models":[]}`` with HTTP 200, which
-    masquerades as "no models" and silently degrades the picker to the curated fallback.
-    """
-    try:
-        parts = access_token.split(".")
-        if len(parts) < 2:
-            return None
-        payload_b64 = parts[1] + "=" * (-len(parts[1]) % 4)
-        claims = json.loads(base64.urlsafe_b64decode(payload_b64))
-        acct_id = (
-            claims.get("https://api.openai.com/auth", {}).get("chatgpt_account_id")
-            if isinstance(claims, dict)
-            else None)
-        return acct_id if isinstance(acct_id, str) and acct_id else None
-    except Exception:
-        return None
 
 
 def _ranked_slugs(entries: object) -> List[str]:

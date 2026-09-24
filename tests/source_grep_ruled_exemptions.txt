@@ -14,7 +14,7 @@
 # closed and its count only ever goes down; reopening it to absorb a later
 # batch would retire the one property that makes it readable.
 #
-# ruled exemptions: 12
+# ruled exemptions: 11
 #
 # THIS REGISTER IS ALSO CLOSED TO ADDITIONS. A new positive source grep is a
 # red build, not a new line here. The number above only ever goes down.
@@ -48,4 +48,3 @@ tests/agent_runtime/test_office_class_key_one_fence.py::test_no_lane_holds_a_sec
 tests/agent_runtime/test_office_class_key_one_fence.py::test_the_carve_out_is_a_live_hole_and_not_a_stale_note::'_write_actor(' in source # Pins that `adopt_remote_actor` still writes a live actor file, so its D3 carve-out from the fence describes a real hole rather than a stale note; the run-level spy above it proves the pull reaches that verb.
 tests/agent_runtime/test_persona_assignments.py::test_the_two_unbind_paths_are_told_apart_by_what_they_emit::'chat_binding_cleared' in body_of(clear) # Pins which of the two emissions the CLEAR path carries; the same file's wire tests at the bottom are the run-level half the docstring says a grep cannot answer.
 tests/agent_runtime/test_persona_assignments.py::test_the_two_unbind_paths_are_told_apart_by_what_they_emit::'emit_persona_instance_patch' in body_of(retract) # The other side of that asymmetry: the RETRACTION emits the state patch and not the domain event.
-tests/agent_runtime/test_s29_persona_runtime_context_lane_removal.py::test_the_chat_lane_block_list_survives::'_blocked_tool_names_for_chat(' in inspect.getsource(bundle_module) # Pins that the surviving chat-lane block list is still called from `chat_lane_bundle`'s builder after the run-lane twin one character away was removed.

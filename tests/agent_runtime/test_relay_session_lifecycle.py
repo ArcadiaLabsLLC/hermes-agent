@@ -375,7 +375,8 @@ def test_persona_session_db_binds_to_head_home_under_profile_override(
     isolate_agent_runtime_root, tmp_path
 ):
     from hermes_cli import harness
-    from hermes_constants import get_hermes_head_home, get_hermes_home
+    from hermes_constants import get_hermes_home
+    from agent_runtime.profile_home import get_hermes_head_home
 
     head_home = get_hermes_home()  # hermetic HERMES_HOME — the projection's home
     profile_home = tmp_path / "qa_profile"
@@ -401,7 +402,8 @@ def test_explicit_head_home_is_stable_across_launcher_profile_selection(
     from hermes_cli import harness
     from agent_runtime import persona_chat_history, snapshot
     from agent_runtime.profile_context import persona_profile_context
-    from hermes_constants import get_hermes_head_home, get_hermes_home
+    from hermes_constants import get_hermes_home
+    from agent_runtime.profile_home import get_hermes_head_home
 
     shared_head = tmp_path / "profiles" / "base"
     selected_home = tmp_path / "profiles" / "alice"
@@ -435,7 +437,8 @@ def test_head_bound_persona_override_equal_to_head_home_is_the_same_db(
     # a persona sent (live 2026-07-23: agent_chat_send →
     # chat_session_db_unavailable in ~20ms).
     from hermes_cli import harness
-    from hermes_constants import get_hermes_head_home, get_hermes_home
+    from hermes_constants import get_hermes_home
+    from agent_runtime.profile_home import get_hermes_head_home
 
     shared_head = tmp_path / "profiles" / "base"
     shared_head.mkdir(parents=True)
@@ -525,7 +528,8 @@ def test_head_home_is_the_outermost_across_nested_relay_hops(
     # operator -> Neko -> QA: each hop pushes its own profile-home override, but
     # the head home stays the OUTERMOST (operator) home the projection reads.
     from hermes_cli import harness
-    from hermes_constants import get_hermes_head_home, get_hermes_home
+    from hermes_constants import get_hermes_home
+    from agent_runtime.profile_home import get_hermes_head_home
 
     head_home = get_hermes_home()
     neko_home = tmp_path / "neko_profile"

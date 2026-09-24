@@ -107,16 +107,22 @@ def ensure_dependency(dep: str, interactive: bool = True) -> bool:
     result = subprocess.run(cmd, env=run_env, stdin=subprocess.DEVNULL)
     if result.returncode != 0:
         return False
-    from hermes_constants import reset_agent_browser_probe_cache
-    reset_agent_browser_probe_cache()
     return check()
+
+
+def _resolve_windows_git_bash() -> "str | None":
+    """Upstream's ``_find_bash`` resolver, as ``None`` instead of its not-found RuntimeError."""
+    from tools.environments.local import _find_bash
+    try:
+        return _find_bash()
+    except RuntimeError:
+        return None
 
 
 def _git_bash_available() -> bool:
     """True when a real Git Bash (not the WSL stub) is resolvable."""
     if _IS_WINDOWS:
-        from tools.environments.local import _find_windows_git_bash
-        return _find_windows_git_bash() is not None
+        return _resolve_windows_git_bash() is not None
     return shutil.which("bash") is not None
 
 def ensure_git_bash(interactive: bool = True) -> "str | None":
@@ -136,13 +142,11 @@ def ensure_git_bash(interactive: bool = True) -> "str | None":
     if not _IS_WINDOWS:
         return shutil.which("bash")
 
-    from tools.environments.local import _find_windows_git_bash
-
-    bash = _find_windows_git_bash()
+    bash = _resolve_windows_git_bash()
     if bash is None:
         # No Git Bash yet — provision PortableGit via the install script.
         ensure_dependency("git", interactive=interactive)
-        bash = _find_windows_git_bash()
+        bash = _resolve_windows_git_bash()
 
     if bash:
         os.environ["HERMES_GIT_BASH_PATH"] = bash

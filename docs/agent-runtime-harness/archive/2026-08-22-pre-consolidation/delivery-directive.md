@@ -169,6 +169,6 @@ no files at all.
 Tests: `tests/agent_runtime/test_delivery_directive.py` (live half only since
 S24 — janitor protections, the capture contract, the registered
 `worktree.orphans_reaped` emission, and the promotion-record read/labelling),
-`tests/agent_runtime/test_s24_delivery_directive_residue_removal.py` (pins the
+`tests/agent_runtime/test_s24_delivery_directive_residue_removal.py` (deleted 2026-09-24) (pins the
 removal and the keep-set, including the 4a fixture ruling), plus
 `tests/hermes_cli/test_worktree_reap_cli.py` for the CLI verb.

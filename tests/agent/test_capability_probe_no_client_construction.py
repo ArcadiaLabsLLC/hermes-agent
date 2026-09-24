@@ -20,6 +20,13 @@ import pytest
 from agent import auxiliary_client as ac
 
 
+def _is_probe_stub(client) -> bool:
+    """Upstream's ``_AuxProbeClientStub``, bare or as a wrapper's ``_real_client``."""
+
+    return isinstance(client, ac._AuxProbeClientStub) or isinstance(
+        getattr(client, "_real_client", None), ac._AuxProbeClientStub)
+
+
 @pytest.fixture(autouse=True)
 def isolated_client_cache(monkeypatch):
     """Each test starts with an empty shared client cache.
@@ -83,10 +90,10 @@ def test_the_probe_answer_matches_the_real_resolution(codex_vision_route):
     only the terminal construction."""
 
     _provider, real_client, _model = ac.resolve_vision_provider_client()
-    assert not ac.is_capability_probe_client(real_client)
+    assert not _is_probe_stub(real_client)
     after_real = ac.client_construction_count()
 
-    with ac.capability_probe_scope():
+    with ac.aux_probe_mode():
         _provider, probe_client, _model = ac.resolve_vision_provider_client()
 
     assert (real_client is not None) == (probe_client is not None)
@@ -100,11 +107,11 @@ def test_a_probe_with_a_cold_cache_answers_from_a_stand_in(codex_vision_route):
     """With nothing memoized, the probe still answers — and what it resolved
     is the inert stand-in (wrapped by the resolver), not a live client."""
 
-    with ac.capability_probe_scope():
+    with ac.aux_probe_mode():
         _provider, probe_client, _model = ac.resolve_vision_provider_client()
 
     assert probe_client is not None
-    assert ac.is_capability_probe_client(probe_client)
+    assert _is_probe_stub(probe_client)
 
 
 def test_an_unavailable_backend_still_answers_unavailable(monkeypatch):
@@ -119,7 +126,7 @@ def test_an_unavailable_backend_still_answers_unavailable(monkeypatch):
     monkeypatch.setattr(ac, "_read_codex_access_token", lambda: None)
     monkeypatch.setattr(ac, "_select_pool_entry", lambda _provider: (False, None))
 
-    with ac.capability_probe_scope():
+    with ac.aux_probe_mode():
         client, _model = ac.resolve_provider_client("openai-codex", "gpt-5.4")
 
     assert client is None
@@ -131,7 +138,7 @@ def test_wrappers_can_still_be_constructed_around_the_stand_in(codex_vision_rout
     answer "unavailable" for a backend that is available — the exact false
     negative issue #31179 fixed."""
 
-    with ac.capability_probe_scope():
+    with ac.aux_probe_mode():
         _provider, client, _model = ac.resolve_vision_provider_client()
 
     assert client is not None
@@ -157,12 +164,12 @@ def test_a_probe_builds_no_http_client_either(codex_vision_route, monkeypatch):
 
 
 def test_using_the_stand_in_raises_instead_of_reaching_a_wire():
-    probe = ac._CAPABILITY_PROBE_CLIENT
+    probe = ac._AuxProbeClientStub()
 
     with pytest.raises(RuntimeError) as excinfo:
         probe.chat.completions.create(model="gpt-5.4", messages=[])
 
-    assert "capability-probe" in str(excinfo.value)
+    assert "availability checks only" in str(excinfo.value)
 
 
 def test_the_stand_in_never_enters_the_shared_client_cache(monkeypatch):
@@ -173,15 +180,15 @@ def test_the_stand_in_never_enters_the_shared_client_cache(monkeypatch):
     monkeypatch.setattr(ac, "_read_codex_access_token", lambda: "codex-token")
     monkeypatch.setattr(ac, "_select_pool_entry", lambda _provider: (False, None))
 
-    with ac.capability_probe_scope():
+    with ac.aux_probe_mode():
         client, _model = ac._get_cached_client("openai-codex", "gpt-5.4")
 
-    assert ac.is_capability_probe_client(client)
+    assert _is_probe_stub(client)
     assert ac._client_cache == {}
 
 
 def test_the_probe_scope_does_not_leak_out_of_its_block():
-    assert ac.capability_probe_active() is False
-    with ac.capability_probe_scope():
-        assert ac.capability_probe_active() is True
-    assert ac.capability_probe_active() is False
+    assert ac._aux_probe_active() is False
+    with ac.aux_probe_mode():
+        assert ac._aux_probe_active() is True
+    assert ac._aux_probe_active() is False

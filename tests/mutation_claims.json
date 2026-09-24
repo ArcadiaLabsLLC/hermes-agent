@@ -63,7 +63,7 @@
     {
       "id": "stage42-work-list-refuses-cursor",
       "path": "hermes_cli/harness.py",
-      "symbol": "build_parser/work_list",
+      "symbol": "populate_parser/work_list",
       "operator": "advertise-unread-control",
       "find": "work_list, controls=frozenset({\"limit\", \"sort\"})",
       "replace": "work_list, controls=frozenset({\"cursor\", \"limit\", \"sort\"})",
@@ -634,7 +634,7 @@
     {
       "id": "s8b-b-persona-instance-retire-door-has-no-token",
       "path": "hermes_cli/harness.py",
-      "symbol": "build_parser/persona_instance_retire",
+      "symbol": "populate_parser/persona_instance_retire",
       "operator": "withhold-flag-from-second-door",
       "find": "    persona_instance_retire.add_argument(\"--correlation-id\", dest=\"correlation_id\", default=None)\n",
       "replace": "",
@@ -1415,21 +1415,6 @@
         "pytest",
         "-q",
         "tests/agent_runtime/test_office_store.py::test_the_minted_kind_is_stamped_once_and_never_moves_again"
-      ]
-    },
-    {
-      "id": "hh12-the-mis-kinded-test-over-claims-on-a-silent-item",
-      "path": "agent_runtime/harness_doctor.py",
-      "symbol": "_desk_litter_reason",
-      "operator": "widen-agent-test-to-not-desk",
-      "find": "    if on_live_instance_actor or minted_kind == \"agent\":",
-      "replace": "    if on_live_instance_actor or minted_kind != \"desk\":",
-      "test": [
-        "{python}",
-        "-m",
-        "pytest",
-        "-q",
-        "tests/agent_runtime/test_harness_doctor.py::test_the_minted_kind_is_what_the_store_recorded_not_what_the_id_looks_like"
       ]
     },
     {
@@ -3775,7 +3760,7 @@
         "-m",
         "pytest",
         "-q",
-        "tests/hermes_cli/test_doctor.py::TestDoctorResolvesTheHomeAtCallTime::test_the_env_var_alone_redirects_every_profile_relative_read"
+        "tests/hermes_cli/test_doctor_downstream.py::TestDoctorResolvesTheHomeAtCallTime::test_the_env_var_alone_redirects_every_profile_relative_read"
       ]
     },
     {
@@ -4233,23 +4218,8 @@
       "path": "agent_runtime/personas.py",
       "symbol": "all_registered_toolsets",
       "operator": "restore-availability-probe",
-      "find": "    from model_tools import get_registered_toolset_names\n\n    return [str(name) for name in get_registered_toolset_names()]\n",
-      "replace": "    from model_tools import get_available_toolsets\n\n    return sorted(str(name) for name in get_available_toolsets().keys())\n",
-      "test": [
-        "{python}",
-        "-m",
-        "pytest",
-        "-q",
-        "tests/agent_runtime/test_tool_visibility_import_deferral.py::test_the_registered_toolset_names_cost_no_availability_probe"
-      ]
-    },
-    {
-      "id": "w5-the-names-accessor-answers-through-the-verdict",
-      "path": "model_tools.py",
-      "symbol": "get_registered_toolset_names",
-      "operator": "restore-availability-probe",
-      "find": "    return registry.get_registered_toolset_names()\n",
-      "replace": "    return sorted(registry.get_available_toolsets().keys())\n",
+      "find": "    return [str(name) for name in registry.get_registered_toolset_names()]\n",
+      "replace": "    return sorted(str(name) for name in registry.get_available_toolsets().keys())\n",
       "test": [
         "{python}",
         "-m",
@@ -4317,8 +4287,8 @@
         "-m",
         "pytest",
         "-q",
-        "tests/scripts/test_run_tests_parallel.py::test_a_straggler_retry_that_passes_is_not_reported_as_zero_collected",
-        "tests/scripts/test_run_tests_parallel.py::test_a_straggler_that_recovers_only_skips_still_counts_as_collection"
+        "tests/scripts/test_run_tests_parallel_downstream.py::test_a_straggler_retry_that_passes_is_not_reported_as_zero_collected",
+        "tests/scripts/test_run_tests_parallel_downstream.py::test_a_straggler_that_recovers_only_skips_still_counts_as_collection"
       ]
     },
     {

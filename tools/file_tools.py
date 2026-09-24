@@ -1157,7 +1157,10 @@ PATCH_SCHEMA = {
     # from any model regardless (replay compat + strong models that know
     # V4A anyway): mode defaults to 'replace' when omitted.
     "description": (
-        "Targeted find-and-replace file edits with fuzzy matching; returns a unified diff and auto-runs syntax checks. Supply path, old_string and new_string. Disambiguator: use instead of shell sed/awk; use write_file for full rewrites."
+        "Targeted find-and-replace edits in files. Use this instead of sed/awk in terminal. "
+        "Uses fuzzy matching (9 strategies) so minor whitespace/indentation differences won't break it. "
+        "Returns a unified diff. Auto-runs syntax checks after editing. "
+        "Finds a unique string and replaces it."
     ),
     "parameters": {
         "type": "object",
@@ -1242,7 +1245,7 @@ def _is_openai_family_main() -> bool:
 
 SEARCH_FILES_SCHEMA = {
     "name": "search_files",
-    "description": "Search file contents (target='content', regex, ripgrep-backed) or find files by name/glob (target='files', sorted by mtime). Disambiguator: use instead of shell grep/rg/find/ls.",
+    "description": "Search file contents or find files by name. Use this instead of grep/rg/find/ls in terminal. Ripgrep-backed, faster than shell equivalents. On macOS, broad searches above the user home automatically skip TCC-protected folders (Desktop, Documents, Downloads, Library, Movies, Music, Pictures); target one directly when access is intentional.\n\nContent search (target='content'): Regex search inside files. Output modes: full matches with line numbers, file paths only, or match counts.\n\nFile search (target='files'): Find files by glob pattern (e.g., '*.py', '*config*'). Also use this instead of ls. Discovery order is the fast bounded default; exact global newest-first order is an explicit opt-in and may scan the full tree.",
     "parameters": {
         "type": "object",
         "properties": {
@@ -1366,8 +1369,8 @@ def _patch_schema_overrides():
         return {}
 
 
-registry.register(name="patch", toolset="file", schema=PATCH_SCHEMA, handler=_handle_patch, check_fn=_check_file_reqs, emoji="🔧", max_result_size_chars=100_000, dynamic_schema_overrides=_patch_schema_overrides)
-registry.register(name="search_files", toolset="file", schema=SEARCH_FILES_SCHEMA, handler=_handle_search_files, check_fn=_check_file_reqs, emoji="🔎", max_result_size_chars=100_000)
+registry.register(name="patch", toolset="file", schema=brief_schema("patch", PATCH_SCHEMA), handler=_handle_patch, check_fn=_check_file_reqs, emoji="🔧", max_result_size_chars=100_000, dynamic_schema_overrides=_patch_schema_overrides)
+registry.register(name="search_files", toolset="file", schema=brief_schema("search_files", SEARCH_FILES_SCHEMA), handler=_handle_search_files, check_fn=_check_file_reqs, emoji="🔎", max_result_size_chars=100_000)
 
 
 # ---- BEGIN PLUGIN-COMPAT (revert-scheduled; see COMPAT_MANIFEST.md) ----

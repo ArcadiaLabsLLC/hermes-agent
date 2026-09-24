@@ -1,8 +1,8 @@
 """Fork turn timing and dispatch receipts, shared by upstream turn phases."""
 import logging
 import time
-from typing import Any, List, Optional
-from hermes_constants import CONVERSATION_REQUEST_ASSEMBLED_STEP
+from typing import Any, Optional
+CONVERSATION_REQUEST_ASSEMBLED_STEP = "conversation_request_assembled"
 logger = logging.getLogger(__name__)
 
 def _emit_conversation_timing(
@@ -67,42 +67,39 @@ def _emit_request_assembled_marker(agent: Any, **extra: Any) -> None:
     except Exception:
         logger.debug("request-assembled marker callback failed", exc_info=True)
 
-def _format_ttfb_token(first_byte_s: Optional[float]) -> str:
-    """Render the ``ttfb=`` token for the ``API call #N`` line, or nothing.
+class ProviderDispatchTiming:
+    """The ``request_assembled`` instant and the ``provider_dispatch`` span of one attempt.
 
-    Absent is not zero. ``None`` means no first-byte instant was observed for
-    this response — a non-streaming call, or a stream whose first-delta
-    callback never fired — and an unobserved measurement must vanish from the
-    line rather than print ``ttfb=0.0s``, which reads as an instantaneous
-    provider and is a lie no downstream reader can detect.
+    Wraps the dispatch callable handed to the LLM middleware instead of
+    re-indenting upstream's ``_perform_api_call`` body. ``mark()`` runs inside
+    that body right after the transport preflight (so a Codex token refresh is
+    charged to hermes, not the provider); the wrapper times from that mark to
+    the provider's return. Provider first-byte time is upstream's
+    ``agent._last_api_first_chunk_at``, carried by ``post_api_request`` as
+    ``first_chunk_at`` (e17276c7b4) — this class keeps no second copy of it.
     """
 
-    if first_byte_s is None:
-        return ""
-    return f" ttfb={first_byte_s:.1f}s"
+    def __init__(self, agent: Any, **meta: Any) -> None:
+        self.agent = agent
+        self.meta = meta
+        self.started: Optional[float] = None
 
-def _first_delta_recorder(
-    cell: List[Optional[float]],
-    dispatch_started: float,
-    on_first_delta: Any,
-) -> Any:
-    """Wrap ``on_first_delta`` so the first firing also times provider TTFB.
+    def mark(self) -> None:
+        _emit_request_assembled_marker(self.agent, **self.meta)
+        self.started = time.perf_counter()
 
-    ``dispatch_started`` and the instant taken here are both
-    :func:`time.perf_counter` readings, so the difference is monotonic and
-    cannot go negative or jump on a wall-clock correction.
+    def wrap(self, perform: Any, *, streaming: bool) -> Any:
+        def _timed(next_api_kwargs: Any) -> Any:
+            self.started = None
+            status = "failed"
+            try:
+                result = perform(next_api_kwargs)
+                status = "completed"
+                return result
+            finally:
+                if self.started is not None:
+                    _emit_conversation_timing(
+                        self.agent, "provider_dispatch", self.started,
+                        status=status, streaming=streaming, **self.meta)
 
-    First firing wins: providers are free to invoke the delta callback once per
-    token, and TTFB is the FIRST byte, not the latest one. The measurement is
-    taken before the wrapped callback runs so spinner teardown and any
-    thinking-callback work is never charged to the provider — and so the
-    instant survives a callback that raises.
-    """
-
-    def _record() -> None:
-        if cell[0] is None:
-            cell[0] = time.perf_counter() - dispatch_started
-        if on_first_delta is not None:
-            on_first_delta()
-
-    return _record
+        return _timed

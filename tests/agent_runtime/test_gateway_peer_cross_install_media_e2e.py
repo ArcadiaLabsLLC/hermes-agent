@@ -41,11 +41,11 @@ import json
 
 import pytest
 
-from tests.agent_runtime.test_gateway_peer_two_roots_e2e import (  # noqa: F401
+from tests.agent_runtime._serve_fixtures import two_installs  # noqa: F401 — a fixture
+from tests.agent_runtime.test_gateway_peer_two_roots_e2e import (
     E2E_TEST_TIMEOUT_SECONDS,
     _REAL_CHILD_SPAWN,
     _payload_of,
-    two_installs,
 )
 
 #: Bytes that are not a decodable PNG and do not have to be — nothing in this

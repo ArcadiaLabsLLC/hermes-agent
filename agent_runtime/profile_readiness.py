@@ -320,7 +320,8 @@ def _provider_issue(persona) -> tuple[str, str] | None:
         return None
     import time
 
-    from hermes_constants import get_hermes_auth_home, get_hermes_home
+    from hermes_constants import get_hermes_home
+    from agent_runtime.profile_home import get_hermes_auth_home
 
     # BOTH components are ContextVar-aware resolvers, never raw env reads. Under
     # ``persona_profile_scope`` there IS no env mirror to read — the binding is
@@ -513,7 +514,7 @@ def _resolve_skill_names(
         skill_package_content_hash,
         skill_runtime_compatibility,
     )
-    from hermes_constants import CANONICAL_SHARED_SKILL_IDS
+    from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS
 
     from .skill_install import harness_skill_source
 

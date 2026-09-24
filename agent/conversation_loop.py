@@ -35,7 +35,6 @@ from agent.surface_switch import (
 )
 from agent_runtime.conversation_observability import (
     _emit_conversation_timing, _emit_request_assembled_marker,
-    _format_ttfb_token, _first_delta_recorder,
 )
 
 from agent.turn_context import PreflightCompressionTimedOut, build_turn_context

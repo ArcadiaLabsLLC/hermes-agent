@@ -389,7 +389,7 @@ def _trace_marker_steps() -> dict[str, str]:
 
     global _TRACE_MARKER_STEPS
     if _TRACE_MARKER_STEPS is None:
-        from hermes_constants import CONVERSATION_REQUEST_ASSEMBLED_STEP
+        from agent_runtime.conversation_observability import CONVERSATION_REQUEST_ASSEMBLED_STEP
 
         _TRACE_MARKER_STEPS = {
             CONVERSATION_REQUEST_ASSEMBLED_STEP: "request_assembled",

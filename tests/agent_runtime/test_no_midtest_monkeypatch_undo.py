@@ -570,7 +570,7 @@ def test_the_teardown_tripwire_is_still_installed():
     witness had been deleted everywhere else.
     """
 
-    from tests import conftest as root_conftest
+    from tests._downstream import conftest_plugin as root_conftest
 
     assert hasattr(root_conftest, "_SHARED_MONKEYPATCH_WITNESS"), (
         "the root conftest's teardown tripwire (EG-0.1 / C21) is gone. It is "

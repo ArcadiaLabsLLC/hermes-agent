@@ -175,7 +175,7 @@ def _live_characters_verbs() -> set[str]:
 
 
 def test_charsheet_skill_is_a_canonical_skill_the_authoring_persona_preloads():
-    from hermes_constants import CANONICAL_SHARED_SKILL_IDS
+    from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS
 
     assert "harness-charsheet-authoring" in CANONICAL_SHARED_SKILL_IDS
 
@@ -450,7 +450,7 @@ def test_installed_canonical_skill_drift_fails_the_install_verifier(tmp_path, mo
     )
     monkeypatch.setattr("agent_runtime.skill_install.get_shared_skills_dir", lambda: shared_root)
     monkeypatch.setattr("agent_runtime.skill_install.HARNESS_SKILLS", frozenset({skill}))
-    monkeypatch.setattr("hermes_constants.CANONICAL_SHARED_SKILL_IDS", frozenset({skill}))
+    monkeypatch.setattr("agent_runtime.profile_home.CANONICAL_SHARED_SKILL_IDS", frozenset({skill}))
     monkeypatch.setenv("HERMES_HOME", str(tmp_path / "home"))
 
     _write_skill_package(source_root, skill, "# v1\n")
@@ -515,7 +515,7 @@ def test_a_preload_over_its_declared_ceiling_fails_the_install_verifier(
         "agent_runtime.skill_install.get_shared_skills_dir", lambda: shared_root
     )
     monkeypatch.setattr("agent_runtime.skill_install.HARNESS_SKILLS", frozenset({skill}))
-    monkeypatch.setattr("hermes_constants.CANONICAL_SHARED_SKILL_IDS", frozenset({skill}))
+    monkeypatch.setattr("agent_runtime.profile_home.CANONICAL_SHARED_SKILL_IDS", frozenset({skill}))
     monkeypatch.setenv("HERMES_HOME", str(tmp_path / "home"))
     monkeypatch.setitem(
         skill_install.SKILL_SIZE_CEILINGS,
@@ -802,7 +802,7 @@ def skills_create_fixture(tmp_path, monkeypatch):
     """
 
     from agent_runtime.office_store import OfficeStore
-    from hermes_constants import get_shared_skills_dir
+    from agent_runtime.profile_home import get_shared_skills_dir
     from tests.agent_runtime.office_seed import seed_workspace_record
 
     shared = tmp_path / "shared-skills"

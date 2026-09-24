@@ -6,7 +6,7 @@ Mirrors the discipline of :func:`hermes_cli.harness.build_provider_visibility`:
 emit *structure*, not prose, and reuse the existing engine authorities so there
 is never a second source of truth. Specifically it reuses:
 
-* :func:`hermes_constants.get_shared_skills_dir` — the one canonical skills root
+* :func:`agent_runtime.profile_home.get_shared_skills_dir` — the one canonical skills root
   every persona references (see the shared-skills-root work);
 * the same package-walk / exclusion rules the realm-sync publisher applies
   (``EXCLUDED_SKILL_DIRS``), so what the console shows == what actually syncs;
@@ -158,7 +158,7 @@ def build_shared_catalog() -> tuple[Path | None, bool, list[dict[str, Any]]]:
     (``.archive`` / ``.hub`` / …) and manifest-less housekeeping folders are
     skipped — the same test the realm publisher applies.
     """
-    from hermes_constants import get_shared_skills_dir
+    from agent_runtime.profile_home import get_shared_skills_dir
 
     root = get_shared_skills_dir()
     if root is None or not root.exists():

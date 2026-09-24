@@ -436,7 +436,7 @@ def _head_home() -> tuple[Path | None, str]:
     """
 
     try:
-        from hermes_constants import (
+        from agent_runtime.profile_home import (
             get_hermes_background_work_home,
             hermes_head_home_is_authoritative,
         )

@@ -561,7 +561,7 @@ id must be identical under BOTH `serde.safe_id` and the store's own
 `safe_assignment_token` before any root is walked — that is what makes "never
 path-joined from input" true and what makes the ack's `assigned` the list the
 store HOLDS rather than one it quietly re-spelled. Then every canonical id
-(`hermes_constants.CANONICAL_SHARED_SKILL_IDS`) goes through
+(`agent_runtime.profile_home.CANONICAL_SHARED_SKILL_IDS`) goes through
 `skill_install.install_and_verify_harness_skill`, which refuses unless the
 destination exists, the install receipt is `ok`, AND an independent
 `harness_skill_hash_mismatches` re-read is empty — three conditions because the
@@ -628,7 +628,7 @@ PHYSICAL dispatch attempt, right after the transport preflight (so a codex token
 the hermes side of the split) and right before the provider call; it carries no
 `duration_ms`/`timing_key` because it names an INSTANT, which also keeps it out of the
 profile-timing dict. Step constant: `CONVERSATION_REQUEST_ASSEMBLED_STEP =
-"conversation_request_assembled"` (`hermes_constants.py:1606`); `mark_from_trace_payload`
+"conversation_request_assembled"` (`agent_runtime/conversation_observability.py::CONVERSATION_REQUEST_ASSEMBLED_STEP`); `mark_from_trace_payload`
 (`mission_chat_phases.py:433-469`) is the only converter, and it takes nothing from a malformed one.
 
 **The payload has to survive the sink to reach that converter.** Its real route is
@@ -646,12 +646,12 @@ sides read, so producer and consumer cannot drift apart again.
 The live measurement that motivated the split (turn `c59ab99e`, 2026-08-22): **1,762 ms of a 13,532
 ms "provider" span elapsed before the request client existed** — prologue, tool-schema
 serialization, prompt-cache decoration, request middleware, the `pre_api_request` hook and the
-per-request client build all sat inside the span the launcher rendered as provider time. The
-sibling receipt for every non-mission-chat lane is the `ttfb=` token on the `API call #N` log
-line (`_format_ttfb_token`, `agent_runtime/conversation_observability.py::_format_ttfb_token`, commit `74702c193e`). Same
-absent-never-zero rule: `None` means no first-byte instant was observed — a non-streaming call, or a
-stream whose first-delta callback never fired — and the token vanishes rather than printing
-`ttfb=0.0s`, which reads as an instantaneous provider and is a lie no reader can detect.
+per-request client build all sat inside the span the launcher rendered as provider time. Every
+other lane reads provider first-byte from upstream's `post_api_request` hook: `first_chunk_at`
+(`agent._last_api_first_chunk_at`, upstream `e17276c7b4`) minus `started_at`. Same absent-never-zero
+rule: `first_chunk_at` is `None` when no first chunk was observed (a non-streaming call). The fork's
+`ttfb=` token on the `API call #N` log line (`74702c193e`) was a second copy of that instant and was
+retired 2026-09-24 (lane MECH) with `_fork_first_byte_s`.
 
 **Outcome recording is launcher-side, one line, at the settle chokepoint.** A turn that settles
 WITHOUT acceptance emits `[MissionChatOutcome] turn_id=… status=… error_kind=… message="…"` through
@@ -664,7 +664,7 @@ operator's text.
 1. **One id for the turn, minted launcher-side**: `idempotencyKey` → `client_message_id` →
    `turn_id`, byte-equal at every hop. Nothing re-mints it; nothing joins on time proximity.
 2. **An unresolved phase is ABSENT, never a fake zero** — `mission_chat_phases`,
-   `agent_create_phases`, and the `ttfb=` token alike. First mark wins, monotonic clock only, and no
+   `agent_create_phases`, and upstream's `post_api_request.first_chunk_at` alike. First mark wins, monotonic clock only, and no
    mark is ever subtracted from one taken in another process.
 3. **An instrument may never steer what it measures.** `TurnPhaseMarks.get` serves one caller; no
    turn decision may branch on a mark.

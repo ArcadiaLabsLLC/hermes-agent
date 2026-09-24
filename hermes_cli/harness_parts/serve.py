@@ -3371,7 +3371,7 @@ def serve_loop(
                     # ordinary native socket/chat lane down with it.
                     try:
                         from agent_runtime.discussions.service import bind as bind_discussions
-                        from hermes_constants import get_hermes_head_home
+                        from agent_runtime.profile_home import get_hermes_head_home
                         discussion_owner = bind_discussions(
                             store_root_path, get_hermes_head_home(), install_block["install_id"])
                     except Exception:

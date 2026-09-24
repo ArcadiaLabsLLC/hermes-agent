@@ -427,6 +427,16 @@ plan at the canon fold; lane shipped as `45abf82803` + `32f41be19f` +
   vocabulary rather than a private `office_actor`-only restatement
   (`agent_runtime/serve_office_subscriptions.py:140-163,285`).
 
+**From the seam Stage 1 proof (2026-09-23):**
+
+- `hermes harness` parser build **+70 ms** (median, A/B 2026-09-23) from reading 59 plugin manifests at
+  pre-discovery; every launcher-spawned harness process pays it. Accepted by the owner 2026-09-23. The
+  text pre-scan was built and measured (side branch `seam/s1-textscan` `d9e862938e`): −10 ms vs
+  `af093265e1`, still +51.5 ms vs baseline. Most of the scan's ~21 ms is the directory walk's `stat`s and
+  the first config read, not YAML. Retire = cache the declared rows keyed on the plugin roots' mtimes,
+  plus skip the gate's config read for bundled `backend`s (note §5). Evidence:
+  [`planned/seam-s1-proof-2026-09-23.md`](planned/seam-s1-proof-2026-09-23.md) §4–§5.
+
 ---
 
 ## Unverified carry-forward

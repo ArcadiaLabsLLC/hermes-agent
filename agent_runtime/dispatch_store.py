@@ -40,7 +40,7 @@ duration of a persona turn, and a dispatch is *made from inside* such a turn.
 Resolving the database through the ambient home at write time would persist an
 in-flight dispatch into the persona profile's database — which the serve drain,
 the Activity projection and the operator never open. That is the exact failure
-:func:`hermes_constants.get_hermes_background_work_home` was extracted to close,
+:func:`agent_runtime.profile_home.get_hermes_background_work_home` was extracted to close,
 so this module resolves through that ONE authority and never re-derives it.
 
 Every mutation emits a registered EventLog event
@@ -209,7 +209,7 @@ def dispatch_db_path() -> Path:
     story, for no isolation this lane actually needs.
     """
 
-    from hermes_constants import get_hermes_background_work_home
+    from agent_runtime.profile_home import get_hermes_background_work_home
 
     return Path(get_hermes_background_work_home()) / "state.db"
 

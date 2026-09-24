@@ -24,21 +24,12 @@ from agent.runtime_cwd import resolve_agent_cwd
 from agent.skill_utils import (
     EXCLUDED_SKILL_DIRS, ORG_ACTIVE_MARKER, ORG_MIRROR_DIR_NAME, ORG_PROVENANCE_FILE, SKILL_SUPPORT_DIRS,
     extract_skill_conditions, extract_skill_description, get_all_skills_dirs, get_disabled_skill_names,
-    iter_skill_index_files, parse_frontmatter, read_active_org_id, current_skill_runtime_context, skill_frontmatter_runtime_compatibility,
+    iter_skill_index_files, parse_frontmatter, read_active_org_id, skill_matches_environment,
     skill_matches_platform, skill_matches_platform_list,
 )
 from tools.threat_patterns import scan_for_threats as _scan_for_threats
-# Degrade only undeclared environment gates if a mixed-version checkout lacks the helper.
-try:
-    from agent.skill_utils import skill_matches_environment
-except ImportError:
-    def skill_matches_environment(frontmatter):
-        environments = frontmatter.get("environments") if isinstance(frontmatter, dict) else None
-        return not environments
-from agent_runtime.prompt_guidance import (
-    TOOL_DESCRIBE_GUIDANCE, SHELL_TOOL_PREFERENCE_GUIDANCE, CLARIFY_CHOICES_GUIDANCE,
-    BROWSER_PRECONDITION_GUIDANCE, _WINDOWS_NATIVE_TOOLING_HINT,
-)
+from agent.skill_utils import current_skill_runtime_context, skill_frontmatter_runtime_compatibility
+from agent_runtime.prompt_guidance import _WINDOWS_NATIVE_TOOLING_HINT
 from utils import atomic_json_write, file_signature
 
 logger = logging.getLogger(__name__)
@@ -271,7 +262,6 @@ SKILLS_GUIDANCE = (
     "reload it with skill_view(name='...') before acting on anything that depends on it. After reloading, ignore any "
     "remaining `[SKILL_PRUNED]` markers for that same skill; they are historical artifacts of earlier compactions."
 )
-SKILLS_GUIDANCE += " Confirm with the user before creating or deleting a skill.\n"
 
 KANBAN_GUIDANCE = (
     "# Kanban task execution protocol\n"

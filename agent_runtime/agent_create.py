@@ -1013,7 +1013,7 @@ def run_skills_phase(
     same idempotency key resumes here and nowhere else.
     """
 
-    from hermes_constants import CANONICAL_SHARED_SKILL_IDS
+    from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS
 
     from .persona_assignments import PersonaInstanceStore, safe_assignment_token
     from .serde import safe_id

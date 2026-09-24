@@ -12,7 +12,7 @@ That is not hypothetical: it silently deposited fixture chat sessions into the
 live ``state.db`` (surfaced as Mission Control's "projection drops" alert),
 because a no-arg ``SessionDB()`` bound to the import-time ``DEFAULT_DB_PATH``
 rather than the test's redirected home. The fix was to resolve the home at call
-time — see ``hermes_state._resolve_default_db_path`` for the canonical pattern
+time — see ``hermes_state._default_db_path`` for the canonical pattern
 (resolve live via ``get_hermes_home()``; honor an explicitly reassigned constant
 so ``monkeypatch.setattr`` isolation keeps working).
 
@@ -51,6 +51,8 @@ import uuid
 from pathlib import Path
 
 import pytest
+
+from tests._fork_scope import is_fork_authored
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -117,7 +119,7 @@ FROZEN_LEDGER: dict[str, tuple[frozenset[str], str]] = {
     "hermes_state.py": (
         frozenset({"DEFAULT_DB_PATH", "_IMPORT_DEFAULT_DB_PATH"}),
         "upstream, and benign: SessionDB resolves live via "
-        "_resolve_default_db_path and only falls back to DEFAULT_DB_PATH when "
+        "_default_db_path and only falls back to DEFAULT_DB_PATH when "
         "it has been deliberately reassigned. _IMPORT_DEFAULT_DB_PATH exists "
         "precisely to detect that reassignment.",
     ),
@@ -150,8 +152,8 @@ FROZEN_LEDGER: dict[str, tuple[frozenset[str], str]] = {
     # for exactly the reason recorded for ``singularity.py`` below and on the
     # same import chain — ``tools/terminal_tool.py`` imports both, so
     # ``spawn_local`` resolved BOTH homes at first-call import time. Retiring
-    # only one just moved the traceback down a frame. Now the lazy
-    # ``_snapshot_store_path()``.
+    # only one just moved the traceback down a frame. Now upstream's lazy
+    # ``_snapshot_store()`` (adf23550f5).
     # ``tools/environments/singularity.py`` used to sit here for
     # ``_SNAPSHOT_STORE``. The freeze was not merely untidy: this module is
     # imported at the top of ``tools/terminal_tool.py``, which
@@ -160,7 +162,7 @@ FROZEN_LEDGER: dict[str, tuple[frozenset[str], str]] = {
     # first spawn happened to have. A caller that legitimately scrubs the
     # environment took a ``RuntimeError: Could not determine home directory``
     # out of a *snapshot-store path* it never touches. Now the lazy
-    # ``_snapshot_store_path()``, matching ``vercel_sandbox.py``.
+    # ``_snapshot_store()`` (upstream adf23550f5).
     "tools/process_registry.py": (
         frozenset({"CHECKPOINT_PATH", "_CHECKPOINT_PATH_AT_IMPORT"}),
         "upstream compatibility sentinel: _checkpoint_path resolves the active home "
@@ -328,6 +330,43 @@ def probe_result(tmp_path_factory) -> dict:
     return json.loads(result_path.read_text(encoding="utf-8"))
 
 
+def _module_level_binding_lines(rel: str, name: str) -> list[int]:
+    """Every line in ``rel`` that binds ``name`` at module level (plain,
+    annotated or augmented assignment, including tuple targets)."""
+
+    import ast
+
+    tree = ast.parse((REPO_ROOT / rel).read_text(encoding="utf-8"))
+    lines: list[int] = []
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+            targets = [node.target]
+        else:
+            continue
+        for target in targets:
+            if any(isinstance(n, ast.Name) and n.id == name for n in ast.walk(target)):
+                lines.append(node.lineno)
+    return lines
+
+
+def is_fork_owned_freeze(rel: str, name: str, *, authored=is_fork_authored) -> bool:
+    """Is this freeze the FORK's to answer for?
+
+    The ratchet is a fork gate running over upstream's code too. A freeze whose
+    every module-level binding is a line upstream wrote (``tests/_fork_scope.py``
+    decides, per line) is upstream's to police: the fork edits an upstream file
+    additively or not at all, so it could not fix that line, and ledgering it
+    would only teach the ledger to lie about whose debt it is. Fail closed: a
+    name with no binding line this can find, or any line the fork wrote, is the
+    fork's.
+    """
+
+    lines = _module_level_binding_lines(rel, name)
+    return not lines or any(authored(rel, line) for line in lines)
+
+
 @pytest.mark.timeout(300)
 def test_no_new_frozen_hermes_home_values(probe_result: dict) -> None:
     found = {
@@ -339,13 +378,15 @@ def test_no_new_frozen_hermes_home_values(probe_result: dict) -> None:
         (rel, name) for rel, (names, _reason) in FROZEN_LEDGER.items() for name in names
     }
 
-    new = sorted(found - ledgered)
+    new = sorted(
+        (rel, name) for rel, name in found - ledgered if is_fork_owned_freeze(rel, name)
+    )
     assert not new, (
         "New module-level value(s) frozen against HERMES_HOME at import:\n"
         + "\n".join(f"  {rel}: {name}" for rel, name in new)
         + "\n\nA module-level constant freezes HERMES_HOME at import and breaks "
         "test isolation / in-process profile switches. Resolve the path at call "
-        "time instead — see hermes_state._resolve_default_db_path for the "
+        "time instead — see hermes_state._default_db_path for the "
         "pattern. If the value genuinely cannot be lazy, add it to FROZEN_LEDGER "
         "in this test with a justification."
     )
@@ -426,3 +467,27 @@ def test_ledger_reasons_are_present(probe_result: dict) -> None:
         "These files are declared UNPROBED but imported fine here and froze "
         f"nothing: {inert} — drop the UNPROBED entry."
     )
+
+
+def test_the_ratchet_scope_asks_about_the_binding_line_and_fails_closed() -> None:
+    """The join between the probe's (file, name) finding and the per-line
+    authorship answer: the scope must ask about the line that BINDS the name,
+    drop the finding only when that line is upstream's, and keep it when it
+    cannot find a binding at all."""
+
+    rel, name = "gateway/mirror.py", "_SESSIONS_INDEX_AT_IMPORT"
+    asked: list[tuple[str, int]] = []
+
+    def upstream_wrote_it(path: str, line: int) -> bool:
+        asked.append((path, line))
+        return False
+
+    assert not is_fork_owned_freeze(rel, name, authored=upstream_wrote_it)
+    assert asked and {path for path, _ in asked} == {rel}
+    source = (REPO_ROOT / rel).read_text(encoding="utf-8").splitlines()
+    assert all(source[line - 1].lstrip().startswith(name) for _, line in asked)
+
+    # Positive control: the same finding, and the fork wrote the line.
+    assert is_fork_owned_freeze(rel, name, authored=lambda path, line: True)
+    # Fail closed: a name bound nowhere at module level stays the fork's.
+    assert is_fork_owned_freeze(rel, "_NOT_BOUND_IN_THIS_MODULE", authored=lambda path, line: False)

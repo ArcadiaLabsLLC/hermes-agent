@@ -109,7 +109,7 @@ REMOVED_BINDINGS = {
     # error on a missing path. The reason is preserved here rather than the row
     # silently vanishing; the module's absence is asserted in
     # ``test_every_source_symbol_the_bindings_pointed_at_is_untouched`` below and
-    # owned by tests/agent_runtime/test_s56_worker_session_lane_removal.py.
+    # owned by tests/agent_runtime/test_s56_worker_session_lane_removal.py (deleted 2026-09-24).
     "hermes_cli/harness_parts/persona_commands.py": {"_relay_time"},
 }
 

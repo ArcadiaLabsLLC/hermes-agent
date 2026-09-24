@@ -40,6 +40,17 @@ Goal (owner, 2026-09-21): **easy upstream syncs without much conflict.** The for
 |---|---|---|---|
 | NousResearch/hermes-agent#119069 | `fix(gateway)`: guard the POSIX-only `pwd` import in `legacy_launchd_labels_for_install` — `hermes update` crashed on Windows | `743277a3d5` (cherry-pick -x) | 2026-09-22 |
 | NousResearch/hermes-agent#119071 | `test(kanban)`: the dispatcher fakes answer `poll()` so the Windows zombie-reaper branch runs under the tests | `801c24abcd` (cherry-pick -x) | 2026-09-22 |
+| NousResearch/hermes-agent#121023 | the plugin compat scan skips bundled plugins (Stage 1 start-up cost) (`up/plugin-compat-bundled-skip`) | `e858df653a` via `seam/s1-proof` (in `709a3d6eba`) | 2026-09-24 |
+| NousResearch/hermes-agent#121218 | `test(early-recovery)`: let the stdlib-only import guard pass relative imports (`up/import-guard-relative-imports`) | the in-place test edits whose ledger rows name `up/import-guard-relative-imports` | 2026-09-24 |
+| NousResearch/hermes-agent#121219 | `test(win-pty)`: undo ConPTY hard line-wrap before matching child output (`up/win-conpty-line-wrap`) | the in-place test edits whose ledger rows name `up/win-conpty-line-wrap` | 2026-09-24 |
+| NousResearch/hermes-agent#121220 | `test(env)`: match environment variable names case-insensitively on Windows (`up/win-env-var-case`) | the in-place test edits whose ledger rows name `up/win-env-var-case` | 2026-09-24 |
+| NousResearch/hermes-agent#121221 | `test(line-endings)`: pin LF in byte-exact test fixtures on Windows (`up/win-line-endings`) | the in-place test edits whose ledger rows name `up/win-line-endings` | 2026-09-24 |
+| NousResearch/hermes-agent#121222 | `test(home)`: patch USERPROFILE with HOME in ~-expansion tests on Windows (`up/win-tilde-home`) | the in-place test edits whose ledger rows name `up/win-tilde-home` | 2026-09-24 |
+| NousResearch/hermes-agent#121224 | `test(paths)`: compare paths as paths, not POSIX spellings, on Windows (`up/win-path-spelling`) | the in-place test edits whose ledger rows name `up/win-path-spelling` | 2026-09-24 |
+| NousResearch/hermes-agent#121225 | `test(posix)`: stop assuming POSIX-only os APIs and mode bits on Windows (`up/win-posix-only-apis`) | the in-place test edits whose ledger rows name `up/win-posix-only-apis` | 2026-09-24 |
+| NousResearch/hermes-agent#121226 | `test(shell)`: resolve bash/python and pass bash POSIX paths on Windows (`up/win-shell-invocation`) | the in-place test edits whose ledger rows name `up/win-shell-invocation` | 2026-09-24 |
+
+**Dropped 2026-09-24 (lane UPREV, never opened):** `up/win-text-encoding` (upstream's `run_tests.sh` sets `PYTHONUTF8=1`, no red), `up/monkeypatch-undo-scoped` (no red), `up/profile-home-generic` (P7; perf memo, no red), `up/profiles-delete-guard` (P6; psutil is a pinned core dep, refusal unreachable). Their ledger rows are `carry` with reason "PR dropped 2026-09-24: …".
 
 Rules used: branch cut from `upstream/main` (never from the fork), `fix/…` / `test/…` branch names, Conventional Commit subject, upstream's PR template filled in full, `scripts/check-windows-footguns.py` on the staged diff, platform named (Windows 11 native), the affected test files run before and after with the counts in the body. Rebase a PR only on request. The next seam PR is Stage 1's fallback: manifest-declared deferred CLI entries (`cli_commands:` in `plugin.yaml`), after Stage 1 measures the discovery cost on the merged tree.
 

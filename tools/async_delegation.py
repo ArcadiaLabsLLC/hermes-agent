@@ -91,7 +91,7 @@ def _db_path():
     and CLI lanes are unchanged.
     """
 
-    from hermes_constants import get_hermes_background_work_home
+    from agent_runtime.profile_home import get_hermes_background_work_home
 
     return get_hermes_background_work_home() / "state.db"
 

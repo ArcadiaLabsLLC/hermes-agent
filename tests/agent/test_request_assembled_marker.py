@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from hermes_constants import CONVERSATION_REQUEST_ASSEMBLED_STEP
+from agent_runtime.conversation_observability import CONVERSATION_REQUEST_ASSEMBLED_STEP
 
 
 @pytest.fixture()

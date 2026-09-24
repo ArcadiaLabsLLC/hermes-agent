@@ -13083,6 +13083,7 @@
         "delete",
         "inbox",
         "inventory",
+        "link-external",
         "promote",
         "publishable",
         "restore"
@@ -13385,6 +13386,42 @@
         "harness",
         "skills",
         "inventory"
+      ],
+      "positionals": [],
+      "subcommands": []
+    },
+    "harness skills link-external": {
+      "exclusive_groups": [],
+      "options": {
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "skills",
+        "link-external"
       ],
       "positionals": [],
       "subcommands": []
@@ -15859,14 +15896,6 @@
     "profile delete": {
       "exclusive_groups": [],
       "options": {
-        "--force-unverified-writers": {
-          "action": "store_true",
-          "canonical": "--force-unverified-writers",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
         "--help": {
           "action": "help",
           "canonical": "--help",

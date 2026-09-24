@@ -37,7 +37,7 @@ The asymmetry is the whole point, and it is why the rule is adoptable today:
   grep and the guarantee are the same statement. ~10 of these exist and stay.
 * ``ast.parse(inspect.getsource(...))`` then asserting on resolved nodes —
   **APPROVED.** ~25 files already do this (see
-  ``tests/agent_runtime/test_s29_snapshot_dead_local_removal.py`` for the
+  ``tests/agent_runtime/test_s29_snapshot_dead_local_removal.py`` (deleted 2026-09-24) for the
   canonical shape). ``ast.parse`` is the taint killer below.
 
 Existing violations are NOT migrated. They are ledgered in

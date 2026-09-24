@@ -167,6 +167,13 @@ LANE_CONTRACT_ALLOWLIST = {
         "concern that is settled before any snapshot is ever sent, and one that "
         "must be able to move without restamping contract_hash."
     ),
+    ("contract.py", "CONTRACT_VERSION"): (
+        "the Discussion RPC lane's own contract (agent_runtime/discussions/"
+        "contract.py), stamped as `contract_version` on each `runtime.discussion.*` "
+        "reply. It versions that lane's request/result shapes and nothing on the "
+        "snapshot frame reads it; it must be able to move without restamping "
+        "contract_hash, exactly like RPC_CONTRACT_VERSION beside it."
+    ),
 }
 
 #: Where each lane-exempt module LIVES, repo-relative parent. The exemption is
@@ -179,17 +186,12 @@ LANE_CONTRACT_MODULE_HOMES = {
     "serve_rpc.py": "agent_runtime",
     "serve.py": "hermes_cli/harness_parts",
     "serve_socket.py": "agent_runtime",
+    "contract.py": "agent_runtime/discussions",
 }
 
 #: Integer literals bound to a contract-version name that are NOT restatements,
 #: each with the reason it cannot rot. Witnessed below rather than trusted.
-FLOOR_ALLOWLIST = {
-    ("test_s47_wire_constant_field_removal.py", "S47_CONTRACT_VERSION"): (
-        "historical floor, not a pin: asserted only with `>=` against the "
-        "emitted value, so it stays true across every future bump and moving "
-        "it would be the bug"
-    ),
-}
+FLOOR_ALLOWLIST: dict[tuple[str, str], str] = {}
 
 
 def _repo_root() -> Path:
@@ -474,7 +476,6 @@ def test_the_gate_scanned_a_real_tree():
         "snapshot.py",
         "test_stage19_visibility.py",
         "test_office_store.py",
-        "test_s47_wire_constant_field_removal.py",
         "test_stream_contract_fixture.py",
     ):
         assert expected in names, f"{expected} is not in the scanned set"

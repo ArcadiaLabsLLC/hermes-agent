@@ -88,7 +88,7 @@ from typing import Any, Callable
 # gate refuses a schema it does not know.
 SCHEMA = "charsheet_payload_contract/v1"
 
-#: Env var :func:`hermes_constants.get_shared_characters_dir` reads first. The
+#: Env var :func:`agent_runtime.profile_home.get_shared_characters_dir` reads first. The
 #: probes redirect the library through it so nothing touches the operator's real
 #: characters.
 _LIBRARY_ENV = "HERMES_SHARED_CHARACTERS"

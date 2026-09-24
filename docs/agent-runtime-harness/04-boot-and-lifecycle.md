@@ -320,7 +320,7 @@ inputs again. The read path, in order:
 4. Miss → `_log_demote` with a reason from the `DEMOTE_*` vocabulary (`core_cache.py:3704`).
    `absent` is the one reason NOT logged — the ordinary cold start would print a line on every
    build in every process — so **a census must not read "no demote line" as "no demote."**
-5. A cache hit ALSO starts `maybe_start_shadow_validation` (`snapshot.py:597`): the full build
+5. A cache hit ALSO starts `maybe_start_shadow_validation` (`snapshot.py:602`): the full build
    runs in the background and compares field-for-field, at most once per process, marked as a
    shadow so completing it does not close the lane.
 6. On a full build: `pre_build_fingerprint()` (the consult's own key, reused — an OLDER key can

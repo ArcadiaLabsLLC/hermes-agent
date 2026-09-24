@@ -368,9 +368,13 @@ class ShellFileOperations(LintMixin, SearchMixin, FileOperations):
         return "'" + _shell_arg_safe_path(arg).replace("'", "'\"'\"'") + "'"
 
     def _escape_native_tool_arg(self, arg: str) -> str:
-        """Quote a native-tool path using the same drive-qualified form."""
-        from tools.environments.local import _shell_arg_safe_path
-        arg = _shell_arg_safe_path(arg)
+        """Quote a path for a NATIVE Windows binary (rg, node, git ...): those don't
+        understand the MSYS ``/c/...`` form and Hermes disables MSYS argument
+        conversion, so nothing translates it back (→ ``os error 3``). ``C:/Users/x``
+        is accepted by every layer. Identical to ``_escape_shell_arg`` off Windows."""
+        from tools.environments.local import _IS_WINDOWS, _msys_to_windows_path
+        if _IS_WINDOWS and arg:
+            arg = _msys_to_windows_path(arg).replace("\\", "/")
         return "'" + arg.replace("'", "'\"'\"'") + "'"
 
     def _atomic_write(self, path: str, content: str) -> "ExecuteResult":

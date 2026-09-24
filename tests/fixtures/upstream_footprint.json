@@ -1,0 +1,33 @@
+{
+  "measured_at": "2026-09-24",
+  "base": "d337b736aa",
+  "files": 404,
+  "deleted_lines": 2602,
+  "heavy": 10,
+  "reasons": [
+    {
+      "change": "seam Stage 1 (seam/s1-proof)",
+      "files": "+2 (459 -> 461)",
+      "deleted_lines": "flat (2834)",
+      "reason": "hook-pending: hermes_cli/plugins_manifest.py (cli_commands manifest field, +20/-0) and hermes_cli/plugin_compat.py (bundled skip, +4/-0, upstream-lift candidate) join the list; plugins_discovery.py's readers take an optional config (2 def lines). Stage 1 itself returned 2 deleted lines (builtin list, dispatch line). All leave with the upstream lift."
+    },
+    {
+      "change": "S4+S5 landing (seam/s45-landing)",
+      "files": "448 = S5's 446 + the 2 S1 hook-pending carries above (S5 was cut before S1 landed and dropped this reason)",
+      "deleted_lines": "2816 -> 2800 (S4's hermes_constants.py 16 -> 1, profiles.py 30 -> 29, main.py 193 -> 191 from S1)",
+      "reason": "merge of S1 (main), S5 and S4; no merge re-added footprint"
+    },
+    {
+      "change": "lane MECH (seam/mech-apply-2026-09-24)",
+      "files": "448 -> 408: 40 files byte-identical to d337b736aa again (16 of them to upstream/main too) - 15 REVERT rows, 9 win-text-encoding tests, 7 website pages, the P6/P7 set (hermes_constants, profile_cmd, subcommands/profile, test_profile_delete_log_handlers), modal/singularity, ci.yaml, kanban_db, test_startup_latency_regressions",
+      "deleted_lines": "2800 -> 2612 (profiles.py 29 -> 20, auxiliary_client 42 -> 2, turn_api_call 26 -> 1, the reverts and moves)",
+      "reason": "applied the ledger's decided dispositions: REVERTs, adopt-upstream duplicates, the three § Seams defects, the four dropped-PR rulings, movable carries; heavy 12 -> 11"
+    },
+    {
+      "change": "lane S2 (seam/s2-plugin-surface-2026-09-24)",
+      "files": "408 -> 404: hermes_cli/skills_hub.py and hermes_cli/subcommands/skills.py (link-external rehomed as `hermes harness skills link-external`), tests/agent/test_system_prompt.py and tests/tools/test_terminal_tool.py byte-identical to d337b736aa again",
+      "deleted_lines": "2612 -> 2602 (the four restored files' 8, prompt_builder 11 -> 10, skills_tool 70 -> 69)",
+      "reason": "seam Stage 2: the T6b guidance and the skill-confirm sentence ride the eternia-harness plugin's system-prompt section; skill_search is a plugin register_tool; link-external is a harness verb; prompt_builder and skills_tool adopt upstream's skill_matches_environment; heavy 11 -> 10 (tools/skills_tool.py 207 -> 136)"
+    }
+  ]
+}

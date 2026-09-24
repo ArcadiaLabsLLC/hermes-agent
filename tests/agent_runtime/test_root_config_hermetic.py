@@ -29,7 +29,8 @@ import pytest
 
 from agent_runtime.config import harness_root_config_path, load_root_runtime_config
 from agent_runtime.state_patches import delta_patches_enabled
-from hermes_constants import get_hermes_head_home, get_hermes_home
+from hermes_constants import get_hermes_home
+from agent_runtime.profile_home import get_hermes_head_home
 
 from tests.agent_runtime.conftest import assert_under
 
@@ -37,7 +38,7 @@ from tests.agent_runtime.conftest import assert_under
 #: as data so a third one cannot be added to the guard without a test naming it.
 GUARDED_RESOLVERS = (
     ("config.harness_root_config_path", harness_root_config_path),
-    ("hermes_constants.get_hermes_head_home", get_hermes_head_home),
+    ("agent_runtime.profile_home.get_hermes_head_home", get_hermes_head_home),
     ("hermes_constants.get_hermes_home", get_hermes_home),
 )
 

@@ -568,12 +568,12 @@ def test_gate_census_actually_sees_the_suite():
 
 def test_gate_marker_is_registered():
     """An unregistered marker silently does nothing under ``--strict-markers``."""
-    conftest = Path(__file__).resolve().parent / "conftest.py"
+    conftest = Path(__file__).resolve().parent / "_downstream" / "conftest_plugin.py"
     source = conftest.read_text(encoding="utf-8")
-    assert f'"{_MARKER}"' in source, f"{_MARKER} is not defined in tests/conftest.py"
+    assert f'"{_MARKER}"' in source, f"{_MARKER} is not defined in tests/_downstream/conftest_plugin.py"
     for surface in _SURFACE:
         assert f'"{surface}"' in source, (
-            f"tests/conftest.py no longer patches {surface} — the "
+            f"tests/_downstream/conftest_plugin.py no longer patches {surface} — the "
             f"neutralization has a hole"
         )
 

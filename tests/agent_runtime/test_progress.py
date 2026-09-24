@@ -658,7 +658,7 @@ def test_chat_progress_sink_survives_a_broken_mirror(isolate_agent_runtime_root,
 # the marker fired on every turn, so the whole `run_conversation` prologue was
 # billed to the provider. These rows pin the bypass AND its boundaries.
 def _marker_payload(**extra):
-    from hermes_constants import CONVERSATION_REQUEST_ASSEMBLED_STEP
+    from agent_runtime.conversation_observability import CONVERSATION_REQUEST_ASSEMBLED_STEP
 
     return {
         "type": "run.progress",
@@ -673,7 +673,7 @@ def _marker_payload(**extra):
 def test_a_phase_timing_marker_reaches_the_trace_observer(isolate_agent_runtime_root):
     """The defect, as a row: the marker must survive the signal filter."""
 
-    from hermes_constants import CONVERSATION_REQUEST_ASSEMBLED_STEP
+    from agent_runtime.conversation_observability import CONVERSATION_REQUEST_ASSEMBLED_STEP
 
     observed: list[dict] = []
     sink = ChatProgressSink(

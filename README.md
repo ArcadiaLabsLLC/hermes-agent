@@ -261,9 +261,10 @@ scripts/run_tests.sh
 
 The base software is MIT — see [LICENSE](LICENSE).
 
-Modifications and additions contributed in this repository are licensed for
-personal, non-commercial review and evaluation only — see
-[LICENSE-CONTRIBUTIONS](LICENSE-CONTRIBUTIONS.md). The MIT terms continue to
-govern the upstream base.
+Modifications and additions contributed in this repository are licensed
+under the PolyForm Noncommercial License 1.0.0 — see
+[LICENSE-CONTRIBUTIONS](LICENSE-CONTRIBUTIONS.md), which also states that
+anything submitted upstream or published elsewhere takes the receiving
+project's terms. The MIT terms continue to govern the upstream base.
 
 Built by [Nous Research](https://nousresearch.com).

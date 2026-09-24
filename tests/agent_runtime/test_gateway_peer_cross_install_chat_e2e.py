@@ -51,24 +51,12 @@ import json
 
 import pytest
 
+from tests.agent_runtime._serve_fixtures import two_installs  # noqa: F401 — a fixture
 from tests.agent_runtime.test_gateway_peer_two_roots_e2e import (
     E2E_TEST_TIMEOUT_SECONDS,
-    _Install,
     _payload_of,
     _REAL_CHILD_SPAWN,
 )
-
-
-@pytest.fixture
-def two_installs(tmp_path):
-    installs = [_Install("A", tmp_path / "a"), _Install("B", tmp_path / "b")]
-    for install in installs:
-        install.start()
-    try:
-        yield installs
-    finally:
-        for install in installs:
-            install.stop()
 
 
 #: Dialled from install A's environment. Resolves the `@install/target` spelling

@@ -185,15 +185,11 @@ def _profile_errors(log_msg: str, *args, not_found=(FileNotFoundError,),
     """Map hermes_cli.profiles exceptions to HTTP: ``not_found`` -> 404, ``bad_request`` -> 400
     (in that order), anything else is logged with ``log_msg`` -> 500. HTTPException passes, and so
     does ``ProfileIdentitySettlementPending`` — a typed partial success the calling endpoint (the
-    delete route) owns; it must not flatten into the generic 500. A fork-owned
-    ``ProfileDeleteBlocked`` is a 409: nothing was touched, so it is a refusal, not a fault."""
-    from hermes_cli.profiles import ProfileDeleteBlocked
+    delete route) owns; it must not flatten into the generic 500."""
     try:
         yield
     except HTTPException:
         raise
-    except ProfileDeleteBlocked as e:
-        raise HTTPException(status_code=409, detail={"code": e.code, "message": str(e)})
     except not_found as e:
         raise HTTPException(status_code=404, detail=str(e))
     except bad_request as e:
@@ -921,13 +917,7 @@ async def delete_profile_endpoint(name: str):
     A delete whose identity settlement stays pending answers ``ok`` with ``settlement_pending``
     and the retry command: the profile directory is already gone, and folding that state into
     the generic 500 made a dashboard client read a completed delete as a failure (its retry
-    then 404'd).
-
-    A typed delete refusal (``ProfileDeleteBlocked``) is a 409, not a 500: nothing was touched
-    and nothing crashed, so it must not be logged as an exception or reported to the dashboard
-    as a server fault. There is deliberately no override parameter — forcing a delete past an
-    unknowable writer set is a decision an operator makes at a terminal, not one a dashboard
-    button makes for them."""
+    then 404'd)."""
     from hermes_cli import profiles as profiles_mod
     try:
         with _profile_errors("DELETE /api/profiles/%s failed", name):

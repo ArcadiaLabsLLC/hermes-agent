@@ -1601,6 +1601,51 @@ def discover_plugins(force: bool = False) -> None:
     get_plugin_manager().discover_and_load(force=force)
 
 
+# fork: hook-pending (seam Stage 1) — manifest-declared CLI commands, the upstream PR's generic half.
+def _materialize_declared_cli_command(manifest: PluginManifest, name: str, parser: Any) -> None:
+    """Stub ``setup_fn``: load ONLY ``manifest``'s plugin, then run the parser setup its ``register(ctx)``
+    registered for ``name``. Never runs :func:`discover_plugins`."""
+    manager = get_plugin_manager()
+    key = manifest_key(manifest)
+    entry = manager._cli_commands.get(name)
+    if entry is None or entry.get("plugin_key") != key:
+        manager._load_plugin(manifest)
+        entry = manager._cli_commands.get(name)
+    if entry is None or entry.get("plugin_key") != key:
+        raise RuntimeError(f"plugin {key!r} declares CLI command {name!r} in its manifest "
+                           "but register(ctx) did not register it")
+    entry["setup_fn"](parser)
+    if entry.get("handler_fn") is not None:
+        parser.set_defaults(func=entry["handler_fn"])
+
+
+def discover_declared_cli_commands() -> List[Dict[str, Any]]:
+    """CLI commands declared in ``plugin.yaml`` ``cli_commands:``, found WITHOUT importing any plugin.
+
+    One descriptor per row, shaped like a ``register_cli_command`` entry, for every directory manifest
+    the discovery gate would load (same precedence and gate as :meth:`PluginManager.discover_and_load`;
+    ``HERMES_SAFE_MODE`` yields nothing, as discovery does). Each ``setup_fn`` materialises only its own
+    plugin by name, so ``hermes <declared>`` pays for one plugin, never for :func:`discover_plugins`.
+    Entry-point plugins have no manifest to read and keep the discovery path.
+    """
+    if _env_enabled("HERMES_SAFE_MODE"):
+        return []
+    winners = {manifest_key(m): m for m in collect_directory_manifests()}
+    config = load_config_readonly()  # one read serves both lists
+    disabled, enabled = _get_disabled_plugins(config), _get_enabled_plugins(config)
+    commands: List[Dict[str, Any]] = []
+    for key, manifest in winners.items():
+        if gate_manifest(manifest, disabled, enabled).action not in ("load", "load_now"):
+            continue
+        for row in manifest.cli_commands:
+            commands.append({
+                **row, "help": row["help"] or manifest.description or "", "handler_fn": None, "plugin": manifest.name, "plugin_key": key,
+                "setup_fn": lambda parser, _m=manifest, _n=row["name"]: _materialize_declared_cli_command(
+                    _m, _n, parser),
+            })
+    return commands
+
+
 _background_discovery_thread: Optional[threading.Thread] = None
 _background_discovery_lock = threading.Lock()
 

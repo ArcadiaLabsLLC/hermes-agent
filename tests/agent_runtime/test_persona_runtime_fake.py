@@ -1234,7 +1234,7 @@ def test_mission_chat_reply_without_session_records_no_trace(tmp_path, monkeypat
 # caller the helper was removed, so both tests exercised removed behavior; the
 # repo-resolution behavior they covered is asserted at its own boundary in
 # tests/agent_runtime/test_repo_context.py. See
-# tests/agent_runtime/test_s29_persona_runtime_context_lane_removal.py.
+# tests/agent_runtime/test_s29_persona_runtime_context_lane_removal.py (deleted 2026-09-24).
 
 
 def test_mission_chat_reply_sets_cache_scope_id_but_keeps_session_none(tmp_path, monkeypatch):

@@ -34,7 +34,6 @@ from agent.skill_utils import (
     skill_package_content_hash, skill_frontmatter_runtime_compatibility,
 )
 from agent_runtime.skill_resolution import skill_source_kind
-from agent_runtime.skill_search import skill_search
 
 logger = logging.getLogger(__name__)
 
@@ -120,20 +119,7 @@ def _skill_utils_delegate(attr: str):
 
 skill_matches_platform = _skill_utils_delegate("skill_matches_platform")
 # Offer-time relevance gate (kanban/docker/s6), NOT hard compatibility; explicit loads bypass it.
-def skill_matches_environment(frontmatter: Dict[str, Any]) -> bool:
-    """Check if a skill is relevant to the current runtime environment.
-
-    Delegates to ``agent.skill_utils.skill_matches_environment`` — kept here
-    as a public re-export so existing callers don't need updating. This is an
-    offer-time relevance gate (kanban/docker/s6), NOT a hard-compatibility gate;
-    explicit skill loads bypass it.
-    """
-    try:
-        from agent.skill_utils import skill_matches_environment as _impl
-        return _impl(frontmatter)
-    except ImportError:
-        environments = frontmatter.get("environments") if isinstance(frontmatter, dict) else None
-        return not environments
+skill_matches_environment = _skill_utils_delegate("skill_matches_environment")
 _parse_frontmatter = _skill_utils_delegate("parse_frontmatter")
 _get_disabled_skill_names = _skill_utils_delegate("get_disabled_skill_names")
 
@@ -759,58 +745,3 @@ def _runtime_skill_dirs() -> List[Path]:
             seen.add(key)
             result.append(path)
     return result
-
-SKILL_SEARCH_SCHEMA = {
-    "name": "skill_search",
-    "description": "Search installed skills + the Hermes Skills Hub by query without loading SKILL.md bodies (compact ids/descriptions). Disambiguator: skill_view loads an installed match; `hermes skills install` fetches an external one.",
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "query": {
-                "type": "string",
-                "description": "Search query, e.g. 'flutter qa', 'github review', or 'kubernetes'.",
-            },
-            "source": {
-                "type": "string",
-                "enum": [
-                    "all",
-                    "installed",
-                    "official",
-                    "hermes-index",
-                    "skills-sh",
-                    "well-known",
-                    "github",
-                    "clawhub",
-                    "claude-marketplace",
-                    "lobehub",
-                    "browse-sh",
-                ],
-                "description": "Optional source filter. Default 'all'. Use 'installed' to avoid remote hub search.",
-            },
-            "limit": {
-                "type": "integer",
-                "description": "Maximum results to return; capped at 50.",
-            },
-            "include_installed": {
-                "type": "boolean",
-                "description": "When true, include installed local/profile skills before hub results. Default true.",
-            },
-        },
-        "required": ["query"],
-    },
-}
-
-registry.register(
-    name="skill_search",
-    toolset="skills",
-    schema=SKILL_SEARCH_SCHEMA,
-    handler=lambda args, **kw: skill_search(
-        query=args.get("query", ""),
-        source=args.get("source", "all"),
-        limit=args.get("limit", 10),
-        include_installed=args.get("include_installed", True),
-        task_id=kw.get("task_id"),
-    ),
-    check_fn=check_skills_requirements,
-    emoji="🔎",
-)

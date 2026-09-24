@@ -778,7 +778,7 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
     3. **``HERMES_HEAD_HOME`` is asserted present, not assumed.**
        ``open_chat`` puts ``chat_head_home`` on the ``persona_instance.chat_opened``
        payload only when the head home is AUTHORITATIVE, and
-       ``hermes_constants.hermes_head_home_is_authoritative`` reads that off an
+       ``agent_runtime.profile_home.hermes_head_home_is_authoritative`` reads that off an
        explicit ``HERMES_HEAD_HOME`` env value or a context-recorded outermost
        home — an ambient resolution is deliberately NOT authoritative. So the
        emitted frame's KEY SET depends on the caller's environment: ``main``

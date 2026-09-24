@@ -517,7 +517,7 @@ def _error_hint(code: str) -> str:
         # "inspect safe_details": the details carry only the slug, which is the
         # one thing the operator already typed.
         "skill_slug_invalid": "Use a bare slug or <category>/<name>; see `hermes harness skills inventory --json` for the catalog spelling.",
-        "skill_installer_owned": "This id is reinstalled from repo source on every pull. Remove it from hermes_constants.CANONICAL_SHARED_SKILL_IDS and docs/agent-runtime-harness/harness-skills/ instead.",
+        "skill_installer_owned": "This id is reinstalled from repo source on every pull. Remove it from agent_runtime.profile_home.CANONICAL_SHARED_SKILL_IDS and docs/agent-runtime-harness/harness-skills/ instead.",
     }.get(code, "Inspect safe_details and retry after correcting the request.")
 
 

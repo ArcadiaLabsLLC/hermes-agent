@@ -634,6 +634,3 @@ def run_once(spec: ShellHookSpec, kwargs: Dict[str, Any]) -> Dict[str, Any]:
 # The whole block is removed by reverting the commit that added it.
 import shlex  # noqa: F401,E402
 # ---- END PLUGIN-COMPAT ----
-
-# Compatibility seam; the shared parser preserves Windows path backslashes.
-_split_command = split_command_line

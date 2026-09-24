@@ -10,7 +10,7 @@ credentials the operator signed in once. It does NOT get that back by inheriting
 It gets it because Mission Control explicitly BINDS the persona's active auth
 store to the head's, through ``HERMES_AUTH_HOME`` — a ContextVar for in-process
 readers, an env var for spawns, both written by ``persona_profile_context`` and
-both read by ``hermes_constants.get_hermes_auth_home()``, which
+both read by ``agent_runtime.profile_home.get_hermes_auth_home()``, which
 ``hermes_cli.auth._auth_file_path`` consults. That is store SELECTION, not
 inheritance: there is exactly ONE active store, so a single-use refresh chain
 (Codex/ChatGPT) cannot fork and no write-through bookkeeping is needed.

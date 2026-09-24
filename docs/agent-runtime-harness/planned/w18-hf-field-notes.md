@@ -86,12 +86,12 @@ substitution can happen between `bind()` and the thread.
 `test_unmapped_absolute_paths_reports_residue_honestly` was still red on Linux
 after `854f0f2482`, and the pinned `current_platform_key` turns out to be
 irrelevant to it: nothing on the residue path reads the platform key. The
-difference is `tmp_path` — drive-rooted on Windows, `/tmp/...` on Linux.
+difference is `tmp_path` — drive-rooted on Windows, `/tmp/...` on Linux. <!-- no-tmp: ok — describes where pytest roots tmp_path on Linux; not a scratch path -->
 
 `_root_pattern` builds its regex from `re.split(r"[\\/]+", str(root))` with the
 empties dropped. A drive-letter root keeps its anchor (`X:`) through that split;
 a POSIX root's anchor IS the leading `/`, and it was thrown away with the empty
-first element. The pattern could then only match from the `t` of `/tmp`. Two
+first element. The pattern could then only match from the `t` of `/tmp`. Two <!-- no-tmp: ok — quotes the POSIX root the regex was cutting; not a scratch path -->
 callers read it and both were wrong on a Mac:
 
 - `unmapped_absolute_paths` uses `pattern.match(raw)`, anchored at position 0.

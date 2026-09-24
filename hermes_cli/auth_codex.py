@@ -596,11 +596,6 @@ def resolve_codex_runtime_credentials(
                 str(exc.code or "auth_error"), observed_access_token=observed)
             if imported:
                 data = {"tokens": imported, "last_refresh": imported.get("last_refresh")}
-    # The global-root singleton fallback that used to sit here was retired by the 2026-09-17
-    # theme-7 ruling (upstream 93889b770d makes profiles islands). A persona that shares the
-    # head's credentials has the head store bound as its ACTIVE store through HERMES_AUTH_HOME,
-    # so ``_read_codex_tokens()`` above already read that singleton — there is nothing left to
-    # fall back TO, and a refresh lands in the one store rather than forking the chain.
     if data is None:
         pool_token = _pool_codex_access_token()
         if pool_token and force_refresh and not read_only:

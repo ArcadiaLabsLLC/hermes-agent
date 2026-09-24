@@ -10,7 +10,7 @@ path — this file is the war stories behind it.
 
 **1. Which home am I authoring into — and which library does it reach?** The
 character library is **install-wide**: `<hermes_root>/shared/characters`
-(`characters_dir()` → `hermes_constants.get_shared_characters_dir()`), drafts
+(`characters_dir()` → `agent_runtime.profile_home.get_shared_characters_dir()`), drafts
 under `.drafts/<draft-id>/`, installed sheets under `<slug>/`. **One directory
 for every persona and every profile under one hermes root** (§13.27). It sits
 beside `profiles/`, not inside any one of them, and every profile home computes

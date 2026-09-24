@@ -167,7 +167,6 @@ docs/superpowers/*
 # bootstrap installer. It is Hermes-managed runtime state, never a code change —
 # ignore it so `hermes update`'s `git stash push --include-untracked` does not
 # treat it as a local edit and autostash it on every run (#38529).
-.install_method
 .hermes-bootstrap-complete
 
 # Flat-install runtime state (checkout root == $HERMES_HOME, e.g. installs made
@@ -326,10 +325,3 @@ native/fts5_cjk/*.so
 # tool/test_quality/README.md). Worktree-local, cleared in a `finally`, and
 # cleared by hand after a crash — never source.
 .mutation_gate.lock
-
-# Dated reports from scripts/unattended_suite_run.ps1 (the unattended
-# validated-suite + mutation-inventory lane; see AGENTS.md §Testing). Machine-
-# and run-local, never source. The directory itself is kept via
-# qa-artifacts/.gitkeep.
-/qa-artifacts/*
-!/qa-artifacts/.gitkeep

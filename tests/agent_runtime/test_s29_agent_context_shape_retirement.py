@@ -26,7 +26,7 @@ vacuously):
   Its one gate that was NOT about the module's contents was carried below and
   later retargeted by S39 (``149a9ae53``) when fresh-row ``mission_hud`` writes
   were retired while historical Launcher reads stayed supported.
-* Five gates in ``test_s19_context_builder_cluster_removal.py``; that file keeps
+* Five gates in ``test_s19_context_builder_cluster_removal.py`` (deleted 2026-09-24); that file keeps
   its ``mission_hud_preview`` entry-point and live-HUD halves.
 * ``tests/agent_runtime/test_persona_memory_scope.py`` — **deleted with the
   symbol** (4 tests, all of ``_persona_run_uses_memory``). Marked as deleted

@@ -280,7 +280,11 @@ def _add_coordinator_permission_args(parser) -> None:
 
 
 def build_parser(parent_subparsers) -> None:
-    parser = parent_subparsers.add_parser("harness", help="Experimental Agent Runtime Harness")
+    populate_parser(parent_subparsers.add_parser("harness", help="Experimental Agent Runtime Harness"))
+
+
+def populate_parser(parser) -> None:
+    """Build the whole ``hermes harness`` tree onto an existing ``harness`` parser."""
     _add_stage42_global_args(parser)
     subs = parser.add_subparsers(dest="harness_command")
     parser.set_defaults(func=harness_command)
@@ -804,6 +808,12 @@ def build_parser(parent_subparsers) -> None:
     )
     skills_inventory_cmd.add_argument("--json", action="store_true", help="Emit the skills_inventory/v1 contract as JSON")
     skills_inventory_cmd.set_defaults(func=_cmd_skills_inventory)
+    # Rehomed from `hermes skills link-external` (seam Stage 2): the verb is the harness's, not core's.
+    skills_link_cmd = skills_subs.add_parser(
+        "link-external", help="Link the shared skills root into external harnesses (~/.claude, ~/.codex)",
+    )
+    skills_link_cmd.add_argument("--json", action="store_true", help="Emit the link report as JSON")
+    skills_link_cmd.set_defaults(func=_cmd_skills_link_external)
     skills_catalog_cmd = skills_subs.add_parser(
         "catalog",
         help="S8: resolve ONE content-addressed skills catalog by its hash (the frame ships only *_ref hashes; bodies are fetched once and cached forever)",
@@ -1867,7 +1877,7 @@ def build_parser(parent_subparsers) -> None:
     # through `build_snapshot()` and persists them under `<store_root>/serve_read_model/`
     # via `core_cache.write_back()`, which is a different store with a different
     # validity model. Operator ruling: RETIRE. Absence is pinned by
-    # `tests/agent_runtime/test_s46_incremental_projection_lane_removal.py` and
+    # `tests/agent_runtime/test_s46_incremental_projection_lane_removal.py` (deleted 2026-09-24) and
     # by the `agent_runtime.read_model` / `.projector` MODULE tombstones.
 
     # `harness work` — the operator's view of background work in flight
@@ -2046,6 +2056,99 @@ def build_parser(parent_subparsers) -> None:
 def harness_command(args) -> int:
     print("Use `hermes harness --help`.")
     return 0
+
+
+# --- The CLI entry: what `hermes harness …` runs through (seam Stage 1) ---------
+# The site keeps its pre-plugin spelling: receipts and sidecars already carry it.
+_FINGERPRINT_HOME_CLI_BOOT_SITE = "hermes_cli.main:harness_command_dispatch"
+
+
+def _capture_core_cache_fingerprint_home(args) -> None:
+    """Capture the core cache's fingerprint home BEFORE the command runs (HC-1).
+
+    THE RULE, and why it is applied here and only here. ``core_cache`` freezes
+    the Hermes home its input closure is stat'd under on FIRST USE, and a first
+    use that lands inside ``profile_context.persona_profile_context`` pins that
+    persona's home for the life of the process — after which any sidecar this
+    process writes is keyed under it, and the NEXT boot demotes the pair
+    ``reason=home_mismatch``. A one-shot CLI is not exempt from that: ``hermes
+    harness chat send`` runs a persona turn through
+    ``profile_runner._execute_agent_run``, whose whole body is inside that
+    scope, and a tool in that turn reaching the snapshot is a first fingerprint
+    taken under the override. The poisoned pair then outlives the process.
+
+    SCOPE, decided on evidence rather than on caution: only ``hermes harness …``
+    can reach this lane at all — ``core_cache``/``agent_runtime.snapshot`` are
+    imported by ``hermes_cli.harness``, ``harness_support`` and the four
+    ``harness_parts`` modules, and by nothing else under ``hermes_cli``. It runs
+    from :func:`_harness_entry`, which only the harness tree's handlers carry, so
+    no other command pays for it.
+
+    ``hermes harness serve`` passes through here too, and that is deliberate
+    rather than redundant: this is the earliest instant in the process the
+    command owns, and ``serve_loop`` re-declares its own, more specific site
+    under it. Capture-once means the second call is an observation, not a
+    second answer.
+
+    Best effort by contract: an instrument must never be why a command fails.
+    """
+
+    if getattr(args, "command", None) != "harness":
+        return
+    try:
+        from agent_runtime import core_cache
+
+        core_cache.declare_fingerprint_home_boot_site(_FINGERPRINT_HOME_CLI_BOOT_SITE)
+        core_cache.capture_fingerprint_home()
+    except Exception:
+        pass
+
+
+def _harness_entry(fn):
+    """Wrap one harness handler: capture the fingerprint home first, and render an
+    exception escaping the handler as the harness error envelope (exit code from
+    ``emit_harness_error``). Idempotent."""
+
+    import functools
+
+    if getattr(fn, "__harness_entry__", False):
+        return fn
+
+    @functools.wraps(fn)
+    def entry(args, *rest, **kwargs):
+        _capture_core_cache_fingerprint_home(args)
+        try:
+            return fn(args, *rest, **kwargs)
+        except Exception as exc:
+            sys.exit(emit_harness_error(exc, args=args))
+
+    entry.__harness_entry__ = True
+    return entry
+
+
+def _install_harness_entries(parser) -> None:
+    """Wrap every ``func=`` default in ``parser``'s tree with :func:`_harness_entry`."""
+
+    stack, seen = [parser], set()
+    while stack:
+        node = stack.pop()
+        if id(node) in seen:
+            continue  # aliases share one parser
+        seen.add(id(node))
+        func = node._defaults.get("func")
+        if func is not None:
+            node._defaults["func"] = _harness_entry(func)
+        for action in node._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                stack.extend(action.choices.values())
+
+
+def build_cli_parser(parser) -> None:
+    """The ``harness`` plugin command's parser setup: the tree, every handler behind
+    :func:`_harness_entry`. :func:`build_parser` (contract dump, tests) stays unwrapped."""
+
+    populate_parser(parser)
+    _install_harness_entries(parser)
 
 
 def _machine_root_config_paths(explicit: list[str] | None) -> list[Path]:
@@ -2510,7 +2613,7 @@ def _rel_to_shared_skills(path) -> str | None:
 
     if path is None:
         return None
-    from hermes_constants import get_shared_skills_dir
+    from agent_runtime.profile_home import get_shared_skills_dir
 
     path = Path(path)
     try:
@@ -2758,7 +2861,7 @@ def _canonical_packages_covered(slug: str) -> list[tuple[str, Path]]:
 
     from agent_runtime.skill_promotion import iter_skill_packages
     from agent_runtime.store import skill_tombstone_matches
-    from hermes_constants import get_shared_skills_dir
+    from agent_runtime.profile_home import get_shared_skills_dir
 
     return [
         (pkg_slug, pkg_dir)
@@ -2865,7 +2968,8 @@ def _archive_content_hint(slug: str) -> dict:
     slug leaves several archived copies, and the newest is a choice, not a fact.
     """
 
-    from hermes_constants import get_default_hermes_root, get_shared_skills_dir
+    from hermes_constants import get_default_hermes_root
+    from agent_runtime.profile_home import get_shared_skills_dir
 
     shared = get_shared_skills_dir()
     flat = slug.replace("/", "__")
@@ -2920,7 +3024,7 @@ def _cmd_skills_delete(args) -> int:
     from agent_runtime.errors import SkillTombstoneRefused
     from agent_runtime.skill_promotion import _archive_package, validate_skill_slug
     from agent_runtime.store import active_skill_tombstones, skill_tombstoned
-    from hermes_constants import CANONICAL_SHARED_SKILL_IDS
+    from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS
 
     slug = str(getattr(args, "skill", "") or "").strip()
     dry_run = bool(getattr(args, "dry_run", False))
@@ -2954,7 +3058,7 @@ def _cmd_skills_delete(args) -> int:
                 (
                     f"{slug!r} is a hermes-installed harness skill: every realm pull "
                     "reinstalls it from repo source, so a realm tombstone can never "
-                    "hold. Delete it from hermes_constants.CANONICAL_SHARED_SKILL_IDS "
+                    "hold. Delete it from agent_runtime.profile_home.CANONICAL_SHARED_SKILL_IDS "
                     "and docs/agent-runtime-harness/harness-skills/ instead."
                 ),
                 safe_details={"skill": slug},
@@ -4720,7 +4824,8 @@ def _cmd_characters_migrate_home(args) -> int:
     a store.
     """
     from agent.charsheet.draft import migrate_characters_home
-    from hermes_constants import get_hermes_home, get_shared_characters_dir
+    from hermes_constants import get_hermes_home
+    from agent_runtime.profile_home import get_shared_characters_dir
 
     home = get_hermes_home()
     try:
@@ -6413,6 +6518,14 @@ def _cmd_usage(args) -> int:
     except Exception:
         # Human rendering must not crash the verb either.
         _emit_usage_json(attach_root_observability(payload))
+    return 0
+
+
+def _cmd_skills_link_external(args) -> int:
+    from agent_runtime.external_skill_links import format_report, link_shared_skills_into_external_harnesses
+
+    report = link_shared_skills_into_external_harnesses()
+    print(emit_json(report.to_dict()) if getattr(args, "json", False) else format_report(report))
     return 0
 
 

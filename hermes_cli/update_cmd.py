@@ -1710,5 +1710,3 @@ from datetime import datetime  # noqa: F401,E402
 import hashlib  # noqa: F401,E402
 import json  # noqa: F401,E402
 # ---- END PLUGIN-COMPAT ----
-
-from hermes_cli.update_cmd_windows import _warn_legacy_console_gateway_task

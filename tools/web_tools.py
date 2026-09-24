@@ -473,7 +473,7 @@ from tools.registry import registry, tool_error
 
 WEB_SEARCH_SCHEMA = {
     "name": "web_search",
-    "description": "Search the web (up to 5 results: title, URL, description). Backend operators like site:, filetype:, intitle:, -term, and \"exact phrase\" may work. Disambiguator: use web_extract to read a specific page.",
+    "description": "Search the web for information. Returns up to 5 results by default with titles, URLs, and descriptions. The query is passed through to the configured backend, so operators such as site:domain, filetype:pdf, intitle:word, -term, and \"exact phrase\" may work when the backend supports them.",
     "parameters": {
         "type": "object",
         "properties": {
@@ -495,7 +495,7 @@ WEB_SEARCH_SCHEMA = {
 
 WEB_EXTRACT_SCHEMA = {
     "name": "web_extract",
-    "description": "Extract clean markdown/text from web page or PDF URLs (no LLM summarization). Large pages return a head+tail window with a saved-file path to read the rest. Disambiguator: for interactive or failed pages use the browser tools; to find pages use web_search.",
+    "description": "Extract content from web page URLs. Returns clean page content in markdown/text (no LLM summarization — fast). Also works with PDF URLs (arxiv papers, documents) — pass the PDF link directly. Pages within the char budget (default 15000) return whole; larger pages return a head+tail window with a footer telling you the full text's saved file path and the read_file call to page through the omitted middle. Inline images appear as [IMAGE: alt] placeholders; real image URLs are kept as links. If a URL fails or times out, use the browser tool instead.",
     "parameters": {
         "type": "object",
         "properties": {
@@ -515,14 +515,15 @@ WEB_EXTRACT_SCHEMA = {
     }
 }
 
+from tools.downstream_schema import brief_schema
 registry.register(
-    name="web_search", toolset="web", schema=WEB_SEARCH_SCHEMA,
+    name="web_search", toolset="web", schema=brief_schema("web_search", WEB_SEARCH_SCHEMA),
     handler=lambda args, **kw: web_search_tool(args.get("query", ""), limit=args.get("limit", 5)),
     check_fn=check_web_api_key, requires_env=_web_requires_env(), emoji="🔍",
     max_result_size_chars=100_000,
 )
 registry.register(
-    name="web_extract", toolset="web", schema=WEB_EXTRACT_SCHEMA,
+    name="web_extract", toolset="web", schema=brief_schema("web_extract", WEB_EXTRACT_SCHEMA),
     handler=lambda args, **kw: web_extract_tool(
         args.get("urls", [])[:5] if isinstance(args.get("urls"), list) else [], "markdown",
         char_limit=args.get("char_limit"),

@@ -65,8 +65,6 @@ class _OpenAIProxy:
     __slots__ = ()
 
     def __call__(self, *args, **kwargs):
-        if capability_probe_active():
-            return _CAPABILITY_PROBE_CLIENT
         _note_client_construction()
         return _load_openai_cls()(*args, **kwargs)
 
@@ -80,14 +78,47 @@ class _OpenAIProxy:
 OpenAI = _OpenAIProxy()
 
 
-# One probe authority for upstream check_fns and downstream snapshots.
-from agent_runtime.auxiliary_probe import (
-    _CapabilityProbeClient as _AuxProbeClientStub, _CAPABILITY_PROBE_CLIENT,
-    capability_probe_active, capability_probe_scope, is_capability_probe_client,
-    client_construction_count, _note_client_construction,
-)
-_aux_probe_active = capability_probe_active
-aux_probe_mode = capability_probe_scope
+# Availability probe mode: check_fns only need to know whether a client is RESOLVABLE, so
+# inside `aux_probe_mode()` constructors return a stub instead of importing openai + building
+# httpx/SSL (~0.3s on CLI startup). Stubs are never cached (see _store_cached_client).
+_aux_probe_state = threading.local()
+
+
+class _AuxProbeClientStub:
+    """Non-functional placeholder returned while `aux_probe_mode` is active."""
+    __slots__ = ("api_key", "base_url")
+
+    def __init__(self, api_key: str = "", base_url: str = "") -> None:
+        self.api_key = api_key
+        self.base_url = base_url
+
+    def __getattr__(self, name: str) -> Any:
+        # Loud failure if a probe stub ever leaks into a runtime call path.
+        raise RuntimeError(
+            f"_AuxProbeClientStub used as a real client (attribute {name!r}); "
+            "aux_probe_mode is for availability checks only")
+
+    def __repr__(self) -> str:
+        return "<aux availability-probe client stub>"
+
+
+def _aux_probe_active() -> bool:
+    return bool(getattr(_aux_probe_state, "active", False))
+
+
+@contextlib.contextmanager
+def aux_probe_mode():
+    """Resolve provider availability without constructing real SDK clients."""
+    prev = getattr(_aux_probe_state, "active", False)
+    _aux_probe_state.active = True
+    try:
+        yield
+    finally:
+        _aux_probe_state.active = prev
+
+
+# Fork: construction accounting only (additive); the probe is upstream's above.
+from agent_runtime.auxiliary_probe import client_construction_count, _note_client_construction  # noqa: E402,F401
 
 
 from agent.credential_pool import load_pool
@@ -594,7 +625,7 @@ def _is_codex_gpt54_or_gpt55(model: Optional[str], provider: Optional[str] = Non
         return "900k" not in bare
     return bare == "gpt-daybreak-blue-latest" or any(
         bare == fam or bare.startswith(fam + "-") or bare.startswith(fam + ".")
-        for fam in ("gpt-5.4", "gpt-5.5", "gpt-5.6", "gpt-6-sol", "gpt-6-terra", "gpt-6-luna"))
+        for fam in ("gpt-5.4", "gpt-5.5", "gpt-5.6", "gpt-6-sol", "gpt-6-luna"))
 
 
 def _codex_route_bare_model(model: Optional[str], provider: Optional[str]) -> Optional[str]:
@@ -4587,8 +4618,6 @@ def _effective_provider_for_client(client: Any, fallback: str) -> str:
 
 def _to_async_client(sync_client, model: str, is_vision: bool = False):
     """Sync client → async counterpart, preserving Codex routing (``is_vision`` adds the Copilot vision header)."""
-    if capability_probe_active() or is_capability_probe_client(sync_client):
-        return _CAPABILITY_PROBE_CLIENT, model
     from openai import AsyncOpenAI
     if isinstance(sync_client, _AuxProbeClientStub):
         return sync_client, model
@@ -4744,7 +4773,8 @@ def _build_vertex_client(provider: str, model: Optional[str]) -> Tuple[Optional[
     final_model = _normalize_resolved_model(model or "google/gemini-3-flash-preview", provider)
     try:
         # Aliased import: a bare `from openai import OpenAI` would shadow the module-level lazy proxy.
-                client = OpenAI(api_key=token, base_url=base_url)
+        from openai import OpenAI as _VertexOpenAI
+        client = _VertexOpenAI(api_key=token, base_url=base_url)
     except Exception as exc:
         logger.warning("resolve_provider_client: cannot create Vertex client: %s", exc)
         return None, None
@@ -5911,7 +5941,7 @@ def _get_cached_client(
         provider, model, async_mode, explicit_base_url=base_url, explicit_api_key=effective_api_key,
         api_mode=api_mode, main_runtime=runtime, is_vision=is_vision, task=task,
     )
-    if client is not None and (_aux_probe_active() or is_capability_probe_client(client)):
+    if client is not None and _aux_probe_active():
         # Availability probes answer "resolvable?" and must leave the cache untouched: the
         # probe stub (bare, or wrapped in a Codex/Anthropic adapter whose leaf is the stub)
         # shares the runtime key, and a cached one is served to every later caller — the

@@ -164,7 +164,7 @@ def test_the_pattern_is_byte_identical_to_the_launchers():
 
     dart = Path(
         "X:/Unreal Engine/Engine/Launcher/EterniaLauncher/lib/features/"
-        "mission_control/data/mission_agent_identity.dart"
+        "mission_control/data/snapshot/mission_agent_identity.dart"
     )
     if not dart.is_file():
         pytest.skip(f"launcher checkout not present at {dart}")

@@ -32,7 +32,8 @@ from agent.charsheet.draft_lock import LOCK_FILENAME, STALE_HOLDER_SECONDS
 from agent.charsheet.revisions import STATE_FILENAME
 from agent.charsheet.spec import FOUR_WAY, SheetSpec, StateSpec
 from hermes_cli.harness import build_parser
-from hermes_constants import get_hermes_home, get_shared_characters_dir
+from hermes_constants import get_hermes_home
+from agent_runtime.profile_home import get_shared_characters_dir
 
 pytest.importorskip("PIL")
 
