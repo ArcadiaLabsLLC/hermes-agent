@@ -322,6 +322,30 @@ def test_a_live_row_says_nothing_at_all(tmp_path):
     assert events == []
 
 
+def test_the_pruning_boots_own_row_is_never_refused_whatever_its_command_line(tmp_path):
+    """A boot prunes with its own row already registered. That row is live by
+    construction, but its command line is only a hint: under pytest, or in a
+    checkout whose path lacks ``hermes``, it reads ``cmdline_not_serve_like``
+    and classifies ``unknown``. A ``refused`` line for it landed before
+    ``ready`` and reddened nine serve tests depending on the checkout's path.
+
+    *Positive control:* the same row pruned by a DIFFERENT boot is refused.
+    *Killing mutation:* drop ``own_row`` from the refusal guard and the first
+    assertion goes red with one ``refused`` event.
+    """
+
+    _register(tmp_path, pid=808, probe=_probe(start_time=8), boot_id="bootself")
+    not_serve = _probe(start_time=8, cmdline="python -m pytest tests/x.py")
+    events: list[dict] = []
+
+    prune_stale_serve_instances(tmp_path, probe=not_serve, emit=events.append, boot_id="bootself")
+    assert events == []
+
+    prune_stale_serve_instances(tmp_path, probe=not_serve, emit=events.append, boot_id="bootother")
+    assert [(e["action"], e["classification_reason"]) for e in events] == [("refused", "cmdline_not_serve_like")]
+    assert serve_instance_path(tmp_path, 808).exists()
+
+
 def test_an_unreadable_row_is_refused_under_the_classifiers_own_reason(tmp_path):
     """``unknown`` is the fail-safe direction, and it is REPORTED, not silent."""
 

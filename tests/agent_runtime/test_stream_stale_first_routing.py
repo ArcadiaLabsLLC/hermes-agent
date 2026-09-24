@@ -372,6 +372,11 @@ def _stream_frames_caller_files() -> set[str]:
             continue
         path = _REPO_ROOT / relative
         try:
+            # A file whose text never spells the name cannot call it. Parsing
+            # every production file instead ran this test past its 30 s cap and
+            # killed its whole bundle (scripts/test_bundles_unbundled.txt).
+            if "stream_frames" not in _tree_index.text(str(path)):
+                continue
             tree = _tree_index.parsed(str(path))
         except (SyntaxError, UnicodeDecodeError, OSError):
             # A file this repo owns that will not parse is not this gate's

@@ -598,9 +598,14 @@ def prune_stale_serve_instances(
             "classification": row.get("classification"),
             "classification_reason": row.get("classification_reason"),
         }
-        if row.get("classification") != CLASSIFICATION_STALE_DEAD_PID:
+        # The caller's OWN row is live by construction — this process is the
+        # one pruning. Its command line is only a hint (a pytest process, or a
+        # checkout whose path lacks ``hermes``, reads ``cmdline_not_serve_like``),
+        # so it is never refused out loud and never deleted.
+        own_row = boot_id is not None and row.get("boot_id") == str(boot_id)
+        if own_row or row.get("classification") != CLASSIFICATION_STALE_DEAD_PID:
             kept.append(summary)
-            if row.get("classification") != CLASSIFICATION_LIVE:
+            if not own_row and row.get("classification") != CLASSIFICATION_LIVE:
                 _emit_pruned_event(emit, summary, action="refused", boot_id=boot_id)
             continue
         try:
