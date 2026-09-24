@@ -1113,9 +1113,6 @@ class TestSharedBoardPaths:
                 captured["env"] = kwargs.get("env", {})
                 self.pid = 4242
 
-            def poll(self):
-                return None  # still running: the Windows reaper branch polls every live worker
-
         monkeypatch.setattr("subprocess.Popen", _FakePopen)
 
         task = kb.Task(

@@ -163,6 +163,7 @@ Each merged PR: the ledger row flips to `upstream`, the next merge brings the co
 
 - `tests/hermes_cli/conftest.py` (+1,266), `tests/conftest.py`, `tests/tools/conftest.py`, `tests/agent/conftest.py`: the fork's fixtures become `tests/_downstream/conftest_plugin.py` (a pytest plugin) loaded by ONE `pytest_plugins = [...]` line per upstream conftest — one additive line each.
 - The one-line-per-conftest shape is rejected by pytest 9.0.3 for the three non-root conftests (`pytest_plugins` outside the top-level conftest is refused), so they take a star import instead; see `docs/agent-runtime-harness/planned/seam-s4-s5-s6-inventory-2026-09-23.md` §1.5.
+- Superseded 2026-09-24 (lane CARRY3): the three directory conftests are upstream's bytes again and `tests/conftest.py` has lost its `pytest_plugins` line (its three in-place hunks are PR candidates). The fork-only root `conftest.py` imports the root plugin and registers each directory module under a `<dir>/_downstream_conftest.py` name when pytest registers the matching upstream conftest (directory scope kept); `tests/*/test_downstream_conftest_loader_downstream.py` pin it.
 - The 242 other upstream test files with fork test cases: each fork test moves to a fork-only sibling (`tests/<dir>/test_<name>_downstream.py`), source-pin census first (refactor rule 1.6). Mechanical; one lane per top-level test dir; MOVE-only commits.
 - Gate: the validated suite selects the same test ids (a `--collect-only` diff before/after is empty modulo file names); `[up-fp] files` −242.
 

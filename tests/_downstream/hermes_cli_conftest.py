@@ -1,9 +1,10 @@
 """Fork-owned half of ``tests/hermes_cli/conftest.py`` (seam Stage 5).
 
-Every name here was fork-added to that conftest; it is star-imported back by
-the one line the upstream conftest carries, so pytest discovers the fixtures
-and hooks on the conftest module exactly as before (same directory scope).
-``__all__`` lists the ``_``-prefixed names, which ``import *`` would skip.
+Every name here was fork-added to that conftest. The root ``conftest.py``
+registers this module when pytest registers ``tests/hermes_cli/conftest.py``, under a
+``tests/hermes_cli/_downstream_conftest.py`` name, so its fixtures keep that
+directory's scope and its hooks run; the upstream conftest carries no fork line
+(lane CARRY3).
 """
 
 from __future__ import annotations
@@ -40,7 +41,7 @@ _OWNER_NODEID_PREFIX = "tests/hermes_cli/"
 
 
 @pytest.fixture(autouse=True)
-def _gateway_fence_is_armed_for_this_test():
+def _gateway_fence_is_armed_for_this_test(request):
     """Arm the gateway fence for the duration of THIS directory's tests.
 
     Conftest import is process-wide, and in a combined run
@@ -70,12 +71,39 @@ def _gateway_fence_is_armed_for_this_test():
     The atexit window is not covered here (a spawn from a handler happens long
     after this teardown) and does not need to be — ``pytest_sessionfinish``
     latches the refusal on permanently, before any atexit handler runs.
+
+    A test marked ``spawns_gateway_lookalike`` runs unfenced here, the same
+    exemption the root live-system guard grants it (a test-owned gateway
+    stand-in; ``serve``/``dashboard`` stay refused there). Upstream's
+    ``test_cross_profile_kill_refusal.py`` and ``test_stderr_timestamp.py``
+    carry that mark and stay at upstream's path because of it.
     """
+    if request.node.get_closest_marker("spawns_gateway_lookalike") is not None:
+        yield
+        return
     _gateway_fence.arm()
     try:
         yield
     finally:
         _gateway_fence.disarm()
+
+
+@pytest.fixture(autouse=True)
+def _kanban_live_worker_registry_is_per_test():
+    """Empty ``kanban_db_dispatch._live_worker_procs`` after every test here.
+
+    On win32 ``reap_worker_zombies`` polls every handle ``_default_spawn``
+    parked in that module-level dict. A test that spawns through a fake
+    ``Popen`` leaves the fake parked, and upstream's fakes (``FakeProc``,
+    ``_FakePopen``) have no ``poll()``, so the NEXT test's reaper raises
+    (``test_gateway_dispatcher_disables_corrupt_board_without_traceback`` x2
+    reds on upstream's bytes). Only a module already imported is touched.
+    """
+    yield
+    dispatch = sys.modules.get("hermes_cli.kanban_db_dispatch")
+    registry = getattr(dispatch, "_live_worker_procs", None)
+    if isinstance(registry, dict):
+        registry.clear()
 
 
 #: Every module that binds :func:`hermes_constants.agent_browser_runnable` by
@@ -1295,6 +1323,7 @@ __all__ = [
     "_no_windows_gateway_pause_token",
     "_empty_process_iter",
     "_no_live_process_table",
+    "_kanban_live_worker_registry_is_per_test",
     "_WINDOWS",
     "_HOST",
     "_WEB_BUILD_PREREQ_FILES",

@@ -830,6 +830,27 @@ if _WIN:
     })
 
 
+# ── CARRY3: upstream tests that call monkeypatch.undo() mid-body run upstream's
+# bytes with undo narrowed to their own patches (conftest_plugin.pytest_pyfunc_call).
+_SCOPED_UNDO = pytest.mark.scoped_monkeypatch_undo
+ID_MARKS.update({
+    node: (_SCOPED_UNDO,)
+    for node in (
+        "tests/hermes_cli/test_kanban_worker_pid_fingerprint.py::"
+        "test_unverified_fingerprint_capture_never_authorizes_a_signal",
+        "tests/hermes_cli/test_macos_tcc_anchor.py::TestEnsureTccAnchor::"
+        "test_alias_failure_leaves_anchor_unmarked",
+        "tests/hermes_cli/test_plugins.py::TestPluginDiscovery::test_failed_discovery_is_not_cached",
+        "tests/hermes_cli/test_update_zip_two_phase.py::test_failed_swap_rolls_back_every_earlier_swap",
+        "tests/hermes_cli/test_update_zip_two_phase.py::test_file_swap_failure_restores_the_original_file",
+        "tests/hermes_cli/test_update_zip_two_phase.py::test_failed_staging_leaves_no_orphaned_copies",
+        "tests/hermes_cli/test_update_zip_two_phase.py::test_staging_restores_backup_when_dst_is_missing",
+        "tests/hermes_cli/test_update_zip_two_phase.py::"
+        "test_commit_failure_plus_discard_leaves_no_staging_litter",
+    )
+})
+
+
 def _base_id(nodeid: str) -> str:
     return nodeid.split("[", 1)[0]
 

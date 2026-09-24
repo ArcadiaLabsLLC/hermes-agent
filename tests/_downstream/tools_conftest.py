@@ -1,9 +1,10 @@
 """Fork-owned half of ``tests/tools/conftest.py`` (seam Stage 5).
 
-Every name here was fork-added to that conftest; it is star-imported back by
-the one line the upstream conftest carries, so pytest discovers the fixtures
-and hooks on the conftest module exactly as before (same directory scope).
-``__all__`` lists the ``_``-prefixed names, which ``import *`` would skip.
+Every name here was fork-added to that conftest. The root ``conftest.py``
+registers this module when pytest registers ``tests/tools/conftest.py``, under a
+``tests/tools/_downstream_conftest.py`` name, so its fixtures keep that
+directory's scope and its hooks run; the upstream conftest carries no fork line
+(lane CARRY3).
 """
 
 from __future__ import annotations

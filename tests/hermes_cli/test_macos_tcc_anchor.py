@@ -306,7 +306,6 @@ class TestEnsureTccAnchor:
         store_bin = _build_store(tmp_path)
         root = _build_checkout(tmp_path, store_bin=store_bin)
         venv_py = venv_python_path(root / ".venv")
-        real_copy_alias = tcc._copy_alias
         monkeypatch.setattr(tcc, "_copy_alias", lambda *a, **k: False)
 
         import logging
@@ -320,7 +319,8 @@ class TestEnsureTccAnchor:
         assert any("alias" in r.message for r in caplog.records)
 
         # Recovery: with alias copies working again the retry completes.
-        monkeypatch.setattr(tcc, "_copy_alias", real_copy_alias)
+        monkeypatch.undo()
+        monkeypatch.setattr(tcc.platform, "system", lambda: "Darwin")
         assert tcc.ensure_tcc_anchor(root) is not None
         assert tcc.tcc_anchor_state(root)[0] == "active"
 

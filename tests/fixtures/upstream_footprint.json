@@ -1,9 +1,9 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 230,
-  "deleted_lines": 1635,
-  "heavy": 6,
+  "files": 219,
+  "deleted_lines": 1072,
+  "heavy": 4,
   "reasons": [
     {
       "change": "seam Stage 1 (seam/s1-proof)",
@@ -107,6 +107,13 @@
       "files": "295 -> 230",
       "deleted_lines": "1876 -> 1635",
       "reason": "upstream test files outside tests/hermes_cli restored to the merge base's bytes: tests/tools (20 files). Fork tests ride *_downstream.py siblings with upstream fixtures imported by name; POSIX-only reds are id-table skips reading 'POSIX-only; upstream fix = @pytest.mark.linux_only'; fork behaviour that makes an upstream assertion false is a strict xfail row naming the fork symbol; readers the fork moved to load_config_readonly get a by-id read-through to upstream's patched load_config; tests/gateway (11 files + conftest) and tui_gateway's kanban poller: the agent-turn lane is opted in by id (background_agent_turns, now one root fixture for the whole tree), mid-test monkeypatch.undo() tests are skip rows with scoped-context siblings, conftest env-gap skips are id rows; the rest (agent 10, hermes_state 3, plugins 4, providers, cron, e2e conftest, scripts 5, tui_gateway 2, tests/*.py 2) and tests/tools' two remaining rule-4 carries plus test_code_execution_modes (whose T6b tests went red when lane MOVE-A moved the brief to middleware): file-level id rows carry the pytest-timeout budgets and the MCF-66 opt-in with claude_home_is_tmp_path (the credentials gate treats that mark as the redirect); rule-4 carries become strict xfail rows with the fork half in the sibling; heavy 7 -> 6"
+    },
+    {
+      "change": "lane CARRY3 tests/ (seam/carry-pass-2026-09-24)",
+      "files": "230 -> 219",
+      "deleted_lines": "1635 -> 1072",
+      "reason": "tests/{agent,tools,hermes_cli}/conftest.py byte-identical: the fork-only root conftest.py registers each tests/_downstream/<dir>_conftest module under a <dir>/_downstream_conftest.py name when pytest registers that directory's conftest (directory-scoped fixtures, as the star-import gave), and imports tests._downstream.conftest_plugin after tests/conftest.py (its pytest_plugins line leaves); four monkeypatch.undo() carries (kanban_worker_pid_fingerprint, macos_tcc_anchor, plugins, update_zip_two_phase) run upstream's bytes under the scoped_monkeypatch_undo id mark (undo narrowed to the body's own patches); test_cross_profile_kill_refusal and test_stderr_timestamp back at upstream's path (the tests/hermes_cli gateway fence honours spawns_gateway_lookalike; the tests/gateway relocations deleted, -509); kanban_core_functionality and kanban_db byte-identical (the hermes_cli conftest empties kanban_db_dispatch._live_worker_procs after each test); heavy 6 -> 4",
+      "heavy": "6 -> 4"
     }
   ]
 }

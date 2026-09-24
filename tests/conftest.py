@@ -31,7 +31,6 @@ import tempfile
 from pathlib import Path
 
 import pytest
-pytest_plugins = ["tests._downstream.conftest_plugin"]
 
 # Ensure project root is importable
 PROJECT_ROOT = Path(__file__).parent.parent

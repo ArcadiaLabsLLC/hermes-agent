@@ -11,7 +11,6 @@ depend on the registry being populated should use it explicitly or via
 from unittest.mock import patch
 
 import pytest
-from tests._downstream.tools_conftest import *  # noqa: F401,F403
 
 
 @pytest.fixture(autouse=True)

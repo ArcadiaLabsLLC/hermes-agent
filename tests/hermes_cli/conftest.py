@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-from tests._downstream.hermes_cli_conftest import *  # noqa: F401,F403
 
 
 @pytest.fixture

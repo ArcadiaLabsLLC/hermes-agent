@@ -1,10 +1,11 @@
-"""Fork-owned root test plugin (seam Stage 5), loaded by ``tests/conftest.py``'s
-one ``pytest_plugins`` line.
+"""Fork-owned root test plugin (seam Stage 5), imported by the fork-only root
+``conftest.py`` right after pytest registers ``tests/conftest.py`` (lane CARRY3;
+that upstream file's ``pytest_plugins`` line is gone).
 
 Every fixture, hook and constant here was fork-added to ``tests/conftest.py``;
-moving them leaves that upstream file one added line away from upstream (plus
-the in-place edits of upstream names that the Stage 3 PR series owns). A module
-named in ``pytest_plugins`` registers its fixtures session-wide (node id
+moving them leaves that upstream file carrying none of them (only
+the in-place edits of upstream names that the Stage 3 PR series owns). A plugin
+imported by name registers its fixtures session-wide (node id
 ``""``), one level above the root conftest's ``tests`` scope, so the autouse
 fixtures here set up before the conftest's and tear down after them. The two
 that import production modules request ``_hermetic_environment`` so they still
@@ -629,6 +630,48 @@ FORK_TEST_TIMEOUT_SECONDS = 30.0
 FORK_TEST_TIMEOUT_METHOD = "thread"
 
 
+_SCOPED_MONKEYPATCH_UNDO_MARK = "scoped_monkeypatch_undo"
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_pyfunc_call(pyfuncitem):
+    """Run an upstream test's mid-body ``monkeypatch.undo()`` against its OWN patches.
+
+    Upstream tests that drop a stub with ``monkeypatch.undo()`` unwind the shared
+    per-test instance, fixtures' hermetic pins included, and redden
+    ``_shared_monkeypatch_pin_tripwire``. For a test carrying the mark (applied by
+    id from ``tests/_downstream/id_markers.py``) ``undo`` is narrowed, for the call
+    only, to the entries the BODY pushed: the stack length is taken once every
+    fixture has set up, and an undo replays only the tail above it. Upstream's
+    bytes run unchanged; what they drop is exactly what they patched.
+    """
+    monkeypatch = None
+    if pyfuncitem.get_closest_marker(_SCOPED_MONKEYPATCH_UNDO_MARK) is not None:
+        monkeypatch = getattr(pyfuncitem, "funcargs", {}).get("monkeypatch")
+    if monkeypatch is None:
+        return (yield)
+    base_attr, base_item = len(monkeypatch._setattr), len(monkeypatch._setitem)
+    base_cwd, base_path = monkeypatch._cwd, monkeypatch._savesyspath
+
+    def body_undo() -> None:
+        # A private instance takes the body's tail; leaving the context unwinds it alone.
+        with pytest.MonkeyPatch.context() as body:
+            body._setattr = monkeypatch._setattr[base_attr:]
+            del monkeypatch._setattr[base_attr:]
+            body._setitem = monkeypatch._setitem[base_item:]
+            del monkeypatch._setitem[base_item:]
+            if base_cwd is None:
+                body._cwd, monkeypatch._cwd = monkeypatch._cwd, None
+            if base_path is None:
+                body._savesyspath, monkeypatch._savesyspath = monkeypatch._savesyspath, None
+
+    monkeypatch.undo = body_undo
+    try:
+        return (yield)
+    finally:
+        del monkeypatch.undo
+
+
 @pytest.hookimpl(tryfirst=True)
 def pytest_configure(config):  # noqa: D401 — pytest hook
     """Register the fork's markers and default the per-test timeout.
@@ -692,4 +735,10 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         "on this machine (it reads the real fleet process table); it skips, naming "
         "the live pids, where one does (applied by id from "
         "tests/_downstream/id_markers.py).",
+    )
+    config.addinivalue_line(
+        "markers",
+        f"{_SCOPED_MONKEYPATCH_UNDO_MARK}: the upstream test calls monkeypatch.undo() "
+        "mid-body; undo is narrowed to the body's own patches so the fixtures' hermetic "
+        "pins hold (applied by id from tests/_downstream/id_markers.py).",
     )

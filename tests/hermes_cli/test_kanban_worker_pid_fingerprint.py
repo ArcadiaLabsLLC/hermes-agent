@@ -118,19 +118,13 @@ def test_unverified_fingerprint_capture_never_authorizes_a_signal(board, monkeyp
 
     conn = board
     killed = []
-    # A SCOPED context, not ``monkeypatch.undo()``: only the start-time stub is meant to be
-    # dropped here, but ``undo()`` takes no argument and drops every patch on the shared
-    # per-test instance — including the root conftest's autouse hermetic pins (HERMES_HOME
-    # redirected to a tempdir, credential env vars blanked). The rest of this test would then
-    # run against the operator's live root: that is the 2026-08-17 leak, and
-    # ``tests/agent_runtime/test_no_midtest_monkeypatch_undo.py`` is the gate on it.
-    with pytest.MonkeyPatch.context() as patched:
-        patched.setattr(status, "_get_process_start_time", lambda pid: None)
-        tid = kb.create_task(conn, title="job", assignee="worker", max_runtime_seconds=1)
-        kb.claim_task(conn, tid)
-        kbd._set_worker_pid(conn, tid, os.getpid())
-        row = conn.execute("SELECT worker_started_at FROM tasks WHERE id = ?", (tid,)).fetchone()
-        assert row["worker_started_at"] == kbd.UNVERIFIED_WORKER_FINGERPRINT
+    monkeypatch.setattr(status, "_get_process_start_time", lambda pid: None)
+    tid = kb.create_task(conn, title="job", assignee="worker", max_runtime_seconds=1)
+    kb.claim_task(conn, tid)
+    kbd._set_worker_pid(conn, tid, os.getpid())
+    row = conn.execute("SELECT worker_started_at FROM tasks WHERE id = ?", (tid,)).fetchone()
+    assert row["worker_started_at"] == kbd.UNVERIFIED_WORKER_FINGERPRINT
+    monkeypatch.undo()
     old = int(time.time()) - 3600
     with kb.write_txn(conn):
         conn.execute("UPDATE tasks SET started_at = ?, claim_expires = ? WHERE id = ?", (old, old, tid))

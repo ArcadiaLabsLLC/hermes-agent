@@ -31,9 +31,10 @@ Two independent mechanisms live here. Neither weakens an assertion.
    ``_ENV_GAPS`` (the older mark-only form, which left the tests failing) is
    now empty here: the 2026-08-10 audit found twenty of its twenty-four rows
    were stale tests or a real defect. See the block comment above 
-Fork-owned half of ``tests/agent/conftest.py`` (seam Stage 5): star-imported
-back by the one line that conftest carries; ``__all__`` lists the
-``_``-prefixed names ``import *`` would otherwise skip.
+Fork-owned half of ``tests/agent/conftest.py`` (seam Stage 5): the root
+``conftest.py`` registers it when pytest registers that conftest, under a
+``tests/agent/_downstream_conftest.py`` name (directory scope); that upstream
+conftest carries no fork line (lane CARRY3).
 """
 
 from __future__ import annotations
