@@ -1075,11 +1075,6 @@ def _bash_from_git() -> "str | None":
     return None
 
 
-def _bash_probe_failure_details(bash: str) -> str:
-    """Cached probe output for *bash*, empty when it started fine."""
-    return _bash_probe_details_cache.get(bash, "")
-
-
 def _windows_system_path_dirs() -> "list[str]":
     """Windows dirs that host the native command tooling the agent may shell
     out to from its bash terminal — ``cmd.exe``, ``powershell.exe`` (Windows

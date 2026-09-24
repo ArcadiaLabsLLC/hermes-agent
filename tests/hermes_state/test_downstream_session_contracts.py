@@ -54,7 +54,7 @@ def test_pinned_default_db_path_still_wins_over_env(tmp_path, monkeypatch):
     monkeypatch.setattr(hermes_state, "DEFAULT_DB_PATH", pinned)
     monkeypatch.setenv("HERMES_HOME", str(env_home))
 
-    assert hermes_state._resolve_default_db_path() == pinned
+    assert hermes_state._default_db_path() == pinned
 
     db = SessionDB()
     try:
@@ -74,7 +74,7 @@ def test_resolve_default_db_path_falls_back_to_live_home(tmp_path, monkeypatch):
         hermes_state, "DEFAULT_DB_PATH", hermes_state._IMPORT_DEFAULT_DB_PATH
     )
     assert hermes_state.DEFAULT_DB_PATH == hermes_state._IMPORT_DEFAULT_DB_PATH
-    assert hermes_state._resolve_default_db_path() == home / "state.db"
+    assert hermes_state._default_db_path() == home / "state.db"
 
 
 def test_rich_list_orders_deterministically_on_started_at_tie(db):

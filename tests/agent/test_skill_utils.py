@@ -412,16 +412,3 @@ class TestBOMToleranceSiblingSites:
         fm = _split_frontmatter("\ufeff---\nname: bp\n---\nbody")
         assert fm is not None
         assert fm.get("name") == "bp"
-
-
-# ── chat-turn-prep Stage 8: one registry walk per root per turn (CP-4, CP-5) ──
-#
-# The number these defend, from the 2026-09-08 CP-9 read of nine live Windows
-# turns: skill work was 74–89 % of the pre-admit span (median 88.2 %), with
-# `observability_skill_rows_ms` at 157–547 ms against a 30 ms target.
-#
-# What makes the walk expensive is NOT a cache miss. `_skill_root_registry`'s
-# process cache is validated BY fingerprint, so reaching it at all re-runs
-# `iter_skill_index_files`, a whole-root `rglob("*.md")` and a `stat` per path;
-# only the frontmatter parse is skipped on a hit. So these count WALKS, through
-# `skill_root_walks_this_thread`, and never wall-clock.

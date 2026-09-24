@@ -163,46 +163,6 @@ def _copy_fallback(tmp_str: str, real_path: str) -> None:
     os.unlink(tmp_str)
 
 
-_WINDOWS_REPLACE_RETRY_ERRNOS = frozenset({errno.EACCES})
-
-_WINDOWS_REPLACE_RETRY_WINERRORS = frozenset({5, 32})
-
-_WINDOWS_REPLACE_ATTEMPTS = 20
-
-_WINDOWS_REPLACE_BACKOFF_SECONDS = 0.01
-
-def _is_windows_replace_contention(exc: OSError) -> bool:
-    """True for the transient Win32 rename-over collisions worth retrying."""
-    if os.name != "nt":
-        return False
-    winerror = getattr(exc, "winerror", None)
-    if winerror is not None:
-        return winerror in _WINDOWS_REPLACE_RETRY_WINERRORS
-    return exc.errno in _WINDOWS_REPLACE_RETRY_ERRNOS
-
-def _replace_with_windows_contention_retry(src: str, dst: str) -> None:
-    """``os.replace`` plus a bounded retry for Windows rename contention.
-
-    A no-op wrapper on POSIX (the first attempt either succeeds or raises a
-    real error). On Windows a transient ERROR_ACCESS_DENIED /
-    ERROR_SHARING_VIOLATION is retried for up to ~200ms before the original
-    exception is re-raised unchanged, so a genuinely unwritable destination
-    still fails, and fails with its real error.
-    """
-    import time
-
-    for attempt in range(_WINDOWS_REPLACE_ATTEMPTS):
-        try:
-            os.replace(src, dst)
-            return
-        except OSError as exc:
-            if (
-                attempt == _WINDOWS_REPLACE_ATTEMPTS - 1
-                or not _is_windows_replace_contention(exc)
-            ):
-                raise
-            time.sleep(_WINDOWS_REPLACE_BACKOFF_SECONDS)
-
 def atomic_replace(tmp_path: Union[str, Path], target: Union[str, Path]) -> str:
     """Atomically move *tmp_path* onto *target*, preserving symlinks.
 
@@ -216,7 +176,7 @@ def atomic_replace(tmp_path: Union[str, Path], target: Union[str, Path]) -> str:
     real_path = os.path.realpath(target_str) if os.path.islink(target_str) else target_str
     tmp_str = str(tmp_path)
     try:
-        _replace_with_windows_contention_retry(tmp_str, real_path)
+        os.replace(tmp_str, real_path)
         return real_path
     except OSError as exc:
         contended = _is_contended_windows_replace_error(exc)
@@ -228,7 +188,7 @@ def atomic_replace(tmp_path: Union[str, Path], target: Union[str, Path]) -> str:
             for attempt in range(1, _REPLACE_RETRY_ATTEMPTS + 1):
                 time.sleep(jittered_backoff(attempt, base_delay=_REPLACE_RETRY_BASE_DELAY_S, max_delay=_REPLACE_RETRY_MAX_DELAY_S))
                 try:
-                    _replace_with_windows_contention_retry(tmp_str, real_path)
+                    os.replace(tmp_str, real_path)
                     return real_path
                 except OSError as retry_exc:
                     exc = retry_exc

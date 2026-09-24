@@ -4218,23 +4218,8 @@
       "path": "agent_runtime/personas.py",
       "symbol": "all_registered_toolsets",
       "operator": "restore-availability-probe",
-      "find": "    from model_tools import get_registered_toolset_names\n\n    return [str(name) for name in get_registered_toolset_names()]\n",
-      "replace": "    from model_tools import get_available_toolsets\n\n    return sorted(str(name) for name in get_available_toolsets().keys())\n",
-      "test": [
-        "{python}",
-        "-m",
-        "pytest",
-        "-q",
-        "tests/agent_runtime/test_tool_visibility_import_deferral.py::test_the_registered_toolset_names_cost_no_availability_probe"
-      ]
-    },
-    {
-      "id": "w5-the-names-accessor-answers-through-the-verdict",
-      "path": "model_tools.py",
-      "symbol": "get_registered_toolset_names",
-      "operator": "restore-availability-probe",
-      "find": "    return registry.get_registered_toolset_names()\n",
-      "replace": "    return sorted(registry.get_available_toolsets().keys())\n",
+      "find": "    return [str(name) for name in registry.get_registered_toolset_names()]\n",
+      "replace": "    return sorted(str(name) for name in registry.get_available_toolsets().keys())\n",
       "test": [
         "{python}",
         "-m",

@@ -13,7 +13,6 @@ updaters).
 
 from pathlib import Path
 
-
 from hermes_cli import main as hermes_main
 from hermes_cli import _bytecode_sweep as sweep
 from hermes_cli import main_web_build
@@ -53,16 +52,6 @@ def test_sweep_clears_pycache_when_checkout_changed(monkeypatch, tmp_path):
     assert recorded.strip().endswith("b" * 40)
 
 
-# ---------------------------------------------------------------------------
-# BW-0: the sweep reports what it cost
-#
-# The 2026-08-17 cold Mission Control boot had TWO processes each clear ~175
-# ``__pycache__`` directories 12 ms apart and then race each other recompiling
-# the import set they had just deleted. The log line said how many directories
-# went and nothing about how long it took, so the share of that boot's 20.4 s
-# import tax owed to this function was pure inference — and one of the plan's
-# optimisation stages is aimed at exactly that share.
-# ---------------------------------------------------------------------------
 
 
 

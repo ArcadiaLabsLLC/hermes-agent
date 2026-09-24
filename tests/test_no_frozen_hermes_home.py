@@ -12,7 +12,7 @@ That is not hypothetical: it silently deposited fixture chat sessions into the
 live ``state.db`` (surfaced as Mission Control's "projection drops" alert),
 because a no-arg ``SessionDB()`` bound to the import-time ``DEFAULT_DB_PATH``
 rather than the test's redirected home. The fix was to resolve the home at call
-time — see ``hermes_state._resolve_default_db_path`` for the canonical pattern
+time — see ``hermes_state._default_db_path`` for the canonical pattern
 (resolve live via ``get_hermes_home()``; honor an explicitly reassigned constant
 so ``monkeypatch.setattr`` isolation keeps working).
 
@@ -119,7 +119,7 @@ FROZEN_LEDGER: dict[str, tuple[frozenset[str], str]] = {
     "hermes_state.py": (
         frozenset({"DEFAULT_DB_PATH", "_IMPORT_DEFAULT_DB_PATH"}),
         "upstream, and benign: SessionDB resolves live via "
-        "_resolve_default_db_path and only falls back to DEFAULT_DB_PATH when "
+        "_default_db_path and only falls back to DEFAULT_DB_PATH when "
         "it has been deliberately reassigned. _IMPORT_DEFAULT_DB_PATH exists "
         "precisely to detect that reassignment.",
     ),
@@ -386,7 +386,7 @@ def test_no_new_frozen_hermes_home_values(probe_result: dict) -> None:
         + "\n".join(f"  {rel}: {name}" for rel, name in new)
         + "\n\nA module-level constant freezes HERMES_HOME at import and breaks "
         "test isolation / in-process profile switches. Resolve the path at call "
-        "time instead — see hermes_state._resolve_default_db_path for the "
+        "time instead — see hermes_state._default_db_path for the "
         "pattern. If the value genuinely cannot be lazy, add it to FROZEN_LEDGER "
         "in this test with a justification."
     )

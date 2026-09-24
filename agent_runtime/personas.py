@@ -448,16 +448,18 @@ def all_registered_toolsets() -> list[str]:
     agent create paid four seconds of machine-capability probing to learn a list
     of strings the registry already had.
 
-    ``from model_tools import`` and not ``from tools.registry import`` on
-    purpose: importing ``model_tools`` is what POPULATES that registry, and a
-    reader that reached the singleton directly would read an EMPTY one and
-    answer "there are no toolsets" — a silent wrong answer, exactly the trap
-    ``tool_visibility._ensure_tool_registry_populated`` documents.
+    ``import model_tools`` first on purpose: importing it is what POPULATES
+    the registry, and a reader that reached the singleton without it would read
+    an EMPTY one and answer "there are no toolsets" — a silent wrong answer,
+    exactly the trap ``tool_visibility._ensure_tool_registry_populated``
+    documents. The names accessor itself is upstream's
+    ``ToolRegistry.get_registered_toolset_names``.
     """
 
-    from model_tools import get_registered_toolset_names
+    import model_tools  # noqa: F401 — populates the registry
+    from tools.registry import registry
 
-    return [str(name) for name in get_registered_toolset_names()]
+    return [str(name) for name in registry.get_registered_toolset_names()]
 
 
 # ── profile → persona promotion ───────────────────────────────────────────────

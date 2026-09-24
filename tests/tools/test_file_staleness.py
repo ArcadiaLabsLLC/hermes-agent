@@ -126,8 +126,11 @@ class TestStalenessCheck(unittest.TestCase):
         with open(self._tmpfile) as f:
             self.assertEqual(f.read(), "merged\n")
 
-    def test_write_file_requires_read_even_after_patch(self):
-        """Neither an unread file nor a targeted patch provides a full baseline."""
+    def test_write_file_requires_full_unredacted_read_of_existing_file(self):
+        """Existing file with no baseline is refused untouched: never read, only
+        patched, read partially, or read redacted (the «redacted:…» sentinel must
+        never be persisted). A net-new file needs no baseline and the task's own
+        write is a baseline for its next write."""
         refused = json.loads(write_file_tool(self._tmpfile, "x\n", task_id="t2"))
         self.assertTrue(refused.get("stale_write_blocked"), refused)
         self.assertIn("has not seen its full current content", refused["error"])
@@ -137,15 +140,11 @@ class TestStalenessCheck(unittest.TestCase):
         self.assertNotIn("error", patched)
         self.assertTrue(json.loads(write_file_tool(self._tmpfile, "x\n", task_id="t2")).get("stale_write_blocked"))
 
-    def test_write_file_refuses_partial_read_baseline(self):
-        """Seeing one line does not authorize replacing the unseen remainder."""
         with open(self._tmpfile, "w") as f:
             f.write("one\ntwo\nthree\n")
         self.assertNotIn("error", json.loads(read_file_tool(self._tmpfile, offset=1, limit=1, task_id="t2")))
         self.assertTrue(json.loads(write_file_tool(self._tmpfile, "x\n", task_id="t2")).get("stale_write_blocked"))
 
-    def test_write_file_refuses_redacted_read_baseline(self):
-        """A redacted view must never replace the original secret on disk."""
         secret = "ghp_" + "A" * 40
         with open(self._tmpfile, "w") as f:
             f.write(f"token={secret}\n")
@@ -157,8 +156,6 @@ class TestStalenessCheck(unittest.TestCase):
         with open(self._tmpfile) as f:
             self.assertEqual(f.read(), f"token={secret}\n")
 
-    def test_own_new_file_write_provides_full_baseline(self):
-        """A net-new file needs no read; the task's own write supplies its baseline."""
         new_path = os.path.join(self._tmpdir, "brand_new.txt")
         self.assertNotIn("error", json.loads(write_file_tool(new_path, "one\n", task_id="t2")))
         self.assertNotIn("error", json.loads(write_file_tool(new_path, "two\n", task_id="t2")))

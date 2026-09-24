@@ -1699,6 +1699,3 @@ def __getattr__(name):  # PEP 562 — lazy so no import cycles
     warn_once(__name__, name, *target)
     return getattr(importlib.import_module(target[0]), target[1])
 # ---- END PLUGIN-COMPAT ----
-
-# Downstream legacy name; upstream now provides the same call-time resolver.
-_resolve_default_db_path = _default_db_path

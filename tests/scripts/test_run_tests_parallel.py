@@ -470,6 +470,8 @@ def test_zero_collected_across_run_fails_and_says_so(tmp_path: Path) -> None:
     assert "NOT a pass" in proc.stdout
 
 
+
+
 def test_node_id_selector_runs_the_named_test(tmp_path: Path) -> None:
     """``file.py::test_alpha`` runs that test instead of discovering nothing."""
     probe_dir = _make_probe_dir(tmp_path)
@@ -509,19 +511,6 @@ def test_explicit_k_wins_over_node_id_inference(tmp_path: Path) -> None:
     assert "1 tests passed" in proc.stdout
 
 
-# ---------------------------------------------------------------------------
-# Retry composition: two mechanisms, disjoint ownership.
-#
-# The runner carries BOTH an in-pool one-shot flake retry (--file-retries, the
-# `test_file_retry_self_heals_and_prints_both_attempts` case above) and a
-# post-drain straggler pass that re-runs TIMEOUT-shaped results once, serially,
-# at 1-worker isolation. Naively stacking them would run a hung file three
-# times — twice inside the pool (each paying the full --file-timeout) and once
-# at isolation, for no signal: an immediate re-run happens under exactly the
-# contention the timeout is blamed on. The contract pinned here is the split:
-#   * timeout-shaped nonzero  -> straggler pass only (no in-pool retry)
-#   * any other nonzero       -> in-pool retry only (flake self-heal)
-# ── the branch-measurement seam ─────────────────────────────────────────────
 def test_multiple_absolute_paths_split_on_pathsep(tmp_path: Path) -> None:
     """``--paths`` accepts ``os.pathsep``-joined absolute paths.
 

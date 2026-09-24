@@ -9,7 +9,6 @@ Pins:
   rows — the silent-miss tripwire.
 """
 
-
 from hermes_cli.update_inventory import (
     RuntimeRecord,
     UpdatePlan,
@@ -333,11 +332,6 @@ def test_unaccounted_serve_report_names_serve_remedy_not_gateway_restart(capsys)
     assert report_unaccounted_runtimes(outcomes) is True
     out = capsys.readouterr().out
     assert "serve [default] pid 900" in out
-    # The remedy points at the SERVE process, never at a gateway verb that cannot reach it
-    # (#100479). The wording is host-independent; the systemd line is not — upstream gated
-    # ``systemctl --user restart hermes-serve.service`` behind ``sys.platform == "linux"`` in
-    # the 2026-09-17 merge, correctly, since systemctl does not exist elsewhere. That arm is
-    # its own Linux-marked test below rather than a platform branch inside this one.
     assert "relaunch `hermes serve`" in out
     assert "hermes gateway restart" not in out
 

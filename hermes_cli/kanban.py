@@ -9,7 +9,6 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
-from hermes_cli.flag_binding import list_flag_or_empty
 import os
 import shlex
 import sys
@@ -259,12 +258,12 @@ def _ok_or_err(ok, fail: str, done: str) -> int:
 
 def _bulk_ids(args: argparse.Namespace) -> list[str]:
     """Positional ``task_id`` plus ``--ids`` extras (bulk verbs)."""
-    return [args.task_id] + list_flag_or_empty(args, "ids")
+    return [args.task_id] + list(getattr(args, "ids", None) or [])
 
 
 def _require_ids(args: argparse.Namespace) -> tuple[list[str], int]:
     """``args.task_ids`` -> ``(ids, 0)`` or ``([], 1)`` after printing the standard error."""
-    ids = list_flag_or_empty(args, "task_ids")
+    ids = list(args.task_ids or [])
     if not ids:
         return ids, _err("at least one task_id is required")
     return ids, 0
@@ -373,7 +372,7 @@ def _cmd_create(args: argparse.Namespace) -> int:
             created_by=args.created_by or _profile_author(),
             workspace_kind=ws_kind, workspace_path=ws_path, branch_name=branch_name,
             project_id=getattr(args, "project", None), tenant=args.tenant, priority=args.priority,
-            parents=tuple(list_flag_or_empty(args, "parent")), triage=bool(getattr(args, "triage", False)),
+            parents=tuple(args.parent or ()), triage=bool(getattr(args, "triage", False)),
             idempotency_key=getattr(args, "idempotency_key", None),
             max_runtime_seconds=max_runtime, skills=getattr(args, "skills", None) or None,
             max_retries=max_retries, model_override=getattr(args, "model_override", None),
@@ -401,7 +400,7 @@ def _cmd_create(args: argparse.Namespace) -> int:
 
 def _cmd_swarm(args: argparse.Namespace) -> int:
     try:
-        workers = [ks.parse_worker_arg(raw) for raw in list_flag_or_empty(args, "worker")]
+        workers = [ks.parse_worker_arg(raw) for raw in (args.worker or [])]
     except ValueError as exc:
         return _err(f"kanban swarm: {exc}", 2)
     if not workers:
@@ -1127,8 +1126,8 @@ def _cmd_promote(args: argparse.Namespace) -> int:
 
 
 def _cmd_archive(args: argparse.Namespace) -> int:
-    ids = list_flag_or_empty(args, "task_ids")
-    purge_ids = list_flag_or_empty(args, "purge_ids")
+    ids = list(args.task_ids or [])
+    purge_ids = list(getattr(args, "purge_ids", None) or [])
     if ids and purge_ids:
         return _err("choose either task_ids to archive or --rm archived task_ids")
     if not ids and not purge_ids:

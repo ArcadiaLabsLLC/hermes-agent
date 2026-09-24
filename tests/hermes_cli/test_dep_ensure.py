@@ -121,6 +121,3 @@ def test_ensure_dependency_uses_powershell_on_windows(tmp_path):
         assert cmd[cmd.index("-Ensure") + 1] == "node"
         assert "-HermesHome" in cmd
         assert str(tmp_path / "fakehome") in cmd
-
-
-# --- ensure_git_bash -------------------------------------------------------

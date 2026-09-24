@@ -153,3 +153,4 @@ class TestSlackFullManifest:
         for event in ("message.im", "message.channels", "message.groups", "app_mention"):
             assert event in bot_events
 
+

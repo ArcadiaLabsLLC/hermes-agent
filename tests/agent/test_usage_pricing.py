@@ -104,6 +104,11 @@ def test_normalize_usage_openai_reads_top_level_anthropic_cache_fields():
 
 
 
+
+
+
+
+
 def test_deepseek_v4_pro_pricing_entry_exists():
     """Regression test: deepseek-v4-pro must have a pricing entry.
 

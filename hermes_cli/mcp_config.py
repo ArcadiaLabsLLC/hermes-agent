@@ -617,7 +617,7 @@ def cmd_mcp_add(args):
     url = getattr(args, "url", None)
     # --command uses dest="mcp_command" (see hermes_cli/main.py for why the dest is renamed).
     command = getattr(args, "mcp_command", None)
-    cmd_args = list_flag_or_empty(args, "args")
+    cmd_args = getattr(args, "args", None) or []
     if cmd_args and cmd_args[0] == "--":
         cmd_args = cmd_args[1:]
     auth_type = getattr(args, "auth", None)
