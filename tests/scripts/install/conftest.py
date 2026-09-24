@@ -1,4 +1,4 @@
-"""Fork-owned harness for the ``scripts/install.sh`` tests on a Windows host.
+r"""Fork-owned harness for the ``scripts/install.sh`` tests on a Windows host.
 
 The upstream tests hand a bare ``"bash"`` to ``subprocess``. On POSIX that is a
 PATH lookup. On Windows ``CreateProcess`` searches ``System32`` BEFORE ``PATH``,
@@ -12,9 +12,12 @@ which does take a Windows path) passed on the same box.
 This conftest makes a bare ``bash`` resolve the way the tests mean it to: by
 ``PATH``, exactly as on POSIX. It rewrites nothing else, touches no upstream
 file, and is inert on POSIX hosts and on a Windows host whose ``PATH`` has no
-bash of its own. That alone turned 24 of the 43 reds green on this box.
+bash of its own. That alone turned 21 of the 43 reds green on this box.
 
-The other 19 cannot pass on ANY Windows host, whichever bash runs them, and
+The other 19 — and three node-probe tests that PASS under the PATH bash only
+by accident, writing their HERMES_HOME into a PUA-named directory in the
+checkout root because the path in their generated driver lost its
+backslashes — cannot pass on ANY Windows host, whichever bash runs them, and
 each carries its reason in ``POSIX_HOST_ONLY`` below. Upstream's own shape for
 such a test is ``@pytest.mark.linux_only`` (already used in this directory);
 these files are upstream's, so the fork cannot add the marker, and the map is
@@ -77,6 +80,9 @@ POSIX_HOST_ONLY: dict[str, str] = {
     "test_install_sh_node_deps_failure.py::test_root_node_dependency_failure_is_fatal": _PATH_IN_BASH_SOURCE,
     "test_install_sh_node_deps_failure.py::test_tui_node_dependency_failure_is_fatal": _PATH_IN_BASH_SOURCE,
     "test_install_sh_node_deps_failure.py::test_node_dependency_success_remains_successful": _PATH_IN_BASH_SOURCE,
+    "test_install_sh_node_probe.py::test_broken_node_degrades_with_clear_error": _PATH_IN_BASH_SOURCE,
+    "test_install_sh_node_probe.py::test_healthy_node_reports_success": _PATH_IN_BASH_SOURCE,
+    "test_install_sh_node_probe.py::test_libatomic1_is_preinstalled_on_ubuntu": _PATH_IN_BASH_SOURCE,
     "test_install_macos_launcher.py::test_venv_launcher_bypasses_uv_console_script_that_requires_realpath": _POSIX_FILESYSTEM,
     "test_install_sh_symlink_stomp.py::test_re_running_setup_path_block_preserves_pip_entry_point": _POSIX_FILESYSTEM,
     "test_install_sh_termux_python_bounds.py::test_install_stage_provisions_supported_python_from_tur": _POSIX_FILESYSTEM,
