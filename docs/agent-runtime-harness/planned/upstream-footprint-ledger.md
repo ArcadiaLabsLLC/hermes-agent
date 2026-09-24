@@ -441,18 +441,18 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tui_gateway/session_notifications.py` | 20 | 0 | carry | unreviewed | - |
 | `utils.py` | 46 | 6 | upstream | PR candidate: `newline=` passthrough on `atomic_write_text`/`_atomic_write` (3 fork callers). REVERT hunks: `_replace_with_windows_contention_retry` superseded by upstream dcbe175423 (winerror 5/32/33 bounded retry) — take theirs at the next merge | S3 |
 | `uv.lock` | 82 | 10 | carry | ours: lock follows `pyproject.toml` (coverage, pytest-timeout); regenerated, never hand-edited; retires with those dev deps | - |
-| `website/docs/developer-guide/billing-lifecycle.md` | 7 | 5 | carry | unreviewed | - |
-| `website/docs/developer-guide/chronos-managed-cron-contract.md` | 1 | 1 | carry | unreviewed | - |
-| `website/docs/developer-guide/context-compression-and-caching.md` | 4 | 4 | carry | unreviewed | - |
-| `website/docs/developer-guide/gateway-session-lifecycle.md` | 3 | 2 | carry | unreviewed | - |
-| `website/docs/developer-guide/relay-connector-contract.md` | 9 | 1 | carry | unreviewed | - |
-| `website/docs/guides/use-mcp-with-hermes.md` | 38 | 0 | carry | unreviewed | - |
-| `website/docs/reference/mcp-config-reference.md` | 58 | 0 | carry | unreviewed | - |
-| `website/docs/reference/slash-commands.md` | 1 | 0 | carry | unreviewed | - |
-| `website/docs/user-guide/docker.md` | 1 | 1 | carry | unreviewed | - |
-| `website/docs/user-guide/egress/network-isolation.md` | 1 | 1 | carry | unreviewed | - |
-| `website/docs/user-guide/features/kanban.md` | 33 | 1 | carry | unreviewed | - |
-| `website/docs/user-guide/features/tool-search.md` | 3 | 0 | carry | unreviewed | - |
-| `website/docs/user-guide/messaging/index.md` | 2 | 1 | carry | unreviewed | - |
-| `website/i18n/zh-Hans/docusaurus-plugin-content-docs/current/user-guide/messaging/index.md` | 2 | 1 | carry | unreviewed | - |
-| `website/static/api/model-catalog.json` | 13 | 13 | carry | unreviewed | - |
+| `website/docs/developer-guide/billing-lifecycle.md` | 7 | 5 | upstream | PR candidate (website docs): poll loop moved to `apps/shared/src/charge-settlement.ts` upstream; the upstream page is stale | S3 |
+| `website/docs/developer-guide/chronos-managed-cron-contract.md` | 1 | 1 | upstream | PR candidate (website docs): verifier path is `plugins/cron_providers/chronos/verify.py` upstream; the upstream page is stale | S3 |
+| `website/docs/developer-guide/context-compression-and-caching.md` | 4 | 4 | upstream | REVERT: superseded by upstream 79ec1f2a34 (same GPT-6 `-900k` text; the fork carries it as f0d6d10a9c) | - |
+| `website/docs/developer-guide/gateway-session-lifecycle.md` | 3 | 2 | upstream | PR candidate (website docs): stuck-loop file is `.restart_failure_counts` and `session_store_max_age_days` defaults to 90 in upstream code; the upstream page is stale | S3 |
+| `website/docs/developer-guide/relay-connector-contract.md` | 9 | 1 | upstream | PR candidate (website docs): `prospective_thread_id`, `profile`, `auto_thread_*` wire fields and the local-only trust signals exist in upstream code but not in its table | S3 |
+| `website/docs/guides/use-mcp-with-hermes.md` | 38 | 0 | carry | ours: one-shot MCP env overrides (`agent_runtime/mcp_environment.py`) — additive. The fork need not edit the upstream site: movable → a fork doc under `docs/` | - |
+| `website/docs/reference/mcp-config-reference.md` | 58 | 0 | carry | ours: one-shot MCP env overrides reference — additive. The fork need not edit the upstream site: movable → a fork doc under `docs/` | - |
+| `website/docs/reference/slash-commands.md` | 1 | 0 | hook | seam: `/queue-status` row follows the fork's command; leaves with it when the command registers through the plugin `register_command` | - |
+| `website/docs/user-guide/docker.md` | 1 | 1 | carry | replaces upstream lines: notes the fork's agent-runtime `gateway.port` key. The fork need not edit the upstream site: movable → a fork doc under `docs/` | - |
+| `website/docs/user-guide/egress/network-isolation.md` | 1 | 1 | upstream | PR candidate (website docs): the dashboard health route is `/api/health` (`hermes_cli/web_routers/status.py`) | S3 |
+| `website/docs/user-guide/features/kanban.md` | 33 | 1 | carry | ours: crash-artifact docs for the fork's `hermes_cli/kanban_crash_evidence.py` — additive plus one replaced table row. The fork need not edit the upstream site: movable → a fork doc under `docs/` | - |
+| `website/docs/user-guide/features/tool-search.md` | 3 | 0 | carry | ours: `never_defer` (fork `tools/tool_search.py` key; built-ins are fork tools) — additive. The fork need not edit the upstream site: movable → a fork doc under `docs/` | - |
+| `website/docs/user-guide/messaging/index.md` | 2 | 1 | carry | replaces upstream lines: background-completion family (default `result`, `background_process_agent_turns`). The fork need not edit the upstream site: movable → a fork doc under `docs/` | - |
+| `website/i18n/zh-Hans/docusaurus-plugin-content-docs/current/user-guide/messaging/index.md` | 2 | 1 | carry | replaces upstream lines: zh copy of the background-completion family. The fork need not edit the upstream site: movable → a fork doc under `docs/` | - |
+| `website/static/api/model-catalog.json` | 13 | 13 | upstream | REVERT: superseded by upstream 79ec1f2a34 (fork's f0d6d10a9c is the same catalog change); upstream 38c289c014 since dropped gpt-6-terra, so the fork copy is also stale. Generated — apply with the next merge | - |
