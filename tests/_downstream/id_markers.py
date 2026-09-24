@@ -678,6 +678,158 @@ if _WIN:
     })
 
 
+# Upstream test files back at upstream's bytes: upstream's own Windows reds at
+# the tag (X:/wt/_holds/upstream-reds-v2026.9.24.md). No open fork PR covers any.
+_UP_RED = "upstream-red on Windows at v2026.9.24; no fix yet"
+
+
+def _up_red(detail: str) -> pytest.MarkDecorator:
+    return pytest.mark.xfail(strict=True, reason=f"{_UP_RED} ({detail})")
+
+
+def _up_red_skip(detail: str) -> pytest.MarkDecorator:
+    """For a red that kills the process (a thread-method timeout), not an assertion."""
+    return pytest.mark.skip(reason=f"{_UP_RED} ({detail})")
+
+
+def _posix_xfail(detail: str) -> pytest.MarkDecorator:
+    return pytest.mark.xfail(strict=True, reason=f"{_POSIX_ONLY} ({detail})")
+
+
+_LIFECYCLE_SCAN = _up_red(
+    "the lifecycle guard reads a referenced script through a POSIX command "
+    "string; a Windows path in it loses its separators (class c-E)"
+)
+
+if _WIN:
+    ID_MARKS.update({
+        **{
+            f"tests/hermes_cli/test_active_sessions.py::{test}": (
+                _posix_xfail("pid 1 is init on POSIX; Windows has no pid 1, so it reads dead"),
+            )
+            for test in (
+                "test_unknown_sibling_liveness_only_fences_its_own_session",
+                "test_unknown_sibling_does_not_block_guarded_release_or_orphan_sweep",
+            )
+        },
+        **{
+            f"tests/hermes_cli/test_config.py::TestEnvWriteDenylist::"
+            f"test_non_exec_near_misses_still_writable[{name}]": (
+                _posix_xfail("env names are case-insensitive on Windows, so the "
+                             "lowercase near-miss IS the denied variable"),
+            )
+            for name in ("git_config_parameters", "ld_preload")
+        },
+        "tests/hermes_cli/test_doctor_structural_corruption.py::"
+        "test_doctor_routes_structural_damage_to_recover_not_fts_rebuild": (
+            _up_red("an FTS-only stomp reads as structural damage; no Windows marker in the text"),
+        ),
+        **{
+            f"tests/hermes_cli/test_gateway.py::{test}": (
+                _up_red_skip("the stop test outlives the 30 s thread timeout, which kills "
+                             "the process; the port test asserts the POSIX branch"),
+            )
+            for test in (
+                "TestRestartWaitsForApiServerPort::"
+                "test_port_is_reported_free_once_the_old_listener_closes",
+                "TestStopProfileGateway::"
+                "test_stop_profile_gateway_keeps_pid_file_when_process_still_running",
+            )
+        },
+        **{
+            f"tests/hermes_cli/test_gateway_restart_loop.py::{cls}::{test}": (_LIFECYCLE_SCAN,)
+            for cls, tests in (
+                ("TestTerminalToolGatewayLifecycleGuard", (
+                    "test_blocks_lifecycle_command_hidden_in_referenced_script",
+                    "test_blocks_launchctl_submit_hidden_in_referenced_script",
+                    "test_blocks_executable_shebang_script",
+                    "test_shell_option_with_value_still_scans_script",
+                    "test_nested_wrapper_script_is_scanned",
+                    "test_safe_referenced_script_passes_through",
+                )),
+                ("TestLifecycleGuardModule", (
+                    "test_nul_padded_script_is_still_scanned",
+                    "test_nul_padded_script_without_shebang_is_scanned",
+                    "test_oversized_nul_bearing_text_still_fails_closed",
+                    "test_cloud_backed_symlink_fails_closed_without_opening_target",
+                    "test_third_party_cloudstorage_path_fails_closed_without_opening",
+                )),
+                ("TestDotSourceIsScannedLikeSource", (
+                    "test_both_spellings_block_a_referenced_script",
+                    "test_env_assignment_prefix_does_not_hide_dot_source",
+                    "test_dot_source_nested_in_shell_c_is_blocked",
+                )),
+                ("TestTransparentWrapperPrefixes", (
+                    "test_wrapped_script_reference_is_scanned",
+                    "test_wrapped_dot_source_is_scanned",
+                    "test_wrapped_shell_c_payload_is_scanned",
+                    "test_privilege_and_namespace_wrappers_are_scanned",
+                    "test_command_string_options_are_rescanned",
+                    "test_local_script_named_like_a_wrapper_is_still_scanned",
+                )),
+                ("TestTerminalToolGatewayLifecycleGuardRemote", (
+                    "test_remote_backend_script_read_uses_env_execute",
+                    "test_unscannable_executed_script_names_the_reason",
+                )),
+            )
+            for test in tests
+        },
+        "tests/hermes_cli/test_gateway_restart_loop.py::TestTerminalToolGatewayLifecycleGuard::"
+        "test_non_regular_referenced_script_fails_closed": (_posix_xfail("os.mkfifo"),),
+        "tests/hermes_cli/test_gateway_windows.py::"
+        "test_exec_schtasks_round_trips_non_ascii_task_argument_live": (
+            _up_red("schtasks /Create is refused unelevated (Access is denied); the "
+                    "fork's gateway fence refuses the spawn first"),
+        ),
+        "tests/hermes_cli/test_gui_command.py::"
+        "test_stop_desktop_processes_locking_build_posix_swap_bypasses_early_return": (
+            _up_red("asserts the POSIX branch of code that has a Windows branch"),
+        ),
+        "tests/hermes_cli/test_kanban_db.py::"
+        "test_infrastructure_spawn_refusal_never_charges_the_card": (
+            _up_red("the refused spawn auto-blocks the card; no Windows marker in the text"),
+        ),
+        **{
+            f"tests/hermes_cli/test_kanban_worker_session_source.py::{test}": (
+                _up_red("the retag matches worker cwd against a backslashed workspace root"),
+            )
+            for test in ("test_retag_reclaims_legacy_worker_rows", "test_retag_gate_is_per_board")
+        },
+        "tests/hermes_cli/test_mcp_config.py::TestMcpRemoveEvictsManager::"
+        "test_remove_evicts_in_memory_provider": (
+            _up_red("fakes a console with isatty(); _stdin_is_console() also asks "
+                    "GetConsoleMode of the real handle (class e-TTY)"),
+        ),
+        "tests/hermes_cli/test_profiles.py::TestWrapperScript::test_creates_sh_on_posix": (
+            _posix_xfail("the wrapper is mybot.bat on Windows; issue #83938"),
+        ),
+        "tests/hermes_cli/test_profiles.py::TestFindAliasForProfile::"
+        "test_list_profiles_surfaces_custom_alias": (
+            _up_red("the alias is read back with its .bat suffix; issue #83938"),
+        ),
+        "tests/hermes_cli/test_resource_limits.py::"
+        "test_named_profile_reroute_defers_limit_to_final_process": (
+            _up_red("spawns a real `hermes serve` (SystemExit 1 upstream; the fork's "
+                    "live-system guard refuses the spawn)"),
+        ),
+        "tests/hermes_cli/test_session_message_page_owner.py::"
+        "test_message_pages_identify_the_serving_profile[None]": (
+            _up_red("with no serving profile the default page is the serving page, 120 != 1"),
+        ),
+        "tests/hermes_cli/test_terminal_breadcrumbs.py": (_posix_xfail("os.ttyname"),),
+        "tests/hermes_cli/test_update_autostash.py::"
+        "test_cmd_update_ordinary_divergence_also_leaves_a_rescue_ref": (
+            _up_red("reads the ref at argv[2], but Windows git argv carries "
+                    "-c windows.appendAtomically=false"),
+        ),
+        "tests/hermes_cli/test_web_server.py::TestWebServerEndpoints::"
+        "test_activating_an_endpoint_carries_its_credential_either_way": (
+            _up_red_skip("activation probes llm.modern.com live; the lookup outlives the "
+                         "30 s thread timeout, which kills the process"),
+        ),
+    })
+
+
 def _base_id(nodeid: str) -> str:
     return nodeid.split("[", 1)[0]
 
