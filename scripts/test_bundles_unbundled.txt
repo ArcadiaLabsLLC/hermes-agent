@@ -4,3 +4,19 @@
 # put it here: the runner's "ISOLATION LEAK" line (red in bundle #N after K
 # earlier members, green alone) and the test ids it printed. A suspicion is not
 # an entry — run the bundle, read the leak line, copy it.
+
+# ── Observed 2026-09-24, lane SUITE2, first bundled gate run (1,811 files) ──
+# A bundle process DIED in these files (pytest-timeout's thread method kills the
+# whole process), leaving every later member unreached:
+tests/agent_runtime/test_stream_stale_first_routing.py  # observed: bundle #20 died in this file; 7 later members unreached, all passed alone
+tests/hermes_cli/test_gateway.py  # observed: bundle #43 died in this file (Timeout after 3 failed); 6 later members unreached, all passed alone
+tests/hermes_cli/test_process_identity.py  # observed: bundle #66 died in this file; 10 later members unreached, all passed alone
+tests/hermes_cli/test_web_server.py  # observed: bundle #87 died in this file; 8 later members unreached, all passed alone
+tests/hermes_cli/test_web_server_profile_unification.py  # observed: bundle #88 died in this file; 8 later members unreached, all passed alone
+tests/hermes_cli/test_custom_provider_key_env_scope.py  # observed: bundle #37 died while this file ran ({'passed': 2} recorded); 13 later members unreached; the file passed alone
+# Red in a bundle, green alone (isolation leaks):
+tests/agent_runtime/test_serve_gateway_chat_reply_lanes.py  # observed: bundle #16 {'failed': 2} after 14 earlier members; passed alone
+tests/hermes_cli/test_dashboard_param_clamps.py  # observed: bundle #38 {'failed': 9} after 9 earlier members; passed alone
+tests/hermes_cli/test_install_identity.py  # observed: bundle #47 {'failed': 1, 'passed': 2} after 18 earlier members; passed alone
+tests/hermes_cli/test_resolve_provider_custom_endpoint.py  # observed: bundle #69 {'failed': 1, 'passed': 8} after 18 earlier members; passed alone
+tests/hermes_cli/test_startup_model_routing.py  # observed: bundle #77 {'passed': 11, 'failed': 1} after 14 earlier members; passed alone

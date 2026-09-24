@@ -271,3 +271,29 @@ def test_the_bundle_timeout_scales_with_its_members(tmp_path):
 
     assert bundled.bundle_timeout(files, tmp_path, 300.0, durations) == pytest.approx(450.0)
     assert bundled.bundle_timeout(files, tmp_path, 300.0, {}) == pytest.approx(300.0)
+
+
+def test_members_of_a_bundle_that_died_are_unreached_not_leaks(tmp_path):
+    rels = [f"tests/alpha/test_{i}.py" for i in range(4)]
+    files = _tree(tmp_path, rels)
+
+    def _dies_in_member_1(first, args, repo_root, timeout):
+        events_path = Path(next(a for a in args if a.startswith("--hermes-bundle-events=")).split("=", 1)[1])
+        records = [{"k": "start", "t": 0.0}] + [{"k": "collect", "f": r, "d": 0.0, "err": False} for r in rels]
+        records += [
+            {"k": "test", "f": rels[0], "c": "passed", "d": 0.0},
+            {"k": "test", "f": rels[1], "c": "passed", "d": 0.0},
+        ]  # ...and no "end": pytest-timeout's thread method killed the process
+        events_path.write_text("\n".join(json.dumps(r) for r in records), encoding="utf-8")
+        return first, 1, "Timeout", {}, 1.0
+
+    def _solo(path, args, repo_root, timeout, retries):
+        return path, 0, "ok", {"passed": 1}, 0.5
+
+    result = bundled.run(
+        files, [], tmp_path, jobs=1, bundle_size=20, flat_timeout=300.0, retries=0,
+        durations={}, bundle_runner=_dies_in_member_1, solo_runner=_solo,
+    )
+
+    assert sorted(leak.kind for leak in result.leaks) == ["unreached"] * 3
+    assert {leak.stopped_in for leak in result.leaks} == {rels[1]}
