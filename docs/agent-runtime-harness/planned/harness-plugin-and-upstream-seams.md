@@ -166,7 +166,7 @@ Each merged PR: the ledger row flips to `upstream`, the next merge brings the co
 - The 242 other upstream test files with fork test cases: each fork test moves to a fork-only sibling (`tests/<dir>/test_<name>_downstream.py`), source-pin census first (refactor rule 1.6). Mechanical; one lane per top-level test dir; MOVE-only commits.
 - Gate: the validated suite selects the same test ids (a `--collect-only` diff before/after is empty modulo file names); `[up-fp] files` −242.
 
-### Stage 6 — desktop — **DONE (owner ruling 2026-09-24)**
+### Stage 6 — desktop — **DONE (owner ruling 2026-09-24; landed `b9812befc9`)**
 
 > [!note] Closed as a stage, 2026-09-24. Only 4 files / 92 lines remain under `apps/desktop` (`settings/uninstall-section.tsx` +6 and its test +43/−1, `lib/desktop-slash-registry.json` +2, `store/session-dot-state-downstream.test.ts` +41), all in held buckets: the uninstall warning is an upstream PR candidate (PRs paused) and the slash-registry lines wait on the `register_command` widening PR. No census, no desktop-plugin work: the fork does not edit upstream's electron app. The paragraph below is the original plan, kept for the record.
 
