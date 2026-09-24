@@ -85,8 +85,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-23 (seam lane S45, Stage 4/5/6 inventories)
 
-- [ ] **Stage 5's "one `pytest_plugins` line per upstream conftest" is rejected by pytest for three of the four conftests** · `seams / tests` · pytest 9.0.3 `_check_non_top_pytest_plugins` fails a non-root conftest that defines `pytest_plugins` once config is configured (a bare `pytest tests`), and moving the three into the root line would make the seven `tests/hermes_cli/` autouse fixtures suite-wide. The shape that works is four `tests/_downstream/` modules: root by `pytest_plugins`, the other three by a star import with `__all__`. Evidence: `docs/agent-runtime-harness/planned/seam-s4-s5-s6-inventory-2026-09-23.md` §1.5 · filed by lane S45 2026-09-23 **UNCLAIMED**
-- [ ] **177 of the 252 upstream test files the fork edits hold in-place edits, not fork tests. Stage 5's MOVE lanes cannot retire them, and its `[up-fp] files −242` target is not reachable (MOVE ceiling 28)** · `seams / tests` · these need a disposition pass (a batched portability/hermeticity PR upstream, or carry with a reason) before Stage 5's gate means anything. Evidence: the same note §1.1–§1.3 · filed by lane S45 2026-09-23 **UNCLAIMED**
+- [ ] **177 of the 252 upstream test files the fork edits hold in-place edits, not fork tests. Stage 5's MOVE lanes cannot retire them, and its `[up-fp] files −242` target is not reachable (MOVE ceiling 28)** · `seams / tests` · these need a disposition pass (a batched portability/hermeticity PR upstream, or carry with a reason) before Stage 5's gate means anything. Evidence: the same note §1.1–§1.3 · filed by lane S45 2026-09-23 **TAKEN 2026-09-23 lane S5 (X:/wt/h-s5)** · VERDICT 2026-09-23 (owner): upstream, separate PRs per fix class; never carried
 
 ### Standing
 

@@ -44,7 +44,7 @@ pytest_plugins = ["pytester"]
 #: The throwaway package's conftest: the REAL fixture, imported. Not a copy —
 #: a copy would let this file stay green while the shipped tripwire rotted.
 _INNER_CONFTEST = (
-    "from tests.conftest import _shared_monkeypatch_pin_tripwire  # noqa: F401\n"
+    "from tests._downstream.conftest_plugin import _shared_monkeypatch_pin_tripwire  # noqa: F401\n"
 )
 
 
@@ -197,7 +197,7 @@ def test_the_tripwire_is_armed_for_this_very_test():
     non-``None`` token here means it ran for a test that did not ask.
     """
 
-    from tests import conftest as root_conftest
+    from tests._downstream import conftest_plugin as root_conftest
 
     assert root_conftest._SHARED_MONKEYPATCH_WITNESS.token is not None, (
         "the per-test witness is unset while a test is running: "

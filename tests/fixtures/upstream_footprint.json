@@ -1,15 +1,8 @@
 {
-  "measured_at": "2026-09-23",
+  "measured_at": "2026-09-24",
   "base": "d337b736aa",
-  "files": 461,
-  "deleted_lines": 2834,
-  "heavy": 24,
-  "reasons": [
-    {
-      "change": "seam Stage 1 (seam/s1-proof)",
-      "files": "+2 (459 -> 461)",
-      "deleted_lines": "flat (2834)",
-      "reason": "hook-pending: hermes_cli/plugins_manifest.py (cli_commands manifest field, +20/-0) and hermes_cli/plugin_compat.py (bundled skip, +4/-0, upstream-lift candidate) join the list; plugins_discovery.py's readers take an optional config (2 def lines). Stage 1 itself returned 2 deleted lines (builtin list, dispatch line). All leave with the upstream lift."
-    }
-  ]
+  "files": 446,
+  "deleted_lines": 2816,
+  "heavy": 13,
+  "reasons": []
 }

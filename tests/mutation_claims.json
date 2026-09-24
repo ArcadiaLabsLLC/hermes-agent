@@ -3760,7 +3760,7 @@
         "-m",
         "pytest",
         "-q",
-        "tests/hermes_cli/test_doctor.py::TestDoctorResolvesTheHomeAtCallTime::test_the_env_var_alone_redirects_every_profile_relative_read"
+        "tests/hermes_cli/test_doctor_downstream.py::TestDoctorResolvesTheHomeAtCallTime::test_the_env_var_alone_redirects_every_profile_relative_read"
       ]
     },
     {
@@ -4302,8 +4302,8 @@
         "-m",
         "pytest",
         "-q",
-        "tests/scripts/test_run_tests_parallel.py::test_a_straggler_retry_that_passes_is_not_reported_as_zero_collected",
-        "tests/scripts/test_run_tests_parallel.py::test_a_straggler_that_recovers_only_skips_still_counts_as_collection"
+        "tests/scripts/test_run_tests_parallel_downstream.py::test_a_straggler_retry_that_passes_is_not_reported_as_zero_collected",
+        "tests/scripts/test_run_tests_parallel_downstream.py::test_a_straggler_that_recovers_only_skips_still_counts_as_collection"
       ]
     },
     {
