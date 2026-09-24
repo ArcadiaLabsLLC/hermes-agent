@@ -56,9 +56,12 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-BOOT_TIMEOUT_SECONDS = 180.0
-CLI_TIMEOUT_SECONDS = 180.0
+from tests.agent_runtime._serve_fixtures import (  # noqa: F401 — two_installs is a fixture
+    _Install,
+    boot_together,
+    two_installs,
+)
+
 
 #: Two real serve boots plus five CLI invocations, each a cold interpreter start
 #: on Windows. The suite's global cap is 30s, which is right for a Python-level
@@ -71,158 +74,6 @@ E2E_TEST_TIMEOUT_SECONDS = 600
 #: file exists to prove two isolated installs pair and talk, which is not
 #: answerable in one process (see the module docstring).
 _REAL_CHILD_SPAWN = pytest.mark.live_system_guard_bypass
-
-
-def _sandbox_env(base: Path) -> dict[str, str]:
-    home = base / "home"
-    local = base / "localappdata"
-    for path in (home, local, base / "runtime"):
-        path.mkdir(parents=True, exist_ok=True)
-    # The gateway lane, turned on the way an operator's config would: a HOST
-    # STRING (boolean `true` is refused by design) and port 0, so the kernel
-    # picks and the `ready` frame publishes what it picked.
-    (home / "config.yaml").write_bytes(
-        b'remote_gateway:\n  listen: "127.0.0.1"\n  port: 0\n'
-    )
-    env = dict(os.environ)
-    env.update(
-        {
-            "HERMES_AGENT_RUNTIME_ROOT": str(base / "runtime"),
-            "HERMES_HOME": str(home),
-            # The EXPLICIT head, exactly as the Launcher always starts serve
-            # (`HERMES_HOME=profiles/<profile>`, `HERMES_HEAD_HOME=profiles/base`;
-            # one profile here, so one directory). It is load-bearing rather
-            # than decoration: ``publish_chat_head_home`` is a no-op for a
-            # process that named no head, so without this the boot publishes no
-            # chat-head pointer and every in-serve transcript read degrades to
-            # the ambient rung — which is env-gated and refuses.
-            #
-            # S2b's ``peer.thread.read`` found that live: the far read came back
-            # ``thread_unreadable / chat_scope_unresolved``, which is the
-            # CORRECT failure (closed, typed, never an empty page) for a runtime
-            # nobody told where the transcripts live. Setting the head here
-            # makes the sandbox model the configuration that actually ships,
-            # instead of one no launcher produces.
-            "HERMES_HEAD_HOME": str(home),
-            "LOCALAPPDATA": str(local),
-            "HOME": str(home),
-            "USERPROFILE": str(home),
-            "PYTHONPATH": str(REPO_ROOT) + os.pathsep + str(env.get("PYTHONPATH") or ""),
-            "PYTHONUNBUFFERED": "1",
-        }
-    )
-    return env
-
-
-class _Install:
-    """One serve child: its env, its process, and the facts its boot published."""
-
-    def __init__(self, name: str, base: Path) -> None:
-        self.name = name
-        self.base = base
-        self.env = _sandbox_env(base)
-        self.process: subprocess.Popen | None = None
-        self.ready: dict = {}
-
-    @property
-    def root(self) -> Path:
-        return self.base / "runtime"
-
-    @property
-    def gateway_port(self) -> int:
-        return int(self.ready["gateway"]["port"])
-
-    def start(self) -> None:
-        self.process = subprocess.Popen(
-            [sys.executable, "-m", "hermes_cli.main", "harness", "serve", "--ndjson"],
-            cwd=str(REPO_ROOT),
-            env=self.env,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-            bufsize=1,
-        )
-        self.ready = self._wait_for("ready")
-
-    def _wait_for(self, event: str, timeout: float = BOOT_TIMEOUT_SECONDS) -> dict:
-        assert self.process is not None
-        deadline = time.monotonic() + timeout
-        seen: list[str] = []
-        while time.monotonic() < deadline:
-            line = self.process.stdout.readline()
-            if not line:
-                raise AssertionError(
-                    f"{self.name}: serve child ended before {event!r}; saw {seen}"
-                )
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                frame = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            seen.append(frame.get("event"))
-            if frame.get("event") == event:
-                return frame
-        raise AssertionError(f"{self.name}: no {event!r} within {timeout}s; saw {seen}")
-
-    def cli(self, *argv: str) -> tuple[int, dict | None, str]:
-        """Run one operator verb against THIS install, as its own process."""
-
-        completed = subprocess.run(
-            [sys.executable, "-m", "hermes_cli.main", "harness", *argv, "--json"],
-            cwd=str(REPO_ROOT),
-            env=self.env,
-            capture_output=True,
-            text=True,
-            timeout=CLI_TIMEOUT_SECONDS,
-        )
-        payload = None
-        stdout = completed.stdout or ""
-        start = stdout.find("{")
-        if start >= 0:
-            try:
-                payload = json.loads(stdout[start:])
-            except json.JSONDecodeError:
-                payload = None
-        return completed.returncode, payload, stdout + (completed.stderr or "")
-
-    def python(self, source: str, *args: str) -> tuple[int, str]:
-        """Run a snippet inside THIS install's environment.
-
-        Used for the A→B dial, which has no CLI verb of its own in Stage 6 —
-        ``peer.ping`` is the wire proof rather than an operator surface, and
-        inventing a verb to make a test convenient would ship an operator door
-        nobody asked for.
-
-        ``*args`` land on the snippet's ``sys.argv`` (Stage 7, whose acceptance
-        parameterises the same snippet over a target spelling and a method
-        name). Variadic and defaulted to nothing, so the Stage 6 snippets that
-        read ``sys.argv[1] if len(sys.argv) > 1`` behave exactly as they did.
-        """
-
-        completed = subprocess.run(
-            [sys.executable, "-c", source, *args],
-            cwd=str(REPO_ROOT),
-            env=self.env,
-            capture_output=True,
-            text=True,
-            timeout=CLI_TIMEOUT_SECONDS,
-        )
-        return completed.returncode, (completed.stdout or "") + (completed.stderr or "")
-
-    def stop(self) -> None:
-        if self.process is None:
-            return
-        try:
-            self.process.stdin.close()
-        except OSError:
-            pass
-        try:
-            self.process.wait(timeout=30)
-        except subprocess.TimeoutExpired:
-            self.process.kill()
 
 
 #: Dialled from install A's environment, reading A's own `peers.json` for the
@@ -255,18 +106,6 @@ print(json.dumps({"hello": hello, "reply": frame}))
 _RETIRE_SOURCE = _PING_SOURCE.replace('"method": "peer.ping"', '"method": "runtime.agent.retire"').replace(
     '"params": {"echo": "two-roots"}', '"params": {"persona_instance_id": "whatever"}'
 )
-
-
-@pytest.fixture
-def two_installs(tmp_path):
-    installs = [_Install("A", tmp_path / "a"), _Install("B", tmp_path / "b")]
-    for install in installs:
-        install.start()
-    try:
-        yield installs
-    finally:
-        for install in installs:
-            install.stop()
 
 
 def _payload_of(stdout_payload: dict) -> str:
@@ -866,8 +705,7 @@ def test_the_roster_and_one_far_thread_cross_the_wire_on_real_serves(tmp_path):
     a = _Install("A", tmp_path / "a")
     b = _Install("B", tmp_path / "b")
     _seed_persona(b)
-    a.start()
-    b.start()
+    boot_together([a, b])
     try:
         _c, minted, output = b.cli("gateway", "peers", "pair")
         code, _joined, output = a.cli(
