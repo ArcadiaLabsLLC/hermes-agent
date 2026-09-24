@@ -266,11 +266,23 @@ class FileOutcome:
 
 @dataclass
 class Leak:
+    """A member re-run alone that passed there.
+
+    ``kind`` is ``"leak"`` when its bundle reached the end of its session and
+    the member recorded a failure in it — red with other files in the process,
+    green alone: module state leaked into it. It is ``"unreached"`` when the
+    bundle process died first (pytest-timeout's thread method, a crash, the
+    bundle timeout): nothing is known about the member except that it never
+    finished, and ``stopped_in`` names the member the process died in — the
+    file that belongs in the unbundled list, not this one."""
+
     file: Path
     bundle_index: int
     earlier: List[str]
     in_bundle: Dict[str, int]
     failed_nodeids: List[str]
+    kind: str = "leak"
+    stopped_in: Optional[str] = None
 
 
 @dataclass
@@ -356,6 +368,10 @@ def run(
         if events.session_start is not None:
             startup_share = max(0.0, events.session_start - started) / len(members)
         rerun = set(members_to_rerun(rels, events, rc))
+        stopped_in = None
+        if rc != 0 and events.session_end is None:
+            ran = [rel for rel in rels if rel in events.files and events.files[rel].counts]
+            stopped_in = ran[-1] if ran else rels[0]
         for position, (member, rel) in enumerate(zip(members, rels)):
             tally = events.files.get(rel, FileTally())
             if rel not in rerun:
@@ -368,6 +384,8 @@ def run(
                 rels[:position],
                 tally.summary(),
                 list(tally.failed_nodeids),
+                "unreached" if stopped_in is not None else "leak",
+                stopped_in,
             )
             with lock:
                 reruns += 1
@@ -465,13 +483,15 @@ def _print_summary(result: RunResult, files: Sequence[Path], repo_root: Path, el
         for index, wall, rc in walls[:10]:
             first = _rel(result.bundles[index][0], repo_root)
             print(f"    {wall:>7.1f}s  rc={rc}  #{index} ({len(result.bundles[index])} files from {first})")
-    if result.leaks:
+    leaks = [leak for leak in result.leaks if leak.kind == "leak"]
+    unreached = [leak for leak in result.leaks if leak.kind == "unreached"]
+    if leaks:
         print()
         print(
-            f"=== ⚠ {len(result.leaks)} ISOLATION LEAK{'S' if len(result.leaks) != 1 else ''} "
-            "(red in a bundle, green alone — candidates for scripts/test_bundles_unbundled.txt) ==="
+            f"=== ⚠ {len(leaks)} ISOLATION LEAK{'S' if len(leaks) != 1 else ''} "
+            "(red in a bundle that finished, green alone — candidates for scripts/test_bundles_unbundled.txt) ==="
         )
-        for leak in result.leaks:
+        for leak in leaks:
             print(
                 f"  {_rel(leak.file, repo_root)}  # observed: bundle #{leak.bundle_index} {leak.in_bundle} "
                 f"after {len(leak.earlier)} earlier member(s); passed alone"
@@ -480,6 +500,17 @@ def _print_summary(result: RunResult, files: Sequence[Path], repo_root: Path, el
                 print(f"      red in bundle: {nodeid}")
             if leak.earlier:
                 print(f"      earlier members: {', '.join(leak.earlier)}")
+    if unreached:
+        died: Dict[Tuple[int, str], List[str]] = {}
+        for leak in unreached:
+            died.setdefault((leak.bundle_index, leak.stopped_in or "?"), []).append(_rel(leak.file, repo_root))
+        print()
+        print(
+            f"=== {len(unreached)} member(s) never finished because {len(died)} bundle process(es) died; "
+            "each passed alone. The file a bundle died in is the unbundled-list candidate ==="
+        )
+        for (index, stopped_in), members in sorted(died.items()):
+            print(f"  {stopped_in}  # observed: bundle #{index} died in this file; {len(members)} later member(s) unreached")
     if rtp._FLAKY_RESULTS:
         print()
         print(f"=== ⚠ {len(rtp._FLAKY_RESULTS)} FLAKY file(s) (failed once alone, passed on retry) ===")
