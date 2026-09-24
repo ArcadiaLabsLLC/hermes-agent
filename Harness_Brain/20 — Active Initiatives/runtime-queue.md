@@ -23,9 +23,9 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
-### Filed on arrival — 2026-09-23 (seam lane S45)
+### Filed on arrival — 2026-09-24 (seam lane S4)
 
-- [ ] **Two profile rosters answer "which profiles exist" differently: the orphan prune reads the raw `iterdir` one** · `fork / runtime` · `hermes_cli/profiles.py::available_profile_templates` walks `profiles/` raw, so tombstoned and ghost-shell dirs count as live. `available_profile_template_summaries` (fixed at `bcf8012e6a`) and upstream `list_profile_names()` filter identity and tombstones. `agent_runtime/persona_instance_identity.py::_profile_template_names` feeds the prune from the raw walk, so a persona bound to a deleted profile whose dir a stale writer re-created is not prunable. One authority, `list_profile_names()`. Evidence: `docs/agent-runtime-harness/planned/seam-s4-s5-s6-inventory-2026-09-23.md` §2.2 · filed by lane S45 2026-09-23 **UNCLAIMED** **TAKEN 2026-09-23 lane S4 (X:/wt/h-s4)**
+- [ ] **`tests/hermes_cli/test_profile_delete_mcp_log.py` is red on main: its `_stop_profile_backends` stub `lambda *_: None` rejects the `table=` keyword the fork's P6 delete passes** · `fork / tests` · the fix is `lambda *_, **__: None`, but it edits an upstream test file (`[up-fp] files` +1). It retires when P6 (`up/profiles-delete-guard` @ `9b1d5506aa`, which carries the same line) merges, or it lands with a `reasons` row in `tests/fixtures/upstream_footprint.json`. Evidence: lane S4 commits `6a6e539763` / `70595f8fe7` · filed by lane S4 2026-09-24 **UNCLAIMED**
 
 ### Owner asks — 2026-09-22, filed on arrival
 

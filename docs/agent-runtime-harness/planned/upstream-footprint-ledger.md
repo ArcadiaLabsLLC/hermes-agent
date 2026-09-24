@@ -73,7 +73,7 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `gateway/shutdown_watchdog.py` | 12 | 3 | carry | unreviewed | - |
 | `gateway/status.py` | 13 | 3 | carry | unreviewed | - |
 | `hermes_cli/approvals_test.py` | 2 | 1 | carry | unreviewed | - |
-| `hermes_cli/auth.py` | 22 | 2 | carry | unreviewed | - |
+| `hermes_cli/auth.py` | 23 | 2 | carry | unreviewed | - |
 | `hermes_cli/auth_codex.py` | 5 | 0 | carry | unreviewed | - |
 | `hermes_cli/auth_commands.py` | 7 | 0 | carry | unreviewed | - |
 | `hermes_cli/auth_nous.py` | 2 | 1 | carry | unreviewed | - |
@@ -99,15 +99,15 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `hermes_cli/kanban_ops.py` | 2 | 0 | carry | unreviewed | - |
 | `hermes_cli/kanban_parser.py` | 2 | 0 | carry | unreviewed | - |
 | `hermes_cli/main.py` | 39 | 193 | hook | §0.3, hunk by hunk: parser seam `build_downstream_parsers`, `harness`/`postinstall` in `cmd_console`, `dispatch_command` wrapper → hook (S1); `mark_main_entered` → hook `pre_command`; the two import-time boot-clock marks → upstream P4 or carry as one-liners; profile-bootstrap replacement (−187, `_profile_bootstrap.py` + `is_hermes_cli_entrypoint` gate) → upstream P1; `restore_durable_completions()` → upstream P2, fallback `on_session_start`; `_warn_legacy_console_gateway_task` tail import → confirm dead and delete (S1). After S1 + P1: ≤ 3 additive one-liners | S1, S3 |
-| `hermes_cli/main_desktop.py` | 1 | 58 | carry | unreviewed | - |
+| `hermes_cli/main_desktop.py` | 1 | 58 | carry | PARALLEL: the fork `hermes_cli/_desktop_processes.py::_stop_desktop_processes_locking_build` shadows upstream `hermes_cli/main_desktop.py::_stop_desktop_processes_locking_build` (the −58 here), reading the P6 process-table seam so a kill goes through the inspector handle (no pid-recycle window). Retires when P6 merges and the sweep is proposed on that seam; not reviewed further in S4 | - |
 | `hermes_cli/main_web_build.py` | 10 | 49 | carry | unreviewed | - |
 | `hermes_cli/mcp_config.py` | 19 | 3 | carry | unreviewed | - |
 | `hermes_cli/model_switch.py` | 3 | 2 | carry | unreviewed | - |
 | `hermes_cli/models_catalog_static.py` | 3 | 2 | carry | unreviewed | - |
 | `hermes_cli/plugins.py` | 5 | 2 | carry | unreviewed | - |
 | `hermes_cli/plugins_discovery.py` | 4 | 4 | carry | unreviewed | - |
-| `hermes_cli/profile_cmd.py` | 5 | 2 | carry | unreviewed | - |
-| `hermes_cli/profiles.py` | 304 | 30 | upstream | §0.4: profile store extensions; upstream what upstream lacks, carry the rest (S4 diffs them) | S4 |
+| `hermes_cli/profile_cmd.py` | 5 | 2 | upstream | P6: the `ProfileDeleteBlocked` refusal (`up/profiles-delete-guard` @ `9b1d5506aa`) | S4 |
+| `hermes_cli/profiles.py` | 204 | 29 | upstream | S4 (2026-09-23): `available_profile_templates` deleted for upstream `list_profile_names()`; the MC roster moved to `agent_runtime/profile_home.py`. What is left: P6, the delete guard + process-table seam (`up/profiles-delete-guard` @ `9b1d5506aa`); the carried `mark_profile_personas_orphaned` call (retires with an `on_profile_deleted` hook PR); `_ProcessFacts.exe` / `inspector_handle`, which only the `hermes_cli/main_desktop.py` parallel reads | S4 |
 | `hermes_cli/provider_catalog.py` | 189 | 0 | carry | unreviewed | - |
 | `hermes_cli/runtime_provider.py` | 18 | 12 | carry | unreviewed | - |
 | `hermes_cli/runtime_provider_custom.py` | 1 | 1 | carry | unreviewed | - |
@@ -119,7 +119,7 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `hermes_cli/subcommands/auth.py` | 35 | 0 | carry | unreviewed | - |
 | `hermes_cli/subcommands/computer_use.py` | 3 | 2 | carry | unreviewed | - |
 | `hermes_cli/subcommands/mcp.py` | 10 | 0 | carry | unreviewed | - |
-| `hermes_cli/subcommands/profile.py` | 10 | 1 | carry | unreviewed | - |
+| `hermes_cli/subcommands/profile.py` | 10 | 1 | upstream | P6: `--force-unverified-writers` (`up/profiles-delete-guard` @ `9b1d5506aa`) | S4 |
 | `hermes_cli/subcommands/skills.py` | 8 | 0 | carry | unreviewed | - |
 | `hermes_cli/tools_config_cua.py` | 7 | 0 | carry | unreviewed | - |
 | `hermes_cli/uninstall.py` | 26 | 3 | carry | unreviewed | - |
@@ -128,12 +128,12 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `hermes_cli/update_cmd_windows.py` | 30 | 1 | carry | unreviewed | - |
 | `hermes_cli/update_inventory.py` | 15 | 0 | carry | unreviewed | - |
 | `hermes_cli/web_routers/oauth.py` | 2 | 13 | carry | unreviewed | - |
-| `hermes_cli/web_routers/profiles.py` | 69 | 2 | carry | unreviewed | - |
+| `hermes_cli/web_routers/profiles.py` | 69 | 2 | carry | the P6 409 mapping is on `up/profiles-delete-guard` @ `9b1d5506aa`; the fork-only `/api/profiles/{name}/promote` route stays carry | S4 |
 | `hermes_cli/web_server.py` | 3 | 0 | carry | unreviewed | - |
 | `hermes_cli/web_server_config.py` | 1 | 0 | carry | unreviewed | - |
 | `hermes_cli/web_server_oauth.py` | 8 | 31 | carry | unreviewed | - |
 | `hermes_cli/worktree_ops.py` | 1 | 1 | carry | unreviewed | - |
-| `hermes_constants.py` | 288 | 16 | upstream | §0.4: profile-aware home resolution (`get_hermes_home` at call time, `display_hermes_home`, sudo/supervisor arms); upstream what upstream lacks, carry the rest | S4 |
+| `hermes_constants.py` | 17 | 1 | upstream | S4 (2026-09-23): the root-cache parallel is deleted (upstream `_default_hermes_root_memo` adopted); the 14 fork home authorities live in `agent_runtime/profile_home.py`. What is left is P7, the agent-browser probe memo, byte-identical to `up/profile-home-generic` @ `1f4923c350` | S4 |
 | `hermes_state.py` | 7 | 0 | carry | unreviewed | - |
 | `hermes_state_messages.py` | 3 | 1 | carry | unreviewed | - |
 | `hermes_state_sessions.py` | 2 | 2 | carry | unreviewed | - |
@@ -286,7 +286,7 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tests/hermes_cli/test_plugins.py` | 47 | 6 | carry | unreviewed | - |
 | `tests/hermes_cli/test_process_notification_display.py` | 1 | 0 | carry | unreviewed | - |
 | `tests/hermes_cli/test_profile_delete_log_handlers.py` | 9 | 4 | carry | unreviewed | - |
-| `tests/hermes_cli/test_profiles.py` | 475 | 1 | carry | unreviewed | - |
+| `tests/hermes_cli/test_profiles.py` | 435 | 1 | carry | unreviewed | - |
 | `tests/hermes_cli/test_projects_db.py` | 19 | 7 | carry | unreviewed | - |
 | `tests/hermes_cli/test_prompt_compose_command.py` | 25 | 11 | carry | unreviewed | - |
 | `tests/hermes_cli/test_relaunch.py` | 24 | 0 | carry | unreviewed | - |
@@ -332,7 +332,7 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tests/scripts/install/test_install_ps1_managed_python_provenance.py` | 1 | 0 | carry | unreviewed | - |
 | `tests/scripts/test_contributor_map.py` | 20 | 1 | carry | unreviewed | - |
 | `tests/scripts/test_run_tests_parallel.py` | 379 | 7 | carry | unreviewed | - |
-| `tests/test_hermes_constants.py` | 214 | 1 | carry | unreviewed | - |
+| `tests/test_hermes_constants.py` | 9 | 1 | carry | unreviewed | - |
 | `tests/test_live_system_guard.py` | 14 | 11 | carry | unreviewed | - |
 | `tests/test_live_system_guard_self_test.py` | 80 | 1 | carry | unreviewed | - |
 | `tests/tools/conftest.py` | 406 | 0 | carry | §0.4: hermetic-home fixtures, env-gap fence → fork-only pytest plugin `tests/_downstream/conftest_plugin.py`, loaded by one additive `pytest_plugins` line | S5 |

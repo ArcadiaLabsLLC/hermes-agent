@@ -197,7 +197,7 @@ Hard orderings: S0 before all; S1 before S2; P1 before S4 (S4 diffs against the 
 | S1 | ON HOLD (corrected 2026-09-23; see the CORRECTED block) | 1–2 | `files` flat, `deleted_lines` −1, main.py hunks 8 → ~5; +2 files `hook-pending` while the PR is open | pre-discovery manifest scan is the only branch; capture moves into `_harness_entry`; `_BUILTIN_SUBCOMMANDS` loses the fork's two names |
 | S2 | planned | 1 | −2 | skills stay installed, not registered |
 | S3 | planned | 5 PRs | −1 per merge | P1 first |
-| S4 | planned | 1–2 | deleted_lines ↓ | after P1 |
+| S4 | landed on `seam/s4-profile-home` (not yet on `main`) | 8 fork + 2 `up/*` (P6 `up/profiles-delete-guard` @ `9b1d5506aa`, P7 `up/profile-home-generic` @ `1f4923c350`, both cherry-pick clean, no PR) | `[up-fp] files=459 deleted_lines=2818 heavy=22` (was 2834 / 24) | ran before P1 on the owner's order. Adopted upstream: the root memo, `list_profile_names()` (dual-roster fixed). Moved: 14 names from `hermes_constants.py` + 3 from `profiles.py` → `agent_runtime/profile_home.py`, and `CONVERSATION_REQUEST_ASSEMBLED_STEP` → `agent_runtime/conversation_observability.py`. `hermes_constants.py` is +17/−1 (P7 only) and `profiles.py` +204/−29 (P6 + one carried orphan-mark call). Frozen-home ledger unchanged |
 | S5 | planned | 4 MOVE | "−242" withdrawn; MOVE ceiling 28 files, and the 177 in-place-edit files need a disposition pass (`docs/agent-runtime-harness/planned/seam-s4-s5-s6-inventory-2026-09-23.md` §1.1–§1.5) | mechanical, parallel |
 | S6 | planned | 1 | ↓ | SDK reach decides |
 | S7 | on the read | 1 + installer | 0 | private on the operator's word |
