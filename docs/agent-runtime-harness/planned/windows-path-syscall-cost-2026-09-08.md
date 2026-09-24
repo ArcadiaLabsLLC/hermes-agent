@@ -84,10 +84,12 @@ the same two paths and got the same answer.
 
 ## What was fixed, and the paired measurement
 
-`get_default_hermes_root` is memoised on `(HERMES_HOME, platform default)`. The
-reasoning, the key's second component and the one staleness window it admits are
-written at `hermes_constants._DEFAULT_HERMES_ROOT_CACHE`; three tests in
-`tests/test_hermes_constants.py::TestGetDefaultHermesRootMemo` pin it.
+`get_default_hermes_root` is memoised on `(HERMES_HOME, platform default)`. Since
+Stage 4 of the seams plan (2026-09-23) that memo is upstream's own
+`hermes_constants._default_hermes_root_memo`; the fork's parallel dict cache and its
+three tests were deleted, and
+`tests/test_hermes_constants.py::TestGetDefaultHermesRoot::test_result_memoised_until_env_or_home_changes`
+pins it.
 
 Paired A/B, same process shape, same store, alternated back to back by stashing
 only `hermes_constants.py` — nine warm uncoalesced builds per run, two runs each:
