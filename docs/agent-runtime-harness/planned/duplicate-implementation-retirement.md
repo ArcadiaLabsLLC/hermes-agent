@@ -6,6 +6,14 @@
 5's DELETE half landed 2026-08-30 (Track Z0 of the realm-actor-lifecycle
 refactor) once the launcher stopped emitting the flag. Nothing here is open;
 the file survives as the record of the nine acquittals, which stay binding.
+**History note (2026-09-23):** the shas in the stage headings are the ORIGINAL
+landing commits. The 2026-09-15 history reconstruction folded them into the
+consolidated `fork: …` commits, so none is an ancestor of `main`; each heading
+also names the consolidated commit that carries its change here — the one that
+first adds the stage's own artifact (`PERSONA_CHAT_SESSION_SOURCE` in
+`persona_chat_history.py`, `_PollResponseCache`, `test_mirrored_constant_fences.py`,
+`persona_instance_mint.py`, `test_persona_instance_create_has_no_message_flag`,
+the `s74` tombstone wave).
 **Audited:** 2026-08-22 against HEAD `b2eb1a15db` (working tree clean).
 **Owner domain:** spans 01/02/08; this file is the delete schedule, the domain
 docs stay the truth of what exists.
@@ -34,7 +42,7 @@ re-arguing it.
 Value order: cheapest-safest first. A stage is not "delete on sight" — it is
 the evidence, what breaks, the kill proof, and the class of decision it needs.
 
-### Stage 1 — `PERSONA_CHAT_SESSION_SOURCE` defined twice, same value — **EXECUTED `dd084605d6`**
+### Stage 1 — `PERSONA_CHAT_SESSION_SOURCE` defined twice, same value — **EXECUTED `dd084605d6`; in this history `df7d8dd560`**
 
 - **WHAT:** one wire-vocabulary constant, two definition sites:
   `agent_runtime/persona_chat_continuity.py:38` and
@@ -65,7 +73,7 @@ the evidence, what breaks, the kill proof, and the class of decision it needs.
 - **FORK-OWNED:** all files under `agent_runtime/` (doc 03 invariant 8) and
   `hermes_cli/harness*` (doc 17 §2 filter).
 
-### Stage 2 — `_ReadModelCache` in the serve: a response cache wearing the read model's name — **EXECUTED `910fca47b7`**
+### Stage 2 — `_ReadModelCache` in the serve: a response cache wearing the read model's name — **EXECUTED `910fca47b7`; in this history `ed9ac406be`**
 
 - **WHAT:** `hermes_cli/harness_parts/serve.py:616` `class _ReadModelCache`
   (+ `_ReadModelCacheEntry` `:604`, `_READ_CACHE_MAX_AGE_SECONDS` `:408`,
@@ -91,7 +99,7 @@ the evidence, what breaks, the kill proof, and the class of decision it needs.
 - **FORK-OWNED:** `hermes_cli/harness_parts/serve.py` matches the
   `hermes_cli/harness` boundary prefix (doc 17 §2).
 
-### Stage 3 — mirrored constants without the fence the house pattern requires — **EXECUTED `dd084605d6`**
+### Stage 3 — mirrored constants without the fence the house pattern requires — **EXECUTED `dd084605d6`; in this history `ed9ac406be`**
 
 > The fence lives at `tests/agent_runtime/test_mirrored_constant_fences.py` and
 > pins all three equalities; the mirror-declaration comments point at it.
@@ -122,7 +130,7 @@ the evidence, what breaks, the kill proof, and the class of decision it needs.
 - **FORK-OWNED:** `agent_runtime/*` (doc 03 invariant 8);
   `tools/agent_chat_tool.py` is fork-created (doc 17 §2 exclusion list).
 
-### Stage 4 — `PersonaInstanceStore.create_free_floating`: production-callerless mint — **EXECUTED `910fca47b7`**
+### Stage 4 — `PersonaInstanceStore.create_free_floating`: production-callerless mint — **EXECUTED `910fca47b7`; in this history `df7d8dd560`**
 
 - **WHAT:** `agent_runtime/persona_assignments.py:426`
   `create_free_floating(persona_or_template) -> PersonaInstance`.
@@ -143,7 +151,7 @@ the evidence, what breaks, the kill proof, and the class of decision it needs.
 - **RISK CLASS:** mechanical with test churn (~10 files, no production path).
 - **FORK-OWNED:** `agent_runtime/persona_assignments.py` (doc 03 invariant 8).
 
-### Stage 5 — `--message` on `persona instance create`: inert, and `required=True` — **EXECUTED, both halves**
+### Stage 5 — `--message` on `persona instance create`: inert, and `required=True` — **EXECUTED, both halves; in this history `5a411b1657`**
 
 > **Demote `dd084605d6` (2026-08-22); DELETE 2026-08-30 (Track Z0).** The
 > forced order held: the launcher's create/instantiate argv builders stopped
@@ -190,7 +198,7 @@ the evidence, what breaks, the kill proof, and the class of decision it needs.
 - **FORK-OWNED:** `hermes_cli/harness.py` (doc 17 §2 filter). The launcher half
   is out of this repo and is the gate, not the work.
 
-### Stage 6 — the `read_model.db` lane: built, enabled, and serving no one — **EXECUTED (this commit)**
+### Stage 6 — the `read_model.db` lane: built, enabled, and serving no one — **EXECUTED (this commit); in this history `ed9ac406be`**
 
 > **EXECUTED, this commit.** Operator ruled outcome (2), **retire**. Deleted:
 > `agent_runtime/read_model.py`, `agent_runtime/projector.py`,
