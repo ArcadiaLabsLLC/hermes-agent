@@ -70,11 +70,13 @@ install autostash 1 and `test_run_tests_parallel.py` pre-existing; `test_install
 is upstream-new and Windows-red (install.sh defers to the PowerShell installer).
 After the S2 merge: `tests/test_no_source_grep_assertions.py` debt register had 50 stale lines
 (purged tests) — deleted, 71 → 21; its two other reds, `test_system_prompt.py` kanban 2,
-`test_t6b_brief_descriptions.py` 1 and stage42 1 are red on `origin/main` too. The pinned-upstream
-register inside that gate (`tests/upstream_source_assertions.json`, pinned to `110baa095b`) now also
-fails on ~60 entries the purge changed or deleted: an owner re-pin, rowed with the item below.
-Merge-caused and NOT fixed: `tests/test_coverage_claims_resolve.py` — 18 citations to tests
-upstream purged (0 at base); row filed. Classification is against a baseline run, not the
+`test_t6b_brief_descriptions.py` 1 and stage42 1 are red on `origin/main` too. Owner ruling 2026-09-24: fork gates apply to fork-authored lines only and the fork keeps no
+registers of upstream tests — the pinned-upstream register (`tests/upstream_source_assertions.json`,
+66 entries at `110baa095b`, ~60 of them stale after the purge) is deleted and the source-grep gate
+scoped by `is_fork_authored`; the coverage-claims gate got the same scope (7 upstream-authored
+citations) and its 11 fork citations were re-anchored (2) or recorded as deleted (9). Both gates green.
+Formerly merge-caused and not fixed (now fixed, see above): `tests/test_coverage_claims_resolve.py` — 18 citations to tests
+upstream purged (0 at base), fixed in `12f45e8d1a`. Classification is against a baseline run, not the
 242-ID bundle (not in the repo). No validated-suite run (ruling: once per program).
 
 The shared test venv gained `snowballstemmer==3.1.1` and `firecrawl-anydoc==0.2.4`
