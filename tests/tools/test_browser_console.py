@@ -229,7 +229,7 @@ class TestBrowserVisionConfig:
                     },
                 ),
                 patch(
-                    "hermes_cli.config.load_config_readonly",
+                    "hermes_cli.config.load_config",
                     return_value={"model": {"supports_vision": True}},
                 ),
                 patch("tools.browser_tool._get_vision_model") as mock_get_vision_model,
@@ -287,7 +287,7 @@ class TestBrowserVisionConfig:
                     },
                 ),
                 patch(
-                    "hermes_cli.config.load_config_readonly",
+                    "hermes_cli.config.load_config",
                     return_value={"model": {"supports_vision": True}},
                 ),
                 patch("agent.auxiliary_client.call_llm") as mock_llm,
@@ -332,7 +332,7 @@ class TestBrowserVisionConfig:
                     return_value={"success": True, "data": {"path": str(screenshot)}},
                 ),
                 patch(
-                    "hermes_cli.config.load_config_readonly",
+                    "hermes_cli.config.load_config",
                     return_value={
                         "agent": {"image_input_mode": "text"},
                         "model": {"supports_vision": True},

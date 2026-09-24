@@ -251,6 +251,159 @@ if _WIN:
     })
 
 
+# ── Lane CARRY2B: upstream test files outside tests/hermes_cli ─────────────
+#
+#: Prefix of every row that skips an upstream test because it is POSIX-only
+#: (not because of fork behaviour); the tests-PR lane turns these rows into
+#: upstream platform marks.
+_POSIX_ONLY = "POSIX-only; upstream fix = @pytest.mark.linux_only"
+
+
+def _posix_only(detail: str) -> pytest.MarkDecorator:
+    return pytest.mark.skip(reason=f"{_POSIX_ONLY} ({detail})")
+
+
+_CONFIG_READ_THROUGH = pytest.mark.config_reads_through_load_config
+_LOOKALIKE = pytest.mark.spawns_gateway_lookalike
+_TIRITH_NO_BUILD = _posix_only(
+    "tirith ships no Windows build: _detect_target() is None and every entry "
+    "point short-circuits to allow before the behaviour under test"
+)
+
+ID_MARKS.update({
+    # The fork resolves tirith's flags through hermes_cli.tirith_config (env wins).
+    "tests/tools/test_cron_approval_mode.py::TestCronDenyModeAllGuards::"
+    "test_tirith_import_error_fail_closed_blocks_in_cron_deny": (
+        pytest.mark.tirith_config_value_under_test,
+    ),
+    # Readers the fork moved to load_config_readonly; upstream patches load_config.
+    **{
+        node: (_CONFIG_READ_THROUGH,)
+        for node in (
+            "tests/tools/test_browser_console.py::TestBrowserVisionConfig",
+            "tests/tools/test_image_generation.py::TestModelResolution",
+            "tests/tools/test_vision_native_fast_path.py::TestHandleVisionAnalyzeFastPath::"
+            "test_supports_vision_override_bypasses_provider_allowlist",
+            "tests/tools/test_vision_native_fast_path.py::TestHandleVisionAnalyzeFastPath::"
+            "test_text_mode_wins_over_supports_vision_override",
+            "tests/tools/test_vision_tools.py::TestHandleVisionAnalyze",
+            "tests/tools/test_vision_tools.py::TestVisionConfig",
+            "tests/tools/test_vision_tools.py::TestVisionCpuBurstCap",
+        )
+    },
+    # Fork behaviour replaces upstream's; the fork assertion is the _downstream sibling.
+    "tests/tools/test_async_delegation.py::"
+    "test_real_process_restart_restores_owned_completion_once": (
+        pytest.mark.xfail(strict=True, reason=(
+            "the fork's tools.process_registry.ProcessRegistry."
+            "restore_durable_completions is an explicit startup step, not an "
+            "import side effect; fork half: "
+            "tests/tools/test_async_delegation_downstream.py"
+        )),
+    ),
+    # sh runs the extracted stage2 keygen text in a tmp HERMES_HOME; the fork's
+    # _live_system_guard argv classifier reads "gateway" in its comments.
+    **{
+        f"tests/tools/test_stage2_hook_api_server_keygen.py::{test}": (_LOOKALIKE,)
+        for test in (
+            "test_keygen_appends_to_existing_env_without_key",
+            "test_keygen_never_overwrites_operator_key",
+            "test_keygen_refuses_symlinked_env",
+            "test_keygen_skips_when_container_env_provides_key",
+            "test_keygen_env_key_with_existing_env_file_key_warns_not_clobbers",
+            "test_keygen_env_key_drops_stale_empty_assignment",
+            "test_keygen_warns_on_weak_container_env_key",
+            "test_keygen_weak_env_key_warning_suppressed_when_env_file_key_wins",
+        )
+    },
+})
+
+if _WIN:
+    ID_MARKS.update({
+        "tests/tools/test_browser_homebrew_paths.py::TestRunBrowserCommandPathConstruction::"
+        "test_subprocess_path_includes_termux_fallback_dirs": (
+            _posix_only("clears the env to HOME only; Windows Path.home() needs USERPROFILE"),
+        ),
+        **{
+            f"tests/tools/test_find_shell.py::TestFindShellPrefersUserShell::{test}": (
+                _posix_only("$SHELL is read only on _find_shell's non-Windows arm"),
+            )
+            for test in (
+                "test_returns_shell_env_when_set_and_exists",
+                "test_honours_allowlisted_bash_and_dash",
+            )
+        },
+        "tests/tools/test_code_execution.py::TestRpcTokenAuthorization::"
+        "test_missing_token_rejected": (_posix_only("socket.AF_UNIX socketpair"),),
+        **{
+            f"tests/tools/test_local_interrupt_cleanup.py::{test}": (_posix_only("os.getpgid"),)
+            for test in (
+                "test_kill_process_uses_cached_pgid_if_wrapper_already_exited",
+                "test_exit_cleanup_kills_foreground_command_still_running",
+            )
+        },
+        **{
+            f"tests/tools/test_local_shell_init.py::TestResolveShellInitFiles::{test}": (
+                _posix_only(
+                    "auto-sourcing is gated on not _IS_WINDOWS, and HOME does not move ~ there"
+                ),
+            )
+            for test in (
+                "test_auto_sources_bashrc_when_present",
+                "test_auto_sources_profile_when_present",
+                "test_auto_sources_profile_before_bashrc",
+            )
+        },
+        # Windows argv quoting mangles the multi-line `sh -c` script (sh:
+        # "unexpected end of file"); two of them also need POSIX modes/euid.
+        **{
+            f"tests/tools/test_stage2_hook_api_server_keygen.py::{test}": (
+                _posix_only("a multi-line `sh -c` argv does not survive Windows quoting"),
+            )
+            for test in (
+                "test_keygen_creates_env_when_missing",
+                "test_keygen_appends_to_existing_env_without_key",
+                "test_keygen_never_overwrites_operator_key",
+                "test_keygen_refuses_symlinked_env",
+                "test_keygen_skips_when_container_env_provides_key",
+                "test_keygen_env_key_with_existing_env_file_key_warns_not_clobbers",
+                "test_keygen_env_key_drops_stale_empty_assignment",
+                "test_keygen_readonly_env_degrades_to_warning_not_boot_abort",
+                "test_keygen_warns_on_weak_container_env_key",
+                "test_keygen_weak_env_key_warning_suppressed_when_env_file_key_wins",
+            )
+        },
+        **{
+            f"tests/tools/test_tirith_security.py::{cls}": (_TIRITH_NO_BUILD,)
+            for cls in (
+                "TestExitCodeMapping",
+                "TestJsonParseFailure",
+                "TestOSErrorFailOpen",
+                "TestTimeoutFailOpen",
+                "TestUnknownExitCode",
+                "TestCaps",
+                "TestProgrammingErrors",
+                "TestEnsureInstalled",
+                "TestFailedDownloadCaching",
+                "TestExplicitPathNoAutoDownload",
+                "TestBackgroundInstall",
+                "TestSpawnWarningDedup",
+                "TestAppTldSuppression",
+                "TestMkdtempOSErrorNoSpace",
+            )
+        },
+        "tests/tools/test_voice_wsl_pipewire.py::test_wsl_without_forwarding_still_blocks": (
+            _posix_only("WSL premise; a Windows host finds powershell.exe and degrades to a notice"),
+        ),
+        "tests/tools/test_process_registry.py::TestPopenLeakOnSetupFailure::"
+        "test_popen_killed_when_thread_creation_fails": (_posix_only("os.getpgid"),),
+        "tests/tools/test_process_registry.py::TestKillProcess::"
+        "test_kill_detached_session_uses_host_pid": (
+            _posix_only("pins the psutil terminate seam; Windows kills the tree via taskkill"),
+        ),
+    })
+
+
 def _base_id(nodeid: str) -> str:
     return nodeid.split("[", 1)[0]
 

@@ -552,6 +552,28 @@ def tmp_path(request, tmp_path_factory):
     return path
 
 
+_CONFIG_READS_THROUGH_LOAD_CONFIG_MARK = "config_reads_through_load_config"
+
+
+@pytest.fixture(autouse=True)
+def _config_reads_through_load_config(request, monkeypatch):
+    """Route ``load_config_readonly`` through whatever ``load_config`` is NOW.
+
+    The fork moved several readers (``tools.vision_tools``,
+    ``tools.image_generation_tool``, ``plugins/dashboard_auth/_shared.py``) from
+    ``hermes_cli.config.load_config`` to ``load_config_readonly`` so an import
+    cannot scaffold the home. Upstream's tests patch ``load_config``; for the
+    ids ``tests/_downstream/id_markers.py`` marks, the readonly loader defers to
+    it at call time, so upstream's patch reaches the reader and the upstream
+    file carries no edit.
+    """
+    if request.node.get_closest_marker(_CONFIG_READS_THROUGH_LOAD_CONFIG_MARK) is None:
+        return
+    import hermes_cli.config as _config
+
+    monkeypatch.setattr(_config, "load_config_readonly", lambda: _config.load_config())
+
+
 #: The fork's per-test cap (seconds) and how it fires. ``thread`` dumps every
 #: stack and KILLS the process, which is the only method Windows has (no
 #: SIGALRM). Applied below as defaults, so an explicit ``--timeout`` /
@@ -597,4 +619,11 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         "tirith_config_value_under_test: the test pins tirith's config.yaml value, so "
         "the fork's tools conftest drops the suite-wide TIRITH_* env for it "
         "(applied by id from tests/_downstream/id_markers.py).",
+    )
+    config.addinivalue_line(
+        "markers",
+        f"{_CONFIG_READS_THROUGH_LOAD_CONFIG_MARK}: the test patches "
+        "hermes_cli.config.load_config for a reader the fork moved to "
+        "load_config_readonly; the readonly loader defers to it (applied by id "
+        "from tests/_downstream/id_markers.py).",
     )
