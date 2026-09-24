@@ -4539,7 +4539,7 @@
       "path": "agent_runtime/profile_readiness.py",
       "symbol": "_codex_provider_issue",
       "operator": "narrow-authority-to-one-source",
-      "find": "        from hermes_cli.runtime_provider import (\n            codex_credentials_resolvable_read_only,\n        )\n\n        resolvable = codex_credentials_resolvable_read_only()",
+      "find": "        from agent_runtime.provider_probes import (\n            codex_credentials_resolvable_read_only,\n        )\n\n        resolvable = codex_credentials_resolvable_read_only()",
       "replace": "        from agent.credential_pool import load_pool\n\n        _entry = load_pool(\"openai-codex\").peek()\n        resolvable = bool(\n            _entry is not None\n            and (\n                getattr(_entry, \"runtime_api_key\", None)\n                or getattr(_entry, \"access_token\", None)\n            )\n        )",
       "test": [
         "{python}",
@@ -4570,8 +4570,8 @@
       "path": "agent_runtime/provider_probes.py",
       "symbol": "codex_credentials_resolvable_read_only",
       "operator": "invert-source-order",
-      "find": "    entry = _load_pool(\"openai-codex\").peek()\n    if entry is not None and (\n        getattr(entry, \"runtime_api_key\", None)\n        or getattr(entry, \"access_token\", None)\n    ):\n        return True\n    return auth_mod.codex_auth_store_credentials_present()",
-      "replace": "    if auth_mod.codex_auth_store_credentials_present():\n        return True\n    entry = _load_pool(\"openai-codex\").peek()\n    return bool(\n        entry is not None\n        and (\n            getattr(entry, \"runtime_api_key\", None)\n            or getattr(entry, \"access_token\", None)\n        )\n    )",
+      "find": "    entry = _load_pool(\"openai-codex\").peek()\n    if entry is not None and (\n        getattr(entry, \"runtime_api_key\", None)\n        or getattr(entry, \"access_token\", None)\n    ):\n        return True\n    return auth_ext.codex_auth_store_credentials_present()",
+      "replace": "    if auth_ext.codex_auth_store_credentials_present():\n        return True\n    entry = _load_pool(\"openai-codex\").peek()\n    return bool(\n        entry is not None\n        and (\n            getattr(entry, \"runtime_api_key\", None)\n            or getattr(entry, \"access_token\", None)\n        )\n    )",
       "test": [
         "{python}",
         "-m",

@@ -77,7 +77,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-24 (lane CLOSE)
 
-- [ ] **Mutation claims `cxr1-codex-readiness-asks-the-pool-alone` and `cxr3-codex-readiness-asks-the-store-before-the-pool` no longer anchor (mutation source not found in `agent_runtime/profile_readiness.py::_codex_provider_issue` / `agent_runtime/provider_probes.py::codex_credentials_resolvable_read_only`)** · `fork / tests` · they guard nothing until re-derived; re-derive each needle and prove it red against its own test · evidence: lane CLOSE, `pytest tests/scripts` on `6251144d09`+job 1 (`test_mutation_claims_still_anchor.py`: 1 failed) **UNCLAIMED** **TAKEN 2026-09-24 TESTS**
 - [ ] **`tests/gateway/test_background_process_notifications.py::test_agent_notify_receipt_only_while_launching_turn_is_busy[True|False]` is red: `_enqueue_process_completion_notification` is awaited 0 times under `notify_on_complete`** · `fork / gateway` · upstream test at upstream bytes, red on `6251144d09` before lane CLOSE touched anything; suspect the fork's `background_process_agent_turns: false` direct-status lane (BG-PR) skipping the enqueue — needs an id row naming the fork symbol or a fix · evidence: lane CLOSE job 1 (`pytest` of the file alone at `6251144d09`: 2 failed) **UNCLAIMED**
 
 ## Filed on arrival — 2026-09-24 (program-end gate on `c7652475cd`)
