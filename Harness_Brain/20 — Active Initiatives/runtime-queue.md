@@ -46,8 +46,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-24 (seam lane S4)
 
-- [ ] **`tests/hermes_cli/test_profile_delete_mcp_log.py` is red on main: its `_stop_profile_backends` stub `lambda *_: None` rejects the `table=` keyword the fork's P6 delete passes** · `fork / tests` · the fix is `lambda *_, **__: None`, but it edits an upstream test file (`[up-fp] files` +1). It retires when P6 (`up/profiles-delete-guard` @ `9b1d5506aa`, which carries the same line) merges, or it lands with a `reasons` row in `tests/fixtures/upstream_footprint.json`. Evidence: lane S4 commits `6a6e539763` / `70595f8fe7` · filed by lane S4 2026-09-24 **UNCLAIMED** **TAKEN 2026-09-24 FORK-CODE**
-
 ### Owner asks — 2026-09-22, filed on arrival
 
 
