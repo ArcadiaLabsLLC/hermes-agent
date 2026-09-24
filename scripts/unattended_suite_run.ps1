@@ -42,7 +42,7 @@
          was not in any of its scopes.
 
     Both commands' stdout/stderr and exit codes are captured into one dated
-    Markdown report under `qa-artifacts/` (git-ignored; see .gitignore).
+    Markdown report under `qa-artifacts/` (git-ignored; see qa-artifacts/.gitignore).
     Nothing here installs, registers, or enables the Scheduled Task — the
     operator does that by hand from the XML this directory ships, exactly as
     every row in this wave was told: "the operator ENABLES the task; you do
