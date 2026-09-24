@@ -148,6 +148,11 @@ class _Child:
             raise AssertionError(f"serve child was still alive after {timeout}s")
 
 
+# ONE serve per test, on purpose (lane SUITE2, 2026-09-24, suite-cost note §2
+# row): each test ends its serve a DIFFERENT way (drain, stdio shutdown, EOF,
+# console control, SIGTERM, uncaught exception, plain exit, hard exit) and
+# reads the ended-sidecar that ending wrote, so the per-test boot is the
+# subject and cannot be shared.
 def _spawn(
     env: dict[str, str],
     *extra_args: str,

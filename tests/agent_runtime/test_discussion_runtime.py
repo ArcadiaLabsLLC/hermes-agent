@@ -92,6 +92,10 @@ class ExecutionContext(NativeContext):
         return 0
 
 
+# One engine per test, on purpose (lane SUITE2, 2026-09-24): this is an
+# in-process DiscussionService over a per-test SQLite runtime, not a serve,
+# and every test writes tables, runs and claims into it; its cost is the
+# twelve-instance test's own work, not a boot.
 @pytest.fixture
 def engine(tmp_path):
     context = ExecutionContext(tmp_path)
