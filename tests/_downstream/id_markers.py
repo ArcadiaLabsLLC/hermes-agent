@@ -660,6 +660,15 @@ ID_MARKS.update({
             "tests/hermes_cli/test_doctor_downstream.py",
         ),
     ),
+    # Lane REDS3: the bundled eternia-harness plugin (kind backend, auto-loaded)
+    # registers post_api_request for the usage ledger (f5c9838487), and upstream's
+    # test does not take the bundled tree out of its sweep.
+    "tests/hermes_cli/test_plugins.py::TestPluginHooks::test_request_hooks_are_invokeable": (
+        _fork_replaces(
+            "eternia-harness post_api_request hook (plugins/eternia-harness, usage ledger)",
+            "tests/hermes_cli/test_plugins_downstream.py",
+        ),
+    ),
 })
 
 # Upstream test files back at upstream's bytes: upstream's own Windows reds at
