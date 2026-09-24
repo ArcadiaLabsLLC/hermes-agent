@@ -107,6 +107,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Seams — fork edits inside upstream files (additive only)
 
+- [ ] **ACP loses named custom-provider identity between resolution, model readback and session restoration.** · Owner-requested runtime correction for Intelligence; preserve endpoint identity separately from transport provider, with no Launcher alias bridge. Track the generic correction as a temporary core carry under the upstream-footprint plan, retiring it when upstream supplies the fix. Evidence: `EterniaLauncher/docs/companion/planned/SESSION_CONTROLS_SLICE_2026-09-24.md` § Runtime defect. **TAKEN 2026-09-24 Codex Hermes refresh**
+
 ### Filed on arrival — 2026-09-24 (seam lane S2)
 
 - [ ] **Nine Stage 2 rows the ledger said the surface "has" wait on five widening PRs nobody owns, and none is on §Stage 3's P-list** · `seams / upstream` · `register_command` with gateway context + `busy_policy` (`/queue-status`, 4 rows); a terminal command-guard hook consulted by `_check_all_guards` with a typed result (the envelope gate); a per-call usage ledger in the turn result (`usage_ledger`, 3 rows); a tool-schema transform hook (wire briefs); a register-toolset PR (bundle membership, `harness_core`). Each needs a P-number, an owner and a fallback in `docs/agent-runtime-harness/planned/harness-plugin-and-upstream-seams.md` §Stage 3 · evidence: `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md` rows marked "DESIGN (lane S2)" / "waits on" · filed by lane S2 2026-09-24 **UNCLAIMED**
