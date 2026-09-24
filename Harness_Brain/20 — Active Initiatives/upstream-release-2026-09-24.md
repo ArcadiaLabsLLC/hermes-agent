@@ -8,7 +8,8 @@ tags: [program/upstream-sync, evidence]
 # Weekly upstream merge — 2026-09-24 (lane MERGE)
 
 Upstream range: `d337b736aa..f24a1d7f92` — 1,663 commits. Pre-merge main `37ca422c25`.
-Merge `075fb4eba4` on `seam/upstream-merge-2026-09-24`, history-preserving (no squash, no rebase);
+Merge `075fb4eba4` on `seam/upstream-merge-2026-09-24`, history-preserving (no squash, no rebase),
+then `origin/main` `b93ce5e66c` (lanes S2 + SUITE2, landed meanwhile) merged in as `5b5a68bb69`;
 the new merge base is `f24a1d7f92`. Worktree `X:/wt/h-merge`, logs in its `.lane-logs/`.
 
 ## Conflicts: 73 files, resolved by the [[Upstream Sync]] rules
@@ -52,8 +53,8 @@ in `upstream/main`'s log; no carry was dropped.
 ## Ratchet
 
 Before `[up-fp] files=408 deleted_lines=2612 heavy=11` at base `d337b736aa`;
-after `[up-fp] files=376 deleted_lines=2410 heavy=10` at base `f24a1d7f92` (`a8aebea5fa`).
-Nothing rose. 509 of the deleted lines are the two relocations.
+after `[up-fp] files=373 deleted_lines=2404 heavy=10` at base `f24a1d7f92` (`a8aebea5fa`, then
+re-measured over S2 in `5b5a68bb69`; S2 alone had taken the old-base line to 404/2602/10). Nothing rose. 509 of the deleted lines are the two relocations.
 
 ## Gates and reds
 
@@ -67,6 +68,11 @@ local_env_blocklist 2, tui_gateway_server 2, gateway port/stop 2 (+1 timeout), a
 `test_prompt_builder.py` does not collect on Windows (`os.geteuid`, upstream). `tests/scripts`:
 install autostash 1 and `test_run_tests_parallel.py` pre-existing; `test_install_diverged_rescue_ref.py`
 is upstream-new and Windows-red (install.sh defers to the PowerShell installer).
+After the S2 merge: `tests/test_no_source_grep_assertions.py` debt register had 50 stale lines
+(purged tests) — deleted, 71 → 21; its two other reds, `test_system_prompt.py` kanban 2,
+`test_t6b_brief_descriptions.py` 1 and stage42 1 are red on `origin/main` too. The pinned-upstream
+register inside that gate (`tests/upstream_source_assertions.json`, pinned to `110baa095b`) now also
+fails on ~60 entries the purge changed or deleted: an owner re-pin, rowed with the item below.
 Merge-caused and NOT fixed: `tests/test_coverage_claims_resolve.py` — 18 citations to tests
 upstream purged (0 at base); row filed. Classification is against a baseline run, not the
 242-ID bundle (not in the repo). No validated-suite run (ruling: once per program).

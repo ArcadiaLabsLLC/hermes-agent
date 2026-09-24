@@ -2,7 +2,7 @@
 type: program
 program: upstream-sync
 status: active
-cursor: "2026-09-24 — Weekly merge of upstream f24a1d7f92 (1,663 commits) as 075fb4eba4 on seam/upstream-merge-2026-09-24, NOT on main: 73 conflicts, supersession 22 retired / 6 kept, ratchet 408/2612/11 -> 376/2410/10 at base f24a1d7f92, all 11 open PRs still open. Evidence: [[upstream-release-2026-09-24]]. Next: the operator lands the branch; weekly cadence."
+cursor: "2026-09-24 — Weekly merge of upstream f24a1d7f92 (1,663 commits) as 075fb4eba4 on seam/upstream-merge-2026-09-24, NOT on main: 73 conflicts, supersession 22 retired / 6 kept, origin/main (S2) merged in as 5b5a68bb69, ratchet 408/2612/11 -> 373/2404/10 at base f24a1d7f92, all 11 open PRs still open. Evidence: [[upstream-release-2026-09-24]]. Next: the operator lands the branch; weekly cadence."
 tags: [program/upstream-sync, program, upstream]
 ---
 
