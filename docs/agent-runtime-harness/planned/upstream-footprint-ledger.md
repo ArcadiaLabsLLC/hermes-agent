@@ -19,7 +19,7 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `.github/workflows/tests.yml` | 108 | 3 | carry | ours: `mutation-claims` job + `fetch-depth: 0`/`blob:none` for history-reading fork gates. Movable → `.github/workflows/fork-gates.yml`; the runner/timeout/worker conditionals are the same PR candidate as the other five workflows | - |
 | `.gitignore` | 32 | 0 | carry | ours: fork runtime litter (`/profiles/`, `.mutation_gate.lock`, `.bytecode-sweep.lock`, `/.acl-probe-*/`, `/qa-artifacts/*`) — additive. REVERT hunk: `.install_method` duplicates base's `/.install_method` (dead edit). PR candidate: `.claude/` beside `.codex/`. Movable → `qa-artifacts/.gitignore` for that pair; the root-level lock/probe patterns are not movable | - |
 | `AGENTS.md` | 4 | 0 | carry | ours: downstream contract pointer — additive (4 lines at EOF). Not movable: AGENTS.md is what non-Claude agents read | - |
-| `README.md` | 6 | 1 | carry | replaces upstream lines: the License line must state the PolyForm contribution terms beside MIT; not movable (legal notice belongs in README) | - |
+| `README.md` | 7 | 1 | carry | replaces upstream lines: the License line must state the PolyForm contribution terms beside MIT; not movable (legal notice belongs in README) | - |
 | `agent/agent_init.py` | 30 | 4 | carry | unreviewed | - |
 | `agent/anthropic_adapter.py` | 37 | 2 | carry | unreviewed | - |
 | `agent/auxiliary_client.py` | 19 | 42 | carry | unreviewed | - |
