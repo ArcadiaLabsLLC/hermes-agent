@@ -52,6 +52,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._fork_scope import is_fork_authored
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Directories that never participate in the import-time hazard (test code may
@@ -328,6 +330,43 @@ def probe_result(tmp_path_factory) -> dict:
     return json.loads(result_path.read_text(encoding="utf-8"))
 
 
+def _module_level_binding_lines(rel: str, name: str) -> list[int]:
+    """Every line in ``rel`` that binds ``name`` at module level (plain,
+    annotated or augmented assignment, including tuple targets)."""
+
+    import ast
+
+    tree = ast.parse((REPO_ROOT / rel).read_text(encoding="utf-8"))
+    lines: list[int] = []
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+            targets = [node.target]
+        else:
+            continue
+        for target in targets:
+            if any(isinstance(n, ast.Name) and n.id == name for n in ast.walk(target)):
+                lines.append(node.lineno)
+    return lines
+
+
+def is_fork_owned_freeze(rel: str, name: str, *, authored=is_fork_authored) -> bool:
+    """Is this freeze the FORK's to answer for?
+
+    The ratchet is a fork gate running over upstream's code too. A freeze whose
+    every module-level binding is a line upstream wrote (``tests/_fork_scope.py``
+    decides, per line) is upstream's to police: the fork edits an upstream file
+    additively or not at all, so it could not fix that line, and ledgering it
+    would only teach the ledger to lie about whose debt it is. Fail closed: a
+    name with no binding line this can find, or any line the fork wrote, is the
+    fork's.
+    """
+
+    lines = _module_level_binding_lines(rel, name)
+    return not lines or any(authored(rel, line) for line in lines)
+
+
 @pytest.mark.timeout(300)
 def test_no_new_frozen_hermes_home_values(probe_result: dict) -> None:
     found = {
@@ -339,7 +378,9 @@ def test_no_new_frozen_hermes_home_values(probe_result: dict) -> None:
         (rel, name) for rel, (names, _reason) in FROZEN_LEDGER.items() for name in names
     }
 
-    new = sorted(found - ledgered)
+    new = sorted(
+        (rel, name) for rel, name in found - ledgered if is_fork_owned_freeze(rel, name)
+    )
     assert not new, (
         "New module-level value(s) frozen against HERMES_HOME at import:\n"
         + "\n".join(f"  {rel}: {name}" for rel, name in new)
@@ -426,3 +467,27 @@ def test_ledger_reasons_are_present(probe_result: dict) -> None:
         "These files are declared UNPROBED but imported fine here and froze "
         f"nothing: {inert} — drop the UNPROBED entry."
     )
+
+
+def test_the_ratchet_scope_asks_about_the_binding_line_and_fails_closed() -> None:
+    """The join between the probe's (file, name) finding and the per-line
+    authorship answer: the scope must ask about the line that BINDS the name,
+    drop the finding only when that line is upstream's, and keep it when it
+    cannot find a binding at all."""
+
+    rel, name = "gateway/mirror.py", "_SESSIONS_INDEX_AT_IMPORT"
+    asked: list[tuple[str, int]] = []
+
+    def upstream_wrote_it(path: str, line: int) -> bool:
+        asked.append((path, line))
+        return False
+
+    assert not is_fork_owned_freeze(rel, name, authored=upstream_wrote_it)
+    assert asked and {path for path, _ in asked} == {rel}
+    source = (REPO_ROOT / rel).read_text(encoding="utf-8").splitlines()
+    assert all(source[line - 1].lstrip().startswith(name) for _, line in asked)
+
+    # Positive control: the same finding, and the fork wrote the line.
+    assert is_fork_owned_freeze(rel, name, authored=lambda path, line: True)
+    # Fail closed: a name bound nowhere at module level stays the fork's.
+    assert is_fork_owned_freeze(rel, "_NOT_BOUND_IN_THIS_MODULE", authored=lambda path, line: False)
