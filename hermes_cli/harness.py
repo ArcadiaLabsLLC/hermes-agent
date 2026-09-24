@@ -808,6 +808,12 @@ def populate_parser(parser) -> None:
     )
     skills_inventory_cmd.add_argument("--json", action="store_true", help="Emit the skills_inventory/v1 contract as JSON")
     skills_inventory_cmd.set_defaults(func=_cmd_skills_inventory)
+    # Rehomed from `hermes skills link-external` (seam Stage 2): the verb is the harness's, not core's.
+    skills_link_cmd = skills_subs.add_parser(
+        "link-external", help="Link the shared skills root into external harnesses (~/.claude, ~/.codex)",
+    )
+    skills_link_cmd.add_argument("--json", action="store_true", help="Emit the link report as JSON")
+    skills_link_cmd.set_defaults(func=_cmd_skills_link_external)
     skills_catalog_cmd = skills_subs.add_parser(
         "catalog",
         help="S8: resolve ONE content-addressed skills catalog by its hash (the frame ships only *_ref hashes; bodies are fetched once and cached forever)",
@@ -6512,6 +6518,14 @@ def _cmd_usage(args) -> int:
     except Exception:
         # Human rendering must not crash the verb either.
         _emit_usage_json(attach_root_observability(payload))
+    return 0
+
+
+def _cmd_skills_link_external(args) -> int:
+    from agent_runtime.external_skill_links import format_report, link_shared_skills_into_external_harnesses
+
+    report = link_shared_skills_into_external_harnesses()
+    print(emit_json(report.to_dict()) if getattr(args, "json", False) else format_report(report))
     return 0
 
 

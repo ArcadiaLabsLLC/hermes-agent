@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "d337b736aa",
-  "files": 406,
-  "deleted_lines": 2603,
+  "files": 404,
+  "deleted_lines": 2602,
   "heavy": 10,
   "reasons": [
     {
@@ -25,9 +25,9 @@
     },
     {
       "change": "lane S2 (seam/s2-plugin-surface-2026-09-24)",
-      "files": "408 -> 406: tests/agent/test_system_prompt.py and tests/tools/test_terminal_tool.py byte-identical to d337b736aa again",
-      "deleted_lines": "2612 -> 2603 (the two restored test files' 7, prompt_builder 11 -> 10, skills_tool 70 -> 69)",
-      "reason": "seam Stage 2: the T6b guidance and the skill-confirm sentence ride the eternia-harness plugin's system-prompt section; skill_search is a plugin register_tool; prompt_builder and skills_tool adopt upstream's skill_matches_environment; heavy 11 -> 10 (tools/skills_tool.py 207 -> 136)"
+      "files": "408 -> 404: hermes_cli/skills_hub.py and hermes_cli/subcommands/skills.py (link-external rehomed as `hermes harness skills link-external`), tests/agent/test_system_prompt.py and tests/tools/test_terminal_tool.py byte-identical to d337b736aa again",
+      "deleted_lines": "2612 -> 2602 (the four restored files' 8, prompt_builder 11 -> 10, skills_tool 70 -> 69)",
+      "reason": "seam Stage 2: the T6b guidance and the skill-confirm sentence ride the eternia-harness plugin's system-prompt section; skill_search is a plugin register_tool; link-external is a harness verb; prompt_builder and skills_tool adopt upstream's skill_matches_environment; heavy 11 -> 10 (tools/skills_tool.py 207 -> 136)"
     }
   ]
 }

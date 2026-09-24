@@ -201,7 +201,7 @@ what the fixture mirror below enforces.
 | turn-record `phases` block (schema v3) | `agent_runtime/mission_chat_phases.py`; the key lands via `_safe_journal_metadata` (`mission_chat_turns.py::_safe_journal_metadata`) → `mission_chat_phases.py::safe_turn_phases` | `tool/mission_chat_latency_audit.dart` |
 | `[MissionChatTiming]` / `[MissionChatOutcome]` / `[MissionDropTiming]` | launcher — see the launcher section below | `tool/mission_chat_latency_audit.dart`; drop line read by eye |
 | `[MissionAgentCreate] lane=… gesture=… correlation=… …` and `[MissionOfficeWrite] <ws> retire lane: …` | launcher — see the launcher section below | the placement verb's two lanes, read by eye; the ADOPT line is also read by `mission_office_placement_instance_key_test.dart` |
-| `prompt_observability` rows + `trace_events` | `agent_runtime/prompt_observability.py:198`, persisted `:1421-1464` | `harness prompt-context show --context-id` (`hermes_cli/harness.py:880-886`) and the slimmed `chat.final` echo |
+| `prompt_observability` rows + `trace_events` | `agent_runtime/prompt_observability.py:198`, persisted `:1421-1464` | `harness prompt-context show --context-id` (`hermes_cli/harness.py:892-903`) and the slimmed `chat.final` echo |
 
 ### The snapshot build family
 
@@ -448,7 +448,7 @@ Two consumers: the live `chat.final`
 echo carries a slimmed projection (`slim_chat_final_observability`,
 `agent_runtime/prompt_observability.py::slim_chat_final_observability`); evicted rows are
 fetched by `harness prompt-context show --context-id <id> [--json]`
-(`hermes_cli/harness.py:876-886`, handler `hermes_cli/harness.py::_cmd_prompt_context_show`) — read-only, honest
+(`hermes_cli/harness.py:892-903`, handler `hermes_cli/harness.py::_cmd_prompt_context_show`) — read-only, honest
 `not_found` on absence. `trace_events` are the turn's tool-call trace, passed at
 `persona_commands.py:3600` and read by `used_skills_context`
 (`prompt_observability.py:2946-2981`) to report which skills were actually
