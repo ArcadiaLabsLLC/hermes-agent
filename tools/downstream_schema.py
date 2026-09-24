@@ -3,9 +3,11 @@
 The registry keeps upstream's schema text (``tool_describe`` serves it). The brief
 reaches the wire through :func:`brief_request_tools`, which the eternia-harness
 plugin registers as ``llm_request`` middleware: it replaces ``description`` by tool
-name in the final provider kwargs and never touches parameters. Two built-ins
-(``terminal``, ``vision_analyze``) still opt in at registration through
-:func:`brief_schema`; the middleware is idempotent over them.
+name in the final provider kwargs and never touches parameters. One built-in
+(``terminal``) still opts in at registration through :func:`brief_schema`; the
+middleware is idempotent over it. A brief exists only while it is shorter than
+upstream's text: ``vision_analyze`` left 2026-09-24 (lane REDS3) once upstream's
+own diet (#97339) undercut it.
 """
 
 from typing import Any, Dict, Optional
@@ -28,7 +30,6 @@ BRIEF_DESCRIPTIONS = {
     "read_terminal": "Read what is currently shown in the Hermes desktop GUI's embedded terminal pane (desktop only). No args = visible screen + total_lines; pass start_line/count to page scrollback. Returns a JSON viewport.",
     "web_search": "Search the web (up to 5 results: title, URL, description). Backend operators like site:, filetype:, intitle:, -term, and \"exact phrase\" may work. Disambiguator: use web_extract to read a specific page.",
     "web_extract": "Extract clean markdown/text from web page or PDF URLs (no LLM summarization). Large pages return a head+tail window with a saved-file path to read the rest. Disambiguator: for interactive or failed pages use the browser tools; to find pages use web_search.",
-    "vision_analyze": "Load an image (URL, local path, or data URL) into the conversation so you can see it. Native-vision models read the pixels next turn; others get an auxiliary text description. Disambiguator: use whenever the user references an image; read_file cannot read binaries.",
     "patch": "Targeted find-and-replace file edits with fuzzy matching; returns a unified diff and auto-runs syntax checks. Supply path, old_string and new_string. Disambiguator: use instead of shell sed/awk; use write_file for full rewrites.",
     "search_files": "Search file contents (target='content', regex, ripgrep-backed) or find files by name/glob (target='files', sorted by mtime). Disambiguator: use instead of shell grep/rg/find/ls.",
     "browser_snapshot": "Get a text accessibility-tree snapshot of the current page with ref IDs (@e1...) for browser_click/type. full=false compact (default), full=true complete. Oversized snapshots are truncated/summarized and the complete text is saved to a file whose path is in the output. Disambiguator: browser_navigate already returns one -- use this to refresh after the page changes.",
@@ -53,6 +54,14 @@ BRIEF_DESCRIPTIONS = {
         "Call tool_describe for available tools, helper imports and execution-mode guidance."
     ),
     "session_search": "Search conversation history (FTS5): query to discover; session_id + around_message_id to scroll; session_id to read; no args for recent. Paste returned link verbatim when citing a session. If given a live source (URL/file/account), inspect that first. Call tool_describe for shapes and search syntax.",
+    # Lane REDS3 2026-09-24: the 2026-09-21 merge (f443c9ab35) took upstream's
+    # READ_FILE_SCHEMA text whole, dropping the fork's inline brief; the brief
+    # rides the middleware now and tool_describe serves the live registry text.
+    "read_file": "Read a text file with line numbers and pagination (offset/limit; large reads "
+                 "truncate on a line boundary with next_offset). Auto-extracts .ipynb/.docx/.xlsx/"
+                 ".pptx, .doc/.ppt/.xls, PDF (text layer), OpenDocument, RTF, EPUB and SQLite. "
+                 "Cannot read images/binary -- use vision_analyze for images; prefer this over "
+                 "shell cat/head/tail.",
 }
 
 _registered_full = {}

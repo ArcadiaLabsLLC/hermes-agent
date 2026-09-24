@@ -30,6 +30,15 @@ def _tools_discovered():
     discover_builtin_tools()
 
 
+@pytest.fixture(autouse=True)
+def _plugin_tools_discovered():
+    """skill_search registers through the eternia-harness plugin (seam S2), and the
+    hermetic conftest resets the plugin managers per test, so discover per test."""
+    from hermes_cli.plugins import discover_plugins
+
+    discover_plugins()
+
+
 TRIMMED_TOOLS = sorted(set(FULL_TOOL_DESCRIPTIONS) | set(BRIEF_DESCRIPTIONS))
 
 
@@ -51,15 +60,17 @@ def _full(name):
     return full_tool_description(name) or _schema(name).get("description", "")
 
 
-def test_mirror_and_briefs_cover_thirty_four_tools():
+def test_mirror_and_briefs_cover_thirty_three_tools():
     """Every tool whose wire description T6b trimmed has a brief (mirror or middleware).
 
-    34 is T6b's count after ``mission_goal_create`` retired. When the upstream-owned
-    briefs moved to the middleware (2026-09-24) the set split, disjoint: 11 mirror
-    rows (fork-owned registrations) + 23 ``BRIEF_DESCRIPTIONS`` entries.
+    34 was T6b's count after ``mission_goal_create`` retired; 33 since lane REDS3
+    (2026-09-24) dropped ``vision_analyze``, whose upstream text (#97339) is now
+    shorter than the brief was. The set splits disjoint: 9 mirror rows (fork-owned
+    registrations) + 24 ``BRIEF_DESCRIPTIONS`` entries (read_file joined the
+    middleware in lane REDS3).
     """
     assert not set(FULL_TOOL_DESCRIPTIONS) & set(BRIEF_DESCRIPTIONS)
-    assert len(TRIMMED_TOOLS) == 34
+    assert len(TRIMMED_TOOLS) == 33
     assert "mission_goal_create" not in TRIMMED_TOOLS
 
 

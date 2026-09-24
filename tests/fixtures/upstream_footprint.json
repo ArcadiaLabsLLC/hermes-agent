@@ -2,7 +2,7 @@
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
   "files": 216,
-  "deleted_lines": 1044,
+  "deleted_lines": 1043,
   "heavy": 4,
   "reasons": [
     {
@@ -126,6 +126,12 @@
       "files": "219 -> 216",
       "deleted_lines": "1058 -> 1044",
       "reason": "hermes_cli/runtime_provider.py and runtime_provider_custom.py byte-identical: the non-persisting selection scope moved into agent_runtime.pool_rotation (a ContextVar PoolRotationMixin._select_with_rotation reads, select_without_persisting_rotation = select under pool_rotation_scope(False)), so the ladder calls upstream's pool.select(); probe_runtime_provider opens the scope around resolve_runtime_provider instead of a persist_pool_rotation kwarg (agent/credential_pool.py 10/18 -> 9/18: _select_unlocked's persist_rotation parameter is gone). hermes_cli/web_routers/profiles.py byte-identical: the promote route is the eternia-harness dashboard plugin API route /api/plugins/eternia-harness/profiles/{name}/promote (no caller outside the fork's own test). hermes_cli/auth.py 23/2 -> 13/1: the auth_extensions tail re-export (callers import it), the duplicate hermes_cli.config top import and the hermes_constants re-wrap leave"
+    },
+    {
+      "change": "lane REDS3 t6b briefs (fork/main-reds-2026-09-24)",
+      "files": "flat (216)",
+      "deleted_lines": "1044 -> 1043",
+      "reason": "tools/vision_tools.py registers upstream's VISION_ANALYZE_SCHEMA again: upstream's own diet (#97339) made its text shorter than the fork brief, so the brief and its brief_schema wrap leave; read_file's brief joins BRIEF_DESCRIPTIONS (llm_request middleware) and its stale tool_full_descriptions mirror row is deleted"
     }
   ]
 }

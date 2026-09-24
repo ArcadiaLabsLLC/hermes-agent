@@ -926,11 +926,10 @@ async def _handle_vision_analyze(args: Dict[str, Any], **kw: Any) -> str:
     return await vision_analyze_tool(image_url, full_prompt, model, task_id=task_id, region=region)
 
 
-from tools.downstream_schema import brief_schema
 registry.register(
     name="vision_analyze",
     toolset="vision",
-    schema=brief_schema("vision_analyze", VISION_ANALYZE_SCHEMA),
+    schema=VISION_ANALYZE_SCHEMA,
     handler=_handle_vision_analyze,
     check_fn=check_vision_requirements,
     is_async=True,

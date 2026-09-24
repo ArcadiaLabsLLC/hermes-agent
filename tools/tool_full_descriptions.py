@@ -13,8 +13,8 @@ Every tool briefed in ``tools.downstream_schema.BRIEF_DESCRIPTIONS`` has no entr
 here: the registry keeps upstream's live text (the brief rides only the wire, via
 the eternia-harness ``llm_request`` middleware), so ``full_tool_description``
 returns None for it and ``tool_describe`` serves the registry schema — except
-``terminal`` / ``vision_analyze``, still briefed at registration, whose upstream
-text ``registered_full_description`` captured. Other entries retain the
+``terminal``, still briefed at registration, whose upstream text
+``registered_full_description`` captured. Other entries retain the
 following snapshot contract.
 
 MIRROR DISCIPLINE: this is a snapshot of the descriptions as they shipped before
@@ -48,9 +48,6 @@ FULL_TOOL_DESCRIPTIONS: Dict[str, Union[str, Callable[[], str]]] = {
     ),
     'agent_chat_threads': (
         "List your agent-to-agent chat threads with the teammates on your level (the personas agent_chat_send can reach — the same @personainst_* handles shown in your Runtime Situation HUD). For each teammate: persona id, display name, canonical personainst_* handle, and their CURRENT default thread's session id + title + last activity + message count when one exists. Threads are task-scoped, so that default is the most recently established thread with that teammate, not a stable per-pair thread. A teammate you have never chatted with is listed honestly with no thread yet (no session is created just to answer this). Read-only. Use this to see who you can talk to and which conversations already exist before deciding whether to continue one (agent_chat_send carrying that session_id — an omitted session opens a fresh task thread instead) or review one first (agent_chat_open)."
-    ),
-    'read_file': (
-        "Read a text file with line numbers and pagination. Use this instead of cat/head/tail in terminal. Output format: 'LINE_NUM|CONTENT'. Suggests similar filenames if not found. Use offset and limit for large files. Reads exceeding ~100K characters are truncated on a line boundary and return a next_offset; continue with offset to read the rest. Jupyter notebooks (.ipynb), Word documents (.docx), and Excel workbooks (.xlsx) are auto-extracted to readable text. NOTE: Cannot read images or other binary files — use vision_analyze for images."
     ),
     'board_card_add': (
         "Add a planning CARD to the Mission Board (a kanban board scoped to the workspace). Use this to track follow-up work worth remembering. A card is planning state only and never starts tracked work. The card lands in the board's Queued column and is attributed to you. Optional, advisory: only add a card when it is genuinely useful."
