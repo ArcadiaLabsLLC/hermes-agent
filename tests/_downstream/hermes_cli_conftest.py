@@ -861,6 +861,21 @@ def _no_shebang_script_execution() -> bool:
     return _SHEBANG_EXEC_PROBE
 
 
+def _nemo_relay_predates_tool_results() -> bool:
+    """True where the installed ``nemo_relay`` lacks ``ToolExecutionResult``.
+
+    ``hermes_cli.observability.relay_shared_metrics`` closes every tool call
+    through it (upstream ``31e7237adb``, relay 0.8); an older wheel imports
+    fine and fails only at that close, which the binding logs and swallows.
+    Asked of the module itself, not of a version string.
+    """
+    try:
+        import nemo_relay
+    except Exception:
+        return False
+    return not hasattr(nemo_relay, "ToolExecutionResult")
+
+
 _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
     # ── Spawn shapes the loader does not support ──────────────────────────
     #
@@ -1047,6 +1062,21 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             'the checkout — treat it as side-effecting',
             {
                 'TestCmdUpdateBranchFallback::test_update_on_fork_checks_upstream_when_origin_up_to_date',
+            },
+        ),
+    ],
+    # ── a venv older than pyproject's pin ──────────────────────────────────
+    'test_relay_shared_metrics_runtime.py': [
+        (
+            _nemo_relay_predates_tool_results,
+            'the installed nemo-relay has no ToolExecutionResult (added in the '
+            '0.8 line; pyproject pins nemo-relay>=0.8.3,<0.9), so the relay '
+            'binding drops every tool-call close and no tool metric exists. '
+            'Re-sync the test venv, then delete this row',
+            {
+                'test_real_binding_drives_lifecycle_aggregation_export_and_snapshot',
+                'test_real_binding_correlates_plugin_approval_denial_to_tool_metric',
+                'test_real_binding_aggregates_tool_and_approval_timeouts',
             },
         ),
     ],

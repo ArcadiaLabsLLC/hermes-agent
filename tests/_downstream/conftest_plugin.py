@@ -22,7 +22,11 @@ import tempfile
 
 import pytest
 
-from tests._downstream.id_markers import pytest_collection_modifyitems  # noqa: F401 — hook re-export
+from tests._downstream.id_markers import (  # noqa: F401 — hook re-exports
+    NO_LIVE_GATEWAY_MARK,
+    pytest_collection_modifyitems,
+    pytest_runtest_setup,
+)
 
 
 # ── Opt-in test-temp root (suite-perf Stage 7, ruled 2026-09-01) ─────────────
@@ -681,4 +685,11 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         f"{_CLAUDE_HOME_IS_TMP_PATH_MARK}: Path.home() is the test's tmp_path "
         "(applied by id from tests/_downstream/id_markers.py, together with "
         "allow_claude_code_credentials_file).",
+    )
+    config.addinivalue_line(
+        "markers",
+        f"{NO_LIVE_GATEWAY_MARK}: the test's premise is that no hermes gateway runs "
+        "on this machine (it reads the real fleet process table); it skips, naming "
+        "the live pids, where one does (applied by id from "
+        "tests/_downstream/id_markers.py).",
     )

@@ -5,9 +5,10 @@ Lane CARRY (2026-09-24): an upstream test file the fork used to edit in place
 bytes, and the mark moves here. The file then leaves the ``[up-fp]`` ratchet and
 the weekly merge stops conflicting on it.
 
-``ID_MARKS`` maps a node id WITHOUT its parametrize suffix — or a class id,
-which covers every test in the class, or a bare file path, which covers every
-test in the file — to the marks the fork applies. ``_WIN`` / ``_NOT_WIN`` rows are platform treatments; each names what
+``ID_MARKS`` maps a node id WITHOUT its parametrize suffix — or one WITH it,
+which covers that parameter only, or a class id, which covers every test in the
+class, or a bare file path, which covers every test in the file — to the marks
+the fork applies. ``_WIN`` / ``_NOT_WIN`` rows are platform treatments; each names what
 retires it. A row whose file is collected but whose id no longer exists is a
 UsageError, not a silent no-op: an unmatched row would read as coverage it no
 longer gives.
@@ -167,7 +168,11 @@ ID_MARKS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # The real negative liveness poll takes 30 s plus process startup; the
     # fork's repo-wide --timeout=30 cannot observe the expected refusal.
     "tests/hermes_cli/test_gateway_job_teardown_live.py::TestResumeVerificationLive::"
-    "test_dead_relaunch_is_not_reported_as_success": (pytest.mark.timeout(90),),
+    "test_dead_relaunch_is_not_reported_as_success": (
+        pytest.mark.timeout(90),
+        # A live gateway anywhere on the machine answers the fleet-wide poll.
+        pytest.mark.requires_no_live_gateway,
+    ),
     "tests/hermes_cli/test_config_read_guard.py::"
     "test_no_raw_config_yaml_reads_outside_owner_modules": (
         pytest.mark.xfail(reason=_FORK_PERSONA_CONFIG_SYNC, strict=True),
@@ -639,6 +644,40 @@ if _WIN:
     })
 
 
+# ── Lane REDS2: the fork-scope gate over the 2026-09-24 wave ───────────────
+#
+#: A live-machine premise, not a platform one: the test reads the REAL fleet
+#: process table and needs it to hold no hermes gateway (``pytest_runtest_setup``).
+NO_LIVE_GATEWAY_MARK = "requires_no_live_gateway"
+
+ID_MARKS.update({
+    # The fork's doctor_config reads config.yaml from get_hermes_home() at call
+    # time, so upstream's patch of doctor.HERMES_HOME no longer selects the file.
+    "tests/hermes_cli/test_doctor.py::test_run_doctor_vendor_slug_policy_for_openai_api_endpoint"
+    "[https://api.openai.com/v1-True]": (
+        _fork_replaces(
+            "hermes_cli.doctor_config._check_config_file (home resolved at call time)",
+            "tests/hermes_cli/test_doctor_downstream.py",
+        ),
+    ),
+})
+
+if _WIN:
+    ID_MARKS.update({
+        # Upstream's own contract lets a `spawns_gateway_lookalike` test spawn a
+        # `gateway run` stand-in (tests/conftest.py honours it); the fork's
+        # tests/hermes_cli/_gateway_fence.py arming fixture does not.
+        "tests/hermes_cli/test_plan_reconciliation_windows_live.py::"
+        "test_plan_reconciliation_live_windows": (
+            pytest.mark.xfail(strict=True, reason=(
+                "the fork's tests/hermes_cli gateway fence refuses the "
+                "`hermes gateway run` stand-in that the module's "
+                "spawns_gateway_lookalike mark permits under upstream's guard"
+            )),
+        ),
+    })
+
+
 def _base_id(nodeid: str) -> str:
     return nodeid.split("[", 1)[0]
 
@@ -680,7 +719,8 @@ def pytest_collection_modifyitems(config, items):  # noqa: D401 — pytest hook
     for item in items:
         base = _base_id(item.nodeid)
         collected_files.add(base.split("::", 1)[0])
-        for key in _keys_for(base):
+        exact = [item.nodeid] if item.nodeid != base else []
+        for key in exact + _keys_for(base):
             marks = ID_MARKS.get(key)
             if marks is None:
                 continue
@@ -697,4 +737,24 @@ def pytest_collection_modifyitems(config, items):  # noqa: D401 — pytest hook
             "tests/_downstream/id_markers.py names test ids that no longer exist "
             "in their (collected) file; delete or re-point the rows:\n  "
             + "\n  ".join(stale)
+        )
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_setup(item):  # noqa: D401 — pytest hook
+    """Skip a ``requires_no_live_gateway`` test on a machine running a gateway.
+
+    Runs before any fixture, so it reads the real process table the test will
+    read. A live gateway there (the operator's, or a sibling lane's) is found by
+    the fleet-wide liveness poll and vouches for whatever the test relaunched.
+    """
+    if item.get_closest_marker(NO_LIVE_GATEWAY_MARK) is None:
+        return
+    from hermes_cli.gateway import find_gateway_pids
+
+    live = sorted(find_gateway_pids(all_profiles=True))
+    if live:
+        pytest.skip(
+            f"a hermes gateway runs on this machine (pid {live}); the test needs "
+            "a fleet with none, because the liveness poll it asserts on is fleet-wide"
         )
