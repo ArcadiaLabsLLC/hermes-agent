@@ -48,6 +48,7 @@ from typing import Any
 import pytest
 
 from agent_runtime import serve_rpc
+from tests.agent_runtime._serve_rpc_manifest import expected_methods
 from agent_runtime.serve_office_subscriptions import (
     OFFICE_FOLD_ENTITIES,
     OFFICE_PATCH_METHOD,
@@ -2198,70 +2199,8 @@ def test_the_reclaim_pair_joins_the_manifest_without_moving_the_contract_version
     depend on having.
     """
 
-    assert serve_rpc.method_names() == [
-        # Gateway Stage 6, and the first name outside the ``runtime.*``
-        # family: ``peer.*`` verbs are about the EDGE between two
-        # installs and touch no level. Additive, so the integer holds.
-        "peer.agent_chat.execute",
-        # S2c, additive: the ONE writing peer verb, and it writes the
-        # caller's own row in ``peers_cache.json`` — a file that gates
-        # nothing and that no credential path reads.
-        "peer.announce",
-        # Stage P4 (R-P3), additive: the cross-install FETCH keyhole.
-        "peer.media.get",
-        "peer.ping",
-        # S2b, additive: the two READ verbs. A roster scoped to one
-        # workspace, and one thread the caller was already handed the
-        # session id for. Neither enumerates.
-        "peer.roster.list",
-        "peer.thread.read",
-        "runtime.agent.create",
-        # Added by S5 after this literal was written; the pin had been red ever
-        # since, and the Stage A1 manifest refresh is what walked past it.
-        "runtime.agent.retire",
-        # Gateway Stage 3. Two more additive names; the integer still does not
-        # move, because a client only calls methods it found in the set.
-        "runtime.chat.message",
-        "runtime.chat.steer",
-        # S2d, additive: the serve's peer-directory door for its own
-        # launcher. The launcher's hermes stream carries no events, so
-        # canon 03 invariant 6 routes this push over notifications.
-        "runtime.gateway.peers.list",
-        "runtime.gateway.peers.roster",
-        "runtime.gateway.peers.subscribe",
-        # Gateway Stage 8, additive: the fetch family joins the set.
-        "runtime.local_llama.catalog.scan",
-        "runtime.local_llama.config.get",
-        "runtime.local_llama.config.set",
-        "runtime.local_llama.load",
-        "runtime.local_llama.logs.get",
-        "runtime.local_llama.start",
-        "runtime.local_llama.status",
-        "runtime.local_llama.stop",
-        "runtime.local_llama.unload",
-        "runtime.media.get",
-        "runtime.media.index",
-        "runtime.office.get",
-        "runtime.office.remove",
-        "runtime.office.resolve_conflict",
-        "runtime.office.subscribe",
-        "runtime.office.surface.update",
-        "runtime.office.unsubscribe",
-        "runtime.office.upsert",
-        # Stage 3a of the agent-drop-latency plan. ADDITIVE: a method joins the
-        # set, no existing shape moves, so the integer below stays 1 — a client
-        # only calls methods it found in the set.
-        "runtime.persona.instance.open_chat",
-        "runtime.persona.prewarm",
-        # Plan WS4, additive again: the two scope-pointer verbs. They ARE
-        # advertised like every other method — what restricts them is a
-        # caller-KIND test at the chokepoint
-        # (``call_authorization.LOCAL_CONSOLE_METHODS``), not an absence from
-        # the manifest, because the launcher's lowering gate is a membership
-        # test and a method it cannot see is a method it cannot lower onto.
-        "runtime.realm.use",
-        "runtime.workspace.use",
-    ]
+    assert serve_rpc.method_names() == expected_methods()
+    assert {"runtime.office.subscribe", "runtime.office.unsubscribe"} <= set(expected_methods())
     assert serve_rpc.RPC_CONTRACT_VERSION == 1
     assert serve_rpc.manifest()["contract"] == 1
 
