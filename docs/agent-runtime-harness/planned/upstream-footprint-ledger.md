@@ -158,65 +158,65 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `scripts/run_tests.sh` | 193 | 5 | upstream | §0.4: runner improvements (P5); carry the hermetic-env rows | S3 |
 | `scripts/run_tests_parallel.py` | 181 | 42 | upstream | §0.4: runner improvements (P5); carry the hermetic-env rows | S3 |
 | `tests/agent/conftest.py` | 1 | 0 | carry | §0.4 / S5 landed: fork fixtures and hooks live in `tests/_downstream/` (root plugin + three star-imported modules); this file carries one added line | S5 |
-| `tests/agent/lsp/test_workspace.py` | 9 | 3 | carry | unreviewed | - |
-| `tests/agent/test_anthropic_adapter.py` | 36 | 0 | carry | unreviewed | - |
-| `tests/agent/test_anthropic_borrowed_row_authority.py` | 8 | 0 | carry | unreviewed | - |
-| `tests/agent/test_anthropic_credential_persist_failure.py` | 17 | 10 | carry | unreviewed | - |
-| `tests/agent/test_anthropic_keychain.py` | 10 | 1 | carry | unreviewed | - |
-| `tests/agent/test_anthropic_spent_rotation_verdict.py` | 8 | 0 | carry | unreviewed | - |
+| `tests/agent/lsp/test_workspace.py` | 9 | 3 | upstream | lifted: up/win-tilde-home | up/win-tilde-home |
+| `tests/agent/test_anthropic_adapter.py` | 36 | 0 | carry | fork test infra: allow_claude_code_credentials_file marker (MCF-66, tests/_downstream root plugin) | - |
+| `tests/agent/test_anthropic_borrowed_row_authority.py` | 8 | 0 | carry | fork test infra: allow_claude_code_credentials_file marker (MCF-66, tests/_downstream root plugin) | - |
+| `tests/agent/test_anthropic_credential_persist_failure.py` | 17 | 10 | carry | lifted: up/monkeypatch-undo-scoped; rest fork test infra: allow_claude_code_credentials_file marker (MCF-66, tests/_downstream root plugin) | up/monkeypatch-undo-scoped |
+| `tests/agent/test_anthropic_keychain.py` | 10 | 1 | carry | fork test infra: allow_claude_code_credentials_file marker (MCF-66, tests/_downstream root plugin) | - |
+| `tests/agent/test_anthropic_spent_rotation_verdict.py` | 8 | 0 | carry | fork test infra: allow_claude_code_credentials_file marker (MCF-66, tests/_downstream root plugin); 1 hunk already upstream (b3d4f67b20) | - |
 | `tests/agent/test_bedrock_integration.py` | 18 | 0 | carry | S5: 1 fork test unit(s) cannot leave — share upstream autouse fixture _boto_sys_modules_hygiene (a move would drop or duplicate it) | S5 |
-| `tests/agent/test_canon_args_memo_parity.py` | 8 | 8 | carry | unreviewed | - |
-| `tests/agent/test_coding_context.py` | 13 | 2 | carry | unreviewed | - |
-| `tests/agent/test_compression_adoption_preserves_live_tail.py` | 1 | 1 | carry | unreviewed | - |
+| `tests/agent/test_canon_args_memo_parity.py` | 8 | 8 | upstream | lifted: up/monkeypatch-undo-scoped | up/monkeypatch-undo-scoped |
+| `tests/agent/test_coding_context.py` | 13 | 2 | upstream | lifted: up/win-line-endings | up/win-line-endings |
+| `tests/agent/test_compression_adoption_preserves_live_tail.py` | 1 | 1 | upstream | PR candidate: stale doc pointers (docstring/comment names a moved or never-existing test path) | S3 |
 | `tests/agent/test_compression_feasibility.py` | 21 | 1 | carry | S5: 1 fork test unit(s) cannot leave — share upstream autouse fixture _stable_aux_provider_config (a move would drop or duplicate it) | S5 |
-| `tests/agent/test_curator_classification.py` | 6 | 2 | carry | unreviewed | - |
-| `tests/agent/test_external_skills.py` | 8 | 2 | carry | unreviewed | - |
-| `tests/agent/test_file_safety_sandbox_mirror.py` | 8 | 6 | carry | unreviewed | - |
-| `tests/agent/test_image_routing.py` | 8 | 3 | carry | unreviewed | - |
-| `tests/agent/test_nous_oauth_401_guidance.py` | 14 | 0 | carry | unreviewed | - |
-| `tests/agent/test_pet_generate.py` | 15 | 0 | carry | unreviewed | - |
+| `tests/agent/test_curator_classification.py` | 6 | 2 | upstream | superseded by upstream 2002f03e42 (em-dash assertions moved; passes on upstream) | merge |
+| `tests/agent/test_external_skills.py` | 8 | 2 | carry | depends on fork prod code agent_runtime/profile_home.py (shared skills root in get_all_skills_dirs); replaces upstream lines: upstream's test asserts the pre-shared-root order | S4 |
+| `tests/agent/test_file_safety_sandbox_mirror.py` | 8 | 6 | upstream | lifted: up/win-path-spelling | up/win-path-spelling |
+| `tests/agent/test_image_routing.py` | 8 | 3 | upstream | lifted: up/win-tilde-home | up/win-tilde-home |
+| `tests/agent/test_nous_oauth_401_guidance.py` | 14 | 0 | upstream | superseded by upstream 19f76d7498: file deleted upstream (purge lane); next merge takes the deletion or keeps it fork-only | merge |
+| `tests/agent/test_pet_generate.py` | 15 | 0 | upstream | superseded by upstream 19f76d7498: file deleted upstream; the fork edit is only orphan S5 banner comments | merge |
 | `tests/agent/test_prompt_builder.py` | 118 | 5 | carry | S5: 7 fork test unit(s) cannot leave — share upstream autouse fixture _drain_truncation_warnings (a move would drop or duplicate it) | S5 |
-| `tests/agent/test_provider_fallback.py` | 5 | 3 | carry | unreviewed | - |
-| `tests/agent/test_proxy_and_url_validation.py` | 4 | 1 | carry | unreviewed | - |
-| `tests/agent/test_save_url_image.py` | 1 | 1 | carry | unreviewed | - |
+| `tests/agent/test_provider_fallback.py` | 5 | 3 | upstream | PR candidate: stale doc pointers (docstring/comment names a moved or never-existing test path) - names test_fallback_model.py, deleted upstream in e2fd462ebe | S3 |
+| `tests/agent/test_proxy_and_url_validation.py` | 4 | 1 | upstream | lifted: up/win-env-var-case | up/win-env-var-case |
+| `tests/agent/test_save_url_image.py` | 1 | 1 | upstream | lifted: up/win-path-spelling | up/win-path-spelling |
 | `tests/agent/test_shell_hooks.py` | 89 | 31 | carry | S5: 1 fork test unit(s) cannot leave — share upstream autouse fixture _reset_registration_state (a move would drop or duplicate it) | S5 |
-| `tests/agent/test_shell_hooks_consent.py` | 6 | 1 | carry | unreviewed | - |
-| `tests/agent/test_skill_commands.py` | 17 | 7 | carry | unreviewed | - |
-| `tests/agent/test_skill_utils.py` | 19 | 4 | carry | unreviewed | - |
-| `tests/agent/test_system_prompt.py` | 13 | 4 | carry | unreviewed | - |
-| `tests/agent/test_usage_pricing.py` | 0 | 5 | carry | unreviewed | - |
+| `tests/agent/test_shell_hooks_consent.py` | 6 | 1 | upstream | lifted: up/win-tilde-home | up/win-tilde-home |
+| `tests/agent/test_skill_commands.py` | 17 | 7 | upstream | lifted: up/win-shell-invocation; rest superseded by upstream b2ecd3518f: pwd -W lifted; supporting-files hunk targets a test upstream deleted | up/win-shell-invocation |
+| `tests/agent/test_skill_utils.py` | 19 | 4 | upstream | PR candidate: win-path-spelling extension (Path() compare, not in up/win-path-spelling); REVERT orphan S5 banner; 1 hunk already upstream (b2ecd3518f) | S3 |
+| `tests/agent/test_system_prompt.py` | 13 | 4 | hook | seam: register_system_prompt_section (T6b TOOL_DESCRIBE_GUIDANCE in the stable prefix) | S2 |
+| `tests/agent/test_usage_pricing.py` | 0 | 5 | upstream | REVERT: whitespace-only S5 residue (5 blank lines) | merge |
 | `tests/agent/transports/test_codex_transport.py` | 282 | 0 | carry | S5: 13 fork test unit(s) cannot leave — share upstream module fixture transport (a move would drop or duplicate it) | S5 |
 | `tests/conftest.py` | 131 | 9 | carry | §0.4 / S5 landed: fork fixtures moved to `tests/_downstream/conftest_plugin.py` (one `pytest_plugins` line); the rest is in-place edits of upstream names (`_looks_like_credential` regex, `_live_system_guard` lazy snapshot + backend-spawn arm) owed to the Stage 3 PRs | S5 |
-| `tests/cron/test_cron_memory_contract.py` | 1 | 1 | carry | unreviewed | - |
-| `tests/cron/test_cron_profile_isolation.py` | 37 | 25 | carry | unreviewed | - |
-| `tests/docker/test_dashboard.py` | 3 | 1 | carry | unreviewed | - |
-| `tests/e2e/conftest.py` | 1 | 0 | carry | unreviewed | - |
-| `tests/e2e/matrix_xsign_bootstrap/test_bootstrap.py` | 2 | 2 | carry | unreviewed | - |
-| `tests/gateway/conftest.py` | 182 | 0 | carry | unreviewed | - |
-| `tests/gateway/relay/test_contract_doc_conformance.py` | 113 | 20 | carry | unreviewed | - |
-| `tests/gateway/test_api_server_active_work_drain.py` | 2 | 4 | carry | unreviewed | - |
-| `tests/gateway/test_background_process_notifications.py` | 5 | 5 | carry | unreviewed | - |
-| `tests/gateway/test_completion_delivery.py` | 31 | 21 | carry | unreviewed | - |
-| `tests/gateway/test_completion_session_boundary.py` | 2 | 0 | carry | unreviewed | - |
-| `tests/gateway/test_compression_deferred_soft_result.py` | 1 | 1 | carry | unreviewed | - |
-| `tests/gateway/test_config_env_bridge_authority.py` | 1 | 1 | carry | unreviewed | - |
-| `tests/gateway/test_cron_interrupt_notification.py` | 1 | 0 | carry | unreviewed | - |
-| `tests/gateway/test_feishu.py` | 13 | 6 | carry | unreviewed | - |
-| `tests/gateway/test_internal_event_bypass_pairing.py` | 2 | 0 | carry | unreviewed | - |
-| `tests/gateway/test_matrix.py` | 4 | 2 | carry | unreviewed | - |
-| `tests/gateway/test_matrix_approval_reaction_fail_closed.py` | 4 | 2 | carry | unreviewed | - |
-| `tests/gateway/test_media_resend_dedup.py` | 7 | 1 | carry | unreviewed | - |
-| `tests/gateway/test_media_spaced_paths_and_history_dedupe.py` | 11 | 2 | carry | unreviewed | - |
-| `tests/gateway/test_mirror.py` | 14 | 7 | carry | unreviewed | - |
-| `tests/gateway/test_platform_base.py` | 8 | 1 | carry | unreviewed | - |
-| `tests/gateway/test_platform_reconnect.py` | 10 | 2 | carry | unreviewed | - |
-| `tests/gateway/test_post_stream_media_delivery.py` | 6 | 1 | carry | unreviewed | - |
-| `tests/gateway/test_runtime_footer.py` | 25 | 6 | carry | unreviewed | - |
-| `tests/gateway/test_session_state_cleanup.py` | 6 | 1 | carry | unreviewed | - |
-| `tests/gateway/test_status_command.py` | 9 | 0 | carry | unreviewed | - |
-| `tests/gateway/test_update_command.py` | 45 | 8 | carry | unreviewed | - |
+| `tests/cron/test_cron_memory_contract.py` | 1 | 1 | upstream | PR candidate: stale doc pointers (docstring/comment names a moved or never-existing test path) | S3 |
+| `tests/cron/test_cron_profile_isolation.py` | 37 | 25 | upstream | lifted: up/monkeypatch-undo-scoped | up/monkeypatch-undo-scoped |
+| `tests/docker/test_dashboard.py` | 3 | 1 | upstream | PR candidate: stale doc pointers (docstring/comment names a moved or never-existing test path) | S3 |
+| `tests/e2e/conftest.py` | 1 | 0 | carry | conftest in-place (S3): depends on fork prod code gateway runner _queued_events (symbol since adopted upstream; supersession re-check owed at next merge) | S3 |
+| `tests/e2e/matrix_xsign_bootstrap/test_bootstrap.py` | 2 | 2 | upstream | superseded by upstream aedc6ccc3a: file deleted upstream (purge lane); next merge takes the deletion or keeps it fork-only | merge |
+| `tests/gateway/conftest.py` | 182 | 0 | carry | conftest in-place (S3): fork fixtures | S3 |
+| `tests/gateway/relay/test_contract_doc_conformance.py` | 113 | 20 | upstream | superseded by upstream aedc6ccc3a: file deleted upstream; next merge takes the deletion or keeps it fork-only | merge |
+| `tests/gateway/test_api_server_active_work_drain.py` | 2 | 4 | upstream | lifted: up/monkeypatch-undo-scoped | up/monkeypatch-undo-scoped |
+| `tests/gateway/test_background_process_notifications.py` | 5 | 5 | carry | depends on fork prod code gateway/run.py (background_process_notifications default 'result'); replaces upstream lines: 2 upstream tests renamed to the fork default | - |
+| `tests/gateway/test_completion_delivery.py` | 31 | 21 | carry | depends on fork prod code gateway/run.py checkpoint_path + HERMES_BACKGROUND_AGENT_TURNS default; 1 hunk already upstream (21c698b7df) | - |
+| `tests/gateway/test_completion_session_boundary.py` | 2 | 0 | carry | depends on fork prod code gateway HERMES_BACKGROUND_AGENT_TURNS default | - |
+| `tests/gateway/test_compression_deferred_soft_result.py` | 1 | 1 | upstream | superseded by upstream 21c698b7df: file deleted upstream (purge lane); next merge takes the deletion or keeps it fork-only | merge |
+| `tests/gateway/test_config_env_bridge_authority.py` | 1 | 1 | carry | fork test infra: needed only under the fork's shared-process runner (upstream isolates each file under env -i); SystemRoot spelling; passes upstream | - |
+| `tests/gateway/test_cron_interrupt_notification.py` | 1 | 0 | upstream | superseded by upstream 21c698b7df (_cron_drain_timeout and this hunk now upstream) | merge |
+| `tests/gateway/test_feishu.py` | 13 | 6 | upstream | PR candidate: hermetic home under a clear=True env (Path.home falls back to the real home) | S3 |
+| `tests/gateway/test_internal_event_bypass_pairing.py` | 2 | 0 | carry | depends on fork prod code gateway HERMES_BACKGROUND_AGENT_TURNS | - |
+| `tests/gateway/test_matrix.py` | 4 | 2 | carry | fork test infra: fork spell gate (TrustState token obfuscation) | - |
+| `tests/gateway/test_matrix_approval_reaction_fail_closed.py` | 4 | 2 | carry | fork test infra: fork spell gate (TrustState token obfuscation) | - |
+| `tests/gateway/test_media_resend_dedup.py` | 7 | 1 | upstream | lifted: up/win-path-spelling | up/win-path-spelling |
+| `tests/gateway/test_media_spaced_paths_and_history_dedupe.py` | 11 | 2 | upstream | lifted: up/win-tilde-home | up/win-tilde-home |
+| `tests/gateway/test_mirror.py` | 14 | 7 | upstream | lifted: up/monkeypatch-undo-scoped | up/monkeypatch-undo-scoped |
+| `tests/gateway/test_platform_base.py` | 8 | 1 | upstream | PR candidate: win-tilde-home extension (USERPROFILE; uses fork helper tests/_home_env.point_home_at, inline it for the PR) | S3 |
+| `tests/gateway/test_platform_reconnect.py` | 10 | 2 | carry | depends on fork prod code gateway bounded boot-send tasks | - |
+| `tests/gateway/test_post_stream_media_delivery.py` | 6 | 1 | upstream | lifted: up/win-path-spelling | up/win-path-spelling |
+| `tests/gateway/test_runtime_footer.py` | 25 | 6 | upstream | lifted: up/win-tilde-home, up/win-path-spelling | up/win-tilde-home+up/win-path-spelling |
+| `tests/gateway/test_session_state_cleanup.py` | 6 | 1 | carry | fork test infra: needed only under the fork's shared-process runner (upstream isolates each file under env -i); passes upstream | - |
+| `tests/gateway/test_status_command.py` | 9 | 0 | carry | fork test infra: needed only under the fork's shared-process runner (upstream isolates each file under env -i); passes upstream | - |
+| `tests/gateway/test_update_command.py` | 45 | 8 | upstream | lifted: up/win-text-encoding; REVERT: the known-command hunk is a merge-drift overwrite of upstream's own fix, restore upstream's lines | up/win-text-encoding |
 | `tests/hermes_cli/conftest.py` | 1 | 0 | carry | §0.4 / S5 landed: fork fixtures and hooks live in `tests/_downstream/` (root plugin + three star-imported modules); this file carries one added line | S5 |
-| `tests/hermes_cli/test_active_sessions.py` | 37 | 5 | carry | unreviewed | - |
+| `tests/hermes_cli/test_active_sessions.py` | 37 | 5 | carry | fork test infra: pytest-timeout marker / bounds sized for the fork's repo-wide --timeout=30 runner | - |
 | `tests/hermes_cli/test_apply_profile_override.py` | 24 | 2 | carry | unreviewed | - |
 | `tests/hermes_cli/test_auth_nous_provider.py` | 33 | 4 | carry | unreviewed | - |
 | `tests/hermes_cli/test_auth_ssl_macos.py` | 6 | 0 | carry | unreviewed | - |
