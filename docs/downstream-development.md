@@ -21,15 +21,13 @@ These fork-specific instructions supplement AGENTS.md and its area guides. Histo
    and `hermes doctor`'s `PRAGMA integrity_check` ran against the developer's
    real database.
 
-   `hermes_state._resolve_default_db_path` is the canonical pattern — resolve
+   Upstream's `hermes_state._default_db_path` is the canonical pattern — resolve
    live via `get_hermes_home()`, while still honoring an explicitly reassigned
    module constant so `monkeypatch.setattr` isolation keeps working:
    ```python
    # GOOD — re-resolves per call, and a pinned constant still wins
-   def _resolve_default_db_path() -> Path:
-       if DEFAULT_DB_PATH != _IMPORT_DEFAULT_DB_PATH:
-           return DEFAULT_DB_PATH
-       return get_hermes_home() / "state.db"
+   def _default_db_path() -> Path:
+       return DEFAULT_DB_PATH if DEFAULT_DB_PATH != _IMPORT_DEFAULT_DB_PATH else get_hermes_home() / "state.db"
 
    # BAD — frozen at import, which under pytest is before the fixture moves HERMES_HOME
    DB_PATH = get_hermes_home() / "state.db"

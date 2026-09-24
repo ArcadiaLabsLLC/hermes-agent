@@ -65,8 +65,8 @@ the create receipt (`agent_create_phases.py:23-24`) then inherited verbatim.
    (`core_cache.py:169-172`).
 2. **Monotonic only.** `time.monotonic` / `time.perf_counter` by construction,
    never a wall-clock delta: `BootTimeline` (`boot_timeline.py:16-17`),
-   `TurnPhaseMarks` (`mission_chat_phases.py:29-32`), `_first_delta_recorder`
-   (`agent_runtime/conversation_observability.py::_first_delta_recorder`). A clamped `0` beats a nonsense `-3` where a
+   `TurnPhaseMarks` (`mission_chat_phases.py:29-32`), `ProviderDispatchTiming`
+   (`agent_runtime/conversation_observability.py::ProviderDispatchTiming`). A clamped `0` beats a nonsense `-3` where a
    span must still be emitted (`boot_timeline.py:181-184`) — clamping a measured
    span is not the same act as inventing an unmeasured one.
 3. **First mark wins.** `provider_first_byte` is marked from a callback that
