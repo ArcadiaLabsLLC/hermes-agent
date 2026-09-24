@@ -516,10 +516,11 @@ def classify_orphan_persona_instances(
 
 
 def _profile_template_names() -> list[str]:
+    """The live named profiles, from upstream's one roster (``default`` dropped)."""
     try:
-        from hermes_cli.profiles import available_profile_templates
+        from hermes_cli.profiles import list_profile_names
 
-        return [str(getattr(t, "name", "") or "").strip() for t in available_profile_templates()]
+        return [name for name in list_profile_names() if name != "default"]
     except Exception:
         return []
 

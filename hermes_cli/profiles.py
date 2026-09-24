@@ -2375,46 +2375,13 @@ class _PsutilProcessLister:
 _PROCESS_LISTER: _ProcessLister = _PsutilProcessLister()
 
 
-def available_profile_templates() -> List[ProfileTemplateInfo]:
-    """Return named profile templates without gateway or skill-count probes."""
-    profiles: list[ProfileTemplateInfo] = []
-    try:
-        profiles_root = _get_profiles_root()
-        entries = sorted(profiles_root.iterdir()) if profiles_root.is_dir() else []
-    except Exception:
-        return []
-
-    for entry in entries:
-        try:
-            if not entry.is_dir():
-                continue
-            name = entry.name
-            if name == "default" or not _PROFILE_ID_RE.match(name):
-                continue
-            model, provider = _read_config_model(entry)
-            meta = read_profile_meta(entry)
-            profiles.append(
-                ProfileTemplateInfo(
-                    name=name,
-                    path=entry,
-                    model=model,
-                    provider=provider,
-                    description=meta.get("description", ""),
-                )
-            )
-        except Exception:
-            continue
-
-    return profiles
-
 def available_profile_template_summaries() -> List[ProfileTemplateInfo]:
     """Return live, servable profile metadata without parsing runtime config.
 
     Mission Control's available-persona roster uses only the profile name,
     path, and description. Reading every large ``config.yaml`` merely to
     discard model/provider adds substantial latency to a cold snapshot. The
-    full :func:`available_profile_templates` contract remains available to CLI
-    callers that render those runtime details.
+    roster of names alone is upstream's :func:`list_profile_names`.
     """
 
     profiles: list[ProfileTemplateInfo] = []
