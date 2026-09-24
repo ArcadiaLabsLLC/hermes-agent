@@ -21,8 +21,8 @@
     mutation-claim inventory the "refactor moves a claimed line" row asked
     for:
 
-      1. `scripts/run_tests.sh` on the VALIDATED four-directory scope —
-         `tests/agent_runtime tests/hermes_cli tests/cli tests/state` — never
+      1. `scripts/run_tests.sh` on the VALIDATED scope —
+         `tests/agent_runtime tests/hermes_cli tests/hermes_state` — never
          the parallel runner's whole-tree default. See AGENTS.md §Testing,
          "Validated scope vs. what the runner discovers by default" for why
          that scope and not the default.
@@ -148,7 +148,7 @@ $sections.Add("Repo root: ``$RepoRoot```n")
 
 # ── Lane B: the validated 4-directory suite ─────────────────────────────────
 $sections.Add("## 1. Validated suite lane (`scripts/run_tests.sh`)`n")
-$sections.Add("Scope: ``tests/agent_runtime tests/hermes_cli tests/cli tests/state`` — the four directories R3 was proven on, never the whole-tree default. See AGENTS.md §Testing.`n")
+$sections.Add("Scope: ``tests/agent_runtime tests/hermes_cli tests/hermes_state`` — R3's four directories under their post-2026-09-13 names, never the whole-tree default. See AGENTS.md §Testing.`n")
 
 if (-not $bash) {
     $sections.Add("**SKIPPED** — no Git Bash found (checked Program Files\Git\bin\bash.exe and \`git.exe\`'s own layout). \`scripts/run_tests.sh\` needs Git Bash, not WSL's \`bash\` — see this script's header.`n")
@@ -159,7 +159,7 @@ if (-not $bash) {
 } else {
     $repoRootUnix = ConvertTo-UnixPath $RepoRoot
     $pythonUnix = ConvertTo-UnixPath $python
-    $laneBCmd = "cd '$repoRootUnix' && HERMES_PYTHON='$pythonUnix' scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/cli tests/state"
+    $laneBCmd = "cd '$repoRootUnix' && HERMES_PYTHON='$pythonUnix' scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/hermes_state"
     $laneBOutFile = Join-Path $artifactsDir "unattended-suite-$stamp.lane-b.log"
     & $bash -lc $laneBCmd 2>&1 | Tee-Object -FilePath $laneBOutFile | Out-Null
     $laneBExit = $LASTEXITCODE

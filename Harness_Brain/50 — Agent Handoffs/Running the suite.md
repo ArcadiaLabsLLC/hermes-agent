@@ -16,7 +16,7 @@ What "green" means in this repo and how to get there without detaching commits o
 |---|---|---|
 | one file (debugging) | `python -m pytest -q -p no:cacheprovider <file>` | seconds |
 | touched tests (an exec lane's end) | `python -m pytest -q -p no:cacheprovider <files that import what you touched>` — background, log, `; rc=$?; exit $rc`, timeout ≥ 600000 | minutes |
-| **the validated suite** (a landing) | `scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/cli tests/state` | **≥ 25 min**, 8 workers (do not raise `HERMES_TEST_WORKERS`: 12 measured slower and load-flaked) |
+| **the validated suite** (a landing) | `scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/hermes_state` | **≥ 25 min**, 8 workers (do not raise `HERMES_TEST_WORKERS`: 12 measured slower and load-flaked) |
 | the two scopes nobody else runs | `scripts/run_tests.sh tests/test_coverage_claims_resolve.py tests/scripts` | minutes |
 | whole tree | `scripts/run_tests_parallel.py` default | a DIFFERENT, unvalidated scope: ~142 environmental reds on a green `main` (provider-network hangs, WSL-bash PATH shadow, `acp`/`ripgrep` holes) |
 

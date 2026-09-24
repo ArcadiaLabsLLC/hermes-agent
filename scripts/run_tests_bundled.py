@@ -46,8 +46,8 @@ The runner's core (``assign_bundles``, ``tally_events``, ``members_to_rerun``,
 
 Usage:
     python scripts/run_tests_bundled.py [--scope fork|full] [--since REF] [--bundle-size N] [-j N] [PATH ...] [pytest args]
-    scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli                # landing gate (fork scope)
-    scripts/run_tests_bundled.sh --scope full tests/agent_runtime tests/hermes_cli   # weekly merge lane
+    scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli tests/hermes_state  # landing gate (fork scope)
+    scripts/run_tests_bundled.sh --scope full tests/agent_runtime tests/hermes_cli tests/hermes_state  # weekly merge lane
 
 Exit code: 0 if every file passed (alone or in its bundle); 1 otherwise.
 """

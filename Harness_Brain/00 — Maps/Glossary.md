@@ -33,7 +33,7 @@ Fork vocabulary. Upstream terms (session, gateway platform, tool, skill, profile
 | **Positive control** | Before a gate or a CHANGE lands, the defect is planted on a throwaway copy and the red is pasted; a control never run is a belief. |
 | **Killing mutation** | The specific edit a gate is proven to catch, recorded via `scripts/changed_line_mutation_check.py`. |
 | **Field notes** | The running record a lane writes beside its plan (`planned/*-field-notes-<date>.md`); evidence, never a backlog. |
-| **Validated scope** | `tests/agent_runtime tests/hermes_cli tests/cli tests/state` through `scripts/run_tests.sh` — the suite the 8-worker ruling was proven on. Whole-tree is a different, unvalidated scope (~142 environmental reds). |
+| **Validated scope** | `tests/agent_runtime tests/hermes_cli tests/hermes_state` through `scripts/run_tests.sh` — the suite the 8-worker ruling was proven on. Whole-tree is a different, unvalidated scope (~142 environmental reds). |
 | **Contract dump** | A generated fixture of a cross-repo surface (`hermes_cli_contract.json`, `charsheet_payload_contract.json`); the repo that MOVED is the repo that goes red. |
 | **Profile / `HERMES_HOME`** | Upstream's per-profile home; the fork resolves it at call time. `profiles/base` is the live launcher runtime's home. |
 | **Store root** | `HERMES_AGENT_RUNTIME_ROOT` — the harness's own state (`X:/Eternia/.hermes/agent-runtime` here). |

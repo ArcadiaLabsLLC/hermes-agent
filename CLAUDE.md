@@ -97,7 +97,7 @@ execution and landing on Opus; nothing on Sonnet. Every lane reports its tool-ca
 ```bash
 hermes harness serve                                            # the runtime the launcher spawns
 python -m pytest -q -p no:cacheprovider <file>                  # ONE file, debugging only
-scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/cli tests/state   # THE suite (validated scope, ≥25 min)
+scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/hermes_state   # THE suite (validated scope, ≥25 min)
 scripts/run_tests.sh tests/test_coverage_claims_resolve.py tests/scripts          # the two scopes outside it
 python scripts/dump_cli_contract.py --check                     # after any argparse change
 python scripts/dump_payload_contract.py --check                 # after any character payload change
@@ -128,7 +128,7 @@ five habits cost about 390 minutes a day. The same habits apply here verbatim.
 `git branch -f main origin/main`: it detached 11 unpushed commits from the primary checkout
 on 2026-08-01. The runner isolates each file in a hermetic subprocess, finds the shared test
 venv on its own, and runs 8 workers — the ruled default (12 measured slower and load-flaked;
-do not raise `HERMES_TEST_WORKERS`). Its validated scope is exactly the four directories
+do not raise `HERMES_TEST_WORKERS`). Its validated scope is exactly the three directories
 above; the whole tree is a DIFFERENT scope that reads ~142 environmental reds on a green
 `main` (provider-network hangs, WSL bash shadowing Git Bash, `acp`/`ripgrep` holes).
 

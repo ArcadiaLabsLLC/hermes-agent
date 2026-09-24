@@ -99,7 +99,7 @@ The two checks the deleted hook ran, and what they cost:
 | check | command | cost |
 |---|---|---|
 | doc-cite adjacency + CLI contract | `scripts/doc_cite_adjacency.py --exclude archive --exclude planned` (its RULED scope — the bare walk is red by 829 by ruling) and `scripts/dump_cli_contract.py --check` | ~11 s warm |
-| the validated suite scope | `scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/cli tests/state` | **≥25 min** — see below |
+| the validated suite scope | `scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/hermes_state` | **≥25 min** — see below |
 
 **The suite number.** This section claimed "~18 min" for all four directories.
 Measured 2026-09-04 and recorded in `dcba382f0a`: `tests/agent_runtime` and
@@ -129,7 +129,7 @@ set.
 
 ### The fork landing gate
 
-`scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli` — `--scope fork` (the default): the files absent from `tests/fixtures/upstream_manifest.txt` plus the inherited files the change (`git diff origin/main...HEAD`, or `--since <ref>`) reaches by name, import or conftest; the weekly upstream merge lane runs `--scope full`, every discovered file. Same hermetic env, up to 20 files per pytest process (`--bundle-size`); a red bundle re-runs its red members one file per process and names any ISOLATION LEAK (red bundled, green alone → `scripts/test_bundles_unbundled.txt`, with the observed diff).
+`scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli tests/hermes_state` — `--scope fork` (the default): the files absent from `tests/fixtures/upstream_manifest.txt` plus the inherited files the change (`git diff origin/main...HEAD`, or `--since <ref>`) reaches by name, import or conftest; the weekly upstream merge lane runs `--scope full`, every discovered file. Same hermetic env, up to 20 files per pytest process (`--bundle-size`); a red bundle re-runs its red members one file per process and names any ISOLATION LEAK (red bundled, green alone → `scripts/test_bundles_unbundled.txt`, with the observed diff).
 `scripts/run_tests.sh` stays the per-file authority: a single file, a leak or any disagreement between the two is settled there.
 
 ### Unattended reporting
@@ -276,11 +276,15 @@ but R3's parity and integrity proof — the evidence the 8-worker default is
 ruled on — was run against **exactly four directories**:
 
 ```
-tests/agent_runtime tests/hermes_cli tests/cli tests/state
+tests/agent_runtime tests/hermes_cli tests/hermes_state
 ```
 
-That four-directory set is what "the validated suite" means everywhere else
-in this doc. It used to be a push-gate lane; the hook is gone (`504953f6ad`)
+R3 named `tests/agent_runtime tests/hermes_cli tests/cli tests/state`;
+upstream's 2026-09-13 tree mirror (`d10bb2ab6f`) moved `tests/cli` into
+`tests/hermes_cli` and `tests/state` into `tests/hermes_state`, and
+`scripts/run_tests.sh` accepts a missing path silently, so the old spelling
+ran two directories. The three names above are that same set, and they are
+what "the validated suite" means everywhere else in this doc. It used to be a push-gate lane; the hook is gone (`504953f6ad`)
 and the scope outlived it. A bare
 whole-tree invocation on a green `main` is not a wider proof of the same
 thing — it is a **different, unvalidated scope**, and on this workstation

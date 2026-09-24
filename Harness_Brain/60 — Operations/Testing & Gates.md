@@ -11,7 +11,7 @@ Every check this repo has, who runs it, and what it protects. There is no push g
 
 | gate | command / test | protects | shrinks-only list? |
 |---|---|---|---|
-| validated suite | `scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/cli tests/state` | everything; ≥ 25 min | — |
+| validated suite | `scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/hermes_state` | everything; ≥ 25 min | — |
 | CLI contract | `scripts/dump_cli_contract.py --check` ↔ `tests/hermes_cli/test_cli_contract_dump.py` | the launcher's argv buttons | — |
 | payload contract | `scripts/dump_payload_contract.py --check` ↔ `tests/hermes_cli/test_payload_contract_dump.py` | the launcher's character keys | — |
 | doc-cite adjacency | `scripts/doc_cite_adjacency.py --exclude archive --exclude planned` (RULED scope; the bare walk is red by 829 by ruling) | canon anchors point at real code | — |
