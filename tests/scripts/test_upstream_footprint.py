@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts.upstream_footprint import MANIFEST, count_footprint, measure, merge_ledger, read_manifest
+from scripts.upstream_footprint import MANIFEST, count_footprint, manifest_paths, measure, merge_ledger, read_manifest
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "upstream_footprint.json"
 NUMBERS = ("files", "deleted_lines", "heavy")
@@ -73,6 +73,19 @@ def test_the_pure_counter_over_fake_numstat():
 
     # The plain (non -z) numstat form counts identically.
     assert count_footprint(NUMSTAT_Z.replace("\0", "\n"), MANIFEST_PATHS) == fp
+
+
+def test_the_manifest_is_the_merge_base_tree_union_upstream_tip():
+    base = "agent/gone_upstream.py\0cli.py\0"
+    tip = "cli.py\0tools/new_upstream.py\0"
+    paths = manifest_paths(base, tip)
+    # A file upstream deleted after the base stays upstream's: a fork edit to it is a
+    # modify/delete conflict, and dropping it would under-count the footprint.
+    assert "agent/gone_upstream.py" in paths
+    assert "tools/new_upstream.py" in paths
+    assert paths == sorted(set(paths)) and len(paths) == 3
+    # Positive control: the counter DOES see a fork edit to the base-only file.
+    assert count_footprint("3\t2\tagent/gone_upstream.py\0", paths).line() == "[up-fp] files=1 deleted_lines=2 heavy=0"
 
 
 def test_the_ledger_merge_keeps_hand_edits_on_path():

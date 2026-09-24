@@ -2,8 +2,8 @@
 """The fork's footprint in upstream-owned files — the ``[up-fp]`` ratchet.
 
 A file is UPSTREAM iff its path is in the upstream manifest
-(``tests/fixtures/upstream_manifest.txt``: ``git ls-tree -r --name-only
-upstream/main``, first line ``# base <sha>``). The footprint is the fork's diff
+(``tests/fixtures/upstream_manifest.txt``: ``git ls-tree -r --name-only`` of
+the merge base UNION ``upstream/main``, first line ``# base <sha>``). The footprint is the fork's diff
 from that base to the working tree, restricted to the manifest:
 
   files          upstream files with any diff against the base
@@ -267,10 +267,21 @@ def measure(base: str | None = None, manifest_path: Path = MANIFEST) -> tuple[st
     return base, count_footprint(numstat, paths)
 
 
+def manifest_paths(base_listing: str, tip_listing: str) -> list[str]:
+    """Upstream-owned paths: the merge base's tree UNION upstream's tip.
+
+    The footprint diffs from the BASE, so a file the base has is upstream's even
+    when upstream deleted it after the base: a fork edit to it is a modify/delete
+    conflict at the next merge and must stay counted. The tip adds files upstream
+    created since the base (an add/add conflict with a fork file of that name).
+    """
+    return sorted({path for listing in (base_listing, tip_listing) for path in listing.split("\0") if path})
+
+
 def refresh_manifest(manifest_path: Path = MANIFEST) -> str:
     base = _git("merge-base", "HEAD", UPSTREAM_REF).strip()[:10]
-    listing = _git("-c", "core.quotepath=off", "ls-tree", "-r", "-z", "--name-only", UPSTREAM_REF)
-    paths = sorted(path for path in listing.split("\0") if path)
+    ls_tree = ("-c", "core.quotepath=off", "ls-tree", "-r", "-z", "--name-only")
+    paths = manifest_paths(_git(*ls_tree, base), _git(*ls_tree, UPSTREAM_REF))
     manifest_path.write_text(f"# base {base}\n" + "\n".join(paths) + "\n", encoding="utf-8", newline="\n")
     return base
 
