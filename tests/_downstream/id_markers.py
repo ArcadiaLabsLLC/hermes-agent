@@ -1077,6 +1077,16 @@ ID_MARKS.update({
 if _WIN:
     ID_MARKS.update({
         **{
+            f"tests/hermes_cli/test_kanban_core_functionality.py::{test}": (
+                _up_red("write_text() of a non-ASCII worker log with no encoding= under the "
+                        "cp1252 locale: UnicodeEncodeError (class e-ENC)"),
+            )
+            for test in (
+                "test_dead_worker_reap_surfaces_the_workers_own_last_output",
+                "test_dead_worker_reap_reads_the_log_of_the_dispatching_board",
+            )
+        },
+        **{
             f"tests/acp_adapter/test_session.py::TestSymlinkAliasNormalization::{test}": (
                 _up_red("realpath over a Windows drive: an alias does not resolve to its "
                         "target and a POSIX literal is drive-qualified (class c-D)"),
