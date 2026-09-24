@@ -818,27 +818,16 @@ def _stage42_lane_sources():
     root = Path(__file__).resolve().parents[2]
     yield root / "hermes_cli" / "harness.py"
     parts = root / "hermes_cli" / "harness_parts"
-    for filename in (
-        "persona_commands.py",
-        "runtime_commands.py",
-        "board.py",
-        "office.py",
-        "level.py",
-        "map.py",
-        "flow_commands.py",
-        "checkpoint_commands.py",
-        # A REAL module rather than one of the exec'd parts above (it is
-        # imported, the way `serve.py` is), and it is on this list because its
-        # three `harness gateway` verbs are stage42 verbs whose handlers do not
-        # live in `harness.py`. Without it the gate reported all fourteen of
-        # their presentation flags unhonored — the analysis simply could not see
-        # `_print_stage42` at the other end of the wrapper. That is the failure
-        # mode this list exists to have: a new home for a handler is a line
-        # here, and the alternative (scan all of `hermes_cli/`) is what the
-        # docstring above rejects.
-        "gateway_commands.py",
-    ):
-        yield parts / filename
+    from hermes_cli.harness import command_part_paths
+
+    # Every exec'd part, from the loader's own enumeration (never a copy).
+    yield from command_part_paths()
+    # A REAL module rather than one of the exec'd parts (it is imported, the
+    # way `serve.py` is), and it is here because its `harness gateway` verbs
+    # are stage42 verbs whose handlers do not live in `harness.py`. Without it
+    # the gate reported all their presentation flags unhonored — the analysis
+    # could not see `_print_stage42` at the other end of the wrapper.
+    yield parts / "gateway_commands.py"
 
 
 def _stage42_source_module(path: Path) -> str:

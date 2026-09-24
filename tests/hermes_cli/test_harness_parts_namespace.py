@@ -16,7 +16,7 @@ gate we run:
    NameError.
 
 This module rebuilds the exact post-load namespace (harness.py's own module
-body, then the six parts in ``_load_command_parts`` order, compiled with the
+body, then every part in ``_load_command_parts`` order, compiled with the
 same inherited ``from __future__ import annotations`` flag) and asserts both
 properties statically, without running any command.
 
@@ -41,17 +41,15 @@ import pytest
 HARNESS_PATH = Path(__file__).resolve().parents[2] / "hermes_cli" / "harness.py"
 PARTS_DIR = HARNESS_PATH.with_name("harness_parts")
 
-# Same tuple, same order, as hermes_cli/harness.py::_load_command_parts.
-PART_FILENAMES = (
-    "persona_commands.py",
-    "runtime_commands.py",
-    "board.py",
-    "office.py",
-    "level.py",
-    "map.py",
-    "flow_commands.py",
-    "checkpoint_commands.py",
-)
+# The loader's own enumeration (hermes_cli/harness.py::command_part_paths) —
+# never a copy of the list.
+def _part_filenames() -> tuple[str, ...]:
+    from hermes_cli.harness import command_part_paths
+
+    return tuple(path.name for path in command_part_paths())
+
+
+PART_FILENAMES = _part_filenames()
 
 # Free names a part reads that the post-load namespace does not provide.
 # Every entry needs a reason; an entry that no longer reproduces is a stale
@@ -265,19 +263,26 @@ def test_known_unresolved_ledger_is_not_stale(loaded: _LoadedNamespace) -> None:
     assert stale == [], "\n".join(stale)
 
 
-def test_part_load_order_matches_harness(loaded: _LoadedNamespace) -> None:
-    """Keep this module's part list in lockstep with _load_command_parts."""
+def test_every_exec_part_on_disk_is_loaded_into_harness() -> None:
+    """Each non-imported ``harness_parts/*.py`` lands its functions in harness globals.
 
-    source = HARNESS_PATH.read_text(encoding="utf-8")
-    tree = ast.parse(source, str(HARNESS_PATH))
-    loader = next(
-        node
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef) and node.name == "_load_command_parts"
-    )
-    literals = [
-        node.value
-        for node in ast.walk(loader)
-        if isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value.endswith(".py")
-    ]
-    assert tuple(literals) == PART_FILENAMES
+    Enumerated from the DIRECTORY, checked against the RUNTIME module: a part the
+    loader skips leaves its top-level functions missing from ``hermes_cli.harness``.
+    """
+
+    import importlib
+
+    import hermes_cli.harness as harness
+
+    on_disk = sorted(PARTS_DIR.glob("*.py"))
+    assert on_disk, "no harness parts found"
+    missing: list[str] = []
+    for path in on_disk:
+        if path.name in harness.IMPORTED_HARNESS_PART_MODULES:
+            importlib.import_module(f"hermes_cli.harness_parts.{path.stem}")
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), str(path))
+        names = [n.name for n in tree.body if isinstance(n, ast.FunctionDef)]
+        assert names, f"{path.name} defines no top-level function"
+        missing.extend(f"{path.name}:{name}" for name in names if not hasattr(harness, name))
+    assert missing == []

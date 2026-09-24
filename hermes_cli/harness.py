@@ -6727,10 +6727,28 @@ def _cmd_serve_connect(args) -> int:
     return _run_connect(args)
 
 
-def _load_command_parts() -> None:
+# The modules under ``harness_parts/`` that are IMPORTED as real modules rather
+# than exec'd into these globals. Every other ``*.py`` there IS an exec'd part:
+# the directory listing is the enumeration, so a new part cannot be skipped by a
+# list that forgot it (lane HM's ``map.py``).
+IMPORTED_HARNESS_PART_MODULES = frozenset({"gateway_commands.py", "serve.py"})
+
+
+def command_part_paths() -> tuple[Path, ...]:
+    """The exec'd command parts, in load order (sorted by filename)."""
+
     parts_dir = Path(__file__).with_name("harness_parts")
-    for filename in ("persona_commands.py", "runtime_commands.py", "board.py", "office.py", "level.py", "map.py", "flow_commands.py", "checkpoint_commands.py"):
-        path = parts_dir / filename
+    return tuple(
+        sorted(
+            path
+            for path in parts_dir.glob("*.py")
+            if path.name not in IMPORTED_HARNESS_PART_MODULES
+        )
+    )
+
+
+def _load_command_parts() -> None:
+    for path in command_part_paths():
         exec(compile(path.read_text(encoding="utf-8"), str(path), "exec"), globals())
 
 
