@@ -217,65 +217,65 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tests/gateway/test_update_command.py` | 45 | 8 | upstream | lifted: up/win-text-encoding; REVERT: the known-command hunk is a merge-drift overwrite of upstream's own fix, restore upstream's lines | up/win-text-encoding |
 | `tests/hermes_cli/conftest.py` | 1 | 0 | carry | §0.4 / S5 landed: fork fixtures and hooks live in `tests/_downstream/` (root plugin + three star-imported modules); this file carries one added line | S5 |
 | `tests/hermes_cli/test_active_sessions.py` | 37 | 5 | carry | fork test infra: pytest-timeout marker / bounds sized for the fork's repo-wide --timeout=30 runner | - |
-| `tests/hermes_cli/test_apply_profile_override.py` | 24 | 2 | carry | unreviewed | - |
-| `tests/hermes_cli/test_auth_nous_provider.py` | 33 | 4 | carry | unreviewed | - |
-| `tests/hermes_cli/test_auth_ssl_macos.py` | 6 | 0 | carry | unreviewed | - |
-| `tests/hermes_cli/test_backup.py` | 33 | 7 | carry | unreviewed | - |
-| `tests/hermes_cli/test_bytecode_sweep.py` | 13 | 1 | carry | unreviewed | - |
-| `tests/hermes_cli/test_cmd_update.py` | 16 | 1 | carry | unreviewed | - |
-| `tests/hermes_cli/test_codex_cli_model_picker.py` | 7 | 1 | carry | unreviewed | - |
-| `tests/hermes_cli/test_codex_models.py` | 34 | 27 | carry | unreviewed | - |
-| `tests/hermes_cli/test_codex_runtime_plugin_migration.py` | 7 | 2 | carry | unreviewed | - |
-| `tests/hermes_cli/test_commands.py` | 18 | 0 | carry | unreviewed | - |
-| `tests/hermes_cli/test_completion.py` | 16 | 9 | carry | unreviewed | - |
+| `tests/hermes_cli/test_apply_profile_override.py` | 24 | 2 | upstream | PR candidate: win platform-default root pin (_get_platform_default_hermes_home) + encoding not in up/win-text-encoding | S3 |
+| `tests/hermes_cli/test_auth_nous_provider.py` | 33 | 4 | upstream | lifted: up/win-posix-only-apis | up/win-posix-only-apis |
+| `tests/hermes_cli/test_auth_ssl_macos.py` | 6 | 0 | carry | fork test infra: tests/conftest.py PROJECT_ROOT sys.path insert (a local tests/-relative insert shadowed hermes_cli) | - |
+| `tests/hermes_cli/test_backup.py` | 33 | 7 | upstream | lifted: up/win-path-spelling, up/win-posix-only-apis; rest PR candidate: held, test stays red on Windows for another reason (R10): .bat wrapper hunk | up/win-path-spelling+up/win-posix-only-apis |
+| `tests/hermes_cli/test_bytecode_sweep.py` | 13 | 1 | carry | depends on fork prod code hermes_cli/_bytecode_sweep.py (sweep extracted from main.py); REVERT orphan S5 banner | - |
+| `tests/hermes_cli/test_cmd_update.py` | 16 | 1 | carry | depends on fork prod code hermes_cli update history guard | - |
+| `tests/hermes_cli/test_codex_cli_model_picker.py` | 7 | 1 | carry | fork test infra: allow_claude_code_credentials_file marker (MCF-66, tests/_downstream root plugin) | - |
+| `tests/hermes_cli/test_codex_models.py` | 34 | 27 | upstream | superseded by upstream 1d10cef836 (#119412 newest-client catalog); remaining delta is upstream's later 76e08ebea5 | merge |
+| `tests/hermes_cli/test_codex_runtime_plugin_migration.py` | 7 | 2 | upstream | lifted: up/win-text-encoding | up/win-text-encoding |
+| `tests/hermes_cli/test_commands.py` | 18 | 0 | carry | fork test infra: xfail on tests/_downstream hermes_cli_conftest.TELEGRAM_PARITY_DEFECT_REASON (ML-16); REVERT unused imports discord_skill_commands, slack_clamped_slashes, telegram_menu_max_commands (S5 residue) | - |
+| `tests/hermes_cli/test_completion.py` | 16 | 9 | upstream | lifted: up/win-shell-invocation | up/win-shell-invocation |
 | `tests/hermes_cli/test_config.py` | 21 | 3 | carry | S5: 1 fork test unit(s) cannot leave — share class TestBackgroundNotificationsConciseMigration carries upstream setup/members (_write) (a move would drop or duplicate it) | S5 |
-| `tests/hermes_cli/test_config_read_guard.py` | 61 | 21 | carry | unreviewed | - |
-| `tests/hermes_cli/test_cross_profile_kill_refusal.py` | 0 | 221 | carry | unreviewed | - |
-| `tests/hermes_cli/test_curator_recent_run_notice.py` | 0 | 1 | carry | unreviewed | - |
-| `tests/hermes_cli/test_dashboard_auth_gate.py` | 21 | 4 | carry | unreviewed | - |
-| `tests/hermes_cli/test_dashboard_tui_backcompat.py` | 61 | 31 | carry | unreviewed | - |
+| `tests/hermes_cli/test_config_read_guard.py` | 61 | 21 | carry | depends on fork prod code agent_runtime/persona_config_sync.py (allowlist); replaces upstream lines: walk made drivable for .claude worktrees + pyvenv.cfg pruning | - |
+| `tests/hermes_cli/test_cross_profile_kill_refusal.py` | 0 | 221 | upstream | superseded by upstream ca16cafee4: the fork relocated upstream's file to tests/gateway/ (+4 lines); restore upstream's path, delete the fork copy | merge |
+| `tests/hermes_cli/test_curator_recent_run_notice.py` | 0 | 1 | carry | fork test infra: needed only under the fork's shared-process runner (upstream isolates each file under env -i); reload removal; no upstream failure | - |
+| `tests/hermes_cli/test_dashboard_auth_gate.py` | 21 | 4 | carry | fork test infra: needed only under the fork's shared-process runner (upstream isolates each file under env -i); app.state restore; no upstream failure | - |
+| `tests/hermes_cli/test_dashboard_tui_backcompat.py` | 61 | 31 | carry | fork test infra: _live_system_guard backend-spawn arm (ML-14); replaces upstream lines: subprocess spawn rewritten as a parser test | - |
 | `tests/hermes_cli/test_dashboard_unified_launch.py` | 85 | 11 | carry | S5: 2 fork test unit(s) cannot leave — share upstream module fixture main_mod (a move would drop or duplicate it) | S5 |
-| `tests/hermes_cli/test_debug.py` | 7 | 1 | carry | unreviewed | - |
-| `tests/hermes_cli/test_deleted_profile_tombstone.py` | 6 | 1 | carry | unreviewed | - |
-| `tests/hermes_cli/test_dep_ensure.py` | 3 | 0 | carry | unreviewed | - |
-| `tests/hermes_cli/test_diff_command.py` | 10 | 1 | carry | unreviewed | - |
-| `tests/hermes_cli/test_doctor.py` | 153 | 49 | carry | unreviewed | - |
-| `tests/hermes_cli/test_doctor_command_install.py` | 2 | 2 | carry | unreviewed | - |
-| `tests/hermes_cli/test_doctor_journal_modes.py` | 14 | 6 | carry | unreviewed | - |
-| `tests/hermes_cli/test_doctor_live.py` | 1 | 1 | carry | unreviewed | - |
-| `tests/hermes_cli/test_early_recovery.py` | 14 | 2 | carry | unreviewed | - |
-| `tests/hermes_cli/test_env_export_prefix.py` | 9 | 2 | carry | unreviewed | - |
-| `tests/hermes_cli/test_fireworks_provider.py` | 1 | 1 | carry | unreviewed | - |
+| `tests/hermes_cli/test_debug.py` | 7 | 1 | upstream | lifted: up/win-line-endings | up/win-line-endings |
+| `tests/hermes_cli/test_deleted_profile_tombstone.py` | 6 | 1 | upstream | lifted: up/win-path-spelling | up/win-path-spelling |
+| `tests/hermes_cli/test_dep_ensure.py` | 3 | 0 | upstream | REVERT: orphan S5 banner (ensure_git_bash tests moved to test_dep_ensure_downstream.py) | merge |
+| `tests/hermes_cli/test_diff_command.py` | 10 | 1 | upstream | lifted: up/win-line-endings | up/win-line-endings |
+| `tests/hermes_cli/test_doctor.py` | 153 | 49 | carry | depends on fork prod code hermes_cli/doctor.py (call-time HERMES_HOME, agent_browser_runnable_override seam); 3 of 48 hunks already upstream (b5da2f594f) | - |
+| `tests/hermes_cli/test_doctor_command_install.py` | 2 | 2 | carry | depends on fork prod code hermes_cli/doctor.py call-time HERMES_HOME resolution | - |
+| `tests/hermes_cli/test_doctor_journal_modes.py` | 14 | 6 | upstream | lifted: up/win-posix-only-apis; rest PR candidate: linux-only markers (@pytest.mark.linux_only; needs per-test proof the behaviour is Linux-specific) | up/win-posix-only-apis |
+| `tests/hermes_cli/test_doctor_live.py` | 1 | 1 | carry | depends on fork prod code hermes_cli/doctor.py call-time HERMES_HOME resolution | - |
+| `tests/hermes_cli/test_early_recovery.py` | 14 | 2 | upstream | lifted: up/import-guard-relative-imports | up/import-guard-relative-imports |
+| `tests/hermes_cli/test_env_export_prefix.py` | 9 | 2 | carry | fork test infra: needed only under the fork's shared-process runner (upstream isolates each file under env -i); reload removal; per-file isolation upstream | - |
+| `tests/hermes_cli/test_fireworks_provider.py` | 1 | 1 | carry | depends on fork prod code hermes_cli/doctor.py call-time HERMES_HOME resolution | - |
 | `tests/hermes_cli/test_gateway.py` | 116 | 0 | carry | S5: 4 fork test unit(s) cannot leave — share upstream autouse fixture inert_task_scheduler_probe (a move would drop or duplicate it) | S5 |
-| `tests/hermes_cli/test_gateway_job_teardown_live.py` | 4 | 0 | carry | unreviewed | - |
-| `tests/hermes_cli/test_gateway_migrate_multiplex.py` | 3 | 0 | carry | unreviewed | - |
-| `tests/hermes_cli/test_gateway_service.py` | 44 | 35 | carry | unreviewed | - |
-| `tests/hermes_cli/test_gateway_windows.py` | 1 | 97 | carry | unreviewed | - |
-| `tests/hermes_cli/test_gmi_provider.py` | 1 | 1 | carry | unreviewed | - |
+| `tests/hermes_cli/test_gateway_job_teardown_live.py` | 4 | 0 | carry | fork test infra: pytest-timeout marker / bounds sized for the fork's repo-wide --timeout=30 runner | - |
+| `tests/hermes_cli/test_gateway_migrate_multiplex.py` | 3 | 0 | upstream | PR candidate: linux-only markers (@pytest.mark.linux_only; needs per-test proof the behaviour is Linux-specific) | S3 |
+| `tests/hermes_cli/test_gateway_service.py` | 44 | 35 | carry | fork test infra: _live_system_guard backend-spawn arm (ML-14); replaces upstream lines: rewritten so the test spawns nothing live | - |
+| `tests/hermes_cli/test_gateway_windows.py` | 1 | 97 | carry | depends on fork prod code hermes_cli/gateway.py resolve_managed_python + gateway_windows._spawn_detached(script_path); replaces upstream lines: 2 upstream breakaway tests deleted, covered by fork tests/gateway/test_windows_gateway_spawn.py | - |
+| `tests/hermes_cli/test_gmi_provider.py` | 1 | 1 | carry | depends on fork prod code hermes_cli/doctor.py call-time HERMES_HOME resolution | - |
 | `tests/hermes_cli/test_gpt6_tiers_registration.py` | 60 | 0 | carry | S5: path collision — upstream ships the same file and tests since the base; take upstream's copy at the next merge, nothing to move | S5 |
 | `tests/hermes_cli/test_gui_command.py` | 136 | 2 | carry | S5: 1 fork test unit(s) cannot leave — share upstream autouse fixture _isolate_xdg_data_home, _stable_keychain_detection (a move would drop or duplicate it) | S5 |
-| `tests/hermes_cli/test_kanban_boards.py` | 2 | 2 | carry | unreviewed | - |
-| `tests/hermes_cli/test_kanban_cli_dispatch_passthrough.py` | 14 | 1 | carry | unreviewed | - |
-| `tests/hermes_cli/test_kanban_core_functionality.py` | 3 | 0 | carry | unreviewed | - |
+| `tests/hermes_cli/test_kanban_boards.py` | 2 | 2 | carry | depends on fork prod code hermes_cli kanban connect_closing (symbol since adopted upstream; supersession re-check owed at next merge) | - |
+| `tests/hermes_cli/test_kanban_cli_dispatch_passthrough.py` | 14 | 1 | carry | fork test infra: needed only under the fork's shared-process runner (upstream isolates each file under env -i); sys.modules restore; per-file isolation upstream | - |
+| `tests/hermes_cli/test_kanban_core_functionality.py` | 3 | 0 | carry | depends on fork prod code hermes_cli kanban Windows reaper poll branch | - |
 | `tests/hermes_cli/test_kanban_db.py` | 228 | 2 | carry | S5: 2 fork test unit(s) cannot leave — share upstream module fixture kanban_home (a move would drop or duplicate it) | S5 |
-| `tests/hermes_cli/test_kanban_default_assignee.py` | 15 | 5 | carry | unreviewed | - |
-| `tests/hermes_cli/test_kanban_per_profile_cap.py` | 15 | 2 | carry | unreviewed | - |
-| `tests/hermes_cli/test_kanban_reclaim_claim_lock_guard.py` | 6 | 3 | carry | unreviewed | - |
-| `tests/hermes_cli/test_kanban_review_lifecycle.py` | 6 | 1 | carry | unreviewed | - |
-| `tests/hermes_cli/test_kanban_worker_pid_fingerprint.py` | 13 | 7 | carry | unreviewed | - |
-| `tests/hermes_cli/test_kanban_worktree_teardown.py` | 1 | 0 | carry | unreviewed | - |
-| `tests/hermes_cli/test_lazy_command_exports.py` | 1 | 0 | carry | unreviewed | - |
-| `tests/hermes_cli/test_linux_desktop_entry.py` | 21 | 0 | carry | unreviewed | - |
-| `tests/hermes_cli/test_local_quickstart.py` | 10 | 11 | carry | unreviewed | - |
-| `tests/hermes_cli/test_local_runtime.py` | 5 | 0 | carry | unreviewed | - |
-| `tests/hermes_cli/test_macos_tcc_anchor.py` | 2 | 2 | carry | unreviewed | - |
-| `tests/hermes_cli/test_managed_uv.py` | 34 | 1 | carry | unreviewed | - |
+| `tests/hermes_cli/test_kanban_default_assignee.py` | 15 | 5 | upstream | superseded by upstream 4f1dcc2dad: upstream rewrote the fixture | merge |
+| `tests/hermes_cli/test_kanban_per_profile_cap.py` | 15 | 2 | carry | fork test infra: needed only under the fork's shared-process runner (upstream isolates each file under env -i); sys.modules restore | - |
+| `tests/hermes_cli/test_kanban_reclaim_claim_lock_guard.py` | 6 | 3 | carry | fork test infra: needed only under the fork's shared-process runner (upstream isolates each file under env -i); true/sleep resolve via Git on PATH; passes | - |
+| `tests/hermes_cli/test_kanban_review_lifecycle.py` | 6 | 1 | carry | fork test infra: needed only under the fork's shared-process runner (upstream isolates each file under env -i); **_ fake signature; passes upstream | - |
+| `tests/hermes_cli/test_kanban_worker_pid_fingerprint.py` | 13 | 7 | upstream | lifted: up/monkeypatch-undo-scoped | up/monkeypatch-undo-scoped |
+| `tests/hermes_cli/test_kanban_worktree_teardown.py` | 1 | 0 | upstream | PR candidate: linux-only markers (@pytest.mark.linux_only; needs per-test proof the behaviour is Linux-specific) | S3 |
+| `tests/hermes_cli/test_lazy_command_exports.py` | 1 | 0 | carry | fork test infra: real_windows_gateway_pause marker | - |
+| `tests/hermes_cli/test_linux_desktop_entry.py` | 21 | 0 | upstream | PR candidate: linux-only markers (@pytest.mark.linux_only; needs per-test proof the behaviour is Linux-specific) | S3 |
+| `tests/hermes_cli/test_local_quickstart.py` | 10 | 11 | carry | depends on fork prod code hermes_cli local-runtime catalog refresh | - |
+| `tests/hermes_cli/test_local_runtime.py` | 5 | 0 | carry | depends on fork prod code hermes_cli local-runtime unload confirmation | - |
+| `tests/hermes_cli/test_macos_tcc_anchor.py` | 2 | 2 | upstream | lifted: up/monkeypatch-undo-scoped | up/monkeypatch-undo-scoped |
+| `tests/hermes_cli/test_managed_uv.py` | 34 | 1 | carry | fork test infra: host-OS fake (platform.system pin, R3 class) + nt skip + subprocess.run stub; upstream bans faking the host OS | - |
 | `tests/hermes_cli/test_mcp_config.py` | 134 | 0 | carry | S5: 1 fork test unit(s) cannot leave — share upstream autouse fixture _isolate_config (a move would drop or duplicate it) | S5 |
-| `tests/hermes_cli/test_mcp_startup.py` | 36 | 11 | carry | unreviewed | - |
-| `tests/hermes_cli/test_node_runtime_npm_resolution.py` | 3 | 0 | carry | unreviewed | - |
-| `tests/hermes_cli/test_noninteractive_git.py` | 5 | 2 | carry | unreviewed | - |
-| `tests/hermes_cli/test_nous_inference_url_validation.py` | 92 | 29 | carry | unreviewed | - |
-| `tests/hermes_cli/test_orphan_desktop_serve_reap.py` | 5 | 0 | carry | unreviewed | - |
+| `tests/hermes_cli/test_mcp_startup.py` | 36 | 11 | upstream | superseded by upstream 96c9cc9ac6: upstream relaxed the stopwatch to 2.0 s | merge |
+| `tests/hermes_cli/test_node_runtime_npm_resolution.py` | 3 | 0 | upstream | PR candidate: linux-only markers (@pytest.mark.linux_only; needs per-test proof the behaviour is Linux-specific) | S3 |
+| `tests/hermes_cli/test_noninteractive_git.py` | 5 | 2 | upstream | superseded by upstream 96c9cc9ac6: upstream removed the vacuous `or True` | merge |
+| `tests/hermes_cli/test_nous_inference_url_validation.py` | 92 | 29 | carry | fork test infra: fork source-reading gate; replaces upstream lines: source-read assertion rewritten behaviourally | - |
+| `tests/hermes_cli/test_orphan_desktop_serve_reap.py` | 5 | 0 | upstream | PR candidate: linux-only markers (@pytest.mark.linux_only; needs per-test proof the behaviour is Linux-specific) | S3 |
 | `tests/hermes_cli/test_plugins.py` | 10 | 6 | carry | unreviewed | - |
 | `tests/hermes_cli/test_process_notification_display.py` | 1 | 0 | carry | unreviewed | - |
 | `tests/hermes_cli/test_profile_delete_log_handlers.py` | 9 | 4 | carry | unreviewed | - |
