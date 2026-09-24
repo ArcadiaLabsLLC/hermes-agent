@@ -854,8 +854,8 @@ touching `mcp_admission.py`, the policy shape is wrong.
 - The same persona on the CLI chat lane (discovery run) produces `[]`.
 - **Lane pin (the missing test):** assert that `discover_mcp_tools` is *not*
   called for `args.command == "harness"` — the invariant that has never been
-  tested. Mirrors `tests/cron/test_scheduler_mcp_init.py:46-51`, which
-  already asserts the positive and negative for cron.
+  tested. It would have mirrored `tests/cron/test_scheduler_mcp_init.py:46-51`, which
+  asserted the positive and negative for cron (deleted by upstream's 2026-09 test purge).
 
 **R1 — policy, no side effects**
 - `enabled: false` ⇒ `()` with `mcp_admission_disabled`.

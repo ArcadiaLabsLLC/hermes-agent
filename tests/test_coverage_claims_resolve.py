@@ -678,6 +678,21 @@ def _near(index: int, claim: Claim) -> str:
     )
 
 
+def _fork_owns(claim: Claim) -> bool:
+    """Is this citation the fork's to fix? Scope, not exemption (``tests/_fork_scope.py``).
+
+    A citation on a line upstream authored, in a file upstream ships, is upstream's own
+    rot: editing it would be a fork edit inside an upstream file, a conflict owed at
+    every merge, raising the ``[up-fp]`` ratchet to fix a sentence upstream wrote. The
+    2026-09-24 merge is where this bit: upstream's purge lanes deleted tests that seven
+    of its OWN comments still cite. Markdown under ``docs/`` and fork-only files are
+    always the fork's; an unreadable upstream index answers True (fail closed).
+    """
+    from tests._fork_scope import is_fork_authored
+
+    return claim.source.endswith(".md") or is_fork_authored(claim.source, claim.lineno)
+
+
 def test_every_coverage_claim_names_a_test_that_exists(scan) -> None:
     """The gate. A doc-named test id must resolve to something on disk.
 
@@ -686,7 +701,7 @@ def test_every_coverage_claim_names_a_test_that_exists(scan) -> None:
     """
 
     claims, _ = scan
-    bad = _unresolved(claims)
+    bad = [(claim, reason) for claim, reason in _unresolved(claims) if _fork_owns(claim)]
     if not bad:
         return
     report = "\n".join(

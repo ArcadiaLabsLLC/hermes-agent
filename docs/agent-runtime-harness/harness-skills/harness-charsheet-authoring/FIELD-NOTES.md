@@ -2582,7 +2582,7 @@ was right about the repair and wrong about the wound.
   width, or require the erased row to span the STRIP rather than the crop. I repaired the
   damage instead of preventing it, because the merge is also the right answer for a genuine
   keyed seam, but the next slice into this file should consider fixing it at the source.
-  (ii) The regression tests live in `tests/agent/test_pet_generate.py`, which is skipped
+  (ii) The regression tests lived in `tests/agent/test_pet_generate.py` (deleted by upstream's 2026-09 test purge; the guard is now UNCOVERED), which was skipped
   unless `HERMES_RUN_SLOW_PET_TESTS=1` — so this bug's guard does NOT run in a default suite.
   That is where atlas coverage already lives and I did not restructure the gate, but it means
   a re-break will be silent. (iii) No ruff: it is not installed in any interpreter on this

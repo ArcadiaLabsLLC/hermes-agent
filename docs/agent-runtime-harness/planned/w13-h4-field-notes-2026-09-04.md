@@ -218,7 +218,7 @@ Commit `418323eca9`.
 
 ## Reds on `main` that are not mine
 
-* `tests/hermes_cli/test_dashboard_admin_endpoints.py::TestSystemStatsEndpoint::test_stats_shape`
+* `tests/hermes_cli/test_dashboard_admin_endpoints.py::TestSystemStatsEndpoint::test_stats_shape` (class since removed by upstream's 2026-09 test purge)
   — `arch` comes back `''` on this box; the test asserts every identity field is
   truthy. Environmental or a real hole in the stats endpoint's arch probe; one
   failure in the 598-file lane.

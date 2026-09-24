@@ -252,7 +252,7 @@ def _sys_modules_identity_is_restored():
     """A test may IMPORT modules; it may not REPLACE or DROP one.
 
     The largest cross-test pollution class in this directory, measured
-    2026-08-31. ``test_skills_subparser.py`` deletes ``hermes_cli.main`` from
+    2026-08-31. ``test_skills_subparser.py`` (since deleted by upstream's 2026-09 test purge) deleted ``hermes_cli.main`` from
     ``sys.modules`` and re-imports it to prove the parser still builds -- and
     never puts the original back. Python then holds TWO ``hermes_cli.main``
     module objects with two separate namespaces:

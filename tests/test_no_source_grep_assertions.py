@@ -14,7 +14,7 @@ both directions, and both directions were observed on this tree:
 
 * **False RED.** Three gates fired on pure renames/code-moves on 2026-08-09 —
   the ``test_s56_config_block_removal`` roster gate and two in
-  ``tests/agent/test_nous_oauth_401_guidance.py``. Nothing behavioural changed;
+  ``tests/agent/test_nous_oauth_401_guidance.py`` (since deleted upstream). Nothing behavioural changed;
   the text had merely moved to a neighbouring function. The gate was measuring
   which function a line of prose sits in.
 * **False GREEN.** Replaying a real collector removal left an old positive gate
