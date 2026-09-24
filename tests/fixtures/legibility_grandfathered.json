@@ -1,0 +1,506 @@
+{
+ "functions": [
+  {
+   "depth": 2,
+   "lines": 151,
+   "unit": "agent/charsheet/draft.py|CharacterDraft.compose"
+  },
+  {
+   "depth": 3,
+   "lines": 504,
+   "unit": "agent/charsheet/pipeline.py|detect_mirrored_art"
+  },
+  {
+   "depth": 1,
+   "lines": 202,
+   "unit": "agent/charsheet/pipeline.py|mirrored_art_error"
+  },
+  {
+   "depth": 3,
+   "lines": 265,
+   "unit": "agent/charsheet/pipeline.py|validate_sheet"
+  },
+  {
+   "depth": 5,
+   "lines": 691,
+   "unit": "agent_runtime/agent_create.py|perform_agent_create"
+  },
+  {
+   "depth": 3,
+   "lines": 168,
+   "unit": "agent_runtime/agent_create.py|run_skills_phase"
+  },
+  {
+   "depth": 2,
+   "lines": 152,
+   "unit": "agent_runtime/call_authorization.py|authorize_call"
+  },
+  {
+   "depth": 4,
+   "lines": 236,
+   "unit": "agent_runtime/core_cache.py|build_input_fingerprint"
+  },
+  {
+   "depth": 1,
+   "lines": 223,
+   "unit": "agent_runtime/core_cache.py|write_back"
+  },
+  {
+   "depth": 3,
+   "lines": 188,
+   "unit": "agent_runtime/default_scope.py|preview_default_scope_migration"
+  },
+  {
+   "depth": 3,
+   "lines": 195,
+   "unit": "agent_runtime/default_scope.py|reconcile_default_scope_to_legacy"
+  },
+  {
+   "depth": 5,
+   "lines": 78,
+   "unit": "agent_runtime/discussions/service.py|DiscussionService._process_commands"
+  },
+  {
+   "depth": 5,
+   "lines": 24,
+   "unit": "agent_runtime/discussions/service.py|DiscussionService.bindings"
+  },
+  {
+   "depth": 3,
+   "lines": 258,
+   "unit": "agent_runtime/dispatch_delivery.py|drain_background_completions"
+  },
+  {
+   "depth": 2,
+   "lines": 155,
+   "unit": "agent_runtime/dispatch_store.py|record_completion"
+  },
+  {
+   "depth": 5,
+   "lines": 42,
+   "unit": "agent_runtime/events.py|_archived_event_slices"
+  },
+  {
+   "depth": 3,
+   "lines": 172,
+   "unit": "agent_runtime/gateway_peers.py|dial_peer"
+  },
+  {
+   "depth": 2,
+   "lines": 255,
+   "unit": "agent_runtime/harness_doctor.py|_placement_census_report"
+  },
+  {
+   "depth": 2,
+   "lines": 161,
+   "unit": "agent_runtime/harness_doctor.py|run_harness_doctor"
+  },
+  {
+   "depth": 1,
+   "lines": 198,
+   "unit": "agent_runtime/mcp_admission.py|admit_mcp_servers"
+  },
+  {
+   "depth": 2,
+   "lines": 157,
+   "unit": "agent_runtime/mcp_admission.py|resolve_mcp_admission"
+  },
+  {
+   "depth": 5,
+   "lines": 45,
+   "unit": "agent_runtime/mission_chat_turns.py|_gc_session_files"
+  },
+  {
+   "depth": 3,
+   "lines": 249,
+   "unit": "agent_runtime/office_store.py|OfficeStore.upsert_actor"
+  },
+  {
+   "depth": 1,
+   "lines": 203,
+   "unit": "agent_runtime/operator_channels.py|_OperatorChannelBuilder.build"
+  },
+  {
+   "depth": 2,
+   "lines": 170,
+   "unit": "agent_runtime/operator_channels.py|_conversation_history_message"
+  },
+  {
+   "depth": 2,
+   "lines": 203,
+   "unit": "agent_runtime/persona_assignments.py|PersonaInstanceStore.open_chat"
+  },
+  {
+   "depth": 4,
+   "lines": 174,
+   "unit": "agent_runtime/persona_assignments.py|PersonaInstanceStore.update_profile"
+  },
+  {
+   "depth": 5,
+   "lines": 36,
+   "unit": "agent_runtime/persona_assignments.py|retired_persona_instance_ids"
+  },
+  {
+   "depth": 1,
+   "lines": 161,
+   "unit": "agent_runtime/persona_chat_actor_prewarm.py|_prepare"
+  },
+  {
+   "depth": 4,
+   "lines": 232,
+   "unit": "agent_runtime/persona_chat_continuity.py|PersonaChatMintReceiptStore.mint"
+  },
+  {
+   "depth": 5,
+   "lines": 73,
+   "unit": "agent_runtime/persona_chat_continuity.py|persona_chat_root_lease"
+  },
+  {
+   "depth": 3,
+   "lines": 251,
+   "unit": "agent_runtime/persona_chat_history.py|_safe_curated_messages"
+  },
+  {
+   "depth": 4,
+   "lines": 270,
+   "unit": "agent_runtime/persona_chat_history.py|persona_chat_history_summary"
+  },
+  {
+   "depth": 2,
+   "lines": 155,
+   "unit": "agent_runtime/persona_chat_history.py|persona_chat_session_messages"
+  },
+  {
+   "depth": 4,
+   "lines": 265,
+   "unit": "agent_runtime/persona_instance_identity.py|reconcile_persona_instances"
+  },
+  {
+   "depth": 3,
+   "lines": 273,
+   "unit": "agent_runtime/persona_instance_sync.py|apply_persona_instance_pull"
+  },
+  {
+   "depth": 1,
+   "lines": 215,
+   "unit": "agent_runtime/persona_profile_binding.py|rebind_persona_profile"
+  },
+  {
+   "depth": 1,
+   "lines": 264,
+   "unit": "agent_runtime/persona_runtime.py|GPTPersonaRuntime.mission_chat_reply"
+  },
+  {
+   "depth": 5,
+   "lines": 112,
+   "unit": "agent_runtime/profile_artifact_sync.py|read_remote_profile_files"
+  },
+  {
+   "depth": 4,
+   "lines": 182,
+   "unit": "agent_runtime/profile_context.py|persona_profile_context"
+  },
+  {
+   "depth": 4,
+   "lines": 166,
+   "unit": "agent_runtime/profile_readiness.py|profile_readiness_for_persona"
+  },
+  {
+   "depth": 5,
+   "lines": 424,
+   "unit": "agent_runtime/profile_runner.py|ProfileAgentRunner._execute_agent_run"
+  },
+  {
+   "depth": 3,
+   "lines": 154,
+   "unit": "agent_runtime/prompt_observability.py|available_skills_context"
+  },
+  {
+   "depth": 2,
+   "lines": 501,
+   "unit": "agent_runtime/prompt_observability.py|mission_chat_prompt_observability"
+  },
+  {
+   "depth": 3,
+   "lines": 223,
+   "unit": "agent_runtime/prompt_observability.py|snapshot_prompt_observability"
+  },
+  {
+   "depth": 5,
+   "lines": 32,
+   "unit": "agent_runtime/queued_skills.py|_queue_lock"
+  },
+  {
+   "depth": 3,
+   "lines": 159,
+   "unit": "agent_runtime/realm_revert.py|revert_realm_sync"
+  },
+  {
+   "depth": 4,
+   "lines": 193,
+   "unit": "agent_runtime/realm_sync.py|apply_skill_inbox_pull"
+  },
+  {
+   "depth": 3,
+   "lines": 242,
+   "unit": "agent_runtime/realm_sync.py|publish_realm_sync"
+  },
+  {
+   "depth": 2,
+   "lines": 237,
+   "unit": "agent_runtime/realm_sync.py|pull_realm_sync"
+  },
+  {
+   "depth": 2,
+   "lines": 167,
+   "unit": "agent_runtime/realm_sync.py|realm_sync_status"
+  },
+  {
+   "depth": 5,
+   "lines": 38,
+   "unit": "agent_runtime/repo_context.py|_sever_worktree_reparse_points"
+  },
+  {
+   "depth": 5,
+   "lines": 233,
+   "unit": "agent_runtime/running_work.py|_collect_delegations"
+  },
+  {
+   "depth": 2,
+   "lines": 196,
+   "unit": "agent_runtime/running_work.py|_collect_dispatches"
+  },
+  {
+   "depth": 5,
+   "lines": 185,
+   "unit": "agent_runtime/running_work.py|_collect_terminal"
+  },
+  {
+   "depth": 5,
+   "lines": 122,
+   "unit": "agent_runtime/serve_gateway_auth.py|redeem_pairing_code"
+  },
+  {
+   "depth": 2,
+   "lines": 261,
+   "unit": "agent_runtime/serve_office_subscriptions.py|OfficeSubscriptions.subscribe"
+  },
+  {
+   "depth": 1,
+   "lines": 212,
+   "unit": "agent_runtime/serve_rpc.py|_runtime_office_remove"
+  },
+  {
+   "depth": 2,
+   "lines": 293,
+   "unit": "agent_runtime/serve_rpc.py|_runtime_office_resolve_conflict"
+  },
+  {
+   "depth": 3,
+   "lines": 325,
+   "unit": "agent_runtime/serve_rpc.py|_runtime_office_subscribe"
+  },
+  {
+   "depth": 1,
+   "lines": 175,
+   "unit": "agent_runtime/serve_rpc.py|_runtime_office_surface_update"
+  },
+  {
+   "depth": 1,
+   "lines": 333,
+   "unit": "agent_runtime/serve_rpc.py|_runtime_office_upsert"
+  },
+  {
+   "depth": 2,
+   "lines": 173,
+   "unit": "agent_runtime/skill_promotion.py|execute_promotion"
+  },
+  {
+   "depth": 2,
+   "lines": 334,
+   "unit": "agent_runtime/snapshot.py|_build_snapshot_in_runtime_scope"
+  },
+  {
+   "depth": 1,
+   "lines": 338,
+   "unit": "agent_runtime/snapshot.py|_parity_envelope"
+  },
+  {
+   "depth": 4,
+   "lines": 284,
+   "unit": "agent_runtime/snapshot.py|_parity_warnings"
+  },
+  {
+   "depth": 5,
+   "lines": 216,
+   "unit": "agent_runtime/snapshot.py|build_snapshot"
+  },
+  {
+   "depth": 6,
+   "lines": 425,
+   "unit": "agent_runtime/stream.py|stream_frames"
+  },
+  {
+   "depth": 3,
+   "lines": 212,
+   "unit": "hermes_cli/harness.py|_cmd_skills_delete"
+  },
+  {
+   "depth": 0,
+   "lines": 1768,
+   "unit": "hermes_cli/harness.py|populate_parser"
+  },
+  {
+   "depth": 2,
+   "lines": 266,
+   "unit": "hermes_cli/harness_parts/gateway_commands.py|cmd_gateway_introduce"
+  },
+  {
+   "depth": 3,
+   "lines": 443,
+   "unit": "hermes_cli/harness_parts/gateway_commands.py|cmd_gateway_peers_join"
+  },
+  {
+   "depth": 2,
+   "lines": 181,
+   "unit": "hermes_cli/harness_parts/office.py|_cmd_office_actor_upsert"
+  },
+  {
+   "depth": 2,
+   "lines": 155,
+   "unit": "hermes_cli/harness_parts/persona_commands.py|_cmd_agent_create"
+  },
+  {
+   "depth": 4,
+   "lines": 692,
+   "unit": "hermes_cli/harness_parts/persona_commands.py|_cmd_mission_chat_message"
+  },
+  {
+   "depth": 4,
+   "lines": 242,
+   "unit": "hermes_cli/harness_parts/persona_commands.py|_cmd_persona_chat_delete"
+  },
+  {
+   "depth": 4,
+   "lines": 156,
+   "unit": "hermes_cli/harness_parts/persona_commands.py|_cmd_persona_instance_create"
+  },
+  {
+   "depth": 4,
+   "lines": 322,
+   "unit": "hermes_cli/harness_parts/persona_commands.py|_cmd_persona_instance_open_chat"
+  },
+  {
+   "depth": 4,
+   "lines": 160,
+   "unit": "hermes_cli/harness_parts/persona_commands.py|_cmd_persona_instance_open_new_chat"
+  },
+  {
+   "depth": 3,
+   "lines": 198,
+   "unit": "hermes_cli/harness_parts/persona_commands.py|_mission_chat_busy_outcome"
+  },
+  {
+   "depth": 3,
+   "lines": 1590,
+   "unit": "hermes_cli/harness_parts/persona_commands.py|_mission_chat_commit_turn"
+  },
+  {
+   "depth": 4,
+   "lines": 194,
+   "unit": "hermes_cli/harness_parts/serve.py|_cmd_serve_connect"
+  },
+  {
+   "depth": 0,
+   "lines": 181,
+   "unit": "hermes_cli/harness_parts/serve.py|_gateway_authenticator"
+  },
+  {
+   "depth": 6,
+   "lines": 3760,
+   "unit": "hermes_cli/harness_parts/serve.py|serve_loop"
+  },
+  {
+   "depth": 4,
+   "lines": 856,
+   "unit": "hermes_cli/harness_parts/serve.py|serve_loop._handle_message"
+  },
+  {
+   "depth": 5,
+   "lines": 207,
+   "unit": "hermes_cli/harness_parts/serve.py|serve_loop._run"
+  },
+  {
+   "depth": 4,
+   "lines": 233,
+   "unit": "mobile_core/src/hermes_mobile_core/_vendor/agent/transports/chat_completions.py|ChatCompletionsTransport.build_kwargs"
+  },
+  {
+   "depth": 5,
+   "lines": 92,
+   "unit": "mobile_core/src/hermes_mobile_core/_vendor/agent/transports/chat_completions.py|ChatCompletionsTransport.convert_messages"
+  },
+  {
+   "depth": 5,
+   "lines": 114,
+   "unit": "mobile_core/src/hermes_mobile_core/_vendor/agent/transports/chat_completions.py|ChatCompletionsTransport.normalize_response"
+  },
+  {
+   "depth": 5,
+   "lines": 64,
+   "unit": "mobile_core/src/hermes_mobile_core/auth.py|MobileAuthManager.rate_limits"
+  },
+  {
+   "depth": 5,
+   "lines": 106,
+   "unit": "mobile_core/src/hermes_mobile_core/turn_runner.py|TurnRunner._attempt"
+  },
+  {
+   "depth": 7,
+   "lines": 98,
+   "unit": "mobile_core/src/hermes_mobile_core/turn_runner.py|TurnRunner._attempt_anthropic"
+  },
+  {
+   "depth": 7,
+   "lines": 119,
+   "unit": "mobile_core/src/hermes_mobile_core/turn_runner.py|TurnRunner._attempt_responses"
+  },
+  {
+   "depth": 4,
+   "lines": 173,
+   "unit": "scripts/changed_line_mutation_check.py|run"
+  },
+  {
+   "depth": 5,
+   "lines": 84,
+   "unit": "scripts/doc_cite_report.py|run"
+  },
+  {
+   "depth": 2,
+   "lines": 228,
+   "unit": "scripts/generate_agent_runtime_stream_fixtures.py|_build_agent_create_frames"
+  },
+  {
+   "depth": 3,
+   "lines": 152,
+   "unit": "scripts/run_tests_bundled.py|run"
+  },
+  {
+   "depth": 5,
+   "lines": 78,
+   "unit": "tests/_downstream/hermes_cli_conftest.py|_sys_modules_identity_is_restored"
+  },
+  {
+   "depth": 5,
+   "lines": 258,
+   "unit": "tools/agent_chat_dispatch.py|_run_remote_dispatch"
+  },
+  {
+   "depth": 3,
+   "lines": 425,
+   "unit": "tools/agent_chat_tool.py|agent_chat_send"
+  }
+ ],
+ "max_depth": 4,
+ "max_lines": 150
+}

@@ -5029,6 +5029,125 @@
         "-q",
         "tests/agent_runtime/test_local_llama_adapter.py::test_the_turn_route_is_upstreams_llamacpp_resolution_pinned_to_this_engine"
       ]
+    },
+    {
+      "id": "w0-g1-the-counter-counts-comments-again",
+      "path": "scripts/god_file_probe.py",
+      "symbol": "code_lines",
+      "operator": "widen-counter",
+      "find": "line.strip() and not line.strip().startswith(\"#\"))",
+      "replace": "line.strip())",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/tooling/test_downstream_size_ceiling.py::test_the_counter_counts_code_lines_not_raw_lines"
+      ]
+    },
+    {
+      "id": "w0-g2-the-fence-stops-intersecting-upstream",
+      "path": "scripts/god_file_fences.py",
+      "symbol": "fence_violations",
+      "operator": "empty-intersection",
+      "find": "for path in sorted(set(touched) & upstream)]",
+      "replace": "for path in sorted(set(touched) & set())]",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/tooling/test_refactor_stays_downstream.py::test_the_fence_reds_a_refactor_commit_on_an_upstream_file"
+      ]
+    },
+    {
+      "id": "w0-g3-locals-stop-being-alpha-renamed",
+      "path": "scripts/god_file_probe.py",
+      "symbol": "_bound_names",
+      "operator": "drop-local-renaming",
+      "find": "            yield child.id",
+      "replace": "            pass",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/agent_runtime/test_duplicate_helper_bodies.py::test_alpha_renaming_collides_a_renamed_clone"
+      ]
+    },
+    {
+      "id": "w0-g4-a-borrowed-callable-goes-unreported",
+      "path": "scripts/god_file_fences.py",
+      "symbol": "borrowed_callables",
+      "operator": "drop-finding",
+      "find": "        out.append(f\"{name} (from {owner})\")",
+      "replace": "        pass",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/tooling/test_harness_namespace_is_thin.py::test_the_borrowed_callable_check_reds_a_reexport"
+      ]
+    },
+    {
+      "id": "w0-g5-a-three-arm-ladder-stops-counting",
+      "path": "scripts/god_file_probe.py",
+      "symbol": "_ladders_in",
+      "operator": "raise-threshold",
+      "find": "        if arms >= 3:\n            yield kind, name, arms",
+      "replace": "        if arms >= 4:\n            yield kind, name, arms",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/tooling/test_no_ladder_routing.py::test_the_detector_sees_both_spellings_of_a_ladder"
+      ]
+    },
+    {
+      "id": "w0-g6-an-upward-import-reads-as-downward",
+      "path": "scripts/god_file_probe.py",
+      "symbol": "layer_violations",
+      "operator": "flip-comparison",
+      "find": "rank[layers[hit]] > rank[layer]",
+      "replace": "rank[layers[hit]] < rank[layer]",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/tooling/test_fork_import_layers.py::test_the_layer_check_reds_an_upward_import_read_at_runtime"
+      ]
+    },
+    {
+      "id": "w0-g7-elif-counts-as-nesting",
+      "path": "scripts/god_file_probe.py",
+      "symbol": "nesting_depth",
+      "operator": "nest-elif",
+      "find": "                    deepest = max(deepest, depth(stmt.orelse, level))",
+      "replace": "                    deepest = max(deepest, depth(stmt.orelse, inner))",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/tooling/test_function_legibility_floor.py::test_depth_counts_blocks_and_not_elif"
+      ]
     }
   ]
 }
