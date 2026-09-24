@@ -200,15 +200,3 @@ async def test_notify_on_complete_legacy_agent_turn_can_be_enabled_by_config(
 
     adapter.handle_message.assert_awaited_once()
     adapter.send.assert_not_awaited()
-
-
-def test_long_running_heartbeat_mentions_stop_guidance():
-    text = GatewayRunner._format_long_running_heartbeat(
-        elapsed_seconds=75,
-        status_detail=" — running: pytest",
-    )
-
-    assert "Working" in text
-    assert "1 min" in text
-    assert "pytest" in text
-    assert "/stop" in text

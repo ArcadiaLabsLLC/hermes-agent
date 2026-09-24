@@ -90,18 +90,6 @@ class DownstreamGatewayMixin:
             f"Output:\n{clean_output}]"
         )
 
-    @staticmethod
-    def _format_long_running_heartbeat(
-        *,
-        elapsed_seconds: float,
-        status_detail: str = "",
-    ) -> str:
-        elapsed_mins = max(0, int(elapsed_seconds // 60))
-        return (
-            f"⏳ Working — {elapsed_mins} min{status_detail}. "
-            f"Send /stop to interrupt if you need me back now."
-        )
-
     async def _handle_queue_status_command(self, event: MessageEvent) -> str:
         """Handle /queue-status command with active-run and queue visibility."""
         from gateway.run import _AGENT_PENDING_SENTINEL

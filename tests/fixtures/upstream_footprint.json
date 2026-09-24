@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 351,
-  "deleted_lines": 2305,
+  "files": 350,
+  "deleted_lines": 2304,
   "heavy": 9,
   "reasons": [
     {
@@ -46,6 +46,12 @@
       "files": "355 -> 351",
       "deleted_lines": "2309 -> 2305",
       "reason": "scripts/desktop-update/{posix.sh,retry-policy.ps1,windows.ps1} and tests/scripts/desktop_update/test_desktop_update_windows_retry_policy.py back to merge-base bytes: the fork history guard (hermes_cli/update_history.py, fork-owned) exits 2, which upstream's updaters already treat as a non-retryable refusal; the test's timeout(45) rides tests/_downstream/id_markers.py"
+    },
+    {
+      "change": "lane ADOPT group 5 (seam/carry-adopt-2026-09-24)",
+      "files": "351 -> 350",
+      "deleted_lines": "2305 -> 2304",
+      "reason": "gateway/run_turn.py back to merge-base bytes: upstream's inline heartbeat text replaces the fork's _format_long_running_heartbeat (deleted from gateway/downstream_extensions.py with its fork test); the /stop hint is dropped by owner ruling"
     }
   ]
 }
