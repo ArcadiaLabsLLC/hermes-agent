@@ -85,9 +85,6 @@ def perform_api_call(
         thinking_spinner = stop_thinking_spinner(agent, thinking_spinner)
 
     _use_streaming = _should_stream(agent)
-    from agent_runtime.conversation_observability import ProviderDispatchTiming
-    _dispatch_timing = ProviderDispatchTiming(
-        agent, api_call_count=api_call_count, api_mode=agent.api_mode, provider=agent.provider, model=agent.model)
 
     def _perform_api_call(next_api_kwargs):
         if agent.api_mode == "codex_responses":
@@ -95,7 +92,6 @@ def perform_api_call(
                 next_api_kwargs, allow_stream=False, is_github_responses=agent._is_copilot_url(),
                 sanitize_harmony_tokens=agent._is_codex_backend(),
             )
-        _dispatch_timing.mark()
         if _use_streaming:
             return agent._interruptible_streaming_api_call(
                 next_api_kwargs, on_first_delta=_stop_spinner
@@ -135,8 +131,7 @@ def perform_api_call(
             _model_request_active.set()
     try:
         response = run_llm_execution_middleware(
-            api_kwargs, _dispatch_timing.wrap(_perform_api_call, streaming=bool(_use_streaming)),
-            original_request=_original_api_kwargs,
+            api_kwargs, _perform_api_call, original_request=_original_api_kwargs,
             task_id=effective_task_id, turn_id=turn_id, api_request_id=api_request_id,
             session_id=agent.session_id or "", platform=agent.platform or "", model=agent.model,
             provider=agent.provider, base_url=agent.base_url, api_mode=agent.api_mode,

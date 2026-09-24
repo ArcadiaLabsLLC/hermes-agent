@@ -166,6 +166,13 @@ def default_background_notify(tool_name=None, args=None, **_context):
     return {"args": rewritten, "source": "eternia-harness", "reason": "background notify default"}
 
 
+def time_provider_dispatch(**kwargs):
+    """``llm_execution`` middleware: request-assembled mark + provider-dispatch span."""
+    from agent_runtime.conversation_observability import time_provider_dispatch as _time
+
+    return _time(**kwargs)
+
+
 def record_usage_ledger_row(**kwargs):
     """``post_api_request`` hook: one per-call usage row for a bound persona-turn ledger."""
     from agent_runtime.usage_ledger import on_post_api_request
@@ -203,6 +210,7 @@ def register(ctx) -> None:
     ctx.register_system_prompt_section("eternia-harness.tool-guidance", render_tool_guidance)
     ctx.register_middleware("llm_request", brief_tool_descriptions)
     ctx.register_middleware("tool_request", default_background_notify)
+    ctx.register_middleware("llm_execution", time_provider_dispatch)
     ctx.register_hook("post_api_request", record_usage_ledger_row)
     ctx.register_hook("on_kanban_dispatch_tick", route_blocked_kanban_cards)
     ctx.register_hook("pre_gateway_dispatch", answer_queue_status)

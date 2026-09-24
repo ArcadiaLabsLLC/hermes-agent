@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "f24a1d7f92",
-  "files": 203,
-  "deleted_lines": 998,
+  "files": 202,
+  "deleted_lines": 997,
   "heavy": 4,
   "reasons": [
     {
@@ -186,6 +186,12 @@
       "files": "207 -> 203",
       "deleted_lines": "999 -> 998",
       "reason": "/queue-status (/qstatus) answers through upstream's pre_gateway_dispatch (agent_runtime/gateway_queue_status.py, registered by the eternia-harness plugin), before auth and the busy intercept. hermes_cli/commands.py, gateway/run_busy.py, apps/desktop/src/lib/desktop-slash-registry.json and website/docs/reference/slash-commands.md at f24a1d7f92 bytes; DownstreamGatewayMixin is empty and leaves GatewayRunner's bases"
+    },
+    {
+      "change": "lane DOORS-A dispatch timing (seam/doors-a-2026-09-24)",
+      "files": "203 -> 202",
+      "deleted_lines": "998 -> 997",
+      "reason": "the request_assembled mark and provider_dispatch span move onto upstream's llm_execution middleware (agent_runtime.conversation_observability.time_provider_dispatch, registered by the eternia-harness plugin; sink = a ContextVar profile_runner binds around run_conversation). agent/turn_api_call.py at f24a1d7f92 bytes"
     }
   ]
 }

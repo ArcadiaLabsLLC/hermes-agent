@@ -103,7 +103,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-24 (disposition wave, lane DISP-C)
 
-- [ ] **Provider timing (`request_assembled` marker, `provider_dispatch` span) cannot ride `pre_api_request`/`post_api_request`: neither hook carries the agent or a status sink, and the marks are `run.progress` events on `agent.status_callback`** · `seams / agent` · until a widening PR, `agent_runtime.conversation_observability.ProviderDispatchTiming` wraps the dispatch callable in `agent/turn_api_call.py` (+6/-1) · evidence: `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md` row `agent/turn_api_call.py` · filed by lane MECH 2026-09-24 **TAKEN 2026-09-24 DOORS-A**
 
 ### Filed on arrival — 2026-09-23 (seam lane S45, Stage 4/5/6 inventories)
 
