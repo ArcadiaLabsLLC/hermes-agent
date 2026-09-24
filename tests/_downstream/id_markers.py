@@ -670,6 +670,24 @@ ID_MARKS.update({
             "tests/hermes_cli/test_plugins_downstream.py",
         ),
     ),
+    # Lane REDS3 (wave-close gate): the pool's round-robin position is a sidecar
+    # cursor (agent_runtime.pool_rotation, MCF-44), so select() leaves auth.json.
+    "tests/hermes_cli/test_oauth_status_pool_observation.py::"
+    "test_status_snapshot_leaves_round_robin_order_and_counts_untouched": (
+        _fork_replaces(
+            "agent_runtime.pool_rotation sidecar cursor (credential_rotation.json)",
+            "tests/hermes_cli/test_oauth_status_pool_observation_downstream.py",
+        ),
+    ),
+    # A local-path origin reads as a fork, and the fork never resets a diverged
+    # fork checkout (update_history.guard_fork_history exits 2; 1487c101ee).
+    "tests/hermes_cli/test_update_diverged_rescue_ref.py::"
+    "test_hermes_update_keeps_local_commit_behind_a_rescue_ref": (
+        _fork_replaces(
+            "hermes_cli.update_cmd._reconcile_diverged_checkout fork-history guard",
+            "tests/hermes_cli/test_update_diverged_rescue_ref_downstream.py",
+        ),
+    ),
 })
 
 # Upstream test files back at upstream's bytes: upstream's own Windows reds at
