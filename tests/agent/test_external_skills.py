@@ -59,7 +59,7 @@ class TestGetAllSkillsDirs:
         )
         with patch.dict(os.environ, {"HERMES_HOME": str(hermes_home)}):
             from agent.skill_utils import get_all_skills_dirs
-            from hermes_constants import get_shared_skills_dir
+            from agent_runtime.profile_home import get_shared_skills_dir
             result = get_all_skills_dirs()
             shared = get_shared_skills_dir()
         # Index 0 is always the local profile skills dir. The shared canonical

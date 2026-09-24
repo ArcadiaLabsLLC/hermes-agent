@@ -628,7 +628,7 @@ PHYSICAL dispatch attempt, right after the transport preflight (so a codex token
 the hermes side of the split) and right before the provider call; it carries no
 `duration_ms`/`timing_key` because it names an INSTANT, which also keeps it out of the
 profile-timing dict. Step constant: `CONVERSATION_REQUEST_ASSEMBLED_STEP =
-"conversation_request_assembled"` (`agent_runtime/conversation_observability.py:5`); `mark_from_trace_payload`
+"conversation_request_assembled"` (`agent_runtime/conversation_observability.py::CONVERSATION_REQUEST_ASSEMBLED_STEP`); `mark_from_trace_payload`
 (`mission_chat_phases.py:433-469`) is the only converter, and it takes nothing from a malformed one.
 
 **The payload has to survive the sink to reach that converter.** Its real route is
