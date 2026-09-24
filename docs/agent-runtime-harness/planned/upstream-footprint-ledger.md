@@ -50,13 +50,13 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `agent/turn_response_intake.py` | 12 | 1 | carry | unreviewed | - |
 | `agent/turn_usage.py` | 5 | 2 | carry | unreviewed | - |
 | `agent/usage_pricing.py` | 63 | 3 | carry | unreviewed | - |
-| `apps/desktop/src/app/settings/uninstall-section.tsx` | 6 | 0 | carry | unreviewed | - |
-| `apps/desktop/src/lib/desktop-slash-registry.json` | 2 | 0 | carry | unreviewed | - |
+| `apps/desktop/src/app/settings/uninstall-section.tsx` | 6 | 0 | upstream | PR candidate: warn that uninstalling the agent deletes the checkout's git history (holds for every upstream user; no SDK slot inside the confirm step) | S6 |
+| `apps/desktop/src/lib/desktop-slash-registry.json` | 2 | 0 | hook | seam: generated from `desktop_surface_registry`; follows the fork's `queue-status` `CommandDef`. Retires when the command registers through the plugin `register_command` and the dump reads plugin commands (it does not today) | S6 |
 | `cli-config.yaml.example` | 6 | 2 | carry | replaces upstream lines: background-completion family (default `concise`→`result`, new `background_process_agent_turns: false`). Movable → the fork's profile config seed (set the value, keep upstream's default); the new key is a PR candidate with the gateway/TUI family | - |
 | `cli.py` | 2 | 1 | upstream | PR candidate: the tirith startup check reads `hermes_cli/tirith_config.tirith_enabled` (config + `TIRITH_ENABLED` env) instead of the raw config key; ships with that resolver | S3 |
-| `contributors/emails/uperLu@users.noreply.github.com` | 2 | 2 | carry | unreviewed | - |
-| `evals/completion_backlog_probe.py` | 2 | 0 | carry | unreviewed | - |
-| `evals/postmortem/live_ab/cache_concurrency_probe.py` | 12 | 0 | carry | unreviewed | - |
+| `contributors/emails/uperLu@users.noreply.github.com` | 2 | 2 | upstream | PR candidate: normalize the one CRLF contributor file upstream (fork LF rule, `tests/test_line_endings.py`); fallback: accept upstream's bytes via a `-text` keeper | S3 |
+| `evals/completion_backlog_probe.py` | 2 | 0 | carry | ours: pins `HERMES_BACKGROUND_AGENT_TURNS=true` so the probe measures the agent-turn mode the fork turned off by default — additive; retires with that family | - |
+| `evals/postmortem/live_ab/cache_concurrency_probe.py` | 12 | 0 | upstream | PR candidate: fixes a NameError — `m`, `sys_sha`, `tools_sha`, `msg_shas` are used but never defined in upstream's `patched_stream` | S3 |
 | `gateway/hosted_room_discussion.py` | 85 | 33 | hook | seam: widen the Group Chat host surface — host-declared `DiscussionLimits` + `active_member_ids`, consumer `agent_runtime/discussions/service.py`; a PR widening the generic surface with this host as consumer | S3 |
 | `gateway/hosted_room_policy_checkpoint.py` | 6 | 3 | hook | seam: same Group Chat host-surface PR — host-declared `max_active_events` budget | S3 |
 | `gateway/hosted_rooms.py` | 72 | 4 | hook | seam: same Group Chat host-surface PR — `pin_room_history`/`unpin_room_history` retention opt-in (written as generic, stock behaviour unchanged with nothing pinned) | S3 |
@@ -140,21 +140,21 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `hermes_state_messages.py` | 3 | 1 | upstream | PR candidate: surface `finish_reason` on every role, not only assistant rows (upstream still gates it on assistant) | S3 |
 | `hermes_state_sessions.py` | 2 | 2 | upstream | PR candidate: deterministic `ORDER BY started_at DESC, id DESC` tie-break in session listing (2 queries) | S3 |
 | `model_tools.py` | 58 | 3 | hook | seam: per-run tool-name filter (`blocked_tool_names`) + tool-defs memo hit/miss counters + `ensure_tool_describe_present` injection; needs a tool-filter hook PR (surface lacks it). Partly superseded: `get_registered_toolset_names` wrapper — upstream `tools.registry.registry.get_registered_toolset_names` exists; `agent_runtime/personas.py` can call it and drop the wrapper | S3 |
-| `nix/checks.nix` | 1 | 1 | carry | unreviewed | - |
-| `plugins/dashboard_auth/_shared.py` | 4 | 3 | carry | unreviewed | - |
-| `plugins/memory/__init__.py` | 69 | 1 | carry | unreviewed | - |
-| `plugins/platforms/feishu/adapter.py` | 63 | 5 | carry | unreviewed | - |
-| `providers/__init__.py` | 1 | 1 | carry | unreviewed | - |
+| `nix/checks.nix` | 1 | 1 | upstream | PR candidate: the `mcp catalog` check no longer swallows the command's failure (`2>/dev/null` + `true` fallback) | S3 |
+| `plugins/dashboard_auth/_shared.py` | 4 | 3 | upstream | PR candidate: read-only config load (upstream `load_config_readonly`) + deepcopy of the returned section | S3 |
+| `plugins/memory/__init__.py` | 69 | 1 | upstream | PR candidate: `_publish_module` binds the loaded provider on its parent package as real imports do (and unbinds on failure) | S3 |
+| `plugins/platforms/feishu/adapter.py` | 63 | 5 | upstream | PR candidate: dedup-state path resolved per call, cache hydrated on first use — no `HERMES_HOME` frozen at construction (the `test_no_frozen_hermes_home` class) | S3 |
+| `providers/__init__.py` | 1 | 1 | upstream | REVERT: dead edit — respells `hermes_cli.plugins` → `hermes_cli.plugins_discovery` for two names `hermes_cli/plugins.py` still re-exports (upstream/main imports them the upstream way) | - |
 | `pyproject.toml` | 19 | 7 | carry | ours: `agent_runtime` package include (not movable: packaging), fork test markers (movable → `tests/_downstream/` `pytest_configure` addinivalue_line), coverage/pytest-timeout dev deps + `--timeout=30`. PR candidate: the ruff `F821` select | - |
 | `run_agent.py` | 2 | 0 | hook | seam: `blocked_tool_names` kwarg (same tool-filter hook as `model_tools.py`) + `session_usage_ledger` init (fork usage ledger — `on_session_start` hook) | S3 |
-| `scripts/audit_pr_attribution.py` | 4 | 1 | carry | unreviewed | - |
-| `scripts/check_subprocess_stdin.py` | 2 | 2 | carry | unreviewed | - |
-| `scripts/desktop-update/posix.sh` | 7 | 0 | carry | unreviewed | - |
-| `scripts/desktop-update/retry-policy.ps1` | 4 | 1 | carry | unreviewed | - |
-| `scripts/desktop-update/windows.ps1` | 5 | 2 | carry | unreviewed | - |
-| `scripts/install.ps1` | 95 | 2 | carry | unreviewed | - |
-| `scripts/install.sh` | 61 | 4 | carry | unreviewed | - |
-| `scripts/release.py` | 3 | 1 | carry | unreviewed | - |
+| `scripts/audit_pr_attribution.py` | 4 | 1 | upstream | PR candidate: exact-name contributor lookup incl. `case-variants/` (Windows case-insensitive FS); with `contributor-check.yml` + `release.py` | S3 |
+| `scripts/check_subprocess_stdin.py` | 2 | 2 | upstream | PR candidate: `as_posix()` path compares so the allowlist and `/tests/` skip work on Windows | S3 |
+| `scripts/desktop-update/posix.sh` | 7 | 0 | carry | ours: stop without retry on `HERMES_UPDATE_HISTORY_REVIEW_REQUIRED` (fork history-fold review) — additive; not movable (upstream updater script) | - |
+| `scripts/desktop-update/retry-policy.ps1` | 4 | 1 | carry | ours: history-review sentinel is non-retryable — replaces 1 upstream line (param list); not movable | - |
+| `scripts/desktop-update/windows.ps1` | 5 | 2 | carry | ours: history-review sentinel stop + message — replaces 2 upstream lines; not movable | - |
+| `scripts/install.ps1` | 95 | 2 | upstream | PR candidate: install into the existing checkout the installer runs from (forks keep their origin), segment-wise PATH dedup, `git`/`git-bash` in `--ensure` | S3 |
+| `scripts/install.sh` | 61 | 4 | upstream | PR candidate: install into the existing checkout the installer runs from (forks keep their origin); idempotent `resolve_install_layout` | S3 |
+| `scripts/release.py` | 3 | 1 | upstream | PR candidate: read `contributors/emails/` recursively for `case-variants/`; with `contributor-check.yml` + `audit_pr_attribution.py` | S3 |
 | `scripts/run_tests.sh` | 193 | 5 | upstream | §0.4: runner improvements (P5); carry the hermetic-env rows | S3 |
 | `scripts/run_tests_parallel.py` | 181 | 42 | upstream | §0.4: runner improvements (P5); carry the hermetic-env rows | S3 |
 | `tests/agent/conftest.py` | 1 | 0 | carry | §0.4 / S5 landed: fork fixtures and hooks live in `tests/_downstream/` (root plugin + three star-imported modules); this file carries one added line | S5 |
@@ -435,10 +435,10 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tools/vision_tools.py` | 6 | 8 | carry | unreviewed | - |
 | `tools/web_tools.py` | 2 | 2 | carry | unreviewed | - |
 | `toolsets.py` | 70 | 2 | hook | seam: plugin toolset registration — `skill_search` in core/skills lists (fork tool), `harness_core` composite, `expand_toolset_names`; the composite needs a register-toolset PR (register_tool covers leaves only) | S3 |
-| `tui_gateway/entry.py` | 14 | 0 | carry | unreviewed | - |
-| `tui_gateway/hosted_room_driver.py` | 15 | 2 | carry | unreviewed | - |
-| `tui_gateway/server.py` | 1 | 1 | carry | unreviewed | - |
-| `tui_gateway/session_notifications.py` | 20 | 0 | carry | unreviewed | - |
+| `tui_gateway/entry.py` | 14 | 0 | upstream | P2: durable-completion restore at TUI startup (fallback: `on_session_start` hook) | S3 |
+| `tui_gateway/hosted_room_driver.py` | 15 | 2 | hook | seam: Group Chat host-surface PR — `request_reconciliation`; its three settlement fixes (`stop_unresolved`, active inspection, terminal `error`) go in the same PR as plain fixes | S3 |
+| `tui_gateway/server.py` | 1 | 1 | upstream | REVERT: dead edit — comment-only (renames the stale test name in `register_method`'s docstring) | - |
+| `tui_gateway/session_notifications.py` | 20 | 0 | carry | ours: visibility-only completion delivery when `background_process_agent_turns` is off — additive branches; not movable (inline in the notification poll) | - |
 | `utils.py` | 46 | 6 | upstream | PR candidate: `newline=` passthrough on `atomic_write_text`/`_atomic_write` (3 fork callers). REVERT hunks: `_replace_with_windows_contention_retry` superseded by upstream dcbe175423 (winerror 5/32/33 bounded retry) — take theirs at the next merge | S3 |
 | `uv.lock` | 82 | 10 | carry | ours: lock follows `pyproject.toml` (coverage, pytest-timeout); regenerated, never hand-edited; retires with those dev deps | - |
 | `website/docs/developer-guide/billing-lifecycle.md` | 7 | 5 | upstream | PR candidate (website docs): poll loop moved to `apps/shared/src/charge-settlement.ts` upstream; the upstream page is stale | S3 |
