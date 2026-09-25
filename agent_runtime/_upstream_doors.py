@@ -24,6 +24,7 @@ from pathlib import Path
 __layer__ = "models"
 __all__ = [
     "compression_threshold_for_model",
+    "cron_pools_present",
     "default_hermes_home",
     "pid_exists",
     "sanitize_surrogates",
@@ -34,13 +35,9 @@ __all__ = [
 
 
 def pid_exists(pid: int) -> bool:
-    """``gateway.status._pid_exists`` — serve_registry and the dispatch store's
-    boot sweep (``dispatch_store.delivery``) read it here.
-
-    ``running_work`` still imports it itself: it is over the 800-line ceiling
-    and grandfathered by W0-G1, whose GREW arm refuses the one line the door's
-    import costs it. Its lane (R2) moves it when it splits the file.
-    """
+    """``gateway.status._pid_exists`` — serve_registry, the dispatch store's
+    boot sweep (``dispatch_store.delivery``) and ``running_work.ownership``'s
+    PID identity read it here."""
     from gateway.status import _pid_exists
 
     return _pid_exists(pid)
@@ -102,3 +99,17 @@ def terminate_host_pid(pid: int, expected_start: int | None) -> None:
     from tools.process_registry import ProcessRegistry
 
     ProcessRegistry._terminate_host_pid(int(pid), expected_start)
+
+
+def cron_pools_present(scheduler: object) -> bool:
+    """``cron.scheduler._parallel_pool`` / ``._sequential_pool`` — the dispatch
+    pools the ticker creates lazily on its first tick and keeps, read by
+    ``running_work.lanes_process._cron_owned_here`` as durable proof the
+    scheduler runs in THIS process. Private ATTRIBUTES read by ``getattr`` on
+    the module the caller already holds (never imported here), so W0-G6's
+    private-import arm cannot see the reach. Held widening row (ruling Q7,
+    ``upstream-footprint-ledger.md``): publish ``scheduler.owns_running_jobs()``."""
+    return any(
+        getattr(scheduler, attr, None) is not None
+        for attr in ("_parallel_pool", "_sequential_pool")
+    )

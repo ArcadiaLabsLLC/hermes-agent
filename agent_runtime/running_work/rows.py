@@ -15,7 +15,7 @@ from .vocabulary import SOURCE_OK, SOURCE_UNAVAILABLE, TAIL_PREVIEW_LIMIT, _FALL
 __layer__ = "policy"
 
 
-def _safe_text(value: Any, *, limit: int) -> str:
+def bounded_operator_text(value: Any, *, limit: int) -> str:
     """Whitespace-collapsed, secret-masked, length-bounded operator text.
 
     Mirrors ``snapshot._safe_text``'s ruling: repo paths are the CONTENT on an
@@ -47,28 +47,6 @@ def _iso(epoch: Any) -> str:
         return datetime.fromtimestamp(seconds, timezone.utc).isoformat()
     except (OverflowError, OSError, ValueError):
         return ""
-
-
-def _parse_iso(text: Any) -> float | None:
-    """Epoch seconds for an ISO-8601 stamp, or None when unparseable.
-
-    Accepts the ``Z`` suffix the turn journal writes. A naive stamp is read as
-    UTC — the journal writes UTC — rather than as local time, which would make
-    ``elapsed_seconds`` jump by the machine's offset.
-    """
-
-    raw = str(text or "").strip()
-    if not raw:
-        return None
-    if raw.endswith("Z"):
-        raw = raw[:-1] + "+00:00"
-    try:
-        parsed = datetime.fromisoformat(raw)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.timestamp()
 
 
 def _iso_from_naive_local(text: Any) -> str:
@@ -105,7 +83,7 @@ def _iso_from_naive_local(text: Any) -> str:
     return parsed.astimezone(timezone.utc).isoformat()
 
 
-def _elapsed(started_epoch: float | None, *, now: float) -> int:
+def elapsed_seconds(started_epoch: float | None, *, now: float) -> int:
     if started_epoch is None:
         return 0
     return int(max(0.0, now - started_epoch))
@@ -177,7 +155,7 @@ def _progress(
     }
 
 
-def _row(
+def work_row(
     *,
     kind: str,
     stable_id: str,
@@ -225,7 +203,7 @@ def _preview(text: Any, accountant: ProjectionAccountant | None) -> str:
     if not raw:
         return ""
     stripped = _strip_ansi(raw)
-    bounded = _safe_text(stripped, limit=TAIL_PREVIEW_LIMIT)
+    bounded = bounded_operator_text(stripped, limit=TAIL_PREVIEW_LIMIT)
     if accountant is not None and len(" ".join(stripped.split())) > TAIL_PREVIEW_LIMIT:
         accountant.drop(
             "tail_truncated",
@@ -283,9 +261,9 @@ def _source(
     if reason:
         entry["reason"] = reason
     if detail:
-        entry["detail"] = _safe_text(detail, limit=240)
+        entry["detail"] = bounded_operator_text(detail, limit=240)
     if live_enrichment_error:
-        entry["live_enrichment_error"] = _safe_text(live_enrichment_error, limit=80)
+        entry["live_enrichment_error"] = bounded_operator_text(live_enrichment_error, limit=80)
     return entry
 
 
@@ -307,3 +285,44 @@ def _cap(
         )
         accountant.mark_truncated()
     return rows[:_MAX_ROWS_PER_SOURCE]
+
+
+class LanePass:
+    """One lane's pass over its sources — the bookkeeping every collector repeats.
+
+    Holds the build's clock and accountant and the build-scoped owner memo
+    (``ownership._owner_of`` says why it is never module-side), and ends a lane
+    the one way every lane ends: :meth:`finish` sorts, caps and counts what ships.
+    A lane subclass names its phases (``read_durable`` → rows → ``enrich_live`` →
+    ``finish``); the durable-backed lanes share those names because they are the
+    same shape — see the package docstring's "Durable-first".
+    """
+
+    kind = ""
+
+    def __init__(
+        self, *, now: float, accountant: ProjectionAccountant | None, kind: str = ""
+    ) -> None:
+        self.now = now
+        self.accountant = accountant
+        self.owners: dict[str, tuple[str, str]] = {}
+        if kind:
+            self.kind = kind
+
+    def consider(self) -> None:
+        if self.accountant is not None:
+            self.accountant.consider()
+
+    def drop(self, reason: str, **fields: Any) -> None:
+        if self.accountant is not None:
+            self.accountant.drop(reason, **fields)
+
+    def finish(self, rows: list[dict[str, Any]], *, ordered: bool = True) -> list[dict[str, Any]]:
+        if ordered:
+            rows = sorted(rows, key=lambda item: (item.get("started_at") or "", item["work_id"]))
+        capped = _cap(rows, source=self.kind, accountant=self.accountant)
+        if self.accountant is not None:
+            # Count what actually ships. Including pre-cap would report rows the
+            # frame does not carry, and `considered - dropped` would stop reconciling.
+            self.accountant.include(len(capped))
+        return capped

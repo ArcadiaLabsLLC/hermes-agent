@@ -5,69 +5,117 @@ background processes (durable checkpoint + live registry) and cron jobs
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
+from .._upstream_doors import cron_pools_present
 from ..parity import ProjectionAccountant
 
 from .ownership import _head_home, _owner_of, _pid_identity
-from .rows import _cap, _elapsed, _iso, _iso_from_naive_local, _module, _preview, _progress, _row, _safe_text, _source
-from .vocabulary import KIND_CRON_JOB, KIND_TERMINAL, LANE_DURABLE, LANE_LIVE, PID_DEAD, PID_RECYCLED, REASON_NOT_IN_PROCESS, SOURCE_OK, SOURCE_UNAVAILABLE, STATUS_RUNNING, STATUS_UNKNOWN, _CHECKPOINT_FILENAME
+from .rows import (
+    LanePass,
+    _iso,
+    _iso_from_naive_local,
+    _module,
+    _preview,
+    _progress,
+    _source,
+    bounded_operator_text,
+    elapsed_seconds,
+    work_row,
+)
+from .vocabulary import (
+    KIND_CRON_JOB,
+    KIND_TERMINAL,
+    LANE_DURABLE,
+    LANE_LIVE,
+    PID_DEAD,
+    PID_RECYCLED,
+    REASON_NOT_IN_PROCESS,
+    REGISTRY_EXITED,
+    SOURCE_OK,
+    SOURCE_UNAVAILABLE,
+    STATUS_RUNNING,
+    STATUS_UNKNOWN,
+    _CHECKPOINT_FILENAME,
+)
 
 __layer__ = "lanes"
 
 
-def _collect_terminal(
-    *, now: float, accountant: ProjectionAccountant | None
-) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+class TerminalLane(LanePass):
     """Durable ``processes.json`` checkpoint, enriched from the live registry.
 
     The checkpoint is written atomically on every start/exit and holds
     running-only entries with the ``host_start_time`` identity baseline, so it
     is the one lane that answers honestly from a cold CLI process.
+
+    Phases: :meth:`read_durable` → :meth:`durable_row` per entry →
+    :meth:`enrich_live` (:meth:`live_row` per registry session) →
+    :meth:`LanePass.finish`.
     """
 
-    rows: dict[str, dict[str, Any]] = {}
-    owners: dict[str, tuple[str, str]] = {}
-    head, _provenance = _head_home()
-    if head is None:
-        return [], _source(
-            SOURCE_UNAVAILABLE, lane=LANE_DURABLE, reason="home_unresolved"
-        )
-    # Which home this resolved to rides `_ambient_context()`, once, for the whole
-    # projection — it is machine-local context, not this lane's health.
+    kind = KIND_TERMINAL
 
-    path = head / _CHECKPOINT_FILENAME
-    try:
-        if path.exists():
-            entries = json.loads(path.read_text(encoding="utf-8"))
-        else:
-            # An absent checkpoint and a checkpoint listing nothing are the SAME
-            # runtime fact — zero background processes, proven — so the lane says
-            # `ok` with zero rows either way. Which of the two it was is storage
-            # layout, and reporting it here is what used to put a filesystem
-            # observation on a contract field.
-            entries = []
-    except Exception as exc:
-        return [], _source(
-            SOURCE_UNAVAILABLE,
-            lane=LANE_DURABLE,
-            reason="checkpoint_unreadable",
-            detail=f"{type(exc).__name__}",
+    def __init__(self, *, now: float, accountant: ProjectionAccountant | None) -> None:
+        super().__init__(now=now, accountant=accountant)
+        self.rows: dict[str, dict[str, Any]] = {}
+        self.lane = LANE_DURABLE
+        self.live_error = ""
+
+    def collect(self) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        head, _provenance = _head_home()
+        if head is None:
+            return [], _source(
+                SOURCE_UNAVAILABLE, lane=LANE_DURABLE, reason="home_unresolved"
+            )
+        # Which home this resolved to rides `_ambient_context()`, once, for the whole
+        # projection — it is machine-local context, not this lane's health.
+        entries, refusal = self.read_durable(head)
+        if refusal is not None:
+            return [], refusal
+        for entry in entries:
+            self.durable_row(entry)
+        self.enrich_live()
+        return (
+            self.finish(list(self.rows.values())),
+            _source(SOURCE_OK, lane=self.lane, live_enrichment_error=self.live_error),
         )
 
-    if not isinstance(entries, list):
-        return [], _source(
-            SOURCE_UNAVAILABLE, lane=LANE_DURABLE, reason="checkpoint_malformed"
-        )
+    def read_durable(self, head: Path) -> tuple[list[Any], dict[str, Any] | None]:
+        """The checkpoint's entries, or a typed ``unavailable`` source entry."""
 
-    for entry in entries:
+        path = head / _CHECKPOINT_FILENAME
+        try:
+            if path.exists():
+                entries = json.loads(path.read_text(encoding="utf-8"))
+            else:
+                # An absent checkpoint and a checkpoint listing nothing are the SAME
+                # runtime fact — zero background processes, proven — so the lane says
+                # `ok` with zero rows either way. Which of the two it was is storage
+                # layout, and reporting it here is what used to put a filesystem
+                # observation on a contract field.
+                entries = []
+        except Exception as exc:
+            return [], _source(
+                SOURCE_UNAVAILABLE,
+                lane=LANE_DURABLE,
+                reason="checkpoint_unreadable",
+                detail=f"{type(exc).__name__}",
+            )
+        if not isinstance(entries, list):
+            return [], _source(
+                SOURCE_UNAVAILABLE, lane=LANE_DURABLE, reason="checkpoint_malformed"
+            )
+        return entries, None
+
+    def durable_row(self, entry: Any) -> None:
         if not isinstance(entry, dict):
-            continue
-        session_id = _safe_text(entry.get("session_id"), limit=200)
+            return
+        session_id = bounded_operator_text(entry.get("session_id"), limit=200)
         if not session_id:
-            continue
-        if accountant is not None:
-            accountant.consider()
+            return
+        self.consider()
         pid = entry.get("pid")
         _alive, verified, verdict = _pid_identity(pid, entry.get("host_start_time"))
         if verdict == PID_DEAD:
@@ -76,40 +124,37 @@ def _collect_terminal(
             # be exactly the liveness lie this projection exists to prevent.
             # Checkpoint lag between an exit and the next atomic write is the
             # normal steady state, so this is a bound, not lost data.
-            if accountant is not None:
-                accountant.drop(
-                    "process_exited",
-                    entity_id=session_id,
-                    detail="checkpoint row's PID no longer exists",
-                    by_design=True,
-                )
-            continue
+            self.drop(
+                "process_exited",
+                entity_id=session_id,
+                detail="checkpoint row's PID no longer exists",
+                by_design=True,
+            )
+            return
         if verdict == PID_RECYCLED:
             # Alive, but a DIFFERENT process now holds the number. Our work is
             # gone and the live process is a stranger we must never signal.
             # Reached ONLY on a real start-time mismatch — an unreadable probe
             # falls through below as unverified instead of being deleted here.
-            if accountant is not None:
-                accountant.drop(
-                    "pid_recycled",
-                    entity_id=session_id,
-                    detail="host_start_time mismatch; PID was recycled",
-                    by_design=True,
-                )
-            continue
+            self.drop(
+                "pid_recycled",
+                entity_id=session_id,
+                detail="host_start_time mismatch; PID was recycled",
+                by_design=True,
+            )
+            return
         started = entry.get("started_at")
-        command = _safe_text(entry.get("command"), limit=400)
-        owning_session = _safe_text(entry.get("session_key"), limit=200)
+        owning_session = bounded_operator_text(entry.get("session_key"), limit=200)
         # Same resolver, same rule as the delegation lane. A terminal spawned
         # outside a persona turn carries a gateway session key that no chat root
         # owns; it resolves to nothing and ships an empty owner, which is the
         # truthful answer rather than a lane-specific guess.
-        owner_persona, owner_instance = _owner_of(owning_session, memo=owners)
-        row = _row(
+        owner_persona, owner_instance = _owner_of(owning_session, memo=self.owners)
+        row = work_row(
             kind=KIND_TERMINAL,
             stable_id=session_id,
-            label=_safe_text(entry.get("command"), limit=120) or session_id,
-            command=command,
+            label=bounded_operator_text(entry.get("command"), limit=120) or session_id,
+            command=bounded_operator_text(entry.get("command"), limit=400),
             status=STATUS_RUNNING if verified else STATUS_UNKNOWN,
             source_lane=LANE_DURABLE,
             pid=pid,
@@ -118,18 +163,18 @@ def _collect_terminal(
             persona_instance_id=owner_instance,
             session_id=owning_session,
             started_at=_iso(started),
-            elapsed_seconds=_elapsed(
-                float(started) if isinstance(started, (int, float)) else None, now=now
+            elapsed_seconds=elapsed_seconds(
+                float(started) if isinstance(started, (int, float)) else None, now=self.now
             ),
             progress=_progress(available=False),
             cancellable=True,
         )
-        rows[row["work_id"]] = row
+        self.rows[row["work_id"]] = row
 
-    registry = _module("tools.process_registry")
-    lane = LANE_DURABLE
-    live_error = ""
-    if registry is not None:
+    def enrich_live(self) -> None:
+        registry = _module("tools.process_registry")
+        if registry is None:
+            return
         try:
             sessions = registry.process_registry.list_sessions()
             # The lane is only "live" once the registry actually produced rows.
@@ -137,70 +182,68 @@ def _collect_terminal(
             # ``live`` would claim first-hand knowledge this process does not
             # have.
             if sessions:
-                lane = LANE_LIVE
+                self.lane = LANE_LIVE
             for item in sessions:
-                if not isinstance(item, dict):
-                    continue
-                session_id = _safe_text(item.get("session_id"), limit=200)
-                if not session_id:
-                    continue
-                work_id = f"{KIND_TERMINAL}:{session_id}"
-                if str(item.get("status") or "") == "exited":
-                    # The live registry is authoritative about its own children:
-                    # an exited one is not running work, and it must also not
-                    # survive as a stale durable row from a checkpoint written
-                    # before the exit.
-                    if rows.pop(work_id, None) is not None and accountant is not None:
-                        accountant.drop(
-                            "process_exited",
-                            entity_id=session_id,
-                            detail="live registry reports exited",
-                            by_design=True,
-                        )
-                    continue
-                existing = rows.get(work_id)
-                if existing is None:
-                    if accountant is not None:
-                        accountant.consider()
-                    existing = _row(
-                        kind=KIND_TERMINAL,
-                        stable_id=session_id,
-                        label=_safe_text(item.get("command"), limit=120) or session_id,
-                        command=_safe_text(item.get("command"), limit=400),
-                        status=STATUS_RUNNING,
-                        source_lane=LANE_LIVE,
-                        pid=item.get("pid"),
-                        # In-process ownership IS the identity proof: this
-                        # registry holds the handle it spawned, so no
-                        # start-time comparison is needed or possible.
-                        pid_verified=True,
-                        # The registry formats this with `time.localtime` and no
-                        # offset; every `started_at` on this wire is UTC.
-                        started_at=_iso_from_naive_local(item.get("started_at")),
-                        elapsed_seconds=int(item.get("uptime_seconds") or 0),
-                        cancellable=True,
-                    )
-                    rows[work_id] = existing
-                else:
-                    existing["source_lane"] = LANE_LIVE
-                    existing["pid_verified"] = True
-                    existing["status"] = STATUS_RUNNING
-                    if item.get("uptime_seconds"):
-                        existing["elapsed_seconds"] = int(item["uptime_seconds"])
-                existing["tail_preview"] = _preview(item.get("output_preview"), accountant)
+                self.live_row(item)
         except Exception as exc:
-            live_error = type(exc).__name__
+            self.live_error = type(exc).__name__
 
-    ordered = sorted(rows.values(), key=lambda item: (item.get("started_at") or "", item["work_id"]))
-    capped = _cap(ordered, source=KIND_TERMINAL, accountant=accountant)
-    if accountant is not None:
-        # Count what actually ships. Including pre-cap would report rows the
-        # frame does not carry, and `considered - dropped` would stop reconciling.
-        accountant.include(len(capped))
-    return (
-        capped,
-        _source(SOURCE_OK, lane=lane, live_enrichment_error=live_error),
-    )
+    def live_row(self, item: Any) -> None:
+        if not isinstance(item, dict):
+            return
+        session_id = bounded_operator_text(item.get("session_id"), limit=200)
+        if not session_id:
+            return
+        work_id = f"{KIND_TERMINAL}:{session_id}"
+        if str(item.get("status") or "") == REGISTRY_EXITED:
+            # The live registry is authoritative about its own children:
+            # an exited one is not running work, and it must also not
+            # survive as a stale durable row from a checkpoint written
+            # before the exit.
+            if self.rows.pop(work_id, None) is not None:
+                self.drop(
+                    "process_exited",
+                    entity_id=session_id,
+                    detail="live registry reports exited",
+                    by_design=True,
+                )
+            return
+        existing = self.rows.get(work_id)
+        if existing is None:
+            self.consider()
+            existing = self.rows[work_id] = work_row(
+                kind=KIND_TERMINAL,
+                stable_id=session_id,
+                label=bounded_operator_text(item.get("command"), limit=120) or session_id,
+                command=bounded_operator_text(item.get("command"), limit=400),
+                status=STATUS_RUNNING,
+                source_lane=LANE_LIVE,
+                pid=item.get("pid"),
+                # In-process ownership IS the identity proof: this
+                # registry holds the handle it spawned, so no
+                # start-time comparison is needed or possible.
+                pid_verified=True,
+                # The registry formats this with `time.localtime` and no
+                # offset; every `started_at` on this wire is UTC.
+                started_at=_iso_from_naive_local(item.get("started_at")),
+                elapsed_seconds=int(item.get("uptime_seconds") or 0),
+                cancellable=True,
+            )
+        else:
+            existing["source_lane"] = LANE_LIVE
+            existing["pid_verified"] = True
+            existing["status"] = STATUS_RUNNING
+            if item.get("uptime_seconds"):
+                existing["elapsed_seconds"] = int(item["uptime_seconds"])
+        existing["tail_preview"] = _preview(item.get("output_preview"), self.accountant)
+
+
+def _collect_terminal(
+    *, now: float, accountant: ProjectionAccountant | None
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """The terminal lane's collector: one :class:`TerminalLane` pass."""
+
+    return TerminalLane(now=now, accountant=accountant).collect()
 
 
 def _cron_owned_here(scheduler: Any, running_ids: set) -> bool:
@@ -220,10 +263,7 @@ def _cron_owned_here(scheduler: Any, running_ids: set) -> bool:
 
     if running_ids:
         return True
-    return any(
-        getattr(scheduler, attr, None) is not None
-        for attr in ("_parallel_pool", "_sequential_pool")
-    )
+    return cron_pools_present(scheduler)
 
 
 def _collect_cron(
@@ -265,7 +305,7 @@ def _collect_cron(
         try:
             for job in jobs_mod.list_jobs(include_disabled=True) or []:
                 if isinstance(job, dict) and job.get("id") in running_ids:
-                    labels[str(job["id"])] = _safe_text(
+                    labels[str(job["id"])] = bounded_operator_text(
                         job.get("name") or job.get("prompt") or job.get("id"), limit=160
                     )
         except Exception:
@@ -274,13 +314,13 @@ def _collect_cron(
 
     rows: list[dict[str, Any]] = []
     for job_id in sorted(running_ids):
-        job_id = _safe_text(job_id, limit=200)
+        job_id = bounded_operator_text(job_id, limit=200)
         if not job_id:
             continue
         if accountant is not None:
             accountant.consider()
         rows.append(
-            _row(
+            work_row(
                 kind=KIND_CRON_JOB,
                 stable_id=job_id,
                 label=labels.get(job_id) or job_id,
@@ -291,7 +331,6 @@ def _collect_cron(
             )
         )
 
-    capped = _cap(rows, source=KIND_CRON_JOB, accountant=accountant)
-    if accountant is not None:
-        accountant.include(len(capped))
+    # Already in running-id order; the cap and the count are every lane's.
+    capped = LanePass(now=0.0, accountant=accountant, kind=KIND_CRON_JOB).finish(rows, ordered=False)
     return capped, _source(SOURCE_OK, lane=LANE_LIVE)

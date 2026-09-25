@@ -170,18 +170,19 @@ The package map (program rule 16; layout sheet ``running_work.md`` §1)
 Modules, lowest layer first; no module imports one above it (W0-G6)::
 
     agent_runtime/running_work/
-      __init__.py       wiring  this docstring + map; re-exports the importers' and the tests' names
+      __init__.py       lanes   this docstring + map; re-exports the importers' and the tests' names
       vocabulary.py     models  PROJECTION, the limits, KIND_* / RUNNING_WORK_KINDS / _SOURCES, STATUS_*,
                                 SOURCE_*, LANE_*, REASON_NOT_IN_PROCESS, the stale fallbacks, the two
                                 store filenames, PID_* (a vocabulary module: exempt from the floor)
-      rows.py           policy  the row and source shape every lane emits: bounded text, ISO stamps,
-                                progress, the row, the preview, the source entry, the per-lane cap
+      rows.py           policy  the row and source shape every lane emits: bounded_operator_text,
+                                ISO stamps, progress, work_row, the preview, the source entry, the
+                                per-lane cap, and LanePass (consider / drop / finish)
       ownership.py      stores  the head home, running_work_store_paths (the ONE authority), PID
                                 identity (rule 2), the session owner (rule 5), the ambient block
-      lanes_process.py  lanes   liveness is a PROCESS this runtime owns: terminal, cron
-      lanes_chat.py     wiring  keyed on a chat session's durable store: delegations, chat turns,
-                                dispatches
-      surface.py        wiring  _COLLECTORS (the table over the five lanes), build_running_work,
+      lanes_process.py  lanes   liveness is a PROCESS this runtime owns: TerminalLane, cron
+      lanes_chat.py     lanes   keyed on a chat session's durable store: DelegationLane
+                                (DELEGATION_STATUS_BY_RECORD), chat turns, DispatchLane
+      surface.py        lanes   _COLLECTORS (the table over the five lanes), build_running_work,
                                 find_work_row, split_work_id, peek_work, cancel_work
 
     entry point                                  opens
@@ -192,8 +193,9 @@ Modules, lowest layer first; no module imports one above it (W0-G6)::
     running_work_store_paths (core cache,        ownership
       stream, serve boot)
 
-``lanes_chat`` is ``wiring`` only because its chat-turn lane imports the
-``mission_chat_turns`` package map (itself ``wiring``); ``surface`` follows it.
+The chat-turn lane reads ``mission_chat_turns.reads`` / ``.states``, never
+that package's map (``wiring``): that is what keeps ``lanes_chat``, ``surface``
+and this map at ``lanes``.
 
 A monkeypatch lands where a name is BOUND: ``_head_home`` / ``_module`` are
 read by every lane module that imported them, so a stub on this package's
@@ -204,10 +206,15 @@ from __future__ import annotations
 
 from . import lanes_chat, lanes_process, ownership, rows, surface, vocabulary
 from .lanes_chat import (
+    DELEGATION_RECORD_RUNNING,
+    DELEGATION_STATUS_BY_RECORD,
+    DelegationLane,
+    DispatchLane,
     _collect_chat_turns,
     _delegation_status,
 )
 from .lanes_process import (
+    TerminalLane,
     _cron_owned_here,
 )
 from .ownership import (
@@ -217,10 +224,14 @@ from .ownership import (
     running_work_store_paths,
 )
 from .rows import (
+    LanePass,
     _iso_from_naive_local,
     _module,
     _preview,
     _stale_thresholds,
+    bounded_operator_text,
+    elapsed_seconds,
+    work_row,
 )
 from .surface import (
     _COLLECTORS,
@@ -231,6 +242,8 @@ from .surface import (
     split_work_id,
 )
 from .vocabulary import (
+    DELEGATION_STATE_FINALIZING,
+    KILL_NOT_FOUND,
     KIND_CHAT_TURN,
     KIND_CRON_JOB,
     KIND_DELEGATION,
@@ -246,6 +259,7 @@ from .vocabulary import (
     PID_VERIFIED,
     PROJECTION,
     REASON_NOT_IN_PROCESS,
+    REGISTRY_EXITED,
     RUNNING_WORK_KINDS,
     RUNNING_WORK_SOURCES,
     SOURCE_OK,
@@ -264,7 +278,7 @@ from .vocabulary import (
     _STATE_DB_FILENAME,
 )
 
-__layer__ = "wiring"
+__layer__ = "lanes"
 
 __all__ = [
     "KIND_CHAT_TURN",

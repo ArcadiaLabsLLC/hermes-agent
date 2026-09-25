@@ -1118,6 +1118,45 @@ def test_an_outcome_unknown_turn_reports_unknown_not_running(
     assert [row["status"] for row in rows] == [STATUS_UNKNOWN]
 
 
+def test_a_chat_turn_ages_from_its_journal_stamp(home, monkeypatch):
+    """The journal's ``Z`` stamp is parsed (``clock.parse_iso_utc``) and aged.
+
+    Positive control for the fold: a turn started 90 s ago must say so. A
+    freshly persisted turn ages ~0 s either way, so it cannot tell a parsed
+    stamp from a dropped one.
+    """
+
+    started = (datetime.now(timezone.utc) - timedelta(seconds=90)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    monkeypatch.setattr(
+        "agent_runtime.mission_chat_turns.reads.inflight_turn_rows",
+        lambda: [{"turn_id": "turn-aged", "state": "executing", "started_at": started}],
+    )
+
+    rows = _rows_of_kind(build_running_work(), KIND_CHAT_TURN)
+
+    assert [row["work_id"] for row in rows] == ["chat_turn:turn-aged"]
+    assert 85 <= rows[0]["elapsed_seconds"] <= 600
+
+
+def test_a_lane_ships_its_rows_oldest_first(home):
+    """Every lane ends in ``LanePass.finish``, which orders by ``started_at``.
+
+    Positive control: the checkpoint lists the newer process first.
+    """
+
+    _write_checkpoint(
+        home,
+        [
+            {"session_id": "sess-newer", "command": "b", "pid": os.getpid(), "started_at": 2_000_000_000.0},
+            {"session_id": "sess-older", "command": "a", "pid": os.getpid(), "started_at": 1_900_000_000.0},
+        ],
+    )
+
+    rows = _rows_of_kind(build_running_work(), KIND_TERMINAL)
+
+    assert [row["work_id"] for row in rows] == ["terminal:sess-older", "terminal:sess-newer"]
+
+
 def test_chat_turn_rows_never_carry_message_content(home, isolate_agent_runtime_root):
     """The HUD needs identity + timing; chat text has no reader on this wire."""
 

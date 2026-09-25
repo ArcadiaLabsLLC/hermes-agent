@@ -118,3 +118,12 @@ PID_DEAD = "dead"
 PID_RECYCLED = "recycled"
 PID_NO_BASELINE = "no_baseline"
 PID_START_TIME_UNREADABLE = "start_time_unreadable"
+
+#: Boundary words read off the stores and seams this projection consumes, each
+#: with one reader: the live process registry's ``status`` for a child that has
+#: exited (``lanes_process``), the ``async_delegations.state`` a settling
+#: delegation carries (``lanes_chat``), and the kill seam's answer when it held
+#: no such session (``surface.cancel_work``).
+REGISTRY_EXITED = "exited"
+DELEGATION_STATE_FINALIZING = "finalizing"
+KILL_NOT_FOUND = "not_found"
