@@ -4795,7 +4795,7 @@
       "path": "agent_runtime/profile_runner/execute.py",
       "symbol": "_resolve_request_runtime",
       "operator": "weaken-runner",
-      "find": "    if request.provider == PROVIDER_ID:\n        from ..local_llama_adapter.provider import resolve",
+      "find": "    if is_local_llama_provider(request.provider):\n        from ..local_llama_adapter.provider import resolve",
       "replace": "    if False:\n        from ..local_llama_adapter.provider import resolve",
       "test": [
         "{python}",

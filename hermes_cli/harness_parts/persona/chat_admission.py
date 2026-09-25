@@ -44,6 +44,7 @@ __all__ = [
     "_visibility_bundle_builds",
     "_visibility_bundle_diff_cursor",
     "_discover_plugin_tools_before_the_bundle",
+    "_bundle_cursor_after_plugin_discovery",
     "_visibility_bundle_rebuild_components",
     "_within_admitted_turn",
 ]
@@ -538,6 +539,19 @@ def _discover_plugin_tools_before_the_bundle() -> None:
         _ensure_plugin_tools_registered()
     except Exception:
         return None
+
+
+def _bundle_cursor_after_plugin_discovery():
+    """Discover plugin tools, THEN sample CP-7's cursor — the turn's one call.
+
+    The order is the ruling (2026-09-25, owner: discover first): a cursor
+    sampled before discovery reads the registry epoch that discovery itself
+    moves, and the first turn in a home reports a rebuild nobody caused. One
+    helper so the turn function cannot sample without discovering, and so the
+    grandfathered ``_cmd_mission_chat_message`` stays at its recorded length.
+    """
+    _discover_plugin_tools_before_the_bundle()
+    return _visibility_bundle_diff_cursor()
 
 
 def _visibility_bundle_diff_cursor():
