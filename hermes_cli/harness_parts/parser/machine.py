@@ -10,18 +10,10 @@ import argparse
 
 from .common_args import _add_stage42_global_args
 from agent_runtime.harness_doctor import DEFAULT_WORKTREE_MIN_AGE_SECONDS
-from hermes_cli.harness_parts import runtime_commands
+from hermes_cli.harness_parts import gateway_commands, runtime_commands
 from hermes_cli.harness_parts.doctor_commands import _cmd_doctor
 from hermes_cli.harness_parts.gateway_identity_commands import (
-    _cmd_gateway_devices_list,
-    _cmd_gateway_devices_revoke,
     _cmd_gateway_id,
-    _cmd_gateway_introduce,
-    _cmd_gateway_pair,
-    _cmd_gateway_peers_join,
-    _cmd_gateway_peers_list,
-    _cmd_gateway_peers_pair,
-    _cmd_gateway_peers_revoke,
     _cmd_gateway_rename,
 )
 from hermes_cli.harness_parts.init_commands import _cmd_init, _cmd_install_harness_skills
@@ -162,7 +154,7 @@ def _add_gateway_pairing_verbs(gateway_subs) -> None:
         help="What the paired device may do. console: run console verbs (create/retire agents). read: view only.",
     )
     _add_stage42_global_args(gateway_pair)
-    gateway_pair.set_defaults(func=_cmd_gateway_pair)
+    gateway_pair.set_defaults(func=gateway_commands.cmd_gateway_pair)
     # S2. `introduce` sits under `gateway` rather than under `peers`, and that
     # placement is the honest one: it mints BOTH halves — a peer code and a
     # device code — so filing it under `peers` would name half of what it does.
@@ -191,7 +183,7 @@ def _add_gateway_pairing_verbs(gateway_subs) -> None:
         help="What this introduction is for, e.g. \"the laptop\" — shown while the codes are pending",
     )
     _add_stage42_global_args(gateway_introduce)
-    gateway_introduce.set_defaults(func=_cmd_gateway_introduce)
+    gateway_introduce.set_defaults(func=gateway_commands.cmd_gateway_introduce)
     gateway_devices = gateway_subs.add_parser(
         "devices",
         help="Devices paired with this install's gateway — list them, or revoke one",
@@ -211,7 +203,7 @@ def _add_gateway_pairing_verbs(gateway_subs) -> None:
     # `_add_stage42_global_args`' own docstring is built around, and what
     # `test_every_stage42_global_flag_is_honored` caught here.
     _add_stage42_global_args(gateway_devices_list)
-    gateway_devices_list.set_defaults(func=_cmd_gateway_devices_list)
+    gateway_devices_list.set_defaults(func=gateway_commands.cmd_gateway_devices_list)
     gateway_devices_revoke = gateway_devices_subs.add_parser(
         "revoke",
         help="Refuse a paired device from its next handshake on (the row is kept, so an audit can tell it from never-paired)",
@@ -220,7 +212,7 @@ def _add_gateway_pairing_verbs(gateway_subs) -> None:
         "device_id", help="The device id from `harness gateway devices list`"
     )
     _add_stage42_global_args(gateway_devices_revoke, controls=frozenset({"dry_run"}))
-    gateway_devices_revoke.set_defaults(func=_cmd_gateway_devices_revoke)
+    gateway_devices_revoke.set_defaults(func=gateway_commands.cmd_gateway_devices_revoke)
 
 
 def _add_gateway_peers_verbs(gateway_subs) -> None:
@@ -252,7 +244,7 @@ def _add_gateway_peers_verbs(gateway_subs) -> None:
         "--note", help="What this edge is for, e.g. \"laptop\" — shown while the code is pending"
     )
     _add_stage42_global_args(gateway_peers_pair)
-    gateway_peers_pair.set_defaults(func=_cmd_gateway_peers_pair)
+    gateway_peers_pair.set_defaults(func=gateway_commands.cmd_gateway_peers_pair)
     gateway_peers_join = gateway_peers_subs.add_parser(
         "join",
         help="Redeem a peer code from ANOTHER install: dials it, and records the edge in both stores",
@@ -275,7 +267,7 @@ def _add_gateway_peers_verbs(gateway_subs) -> None:
     )
     gateway_peers_join.add_argument("--timeout", type=float, default=20.0, help="Seconds to wait for the other install's handshake")
     _add_stage42_global_args(gateway_peers_join)
-    gateway_peers_join.set_defaults(func=_cmd_gateway_peers_join)
+    gateway_peers_join.set_defaults(func=gateway_commands.cmd_gateway_peers_join)
     gateway_peers_list = gateway_peers_subs.add_parser(
         "list",
         help="Every paired install, oldest first, revoked ones included (never the credential — there is no field for it)",
@@ -284,7 +276,7 @@ def _add_gateway_peers_verbs(gateway_subs) -> None:
     # deterministic order (approved_at, then install id) and nothing here
     # re-sorts, so advertising the flag would be a wrong answer believed.
     _add_stage42_global_args(gateway_peers_list)
-    gateway_peers_list.set_defaults(func=_cmd_gateway_peers_list)
+    gateway_peers_list.set_defaults(func=gateway_commands.cmd_gateway_peers_list)
     gateway_peers_revoke = gateway_peers_subs.add_parser(
         "revoke",
         help="Refuse a paired install from its next handshake on — ONE-SIDED: the other install keeps its own row",
@@ -299,7 +291,7 @@ def _add_gateway_peers_verbs(gateway_subs) -> None:
         help="Skip telling the other install it was revoked (offline, or when it must not be contacted); it learns at its next call",
     )
     _add_stage42_global_args(gateway_peers_revoke, controls=frozenset({"dry_run"}))
-    gateway_peers_revoke.set_defaults(func=_cmd_gateway_peers_revoke)
+    gateway_peers_revoke.set_defaults(func=gateway_commands.cmd_gateway_peers_revoke)
 
 
 def add_status(subs) -> None:

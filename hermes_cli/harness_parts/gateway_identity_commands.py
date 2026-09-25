@@ -13,15 +13,7 @@ from hermes_cli.harness_support import _object_envelope, _print_stage42, emit_ha
 __layer__ = "lanes"
 __all__ = [
     "_GATEWAY_IDENTITY_ERROR_CODES",
-    "_cmd_gateway_devices_list",
-    "_cmd_gateway_devices_revoke",
     "_cmd_gateway_id",
-    "_cmd_gateway_introduce",
-    "_cmd_gateway_pair",
-    "_cmd_gateway_peers_join",
-    "_cmd_gateway_peers_list",
-    "_cmd_gateway_peers_pair",
-    "_cmd_gateway_peers_revoke",
     "_cmd_gateway_rename",
     "_gateway_identity_error",
     "_gateway_install_row",
@@ -267,59 +259,3 @@ def _cmd_gateway_rename(args) -> int:
         envelope["dry_run"] = True
     _print_stage42(envelope, args=args, default_output="json")
     return 0
-
-
-# Stage 1's three live in `harness_parts/gateway_commands.py` rather than here.
-# Not for length: the credential wiring is the part that must not be got wrong,
-# and it reads better next to a module docstring that can carry R3's ruling and
-# the no-authorization-gate argument than inline in a 5000-line parser file.
-# Imported lazily, the way `serve` already is, so building the parser does not
-# pull in the certificate and device-store modules on every `harness --help`.
-
-
-def _cmd_gateway_pair(args) -> int:
-    from hermes_cli.harness_parts.gateway_commands import cmd_gateway_pair
-
-    return cmd_gateway_pair(args)
-
-
-def _cmd_gateway_introduce(args) -> int:
-    from hermes_cli.harness_parts.gateway_commands import cmd_gateway_introduce
-
-    return cmd_gateway_introduce(args)
-
-
-def _cmd_gateway_devices_list(args) -> int:
-    from hermes_cli.harness_parts.gateway_commands import cmd_gateway_devices_list
-
-    return cmd_gateway_devices_list(args)
-
-
-def _cmd_gateway_devices_revoke(args) -> int:
-    from hermes_cli.harness_parts.gateway_commands import cmd_gateway_devices_revoke
-
-    return cmd_gateway_devices_revoke(args)
-
-
-def _cmd_gateway_peers_pair(args) -> int:
-    from hermes_cli.harness_parts.gateway_commands import cmd_gateway_peers_pair
-
-    return cmd_gateway_peers_pair(args)
-
-
-def _cmd_gateway_peers_join(args) -> int:
-    from hermes_cli.harness_parts.gateway_commands import cmd_gateway_peers_join
-
-    return cmd_gateway_peers_join(args)
-
-
-def _cmd_gateway_peers_list(args) -> int:
-    from hermes_cli.harness_parts.gateway_commands import cmd_gateway_peers_list
-
-    return cmd_gateway_peers_list(args)
-
-
-def _cmd_gateway_peers_revoke(args) -> int:
-    from hermes_cli.harness_parts.gateway_commands import cmd_gateway_peers_revoke
-
-    return cmd_gateway_peers_revoke(args)

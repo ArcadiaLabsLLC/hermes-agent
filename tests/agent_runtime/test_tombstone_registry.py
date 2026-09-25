@@ -3525,6 +3525,26 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "_is_relative_to",
         scope=_AR,
     ),
+    *rows(
+        # Lane H2 (god-file program, 2026-09-24): dead-code queue row "the eight
+        # `_cmd_gateway_*` trampolines", sheet god-file-layout-sheets/harness.md §5.
+        "s-h2",
+        "HEAD",
+        Form.ATTR,
+        "four-line trampolines onto gateway_commands.cmd_*, read only by the "
+        "parser's set_defaults(func=...); the parser binds gateway_commands.cmd_* "
+        "directly. Their lazy import saved one light module load (gateway_commands "
+        "imports only stdlib and harness_support at module scope; 12 ms cold)",
+        "_cmd_gateway_pair",
+        "_cmd_gateway_introduce",
+        "_cmd_gateway_devices_list",
+        "_cmd_gateway_devices_revoke",
+        "_cmd_gateway_peers_pair",
+        "_cmd_gateway_peers_join",
+        "_cmd_gateway_peers_list",
+        "_cmd_gateway_peers_revoke",
+        scope=HARNESS_NAMESPACE,
+    ),
 )
 
 

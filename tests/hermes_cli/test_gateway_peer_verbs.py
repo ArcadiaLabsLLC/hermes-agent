@@ -1512,10 +1512,10 @@ def test_the_peers_subtree_sits_beside_devices_rather_than_inside_it():
     harness.build_parser(root.add_subparsers(dest="command"))
 
     assert root.parse_args(["harness", "gateway", "devices", "list"]).func.__name__ == (
-        "_cmd_gateway_devices_list"
+        "cmd_gateway_devices_list"
     )
     assert root.parse_args(["harness", "gateway", "peers", "list"]).func.__name__ == (
-        "_cmd_gateway_peers_list"
+        "cmd_gateway_peers_list"
     )
     with pytest.raises(SystemExit):
         root.parse_args(["harness", "gateway", "peers"])
