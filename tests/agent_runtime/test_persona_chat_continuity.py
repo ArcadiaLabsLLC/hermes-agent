@@ -146,7 +146,7 @@ def test_09a_a_failed_byte_unlock_is_reported_and_release_still_works(
 
     with pytest.MonkeyPatch.context() as broken_unlock:
         broken_unlock.setattr(
-            persona_chat_continuity,
+            persona_chat_continuity.lease,
             "_unlock",
             lambda fd: (_ for _ in ()).throw(OSError("unlock refused")),
         )
@@ -951,16 +951,16 @@ def test_a_pointer_that_could_not_be_written_retracts_the_marker(
     store = PersonaChatClarifyTicketStore()
     _clarify_ticket(store)  # establishes the index + marker
     index_dir = store._index_dir()
-    real_atomic = continuity._atomic_json
+    real_atomic = continuity.clarify_tickets._atomic_json
 
     def failing_pointer_write(path, value):
         if path.parent == index_dir and path.name != "_index_state.json":
             raise OSError(32, "the process cannot access the file")
         return real_atomic(path, value)
 
-    monkeypatch.setattr(continuity, "_atomic_json", failing_pointer_write)
+    monkeypatch.setattr(continuity.clarify_tickets, "_atomic_json", failing_pointer_write)
     lost = _clarify_ticket(store)
-    monkeypatch.setattr(continuity, "_atomic_json", real_atomic)
+    monkeypatch.setattr(continuity.clarify_tickets, "_atomic_json", real_atomic)
 
     # The ticket itself was never in doubt — only the pointer to it.
     assert store.resolve(lost)["state"] == "open"
@@ -971,6 +971,46 @@ def test_a_pointer_that_could_not_be_written_retracts_the_marker(
     # …and having healed once, it is back on the O(1) path.
     assert store._index_state_path().exists()
     assert store._index_entries(_CLARIFY_ROOT)[0]["clarify_token"] == lost
+
+
+def test_an_index_that_cannot_be_established_answers_from_the_full_scan(
+    isolate_agent_runtime_root, monkeypatch
+):
+    """Positive control for the index-miss fallback (god-file program ruling Q6).
+
+    ``open_ticket_for_session`` answers from the by-session index only when the
+    index may be trusted as complete; a store whose index directory refuses every
+    write never earns that claim, and the lookup must then read the ticket files
+    themselves — "correctness must never depend on the index existing". The
+    census counted ``_scan_open_ticket_for_session`` as unreached; this reaches
+    it, and asks for the NEWEST open ticket so a scan that answered with any
+    open ticket would not pass."""
+
+    import json as _json
+
+    import agent_runtime.persona_chat_continuity as continuity
+
+    store = PersonaChatClarifyTicketStore()
+    index_dir = store._index_dir()
+    real_atomic = continuity.clarify_tickets._atomic_json
+
+    def no_index_writes(path, value):
+        if path.parent == index_dir:
+            raise OSError(28, "no space left on device")
+        return real_atomic(path, value)
+
+    monkeypatch.setattr(continuity.clarify_tickets, "_atomic_json", no_index_writes)
+    older = _clarify_ticket(store)
+    older_path = store._path(older)
+    record = _json.loads(older_path.read_text(encoding="utf-8"))
+    record["created_at"] = float(record["created_at"]) - 60.0
+    real_atomic(older_path, record)
+    newer = _clarify_ticket(store)
+
+    assert not store._index_state_path().exists()
+    assert store.open_ticket_for_session(_CLARIFY_ROOT)["clarify_token"] == newer
+    # Still no completeness claim: the answer came from the scan, not the index.
+    assert not store._index_state_path().exists()
 
 
 def test_a_pointer_read_that_failed_cannot_erase_the_pointers_it_missed(

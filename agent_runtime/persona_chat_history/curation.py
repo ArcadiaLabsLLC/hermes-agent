@@ -459,7 +459,7 @@ def _history_revision(
 
     if session_db is not None:
         try:
-            from ..persona_chat_continuity import native_history_revision
+            from ..persona_chat_continuity.wire import native_history_revision
 
             return native_history_revision(session_db, session_id)
         except Exception:

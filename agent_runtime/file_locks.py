@@ -3,8 +3,13 @@
 One owner for the platform split (``msvcrt.locking`` on Windows, ``flock``
 elsewhere) that ``serve_socket``'s owner lock carried as ``_lock_first_byte`` /
 ``_unlock_first_byte``. Program §4 names the other copies that fold here in
-their own lanes (``persona_chat_continuity._try_lock/_unlock``,
-``mission_chat_turns._lock_fd_*``). A stdlib-only leaf.
+their own lanes (``mission_chat_turns._lock_fd_*`` folded onto the handle pair
+in lane 2B-B).
+
+``try_lock_fd`` / ``unlock_fd`` are the FILE-DESCRIPTOR pair, moved whole from
+``persona_chat_continuity._try_lock/_unlock`` (lane B3): no padding, no errno
+translation — they raise the raw ``OSError`` the chat-root lease reads as
+"held". A stdlib-only leaf.
 """
 
 from __future__ import annotations
@@ -19,7 +24,7 @@ else:  # pragma: no cover - platform split
 
 __layer__ = "models"
 
-__all__ = ["LockUnavailable", "try_lock_exclusive", "unlock"]
+__all__ = ["LockUnavailable", "try_lock_exclusive", "try_lock_fd", "unlock", "unlock_fd"]
 
 
 class LockUnavailable(Exception):
@@ -62,3 +67,27 @@ def unlock(handle) -> None:
         msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
         return
     fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def try_lock_fd(fd: int) -> None:
+    if os.name == "nt":
+        import msvcrt
+
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+def unlock_fd(fd: int) -> None:
+    if os.name == "nt":
+        import msvcrt
+
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(fd, fcntl.LOCK_UN)

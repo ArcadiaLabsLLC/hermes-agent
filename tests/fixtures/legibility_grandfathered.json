@@ -61,14 +61,14 @@
    "unit": "agent_runtime/persona_chat_actor_prewarm.py|_prepare"
   },
   {
-   "depth": 4,
-   "lines": 232,
-   "unit": "agent_runtime/persona_chat_continuity.py|PersonaChatMintReceiptStore.mint"
-  },
-  {
    "depth": 5,
    "lines": 73,
-   "unit": "agent_runtime/persona_chat_continuity.py|persona_chat_root_lease"
+   "unit": "agent_runtime/persona_chat_continuity/lease.py|persona_chat_root_lease"
+  },
+  {
+   "depth": 4,
+   "lines": 232,
+   "unit": "agent_runtime/persona_chat_continuity/mint_receipts.py|PersonaChatMintReceiptStore.mint"
   },
   {
    "depth": 4,

@@ -426,9 +426,9 @@ def test_the_wire_bound_is_documented_as_a_wire_bound():
     comment rather than on layout.
     """
 
-    from agent_runtime import persona_chat_continuity
+    from agent_runtime.persona_chat_continuity import bounds
 
-    source = inspect.getsource(persona_chat_continuity)
+    source = inspect.getsource(bounds)
     header = source[: source.index("_MAX_CONTENT = ")]
     assert "WIRE BOUND, NOT A PERSISTENCE BOUND" in header, (
         "the ceiling that governs the prompt must say so where it is defined"
