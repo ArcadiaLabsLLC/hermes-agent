@@ -1,7 +1,7 @@
 """The fork's half of ``tests/hermes_cli/test_config_read_guard.py`` (lane CARRY2A).
 
 The upstream guard is byte-identical to upstream and is a strict xfail by id
-(``tests/_downstream/id_markers.py``): the fork's
+(``tests/_downstream/id_markers/``): the fork's
 ``agent_runtime/persona_config_sync.py`` reads a PULLED REALM SUBTREE's
 ``profiles/<name>/config.yaml`` with ``yaml.safe_load`` — a foreign, published
 document that shares the filename, not this machine's user config (same class as

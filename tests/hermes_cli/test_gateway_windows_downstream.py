@@ -3,7 +3,7 @@
 The fork's ``hermes_cli.gateway`` resolves the gateway interpreter through
 ``resolve_managed_python`` (the managed venv, never ``sys.executable``), so
 upstream's ``get_python_path`` patch no longer steers ``_build_gateway_argv``;
-that upstream test is a strict xfail by id (``tests/_downstream/id_markers.py``)
+that upstream test is a strict xfail by id (``tests/_downstream/id_markers/``)
 and its fork twin, patching ``resolve_managed_python``, is here. Upstream's two
 breakaway tests are strict xfails too: the fork's
 ``gateway_windows._spawn_detached(script_path)`` replaces that spawn, covered by

@@ -74,10 +74,8 @@ def _skip_if_distribution_missing(collector, report):
             and importlib.util.find_spec(module) is None
             and f"No module named '{module}'" in str(report.longrepr)
         ):
-            from _pytest.reports import CollectReport
-
             reason = f"Skipped: optional distribution {distribution} is not installed (no `{module}`)"
-            return CollectReport(report.nodeid, "skipped", (str(collector.path), 0, reason), [])
+            return pytest.CollectReport(report.nodeid, "skipped", (str(collector.path), 0, reason), [])
     return report
 
 
@@ -137,7 +135,7 @@ def pytest_collection_modifyitems(config, items):  # noqa: D401 — pytest hook
     )
     if stale:
         raise pytest.UsageError(
-            "tests/_downstream/id_markers.py names test ids that no longer exist "
+            "tests/_downstream/id_markers/ names test ids that no longer exist "
             "in their (collected) file; delete or re-point the rows:\n  "
             + "\n  ".join(stale)
         )

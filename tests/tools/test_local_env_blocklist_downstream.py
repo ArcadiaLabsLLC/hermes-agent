@@ -1,7 +1,7 @@
 """Fork-owned tests moved out of ``tests/tools/test_local_env_blocklist.py`` (lane CARRY).
 
 The upstream file is byte-identical to upstream again; upstream's verbatim
-``Path`` equality is marked by id in ``tests/_downstream/id_markers.py``.
+``Path`` equality is marked by id in ``tests/_downstream/id_markers/``.
 """
 
 from unittest.mock import patch

@@ -15,8 +15,9 @@ import sys
 
 import pytest
 
-from tests._downstream.id_markers.reasons import (  # noqa: F401
+from tests._downstream.id_markers.reasons import (
     _CONTAINER_SPELLING,
+    __layer__,
     _LIFECYCLE_SCAN,
     _PATH_SPELLING,
     _SEPARATOR_SPELLING,

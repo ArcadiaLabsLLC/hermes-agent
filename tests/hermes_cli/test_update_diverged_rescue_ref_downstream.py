@@ -4,7 +4,7 @@ The fixture's ``origin`` is a local path, which ``_is_fork`` reads as a fork, an
 the fork never resets a diverged fork checkout: ``_reconcile_diverged_checkout``
 hands it to ``update_history.guard_fork_history``, which parks review refs and
 exits ``HISTORY_REVIEW_EXIT`` (adopted in 1487c101ee). The upstream id is a strict
-xfail in ``tests/_downstream/id_markers.py``; these two pin both branches.
+xfail in ``tests/_downstream/id_markers/``; these two pin both branches.
 """
 
 from __future__ import annotations

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests._downstream.id_markers.reasons import (  # noqa: F401
+from tests._downstream.id_markers.reasons import (
     _CLAUDE_HOME_TMP,
     _CONFIG_READ_THROUGH,
     _CREDENTIALS_FILE,
@@ -25,10 +25,15 @@ from tests._downstream.id_markers.reasons import (  # noqa: F401
     _fork_replaces,
     _FORK_SPAWN_DETACHED,
     _FORK_SYSTEM_PATH,
+    __layer__,
     _LOOKALIKE,
+    _NO_LIVE_GATEWAY,
+    _NO_OLLAMA_SHOW_PROBE,
+    _NO_REAL_ORPHAN_REAP,
     _REAL_PAUSE,
     _SCOPED_UNDO,
     TELEGRAM_PARITY_DEFECT_REASON,
+    _TIRITH_CONFIG_VALUE,
     _WIN,
     _WIN_REEXEC_BRANCH,
 )
@@ -73,7 +78,7 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # this upstream test pins the config value (fixture: tools_conftest).
     "tests/tools/test_approval.py::TestTirithImportErrorFailOpenPolicy::"
     "test_fail_open_false_escalates_to_approval_on_import_error": (
-        pytest.mark.tirith_config_value_under_test,
+        _TIRITH_CONFIG_VALUE,
     ),
     # The fork runner's 30s default is below the child PowerShell's own 30s
     # budget; this upstream test needs the headroom.
@@ -92,7 +97,7 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     "test_dead_relaunch_is_not_reported_as_success": (
         pytest.mark.timeout(90),
         # A live gateway anywhere on the machine answers the fleet-wide poll.
-        pytest.mark.requires_no_live_gateway,
+        _NO_LIVE_GATEWAY,
     ),
     "tests/test_tests_tree_layout.py::"
     "test_every_test_directory_mirrors_a_source_directory_or_is_declared": (
@@ -127,7 +132,7 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # The fork resolves tirith's flags through hermes_cli.tirith_config (env wins).
     "tests/tools/test_cron_approval_mode.py::TestCronDenyModeAllGuards::"
     "test_tirith_import_error_fail_closed_blocks_in_cron_deny": (
-        pytest.mark.tirith_config_value_under_test,
+        _TIRITH_CONFIG_VALUE,
     ),
     # Readers the fork moved to load_config_readonly; upstream patches load_config.
     **{
@@ -295,6 +300,37 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/hermes_cli/test_update_diverged_rescue_ref_downstream.py",
         ),
     ),
+    # An upstream custom-endpoint flow whose context probe resolves a fixture host
+    # over real DNS (fixture: conftest_plugin._no_ollama_show_probe).
+    "tests/hermes_cli/test_custom_provider_model_switch.py::TestCustomProviderModelSwitch::"
+    "test_custom_endpoint_switch_prunes_stale_model_config_pool_entry": (_NO_OLLAMA_SHOW_PROBE,),
+    # Upstream web-server tests whose restart / desktop-startup path runs the REAL
+    # gateway orphan reap and its 30 s exit wait (fixture: conftest_plugin).
+    **{
+        node: (_NO_REAL_ORPHAN_REAP,)
+        for node in (
+            "tests/hermes_cli/test_web_server.py::TestWebServerEndpoints::"
+            "test_telegram_onboarding_apply_reports_restart_failure_after_save",
+            "tests/hermes_cli/test_web_server.py::TestDesktopCronTicker::test_ticker_runs_when_desktop",
+        )
+    },
+    # Upstream tests that call monkeypatch.undo() mid-body (see _SCOPED_UNDO).
+    **{
+        node: (_SCOPED_UNDO,)
+        for node in (
+            "tests/hermes_cli/test_kanban_worker_pid_fingerprint.py::"
+            "test_unverified_fingerprint_capture_never_authorizes_a_signal",
+            "tests/hermes_cli/test_macos_tcc_anchor.py::TestEnsureTccAnchor::"
+            "test_alias_failure_leaves_anchor_unmarked",
+            "tests/hermes_cli/test_plugins.py::TestPluginDiscovery::test_failed_discovery_is_not_cached",
+            "tests/hermes_cli/test_update_zip_two_phase.py::test_failed_swap_rolls_back_every_earlier_swap",
+            "tests/hermes_cli/test_update_zip_two_phase.py::test_file_swap_failure_restores_the_original_file",
+            "tests/hermes_cli/test_update_zip_two_phase.py::test_failed_staging_leaves_no_orphaned_copies",
+            "tests/hermes_cli/test_update_zip_two_phase.py::test_staging_restores_backup_when_dst_is_missing",
+            "tests/hermes_cli/test_update_zip_two_phase.py::"
+            "test_commit_failure_plus_discard_leaves_no_staging_litter",
+        )
+    },
 }
 
 if _WIN:
@@ -315,38 +351,3 @@ if _WIN:
             ),
         ),
     })
-
-# An upstream custom-endpoint flow whose context probe resolves a fixture host
-# over real DNS (fixture: conftest_plugin._no_ollama_show_probe).
-ROWS["tests/hermes_cli/test_custom_provider_model_switch.py::TestCustomProviderModelSwitch::"
-         "test_custom_endpoint_switch_prunes_stale_model_config_pool_entry"] = (
-    pytest.mark.no_ollama_show_probe,
-)
-
-# Upstream web-server tests whose restart / desktop-startup path runs the REAL
-# gateway orphan reap and its 30 s exit wait (fixture: conftest_plugin).
-ROWS.update({
-    node: (pytest.mark.no_real_orphan_reap,)
-    for node in (
-        "tests/hermes_cli/test_web_server.py::TestWebServerEndpoints::"
-        "test_telegram_onboarding_apply_reports_restart_failure_after_save",
-        "tests/hermes_cli/test_web_server.py::TestDesktopCronTicker::test_ticker_runs_when_desktop",
-    )
-})
-
-ROWS.update({
-    node: (_SCOPED_UNDO,)
-    for node in (
-        "tests/hermes_cli/test_kanban_worker_pid_fingerprint.py::"
-        "test_unverified_fingerprint_capture_never_authorizes_a_signal",
-        "tests/hermes_cli/test_macos_tcc_anchor.py::TestEnsureTccAnchor::"
-        "test_alias_failure_leaves_anchor_unmarked",
-        "tests/hermes_cli/test_plugins.py::TestPluginDiscovery::test_failed_discovery_is_not_cached",
-        "tests/hermes_cli/test_update_zip_two_phase.py::test_failed_swap_rolls_back_every_earlier_swap",
-        "tests/hermes_cli/test_update_zip_two_phase.py::test_file_swap_failure_restores_the_original_file",
-        "tests/hermes_cli/test_update_zip_two_phase.py::test_failed_staging_leaves_no_orphaned_copies",
-        "tests/hermes_cli/test_update_zip_two_phase.py::test_staging_restores_backup_when_dst_is_missing",
-        "tests/hermes_cli/test_update_zip_two_phase.py::"
-        "test_commit_failure_plus_discard_leaves_no_staging_litter",
-    )
-})

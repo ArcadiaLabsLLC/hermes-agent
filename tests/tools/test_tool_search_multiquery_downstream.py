@@ -3,7 +3,7 @@
 The fork's ``tools.tool_search.dispatch_tool_describe`` returns details for a
 directly-listed tool that IS in the session's assembly and rejects it only when
 it is not; upstream's ``test_registered_direct_surface_name_keeps_exact_error``
-(always an error) is a strict xfail row in ``tests/_downstream/id_markers.py``.
+(always an error) is a strict xfail row in ``tests/_downstream/id_markers/``.
 ``_register`` is upstream's.
 """
 

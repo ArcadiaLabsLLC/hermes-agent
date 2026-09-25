@@ -14,9 +14,32 @@ import sys
 
 import pytest
 
+from tests.hermes_cli._gateway_fence import REAL_PAUSE_MARK
+
 __layer__ = "models"
 
 _WIN = sys.platform == "win32"
+
+# ── The marker VOCABULARY the table applies, spelled ONCE ─────────────────────
+# ``tests/_downstream/conftest_plugin.py`` imports these names to register them
+# (``addinivalue_line``) and to find them (its consumer fixtures); the table
+# below builds its mark objects from them with ``getattr(pytest.mark, NAME)``.
+# The suite runs without ``--strict-markers``, so a second spelling of any of
+# these is a mark nothing reads -- which is why there is only one.
+# ``real_windows_gateway_pause`` is ``tests/hermes_cli/_gateway_fence.REAL_PAUSE_MARK``.
+ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK = "allow_claude_code_credentials_file"
+CLAUDE_HOME_IS_TMP_PATH_MARK = "claude_home_is_tmp_path"
+CONFIG_READS_THROUGH_LOAD_CONFIG_MARK = "config_reads_through_load_config"
+NO_OLLAMA_SHOW_PROBE_MARK = "no_ollama_show_probe"
+NO_REAL_ORPHAN_REAP_MARK = "no_real_orphan_reap"
+SCOPED_MONKEYPATCH_UNDO_MARK = "scoped_monkeypatch_undo"
+TIRITH_CONFIG_VALUE_UNDER_TEST_MARK = "tirith_config_value_under_test"
+#: Upstream's own mark (read by ``tests/conftest.py``'s live-system guard, used by
+#: upstream tests); nobody registers it -- see tests/test_id_markers_downstream.py.
+SPAWNS_GATEWAY_LOOKALIKE_MARK = "spawns_gateway_lookalike"
+#: A live-machine premise, not a platform one: the test reads the REAL fleet
+#: process table and needs it to hold no hermes gateway (``pytest_runtest_setup``).
+NO_LIVE_GATEWAY_MARK = "requires_no_live_gateway"
 
 _PATH_SPELLING = (
     "upstream interpolates a Windows tmp_path into a JSON string literal "
@@ -50,7 +73,6 @@ _FORK_SYSTEM_PATH = (
     "retires with the G2 Windows-paths PR"
 )
 
-_POSIX_ONLY_LINUX = "POSIX-only; upstream fix = @pytest.mark.linux_only"
 _FORK_LIVE_SYSTEM_GUARD = (
     "the fork's live-system guard (tests/conftest.py) refuses the spawn of a real "
     "`hermes dashboard` backend; the fork's in-process twin is the test's "
@@ -91,11 +113,15 @@ TELEGRAM_PARITY_DEFECT_REASON = (
     "a slot (something else loses one) or declares it _SLACK_VIA_HERMES_ONLY. "
     "strict=True: the day parity holds, this XPASSes and reds — delete the "
     "mark and this row. Full account: _KNOWN_DEFECTS in "
-    "tests/hermes_cli/conftest.py."
+    "tests/_downstream/hermes_cli_conftest."
 )
 
-_CREDENTIALS_FILE = pytest.mark.allow_claude_code_credentials_file
-_REAL_PAUSE = pytest.mark.real_windows_gateway_pause
+_CREDENTIALS_FILE = getattr(pytest.mark, ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK)
+_REAL_PAUSE = getattr(pytest.mark, REAL_PAUSE_MARK)
+_TIRITH_CONFIG_VALUE = getattr(pytest.mark, TIRITH_CONFIG_VALUE_UNDER_TEST_MARK)
+_NO_LIVE_GATEWAY = getattr(pytest.mark, NO_LIVE_GATEWAY_MARK)
+_NO_OLLAMA_SHOW_PROBE = getattr(pytest.mark, NO_OLLAMA_SHOW_PROBE_MARK)
+_NO_REAL_ORPHAN_REAP = getattr(pytest.mark, NO_REAL_ORPHAN_REAP_MARK)
 
 #: Prefix of every row that skips an upstream test because it is POSIX-only
 #: (not because of fork behaviour); the tests-PR lane turns these rows into
@@ -107,8 +133,8 @@ def _posix_only(detail: str) -> pytest.MarkDecorator:
     return pytest.mark.skip(reason=f"{_POSIX_ONLY} ({detail})")
 
 
-_CONFIG_READ_THROUGH = pytest.mark.config_reads_through_load_config
-_LOOKALIKE = pytest.mark.spawns_gateway_lookalike
+_CONFIG_READ_THROUGH = getattr(pytest.mark, CONFIG_READS_THROUGH_LOAD_CONFIG_MARK)
+_LOOKALIKE = getattr(pytest.mark, SPAWNS_GATEWAY_LOOKALIKE_MARK)
 _TIRITH_NO_BUILD = _posix_only(
     "tirith ships no Windows build: _detect_target() is None and every entry "
     "point short-circuits to allow before the behaviour under test"
@@ -117,18 +143,14 @@ _TIRITH_NO_BUILD = _posix_only(
 # Upstream tests that call monkeypatch.undo() mid-body run upstream's bytes with
 # undo narrowed to their own patches (conftest_plugin.pytest_pyfunc_call, lane
 # CARRY3); no sibling copy.
-_SCOPED_UNDO = pytest.mark.scoped_monkeypatch_undo
+_SCOPED_UNDO = getattr(pytest.mark, SCOPED_MONKEYPATCH_UNDO_MARK)
 
-_CLAUDE_HOME_TMP = pytest.mark.claude_home_is_tmp_path
+_CLAUDE_HOME_TMP = getattr(pytest.mark, CLAUDE_HOME_IS_TMP_PATH_MARK)
 
 def _fork_replaces(symbol: str, sibling: str) -> pytest.MarkDecorator:
     return pytest.mark.xfail(strict=True, reason=(
         f"the fork's {symbol} makes this upstream assertion false; fork half: {sibling}"
     ))
-
-#: A live-machine premise, not a platform one: the test reads the REAL fleet
-#: process table and needs it to hold no hermes gateway (``pytest_runtest_setup``).
-NO_LIVE_GATEWAY_MARK = "requires_no_live_gateway"
 
 # Upstream test files back at upstream's bytes: upstream's own Windows reds at
 # the tag (X:/wt/_holds/upstream-reds-v2026.9.24.md). No open fork PR covers any.

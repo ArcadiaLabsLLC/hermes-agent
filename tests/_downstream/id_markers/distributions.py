@@ -14,7 +14,8 @@ import importlib.util
 
 import pytest
 
-from tests._downstream.id_markers.reasons import (  # noqa: F401
+from tests._downstream.id_markers.reasons import (
+    __layer__,
     _NEEDS_ACP,
 )
 

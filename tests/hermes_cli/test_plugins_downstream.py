@@ -57,7 +57,7 @@ class TestPluginHooks:
     The bundled eternia-harness plugin (kind ``backend``, auto-loaded) registers
     ``post_api_request`` for the usage ledger (seam MOVE-A group 12), so upstream's
     ``has_hook("post_api_request") is False`` cannot hold with the real bundled
-    tree; the upstream id is a strict xfail in ``tests/_downstream/id_markers.py``.
+    tree; the upstream id is a strict xfail in ``tests/_downstream/id_markers/``.
     """
 
     def _request_hook_manager(self, tmp_path, monkeypatch, *, bundled=None):

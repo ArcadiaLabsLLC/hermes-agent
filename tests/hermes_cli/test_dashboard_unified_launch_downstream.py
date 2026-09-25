@@ -4,7 +4,7 @@
 ``subprocess.Popen`` + ``sys.exit(proc.wait())`` on Windows. Upstream's tests stub
 only ``execvpe``, so on Windows the re-exec spawns a REAL dashboard child (the
 fork's live-system guard refuses it); that upstream test is a strict xfail on
-win32 by id (``tests/_downstream/id_markers.py``), and its copy here stubs both
+win32 by id (``tests/_downstream/id_markers/``), and its copy here stubs both
 branches. The other two are the fork-retained re-exec pins upstream pruned.
 The upstream file is byte-identical to upstream; its ``main_mod`` fixture and
 ``_args`` helper are imported by name.

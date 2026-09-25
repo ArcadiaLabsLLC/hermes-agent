@@ -3,7 +3,7 @@
 Upstream patches only ``HOME`` and spells paths as POSIX literals; on Windows
 ``ntpath.expanduser`` prefers ``USERPROFILE`` and ``_home_relative_cwd``
 rebuilds natively, so those cases are strict xfails by id
-(``tests/_downstream/id_markers.py``). These twins hold the same guarantees
+(``tests/_downstream/id_markers/``). These twins hold the same guarantees
 with the home redirected on every platform and the separator taken from ``os``.
 """
 

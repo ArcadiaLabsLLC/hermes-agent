@@ -12,9 +12,10 @@ from __future__ import annotations
 
 import pytest
 
-from tests._downstream.id_markers.reasons import (  # noqa: F401
+from tests._downstream.id_markers.reasons import (
+    __layer__,
+    _POSIX_ONLY,
     _posix_only,
-    _POSIX_ONLY_LINUX,
     _posix_xfail,
     _TCC_POSIX_VENV,
     _TIRITH_NO_BUILD,
@@ -30,7 +31,7 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
 if _WIN:
     ROWS.update({
         "tests/hermes_cli/test_relaunch.py::TestRelaunch::test_calls_execvp": (
-            pytest.mark.skip(reason=_POSIX_ONLY_LINUX),
+            pytest.mark.skip(reason=_POSIX_ONLY),
         ),
         "tests/tools/test_voice_mode.py::TestDetectAudioEnvironment::"
         "test_wsl_without_pulse_blocks_voice": (pytest.mark.skip(reason=_WSL_FAKE),),
@@ -229,31 +230,30 @@ if _WIN:
             "TestCursorrulesCandidates::test_unreadable_cwd_is_treated_as_absent",
         )
         },
+        # The fixture builds a POSIX venv; the one id the fork also scoped-undoes
+        # (fork_marks) carries both marks -- hooks._merge concatenates.
+        **{node: (_TCC_POSIX_VENV,) for node in (
+            *(f"tests/hermes_cli/test_macos_tcc_anchor.py::TestEnsureTccAnchor::{test}" for test in (
+                "test_noop_on_non_macos",
+                "test_install_signs_the_anchor_copy",
+                "test_anchors_repair_generation_interpreter",
+                "test_anchors_uv_managed_interpreter",
+                "test_idempotent",
+                "test_repairs_alias_symlinks_left_by_predecessor",
+                "test_reanchors_after_patch_bump",
+                "test_skips_homebrew_interpreter",
+                "test_provisions_libpython_as_hardlink_when_present",
+                "test_boot_gate_refusal_leaves_venv_untouched",
+                "test_alias_failure_leaves_anchor_unmarked",
+            )),
+            *(f"tests/hermes_cli/test_macos_tcc_anchor.py::TestTccAnchorState::{test}" for test in (
+                "test_state_active_through_unpatched_home_symlink",
+                "test_state_missing_then_active",
+                "test_state_skip_for_homebrew",
+                "test_state_stale_after_patch_bump",
+            )),
+        )},
     })
-
-if _WIN:
-    for _node in (
-        *(f"tests/hermes_cli/test_macos_tcc_anchor.py::TestEnsureTccAnchor::{test}" for test in (
-            "test_noop_on_non_macos",
-            "test_install_signs_the_anchor_copy",
-            "test_anchors_repair_generation_interpreter",
-            "test_anchors_uv_managed_interpreter",
-            "test_idempotent",
-            "test_repairs_alias_symlinks_left_by_predecessor",
-            "test_reanchors_after_patch_bump",
-            "test_skips_homebrew_interpreter",
-            "test_provisions_libpython_as_hardlink_when_present",
-            "test_boot_gate_refusal_leaves_venv_untouched",
-            "test_alias_failure_leaves_anchor_unmarked",
-        )),
-        *(f"tests/hermes_cli/test_macos_tcc_anchor.py::TestTccAnchorState::{test}" for test in (
-            "test_state_active_through_unpatched_home_symlink",
-            "test_state_missing_then_active",
-            "test_state_skip_for_homebrew",
-            "test_state_stale_after_patch_bump",
-        )),
-    ):
-        ROWS[_node] = (*ROWS.get(_node, ()), _TCC_POSIX_VENV)
 
 #: Upstream test modules that call a POSIX-only ``os`` attribute at IMPORT (a
 #: ``skipif`` argument), so they cannot even collect on Windows. The fork lends
