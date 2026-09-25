@@ -11,7 +11,7 @@ silently dropped again.
 
 import ast
 from pathlib import Path
-from tests._downstream.persona_source import package_source
+from tests._downstream.persona_source import package_source, turn_body
 
 
 def _mission_chat_message_func():
@@ -27,9 +27,9 @@ def _mission_chat_message_func():
     # moves again instead of silently finding nothing.
     tree = ast.parse(package_source())
     for name in ("_mission_chat_commit_turn", "_cmd_mission_chat_message"):
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == name:
-                return node
+        node = turn_body(tree, name)
+        if node is not None:
+            return node
     raise AssertionError("the mission-chat turn body is not in the persona package")
 
 

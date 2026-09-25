@@ -42,13 +42,13 @@ from hermes_cli.harness_parts.persona import (
     chat_open,
     chat_target,
     chat_tickets_commands,
-    chat_turn_commit,
     chat_turn_message,
     inspect_commands,
     instance_commands,
     lifecycle_commands,
     model_and_skills_commands,
 )
+from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run, settle as commit_settle
 
 
 # The chat lane refuses ``unsupported_persona`` without a roster, so every test
@@ -100,7 +100,7 @@ def _install_chat_lane(monkeypatch, reply: str = "the recorded reply"):
     monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: _TranscriptDB())
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: _TranscriptDB())
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: _TranscriptDB())
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)
     return chat_turn_message
 
 
@@ -161,7 +161,7 @@ def test_the_root_lease_is_released_before_the_auto_title_runs(
         except PersonaChatBusyError:
             observed["root_free_during_title"] = False
 
-    monkeypatch.setattr(chat_turn_commit, "_maybe_auto_title_persona_chat", _titling_probe)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", _titling_probe)
 
     assert chat_turn_message._cmd_mission_chat_message(_args("cm-lease-1")) == 0
     capsys.readouterr()
@@ -196,7 +196,7 @@ def test_a_second_send_on_the_same_root_succeeds_while_the_title_is_in_flight(
             return  # the nested turn titles too; do not recurse forever
         follow_up["code"] = chat_turn_message._cmd_mission_chat_message(_args("cm-lease-follow-up"))
 
-    monkeypatch.setattr(chat_turn_commit, "_maybe_auto_title_persona_chat", _titling_sends_a_follow_up)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", _titling_sends_a_follow_up)
 
     assert chat_turn_message._cmd_mission_chat_message(_args("cm-lease-2")) == 0
     frames = _envelopes(capsys)
@@ -227,7 +227,7 @@ def test_a_failing_title_no_longer_marks_the_turn(
     def _boom(**kwargs):
         raise RuntimeError("title provider exhausted the fallback chain")
 
-    monkeypatch.setattr(chat_turn_commit, "_maybe_auto_title_persona_chat", _boom)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", _boom)
 
     assert chat_turn_message._cmd_mission_chat_message(_args("cm-lease-3")) == 0
     frames = _envelopes(capsys)

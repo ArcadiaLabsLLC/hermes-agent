@@ -32,13 +32,13 @@ from hermes_cli.harness_parts.persona import (
     chat_open,
     chat_target,
     chat_tickets_commands,
-    chat_turn_commit,
     chat_turn_message,
     inspect_commands,
     instance_commands,
     lifecycle_commands,
     model_and_skills_commands,
 )
+from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run
 
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
@@ -90,7 +90,7 @@ def _chat_lane(monkeypatch, db):
     monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)
     return harness
 
 

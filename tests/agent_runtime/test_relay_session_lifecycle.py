@@ -48,13 +48,13 @@ from hermes_cli.harness_parts.persona import (
     chat_request,
     chat_target,
     chat_tickets_commands,
-    chat_turn_commit,
     chat_turn_message,
     inspect_commands,
     instance_commands,
     lifecycle_commands,
     model_and_skills_commands,
 )
+from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run, settle as commit_settle
 from tests._downstream.persona_source import package_source
 
 
@@ -832,10 +832,12 @@ def _mission_chat_reply_call_in_chat_command():
     """
     import ast
 
+    from tests._downstream.persona_source import turn_body
+
     tree = ast.parse(_persona_commands_source())
     for name in _TURN_BODY_FUNCTIONS:
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == name:
+        node = turn_body(tree, name)
+        if node is not None:
                 for call in ast.walk(node):
                     if (
                         isinstance(call, ast.Call)
@@ -862,17 +864,35 @@ def test_the_chat_lane_resolves_the_sender_and_hands_it_to_the_runtime():
         and getattr(node.value.func, "id", None) == "_resolve_relay_sender_marker"
         and isinstance(node.targets[0], ast.Name)
     ]
+    # The turn commit carries the answer across its phases as ``self.<name>``;
+    # the carrier is the resolver's own target, re-read by attribute name.
+    carried = {
+        node.targets[0].attr
+        for node in ast.walk(func)
+        if isinstance(node, ast.Assign)
+        and isinstance(node.value, ast.Name)
+        and node.value.id in resolver_targets
+        and isinstance(node.targets[0], ast.Attribute)
+    }
     assert resolver_targets, (
         "_cmd_mission_chat_message never calls _resolve_relay_sender_marker; "
         "relayed rows will persist unattributed"
     )
     forwarded = [
-        keyword.value.id
+        keyword.value.id if isinstance(keyword.value, ast.Name) else keyword.value.attr
         for keyword in call.keywords
-        if keyword.arg == "relay_sender_marker" and isinstance(keyword.value, ast.Name)
+        if keyword.arg == "relay_sender_marker"
+        and (
+            isinstance(keyword.value, ast.Name)
+            or (
+                isinstance(keyword.value, ast.Attribute)
+                and isinstance(keyword.value.value, ast.Name)
+                and keyword.value.value.id == "self"
+            )
+        )
     ]
     assert forwarded, "mission_chat_reply is not given relay_sender_marker"
-    assert set(forwarded) <= set(resolver_targets), (
+    assert set(forwarded) <= set(resolver_targets) | carried, (
         "relay_sender_marker is forwarded from something other than the resolver"
     )
 
@@ -1226,7 +1246,7 @@ def _install_dispatch_handler_doubles(monkeypatch, *, clarify_request=None):
     monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(chat_turn_commit, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
 
     class _FakeRuntime:
         def __init__(self, *args, **kwargs):
@@ -1252,7 +1272,7 @@ def _install_dispatch_handler_doubles(monkeypatch, *, clarify_request=None):
                 raw=raw,
             )
 
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
     return db
 
 

@@ -5,6 +5,8 @@ Separate because they act on one placed instance and its steering edges.
 
 from __future__ import annotations
 
+from types import MappingProxyType
+from typing import Any, Callable, Final, Mapping
 from agent_runtime.cli_format import emit_json
 from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.continuity import return_summary_to_parent_session
@@ -183,6 +185,23 @@ def _cmd_persona_instance_repair_steering(args) -> int:
     return 0
 
 
+#: The steer vocabulary: each operation's name -> what it does to the store.
+#: The ONE reader of an op name — the flag selection below is built from these
+#: keys, in this order, so an op outside the table cannot be selected. ``parent``
+#: is the back-compat alias for "replace the set with this single parent".
+_STEER_OPS: Final[Mapping[str, Callable[[PersonaInstanceStore, str, Any, str | None], Any]]] = MappingProxyType(
+    {
+        "detach": lambda store, instance_id, _value, _goal_id: store.detach_parents(instance_id),
+        "parent": lambda store, instance_id, value, goal_id: store.set_parents(instance_id, [value], goal_id=goal_id),
+        "set_parents": lambda store, instance_id, value, goal_id: store.set_parents(
+            instance_id, list(value or []), goal_id=goal_id
+        ),
+        "add_parent": lambda store, instance_id, value, goal_id: store.add_parent(instance_id, value, goal_id=goal_id),
+        "remove_parent": lambda store, instance_id, value, _goal_id: store.remove_parent(instance_id, value),
+    }
+)
+
+
 def _cmd_persona_instance_steer(args) -> int:
     cfg = load_agent_runtime_config()
     persona_instance_id = safe_assignment_token(args.persona_instance_id)
@@ -199,17 +218,15 @@ def _cmd_persona_instance_steer(args) -> int:
     remove_parent = safe_optional_token(getattr(args, "remove_parent", None))
     set_parents_raw = getattr(args, "set_parents", None)
     goal_id = None if detach else safe_optional_token(getattr(args, "goal_id", None))
-    selected = [
-        name
-        for name, present in (
-            ("detach", detach),
-            ("parent", bool(parent_instance_id)),
-            ("set_parents", set_parents_raw is not None),
-            ("add_parent", bool(add_parent)),
-            ("remove_parent", bool(remove_parent)),
-        )
-        if present
-    ]
+    # op -> (present on the command line, the value its store call takes).
+    requested = {
+        "detach": (detach, None),
+        "parent": (bool(parent_instance_id), parent_instance_id),
+        "set_parents": (set_parents_raw is not None, set_parents_raw),
+        "add_parent": (bool(add_parent), add_parent),
+        "remove_parent": (bool(remove_parent), remove_parent),
+    }
+    selected = [name for name in _STEER_OPS if requested[name][0]]
     if not selected:
         data = {"ok": False, "error": "one of --parent / --add-parent / --remove-parent / --set-parents / --detach is required"}
         print(emit_json(data) if args.json else data["error"])
@@ -240,16 +257,7 @@ def _cmd_persona_instance_steer(args) -> int:
             print(emit_json(data) if args.json else data["status"])
             return 2
     try:
-        if op == "detach":
-            updated = store.detach_parents(persona_instance_id)
-        elif op == "add_parent":
-            updated = store.add_parent(persona_instance_id, add_parent, goal_id=goal_id)
-        elif op == "remove_parent":
-            updated = store.remove_parent(persona_instance_id, remove_parent)
-        elif op == "set_parents":
-            updated = store.set_parents(persona_instance_id, list(set_parents_raw or []), goal_id=goal_id)
-        else:  # "parent" — back-compat replace-with-one
-            updated = store.set_parents(persona_instance_id, [parent_instance_id], goal_id=goal_id)
+        updated = _STEER_OPS[op](store, persona_instance_id, requested[op][1], goal_id)
     except ValueError as exc:
         data = {"ok": False, "error": str(exc)}
         print(emit_json(data) if args.json else data["error"])

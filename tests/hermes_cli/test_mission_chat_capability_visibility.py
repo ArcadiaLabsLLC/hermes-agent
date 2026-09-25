@@ -34,7 +34,7 @@ import ast
 from pathlib import Path
 
 import pytest
-from tests._downstream.persona_source import package_source
+from tests._downstream.persona_source import package_source, turn_body
 
 #: Names that resolve per-turn policy. The CLI body must reach these ONLY
 #: through the builder — a direct call here is a second assembly, and two
@@ -72,9 +72,9 @@ _TURN_BODY_FUNCTIONS = ("_mission_chat_commit_turn", "_cmd_mission_chat_message"
 def _mission_chat_message_func() -> ast.FunctionDef:
     tree = ast.parse(package_source())
     for name in _TURN_BODY_FUNCTIONS:
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == name:
-                return node
+        node = turn_body(tree, name)
+        if node is not None:
+            return node
     raise AssertionError(
         "the mission-chat turn body "
         f"({' / '.join(_TURN_BODY_FUNCTIONS)}) is not in the persona package"

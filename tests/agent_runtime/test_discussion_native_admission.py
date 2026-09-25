@@ -12,7 +12,8 @@ from agent_runtime.mission_chat_turns import mission_chat_turn_record
 from tests.agent_runtime.test_persona_assignments import (
     _assignment_config, _TranscriptDB, _mission_chat_test_args, _persona,
 )
-from hermes_cli.harness_parts.persona import chat_target, chat_turn_commit, chat_turn_message
+from hermes_cli.harness_parts.persona import chat_target, chat_turn_message
+from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run, settle as commit_settle
 
 pytestmark = [pytest.mark.usefixtures("persisted_persona_samples"), pytest.mark.timeout(90)]
 ROOM = "persona_chat_personainst_dev_a01234567890"
@@ -57,8 +58,8 @@ def test_native_room_turn_preserves_operator_pointer_and_concurrent_row_fields(
     monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", Provider)
-    monkeypatch.setattr(chat_turn_commit, "_maybe_auto_title_persona_chat", lambda **kwargs: None)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", Provider)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **kwargs: None)
     args = _mission_chat_test_args("aux-" + outcome)
     args.session_id = ROOM
     with auxiliary_chat(instance.id, ROOM):

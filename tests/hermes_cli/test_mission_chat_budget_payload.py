@@ -45,7 +45,8 @@ from hermes_cli.harness_parts.persona import (
     lifecycle_commands,
     model_and_skills_commands,
 )
-from tests._downstream.persona_source import package_source
+from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run
+from tests._downstream.persona_source import package_source, turn_body
 
 # Imperative resolve language — the copy that sent the 2026-07-26 operator to
 # `turn-resolve --action abandon`. A budget-ended turn must never carry any of
@@ -201,7 +202,7 @@ def _seed(monkeypatch, provider):
     monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: _TranscriptDB())
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: _TranscriptDB())
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: _TranscriptDB())
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", provider)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", provider)
     return harness
 
 
@@ -354,7 +355,7 @@ def test_a_pre_boundary_failure_is_retryable_on_the_same_id(
 
     harness = _seed(monkeypatch, _wall_budget_provider(_WALL_BUDGET))
     monkeypatch.setattr(
-        chat_turn_commit,
+        commit_run,
         "mark_stale_inflight_turns_interrupted",
         lambda **kwargs: (_ for _ in ()).throw(RuntimeError("sweep exploded")),
     )
@@ -391,9 +392,9 @@ _TURN_BODY_FUNCTIONS = ("_mission_chat_commit_turn", "_cmd_mission_chat_message"
 def _mission_chat_message_func() -> ast.FunctionDef:
     tree = ast.parse(package_source())
     for name in _TURN_BODY_FUNCTIONS:
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == name:
-                return node
+        node = turn_body(tree, name)
+        if node is not None:
+            return node
     raise AssertionError(
         "the mission-chat turn body "
         f"({' / '.join(_TURN_BODY_FUNCTIONS)}) is not in the persona package"

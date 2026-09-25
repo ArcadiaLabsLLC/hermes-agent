@@ -20,12 +20,8 @@ from types import SimpleNamespace
 import pytest
 
 import hermes_cli.harness as harness
-from hermes_cli.harness_parts.persona import (
-    chat_admission,
-    chat_delete,
-    chat_events,
-    chat_turn_commit,
-)
+from hermes_cli.harness_parts.persona import chat_admission, chat_delete, chat_events
+from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run
 
 PAYLOAD = {"ok": False, "error": "boom", "error_kind": "unsupported_persona"}
 
@@ -156,7 +152,7 @@ def test_a_serve_with_hot_sessions_disabled_still_delivers(
     from gateway.session_context import async_delivery_supported
 
     monkeypatch.setattr(chat_delete, "persona_chat_runtime_registry", lambda: None)
-    monkeypatch.setattr(chat_turn_commit, "persona_chat_runtime_registry", lambda: None)
+    monkeypatch.setattr(commit_run, "persona_chat_runtime_registry", lambda: None)
     monkeypatch.setattr(
         "agent_runtime.dispatch_delivery.delivery_drain_is_live", lambda: True
     )
@@ -228,7 +224,7 @@ def test_a_serve_hosted_turn_is_observed_as_serve_with_hot_sessions_disabled(
     from hermes_cli.harness_parts import serve as serve_module
 
     monkeypatch.setattr(chat_delete, "persona_chat_runtime_registry", lambda: None)
-    monkeypatch.setattr(chat_turn_commit, "persona_chat_runtime_registry", lambda: None)
+    monkeypatch.setattr(commit_run, "persona_chat_runtime_registry", lambda: None)
     token = serve_module.frames._request_id.set("req-42")
     try:
         assert chat_admission._mission_chat_lease_provenance() == ("req-42", "serve")
@@ -242,7 +238,7 @@ def test_a_cli_turn_is_observed_as_cli_even_with_the_cache_enabled(monkeypatch):
     from hermes_cli.harness_parts import serve as serve_module
 
     monkeypatch.setattr(chat_delete, "persona_chat_runtime_registry", lambda: object())
-    monkeypatch.setattr(chat_turn_commit, "persona_chat_runtime_registry", lambda: object())
+    monkeypatch.setattr(commit_run, "persona_chat_runtime_registry", lambda: object())
     assert serve_module.frames._request_id.get() is None
     assert chat_admission._mission_chat_lease_provenance() == (None, "cli")
 

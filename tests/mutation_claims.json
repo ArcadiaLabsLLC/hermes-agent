@@ -2969,8 +2969,8 @@
     },
     {
       "id": "ctp4-unmeasured-session-db-open-becomes-a-zero",
-      "path": "hermes_cli/harness_parts/persona/chat_turn_commit/__init__.py",
-      "symbol": "_mission_chat_commit_turn",
+      "path": "hermes_cli/harness_parts/persona/chat_turn_commit/run.py",
+      "symbol": "_RunPhases._fold_profile_timing",
       "operator": "fabricate-zero-for-absent",
       "find": "        if isinstance(_session_db_open_ms, int) and not isinstance(\n            _session_db_open_ms, bool\n        ):\n            _profile_timing[\"session_db_open_ms\"] = _session_db_open_ms",
       "replace": "        _profile_timing[\"session_db_open_ms\"] = int(_session_db_open_ms or 0)",

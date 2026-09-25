@@ -15,11 +15,11 @@ from hermes_cli.harness_parts.persona import (
     chat_session,
     chat_target,
     chat_tickets_commands,
-    chat_turn_commit,
     chat_turn_message,
     instance_commands,
     lifecycle_commands,
 )
+from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run, settle as commit_settle
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
@@ -2132,7 +2132,7 @@ def test_mission_chat_never_forwards_retired_goal_opt_in(
     monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)
 
     normal = _mission_chat_test_args("client_chat_only")
     assert chat_turn_message._cmd_mission_chat_message(normal) == 0
@@ -2166,7 +2166,7 @@ def test_mission_chat_required_pre_model_transcript_failure_skips_provider(
         "_default_persona_session_db",
         lambda: _FailingTranscriptDB(operation),
     )
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)
 
     code = chat_turn_message._cmd_mission_chat_message(
         _mission_chat_test_args(f"client_pre_model_{operation}")
@@ -2199,7 +2199,7 @@ def test_mission_chat_session_db_acquisition_failure_is_typed_and_skips_provider
     monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(hermes_state, "SessionDB", _fail_session_db)
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)
 
     code = chat_turn_message._cmd_mission_chat_message(
         _mission_chat_test_args("client_db_acquire_failure", stream=True)
@@ -2241,7 +2241,7 @@ def test_mission_chat_fake_runtime_does_not_use_legacy_assistant_append(
     monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)
 
     code = chat_turn_message._cmd_mission_chat_message(
         _mission_chat_test_args("client_assistant_db_failure", stream=True)
@@ -2610,7 +2610,7 @@ def test_mission_chat_model_override_is_chat_scoped_and_does_not_mutate_persona(
     }
     monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_turn_commit, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
     db = _TranscriptDB()
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     # Base-profile foundation: only `base` is seeded into the store now, but this test
@@ -2643,7 +2643,7 @@ def test_mission_chat_model_override_is_chat_scoped_and_does_not_mutate_persona(
                 },
             )
 
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
@@ -2776,7 +2776,7 @@ def test_mission_chat_queues_skill_for_next_turn_once(
     cfg = _assignment_config()
     monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_turn_commit, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
     db = _TranscriptDB()
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
 
@@ -2835,7 +2835,7 @@ def test_mission_chat_queues_skill_for_next_turn_once(
                 },
             )
 
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
     def _message_args(client_id: str):
         return SimpleNamespace(
@@ -3007,7 +3007,7 @@ def test_mission_chat_non_stream_persists_completed_turn_and_prints_one_json(
     monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(chat_turn_commit, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
 
     class _FakeRuntime:
         def __init__(self, *args, **kwargs):
@@ -3039,7 +3039,7 @@ def test_mission_chat_non_stream_persists_completed_turn_and_prints_one_json(
                 raw={},
             )
 
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
@@ -3092,7 +3092,7 @@ def test_mission_chat_post_boundary_failure_marks_outcome_unknown(monkeypatch, c
         def mission_chat_reply(self, persona, message, **kwargs):
             raise RuntimeError("provider unavailable")
 
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
@@ -3169,7 +3169,7 @@ def test_mission_chat_retry_recovers_native_reply_before_outcome_unknown(
         def __init__(self, *args, **kwargs):
             raise AssertionError("provider must not be called during native recovery")
 
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _MustNotRun)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _MustNotRun)
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
@@ -3287,7 +3287,7 @@ def test_mission_chat_new_turn_interrupts_prior_running_turn(
     monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(chat_turn_commit, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
     persist_mission_chat_turn(
         session_id="persona_chat_personainst_dev",
         client_message_id="client_stale",
@@ -3311,7 +3311,7 @@ def test_mission_chat_new_turn_interrupts_prior_running_turn(
                 raw={},
             )
 
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
@@ -3379,7 +3379,7 @@ def test_mission_chat_post_native_projection_crash_stays_repairable(
                 raw={},
             )
 
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
@@ -3427,16 +3427,16 @@ def test_mission_chat_success_persist_sequence_has_single_terminal_write(
     monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(chat_turn_commit, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
 
     recorded: list[tuple[str | None, bool]] = []
-    real_persist = chat_turn_commit.persist_mission_chat_turn
+    real_persist = commit_run.persist_mission_chat_turn
 
     def _recording_persist(**kwargs):
         recorded.append((kwargs.get("state"), bool(kwargs.get("write_ahead"))))
         return real_persist(**kwargs)
 
-    monkeypatch.setattr(chat_turn_commit, "persist_mission_chat_turn", _recording_persist)
+    monkeypatch.setattr(commit_run, "persist_mission_chat_turn", _recording_persist)
 
     class _FakeRuntime:
         def __init__(self, *args, **kwargs):
@@ -3459,7 +3459,7 @@ def test_mission_chat_success_persist_sequence_has_single_terminal_write(
                 raw={},
             )
 
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
@@ -3506,7 +3506,7 @@ def test_mission_chat_message_replays_duplicate_client_message_id(
             kwargs["session_id"], "Mission Chat"
         )
 
-    monkeypatch.setattr(chat_turn_commit, "_maybe_auto_title_persona_chat", _title)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", _title)
 
     class _FakeRuntime:
         def __init__(self, *args, **kwargs):
@@ -3524,7 +3524,7 @@ def test_mission_chat_message_replays_duplicate_client_message_id(
                 raw={},
             )
 
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
     def _args():
         return SimpleNamespace(
@@ -3612,7 +3612,7 @@ def test_mission_chat_message_generates_client_message_id_when_missing(
                 raw={},
             )
 
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
@@ -3666,7 +3666,7 @@ def test_mission_chat_message_stream_terminal_frame_is_slim(
     monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(chat_turn_commit, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
 
     class _FakeRuntime:
         def __init__(self, *args, **kwargs):
@@ -3693,7 +3693,7 @@ def test_mission_chat_message_stream_terminal_frame_is_slim(
                 },
             )
 
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
@@ -3767,7 +3767,7 @@ def test_mission_chat_pre_trace_ack_is_presentation_only(
     monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(chat_turn_commit, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
 
     class _FakeRuntime:
         def __init__(self, *args, **kwargs):
@@ -3794,7 +3794,7 @@ def test_mission_chat_pre_trace_ack_is_presentation_only(
                 raw={},
             )
 
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
@@ -3883,7 +3883,7 @@ def test_persona_chat_context_uses_native_structured_prior_turns(isolate_agent_r
     db.append_message(session_id, "user", "remember the blue button")
     db.append_message(session_id, "assistant", "I will remember the blue button.")
 
-    history = chat_turn_commit.safe_native_history(
+    history = commit_run.safe_native_history(
         chat_session._persona_chat_native_history(db, session_id)
     )
 

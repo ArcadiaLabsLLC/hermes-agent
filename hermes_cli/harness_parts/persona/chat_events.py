@@ -6,6 +6,8 @@ and send-refused events, and the ``_ChatProtocolV2Emitter`` that writes frames.
 
 from __future__ import annotations
 
+from types import MappingProxyType
+from typing import Any, Callable, Final, Mapping
 import json
 import sys
 import time
@@ -374,14 +376,11 @@ class _ChatProtocolV2Emitter:
     def progress(self, payload: dict[str, object] | None) -> None:
         if not isinstance(payload, dict):
             return
-        event_type = str(payload.get("type") or "run.progress")
-        if event_type not in {"run.tool.started", "run.tool.finished"}:
+        handler = _PROGRESS_EVENTS.get(str(payload.get("type") or "run.progress"))
+        if handler is None:
             return
         self.end_segment(state="settled")
-        if event_type == "run.tool.started":
-            self._tool_started(payload)
-        else:
-            self._tool_finished(payload)
+        handler(self, payload)
         self._notify_update()
 
     def end_segment(self, *, state: str = "settled") -> None:
@@ -703,6 +702,18 @@ class _ChatProtocolV2Emitter:
         with self._emit_lock:
             self._turn_context.run(_emit_chat_frame, payload)
 
+
+
+#: The protocol-v2 progress vocabulary: a trace payload's ``type`` -> the
+#: emitter method that renders it as a tool element. Every other type is not a
+#: tool element and is ignored. Dispatched through the instance, so a method
+#: replaced on one emitter is the one that runs.
+_PROGRESS_EVENTS: Final[Mapping[str, Callable[[_ChatProtocolV2Emitter, dict[str, object]], None]]] = MappingProxyType(
+    {
+        "run.tool.started": lambda emitter, payload: emitter._tool_started(payload),
+        "run.tool.finished": lambda emitter, payload: emitter._tool_finished(payload),
+    }
+)
 
 def _safe_stream_text(value: object, *, limit: int = 800) -> str | None:
     return safe_assignment_text(value, limit=limit) or None

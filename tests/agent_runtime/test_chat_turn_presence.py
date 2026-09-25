@@ -34,7 +34,7 @@ from agent_runtime.chat_turn_presence import (
 )
 from agent_runtime.decision_contract_registry import event_catalog
 from agent_runtime.events import EventLog
-from tests._downstream.persona_source import package_source
+from tests._downstream.persona_source import package_source, turn_body
 
 SESSION = "persona_chat_personainst_qa_agent_deadbeef_0011"
 CLIENT_MESSAGE_ID = "gesture-from-windows-1"
@@ -200,9 +200,9 @@ def _persona_commands_tree() -> ast.Module:
 
 
 def _function(tree: ast.Module, name: str) -> ast.FunctionDef:
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == name:
-            return node
+    node = turn_body(tree, name)
+    if node is not None:
+        return node
     raise AssertionError(f"{name} is not in the persona package any more")
 
 

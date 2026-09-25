@@ -15,7 +15,7 @@ clobber on the send path.
 
 import ast
 from pathlib import Path
-from tests._downstream.persona_source import package_source
+from tests._downstream.persona_source import package_source, turn_body
 
 
 def _persona_commands_source() -> str:
@@ -26,9 +26,9 @@ def _persona_commands_source() -> str:
 
 def _func(name: str) -> ast.FunctionDef:
     tree = ast.parse(_persona_commands_source())
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == name:
-            return node
+    node = turn_body(tree, name)
+    if node is not None:
+        return node
     raise AssertionError(f"{name} not found in the persona package")
 
 

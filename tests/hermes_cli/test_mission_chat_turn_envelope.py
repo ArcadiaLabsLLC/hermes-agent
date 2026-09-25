@@ -52,7 +52,8 @@ from hermes_cli.harness_parts.persona import (
     chat_turn_commit,
     chat_turn_message,
 )
-from tests._downstream.persona_source import package_source
+from hermes_cli.harness_parts.persona.chat_turn_commit import admit as commit_admit, run as commit_run, settle as commit_settle
+from tests._downstream.persona_source import package_source, turn_body
 
 
 class _ReplyProvider:
@@ -78,9 +79,9 @@ def _persona_commands_tree() -> ast.Module:
 
 
 def _func(name: str) -> ast.FunctionDef:
-    for node in _persona_commands_tree().body:
-        if isinstance(node, ast.FunctionDef) and node.name == name:
-            return node
+    node = turn_body(_persona_commands_tree(), name)
+    if node is not None:
+        return node
     raise AssertionError(f"{name} not found in the persona package")
 
 
@@ -178,8 +179,8 @@ def lease_witness(monkeypatch, isolate_agent_runtime_root):  # noqa: F811
 
     _witness("ensure_for_personas", PersonaInstanceStore, "ensure_for_personas")
     _witness("open_chat", PersonaInstanceStore, "open_chat")
-    _witness("ensure_chat_session", chat_turn_commit, "_ensure_persona_chat_session")
-    _witness("model_override", chat_turn_commit, "_resolve_chat_model_override")
+    _witness("ensure_chat_session", commit_admit, "_ensure_persona_chat_session")
+    _witness("model_override", commit_admit, "_resolve_chat_model_override")
     return harness_module, seen
 
 
@@ -238,8 +239,8 @@ def test_each_leasable_write_happens_exactly_once_per_turn(
         monkeypatch.setattr(target, attr, _wrapped)
 
     _count("open_chat", PersonaInstanceStore, "open_chat")
-    _count("ensure_chat_session", chat_turn_commit, "_ensure_persona_chat_session")
-    _count("model_override", chat_turn_commit, "_resolve_chat_model_override")
+    _count("ensure_chat_session", commit_admit, "_ensure_persona_chat_session")
+    _count("model_override", commit_admit, "_resolve_chat_model_override")
 
     assert chat_turn_message._cmd_mission_chat_message(_args("once_turn")) == 0
     capsys.readouterr()
@@ -330,7 +331,9 @@ def test_a_non_clean_turn_journal_write_is_accounted_for(
         return outcome
 
     monkeypatch.setattr(chat_events, "transition_mission_chat_turn", _flaky)
-    monkeypatch.setattr(chat_turn_commit, "transition_mission_chat_turn", _flaky)
+    monkeypatch.setattr(commit_admit, "transition_mission_chat_turn", _flaky)
+    monkeypatch.setattr(commit_run, "transition_mission_chat_turn", _flaky)
+    monkeypatch.setattr(commit_settle, "transition_mission_chat_turn", _flaky)
 
     assert chat_turn_message._cmd_mission_chat_message(_args("journal_turn")) == 0
     payload = json.loads(capsys.readouterr().out)

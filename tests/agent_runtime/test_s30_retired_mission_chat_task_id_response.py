@@ -30,13 +30,15 @@ from __future__ import annotations
 
 import inspect
 from hermes_cli.harness_parts.persona import chat_turn_commit, chat_turn_message
+from hermes_cli.harness_parts.persona.chat_turn_commit import admit, run, settle
 
 
 def _mission_chat_message_source() -> str:
     """Source of the mission-chat send handler, BOTH halves.
 
-    They live in ``hermes_cli.harness_parts.persona.chat_turn_message`` and
-    ``...persona.chat_turn_commit`` (lane H3, 2026-09-24).
+    They live in ``hermes_cli.harness_parts.persona.chat_turn_message`` and the
+    ``...persona.chat_turn_commit`` package, whose phase modules carry the reply
+    envelopes (lane H3, 2026-09-24).
 
     The handler was split on 2026-07-31 into a plan phase
     (``_cmd_mission_chat_message``) and the sole writer
@@ -47,8 +49,8 @@ def _mission_chat_message_source() -> str:
     """
 
     return "\n".join(
-        inspect.getsource(handler)
-        for handler in (chat_turn_message._cmd_mission_chat_message, chat_turn_commit._mission_chat_commit_turn)
+        inspect.getsource(part)
+        for part in (chat_turn_message._cmd_mission_chat_message, chat_turn_commit, admit, run, settle)
     )
 
 

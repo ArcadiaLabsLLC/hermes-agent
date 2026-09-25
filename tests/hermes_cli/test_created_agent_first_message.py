@@ -35,13 +35,13 @@ from hermes_cli.harness_parts.persona import (
     chat_delete,
     chat_open,
     chat_target,
-    chat_turn_commit,
     chat_turn_message,
     inspect_commands,
     instance_commands,
     lifecycle_commands,
     model_and_skills_commands,
 )
+from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run
 
 WORKSPACE = "ws_created_agent_first_message"
 
@@ -126,7 +126,7 @@ def harness_with_stub_provider(monkeypatch):
     monkeypatch.setattr(
         model_and_skills_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig()
     )
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _Provider)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _Provider)
     # Deliberately NOT patching ``_default_persona_session_db``: the guard under
     # test only fires against CANONICAL persistence, so a stub store would make
     # every row here pass vacuously. The real per-test SessionDB is the point.

@@ -366,11 +366,6 @@
    "unit": "hermes_cli/harness_parts/office.py|_cmd_office_actor_upsert"
   },
   {
-   "depth": 3,
-   "lines": 198,
-   "unit": "hermes_cli/harness_parts/persona/chat_admission.py|_mission_chat_busy_outcome"
-  },
-  {
    "depth": 4,
    "lines": 242,
    "unit": "hermes_cli/harness_parts/persona/chat_delete.py|_cmd_persona_chat_delete"
@@ -384,11 +379,6 @@
    "depth": 4,
    "lines": 160,
    "unit": "hermes_cli/harness_parts/persona/chat_open.py|_cmd_persona_instance_open_new_chat"
-  },
-  {
-   "depth": 3,
-   "lines": 1590,
-   "unit": "hermes_cli/harness_parts/persona/chat_turn_commit/__init__.py|_mission_chat_commit_turn"
   },
   {
    "depth": 4,

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
-from tests._downstream.persona_source import package_source
+from tests._downstream.persona_source import package_source, turn_body
 
 
 def _persona_commands_source() -> str:
@@ -27,9 +27,9 @@ def _tree() -> ast.Module:
 
 
 def _func(tree: ast.AST, name: str) -> ast.FunctionDef:
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == name:
-            return node
+    node = turn_body(tree, name)
+    if node is not None:
+        return node
     raise AssertionError(f"{name} not found in the persona package")
 
 

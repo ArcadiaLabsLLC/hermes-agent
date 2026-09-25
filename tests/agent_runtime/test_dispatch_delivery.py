@@ -34,13 +34,13 @@ from hermes_cli.harness_parts.persona import (
     chat_open,
     chat_target,
     chat_tickets_commands,
-    chat_turn_commit,
     chat_turn_message,
     inspect_commands,
     instance_commands,
     lifecycle_commands,
     model_and_skills_commands,
 )
+from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run
 from hermes_cli.harness_parts import runtime_commands
 
 SENDER_ROOT = "persona_chat_personainst_neko_aaaaaaaaaaaa"
@@ -606,7 +606,7 @@ def test_forge_delivery_turn_lands_a_real_turn_and_dedupes_a_retry(
     monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)
 
     dispatch_id = "dispatch-realforge01"
     message = format_dispatch_delivery(

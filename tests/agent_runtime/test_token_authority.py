@@ -378,14 +378,14 @@ def test_turn_usage_from_result_is_none_for_a_turn_that_never_ran():
     assert turn_usage_from_result(None) is None
 
 
-def test_persona_commands_binds_turn_usage_from_result():
+def test_the_turn_run_phase_binds_turn_usage_from_result():
     """The mission-chat turn resolves ``turn_usage_from_result`` in its OWN module.
 
-    ``persona_commands`` is a real module since lane H1 (2026-09-24), so the
-    name must be bound there — read from the runtime module, not its spelling —
-    and be the one ``prompt_observability`` owns.
+    The turn's run phase (``persona/chat_turn_commit/run.py``, lanes H1/H3) is a
+    real module, so the name must be bound there — read from the runtime
+    module, not its spelling — and be the one ``prompt_observability`` owns.
     """
     from agent_runtime import prompt_observability
-    from hermes_cli.harness_parts.persona import chat_turn_commit
+    from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run
 
-    assert chat_turn_commit.turn_usage_from_result is prompt_observability.turn_usage_from_result
+    assert commit_run.turn_usage_from_result is prompt_observability.turn_usage_from_result
