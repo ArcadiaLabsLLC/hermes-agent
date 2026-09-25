@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from typing import Any, Iterable
 
+from .._upstream_doors import skills_walker
 from ..persona_assignments import safe_assignment_token
 from .context_budget import _profile_snapshot_skill_names
 from .spans import _SPAN_CATALOG_WALK, _SPAN_SHARED_CATALOG, _accumulate_span, _note_catalog_walk
@@ -331,9 +332,7 @@ _skill_catalog_memo: dict[str, Any] = {"at": 0.0, "rows": None, "walker": None}
 
 def _resolve_skill_walker():
     try:
-        from tools.skills_tool import _find_all_skills
-
-        return _find_all_skills
+        return skills_walker()
     except Exception:
         return None
 

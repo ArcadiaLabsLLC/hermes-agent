@@ -20,6 +20,8 @@ __layer__ = "stores"
 __all__ = [
     "available_skills_context",
     "used_skills_context",
+    "FAILED_SKILL_TRACE_STATUSES",
+    "FINISHED_SKILL_TRACE_STEPS",
     "_chat_metadata",
 ]
 
@@ -33,7 +35,9 @@ def available_skills_context(
     """Redaction-safe installed skill catalog for Mission Control.
 
     This deliberately exposes names and frontmatter descriptions only. It never
-    returns SKILL.md bodies or referenced files.
+    returns SKILL.md bodies or referenced files. One row per installed skill
+    (:func:`_skill_row`), the accessible set when nothing is installed, then
+    sorted, de-duplicated and capped at ``limit``.
     """
 
     accessible_by_name = {
@@ -41,33 +45,9 @@ def available_skills_context(
         for item in accessible_skills or []
         if isinstance(item, dict) and safe_assignment_token(item.get("name"))
     }
-    rows: list[dict[str, Any]] = []
-    shared_by_name: dict[str, dict[str, Any]] = {}
-    realm_rows: list[dict[str, Any]] = []
-    if skill_resolver is not None:
-        # Hoisted to once-per-build: the build-scoped resolver memoizes both
-        # walks, so every projected persona shares one shared-catalog walk + one
-        # realm publish-state read instead of repeating both per persona.
-        shared_by_name = skill_resolver.shared_catalog()
-        realm_rows = skill_resolver.realm_publish_states()
-    else:
-        try:
-            from ..skills_inventory import build_realm_publish_states, build_shared_catalog
-
-            _, _, catalog = build_shared_catalog()
-            shared_by_name = {
-                str(item.get("slug") or ""): item
-                for item in catalog
-                if isinstance(item, dict)
-            }
-            realm_rows = build_realm_publish_states()
-        except Exception:
-            pass
+    shared_by_name, realm_rows = _shared_catalog_and_realm_rows(skill_resolver)
     installed = _installed_skill_catalog()
-    from agent_runtime.skill_resolution import (
-        resolve_skills,
-        skill_runtime_compatibility,
-    )
+    from agent_runtime.skill_resolution import resolve_skills
 
     installed_names = [
         safe_assignment_token(item.get("name"))
@@ -79,94 +59,149 @@ def available_skills_context(
         if skill_resolver is not None
         else resolve_skills(installed_names)
     )
-    if isinstance(installed, list):
-        for skill in installed:
-            if not isinstance(skill, dict):
-                continue
-            name = safe_assignment_token(skill.get("name"))
-            if not name:
-                continue
-            accessible = accessible_by_name.get(name)
-            status = "accessible" if accessible else "available"
-            if accessible and isinstance(accessible.get("status"), str):
-                status = safe_assignment_token(accessible.get("status")) or status
-            resolution = resolutions.get(name)
-            if resolution is None:
-                continue
-            selected = resolution.candidate
-            compatibility = skill_runtime_compatibility(
-                selected, surface="mission_chat", root_node_mode=False
-            )
-            shared = shared_by_name.get(name)
-            realm_sync = _skill_realm_sync(name, realm_rows) if shared else []
-            # A skill resolved from a profile-local / external root is
-            # STRUCTURALLY unable to reach a realm — realm publish reads the
-            # shared root only. Such a row previously carried an empty
-            # ``realm_sync`` list, which reads as "no realms configured" rather
-            # than "cannot travel": a silent omission. Say it, with a typed
-            # reason. Only the CHEAP source-kind verdict is computed here; the
-            # installer-ownership / promotability classification hashes package
-            # trees and belongs to the on-demand ``skills inventory`` /
-            # ``skills publishable`` surfaces, never this per-persona build.
-            publishable, publishable_reason = _skill_publishability(
-                selected.source_kind if selected else None
-            )
-            # Assigned rows already carry their resolver receipt; canonical
-            # shared rows reuse the shared catalog's content hash. Avoid hashing
-            # every unassigned profile-local package during every snapshot.
-            content_hash = (
-                accessible.get("content_hash")
-                if accessible
-                else shared.get("content_hash") if shared else None
-            )
-            if content_hash is None and skill_resolver is None:
-                content_hash = _skill_candidate_content_hash(selected)
-            rows.append(
-                {
-                    "name": name,
-                    "kind": "skill",
-                    "status": status,
-                    "load_state": (
-                        safe_assignment_token(accessible.get("load_state"))
-                        if accessible
-                        else "catalog_only"
-                    )
-                    or ("assigned_not_loaded" if accessible else "catalog_only"),
-                    "hash_tracked": content_hash is not None,
-                    "source": "installed_skill_catalog",
-                    "category": safe_assignment_token(skill.get("category")) or "skills",
-                    "description": safe_assignment_text(skill.get("description"), limit=220) or "",
-                    "loadable": bool(
-                        resolution.status == "resolved"
-                        and compatibility.get("compatible")
-                    ),
-                    "resolution_status": resolution.status,
-                    "source_kind": selected.source_kind if selected else None,
-                    "content_hash": content_hash,
-                    "core_install_state": (
-                        "current" if resolution.status == "resolved" else resolution.status
-                    ),
-                    "realm_sync": realm_sync,
-                    "shared_catalog": shared is not None,
-                    "publishable": publishable,
-                    "publishable_reason": publishable_reason,
-                    "compatibility": compatibility,
-                }
-            )
+    rows: list[dict[str, Any]] = []
+    for skill in installed if isinstance(installed, list) else ():
+        row = _skill_row(
+            skill,
+            accessible_by_name=accessible_by_name,
+            resolutions=resolutions,
+            shared_by_name=shared_by_name,
+            realm_rows=realm_rows,
+            hash_unassigned=skill_resolver is None,
+        )
+        if row is not None:
+            rows.append(row)
     if not rows:
-        for name, item in accessible_by_name.items():
-            rows.append(
-                {
-                    "name": name,
-                    "kind": "skill",
-                    "status": safe_assignment_token(item.get("status")) or "accessible",
-                    "hash_tracked": bool(item.get("hash_tracked")),
-                    "source": safe_assignment_token(item.get("source")) or "accessible_skills",
-                    "category": "skills",
-                    "description": "",
-                    "loadable": True,
-                }
-            )
+        rows = _accessible_only_rows(accessible_by_name)
+    return _sorted_unique_rows(rows, limit=limit)
+
+
+def _shared_catalog_and_realm_rows(
+    skill_resolver: _SkillObservabilityResolver | None,
+) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
+    if skill_resolver is not None:
+        # Hoisted to once-per-build: the build-scoped resolver memoizes both
+        # walks, so every projected persona shares one shared-catalog walk + one
+        # realm publish-state read instead of repeating both per persona.
+        return skill_resolver.shared_catalog(), skill_resolver.realm_publish_states()
+    try:
+        from ..skills_inventory import build_realm_publish_states, build_shared_catalog
+
+        _, _, catalog = build_shared_catalog()
+        shared_by_name = {
+            str(item.get("slug") or ""): item
+            for item in catalog
+            if isinstance(item, dict)
+        }
+        return shared_by_name, build_realm_publish_states()
+    except Exception:
+        return {}, []
+
+
+def _skill_row(
+    skill: Any,
+    *,
+    accessible_by_name: dict[str, dict[str, Any]],
+    resolutions: dict[str, Any],
+    shared_by_name: dict[str, dict[str, Any]],
+    realm_rows: list[dict[str, Any]],
+    hash_unassigned: bool,
+) -> dict[str, Any] | None:
+    """One installed skill's catalog row, or ``None`` when it has no name or no resolution."""
+
+    from agent_runtime.skill_resolution import skill_runtime_compatibility
+
+    if not isinstance(skill, dict):
+        return None
+    name = safe_assignment_token(skill.get("name"))
+    if not name:
+        return None
+    accessible = accessible_by_name.get(name)
+    status = "accessible" if accessible else "available"
+    if accessible and isinstance(accessible.get("status"), str):
+        status = safe_assignment_token(accessible.get("status")) or status
+    resolution = resolutions.get(name)
+    if resolution is None:
+        return None
+    selected = resolution.candidate
+    compatibility = skill_runtime_compatibility(
+        selected, surface="mission_chat", root_node_mode=False
+    )
+    shared = shared_by_name.get(name)
+    realm_sync = _skill_realm_sync(name, realm_rows) if shared else []
+    # A skill resolved from a profile-local / external root is
+    # STRUCTURALLY unable to reach a realm — realm publish reads the
+    # shared root only. Such a row previously carried an empty
+    # ``realm_sync`` list, which reads as "no realms configured" rather
+    # than "cannot travel": a silent omission. Say it, with a typed
+    # reason. Only the CHEAP source-kind verdict is computed here; the
+    # installer-ownership / promotability classification hashes package
+    # trees and belongs to the on-demand ``skills inventory`` /
+    # ``skills publishable`` surfaces, never this per-persona build.
+    publishable, publishable_reason = _skill_publishability(
+        selected.source_kind if selected else None
+    )
+    # Assigned rows already carry their resolver receipt; canonical
+    # shared rows reuse the shared catalog's content hash. Avoid hashing
+    # every unassigned profile-local package during every snapshot.
+    content_hash = (
+        accessible.get("content_hash")
+        if accessible
+        else shared.get("content_hash") if shared else None
+    )
+    if content_hash is None and hash_unassigned:
+        content_hash = _skill_candidate_content_hash(selected)
+    return {
+        "name": name,
+        "kind": "skill",
+        "status": status,
+        "load_state": (
+            safe_assignment_token(accessible.get("load_state"))
+            if accessible
+            else "catalog_only"
+        )
+        or ("assigned_not_loaded" if accessible else "catalog_only"),
+        "hash_tracked": content_hash is not None,
+        "source": "installed_skill_catalog",
+        "category": safe_assignment_token(skill.get("category")) or "skills",
+        "description": safe_assignment_text(skill.get("description"), limit=220) or "",
+        "loadable": bool(
+            resolution.status == "resolved"
+            and compatibility.get("compatible")
+        ),
+        "resolution_status": resolution.status,
+        "source_kind": selected.source_kind if selected else None,
+        "content_hash": content_hash,
+        "core_install_state": (
+            "current" if resolution.status == "resolved" else resolution.status
+        ),
+        "realm_sync": realm_sync,
+        "shared_catalog": shared is not None,
+        "publishable": publishable,
+        "publishable_reason": publishable_reason,
+        "compatibility": compatibility,
+    }
+
+
+def _accessible_only_rows(accessible_by_name: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """The accessible set as catalog rows — what the catalog shows when nothing is installed."""
+
+    return [
+        {
+            "name": name,
+            "kind": "skill",
+            "status": safe_assignment_token(item.get("status")) or "accessible",
+            "hash_tracked": bool(item.get("hash_tracked")),
+            "source": safe_assignment_token(item.get("source")) or "accessible_skills",
+            "category": "skills",
+            "description": "",
+            "loadable": True,
+        }
+        for name, item in accessible_by_name.items()
+    ]
+
+
+def _sorted_unique_rows(rows: list[dict[str, Any]], *, limit: int) -> list[dict[str, Any]]:
     seen: set[str] = set()
     deduped: list[dict[str, Any]] = []
     for row in sorted(rows, key=lambda item: str(item.get("name", "")).lower()):
@@ -356,14 +391,20 @@ def _list_used_skill_entries(final_model_input: dict[str, Any] | None) -> list[A
     return []
 
 
+#: A ``skill_view`` trace event's status and step vocabulary, owned here: the
+#: trace statuses that mean the view did NOT land, and the steps that mean the
+#: tool call finished. One named set each, read by one predicate (program rule
+#: 12), rather than two literals inside its conditions.
+FAILED_SKILL_TRACE_STATUSES = frozenset({"failed", "error", "errored", "blocked"})
+FINISHED_SKILL_TRACE_STEPS = frozenset({"tool_finished", "completed", "finished"})
+
+
 def _skill_trace_event_counts_as_used(entry: dict[str, Any]) -> bool:
     status = safe_assignment_token(entry.get("status")).lower()
-    if status in {"failed", "error", "errored", "blocked"}:
-        return False
     step = safe_assignment_token(entry.get("step")).lower()
-    if step and step not in {"tool_finished", "completed", "finished"}:
-        return False
-    return True
+    return status not in FAILED_SKILL_TRACE_STATUSES and (
+        not step or step in FINISHED_SKILL_TRACE_STEPS
+    )
 
 
 def _append_used_skill_name(names: list[str], value: str | None) -> None:

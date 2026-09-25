@@ -10,6 +10,7 @@ from typing import Any
 
 from hermes_cli.profiles import get_profile_dir
 
+from .._upstream_doors import compression_threshold_for_model
 from ..persona_assignments import safe_assignment_text, safe_assignment_token
 
 __layer__ = "policy"
@@ -134,9 +135,7 @@ def _static_context_window(model: str, provider: str | None) -> int | None:
 def _compaction_ratio(model: str, provider: str | None) -> float:
     """The fraction of the window at which Hermes compacts (0.5 default)."""
     try:
-        from agent.auxiliary_client import _compression_threshold_for_model
-
-        override = _compression_threshold_for_model(
+        override = compression_threshold_for_model(
             model, provider, allow_codex_gpt55_autoraise=True
         )
         if isinstance(override, (int, float)) and 0 < float(override) <= 1:

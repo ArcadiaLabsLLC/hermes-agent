@@ -185,6 +185,17 @@ def safe_int(value: Any) -> int | None:
         return None
 
 
+def non_negative_int(value: Any) -> int | None:
+    """``int(value)`` when it coerces and is >= 0, else ``None``. Never raises.
+
+    The count/size reading of a foreign field: a negative or unreadable value is
+    no measurement, and ``0`` is a real one (unlike :func:`positive_int`).
+    """
+
+    parsed = safe_int(value)
+    return parsed if parsed is not None and parsed >= 0 else None
+
+
 def positive_int(value: Any, *, default: int | None = None) -> int | None:
     """``int(value)`` when it coerces and is > 0, else ``default``. Never raises.
 

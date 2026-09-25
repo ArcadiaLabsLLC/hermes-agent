@@ -6,7 +6,7 @@ rows) and neither store may import the other.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 from .catalog_store import _store_skills_catalog, load_skills_catalog_from_store
 from .context_store import load_latest_prompt_observability_contexts
@@ -18,7 +18,11 @@ __all__ = [
 ]
 
 
-def skills_catalog_by_hash(content_hash: str) -> list[dict[str, Any]] | None:
+def skills_catalog_by_hash(
+    content_hash: str,
+    *,
+    materialize: Callable[..., Any] | None = None,
+) -> list[dict[str, Any]] | None:
     """On-demand resolve of one content-addressed skills catalog by its hash.
 
     S8 evicted the ``skills_catalogs`` table from the frame; rows keep only
@@ -33,7 +37,12 @@ def skills_catalog_by_hash(content_hash: str) -> list[dict[str, Any]] | None:
     projection once and materializes its immutable catalog bodies. Ordinary
     snapshot reads remain write-free. Returns ``None`` on an honest miss (the
     launcher renders a pending state and retries next frame), never a fake empty
-    catalog."""
+    catalog.
+
+    ``materialize`` is that live-projection builder (``snapshot.build_snapshot``,
+    passed by the detail verb). It is a PARAMETER, not an import: this store
+    module sits below the snapshot lane that imports it, and a lookup with no
+    builder simply has no final rebuild step."""
 
     token = str(content_hash or "").strip()
     if not token:
@@ -48,12 +57,14 @@ def skills_catalog_by_hash(content_hash: str) -> list[dict[str, Any]] | None:
             value = row.get(field)
             if isinstance(value, list) and _skills_list_content_hash(value) == token:
                 return value
-    live_catalogs = _materialize_live_skills_catalogs()
+    if materialize is None:
+        return None
+    live_catalogs = _materialize_live_skills_catalogs(materialize)
     value = live_catalogs.get(token)
     return value if isinstance(value, list) else None
 
 
-def _materialize_live_skills_catalogs() -> dict[str, list[dict[str, Any]]]:
+def _materialize_live_skills_catalogs(build_snapshot: Callable[..., Any]) -> dict[str, list[dict[str, Any]]]:
     """Capture and cache the current live projection's immutable catalogs.
 
     This runs only behind the explicit on-demand detail verb after the O(1)
@@ -65,8 +76,6 @@ def _materialize_live_skills_catalogs() -> dict[str, list[dict[str, Any]]]:
 
     catalogs: dict[str, list[dict[str, Any]]] = {}
     try:
-        from ..snapshot import build_snapshot
-
         build_snapshot(prompt_skills_catalogs=catalogs)
     except Exception:
         return {}

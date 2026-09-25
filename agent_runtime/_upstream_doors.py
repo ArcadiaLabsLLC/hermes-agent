@@ -22,7 +22,13 @@ from __future__ import annotations
 from pathlib import Path
 
 __layer__ = "models"
-__all__ = ["default_hermes_home", "pid_exists", "profiles_root"]
+__all__ = [
+    "compression_threshold_for_model",
+    "default_hermes_home",
+    "pid_exists",
+    "profiles_root",
+    "skills_walker",
+]
 
 
 def pid_exists(pid: int) -> bool:
@@ -50,3 +56,24 @@ def default_hermes_home() -> Path:
     from hermes_cli.profiles import _get_default_hermes_home
 
     return _get_default_hermes_home()
+
+
+def compression_threshold_for_model(model: str, provider: str | None, *, allow_codex_gpt55_autoraise: bool) -> object:
+    """``agent.auxiliary_client._compression_threshold_for_model`` — read by
+    ``prompt_observability.context_budget``. Held widening row (ruling Q7,
+    ``upstream-footprint-ledger.md``): expose it publicly."""
+    from agent.auxiliary_client import _compression_threshold_for_model
+
+    return _compression_threshold_for_model(
+        model, provider, allow_codex_gpt55_autoraise=allow_codex_gpt55_autoraise
+    )
+
+
+def skills_walker():
+    """``tools.skills_tool._find_all_skills`` ITSELF, not a wrapper — read by
+    ``prompt_observability.skills_resolver``, whose installed-catalog memo keys
+    on the walker's identity so a patched or reloaded walker invalidates it.
+    Held widening row (ruling Q7): publish ``find_all_skills``."""
+    from tools.skills_tool import _find_all_skills
+
+    return _find_all_skills

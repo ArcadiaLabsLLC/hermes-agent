@@ -49,3 +49,14 @@ def test_elapsed_ms_is_non_negative_or_none():
     assert clock.elapsed_ms(time.monotonic() - 1.5) >= 1500
     assert clock.elapsed_ms("not a stamp") is None
     assert clock.elapsed_ms(None) is None
+
+
+def test_non_negative_int_keeps_zero_and_refuses_negatives():
+    """Lane R2 folded ``prompt_observability._safe_int`` and
+    ``mission_chat_turns._safe_int`` (both: int >= 0, else None) into this."""
+
+    assert serde.non_negative_int("7") == 7
+    assert serde.non_negative_int(0) == 0
+    assert serde.non_negative_int(-1) is None
+    assert serde.non_negative_int("x") is None
+    assert serde.non_negative_int(None) is None

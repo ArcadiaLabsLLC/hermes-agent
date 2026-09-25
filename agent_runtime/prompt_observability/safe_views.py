@@ -10,6 +10,7 @@ import re
 from typing import Any
 
 from ..persona_assignments import safe_assignment_text, safe_assignment_token
+from ..serde import non_negative_int
 from ..redaction import TEXT_SECRET_VALUE_ASSIGNMENT_RE
 
 __layer__ = "policy"
@@ -22,7 +23,6 @@ __all__ = [
     "_safe_cache_routing",
     "_safe_turn_usage",
     "turn_usage_from_result",
-    "_safe_int",
     "_chat_history_context",
     "_safe_preview",
 ]
@@ -49,12 +49,12 @@ def _safe_final_model_input(value: dict[str, Any] | None) -> dict[str, Any] | No
                 "source": safe_assignment_token(message.get("source")) or "model_input",
                 "content": content,
                 "truncated": bool(message.get("truncated")),
-                "bytes": _safe_int(message.get("bytes")),
+                "bytes": non_negative_int(message.get("bytes")),
                 "sha256": safe_assignment_token(message.get("sha256")),
             }
         )
     return {
-        "schema_version": _safe_int(value.get("schema_version")) or 1,
+        "schema_version": non_negative_int(value.get("schema_version")) or 1,
         "kind": safe_assignment_token(value.get("kind")) or "redaction_safe_final_model_input",
         "platform": safe_assignment_token(value.get("platform")),
         "profile": safe_assignment_token(value.get("profile")),
@@ -63,7 +63,7 @@ def _safe_final_model_input(value: dict[str, Any] | None) -> dict[str, Any] | No
         "skip_context_files": bool(value.get("skip_context_files")),
         "skip_memory": bool(value.get("skip_memory")),
         "system_message_supplied": bool(value.get("system_message_supplied")),
-        "message_count": _safe_int(value.get("message_count")) or len(safe_messages),
+        "message_count": non_negative_int(value.get("message_count")) or len(safe_messages),
         "messages": safe_messages,
         "system_prompt_sections": _safe_system_prompt_sections(
             value.get("system_prompt_sections")
@@ -92,15 +92,15 @@ def _safe_context_compaction(value: Any) -> dict[str, Any] | None:
 
     if not isinstance(value, dict):
         return None
-    effective = _safe_int(value.get("effective_threshold_tokens"))
+    effective = non_negative_int(value.get("effective_threshold_tokens"))
     if not effective or effective <= 0:
         return None
     row: dict[str, Any] = {
-        "schema_version": _safe_int(value.get("schema_version")) or 1,
+        "schema_version": non_negative_int(value.get("schema_version")) or 1,
         "effective_threshold_tokens": effective,
     }
     for key in ("threshold_tokens_cap", "context_length"):
-        number = _safe_int(value.get(key))
+        number = non_negative_int(value.get(key))
         if number:
             row[key] = number
     if "compression_in_place" in value:
@@ -119,10 +119,10 @@ def _safe_user_message_wire(value: Any) -> dict[str, Any] | None:
     if not isinstance(value, dict):
         return None
     receipt: dict[str, Any] = {
-        "schema_version": _safe_int(value.get("schema_version")) or 1,
+        "schema_version": non_negative_int(value.get("schema_version")) or 1,
         "source": safe_assignment_token(value.get("source")) or "unknown",
-        "composed_chars": _safe_int(value.get("composed_chars")),
-        "wire_chars": _safe_int(value.get("wire_chars")),
+        "composed_chars": non_negative_int(value.get("composed_chars")),
+        "wire_chars": non_negative_int(value.get("wire_chars")),
         "bounded": bool(value.get("bounded")),
     }
     reason = safe_assignment_token(value.get("unavailable_reason"))
@@ -164,9 +164,9 @@ def _safe_system_prompt_sections(value: Any) -> list[dict[str, Any]]:
     for item in value[:3]:
         if not isinstance(item, dict):
             continue
-        start = _safe_int(item.get("start_char"))
-        end = _safe_int(item.get("end_char"))
-        chars = _safe_int(item.get("chars"))
+        start = non_negative_int(item.get("start_char"))
+        end = non_negative_int(item.get("end_char"))
+        chars = non_negative_int(item.get("chars"))
         if start is None or end is None or start < 0 or end < start:
             continue
         result.append(
@@ -194,7 +194,7 @@ def _safe_cache_routing(value: Any) -> dict[str, Any] | None:
     if not isinstance(value, dict):
         return None
     return {
-        "schema_version": _safe_int(value.get("schema_version")) or 1,
+        "schema_version": non_negative_int(value.get("schema_version")) or 1,
         "backend": safe_assignment_token(value.get("backend")),
         "prompt_cache_key_present": value.get("prompt_cache_key_present") is True,
         "prompt_cache_key_source": safe_assignment_token(
@@ -245,7 +245,7 @@ def _safe_turn_usage(value: dict[str, Any] | None) -> dict[str, Any] | None:
     """Key-whitelisted, int-coerced turn usage. All ints — nothing to redact."""
     if not isinstance(value, dict):
         return None
-    safe = {field: _safe_int(value.get(field)) for field in _TURN_USAGE_FIELDS}
+    safe = {field: non_negative_int(value.get(field)) for field in _TURN_USAGE_FIELDS}
     if all(number is None for number in safe.values()):
         return None
     return safe
@@ -315,20 +315,12 @@ def _safe_tool_schema(value: Any) -> dict[str, Any] | None:
             if token:
                 names.append(token)
     return {
-        "schema_version": _safe_int(value.get("schema_version")) or 1,
+        "schema_version": non_negative_int(value.get("schema_version")) or 1,
         "kind": safe_assignment_token(value.get("kind")) or "actual_model_tools",
         "final_model_tools": names,
-        "tool_count": _safe_int(value.get("tool_count")),
-        "json_bytes": _safe_int(value.get("json_bytes")),
+        "tool_count": non_negative_int(value.get("tool_count")),
+        "json_bytes": non_negative_int(value.get("json_bytes")),
     }
-
-
-def _safe_int(value) -> int | None:
-    try:
-        number = int(value)
-    except (TypeError, ValueError):
-        return None
-    return number if number >= 0 else None
 
 
 def _chat_history_context(*, session_db: Any | None, session_id: str | None) -> list[dict[str, Any]]:

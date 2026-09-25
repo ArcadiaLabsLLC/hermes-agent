@@ -257,7 +257,7 @@ def test_skills_catalog_by_hash_is_an_o1_store_read(isolate_agent_runtime_root):
 
 
 def test_skills_catalog_by_hash_materializes_a_live_projection_miss(
-    isolate_agent_runtime_root, monkeypatch
+    isolate_agent_runtime_root,
 ):
     """A hash advertised for a configured agent may have no chat-time row yet.
 
@@ -277,16 +277,17 @@ def test_skills_catalog_by_hash_materializes_a_live_projection_miss(
         prompt_skills_catalogs[ref] = copy.deepcopy(catalog)
         return {}
 
-    monkeypatch.setattr("agent_runtime.snapshot.build_snapshot", fake_build_snapshot)
-
     assert po.catalog_store.load_skills_catalog_from_store(ref) is None
-    assert po.skills_catalog_by_hash(ref) == catalog
+    # No builder, no rebuild: the store module never imports the snapshot lane.
+    assert po.skills_catalog_by_hash(ref) is None
+    assert calls == []
+    assert po.skills_catalog_by_hash(ref, materialize=fake_build_snapshot) == catalog
     assert calls == [True]
     assert po.catalog_store.load_skills_catalog_from_store(ref) == catalog
 
     # The immutable body is now a direct store hit.  A second lookup must not
     # rebuild the live projection.
-    assert po.skills_catalog_by_hash(ref) == catalog
+    assert po.skills_catalog_by_hash(ref, materialize=fake_build_snapshot) == catalog
     assert calls == [True]
 
 

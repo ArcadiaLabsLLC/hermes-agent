@@ -10,10 +10,9 @@ import json
 from typing import Any
 
 from ..persona_assignments import safe_assignment_token
-from ..serde import to_jsonable
+from ..serde import non_negative_int, to_jsonable
 from .safe_views import (
     _safe_cache_routing,
-    _safe_int,
     _safe_system_prompt_sections,
     _safe_user_message_wire,
 )
@@ -152,8 +151,8 @@ def _final_model_input_stub(final_model_input: dict[str, Any], context_id: Any) 
     tool_schema = final_model_input.get("tool_schema")
     if isinstance(tool_schema, dict):
         stub["tool_schema"] = {
-            "tool_count": _safe_int(tool_schema.get("tool_count")),
-            "json_bytes": _safe_int(tool_schema.get("json_bytes")),
+            "tool_count": non_negative_int(tool_schema.get("tool_count")),
+            "json_bytes": non_negative_int(tool_schema.get("json_bytes")),
         }
     cache_routing = _safe_cache_routing(final_model_input.get("cache_routing"))
     if cache_routing is not None:

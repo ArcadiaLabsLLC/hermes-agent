@@ -211,21 +211,6 @@
    "unit": "agent_runtime/profile_runner.py|ProfileAgentRunner._execute_agent_run"
   },
   {
-   "depth": 2,
-   "lines": 501,
-   "unit": "agent_runtime/prompt_observability/mission_chat.py|mission_chat_prompt_observability"
-  },
-  {
-   "depth": 3,
-   "lines": 154,
-   "unit": "agent_runtime/prompt_observability/skills_context.py|available_skills_context"
-  },
-  {
-   "depth": 3,
-   "lines": 223,
-   "unit": "agent_runtime/prompt_observability/snapshot_frame.py|snapshot_prompt_observability"
-  },
-  {
    "depth": 5,
    "lines": 32,
    "unit": "agent_runtime/queued_skills.py|_queue_lock"

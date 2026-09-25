@@ -14,7 +14,7 @@
   "agent_runtime/gateway_peers.py": 1621,
   "agent_runtime/harness_doctor.py": 831,
   "agent_runtime/mcp_admission.py": 1452,
-  "agent_runtime/mission_chat_turns.py": 1147,
+  "agent_runtime/mission_chat_turns.py": 1141,
   "agent_runtime/office_store.py": 1874,
   "agent_runtime/operator_channels.py": 1394,
   "agent_runtime/persona_assignments.py": 3172,

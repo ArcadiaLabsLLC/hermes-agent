@@ -226,6 +226,8 @@ without touching the ratchet. Each carries the PR that retires the import.
 | upstream file | private names | fork reader | retires with |
 |---|---|---|---|
 | `gateway/session_context.py` | `_SESSION_ASYNC_DELIVERY`, `_UNSET` | `agent_runtime/delivery_capability.py` (`declare_async_delivery_channel`, `async_delivery_declared`; lane MOVE-A) | a two-function upstream PR adding those two readers beside `declare_stateless_channel` / `async_delivery_supported` |
+| `agent/auxiliary_client.py` | `_compression_threshold_for_model` | `agent_runtime/_upstream_doors.py::compression_threshold_for_model`, read by `agent_runtime/prompt_observability/context_budget.py::_compaction_ratio` (lane R2, ruling Q7) | held widening PR: expose `compression_threshold_for_model` publicly |
+| `tools/skills_tool.py` (also a diff row above) | `_find_all_skills` | `agent_runtime/_upstream_doors.py::skills_walker`, read by `agent_runtime/prompt_observability/skills_resolver.py::_resolve_skill_walker` (lane R2, ruling Q7) | held widening PR: publish `find_all_skills`. The public `agent.skill_utils.get_all_skills_dirs` returns the roots, not parsed skill rows; walking them in the fork would re-implement `_find_all_skills` (a parallel, ruled against 2026-09-23), so the door stays |
 
 ## Fork modules that shadow an upstream symbol (recorded parallels, no diff row)
 

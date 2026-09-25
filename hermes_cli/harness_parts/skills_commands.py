@@ -27,9 +27,10 @@ def _cmd_skills_catalog(args) -> int:
     """S8: resolve one content-addressed skills catalog by hash (frame-evicted)."""
 
     from agent_runtime.prompt_observability import skills_catalog_by_hash
+    from agent_runtime.snapshot import build_snapshot
 
     content_hash = str(getattr(args, "content_hash", "") or "").strip()
-    catalog = skills_catalog_by_hash(content_hash)
+    catalog = skills_catalog_by_hash(content_hash, materialize=build_snapshot)
     payload = {
         "hash": content_hash,
         "found": catalog is not None,

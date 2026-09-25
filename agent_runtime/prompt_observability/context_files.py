@@ -9,15 +9,22 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Callable, Mapping
 
 from hermes_cli.profiles import get_profile_dir
 
-from .safe_views import _safe_int, _safe_preview
+from ..serde import non_negative_int
+from .safe_views import _safe_preview
 
 __layer__ = "policy"
 __all__ = [
+    "CONTEXT_FILES",
+    "ContextFileKind",
+    "OTHER_CONTEXT_FILE",
+    "PromptContribution",
     "WorkspaceAgentsContext",
+    "context_file_kind",
     "_profile_context_files",
     "_token_estimate_from_bytes",
     "_layer_text_size",
@@ -215,29 +222,21 @@ def _attach_context_file_prompt_contributions(
     constructed agent's resolved tool set — see
     ``attach_prompt_observability_turn_results``)."""
 
+    contribution = PromptContribution(soul_chars=soul_chars, memory_loaded=memory_loaded)
     for row in context_files:
         if not isinstance(row, dict):
             continue
+        # A guard on a different key: the workspace AGENTS.md receipt is
+        # attributed by its row ``kind``, never by its file name (a profile's
+        # own AGENTS.md shares the name and is not pasted here).
         if row.get("kind") == "workspace_context":
             _set_row_prompt_contribution(row, workspace_chars)
             row["prompt_included"] = workspace_chars is not None
             row["prompt_status"] = "injected" if workspace_chars is not None else "not_injected"
             continue
-        name = row.get("name")
-        if name == "SOUL.md":
-            _set_row_prompt_contribution(row, soul_chars)
-            row["prompt_included"] = soul_chars is not None
-            row["prompt_status"] = "injected" if soul_chars is not None else "not_injected"
-        elif name in {"MEMORY.md", "USER.md"}:
-            has_content = bool(row.get("included")) and int(row.get("bytes") or 0) > 0
-            row["prompt_included"] = bool(memory_loaded and has_content)
-            row["prompt_status"] = (
-                "injected" if memory_loaded and has_content else "empty" if memory_loaded else "skipped"
-            )
-        elif name == "config.yaml":
-            _set_row_prompt_contribution(row, 0)
-            row["prompt_included"] = False
-            row["prompt_status"] = "observed_only"
+        entry = CONTEXT_FILES.get(str(row.get("name") or ""))
+        if entry is not None and entry.contribution is not None:
+            entry.contribution(row, contribution)
 
 
 def _attach_skills_prompt_contribution(
@@ -251,7 +250,7 @@ def _attach_skills_prompt_contribution(
 
     if not isinstance(final_model_input, dict):
         return
-    chars = _safe_int(final_model_input.get("skills_prompt_chars"))
+    chars = non_negative_int(final_model_input.get("skills_prompt_chars"))
     if chars is None:
         return
     files = context.get("context_files")
@@ -286,28 +285,96 @@ def _context_file_summary(path: Path, *, included: bool) -> dict[str, Any]:
     estimate = _token_estimate_from_bytes(len(raw))
     if estimate is not None:
         data["token_estimate"] = estimate
-    if path.name in {"SOUL.md", "MEMORY.md", "USER.md", "AGENTS.md"}:
-        text = raw.decode("utf-8", errors="replace")
-        data["preview"] = _safe_preview(text)
-    elif path.name == ".skills_prompt_snapshot.json":
-        data["preview"] = "Skills prompt snapshot present; body withheld from observability preview."
-    elif path.name == "config.yaml":
-        data["preview"] = "Profile config present; raw values withheld from observability preview."
+    preview = context_file_kind(path.name).preview
+    if preview is not None:
+        data["preview"] = preview(raw)
     return data
 
 
 def _file_kind(path: Path) -> str:
-    name = path.name
-    if name == "SOUL.md":
-        return "soul"
-    if name == "MEMORY.md":
-        return "memory"
-    if name == "USER.md":
-        return "user_memory"
-    if name == "AGENTS.md":
-        return "project_context"
-    if name == ".skills_prompt_snapshot.json":
-        return "skills"
-    if name == "config.yaml":
-        return "profile_config"
-    return "context_file"
+    return context_file_kind(path.name).kind
+
+
+# ── the context-file vocabulary: one table, three readers ────────────────────
+#
+# ``_file_kind`` (the row's ``kind``), ``_context_file_summary`` (its preview)
+# and ``_attach_context_file_prompt_contributions`` (its pre-turn in-prompt
+# contribution) each used to spell the six names by hand. They read this table
+# now, so a seventh context file is one row here (program rule 12).
+
+
+@dataclass(frozen=True, slots=True)
+class PromptContribution:
+    """What the pre-turn seam knows about the pasted parts: the SOUL overlay's
+    chars and whether the persona loads its profile memory."""
+
+    soul_chars: int | None
+    memory_loaded: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ContextFileKind:
+    """One context file's row ``kind``, its preview, and its pre-turn contribution.
+
+    ``preview`` is ``None`` for a file whose body is never previewed;
+    ``contribution`` is ``None`` for a file whose in-prompt share is not
+    reachable at the pre-turn seam (``.skills_prompt_snapshot.json`` is attached
+    post-turn; a profile ``AGENTS.md`` is not pasted by this lane).
+    """
+
+    kind: str
+    preview: Callable[[bytes], str] | None = None
+    contribution: Callable[[dict[str, Any], PromptContribution], None] | None = None
+
+
+def _text_preview(raw: bytes) -> str:
+    return _safe_preview(raw.decode("utf-8", errors="replace"))
+
+
+def _withheld_preview(message: str) -> Callable[[bytes], str]:
+    return lambda _raw: message
+
+
+def _soul_contribution(row: dict[str, Any], contribution: PromptContribution) -> None:
+    soul_chars = contribution.soul_chars
+    _set_row_prompt_contribution(row, soul_chars)
+    row["prompt_included"] = soul_chars is not None
+    row["prompt_status"] = "injected" if soul_chars is not None else "not_injected"
+
+
+def _memory_contribution(row: dict[str, Any], contribution: PromptContribution) -> None:
+    memory_loaded = contribution.memory_loaded
+    has_content = bool(row.get("included")) and int(row.get("bytes") or 0) > 0
+    row["prompt_included"] = bool(memory_loaded and has_content)
+    row["prompt_status"] = (
+        "injected" if memory_loaded and has_content else "empty" if memory_loaded else "skipped"
+    )
+
+
+def _observed_only_contribution(row: dict[str, Any], contribution: PromptContribution) -> None:
+    _set_row_prompt_contribution(row, 0)
+    row["prompt_included"] = False
+    row["prompt_status"] = "observed_only"
+
+
+CONTEXT_FILES: Mapping[str, ContextFileKind] = MappingProxyType({
+    "SOUL.md": ContextFileKind("soul", _text_preview, _soul_contribution),
+    "MEMORY.md": ContextFileKind("memory", _text_preview, _memory_contribution),
+    "USER.md": ContextFileKind("user_memory", _text_preview, _memory_contribution),
+    "AGENTS.md": ContextFileKind("project_context", _text_preview),
+    ".skills_prompt_snapshot.json": ContextFileKind(
+        "skills",
+        _withheld_preview("Skills prompt snapshot present; body withheld from observability preview."),
+    ),
+    "config.yaml": ContextFileKind(
+        "profile_config",
+        _withheld_preview("Profile config present; raw values withheld from observability preview."),
+        _observed_only_contribution,
+    ),
+})
+#: Any other file: a generic kind, no preview, no pre-turn contribution.
+OTHER_CONTEXT_FILE = ContextFileKind("context_file")
+
+
+def context_file_kind(name: str) -> ContextFileKind:
+    return CONTEXT_FILES.get(name, OTHER_CONTEXT_FILE)
