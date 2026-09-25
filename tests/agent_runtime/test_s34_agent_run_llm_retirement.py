@@ -24,6 +24,7 @@ from agent_runtime import (
 )
 from agent_runtime.models import AgentRun
 from agent_runtime.serde import from_jsonable
+from tests._downstream.split_package_source import package_source
 
 
 REMOVED_LLM_METADATA_CLUSTER = (
@@ -52,7 +53,8 @@ def test_the_direct_and_indirect_run_readers_no_longer_consume_llm():
         assert "run.llm" not in source, module.__name__
         assert 'getattr(run, "llm"' not in source, module.__name__
 
-    assert 'run.get("llm")' not in inspect.getsource(operator_channels)
+    # A package since lane B3: read every module of it, not just its __init__.
+    assert 'run.get("llm")' not in package_source(operator_channels)
 
 
 def test_historical_persisted_llm_payloads_are_ignored_by_current_serde():

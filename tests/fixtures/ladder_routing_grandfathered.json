@@ -90,28 +90,28 @@
    "site": "agent_runtime/office_sync.py|_reconcile_actors|ladder|decision.action"
   },
   {
+   "arms": 3,
+   "site": "agent_runtime/operator_channels/contract.py|_dedupe_conversation_messages|ladder|message.get('kind')"
+  },
+  {
+   "arms": 1,
+   "site": "agent_runtime/operator_channels/contract.py|_turn_identity_mismatched|vocab|agent"
+  },
+  {
    "arms": 6,
-   "site": "agent_runtime/operator_channels.py|_conversation_history_message|ladder|role"
+   "site": "agent_runtime/operator_channels/history_messages.py|_conversation_history_message|ladder|role"
   },
   {
    "arms": 4,
-   "site": "agent_runtime/operator_channels.py|_conversation_history_message|vocab|agent"
+   "site": "agent_runtime/operator_channels/history_messages.py|_conversation_history_message|vocab|agent"
   },
   {
    "arms": 8,
-   "site": "agent_runtime/operator_channels.py|_conversation_history_message|vocab|operator"
+   "site": "agent_runtime/operator_channels/history_messages.py|_conversation_history_message|vocab|operator"
   },
   {
    "arms": 1,
-   "site": "agent_runtime/operator_channels.py|_conversation_history_message|vocab|system"
-  },
-  {
-   "arms": 3,
-   "site": "agent_runtime/operator_channels.py|_dedupe_conversation_messages|ladder|message.get('kind')"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/operator_channels.py|_turn_identity_mismatched|vocab|agent"
+   "site": "agent_runtime/operator_channels/history_messages.py|_conversation_history_message|vocab|system"
   },
   {
    "arms": 1,

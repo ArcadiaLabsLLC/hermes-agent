@@ -41,14 +41,14 @@
    "unit": "agent_runtime/mcp_admission.py|resolve_mcp_admission"
   },
   {
-   "depth": 1,
-   "lines": 203,
-   "unit": "agent_runtime/operator_channels.py|_OperatorChannelBuilder.build"
-  },
-  {
    "depth": 2,
    "lines": 170,
-   "unit": "agent_runtime/operator_channels.py|_conversation_history_message"
+   "unit": "agent_runtime/operator_channels/history_messages.py|_conversation_history_message"
+  },
+  {
+   "depth": 1,
+   "lines": 203,
+   "unit": "agent_runtime/operator_channels/summary.py|_OperatorChannelBuilder.build"
   },
   {
    "depth": 1,
