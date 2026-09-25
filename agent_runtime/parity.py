@@ -52,6 +52,8 @@ from hermes_time import now
 
 from . import event_rotation
 
+__layer__ = "stores"
+
 PARITY_ENVELOPE_VERSION = 1
 
 # Cap the per-projection sample of concrete drop records carried in the snapshot

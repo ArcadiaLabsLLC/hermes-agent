@@ -21,6 +21,8 @@ import threading
 from pathlib import Path
 from typing import Any, Optional
 
+__layer__ = "stores"
+
 logger = logging.getLogger(__name__)
 
 #: Per-board ``task_events`` cursor, keyed by resolved DB path (two slugs can share one).

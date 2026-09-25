@@ -16,6 +16,8 @@ from hermes_cli.auth_constants import AuthError
 from hermes_constants import secure_parent_dir
 from utils import atomic_replace
 
+__layer__ = "stores"
+
 logger = logging.getLogger(__name__)
 ROTATION_STATE_VERSION = 1
 

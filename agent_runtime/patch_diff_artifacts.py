@@ -37,6 +37,8 @@ from typing import Any
 
 from . import paths
 
+__layer__ = "stores"
+
 #: Per-diff ceiling. A diff over this is truncated at a line boundary with
 #: :data:`PATCH_DIFF_TRUNCATION_MARKER` appended — never skipped, because an
 #: operator staring at a 900KB refactor is exactly who needs to read the first

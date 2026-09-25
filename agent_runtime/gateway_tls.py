@@ -99,6 +99,8 @@ from .store_file_io import narrow_windows_acl as _narrow_windows_acl
 from .store_file_io import os_error_reason as _os_reason
 from .store_file_io import prepare_windows_replace as _prepare_windows_replace
 
+__layer__ = "stores"
+
 __all__ = [
     "CERTIFICATE_FILENAME",
     "PRIVATE_KEY_FILENAME",

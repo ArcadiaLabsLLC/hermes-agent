@@ -23,6 +23,9 @@ from pathlib import Path
 
 __layer__ = "models"
 __all__ = [
+    "codex_bounded_prompt_cache_key",
+    "codex_cache_scope_from_session_id",
+    "codex_content_cache_key",
     "compression_threshold_for_model",
     "cron_pools_present",
     "mcp_key_name",
@@ -33,10 +36,20 @@ __all__ = [
     "mcp_signal_reconnect",
     "mcp_wait_for_session",
     "default_hermes_home",
+    "dispatch_streams",
+    "doctor_section",
+    "gateway_agent_pending_sentinel",
+    "iter_named_profile_dirs",
+    "looks_like_help_or_version_command",
     "pid_exists",
+    "profile_id_pattern",
     "sanitize_surrogates",
     "profiles_root",
+    "session_async_delivery_unset",
+    "session_async_delivery_var",
+    "skills_sync_primitives",
     "skills_walker",
+    "strip_quotes",
     "terminate_host_pid",
 ]
 
@@ -189,3 +202,100 @@ def mcp_register_server_tools(name: str, server: object, config: dict) -> object
     from tools.mcp_tool_registration import _register_server_tools
 
     return _register_server_tools(name, server, config)
+# ── lane W3-B: the single-reader reaches, moved in (each a held widening row in
+# ``upstream-footprint-ledger.md``, "Stock files a fork module reads by private
+# name"; each imported at CALL time like the call site it replaces) ──────────
+
+
+def codex_bounded_prompt_cache_key(key):
+    """``agent.transports.codex._bounded_prompt_cache_key`` — read by ``cache_routing``."""
+    from agent.transports.codex import _bounded_prompt_cache_key
+
+    return _bounded_prompt_cache_key(key)
+
+
+def codex_cache_scope_from_session_id(session_id):
+    """``agent.transports.codex._cache_scope_from_session_id`` — read by ``cache_routing``."""
+    from agent.transports.codex import _cache_scope_from_session_id
+
+    return _cache_scope_from_session_id(session_id)
+
+
+def codex_content_cache_key(instructions, tools, scope):
+    """``agent.transports.codex._content_cache_key`` — read by ``cache_routing``."""
+    from agent.transports.codex import _content_cache_key
+
+    return _content_cache_key(instructions, tools, scope)
+
+
+def dispatch_streams(agent) -> bool:
+    """``agent.turn_api_call._should_stream`` — read by ``conversation_observability``."""
+    from agent.turn_api_call import _should_stream
+
+    return bool(_should_stream(agent))
+
+
+def session_async_delivery_var():
+    """``gateway.session_context._SESSION_ASYNC_DELIVERY`` (the ContextVar itself) —
+    read by ``delivery_capability``."""
+    from gateway.session_context import _SESSION_ASYNC_DELIVERY
+
+    return _SESSION_ASYNC_DELIVERY
+
+
+def session_async_delivery_unset():
+    """``gateway.session_context._UNSET`` (the sentinel) — read by ``delivery_capability``."""
+    from gateway.session_context import _UNSET
+
+    return _UNSET
+
+
+def doctor_section(title: str) -> None:
+    """``hermes_cli.doctor_report._section`` — read by ``doctor_extensions``."""
+    from hermes_cli.doctor_report import _section
+
+    _section(title)
+
+
+def gateway_agent_pending_sentinel():
+    """``gateway.run._AGENT_PENDING_SENTINEL`` — read by ``gateway_queue_status``."""
+    from gateway.run import _AGENT_PENDING_SENTINEL
+
+    return _AGENT_PENDING_SENTINEL
+
+
+def profile_id_pattern():
+    """``hermes_cli.profiles._PROFILE_ID_RE`` — read by ``profile_home``."""
+    from hermes_cli.profiles import _PROFILE_ID_RE
+
+    return _PROFILE_ID_RE
+
+
+def iter_named_profile_dirs():
+    """``hermes_cli.profiles._iter_named_profile_dirs()`` — read by ``profile_home``."""
+    from hermes_cli.profiles import _iter_named_profile_dirs
+
+    return _iter_named_profile_dirs()
+
+
+def skills_sync_primitives():
+    """``(tools.skills_sync._dir_hash, tools.skills_sync._read_skill_name)`` ITSELF —
+    read by ``skill_publishability._sync_primitives``, which fails closed on any
+    import error. Raises what the import raises."""
+    from tools.skills_sync import _dir_hash, _read_skill_name
+
+    return _dir_hash, _read_skill_name
+
+
+def looks_like_help_or_version_command(command: str) -> bool:
+    """``tools.terminal_tool_guards._looks_like_help_or_version_command`` — read by ``terminal_policy``."""
+    from tools.terminal_tool_guards import _looks_like_help_or_version_command
+
+    return _looks_like_help_or_version_command(command)
+
+
+def strip_quotes(text: str) -> str:
+    """``tools.terminal_tool_guards._strip_quotes`` — read by ``terminal_policy``."""
+    from tools.terminal_tool_guards import _strip_quotes
+
+    return _strip_quotes(text)

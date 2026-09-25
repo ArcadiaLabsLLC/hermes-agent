@@ -53,6 +53,8 @@ from typing import Any
 
 from hermes_constants import get_default_hermes_root, get_hermes_home
 
+__layer__ = "models"
+
 logger = logging.getLogger(__name__)
 
 

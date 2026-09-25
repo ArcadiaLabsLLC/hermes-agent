@@ -14,6 +14,8 @@ import threading
 from contextlib import contextmanager
 from collections.abc import Iterator
 
+__layer__ = "policy"
+
 
 _request_cancel_event: contextvars.ContextVar[threading.Event | None] = (
     contextvars.ContextVar("harness_request_cancel_event", default=None)

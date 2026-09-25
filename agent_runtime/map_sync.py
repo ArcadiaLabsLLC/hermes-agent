@@ -58,6 +58,8 @@ from typing import Any
 
 from . import paths
 
+__layer__ = "stores"
+
 #: Published subtree prefix for this family. Unknown to every older hermes:
 #: ``_destination_for_sync_path`` answers ``None`` for it through the final
 #: fallthrough, so an older member SKIPS the artifact rather than writing it

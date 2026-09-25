@@ -13,6 +13,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, Iterator
 
+__layer__ = "policy"
+
 _PERSONA_TURN_AGENT: ContextVar[Any] = ContextVar("eternia_persona_turn_agent", default=None)
 
 

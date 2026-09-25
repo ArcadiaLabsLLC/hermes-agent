@@ -35,6 +35,8 @@ from __future__ import annotations
 
 from typing import Any
 
+__layer__ = "stores"
+
 COPY_SCOPES = ("office", "board", "agents", "settings")
 # Scopes materialized AFTER the workspace exists (content stores). The
 # ``agents`` / ``settings`` scopes are consumed by the create verb itself.

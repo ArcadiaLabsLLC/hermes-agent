@@ -39,6 +39,8 @@ restriction, never a lapsed grant.
 
 from __future__ import annotations
 
+__layer__ = "models"
+
 #: The historical bounded tier. As a STORED record it means "no opinion".
 PERMISSION_MODE_PROFILE_DEFAULT = "profile_default"
 #: Explicit operator restriction to the bounded tier (§3.5 option (a)).

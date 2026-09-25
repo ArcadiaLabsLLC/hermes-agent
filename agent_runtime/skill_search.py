@@ -5,6 +5,8 @@ from tools import skills_tool as _st
 from tools.registry import tool_error
 from tools.skills_hub_search import create_source_router, unified_search
 
+__layer__ = "stores"
+
 
 def _skill_identifier(skill: Dict[str, Any]) -> str:
     """Return the stable identifier a model can pass to ``skill_view``."""

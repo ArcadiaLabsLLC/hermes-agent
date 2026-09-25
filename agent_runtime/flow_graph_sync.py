@@ -49,6 +49,8 @@ import yaml
 
 from .flow_graph import owner_instance_id_of
 
+__layer__ = "stores"
+
 # --- projection contract ---------------------------------------------------
 
 PROJECTION_KIND = "realm_flow_graphs"

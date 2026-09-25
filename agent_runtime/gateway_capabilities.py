@@ -47,6 +47,8 @@ from __future__ import annotations
 
 from typing import Any
 
+__layer__ = "policy"
+
 __all__ = [
     "GATEWAY_CAPABILITIES",
     "GATEWAY_CAPABILITY_CONTRACT",

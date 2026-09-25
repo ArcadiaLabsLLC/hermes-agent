@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+__layer__ = "policy"
+
 
 # Retired definitions remain part of the administrative catalog, but they are
 # not runtime personas and must never acquire a live PersonaInstance.  Keep the

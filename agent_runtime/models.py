@@ -7,6 +7,8 @@ from typing import Any
 
 from .states import RunState, WorkerSessionState
 
+__layer__ = "models"
+
 
 # The structural prefix every persona-instance id carries. Defined at this low
 # layer (no import back into persona_assignments, which would be a cycle) so the

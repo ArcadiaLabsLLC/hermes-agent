@@ -4,7 +4,13 @@ import logging
 import os
 import re
 from typing import Optional, Dict, Any, Tuple
-from tools.terminal_tool_guards import _looks_like_help_or_version_command, _strip_quotes
+from ._upstream_doors import (
+    looks_like_help_or_version_command as _looks_like_help_or_version_command,
+    strip_quotes as _strip_quotes,
+)
+
+__layer__ = "wiring"
+
 logger = logging.getLogger("tools.terminal_tool")
 
 _HARNESS_NETWORK_ALLOWLIST = ("localhost", "127.0.0.1", "::1", "host.docker.internal")

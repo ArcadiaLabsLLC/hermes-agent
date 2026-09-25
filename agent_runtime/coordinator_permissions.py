@@ -44,6 +44,8 @@ from dataclasses import dataclass, replace
 from .models import AgentPersona, PersonaInstance
 from .runtime_config import CoordinatorPermissionConfig
 
+__layer__ = "stores"
+
 STEER_ACTIONS = frozenset(
     {
         "mission.chat.message",

@@ -33,6 +33,8 @@ import os
 import sys
 from typing import Any, Iterable, Sequence
 
+from .serde import unique_texts
+
 #: ``requirement_failures[].code`` for the drop this module accounts for.
 MCP_NOT_REGISTERED_ON_LANE = "mcp_not_registered_on_lane"
 
@@ -179,7 +181,7 @@ def mcp_lane_requirement_failures(
     once you know WHERE it was not registered.
     """
 
-    declared = _clean(declared_servers)
+    declared = unique_texts(declared_servers)
     if not declared:
         return []
     resolved_lane = str(lane or "").strip() or current_entry_point_lane()
@@ -188,7 +190,7 @@ def mcp_lane_requirement_failures(
     registered = (
         registered_mcp_server_names()
         if registered_servers is None
-        else frozenset(_clean(registered_servers))
+        else frozenset(unique_texts(registered_servers))
     )
     return [
         {
@@ -319,10 +321,3 @@ def mission_chat_mcp_lane_line(persona: Any, *, lane: str | None = None) -> str:
         return ""
 
 
-def _clean(values: Iterable[str] | None) -> list[str]:
-    out: list[str] = []
-    for value in values or []:
-        text = str(value or "").strip()
-        if text and text not in out:
-            out.append(text)
-    return out

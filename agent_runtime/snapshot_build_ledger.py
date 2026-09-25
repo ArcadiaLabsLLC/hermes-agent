@@ -30,6 +30,8 @@ import time
 from collections import deque
 from typing import Any
 
+__layer__ = "policy"
+
 #: Enough history to cover any single turn's window several times over (a turn
 #: is bounded by its wall budget; builds are seconds apart at worst). Bounded so
 #: a long-lived serve process cannot grow this without limit.

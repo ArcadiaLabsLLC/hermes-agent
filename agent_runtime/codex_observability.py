@@ -3,6 +3,9 @@ import logging
 import time
 from contextlib import contextmanager
 from typing import Any, Dict
+
+__layer__ = "stores"
+
 logger = logging.getLogger(__name__)
 
 def _emit_provider_timing(

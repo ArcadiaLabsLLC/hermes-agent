@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+__layer__ = "models"
+
 # S54: every import this module had went with ``classify_exception`` -- it was
 # the only thing here that did any work. ``dataclass`` typed its return value,
 # ``re``/``Path`` redacted the summary, and ``DecisionPayloadInvalid`` /

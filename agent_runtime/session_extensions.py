@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Any, List, Optional
 
+__layer__ = "policy"
+
 
 def delete_compression_lineage(
     db: Any,

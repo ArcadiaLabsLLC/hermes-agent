@@ -60,6 +60,8 @@ from utils import atomic_json_write
 from . import paths
 from .persona_assignments import PersonaInstanceStore, safe_assignment_token
 
+__layer__ = "stores"
+
 # A flow doc is a small authored drawing; anything near this size is not one.
 MAX_FLOW_DOC_BYTES = 256 * 1024
 

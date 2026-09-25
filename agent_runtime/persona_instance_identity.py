@@ -55,6 +55,8 @@ from .persona_assignments import (
 )
 from .serde import from_jsonable, to_jsonable
 
+__layer__ = "stores"
+
 # The retired operator-channel id scheme: personainst_operator_<hex>. Rows in
 # this scheme are the persona's operator channel persisted under a session
 # hash; they fold onto persona_instance_id_for(persona_id).

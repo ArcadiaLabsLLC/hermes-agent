@@ -10,6 +10,8 @@ from .events import EventLog
 from .models import Event, PersonaInstance
 from .persona_assignments import safe_assignment_text
 
+__layer__ = "stores"
+
 
 def emit_child_returned(
     *,

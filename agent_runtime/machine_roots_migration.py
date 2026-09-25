@@ -29,6 +29,8 @@ from .machine_roots import (
     write_machine_roots,
 )
 
+__layer__ = "stores"
+
 # ``platforms:`` is the declarative gate this migration adds to entries that
 # genuinely cannot run anywhere but Windows.
 _WINDOWS_ONLY_MARKERS = (".ps1", "powershell.exe", "powershell ", "pwsh.exe")

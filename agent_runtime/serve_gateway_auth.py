@@ -180,6 +180,8 @@ from .store_file_io import stamp_passed as _stamp_passed
 from .store_file_io import store_lock as _file_lock
 from .store_file_io import write_secure_json as _write_secure
 
+__layer__ = "policy"
+
 __all__ = [
     "AUTH_EXPIRED",
     "CODE_ALPHABET",

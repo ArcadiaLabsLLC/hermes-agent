@@ -18,6 +18,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+__layer__ = "policy"
+
 
 #: ``PullDecision.reason`` words a caller branches on, named beside their one
 #: producer (``persona_instance_sync.pull`` reads them by name).

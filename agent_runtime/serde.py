@@ -11,6 +11,8 @@ from pathlib import Path
 from types import NoneType, UnionType
 from typing import Any, get_args, get_origin, get_type_hints
 
+__layer__ = "models"
+
 
 def to_jsonable(value: Any) -> Any:
     if is_dataclass(value):
@@ -383,6 +385,20 @@ def dedupe_tokens(values: list[str] | None) -> list[str]:
             seen.add(token)
             result.append(token)
     return result
+
+
+def unique_texts(values: Any) -> list[str]:
+    """``str(v).strip()`` of each value, empties dropped, first-seen order, no repeats.
+
+    ONE authority (lane W3-B): ``mcp_lane`` and ``tool_visibility`` each carried a
+    byte-identical private copy (W0-G3 duplicate-body row).
+    """
+    out: list[str] = []
+    for value in values or []:
+        text = str(value or "").strip()
+        if text and text not in out:
+            out.append(text)
+    return out
 
 
 def safe_assignment_text(value: Any, *, limit: int) -> str:

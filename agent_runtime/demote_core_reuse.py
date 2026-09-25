@@ -65,6 +65,8 @@ from typing import Any
 from . import paths
 from .parity import core_event_offset, events_position
 
+__layer__ = "stores"
+
 #: The provenance token for a core this module handed back, on the reusing
 #: caller's ``snapshot_build`` receipt. Spelled in the ``core_source`` vocabulary
 #: ``core_cache`` established (``cache`` / ``rebuilt``) rather than in a second

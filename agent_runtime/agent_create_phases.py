@@ -75,6 +75,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Iterator
 
+__layer__ = "policy"
+
 logger = logging.getLogger(__name__)
 
 #: One INFO line per completed mint, format-pinned by

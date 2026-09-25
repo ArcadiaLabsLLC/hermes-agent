@@ -11,6 +11,8 @@ from utils import atomic_json_write
 from . import paths
 from .persona_assignments import safe_assignment_token
 
+__layer__ = "stores"
+
 
 def _queue_dir():
     return paths.store_root() / "queued_skills"

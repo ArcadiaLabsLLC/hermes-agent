@@ -13,6 +13,8 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+__layer__ = "policy"
+
 
 CONTRACT_SCHEMA_VERSION = 1
 

@@ -15,6 +15,8 @@ import logging
 import time
 from typing import Any
 
+__layer__ = "stores"
+
 logger = logging.getLogger(__name__)
 
 #: The command and its alias, without the leading slash.
@@ -32,8 +34,9 @@ def _command_name(text: Any) -> str:
 
 async def queue_status_report(gateway: Any, event: Any) -> str:
     """The /queue-status report: active-run and queue visibility for the sender's session."""
-    from gateway.run import _AGENT_PENDING_SENTINEL
     from tools.process_registry import format_uptime_short
+
+    from ._upstream_doors import gateway_agent_pending_sentinel
 
     source = event.source
     # Must go through the awaited facade, not the raw sync store: this is
@@ -57,7 +60,7 @@ async def queue_status_report(gateway: Any, event: Any) -> str:
     is_running = session_key in running_agents
     if not is_running:
         state = "idle"
-    elif current_agent is _AGENT_PENDING_SENTINEL:
+    elif current_agent is gateway_agent_pending_sentinel():
         state = "starting"
     else:
         state = "running"

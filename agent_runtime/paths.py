@@ -4,6 +4,8 @@ from pathlib import Path
 
 from .resolution import assert_probe_isolation, resolve_runtime
 
+__layer__ = "models"
+
 
 def store_root() -> Path:
     resolution = resolve_runtime()

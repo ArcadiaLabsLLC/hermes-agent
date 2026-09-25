@@ -1,5 +1,7 @@
 """Stable downstream tool guidance, independent of upstream prompt layout."""
 
+__layer__ = "models"
+
 TOOL_DESCRIBE_GUIDANCE = (
     "Tool descriptions are brief. Before the first use of an unfamiliar tool, "
     "call tool_describe(<name>) to load its full documentation and parameter "

@@ -185,9 +185,9 @@ def _sync_primitives():
     """
 
     try:
-        from tools.skills_sync import _dir_hash, _read_skill_name
+        from ._upstream_doors import skills_sync_primitives
 
-        return _dir_hash, _read_skill_name
+        return skills_sync_primitives()
     except Exception:  # noqa: BLE001 — any import failure means "unknown"
         logger.warning(
             "tools.skills_sync bundled-manifest primitives unavailable; "

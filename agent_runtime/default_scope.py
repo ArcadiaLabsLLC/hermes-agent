@@ -5,6 +5,7 @@ import shutil
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol, TypeVar
 
 from hermes_time import now
 from utils import atomic_json_write
@@ -14,6 +15,8 @@ from .errors import DefaultScopeReconciliationRequired, NotFound, StoreCorrupt
 from .locks import archive_lock
 from .models import Realm, Workspace
 from .store import RealmStore, WorkspaceStore, lift_deleted_workspace
+
+__layer__ = "stores"
 
 
 DEFAULT_REALM_ID = "realm_default"
@@ -43,8 +46,8 @@ def ensure_default_scope(*, agent_ids: list[str] | None = None) -> DefaultScope:
     realm_store = RealmStore()
     workspace_store = WorkspaceStore()
 
-    realm = _get_realm(realm_store, DEFAULT_REALM_ID)
-    reserved_workspace = _get_workspace(workspace_store, DEFAULT_WORKSPACE_ID)
+    realm = _get_scoped(realm_store, DEFAULT_REALM_ID)
+    reserved_workspace = _get_scoped(workspace_store, DEFAULT_WORKSPACE_ID)
     legacy_realms = _legacy_default_realms(realm_store)
 
     if realm is not None and legacy_realms:
@@ -184,8 +187,8 @@ def preview_default_scope_migration() -> dict:
 
     realm_store = RealmStore()
     workspace_store = WorkspaceStore()
-    canonical = _get_realm(realm_store, DEFAULT_REALM_ID)
-    reserved_workspace = _get_workspace(workspace_store, DEFAULT_WORKSPACE_ID)
+    canonical = _get_scoped(realm_store, DEFAULT_REALM_ID)
+    reserved_workspace = _get_scoped(workspace_store, DEFAULT_WORKSPACE_ID)
     legacy = _legacy_default_realms(realm_store)
     archived_default_like = [
         item
@@ -255,7 +258,7 @@ def preview_default_scope_migration() -> dict:
         for workspace_id in [candidate.default_workspace_id, *configured_ids]:
             if not workspace_id or workspace_id in related_by_id:
                 continue
-            item = _get_workspace(workspace_store, workspace_id)
+            item = _get_scoped(workspace_store, workspace_id)
             if item is not None:
                 related_by_id[item.id] = item
         workspace_rows: list[dict] = []
@@ -380,10 +383,10 @@ def reconcile_default_scope_to_legacy(
     workspace_store = WorkspaceStore()
 
     with archive_lock():
-        winner_realm = _get_realm(realm_store, winner_realm_id)
-        winner_workspace = _get_workspace(workspace_store, winner_workspace_id)
-        loser_realm = _get_realm(realm_store, DEFAULT_REALM_ID)
-        loser_workspace = _get_workspace(workspace_store, DEFAULT_WORKSPACE_ID)
+        winner_realm = _get_scoped(realm_store, winner_realm_id)
+        winner_workspace = _get_scoped(workspace_store, winner_workspace_id)
+        loser_realm = _get_scoped(realm_store, DEFAULT_REALM_ID)
+        loser_workspace = _get_scoped(workspace_store, DEFAULT_WORKSPACE_ID)
 
         if winner_realm is None or winner_workspace is None:
             _raise_reconciliation_required(
@@ -423,10 +426,10 @@ def reconcile_default_scope_to_legacy(
         if loser_realm is None or loser_workspace is None:
             # Idempotent success after a previous application: archived fixed
             # ids are deliberately invisible to the live lookup.
-            archived_realm = _get_realm(
+            archived_realm = _get_scoped(
                 realm_store, DEFAULT_REALM_ID, include_archived=True
             )
-            archived_workspace = _get_workspace(
+            archived_workspace = _get_scoped(
                 workspace_store, DEFAULT_WORKSPACE_ID, include_archived=True
             )
             if (
@@ -622,27 +625,28 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _get_realm(
-    store: RealmStore,
-    realm_id: str,
-    *,
-    include_archived: bool = False,
-) -> Realm | None:
-    try:
-        item = store.get(realm_id)
-    except NotFound:
-        return None
-    return item if include_archived or not item.archived else None
+_Scoped = TypeVar("_Scoped", Realm, Workspace, covariant=True)
 
 
-def _get_workspace(
-    store: WorkspaceStore,
-    workspace_id: str,
+class _ScopedStore(Protocol[_Scoped]):
+    def get(self, item_id: str) -> _Scoped: ...
+
+
+def _get_scoped(
+    store: _ScopedStore[_Scoped],
+    item_id: str,
     *,
     include_archived: bool = False,
-) -> Workspace | None:
+) -> _Scoped | None:
+    """The realm or workspace ``item_id`` names in ``store``, or None when it is
+    missing — or archived, unless ``include_archived``.
+
+    One lookup for both scoped stores, TYPED per store (a ``RealmStore`` answers
+    ``Realm | None``, a ``WorkspaceStore`` ``Workspace | None``) — the shape the
+    duplicate gate's grandfather reason asked for before the byte-identical
+    ``_get_realm`` / ``_get_workspace`` pair could fold (lane W3-B)."""
     try:
-        item = store.get(workspace_id)
+        item = store.get(item_id)
     except NotFound:
         return None
     return item if include_archived or not item.archived else None
@@ -685,7 +689,7 @@ def _select_default_workspace(
         if item.realm_id == realm.id and not item.archived
     ]
     if realm.default_workspace_id:
-        declared = _get_workspace(workspace_store, realm.default_workspace_id)
+        declared = _get_scoped(workspace_store, realm.default_workspace_id)
         if declared is not None and not declared.archived:
             if declared.realm_id in {None, realm.id}:
                 return declared, None

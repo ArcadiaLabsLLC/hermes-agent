@@ -85,6 +85,8 @@ from .realm_sync import (
 from .serde import to_jsonable
 from .store import RealmStore
 
+__layer__ = "lanes"
+
 #: The event a completed revert appends. It advances the EventLog watermark the
 #: same way ``realm.sync.pulled`` / ``realm.sync.published`` do, because a
 #: revert rewrites store state through the same door and a live office

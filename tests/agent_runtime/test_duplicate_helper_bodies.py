@@ -100,24 +100,6 @@ _GRANDFATHERED: dict[tuple[str, ...], str] = {
     # folding the two onto one ``content_hash(payload)``, and the fold is now
     # further away rather than nearer, because the office lane has an exclusion
     # rule the board lane must not inherit silently.
-    (
-        "agent_runtime/default_scope.py::_get_realm",
-        "agent_runtime/default_scope.py::_get_workspace",
-    ): (
-        "KEPT, with a reason. Two typed wrappers over one body in the SAME "
-        "file: folding them to a generic would hand thirteen call sites an "
-        "untyped return where they currently get `Realm | None` / "
-        "`Workspace | None`. A TypeVar-parameterized `_get_unarchived` would "
-        "preserve both, and is the right shape if this is ever revisited — "
-        "but that is a design change, not a deduplication"
-    ),
-    (
-        "agent_runtime/mcp_lane.py::_clean",
-        "agent_runtime/tool_visibility.py::_clean_names",
-    ): (
-        "NEW at this gate's first run. Same normalize-a-name-list body under "
-        "a generic name and a specific one; deferred with the pair above"
-    ),
 }
 
 

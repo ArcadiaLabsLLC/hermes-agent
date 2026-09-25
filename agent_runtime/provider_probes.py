@@ -3,6 +3,8 @@ from typing import Optional, Dict, Any
 from agent_runtime import auth_extensions as auth_ext
 from agent_runtime.pool_rotation import pool_rotation_scope
 
+__layer__ = "stores"
+
 
 def probe_runtime_provider(
     *,

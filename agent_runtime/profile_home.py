@@ -256,13 +256,15 @@ def available_profile_template_summaries() -> List[ProfileTemplateInfo]:
     roster of names alone is upstream's :func:`list_profile_names`.
     """
 
-    from hermes_cli.profiles import _PROFILE_ID_RE, _iter_named_profile_dirs, read_profile_meta
+    from hermes_cli.profiles import read_profile_meta
+
+    from ._upstream_doors import iter_named_profile_dirs, profile_id_pattern
 
     profiles: list[ProfileTemplateInfo] = []
     try:
         # A raw directory walk admits tombstones, ghost shells and crashed
         # empty-.env profiles as placeable Launcher personas.
-        entries = _iter_named_profile_dirs()
+        entries = iter_named_profile_dirs()
     except Exception:
         return []
 
@@ -271,7 +273,7 @@ def available_profile_template_summaries() -> List[ProfileTemplateInfo]:
             if not _hc.named_profile_has_servable_identity(entry):
                 continue
             name = entry.name
-            if name == "default" or not _PROFILE_ID_RE.match(name):
+            if name == "default" or not profile_id_pattern().match(name):
                 continue
             meta = read_profile_meta(entry)
             profiles.append(

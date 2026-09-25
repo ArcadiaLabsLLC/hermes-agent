@@ -1,3 +1,6 @@
+
+__layer__ = "models"
+
 class AgentRuntimeError(Exception):
     """Base class for agent runtime harness errors."""
 

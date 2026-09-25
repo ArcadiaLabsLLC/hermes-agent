@@ -5,6 +5,8 @@ from functools import singledispatch
 from pathlib import Path
 from typing import Any, Callable
 
+__layer__ = "policy"
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Secret-shaped assignment — ONE rule, ONE home.

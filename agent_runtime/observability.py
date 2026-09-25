@@ -10,6 +10,8 @@ from .models import Event, Incident
 from .states import RunState
 from .store import ACTIVE_RUN_STATES
 
+__layer__ = "stores"
+
 DEFAULT_RUN_STALLED_AFTER_SECONDS = 900
 DELIVERY_EVIDENCE_INCIDENT_KINDS = frozenset({"patch_landed_nowhere", "stage_no_progress"})
 

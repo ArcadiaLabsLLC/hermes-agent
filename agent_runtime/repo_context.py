@@ -19,6 +19,8 @@ from . import paths
 from .machine_roots import load_machine_roots
 from .redaction import TEXT_SECRET_VALUE_ASSIGNMENT_RE
 
+__layer__ = "stores"
+
 HARNESS_WORKTREE_GC_TTL_SECONDS = 24 * 60 * 60
 # Bound same-day churn: keep at most this many clean worktrees per source repo.
 # Older clean worktrees beyond the cap are reaped even within the TTL window.

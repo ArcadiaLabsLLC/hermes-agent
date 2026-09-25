@@ -55,6 +55,8 @@ from typing import Any
 
 from . import paths
 
+__layer__ = "stores"
+
 MANIFEST_VERSION = 1
 
 # Default live-slice cap. Configurable via ``event_log.rotation_cap_bytes``

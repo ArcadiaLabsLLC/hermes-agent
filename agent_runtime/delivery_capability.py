@@ -4,14 +4,16 @@ Upstream's ``gateway.session_context`` owns ``_SESSION_ASYNC_DELIVERY`` and its
 ``_UNSET`` sentinel and exposes ``declare_stateless_channel`` /
 ``async_delivery_supported``. The harness needs the other two halves — a
 positive declaration and "was it declared at all" — so they live here and read
-the same contextvar. Importing the two module-private names edits no upstream
-file; they retire with a two-function upstream PR (ledger row
-``gateway/session_context.py``).
+the same contextvar, through the package's door (``_upstream_doors``, lane
+W3-B). Reading the two module-private names edits no upstream file; they retire
+with a two-function upstream PR (ledger row ``gateway/session_context.py``).
 """
 
 from __future__ import annotations
 
-from gateway.session_context import _SESSION_ASYNC_DELIVERY, _UNSET
+from ._upstream_doors import session_async_delivery_unset, session_async_delivery_var
+
+__layer__ = "stores"
 
 
 def declare_async_delivery_channel() -> None:
@@ -24,7 +26,7 @@ def declare_async_delivery_channel() -> None:
     dispatch-delivery drain). Like its counterpart, it does NOT latch
     ``_session_context_engaged``.
     """
-    _SESSION_ASYNC_DELIVERY.set(True)
+    session_async_delivery_var().set(True)
 
 
 def async_delivery_declared() -> bool:
@@ -35,4 +37,4 @@ def async_delivery_declared() -> bool:
     make a DURABLE promise on a lane it does not control reads the silence as a
     no. Same contextvar, read for whether it was bound at all.
     """
-    return _SESSION_ASYNC_DELIVERY.get() is not _UNSET
+    return session_async_delivery_var().get() is not session_async_delivery_unset()

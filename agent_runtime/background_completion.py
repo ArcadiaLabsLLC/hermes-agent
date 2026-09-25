@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from typing import Any
 
+__layer__ = "policy"
+
 #: Arguments through which a spawn has already decided its own notification.
 _EXPLICIT_NOTIFY_KEYS = ("notify", "notify_on_complete", "watch_patterns")
 

@@ -58,6 +58,8 @@ from typing import Any, Callable
 
 from agent_runtime.clock import now_iso_micro
 
+__layer__ = "policy"
+
 #: The one key this whole module adds to a turn record.
 TURN_PHASES_KEY = "phases"
 

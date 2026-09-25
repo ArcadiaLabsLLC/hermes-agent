@@ -50,6 +50,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+__layer__ = "policy"
+
 #: The wire key this block travels under, on the mission-chat payload and
 #: anywhere else that adopts it. One spelling, imported — never a literal at a
 #: call site, which is how the two halves of a seam drift apart.

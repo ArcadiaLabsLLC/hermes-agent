@@ -34,6 +34,8 @@ from .repo_context import (
     worktree_patch_text,
 )
 
+__layer__ = "stores"
+
 
 def reap_orphan_worktrees(
     *,

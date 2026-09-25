@@ -11,6 +11,8 @@ from collections.abc import Mapping
 from .parse_cache import cached_yaml_file
 from .errors import ProbeIsolationViolation
 
+__layer__ = "models"
+
 # Env marker a probe run sets to demand hard isolation. When truthy, the runtime root
 # MUST be a dedicated ``agent-runtime-probe-*`` temp dir won via the env layer, or every
 # store access fails fast (see ``assert_probe_isolation`` + ``paths.store_root``).

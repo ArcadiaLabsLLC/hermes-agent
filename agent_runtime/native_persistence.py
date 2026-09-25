@@ -1,6 +1,8 @@
 """Persona-chat live/persisted wire projection at the upstream database flush boundary."""
 from agent_runtime.persona_chat_continuity import native_wire_row, record_wire_boundary_drift
 
+__layer__ = "stores"
+
 
 def project_native_message(agent, msg, content, msg_idx):
     bound = native_wire_row({

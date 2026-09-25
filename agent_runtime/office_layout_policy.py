@@ -43,6 +43,8 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Sequence
 
+__layer__ = "policy"
+
 #: First lattice column's world X. **World origin, by operator ruling
 #: 2026-08-27**: an unaimed placement lands at ``(0, 0)`` and the operator looks
 #: there for it. This used to be ``-5.0`` to match the office's own unaimed-drop

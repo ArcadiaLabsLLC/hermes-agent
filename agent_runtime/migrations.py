@@ -7,6 +7,8 @@ from typing import Any
 from . import paths
 from .config import AgentRuntimeConfig, persona_records_from_config, load_agent_runtime_config, load_root_runtime_config
 
+__layer__ = "stores"
+
 CURRENT_RUNTIME_SCHEMA_VERSION = 1
 
 

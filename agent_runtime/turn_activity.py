@@ -47,6 +47,8 @@ from __future__ import annotations
 import threading
 from contextlib import contextmanager
 
+__layer__ = "policy"
+
 _LOCK = threading.Lock()
 _ADMITTED = 0
 

@@ -36,6 +36,8 @@ from typing import Iterable
 
 from agent_runtime.profile_home import get_shared_skills_dir
 
+__layer__ = "stores"
+
 
 def default_external_skill_dirs() -> list[Path]:
     """The external harness skill dirs to keep in sync, in a stable order.

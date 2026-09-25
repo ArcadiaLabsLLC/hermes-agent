@@ -71,6 +71,8 @@ from typing import Any, Callable, Iterable
 
 from .serde import optional_text
 
+__layer__ = "policy"
+
 
 def effective_workspace_id(
     instance: Any, *, active_workspace_id: str | None
