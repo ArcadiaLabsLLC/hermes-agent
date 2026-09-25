@@ -15,15 +15,13 @@ clobber on the send path.
 
 import ast
 from pathlib import Path
+from tests._downstream.persona_source import package_source
 
 
 def _persona_commands_source() -> str:
     # persona_commands.py is an exec'd command part (not importable); parse the
     # file text, which is exactly what harness exec's into its globals.
-    import hermes_cli.harness as harness
-
-    path = Path(harness.__file__).with_name("harness_parts") / "persona_commands.py"
-    return path.read_text(encoding="utf-8")
+    return package_source()
 
 
 def _func(name: str) -> ast.FunctionDef:
@@ -31,7 +29,7 @@ def _func(name: str) -> ast.FunctionDef:
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == name:
             return node
-    raise AssertionError(f"{name} not found in persona_commands")
+    raise AssertionError(f"{name} not found in the persona package")
 
 
 def _open_chat_calls(func: ast.FunctionDef) -> list[ast.Call]:

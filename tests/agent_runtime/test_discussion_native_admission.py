@@ -12,7 +12,7 @@ from agent_runtime.mission_chat_turns import mission_chat_turn_record
 from tests.agent_runtime.test_persona_assignments import (
     _assignment_config, _TranscriptDB, _mission_chat_test_args, _persona,
 )
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import chat_target, chat_turn_commit, chat_turn_message
 
 pytestmark = [pytest.mark.usefixtures("persisted_persona_samples"), pytest.mark.timeout(90)]
 ROOM = "persona_chat_personainst_dev_a01234567890"
@@ -54,14 +54,15 @@ def test_native_room_turn_preserves_operator_pointer_and_concurrent_row_fields(
             return SimpleNamespace(final_response="Pick a branch" if raw else "Room answer", raw=raw,
                 input_tokens=1, output_tokens=1, total_tokens=2)
 
-    monkeypatch.setattr(persona_commands, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(persona_commands, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(persona_commands, "GPTPersonaRuntime", Provider)
-    monkeypatch.setattr(persona_commands, "_maybe_auto_title_persona_chat", lambda **kwargs: None)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", Provider)
+    monkeypatch.setattr(chat_turn_commit, "_maybe_auto_title_persona_chat", lambda **kwargs: None)
     args = _mission_chat_test_args("aux-" + outcome)
     args.session_id = ROOM
     with auxiliary_chat(instance.id, ROOM):
-        code = persona_commands._cmd_mission_chat_message(args)
+        code = chat_turn_message._cmd_mission_chat_message(args)
     assert calls == [args.message]
     assert not is_auxiliary_chat(instance.id, ROOM)
     after = store.get(instance.id)

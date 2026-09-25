@@ -5,16 +5,15 @@ whole operating surface: an operator (or a relaying agent) sends one message to 
 instance, and a bounded, receipted, durable turn runs. This walks that turn in the order it happens.
 Every claim cites the file and line holding it at HEAD; anything the code could not be made to say
 sits under `## Open rows`, `## Unverified carry-forward`, or is gone. The handler is
-`_cmd_mission_chat_message` in `hermes_cli/harness_parts/persona_commands.py` — a command part
-`exec`-loaded into `harness.py`'s globals, which is why most of the turn's logic lives in importable
-`agent_runtime/` modules it calls.
+`_cmd_mission_chat_message` in `hermes_cli/harness_parts/persona/chat_turn_message.py`, which hands the run to
+`hermes_cli/harness_parts/persona/chat_turn_commit/`; most of the turn's logic lives in the `agent_runtime/` modules they call.
 
 ## 1. Send admission — the turn's identity and its thread
 
 **One id, minted launcher-side, echoed byte-equal.** The launcher mints `agent-chat-send-<uuid4>` as
 the intent's `idempotencyKey` (`mission_agent_chat_panel.dart`), sends it as the RPC's
 `client_message_id` (`mission_agent_chat_adapter.dart`), and hermes echoes it as `turn_id`
-(`persona_commands.py:3294`, `:3307`) after reading it at `:2191-2197`. Absent, hermes mints
+(`chat_turn_commit`'s reply envelopes) after `_cmd_mission_chat_message` reads it. Absent, hermes mints
 `agent-chat-send-<hex12>` and writes it back onto `args` so the serve lane and the turn store agree.
 The launcher's timeline names this the join key in its own docstring
 (`mission_chat_turn_timeline.dart`): one key, minted once, so the cross-process join is
@@ -23,12 +22,12 @@ never a time-proximity guess.
 **Explicit `session_id`** (new-chat and per-chat sends) runs two SessionDB guards, both
 `REJECTED`/exit 2:
 
-- `unknown_chat_session` (`persona_commands.py:2238-2253`) — the named root is not in the canonical
+- `unknown_chat_session` (`_cmd_mission_chat_message`) — the named root is not in the canonical
   SessionDB. `next_expected`: *open a server-minted chat root before sending*.
-- `foreign_chat_session` (`:2252-2280`) — the root exists but is not owned by the target: no owner,
+- `foreign_chat_session` (same handler) — the root exists but is not owned by the target: no owner,
   no owner row, a differing persona, or a pinned `persona_instance_id` that is not the owner. On
-  success the turn ADOPTS the owner as its instance identity (`:2280`), so the bind below cannot
-  receive a different one. A clarify-token continuation resolves BEFORE this point (`:2147-2157`)
+  success the turn ADOPTS the owner as its instance identity, so the bind below cannot
+  receive a different one. A clarify-token continuation resolves BEFORE this point
   precisely so a ticket-supplied session flows through these guards, not around them.
 
 **Omitted `session_id`** (the dispatch lane, and any first-turn open) never reaches them. It
@@ -118,13 +117,12 @@ component moved, names only, the same disclosure rule `resident_signature_diff` 
    rides the emitter's per-token `delta()` and may arrive on a worker thread.
 4. **Release-visible.** No flag, no debug gate; the block rides persists the turn already performs.
 
-Construction IS the anchor, taken as the handler's first statement (`persona_commands.py:2061`;
-the handler opens at `:2036`), ahead of the capability bind and the config load, because everything
-below is admission cost the operator waits through. Marks land at `:3158`, `:3197`, `:3225`,
-`:3266`, `:3282`, `:3295` (write_ahead — deliberately *before* the write it names), `:3450`,
-`:3662`, `:3880` and on the emitter (provider_first_byte, `~:4986`); `request_assembled` arrives as
-a trace payload, converted in `_stream_progress` (anchors re-read 2026-08-23 after the Stage 0–2
-edits moved this file). The emitter's older `ttft_ms` is unchanged; `phases` is a superset, because the
+Construction IS the anchor, taken as the handler's first statement
+(`turn_phases = TurnPhaseMarks()` in `_cmd_mission_chat_message`), ahead of the capability bind and the config load, because everything
+below is admission cost the operator waits through. Marks land at each
+`turn_phases.mark(...)` in `chat_turn_commit` (write_ahead — deliberately *before* the write it
+names) and on the emitter (provider_first_byte); `request_assembled` arrives as
+a trace payload, converted in `_stream_progress` (anchored by symbol since lane H3 split the file). The emitter's older `ttft_ms` is unchanged; `phases` is a superset, because the
 emitter is built ~1,100 lines in and its clock cannot see the profile bootstrap.
 
 ### 2a. The `timing` block on the terminal payload (RO-7, 2026-09-06)
@@ -191,14 +189,14 @@ magnitudes are dropped rather than coerced.
 ## 3. Model selection
 
 Four tiers, highest wins, resolved once in `_chat_effective_model_payload`
-(`persona_commands.py::_chat_effective_model_payload`):
+(`hermes_cli/harness_parts/persona/chat_session.py::_chat_effective_model_payload`):
 
 ```
 chat-session override  >  instance override  >  persona default  >  config default
 ```
 
 The chat-session override persists under `mission_control_chat_model_override`
-(`persona_commands.py::_resolve_chat_model_override`, `agent_runtime/persona_chat_history.py:234`) via
+(`hermes_cli/harness_parts/persona/chat_session.py::_resolve_chat_model_override`, `agent_runtime/persona_chat_history.py:234`) via
 `_resolve_chat_model_override`. Its scope is literally
 `mission_control_chat_session` (`:7085`, inside `_chat_effective_model_payload`) — per-thread,
 not per-instance. Values validate against
@@ -534,7 +532,7 @@ to nothing on the machine that received it.
 office placement in ONE handler with a recorded-progress reservation
 (`agent_runtime/agent_create_reservations.py`) and a compensating retire, replacing the launcher's
 two sequenced writes over two transports. `harness agent create`
-(`persona_commands.py::_cmd_agent_create`) is the same function behind an argv door — every result
+(`hermes_cli/harness_parts/persona/lifecycle_commands.py::_cmd_agent_create`) is the same function behind an argv door — every result
 field a script reads is the field it would read off the wire — and it works with no `harness serve`
 running because every lock in the path is a cross-process file lock. `harness agent retire` and
 `runtime.agent.retire` are the same arrangement for the inverse
@@ -617,7 +615,7 @@ application already filled every shared cache it would have reached. The same cr
 `warm_persona_memos` bills 281 ms with `chat_lane_scope_ms` at 15 and zero probe rounds; the
 neighbouring-memo-key suspicion is ACQUITTED at HEAD. No test asserts a millisecond; the gate is the
 counted mechanism — the registry's probe-round counter (`tools/registry.py:286`), sampled as a
-per-turn delta (`persona_commands.py:2066`, `:3429`).
+per-turn delta (baselined in `_cmd_mission_chat_message`, counted in `_mission_chat_commit_turn`).
 
 ## 10. Provider dispatch, and the outcome line
 

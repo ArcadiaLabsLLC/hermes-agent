@@ -26,7 +26,7 @@ from agent_runtime.mission_chat_turns import (
     next_turn_state,
     persist_mission_chat_turn,
 )
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import chat_events
 
 _SEGMENT = {
     "kind": "segment",
@@ -545,7 +545,7 @@ def test_chat_emitter_carries_explicit_empty_todo_state_on_both_lanes():
 
     def _drive(payload):
         frames: list[dict] = []
-        emitter = persona_commands._ChatProtocolV2Emitter(
+        emitter = chat_events._ChatProtocolV2Emitter(
             turn_id="turn_todo", client_message_id="m1", emit_frames=False
         )
         emitter._emit_chat_frame = lambda frame: frames.append(frame)  # capture frames

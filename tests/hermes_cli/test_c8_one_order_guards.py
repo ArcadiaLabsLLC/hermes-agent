@@ -15,13 +15,11 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from tests._downstream.persona_source import package_source
 
 
 def _persona_commands_source() -> str:
-    import hermes_cli.harness as harness
-
-    path = Path(harness.__file__).with_name("harness_parts") / "persona_commands.py"
-    return path.read_text(encoding="utf-8")
+    return package_source()
 
 
 def _tree() -> ast.Module:
@@ -32,14 +30,14 @@ def _func(tree: ast.AST, name: str) -> ast.FunctionDef:
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == name:
             return node
-    raise AssertionError(f"{name} not found in persona_commands.py")
+    raise AssertionError(f"{name} not found in the persona package")
 
 
 def _class(tree: ast.AST, name: str) -> ast.ClassDef:
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef) and node.name == name:
             return node
-    raise AssertionError(f"{name} not found in persona_commands.py")
+    raise AssertionError(f"{name} not found in the persona package")
 
 
 def _call_names(node: ast.AST) -> set[str]:
@@ -96,7 +94,7 @@ def test_sessiondb_ack_injection_helper_is_gone():
         "presentation-only turn.ack stream frame (C8)"
     )
     assert "PERSONA_PRE_TRACE_ACK_FINISH_REASON" not in source, (
-        "persona_commands must no longer stamp the ack finish_reason marker; "
+        "the persona package must no longer stamp the ack finish_reason marker; "
         "it survives ONLY as the projections' pre-C8 read-side residue"
     )
 

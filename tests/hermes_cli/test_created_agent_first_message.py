@@ -31,7 +31,17 @@ import pytest
 
 from agent_runtime.mission_chat_outcome import ChatErrorKind
 from tests.agent_runtime.office_seed import seed_workspace_record
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import (
+    chat_delete,
+    chat_open,
+    chat_target,
+    chat_turn_commit,
+    chat_turn_message,
+    inspect_commands,
+    instance_commands,
+    lifecycle_commands,
+    model_and_skills_commands,
+)
 
 WORKSPACE = "ws_created_agent_first_message"
 
@@ -93,9 +103,30 @@ def harness_with_stub_provider(monkeypatch):
             raise _ProviderReached("admission reached the provider")
 
     monkeypatch.setattr(
-        persona_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig()
+        chat_delete, "load_agent_runtime_config", lambda: AgentRuntimeConfig()
     )
-    monkeypatch.setattr(persona_commands, "GPTPersonaRuntime", _Provider)
+    monkeypatch.setattr(
+        chat_open, "load_agent_runtime_config", lambda: AgentRuntimeConfig()
+    )
+    monkeypatch.setattr(
+        chat_target, "load_agent_runtime_config", lambda: AgentRuntimeConfig()
+    )
+    monkeypatch.setattr(
+        chat_turn_message, "load_agent_runtime_config", lambda: AgentRuntimeConfig()
+    )
+    monkeypatch.setattr(
+        inspect_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig()
+    )
+    monkeypatch.setattr(
+        instance_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig()
+    )
+    monkeypatch.setattr(
+        lifecycle_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig()
+    )
+    monkeypatch.setattr(
+        model_and_skills_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig()
+    )
+    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _Provider)
     # Deliberately NOT patching ``_default_persona_session_db``: the guard under
     # test only fires against CANONICAL persistence, so a stub store would make
     # every row here pass vacuously. The real per-test SessionDB is the point.
@@ -152,7 +183,7 @@ def test_a_dragged_in_agent_is_not_refused_its_own_chat_pointer(
     created = _drag_in_an_agent("qa_agent_first_message_agent_2")
     root = created["default_chat_session_id"]
 
-    persona_commands._cmd_mission_chat_message(
+    chat_turn_message._cmd_mission_chat_message(
         _message_args(
             instance_id=created["persona_instance_id"], session_id=root
         )
@@ -196,7 +227,7 @@ def test_the_created_root_is_the_one_the_turn_actually_threads_onto(
     created = _drag_in_an_agent("qa_agent_threaded_agent_2")
     root = created["default_chat_session_id"]
 
-    persona_commands._cmd_mission_chat_message(
+    chat_turn_message._cmd_mission_chat_message(
         _message_args(
             instance_id=created["persona_instance_id"], session_id=root
         )

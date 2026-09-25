@@ -27,7 +27,18 @@ import pytest
 
 from agent_runtime.events import EventLog
 from agent_runtime.persona_assignments import PersonaInstanceStore
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import (
+    chat_delete,
+    chat_open,
+    chat_target,
+    chat_tickets_commands,
+    chat_turn_commit,
+    chat_turn_message,
+    inspect_commands,
+    instance_commands,
+    lifecycle_commands,
+    model_and_skills_commands,
+)
 
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
@@ -66,9 +77,20 @@ def _chat_lane(monkeypatch, db):
                 raw={},
             )
 
-    monkeypatch.setattr(persona_commands, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(persona_commands, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(persona_commands, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(inspect_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(model_and_skills_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _ProviderSpy)
     return harness
 
 
@@ -140,7 +162,7 @@ def test_unknown_chat_session_send_refusal_is_durably_recorded(
     db = _canonical_db()
     harness = _chat_lane(monkeypatch, db)
 
-    code = persona_commands._cmd_mission_chat_message(
+    code = chat_turn_message._cmd_mission_chat_message(
         _send_args(
             persona_id="dev",
             persona_instance_id=None,
@@ -171,7 +193,7 @@ def test_foreign_chat_session_send_refusal_is_durably_recorded(
     harness = _chat_lane(monkeypatch, db)
     owner = _owned_root(db, persona_id="dev", display_name="Dev")
 
-    code = persona_commands._cmd_mission_chat_message(
+    code = chat_turn_message._cmd_mission_chat_message(
         _send_args(
             persona_id="qa",
             persona_instance_id=None,
@@ -222,7 +244,7 @@ def test_retired_persona_instance_send_refusal_is_durably_recorded(
     store.retire(instance.id, reason="placement deleted")
     assert instance.id not in {row.id for row in store.list_all()}
 
-    code = persona_commands._cmd_mission_chat_message(
+    code = chat_turn_message._cmd_mission_chat_message(
         _send_args(
             persona_id="dev",
             persona_instance_id=instance.id,
@@ -258,7 +280,7 @@ def test_all_three_guard_refusals_satisfy_the_registered_event_contract(
     db = _canonical_db()
     harness = _chat_lane(monkeypatch, db)
 
-    persona_commands._cmd_mission_chat_message(
+    chat_turn_message._cmd_mission_chat_message(
         _send_args(
             persona_id="dev",
             persona_instance_id=None,

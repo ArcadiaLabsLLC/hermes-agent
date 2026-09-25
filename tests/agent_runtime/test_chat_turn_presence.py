@@ -34,6 +34,7 @@ from agent_runtime.chat_turn_presence import (
 )
 from agent_runtime.decision_contract_registry import event_catalog
 from agent_runtime.events import EventLog
+from tests._downstream.persona_source import package_source
 
 SESSION = "persona_chat_personainst_qa_agent_deadbeef_0011"
 CLIENT_MESSAGE_ID = "gesture-from-windows-1"
@@ -195,20 +196,14 @@ def test_a_second_end_publishes_nothing(isolate_agent_runtime_root):
 
 
 def _persona_commands_tree() -> ast.Module:
-    path = (
-        Path(__file__).resolve().parents[2]
-        / "hermes_cli"
-        / "harness_parts"
-        / "persona_commands.py"
-    )
-    return ast.parse(path.read_text(encoding="utf-8"))
+    return ast.parse(package_source())
 
 
 def _function(tree: ast.Module, name: str) -> ast.FunctionDef:
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == name:
             return node
-    raise AssertionError(f"{name} is not in persona_commands.py any more")
+    raise AssertionError(f"{name} is not in the persona package any more")
 
 
 def _calls(node: ast.AST, attr: str) -> list[ast.Call]:

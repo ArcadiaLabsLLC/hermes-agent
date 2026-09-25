@@ -29,14 +29,14 @@ What this contract deliberately does NOT touch:
 from __future__ import annotations
 
 import inspect
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import chat_turn_commit, chat_turn_message
 
 
 def _mission_chat_message_source() -> str:
     """Source of the mission-chat send handler, BOTH halves.
 
-    Both live in ``hermes_cli.harness_parts.persona_commands`` (a real module
-    since lane H1, 2026-09-24).
+    They live in ``hermes_cli.harness_parts.persona.chat_turn_message`` and
+    ``...persona.chat_turn_commit`` (lane H3, 2026-09-24).
 
     The handler was split on 2026-07-31 into a plan phase
     (``_cmd_mission_chat_message``) and the sole writer
@@ -47,8 +47,8 @@ def _mission_chat_message_source() -> str:
     """
 
     return "\n".join(
-        inspect.getsource(getattr(persona_commands, name))
-        for name in ("_cmd_mission_chat_message", "_mission_chat_commit_turn")
+        inspect.getsource(handler)
+        for handler in (chat_turn_message._cmd_mission_chat_message, chat_turn_commit._mission_chat_commit_turn)
     )
 
 
@@ -103,4 +103,4 @@ def test_mission_chat_message_still_emits_every_key_the_launcher_reads():
 def test_mission_chat_message_verb_is_still_alive():
     """Sanity: the handler this contract edits still exists and is a command."""
 
-    assert callable(persona_commands._cmd_mission_chat_message)
+    assert callable(chat_turn_message._cmd_mission_chat_message)

@@ -94,7 +94,7 @@ LEDGER: dict[str, str] = {
         "_cmd_office_show", "_cmd_office_actor_upsert", "_cmd_office_actor_remove",
         "_cmd_office_actor_restore", "_cmd_office_set_folders",
         "_cmd_office_resolve_conflict",
-        # harness_parts/persona_commands.py
+        # harness_parts/persona/ (lane H3 split persona_commands.py)
         "_cmd_persona_list", "_cmd_persona_show", "_cmd_persona_tool_diff",
         "_cmd_persona_permission_set", "_cmd_persona_assignments",
         "_cmd_persona_assignment_task_id_migration",
@@ -133,7 +133,7 @@ LEDGER.update(
 
 
 def _scan_files() -> list[Path]:
-    return [_HARNESS_PY, *sorted(_PARTS_DIR.glob("*.py"))]
+    return [_HARNESS_PY, *sorted(_PARTS_DIR.rglob("*.py"))]
 
 
 def _call_name(node: ast.Call) -> str | None:

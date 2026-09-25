@@ -4,7 +4,7 @@ import json
 import os
 
 import pytest
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import chat_turn_message
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
@@ -58,7 +58,7 @@ def test_instance_shaped_ids_are_relayed_for_canonical_resolution(monkeypatch):
         _reply(args, {"ok": True, "reply": "ack"})
         return 0
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     data = json.loads(agent_chat_send(persona_id="personainst_dev", message="hi"))
     assert data["ok"] is True
     assert seen["persona_id"] == "personainst_dev"
@@ -77,7 +77,7 @@ def test_omitted_session_is_forwarded_as_none_so_the_handler_threads(monkeypatch
         _reply(args, {"ok": True, "reply": "ack"})
         return 0
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     assert json.loads(agent_chat_send(persona_id="qa", message="hi"))["ok"]
     assert seen["session_id"] is None
     # An explicit session id still passes through untouched (continue THAT thread).
@@ -109,7 +109,7 @@ def test_relay_envelope_is_forwarded_explicitly(monkeypatch):
 
     import time
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     deadline = time.time() + 60.0
     chain_token = RELAY_CHAIN.set(("neko_supervisor",))
     deadline_token = RELAY_DEADLINE.set(deadline)
@@ -136,7 +136,7 @@ def test_root_relay_mints_the_shared_deadline(monkeypatch):
 
     import time
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     before = time.time()
     data = json.loads(agent_chat_send(persona_id="dev", message="hi", max_seconds=120))
     assert data["ok"] is True
@@ -150,7 +150,7 @@ def test_exhausted_shared_deadline_fast_fails_before_the_send(monkeypatch):
     def fake_handler(args):  # pragma: no cover - must not be reached
         raise AssertionError("relay must fast-fail before dispatch")
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     deadline_token = RELAY_DEADLINE.set(time.time() + 1.0)
     try:
         data = json.loads(agent_chat_send(persona_id="dev", message="hi"))
@@ -175,7 +175,7 @@ def test_typed_chokepoint_refusals_propagate(monkeypatch):
         )
         return 2
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     data = json.loads(agent_chat_send(persona_id="dev", message="hi"))
     assert data["ok"] is False
     assert data["error_kind"] == "relay_cycle"
@@ -201,7 +201,7 @@ def test_happy_path_returns_compact_reply_without_observability(monkeypatch):
         )
         return 0
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     data = json.loads(
         agent_chat_send(
             persona_id="neko_supervisor",
@@ -221,7 +221,7 @@ def test_failed_target_turn_surfaces_typed_error(monkeypatch):
         _reply(args, {"ok": False, "error": "unknown persona pm2"})
         return 2
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     data = json.loads(agent_chat_send(persona_id="pm2", message="hi"))
     assert data["ok"] is False
     assert data["error"] == "unknown persona pm2"
@@ -236,7 +236,7 @@ def test_tool_does_not_mutate_ambient_relay_state(monkeypatch):
         _reply(args, {"ok": True, "reply": "ack"})
         return 0
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     assert json.loads(agent_chat_send(persona_id="dev", message="hi"))["ok"]
     assert RELAY_CHAIN.get() == ()
     assert RELAY_DEADLINE.get() is None
@@ -381,7 +381,7 @@ def test_new_session_flag_is_forwarded_to_the_handler(monkeypatch):
         _reply(args, {"ok": True, "reply": "ack", "session_id": "persona_chat_personainst_qa_fresh"})
         return 0
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     # Absent → forwarded as None ("no opinion"), NOT False. Coercing to False
     # here would answer the policy question inside the tool and pin every
     # dispatch to the durable pair thread.
@@ -407,7 +407,7 @@ def test_registry_handler_does_not_default_new_session_to_false(monkeypatch):
         _reply(args, {"ok": True, "reply": "ack"})
         return 0
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     entry = registry.get_entry("agent_chat_send")
     assert json.loads(entry.handler({"persona_id": "qa", "message": "hi"}))["ok"]
     assert seen["new_session"] is None
@@ -423,7 +423,7 @@ def test_string_boolean_new_session_is_not_inverted(monkeypatch):
         _reply(args, {"ok": True, "reply": "ack"})
         return 0
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     assert json.loads(agent_chat_send(persona_id="qa", message="hi", new_session="false"))["ok"]
     assert seen["new_session"] is False
 
@@ -439,7 +439,7 @@ def test_title_names_the_thread_this_dispatch_opens(monkeypatch):
         _reply(args, {"ok": True, "reply": "ack"})
         return 0
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     assert json.loads(
         agent_chat_send(persona_id="qa", message="triage this", title="Flaky login triage")
     )["ok"]
@@ -472,7 +472,7 @@ def test_session_established_lineage_is_returned_to_the_caller(monkeypatch):
         )
         return 0
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     data = json.loads(agent_chat_send(persona_id="qa", message="hi"))
     assert data["session_established"] == {
         "fresh": True,
@@ -489,7 +489,7 @@ def test_result_stays_compact_when_the_handler_reports_no_lineage(monkeypatch):
         _reply(args, {"ok": True, "reply": "ack"})
         return 0
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     assert "session_established" not in json.loads(agent_chat_send(persona_id="qa", message="hi"))
 
 
@@ -497,7 +497,7 @@ def test_new_session_with_explicit_session_is_a_typed_refusal(monkeypatch):
     def fake_handler(args):  # pragma: no cover - must not be reached
         raise AssertionError("contradictory thread target must refuse before dispatch")
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     data = json.loads(
         agent_chat_send(
             persona_id="qa",
@@ -525,7 +525,7 @@ def test_clarify_token_is_offered_and_forwarded_verbatim(monkeypatch):
         _reply(args, {"ok": True, "reply": "ack"})
         return 0
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     assert json.loads(
         agent_chat_send(persona_id="qa", message="launcher", clarify_token="clarify-9f2c4ab17d03")
     )["ok"]
@@ -546,7 +546,7 @@ def test_the_registry_handler_passes_the_clarify_token_through(monkeypatch):
         _reply(args, {"ok": True, "reply": "ack"})
         return 0
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     entry = registry.get_entry("agent_chat_send")
     entry.handler(
         {"persona_id": "qa", "message": "launcher", "clarify_token": "clarify-abcdef123456"}
@@ -563,7 +563,7 @@ def test_clarify_token_with_new_session_is_a_typed_refusal(monkeypatch):
     def fake_handler(args):  # pragma: no cover - must not be reached
         raise AssertionError("contradictory thread target must refuse before dispatch")
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     data = json.loads(
         agent_chat_send(
             persona_id="qa",
@@ -598,7 +598,7 @@ def test_clarify_binding_is_returned_to_the_answering_agent(monkeypatch):
         )
         return 0
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     data = json.loads(agent_chat_send(persona_id="qa", message="launcher"))
     assert data["clarify_binding"]["bound_via"] == "clarify_token"
     assert (
@@ -611,7 +611,7 @@ def test_clarify_binding_is_returned_to_the_answering_agent(monkeypatch):
         _reply(args, {"ok": True, "reply": "ack"})
         return 0
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", quiet_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", quiet_handler)
     assert "clarify_binding" not in json.loads(agent_chat_send(persona_id="qa", message="hi"))
 
 
@@ -718,7 +718,7 @@ def test_send_forwards_a_personainst_handle_as_the_target_instance(monkeypatch):
         _reply(args, {"ok": True, "reply": "ack"})
         return 0
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
 
     assert json.loads(agent_chat_send(persona_id="personainst_qa_agent_2", message="hi"))["ok"]
     assert seen["persona_id"] == "personainst_qa_agent_2"

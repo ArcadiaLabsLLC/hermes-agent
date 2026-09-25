@@ -372,7 +372,7 @@ native Windows, where `expanduser` consults `USERPROFILE`.
 (`mission_chat_prompt_observability`'s `skill_profile_context`), and that section
 bills `prompt_observability:4520` against `agents_readiness:4366` on the
 2026-08-22 cold boot. Same switch, same reason. This site also has a **second
-lane**: `persona_commands._cmd_mission_chat_message` calls the same function at
+lane**: `persona.chat_turn_message._cmd_mission_chat_message` calls the same function at
 `observability_built`, *before* `profile_runner` installs its own locked
 binding — so under the env mirror a chat turn was rebinding the process for every
 concurrent turn and for the builder, not only the other way round. Both lanes are

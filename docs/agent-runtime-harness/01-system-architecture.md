@@ -18,8 +18,8 @@ There is one runtime execution surface. `GPTPersonaRuntime`
 (`agent_runtime/persona_runtime.py:51`) exposes exactly **one** public method,
 `mission_chat_reply` (`:72`) — there is no `run_persona`, no tick, no worker
 loop. The entry point is `_cmd_mission_chat_message` — defined at
-`hermes_cli/harness_parts/persona_commands.py:2849`, exec-loaded into
-`harness.py` globals (`hermes_cli/harness.py::_load_command_parts`) and wired to argparse at
+`hermes_cli/harness_parts/persona/chat_turn_message.py::_cmd_mission_chat_message`, a real module
+(lanes H1/H3, 2026-09-24) wired to argparse at
 `harness.py:1439`.
 
 Turn ingress has one path. Asynchronous agent-to-agent delivery
@@ -30,7 +30,7 @@ keeps transcript, live log, turn journal and projection consistent for free.
 Two narrower append seams do exist and are deliberate, turn-less writes — the
 bounded child-summary mirror (`agent_runtime/continuity.py:52-62`, posted by
 `return_summary_to_parent_session`) and the explicit-append seam
-(`persona_commands.py:7441`, whose own docstring records the open question of
+(`hermes_cli/harness_parts/persona/chat_history_writes.py::_persist_persona_chat_row`, whose own docstring records the open question of
 declaring the persona-chat write path native-only). Doc 05 §8 owns their
 contract; neither runs a turn or reaches the provider.
 
@@ -225,7 +225,7 @@ declarative chokepoint `PersonaInstanceStore.set_parents` (in
 `persona_assignments.py`; an empty set detaches the child).
 `PersonaInstance.spawned_by` is PROVENANCE, not steering: two live writers
 outside the store stamp it with a principal — `agent_create` sets `"operator"`,
-and `_maybe_stamp_spawned_by` (`persona_commands.py`) stamps `coordinator_id or
+and `_maybe_stamp_spawned_by` (`hermes_cli/harness_parts/persona/chat_coordinator.py`) stamps `coordinator_id or
 "operator"`. Steering itself admits only instance-shaped tokens — read-side
 filters apply `models.looks_like_persona_instance_id` (in the `spawned_by` arm
 of `snapshot`'s graph projection and in `runtime_hud`) so a principal such as

@@ -23,7 +23,13 @@ from pathlib import Path
 import pytest
 
 PARTS_DIR = Path(__file__).resolve().parents[2] / "hermes_cli" / "harness_parts"
-PART_MODULES = tuple(sorted(f"hermes_cli.harness_parts.{p.stem}" for p in PARTS_DIR.glob("*.py")))
+PART_MODULES = tuple(
+    sorted(
+        "hermes_cli.harness_parts."
+        + p.relative_to(PARTS_DIR).with_suffix("").as_posix().replace("/", ".").removesuffix(".__init__")
+        for p in PARTS_DIR.rglob("*.py")
+    )
+)
 
 
 @pytest.mark.parametrize("dotted", PART_MODULES)

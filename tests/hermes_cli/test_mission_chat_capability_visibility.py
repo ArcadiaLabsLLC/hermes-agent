@@ -34,6 +34,7 @@ import ast
 from pathlib import Path
 
 import pytest
+from tests._downstream.persona_source import package_source
 
 #: Names that resolve per-turn policy. The CLI body must reach these ONLY
 #: through the builder — a direct call here is a second assembly, and two
@@ -69,17 +70,14 @@ _TURN_BODY_FUNCTIONS = ("_mission_chat_commit_turn", "_cmd_mission_chat_message"
 
 
 def _mission_chat_message_func() -> ast.FunctionDef:
-    import hermes_cli.harness as harness
-
-    path = Path(harness.__file__).with_name("harness_parts") / "persona_commands.py"
-    tree = ast.parse(path.read_text(encoding="utf-8"))
+    tree = ast.parse(package_source())
     for name in _TURN_BODY_FUNCTIONS:
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef) and node.name == name:
                 return node
     raise AssertionError(
         "the mission-chat turn body "
-        f"({' / '.join(_TURN_BODY_FUNCTIONS)}) is not in persona_commands"
+        f"({' / '.join(_TURN_BODY_FUNCTIONS)}) is not in the persona package"
     )
 
 

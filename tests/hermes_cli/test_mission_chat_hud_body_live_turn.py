@@ -7,7 +7,7 @@ absence directions of the board digest live in
 ``tests/agent_runtime/test_board_agent_tools.py``. What was NOT pinned is the
 hop that puts that body in front of an agent.
 
-``persona_commands.py`` was an ``exec``'d command part until lane H1, not an
+The persona command part was an ``exec``'d file until lane H1, not an
 importable module, so every guard over the turn body was reduced to AST
 source-shape assertions: "``runtime_context_envelope`` is called on
 ``turn_context``", "no second assembly is resolved here". Those pin the SPELLING
@@ -16,7 +16,7 @@ as happily against a lane where the rendered envelope is built and then dropped
 on the floor before the provider call.
 
 So this file drives the real lane. It stands up a workspace with real board
-cards, runs ``persona_commands._cmd_mission_chat_message``, and
+cards, runs ``chat_turn_message._cmd_mission_chat_message``, and
 reads the ``situational_hud_content`` the provider was ACTUALLY handed. An
 import of ``render_situational_hud_block`` would prove nothing here: the runtime
 never binds this code that way, and a mock-shaped pin on a lane the runtime does
@@ -40,7 +40,7 @@ from tests.hermes_cli.test_mission_chat_budget_payload import (  # type: ignore
     _seed,
     isolate_agent_runtime_root,  # noqa: F401  (re-exported fixture)
 )
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import chat_turn_message
 
 
 class _CapturingProvider:
@@ -87,7 +87,7 @@ def _workspace(name: str = "Board Lane") -> str:
 def _run_turn(harness, client_message_id: str) -> str:
     """Drive one real turn and return the envelope the provider was fed."""
 
-    persona_commands._cmd_mission_chat_message(_args(client_message_id))
+    chat_turn_message._cmd_mission_chat_message(_args(client_message_id))
     assert "situational_hud_content" in _CapturingProvider.seen, (
         "the turn never reached the provider with a situational_hud_content "
         "kwarg: the rendered envelope no longer reaches the model call"
@@ -203,19 +203,21 @@ def test_a_live_turn_with_no_open_cards_feeds_the_body_without_a_board_line(
 def test_the_turn_body_driven_here_is_the_one_the_parser_runs():
     """Stated as an assertion so this file cannot quietly decay into a unit test.
 
-    Since lane H1 (2026-09-24) ``persona_commands`` is a real module: the turn
-    body looks its names up in ITS globals, which is where ``_seed`` patches
+    Since lanes H1/H3 (2026-09-24) the turn's front door is the real module
+    ``persona.chat_turn_message``: it looks its names up in ITS globals, which is where ``_seed`` patches
     them. If the parser stopped wiring this very function, the rows above would
     no longer drive the lane they claim to and should be reconsidered.
     """
 
     import argparse
+    import inspect
 
     from hermes_cli import harness
 
-    turn = getattr(persona_commands, "_cmd_mission_chat_message", None)
-    assert turn is not None, "the mission-chat turn body left persona_commands"
-    assert turn.__globals__ is vars(persona_commands)
+    turn = getattr(chat_turn_message, "_cmd_mission_chat_message", None)
+    assert turn is not None, "the mission-chat turn body left persona.chat_turn_message"
+    # Unwrapped: the admitted-turn decorator lives in `persona.chat_admission`.
+    assert inspect.unwrap(turn).__globals__ is vars(chat_turn_message)
     parser = argparse.ArgumentParser(prog="harness")
     harness.populate_parser(parser)
     args = parser.parse_args(["mission-chat", "message", "--persona", "dev", "--message", "hi"])

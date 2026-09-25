@@ -338,7 +338,7 @@ Executed history stays archived. The duplicate-implementation retirement's rows
   (NEW-2); a launcher test asserts `provider_auth_expired`, a code hermes cannot emit;
   `hermes_cli_contract.json` is stale in both directions.
 - Not swept, so absence of a row is not a clean bill: intra-function dead branches inside
-  live handlers of `harness.py` / `serve.py` / `persona_commands.py`; `core_cache.py` and
+  live handlers of `harness.py` / `serve.py` / `harness_parts/persona/`; `core_cache.py` and
   `realm_sync.py` internals; `serve_socket.py` and `serve_office_subscriptions.py` lock
   and lease semantics; several wire-token vocabularies; `tests/` as subjects.
 - Refused with evidence — do not re-derive: the persona-chat append seam (NEW-1, a

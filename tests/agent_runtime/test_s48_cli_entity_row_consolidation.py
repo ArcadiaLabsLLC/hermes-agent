@@ -136,8 +136,14 @@ def _harness_function(name: str):
 
     import hermes_cli.harness as harness
 
-    parts = Path(harness.__file__).with_name("harness_parts").glob("*.py")
-    modules = [harness] + [importlib.import_module(f"hermes_cli.harness_parts.{p.stem}") for p in sorted(parts)]
+    parts_dir = Path(harness.__file__).with_name("harness_parts")
+    dotted = (
+        "hermes_cli.harness_parts."
+        + p.relative_to(parts_dir).with_suffix("").as_posix().replace("/", ".").removesuffix(".__init__")
+        for p in sorted(parts_dir.rglob("*.py"))
+        if p.relative_to(parts_dir).as_posix() != "__init__.py"
+    )
+    modules = [harness] + [importlib.import_module(name) for name in dotted]
     bound = {id(vars(m)[name]): vars(m)[name] for m in modules if name in vars(m)}
     assert len(bound) == 1, f"{name}: bound to {len(bound)} distinct objects across the harness modules"
     return next(iter(bound.values()))

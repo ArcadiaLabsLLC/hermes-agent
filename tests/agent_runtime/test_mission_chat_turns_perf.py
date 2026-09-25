@@ -26,7 +26,7 @@ from agent_runtime.mission_chat_turns import (
     mission_chat_turn_records,
     persist_mission_chat_turn,
 )
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import chat_events
 
 
 class _FakeClock:
@@ -61,7 +61,7 @@ def store_write_counter(monkeypatch):
 
 def _emitter(clock, *, session_id="s1", client_message_id="m1"):
 
-    return persona_commands._ChatProtocolV2Emitter(
+    return chat_events._ChatProtocolV2Emitter(
         turn_id="turn_perf",
         client_message_id=client_message_id,
         emit_frames=False,
@@ -78,7 +78,7 @@ def _emitter(clock, *, session_id="s1", client_message_id="m1"):
 
 def _interval() -> float:
 
-    return persona_commands._CHAT_TURN_INCREMENTAL_FLUSH_INTERVAL_SECONDS
+    return chat_events._CHAT_TURN_INCREMENTAL_FLUSH_INTERVAL_SECONDS
 
 
 # ---------------------------------------------------------------------------
@@ -355,11 +355,11 @@ def test_frames_from_worker_thread_carry_construction_context(monkeypatch):
     def _capturing_emit(payload):
         seen.append((str(payload.get("type")), request_id.get()))
 
-    monkeypatch.setattr(persona_commands, "_emit_chat_frame", _capturing_emit)
+    monkeypatch.setattr(chat_events, "_emit_chat_frame", _capturing_emit)
 
     def _build_in_request_context():
         request_id.set("req-42")
-        return persona_commands._ChatProtocolV2Emitter(
+        return chat_events._ChatProtocolV2Emitter(
             turn_id="turn_ctx",
             client_message_id="m-ctx",
             emit_frames=True,

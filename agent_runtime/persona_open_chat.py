@@ -24,7 +24,7 @@ THE HANDLER'S OWN NAMESPACE and calls it, and the row it answers is the row the
 CLI prints.
 
 **How the row comes back, and the one way it must not.** Through
-``args.payload_sink`` — the seam ``persona_commands._emit_persona_open_chat_payload``
+``args.payload_sink`` — the seam ``chat_open._emit_persona_open_chat_payload``
 now carries, added for this door and modelled on the send lane's own
 (``_emit_mission_chat_payload``, whose docstring records why). The alternative
 is ``contextlib.redirect_stdout``, and it is not available here: this handler
@@ -264,9 +264,9 @@ def perform_persona_instance_open_chat(
         payload_sink=payloads.append,
     )
 
-    from hermes_cli.harness_parts import persona_commands as _persona_commands
+    from hermes_cli.harness_parts.persona import chat_open as _chat_open
 
-    exit_code = _persona_commands._cmd_persona_instance_open_chat(args)
+    exit_code = _chat_open._cmd_persona_instance_open_chat(args)
     row = payloads[-1] if payloads else None
     if not isinstance(row, dict):
         # Unreachable while every arm goes through the seam, and asserted rather

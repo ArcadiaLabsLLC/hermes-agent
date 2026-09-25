@@ -37,7 +37,18 @@ from agent_runtime.persona_chat_continuity import (
     PersonaChatBusyError,
     persona_chat_root_lease,
 )
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import (
+    chat_delete,
+    chat_open,
+    chat_target,
+    chat_tickets_commands,
+    chat_turn_commit,
+    chat_turn_message,
+    inspect_commands,
+    instance_commands,
+    lifecycle_commands,
+    model_and_skills_commands,
+)
 
 
 # The chat lane refuses ``unsupported_persona`` without a roster, so every test
@@ -76,10 +87,21 @@ def _install_chat_lane(monkeypatch, reply: str = "the recorded reply"):
                 raw={},
             )
 
-    monkeypatch.setattr(persona_commands, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(persona_commands, "_default_persona_session_db", lambda: _TranscriptDB())
-    monkeypatch.setattr(persona_commands, "GPTPersonaRuntime", _ProviderSpy)
-    return persona_commands
+    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(inspect_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(model_and_skills_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: _TranscriptDB())
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: _TranscriptDB())
+    monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: _TranscriptDB())
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: _TranscriptDB())
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: _TranscriptDB())
+    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _ProviderSpy)
+    return chat_turn_message
 
 
 def _args(client_message_id: str):
@@ -139,9 +161,9 @@ def test_the_root_lease_is_released_before_the_auto_title_runs(
         except PersonaChatBusyError:
             observed["root_free_during_title"] = False
 
-    monkeypatch.setattr(persona_commands, "_maybe_auto_title_persona_chat", _titling_probe)
+    monkeypatch.setattr(chat_turn_commit, "_maybe_auto_title_persona_chat", _titling_probe)
 
-    assert persona_commands._cmd_mission_chat_message(_args("cm-lease-1")) == 0
+    assert chat_turn_message._cmd_mission_chat_message(_args("cm-lease-1")) == 0
     capsys.readouterr()
 
     assert "root_free_during_title" in observed, (
@@ -172,11 +194,11 @@ def test_a_second_send_on_the_same_root_succeeds_while_the_title_is_in_flight(
     def _titling_sends_a_follow_up(**kwargs):
         if follow_up:
             return  # the nested turn titles too; do not recurse forever
-        follow_up["code"] = persona_commands._cmd_mission_chat_message(_args("cm-lease-follow-up"))
+        follow_up["code"] = chat_turn_message._cmd_mission_chat_message(_args("cm-lease-follow-up"))
 
-    monkeypatch.setattr(persona_commands, "_maybe_auto_title_persona_chat", _titling_sends_a_follow_up)
+    monkeypatch.setattr(chat_turn_commit, "_maybe_auto_title_persona_chat", _titling_sends_a_follow_up)
 
-    assert persona_commands._cmd_mission_chat_message(_args("cm-lease-2")) == 0
+    assert chat_turn_message._cmd_mission_chat_message(_args("cm-lease-2")) == 0
     frames = _envelopes(capsys)
 
     assert follow_up.get("code") == 0, (
@@ -205,9 +227,9 @@ def test_a_failing_title_no_longer_marks_the_turn(
     def _boom(**kwargs):
         raise RuntimeError("title provider exhausted the fallback chain")
 
-    monkeypatch.setattr(persona_commands, "_maybe_auto_title_persona_chat", _boom)
+    monkeypatch.setattr(chat_turn_commit, "_maybe_auto_title_persona_chat", _boom)
 
-    assert persona_commands._cmd_mission_chat_message(_args("cm-lease-3")) == 0
+    assert chat_turn_message._cmd_mission_chat_message(_args("cm-lease-3")) == 0
     frames = _envelopes(capsys)
     terminal = [f for f in frames if f.get("capability_id") == "mission.chat.message"]
     assert terminal, "no terminal mission.chat.message frame was emitted"
@@ -226,7 +248,7 @@ def test_a_send_refused_by_a_busy_root_records_a_durable_event(
     harness = _install_chat_lane(monkeypatch)
 
     with persona_chat_root_lease(ROOT, owner_id="held-by-the-test", observer_kind="cli"):
-        assert persona_commands._cmd_mission_chat_message(_args("cm-refused-1")) == 2
+        assert chat_turn_message._cmd_mission_chat_message(_args("cm-refused-1")) == 2
 
     frames = _envelopes(capsys)
     refusals = [f for f in frames if f.get("error_kind") == "chat_busy"]
@@ -262,7 +284,7 @@ def test_the_refusal_record_never_carries_the_operator_message_text(
     harness = _install_chat_lane(monkeypatch)
 
     with persona_chat_root_lease(ROOT, observer_kind="cli"):
-        persona_commands._cmd_mission_chat_message(_args("cm-refused-2"))
+        chat_turn_message._cmd_mission_chat_message(_args("cm-refused-2"))
     capsys.readouterr()
 
     rows = [e for e in EventLog().tail(20) if e.type == "persona_chat.send_refused"]
@@ -288,7 +310,7 @@ def test_the_refusal_record_satisfies_its_registered_contract(
 
     harness = _install_chat_lane(monkeypatch)
     with persona_chat_root_lease(ROOT, observer_kind="cli"):
-        persona_commands._cmd_mission_chat_message(_args("cm-refused-3"))
+        chat_turn_message._cmd_mission_chat_message(_args("cm-refused-3"))
     capsys.readouterr()
 
     rows = [e for e in EventLog().tail(20) if e.type == "persona_chat.send_refused"]
@@ -376,7 +398,7 @@ def test_a_duplicate_of_the_running_turn_is_not_chat_busy(
     before = _journal_bytes()
 
     with persona_chat_root_lease(ROOT, owner_id="the-running-turn", observer_kind="cli"):
-        assert persona_commands._cmd_mission_chat_message(_args("cm-inflight")) == 2
+        assert chat_turn_message._cmd_mission_chat_message(_args("cm-inflight")) == 2
 
     frames = [f for f in _envelopes(capsys) if f.get("capability_id") == "mission.chat.message"]
     assert frames, "no terminal frame was emitted"
@@ -406,7 +428,7 @@ def test_the_duplicate_in_flight_refusal_leaves_its_own_forensics_row(
     _seed_journal("cm-inflight-evidence", "executing")
 
     with persona_chat_root_lease(ROOT, observer_kind="cli"):
-        persona_commands._cmd_mission_chat_message(_args("cm-inflight-evidence"))
+        chat_turn_message._cmd_mission_chat_message(_args("cm-inflight-evidence"))
     capsys.readouterr()
 
     rows = [e for e in EventLog().tail(20) if e.type == "persona_chat.send_refused"]
@@ -430,7 +452,7 @@ def test_a_busy_root_running_a_DIFFERENT_message_is_still_chat_busy(
     _seed_journal("cm-somebody-elses-turn", "executing")
 
     with persona_chat_root_lease(ROOT, observer_kind="cli"):
-        assert persona_commands._cmd_mission_chat_message(_args("cm-mine")) == 2
+        assert chat_turn_message._cmd_mission_chat_message(_args("cm-mine")) == 2
 
     frames = [f for f in _envelopes(capsys) if f.get("capability_id") == "mission.chat.message"]
     assert frames[-1]["error_kind"] == "chat_busy", (
@@ -458,7 +480,7 @@ def test_a_duplicate_of_an_ANSWERED_turn_replays_read_only(
     before = _journal_bytes()
 
     with persona_chat_root_lease(ROOT, owner_id="a-later-turn", observer_kind="cli"):
-        assert persona_commands._cmd_mission_chat_message(_args("cm-answered")) == 0
+        assert chat_turn_message._cmd_mission_chat_message(_args("cm-answered")) == 0
 
     frames = [f for f in _envelopes(capsys) if f.get("capability_id") == "mission.chat.message"]
     assert frames[-1]["ok"] is True
@@ -488,7 +510,7 @@ def test_a_duplicate_of_an_unprovable_turn_still_routes_to_turn_resolve(
     before = _journal_bytes()
 
     with persona_chat_root_lease(ROOT, observer_kind="cli"):
-        assert persona_commands._cmd_mission_chat_message(_args("cm-unknown")) == 2
+        assert chat_turn_message._cmd_mission_chat_message(_args("cm-unknown")) == 2
 
     frames = [f for f in _envelopes(capsys) if f.get("capability_id") == "mission.chat.message"]
     assert frames[-1]["error_kind"] == "chat_turn_outcome_unknown"
@@ -508,7 +530,7 @@ def test_an_UNLEASED_resend_of_an_executing_turn_keeps_todays_path(
     harness = _install_chat_lane(monkeypatch)
     _seed_journal("cm-orphan", "executing")
 
-    assert persona_commands._cmd_mission_chat_message(_args("cm-orphan")) == 2
+    assert chat_turn_message._cmd_mission_chat_message(_args("cm-orphan")) == 2
     frames = [f for f in _envelopes(capsys) if f.get("capability_id") == "mission.chat.message"]
     assert frames[-1]["error_kind"] == "chat_turn_outcome_unknown"
 

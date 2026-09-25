@@ -41,7 +41,8 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import chat_target
+from tests._downstream.persona_source import package_source
 
 TITLE = "_maybe_auto_title_persona_chat"
 # WP-H2 routed every mission-chat terminal payload through ONE seam
@@ -58,15 +59,14 @@ def _persona_commands_tree() -> ast.Module:
     # are not importable functions, so structural ordering is asserted on source.
     import hermes_cli.harness as harness
 
-    path = Path(harness.__file__).with_name("harness_parts") / "persona_commands.py"
-    return ast.parse(path.read_text(encoding="utf-8"))
+    return ast.parse(package_source())
 
 
 def _func(tree: ast.AST, name: str) -> ast.FunctionDef:
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == name:
             return node
-    raise AssertionError(f"{name} not found in persona_commands.py")
+    raise AssertionError(f"{name} not found in the persona package")
 
 
 # The mission-chat turn body was split on 2026-07-31: the PLAN phase kept the
@@ -210,7 +210,7 @@ def test_maybe_auto_title_swallows_a_raising_title_generator(monkeypatch):
     # rely on this so a first-turn title failure cannot corrupt the emitted JSON
     # or flip the exit code after the terminal frame is already on stdout.
     assert (
-        persona_commands._maybe_auto_title_persona_chat(
+        chat_target._maybe_auto_title_persona_chat(
             session_db=object(),
             session_id="s1",
             user_message="hello",
@@ -225,7 +225,7 @@ def test_maybe_auto_title_still_titles_on_success(monkeypatch):
 
     seen = []
     monkeypatch.setattr(tg, "auto_title_session", lambda *a, **k: seen.append((a, k)))
-    persona_commands._maybe_auto_title_persona_chat(
+    chat_target._maybe_auto_title_persona_chat(
         session_db=object(),
         session_id="s1",
         user_message="hello",

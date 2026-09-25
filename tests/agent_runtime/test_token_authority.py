@@ -386,6 +386,6 @@ def test_persona_commands_binds_turn_usage_from_result():
     and be the one ``prompt_observability`` owns.
     """
     from agent_runtime import prompt_observability
-    from hermes_cli.harness_parts import persona_commands
+    from hermes_cli.harness_parts.persona import chat_turn_commit
 
-    assert persona_commands.turn_usage_from_result is prompt_observability.turn_usage_from_result
+    assert chat_turn_commit.turn_usage_from_result is prompt_observability.turn_usage_from_result

@@ -322,7 +322,7 @@ definition — the anchor, and the only always-present key), `context_built`,
 and the counters `registry_probe_rounds` / `builds_overlapped` /
 `visibility_bundle_builds` / `prewarm_overlapped`, all five absent when the fact
 could not be established honestly — the thread-cumulative pair baselined at the
-handler anchor in `hermes_cli/harness_parts/persona_commands.py` and
+handler anchor in `hermes_cli/harness_parts/persona/chat_turn_message.py` and
 delta-counted at the ready callback, the flag and the two overlap counts set
 after `stream_done`, the overlaps themselves counted by
 `agent_runtime/snapshot_build_ledger.py` and (chat-turn-prep Stage 6)
@@ -450,7 +450,7 @@ echo carries a slimmed projection (`slim_chat_final_observability`,
 fetched by `harness prompt-context show --context-id <id> [--json]`
 (`hermes_cli/harness.py:892-903`, handler `hermes_cli/harness.py::_cmd_prompt_context_show`) — read-only, honest
 `not_found` on absence. `trace_events` are the turn's tool-call trace, passed at
-`persona_commands.py:3600` and read by `used_skills_context`
+`_mission_chat_commit_turn` and read by `used_skills_context`
 (`prompt_observability.py:2946-2981`) to report which skills were actually
 loaded — `skill_view` entries only, redaction-safe.
 

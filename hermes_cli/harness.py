@@ -73,9 +73,9 @@ from hermes_cli.harness_parts import (
     level as level_commands,
     map as map_commands,
     office as office_commands,
-    persona_commands,
     runtime_commands,
 )
+from hermes_cli.harness_parts.persona import chat_coordinator, chat_delete, chat_open, chat_tickets_commands, chat_turn_message, inspect_commands, instance_commands, lifecycle_commands, model_and_skills_commands
 from hermes_cli.harness_support import (
     ERROR_EXIT_CODES,
     _error_envelope,
@@ -1047,11 +1047,11 @@ def populate_parser(parser) -> None:
     persona_subs = persona.add_subparsers(dest="persona_command")
     persona_list = persona_subs.add_parser("list", help="List durable persona instances")
     persona_list.add_argument("--json", action="store_true")
-    persona_list.set_defaults(func=persona_commands._cmd_persona_list)
+    persona_list.set_defaults(func=inspect_commands._cmd_persona_list)
     persona_show = persona_subs.add_parser("show", help="Show one durable persona instance")
     persona_show.add_argument("persona_id_or_instance_id")
     persona_show.add_argument("--json", action="store_true")
-    persona_show.set_defaults(func=persona_commands._cmd_persona_show)
+    persona_show.set_defaults(func=inspect_commands._cmd_persona_show)
     persona_tool_diff = persona_subs.add_parser("tool-diff", help="Show resolved model tools and blocked tools for one persona")
     persona_tool_diff.add_argument("persona_id", help="Persona id")
     persona_tool_diff.add_argument("--session-id", default=None)
@@ -1090,7 +1090,7 @@ def populate_parser(parser) -> None:
         ),
     )
     persona_tool_diff.add_argument("--json", action="store_true")
-    persona_tool_diff.set_defaults(func=persona_commands._cmd_persona_tool_diff)
+    persona_tool_diff.set_defaults(func=inspect_commands._cmd_persona_tool_diff)
     persona_permission = persona_subs.add_parser(
         "permission",
         help=(
@@ -1132,11 +1132,11 @@ def populate_parser(parser) -> None:
     persona_permission_set.add_argument("--ttl-seconds", type=int, default=None)
     persona_permission_set.add_argument("--expires-at", default=None)
     persona_permission_set.add_argument("--json", action="store_true")
-    persona_permission_set.set_defaults(func=persona_commands._cmd_persona_permission_set)
+    persona_permission_set.set_defaults(func=inspect_commands._cmd_persona_permission_set)
     persona_assignments = persona_subs.add_parser("assignments", help="List persona assignments")
     persona_assignments.add_argument("--persona", dest="persona_id", default=None)
     persona_assignments.add_argument("--json", action="store_true")
-    persona_assignments.set_defaults(func=persona_commands._cmd_persona_assignments)
+    persona_assignments.set_defaults(func=inspect_commands._cmd_persona_assignments)
     persona_assignment_task_id_migration = persona_subs.add_parser(
         "migrate-assignment-task-ids",
         help="Archive pre-retirement persona assignments whose task_id is non-null",
@@ -1144,7 +1144,7 @@ def populate_parser(parser) -> None:
     persona_assignment_task_id_migration.add_argument("--dry-run", action="store_true")
     persona_assignment_task_id_migration.add_argument("--json", action="store_true")
     persona_assignment_task_id_migration.set_defaults(
-        func=persona_commands._cmd_persona_assignment_task_id_migration
+        func=inspect_commands._cmd_persona_assignment_task_id_migration
     )
     persona_chat = persona_subs.add_parser("chat", help="Manage durable persona chat sessions")
     persona_chat_subs = persona_chat.add_subparsers(dest="persona_chat_command")
@@ -1154,7 +1154,7 @@ def populate_parser(parser) -> None:
     persona_chat_delete.add_argument("--persona-instance-id", default=None)
     persona_chat_delete.add_argument("--requested-by", default="cli")
     persona_chat_delete.add_argument("--json", action="store_true")
-    persona_chat_delete.set_defaults(func=persona_commands._cmd_persona_chat_delete)
+    persona_chat_delete.set_defaults(func=chat_delete._cmd_persona_chat_delete)
     persona_chat_history = persona_chat_subs.add_parser("history", help="Page a persona chat session's complete redaction-safe transcript")
     persona_chat_history.add_argument("--session-id", dest="session_id", required=True)
     persona_chat_history.add_argument("--limit", type=int, default=40, help="Page size (clamped 1..40)")
@@ -1170,7 +1170,7 @@ def populate_parser(parser) -> None:
     persona_set_model.add_argument("--issued-at", default=None, help="ISO-8601 issue timestamp; stale writes are superseded instead of applied")
     persona_set_model.add_argument("--requested-by", default="operator")
     persona_set_model.add_argument("--json", action="store_true")
-    persona_set_model.set_defaults(func=persona_commands._cmd_persona_set_model)
+    persona_set_model.set_defaults(func=model_and_skills_commands._cmd_persona_set_model)
     persona_set_skills = persona_subs.add_parser("set-skills", help="Persist a persona's default skill set (profile-default lane; future instances inherit it)")
     persona_set_skills.add_argument("persona_id", help="Persona id or profile:<name>")
     # `--skill` keeps the tree's ONE spelling — `action="append", default=None`
@@ -1187,7 +1187,7 @@ def populate_parser(parser) -> None:
     persona_set_skills.add_argument("--issued-at", default=None, help="ISO-8601 issue timestamp; stale writes are superseded instead of applied")
     persona_set_skills.add_argument("--requested-by", default="operator")
     persona_set_skills.add_argument("--json", action="store_true")
-    persona_set_skills.set_defaults(func=persona_commands._cmd_persona_set_skills)
+    persona_set_skills.set_defaults(func=model_and_skills_commands._cmd_persona_set_skills)
     persona_instance = persona_subs.add_parser("instance", help="Create, open, steer, retire, and maintain persona instances (chat is the only messaging lane)")
     persona_instance_subs = persona_instance.add_subparsers(dest="persona_instance_command")
     persona_instance_create = persona_instance_subs.add_parser("create", help="Create an Agent Profile (operator chat channel) or an additional placement-backed instance (--add-instance); requires --display-name")
@@ -1209,7 +1209,7 @@ def populate_parser(parser) -> None:
     # instead of silently ignoring them). `--title` is NOT one of them — it is
     # the live display-name fallback above.
     persona_instance_create.add_argument("--json", action="store_true")
-    persona_instance_create.set_defaults(func=persona_commands._cmd_persona_instance_create)
+    persona_instance_create.set_defaults(func=lifecycle_commands._cmd_persona_instance_create)
     persona_instance_open = persona_instance_subs.add_parser("open-chat", help="Bind a persona instance to a durable chat session without ticking")
     persona_instance_open.add_argument("--persona", dest="persona_id", required=True)
     persona_instance_open.add_argument("--persona-instance-id", default=None, help="Exact existing persona instance to bind when minting a new chat")
@@ -1225,7 +1225,7 @@ def populate_parser(parser) -> None:
     persona_instance_open.add_argument("--requested-by", default="cli")
     _add_coordinator_permission_args(persona_instance_open)
     persona_instance_open.add_argument("--json", action="store_true")
-    persona_instance_open.set_defaults(func=persona_commands._cmd_persona_instance_open_chat)
+    persona_instance_open.set_defaults(func=chat_open._cmd_persona_instance_open_chat)
     # `persona instance resolve-chat-turn` lived here until 2026-08-19: a
     # second parser binding the SAME handler as `mission-chat turn-resolve`,
     # with the same four required flags and the instance id positional instead
@@ -1244,13 +1244,13 @@ def populate_parser(parser) -> None:
     persona_instance_close.add_argument("--requested-by", default="cli")
     _add_coordinator_permission_args(persona_instance_close)
     persona_instance_close.add_argument("--json", action="store_true")
-    persona_instance_close.set_defaults(func=persona_commands._cmd_persona_instance_close)
+    persona_instance_close.set_defaults(func=instance_commands._cmd_persona_instance_close)
     persona_instance_archive = persona_instance_subs.add_parser("archive", help="Complete residual free-floating assignment rows for one persona instance (maintenance; the lane that minted them is retired)")
     persona_instance_archive.add_argument("persona_instance_id")
     persona_instance_archive.add_argument("--reason", default="archived residual free-floating assignment row")
     persona_instance_archive.add_argument("--requested-by", default="cli")
     persona_instance_archive.add_argument("--json", action="store_true")
-    persona_instance_archive.set_defaults(func=persona_commands._cmd_persona_instance_archive)
+    persona_instance_archive.set_defaults(func=instance_commands._cmd_persona_instance_archive)
     # D4. `delete` is an argparse ALIAS, not a second parser: one parser object,
     # so the two spellings cannot drift in flags, help, or handler — which is
     # the failure mode a copied `add_parser` would have had, and the operator
@@ -1279,7 +1279,7 @@ def populate_parser(parser) -> None:
     persona_instance_retire.add_argument("--correlation-id", dest="correlation_id", default=None)
     _add_coordinator_permission_args(persona_instance_retire)
     persona_instance_retire.add_argument("--json", action="store_true")
-    persona_instance_retire.set_defaults(func=persona_commands._cmd_persona_instance_retire)
+    persona_instance_retire.set_defaults(func=instance_commands._cmd_persona_instance_retire)
     # No `sweep-orphans`: S65 retired the owning-task release inference the
     # janitor decided on (and de-registered the `persona_instance.reaped` event
     # it emitted), leaving only this registration and a handler that raised
@@ -1296,7 +1296,7 @@ def populate_parser(parser) -> None:
     persona_instance_steer.add_argument("--requested-by", default="operator")
     _add_coordinator_permission_args(persona_instance_steer)
     persona_instance_steer.add_argument("--json", action="store_true")
-    persona_instance_steer.set_defaults(func=persona_commands._cmd_persona_instance_steer)
+    persona_instance_steer.set_defaults(func=instance_commands._cmd_persona_instance_steer)
     persona_instance_repair = persona_instance_subs.add_parser(
         "repair-steering",
         help="Strip non-instance principals (e.g. the operator) out of a persona instance's steering fields; --dry-run previews without writing or emitting",
@@ -1308,7 +1308,7 @@ def populate_parser(parser) -> None:
         controls=frozenset({"dry_run"}),
         omit=frozenset({"--output", "--quiet", "--fields"}),
     )
-    persona_instance_repair.set_defaults(func=persona_commands._cmd_persona_instance_repair_steering)
+    persona_instance_repair.set_defaults(func=instance_commands._cmd_persona_instance_repair_steering)
     persona_instance_return = persona_instance_subs.add_parser("return-summary", help="Post a bounded child summary back into a parent chat session")
     persona_instance_return.add_argument("persona_instance_id")
     persona_instance_return.add_argument("--parent-session-id", required=True)
@@ -1316,7 +1316,7 @@ def populate_parser(parser) -> None:
     persona_instance_return.add_argument("--proof-id", dest="proof_ids", action="append", default=[])
     persona_instance_return.add_argument("--artifact-ref", dest="artifact_refs", action="append", default=[])
     persona_instance_return.add_argument("--json", action="store_true")
-    persona_instance_return.set_defaults(func=persona_commands._cmd_persona_instance_return_summary)
+    persona_instance_return.set_defaults(func=instance_commands._cmd_persona_instance_return_summary)
     persona_instance_update = persona_instance_subs.add_parser("update-profile", help="Update runtime persona-instance profile overrides without editing the backing Hermes profile")
     persona_instance_update.add_argument("persona_instance_id")
     persona_instance_update.add_argument("--display-name", default=None)
@@ -1328,7 +1328,7 @@ def populate_parser(parser) -> None:
     persona_instance_update.add_argument("--requested-by", default="operator")
     _add_coordinator_permission_args(persona_instance_update)
     persona_instance_update.add_argument("--json", action="store_true")
-    persona_instance_update.set_defaults(func=persona_commands._cmd_persona_instance_update_profile)
+    persona_instance_update.set_defaults(func=instance_commands._cmd_persona_instance_update_profile)
     persona_instance_set_model = persona_instance_subs.add_parser("set-model", help="Persist an instance-level provider/model override (this agent only; duplicates keep theirs)")
     persona_instance_set_model.add_argument("persona_instance_id")
     persona_instance_set_model.add_argument("--provider", default=None, help="Provider lane (canonical name or alias; api_mode is derived from it)")
@@ -1339,7 +1339,7 @@ def populate_parser(parser) -> None:
     persona_instance_set_model.add_argument("--requested-by", default="operator")
     _add_coordinator_permission_args(persona_instance_set_model)
     persona_instance_set_model.add_argument("--json", action="store_true")
-    persona_instance_set_model.set_defaults(func=persona_commands._cmd_persona_instance_set_model)
+    persona_instance_set_model.set_defaults(func=model_and_skills_commands._cmd_persona_instance_set_model)
 
     mission_chat = subs.add_parser("mission-chat", help="Canonical Mission Control chat path")
     mission_chat_subs = mission_chat.add_subparsers(dest="mission_chat_command")
@@ -1414,7 +1414,7 @@ def populate_parser(parser) -> None:
     # process reproduces the in-process lane's threading exactly.
     mission_chat_message.add_argument("--defer-thread-policy", dest="defer_thread_policy", action="store_true", help="State NO opinion about the thread: let agent_runtime.mission_chat.dispatch_session_policy decide (the tri-state 'unset' the in-process dispatch lane forwards). Overrides --new-session")
     mission_chat_message.add_argument("--json", action="store_true")
-    mission_chat_message.set_defaults(func=persona_commands._cmd_mission_chat_message)
+    mission_chat_message.set_defaults(func=chat_turn_message._cmd_mission_chat_message)
     mission_chat_queue_skill = mission_chat_subs.add_parser("queue-skill", help="Load a skill on the next Mission Control chat turn")
     mission_chat_queue_skill.add_argument("--persona", dest="persona_id", required=True)
     mission_chat_queue_skill.add_argument("--persona-instance-id", default=None)
@@ -1422,7 +1422,7 @@ def populate_parser(parser) -> None:
     mission_chat_queue_skill.add_argument("--skill", action="append", default=[])
     mission_chat_queue_skill.add_argument("--skills", nargs="+", default=[])
     mission_chat_queue_skill.add_argument("--json", action="store_true")
-    mission_chat_queue_skill.set_defaults(func=persona_commands._cmd_mission_chat_queue_skill)
+    mission_chat_queue_skill.set_defaults(func=chat_coordinator._cmd_mission_chat_queue_skill)
     mission_chat_steer = mission_chat_subs.add_parser("steer", help="Steer an active streamed Mission Control chat turn")
     mission_chat_steer.add_argument("--session-id", required=True)
     mission_chat_steer.add_argument("--message", required=True)
@@ -1430,7 +1430,7 @@ def populate_parser(parser) -> None:
     mission_chat_steer.add_argument("--persona", dest="persona_id", default=None)
     mission_chat_steer.add_argument("--persona-instance-id", default=None)
     mission_chat_steer.add_argument("--json", action="store_true")
-    mission_chat_steer.set_defaults(func=persona_commands._cmd_mission_chat_steer)
+    mission_chat_steer.set_defaults(func=chat_coordinator._cmd_mission_chat_steer)
     mission_chat_resolve = mission_chat_subs.add_parser(
         "turn-resolve", help="Resolve one outcome_unknown chat turn"
     )
@@ -1440,7 +1440,7 @@ def populate_parser(parser) -> None:
     mission_chat_resolve.add_argument("--persona-instance-id", default=None)
     mission_chat_resolve.add_argument("--action", choices=["abandon"], required=True)
     mission_chat_resolve.add_argument("--json", action="store_true")
-    mission_chat_resolve.set_defaults(func=persona_commands._cmd_mission_chat_turn_resolve)
+    mission_chat_resolve.set_defaults(func=chat_tickets_commands._cmd_mission_chat_turn_resolve)
     # Read-only adoption readout for the clarify-token binding. Registered with
     # the NON-mutating stage42 args on purpose: it never mints, settles, or
     # sweeps, so it has no --dry-run to honor and nothing to confirm. Whether
@@ -1455,7 +1455,7 @@ def populate_parser(parser) -> None:
     )
     mission_chat_clarify_tickets.add_argument("--session-id", default=None, help="Only list tickets bound to this chat root (counts still cover the whole store)")
     mission_chat_clarify_tickets.add_argument("--state", default=None, choices=["open", "answered", "rebound"], help="Only list tickets in this lifecycle state (counts still cover the whole store)")
-    mission_chat_clarify_tickets.set_defaults(func=persona_commands._cmd_mission_chat_clarify_tickets)
+    mission_chat_clarify_tickets.set_defaults(func=chat_tickets_commands._cmd_mission_chat_clarify_tickets)
     # The agent-to-agent delivery QUEUE, as opposed to the chat turns it forges
     # into. Repair verbs only: the drain owns the normal path, and this group
     # exists for the rows it gave up on.
@@ -1477,7 +1477,7 @@ def populate_parser(parser) -> None:
     )
     mission_chat_dispatch_redeliver.add_argument("--json", action="store_true")
     mission_chat_dispatch_redeliver.set_defaults(
-        func=persona_commands._cmd_mission_chat_dispatch_redeliver
+        func=chat_tickets_commands._cmd_mission_chat_dispatch_redeliver
     )
 
     status = subs.add_parser("status", help="Show harness status")
@@ -1678,7 +1678,7 @@ def populate_parser(parser) -> None:
     agent_create.add_argument("--idempotency-key", dest="idempotency_key", default=None, help="Stable retry key; omitted mints a fresh cli-<uuid4> so a re-run is a new gesture")
     agent_create.add_argument("--correlation-id", dest="correlation_id", default=None)
     agent_create.add_argument("--json", action="store_true")
-    agent_create.set_defaults(func=persona_commands._cmd_agent_create)
+    agent_create.set_defaults(func=lifecycle_commands._cmd_agent_create)
 
     # S5: the INVERSE of the create above, and the door that never existed. The
     # store method has always archived BOTH halves (roster row + every office
@@ -1699,7 +1699,7 @@ def populate_parser(parser) -> None:
     # level-mutating verb except this one.
     agent_retire.add_argument("--correlation-id", dest="correlation_id", default=None)
     agent_retire.add_argument("--json", action="store_true")
-    agent_retire.set_defaults(func=persona_commands._cmd_agent_retire)
+    agent_retire.set_defaults(func=lifecycle_commands._cmd_agent_retire)
 
     agent_set_profile = agent_subs.add_parser(
         "set-profile",
@@ -2150,7 +2150,7 @@ def _cmd_roots_unset(args) -> int:
 # to prevent.
 #
 # **No authorization gate, and that is a decision rather than an omission.**
-# The A4 mirror (`persona_commands._console_denial`) exists so the CLI and
+# The A4 mirror (`lifecycle_commands._console_denial`) exists so the CLI and
 # `serve_rpc.handle_request` cannot answer differently about ONE service
 # function — `perform_agent_create` / `perform_agent_retire` each have two
 # doors. Stage 0b adds no RPC method, so there is one door and nothing to

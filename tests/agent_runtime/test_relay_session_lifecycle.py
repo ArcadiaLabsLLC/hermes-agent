@@ -41,7 +41,21 @@ from agent_runtime.persona_chat_history import (
     persona_chat_history_summary,
 )
 from agent_runtime.profile_context import PersonaProfileBinding, persona_profile_context
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import (
+    chat_delete,
+    chat_history_writes,
+    chat_open,
+    chat_request,
+    chat_target,
+    chat_tickets_commands,
+    chat_turn_commit,
+    chat_turn_message,
+    inspect_commands,
+    instance_commands,
+    lifecycle_commands,
+    model_and_skills_commands,
+)
+from tests._downstream.persona_source import package_source
 
 
 @pytest.fixture(autouse=True)
@@ -384,14 +398,14 @@ def test_persona_session_db_binds_to_head_home_under_profile_override(
 
     # Top level (no override): ordinary default DB, head resolves to itself.
     assert get_hermes_head_home() == head_home
-    assert Path(persona_commands._default_persona_session_db().db_path) == head_home / "state.db"
+    assert Path(chat_delete._default_persona_session_db().db_path) == head_home / "state.db"
 
     # Inside the relay's profile-home override: get_hermes_home() is diverted to
     # the profile, but the operator-visible chat DB still binds to the head home.
     with persona_profile_context(_qa_profile_binding(profile_home)):
         assert get_hermes_home() == profile_home  # the override IS active
         assert get_hermes_head_home() == head_home  # …but head is preserved
-        db = persona_commands._default_persona_session_db()
+        db = chat_delete._default_persona_session_db()
         assert Path(db.db_path) == head_home / "state.db"
         assert Path(db.db_path) != profile_home / "state.db"
 
@@ -414,14 +428,14 @@ def test_explicit_head_home_is_stable_across_launcher_profile_selection(
 
     assert get_hermes_home() == selected_home
     assert get_hermes_head_home() == shared_head
-    assert Path(persona_commands._default_persona_session_db().db_path) == shared_head / "state.db"
+    assert Path(chat_delete._default_persona_session_db().db_path) == shared_head / "state.db"
     assert Path(snapshot._default_persona_session_db().db_path) == shared_head / "state.db"
     assert Path(persona_chat_history._default_session_db().db_path) == shared_head / "state.db"
 
     with persona_profile_context(_qa_profile_binding(persona_home)):
         assert get_hermes_home() == persona_home
         assert get_hermes_head_home() == shared_head
-        assert Path(persona_commands._default_persona_session_db().db_path) == shared_head / "state.db"
+        assert Path(chat_delete._default_persona_session_db().db_path) == shared_head / "state.db"
         assert Path(persona_chat_history._default_session_db().db_path) == shared_head / "state.db"
 
 
@@ -445,7 +459,7 @@ def test_head_bound_persona_override_equal_to_head_home_is_the_same_db(
     with persona_profile_context(_qa_profile_binding(shared_head)):
         assert get_hermes_home() == shared_head
         assert get_hermes_head_home() == shared_head
-        db = persona_commands._default_persona_session_db()
+        db = chat_delete._default_persona_session_db()
         assert Path(db.db_path) == shared_head / "state.db"
 
 
@@ -468,8 +482,8 @@ def test_override_without_any_head_authority_still_fails_closed(
 
     token = set_hermes_home_override(str(profile_home))
     try:
-        with pytest.raises(persona_commands.PersonaChatPersistenceError):
-            persona_commands._default_persona_session_db()
+        with pytest.raises(chat_delete.PersonaChatPersistenceError):
+            chat_delete._default_persona_session_db()
     finally:
         reset_hermes_home_override(token)
 
@@ -493,10 +507,10 @@ def test_relay_under_profile_override_persists_transcript_to_the_projection_home
     with persona_profile_context(_qa_profile_binding(profile_home)):
         session_id = _session_for_test(store, persona_id="qa")
         store.open_chat(persona_id="qa", session_id=session_id, default_display_name="QA Agent")
-        db = persona_commands._default_persona_session_db()
+        db = chat_delete._default_persona_session_db()
         # The write path resolved the head home even though the override is live.
         assert Path(db.db_path) == head_home / "state.db"
-        persona_commands._ensure_persona_chat_session(
+        chat_open._ensure_persona_chat_session(
             session_db=db,
             session_id=session_id,
             persona_id="qa",
@@ -539,7 +553,7 @@ def test_head_home_is_the_outermost_across_nested_relay_hops(
         with persona_profile_context(_qa_profile_binding(qa_home)):
             assert get_hermes_home() == qa_home  # deepest override
             assert get_hermes_head_home() == head_home  # still the operator home
-            assert Path(persona_commands._default_persona_session_db().db_path) == head_home / "state.db"
+            assert Path(chat_delete._default_persona_session_db().db_path) == head_home / "state.db"
 
 
 # --------------------------------------------------------------------------- #
@@ -566,7 +580,7 @@ def test_resolve_sender_none_for_operator_and_non_relay_requests(isolate_agent_r
     store = PersonaInstanceStore()
     for requested_by in ("operator", "cli", "agent-chat-relay", None, "agent:"):
         assert (
-            persona_commands._resolve_relay_sender_marker(
+            chat_history_writes._resolve_relay_sender_marker(
                 requested_by, instance_store=store, relay_chain_in=("neko",)
             )
             is None
@@ -583,7 +597,7 @@ def test_resolve_sender_tier1_chat_session_owner_full_identity(isolate_agent_run
     store.open_chat(persona_id="neko", session_id=sender_session, display_name="Neko Mission Lead")
     sender_id = persona_instance_id_for("neko")
 
-    marker = persona_commands._resolve_relay_sender_marker(
+    marker = chat_history_writes._resolve_relay_sender_marker(
         f"agent:{sender_session}", instance_store=store, relay_chain_in=("neko",)
     )
     assert marker == build_relay_sender_marker("neko", sender_id)
@@ -604,7 +618,7 @@ def test_resolve_sender_tier2_bound_session_scan(isolate_agent_runtime_root):
     )
     assert inst.default_chat_session_id == "persona_chat_seed_000000000000"
 
-    marker = persona_commands._resolve_relay_sender_marker(
+    marker = chat_history_writes._resolve_relay_sender_marker(
         "agent:persona_chat_seed_000000000000", instance_store=store, relay_chain_in=("neko",)
     )
     assert marker == build_relay_sender_marker("dev", inst.id)
@@ -616,7 +630,7 @@ def test_resolve_sender_tier3_persona_chain_fallback(isolate_agent_runtime_root)
     from agent_runtime.relay_policy import build_relay_sender_marker
 
     store = PersonaInstanceStore()
-    marker = persona_commands._resolve_relay_sender_marker(
+    marker = chat_history_writes._resolve_relay_sender_marker(
         "agent:unresolvable_token", instance_store=store, relay_chain_in=("dev", "neko")
     )
     assert marker == build_relay_sender_marker("neko", None)
@@ -641,15 +655,15 @@ def test_relay_incoming_row_carries_marker_and_projects_relayed_with_sender_name
     target_session = _session_for_test(store, persona_id="qa")
     store.open_chat(persona_id="qa", session_id=target_session, display_name="QA")
 
-    marker = persona_commands._resolve_relay_sender_marker(
+    marker = chat_history_writes._resolve_relay_sender_marker(
         f"agent:{sender_session}", instance_store=store, relay_chain_in=("neko",)
     )
 
     db = SessionDB()
-    persona_commands._ensure_persona_chat_session(
+    chat_open._ensure_persona_chat_session(
         session_db=db, session_id=target_session, persona_id="qa", title="QA chat"
     )
-    persona_commands._append_persona_operator_turn(
+    chat_history_writes._append_persona_operator_turn(
         session_db=db,
         session_id=target_session,
         message="From Neko: status?",
@@ -698,16 +712,16 @@ def test_operator_row_carries_no_marker_and_projects_as_operator(isolate_agent_r
     target_session = _session_for_test(store, persona_id="qa")
     store.open_chat(persona_id="qa", session_id=target_session, display_name="QA")
 
-    marker = persona_commands._resolve_relay_sender_marker(
+    marker = chat_history_writes._resolve_relay_sender_marker(
         "operator", instance_store=store, relay_chain_in=()
     )
     assert marker is None
 
     db = SessionDB()
-    persona_commands._ensure_persona_chat_session(
+    chat_open._ensure_persona_chat_session(
         session_db=db, session_id=target_session, persona_id="qa", title="QA chat"
     )
-    persona_commands._append_persona_operator_turn(
+    chat_history_writes._append_persona_operator_turn(
         session_db=db,
         session_id=target_session,
         message="Operator: ping",
@@ -749,16 +763,16 @@ def test_unresolvable_sender_projects_as_agent_without_a_name(isolate_agent_runt
     target_session = _session_for_test(store, persona_id="qa")
     store.open_chat(persona_id="qa", session_id=target_session, display_name="QA")
 
-    marker = persona_commands._resolve_relay_sender_marker(
+    marker = chat_history_writes._resolve_relay_sender_marker(
         "agent:worker_session_bogus_999", instance_store=store, relay_chain_in=()
     )
     assert marker == build_relay_sender_marker(None, None)  # relay_from::
 
     db = SessionDB()
-    persona_commands._ensure_persona_chat_session(
+    chat_open._ensure_persona_chat_session(
         session_db=db, session_id=target_session, persona_id="qa", title="QA chat"
     )
-    persona_commands._append_persona_operator_turn(
+    chat_history_writes._append_persona_operator_turn(
         session_db=db,
         session_id=target_session,
         message="From ???: hi",
@@ -798,11 +812,7 @@ def test_unresolvable_sender_projects_as_agent_without_a_name(isolate_agent_runt
 
 
 def _persona_commands_source() -> str:
-    import hermes_cli.harness as harness
-
-    return (
-        Path(harness.__file__).with_name("harness_parts") / "persona_commands.py"
-    ).read_text(encoding="utf-8")
+    return package_source()
 
 
 # The mission-chat turn body was split on 2026-07-31 into a PLAN phase
@@ -817,9 +827,8 @@ _TURN_BODY_FUNCTIONS = ("_mission_chat_commit_turn", "_cmd_mission_chat_message"
 def _mission_chat_reply_call_in_chat_command():
     """The `mission_chat_reply(...)` call inside the mission-chat turn body.
 
-    persona_commands.py is exec'd into harness globals rather than imported, so
-    its wiring is pinned by parsing the exact source text that gets exec'd —
-    the same idiom as the record-at-injection and usage-single-writer guards.
+    Pinned over the persona package's source, the same idiom as the
+    record-at-injection and usage-single-writer guards.
     """
     import ast
 
@@ -994,7 +1003,7 @@ def test_the_staged_row_survives_the_native_projection_and_attributes(
     target_session = _session_for_test(store, persona_id="qa")
     store.open_chat(persona_id="qa", session_id=target_session, display_name="QA")
 
-    marker = persona_commands._resolve_relay_sender_marker(
+    marker = chat_history_writes._resolve_relay_sender_marker(
         f"agent:{sender_session}", instance_store=store, relay_chain_in=("neko",)
     )
 
@@ -1024,7 +1033,7 @@ def test_the_staged_row_survives_the_native_projection_and_attributes(
     assert native["finish_reason"] == marker
 
     db = SessionDB()
-    persona_commands._ensure_persona_chat_session(
+    chat_open._ensure_persona_chat_session(
         session_db=db, session_id=target_session, persona_id="qa", title="QA chat"
     )
     db.append_message(
@@ -1204,9 +1213,20 @@ def _install_dispatch_handler_doubles(monkeypatch, *, clarify_request=None):
     from agent_runtime.config import AgentRuntimeConfig
 
     db = _DispatchTranscriptDB()
-    monkeypatch.setattr(persona_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
-    monkeypatch.setattr(persona_commands, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(persona_commands, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
+    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
+    monkeypatch.setattr(inspect_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
+    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
+    monkeypatch.setattr(model_and_skills_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
+    monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_turn_commit, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
 
     class _FakeRuntime:
         def __init__(self, *args, **kwargs):
@@ -1232,14 +1252,14 @@ def _install_dispatch_handler_doubles(monkeypatch, *, clarify_request=None):
                 raw=raw,
             )
 
-    monkeypatch.setattr(persona_commands, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _FakeRuntime)
     return db
 
 
 def _send(capsys, args) -> dict:
     import json as _json
 
-    code = persona_commands._cmd_mission_chat_message(args)
+    code = chat_turn_message._cmd_mission_chat_message(args)
     payload = _json.loads(capsys.readouterr().out)
     assert code == 0, payload
     assert payload["ok"] is True
@@ -1251,7 +1271,7 @@ def _refused(capsys, args) -> dict:
 
     import json as _json
 
-    code = persona_commands._cmd_mission_chat_message(args)
+    code = chat_turn_message._cmd_mission_chat_message(args)
     payload = _json.loads(capsys.readouterr().out)
     assert code == 2, payload
     assert payload["ok"] is False
@@ -1761,7 +1781,11 @@ def test_a_clarify_token_cannot_smuggle_in_a_foreign_session(
 
     db = _StrictDispatchTranscriptDB()
     _install_dispatch_handler_doubles(monkeypatch)
-    monkeypatch.setattr(persona_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
 
     foreign = f"persona_chat_{persona_instance_id_for('qa')}_abcdef123456"
     db.create_session(foreign, "agent_runtime_persona_chat")
@@ -1819,7 +1843,10 @@ def test_the_clarify_gate_off_restores_the_pre_token_lane(
     # reverts to {question, choices}. Nothing to migrate, nothing to unwind.
 
     monkeypatch.setattr(
-        persona_commands, "mission_chat_clarify_token_binding", lambda cfg=None: False
+        chat_request, "mission_chat_clarify_token_binding", lambda cfg=None: False
+    )
+    monkeypatch.setattr(
+        chat_tickets_commands, "mission_chat_clarify_token_binding", lambda cfg=None: False
     )
     _install_dispatch_handler_doubles(
         monkeypatch,
@@ -2007,7 +2034,7 @@ def test_a_streamed_dispatch_to_a_retired_placement_refuses_the_same_way(
     db = _install_dispatch_handler_doubles(monkeypatch)
     retired_id, archive_path = _retire_a_placement()
 
-    code = persona_commands._cmd_mission_chat_message(
+    code = chat_turn_message._cmd_mission_chat_message(
         _dispatch_args(
             "triage the flaky login test",
             "cm-retired-stream",
@@ -2151,7 +2178,11 @@ def _install_strict_db(monkeypatch):
 
     _install_dispatch_handler_doubles(monkeypatch)
     db = _StrictDispatchTranscriptDB()
-    monkeypatch.setattr(persona_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
     return db
 
 

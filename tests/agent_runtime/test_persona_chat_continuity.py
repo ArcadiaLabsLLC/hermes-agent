@@ -31,7 +31,7 @@ from agent_runtime.persona_chat_continuity import (
 from agent_runtime.states import WorkerSessionState
 from agent_runtime.profile_runner import _finish_resident_persona_chat_agent
 from hermes_state import SessionDB
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import chat_history_writes
 
 
 def _instance(**overrides) -> PersonaInstance:
@@ -192,7 +192,7 @@ def test_13_executing_can_become_outcome_unknown(isolate_agent_runtime_root, mon
     assert mission_chat_turn_record(session_id="root", client_message_id="client")["state"] == "outcome_unknown"
     monkeypatch.setenv("HERMES_PERSONA_CHAT_FAULT_INJECTION", "after_provider_boundary")
     with pytest.raises(RuntimeError, match="after_provider_boundary"):
-        persona_commands._persona_chat_fault_injection("after_provider_boundary")
+        chat_history_writes._persona_chat_fault_injection("after_provider_boundary")
 
 
 def test_14_exact_unknown_turn_can_be_abandoned(isolate_agent_runtime_root):

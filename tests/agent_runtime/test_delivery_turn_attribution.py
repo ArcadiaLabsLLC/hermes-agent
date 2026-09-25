@@ -24,7 +24,7 @@ from agent_runtime.relay_policy import (
     parse_harness_delivery_marker,
     parse_relay_sender_marker,
 )
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import chat_history_writes
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +144,7 @@ def _marker_for(requested_by):
         def list_all(self):
             return []
 
-    return persona_commands._resolve_relay_sender_marker(
+    return chat_history_writes._resolve_relay_sender_marker(
         requested_by, instance_store=_Store(), relay_chain_in=()
     )
 

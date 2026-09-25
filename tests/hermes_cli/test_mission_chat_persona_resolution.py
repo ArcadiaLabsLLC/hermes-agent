@@ -20,7 +20,7 @@ import uuid
 import pytest
 
 from hermes_cli.harness import build_parser
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import chat_delete, chat_target
 
 
 def parser():
@@ -33,7 +33,7 @@ def parser():
 def test_instance_shaped_id_resolves_to_persona(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "runtime"))
     assert (
-        persona_commands._normalize_cli_persona_or_template_id("personainst_neko_supervisor")
+        chat_delete._normalize_cli_persona_or_template_id("personainst_neko_supervisor")
         == "neko_supervisor"
     )
 
@@ -41,7 +41,7 @@ def test_instance_shaped_id_resolves_to_persona(tmp_path, monkeypatch):
 def test_instance_shaped_profile_id_resolves_to_profile(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "runtime"))
     assert (
-        persona_commands._normalize_cli_persona_or_template_id("personainst_profile_alice")
+        chat_delete._normalize_cli_persona_or_template_id("personainst_profile_alice")
         == "profile:alice"
     )
 
@@ -49,14 +49,14 @@ def test_instance_shaped_profile_id_resolves_to_profile(tmp_path, monkeypatch):
 def test_unknown_data_declared_id_survives_normalization(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "runtime"))
     assert (
-        persona_commands._normalize_cli_persona_or_template_id("definitely_not_a_persona_xyz")
+        chat_delete._normalize_cli_persona_or_template_id("definitely_not_a_persona_xyz")
         == "definitely_not_a_persona_xyz"
     )
 
 
 def test_safe_data_declared_persona_precedes_instance_fallback(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "runtime"))
-    resolved = persona_commands._resolve_mission_chat_persona_id(
+    resolved = chat_target._resolve_mission_chat_persona_id(
         "Some Display Name", "personainst_dev"
     )
     assert resolved == "Some_Display_Name"

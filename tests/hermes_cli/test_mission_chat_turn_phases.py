@@ -49,7 +49,7 @@ from tests.hermes_cli.test_mission_chat_budget_payload import (  # type: ignore
     _seed,
     isolate_agent_runtime_root,  # noqa: F401  (re-exported fixture)
 )
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import chat_events, chat_turn_message
 
 
 # --------------------------------------------------------------------------- #
@@ -218,7 +218,7 @@ def _record_on_disk(root: Path, client_message_id: str) -> dict:
 
 def _drive(monkeypatch, capsys, provider, *, turn_id, stream=True):
     harness = _seed(monkeypatch, provider)
-    code = persona_commands._cmd_mission_chat_message(_args(turn_id, stream=stream))
+    code = chat_turn_message._cmd_mission_chat_message(_args(turn_id, stream=stream))
     capsys.readouterr()  # stream frames + terminal envelope; the record is the subject
     return code
 
@@ -368,7 +368,7 @@ def test_the_emitter_marks_the_first_byte_once_across_many_deltas(monkeypatch):
     """``delta()`` runs per token; the phase must cost one mark for the turn."""
 
     marks = TurnPhaseMarks(monotonic=_TickClock(), wall_now=lambda: "stamp")
-    emitter = persona_commands._ChatProtocolV2Emitter(
+    emitter = chat_events._ChatProtocolV2Emitter(
         turn_id="turn_x",
         client_message_id="client_x",
         emit_frames=False,
@@ -385,7 +385,7 @@ def test_an_empty_delta_is_not_a_first_byte():
     """The emitter returns early on a falsy delta; no byte means no mark."""
 
     marks = TurnPhaseMarks(monotonic=_TickClock(), wall_now=lambda: "stamp")
-    emitter = persona_commands._ChatProtocolV2Emitter(
+    emitter = chat_events._ChatProtocolV2Emitter(
         turn_id="turn_y",
         client_message_id="client_y",
         emit_frames=False,
@@ -1056,7 +1056,7 @@ def test_the_sanitizer_never_invents_the_anchor():
 def test_the_tool_finished_frame_carries_the_patch_artifact_and_counts(capsys):
     import json as _json
 
-    emitter = persona_commands._ChatProtocolV2Emitter(
+    emitter = chat_events._ChatProtocolV2Emitter(
         turn_id="turn_patch",
         client_message_id="client_patch",
     )
@@ -1093,7 +1093,7 @@ def test_the_tool_finished_frame_carries_the_patch_artifact_and_counts(capsys):
 
 def test_a_non_patch_tool_frame_grows_no_patch_keys(capsys):
 
-    emitter = persona_commands._ChatProtocolV2Emitter(
+    emitter = chat_events._ChatProtocolV2Emitter(
         turn_id="turn_terminal",
         client_message_id="client_terminal",
     )

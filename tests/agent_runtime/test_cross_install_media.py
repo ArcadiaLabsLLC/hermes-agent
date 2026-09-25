@@ -151,9 +151,9 @@ def _stamp_reply_media():
     get at the function — and it is the same object the five reply sites call.
     """
 
-    from hermes_cli.harness_parts import persona_commands
+    from hermes_cli.harness_parts.persona import chat_reply_stamps
 
-    return persona_commands._stamp_reply_media
+    return chat_reply_stamps._stamp_reply_media
 
 
 def test_a_peer_executed_reply_carries_the_map_and_a_local_one_carries_nothing(shot):

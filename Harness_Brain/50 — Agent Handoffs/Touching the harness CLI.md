@@ -9,7 +9,7 @@ tags: [handoff, program/downstream-refactor, program/agent-runtime-harness]
 For any change under `hermes_cli/harness.py` or `hermes_cli/harness_parts/`. Reach for this before adding a verb, moving a handler, or repointing a test patch.
 
 > [!important] The parts are real modules (lane H1, 2026-09-24)
-> harness.py wires each handler through its part module (`persona_commands._cmd_persona_list`) and execs nothing. A name resolves in the globals of the module whose code reads it, so a test patches it THERE: `monkeypatch.setattr(persona_commands, "load_agent_runtime_config", …)`, not `harness.`. W0-G4 (`tests/tooling/test_harness_namespace_is_thin.py`) reds a re-export shim on harness.py; `scripts/retarget_harness_patches.py` prints the census of what still patches `harness.`.
+> harness.py wires each handler through its part module (`inspect_commands._cmd_persona_list`, from `harness_parts/persona/`) and execs nothing. A name resolves in the globals of the module whose code reads it, so a test patches it THERE: `monkeypatch.setattr(inspect_commands, "load_agent_runtime_config", …)`, not `harness.`. W0-G4 (`tests/tooling/test_harness_namespace_is_thin.py`) reds a re-export shim on harness.py. A name several persona modules read is patched in each module that reads it.
 
 ## Read order
 
@@ -28,5 +28,5 @@ For any change under `hermes_cli/harness.py` or `hermes_cli/harness_parts/`. Rea
 ## Surface map
 
 - Families in `build_parser` (1,712 lines today): roots, gateway, skills, workspace, realm, persona, chat, characters, doctor, serve, office/board/level/flow/checkpoint.
-- Handlers: `_cmd_<family>_<verb>`; chat turn = `_cmd_mission_chat_message` → `_mission_chat_commit_turn` (persona_commands); serve = `harness_parts/serve.py::_cmd_serve` → `serve_loop`.
+- Handlers: `_cmd_<family>_<verb>`; chat turn = `persona/chat_turn_message.py::_cmd_mission_chat_message` → `persona/chat_turn_commit::_mission_chat_commit_turn`; serve = `harness_parts/serve.py::_cmd_serve` → `serve_loop`.
 - Tests: `tests/hermes_cli/test_harness_*.py`, `tests/agent_runtime/` (patch the part module that reads the name).

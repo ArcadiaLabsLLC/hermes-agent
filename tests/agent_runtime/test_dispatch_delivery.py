@@ -29,7 +29,18 @@ from agent_runtime.dispatch_store import (
     record_completion,
     record_dispatch,
 )
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import (
+    chat_delete,
+    chat_open,
+    chat_target,
+    chat_tickets_commands,
+    chat_turn_commit,
+    chat_turn_message,
+    inspect_commands,
+    instance_commands,
+    lifecycle_commands,
+    model_and_skills_commands,
+)
 from hermes_cli.harness_parts import runtime_commands
 
 SENDER_ROOT = "persona_chat_personainst_neko_aaaaaaaaaaaa"
@@ -581,10 +592,21 @@ def test_forge_delivery_turn_lands_a_real_turn_and_dedupes_a_retry(
             )
 
     monkeypatch.setattr(harness, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(persona_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(inspect_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(model_and_skills_commands, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(runtime_commands, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(persona_commands, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(persona_commands, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_turn_commit, "GPTPersonaRuntime", _ProviderSpy)
 
     dispatch_id = "dispatch-realforge01"
     message = format_dispatch_delivery(

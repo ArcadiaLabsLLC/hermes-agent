@@ -1076,7 +1076,8 @@ authority, so in-process tool relay, CLI and serve transport get the same depth
   between), and that `persona_chat.send_refused` omits the message text because
   the sanitising chokepoints sit inside the lease the refusal never took. All
   three types are registered (`decision_contract_registry.py:184-196`) and
-  emitted from `persona_commands.py` (`:1595`, `:1642`, `:1729`), but the
+  emitted from `hermes_cli/harness_parts/persona/chat_events.py` (`_publish_persona_chat_projection_event`,
+  `_publish_persona_chat_metadata_event`, `_publish_persona_chat_send_refused_event`), but the
   ORDERING claim and the omission RATIONALE were not re-verified against the
   lease code. Source: `…/mission-control-stream.md:361-383`.
 - **The measured patch-lane saving** — 486 bytes against an 822,671-byte core,

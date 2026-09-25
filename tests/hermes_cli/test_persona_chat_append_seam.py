@@ -42,13 +42,7 @@ import inspect
 import pathlib
 
 import pytest
-
-PERSONA_COMMANDS = (
-    pathlib.Path(__file__).resolve().parents[2]
-    / "hermes_cli"
-    / "harness_parts"
-    / "persona_commands.py"
-)
+from tests._downstream.persona_source import package_source
 
 #: The three functions the audit proposed reaping together.
 _SEAM = (
@@ -59,8 +53,8 @@ _SEAM = (
 
 
 def _tree() -> ast.Module:
-    source = PERSONA_COMMANDS.read_text(encoding="utf-8")
-    assert len(source) > 100_000, "persona_commands.py read came back too small — vacuous"
+    source = package_source()
+    assert len(source) > 100_000, "the persona package read came back too small — vacuous"
     return ast.parse(source)
 
 
@@ -69,7 +63,7 @@ def _func(name: str) -> ast.FunctionDef:
         if isinstance(node, ast.FunctionDef) and node.name == name:
             return node
     raise AssertionError(
-        f"{name} is gone from persona_commands.py. It is the explicit "
+        f"{name} is gone from the persona package. It is the explicit "
         "persona-chat append seam, kept deliberately (see its docstring). If "
         "its removal is intended, the five guarantees pinned in this file must "
         "be re-homed first and this file deleted in the same commit — not left "

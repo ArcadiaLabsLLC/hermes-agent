@@ -24,7 +24,7 @@ aliases: [Where does X live]
 
 ## The CLI — `hermes_cli/harness.py` + `harness_parts/`
 
-`hermes harness <family> <verb>`. `build_parser` in `harness.py` wires every family; handlers live in `harness_parts/` (`persona_commands`, `runtime_commands`, `board`, `office`, `level`, `flow_commands`, `checkpoint_commands` — **exec-loaded into harness.py's globals today**, see [[Touching the harness CLI]]) and `harness_parts/serve.py` (a real module: `serve_loop`, the process main loop) and `harness_parts/gateway_commands.py`. Registered into upstream's parser by `hermes_cli/_downstream_cli.py::build_downstream_parsers`. Profile selection before any import reads the filesystem: `hermes_cli/_profile_bootstrap.py`.
+`hermes harness <family> <verb>`. `build_parser` in `harness.py` wires every family; handlers live in `harness_parts/` — real modules since lane H1 (`runtime_commands`, `board`, `office`, `level`, `flow_commands`, `checkpoint_commands`) plus the `harness_parts/persona/` package (lane H3: seventeen modules, one verb family each; its `__init__.py` is the map), see [[Touching the harness CLI]] and `harness_parts/serve.py` (a real module: `serve_loop`, the process main loop) and `harness_parts/gateway_commands.py`. Registered into upstream's parser by `hermes_cli/_downstream_cli.py::build_downstream_parsers`. Profile selection before any import reads the filesystem: `hermes_cli/_profile_bootstrap.py`.
 
 ## Tools the agents call — `tools/`
 

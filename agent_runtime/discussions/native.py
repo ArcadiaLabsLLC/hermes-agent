@@ -143,8 +143,8 @@ class NativeContext:
 
 
 def _invoke_native(args: Any) -> int:
-    from hermes_cli.harness_parts import persona_commands
-    return persona_commands._cmd_mission_chat_message(args)
+    from hermes_cli.harness_parts.persona import chat_turn_message
+    return chat_turn_message._cmd_mission_chat_message(args)
 
 
 class NativeTurns:

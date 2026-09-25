@@ -395,35 +395,35 @@
   },
   {
    "arms": 1,
-   "site": "hermes_cli/harness_parts/persona_commands.py|_ChatProtocolV2Emitter.finish|vocab|completed"
+   "site": "hermes_cli/harness_parts/persona/chat_delete.py|_cmd_persona_chat_delete|vocab|blocked"
   },
   {
    "arms": 1,
-   "site": "hermes_cli/harness_parts/persona_commands.py|_close_free_floating_assignments|vocab|blocked"
+   "site": "hermes_cli/harness_parts/persona/chat_delete.py|_cmd_persona_chat_delete|vocab|cancelled"
   },
   {
    "arms": 1,
-   "site": "hermes_cli/harness_parts/persona_commands.py|_close_free_floating_assignments|vocab|cancelled"
+   "site": "hermes_cli/harness_parts/persona/chat_delete.py|_cmd_persona_chat_delete|vocab|completed"
   },
   {
    "arms": 1,
-   "site": "hermes_cli/harness_parts/persona_commands.py|_close_free_floating_assignments|vocab|completed"
+   "site": "hermes_cli/harness_parts/persona/chat_events.py|_ChatProtocolV2Emitter.finish|vocab|completed"
   },
   {
    "arms": 1,
-   "site": "hermes_cli/harness_parts/persona_commands.py|_cmd_persona_chat_delete|vocab|blocked"
+   "site": "hermes_cli/harness_parts/persona/chat_target.py|_close_free_floating_assignments|vocab|blocked"
   },
   {
    "arms": 1,
-   "site": "hermes_cli/harness_parts/persona_commands.py|_cmd_persona_chat_delete|vocab|cancelled"
+   "site": "hermes_cli/harness_parts/persona/chat_target.py|_close_free_floating_assignments|vocab|cancelled"
   },
   {
    "arms": 1,
-   "site": "hermes_cli/harness_parts/persona_commands.py|_cmd_persona_chat_delete|vocab|completed"
+   "site": "hermes_cli/harness_parts/persona/chat_target.py|_close_free_floating_assignments|vocab|completed"
   },
   {
    "arms": 4,
-   "site": "hermes_cli/harness_parts/persona_commands.py|_cmd_persona_instance_steer|ladder|op"
+   "site": "hermes_cli/harness_parts/persona/instance_commands.py|_cmd_persona_instance_steer|ladder|op"
   },
   {
    "arms": 1,

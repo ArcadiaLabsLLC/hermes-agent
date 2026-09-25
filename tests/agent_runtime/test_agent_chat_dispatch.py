@@ -16,7 +16,7 @@ import subprocess
 import sys
 
 import pytest
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import chat_turn_message
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
@@ -152,7 +152,7 @@ def test_wait_true_is_unchanged_and_never_touches_the_store(store_home, monkeypa
         args.payload_sink({"ok": True, "reply": "ack", "session_id": "s1"})
         return 0
 
-    monkeypatch.setattr(persona_commands, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     result = json.loads(agent_chat_send(persona_id="dev", message="hi"))
 
     assert result["ok"] is True

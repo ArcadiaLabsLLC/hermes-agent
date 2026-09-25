@@ -1128,9 +1128,9 @@ def forge_delivery_turn(
         relay_deadline_epoch=None,
         payload_sink=payloads.append,
     )
-    from hermes_cli.harness_parts import persona_commands as _persona_commands
+    from hermes_cli.harness_parts.persona import chat_turn_message as _chat_turn_message
 
-    exit_code = _persona_commands._cmd_mission_chat_message(args)
+    exit_code = _chat_turn_message._cmd_mission_chat_message(args)
     payload = payloads[-1] if payloads else None
     ok = exit_code == 0 and bool((payload or {}).get("ok"))
     return ok, payload

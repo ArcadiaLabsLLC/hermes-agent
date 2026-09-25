@@ -41,7 +41,7 @@ from tests.agent_runtime.namespace_reads import (
     namespace_reads,
     unresolved_reader_calls,
 )
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import inspect_commands
 
 
 def _persona_commands() -> dict:
@@ -95,7 +95,7 @@ def test_the_handler_no_longer_reads_the_retired_namespace_attributes():
 
     # persona_commands.py is exec'd into harness.py's globals, not imported.
 
-    source = inspect.getsource(persona_commands._cmd_persona_tool_diff)
+    source = inspect.getsource(inspect_commands._cmd_persona_tool_diff)
     assert namespace_reads(source).isdisjoint({"task_id", "goal_id"})
     assert unresolved_reader_calls(source) == []
 

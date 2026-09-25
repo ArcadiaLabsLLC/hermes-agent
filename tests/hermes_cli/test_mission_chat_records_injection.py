@@ -11,6 +11,7 @@ silently dropped again.
 
 import ast
 from pathlib import Path
+from tests._downstream.persona_source import package_source
 
 
 def _mission_chat_message_func():
@@ -24,13 +25,12 @@ def _mission_chat_message_func():
     # is now ``_mission_chat_commit_turn`` (the sole writer, under the lease).
     # Both halves are searched so this guard follows the code if the boundary
     # moves again instead of silently finding nothing.
-    path = Path(harness.__file__).with_name("harness_parts") / "persona_commands.py"
-    tree = ast.parse(path.read_text(encoding="utf-8"))
+    tree = ast.parse(package_source())
     for name in ("_mission_chat_commit_turn", "_cmd_mission_chat_message"):
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef) and node.name == name:
                 return node
-    raise AssertionError("the mission-chat turn body is not in persona_commands")
+    raise AssertionError("the mission-chat turn body is not in the persona package")
 
 
 def _observability_calls(func: ast.FunctionDef) -> list[ast.Call]:

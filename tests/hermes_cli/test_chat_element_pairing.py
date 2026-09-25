@@ -16,12 +16,12 @@ runner's `run.tool.started` / `run.tool.finished` progress payloads.
 from __future__ import annotations
 
 import pytest
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import chat_events
 
 
 def emitter(**kwargs):
 
-    return persona_commands._ChatProtocolV2Emitter(
+    return chat_events._ChatProtocolV2Emitter(
         turn_id="turn_1",
         client_message_id="client_1",
         emit_frames=False,

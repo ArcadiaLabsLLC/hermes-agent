@@ -38,6 +38,7 @@ from agent_runtime.mission_chat_outcome import (
     TurnOutcome,
     classify_turn_failure,
 )
+from tests._downstream.persona_source import package_source
 
 # ---------------------------------------------------------------------------
 # The wire, spelled out.
@@ -408,10 +409,7 @@ def test_a_delegated_kind_may_not_also_be_owned_here():
 # the consumer seam
 # ---------------------------------------------------------------------------
 def _persona_commands_tree() -> ast.Module:
-    import hermes_cli.harness as harness
-
-    source = Path(harness.__file__).parent / "harness_parts" / "persona_commands.py"
-    return ast.parse(source.read_text(encoding="utf-8"))
+    return ast.parse(package_source())
 
 
 #: The single deliberate literal left in the CLI lane, and why. A default

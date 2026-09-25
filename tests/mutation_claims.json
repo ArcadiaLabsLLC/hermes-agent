@@ -2,7 +2,7 @@
   "claims": [
     {
       "id": "rdh6-cli-roster-read-unwrapped",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
       "symbol": "_cli_create_persona",
       "operator": "remove-typed-fault-wrap",
       "find": "    try:\n        return _persona_by_id(load_agent_runtime_config(), persona_id)\n    except Exception as exc:  # noqa: BLE001 — re-raised as the typed fault\n        raise PersonaRosterUnavailable(str(exc)) from exc",
@@ -17,7 +17,7 @@
     },
     {
       "id": "rdh6-cli-roster-fault-degrades-to-no-persona",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
       "symbol": "_cli_create_persona",
       "operator": "degrade-fault-to-absence",
       "find": "    except Exception as exc:  # noqa: BLE001 — re-raised as the typed fault\n        raise PersonaRosterUnavailable(str(exc)) from exc",
@@ -348,7 +348,7 @@
     },
     {
       "id": "s4-an-omitted-skill-flag-clears-every-instance-override",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/instance_commands.py",
       "symbol": "_cmd_persona_instance_update_profile",
       "operator": "collapse-absent-flag-to-empty-list",
       "find": "            skills=requested_skills,",
@@ -363,7 +363,7 @@
     },
     {
       "id": "s4-the-cli-create-door-drops-its-skill-flag",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
       "symbol": "_cmd_agent_create",
       "operator": "drop-argv-param-passthrough",
       "find": "    requested_skills = list_flag_or_absent(args, \"skills\")\n    if requested_skills is not None:\n        params[\"skills\"] = requested_skills",
@@ -618,7 +618,7 @@
     },
     {
       "id": "s8b-retire-cli-flag-parses-and-goes-nowhere",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
       "symbol": "_agent_retire_outcome",
       "operator": "drop-param-from-service-call",
       "find": "            \"correlation_id\": getattr(args, \"correlation_id\", None),\n",
@@ -648,7 +648,7 @@
     },
     {
       "id": "pts-s1-absent-becomes-clear",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/model_and_skills_commands.py",
       "symbol": "_validated_set_skills_request",
       "operator": "collapse-absent-into-clear",
       "find": "    if raw_skills is None and not clear:\n        raise _SetModelRequestError(\n            \"nothing_to_write\",\n            \"pass --skill (repeatable) to replace the persona's default skill set, or --clear-skills to empty it\",\n        )",
@@ -665,7 +665,7 @@
     },
     {
       "id": "pts-s1-store-write-dropped",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/model_and_skills_commands.py",
       "symbol": "_cmd_persona_set_skills",
       "operator": "drop-store-persist",
       "find": "            target.skills_override_issued_at = issued_at or datetime.now(timezone.utc)\n            store.save(target)",
@@ -682,7 +682,7 @@
     },
     {
       "id": "pts-s1-stale-write-applies",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/model_and_skills_commands.py",
       "symbol": "_cmd_persona_set_skills",
       "operator": "invert-supersede-comparison",
       "find": "        applied_at = target.skills_override_issued_at\n        applied_at = applied_at if applied_at.tzinfo is not None else applied_at.replace(tzinfo=timezone.utc)\n        if issued <= applied_at:",
@@ -744,7 +744,7 @@
     },
     {
       "id": "r1-persona-instance-doors-stop-refusing",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
       "symbol": "_placement_discriminability_refusal",
       "operator": "collapse-refusal-to-accept",
       "find": "    if looks_like_deliberate_placement(placement_id):\n        return None",
@@ -2067,7 +2067,7 @@
     },
     {
       "id": "dcw-h4-concurrent-tool-elements-pair-by-arrival-again",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/chat_events.py",
       "symbol": "_ChatProtocolV2Emitter._match_started_tool",
       "operator": "drop-the-identity-match",
       "find": "        for field, value in identities:\n            if not value:\n                continue\n            for index, candidate in enumerate(pending):\n                if candidate.get(field) == value:\n                    return pending.pop(index)\n",
@@ -2082,7 +2082,7 @@
     },
     {
       "id": "dcw-h4-an-identity-free-finish-settles-the-newest-start",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/chat_events.py",
       "symbol": "_ChatProtocolV2Emitter._match_started_tool",
       "operator": "restore-the-lifo-fallback",
       "find": "        return pending.pop(0)\n",
@@ -2097,7 +2097,7 @@
     },
     {
       "id": "dcw-h4-a-matched-start-stays-pending-and-can-be-settled-twice",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/chat_events.py",
       "symbol": "_ChatProtocolV2Emitter._match_started_tool",
       "operator": "read-the-match-without-removing-it",
       "find": "                    return pending.pop(index)\n",
@@ -2112,7 +2112,7 @@
     },
     {
       "id": "dcw-h4-a-terminal-finish-has-no-identity-to-match-on",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/chat_events.py",
       "symbol": "_ChatProtocolV2Emitter._match_started_tool",
       "operator": "drop-the-command-identity",
       "find": "            (\"command\", finished_command),\n",
@@ -2954,7 +2954,7 @@
     },
     {
       "id": "ctp4-plan-drops-the-session-db-measurement",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/chat_turn_message.py",
       "symbol": "_cmd_mission_chat_message",
       "operator": "drop-plan-field",
       "find": "        session_db_open_ms=_session_db_open_ms,\n",
@@ -2969,7 +2969,7 @@
     },
     {
       "id": "ctp4-unmeasured-session-db-open-becomes-a-zero",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/chat_turn_commit/__init__.py",
       "symbol": "_mission_chat_commit_turn",
       "operator": "fabricate-zero-for-absent",
       "find": "        if isinstance(_session_db_open_ms, int) and not isinstance(\n            _session_db_open_ms, bool\n        ):\n            _profile_timing[\"session_db_open_ms\"] = _session_db_open_ms",
@@ -2984,7 +2984,7 @@
     },
     {
       "id": "ctp4-the-session-db-open-is-never-timed",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/chat_turn_message.py",
       "symbol": "_cmd_mission_chat_message",
       "operator": "drop-measurement",
       "find": "    _session_db_open_ms = max(\n        0, int((time.monotonic() - _session_db_open_started) * 1000)\n    )\n    instance_store = PersonaInstanceStore()",
@@ -3075,7 +3075,7 @@
     },
     {
       "id": "p4-reply-media-mint-loses-its-peer-gate",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/chat_reply_stamps.py",
       "symbol": "_stamp_reply_media",
       "operator": "drop-origin-gate",
       "find": "        if not requested_by.startswith(PEER_REQUESTED_BY_PREFIX):\n            return data\n",

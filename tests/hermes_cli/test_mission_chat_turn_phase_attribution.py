@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import pytest
 
+from hermes_cli.harness_parts.persona import chat_turn_message
+
 from agent_runtime import mission_chat_phases, snapshot_build_ledger
 from agent_runtime.mission_chat_phases import TURN_PHASES_KEY, TurnPhaseMarks
 
@@ -216,7 +218,7 @@ def attributed_turn(request, monkeypatch, capsys, isolate_agent_runtime_root, em
         monkeypatch,
         _streaming_provider(profile_timing={"resident_actor_reused": 0}),
     )
-    harness._cmd_mission_chat_message(_args("stage4_turn", stream=True))
+    chat_turn_message._cmd_mission_chat_message(_args("stage4_turn", stream=True))
     capsys.readouterr()
     return _record_on_disk(isolate_agent_runtime_root, "stage4_turn")[TURN_PHASES_KEY]
 
@@ -312,7 +314,7 @@ def warm_turn(monkeypatch, capsys, isolate_agent_runtime_root, empty_ledger):  #
         monkeypatch,
         _streaming_provider(profile_timing={"resident_actor_reused": 1}),
     )
-    harness._cmd_mission_chat_message(_args("stage4_warm", stream=True))
+    chat_turn_message._cmd_mission_chat_message(_args("stage4_warm", stream=True))
     capsys.readouterr()
     return _record_on_disk(isolate_agent_runtime_root, "stage4_warm")[TURN_PHASES_KEY]
 
@@ -331,7 +333,7 @@ def unattributable_turn(monkeypatch, capsys, isolate_agent_runtime_root, empty_l
         lambda: TurnPhaseMarks(monotonic=_TickClock(), wall_now=lambda: "stamp"),
     )
     harness = _seed(monkeypatch, _streaming_provider(profile_timing={}))
-    harness._cmd_mission_chat_message(_args("stage4_blind", stream=True))
+    chat_turn_message._cmd_mission_chat_message(_args("stage4_blind", stream=True))
     capsys.readouterr()
     return _record_on_disk(isolate_agent_runtime_root, "stage4_blind")[TURN_PHASES_KEY]
 

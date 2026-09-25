@@ -19,7 +19,7 @@ import pytest
 
 from agent_runtime import paths
 from tests.agent_runtime.office_seed import seed_workspace_record
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import lifecycle_commands
 
 WORKSPACE = "ws_agent_create_verb"
 
@@ -463,7 +463,7 @@ def test_both_create_lanes_name_the_same_roster_fault(
 def _AGENT_CREATE_EXIT_CODES_FOR_TEST() -> dict:
     """Read the verb's own table rather than re-spelling it here."""
 
-    return persona_commands._AGENT_CREATE_EXIT_CODES
+    return lifecycle_commands._AGENT_CREATE_EXIT_CODES
 
 
 def test_a_roster_read_that_faults_once_refuses_instead_of_renaming_the_agent(
@@ -632,7 +632,7 @@ def test_the_verb_is_reachable_and_its_siblings_are_untouched():
          "--pos", "1", "2"]
     )
     assert args.agent_command == "create"
-    assert args.func is persona_commands._cmd_agent_create
+    assert args.func is lifecycle_commands._cmd_agent_create
 
     # The slot was free and stays free-standing: `agent list` still routes.
     assert root.parse_args(["harness", "agent", "list"]).func is harness._cmd_agent_list
@@ -1044,7 +1044,7 @@ def test_a_refused_console_identity_stops_the_create_before_any_write(
     """
 
     monkeypatch.setattr(
-        persona_commands,
+        lifecycle_commands,
         "_console_denial",
         lambda action: {
             "code": -32000,
@@ -1073,7 +1073,7 @@ def test_a_plain_operator_create_is_unchanged_by_the_mirror(
     weaker claim than "there is no input by which it could have refused".
     """
 
-    assert persona_commands._console_denial("runtime.agent.create") is None
+    assert lifecycle_commands._console_denial("runtime.agent.create") is None
 
     code, ack = _create(capsys, "--idempotency-key", "verb-create-plain")
 

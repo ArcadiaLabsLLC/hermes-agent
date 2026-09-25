@@ -14,7 +14,7 @@ from hermes_cli.harness import build_parser
 from agent_runtime import paths
 from agent_runtime.models import AgentRun, Incident
 from types import SimpleNamespace
-from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts.persona import chat_target, chat_turn_message, inspect_commands
 from hermes_cli.harness_parts import runtime_commands
 
 Task = SimpleNamespace
@@ -340,7 +340,9 @@ def test_harness_init_human_branch_states_when_no_personas_are_provisioned(monke
     import hermes_cli.harness as harness_mod
 
     monkeypatch.setattr(harness_mod, "ensure_persisted_personas", lambda cfg: [])
-    monkeypatch.setattr(persona_commands, "ensure_persisted_personas", lambda cfg: [])
+    monkeypatch.setattr(chat_target, "ensure_persisted_personas", lambda cfg: [])
+    monkeypatch.setattr(chat_turn_message, "ensure_persisted_personas", lambda cfg: [])
+    monkeypatch.setattr(inspect_commands, "ensure_persisted_personas", lambda cfg: [])
     monkeypatch.setattr(runtime_commands, "ensure_persisted_personas", lambda cfg: [])
     monkeypatch.setattr(
         harness_mod,
@@ -826,15 +828,16 @@ def _stage42_lane_sources():
     # listing) — `gateway_commands.py` included: its `harness gateway` verbs are
     # stage42 verbs whose handlers do not live in `harness.py`. `serve.py` is
     # the serve loop, not a verb family.
-    yield from sorted(path for path in parts.glob("*.py") if path.name != "serve.py")
+    yield from sorted(path for path in parts.rglob("*.py") if path.name != "serve.py")
 
 
 def _stage42_source_module(path: Path) -> str:
     # The harness, its parts and harness_support are analysed as ONE name
     # space: no name is bound by two of them, so a bare-name call resolves to
     # the same function either way, and a part's handler is wired by its bare
-    # name through its module (`persona_commands._cmd_persona_list`).
-    if path.parent.name == "harness_parts" or path.name == "harness.py":
+    # name through its module (`inspect_commands._cmd_persona_list`, in the
+    # `harness_parts/persona/` package).
+    if "harness_parts" in path.parts or path.name == "harness.py":
         return "hermes_cli.harness"
     return ".".join(path.with_suffix("").parts[-2:])
 

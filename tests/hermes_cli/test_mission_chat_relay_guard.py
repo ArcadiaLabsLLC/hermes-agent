@@ -14,6 +14,7 @@ import time
 import pytest
 
 from hermes_cli.harness import build_parser
+from tests._downstream.persona_source import package_source
 
 
 def parser():
@@ -281,8 +282,7 @@ def _mission_chat_message_call_names():
 
     import hermes_cli.harness as harness
 
-    path = Path(harness.__file__).with_name("harness_parts") / "persona_commands.py"
-    tree = ast.parse(path.read_text(encoding="utf-8"))
+    tree = ast.parse(package_source())
     func = next(
         node
         for node in ast.walk(tree)
