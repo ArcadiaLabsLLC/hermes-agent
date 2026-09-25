@@ -61,7 +61,7 @@ sheets are under `docs/agent-runtime-harness/planned/god-file-layout-sheets/`.
 - `tests/test_coverage_claims_resolve.py` — stale test citations in `docs/gateway/` and the layout sheets. Row in `fork-hygiene-queue.md`.
 - `tests/agent_runtime/test_no_kanban_dependency.py` — red since `7d28e958ad` (2026-09-24). Row in `runtime-queue.md` § Fork-owned.
 - `ruff check .` — seven F821 in `tui_gateway/plugin_inject.py` since `177f275b77`. Row in `fork-hygiene-queue.md`.
-- The validated suite on `7df3bee189`: **23 passed / 25 failed in 18 files**, the same 25 under a serial rerun; one closed at `cdd4d6dac5`, the 24 left are one class row in `fork-hygiene-queue.md` (mostly Linux-premise `hermes_state` tests running on Windows). Logs: `X:/wt/_holds/gates-0925/`.
+- The validated suite on `7df3bee189`: **22,140 passed / 25 failed in 18 files**, the same 25 under a serial rerun; one closed at `cdd4d6dac5`, the 24 left are one class row in `fork-hygiene-queue.md` (mostly Linux-premise `hermes_state` tests running on Windows). Logs: `X:/wt/_holds/gates-0925/`.
 - `test_toolset_manifest` — upstream `tools/connectors` drift, not fork work.
 
 ## Owner calls — RULED 2026-09-25 (owner: "take the recommendations"), and what each became
