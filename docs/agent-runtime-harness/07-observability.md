@@ -201,7 +201,7 @@ what the fixture mirror below enforces.
 | turn-record `phases` block (schema v3) | `agent_runtime/mission_chat_phases.py`; the key lands via `_safe_journal_metadata` (`mission_chat_turns.py::_safe_journal_metadata`) → `mission_chat_phases.py::safe_turn_phases` | `tool/mission_chat_latency_audit.dart` |
 | `[MissionChatTiming]` / `[MissionChatOutcome]` / `[MissionDropTiming]` | launcher — see the launcher section below | `tool/mission_chat_latency_audit.dart`; drop line read by eye |
 | `[MissionAgentCreate] lane=… gesture=… correlation=… …` and `[MissionOfficeWrite] <ws> retire lane: …` | launcher — see the launcher section below | the placement verb's two lanes, read by eye; the ADOPT line is also read by `mission_office_placement_instance_key_test.dart` |
-| `prompt_observability` rows + `trace_events` | `agent_runtime/prompt_observability.py:198`, persisted by `persist_prompt_observability_context` (`:1450`) | `harness prompt-context show --context-id` (`prompt_context_commands.py::_cmd_prompt_context_show`) and the slimmed `chat.final` echo |
+| `prompt_observability` rows + `trace_events` | `agent_runtime/prompt_observability/mission_chat.py:62`, persisted by `persist_prompt_observability_context` (`agent_runtime/prompt_observability/context_store.py:77`) | `harness prompt-context show --context-id` (`prompt_context_commands.py::_cmd_prompt_context_show`) and the slimmed `chat.final` echo |
 
 ### The snapshot build family
 
@@ -434,24 +434,24 @@ relative to `lib/features/mission_control/`.
 ### prompt_observability rows and trace_events
 
 Per-turn prompt provenance, not timing: what the model was actually shown. Built
-by `mission_chat_prompt_observability` (`prompt_observability.py:198`), turn
-results attached at `:664`, persisted through **one** chokepoint —
-`persist_prompt_observability_context` (`:1421-1464`) — which ref-transforms the
+by `mission_chat_prompt_observability` (`agent_runtime/prompt_observability/mission_chat.py:62`), turn
+results attached at `:649`, persisted through **one** chokepoint —
+`persist_prompt_observability_context` (`agent_runtime/prompt_observability/context_store.py:77`) — which ref-transforms the
 skills catalogs, writes compactly, updates the latest-pointer index and applies
 retention. Layout: `<store>/prompt_observability/<context_id>.json`,
 `prompt_observability_catalogs/<hash>.json`, `prompt_observability_archive/`,
 `prompt_observability_index.json` (`agent_runtime/paths.py:512-534`). Retention
 keeps the newest 2 rows per `(persona_instance_id, session_id)` lane and ARCHIVES
-the rest, never deletes (`PROMPT_OBSERVABILITY_RETAIN_PER_LANE`, `:1287-1289`);
-an absent catalog is honest absence, never a fake empty list (`:1319-1321`).
+the rest, never deletes (`PROMPT_OBSERVABILITY_RETAIN_PER_LANE`, `:1314-1316`);
+an absent catalog is honest absence, never a fake empty list (`:1346-1348`).
 Two consumers: the live `chat.final`
 echo carries a slimmed projection (`slim_chat_final_observability`,
-`agent_runtime/prompt_observability.py::slim_chat_final_observability`); evicted rows are
+`agent_runtime/prompt_observability/turn_results.py:107`); evicted rows are
 fetched by `harness prompt-context show --context-id <id> [--json]`
 (`hermes_cli/harness_parts/parser/surfaces.py::add_prompt_context`, handler `hermes_cli/harness_parts/prompt_context_commands.py::_cmd_prompt_context_show`) — read-only, honest
 `not_found` on absence. `trace_events` are the turn's tool-call trace, passed at
 `_mission_chat_commit_turn` and read by `used_skills_context`
-(`prompt_observability.py:2946-2981`) to report which skills were actually
+(`agent_runtime/prompt_observability/skills_context.py:277`) to report which skills were actually
 loaded — `skill_view` entries only, redaction-safe.
 
 **The frame projection evicts the two heaviest fields, not the row.** The

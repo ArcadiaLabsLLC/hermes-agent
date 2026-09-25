@@ -196,7 +196,7 @@ chat-session override  >  instance override  >  persona default  >  config defau
 ```
 
 The chat-session override persists under `mission_control_chat_model_override`
-(`hermes_cli/harness_parts/persona/chat_session.py::_resolve_chat_model_override`, `agent_runtime/persona_chat_history.py:234`) via
+(`hermes_cli/harness_parts/persona/chat_session.py::_resolve_chat_model_override`, `agent_runtime/persona_chat_history/vocabulary.py:307`) via
 `_resolve_chat_model_override`. Its scope is literally
 `mission_control_chat_session` (`:7085`, inside `_chat_effective_model_payload`) — per-thread,
 not per-instance. Values validate against
@@ -453,7 +453,7 @@ through, and `turn_run_budget_metadata` (`:419`) the one adapter turning "the ru
 ended" into the journal fragment a settle point splices in (`run_budget.py:46`) — both
 absence-preserving. Neither is the only code that touches the block: two live consumers read it
 straight off the record they were handed (`operator_channels.py:927-929`,
-`persona_chat_history.py:1690-1692`). Default wall budget is **240 s**
+`agent_runtime/persona_chat_history/curation.py:475`). Default wall budget is **240 s**
 (`runtime_config.py:150-164`), tunable at
 `agent_runtime.mission_chat.default_max_seconds` and clamped; an explicit `--max-seconds` always
 wins, including outside the clamp (`config.py:820-840`). The last `max(60s, 15%)` is reserved for

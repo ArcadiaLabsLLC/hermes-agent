@@ -1134,7 +1134,7 @@ third was an observability artifact over a real 24 s window.
 - **`projection drops N`** counted the residue of the operator's own first-class
   retires as anomalies. Fixed at the emission site: a session whose binding
   resolves in the persona-instance archive now drops as `instance_retired` with
-  `by_design=True` (`persona_chat_history.py:420`), so the count means *lost*
+  `by_design=True` (`agent_runtime/persona_chat_history/summary.py:43`), so the count means *lost*
   data. The chip also gained the disclosure the other two had —
   `anomalousDropSummaries` (`data/mission_control_snapshot.dart`, parsed and
   passed to the alert from that same file).

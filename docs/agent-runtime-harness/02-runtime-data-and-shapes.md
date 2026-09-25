@@ -194,8 +194,8 @@ never deleted — that file is still on disk live. Retention is
 `_RETENTION_MAX_TURNS_PER_SESSION = 100` turns per session (`:72`, applied
 `:800-806` inside the per-session lock), which must stay comfortably above the
 projection's displayable tail — `MAX_PERSONA_CHAT_MESSAGE_TAIL = 40` in
-`persona_chat_history.py` — or a displayable agent row loses its
-`turn_elements` (`:67-71`); plus an opportunistic session-file GC under
+`agent_runtime/persona_chat_history/vocabulary.py` — or a displayable agent row loses its
+`turn_elements` (`:301`); plus an opportunistic session-file GC under
 `mission_chat_turns.gc.lock`. `_MAX_ELEMENTS = 80` (`:65`) is a DIFFERENT bound:
 it caps the `elements` list inside ONE turn record (`_safe_elements`, `:1272`),
 not the turns a session keeps. Live counts (2026-08-22): 50
