@@ -36,6 +36,13 @@ __all__ = [
     "_prune_inbox_packages",
     "_realm_publishes_skill",
     "_resolve_promotion_source",
+    "_skill_delete_archive",
+    "_skill_delete_coverage_warnings",
+    "_skill_delete_envelope",
+    "_skill_delete_realms",
+    "_skill_delete_refusal",
+    "_skill_delete_tombstones",
+    "_skill_package_hashes",
 ]
 
 
@@ -383,21 +390,49 @@ def _cmd_skills_delete(args) -> int:
     from their clone. What git cannot reach is the ADOPTED copy in each member's
     canonical skills root, which is not a git file and which rides that member's
     next publish straight back into the realm. The ledger is that instruction.
-    """
 
-    from agent_runtime.skill_resolution import skill_package_content_hash
-    from agent_runtime.errors import SkillTombstoneRefused
-    from agent_runtime.skill_promotion import _archive_package, validate_skill_slug
-    from agent_runtime.store import active_skill_tombstones
-    from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS
+    Five steps, in order: refuse (before anything is written), select the
+    realms, tombstone them, archive the local packages (and prune each realm's
+    inbox), report.
+    """
 
     slug = str(getattr(args, "skill", "") or "").strip()
     dry_run = bool(getattr(args, "dry_run", False))
-    requested: list[str] = []
-    for value in list_flag_or_empty(args, "realms"):
-        token = str(value or "").strip()
-        if token and token not in requested:
-            requested.append(token)
+    refused = _skill_delete_refusal(slug, args)
+    if refused is not None:
+        return refused
+
+    store = RealmStore()
+    covered = _canonical_packages_covered(slug)
+    covered_slugs = [pkg_slug for pkg_slug, _pkg_dir in covered]
+    realms, refused = _skill_delete_realms(store, args, slug, covered_slugs)
+    if refused is not None:
+        return refused
+
+    hashes = _skill_package_hashes(covered)
+    deleted_hash = hashes.get(covered_slugs[0]) if covered_slugs else None
+    realm_rows, refused = _skill_delete_tombstones(store, realms, slug, deleted_hash, dry_run, args)
+    if refused is not None:
+        return refused
+
+    warnings: list[dict] = []
+    archived_rows = _skill_delete_archive(covered, hashes, dry_run, warnings)
+    if not dry_run:
+        for row, realm in zip(realm_rows, realms):
+            row["inbox_pruned"] = _prune_inbox_packages(realm.id, slug)
+    warnings.extend(_skill_delete_coverage_warnings(slug, covered, realm_rows))
+    _print_stage42(
+        _skill_delete_envelope(slug, realm_rows, archived_rows, deleted_hash, dry_run, warnings),
+        args=args,
+        default_output="json",
+    )
+    return 0
+
+
+def _skill_delete_refusal(slug: str, args) -> int | None:
+    """The exit code of a refusal printed before anything is written, or None."""
+    from agent_runtime.skill_promotion import validate_skill_slug
+    from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS
 
     # Refuse BEFORE anything is written, reading the SAME two authorities the
     # store chokepoint reads (``validate_skill_slug`` and the constant) rather
@@ -432,27 +467,37 @@ def _cmd_skills_delete(args) -> int:
             default_output="json",
         )
         return ERROR_EXIT_CODES["skill_installer_owned"]
+    return None
 
-    store = RealmStore()
-    covered = _canonical_packages_covered(slug)
-    covered_slugs = [pkg_slug for pkg_slug, _pkg_dir in covered]
 
-    if requested:
-        # An explicitly named realm is honored even when it does not currently
-        # publish the slug (and even when archived): the operator named it, and a
-        # tombstone records INTENT.
-        realms = []
-        for realm_id in requested:
-            try:
-                realms.append(store.get(realm_id))
-            except NotFound as exc:
-                return emit_harness_error(exc, args=args, code="not_found")
-    else:
-        realms = [
+def _skill_delete_realms(store, args, slug: str, covered_slugs: list[str]) -> tuple[list, int | None]:
+    """The realms this delete tombstones: the ones ``--realm`` names, else every
+    realm that publishes the slug. A named realm that does not exist refuses."""
+    requested: list[str] = []
+    for value in list_flag_or_empty(args, "realms"):
+        token = str(value or "").strip()
+        if token and token not in requested:
+            requested.append(token)
+    if not requested:
+        return [
             realm
             for realm in store.list_all()
             if _realm_publishes_skill(realm, slug, covered_slugs)
-        ]
+        ], None
+    # An explicitly named realm is honored even when it does not currently
+    # publish the slug (and even when archived): the operator named it, and a
+    # tombstone records INTENT.
+    realms = []
+    for realm_id in requested:
+        try:
+            realms.append(store.get(realm_id))
+        except NotFound as exc:
+            return [], emit_harness_error(exc, args=args, code="not_found")
+    return realms, None
+
+
+def _skill_package_hashes(covered) -> dict[str, str | None]:
+    from agent_runtime.skill_resolution import skill_package_content_hash
 
     hashes: dict[str, str | None] = {}
     for pkg_slug, pkg_dir in covered:
@@ -460,9 +505,14 @@ def _cmd_skills_delete(args) -> int:
             hashes[pkg_slug] = skill_package_content_hash(pkg_dir, pkg_dir / "SKILL.md")
         except Exception:  # noqa: BLE001 — evidence, never a reason to refuse
             hashes[pkg_slug] = None
-    deleted_hash = hashes.get(covered_slugs[0]) if covered_slugs else None
+    return hashes
 
-    warnings: list[dict] = []
+
+def _skill_delete_tombstones(store, realms, slug: str, deleted_hash, dry_run: bool, args) -> tuple[list[dict], int | None]:
+    """One tombstone per realm, and its receipt row; a store refusal stops the verb."""
+    from agent_runtime.errors import SkillTombstoneRefused
+    from agent_runtime.store import active_skill_tombstones
+
     realm_rows: list[dict] = []
     for realm in realms:
         before = set(realm.skill_selection or [])
@@ -487,7 +537,7 @@ def _cmd_skills_delete(args) -> int:
                 args=args,
                 default_output="json",
             )
-            return ERROR_EXIT_CODES.get(exc.code, 1)
+            return realm_rows, ERROR_EXIT_CODES.get(exc.code, 1)
         realm_rows.append(
             {
                 "realm_id": realm.id,
@@ -500,6 +550,12 @@ def _cmd_skills_delete(args) -> int:
                 "inbox_pruned": [],
             }
         )
+    return realm_rows, None
+
+
+def _skill_delete_archive(covered, hashes: dict, dry_run: bool, warnings: list[dict]) -> list[dict]:
+    """Archive each covered local package; a failure is a warning, never silent."""
+    from agent_runtime.skill_promotion import _archive_package
 
     archived_rows: list[dict] = []
     for pkg_slug, pkg_dir in covered:
@@ -522,13 +578,12 @@ def _cmd_skills_delete(args) -> int:
                 "deleted_hash": hashes.get(pkg_slug),
             }
         )
+    return archived_rows
 
-    if not dry_run:
-        for row, realm in zip(realm_rows, realms):
-            row["inbox_pruned"] = _prune_inbox_packages(realm.id, slug)
 
+def _skill_delete_coverage_warnings(slug: str, covered, realm_rows: list[dict]) -> list[dict]:
     if not covered and not realm_rows:
-        warnings.append(
+        return [
             {
                 "code": "skill_unknown",
                 "skill": slug,
@@ -539,9 +594,9 @@ def _cmd_skills_delete(args) -> int:
                     "with --realm to record one anyway."
                 ),
             }
-        )
-    elif not covered:
-        warnings.append(
+        ]
+    if not covered:
+        return [
             {
                 "code": "skill_no_local_package",
                 "skill": slug,
@@ -551,8 +606,11 @@ def _cmd_skills_delete(args) -> int:
                     "still blocks members who do hold one."
                 ),
             }
-        )
+        ]
+    return []
 
+
+def _skill_delete_envelope(slug: str, realm_rows, archived_rows, deleted_hash, dry_run: bool, warnings) -> dict:
     if len(realm_rows) == 1:
         next_step = (
             f"hermes harness realm sync publish {realm_rows[0]['realm_id']} to propagate"
@@ -581,11 +639,9 @@ def _cmd_skills_delete(args) -> int:
     # no publishing realm, and reports a well-formed ``skill_unknown`` — the
     # operator reads "already gone" from a verb that never looked in the right
     # place. The envelope has to say which root answered.
-    envelope = attach_root_observability(
+    return attach_root_observability(
         _object_envelope("skill_delete", payload, warnings=warnings or None)
     )
-    _print_stage42(envelope, args=args, default_output="json")
-    return 0
 
 
 def _cmd_skills_restore(args) -> int:

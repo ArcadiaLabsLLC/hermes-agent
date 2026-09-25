@@ -386,11 +386,6 @@
    "unit": "hermes_cli/harness_parts/persona/lifecycle_commands.py|_cmd_persona_instance_create"
   },
   {
-   "depth": 3,
-   "lines": 212,
-   "unit": "hermes_cli/harness_parts/skills_promotion_commands.py|_cmd_skills_delete"
-  },
-  {
    "depth": 4,
    "lines": 233,
    "unit": "mobile_core/src/hermes_mobile_core/_vendor/agent/transports/chat_completions.py|ChatCompletionsTransport.build_kwargs"
