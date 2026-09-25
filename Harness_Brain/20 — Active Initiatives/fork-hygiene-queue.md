@@ -148,3 +148,5 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-25 (lane W3-C)
 
+- [ ] **`test_core_fingerprint_cache.py::test_a_led_build_leaves_the_chat_database_at_rest` names a kill that does not kill: deleting `session_db.close()` from `snapshot.persona_session_db_scope` stays GREEN on main `0e6ea0a3be` (measured with the original test body), so the build's release is held only by `test_snapshot_session_db_ownership.py`** · `fork / suite` · find why the leaked handle is gone before the stat (refcount finalization, test-env `journal_mode=DELETE`) and pin the release where it red-kills, or drop the claim from the docstring · evidence: lane W3-D row-1 follow-up · filed by lane W3-D 2026-09-25
+

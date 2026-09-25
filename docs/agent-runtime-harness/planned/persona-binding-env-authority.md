@@ -24,7 +24,7 @@ not a new mechanism; it is closing the lanes that still bypass this one.
 
 **B-1 landed.** A process that legitimately knows the operator head publishes it, and a
 process that names no head of its own reads the declaration instead of degrading to its
-own profile home — `declared_chat_head_home` (`agent_runtime/chat_session_scope.py:707`),
+own profile home — `declared_chat_head_home` (`agent_runtime/chat_session_scope.py:721`),
 written at `harness serve` boot by `root_anchor.publish_store_root_anchor` into the
 platform-default `config.yaml`, sitting on the `CONFIG_DECLARED` rung of the resolution
 ladder (`chat_session_scope.py:43-75`). It earns that rung by being reachable where the shared-root pointer is
