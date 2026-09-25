@@ -265,17 +265,17 @@ def _provider_visibility_auth_logins() -> list[dict]:
     )
 
     logins: list[dict] = []
-    for name, probe in (
-        ("Nous Portal", get_nous_auth_status),
-        ("OpenAI Codex", get_codex_auth_status),
-        ("Qwen", get_qwen_auth_status),
-        ("MiniMax", get_minimax_oauth_auth_status),
+    for provider_id, name, probe in (
+        ("nous", "Nous Portal", get_nous_auth_status),
+        ("openai-codex", "OpenAI Codex", get_codex_auth_status),
+        ("qwen-oauth", "Qwen", get_qwen_auth_status),
+        ("minimax-oauth", "MiniMax", get_minimax_oauth_auth_status),
     ):
         try:
             status = probe() or {}
         except Exception:
             status = {}
-        entry: dict = {"name": name, "logged_in": bool(status.get("logged_in"))}
+        entry: dict = {"id": provider_id, "name": name, "logged_in": bool(status.get("logged_in"))}
         refreshed = status.get("last_refresh")
         if refreshed:
             entry["refreshed_at"] = str(refreshed)
