@@ -111,7 +111,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 
 - [ ] **H2 sheet leftover — the `runtime_commands` → `runtime/{work,verify}` split with `WorkCancelOutcome`** · `fork / refactor` · a sheet-sized MOVE, one MOVE + one CHANGE, cut as its own lane when the H3 lane is cut · evidence: `docs/agent-runtime-harness/planned/god-file-layout-sheets/harness.md` §1–§3; the split row's verdict of 2026-09-25 (lane Q-RUNTIME) · split by the orchestrator 2026-09-25 from the H2 bundle row **UNCLAIMED**
-- [ ] **H2 sheet leftovers that are lane-decidable now: `_usage_iso`/`_parse_usage_iso` → `clock` (`parse_iso` exists since R3); `PromotionSourceKind` probes, realm `_SELECTION_MODES` and the `_cmd_skills_promote` "refused" constant as tables; `running_work._pid_exists` behind a door** · `fork / refactor` · RULED 2026-09-25 (owner): the `clock` fold proceeds — the launcher parses `reset_at`/`fetched_at` with `DateTime.tryParse`, which accepts both `+00:00` and `Z` (`EterniaLauncher/lib/features/mission_control/data/mission_control_account_usage.dart`), so the Q22 wire question is closed for this envelope · evidence: `docs/agent-runtime-harness/planned/god-file-layout-sheets/harness.md` §2–§3, the bundle row's verdict of 2026-09-25 (lane Q-RUNTIME) · split by the orchestrator 2026-09-25 **TAKEN 2026-09-25 lane H2-REST**
 
 ### Filed on arrival — 2026-09-25 (lane R4)
 
