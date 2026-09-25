@@ -301,11 +301,6 @@
    "unit": "tests/_downstream/hermes_cli_conftest.py|_sys_modules_identity_is_restored"
   },
   {
-   "depth": 5,
-   "lines": 258,
-   "unit": "tools/agent_chat_dispatch/remote.py|_run_remote_dispatch"
-  },
-  {
    "depth": 3,
    "lines": 422,
    "unit": "tools/agent_chat_tool.py|agent_chat_send"

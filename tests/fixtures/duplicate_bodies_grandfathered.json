@@ -15,7 +15,7 @@
   "_bounded_refs: agent_runtime/child_events.py, agent_runtime/continuity.py",
   "_correlation_id: agent_runtime/agent_retire.py, agent_runtime/chat_turn.py",
   "_decode: agent_runtime/gateway_identity.py, agent_runtime/media_proxy.py",
-  "_drain: agent_runtime/persona_chat_actor_prewarm.py, agent_runtime/persona_prewarm.py, tools/agent_chat_dispatch/child.py",
+  "_drain: agent_runtime/persona_chat_actor_prewarm.py, agent_runtime/persona_prewarm.py",
   "_emit: agent_runtime/dispatch_store.py, hermes_cli/charsheet_payload_contract.py",
   "_endpoint: hermes_cli/harness_parts/gateway_commands.py, mobile_core/src/hermes_mobile_core/turn_runner.py",
   "_ensure_worker: agent_runtime/persona_chat_actor_prewarm.py, agent_runtime/persona_prewarm.py",

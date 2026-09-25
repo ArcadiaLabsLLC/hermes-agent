@@ -29,6 +29,7 @@ __all__ = [
     "sanitize_surrogates",
     "profiles_root",
     "skills_walker",
+    "terminate_host_pid",
 ]
 
 
@@ -89,3 +90,15 @@ def sanitize_surrogates(text: str) -> str:
     from agent.message_sanitization import _sanitize_surrogates
 
     return _sanitize_surrogates(text)
+
+
+def terminate_host_pid(pid: int, expected_start: int | None) -> None:
+    """``tools.process_registry.ProcessRegistry._terminate_host_pid`` — the
+    identity-verified tree-kill, read by
+    ``tools/agent_chat_dispatch/child.py::_kill_child``. Held widening row
+    (ruling Q7, ``upstream-footprint-ledger.md``): publish
+    ``ProcessRegistry.terminate_host_pid``. Raises what the upstream helper
+    raises; the caller is best-effort by contract."""
+    from tools.process_registry import ProcessRegistry
+
+    ProcessRegistry._terminate_host_pid(int(pid), expected_start)

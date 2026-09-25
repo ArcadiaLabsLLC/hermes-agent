@@ -131,9 +131,6 @@ Row grammar: `- [ ] **symbol** · file · lines · class · evidence · lane`. C
 - [ ] **`_test_python_outside_project_venv`** · `tests/_downstream/hermes_cli_conftest.py` 892-908 · 17 · DECIDE (delete / field-only / untested live) · census: `tests/_downstream/hermes_cli_conftest.py:892-908 _test_python_outside_project_venv function 17 lines, 0 hits` · T2
 - [ ] **`_unelevated_windows_shell`** · `tests/_downstream/hermes_cli_conftest.py` 911-922 · 12 · DECIDE (delete / field-only / untested live) · census: `tests/_downstream/hermes_cli_conftest.py:911-922 _unelevated_windows_shell function 12 lines, 0 hits` · T2
 - [ ] **`pytest_terminal_summary [if @1320]`** · `tests/_downstream/hermes_cli_conftest.py` 1321-1331 · 11 · DECIDE (delete / field-only / untested live) · census: `tests/_downstream/hermes_cli_conftest.py:1321-1331 pytest_terminal_summary [if @1320] arm 11 lines, 0 hits` · T2
-- [ ] **`_get_executor`** · `tools/agent_chat_dispatch.py` 188-215 · 28 · DECIDE (delete / field-only / untested live) · census: `tools/agent_chat_dispatch.py:188-215 _get_executor function 28 lines, 0 hits` · T1 **TAKEN 2026-09-25 lane 2B-C**
-- [ ] **`_kill_child`** · `tools/agent_chat_dispatch.py` 489-503 · 15 · DECIDE (delete / field-only / untested live) · census: `tools/agent_chat_dispatch.py:489-503 _kill_child function 15 lines, 0 hits` · T1 **TAKEN 2026-09-25 lane 2B-C**
-- [ ] **`dispatch_detached_turn`** · `tools/agent_chat_dispatch.py` 1074-1097 · 24 · DECIDE (delete / field-only / untested live) · census: `tools/agent_chat_dispatch.py:1074-1097 dispatch_detached_turn function 24 lines, 0 hits` · T1 **TAKEN 2026-09-25 lane 2B-C**
 
 ## Owed censuses (rows arrive when they run)
 

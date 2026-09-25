@@ -12,6 +12,8 @@ import threading
 import time
 from typing import Any
 
+from agent_runtime.subprocess_pumps import drain, release_pumps
+
 from .child import (
     _MAX_STREAM_CHARS,
     _STDERR_EXCERPT,
@@ -19,9 +21,7 @@ from .child import (
     _BoundedTail,
     _child_identity,
     _detached_error_text,
-    _drain,
     _kill_child,
-    _release_pumps,
     build_dispatch_argv,
     child_environment,
     parse_child_payload,
@@ -181,26 +181,7 @@ def _run_dispatch_guarded(dispatch_id: str, spec: dict[str, Any]) -> None:
     stdout_tail = _BoundedTail(_MAX_STREAM_CHARS)
     stderr_tail = _BoundedTail(_MAX_STREAM_CHARS)
     try:
-        popen_kwargs: dict[str, Any] = {
-            "stdout": subprocess.PIPE,
-            "stderr": subprocess.PIPE,
-            # Never inherit the parent's stdin: in serve that is the launcher's
-            # request pipe, and a child reading from it would steal requests.
-            "stdin": subprocess.DEVNULL,
-            "env": env,
-            "text": True,
-            "encoding": "utf-8",
-            "errors": "replace",
-            "bufsize": 1,
-        }
-        if os.name == "nt":
-            try:
-                from hermes_cli._subprocess_compat import windows_hide_flags
-
-                popen_kwargs["creationflags"] = windows_hide_flags()
-            except Exception:
-                pass
-        proc = subprocess.Popen(argv, **popen_kwargs)
+        proc = _spawn_child(argv, env)
     except Exception as exc:
         logger.exception("detached dispatch %s could not spawn", dispatch_id)
         dispatch_store.record_completion(
@@ -223,8 +204,8 @@ def _run_dispatch_guarded(dispatch_id: str, spec: dict[str, Any]) -> None:
     except Exception:  # pragma: no cover - bookkeeping must not abort the run
         logger.debug("dispatch %s owner stamp failed", dispatch_id, exc_info=True)
 
-    out_thread = _drain(proc.stdout, stdout_tail)
-    err_thread = _drain(proc.stderr, stderr_tail)
+    out_thread = drain(proc.stdout, stdout_tail)
+    err_thread = drain(proc.stderr, stderr_tail)
 
     exit_reason = ""
     try:
@@ -245,12 +226,48 @@ def _run_dispatch_guarded(dispatch_id: str, spec: dict[str, Any]) -> None:
 
     # Join the pumps so nothing the child wrote is missed, then force them loose
     # rather than leaking a thread per dispatch on a pipe a survivor holds open.
-    _release_pumps(proc, (out_thread, err_thread))
+    release_pumps(proc, (out_thread, err_thread))
+    _settle_local(dispatch_id, budget, returncode, exit_reason, stdout_tail.text(), stderr_tail.text())
 
-    stdout_text = stdout_tail.text()
-    stderr_text = stderr_tail.text()
+
+def _spawn_child(argv: list[str], env: dict[str, str]) -> subprocess.Popen:
+    """Start the child: both streams piped, stdin closed, hidden on Windows."""
+
+    popen_kwargs: dict[str, Any] = {
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        # Never inherit the parent's stdin: in serve that is the launcher's
+        # request pipe, and a child reading from it would steal requests.
+        "stdin": subprocess.DEVNULL,
+        "env": env,
+        "text": True,
+        "encoding": "utf-8",
+        "errors": "replace",
+        "bufsize": 1,
+    }
+    if os.name == "nt":
+        try:
+            from hermes_cli._subprocess_compat import windows_hide_flags
+
+            popen_kwargs["creationflags"] = windows_hide_flags()
+        except Exception:
+            pass
+    return subprocess.Popen(argv, **popen_kwargs)
+
+
+def _settle_local(
+    dispatch_id: str,
+    budget: float,
+    returncode: int,
+    exit_reason: str,
+    stdout_text: str,
+    stderr_text: str,
+) -> None:
+    """Record the local child's outcome: stopped, no payload, or its payload's verdict."""
+
+    from agent_runtime import dispatch_store
+
     payload = parse_child_payload(stdout_text)
-
     if exit_reason:
         dispatch_store.record_completion(
             dispatch_id,

@@ -107,14 +107,13 @@ from tools.agent_chat_dispatch.child import (  # noqa: F401 — __all__ + the te
     _BoundedTail,
     _child_identity,
     _detached_error_text,
-    _drain,
     _kill_child,
-    _release_pumps,
     build_dispatch_argv,
     child_environment,
     parse_child_payload,
 )
 from tools.agent_chat_dispatch.remote import (  # noqa: F401
+    RemoteDispatch,
     PEER_DIAL_TIMEOUT_SECONDS,
     PEER_RETRY_BACKOFF_SECONDS,
     _remote_reply_payload,

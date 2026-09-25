@@ -20,7 +20,7 @@ from hermes_cli.harness_parts.persona import chat_turn_message
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
-from agent_runtime import dispatch_delivery
+from agent_runtime import dispatch_delivery, subprocess_pumps
 from agent_runtime.dispatch_store import (
     DELIVERY_PENDING,
     STATE_ERROR,
@@ -1021,8 +1021,8 @@ def _piped_pumps():
     proc.stderr = os.fdopen(err_r, "r", encoding="utf-8")
     tail = agent_chat_dispatch._BoundedTail(1000)
     threads = [
-        agent_chat_dispatch._drain(proc.stdout, tail),
-        agent_chat_dispatch._drain(proc.stderr, agent_chat_dispatch._BoundedTail(1000)),
+        subprocess_pumps.drain(proc.stdout, tail),
+        subprocess_pumps.drain(proc.stderr, agent_chat_dispatch._BoundedTail(1000)),
     ]
     return proc, tail, threads, out_w, err_w
 
@@ -1039,7 +1039,7 @@ def test_the_pumps_release_when_the_writers_close():
     os.close(out_w)
     os.close(err_w)
     started = time.monotonic()
-    agent_chat_dispatch._release_pumps(proc, [_QuickJoin(t) for t in threads])
+    subprocess_pumps.release_pumps(proc, [_QuickJoin(t) for t in threads])
     assert time.monotonic() - started < 12
     assert not any(t.is_alive() for t in threads)
     assert tail.text() == '{"capability_id": "x"}\n'
@@ -1059,7 +1059,7 @@ def test_the_pumps_are_forced_loose_when_a_survivor_holds_the_pipe():
     proc, _tail, threads, out_w, err_w = _piped_pumps()
     try:
         started = time.monotonic()
-        agent_chat_dispatch._release_pumps(proc, [_QuickJoin(t) for t in threads])
+        subprocess_pumps.release_pumps(proc, [_QuickJoin(t) for t in threads])
         assert time.monotonic() - started < 12
         assert not any(t.is_alive() for t in threads)
     finally:

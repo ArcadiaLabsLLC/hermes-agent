@@ -3091,7 +3091,7 @@
     {
       "id": "p4-remote-leg-drops-the-far-installs-map",
       "path": "tools/agent_chat_dispatch/remote.py",
-      "symbol": "_run_remote_dispatch",
+      "symbol": "RemoteDispatch._settle_payload",
       "operator": "drop-argument",
       "find": "            media=payload.get(\"media\"),\n",
       "replace": "            media=None,\n",

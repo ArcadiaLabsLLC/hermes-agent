@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import dataclass, field
 from typing import Any
 
 from .child import KILL_GRACE_SECONDS, SERVE_STDOUT_EVENT, _detached_error_text, parse_child_payload
@@ -150,85 +151,90 @@ def _run_remote_dispatch(dispatch_id: str, spec: dict[str, Any]) -> None:
     copy of the spec, a second claim protocol and a second attempt counter on a
     row that already has one, to buy a property (surviving a serve restart
     mid-dial) that the local lane does not have either.
+
+    :class:`RemoteDispatch` carries the run: the loop, one attempt, and the
+    three ways it settles.
     """
 
-    from agent_runtime import dispatch_store
-    from agent_runtime.gateway_peers import dial_peer
-    from agent_runtime.gateway_targets import peer_store_root
+    RemoteDispatch.for_spec(dispatch_id, spec).run()
 
-    install_id = str(spec["remote_install_id"])
-    display = str(spec.get("remote_display_name") or install_id)
-    budget = float(spec["max_seconds"])
-    params = build_peer_execute_params(dispatch_id, spec)
-    root = peer_store_root()
 
-    failures: list[str] = []
-    attempts = 0
-    while attempts < dispatch_store.MAX_DELIVERY_ATTEMPTS:
-        attempts += 1
-        connection = None
-        try:
-            connection, _hello = dial_peer(
-                root, install_id, timeout_seconds=PEER_DIAL_TIMEOUT_SECONDS
-            )
-        except Exception as exc:
-            # ``dial_peer`` raises ``ConnectionError`` for every unreachable
-            # endpoint and for a revoked or credential-less row. The revoked
-            # case is already refused deterministically at send time, so what
-            # reaches here is transport — and anything else that raises out of a
-            # dial is transport too, because a dial that raised did not run a
-            # turn.
-            failures.append(f"attempt {attempts}: {type(exc).__name__}: {exc}")
-            if attempts < dispatch_store.MAX_DELIVERY_ATTEMPTS:
-                time.sleep(PEER_RETRY_BACKOFF_SECONDS)
-            continue
+@dataclass
+class RemoteDispatch:
+    """One cross-install dispatch's attempts. The fields are what every attempt reads."""
 
-        try:
-            rid = f"peer-exec-{dispatch_id}"
-            connection.send(
-                {
-                    "jsonrpc": "2.0",
-                    "id": rid,
-                    "method": "peer.agent_chat.execute",
-                    "params": params,
-                }
-            )
-            ack = None
-            while True:
-                frame = connection.read_frame()
-                if frame is None:
-                    break
-                if frame.get("id") == rid and (
-                    "result" in frame or "error" in frame
-                ):
-                    ack = frame
-                    break
-            if ack is None:
-                failures.append(f"attempt {attempts}: the edge closed before an ack")
-                if attempts < dispatch_store.MAX_DELIVERY_ATTEMPTS:
-                    time.sleep(PEER_RETRY_BACKOFF_SECONDS)
+    dispatch_id: str
+    spec: dict[str, Any]
+    install_id: str
+    display: str
+    budget: float
+    params: dict[str, Any]
+    root: Any
+    failures: list[str] = field(default_factory=list)
+    attempts: int = 0
+
+    @classmethod
+    def for_spec(cls, dispatch_id: str, spec: dict[str, Any]) -> "RemoteDispatch":
+        from agent_runtime.gateway_targets import peer_store_root
+
+        install_id = str(spec["remote_install_id"])
+        return cls(
+            dispatch_id=dispatch_id,
+            spec=spec,
+            install_id=install_id,
+            display=str(spec.get("remote_display_name") or install_id),
+            budget=float(spec["max_seconds"]),
+            params=build_peer_execute_params(dispatch_id, spec),
+            root=peer_store_root(),
+        )
+
+    def run(self) -> None:
+        """Attempt until one settles the row, or the cap does."""
+
+        from agent_runtime import dispatch_store
+        from agent_runtime.gateway_peers import dial_peer
+
+        while self.attempts < dispatch_store.MAX_DELIVERY_ATTEMPTS:
+            self.attempts += 1
+            try:
+                connection, _hello = dial_peer(
+                    self.root, self.install_id, timeout_seconds=PEER_DIAL_TIMEOUT_SECONDS
+                )
+            except Exception as exc:
+                # ``dial_peer`` raises ``ConnectionError`` for every unreachable
+                # endpoint and for a revoked or credential-less row. The revoked
+                # case is already refused deterministically at send time, so what
+                # reaches here is transport — and anything else that raises out of a
+                # dial is transport too, because a dial that raised did not run a
+                # turn.
+                self._retry(f"{type(exc).__name__}: {exc}")
                 continue
+            if self._attempt(connection):
+                return
+        self._settle_unreachable()
+
+    def _retry(self, reason: str, *, backoff: bool = True) -> None:
+        """One transport failure: recorded, and slept off unless it was the last attempt."""
+
+        from agent_runtime import dispatch_store
+
+        self.failures.append(f"attempt {self.attempts}: {reason}")
+        if backoff and self.attempts < dispatch_store.MAX_DELIVERY_ATTEMPTS:
+            time.sleep(PEER_RETRY_BACKOFF_SECONDS)
+
+    def _attempt(self, connection: Any) -> bool:
+        """One dialled attempt: send, read the ack, settle or read the turn. True = settled."""
+
+        try:
+            ack = self._send_and_ack(connection)
+            if ack is None:
+                self._retry("the edge closed before an ack")
+                return False
             if "error" in ack:
                 # THE far install answered. Deterministic — settle now.
-                error = ack["error"] or {}
-                reason = str((error.get("data") or {}).get("reason") or "")
-                dispatch_store.record_completion(
-                    dispatch_id,
-                    state=dispatch_store.STATE_ERROR,
-                    error=(
-                        f"{display} refused the request: "
-                        f"{str(error.get('message') or 'no reason given')[:300]}"
-                    ),
-                    remote={
-                        "install_id": install_id,
-                        "attempts": attempts,
-                        "reason": reason or "peer_refused",
-                    },
-                )
-                return
-
+                self._settle_refused(ack["error"] or {})
+                return True
             result = ack.get("result") or {}
-
             # **A REPLAY carries no frames, and waiting for them is a hang.**
             # Found by the acceptance rather than reasoned to: B's per-request
             # frames go to the sink of the connection that ASKED, so a turn
@@ -239,105 +245,124 @@ def _run_remote_dispatch(dispatch_id: str, spec: dict[str, Any]) -> None:
             # ``turn_request_id`` stopped B running the agent twice), so it is
             # the success path of the property, not an error path.
             if result.get("idempotent_replay"):
-                if not result.get("settled"):
-                    # Accepted by an earlier attempt and STILL RUNNING over
-                    # there. Nothing to read and nothing to fix; another attempt
-                    # after the backoff may find it settled.
-                    failures.append(
-                        f"attempt {attempts}: the turn is still running on {display}"
-                    )
-                    if attempts < dispatch_store.MAX_DELIVERY_ATTEMPTS:
-                        time.sleep(PEER_RETRY_BACKOFF_SECONDS)
-                    continue
-                code = result.get("exit_code")
-                dispatch_store.record_completion(
-                    dispatch_id,
-                    state=(
-                        dispatch_store.STATE_COMPLETED
-                        if code == 0
-                        else dispatch_store.STATE_ERROR
-                    ),
-                    error=(
-                        ""
-                        if code == 0
-                        else (
-                            f"{display} ran the turn and it ended with code {code}."
-                        )
-                    ),
-                    # Honest about what is NOT here: the reply text went to the
-                    # connection that started the turn, and that connection is
-                    # gone. The thread on the other install has it.
-                    reply=(
-                        f"[{display} ran this turn on an earlier attempt; its "
-                        "answer is in the thread on that install — the "
-                        "connection that carried it did not survive.]"
-                    ),
-                    remote={
-                        "install_id": install_id,
-                        "attempts": attempts,
-                        "reason": "peer_turn_replayed",
-                    },
-                )
-                return
-
+                return self._settle_replay(result)
             # Accepted, fresh. The turn's own budget governs the read from here
             # — the dial timeout was about reaching the machine, not about how
             # long its agent may think.
-            connection.set_timeout(budget + KILL_GRACE_SECONDS)
+            connection.set_timeout(self.budget + KILL_GRACE_SECONDS)
             request_id = str(result.get("request_id") or "")
             if not request_id:  # pragma: no cover - the ack always carries one
-                failures.append(f"attempt {attempts}: the ack named no request id")
-                continue
+                self._retry("the ack named no request id", backoff=False)
+                return False
             answered = _remote_reply_payload(connection, request_id)
         except Exception as exc:
-            failures.append(f"attempt {attempts}: {type(exc).__name__}: {exc}")
-            if attempts < dispatch_store.MAX_DELIVERY_ATTEMPTS:
-                time.sleep(PEER_RETRY_BACKOFF_SECONDS)
-            continue
+            self._retry(f"{type(exc).__name__}: {exc}")
+            return False
         finally:
             try:
                 connection.close()
             except Exception:  # pragma: no cover - defensive
                 pass
-
         if answered is None:
             # The edge died mid-turn. Retrying is SAFE and this is the reason
             # ``turn_request_id`` is derived from the dispatch id: the next
             # attempt presents the same key, and B replays its first ack rather
             # than running the agent twice.
-            failures.append(f"attempt {attempts}: the edge closed mid-turn")
-            if attempts < dispatch_store.MAX_DELIVERY_ATTEMPTS:
-                time.sleep(PEER_RETRY_BACKOFF_SECONDS)
-            continue
+            self._retry("the edge closed mid-turn")
+            return False
+        self._settle_payload(answered)
+        return True
+
+    def _send_and_ack(self, connection: Any) -> dict[str, Any] | None:
+        rid = f"peer-exec-{self.dispatch_id}"
+        connection.send(
+            {
+                "jsonrpc": "2.0",
+                "id": rid,
+                "method": "peer.agent_chat.execute",
+                "params": self.params,
+            }
+        )
+        while True:
+            frame = connection.read_frame()
+            if frame is None:
+                return None
+            if frame.get("id") == rid and ("result" in frame or "error" in frame):
+                return frame
+
+    def _settle_refused(self, error: dict[str, Any]) -> None:
+        from agent_runtime import dispatch_store
+
+        reason = str((error.get("data") or {}).get("reason") or "")
+        dispatch_store.record_completion(
+            self.dispatch_id,
+            state=dispatch_store.STATE_ERROR,
+            error=(
+                f"{self.display} refused the request: "
+                f"{str(error.get('message') or 'no reason given')[:300]}"
+            ),
+            remote={
+                "install_id": self.install_id,
+                "attempts": self.attempts,
+                "reason": reason or "peer_refused",
+            },
+        )
+
+    def _settle_replay(self, result: dict[str, Any]) -> bool:
+        from agent_runtime import dispatch_store
+
+        if not result.get("settled"):
+            # Accepted by an earlier attempt and STILL RUNNING over there.
+            # Nothing to read and nothing to fix; another attempt after the
+            # backoff may find it settled.
+            self._retry(f"the turn is still running on {self.display}")
+            return False
+        code = result.get("exit_code")
+        dispatch_store.record_completion(
+            self.dispatch_id,
+            state=dispatch_store.STATE_COMPLETED if code == 0 else dispatch_store.STATE_ERROR,
+            error="" if code == 0 else f"{self.display} ran the turn and it ended with code {code}.",
+            # Honest about what is NOT here: the reply text went to the
+            # connection that started the turn, and that connection is gone.
+            # The thread on the other install has it.
+            reply=(
+                f"[{self.display} ran this turn on an earlier attempt; its "
+                "answer is in the thread on that install — the "
+                "connection that carried it did not survive.]"
+            ),
+            remote={
+                "install_id": self.install_id,
+                "attempts": self.attempts,
+                "reason": "peer_turn_replayed",
+            },
+        )
+        return True
+
+    def _settle_payload(self, answered: dict[str, Any]) -> None:
+        from agent_runtime import dispatch_store
+        from agent_runtime.turn_visibility import TurnVisibility
 
         payload = answered["payload"]
-        remote = {"install_id": install_id, "attempts": attempts}
+        remote = {"install_id": self.install_id, "attempts": self.attempts}
         if payload is None:
             dispatch_store.record_completion(
-                dispatch_id,
+                self.dispatch_id,
                 state=dispatch_store.STATE_UNKNOWN,
                 error=(
-                    f"{display} ran the turn and its process exited with code "
+                    f"{self.display} ran the turn and its process exited with code "
                     f"{answered['code']} without a reply payload; the outcome is "
                     "unknown. Anything it wrote is in its own chat thread."
                 ),
                 remote=remote,
             )
             return
-
         ok = bool(payload.get("ok")) and answered["code"] == 0
-        from agent_runtime.turn_visibility import TurnVisibility
-
         dispatch_store.record_completion(
-            dispatch_id,
-            state=(
-                dispatch_store.STATE_COMPLETED if ok else dispatch_store.STATE_ERROR
-            ),
+            self.dispatch_id,
+            state=dispatch_store.STATE_COMPLETED if ok else dispatch_store.STATE_ERROR,
             reply=str(payload.get("reply") or ""),
             error="" if ok else _detached_error_text(payload),
-            target_session_id=str(
-                payload.get("session_id") or payload.get("chat_session_id") or ""
-            ),
+            target_session_id=str(payload.get("session_id") or payload.get("chat_session_id") or ""),
             total_tokens=payload.get("total_tokens"),
             visibility=TurnVisibility.from_payload(payload).as_dict(),
             remote=remote,
@@ -351,31 +376,33 @@ def _run_remote_dispatch(dispatch_id: str, spec: dict[str, Any]) -> None:
             # and by `media_handles` (grammar, allowlist, cap) — never trusted.
             media=payload.get("media"),
         )
-        return
 
-    # Every attempt was transport. R8's cap, converging on a terminal answer the
-    # sender is actually TOLD — see ``dispatch_store.REMOTE_UNREACHABLE_REASON``
-    # for why this is not a ``dropped`` delivery.
-    logger.info(
-        "dispatch %s: %s unreachable after %d attempts",
-        dispatch_id,
-        install_id,
-        attempts,
-    )
-    dispatch_store.record_completion(
-        dispatch_id,
-        state=dispatch_store.STATE_ERROR,
-        error=(
-            f"{display} did not answer: {attempts} attempts over "
-            f"~{attempts * PEER_RETRY_BACKOFF_SECONDS:.0f}s reached no endpoint on "
-            f"its paired row ({dispatch_store.REMOTE_UNREACHABLE_REASON}). The "
-            "install may be off, asleep, or moved to a new address — its "
-            f"operator re-runs `harness gateway peers pair` to update it. Last: "
-            f"{failures[-1][:200] if failures else 'no detail'}"
-        ),
-        remote={
-            "install_id": install_id,
-            "attempts": attempts,
-            "reason": dispatch_store.REMOTE_UNREACHABLE_REASON,
-        },
-    )
+    def _settle_unreachable(self) -> None:
+        # Every attempt was transport. R8's cap, converging on a terminal answer the
+        # sender is actually TOLD — see ``dispatch_store.REMOTE_UNREACHABLE_REASON``
+        # for why this is not a ``dropped`` delivery.
+        from agent_runtime import dispatch_store
+
+        logger.info(
+            "dispatch %s: %s unreachable after %d attempts",
+            self.dispatch_id,
+            self.install_id,
+            self.attempts,
+        )
+        dispatch_store.record_completion(
+            self.dispatch_id,
+            state=dispatch_store.STATE_ERROR,
+            error=(
+                f"{self.display} did not answer: {self.attempts} attempts over "
+                f"~{self.attempts * PEER_RETRY_BACKOFF_SECONDS:.0f}s reached no endpoint on "
+                f"its paired row ({dispatch_store.REMOTE_UNREACHABLE_REASON}). The "
+                "install may be off, asleep, or moved to a new address — its "
+                f"operator re-runs `harness gateway peers pair` to update it. Last: "
+                f"{self.failures[-1][:200] if self.failures else 'no detail'}"
+            ),
+            remote={
+                "install_id": self.install_id,
+                "attempts": self.attempts,
+                "reason": dispatch_store.REMOTE_UNREACHABLE_REASON,
+            },
+        )

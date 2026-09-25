@@ -9,9 +9,8 @@ import json
 import logging
 import os
 import sys
-import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 logger = logging.getLogger(__name__)
 
@@ -261,63 +260,6 @@ class _BoundedTail:
         return "".join(self._chunks)
 
 
-def _drain(stream, sink: _BoundedTail) -> threading.Thread:
-    """Consume a child pipe for its WHOLE lifetime on a daemon thread.
-
-    Both pipes get one of these, always. A stderr pipe nobody reads fills its OS
-    buffer and wedges the child mid-write — a hang that looks exactly like a slow
-    turn, and the standing reason this repo requires draining both streams
-    rather than only the one being parsed.
-    """
-
-    def _pump() -> None:
-        try:
-            for line in iter(stream.readline, ""):
-                if not line:
-                    break
-                sink.append(line)
-        except Exception:  # pragma: no cover - pipe torn down under us
-            pass
-        finally:
-            try:
-                stream.close()
-            except Exception:
-                pass
-
-    thread = threading.Thread(target=_pump, daemon=True)
-    thread.start()
-    return thread
-
-
-def _release_pumps(proc, threads) -> None:
-    """Join the pumps, then force them loose if a survivor still holds the pipe.
-
-    ``readline`` blocks until EOF, and EOF only arrives when every writer has
-    closed. A grandchild that inherited the pipe — which is exactly what "go run
-    the suite" spawns — or a tree member that survived the kill keeps it open,
-    so a plain join leaks two daemon threads PER DISPATCH, permanently, inside a
-    process that is meant to run for days.
-
-    Closing the parent's handle unblocks the reader (it raises, and the pump
-    swallows it), which bounds the thread even when the pipe does not close on
-    its own. Best effort by contract: a thread that still will not budge is one
-    leak, not a growing one, and never a failed dispatch.
-    """
-
-    for thread in threads:
-        thread.join(timeout=10)
-    if not any(thread.is_alive() for thread in threads):
-        return
-    for stream in (getattr(proc, "stdout", None), getattr(proc, "stderr", None)):
-        try:
-            if stream is not None and not stream.closed:
-                stream.close()
-        except Exception:
-            pass
-    for thread in threads:
-        thread.join(timeout=2)
-
-
 def _child_identity(pid: int) -> int | None:
     try:
         from gateway.status import get_process_start_time
@@ -330,16 +272,17 @@ def _child_identity(pid: int) -> int | None:
 def _kill_child(pid: int, started_at: int | None) -> None:
     """Identity-verified tree-kill through the repo's ONE implementation.
 
-    ``ProcessRegistry._terminate_host_pid`` re-validates the recorded start time
+    ``ProcessRegistry._terminate_host_pid`` (reached through the
+    ``agent_runtime._upstream_doors.terminate_host_pid`` door) re-validates the recorded start time
     before it signals anything, which is what stops a recycled PID from turning
     a budget timeout into a killed stranger. A second tree-kill here would be a
     second place for that guard to be forgotten.
     """
 
     try:
-        from tools.process_registry import ProcessRegistry
+        from agent_runtime._upstream_doors import terminate_host_pid
 
-        ProcessRegistry._terminate_host_pid(int(pid), started_at)
+        terminate_host_pid(int(pid), started_at)
     except Exception:  # pragma: no cover - best effort by contract
         logger.debug("dispatch child %s tree-kill failed", pid, exc_info=True)
 
@@ -360,16 +303,28 @@ def _detached_error_text(payload: dict[str, Any]) -> str:
 
     kind = str(payload.get("error_kind") or "")
     raw = str(payload.get("error") or payload.get("blocker") or "the dispatched turn failed")
-    if kind == "relay_budget_exhausted":
-        return (
-            "The dispatch was refused before it ran: the relay chain it belongs to had no wall "
-            "budget left. Nothing was executed and there is no partial result. Re-dispatch it as "
-            "a fresh request if you still need it."
-        )
-    if kind in {"relay_cycle", "relay_depth_limit"}:
-        return (
-            f"The dispatch was refused before it ran ({kind}): this request would have looped back "
-            "through an agent already on the relay chain, or gone deeper than the chain allows. "
-            "Nothing was executed. Ask the agent directly, or do it yourself."
-        )
-    return raw[:600]
+    rewrite = _LANE_REWRITES.get(kind)
+    return rewrite.format(kind=kind) if rewrite is not None else raw[:600]
+
+
+_RELAY_BUDGET_REWRITE = (
+    "The dispatch was refused before it ran: the relay chain it belongs to had no wall "
+    "budget left. Nothing was executed and there is no partial result. Re-dispatch it as "
+    "a fresh request if you still need it."
+)
+_RELAY_REACH_REWRITE = (
+    "The dispatch was refused before it ran ({kind}): this request would have looped back "
+    "through an agent already on the relay chain, or gone deeper than the chain allows. "
+    "Nothing was executed. Ask the agent directly, or do it yourself."
+)
+
+#: The refusals whose guidance is lane-specific, by ``error_kind`` (rule 12).
+#: The kinds are ``agent_runtime.relay_policy``'s (recorded in
+#: ``mission_chat_outcome.DELEGATED_ERROR_KIND_SOURCES``); named here, their one
+#: reader, rather than minted as an Enum — they ride every chat payload as
+#: strings. Every other kind passes through verbatim.
+_LANE_REWRITES: Mapping[str, str] = {
+    "relay_budget_exhausted": _RELAY_BUDGET_REWRITE,
+    "relay_cycle": _RELAY_REACH_REWRITE,
+    "relay_depth_limit": _RELAY_REACH_REWRITE,
+}
