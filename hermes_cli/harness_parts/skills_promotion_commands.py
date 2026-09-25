@@ -38,7 +38,7 @@ __all__ = [
     "_resolve_promotion_source",
     "_skill_delete_archive",
     "_skill_delete_coverage_warnings",
-    "_skill_delete_envelope",
+    "_skill_delete_payload",
     "_skill_delete_realms",
     "_skill_delete_refusal",
     "_skill_delete_tombstones",
@@ -421,11 +421,19 @@ def _cmd_skills_delete(args) -> int:
         for row, realm in zip(realm_rows, realms):
             row["inbox_pruned"] = _prune_inbox_packages(realm.id, slug)
     warnings.extend(_skill_delete_coverage_warnings(slug, covered, realm_rows))
-    _print_stage42(
-        _skill_delete_envelope(slug, realm_rows, archived_rows, deleted_hash, dry_run, warnings),
-        args=args,
-        default_output="json",
+    # This lane is the root-observability gate's own defect class, exactly: a
+    # delete resolved against the WRONG shared root finds no package, resolves
+    # no publishing realm, and reports a well-formed ``skill_unknown`` — the
+    # operator reads "already gone" from a verb that never looked in the right
+    # place. The envelope has to say which root answered.
+    envelope = attach_root_observability(
+        _object_envelope(
+            "skill_delete",
+            _skill_delete_payload(slug, realm_rows, archived_rows, deleted_hash, dry_run),
+            warnings=warnings or None,
+        )
     )
+    _print_stage42(envelope, args=args, default_output="json")
     return 0
 
 
@@ -610,7 +618,7 @@ def _skill_delete_coverage_warnings(slug: str, covered, realm_rows: list[dict]) 
     return []
 
 
-def _skill_delete_envelope(slug: str, realm_rows, archived_rows, deleted_hash, dry_run: bool, warnings) -> dict:
+def _skill_delete_payload(slug: str, realm_rows, archived_rows, deleted_hash, dry_run: bool) -> dict:
     if len(realm_rows) == 1:
         next_step = (
             f"hermes harness realm sync publish {realm_rows[0]['realm_id']} to propagate"
@@ -634,14 +642,7 @@ def _skill_delete_envelope(slug: str, realm_rows, archived_rows, deleted_hash, d
     }
     if dry_run:
         payload["dry_run"] = True
-    # This lane is the root-observability gate's own defect class, exactly: a
-    # delete resolved against the WRONG shared root finds no package, resolves
-    # no publishing realm, and reports a well-formed ``skill_unknown`` — the
-    # operator reads "already gone" from a verb that never looked in the right
-    # place. The envelope has to say which root answered.
-    return attach_root_observability(
-        _object_envelope("skill_delete", payload, warnings=warnings or None)
-    )
+    return payload
 
 
 def _cmd_skills_restore(args) -> int:
