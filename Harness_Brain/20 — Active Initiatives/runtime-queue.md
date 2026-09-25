@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-09-25 (program-end suite, filed by the orchestrator)
+
+- [ ] **`agent_runtime/kanban_blocked_pm_tick.py` imports `hermes_cli.kanban_blocked_pm` (two deferred imports), so `tests/agent_runtime/test_no_kanban_dependency.py::test_agent_runtime_imports_no_kanban_modules` is red on `main` since `7d28e958ad` (2026-09-24, the blocked-card PM router riding upstream's dispatch tick)** · `fork / runtime` · either the tick module moves out of `agent_runtime` to the kanban lane that owns it, or the gate's rule changes with a recorded reason — not a third option · evidence: `X:/wt/_holds/gates-0925/rerun.log` · filed 2026-09-25 **UNCLAIMED**
+
 ### Filed on arrival — 2026-09-25 (lane LAYERS-DESIGN, filed by the orchestrator)
 
 - [ ] **`gateway_peers/trust_store.py` (stores) calls `serve_gateway_peers_rpc.publish_peer_event` (lanes) from inside its event append — a store reaching up into the serve lane's notification hub; the sheet routes it through a listener list the lane registers at boot (exec lane L1)** · `fork / runtime` · evidence: `docs/agent-runtime-harness/planned/god-file-layout-sheets/layers-undeclared-2026-09-25.md` §2.1 `serve_gateway_peers_rpc` row · filed by lane LAYERS-DESIGN 2026-09-25 **UNCLAIMED** (the L1 exec lane closes it)

@@ -53,49 +53,35 @@ sheets are under `docs/agent-runtime-harness/planned/god-file-layout-sheets/`.
    `scripts/changed_line_mutation_check.py --list`. File what they show as
    rows; run them UNPIPED with the rc captured to a log.
 
-## Known reds on `main` and who owns them
+## Known reds on `main` (re-measured 2026-09-25 evening, after the rulings wave)
 
-- `tests/tooling/test_fork_import_layers.py` — its LAST assertion only: the
-  test venv has no `acp` extra. **Owner:** `pip install -e ".[acp]"` in the
-  hermes-test venv. The layer list itself is EMPTY.
-- `tests/scripts/test_upstream_footprint.py` — 195 → 200 files from the
-  owner's auth/provider commits (`98f8a8caf9`, `38f9345633`, `09d722bb30`).
-  **Owner:** raise the fixture with a `reasons` row per file, or move the
-  edits behind the plugin.
-- `tests/tooling/test_no_silent_package_patches.py` — times out under load
-  (walks the tree once PER TEST; 15 s alone). Rowed in `fork-hygiene-queue.md`.
+- ~~`test_fork_import_layers.py` last assertion (no `acp` extra)~~ — CLOSED `478fcc5ba5`: `agent-client-protocol==0.9.0` pinned in `requirements-fork-dev.txt`, installed in the shared venv.
+- ~~`test_upstream_footprint.py` 195 → 200~~ — CLOSED `478fcc5ba5`: fixture raised with a reasons row per file; the move behind the plugin surface is a runtime-queue § Seams row.
+- ~~`test_no_silent_package_patches.py` timeout~~ — CLOSED `6bae3f2484` (lane GATES2): the census was already cached; the walk now has its own timeout budget and a test pins one walk per tree.
+- `tests/test_coverage_claims_resolve.py` — stale test citations in `docs/gateway/` and the layout sheets. Row in `fork-hygiene-queue.md`.
+- `tests/agent_runtime/test_no_kanban_dependency.py` — red since `7d28e958ad` (2026-09-24). Row in `runtime-queue.md` § Fork-owned.
+- `ruff check .` — seven F821 in `tui_gateway/plugin_inject.py` since `177f275b77`. Row in `fork-hygiene-queue.md`.
+- The validated suite on `7df3bee189`: **23 passed / 25 failed in 18 files**, the same 25 under a serial rerun; one closed at `cdd4d6dac5`, the 24 left are one class row in `fork-hygiene-queue.md` (mostly Linux-premise `hermes_state` tests running on Windows). Logs: `X:/wt/_holds/gates-0925/`.
 - `test_toolset_manifest` — upstream `tools/connectors` drift, not fork work.
 
-## Owner calls open (rows carry `VERDICT … DESIGN`)
+## Owner calls — RULED 2026-09-25 (owner: "take the recommendations"), and what each became
 
-- The four `repo_context` dead-code rows: S43/S54 rulings said KEEP; lane
-  Q-DEAD-B recommends reversing into one test seam.
-- The 66 W0-G6-undeclared modules: each is imported by a DECLARED lower-layer
-  module, so declaring it makes an upward edge — the importer's layer is wrong
-  or the import must move (W3-B's row, four examples). Design work, one lane.
-- The llama provider rename (needs a model-id ruling, then one coordinated
-  wave with the launcher), GAP-PR-1/2 (resume upstream PRs?), the H2 sheet
-  leftovers.
-- The next upstream merge needs a design lane first (upstream `27df3b8847`
-  rewrote the installer and deleted two modules serve imports).
+- The four `repo_context` rows → TEST SEAM as one unit, S54 pin inverted. **Landed** `3357c585cb` + `e9f8880283` (lane SEAM); rows closed.
+- The 66 undeclared modules (+ the three upward-edge modules, found already closed) → one design sitting. **Sheet landed** `docs/agent-runtime-harness/planned/god-file-layout-sheets/layers-undeclared-2026-09-25.md` (lane LAYERS-DESIGN): MOVE 28 · RE-DECLARE 5 · DECLARE 33, five exec lanes L1–L5 by raw lines with landing order. Rows stay `DESIGN` until the exec lanes cut.
+- The llama rename → one coordinated wave; the persona keeps its preset model id, only the provider id gains the alias. **Hermes half landed** `dd7ad19e73` (lane LLAMA-ALIAS): `is_local_llama_provider` is the one chokepoint, set-model accepts both ids. The launcher switch is a row in the launcher's `mission-control-queue.md`; the hermes drop row waits on it.
+- GAP-PR-1/2 → stay paused; fold into the next upstream-PR lane (ruling on the row).
+- The H2 bundle → split: the `runtime_commands` MOVE stays a row; the clock fold, the promote/realm tables and the `_pid_exists` check **landed** `0a4fac8aa2`..`d1c76146a8` (lane H2-REST; the launcher parses `reset_at`/`fetched_at` with `DateTime.tryParse`, so the Q22 wire question is closed for that envelope). The tables' flag reads were respelled at `cdd4d6dac5` so the flag-reachability gate sees them.
+- The next upstream merge → design first. **Note landed** `docs/agent-runtime-harness/planned/upstream-merge-2026-09-25-design.md` (lane MERGE-DESIGN): 55 conflicts sized from the tree, two re-seats (serve prewarm → `agent.ssl_verify.install_truststore`; postinstall → upstream `pm`), seven ledger rows retire, Q1–Q8 with defaults. Prerequisite before the merge lane: `truststore` into the hermes-test venv.
+- Plugin discovery → DISCOVER FIRST, **landed** `fbb6a3af2f` (lane GATES2); the office-subscribe flake → no change without the failing case id (ruling on the row); `runtime.level.get` → stays console (row closed; the launcher's scope-denied state is its row).
 
 ## What is left to do, in order
 
-1. ~~Land W3-D~~ — done (`105b3bbfba`). Run the gate set once on `main` before step 2.
-2. **Program-end gate on the owner's word:** the full fork suite once
-   (`scripts/run_tests_bundled.sh --scope fork --since 627f5ea4fa` or the
-   validated-suite command in `50 — Agent Handoffs/Running the suite.md`),
-   ~1 h; file every red as a row; that closes the program.
-3. The queue rows that are lane work, not owner calls: `fork-hygiene-queue.md`
-   (release-validation cluster, the silent-patch gate cache, the stage42 flag
-   source-walk gate, the census substring suite selection), `runtime-queue.md`
-   (the mcp_lane and canonical-id rows if W3-D left any, the delivery None
-   rules across event emitters), `dead-code-burn-down-queue.md` (what the
-   repaired census still files — read the census note first).
-4. Cross-repo launcher rows in one launcher wave (auth argv, config keys →
-   plugin manifest, llama rename, office-subscribe flake).
-5. Owner-owed manual steps unchanged: paste the scheduled sync-job prompt into
-   Codex cloud; delete `origin/automation/upstream-sync`; live venv re-sync.
+1. ~~Land W3-D~~ · ~~gate set on `main`~~ · ~~program-end suite~~ — all done 2026-09-25; the program is CLOSED with its reds filed (above).
+2. The LAYERS exec lanes L1–L5 from the sheet (L1 before L2, L4 before L5, L3 independent), then the `runtime_commands` MOVE row.
+3. The upstream merge lane per the design note, after the owner answers Q1–Q8 (each has a default) and `truststore` is in the test venv.
+4. The queue rows that are lane work: the 24-red suite triage row, the kanban gate row, the coverage-claims and F821 rows, the auth-transport plugin-surface row, and the earlier `fork-hygiene-queue.md` / `runtime-queue.md` / `dead-code-burn-down-queue.md` rows unchanged from the morning list.
+5. One launcher wave: the `llamacpp` switch, the level scope-denied state, the Update/Repair venv check (all in the launcher's `mission-control-queue.md`).
+6. Owner-owed manual steps unchanged: paste the scheduled sync-job prompt into Codex cloud; delete `origin/automation/upstream-sync`; live venv re-sync.
 
 ## Traps this program measured (do not relearn them)
 
