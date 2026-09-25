@@ -894,7 +894,7 @@
     },
     {
       "id": "c1-board-pull-adopts-the-peer-ledger-wholesale",
-      "path": "agent_runtime/board_store.py",
+      "path": "agent_runtime/board_store/store.py",
       "symbol": "BoardStore.adopt_remote_board",
       "operator": "drop-archived-ledger-union",
       "find": "                board.archived_card_ids = merge_archived_ledgers(\n                    board.archived_card_ids,\n                    self.get(bid).archived_card_ids,\n                    cap=ARCHIVED_LEDGER_CAP,\n                )",
@@ -2142,7 +2142,7 @@
     },
     {
       "id": "board-archive-card-honours-the-diagnostic-lane",
-      "path": "agent_runtime/board_store.py",
+      "path": "agent_runtime/board_store/store.py",
       "symbol": "BoardStore._archive_card_locked",
       "operator": "ignore-record-tombstone",
       "find": "        if record_tombstone and card.card_id not in board.archived_card_ids:\n",
@@ -3345,7 +3345,7 @@
     },
     {
       "id": "bipv-the-receipt-records-the-verb-that-wrote-it",
-      "path": "agent_runtime/board_store.py",
+      "path": "agent_runtime/board_store/store.py",
       "symbol": "BoardStore._record_idempotency",
       "operator": "blank-the-recorded-verb",
       "find": "                \"verb\": str(verb),",
@@ -3360,7 +3360,7 @@
     },
     {
       "id": "bipv-a-key-crossing-verbs-is-refused-not-replayed",
-      "path": "agent_runtime/board_store.py",
+      "path": "agent_runtime/board_store/store.py",
       "symbol": "BoardStore._idempotent_replay",
       "operator": "drop-the-recorded-verb",
       "find": "        recorded_verb = str(record.get(\"verb\") or \"\").strip()",
@@ -3675,7 +3675,7 @@
     },
     {
       "id": "sh-card-adopt-calls-every-arrival-an-edit",
-      "path": "agent_runtime/board_store.py",
+      "path": "agent_runtime/board_store/store.py",
       "symbol": "BoardStore.adopt_remote_card",
       "operator": "assume-the-row-was-already-here",
       "find": "            existed = self._card_path_active(bid, cid)",
@@ -3690,7 +3690,7 @@
     },
     {
       "id": "sh-board-adopt-calls-every-rewrite-a-create",
-      "path": "agent_runtime/board_store.py",
+      "path": "agent_runtime/board_store/store.py",
       "symbol": "BoardStore.adopt_remote_board",
       "operator": "assume-the-board-is-new",
       "find": "            existed = self.exists(bid)",

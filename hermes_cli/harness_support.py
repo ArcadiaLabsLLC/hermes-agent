@@ -252,7 +252,7 @@ ERROR_EXIT_CODES = {
     "archive_unreadable": 7,
     "actors_unreadable": 7,
     # The other two ``ArchiveUnreadable`` subclasses, added 2026-09-04. They
-    # were raised (``board_store.py`` card reads, ``persona_assignments.py``
+    # were raised (``board_store`` card reads, ``persona_assignments.py``
     # instance reads) and mapped -- ``_error_code_for_exception`` returns
     # ``exc.code`` for the whole family -- but they had no ROW here, so
     # ``ERROR_EXIT_CODES.get(code, 1)`` handed them 1: the number the two rows

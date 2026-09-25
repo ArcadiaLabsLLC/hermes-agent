@@ -85,7 +85,6 @@
   "agent_runtime/blueprints/resolve.py",
   "agent_runtime/board_models.py",
   "agent_runtime/board_order.py",
-  "agent_runtime/board_store.py",
   "agent_runtime/board_sync.py",
   "agent_runtime/boot_timeline.py",
   "agent_runtime/build_identity.py",

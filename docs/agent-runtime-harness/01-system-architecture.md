@@ -635,7 +635,7 @@ instance family's pattern rather than beside it:
 
 Workspace-scoped kanban, and **planning state only**: "Cards are planning
 state. They do not carry or mutate mission records"
-(`agent_runtime/board_store.py:8-15`). `Board` / `BoardColumn` / `BoardCard`
+(`agent_runtime/board_store/__init__.py:3-7`). `Board` / `BoardColumn` / `BoardCard`
 are at `models.py:135` / `:92` / `:108`. `BoardStore` is the single write
 chokepoint and emits a typed event on every mutation.
 

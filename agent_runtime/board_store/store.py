@@ -1,127 +1,58 @@
-"""BoardStore — the single write chokepoint for the Mission Board domain.
+"""``BoardStore`` — the single write chokepoint for the Mission Board domain.
 
-Mirrors the ``WorkspaceStore`` / ``RealmStore`` pattern in ``store.py``: file-per
--card JSON under the runtime root, the shared store-lock discipline, atomic
-writes, and a typed ``EventLog`` event on EVERY mutation (standing store rule —
-an event-less write is invisible to the watermark-gated snapshot/serve pipeline).
-
-Hard invariants this store upholds (see ``docs/mission_control/BOARD_DESIGN``):
-
-- **Cards are planning state.** They do not carry or mutate mission records.
-- **Archive-never-delete.** Archived cards move to ``archive/`` and their ids are
-  recorded in the board's ``archived_card_ids`` resurrection-guard ledger.
-- **Merge-friendly ordering.** Card position is a fractional ``order_key``; a move
-  allocates the midpoint between neighbours (``board_order``), tiebreak by
-  ``card_id``.
+Mirrors the ``WorkspaceStore`` / ``RealmStore`` pattern: file-per-card JSON
+under the runtime root, the shared store-lock discipline, atomic writes, and a
+typed ``EventLog`` event on EVERY mutation (standing store rule — an event-less
+write is invisible to the watermark-gated snapshot/serve pipeline).
 """
 
 from __future__ import annotations
 
-import re
 import uuid
-from typing import Any, NamedTuple
+from typing import Any
 
 from hermes_time import now
 from utils import atomic_json_write
 
-from . import board_models, board_order, paths
-from .errors import (
+from .. import board_models, board_order, paths
+from ..errors import (
     AlreadyExists,
     CardsUnreadable,
     IdempotencyKeyVerbMismatch,
     IdempotentReplayUnresolved,
     NotFound,
-    StaleRevision,
     SyncConflict,
 )
-from .events import EventLog
-from .locks import board_lock
-from .models import Board, BoardCard, BoardColumn, Event
-from .serde import from_jsonable, safe_id, to_jsonable
-from .sync_merge import merge_archived_ledgers
+from ..events import EventLog
+from ..locks import board_lock
+from ..models import Board, BoardCard, BoardColumn, Event
+from ..serde import from_jsonable, safe_id, to_jsonable
+from ..sync_merge import merge_archived_ledgers
+from .files import (
+    _archive_conflict_sidecar,
+    _check_revision,
+    _read_json,
+    _write_board,
+    _write_card,
+)
+from .models import (
+    ARCHIVED_LEDGER_CAP,
+    VERB_ADD_CARD,
+    VERB_EDIT_CARD,
+    VERB_MOVE_CARD,
+    BoardScan,
+    CardScan,
+    _order_key_of,
+    _safe_actor,
+    _safe_checklist,
+    _safe_idempotency_key,
+    _safe_labels,
+    _safe_text,
+    _safe_title,
+    _sort_cards,
+)
 
-#: The three card verbs that share one board's idempotency namespace. Recorded
-#: ON the receipt (``_record_idempotency``) and checked on replay
-#: (``_idempotent_replay``) so a key cannot cross from one to another.
-VERB_ADD_CARD = "add_card"
-VERB_EDIT_CARD = "edit_card"
-VERB_MOVE_CARD = "move_card"
-
-# Bounded projection / ledger caps (honest accounting, never silent).
-ARCHIVED_LEDGER_CAP = 5000
-
-
-class BoardScan(NamedTuple):
-    """The boards a scan FOUND, beside how many board files it could not read.
-
-    ``OfficeStore.ActorScan``'s law, applied to the board family: the two facts
-    have to travel together, because any seam that carries only the list
-    re-opens the hole at that seam. A board whose ``board.json`` will not decode
-    is absent from ``list_all`` — and ``list_all`` is what realm publish walks
-    to decide which boards travel and what the snapshot projects.
-    """
-
-    boards: list[Board]
-    #: Board directories whose ``board.json`` existed and did not decode. NEVER
-    #: folded into ``boards`` and never silently zero.
-    unreadable: int
-
-
-class CardScan(NamedTuple):
-    """The cards a scan FOUND, beside how many card files it could not read.
-
-    The count is load-bearing in two different ways, which is why it may not be
-    dropped at either seam: a READER that renders the short list under-reports
-    the column, and the order-key ALLOCATOR that reads it computes neighbour
-    keys against rows it cannot see (see :class:`~agent_runtime.errors.
-    CardsUnreadable`).
-    """
-
-    cards: list[BoardCard]
-    unreadable: int
-
-
-def _safe_text(value: Any, *, limit: int = 4000) -> str:
-    return str(value or "").strip()[:limit]
-
-
-def _safe_title(value: Any) -> str:
-    return " ".join(str(value or "").split())[:280]
-
-
-def _safe_actor(value: Any, *, fallback: str = "operator") -> str:
-    return safe_id(value) or fallback
-
-
-def _safe_labels(values: Any) -> list[str]:
-    if not isinstance(values, (list, tuple)):
-        return []
-    out: list[str] = []
-    for value in values:
-        label = " ".join(str(value or "").split())[:60]
-        if label and label not in out:
-            out.append(label)
-        if len(out) >= 24:
-            break
-    return out
-
-
-def _safe_checklist(values: Any) -> list[dict[str, Any]]:
-    if not isinstance(values, (list, tuple)):
-        return []
-    out: list[dict[str, Any]] = []
-    for item in values:
-        if isinstance(item, dict):
-            text = _safe_text(item.get("text"), limit=280)
-            done = bool(item.get("done"))
-        else:
-            text = _safe_text(item, limit=280)
-            done = False
-        if text:
-            out.append({"text": text, "done": done})
-        if len(out) >= 100:
-            break
-    return out
+__layer__ = "stores"
 
 
 class BoardStore:
@@ -1023,63 +954,3 @@ class BoardStore:
             indent=2,
             sort_keys=True,
         )
-
-
-# --- module-level file + ordering helpers --------------------------------
-
-
-def _read_json(path) -> dict:
-    import json
-
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _write_board(board: Board) -> None:
-    atomic_json_write(paths.board_def_path(board.board_id), to_jsonable(board), indent=2, sort_keys=True)
-
-
-def _write_card(card: BoardCard) -> None:
-    atomic_json_write(paths.board_card_path(card.board_id, card.card_id), to_jsonable(card), indent=2, sort_keys=True)
-
-
-def _archive_conflict_sidecar(board_id: str, card_id: str) -> None:
-    sidecar_path = paths.board_conflict_path(board_id, card_id)
-    if not sidecar_path.exists():
-        return
-    try:
-        payload = _read_json(sidecar_path)
-    except Exception:
-        payload = {"card_id": card_id}
-    payload["resolved_at"] = to_jsonable(now())
-    dest = paths.board_conflicts_dir(board_id) / f"{paths.safe_path_token(card_id)}.resolved.json"
-    atomic_json_write(dest, payload, indent=2, sort_keys=True)
-    sidecar_path.unlink(missing_ok=True)
-
-
-def _sort_cards(cards: list[BoardCard]) -> list[BoardCard]:
-    # Fractional order_key ascending; equal keys tiebreak by card_id ascending
-    # (deterministic on every machine).
-    return sorted(cards, key=lambda c: (c.order_key, c.card_id))
-
-
-def _order_key_of(cards: list[BoardCard], card_id: str | None) -> str | None:
-    if not card_id:
-        return None
-    for card in cards:
-        if card.card_id == card_id:
-            return card.order_key
-    return None
-
-
-def _check_revision(current: int, expected: int | None) -> None:
-    if expected is None:
-        return
-    if int(current) != int(expected):
-        raise StaleRevision(f"stale_revision: expected {expected}, have {current}")
-
-
-def _safe_idempotency_key(value: str | None) -> str | None:
-    text = str(value or "").strip()
-    if not text:
-        return None
-    return text if re.fullmatch(r"[A-Za-z0-9_.:-]{1,160}", text) else None
