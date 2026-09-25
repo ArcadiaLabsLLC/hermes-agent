@@ -11,6 +11,9 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Release validation — 2026-09-23
 
+- [ ] **Repair provider seam fixtures against their current public owners.** · `fork / suite` · Four provider picker/external-process files fail on unchanged `284cb3f2f8`; preserve their behavioral guarantees, not removed facade attributes. Evidence: `docs/downstream/provider-setup-verification.md`.
+- [ ] **Classify the auth strict-XPASS and network-dependent self-heal tests.** · `fork / suite` · Both reproduce on unchanged `284cb3f2f8`; establish the correct marker and hermetic certificate/token fixture without weakening auth assertions. Evidence: `docs/downstream/provider-setup-verification.md`.
+
 - [ ] **Qualify the baseline gateway TLS/real-socket failure cluster.** · `fork / suite` · All skills-candidate failures reproduce on unchanged `120a7f5a36`; determine runtime versus fixture cause before changing either. Evidence: `docs/downstream/session-skills-verification.md`.
 - [ ] **Repair the stale scope-use serve fixture and restore verified historical gate inputs.** · `fork / suite` · Removed serve module, absent `upstream/main`/tombstone base; no assertion weakening. Incoming REDS4 already fixed S41 and dispatch fixtures. Evidence: `docs/downstream/session-skills-verification.md`.
 - [ ] **Resolve the remaining import-time home witnesses in gateway mirror and TUI gateway.** · `fork / boundary` · Frozen-home gate fails identically on unchanged `120a7f5a36`. Evidence: `docs/downstream/session-skills-verification.md`.

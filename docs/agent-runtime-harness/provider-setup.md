@@ -20,4 +20,8 @@ overwriting an external application's store. Launcher binds setup auth home to
 the explicitly selected profile and refuses unavailable installation changes.
 `auth set-key --stdin` continues to use the existing credential lifecycle.
 
-Qualification: see `EterniaLauncher/docs/companion/planned/PROVIDER_HOME_SLICE_2026-09-25.md`.
+Login-health rows expose canonical `id` separately from display `name`. Clients
+join catalog, health and credentials by ID; display labels remain presentation.
+
+Qualification: [runtime evidence](../downstream/provider-setup-verification.md)
+and `EterniaLauncher/docs/companion/planned/PROVIDER_HOME_SLICE_2026-09-25.md`.
