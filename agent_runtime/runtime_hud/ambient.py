@@ -96,7 +96,8 @@ def capability_block_for_persona(
     envelope: dict[str, Any] | None = None
     try:
         from ..personas import role_from_persona
-        from ..terminal_envelope import LANE_MISSION_CHAT, explain_terminal_envelope
+        from ..terminal_envelope.classes import LANE_MISSION_CHAT
+        from ..terminal_envelope.decision import explain_terminal_envelope
 
         try:
             role = str(role_from_persona(persona))

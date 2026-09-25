@@ -101,7 +101,7 @@ def _payload(command, *, scope, cfg=None, monkeypatch=None):
         import agent_runtime.terminal_envelope as te
 
         monkeypatch.setattr(
-            te, "envelope_config", lambda cfg_arg=None: cfg.terminal_envelope
+            te.grants, "envelope_config", lambda cfg_arg=None: cfg.terminal_envelope
         )
     with terminal_envelope_scope(scope):
         return terminal_tool_module._harness_envelope_block(command)
@@ -319,7 +319,7 @@ def test_config_load_fault_grants_nothing(monkeypatch, tmp_path):
     def _boom():
         raise RuntimeError("config unreadable")
 
-    monkeypatch.setattr(te, "load_root_runtime_config", _boom, raising=False)
+    monkeypatch.setattr(te.grants, "load_root_runtime_config", _boom, raising=False)
     monkeypatch.setattr(
         "agent_runtime.config.load_root_runtime_config", _boom, raising=False
     )
@@ -895,3 +895,34 @@ def test_supervisor_role_alias_is_honored():
     assert grants.config_key == (
         "agent_runtime.terminal_envelope.grants.alice_supervisor.mission_chat"
     )
+
+
+def test_a_config_grant_and_a_mode_grant_carry_their_own_provenance(tmp_path):
+    """Positive control (layout sheet ``terminal_envelope.md`` §6.1): BOTH grant
+    arms of ``envelope_decision`` in one test, each on the fields only its own
+    arm sets — a config grant names ``config_grant`` and its ROOT-config key; a
+    permission-mode grant names ``permission_mode`` and carries NO config key."""
+
+    by_config = envelope_decision(
+        "git push origin main",
+        scope=_dev_scope(tmp_path),
+        cfg=_cfg(dev={LANE_MISSION_CHAT: [GIT_PUSH]}),
+    )
+    by_mode = envelope_decision(
+        "git push origin main",
+        scope=TerminalEnvelopeScope(
+            lane=LANE_MISSION_CHAT,
+            role="dev",
+            persona_id="dev",
+            session_id="chat-1",
+            runtime_root=str(tmp_path),
+            permission_mode="unbounded",
+        ),
+        cfg=_cfg(),
+    )
+
+    assert (by_config.outcome, by_config.grant_source) == (OUTCOME_GRANTED, "config_grant")
+    assert by_config.config_key == "agent_runtime.terminal_envelope.grants.dev.mission_chat"
+    assert (by_mode.outcome, by_mode.grant_source) == (OUTCOME_GRANTED, "permission_mode")
+    assert by_mode.config_key is None
+    assert by_mode.granted_by == "permission_mode=unbounded"

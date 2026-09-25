@@ -214,7 +214,7 @@ class AgentRunExecution:
             chat_root_session_key_scope,
             tool_execution_scope,
         )
-        from ..terminal_envelope import terminal_envelope_scope
+        from ..terminal_envelope.records import terminal_envelope_scope
         from agent_runtime.skill_resolution import skill_runtime_scope
         from ..local_llama_adapter.provider import prewarm_scope
 

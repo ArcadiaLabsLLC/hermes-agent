@@ -101,7 +101,7 @@ REMOVED_BINDINGS = {
     "agent_runtime/checkpoint.py": {"os"},
     "agent_runtime/observability.py": {"timedelta"},
     "agent_runtime/parity.py": {"paths"},
-    "agent_runtime/terminal_envelope.py": {"field", "Sequence"},
+    "agent_runtime/terminal_envelope/records.py": {"field", "Sequence"},
     # RETIRED at S56 (2026-08-01): the row was
     # ``"agent_runtime/worker_sessions.py": {"Path"}`` — a dead ``Path`` binding
     # in the worker-session store. S56 deleted that module WHOLE, so the row's
@@ -127,7 +127,7 @@ RETAINED_BINDINGS = {
     "agent_runtime/persona_runtime.py": {"Callable", "TYPE_CHECKING"},
     "agent_runtime/observability.py": {"datetime"},
     "agent_runtime/parity.py": {"event_rotation"},
-    "agent_runtime/terminal_envelope.py": {"dataclass", "Any", "Iterator", "Mapping"},
+    "agent_runtime/terminal_envelope/records.py": {"dataclass", "Any", "Iterator", "Mapping"},
 }
 
 

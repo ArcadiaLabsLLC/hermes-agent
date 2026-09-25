@@ -247,7 +247,6 @@
   "agent_runtime/sync_text.py",
   "agent_runtime/target_policy.py",
   "agent_runtime/task_store_stub.py",
-  "agent_runtime/terminal_envelope.py",
   "agent_runtime/terminal_envelope_explain.py",
   "agent_runtime/terminal_policy.py",
   "agent_runtime/tool_permissions.py",

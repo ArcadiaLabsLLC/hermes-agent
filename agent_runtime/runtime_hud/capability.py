@@ -11,7 +11,7 @@ from typing import Any, Iterable, Mapping
 
 from agent_runtime.chat_lane_toolsets import DROP_KIND_TOOL, DROP_KIND_TOOLSET
 from agent_runtime.permission_modes import permission_mode_is_unbounded
-from agent_runtime.terminal_envelope import ENVELOPE_DECISION_LOG
+from agent_runtime.terminal_envelope.records import ENVELOPE_DECISION_LOG
 
 from agent_runtime.runtime_hud.fields import SITUATIONAL_HUD_CAPABILITY_CAP, section
 

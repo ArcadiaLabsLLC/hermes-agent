@@ -400,7 +400,7 @@ manual burned the live 2026-07-29 QA turn.
 
 ## 6. Terminal envelope grants
 
-`agent_runtime/terminal_envelope.py` is the ONE deterministic answer to "may this command run on
+`agent_runtime/terminal_envelope/` is the ONE deterministic answer to "may this command run on
 this lane?". It exists because the same lane behaved two opposite ways on 2026-07-26: fail-CLOSED for
 a profile-bound persona (the legacy envelope fires on the mere presence of
 `HERMES_AGENT_RUNTIME_ROOT`, with no channel to obtain the demanded approval) and fail-OPEN for one

@@ -456,7 +456,7 @@ def test_permission_mode_never_lifts_a_hard_floor(monkeypatch):
 
     import agent_runtime.terminal_envelope as te
 
-    monkeypatch.setattr(te, "GRANTABLE_COMMAND_CLASSES", frozenset())
+    monkeypatch.setattr(te.decision, "GRANTABLE_COMMAND_CLASSES", frozenset())
     decision = te.envelope_decision(
         "git push origin main", scope=_scope(PERMISSION_MODE_UNBOUNDED), cfg=_cfg()
     )
