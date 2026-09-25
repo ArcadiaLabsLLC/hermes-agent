@@ -17,7 +17,7 @@ from agent_runtime.runtime_hud.hud import resolve_situational_hud
 __layer__ = "lanes"
 
 
-def _installs_block() -> list[dict[str, Any]]:
+def installs_block() -> list[dict[str, Any]]:
     """The paired-install rows for the HUD. Best effort, and it DIALS NOTHING.
 
     Wrapped here rather than at each feeder so both — the chat turn and the
@@ -222,7 +222,7 @@ def situational_hud_for_instance(
             board=_board_digest_for_workspace(scope_workspace_id),
             turn_budget=turn_budget,
             capability=capability,
-            installs=_installs_block(),
+            installs=installs_block(),
         )
     except Exception:
         return {}

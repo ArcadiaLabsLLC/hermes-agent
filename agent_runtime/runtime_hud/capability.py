@@ -7,15 +7,24 @@ tail's agent-visible lines.
 
 from __future__ import annotations
 
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 from agent_runtime.chat_lane_toolsets import DROP_KIND_TOOL, DROP_KIND_TOOLSET
 from agent_runtime.permission_modes import permission_mode_is_unbounded
 from agent_runtime.terminal_envelope import ENVELOPE_DECISION_LOG
 
-from agent_runtime.runtime_hud.fields import SITUATIONAL_HUD_CAPABILITY_CAP
+from agent_runtime.runtime_hud.fields import SITUATIONAL_HUD_CAPABILITY_CAP, section
 
 __layer__ = "policy"
+
+
+#: Which bucket of the capability block each chat-lane drop kind fills (rule
+#: 12: routing is data). A kind not listed is skipped by the ``.get`` miss —
+#: exactly the ``else: continue`` the ladder this replaced carried.
+_DROP_BUCKETS: Mapping[str, str] = {
+    DROP_KIND_TOOLSET: "toolsets_dropped",
+    DROP_KIND_TOOL: "tools_dropped",
+}
 
 
 def _capped(names: Iterable[Any]) -> tuple[list[str], int]:
@@ -83,27 +92,18 @@ def resolve_capability_block(
             "permission_source": str(permission_source or "").strip(),
         }
 
-    toolsets: list[str] = []
-    tools: list[str] = []
+    dropped: dict[str, list[str]] = {bucket: [] for bucket in _DROP_BUCKETS.values()}
     restorable: list[str] = []
     for drop in drops or ():
         subject = str(getattr(drop, "subject", "") or "").strip()
-        if not subject:
+        bucket = _DROP_BUCKETS.get(getattr(drop, "kind", None))
+        if not subject or bucket is None:
             continue
-        kind = getattr(drop, "kind", None)
-        if kind == DROP_KIND_TOOLSET:
-            toolsets.append(subject)
-        elif kind == DROP_KIND_TOOL:
-            tools.append(subject)
-        else:
-            continue
+        dropped[bucket].append(subject)
         key = str(getattr(drop, "restorable_via", "") or "").strip()
         if key and key not in restorable:
             restorable.append(key)
-    if toolsets:
-        block["toolsets_dropped"] = toolsets
-    if tools:
-        block["tools_dropped"] = tools
+    block.update({bucket: subjects for bucket, subjects in dropped.items() if subjects})
     if restorable:
         # One persona ⇒ one key in practice; the list shape keeps the block
         # honest if a future dropper ever restores through a different setting.
@@ -161,7 +161,7 @@ def render_capability_block(capability: dict[str, Any] | None) -> str:
 
     lines: list[str] = []
 
-    posture = capability.get("posture") if isinstance(capability.get("posture"), dict) else {}
+    posture = section(capability, "posture")
     if posture:
         mode = str(posture.get("permission_mode") or "").strip()
         source = str(posture.get("permission_source") or "").strip()
@@ -202,7 +202,7 @@ def render_capability_block(capability: dict[str, Any] | None) -> str:
             "not improvise a workaround."
         )
 
-    envelope = capability.get("envelope") if isinstance(capability.get("envelope"), dict) else {}
+    envelope = section(capability, "envelope")
     if envelope:
         who = ", ".join(
             part

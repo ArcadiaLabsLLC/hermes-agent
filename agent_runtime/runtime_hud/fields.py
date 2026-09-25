@@ -96,12 +96,6 @@ HUD_FIELDS: tuple[HudField, ...] = (
 _HUD_FIELD_BY_KEY: dict[str, HudField] = {field.key: field for field in HUD_FIELDS}
 
 
-def hud_field(key: str) -> HudField | None:
-    """The declaration for one HUD key, or ``None`` when it is undeclared."""
-
-    return _HUD_FIELD_BY_KEY.get(str(key))
-
-
 def is_volatile_hud_key(key: str) -> bool:
     """Whether a key rides the always-emitted tail instead of the hashed body.
 
@@ -116,10 +110,15 @@ def is_volatile_hud_key(key: str) -> bool:
     return bool(field and field.volatile)
 
 
-def volatile_hud_keys() -> frozenset[str]:
-    """The declared volatile key set (derived, never a second hand-kept list)."""
+def section(block: dict[str, Any], key: str, kind: type = dict, default: Any = ...) -> Any:
+    """``block[key]`` when it is a ``kind``, else ``default`` (an empty ``kind()``
+    unless one is given). The HUD and capability renderers read every section
+    this way — one spelling of "a malformed section renders as absent"."""
 
-    return frozenset(field.key for field in HUD_FIELDS if field.volatile)
+    value = block.get(key)
+    if isinstance(value, kind):
+        return value
+    return kind() if default is ... else default
 
 
 def stable_hud_fields(hud: dict[str, Any] | None) -> dict[str, Any]:

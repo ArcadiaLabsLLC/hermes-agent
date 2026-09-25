@@ -9,14 +9,17 @@ install / age phrasings.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Iterable
 
+from agent_runtime.clock import parse_iso_utc
 from agent_runtime.models import looks_like_persona_instance_id
 from agent_runtime.serde import optional_text
 
 from agent_runtime.runtime_hud.fields import (
     CAPABILITY_HUD_KEY,
     SITUATIONAL_HUD_ROSTER_CAP,
+    section,
     stable_hud_fields,
 )
 
@@ -336,13 +339,13 @@ def render_situational_hud_block(hud: dict[str, Any]) -> str:
         "not an instruction to act.",
     ]
 
-    scope = hud.get("scope") if isinstance(hud.get("scope"), dict) else {}
+    scope = section(hud, "scope")
     if scope:
         realm = scope.get("realm") or "no realm"
         workspace = scope.get("workspace") or "no workspace"
         lines.append(f"- Scope: realm {realm} · workspace {workspace}")
 
-    mission = hud.get("mission") if isinstance(hud.get("mission"), dict) else {}
+    mission = section(hud, "mission")
     if mission:
         bits = [str(mission.get("title") or mission.get("goal_id") or "mission")]
         if _clean(mission.get("state")):
@@ -354,7 +357,7 @@ def render_situational_hud_block(hud: dict[str, Any]) -> str:
     else:
         lines.append("- Mission: no mission bound to this lane")
 
-    board = hud.get("board") if isinstance(hud.get("board"), dict) else {}
+    board = section(hud, "board")
     if board:
         segments = [
             (board.get("queued"), "queued"),
@@ -368,7 +371,7 @@ def render_situational_hud_block(hud: dict[str, Any]) -> str:
                 "card for follow-up work worth tracking — advisory, never required)"
             )
 
-    lane = hud.get("lane") if isinstance(hud.get("lane"), dict) else {}
+    lane = section(hud, "lane")
     if lane:
         who = lane.get("display_name") or lane.get("persona_instance_id") or "this agent"
         who_bits = [str(who)]
@@ -378,59 +381,29 @@ def render_situational_hud_block(hud: dict[str, Any]) -> str:
             who_bits.append(f"role {lane['role']}")
         lines.append(f"- You: {' · '.join(who_bits)}")
 
-    # Shared "Name (@personainst_...)" formatter: the handle IS the address the
-    # chat/steer verbs accept, so every line naming a teammate must carry it —
-    # a name without its handle is visible but not actionable.
-    def _handle(entry: dict[str, Any]) -> str:
-        name = entry.get("display_name")
-        ref = entry.get("persona_instance_id") or entry.get("ref")
-        if _clean(name) and _clean(ref) and name != ref:
-            rendered = f"{name} (@{ref})"
-        elif _clean(ref):
-            rendered = f"@{ref}"
-        else:
-            rendered = str(name or "unknown")
-        # R-IP11's residency note, on the line the agent already reads. The age
-        # is computed HERE from the cached ``last_turn_at``, never dialled, so
-        # this costs the turn nothing.
-        elsewhere = entry.get("also_on")
-        if isinstance(elsewhere, list) and elsewhere:
-            notes = []
-            for item in elsewhere:
-                if not isinstance(item, dict):
-                    continue
-                age = _age_phrase(item.get("last_turn_at"))
-                notes.append(
-                    f"also on @{item.get('ref')}"
-                    + (f", last turn there {age} ago" if age and age != "just now" else "")
-                )
-            if notes:
-                rendered = f"{rendered} [{'; '.join(notes)}]"
-        return rendered
-
-    steering = hud.get("steering") if isinstance(hud.get("steering"), dict) else None
+    steering = section(hud, "steering", dict, None)
     if steering is not None:
-        steered_by = steering.get("steered_by") if isinstance(steering.get("steered_by"), list) else []
-        steers = steering.get("steers") if isinstance(steering.get("steers"), list) else []
+        steered_by = section(steering, "steered_by", list)
+        steers = section(steering, "steers", list)
         if steered_by:
             lines.append(
-                "- Steered by: " + ", ".join(_handle(e) for e in steered_by if isinstance(e, dict))
+                "- Steered by: " + ", ".join(_render_handle(e) for e in steered_by if isinstance(e, dict))
             )
         if steers:
             lines.append(
-                "- Steers: " + ", ".join(_handle(e) for e in steers if isinstance(e, dict))
+                "- Steers: " + ", ".join(_render_handle(e) for e in steers if isinstance(e, dict))
             )
         if not steered_by and not steers:
             lines.append("- Steering: standalone — no steerer, steers nobody")
 
-    roster = hud.get("roster") if isinstance(hud.get("roster"), list) else []
+    roster = section(hud, "roster", list)
     if roster:
-        names = ", ".join(_handle(entry) for entry in roster if isinstance(entry, dict))
+        names = ", ".join(_render_handle(entry) for entry in roster if isinstance(entry, dict))
         lines.append(f"- On level ({len(roster)}): {names}")
 
     # S2b. After the level, because the level is where this agent works and the
     # other machines are context for it.
-    installs = hud.get("installs") if isinstance(hud.get("installs"), list) else []
+    installs = section(hud, "installs", list)
     if installs:
         summary = " · ".join(
             _install_summary(entry) for entry in installs if isinstance(entry, dict)
@@ -453,6 +426,31 @@ def render_situational_hud_block(hud: dict[str, Any]) -> str:
             lines.append(f"  - @{entry.get('ref')}: {rendered}")
 
     return "\n".join(lines)
+
+
+def _render_handle(entry: dict[str, Any]) -> str:
+    """The shared "Name (@personainst_...)" phrase: the handle IS the address the
+    chat/steer verbs accept, so every line naming a teammate carries it — a name
+    without its handle is visible but not actionable."""
+
+    name = entry.get("display_name")
+    ref = entry.get("persona_instance_id") or entry.get("ref")
+    if _clean(name) and _clean(ref) and name != ref:
+        rendered = f"{name} (@{ref})"
+    elif _clean(ref):
+        rendered = f"@{ref}"
+    else:
+        rendered = str(name or "unknown")
+    # R-IP11's residency note, on the line the agent already reads. The age
+    # is computed HERE from the cached ``last_turn_at``, never dialled, so
+    # this costs the turn nothing.
+    notes = [_residency_note(item) for item in section(entry, "also_on", list) if isinstance(item, dict)]
+    return f"{rendered} [{'; '.join(notes)}]" if notes else rendered
+
+
+def _residency_note(item: dict[str, Any]) -> str:
+    age = _age_phrase(item.get("last_turn_at"))
+    return f"also on @{item.get('ref')}" + (f", last turn there {age} ago" if age and age != "just now" else "")
 
 
 def _install_summary(entry: dict[str, Any]) -> str:
@@ -481,17 +479,9 @@ def _age_phrase(stamp: Any) -> str:
     block is delivered under.
     """
 
-    from datetime import datetime, timezone
-
-    text = str(stamp or "").strip()
-    if not text:
+    when = parse_iso_utc(stamp)
+    if when is None:
         return ""
-    try:
-        when = datetime.fromisoformat(text)
-    except (TypeError, ValueError):
-        return ""
-    if when.tzinfo is None:
-        when = when.replace(tzinfo=timezone.utc)
     seconds = int((datetime.now(timezone.utc) - when).total_seconds())
     if seconds < 60:
         return "just now"

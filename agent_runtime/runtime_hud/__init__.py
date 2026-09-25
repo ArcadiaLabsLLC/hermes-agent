@@ -51,7 +51,7 @@ Entry points, and the modules an agent opens to follow each:
 * the chat turn's HUD (``mission_chat_turn_context``) -> ``ambient`` ->
   ``hud`` -> ``fields``;
 * the observability frame (``prompt_observability/snapshot_frame``) ->
-  ``hud.resolve_situational_hud`` + ``ambient._installs_block``;
+  ``hud.resolve_situational_hud`` + ``ambient.installs_block``;
 * the capability account (``chat_lane_bundle``) -> ``ambient`` ->
   ``capability``;
 * the envelope round-trip (``persona_chat_history/curation``,
@@ -97,11 +97,9 @@ from agent_runtime.runtime_hud.fields import (
     SITUATIONAL_HUD_CAPABILITY_CAP,
     SITUATIONAL_HUD_ROSTER_CAP,
     HudField,
-    hud_field,
     is_volatile_hud_key,
     situational_hud_revision,
     stable_hud_fields,
-    volatile_hud_keys,
 )
 from agent_runtime.runtime_hud.envelopes import (
     RUNTIME_CONTEXT_CODEC,
@@ -125,8 +123,8 @@ from agent_runtime.runtime_hud.envelopes import (
 from agent_runtime.runtime_hud.hud import render_situational_hud_block, resolve_situational_hud
 from agent_runtime.runtime_hud.capability import render_capability_block, resolve_capability_block
 from agent_runtime.runtime_hud.ambient import (
-    _installs_block,  # noqa: F401 — prompt_observability/snapshot_frame reads it (public in the CHANGE)
     capability_block_for_persona,
+    installs_block,
     situational_hud_for_instance,
 )
 
@@ -150,7 +148,7 @@ __all__ = [
     "capability_block_for_persona",
     "extract_runtime_context_envelope",
     "extract_skill_preload_envelope",
-    "hud_field",
+    "installs_block",
     "is_volatile_hud_key",
     "render_capability_block",
     "render_runtime_context_envelope",
@@ -165,5 +163,4 @@ __all__ = [
     "skill_preload_revision",
     "split_composed_user_row",
     "stable_hud_fields",
-    "volatile_hud_keys",
 ]

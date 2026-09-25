@@ -22,7 +22,10 @@ from ..mission_chat_turns.reads import (
 )
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..relay_policy import parse_harness_delivery_marker, parse_relay_sender_marker
-from ..runtime_hud import extract_runtime_context_envelope, extract_skill_preload_envelope
+from ..runtime_hud.envelopes import (
+    extract_runtime_context_envelope,
+    extract_skill_preload_envelope,
+)
 from ..transcript_order import TURN_SEQ_OPERATOR, TURN_SEQ_TERMINAL
 from .markers import (
     _carry_run_budget,

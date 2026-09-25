@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from functools import singledispatch
 
 __layer__ = "models"
-__all__ = ["elapsed_ms", "iso_timestamp", "now_iso", "now_iso_micro"]
+__all__ = ["elapsed_ms", "iso_timestamp", "now_iso", "now_iso_micro", "parse_iso_utc"]
 
 
 def elapsed_ms(started: object) -> int | None:
@@ -122,3 +122,34 @@ def now_iso_micro() -> str:
     """
 
     return _iso_z(datetime.now(timezone.utc))
+
+
+@singledispatch
+def parse_iso_utc(value: object) -> datetime | None:
+    """A stamp as an AWARE datetime, or ``None`` when it will not parse.
+
+    Tolerant by design: a trailing ``Z`` is accepted, a naive stamp is read as
+    UTC, a ``datetime`` passes through (a naive one read as UTC), and anything
+    unparseable is ``None`` — the caller's one entry loses its rank or its age,
+    nothing more. The owner ``store.ledger_time`` folds onto in lane 2B-A
+    (program §3.1d); ``runtime_hud``'s age phrase reads it (lane 2B-B). One
+    implementation per input type, as :func:`iso_timestamp`.
+    """
+
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text[:-1] + "+00:00" if text.endswith("Z") else text)
+    except ValueError:
+        return None
+    return _as_aware(parsed)
+
+
+@parse_iso_utc.register(datetime)
+def _parse_iso_utc_datetime(value: datetime) -> datetime:
+    return _as_aware(value)
+
+
+def _as_aware(moment: datetime) -> datetime:
+    return moment if moment.tzinfo is not None else moment.replace(tzinfo=timezone.utc)
