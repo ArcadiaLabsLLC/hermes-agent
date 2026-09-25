@@ -72,6 +72,16 @@
   "tools/tool_full_descriptions.py|tools.skill_manager_tool|_skill_manage_description"
  ],
  "undeclared": [
+  "agent/charsheet/__init__.py",
+  "agent/charsheet/draft.py",
+  "agent/charsheet/draft_lock.py",
+  "agent/charsheet/errors.py",
+  "agent/charsheet/fake_draftsman.py",
+  "agent/charsheet/palette.py",
+  "agent/charsheet/pipeline.py",
+  "agent/charsheet/prompts.py",
+  "agent/charsheet/revisions.py",
+  "agent/charsheet/spec.py",
   "agent_runtime/__init__.py",
   "agent_runtime/agent_create_phases.py",
   "agent_runtime/agent_create_reservations.py",

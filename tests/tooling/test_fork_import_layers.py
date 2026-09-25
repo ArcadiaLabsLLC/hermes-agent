@@ -4,8 +4,10 @@ Plan: ``docs/agent-runtime-harness/planned/god-file-program-2026-09-24.md`` rule
 16 and §2.4. Layers, lowest first: ``models`` -> ``policy`` -> ``stores`` ->
 ``lanes`` -> ``wiring`` (``scripts/god_file_probe.py::LAYERS``).
 
-* Every module under ``agent_runtime/``, ``hermes_cli/harness_parts/`` and
-  ``plugins/eternia-harness/`` declares its layer — ``__layer__`` in the module,
+* Every module under ``agent_runtime/``, ``hermes_cli/harness_parts/``,
+  ``plugins/eternia-harness/`` and every fork-only tree under ``agent/`` and
+  ``tools/`` (``probe.layered_roots``: DISCOVERED as a directory holding no
+  upstream file, never listed here) declares its layer — ``__layer__`` in the module,
   or its package ``__init__``'s ``__layers__`` map — or is grandfathered until
   its lane opens it (the list only shrinks).
 * A declared module imports only same-or-lower declared layers. The layer is
@@ -94,3 +96,15 @@ def test_a_fork_submodule_under_an_upstream_package_is_not_a_private_name(tmp_pa
     assert not probe.is_private_upstream_import(tmp_path, upstream, "pkg", "_mod")
     assert not probe.is_private_upstream_import(tmp_path, upstream, "pkg", "public")
     assert not probe.is_private_upstream_import(tmp_path, upstream, "forkpkg", "_name")
+
+
+def test_fork_only_trees_are_discovered_not_listed():
+    """Positive control both ways: a directory with no upstream file is walked; one
+    sharing a directory with upstream is not, and the live tree finds the two known."""
+    upstream = frozenset({"tools/registry.py", "agent/pet/generate/core.py"})
+    assert probe.fork_only_tree("tools/agent_chat_dispatch/child.py", upstream) == "tools/agent_chat_dispatch/"
+    assert probe.fork_only_tree("agent/charsheet/sub/x.py", upstream) == "agent/charsheet/"
+    assert probe.fork_only_tree("tools/agent_chat_tool.py", upstream) is None
+    assert probe.fork_only_tree("agent/pet/generate/fork_only.py", upstream) is None
+    roots = probe.layered_roots()
+    assert {"agent/charsheet/", "tools/agent_chat_dispatch/"} <= set(roots) - set(probe.LAYERED_ROOTS)
