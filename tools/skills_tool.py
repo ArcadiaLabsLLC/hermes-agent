@@ -129,6 +129,39 @@ def check_skills_requirements() -> bool:
     return True  # always available: the directory is created on first use
 
 
+def skill_inspection_reader():
+    """Bind human inspection to the same discovery and collision/trust gates as tools."""
+    from agent_runtime.skill_inspection import SkillInspection
+    return SkillInspection(_inspection_entries, _inspection_location, _get_disabled_skill_names)
+
+
+def _inspection_entries():
+    from hermes_cli.plugins import get_plugin_manager
+    rows = _find_all_skills(skip_disabled=True)
+    # Only already-registered plugins: opening a browser never activates one.
+    for row in get_plugin_manager().list_plugin_skill_metadata():
+        if skill_matches_platform(row.get("frontmatter", {})):
+            rows.append(dict(row))
+    return _sort_skills(rows)
+
+
+def _inspection_location(identifier):
+    from agent_runtime.skill_inspection import SkillInspectionError, SkillInspectionReason
+    from hermes_cli.plugins import get_plugin_manager
+    if _skill_lookup_path_error(identifier):
+        raise SkillInspectionError(SkillInspectionReason.UNAVAILABLE)
+    plugin = get_plugin_manager().find_plugin_skill(identifier) if ":" in identifier else None
+    if plugin is not None:
+        return plugin, "plugin"
+    project, roots, _active = _skill_search_dirs()
+    error, _directory, document = _locate_skill(identifier, None, project, roots)
+    if error is not None:
+        raise SkillInspectionError(SkillInspectionReason.UNAVAILABLE)
+    source = next((skill_source_kind(root) for root in roots
+                   if document.is_relative_to(root)), "external")
+    return document, source
+
+
 def _get_category_from_path(skill_path: Path) -> Optional[str]:
     """
     Extract category from skill path based on directory structure.

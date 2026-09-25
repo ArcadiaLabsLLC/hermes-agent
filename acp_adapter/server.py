@@ -25,6 +25,7 @@ from acp.schema import (
 )
 
 from acp_adapter.auth import TERMINAL_SETUP_AUTH_METHOD_ID, build_auth_methods, detect_provider
+from agent_runtime.acp_skills import SKILLS_CAPABILITY, SkillsInspectionMixin
 from acp_adapter.commands import HERMES_VERSION, SlashCommandsMixin, _estimate_tokens
 from acp_adapter.content import PromptBlock, _content_blocks_to_openai_user_content, _extract_text
 from acp_adapter.events import (
@@ -230,7 +231,7 @@ class _TurnCallbacks:
     tool_call_meta: Any = None
 
 
-class HermesACPAgent(SlashCommandsMixin, acp.Agent):
+class HermesACPAgent(SkillsInspectionMixin, SlashCommandsMixin, acp.Agent):
     """ACP Agent implementation wrapping Hermes AIAgent."""
 
     _EDIT_APPROVAL_POLICY_CONFIG_ID = "edit_approval_policy"
@@ -534,6 +535,7 @@ class HermesACPAgent(SlashCommandsMixin, acp.Agent):
             protocol_version=acp.PROTOCOL_VERSION,
             agent_info=Implementation(name="hermes-agent", version=HERMES_VERSION),
             agent_capabilities=AgentCapabilities(
+                field_meta={"hermesSkills": SKILLS_CAPABILITY},
                 load_session=True,
                 prompt_capabilities=PromptCapabilities(image=True),
                 session_capabilities=SessionCapabilities(
