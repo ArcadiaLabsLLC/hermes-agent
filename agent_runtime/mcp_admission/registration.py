@@ -11,9 +11,9 @@ import time
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from ..mcp_lane import MCP_NOT_REGISTERED_ON_LANE
+from ..serde import positive_float
 
 from .outcomes import McpAdmission, McpAdmissionDenial, McpAdmissionOutcome, McpCallBudget, McpTeardownOutcome
-from .resolve import _positive_float
 from .transport import _default_registrar, classify_admission_transport, mcp_sdk_available
 from .vocabulary import MCP_ADMISSION_LANE_BUSY, MCP_ADMISSION_TEARDOWN_FAILED, MCP_ADMISSION_TIMEOUT, MCP_SDK_UNAVAILABLE, _MCP_TOOLSET_PREFIX, logger
 
@@ -62,12 +62,64 @@ def admit_mcp_servers(
 
     if admission is None or admission.is_empty:
         return McpAdmissionOutcome(denied=tuple(admission.denied) if admission else ())
+    return Admission(
+        admission,
+        register=register,
+        timeout_seconds=timeout_seconds,
+        on_budget_exhausted=on_budget_exhausted,
+    ).run()
 
-    budget = _positive_float(timeout_seconds) or admission.connect_timeout_seconds
-    servers = dict(admission.server_configs)
-    started = time.perf_counter()
 
-    if not _ADMISSION_LOCK.acquire(blocking=False):
+class Admission:
+    """One :func:`admit_mcp_servers` call, as its phases.
+
+    ``run`` = :meth:`acquire` (the single-flight mutex; a held one is a typed
+    ``lane_busy``) → :meth:`classify` (warm / cold, after the mutex and before
+    the registrar) → the meter (one :class:`McpCallBudget` per admission) →
+    :meth:`register_bounded` (the worker, waited on for the bounded budget) →
+    :meth:`timed_out` or :meth:`outcome`. The WORKER releases the mutex, never the
+    caller (:meth:`_work`'s ``finally``): on a timeout the caller returns while the
+    registration is still connecting.
+    """
+
+    def __init__(
+        self,
+        admission: McpAdmission,
+        *,
+        register: Callable[[Mapping[str, Mapping[str, Any]]], Any] | None,
+        timeout_seconds: float | None,
+        on_budget_exhausted: Callable[[McpAdmissionDenial, dict[str, Any]], None] | None,
+    ) -> None:
+        self.admission = admission
+        self.register = register
+        self.on_budget_exhausted = on_budget_exhausted
+        self.budget = positive_float(timeout_seconds) or admission.connect_timeout_seconds
+        self.servers = dict(admission.server_configs)
+        self.started = time.perf_counter()
+        self.done = threading.Event()
+        self.box: dict[str, Any] = {}
+        self.transport_paths: dict[str, str] = {}
+        # One meter per admission ⇒ the budget resets per run by construction, with
+        # no reset path to forget to call.
+        self.call_budget = McpCallBudget(admission.max_tool_calls_per_run)
+
+    def run(self) -> McpAdmissionOutcome:
+        busy = self.acquire()
+        if busy is not None:
+            return busy
+        self.classify()
+        finished = self.register_bounded()
+        if finished is None:
+            return McpAdmissionOutcome(attempted=True, denied=tuple(self.admission.denied))
+        duration_ms = self.elapsed_ms()
+        return self.outcome(duration_ms) if finished else self.timed_out(duration_ms)
+
+    def elapsed_ms(self) -> int:
+        return int((time.perf_counter() - self.started) * 1000)
+
+    def acquire(self) -> McpAdmissionOutcome | None:
+        if _ADMISSION_LOCK.acquire(blocking=False):
+            return None
         busy = tuple(
             McpAdmissionDenial(
                 server=name,
@@ -83,43 +135,41 @@ def admit_mcp_servers(
                     "server and say what went unverified."
                 ),
             )
-            for name in admission.server_names
+            for name in self.admission.server_names
         )
         return McpAdmissionOutcome(
             attempted=True,
-            duration_ms=int((time.perf_counter() - started) * 1000),
-            denied=tuple(admission.denied) + busy,
+            duration_ms=self.elapsed_ms(),
+            denied=tuple(self.admission.denied) + busy,
             execution_denied=busy,
         )
 
-    # Classified HERE — after the mutex, before the registrar — because both
-    # facts have to be true at once: nothing else can be registering (so the
-    # reading is not racing another admission's spawn), and this run has not yet
-    # registered anything (so a cold server still reads cold). Only on the
-    # production path: a caller-supplied ``register`` means the live transport
-    # map is not what will be consulted, and classifying against it would be a
-    # confident label for a path that was never taken.
-    transport_paths = classify_admission_transport(admission.server_names) if register is None else {}
+    def classify(self) -> None:
+        # Classified HERE — after the mutex, before the registrar — because both
+        # facts have to be true at once: nothing else can be registering (so the
+        # reading is not racing another admission's spawn), and this run has not yet
+        # registered anything (so a cold server still reads cold). Only on the
+        # production path: a caller-supplied ``register`` means the live transport
+        # map is not what will be consulted, and classifying against it would be a
+        # confident label for a path that was never taken.
+        if self.register is None:
+            self.transport_paths = classify_admission_transport(self.admission.server_names)
 
-    done = threading.Event()
-    box: dict[str, Any] = {}
-    # One meter per admission ⇒ the budget resets per run by construction, with
-    # no reset path to forget to call.
-    call_budget = McpCallBudget(admission.max_tool_calls_per_run)
-
-    def _work() -> None:
+    def _work(self) -> None:
         try:
-            registrar = register or _default_registrar
-            box["tools"] = registrar(servers)
+            registrar = self.register or _default_registrar
+            self.box["tools"] = registrar(self.servers)
             # Meter INSIDE the worker, still holding the admission mutex, so a
             # registration that outran the caller's timeout and lands late is
             # metered too. An admitted tool that is not counted would be exactly
             # the unbounded surface this budget exists to retire.
             _install_call_budget(
-                admission.server_names, call_budget, on_exhausted=on_budget_exhausted
+                self.admission.server_names,
+                self.call_budget,
+                on_exhausted=self.on_budget_exhausted,
             )
         except Exception as exc:  # pragma: no cover - defensive; surfaced as a typed denial
-            box["error"] = exc
+            self.box["error"] = exc
             logger.warning("MCP admission registration failed: %s", exc, exc_info=True)
         finally:
             # The WORKER releases the mutex, never the caller: on a timeout the
@@ -127,19 +177,26 @@ def admit_mcp_servers(
             # releasing here is what keeps a second admission from interleaving
             # against the global registry mid-spawn.
             _ADMISSION_LOCK.release()
-            done.set()
+            self.done.set()
 
-    worker = threading.Thread(target=_work, name="mcp-admission", daemon=True)
-    try:
-        worker.start()
-    except Exception:  # pragma: no cover - thread exhaustion; never strand the mutex
-        _ADMISSION_LOCK.release()
-        logger.warning("MCP admission could not start its registration thread", exc_info=True)
-        return McpAdmissionOutcome(attempted=True, denied=tuple(admission.denied))
-    finished = done.wait(budget)
-    duration_ms = int((time.perf_counter() - started) * 1000)
+    def register_bounded(self) -> bool | None:
+        """Run the registrar on its worker; True when it finished inside the budget.
 
-    if not finished:
+        ``None`` when the worker could not even start — the mutex is released
+        here then, because no worker exists to release it.
+        """
+
+        worker = threading.Thread(target=self._work, name="mcp-admission", daemon=True)
+        try:
+            worker.start()
+        except Exception:  # pragma: no cover - thread exhaustion; never strand the mutex
+            _ADMISSION_LOCK.release()
+            logger.warning("MCP admission could not start its registration thread", exc_info=True)
+            return None
+        return self.done.wait(self.budget)
+
+    def timed_out(self, duration_ms: int) -> McpAdmissionOutcome:
+        budget = self.budget
         timed_out = tuple(
             McpAdmissionDenial(
                 server=name,
@@ -156,37 +213,53 @@ def admit_mcp_servers(
                     "agent_runtime.mcp_admission.connect_timeout_seconds into the turn budget."
                 ),
             )
-            for name in admission.server_names
+            for name in self.admission.server_names
         )
         return McpAdmissionOutcome(
             attempted=True,
             duration_ms=duration_ms,
-            denied=tuple(admission.denied) + timed_out,
+            denied=tuple(self.admission.denied) + timed_out,
             execution_denied=timed_out,
             # The meter is already armed and the worker will install it if the
             # registration lands late, so the run stays bounded even on the path
             # where the caller gave up on it.
-            call_budget=call_budget,
+            call_budget=self.call_budget,
             # A timeout is almost always a COLD spawn that outran the budget, and
             # saying so is the difference between "MCP is slow" and "that server
             # takes longer to start than the turn allows".
-            transport_paths=transport_paths,
+            transport_paths=self.transport_paths,
         )
 
-    from ..mcp_lane import registered_mcp_server_names
+    def outcome(self, duration_ms: int) -> McpAdmissionOutcome:
+        from ..mcp_lane import registered_mcp_server_names
 
-    registered = registered_mcp_server_names()
-    admitted = tuple(name for name in admission.server_names if name in registered)
-    missed = tuple(name for name in admission.server_names if name not in registered)
-    # WHY nothing registered, before WHICH server did not. A runtime with no MCP
-    # client registers nothing for every server at once, and saying "the server
-    # did not connect" of a server nothing ever tried to reach is the sentence
-    # that cost weeks (see MCP_SDK_UNAVAILABLE). Read only on the production
-    # path: a caller-supplied ``register`` is not the SDK's registrar, so the
-    # flag says nothing about what it did.
-    sdk_missing = bool(missed) and register is None and not mcp_sdk_available()
-    unregistered = tuple(
-        McpAdmissionDenial(
+        registered = registered_mcp_server_names()
+        names = self.admission.server_names
+        missed = tuple(name for name in names if name not in registered)
+        # WHY nothing registered, before WHICH server did not. A runtime with no MCP
+        # client registers nothing for every server at once, and saying "the server
+        # did not connect" of a server nothing ever tried to reach is the sentence
+        # that cost weeks (see MCP_SDK_UNAVAILABLE). Read only on the production
+        # path: a caller-supplied ``register`` is not the SDK's registrar, so the
+        # flag says nothing about what it did.
+        sdk_missing = bool(missed) and self.register is None and not mcp_sdk_available()
+        unregistered = tuple(_unregistered_denial(name, sdk_missing=sdk_missing) for name in missed)
+        return McpAdmissionOutcome(
+            attempted=True,
+            admitted=tuple(name for name in names if name in registered),
+            duration_ms=duration_ms,
+            denied=tuple(self.admission.denied) + unregistered,
+            execution_denied=unregistered,
+            call_budget=self.call_budget,
+            transport_paths=self.transport_paths,
+        )
+
+
+def _unregistered_denial(name: str, *, sdk_missing: bool) -> McpAdmissionDenial:
+    """The typed row for an admitted server that did not register."""
+
+    if sdk_missing:
+        return McpAdmissionDenial(
             server=name,
             code=MCP_SDK_UNAVAILABLE,
             summary=(
@@ -201,29 +274,17 @@ def admit_mcp_servers(
                 "the server, its command or its declaration needs changing."
             ),
         )
-        if sdk_missing
-        else McpAdmissionDenial(
-            server=name,
-            code=MCP_NOT_REGISTERED_ON_LANE,
-            summary=(
-                f"'{name}' was admitted for this run but did not register — the server "
-                "did not connect or advertised no tools."
-            ),
-            fix_hint=(
-                "Check the server is running and its command resolves on this machine "
-                "(hermes harness persona tool-diff <persona> --explain-mcp), then retry."
-            ),
-        )
-        for name in missed
-    )
-    return McpAdmissionOutcome(
-        attempted=True,
-        admitted=admitted,
-        duration_ms=duration_ms,
-        denied=tuple(admission.denied) + unregistered,
-        execution_denied=unregistered,
-        call_budget=call_budget,
-        transport_paths=transport_paths,
+    return McpAdmissionDenial(
+        server=name,
+        code=MCP_NOT_REGISTERED_ON_LANE,
+        summary=(
+            f"'{name}' was admitted for this run but did not register — the server "
+            "did not connect or advertised no tools."
+        ),
+        fix_hint=(
+            "Check the server is running and its command resolves on this machine "
+            "(hermes harness persona tool-diff <persona> --explain-mcp), then retry."
+        ),
     )
 
 

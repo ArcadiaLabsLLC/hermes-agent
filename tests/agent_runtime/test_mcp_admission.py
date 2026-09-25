@@ -1018,11 +1018,11 @@ def _enable_root_admission(monkeypatch, **kwargs):
 
     from agent_runtime import config as agent_config
 
-    monkeypatch.setattr(
-        agent_config,
-        "load_root_runtime_config",
-        lambda: _cfg(enabled=True, **kwargs),
-    )
+    fake = lambda: _cfg(enabled=True, **kwargs)  # noqa: E731
+    monkeypatch.setattr(agent_config, "load_root_runtime_config", fake)
+    # Admission reads the loader's own binding (config.loader, policy — lane B4),
+    # so the switch is flipped there too; the package attribute alone reaches it not.
+    monkeypatch.setattr(agent_config.loader, "load_root_runtime_config", fake)
 
 
 def test_tool_visibility_stops_reporting_the_drop_once_admission_works(

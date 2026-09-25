@@ -8,7 +8,7 @@ import threading
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
-from .vocabulary import MCP_ADMISSION_BUDGET_EXHAUSTED, _DEFAULT_CONNECT_TIMEOUT_SECONDS, _DEFAULT_MAX_TOOL_CALLS_PER_RUN
+from .vocabulary import MCP_DENIAL_CODES, machine_root_issue_codes, MCP_ADMISSION_BUDGET_EXHAUSTED, _DEFAULT_CONNECT_TIMEOUT_SECONDS, _DEFAULT_MAX_TOOL_CALLS_PER_RUN
 
 __layer__ = "models"
 
@@ -26,6 +26,16 @@ class McpAdmissionDenial:
     code: str
     summary: str
     fix_hint: str = ""
+
+    def __post_init__(self) -> None:
+        # A denial is a typed reason from a closed vocabulary (rule 14): a code
+        # outside it is refused here, at construction, never shipped as a free
+        # string an operator surface would have to guess at.
+        if self.code not in MCP_DENIAL_CODES and self.code not in machine_root_issue_codes():
+            raise ValueError(
+                f"McpAdmissionDenial code {self.code!r} is not in MCP_DENIAL_CODES "
+                "or the machine_roots issue taxonomy"
+            )
 
     def row(self) -> dict[str, Any]:
         return {

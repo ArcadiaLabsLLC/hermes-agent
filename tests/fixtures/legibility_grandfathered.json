@@ -32,16 +32,6 @@
   },
   {
    "depth": 1,
-   "lines": 198,
-   "unit": "agent_runtime/mcp_admission/registration.py|admit_mcp_servers"
-  },
-  {
-   "depth": 2,
-   "lines": 157,
-   "unit": "agent_runtime/mcp_admission/resolve.py|resolve_mcp_admission"
-  },
-  {
-   "depth": 1,
    "lines": 161,
    "unit": "agent_runtime/persona_chat_actor_prewarm.py|_prepare"
   },
