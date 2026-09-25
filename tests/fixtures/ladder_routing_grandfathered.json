@@ -1,6 +1,18 @@
 {
- "kinds": "ladder = >=3 arms comparing one subject to strings; isinstance = >=3 isinstance arms on one subject; vocab = compares against a declared Final/Enum vocabulary member (arms = count)",
+ "kinds": "ladder = >=3 arms comparing one subject to strings (literals, names bound to one, Enum members); isinstance = >=3 isinstance arms on one subject; vocab = compares re-spelling a Final/Enum vocabulary member in the module's REACH (arms = count)",
  "sites": [
+  {
+   "arms": 4,
+   "site": "agent_runtime/agent_create.py|perform_agent_create|ladder|record.state"
+  },
+  {
+   "arms": 5,
+   "site": "agent_runtime/board_sync.py|apply_board_pull|ladder|decision.action"
+  },
+  {
+   "arms": 3,
+   "site": "agent_runtime/chat_turn.py|perform_chat_turn|ladder|verb"
+  },
   {
    "arms": 1,
    "site": "agent_runtime/discussions/definition_store.py|_assert_table_editable|vocab|table"
@@ -78,20 +90,64 @@
    "site": "agent_runtime/observability.py|_safe_event_payload|isinstance|value"
   },
   {
+   "arms": 5,
+   "site": "agent_runtime/office_sync.py|_reconcile_actors|ladder|decision.action"
+  },
+  {
    "arms": 6,
    "site": "agent_runtime/operator_channels.py|_conversation_history_message|ladder|role"
+  },
+  {
+   "arms": 4,
+   "site": "agent_runtime/operator_channels.py|_conversation_history_message|vocab|agent"
+  },
+  {
+   "arms": 8,
+   "site": "agent_runtime/operator_channels.py|_conversation_history_message|vocab|operator"
+  },
+  {
+   "arms": 1,
+   "site": "agent_runtime/operator_channels.py|_conversation_history_message|vocab|system"
   },
   {
    "arms": 3,
    "site": "agent_runtime/operator_channels.py|_dedupe_conversation_messages|ladder|message.get('kind')"
   },
   {
+   "arms": 1,
+   "site": "agent_runtime/operator_channels.py|_turn_identity_mismatched|vocab|agent"
+  },
+  {
+   "arms": 1,
+   "site": "agent_runtime/persona_chat_history/markers.py|_silent_turn_marker_row|vocab|agent"
+  },
+  {
+   "arms": 1,
+   "site": "agent_runtime/persona_chat_history/text.py|_curate_chat_message_text|vocab|agent"
+  },
+  {
+   "arms": 1,
+   "site": "agent_runtime/persona_chat_history/text.py|_curate_chat_message_text|vocab|operator"
+  },
+  {
    "arms": 3,
    "site": "agent_runtime/persona_config_sync.py|_plain|isinstance|value"
   },
   {
+   "arms": 5,
+   "site": "agent_runtime/persona_config_sync.py|apply_persona_config_pull|ladder|decision.action"
+  },
+  {
+   "arms": 3,
+   "site": "agent_runtime/pool_rotation.py|PoolRotationMixin._select_with_rotation|ladder|self._strategy"
+  },
+  {
    "arms": 3,
    "site": "agent_runtime/profile_artifact_sync.py|_legacy_destination|ladder|segment"
+  },
+  {
+   "arms": 5,
+   "site": "agent_runtime/profile_artifact_sync.py|apply_profile_artifact_pull|ladder|decision.action"
   },
   {
    "arms": 3,
@@ -108,6 +164,14 @@
   {
    "arms": 15,
    "site": "agent_runtime/progress.py|_safe_progress_payload|ladder|key"
+  },
+  {
+   "arms": 3,
+   "site": "agent_runtime/realm_revert.py|classify_revert|ladder|kind"
+  },
+  {
+   "arms": 3,
+   "site": "agent_runtime/realm_sync/skill_inbox.py|_admit_inbox_package|ladder|bucket"
   },
   {
    "arms": 6,
@@ -220,6 +284,14 @@
   {
    "arms": 4,
    "site": "scripts/changed_line_mutation_check.py|_qualified_definitions.walk|isinstance|child"
+  },
+  {
+   "arms": 4,
+   "site": "scripts/doc_cite_adjacency.py|_judge_one|ladder|outcome"
+  },
+  {
+   "arms": 1,
+   "site": "scripts/generate_agent_runtime_stream_fixtures.py|_build_stale_first_convergence_pair|vocab|stale"
   },
   {
    "arms": 4,

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from enum import StrEnum, auto
+from enum import StrEnum
 from types import MappingProxyType
 from typing import Any, Mapping
 
@@ -270,17 +270,14 @@ CHAT_REDACTION_UNKNOWN = "unknown"
 # the fork's own ``operator`` / ``agent`` spellings); the transcript speaks in
 # three roles. ``WIRE_ROLES`` is the one lookup between them, and a wire role it
 # does not name (``tool``, ``function``, empty) has no transcript role at all.
-# Member values come from ``auto()`` (StrEnum: the lower-cased name), so the
-# words stay out of W0-G5's fork-wide vocabulary, where ``"agent"`` and
-# ``"system"`` are compared as unrelated words in more than a dozen other files.
 
 
 class MessageRole(StrEnum):
     """A transcript row's role; each member IS its string (``"operator"`` …)."""
 
-    OPERATOR = auto()
-    AGENT = auto()
-    SYSTEM = auto()
+    OPERATOR = "operator"
+    AGENT = "agent"
+    SYSTEM = "system"
 
     @classmethod
     def from_wire(cls, value: Any) -> "MessageRole | None":
