@@ -62,7 +62,7 @@ class AgentCreateRequest:
 
     @property
     def persona_instance_id(self) -> str:
-        from ..persona_assignments import persona_instance_id_for_placement
+        from ..persona_assignments.identity import persona_instance_id_for_placement
 
         return persona_instance_id_for_placement(self.placement_id)
 

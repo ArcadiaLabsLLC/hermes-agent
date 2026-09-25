@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .outcome import AgentCreateSkillsRefused, ERR_HANDLER_FAILED, ERR_INVALID_PARAMS
+from .outcome import ERR_HANDLER_FAILED, ERR_INVALID_PARAMS, AgentCreateSkillsRefused
 from .request import AgentCreateRequest
 
 __layer__ = "stores"
@@ -179,40 +179,68 @@ def run_skills_phase(
     same idempotency key resumes here and nowhere else.
     """
 
-    from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS
+    return SkillsPhase(skills, instance_id=instance_id, requested_by=requested_by).run()
 
-    from ..persona_assignments import PersonaInstanceStore, safe_assignment_token
-    from ..serde import safe_id
 
-    ids = [str(item) for item in (skills or ())]
+class SkillsPhase:
+    """The skills phase as its three gates and one write, in the order D5 needs.
 
-    # Gate 0 — the spelling, asked before any root is walked.
-    for identifier in ids:
-        if (
-            safe_id(identifier) != identifier
-            or safe_assignment_token(identifier) != identifier
-        ):
-            raise AgentCreateSkillsRefused(
-                ERR_INVALID_PARAMS,
-                f"skill id cannot be resolved: {identifier!r}",
-                {
-                    "reason": "skill_unresolved",
-                    "skill": identifier,
-                    # ``missing`` and not a fourth status: the resolver's own
-                    # vocabulary is {missing, collision, invalid_source} and a
-                    # name no skill root can hold is missing from all of them.
-                    "status": "missing",
-                },
-            )
+    ``gate_spelling -> gate_installed -> gate_resolved -> write``; the method
+    order IS the order the comments insist on, and every refusal is raised
+    where it is decided (:class:`AgentCreateSkillsRefused`), never rendered here.
+    """
 
-    # Gate 1 — the canonical ids are installed and PROVEN hash-equal.
-    installed: list[dict[str, Any]] = []
-    for identifier in ids:
-        if identifier not in CANONICAL_SHARED_SKILL_IDS:
-            # A non-canonical id has no repo package to compare against, so
-            # there is nothing to install and nothing to verify — it is answered
-            # by the resolver alone.
-            continue
+    def __init__(self, skills: Any, *, instance_id: str, requested_by: str) -> None:
+        self.ids = [str(item) for item in (skills or ())]
+        self.instance_id = instance_id
+        self.requested_by = requested_by
+
+    def run(self) -> dict[str, Any]:
+        self.gate_spelling()
+        installed = self.gate_installed()
+        self.gate_resolved()
+        return self.write(installed)
+
+    def gate_spelling(self) -> None:
+        """Gate 0 — the spelling, asked before any root is walked."""
+
+        from ..persona_assignments import safe_assignment_token
+        from ..serde import safe_id
+
+        for identifier in self.ids:
+            if (
+                safe_id(identifier) != identifier
+                or safe_assignment_token(identifier) != identifier
+            ):
+                raise AgentCreateSkillsRefused(
+                    ERR_INVALID_PARAMS,
+                    f"skill id cannot be resolved: {identifier!r}",
+                    {
+                        "reason": "skill_unresolved",
+                        "skill": identifier,
+                        # ``missing`` and not a fourth status: the resolver's own
+                        # vocabulary is {missing, collision, invalid_source} and a
+                        # name no skill root can hold is missing from all of them.
+                        "status": "missing",
+                    },
+                )
+
+    def gate_installed(self) -> list[dict[str, Any]]:
+        """Gate 1 — the canonical ids are installed and PROVEN hash-equal."""
+
+        from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS
+
+        installed: list[dict[str, Any]] = []
+        for identifier in self.ids:
+            if identifier not in CANONICAL_SHARED_SKILL_IDS:
+                # A non-canonical id has no repo package to compare against, so
+                # there is nothing to install and nothing to verify — it is
+                # answered by the resolver alone.
+                continue
+            installed.append(self._install(identifier))
+        return installed
+
+    def _install(self, identifier: str) -> dict[str, Any]:
         from ..skill_install import (
             HarnessSkillInstallDiverged,
             install_and_verify_harness_skill,
@@ -249,20 +277,21 @@ def run_skills_phase(
                     "installed_hash": None,
                 },
             ) from exc
-        installed.append(
-            {
-                "skill": receipt.skill,
-                "changed": bool(receipt.changed),
-                "installed_hash": receipt.installed_hash,
-            }
-        )
+        return {
+            "skill": receipt.skill,
+            "changed": bool(receipt.changed),
+            "installed_hash": receipt.installed_hash,
+        }
 
-    # Gate 2 — every id resolves, in the runtime this create is answering out of.
-    if ids:
+    def gate_resolved(self) -> None:
+        """Gate 2 — every id resolves, in the runtime this create is answering out of."""
+
+        if not self.ids:
+            return
         from agent_runtime.skill_resolution import resolve_skills
 
-        resolutions = resolve_skills(list(ids))
-        for identifier in ids:
+        resolutions = resolve_skills(list(self.ids))
+        for identifier in self.ids:
             resolution = resolutions.get(identifier)
             status = getattr(resolution, "status", "missing")
             if status != "resolved":
@@ -276,35 +305,42 @@ def run_skills_phase(
                     },
                 )
 
-    # The write. INSTANCE tier and never the persona template: a persona-tier
-    # write would silently reconfigure every other instance of that persona, and
-    # no operator verb has ever done that (D5, F12/F13).
-    try:
-        updated = PersonaInstanceStore().update_profile(
-            instance_id, skills=list(ids), requested_by=requested_by
-        )
-    except Exception as exc:  # noqa: BLE001
-        raise AgentCreateSkillsRefused(
-            ERR_HANDLER_FAILED,
-            f"skill assignment failed: {type(exc).__name__}: {exc}",
-            {"reason": "skill_assign_failed", "skills": list(ids)},
-        ) from exc
+    def write(self, installed: list[dict[str, Any]]) -> dict[str, Any]:
+        """The write, INSTANCE tier, then the ack read BACK off the row.
 
-    return {
-        # Read BACK off the row rather than echoed from the request. Gate 0
-        # already guarantees the two agree; reading the store is what keeps that
-        # a guarantee instead of a claim.
-        "assigned": list(updated.skill_overrides or []),
-        "installed": installed,
-        # This phase RAN, so the instance now carries its own overrides —
-        # whatever the list turned out to be, including an explicitly empty one.
-        # ``inherited`` is what separates that empty list from the absent
-        # request that leaves the persona's skills in force (D11): both render
-        # ``assigned: []``, and a client that has only ``assigned`` cannot tell
-        # "this agent was overridden with nothing" from "this agent inherits
-        # everything its persona has".
-        "inherited": False,
-    }
+        Never the persona template: a persona-tier write would silently
+        reconfigure every other instance of that persona, and no operator verb
+        has ever done that (D5, F12/F13).
+        """
+
+        from ..persona_assignments import PersonaInstanceStore
+
+        try:
+            updated = PersonaInstanceStore().update_profile(
+                self.instance_id, skills=list(self.ids), requested_by=self.requested_by
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise AgentCreateSkillsRefused(
+                ERR_HANDLER_FAILED,
+                f"skill assignment failed: {type(exc).__name__}: {exc}",
+                {"reason": "skill_assign_failed", "skills": list(self.ids)},
+            ) from exc
+
+        return {
+            # Read BACK off the row rather than echoed from the request. Gate 0
+            # already guarantees the two agree; reading the store is what keeps
+            # that a guarantee instead of a claim.
+            "assigned": list(updated.skill_overrides or []),
+            "installed": installed,
+            # This phase RAN, so the instance now carries its own overrides —
+            # whatever the list turned out to be, including an explicitly empty
+            # one. ``inherited`` is what separates that empty list from the
+            # absent request that leaves the persona's skills in force (D11):
+            # both render ``assigned: []``, and a client that has only
+            # ``assigned`` cannot tell "this agent was overridden with nothing"
+            # from "this agent inherits everything its persona has".
+            "inherited": False,
+        }
 
 
 def _inherited_skills_ack() -> dict[str, Any]:

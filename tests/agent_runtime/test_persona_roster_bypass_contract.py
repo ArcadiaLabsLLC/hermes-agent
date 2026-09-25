@@ -84,7 +84,7 @@ STRICT_RESOLVERS = {
 #: themselves rows here.
 PERSONA_ARGUMENT_CONTRACT = {
     ("agent_runtime/agent_create/request.py", "normalize_agent_create", "param:persona"),
-    ("agent_runtime/agent_create/perform.py", "perform_agent_create", "param:persona"),
+    ("agent_runtime/agent_create/perform.py", "normalize", "param:persona"),
     ("agent_runtime/agent_create/request.py", "require_known_persona", "param:persona"),
     ("agent_runtime/serve_rpc/agent.py", "_runtime_agent_create", "absent"),
     (

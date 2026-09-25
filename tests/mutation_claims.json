@@ -5,7 +5,7 @@
       "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
       "symbol": "_cli_create_persona",
       "operator": "remove-typed-fault-wrap",
-      "find": "    try:\n        return _persona_by_id(load_agent_runtime_config(), persona_id)\n    except Exception as exc:  # noqa: BLE001 — re-raised as the typed fault\n        raise PersonaRosterUnavailable(str(exc)) from exc",
+      "find": "    try:\n        return _persona_by_id(load_agent_runtime_config(), persona_id)\n    except Exception as exc:  # noqa: BLE001 \u2014 re-raised as the typed fault\n        raise PersonaRosterUnavailable(str(exc)) from exc",
       "replace": "    return _persona_by_id(load_agent_runtime_config(), persona_id)",
       "test": [
         "{python}",
@@ -20,8 +20,8 @@
       "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
       "symbol": "_cli_create_persona",
       "operator": "degrade-fault-to-absence",
-      "find": "    except Exception as exc:  # noqa: BLE001 — re-raised as the typed fault\n        raise PersonaRosterUnavailable(str(exc)) from exc",
-      "replace": "    except Exception:  # noqa: BLE001 — re-raised as the typed fault\n        return None",
+      "find": "    except Exception as exc:  # noqa: BLE001 \u2014 re-raised as the typed fault\n        raise PersonaRosterUnavailable(str(exc)) from exc",
+      "replace": "    except Exception:  # noqa: BLE001 \u2014 re-raised as the typed fault\n        return None",
       "test": [
         "{python}",
         "-m",
@@ -169,10 +169,10 @@
     {
       "id": "s4-skills-id-gate-lets-a-respelling-through",
       "path": "agent_runtime/agent_create/phases.py",
-      "symbol": "run_skills_phase",
+      "symbol": "SkillsPhase.gate_spelling",
       "operator": "drop-id-sanitizer-gate",
-      "find": "        if (\n            safe_id(identifier) != identifier\n            or safe_assignment_token(identifier) != identifier\n        ):",
-      "replace": "        if False:",
+      "find": "            if (\n                safe_id(identifier) != identifier\n                or safe_assignment_token(identifier) != identifier\n            ):",
+      "replace": "            if False:",
       "test": [
         "{python}",
         "-m",
@@ -184,10 +184,10 @@
     {
       "id": "s4-canonical-skill-is-assigned-without-being-installed",
       "path": "agent_runtime/agent_create/phases.py",
-      "symbol": "run_skills_phase",
+      "symbol": "SkillsPhase.gate_installed",
       "operator": "skip-install-gate",
-      "find": "        if identifier not in CANONICAL_SHARED_SKILL_IDS:",
-      "replace": "        if True or identifier not in CANONICAL_SHARED_SKILL_IDS:",
+      "find": "            if identifier not in CANONICAL_SHARED_SKILL_IDS:",
+      "replace": "            if True or identifier not in CANONICAL_SHARED_SKILL_IDS:",
       "test": [
         "{python}",
         "-m",
@@ -199,7 +199,7 @@
     {
       "id": "s4-any-string-is-accepted-as-a-skill",
       "path": "agent_runtime/agent_create/phases.py",
-      "symbol": "run_skills_phase",
+      "symbol": "SkillsPhase.gate_resolved",
       "operator": "skip-resolve-gate",
       "find": "            if status != \"resolved\":",
       "replace": "            if False and status != \"resolved\":",
@@ -229,10 +229,10 @@
     {
       "id": "s4-a-skills-refusal-compensates-the-placement-away",
       "path": "agent_runtime/agent_create/perform.py",
-      "symbol": "perform_agent_create",
+      "symbol": "AgentCreate.skills",
       "operator": "compensate-on-skills-refusal",
-      "find": "                except AgentCreateSkillsRefused as exc:\n                    return _skills_refusal(exc, instance_id=instance.id)",
-      "replace": "                except AgentCreateSkillsRefused as exc:\n                    compensate_failed_placement(\n                        reservation,\n                        instance_id=instance.id,\n                        failure={\"reason\": \"placement_failed\"},\n                    )\n                    return _skills_refusal(exc, instance_id=instance.id)",
+      "find": "            except AgentCreateSkillsRefused as exc:\n                return _skills_refusal(exc, instance_id=self.instance.id)",
+      "replace": "            except AgentCreateSkillsRefused as exc:\n                from .phases import compensate_failed_placement\n\n                compensate_failed_placement(\n                    self.reservation,\n                    instance_id=self.instance.id,\n                    failure={\"reason\": \"placement_failed\"},\n                )\n                return _skills_refusal(exc, instance_id=self.instance.id)",
       "test": [
         "{python}",
         "-m",
@@ -244,10 +244,10 @@
     {
       "id": "s4-a-second-failed-retry-compensates-the-placement-away",
       "path": "agent_runtime/agent_create/perform.py",
-      "symbol": "perform_agent_create",
+      "symbol": "AgentCreate.resume_skills",
       "operator": "compensate-on-resumed-skills-refusal",
-      "find": "                    except AgentCreateSkillsRefused as exc:\n                        return _skills_refusal(exc, instance_id=instance_id)",
-      "replace": "                    except AgentCreateSkillsRefused as exc:\n                        compensate_failed_placement(\n                            reservation,\n                            instance_id=instance_id,\n                            failure={\"reason\": \"placement_failed\"},\n                        )\n                        return _skills_refusal(exc, instance_id=instance_id)",
+      "find": "            except AgentCreateSkillsRefused as exc:\n                return _skills_refusal(exc, instance_id=instance_id)",
+      "replace": "            except AgentCreateSkillsRefused as exc:\n                from .phases import compensate_failed_placement\n\n                compensate_failed_placement(\n                    self.reservation,\n                    instance_id=instance_id,\n                    failure={\"reason\": \"placement_failed\"},\n                )\n                return _skills_refusal(exc, instance_id=instance_id)",
       "test": [
         "{python}",
         "-m",
@@ -259,10 +259,10 @@
     {
       "id": "s4-a-pre-plan-done-receipt-re-enters-the-skills-phase",
       "path": "agent_runtime/agent_create/perform.py",
-      "symbol": "perform_agent_create",
+      "symbol": "AgentCreate.replay",
       "operator": "treat-legacy-done-as-resumable",
-      "find": "            if record.state == STATE_DONE:",
-      "replace": "            if record.state == STATE_DONE and record.skills is not None:",
+      "find": "        return AgentCreateOutcome(result={**_reply(record.result), \"idempotent_replay\": True})",
+      "replace": "        if record.skills is None:\n            return self.mint(record) or self.place_and_finish()\n        return AgentCreateOutcome(result={**_reply(record.result), \"idempotent_replay\": True})",
       "test": [
         "{python}",
         "-m",
@@ -394,10 +394,10 @@
     {
       "id": "s4-a-replay-echoes-the-receipts-frozen-actor",
       "path": "agent_runtime/agent_create/perform.py",
-      "symbol": "perform_agent_create",
+      "symbol": "AgentCreate.replay",
       "operator": "freeze-replay-actor",
-      "find": "                return AgentCreateOutcome(\n                    result={**_reply(record.result), \"idempotent_replay\": True}\n                )",
-      "replace": "                return AgentCreateOutcome(\n                    result={**record.result, \"idempotent_replay\": True}\n                )",
+      "find": "        return AgentCreateOutcome(result={**_reply(record.result), \"idempotent_replay\": True})",
+      "replace": "        return AgentCreateOutcome(result={**record.result, \"idempotent_replay\": True})",
       "test": [
         "{python}",
         "-m",
@@ -514,10 +514,10 @@
     {
       "id": "s4b-a-resumed-placed-create-freezes-the-receipts-actor",
       "path": "agent_runtime/agent_create/perform.py",
-      "symbol": "perform_agent_create",
+      "symbol": "AgentCreate.resume_skills",
       "operator": "freeze-resume-actor",
-      "find": "                result = _reply(record.result)",
-      "replace": "                result = dict(record.result)",
+      "find": "        result = _reply(record.result)",
+      "replace": "        result = dict(record.result)",
       "test": [
         "{python}",
         "-m",
@@ -529,10 +529,10 @@
     {
       "id": "s4b-an-overridden-agent-reports-itself-as-inheriting",
       "path": "agent_runtime/agent_create/phases.py",
-      "symbol": "run_skills_phase",
+      "symbol": "SkillsPhase.write",
       "operator": "flip-inherited",
-      "find": "        \"inherited\": False,",
-      "replace": "        \"inherited\": True,",
+      "find": "            \"inherited\": False,",
+      "replace": "            \"inherited\": True,",
       "test": [
         "{python}",
         "-m",
@@ -1032,7 +1032,7 @@
       "path": "agent_runtime/harness_doctor/census.py",
       "symbol": "CENSUS_REMEDIATION",
       "operator": "drop-pulled-orphan-repair",
-      "find": "    \"re-creating its agent still clears it, and the retire's replay \"\n    \"sweeps live placements — or evict the desk from this install with \"\n    \"`harness office actor-remove --workspace <ws> --actor <key> \"\n    \"--local-only`; one reading instance_retired is cleared the same \"\n    \"two ways; one reading instance_unknown — a realm-pulled placement \"\n    \"this install never held, whose instance stayed on the peer — has \"\n    \"nothing to retire and is cleared with actor-remove --local-only \"\n    \"or `runtime.office.remove` alone (drop --local-only only if you \"\n    \"mean to delete the placement realm-wide, which is what the \"\n    \"launcher's own delete does); an unplaced row is either awaiting a \"",
+      "find": "    \"re-creating its agent still clears it, and the retire's replay \"\n    \"sweeps live placements \u2014 or evict the desk from this install with \"\n    \"`harness office actor-remove --workspace <ws> --actor <key> \"\n    \"--local-only`; one reading instance_retired is cleared the same \"\n    \"two ways; one reading instance_unknown \u2014 a realm-pulled placement \"\n    \"this install never held, whose instance stayed on the peer \u2014 has \"\n    \"nothing to retire and is cleared with actor-remove --local-only \"\n    \"or `runtime.office.remove` alone (drop --local-only only if you \"\n    \"mean to delete the placement realm-wide, which is what the \"\n    \"launcher's own delete does); an unplaced row is either awaiting a \"",
       "replace": "    \"re-creating its agent still clears it; an unplaced row is either awaiting a \"",
       "test": [
         "{python}",
@@ -1450,10 +1450,10 @@
     {
       "id": "hh13-the-create-service-loses-its-backstop",
       "path": "agent_runtime/agent_create/perform.py",
-      "symbol": "perform_agent_create",
+      "symbol": "AgentCreate.authorize",
       "operator": "skip-service-backstop",
-      "find": "    denied = service_backstop(caller, method=\"runtime.agent.create\")",
-      "replace": "    denied = None",
+      "find": "        denied = service_backstop(self.caller, method=\"runtime.agent.create\")",
+      "replace": "        denied = None",
       "test": [
         "{python}",
         "-m",
@@ -3918,8 +3918,8 @@
       "path": "hermes_cli/_downstream_cli.py",
       "symbol": "cmd_postinstall",
       "operator": "silence-the-shim-report",
-      "find": "    if path_result.error:\n        print()\n        print(f\"⚠ PATH shim not written [{path_result.error}]: {path_result.note}\")",
-      "replace": "    if False:\n        print()\n        print(f\"⚠ PATH shim not written [{path_result.error}]: {path_result.note}\")",
+      "find": "    if path_result.error:\n        print()\n        print(f\"\u26a0 PATH shim not written [{path_result.error}]: {path_result.note}\")",
+      "replace": "    if False:\n        print()\n        print(f\"\u26a0 PATH shim not written [{path_result.error}]: {path_result.note}\")",
       "test": [
         "{python}",
         "-m",

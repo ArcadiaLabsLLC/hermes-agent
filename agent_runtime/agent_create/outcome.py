@@ -10,7 +10,7 @@ errors module, exempt from the 100-line floor by kind.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Final
 
 __layer__ = "models"
 
@@ -121,6 +121,11 @@ PHASE_PLACEMENT = "placement"
 #: stamps ``rolled_back: false`` — not as a hedge, but as the literal truth,
 #: with ``next_expected`` naming the same-key retry that resumes it.
 PHASE_SKILLS = "skills"
+#: The three ``data.phase`` words as one closed vocabulary, beside
+#: :func:`refused`, their one writer. NOT an Enum: ``instance`` / ``placement``
+#: / ``skills`` are generic words, and the fence is the launcher's decoder
+#: (``MissionAgentCreateFault.phase``), not a fork type (layout sheet §2).
+PHASES: Final[tuple[str, ...]] = (PHASE_INSTANCE, PHASE_PLACEMENT, PHASE_SKILLS)
 
 # ── ``data.rolled_back`` for the reservation faults, one code at a time ───────
 #
@@ -182,7 +187,7 @@ class AgentCreateOutcome:
     refusal: AgentCreateRefusal | None = None
 
 
-def _refused(code: int, message: Any, data: dict[str, Any]) -> AgentCreateOutcome:
+def refused(code: int, message: Any, data: dict[str, Any]) -> AgentCreateOutcome:
     return AgentCreateOutcome(
         refusal=AgentCreateRefusal(code=code, message=str(message), data=data)
     )
@@ -215,7 +220,7 @@ def roster_unavailable_outcome(cause: Any = None) -> AgentCreateOutcome:
     the message match.
     """
 
-    return _refused(
+    return refused(
         ERR_INVALID_PARAMS,
         persona_roster_unavailable_message(cause),
         # Carries the same stamp as the service's own arm, and must: the whole
@@ -273,7 +278,7 @@ def _skills_refusal(
     a decoder that is being changed in the same plan.
     """
 
-    return _refused(
+    return refused(
         exc.code,
         exc,
         {

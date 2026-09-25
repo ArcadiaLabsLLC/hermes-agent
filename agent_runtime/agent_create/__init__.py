@@ -64,17 +64,22 @@ imports one above it — W0-G6):
 module    layer   owns
 ========  ======  ============================================================
 outcome   models  ERR_* / PHASE_* / persona reasons, the reservation-fault
-                  stamps, the exceptions, ``AgentCreateOutcome`` and ``_refused``
+                  stamps, the exceptions, ``AgentCreateOutcome`` and ``refused``
 request   stores  ``AgentCreateRequest``, ``normalize_agent_create``, the roster
                   (read through ``config``, a stores package) and its
                   spellings, ``honest_default_display_name``
-phases    stores  placement payload / slot / policy, ``run_skills_phase``,
-                  ``_reply``, ``compensate_failed_placement``
-perform   lanes   ``perform_agent_create``
+phases    stores  placement payload / slot / policy, ``run_skills_phase``
+                  (``SkillsPhase``'s three gates and one write), ``_reply``,
+                  ``compensate_failed_placement``
+placement stores  ``PLACEMENT_FAULTS`` + ``refuse_placement`` (module
+_faults           ``placement_faults``; a table module)
+perform   lanes   ``perform_agent_create`` -> ``AgentCreate`` phases,
+                  ``RESUME_ACTIONS``, ``MINT_FAULTS``
 ========  ======  ============================================================
 
 Entry points and the modules an agent opens: ``perform_agent_create`` (both
-lanes) — perform, request, phases; ``normalize_agent_create`` /
+lanes) — perform, request, phases (a table module, ``placement_faults``, is
+read like ``outcome`` and not counted); ``normalize_agent_create`` /
 ``require_known_persona`` / the roster spellings — request;
 ``run_skills_phase`` (the resume lane) — phases, request;
 ``placement_slot_for`` (``serve_rpc/agent.py``) — phases;
@@ -114,10 +119,11 @@ from .outcome import (  # noqa: F401
     PHASE_INSTANCE,
     PHASE_PLACEMENT,
     PHASE_SKILLS,
+    PHASES,
     PersonaRosterUnavailable,
     _RESERVATION_ROLLED_BACK,
     _SKILLS_RETRY_SENTENCE,
-    _refused,
+    refused,
     _skills_refusal,
     persona_roster_unavailable_message,
     roster_unavailable_outcome,
@@ -149,9 +155,17 @@ from .phases import (  # noqa: F401
     placement_actor_payload,
     placement_position_policy,
     placement_slot_for,
+    SkillsPhase,
     run_skills_phase,
 )
+from .placement_faults import (  # noqa: F401
+    PLACEMENT_FAULTS,
+    refuse_placement,
+)
 from .perform import (  # noqa: F401
+    MINT_FAULTS,
+    RESUME_ACTIONS,
+    AgentCreate,
     perform_agent_create,
 )
 
