@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+from .providers import USAGE_LANES
 
 __layer__ = "policy"
 __all__ = [
@@ -12,9 +13,7 @@ __all__ = [
     "USAGE_SCHEMA",
     "UnknownUsageLaneError",
     "_USAGE_LANE_PROVIDERS",
-    "_codex_usage_login_detected",
     "_detect_usage_candidates",
-    "_openrouter_usage_login_detected",
     "_resolve_active_provider_id",
     "_usage_failure_reason",
     "_usage_lane_detected",
@@ -29,14 +28,10 @@ __all__ = [
 # nothing in `_cmd_usage` may raise (worst case: envelope with empty lanes).
 USAGE_SCHEMA = "hermes.account_usage/v1"
 DEFAULT_USAGE_TIMEOUT = 20.0
-# Candidate lanes, in stable emission order. A lane is only emitted when the
+# Candidate lanes, in stable emission order: the keys of ``providers.USAGE_LANES``,
+# which is the one place a provider gets a lane. A lane is only emitted when the
 # operator is detected as signed-in / holding credentials for that provider.
-_USAGE_LANE_PROVIDERS: tuple[str, ...] = (
-    "openai-codex",
-    "anthropic",
-    "openrouter",
-    "nous",
-)
+_USAGE_LANE_PROVIDERS: tuple[str, ...] = tuple(USAGE_LANES)
 
 
 # --- `hermes harness usage` implementation ------------------------------------
@@ -80,61 +75,6 @@ def _resolve_active_provider_id() -> Optional[str]:
         return None
 
 
-def _codex_usage_login_detected() -> bool:
-    """Codex lane detected when the OAuth status is logged-in OR the credential
-    pool holds any openai-codex entry.
-
-    Two independent sources OR'd together, so a raise from the FIRST is not yet
-    an answer — the pool may still say yes, and that yes is the truth. But a
-    raise that ends with no affirmative source is NOT "not signed in": it is
-    "we could not tell", and per EG-6.1 that must reach the caller as a class,
-    not as a ``False`` indistinguishable from an empty pool. So the primary
-    error is held and re-raised only if nothing affirms; a raise from the pool
-    read itself propagates directly (one lane carries one named class).
-    """
-    primary_error: Optional[BaseException] = None
-    try:
-        from hermes_cli.auth import get_codex_auth_status
-
-        if bool((get_codex_auth_status() or {}).get("logged_in")):
-            return True
-    except Exception as exc:  # noqa: BLE001 — held, re-raised only if unanswered
-        primary_error = exc
-    from agent.credential_pool import load_pool
-
-    if load_pool("openai-codex").entries():
-        return True
-    if primary_error is not None:
-        raise primary_error
-    return False
-
-
-def _openrouter_usage_login_detected() -> bool:
-    """OpenRouter lane detected when the pool holds an entry OR the runtime
-    resolver finds a usable key.
-
-    Same held-primary-error discipline as [_codex_usage_login_detected]: a
-    failure that leaves the question unanswered is raised, never flattened into
-    the ``False`` that would silently delete the lane.
-    """
-    primary_error: Optional[BaseException] = None
-    try:
-        from agent.credential_pool import load_pool
-
-        if load_pool("openrouter").entries():
-            return True
-    except Exception as exc:  # noqa: BLE001 — held, re-raised only if unanswered
-        primary_error = exc
-    from hermes_cli.runtime_provider import resolve_runtime_provider
-
-    runtime = resolve_runtime_provider(requested="openrouter")
-    if str(runtime.get("api_key", "") or "").strip():
-        return True
-    if primary_error is not None:
-        raise primary_error
-    return False
-
-
 def _usage_lane_detected(provider_id: str) -> bool:
     """True iff the operator is signed-in / holds credentials for ``provider_id``.
 
@@ -153,26 +93,15 @@ def _usage_lane_detected(provider_id: str) -> bool:
     swallowed detector fault made the row VANISH from the Limits panel, leaving
     nothing to carry a reason at all.
     """
-    if provider_id == "openai-codex":
-        return _codex_usage_login_detected()
-    if provider_id == "anthropic":
-        from agent.anthropic_credentials import resolve_anthropic_token
-
-        return bool((resolve_anthropic_token() or "").strip())
-    if provider_id == "openrouter":
-        return _openrouter_usage_login_detected()
-    if provider_id == "nous":
-        from hermes_cli.auth import get_provider_auth_state
-
-        tok = (get_provider_auth_state("nous") or {}).get("access_token")
-        return bool(isinstance(tok, str) and tok.strip())
-    return False
+    lane = USAGE_LANES.get(provider_id)
+    return False if lane is None else lane.detect()
 
 
 class UnknownUsageLaneError(LookupError):
     """``_fetch_usage_lane`` was handed a provider id it has no fetcher for.
 
-    The dispatch below covers ``_USAGE_LANE_PROVIDERS`` exactly, and that tuple
+    ``providers.USAGE_LANES`` covers ``_USAGE_LANE_PROVIDERS`` exactly (the tuple
+    is its keys), and that tuple
     is the ONLY producer of ids (``_detect_usage_candidates`` filters it and
     never adds). So this is unreachable today — and it is raised rather than
     handled precisely so it STAYS that way: a fifth provider added to the tuple

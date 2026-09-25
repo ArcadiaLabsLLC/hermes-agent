@@ -213,6 +213,7 @@ HARNESS_NAMESPACE = (
     "hermes_cli.harness_parts.usage.commands",
     "hermes_cli.harness_parts.usage.detect",
     "hermes_cli.harness_parts.usage.lanes",
+    "hermes_cli.harness_parts.usage.providers",
     "hermes_cli.harness_parts.usage.serialize",
     "hermes_cli.harness_parts.workspace_commands",
 )

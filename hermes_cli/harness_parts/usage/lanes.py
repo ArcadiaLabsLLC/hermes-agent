@@ -7,6 +7,7 @@ import time
 from typing import Optional
 
 from .detect import UnknownUsageLaneError, _usage_failure_reason
+from .providers import USAGE_LANES
 from .serialize import _serialize_usage_lane, _unavailable_usage_lane
 
 __layer__ = "lanes"
@@ -18,10 +19,10 @@ __all__ = [
 
 def _fetch_usage_lane(provider_id: str):
     """Fetch the account-usage snapshot for one provider (may return None or
-    raise; callers isolate failures). Nous flows through the portal-account +
-    credits-snapshot path; the rest dispatch DIRECTLY to their per-provider
-    fetcher. An id outside ``_USAGE_LANE_PROVIDERS`` raises
-    ``UnknownUsageLaneError``.
+    raise; callers isolate failures) through its ``providers.USAGE_LANES`` row.
+    Nous flows through the portal-account + credits-snapshot path; the rest
+    dispatch DIRECTLY to their per-provider fetcher. An id outside
+    ``_USAGE_LANE_PROVIDERS`` raises ``UnknownUsageLaneError``.
 
     The direct dispatch is the point. ``agent.account_usage.fetch_account_usage``
     wraps all three shared fetchers in a blanket ``except Exception: return
@@ -43,25 +44,10 @@ def _fetch_usage_lane(provider_id: str):
     ``tests/agent_runtime/test_tombstone_registry.py``, so re-adding the call is
     loud by enumeration rather than by review.
     """
-    if provider_id == "nous":
-        from agent.account_usage import build_nous_credits_snapshot
-        from hermes_cli.nous_account import get_nous_portal_account_info
-
-        account = get_nous_portal_account_info(force_fresh=True)
-        return build_nous_credits_snapshot(account)
-    if provider_id == "openai-codex":
-        from agent.account_usage import _fetch_codex_account_usage
-
-        return _fetch_codex_account_usage()
-    if provider_id == "anthropic":
-        from agent.account_usage import _fetch_anthropic_account_usage
-
-        return _fetch_anthropic_account_usage()
-    if provider_id == "openrouter":
-        from agent.account_usage import _fetch_openrouter_account_usage
-
-        return _fetch_openrouter_account_usage(None, None)
-    raise UnknownUsageLaneError(provider_id)
+    lane = USAGE_LANES.get(provider_id)
+    if lane is None:
+        raise UnknownUsageLaneError(provider_id)
+    return lane.fetch()
 
 
 def _fetch_usage_lanes(

@@ -7,8 +7,10 @@ Entry point: the parser wires ``commands._cmd_usage``.
 
 Modules, by layer (lowest first; a module imports only its own layer or lower):
 
-* policy — ``detect`` (the lane vocabulary, active-provider and signed-in
-  detection, failure reasons), ``serialize`` (snapshot and envelope shapes).
+* policy — ``providers`` (``USAGE_LANES``: one detect/fetch strategy per
+  provider, the lane vocabulary), ``detect`` (active-provider and signed-in
+  detection through the table, failure reasons), ``serialize`` (snapshot and
+  envelope shapes).
 * lanes — ``lanes`` (one lane, and every detected lane failure-isolated),
   ``commands`` (``build_account_usage``, the human render, ``_cmd_usage``).
 

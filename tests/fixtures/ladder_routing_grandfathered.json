@@ -418,14 +418,6 @@
    "site": "hermes_cli/harness_parts/skills_promotion_commands.py|_cmd_skills_promote|vocab|refused"
   },
   {
-   "arms": 4,
-   "site": "hermes_cli/harness_parts/usage/detect.py|_usage_lane_detected|ladder|provider_id"
-  },
-  {
-   "arms": 4,
-   "site": "hermes_cli/harness_parts/usage/lanes.py|_fetch_usage_lane|ladder|provider_id"
-  },
-  {
    "arms": 7,
    "site": "hermes_cli/harness_support.py|_error_code_for_exception|isinstance|exc"
   },

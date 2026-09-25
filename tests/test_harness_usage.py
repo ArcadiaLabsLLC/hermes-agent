@@ -19,6 +19,7 @@ from hermes_cli import harness
 from hermes_cli.harness_parts.usage import commands as usage_commands
 from hermes_cli.harness_parts.usage import detect as usage_detect
 from hermes_cli.harness_parts.usage import lanes as usage_lanes
+from hermes_cli.harness_parts.usage import providers as usage_providers
 
 
 def _snapshot(provider="openai-codex"):
@@ -1030,11 +1031,11 @@ def test_the_detector_feeders_raise_instead_of_answering_not_signed_in(monkeypat
 
     monkeypatch.setattr(auth, "get_codex_auth_status", status_boom)
     monkeypatch.setattr(credential_pool, "load_pool", lambda _p: _pool(["entry"]))
-    assert usage_detect._codex_usage_login_detected() is True
+    assert usage_providers._codex_usage_login_detected() is True
 
     monkeypatch.setattr(credential_pool, "load_pool", lambda _p: _pool([]))
     with pytest.raises(_DetectorExploded):
-        usage_detect._codex_usage_login_detected()
+        usage_providers._codex_usage_login_detected()
 
     # --- openrouter: pool read raises ---------------------------------------
     def pool_boom(_provider):
@@ -1044,10 +1045,10 @@ def test_the_detector_feeders_raise_instead_of_answering_not_signed_in(monkeypat
     monkeypatch.setattr(
         runtime_provider, "resolve_runtime_provider", lambda **_k: {"api_key": "k" * 8}
     )
-    assert usage_detect._openrouter_usage_login_detected() is True
+    assert usage_providers._openrouter_usage_login_detected() is True
 
     monkeypatch.setattr(
         runtime_provider, "resolve_runtime_provider", lambda **_k: {"api_key": ""}
     )
     with pytest.raises(_DetectorTimedOut):
-        usage_detect._openrouter_usage_login_detected()
+        usage_providers._openrouter_usage_login_detected()
