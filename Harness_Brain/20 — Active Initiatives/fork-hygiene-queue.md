@@ -11,7 +11,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Release validation — 2026-09-23
 
-- [ ] **Classify the auth strict-XPASS and network-dependent self-heal tests.** · `fork / suite` · Both reproduce on unchanged `284cb3f2f8`; establish the correct marker and hermetic certificate/token fixture without weakening auth assertions. Evidence: `docs/downstream/provider-setup-verification.md`. **TAKEN 2026-09-25 lane Q-GATES**
 
 - [ ] **Qualify the baseline gateway TLS/real-socket failure cluster.** · `fork / suite` · All skills-candidate failures reproduce on unchanged `120a7f5a36`; determine runtime versus fixture cause before changing either. Evidence: `docs/downstream/session-skills-verification.md`. **TAKEN 2026-09-25 lane Q-GATES**
 - [ ] **Repair the stale scope-use serve fixture and restore verified historical gate inputs.** · `fork / suite` · Removed serve module, absent `upstream/main`/tombstone base; no assertion weakening. Incoming REDS4 already fixed S41 and dispatch fixtures. Evidence: `docs/downstream/session-skills-verification.md`. **TAKEN 2026-09-25 lane Q-GATES**
