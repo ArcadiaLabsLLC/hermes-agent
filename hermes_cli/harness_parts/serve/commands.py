@@ -223,6 +223,146 @@ SERVE_CONNECT_REJECTED_EXIT_CODE = 5
 SERVE_CONNECT_TRANSPORT_EXIT_CODE = 6
 
 
+def _emit_connect_report(payload: dict[str, Any]) -> None:
+    print(json.dumps(payload, ensure_ascii=False, default=str, indent=2))
+
+
+def _connect_refusal(store_root: Any, target: Any, token: Any) -> tuple[dict[str, Any] | None, int]:
+    """The FIRST reason this client will not dial *target*, and its exit code; ``(None, 0)`` to proceed.
+
+    Three refusals, in the order a caller can fix them: no socket service is
+    registered, the one registered is not ``live``, or this root has no token.
+    """
+
+    if target is None:
+        return {
+            "ok": False,
+            "error": "no_socket_service",
+            "detail": (
+                "no live serve with a socket transport is registered for this "
+                "runtime root"
+            ),
+            "runtime_root": str(store_root),
+        }, SERVE_CONNECT_NO_SERVICE_EXIT_CODE
+    if not target.live:
+        # The half of the credential-disclosure defect that lives on the client.
+        # A registry row classified ``stale_dead_pid`` names a port whose owner
+        # is gone, and a local port is reusable the moment its owner dies — so
+        # connecting here means handshaking with whatever took it over. That is
+        # not a theory: with the old raw-token hello, an impostor listening on a
+        # dead serve's port harvested the real token. The token no longer
+        # travels, and this connect still refuses, by name.
+        return {
+            "ok": False,
+            "error": "socket_service_not_live",
+            "classification": target.classification,
+            "detail": (
+                "the only socket service registered for this runtime root is "
+                f"classified {target.classification!r}, not 'live'; its port may "
+                "now belong to another process, so this client will not "
+                "handshake with it"
+            ),
+            "runtime_root": str(store_root),
+            "target": target.payload(),
+        }, SERVE_CONNECT_NO_SERVICE_EXIT_CODE
+    if not token:
+        # Fails CLOSED, and says which side is missing: a client with no token
+        # cannot authenticate, and pretending otherwise would send a hello that
+        # can only ever be rejected.
+        return {
+            "ok": False,
+            "error": "no_auth_token",
+            "detail": "this runtime root has no serve auth token to present",
+            "runtime_root": str(store_root),
+            "target": target.payload(),
+        }, SERVE_CONNECT_REJECTED_EXIT_CODE
+    return None, 0
+
+
+#: The frames that END a drain as seen from the client (a held-open
+#: ``drain_timeout`` with ``terminal: false`` is progress, not an ending).
+_DRAIN_TERMINAL_EVENTS: frozenset[str] = frozenset(
+    {"drain_complete", "drain_timeout", "drain_abandoned", "drain_in_progress"}
+)
+
+
+def _is_held_deadline(frame: dict[str, Any]) -> bool:
+    """A deadline lapse HELD OPEN by a chat turn in flight: the service is still
+    serving and will re-arm, so this is progress, not an ending. Reading it as
+    terminal would report a restart that has not happened."""
+
+    return frame.get("event") == "drain_timeout" and frame.get("terminal") is False
+
+
+def _drain_over(connection: Any, deadline: Any) -> dict[str, Any]:
+    """Ask for the drain and read to its TERMINAL frame; the report's drain keys."""
+
+    # ``force`` is mandatory on the socket lane — this verb IS the
+    # deliberate operator restart, so it says so rather than being
+    # refused by the service it is trying to replace.
+    request: dict[str, Any] = {"op": "drain", "force": True}
+    if deadline is not None:
+        request["deadline_seconds"] = float(deadline)
+    connection.send(request)
+    # Read to the TERMINAL frame, not to the first one: the drain's
+    # evidence (what it refused, what it completed) is on the terminal
+    # frame, and a client that stopped at ``draining`` would report a
+    # restart it never watched finish.
+    observed: list[dict[str, Any]] = []
+    while True:
+        frame = connection.read_frame()
+        if frame is None:
+            break
+        observed.append(frame)
+        if frame.get("event") in _DRAIN_TERMINAL_EVENTS and not _is_held_deadline(frame):
+            break
+    return {
+        "drain": observed,
+        "drain_outcome": observed[-1].get("event") if observed else "no_frames",
+        "drain_deadline_holds": len([frame for frame in observed if _is_held_deadline(frame)]),
+    }
+
+
+def _handshake(connection: Any, report: dict[str, Any], token: str, client_build: Any) -> int | None:
+    """The hello; the refusal's exit code, or ``None`` once ``hello_ok`` is in the report."""
+
+    from agent_runtime.serve_socket import ServeHelloProtocolError
+
+    try:
+        hello = connection.hello(
+            token=token, client=report["client"], client_build=client_build
+        )
+    except ServeHelloProtocolError as exc:
+        # Either the peer refused us before the challenge (its typed reason
+        # is the answer) or what is on this port does not speak this
+        # contract. Neither is a case for sending a credential anyway.
+        report["error"] = (
+            "hello_rejected" if exc.reason else "hello_contract_mismatch"
+        )
+        report["detail"] = exc.detail
+        report["reason"] = exc.reason
+        report["hello"] = exc.frame
+        return SERVE_CONNECT_REJECTED_EXIT_CODE
+    report["server_hello"] = connection.server_hello
+    report["hello"] = hello
+    if not isinstance(hello, dict) or hello.get("event") != "hello_ok":
+        report["error"] = (
+            "hello_rejected" if isinstance(hello, dict) else "no_hello_reply"
+        )
+        return SERVE_CONNECT_REJECTED_EXIT_CODE
+    # L-h item 3, lifted to the TOP of the report rather than left to be
+    # dug out of the greeting: "is the thing I just reached a durable
+    # service, and who started it" is the first question an operator
+    # running this verb has, and the second is what they should type to
+    # stop it. Read off the hello this connection actually completed, so
+    # it cannot disagree with the frame printed below it. ``None`` when the
+    # service predates the field — never guessed as False, which would say
+    # "this runtime dies with its starter" about a runtime that does not.
+    report["service"] = hello.get("service")
+    report["starter_pid"] = hello.get("starter_pid")
+    return None
+
+
 def _cmd_serve_connect(args) -> int:
     from agent_runtime import paths
     from agent_runtime.build_stamp import build_stamp
@@ -234,66 +374,16 @@ def _cmd_serve_connect(args) -> int:
         resolve_socket_target,
     )
 
-    def _emit(payload: dict[str, Any]) -> None:
-        print(json.dumps(payload, ensure_ascii=False, default=str, indent=2))
-
     store_root = paths.store_root()
     # ``allow_stale`` is asked for so the REFUSAL can name what it refused —
     # not so a non-live target can be used. Discovery itself returns live rows
     # only; this call is the diagnostic form, and the check below is the gate.
     target = resolve_socket_target(store_root, allow_stale=True)
-    if target is None:
-        _emit(
-            {
-                "ok": False,
-                "error": "no_socket_service",
-                "detail": (
-                    "no live serve with a socket transport is registered for this "
-                    "runtime root"
-                ),
-                "runtime_root": str(store_root),
-            }
-        )
-        return SERVE_CONNECT_NO_SERVICE_EXIT_CODE
-    if not target.live:
-        # The half of the credential-disclosure defect that lives on the client.
-        # A registry row classified ``stale_dead_pid`` names a port whose owner
-        # is gone, and a local port is reusable the moment its owner dies — so
-        # connecting here means handshaking with whatever took it over. That is
-        # not a theory: with the old raw-token hello, an impostor listening on a
-        # dead serve's port harvested the real token. The token no longer
-        # travels, and this connect still refuses, by name.
-        _emit(
-            {
-                "ok": False,
-                "error": "socket_service_not_live",
-                "classification": target.classification,
-                "detail": (
-                    "the only socket service registered for this runtime root is "
-                    f"classified {target.classification!r}, not 'live'; its port may "
-                    "now belong to another process, so this client will not "
-                    "handshake with it"
-                ),
-                "runtime_root": str(store_root),
-                "target": target.payload(),
-            }
-        )
-        return SERVE_CONNECT_NO_SERVICE_EXIT_CODE
-    token = read_token(store_root)
-    if not token:
-        # Fails CLOSED, and says which side is missing: a client with no token
-        # cannot authenticate, and pretending otherwise would send a hello that
-        # can only ever be rejected.
-        _emit(
-            {
-                "ok": False,
-                "error": "no_auth_token",
-                "detail": "this runtime root has no serve auth token to present",
-                "runtime_root": str(store_root),
-                "target": target.payload(),
-            }
-        )
-        return SERVE_CONNECT_REJECTED_EXIT_CODE
+    token = read_token(store_root) if target is not None and target.live else None
+    refusal, code = _connect_refusal(store_root, target, token)
+    if refusal is not None:
+        _emit_connect_report(refusal)
+        return code
     client_build = build_stamp().commit
     report: dict[str, Any] = {
         "ok": False,
@@ -313,107 +403,30 @@ def _cmd_serve_connect(args) -> int:
     except OSError as exc:
         report["error"] = "connect_failed"
         report["detail"] = type(exc).__name__
-        _emit(report)
+        _emit_connect_report(report)
         return SERVE_CONNECT_TRANSPORT_EXIT_CODE
     try:
-        try:
-            hello = connection.hello(
-                token=token, client=report["client"], client_build=client_build
-            )
-        except ServeHelloProtocolError as exc:
-            # Either the peer refused us before the challenge (its typed reason
-            # is the answer) or what is on this port does not speak this
-            # contract. Neither is a case for sending a credential anyway.
-            report["error"] = (
-                "hello_rejected" if exc.reason else "hello_contract_mismatch"
-            )
-            report["detail"] = exc.detail
-            report["reason"] = exc.reason
-            report["hello"] = exc.frame
-            _emit(report)
-            return SERVE_CONNECT_REJECTED_EXIT_CODE
-        report["server_hello"] = connection.server_hello
-        report["hello"] = hello
-        if not isinstance(hello, dict) or hello.get("event") != "hello_ok":
-            report["error"] = (
-                "hello_rejected" if isinstance(hello, dict) else "no_hello_reply"
-            )
-            _emit(report)
-            return SERVE_CONNECT_REJECTED_EXIT_CODE
-        # L-h item 3, lifted to the TOP of the report rather than left to be
-        # dug out of the greeting: "is the thing I just reached a durable
-        # service, and who started it" is the first question an operator
-        # running this verb has, and the second is what they should type to
-        # stop it. Read off the hello this connection actually completed, so
-        # it cannot disagree with the frame printed below it. ``None`` when the
-        # service predates the field — never guessed as False, which would say
-        # "this runtime dies with its starter" about a runtime that does not.
-        report["service"] = hello.get("service")
-        report["starter_pid"] = hello.get("starter_pid")
+        refused = _handshake(connection, report, token, client_build)
+        if refused is not None:
+            _emit_connect_report(report)
+            return refused
         if getattr(args, "probe", False):
             connection.send({"op": "version"})
             report["version"] = connection.read_frame()
         if getattr(args, "drain", False):
-            deadline = getattr(args, "deadline_seconds", None)
-            # ``force`` is mandatory on the socket lane — this verb IS the
-            # deliberate operator restart, so it says so rather than being
-            # refused by the service it is trying to replace.
-            request: dict[str, Any] = {"op": "drain", "force": True}
-            if deadline is not None:
-                request["deadline_seconds"] = float(deadline)
-            connection.send(request)
-            # Read to the TERMINAL frame, not to the first one: the drain's
-            # evidence (what it refused, what it completed) is on the terminal
-            # frame, and a client that stopped at ``draining`` would report a
-            # restart it never watched finish.
-            observed: list[dict[str, Any]] = []
-            terminal = {
-                "drain_complete",
-                "drain_timeout",
-                "drain_abandoned",
-                "drain_in_progress",
-            }
-            while True:
-                frame = connection.read_frame()
-                if frame is None:
-                    break
-                observed.append(frame)
-                if frame.get("event") not in terminal:
-                    continue
-                if (
-                    frame.get("event") == "drain_timeout"
-                    and frame.get("terminal") is False
-                ):
-                    # A deadline lapse HELD OPEN by a chat turn in flight: the
-                    # service is still serving and will re-arm, so this is
-                    # progress, not an ending. Reading it as terminal would
-                    # report a restart that has not happened.
-                    continue
-                break
-            report["drain"] = observed
-            report["drain_outcome"] = (
-                observed[-1].get("event") if observed else "no_frames"
-            )
-            report["drain_deadline_holds"] = len(
-                [
-                    frame
-                    for frame in observed
-                    if frame.get("event") == "drain_timeout"
-                    and frame.get("terminal") is False
-                ]
-            )
+            report.update(_drain_over(connection, getattr(args, "deadline_seconds", None)))
         report["ok"] = True
-        _emit(report)
+        _emit_connect_report(report)
         return 0
     except OSError as exc:
         report["error"] = "transport_failed"
         report["detail"] = type(exc).__name__
-        _emit(report)
+        _emit_connect_report(report)
         return SERVE_CONNECT_TRANSPORT_EXIT_CODE
     except ServeHelloProtocolError as exc:  # pragma: no cover - defensive
         report["error"] = "hello_contract_mismatch"
         report["detail"] = exc.detail
-        _emit(report)
+        _emit_connect_report(report)
         return SERVE_CONNECT_REJECTED_EXIT_CODE
     finally:
         connection.close()

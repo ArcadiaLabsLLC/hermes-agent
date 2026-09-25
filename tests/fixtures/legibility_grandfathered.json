@@ -406,11 +406,6 @@
    "unit": "hermes_cli/harness_parts/persona_commands.py|_mission_chat_commit_turn"
   },
   {
-   "depth": 4,
-   "lines": 194,
-   "unit": "hermes_cli/harness_parts/serve/commands.py|_cmd_serve_connect"
-  },
-  {
    "depth": 6,
    "lines": 3760,
    "unit": "hermes_cli/harness_parts/serve/loop.py|serve_loop"
