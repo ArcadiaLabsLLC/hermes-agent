@@ -39,13 +39,36 @@ from agent_runtime.running_work import (
 )
 
 
+def _patch_bound(monkeypatch, name, value):
+    """Stub ``name`` in every ``running_work`` module that BINDS it.
+
+    The package re-exports ``_head_home`` / ``_module``, but each lane module
+    bound them by import, so a stub on the package attribute reaches no caller.
+    """
+
+    hits = [
+        module
+        for module in (
+            running_work.rows,
+            running_work.ownership,
+            running_work.lanes_process,
+            running_work.lanes_chat,
+            running_work.surface,
+        )
+        if name in vars(module)
+    ]
+    assert hits, f"no running_work module binds {name}"
+    for module in hits:
+        monkeypatch.setattr(module, name, value)
+
+
 @pytest.fixture
 def home(tmp_path, monkeypatch):
     """An isolated HERMES home that the head-home resolver will land on."""
 
     head = tmp_path / "home"
     head.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(running_work, "_head_home", lambda: (head, "test_home"))
+    _patch_bound(monkeypatch, "_head_home", lambda: (head, "test_home"))
     return head
 
 
@@ -406,7 +429,7 @@ def test_the_resolved_home_is_published_as_ambient_context_not_lost(home):
 
 
 def test_the_ambient_block_names_an_unresolvable_home_rather_than_lying(monkeypatch):
-    monkeypatch.setattr(running_work, "_head_home", lambda: (None, "unresolved"))
+    _patch_bound(monkeypatch, "_head_home", lambda: (None, "unresolved"))
 
     assert build_running_work()["ambient"] == {
         "home_provenance": "unresolved",
@@ -428,8 +451,8 @@ def test_a_failed_live_enrichment_is_a_typed_field_not_prose(home, monkeypatch):
             def list_sessions():
                 raise TypeError("registry exploded")
 
-    monkeypatch.setattr(
-        running_work,
+    _patch_bound(
+        monkeypatch,
         "_module",
         lambda name: _BrokenRegistry if name == "tools.process_registry" else None,
     )
@@ -485,7 +508,7 @@ def test_a_checkpoint_that_is_not_a_list_is_reported_rather_than_coerced(home):
 
 
 def test_an_unresolvable_home_is_reported_not_treated_as_no_work(monkeypatch):
-    monkeypatch.setattr(running_work, "_head_home", lambda: (None, "unresolved"))
+    _patch_bound(monkeypatch, "_head_home", lambda: (None, "unresolved"))
 
     payload = build_running_work()
 
@@ -531,9 +554,9 @@ def test_a_lane_that_explodes_cannot_break_the_frame(home, monkeypatch):
     def _boom(**_kwargs):
         raise RuntimeError("lane exploded")
 
-    monkeypatch.setattr(running_work, "_collect_chat_turns", _boom)
+    monkeypatch.setattr(running_work.lanes_chat, "_collect_chat_turns", _boom)
     monkeypatch.setattr(
-        running_work,
+        running_work.surface,
         "_COLLECTORS",
         tuple(
             (name, _boom if name == KIND_CHAT_TURN else fn, takes_now)
@@ -849,7 +872,7 @@ def _cold_build_subprocess(cold_home):
     import subprocess
     import sys
 
-    repo_root = Path(running_work.__file__).resolve().parent.parent
+    repo_root = Path(running_work.__file__).resolve().parents[2]
 
     env = dict(os.environ)
     env["HERMES_HOME"] = str(cold_home)
@@ -988,6 +1011,14 @@ def test_a_read_only_question_does_not_run_delegation_recovery(tmp_path):
         ({"status": "stalled"}, STATUS_STALLED),
         ({"status": "finalizing"}, "finalizing"),
         ({"status": "error"}, "error"),
+        # Every record word the delegation store may write, one row each, so a
+        # table standing in for the ladder cannot drop or swap a key unseen.
+        ({"status": "completed"}, "completed"),
+        ({"status": "ok"}, "completed"),
+        ({"status": "success"}, "completed"),
+        ({"status": "failed"}, "error"),
+        ({"status": "interrupted"}, "error"),
+        ({"state": " Running ", "seconds_since_progress": 900.0}, STATUS_STALLED),
         ({"status": "who-knows"}, STATUS_UNKNOWN),
     ],
 )
@@ -1143,8 +1174,8 @@ def test_connected_mcp_transports_are_capabilities_not_running_work(home, monkey
             ]
 
     original_module = running_work._module
-    monkeypatch.setattr(
-        running_work,
+    _patch_bound(
+        monkeypatch,
         "_module",
         lambda name: _ConnectedMcp() if name == "tools.mcp_tool" else original_module(name),
     )
@@ -1181,8 +1212,8 @@ def test_a_broken_scheduler_is_unreadable_not_someone_elses_process(home, monkey
         def get_running_job_ids(self):
             raise RuntimeError("scheduler exploded")
 
-    monkeypatch.setattr(
-        running_work,
+    _patch_bound(
+        monkeypatch,
         "_module",
         lambda name: _Broken() if name == "cron.scheduler" else None,
     )
@@ -1319,8 +1350,8 @@ def test_every_started_at_on_the_wire_carries_a_utc_offset(home, monkeypatch):
         process_registry = _Registry()
 
     real_module = running_work._module
-    monkeypatch.setattr(
-        running_work,
+    _patch_bound(
+        monkeypatch,
         "_module",
         lambda name: _Module() if name == "tools.process_registry" else real_module(name),
     )
@@ -1481,7 +1512,7 @@ def test_cancel_never_reaches_for_a_bare_pid(home, monkeypatch):
             }
         ],
     )
-    monkeypatch.setattr(running_work, "_module", lambda name: None)
+    _patch_bound(monkeypatch, "_module", lambda name: None)
 
     result = cancel_work("terminal:sess-kill")
 
@@ -1520,8 +1551,8 @@ def test_cancel_routes_terminal_work_through_the_registry_kill_seam(home, monkey
         process_registry = _Registry()
 
     real_module = running_work._module
-    monkeypatch.setattr(
-        running_work,
+    _patch_bound(
+        monkeypatch,
         "_module",
         lambda name: _Module() if name == "tools.process_registry" else real_module(name),
     )
@@ -1568,8 +1599,8 @@ def test_cancelling_work_owned_by_another_process_says_so(home, monkeypatch):
         process_registry = _EmptyRegistry()
 
     real_module = running_work._module
-    monkeypatch.setattr(
-        running_work,
+    _patch_bound(
+        monkeypatch,
         "_module",
         lambda name: _Module() if name == "tools.process_registry" else real_module(name),
     )
@@ -1609,8 +1640,8 @@ def test_cancelling_a_delegation_this_process_does_not_hold_says_so(home, monkey
             raise AssertionError("must not reach the interrupt seam")
 
     real_module = running_work._module
-    monkeypatch.setattr(
-        running_work,
+    _patch_bound(
+        monkeypatch,
         "_module",
         lambda name: _Module if name == "tools.async_delegation" else real_module(name),
     )

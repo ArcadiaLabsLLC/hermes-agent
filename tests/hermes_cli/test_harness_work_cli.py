@@ -33,6 +33,15 @@ def _run(argv, capsys):
     return code, (json.loads(captured) if captured else None)
 
 
+def _stub_build(monkeypatch, fn):
+    """Stub the producer where both callers read it: the package attribute (the
+    CLI's lazy import) and ``running_work.surface`` (``find_work_row``, which
+    bound it by definition — a stub on the package alone never reaches it)."""
+
+    monkeypatch.setattr(running_work, "build_running_work", fn)
+    monkeypatch.setattr(running_work.surface, "build_running_work", fn)
+
+
 @pytest.fixture
 def one_row(monkeypatch):
     """One cancellable terminal row, with the lanes reporting mixed health."""
@@ -76,7 +85,7 @@ def one_row(monkeypatch):
         # drop the block without any test noticing.
         "ambient": {"home_provenance": "head_home", "home_name": "base"},
     }
-    monkeypatch.setattr(running_work, "build_running_work", lambda *a, **k: payload)
+    _stub_build(monkeypatch, lambda *a, **k: payload)
     return row
 
 
@@ -129,9 +138,8 @@ def test_work_list_honors_the_stage42_limit_and_declares_truncation(
     cannot fail is worse than no test: it reads as coverage.
     """
 
-    monkeypatch.setattr(
-        running_work,
-        "build_running_work",
+    _stub_build(
+        monkeypatch,
         lambda *a, **k: {
             "rows": [
                 {**one_row, "work_id": f"terminal:sess-{index}"} for index in range(5)
@@ -166,7 +174,7 @@ def test_work_list_reports_its_own_completeness(monkeypatch, capsys):
         accountant.drop("process_exited", count=2, by_design=True)
         return {"rows": [], "sources": {}, "counts": {"total": 0}}
 
-    monkeypatch.setattr(running_work, "build_running_work", _build)
+    _stub_build(monkeypatch, _build)
 
     code, payload = _run(["harness", "work", "list", "--json"], capsys)
 
@@ -338,9 +346,8 @@ def test_the_replay_guard_does_not_refuse_a_legitimate_cancel_across_timezones(
     """
 
     started = datetime(2026, 8, 3, 10, 0, 0, tzinfo=timezone.utc)
-    monkeypatch.setattr(
-        running_work,
-        "build_running_work",
+    _stub_build(
+        monkeypatch,
         lambda *a, **k: {
             "rows": [{**one_row, "started_at": started.isoformat()}],
             "sources": {},

@@ -1940,7 +1940,7 @@ def test_an_unresolvable_input_authority_refuses_the_cache(
 
     from agent_runtime import running_work as running_work_mod
 
-    monkeypatch.setattr(running_work_mod, "running_work_store_paths", lambda: ())
+    monkeypatch.setattr(running_work_mod.ownership, "running_work_store_paths", lambda: ())
     assert core_cache.build_input_fingerprint() is None
     _new_context()
     core = build_snapshot(build_info={"caller": "probe"})
