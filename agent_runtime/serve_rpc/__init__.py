@@ -17,7 +17,11 @@ protocol                 models  frames, ``ERR_*`` codes, ``RpcContext`` (and th
                                  protocol prose, as its docstring)
 registry                 models  ``_METHODS`` / ``_METHOD_TIERS`` and ``@method``
                                  (the rule-12 reference registry), the manifest
-params                   policy  the typed parameter readers
+reasons                  models  ``RpcRefusal``: every ``data.reason`` a guard here spends
+params                   policy  the typed parameter readers, ``ParamRefused``, and
+                                 the guard frames every office/level verb shares
+office_errors            policy  store exception -> frame rows and the MRO walker
+                                 the four office write verbs' tables use
 dispatch                 lanes   ``handle_request``: the one reader of ``_METHODS``
 office_read              lanes   ``runtime.office.get/subscribe/unsubscribe``
 office_actor_writes      lanes   ``runtime.office.upsert/remove``

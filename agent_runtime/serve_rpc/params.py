@@ -10,13 +10,18 @@ from __future__ import annotations
 from typing import Any
 
 from agent_runtime.serve_rpc.protocol import ERR_INVALID_PARAMS, ERR_NOT_FOUND, err
+from agent_runtime.serve_rpc.reasons import RpcRefusal
 
 __layer__ = "policy"
 
 __all__ = [
     "CORRELATION_ID_INVALID_REASON",
-    "_CorrelationIdRefused",
-    "_LevelExpectationRefused",
+    "ParamRefused",
+    "expect_revision_invalid",
+    "unknown_workspace",
+    "updated_by_invalid",
+    "workspace_id_required",
+    "_text_param",
     "_correlation_id_param",
     "_level_expect_param",
     "_level_workspace_id_or_error",
@@ -31,24 +36,89 @@ __all__ = [
 # ── methods ──────────────────────────────────────────────────────────────────
 
 
-def _workspace_id_param(params: dict) -> str | None:
-    raw = params.get("workspace_id")
+def _text_param(params: dict, key: str) -> str | None:
+    """``params[key]`` stripped, or ``None`` when absent, blank or not a string."""
+
+    raw = params.get(key)
     if not isinstance(raw, str):
         return None
     return raw.strip() or None
 
 
+def _workspace_id_param(params: dict) -> str | None:
+    return _text_param(params, "workspace_id")
+
+
+# ── the guard frames every office/level verb spends (one spelling each) ─────
+
+
+def workspace_id_required(rid: Any) -> dict:
+    """``-32602``: the verb needs ``workspace_id`` — one reason on every lane,
+    so one client branch covers "the launcher forgot the workspace"."""
+
+    return err(
+        rid,
+        ERR_INVALID_PARAMS,
+        "invalid params: workspace_id must be a non-empty string",
+        {"reason": RpcRefusal.WORKSPACE_ID_REQUIRED},
+    )
+
+
+def unknown_workspace(rid: Any, workspace_id: str) -> dict:
+    """``4001``: the id resolves to no workspace — never an honest empty."""
+
+    return err(
+        rid,
+        ERR_NOT_FOUND,
+        f"unknown workspace: {workspace_id}",
+        {"reason": RpcRefusal.WORKSPACE_NOT_FOUND, "workspace_id": workspace_id},
+    )
+
+
+def expect_revision_invalid(rid: Any) -> dict:
+    """``-32602``: ``expect_revision`` must be an integer or omitted."""
+
+    return err(
+        rid,
+        ERR_INVALID_PARAMS,
+        "invalid params: expect_revision must be an integer or omitted",
+        {"reason": RpcRefusal.EXPECT_REVISION_INVALID},
+    )
+
+
+def updated_by_invalid(rid: Any) -> dict:
+    """``-32602``: ``updated_by`` must be a string or omitted."""
+
+    return err(
+        rid,
+        ERR_INVALID_PARAMS,
+        "invalid params: updated_by must be a string or omitted",
+        {"reason": RpcRefusal.UPDATED_BY_INVALID},
+    )
+
+
 #: The one ``data.reason`` every write verb spends for a malformed gesture token,
 #: so a client decoder branches on a single stable string across all four.
-CORRELATION_ID_INVALID_REASON = "correlation_id_invalid"
+CORRELATION_ID_INVALID_REASON = RpcRefusal.CORRELATION_ID_INVALID
 
 
-class _CorrelationIdRefused(Exception):
-    """A gesture token that failed boundary validation, carrying its message."""
+class ParamRefused(Exception):
+    """A parameter that failed boundary validation: its sentence and its reason.
 
-    def __init__(self, message: str) -> None:
+    ONE exception for every reader here (it replaced ``_CorrelationIdRefused``
+    and ``_LevelExpectationRefused``, the same three lines spelled twice). The
+    handler adds the keys its own refusals always carry and answers
+    :meth:`frame` — ``-32602`` with ``data.reason`` from the closed
+    :class:`RpcRefusal` vocabulary.
+    """
+
+    def __init__(self, message: str, reason: RpcRefusal) -> None:
         super().__init__(message)
         self.message = message
+        self.reason = reason
+
+    def frame(self, rid: Any, **data: Any) -> dict:
+        return err(rid, ERR_INVALID_PARAMS, self.message, {"reason": self.reason, **data})
 
 
 def _correlation_id_param(params: dict) -> str | None:
@@ -66,8 +136,8 @@ def _correlation_id_param(params: dict) -> str | None:
     with an id the server discarded. Nothing is sanitized — a repaired id would
     print a value neither side used, which is worse than no id at all.
 
-    Raises :class:`_CorrelationIdRefused`; every caller translates it to the same
-    ``-32602`` / :data:`CORRELATION_ID_INVALID_REASON` pair.
+    Raises :class:`ParamRefused` with :data:`CORRELATION_ID_INVALID_REASON`;
+    every caller answers its ``frame``.
     """
 
     from agent_runtime.state_patches import (
@@ -79,24 +149,18 @@ def _correlation_id_param(params: dict) -> str | None:
     if raw is None:
         return None
     if not isinstance(raw, str):
-        raise _CorrelationIdRefused(
-            "invalid params: correlation_id must be a string or omitted"
+        raise ParamRefused(
+            "invalid params: correlation_id must be a string or omitted",
+            CORRELATION_ID_INVALID_REASON,
         )
     token = normalize_correlation_id(raw)
     if token is None:
-        raise _CorrelationIdRefused(
+        raise ParamRefused(
             "invalid params: correlation_id must be a generated token of at most "
-            f"{CORRELATION_ID_MAX_LEN} characters from [A-Za-z0-9_.:-]"
+            f"{CORRELATION_ID_MAX_LEN} characters from [A-Za-z0-9_.:-]",
+            CORRELATION_ID_INVALID_REASON,
         )
     return token
-
-
-class _LevelExpectationRefused(Exception):
-    """An ``expect_sha256`` that failed boundary validation."""
-
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
-        self.message = message
 
 
 def _level_expect_param(params: dict) -> tuple[bool, str | None]:
@@ -119,13 +183,15 @@ def _level_expect_param(params: dict) -> tuple[bool, str | None]:
     if raw is None:
         return True, None
     if not isinstance(raw, str):
-        raise _LevelExpectationRefused(
-            "invalid params: expect_sha256 must be a sha256 hex string, null or omitted"
+        raise ParamRefused(
+            "invalid params: expect_sha256 must be a sha256 hex string, null or omitted",
+            RpcRefusal.EXPECT_SHA256_INVALID,
         )
     token = raw.strip()
     if len(token) != 64 or any(ch not in "0123456789abcdefABCDEF" for ch in token):
-        raise _LevelExpectationRefused(
-            "invalid params: expect_sha256 must be 64 hex characters, null or omitted"
+        raise ParamRefused(
+            "invalid params: expect_sha256 must be 64 hex characters, null or omitted",
+            RpcRefusal.EXPECT_SHA256_INVALID,
         )
     return True, token
 
@@ -145,12 +211,7 @@ def _level_workspace_missing(rid: Any, workspace_id: str) -> dict | None:
 
     if paths.workspace_path(workspace_id).is_file():
         return None
-    return err(
-        rid,
-        ERR_NOT_FOUND,
-        f"unknown workspace: {workspace_id}",
-        {"reason": "workspace_not_found", "workspace_id": workspace_id},
-    )
+    return unknown_workspace(rid, workspace_id)
 
 
 def _level_workspace_id_or_error(rid: Any, params: dict) -> tuple[str | None, dict | None]:
@@ -158,19 +219,14 @@ def _level_workspace_id_or_error(rid: Any, params: dict) -> tuple[str | None, di
 
     workspace_id = _workspace_id_param(params)
     if workspace_id is None:
-        return None, err(
-            rid,
-            ERR_INVALID_PARAMS,
-            "invalid params: workspace_id must be a non-empty string",
-            {"reason": "workspace_id_required"},
-        )
+        return None, workspace_id_required(rid)
     return workspace_id, _level_workspace_missing(rid, workspace_id)
 
 
 def _map_expect_param(params: dict) -> tuple[bool, str | None]:
     """``(provided, value)`` for ``expect_sha256`` — the level lane's three states.
 
-    Shares ``_LevelExpectationRefused`` rather than minting a twin: the refusal
+    Shares :class:`ParamRefused` rather than minting a twin: the refusal
     is the same refusal in the same words, and two exception types for one
     condition is how two lanes start disagreeing about which one a client saw.
     """
@@ -179,10 +235,7 @@ def _map_expect_param(params: dict) -> tuple[bool, str | None]:
 
 
 def _map_id_param(params: dict) -> str | None:
-    raw = params.get("map_id")
-    if not isinstance(raw, str):
-        return None
-    return raw.strip() or None
+    return _text_param(params, "map_id")
 
 
 def _map_id_or_error(rid: Any, params: dict) -> tuple[str | None, dict | None]:

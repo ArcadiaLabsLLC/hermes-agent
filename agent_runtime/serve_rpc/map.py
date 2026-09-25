@@ -16,11 +16,10 @@ from agent_runtime.serve_rpc.protocol import (
     err,
     ok,
 )
+from agent_runtime.serve_rpc.reasons import RpcRefusal
 from agent_runtime.serve_rpc.registry import method
 from agent_runtime.serve_rpc.params import (
-    CORRELATION_ID_INVALID_REASON,
-    _CorrelationIdRefused,
-    _LevelExpectationRefused,
+    ParamRefused,
     _correlation_id_param,
     _map_expect_param,
     _map_id_or_error,
@@ -56,7 +55,7 @@ __all__ = [
 # one lane against the one it is handed on the other.
 
 #: The ``data.reason`` both writes spend when ``expect_sha256`` does not match.
-MAP_SHA256_MISMATCH_REASON = "sha256_mismatch"
+MAP_SHA256_MISMATCH_REASON = RpcRefusal.SHA256_MISMATCH
 
 
 @method("runtime.map.list", tier=TIER_CONSOLE)
@@ -191,23 +190,13 @@ def _runtime_map_set(rid: Any, params: dict, context: RpcContext | None = None) 
 
     try:
         expect_provided, expect_sha256 = _map_expect_param(params)
-    except _LevelExpectationRefused as bad:
-        return err(
-            rid,
-            ERR_INVALID_PARAMS,
-            bad.message,
-            {"reason": "expect_sha256_invalid", "map_id": map_id},
-        )
+    except ParamRefused as bad:
+        return bad.frame(rid, map_id=map_id)
 
     try:
         correlation_id = _correlation_id_param(params)
-    except _CorrelationIdRefused as bad:
-        return err(
-            rid,
-            ERR_INVALID_PARAMS,
-            bad.message,
-            {"reason": CORRELATION_ID_INVALID_REASON, "map_id": map_id},
-        )
+    except ParamRefused as bad:
+        return bad.frame(rid, map_id=map_id)
 
     raw = document.encode("utf-8")
     # Validated BEFORE the expectation is checked, for the level lane's reason: a
@@ -309,23 +298,13 @@ def _runtime_map_clear(rid: Any, params: dict, context: RpcContext | None = None
 
     try:
         expect_provided, expect_sha256 = _map_expect_param(params)
-    except _LevelExpectationRefused as bad:
-        return err(
-            rid,
-            ERR_INVALID_PARAMS,
-            bad.message,
-            {"reason": "expect_sha256_invalid", "map_id": map_id},
-        )
+    except ParamRefused as bad:
+        return bad.frame(rid, map_id=map_id)
 
     try:
         correlation_id = _correlation_id_param(params)
-    except _CorrelationIdRefused as bad:
-        return err(
-            rid,
-            ERR_INVALID_PARAMS,
-            bad.message,
-            {"reason": CORRELATION_ID_INVALID_REASON, "map_id": map_id},
-        )
+    except ParamRefused as bad:
+        return bad.frame(rid, map_id=map_id)
 
     store = MapStore()
     stored = store.read(map_id)

@@ -17,10 +17,10 @@ from agent_runtime.serve_rpc.protocol import (
     err,
     ok,
 )
+from agent_runtime.serve_rpc.reasons import RpcRefusal
 from agent_runtime.serve_rpc.registry import method
 from agent_runtime.serve_rpc.params import (
-    CORRELATION_ID_INVALID_REASON,
-    _CorrelationIdRefused,
+    ParamRefused,
     _correlation_id_param,
 )
 from agent_runtime.serve_rpc.media import MEDIA_CONTRACT
@@ -142,7 +142,7 @@ def _peer_ping(rid: Any, params: dict, context: RpcContext | None = None) -> dic
 #: is the chokepoint saying a caller may not run a verb, this is the verb saying
 #: it has no provenance to run under. A console client that calls this by
 #: mistake should read the second, not the first.
-PEER_CHAT_NOT_A_PEER_REASON = "peer_identity_required"
+PEER_CHAT_NOT_A_PEER_REASON = RpcRefusal.PEER_IDENTITY_REQUIRED
 
 
 @method("peer.agent_chat.execute", tier=TIER_CONSOLE)
@@ -284,13 +284,8 @@ def _peer_media_get(
 
     try:
         correlation_id = _correlation_id_param(params)
-    except _CorrelationIdRefused as refused:
-        return err(
-            rid,
-            ERR_INVALID_PARAMS,
-            refused.message,
-            {"reason": CORRELATION_ID_INVALID_REASON},
-        )
+    except ParamRefused as refused:
+        return refused.frame(rid)
 
     raw = params.get("handle")
     if raw is None:
@@ -370,7 +365,7 @@ PEER_ANNOUNCE_CONTRACT = 1
 #: reason rather than a generic invalid-params, because the two are different
 #: mistakes: a malformed field is a client bug, and this is a client asking to
 #: write somebody else's row.
-PEER_ANNOUNCE_NAMES_OTHER_REASON = "announce_names_other_install"
+PEER_ANNOUNCE_NAMES_OTHER_REASON = RpcRefusal.ANNOUNCE_NAMES_OTHER_INSTALL
 
 
 @method("peer.announce", tier=TIER_CONSOLE)
@@ -438,13 +433,8 @@ def _peer_announce(rid: Any, params: dict, context: RpcContext | None = None) ->
 
     try:
         correlation_id = _correlation_id_param(params)
-    except _CorrelationIdRefused as refused:
-        return err(
-            rid,
-            ERR_INVALID_PARAMS,
-            refused.message,
-            {"reason": CORRELATION_ID_INVALID_REASON},
-        )
+    except ParamRefused as refused:
+        return refused.frame(rid)
 
     for key in ("peer_install_id", "install_id"):
         named = params.get(key)
@@ -500,18 +490,18 @@ def _peer_announce(rid: Any, params: dict, context: RpcContext | None = None) ->
 #: (``chat_scope_unresolved``, ``session_db_unavailable``, …) describes THIS
 #: install's storage and means nothing to a caller on another machine — so the
 #: caller branches on one stable string and the detail rides ``data``.
-PEER_THREAD_UNREADABLE_REASON = "thread_unreadable"
+PEER_THREAD_UNREADABLE_REASON = RpcRefusal.THREAD_UNREADABLE
 
 
 #: Refused when the named target is not a teammate here. Shared spelling with
 #: the local tool's own refusal, so an agent that reads both surfaces learns one
 #: word for one condition.
-PEER_UNSUPPORTED_PERSONA_REASON = "unsupported_persona"
+PEER_UNSUPPORTED_PERSONA_REASON = RpcRefusal.UNSUPPORTED_PERSONA
 
 
 #: The lane guard's refusal, likewise shared with ``agent_chat_open``: the
 #: session named is not part of that teammate's chat lane.
-PEER_FOREIGN_SESSION_REASON = "foreign_session"
+PEER_FOREIGN_SESSION_REASON = RpcRefusal.FOREIGN_SESSION
 
 
 @method("peer.roster.list", tier=TIER_READ)
@@ -569,13 +559,8 @@ def _peer_roster_list(rid: Any, params: dict, context: RpcContext | None = None)
 
     try:
         correlation_id = _correlation_id_param(params)
-    except _CorrelationIdRefused as refused:
-        return err(
-            rid,
-            ERR_INVALID_PARAMS,
-            refused.message,
-            {"reason": CORRELATION_ID_INVALID_REASON},
-        )
+    except ParamRefused as refused:
+        return refused.frame(rid)
 
     target = params.get("target")
     if target is not None and (not isinstance(target, str) or len(target) > 200):
@@ -650,13 +635,8 @@ def _peer_thread_read(rid: Any, params: dict, context: RpcContext | None = None)
 
     try:
         correlation_id = _correlation_id_param(params)
-    except _CorrelationIdRefused as refused:
-        return err(
-            rid,
-            ERR_INVALID_PARAMS,
-            refused.message,
-            {"reason": CORRELATION_ID_INVALID_REASON},
-        )
+    except ParamRefused as refused:
+        return refused.frame(rid)
 
     target = params.get("target")
     session_id = params.get("session_id")

@@ -389,7 +389,8 @@ def test_no_lane_holds_a_second_copy_of_the_predicate():
     from hermes_cli.harness_parts import office as office_cli
 
     lanes = {
-        "rpc": serve_rpc._runtime_office_upsert,
+        # The RPC lane is the handler AND the translation table it reads.
+        "rpc": serve_rpc.office_actor_writes,
         "agent_create": agent_create.perform_agent_create,
         "cli": office_cli._cmd_office_actor_upsert,
         "template": workspace_template._copy_office,

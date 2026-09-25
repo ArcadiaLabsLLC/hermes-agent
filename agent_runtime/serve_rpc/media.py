@@ -20,8 +20,7 @@ from agent_runtime.serve_rpc.protocol import (
 )
 from agent_runtime.serve_rpc.registry import method
 from agent_runtime.serve_rpc.params import (
-    CORRELATION_ID_INVALID_REASON,
-    _CorrelationIdRefused,
+    ParamRefused,
     _correlation_id_param,
 )
 
@@ -103,13 +102,8 @@ def _runtime_media_index(
 
     try:
         correlation_id = _correlation_id_param(params)
-    except _CorrelationIdRefused as refused:
-        return err(
-            rid,
-            ERR_INVALID_PARAMS,
-            refused.message,
-            {"reason": CORRELATION_ID_INVALID_REASON},
-        )
+    except ParamRefused as refused:
+        return refused.frame(rid)
 
     scope = media_handles.build_media_scope()
     result: dict[str, Any] = {
@@ -215,13 +209,8 @@ def _runtime_media_get(
 
     try:
         correlation_id = _correlation_id_param(params)
-    except _CorrelationIdRefused as refused:
-        return err(
-            rid,
-            ERR_INVALID_PARAMS,
-            refused.message,
-            {"reason": CORRELATION_ID_INVALID_REASON},
-        )
+    except ParamRefused as refused:
+        return refused.frame(rid)
 
     raw = params.get("handle")
     if raw is None:

@@ -18,8 +18,7 @@ from agent_runtime.serve_rpc.protocol import (
 )
 from agent_runtime.serve_rpc.registry import method
 from agent_runtime.serve_rpc.params import (
-    CORRELATION_ID_INVALID_REASON,
-    _CorrelationIdRefused,
+    ParamRefused,
     _correlation_id_param,
 )
 
@@ -203,13 +202,8 @@ def _runtime_gateway_peers_roster(
 
     try:
         correlation_id = _correlation_id_param(params)
-    except _CorrelationIdRefused as refused:
-        return err(
-            rid,
-            ERR_INVALID_PARAMS,
-            refused.message,
-            {"reason": CORRELATION_ID_INVALID_REASON},
-        )
+    except ParamRefused as refused:
+        return refused.frame(rid)
 
     install = params.get("install")
     if not isinstance(install, str) or not install.strip() or len(install) > 200:

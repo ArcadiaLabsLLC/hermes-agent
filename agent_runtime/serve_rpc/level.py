@@ -15,11 +15,10 @@ from agent_runtime.serve_rpc.protocol import (
     err,
     ok,
 )
+from agent_runtime.serve_rpc.reasons import RpcRefusal
 from agent_runtime.serve_rpc.registry import method
 from agent_runtime.serve_rpc.params import (
-    CORRELATION_ID_INVALID_REASON,
-    _CorrelationIdRefused,
-    _LevelExpectationRefused,
+    ParamRefused,
     _correlation_id_param,
     _level_expect_param,
     _level_workspace_id_or_error,
@@ -53,7 +52,7 @@ __all__ = [
 # ``sha256`` it read on one lane against the one it is handed on the other.
 
 #: The ``data.reason`` both writes spend when ``expect_sha256`` does not match.
-LEVEL_SHA256_MISMATCH_REASON = "sha256_mismatch"
+LEVEL_SHA256_MISMATCH_REASON = RpcRefusal.SHA256_MISMATCH
 
 
 @method("runtime.level.get", tier=TIER_CONSOLE)
@@ -163,23 +162,13 @@ def _runtime_level_set(
 
     try:
         expect_provided, expect_sha256 = _level_expect_param(params)
-    except _LevelExpectationRefused as bad:
-        return err(
-            rid,
-            ERR_INVALID_PARAMS,
-            bad.message,
-            {"reason": "expect_sha256_invalid", "workspace_id": workspace_id},
-        )
+    except ParamRefused as bad:
+        return bad.frame(rid, workspace_id=workspace_id)
 
     try:
         correlation_id = _correlation_id_param(params)
-    except _CorrelationIdRefused as bad:
-        return err(
-            rid,
-            ERR_INVALID_PARAMS,
-            bad.message,
-            {"reason": CORRELATION_ID_INVALID_REASON, "workspace_id": workspace_id},
-        )
+    except ParamRefused as bad:
+        return bad.frame(rid, workspace_id=workspace_id)
 
     raw = document.encode("utf-8")
     # Validated BEFORE the expectation is checked: a document this runtime
@@ -270,23 +259,13 @@ def _runtime_level_clear(
 
     try:
         expect_provided, expect_sha256 = _level_expect_param(params)
-    except _LevelExpectationRefused as bad:
-        return err(
-            rid,
-            ERR_INVALID_PARAMS,
-            bad.message,
-            {"reason": "expect_sha256_invalid", "workspace_id": workspace_id},
-        )
+    except ParamRefused as bad:
+        return bad.frame(rid, workspace_id=workspace_id)
 
     try:
         correlation_id = _correlation_id_param(params)
-    except _CorrelationIdRefused as bad:
-        return err(
-            rid,
-            ERR_INVALID_PARAMS,
-            bad.message,
-            {"reason": CORRELATION_ID_INVALID_REASON, "workspace_id": workspace_id},
-        )
+    except ParamRefused as bad:
+        return bad.frame(rid, workspace_id=workspace_id)
 
     store = LevelStore()
     stored = store.read(workspace_id)

@@ -12,14 +12,13 @@ from agent_runtime.call_authorization import TIER_READ
 from agent_runtime.serve_rpc.protocol import (
     ERR_INVALID_PARAMS,
     ERR_INVALID_REQUEST,
-    ERR_NOT_FOUND,
     RpcContext,
     err,
     logger,
     ok,
 )
 from agent_runtime.serve_rpc.registry import method
-from agent_runtime.serve_rpc.params import _workspace_id_param
+from agent_runtime.serve_rpc.params import workspace_id_required, unknown_workspace, _workspace_id_param
 
 __layer__ = "lanes"
 
@@ -109,12 +108,7 @@ def _runtime_office_get(
 
     workspace_id = _workspace_id_param(params)
     if workspace_id is None:
-        return err(
-            rid,
-            ERR_INVALID_PARAMS,
-            "invalid params: workspace_id must be a non-empty string",
-            {"reason": "workspace_id_required"},
-        )
+        return workspace_id_required(rid)
     projection = _office_projection(workspace_id)
     if projection is None:
         # NOT an empty projection. `office show` answers an unauthored office
@@ -122,12 +116,7 @@ def _runtime_office_get(
         # zero; a program told `folders: [], items: []` cannot tell "this
         # workspace has no office yet" from "you asked for a workspace that
         # does not exist", and would render a blank canvas for a typo.
-        return err(
-            rid,
-            ERR_NOT_FOUND,
-            f"unknown workspace: {workspace_id}",
-            {"reason": "workspace_not_found", "workspace_id": workspace_id},
-        )
+        return unknown_workspace(rid, workspace_id)
     return ok(rid, projection)
 
 
@@ -209,146 +198,14 @@ def _runtime_office_subscribe(
     ``watermark`` from the same counter, so the client's existing ``>``-only
     sequence gate applies unchanged and a gap is a gap on either lane.
 
-    Why one call and not two
-    ------------------------
-    A ``get`` followed by a separate join is two reads of one truth with a
-    window between them, and nothing tells the client whether anything moved
-    inside that window. Taking the projection and the offset together — and
-    registering with the same value — is what makes "I have the office as of N,
-    push me everything after N" a statement the runtime can honour rather than
-    a hope. The office lock is held across the pair so a write cannot land
-    between them.
-
-    The ordering seam, stated rather than papered over
-    --------------------------------------------------
-    The dispatcher emits this reply AFTER the handler returns, so a patch
-    published in between reaches the client BEFORE the baseline it rebases on.
-    That is not fixed by a server-side buffer; it is fixed by the sink dropping
-    any frame at or below ``event_offset``, which is the same rule that absorbs
-    the hub's mandatory re-hydrate. See ``serve_office_subscriptions``.
-
-    A second subscribe RE-BASELINES, and says so
-    --------------------------------------------
-    Registering and answering together has a consequence the first cut did not
-    follow through on: the subscription exists before the client has finished
-    reading the reply. A client that finds the baseline unusable is right to
-    refuse it — folding a knowingly-partial office would render it as
-    authoritative — but the old ``already_subscribed`` refusal then left a live
-    subscription the client would never fold against, reclaimable only by
-    dropping the connection. There is no method that could have released it.
-
-    So a repeat subscribe for this ``(connection, workspace)`` replaces the
-    registration with a fresh baseline and watermark, and the stuck state stops
-    existing by construction. The refusal it retires was only ever there to stop
-    a subscriber leaking per retry; one key still means one subscription, so
-    nothing leaks either way, and replacement is the answer that gets a confused
-    client out of the hole rather than deeper into it.
-
-    ``replaced`` on the result is the bill. ``StreamHub.subscribe`` restarts the
-    producer, so a re-baseline costs every OTHER subscriber on that hub a fresh
-    full core — a cost the old refusal did not incur, because a duplicate key
-    was declined before a generation was ever bumped. A client that sees
-    ``replaced: true`` on a call it thought was its first has learned something
-    true about its own state, and the same event is written to the service log
-    for the operator (``serve_office_subscription_rebaselined``). Silent
-    re-baselining would let a retry loop tax the whole room invisibly.
-
-    Refusals are typed because their cures differ:
-
-    ``push_channel_unavailable``
-        This caller has no push channel — a stdio probe, a test double. The
-        method refuses rather than registering into a void, which is the whole
-        reason ``RpcContext.emit`` is allowed to be ``None``.
-    ``push_lane_unavailable``
-        The runtime has no stream hub bound — no socket lane, or a serve loop
-        that has not reached its bind yet. Nothing the client can do about the
-        first; the second is a startup window ``serve.py`` announces ``ready``
-        several hundred lines before closing, and it is a separate bug.
-    ``push_lane_draining``
-        A hub IS bound and it refused: it is stopping, so this call raced
-        ``_close_socket_lane``. Transient, and the cure is to reconnect — which
-        is precisely why it must not share a name with the case above. When the
-        caller held a subscription, ``data.prior_subscription_released`` says
-        so: the re-baseline's teardown already ran, so the old lane is gone too.
-    ``baseline_unavailable``
-        The event log's tail could not be read, so there is no offset to
-        baseline at. Transient like the case above, and the reason this method
-        no longer answers an unreadable log with ``0`` — see the refusal at the
-        watermark read for what a fabricated baseline costs the whole room.
-
-    ``already_subscribed`` is GONE. It was the only ``ERR_CONFLICT`` this method
-    raised, and its disappearance also retires a mislabel that shipped with it:
-    the old branch chose its reason by asking ``bound()``, which answers True
-    for a bound-but-draining hub as readily as for a live one. A client racing
-    the drain was therefore told "already subscribed to this workspace" while
-    holding no subscription at all — sent to the one cure (stop retrying) that
-    could not work. Splitting the two reasons is what keeps replacement from
-    quietly inheriting that lie under a new name.
-
-    ``fold_entities``: what THIS client can fold, not what an office subscriber
-    can fold in general
-    ---------------------------------------------------------------------------
-    The declaration used to be a SERVER-side constant
-    (``OFFICE_FOLD_ENTITIES``), which is a shape that can only ever report a
-    fact about the runtime — and that is the hole the 2026-08-16 capability
-    token exposed (plan §V4). Promotion is negotiated over the room, so a
-    launcher whose fold had been widened could never have its widened rows
-    promoted on this lane: the intersection cannot contain a token nobody told
-    the server about.
-
-    So the param is optional and FAIL-OPEN. Absent → the legacy constant, i.e.
-    today's wire for every client in the field, byte-identical. Present → this
-    subscription declares exactly what it says, unknown members included (the
-    channel has never interpreted its strings, and a server that filtered to a
-    known vocabulary would drop the NEXT token the same way). An explicitly
-    EMPTY list is honoured as empty — "I fold nothing, send me full cores" is a
-    thing a client is allowed to say and must stay distinguishable from silence.
-    A non-list is refused rather than guessed: a client sending the wrong shape
-    should learn it, not be quietly filed as legacy.
-
-    The accepted set is ECHOED on the reply, under the same always-present rule
-    the other keys follow. Without it a client cannot tell a declaration that
-    was honoured from one the runtime is too old to have read — and this whole
-    method exists because a push that arrives and is silently dropped is the
-    failure this lane keeps paying for.
-
-    ``reason``: the client's own resubscribe cause, so the server log can join
-    the ladder
-    ---------------------------------------------------------------------------
-    Every re-subscribe in the launcher flows through ONE door and already
-    carries an exact cause string (``start``, ``fold:fenced``,
-    ``push:full_core``, ``reconnect``, ``deferred:*``, ``fold_threw``) — and
-    that string used to die in the launcher's log. The server saw a re-baseline
-    with no way to tell a fold-fence storm from a demote storm, so separating
-    the two classes meant joining two logs on timestamps: inference, on the same
-    shape that has already misattributed this lane once.
-
-    So the param is optional, additive and INERT. It decides nothing: it is
-    stamped verbatim on the ``serve_office_subscription_rebaselined`` receipt
-    and read nowhere else. A cause the client chose is evidence, never
-    authority — a server that branched on it would be taking dispatch orders
-    from an untrusted string.
-
-    Boundary-validated rather than echoed raw, because it is written to an
-    operator's log: ≤64 chars over ``[a-z0-9_:.-]``, refused ``-32602`` with
-    ``{"reason": "reason_invalid"}`` otherwise, and refused BEFORE any store or
-    hub call so a bad param cannot cost a projection, a lock, or a producer
-    restart. See ``normalize_office_subscribe_reason`` for why a blank is a
-    refusal rather than an absence.
-
-    Absent — every client in the field today — prints
-    ``SUBSCRIBE_REASON_ABSENT`` (``-``) on the receipt, so silence is visible as
-    a value rather than as a missing key.
+    Rationale (5 sections) relocated verbatim to
+    ``docs/agent-runtime-harness/history/serve_rpc.md`` § `runtime.office.subscribe` (rule 7).
     """
 
     from agent_runtime.locks import office_lock
     from agent_runtime.parity import events_watermark
     from agent_runtime.serve_office_subscriptions import (
-        BASELINE_UNAVAILABLE,
-        NO_PUSH_LANE,
-        OFFICE_FOLD_ENTITIES,
         OFFICE_SUBSCRIPTIONS,
-        PUSH_LANE_DRAINING,
         event_offset_of,
         normalize_office_fold_entities,
         normalize_office_subscribe_reason,
@@ -356,12 +213,7 @@ def _runtime_office_subscribe(
 
     workspace_id = _workspace_id_param(params)
     if workspace_id is None:
-        return err(
-            rid,
-            ERR_INVALID_PARAMS,
-            "invalid params: workspace_id must be a non-empty string",
-            {"reason": "workspace_id_required"},
-        )
+        return workspace_id_required(rid)
     raw_fold_entities = params.get("fold_entities")
     fold_entities = (
         None if raw_fold_entities is None else normalize_office_fold_entities(raw_fold_entities)
@@ -399,12 +251,7 @@ def _runtime_office_subscribe(
     with office_lock(workspace_id):
         projection = _office_projection(workspace_id)
         if projection is None:
-            return err(
-                rid,
-                ERR_NOT_FOUND,
-                f"unknown workspace: {workspace_id}",
-                {"reason": "workspace_not_found", "workspace_id": workspace_id},
-            )
+            return unknown_workspace(rid, workspace_id)
         # ONE reader of the watermark, asked ONE question, through the same
         # helper the sink's baseline gate uses. ``int(… or 0)`` used to sit here
         # and answered a DIFFERENT question: it folded an unreadable log —
@@ -423,45 +270,7 @@ def _runtime_office_subscribe(
         watermark = events_watermark()
         baseline_offset = event_offset_of(watermark)
         if baseline_offset is None:
-            # The discarded half, kept: the reply cannot carry a platform error
-            # string (a client has no use for one and it is not part of the
-            # vocabulary), but an operator watching subscribes fail needs to
-            # know WHY the log could not be read. Class only — the same
-            # disclosure rule the rest of this runtime's receipts follow — and
-            # the ``-`` sentinel rather than an absent key, because a field that
-            # appears only sometimes is one a log reader stops looking for.
-            raw_error = watermark.get("event_offset_error")
-            error_class = (
-                str(raw_error).split(":", 1)[0].strip() or "-"
-                if isinstance(raw_error, str) and raw_error.strip()
-                else "-"
-            )
-            log = OFFICE_SUBSCRIPTIONS.service_log()
-            if log is not None:
-                log(
-                    {
-                        "event": "serve_office_subscribe_refused",
-                        "reason": BASELINE_UNAVAILABLE,
-                        "workspace_id": workspace_id,
-                        "error": error_class,
-                    }
-                )
-            return err(
-                rid,
-                ERR_INVALID_REQUEST,
-                "this runtime cannot read its event log's tail; subscribe again",
-                {
-                    "reason": BASELINE_UNAVAILABLE,
-                    "workspace_id": workspace_id,
-                    # Shape parity with the registry's own refusals below: this
-                    # lane's clients branch on ``data.reason`` and decode the
-                    # rest, so a key that exists on two of three transient
-                    # refusals would have to be special-cased. Always False
-                    # here, and honestly so — the registry was never called, so
-                    # no prior subscription was displaced.
-                    "prior_subscription_released": False,
-                },
-            )
+            return _baseline_unavailable(rid, workspace_id, watermark)
         outcome = OFFICE_SUBSCRIPTIONS.subscribe(
             connection_key=context.connection_key,
             workspace_id=workspace_id,
@@ -472,29 +281,99 @@ def _runtime_office_subscribe(
         )
 
     if not outcome.registered:
-        # The reason comes from the REGISTRY, not from a second guess here. The
-        # old branch re-derived it by asking ``bound()``, which cannot separate
-        # "no hub" from "a bound hub that is draining" — see the docstring.
-        # Both share ``-32600`` on purpose: this lane's clients branch on
-        # ``data.reason``, which is the whole reason ``data`` is populated at
-        # all, and minting a code per transient state would make the numbers
-        # the contract instead of the names.
-        return err(
-            rid,
-            ERR_INVALID_REQUEST,
-            "this runtime's push lane is draining; reconnect and subscribe again"
-            if outcome.reason == PUSH_LANE_DRAINING
-            else "this runtime has no push lane",
+        return _push_lane_refusal(rid, workspace_id, outcome)
+    return _subscribe_reply(rid, projection, baseline_offset, fold_entities, outcome)
+
+
+def _baseline_unavailable(rid: Any, workspace_id: str, watermark: dict) -> dict:
+    """The subscribe refusal when the event log's tail cannot be read (no registration)."""
+
+    from agent_runtime.serve_office_subscriptions import (
+        BASELINE_UNAVAILABLE,
+        OFFICE_SUBSCRIPTIONS,
+    )
+
+    # The discarded half, kept: the reply cannot carry a platform error
+    # string (a client has no use for one and it is not part of the
+    # vocabulary), but an operator watching subscribes fail needs to
+    # know WHY the log could not be read. Class only — the same
+    # disclosure rule the rest of this runtime's receipts follow — and
+    # the ``-`` sentinel rather than an absent key, because a field that
+    # appears only sometimes is one a log reader stops looking for.
+    raw_error = watermark.get("event_offset_error")
+    error_class = (
+        str(raw_error).split(":", 1)[0].strip() or "-"
+        if isinstance(raw_error, str) and raw_error.strip()
+        else "-"
+    )
+    log = OFFICE_SUBSCRIPTIONS.service_log()
+    if log is not None:
+        log(
             {
-                "reason": outcome.reason or NO_PUSH_LANE,
+                "event": "serve_office_subscribe_refused",
+                "reason": BASELINE_UNAVAILABLE,
                 "workspace_id": workspace_id,
-                # Honest even on the failure path: a re-baseline that raced the
-                # drain destroyed the caller's previous subscription before it
-                # learned the new one would not be granted. Silence here would
-                # leave the client believing its old lane survived.
-                "prior_subscription_released": bool(outcome.replaced),
-            },
+                "error": error_class,
+            }
         )
+    return err(
+        rid,
+        ERR_INVALID_REQUEST,
+        "this runtime cannot read its event log's tail; subscribe again",
+        {
+            "reason": BASELINE_UNAVAILABLE,
+            "workspace_id": workspace_id,
+            # Shape parity with the registry's own refusals below: this
+            # lane's clients branch on ``data.reason`` and decode the
+            # rest, so a key that exists on two of three transient
+            # refusals would have to be special-cased. Always False
+            # here, and honestly so — the registry was never called, so
+            # no prior subscription was displaced.
+            "prior_subscription_released": False,
+        },
+    )
+
+
+def _push_lane_refusal(rid: Any, workspace_id: str, outcome: Any) -> dict:
+    """The subscribe refusal when the registry did not register (no hub / draining)."""
+
+    from agent_runtime.serve_office_subscriptions import NO_PUSH_LANE, PUSH_LANE_DRAINING
+
+    # The reason comes from the REGISTRY, not from a second guess here. The
+    # old branch re-derived it by asking ``bound()``, which cannot separate
+    # "no hub" from "a bound hub that is draining" — see the history doc.
+    # Both share ``-32600`` on purpose: this lane's clients branch on
+    # ``data.reason``, which is the whole reason ``data`` is populated at
+    # all, and minting a code per transient state would make the numbers
+    # the contract instead of the names.
+    return err(
+        rid,
+        ERR_INVALID_REQUEST,
+        "this runtime's push lane is draining; reconnect and subscribe again"
+        if outcome.reason == PUSH_LANE_DRAINING
+        else "this runtime has no push lane",
+        {
+            "reason": outcome.reason or NO_PUSH_LANE,
+            "workspace_id": workspace_id,
+            # Honest even on the failure path: a re-baseline that raced the
+            # drain destroyed the caller's previous subscription before it
+            # learned the new one would not be granted. Silence here would
+            # leave the client believing its old lane survived.
+            "prior_subscription_released": bool(outcome.replaced),
+        },
+    )
+
+
+def _subscribe_reply(
+    rid: Any,
+    projection: dict,
+    baseline_offset: int,
+    fold_entities: Any,
+    outcome: Any,
+) -> dict:
+    """The baseline plus the registration receipts: ``watermark``, ``fold_entities``, ``replaced``."""
+
+    from agent_runtime.serve_office_subscriptions import OFFICE_FOLD_ENTITIES
 
     return ok(
         rid,
@@ -566,12 +445,7 @@ def _runtime_office_unsubscribe(
     if workspace_id is None:
         # A caller BUG, unlike everything else this method tolerates: there is
         # no key to name, so there is nothing to answer False about.
-        return err(
-            rid,
-            ERR_INVALID_PARAMS,
-            "invalid params: workspace_id must be a non-empty string",
-            {"reason": "workspace_id_required"},
-        )
+        return workspace_id_required(rid)
     context = context or RpcContext()
 
     released = OFFICE_SUBSCRIPTIONS.release_one(
