@@ -8,6 +8,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from ..serde import bounded_text
 from .db import _DB_LOCK, _emit, _query, _supervised_here, _transaction, get_dispatch
 from .models import (
     _TABLE,
@@ -17,13 +18,12 @@ from .models import (
     DELIVERY_PENDING,
     DROP_REASON_ATTEMPT_CAP,
     MAX_DELIVERY_ATTEMPTS,
-    REARM_ALREADY_DELIVERED,
     REARM_NOT_DROPPED,
     REARM_NOT_FOUND,
+    REARM_OUTCOME_BY_STATE,
     REARM_REARMED,
     STATE_RUNNING,
     STATE_UNKNOWN,
-    _text,
 )
 from .writes import record_completion
 
@@ -193,7 +193,7 @@ def drop_delivery(dispatch_id: str, *, reason: str) -> bool:
             (
                 DELIVERY_DROPPED,
                 now_epoch,
-                _text(reason, 200),
+                bounded_text(reason, 200),
                 str(dispatch_id),
                 DELIVERY_PENDING,
             ),
@@ -242,11 +242,8 @@ def rearm_delivery(dispatch_id: str) -> tuple[str, dict[str, Any] | None]:
         if row is None:
             return REARM_NOT_FOUND, None
         state = str(row[0] or DELIVERY_PENDING)
-        if state == DELIVERY_DELIVERED:
-            outcome = REARM_ALREADY_DELIVERED
-        elif state != DELIVERY_DROPPED:
-            outcome = REARM_NOT_DROPPED
-        else:
+        outcome = REARM_OUTCOME_BY_STATE.get(state, REARM_NOT_DROPPED)
+        if outcome == REARM_REARMED:
             conn.execute(
                 f"""UPDATE {_TABLE} SET delivery_state=?, delivery_attempts=0,
                        delivery_error=NULL, delivery_claim=NULL,
@@ -254,7 +251,6 @@ def rearm_delivery(dispatch_id: str) -> tuple[str, dict[str, Any] | None]:
                     WHERE dispatch_id=? AND delivery_state=?""",
                 (DELIVERY_PENDING, now_epoch, str(dispatch_id), DELIVERY_DROPPED),
             )
-            outcome = REARM_REARMED
     return outcome, get_dispatch(dispatch_id)
 
 

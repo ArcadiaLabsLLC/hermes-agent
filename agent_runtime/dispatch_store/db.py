@@ -13,6 +13,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from ..serde import bounded_text
 from .models import (
     _SELECT,
     _TABLE,
@@ -23,7 +24,6 @@ from .models import (
     STATE_RUNNING,
     STATE_UNKNOWN,
     _row_to_dict,
-    _text,
 )
 
 __layer__ = "stores"
@@ -182,22 +182,17 @@ def _owner_identity() -> tuple[int, int | None]:
 def _emit(event_type: str, **payload: Any) -> None:
     """Append the store event for a mutation. Best effort, never silent.
 
-    Mirrors ``agent_runtime.store._append_store_event``: the EventLog is the
+    ``store_events.emit_store_event`` over a fresh ``EventLog()`` (constructed
+    per call, lazily — the seam tests patch this name): the EventLog is the
     change feed every watermark-gated consumer reads, so a mutation without one
     is invisible; but a broken event log must not fail the durable write that
     already happened.
     """
 
-    try:
-        from hermes_time import now
+    from ..events import EventLog
+    from ..store_events import emit_store_event
 
-        from ..events import EventLog
-        from ..models import Event
-
-        body = {key: value for key, value in payload.items() if value is not None}
-        EventLog().append(Event(now(), event_type, None, None, None, body))
-    except Exception:
-        logger.warning("dispatch store event append failed: %s", event_type, exc_info=True)
+    emit_store_event(EventLog(), event_type, payload, domain="dispatch store")
 
 
 def _query(where: str, params: tuple) -> list[dict[str, Any]]:
@@ -282,7 +277,7 @@ def list_dispatches(
     everything: a missing caller identity is a reason to show less, never more.
     """
 
-    scope = _text(sender_session_id, 240)
+    scope = bounded_text(sender_session_id, 240)
     if not scope:
         return []
     bounded = max(1, min(int(limit or 25), 100))

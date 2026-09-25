@@ -103,6 +103,7 @@ from agent_runtime.dispatch_store.models import (  # noqa: F401 — the package'
     REARM_ERROR_KINDS,
     REARM_NOT_DROPPED,
     REARM_NOT_FOUND,
+    REARM_OUTCOME_BY_STATE,
     REARM_REARMED,
     REMOTE_UNREACHABLE_REASON,
     REPLY_LIMIT,
@@ -117,7 +118,6 @@ from agent_runtime.dispatch_store.models import (  # noqa: F401 — the package'
     _row_to_dict,
     _SELECT,
     _TABLE,
-    _text,
 )
 from agent_runtime.dispatch_store.db import (  # noqa: F401 — the package's export floor
     dispatch_db_path,
@@ -143,6 +143,9 @@ from agent_runtime.dispatch_store.writes import (  # noqa: F401 — the package'
     _backlog_report_due,
     _BACKLOG_REPORT_INTERVAL_SECONDS,
     _backlog_report_state,
+    _completion_events,
+    _completion_result,
+    _completion_update,
     _prune,
 )
 from agent_runtime.dispatch_store.delivery import (  # noqa: F401 — the package's export floor

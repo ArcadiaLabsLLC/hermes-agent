@@ -173,6 +173,21 @@ def safe_text(value: Any, *, limit: int) -> str | None:
     return " ".join(str(value or "").replace("\x00", " ").split())[:limit] or None
 
 
+def bounded_text(value: Any, limit: int) -> str:
+    """``str(value)`` cut to ``limit``; ``None`` is ``""``. No strip, no collapse.
+
+    The bound for a field stored VERBATIM (a dispatch's ask and reply, a peer's
+    media reference): unlike :func:`safe_text` it keeps the text exactly as
+    written, only shorter. ``chat_turn``, ``mission_chat_outcome`` and
+    ``persona_open_chat`` carry the same body as ``_text`` and fold here in
+    their lanes.
+    """
+
+    if value is None:
+        return ""
+    return str(value)[:limit]
+
+
 def safe_block(value: Any, *, limit: int) -> str | None:
     """Newline-PRESERVING bounded text; ``None`` when nothing is left.
 

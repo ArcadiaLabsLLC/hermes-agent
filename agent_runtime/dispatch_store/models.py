@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Mapping
 from typing import Any
+
+from ..serde import bounded_text
 
 __layer__ = "models"
 
@@ -92,6 +95,17 @@ REARM_ERROR_KINDS = {
 }
 ERROR_KIND_DISPATCH_STORE_UNAVAILABLE = "dispatch_store_unavailable"
 
+#: What :func:`~agent_runtime.dispatch_store.delivery.rearm_delivery` answers for
+#: each delivery state (rule 12: the three-arm ladder as a table). Only a DROPPED
+#: row is re-armed; a delivered one refuses (the sender was told), a pending one
+#: refuses (it is already queued). A state not listed answers
+#: :data:`REARM_NOT_DROPPED` — the refusal, never the write.
+REARM_OUTCOME_BY_STATE: Mapping[str, str] = {
+    DELIVERY_DELIVERED: REARM_ALREADY_DELIVERED,
+    DELIVERY_PENDING: REARM_NOT_DROPPED,
+    DELIVERY_DROPPED: REARM_REARMED,
+}
+
 #: Bound on the stored ask/reply text. The reply bound matches the relay tool's
 #: own ``_REPLY_LIMIT`` (``tools/agent_chat_tool.py``) and the delivery lane's
 #: ``dispatch_delivery.REPLY_LIMIT``; nothing downstream ever needs more, and the
@@ -110,13 +124,6 @@ def mint_dispatch_id() -> str:
     """A dispatch handle. Short, opaque, and stable across processes."""
 
     return f"dispatch-{uuid.uuid4().hex[:12]}"
-
-
-def _text(value: Any, limit: int) -> str:
-    if value is None:
-        return ""
-    text = str(value)
-    return text[:limit]
 
 
 #: Bound on ONE completion's media map, and on the two strings each row carries.
@@ -154,8 +161,8 @@ def _media_rows(media: Any) -> list[dict[str, Any]]:
             break
         if not isinstance(entry, dict):
             continue
-        reference = _text(entry.get("reference"), MEDIA_REFERENCE_LIMIT)
-        handle = _text(entry.get("handle"), MEDIA_HANDLE_LIMIT)
+        reference = bounded_text(entry.get("reference"), MEDIA_REFERENCE_LIMIT)
+        handle = bounded_text(entry.get("handle"), MEDIA_HANDLE_LIMIT)
         if not reference or not handle:
             continue
         size = entry.get("size_bytes")
@@ -163,7 +170,7 @@ def _media_rows(media: Any) -> list[dict[str, Any]]:
             {
                 "reference": reference,
                 "handle": handle,
-                "media_type": _text(entry.get("media_type"), 120),
+                "media_type": bounded_text(entry.get("media_type"), 120),
                 "size_bytes": int(size)
                 if isinstance(size, int) and not isinstance(size, bool)
                 else 0,

@@ -3196,7 +3196,7 @@
     {
       "id": "p4-completion-event-carries-the-whole-map",
       "path": "agent_runtime/dispatch_store/writes.py",
-      "symbol": "record_completion",
+      "symbol": "_completion_events",
       "operator": "widen-event-payload",
       "find": "            media_count=len(media_rows) or None,\n",
       "replace": "            media_count=len(media_rows) or None,\n            media=media_rows or None,\n",

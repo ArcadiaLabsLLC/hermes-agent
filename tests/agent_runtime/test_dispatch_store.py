@@ -265,6 +265,39 @@ def test_rearm_delivery_answers_each_delivery_state_by_name(store_home):
     assert dispatch_store.rearm_delivery("dispatch-missing") == (dispatch_store.REARM_NOT_FOUND, None)
 
 
+def test_the_stored_texts_are_cut_to_their_bounds_verbatim(store_home):
+    """Control for ``serde.bounded_text`` (the fold of ``_text``): a field over
+    its bound is cut to EXACTLY the bound and otherwise kept verbatim — no
+    strip, no collapse — and ``None`` is stored as ``""``."""
+
+    from agent_runtime.dispatch_store import ASK_LIMIT, REPLY_LIMIT
+
+    ask = "  keep  the   spacing  " + "a" * ASK_LIMIT
+    dispatch_id = _dispatch(ask=ask, title=None)
+    row = get_dispatch(dispatch_id)
+    assert row["ask"] == ask[:ASK_LIMIT]
+    assert row["title"] == ""
+    record_completion(dispatch_id, state=STATE_COMPLETED, reply="r" * (REPLY_LIMIT + 7))
+    assert len(get_dispatch(dispatch_id)["result"]["reply"]) == REPLY_LIMIT
+
+
+def test_a_real_append_drops_the_absent_fields(store_home):
+    """Control for the ``emit_store_event`` fold, through the REAL EventLog
+    (every other event test patches ``_emit``): an untitled local dispatch's
+    ``dispatch.recorded`` carries no ``title`` and no ``remote_install_id``."""
+
+    from agent_runtime.events import EventLog
+
+    dispatch_id = _dispatch(title="")
+    rows = [
+        evt.payload
+        for _, evt in EventLog().iter_from_offset(0)
+        if evt.type == "dispatch.recorded" and (evt.payload or {}).get("dispatch_id") == dispatch_id
+    ]
+    assert len(rows) == 1
+    assert "title" not in rows[0] and "remote_install_id" not in rows[0]
+
+
 def test_listing_is_scoped_to_the_calling_session(store_home):
     """``agent_chat_dispatches`` must never show another agent's work."""
 

@@ -61,11 +61,6 @@
    "unit": "agent_runtime/dispatch_delivery.py|drain_background_completions"
   },
   {
-   "depth": 2,
-   "lines": 155,
-   "unit": "agent_runtime/dispatch_store/writes.py|record_completion"
-  },
-  {
    "depth": 5,
    "lines": 42,
    "unit": "agent_runtime/events.py|_archived_event_slices"

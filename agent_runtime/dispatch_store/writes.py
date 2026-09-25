@@ -10,6 +10,7 @@ import logging
 import time
 from typing import Any
 
+from ..serde import bounded_text
 from .db import _DB_LOCK, _emit, _owner_identity, _transaction
 from .models import (
     _MAX_RETAINED_TERMINAL,
@@ -23,7 +24,6 @@ from .models import (
     STATE_UNKNOWN,
     TERMINAL_STATES,
     _media_rows,
-    _text,
 )
 
 __layer__ = "lanes"
@@ -57,15 +57,15 @@ def record_dispatch(
     pid, started = _owner_identity()
     row = {
         "dispatch_id": str(dispatch_id),
-        "sender_session_id": _text(sender_session_id, 240),
-        "sender_persona_id": _text(sender_persona_id, 160),
-        "target_persona": _text(target_persona, 160),
-        "target_instance_id": _text(target_instance_id, 200),
-        "title": _text(title, 200),
-        "ask": _text(ask, ASK_LIMIT),
+        "sender_session_id": bounded_text(sender_session_id, 240),
+        "sender_persona_id": bounded_text(sender_persona_id, 160),
+        "target_persona": bounded_text(target_persona, 160),
+        "target_instance_id": bounded_text(target_instance_id, 200),
+        "title": bounded_text(title, 200),
+        "ask": bounded_text(ask, ASK_LIMIT),
         "notify_operator": bool(notify_operator),
         "dispatched_at": now_epoch,
-        "remote_install_id": _text(remote_install_id, 128),
+        "remote_install_id": bounded_text(remote_install_id, 128),
     }
     with _DB_LOCK, _transaction() as conn:
         conn.execute(
@@ -172,21 +172,58 @@ def record_completion(
     settled = str(state or STATE_UNKNOWN)
     if settled not in TERMINAL_STATES:
         settled = STATE_UNKNOWN
-    now_epoch = time.time()
+    media_rows = _media_rows(media)
+    result = _completion_result(
+        settled, reply, error, target_session_id, total_tokens, visibility, remote, media_rows
+    )
+    updated, prior = _completion_update(dispatch_id, settled, result, only_if_running=only_if_running)
+    if updated:
+        _completion_events(str(dispatch_id), prior, settled, result, remote, media_rows)
+    _prune()
+    return updated
+
+
+def _completion_result(
+    settled: str,
+    reply: str,
+    error: str,
+    target_session_id: str,
+    total_tokens: Any,
+    visibility: dict[str, Any] | None,
+    remote: dict[str, Any] | None,
+    media_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """The result blob ``record_completion`` stores — bounded, and carrying
+    ``visibility`` / ``remote`` / ``media`` only when present (absent stays
+    absent, so an older row and a local dispatch keep their exact bytes)."""
+
     result = {
         "status": settled,
-        "reply": _text(reply, REPLY_LIMIT),
-        "error": _text(error, 600),
-        "target_session_id": _text(target_session_id, 240),
+        "reply": bounded_text(reply, REPLY_LIMIT),
+        "error": bounded_text(error, 600),
+        "target_session_id": bounded_text(target_session_id, 240),
         "total_tokens": total_tokens,
     }
     if isinstance(visibility, dict) and visibility:
         result["visibility"] = dict(visibility)
     if isinstance(remote, dict) and remote:
         result["remote"] = dict(remote)
-    media_rows = _media_rows(media)
     if media_rows:
         result["media"] = media_rows
+    return result
+
+
+def _completion_update(
+    dispatch_id: str, settled: str, result: dict[str, Any], *, only_if_running: bool
+) -> tuple[bool, tuple | None]:
+    """Write the settle and arm the row for delivery; ``(updated, prior)``.
+
+    ``prior`` is the row's ``(state, delivery_state)`` read inside the same
+    transaction — the evidence :func:`_completion_events` needs to name an
+    outcome superseding one the sender was already told about.
+    """
+
+    now_epoch = time.time()
     guard = " AND state=?" if only_if_running else ""
     params: list[Any] = [
         settled,
@@ -235,35 +272,46 @@ def record_completion(
             tuple(params),
         )
         updated = cur.rowcount == 1
-    if updated and prior is not None:
+    return updated, prior
+
+
+def _completion_events(
+    dispatch_id: str,
+    prior: tuple | None,
+    settled: str,
+    result: dict[str, Any],
+    remote: dict[str, Any] | None,
+    media_rows: list[dict[str, Any]],
+) -> None:
+    """``dispatch.outcome_superseded`` (a different verdict landing on a row
+    already delivered) and ``dispatch.completed`` for an applied settle."""
+
+    if prior is not None:
         prior_state, prior_delivery = prior
         if prior_delivery == DELIVERY_DELIVERED and str(prior_state or "") != settled:
             _emit(
                 "dispatch.outcome_superseded",
-                dispatch_id=str(dispatch_id),
+                dispatch_id=dispatch_id,
                 previous=str(prior_state or ""),
                 settled=settled,
             )
-    if updated:
-        _emit(
-            "dispatch.completed",
-            dispatch_id=str(dispatch_id),
-            status=settled,
-            reply_chars=len(result["reply"]),
-            error=result["error"][:200] or None,
-            target_session_id=result["target_session_id"] or None,
-            # Both optional and both absent on a local dispatch, so its event
-            # stays exactly the bytes it has always been.
-            remote_install_id=(remote or {}).get("install_id") or None,
-            remote_reason=(remote or {}).get("reason") or None,
-            # COUNT, never the map. See the ``media`` paragraph above: the
-            # payload cap is 4096 bytes and one map can exceed it, so what the
-            # event says is that pictures arrived and how many, and the row
-            # says which.
-            media_count=len(media_rows) or None,
-        )
-    _prune()
-    return updated
+    _emit(
+        "dispatch.completed",
+        dispatch_id=dispatch_id,
+        status=settled,
+        reply_chars=len(result["reply"]),
+        error=result["error"][:200] or None,
+        target_session_id=result["target_session_id"] or None,
+        # Both optional and both absent on a local dispatch, so its event
+        # stays exactly the bytes it has always been.
+        remote_install_id=(remote or {}).get("install_id") or None,
+        remote_reason=(remote or {}).get("reason") or None,
+        # COUNT, never the map. See record_completion's ``media`` paragraph: the
+        # payload cap is 4096 bytes and one map can exceed it, so what the
+        # event says is that pictures arrived and how many, and the row
+        # says which.
+        media_count=len(media_rows) or None,
+    )
 
 
 #: How often the backlog report may repeat while the condition persists.
