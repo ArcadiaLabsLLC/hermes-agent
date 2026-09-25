@@ -270,10 +270,9 @@ def _default_admission_line(persona: Any, *, session_id: str | None) -> str:
 
 
 def _default_tool_contract(persona: Any, *, session_id: str | None) -> dict[str, Any]:
-    # Through the bundle, which composes the same two lists
-    # ``chat_runtime_tool_contract`` composes — from the SAME resolve the
-    # request the actor is built from uses, so the reuse key and the request
-    # cannot describe different tool surfaces.
+    # Through the bundle, which composes the two tool lists from the SAME
+    # resolve the request the actor is built from uses, so the reuse key and
+    # the request cannot describe different tool surfaces.
     from .chat_lane_bundle import chat_lane_bundle
 
     return chat_lane_bundle(persona, session_id=session_id).tool_contract()

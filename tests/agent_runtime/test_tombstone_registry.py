@@ -3589,6 +3589,18 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "merge_archived_ledgers",
         scope=("agent_runtime.office_store", "agent_runtime.office_store.models"),
     ),
+    *rows(
+        # Lane Q-DEAD-B (2026-09-25): dead-code queue row
+        # `chat_runtime_tool_contract` (reach census W0-D), DELETE.
+        "s-qdb",
+        "HEAD",
+        Form.CODE,
+        "composed the chat actor's two tool lists with no production caller; "
+        "chat_lane_bundle composes the same two lists once, from the resolve "
+        "the actor request uses",
+        "chat_runtime_tool_contract",
+        scope=_AR,
+    ),
 )
 
 

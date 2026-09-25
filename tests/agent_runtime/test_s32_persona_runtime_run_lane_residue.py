@@ -128,12 +128,13 @@ def test_no_module_level_name_is_unreachable_from_the_external_surface():
     roots = {
         "GPTPersonaRuntime",
         "MISSION_CHAT_WORKSPACE_AGENTS_PREAMBLE",
+        "_blocked_tool_names_for_chat",  # imported by chat_lane_bundle
+        "_enabled_toolsets_for_chat",  # imported by chat_lane_bundle
         "_mission_chat_identity_prompt",
         "_mission_chat_operative_rules",
         "_mission_chat_soul_overlay",
         "apply_chat_lane_tool_scope",
         "chat_lane_capability_drops",
-        "chat_runtime_tool_contract",
         "mission_chat_admission_line",
         "mission_chat_operating_skills",
     }
@@ -183,7 +184,6 @@ def test_the_chat_lane_entry_points_still_resolve():
         "GPTPersonaRuntime",
         "apply_chat_lane_tool_scope",
         "chat_lane_capability_drops",
-        "chat_runtime_tool_contract",
         "mission_chat_admission_line",
         "mission_chat_operating_skills",
     ):

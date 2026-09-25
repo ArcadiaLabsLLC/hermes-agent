@@ -484,10 +484,9 @@ def _build_bundle(
         _enabled_toolsets_for_chat(persona, session_id=session_id, admission=admission)
     )
     blocked = tuple(_blocked_tool_names_for_chat(persona, session_id=session_id))
-    # The tool contract IS these two lists — composed here rather than by a
-    # second call to ``chat_runtime_tool_contract`` so the actor's reuse key and
-    # the request the actor is built from are literally the same answer, not two
-    # equal ones.
+    # The tool contract IS these two lists — composed here, once, so the actor's
+    # reuse key and the request the actor is built from are literally the same
+    # answer, not two equal ones.
     tool_contract = {
         "enabled_toolsets": list(enabled),
         "blocked_tool_names": list(blocked),
