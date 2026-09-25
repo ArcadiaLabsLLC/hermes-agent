@@ -222,7 +222,6 @@
   "agent_runtime/queued_skills.py",
   "agent_runtime/realm_membership.py",
   "agent_runtime/realm_revert.py",
-  "agent_runtime/realm_sync.py",
   "agent_runtime/redaction.py",
   "agent_runtime/redaction_mode.py",
   "agent_runtime/relay_policy.py",

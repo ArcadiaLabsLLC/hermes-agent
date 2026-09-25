@@ -39,7 +39,7 @@ Directories present in the live root, with the module that owns each:
 | `boards/`, `office/`, `workspaces/`, `realms/`, `agents/` | `paths.py:81,132,73,77,228` | Mission Board / Office / topology entities |
 | `levels/` | `paths.py:302`, `agent_runtime/level_sync.py` | one `<workspace token>.json` per workspace LEVEL — the launcher's `SceneSerializer` bytes VERBATIM. hermes validates only that it is UTF-8 JSON carrying a `version` and reformats nothing; realm-synced whole-document (adopt / converge / keep-local / HOLD) |
 | `flow_graphs/` | `checkpoint.py:62` | checkpoint flow graphs |
-| `realm_sync/`, `realm_sync_state/` | `realm_sync.py:1871` | per-realm git worktrees + sync state |
+| `realm_sync/`, `realm_sync_state/` | `realm_sync/git.py` (`_sync_repo_path`), `realm_sync/sidecar.py` (`realm_sync_sidecar_path`) | per-realm git worktrees + sync state |
 | `serve_read_model/` | `core_cache.py:244` | the persisted snapshot core (below) |
 | `serve_instances/` | `serve_registry.py` (`SERVE_INSTANCES_DIRNAME`) | one `<pid>.json` per live serve, one `<pid>.ended.json` per serve that ended, one `<pid>.stderr.log` per `--service` runtime (below) |
 | `deleted_archive/`, `migration_backups/`, `wt_reaped_patches/`, `locks/` | `paths.py:302`, `default_scope.py:552`, `delivery_directive.py:65` | archive-never-delete and lock trees |

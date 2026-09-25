@@ -314,7 +314,7 @@ families rather than about the lane, and the transport is in
 defined in [Realms and workspaces](#realms-and-workspaces) above.
 
 **Both of those ledgers are UNIONED on pull, not adopted** (RD-11, 2026-08-31,
-`4a8d398268`). `_UNIONED_REALM_LEDGERS` (`realm_sync.py`) names them and
+`4a8d398268`). `_UNIONED_REALM_LEDGERS` (`realm_sync/ledgers.py`) names them and
 `_pulled_artifact_bytes` merges each by its own rule — set-union for
 `deleted_workspace_ids`, per-slug newest-stamp-wins for `skill_tombstones` — so
 a concurrent publish can no longer drop a delete another member recorded. It is
@@ -357,7 +357,7 @@ with the code it always raised — and attempts no network call on the way there
 (`3e6d8c06f3`). Pull deliberately never clobbers local state, which used to
 leave an operator holding drift they never meant to publish with Publish as the
 only door. `_board_store_drift` / `_office_store_drift` now build per-item rows
-(`StoreDriftItem`: family, container, item_key, kind — `realm_sync.py`) and
+(`StoreDriftItem`: family, container, item_key, kind — `realm_sync/drift.py`) and
 the four existing counts are DERIVED from those rows, so the count shapes the
 launcher parses are byte-identical and `store_drift.items` is additive beside
 them. `hermes harness realm sync revert <realm> [--item FAMILY:CONTAINER:KEY]…
@@ -513,7 +513,7 @@ The lane that closes it is one more family applier, and nothing else:
   `steering_healed: [{key, parent}]`, and a healed row is counted in `adopted`
   because a travelling field did move forward onto an existing row.
 - **Drift and revert reach these rows.** `DRIFT_FAMILY_PERSONA_INSTANCE`
-  (`realm_sync.py`) with counts `store_drift.persona_instances` additive
+  (`realm_sync/drift.py`) with counts `store_drift.persona_instances` additive
   beside `boards` / `office`, items keyed `{family, container=workspace_id,
   item_key=instance_id, kind}`, and the revert selector
   `persona_instance:<workspace_id>:<instance_id>`. `classify_revert` needed the
@@ -753,7 +753,7 @@ HOW MANY, and `None` (never `0`) when the skill did not resolve.
 | Trigger | Where | Covers |
 |---|---|---|
 | explicit CLI | `harness install-harness-skills` | manual only |
-| realm-sync pull | `agent_runtime/realm_sync.py:509-511` | realm members, on realm pull |
+| realm-sync pull | `agent_runtime/realm_sync/pull.py` `pull_realm_sync` (`install_results`) | realm members, on realm pull |
 | `git pull` | `.githooks/post-merge` → the verify script | a consumer's merge pull |
 | `harness serve` boot | `harness_parts/serve.py` `install_harness_skills_at_boot` | every boot, every pull shape |
 
@@ -790,7 +790,7 @@ tombstone covers top-level `foo` AND categorized `<cat>/foo`
 receipt's `archived` array is the truth and its scalar fields are only the
 single-package convenience. Enforcement is entirely client-side, because a
 GitHub-App push has no pre-receive hook, and it closes at three points in
-`realm_sync.py`: pull applies the ledger (`_apply_skill_tombstones`,
+the `realm_sync/` package: pull applies the ledger (`_apply_skill_tombstones`,
 archive-never-delete), pull's auto-adopt skips tombstoned slugs, and publish
 filters them out of the artifact set (`_skill_artifacts`). Canonical
 ids refuse with `skill_installer_owned` — every pull reinstalls the canonical

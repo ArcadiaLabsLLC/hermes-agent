@@ -238,22 +238,22 @@
   {
    "depth": 4,
    "lines": 193,
-   "unit": "agent_runtime/realm_sync.py|apply_skill_inbox_pull"
+   "unit": "agent_runtime/realm_sync/skill_inbox.py|apply_skill_inbox_pull"
   },
   {
    "depth": 3,
    "lines": 242,
-   "unit": "agent_runtime/realm_sync.py|publish_realm_sync"
+   "unit": "agent_runtime/realm_sync/publish.py|publish_realm_sync"
   },
   {
    "depth": 2,
    "lines": 237,
-   "unit": "agent_runtime/realm_sync.py|pull_realm_sync"
+   "unit": "agent_runtime/realm_sync/pull.py|pull_realm_sync"
   },
   {
    "depth": 2,
    "lines": 167,
-   "unit": "agent_runtime/realm_sync.py|realm_sync_status"
+   "unit": "agent_runtime/realm_sync/status.py|realm_sync_status"
   },
   {
    "depth": 5,

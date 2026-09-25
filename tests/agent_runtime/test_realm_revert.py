@@ -557,7 +557,7 @@ def test_status_carries_the_items_beside_the_unchanged_counts(tmp_path, monkeypa
     """The wire contract the launcher parses: ``store_drift.items`` is ADDITIVE
     and the four-key count shapes are untouched."""
 
-    from agent_runtime import realm_sync
+    from agent_runtime.realm_sync import status as realm_sync
 
     realm_id, ws, _ = _synced_office(tmp_path)
     OfficeStore().remove_actor(ws, "dev")

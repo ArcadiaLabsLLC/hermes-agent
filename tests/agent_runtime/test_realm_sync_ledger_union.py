@@ -177,7 +177,7 @@ def test_the_merge_bounds_the_ledger_and_evicts_settled_history_first(monkeypatc
     # Rebind the module-level import the merge closes over, the way the store's
     # own cap test narrows the bound rather than minting 201 entries.
     monkeypatch.setattr(
-        "agent_runtime.realm_sync.SKILL_TOMBSTONE_LEDGER_CAP", 2, raising=True
+        "agent_runtime.realm_sync.ledgers.SKILL_TOMBSTONE_LEDGER_CAP", 2, raising=True
     )
 
     # The settled entry's transition is the NEWEST of the three, so a plain

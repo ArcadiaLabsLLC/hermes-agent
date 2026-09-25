@@ -969,7 +969,7 @@
     },
     {
       "id": "c3-publish-re-walks-the-directory-instead-of-the-scan",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/publish_scans.py",
       "symbol": "_office_publish_scan",
       "operator": "restore-second-authority-glob",
       "find": "            actor_path = paths.office_actor_path(workspace_token, actor.actor_key)",
@@ -1872,7 +1872,7 @@
     },
     {
       "id": "s4-the-tombstone-union-keeps-the-local-only-entry",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/ledgers.py",
       "symbol": "merge_skill_tombstone_ledgers",
       "operator": "adopt-incoming-instead-of-union",
       "find": "    for rows in (local, incoming):\n",
@@ -1887,7 +1887,7 @@
     },
     {
       "id": "s4-the-merge-ranks-by-the-later-of-the-two-stamps",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/ledgers.py",
       "symbol": "_tombstone_transition_at",
       "operator": "rank-by-the-delete-stamp-only",
       "find": "        for stamp in (_ledger_time(row.get(\"restored_at\")), _ledger_time(row.get(\"deleted_at\")))\n",
@@ -1902,7 +1902,7 @@
     },
     {
       "id": "s4-an-equal-stamp-tie-resolves-to-the-delete",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/ledgers.py",
       "symbol": "_newer_tombstone_row",
       "operator": "resolve-the-tie-to-the-local-side",
       "find": "    if candidate_blocks and not held_blocks:\n        return candidate\n    return held",
@@ -1917,7 +1917,7 @@
     },
     {
       "id": "s4-the-workspace-ledger-is-unioned-not-adopted",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/ledgers.py",
       "symbol": "merge_deleted_workspace_ledgers",
       "operator": "adopt-incoming-instead-of-union",
       "find": "    for rows in (local, incoming):\n",
@@ -1932,7 +1932,7 @@
     },
     {
       "id": "s4-the-ledger-union-is-not-gated-on-server-id",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/pull.py",
       "symbol": "_pulled_artifact_bytes",
       "operator": "re-gate-the-union-behind-a-server-binding",
       "find": "    if artifact.kind != \"realm\" or not artifact.destination.exists():\n",
@@ -2247,7 +2247,7 @@
     },
     {
       "id": "ir-h2-instance-ids-re-walk-the-directory-instead-of-the-scan",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/publish_scans.py",
       "symbol": "_office_publish_scan",
       "operator": "restore-second-authority-glob-for-instances",
       "find": "            if actor.persona_instance_id and actor.persona_instance_id not in instance_ids:\n                instance_ids.append(actor.persona_instance_id)\n",
@@ -2262,7 +2262,7 @@
     },
     {
       "id": "ir-h2-projection-stops-pruning-to-the-referenced-set",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/artifacts.py",
       "symbol": "_resolve_artifacts_with_projection",
       "operator": "publish-every-local-instance",
       "find": "    instance_projection, instance_rows_unreadable = _persona_instance_projection(\n        office_scan.instance_ids\n    )\n",
@@ -2292,7 +2292,7 @@
     },
     {
       "id": "ir-h2-publish-row-swallows-the-store-shortfall",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/artifacts.py",
       "symbol": "_persona_instance_projection",
       "operator": "zero-the-unreadable-row-count",
       "find": "        unreadable = scan.unreadable\n",
@@ -2457,7 +2457,7 @@
     },
     {
       "id": "ir-h4-canonical-rows-enter-the-drift-walk",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/drift.py",
       "symbol": "_persona_instance_store_drift_items",
       "operator": "stop-excluding-canonical-channels",
       "find": "        if is_canonical_persona_channel(instance):\n            continue",
@@ -2472,7 +2472,7 @@
     },
     {
       "id": "ir-h4-a-short-instance-read-reports-removals",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/drift.py",
       "symbol": "_persona_instance_store_drift_items",
       "operator": "spend-only-the-rows",
       "find": "    if scan.unreadable:\n        return []\n\n    workspace_ids",
@@ -3600,7 +3600,7 @@
     },
     {
       "id": "sh-status-swallows-the-denial-it-degraded-on",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/status.py",
       "symbol": "realm_sync_status",
       "operator": "report-the-degraded-read-as-a-verified-one",
       "find": "        remote_check = {\"checked\": False, \"error\": auth_error.code}",
@@ -3615,7 +3615,7 @@
     },
     {
       "id": "sh-status-degrades-with-no-local-repo-to-degrade-to",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/status.py",
       "symbol": "realm_sync_status",
       "operator": "drop-the-floor-of-the-degrade",
       "find": "        if not (repo / \".git\").exists():\n            raise auth_error",

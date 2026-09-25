@@ -49,8 +49,11 @@ def homes(monkeypatch, tmp_path):
     profiles_root = tmp_path / "profiles"
     active_home = profiles_root / "alice"
     active_home.mkdir(parents=True)
-    monkeypatch.setattr(realm_sync, "active_profile_name", lambda: "alice")
-    monkeypatch.setattr(realm_sync, "get_hermes_home", lambda: active_home)
+    # Every realm_sync module that reads either name as a global.
+    for module in (realm_sync.models, realm_sync.families, realm_sync.git, realm_sync.persona_artifacts):
+        for name, value in (("active_profile_name", lambda: "alice"), ("get_hermes_home", lambda: active_home)):
+            if hasattr(module, name):
+                monkeypatch.setattr(module, name, value)
     import hermes_cli.profiles as profiles_mod
 
     monkeypatch.setattr(
@@ -131,7 +134,7 @@ def test_publish_and_pull_agree_on_every_destination(homes, tmp_path, monkeypatc
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("x\n", encoding="utf-8")
     monkeypatch.setattr(
-        realm_sync,
+        realm_sync.persona_artifacts,
         "resolve_persona_profile",
         lambda persona: SimpleNamespace(profile_home=home, hermes_profile="alice"),
     )
@@ -416,7 +419,7 @@ def test_publish_tail_is_the_destination_so_a_prompt_round_trips(homes, tmp_path
     overlay.parent.mkdir(parents=True, exist_ok=True)
     overlay.write_text("soul\n", encoding="utf-8")
     monkeypatch.setattr(
-        realm_sync,
+        realm_sync.persona_artifacts,
         "resolve_persona_profile",
         lambda persona: SimpleNamespace(profile_home=publisher_home, hermes_profile="alice"),
     )

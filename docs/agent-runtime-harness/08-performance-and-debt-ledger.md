@@ -339,7 +339,7 @@ Executed history stays archived. The duplicate-implementation retirement's rows
   `hermes_cli_contract.json` is stale in both directions.
 - Not swept, so absence of a row is not a clean bill: intra-function dead branches inside
   live handlers of `harness.py` / `serve.py` / `harness_parts/persona/`; `core_cache.py` and
-  `realm_sync.py` internals; `serve_socket.py` and `serve_office_subscriptions.py` lock
+  `realm_sync/` internals; `serve_socket.py` and `serve_office_subscriptions.py` lock
   and lease semantics; several wire-token vocabularies; `tests/` as subjects.
 - Refused with evidence — do not re-derive: the persona-chat append seam (NEW-1, a
   chokepoint between callers, pinned by `tests/hermes_cli/test_persona_chat_append_seam.py`),
