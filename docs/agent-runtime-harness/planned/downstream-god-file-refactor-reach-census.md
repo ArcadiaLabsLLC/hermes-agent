@@ -118,12 +118,12 @@ tools/agent_chat_dispatch.py:489-503 _kill_child function 15 lines, 0 hits
 tools/agent_chat_dispatch.py:1074-1097 dispatch_detached_turn function 24 lines, 0 hits
 ```
 
-## Re-run 2026-09-25 (lane Q-DEAD-B) — with the static-reach pre-filter (`8f5d6e7df6`)
+## Re-run 2026-09-25 (lane Q-DEAD-B) — with the static-reach pre-filter (`a8f33b836c`)
 
-Same instrument, traced once at `d3d15b3206` (population now 41 files, 657 traced test files, suite exit 1 — 14 red test files, none of them this lane's), then read twice from the one coverage document:
+Same instrument, traced once on base `13602d97fc` before the lane rebased onto `5e60ed0d1c` (population now 41 files, 657 traced test files, suite exit 1 — 14 red test files, none of them this lane's), then read twice from the one coverage document:
 
 - **Before** (`--no-static-reach`, the unfiltered census): **62 rows** — 40 functions, 22 arms.
-- **After** (default): **25 rows filed** — 3 functions, 22 arms — and **36 struck**, each listed with the production reference that reaches it (own-file call, a value passed or tabled, a registration, an import). One function row fewer in total because `chat_runtime_tool_contract` was deleted between the two reads (`baeef7557e`).
+- **After** (default): **25 rows filed** — 3 functions, 22 arms — and **36 struck**, each listed with the production reference that reaches it (own-file call, a value passed or tabled, a registration, an import). One function row fewer in total because `chat_runtime_tool_contract` was deleted between the two reads (`48b1b2887d`).
 - The 3 function rows left are the honest kind: `existing_run_worktrees` and `remove_harness_worktree_for_repo` (tests-only, DESIGN verdict on their queue rows) and `PersonaChatRuntimeRegistry.finish` (a method; cross-file attribute calls are outside the pre-filter by design).
 - Arms are never struck (they are not symbols); rows in a child-process file say so (`serve/`, the MCP servers, any `__main__`-guarded script).
 
