@@ -32,6 +32,12 @@ janitor to be tested against hand-rolled directories instead of real worktrees.
 ``repo_execution_context_for_task`` shares ``_context_for_workdir`` with that
 kept lane, so the whole file is excluded. The S43 KEEP stands, unamended.
 
+**INVERTED 2026-09-25 (owner ruling, lane SEAM).** The claim was right that the
+lane is ONE unit and wrong that it had to stay in production: it moved, whole,
+to ``tests/_downstream/_seams.py`` — the constructor the janitor suite still
+builds real worktrees with, now a test seam — while the reaper stays live in
+``repo_context``. The pin below now says exactly that.
+
 **A false claim found in a docstring, cut anyway.**
 ``prompt_observability.load_final_model_input_for_context`` advertised itself as
 the read "the launcher fetch lane and a future ``harness prompt-context
@@ -83,10 +89,11 @@ which a removal registry can express:
 
 * ``test_the_live_neighbours_survive`` (``KEPT``) is the POSITIVE half; a
   tombstone table has no positive form.
-* ``test_the_repo_context_worktree_lane_was_NOT_cut`` and
-  ``test_the_delivery_directive_janitor_still_builds_real_worktrees`` pin the
-  scout claim that DIED, including the wire from the janitor suite to the kept
-  constructor.
+* ``test_the_repo_context_worktree_lane_is_a_test_seam`` (inverted
+  2026-09-25 from ``..._was_NOT_cut``) and
+  ``test_the_delivery_directive_janitor_still_builds_real_worktrees`` pin where
+  the lane lives now, including the wire from the janitor suite to the
+  constructor in the test seam.
 * ``test_the_kept_incident_constant_is_addressed_by_value_somewhere_live``
   records why ``incidents.MODEL_INVALID_OUTPUT`` is deliberately NOT a
   tombstone — its value is live as a bare literal in ``observability.py``.
@@ -174,26 +181,32 @@ def test_the_live_neighbours_survive(dotted: str):
     assert [name for name in KEPT[dotted] if not hasattr(module, name)] == []
 
 
-def test_the_repo_context_worktree_lane_was_NOT_cut():
-    """The scout claim that died, pinned so it is not re-attempted.
+def test_the_repo_context_worktree_lane_is_a_test_seam():
+    """The run-worktree creator lane lives in the test seam, not in production.
 
-    ``isolated_repo_context_for_run`` was ruled a closed loop. It is not: it is
-    the fixture constructor the delivery-directive janitor suite builds real
-    worktrees with, and its S24 docstring names two live-incident regressions
-    reachable only through it. The whole lane stays.
+    INVERTED 2026-09-25 (owner ruling, lane SEAM). This used to pin the lane
+    PRESENT in ``agent_runtime.repo_context`` (the scout's cut claim that died
+    at S54). The owner ruled it a TEST SEAM as one unit: no production caller
+    since S5/S8, kept only as the constructor the worktree suites build real
+    worktrees with. Both halves are pinned — gone from production, whole in the
+    seam — so neither a resurrection nor a lost regression constructor passes.
+    The reaper the janitor calls stays in production.
     """
 
     from agent_runtime import repo_context
+    from tests._downstream import _seams
 
-    for name in (
+    lane = (
         "repo_execution_context_for_task",
         "isolated_repo_context_for_run",
         "_worktree_token",
         "_ensure_isolated_worktree",
         "existing_run_worktrees",
         "remove_harness_worktree_for_repo",
-    ):
-        assert hasattr(repo_context, name), name
+    )
+    assert [name for name in lane if hasattr(repo_context, name)] == []
+    assert [name for name in lane if not callable(getattr(_seams, name, None))] == []
+    assert callable(repo_context.remove_orphan_worktree)
 
 
 def test_the_delivery_directive_janitor_still_builds_real_worktrees(
