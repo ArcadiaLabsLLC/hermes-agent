@@ -62,7 +62,7 @@ _BACKLOG_REASON = (
 LEDGER: dict[str, str] = {
     name: _BACKLOG_REASON
     for name in (
-        # harness.py
+        # harness_parts/ verb families (lane H2 split harness.py)
         "_cmd_roots_list", "_cmd_roots_set", "_cmd_roots_unset", "_cmd_roots_migrate",
         "_cmd_persona_instance_detail",
         "_cmd_skills_catalog", "_cmd_skills_publishable", "_cmd_skills_inbox",

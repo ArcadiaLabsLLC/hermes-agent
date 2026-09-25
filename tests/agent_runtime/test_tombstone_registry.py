@@ -159,7 +159,8 @@ HERMES_ROOT = Path(__file__).resolve().parents[2]
 #: The harness verbs' name space: harness.py plus the command parts it used to
 #: exec into its globals. Since lane H1 (2026-09-24) each part is its own
 #: module, so a harness-scoped absence row checks every one of them — the
-#: coverage the shared exec'd namespace gave it for free.
+#: coverage the shared exec'd namespace gave it for free. Lane H2 moved
+#: harness.py's own verb families into ``harness_parts`` too; they are listed.
 HARNESS_NAMESPACE = (
     "hermes_cli.harness",
     "hermes_cli.harness_parts.board",
@@ -186,6 +187,29 @@ HARNESS_NAMESPACE = (
     "hermes_cli.harness_parts.persona.lifecycle_commands",
     "hermes_cli.harness_parts.persona.model_and_skills_commands",
     "hermes_cli.harness_parts.runtime_commands",
+    # The verb families lane H2 moved out of harness.py (2026-09-24).
+    "hermes_cli.harness_parts.agent_commands",
+    "hermes_cli.harness_parts.characters.auto",
+    "hermes_cli.harness_parts.characters.commands",
+    "hermes_cli.harness_parts.characters.payloads",
+    "hermes_cli.harness_parts.characters.steps",
+    "hermes_cli.harness_parts.doctor_commands",
+    "hermes_cli.harness_parts.gateway_identity_commands",
+    "hermes_cli.harness_parts.init_commands",
+    "hermes_cli.harness_parts.parser",
+    "hermes_cli.harness_parts.parser.common_args",
+    "hermes_cli.harness_parts.pets_commands",
+    "hermes_cli.harness_parts.prompt_context_commands",
+    "hermes_cli.harness_parts.provider_visibility",
+    "hermes_cli.harness_parts.realm_commands",
+    "hermes_cli.harness_parts.roots_commands",
+    "hermes_cli.harness_parts.skills_commands",
+    "hermes_cli.harness_parts.skills_promotion_commands",
+    "hermes_cli.harness_parts.usage.commands",
+    "hermes_cli.harness_parts.usage.detect",
+    "hermes_cli.harness_parts.usage.lanes",
+    "hermes_cli.harness_parts.usage.serialize",
+    "hermes_cli.harness_parts.workspace_commands",
 )
 
 PRODUCTION_PACKAGES = (

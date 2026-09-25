@@ -1,6 +1,6 @@
 {
  "body_groups": [
-  "agent/charsheet/draft.py::_sheet_revision == hermes_cli/harness.py::_pet_sheet_revision",
+  "agent/charsheet/draft.py::_sheet_revision == hermes_cli/harness_parts/pets_commands.py::_pet_sheet_revision",
   "agent/charsheet/palette.py::_as_rgba == agent/charsheet/pipeline.py::_open_rgba",
   "agent_runtime/config.py::_clean_config_str == agent_runtime/mission_chat_outcome.py::_text",
   "agent_runtime/default_scope.py::_get_realm == agent_runtime/default_scope.py::_get_workspace",

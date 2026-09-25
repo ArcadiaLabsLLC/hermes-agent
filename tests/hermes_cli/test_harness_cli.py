@@ -26,6 +26,10 @@ from agent_runtime.store import (
     TaskStore,
     WorkspaceStore,
 )
+from hermes_cli.harness_parts import agent_commands
+from hermes_cli.harness_parts import doctor_commands
+from hermes_cli.harness_parts import init_commands
+from hermes_cli.harness_parts import workspace_commands
 
 
 def parser():
@@ -337,15 +341,16 @@ def test_harness_init_human_branch_states_when_no_personas_are_provisioned(monke
     nothing after the colon.
     """
 
-    import hermes_cli.harness as harness_mod
 
-    monkeypatch.setattr(harness_mod, "ensure_persisted_personas", lambda cfg: [])
+    monkeypatch.setattr(agent_commands, "ensure_persisted_personas", lambda cfg: [])
+    monkeypatch.setattr(init_commands, "ensure_persisted_personas", lambda cfg: [])
+    monkeypatch.setattr(workspace_commands, "ensure_persisted_personas", lambda cfg: [])
     monkeypatch.setattr(chat_target, "ensure_persisted_personas", lambda cfg: [])
     monkeypatch.setattr(chat_turn_message, "ensure_persisted_personas", lambda cfg: [])
     monkeypatch.setattr(inspect_commands, "ensure_persisted_personas", lambda cfg: [])
     monkeypatch.setattr(runtime_commands, "ensure_persisted_personas", lambda cfg: [])
     monkeypatch.setattr(
-        harness_mod,
+        init_commands,
         "ensure_default_scope",
         lambda agent_ids: SimpleNamespace(
             realm=SimpleNamespace(id="realm_default", name="Default"),
@@ -368,14 +373,13 @@ def test_harness_doctor_human_branch_renders_the_surviving_findings(tmp_path, mo
     report ships two, so every plain ``harness doctor`` died with KeyError.
     """
 
-    import hermes_cli.harness as harness_mod
 
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "agent-runtime"))
     # This is a renderer test. Keep it hermetic instead of scanning every real
     # harness worktree (and running git diff in each) merely to obtain the two
     # finding keys whose formatting is under test.
     monkeypatch.setattr(
-        harness_mod,
+        doctor_commands,
         "run_harness_doctor",
         lambda **_kwargs: {
             "summary": {
@@ -418,7 +422,6 @@ def test_the_doctor_detail_line_derives_from_the_section_table(tmp_path, monkeyp
     ``doctor_detail_sources``.
     """
 
-    import hermes_cli.harness as harness_mod
     from agent_runtime import harness_doctor
 
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "agent-runtime"))
@@ -434,7 +437,7 @@ def test_the_doctor_detail_line_derives_from_the_section_table(tmp_path, monkeyp
         (*harness_doctor.DOCTOR_SECTIONS, synthetic),
     )
     monkeypatch.setattr(
-        harness_mod,
+        doctor_commands,
         "run_harness_doctor",
         lambda **_kwargs: {
             "ok": False,
@@ -481,11 +484,10 @@ def test_harness_doctor_human_branch_renders_the_placement_census(
     argument — so the assertions are on the rows, not on a count.
     """
 
-    import hermes_cli.harness as harness_mod
 
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "agent-runtime"))
     monkeypatch.setattr(
-        harness_mod,
+        doctor_commands,
         "run_harness_doctor",
         lambda **_kwargs: {
             "ok": False,
@@ -562,11 +564,10 @@ def test_harness_doctor_human_branch_says_nothing_about_an_unexamined_census(
     they were observations — the false all-clear in its rendered form.
     """
 
-    import hermes_cli.harness as harness_mod
 
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "agent-runtime"))
     monkeypatch.setattr(
-        harness_mod,
+        doctor_commands,
         "run_harness_doctor",
         lambda **_kwargs: {
             "ok": False,

@@ -57,12 +57,13 @@ from __future__ import annotations
 
 import pytest
 
-import hermes_cli.harness as harness
 from agent_runtime.board_store import BoardStore
 from agent_runtime.office_store import OfficeStore
 from agent_runtime.store import RealmStore, WorkspaceStore
 from hermes_cli.harness_parts import board as board_commands
 from hermes_cli.harness_parts import office as office_commands
+from hermes_cli.harness_parts import realm_commands
+from hermes_cli.harness_parts import workspace_commands
 
 
 #: A secret assignment embedded in ordinary prose. The masked rendering must
@@ -344,7 +345,7 @@ def test_workspace_row_is_value_identical_to_before(fixture_store):
     Pinned literally so a future "while we're here" edit is a red test."""
 
     workspace = fixture_store["workspace"]
-    skinny = harness._workspace_row(workspace)
+    skinny = workspace_commands._workspace_row(workspace)
     assert skinny == {
         "id": workspace.id,
         "name": "s48-ws",
@@ -358,7 +359,7 @@ def test_workspace_row_is_value_identical_to_before(fixture_store):
         "isolation": workspace.isolation,
         "updated_at": workspace.updated_at,
     }
-    full = harness._workspace_row(workspace, full=True)
+    full = workspace_commands._workspace_row(workspace, full=True)
     assert full == {
         **skinny,
         "kind": "workspace",
@@ -372,7 +373,7 @@ def test_workspace_row_is_value_identical_to_before(fixture_store):
 
 def test_realm_row_is_value_identical_to_before(fixture_store):
     realm = fixture_store["realm"]
-    skinny = harness._realm_row(realm)
+    skinny = realm_commands._realm_row(realm)
     assert skinny == {
         "id": realm.id,
         "name": "s48-realm",
@@ -383,7 +384,7 @@ def test_realm_row_is_value_identical_to_before(fixture_store):
         "sync": None,
         "updated_at": realm.updated_at,
     }
-    full = harness._realm_row(realm, full=True)
+    full = realm_commands._realm_row(realm, full=True)
     assert full == {
         **skinny,
         "kind": "realm",
@@ -515,7 +516,7 @@ def test_workspace_row_delegates_to_the_snapshot_builder(fixture_store, monkeypa
         return row
 
     monkeypatch.setattr(snapshot, "_workspace_summary", _tagged)
-    assert harness._workspace_row(fixture_store["workspace"])["name"] == "FROM-BUILDER"
+    assert workspace_commands._workspace_row(fixture_store["workspace"])["name"] == "FROM-BUILDER"
 
 
 def test_realm_row_delegates_to_the_snapshot_builder(fixture_store, monkeypatch):
@@ -529,7 +530,7 @@ def test_realm_row_delegates_to_the_snapshot_builder(fixture_store, monkeypatch)
         return row
 
     monkeypatch.setattr(snapshot, "_realm_summary", _tagged)
-    assert harness._realm_row(fixture_store["realm"])["name"] == "FROM-BUILDER"
+    assert realm_commands._realm_row(fixture_store["realm"])["name"] == "FROM-BUILDER"
 
 
 def test_board_and_card_rows_delegate_to_the_snapshot_builders(fixture_store, monkeypatch):

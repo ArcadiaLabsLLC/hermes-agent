@@ -342,7 +342,7 @@ def _kind(
 
 
 def _sprite_kind(probes: list[dict], drafts: list[tuple[str, str, str]]) -> tuple[dict, dict]:
-    from hermes_cli.harness import _cmd_characters_sprite
+    from hermes_cli.harness_parts.characters.commands import _cmd_characters_sprite
 
     documents = {
         mode: [
@@ -367,7 +367,7 @@ def _thumb_kind(probes: list[dict], drafts: list[tuple[str, str, str]]) -> tuple
     dump already says "present here, absent there", so the launcher's card reads
     one contract for both arms instead of guessing which keys survive on which.
     """
-    from hermes_cli.harness import _cmd_characters_thumb
+    from hermes_cli.harness_parts.characters.commands import _cmd_characters_thumb
 
     documents = {
         "row": [
@@ -455,7 +455,7 @@ def _status_kind(probes: list[dict], drafts: list[tuple[str, str, str]]) -> tupl
     is silent about a key every composed character emits.
     """
     from agent.charsheet.draft import CharacterDraft
-    from hermes_cli.harness import _cmd_characters_status
+    from hermes_cli.harness_parts.characters.commands import _cmd_characters_status
 
     def emit() -> list[dict]:
         return [
@@ -493,7 +493,7 @@ def _list_kind(probes: list[dict], drafts: list[tuple[str, str, str]]) -> tuple[
     probed because the launcher's swatch strip owes the two different renders.
     """
     from agent.charsheet.draft import characters_dir
-    from hermes_cli.harness import _cmd_characters_list
+    from hermes_cli.harness_parts.characters.commands import _cmd_characters_list
 
     def emit() -> list[dict]:
         return [_emit(_cmd_characters_list), _emit(_cmd_characters_list)]

@@ -41,6 +41,7 @@ from tests.hermes_cli.test_mission_chat_budget_payload import (  # type: ignore
     isolate_agent_runtime_root,  # noqa: F401  (re-exported fixture)
 )
 from hermes_cli.harness_parts.persona import chat_turn_message
+from hermes_cli.harness_parts import parser as harness_parser
 
 
 class _CapturingProvider:
@@ -212,13 +213,12 @@ def test_the_turn_body_driven_here_is_the_one_the_parser_runs():
     import argparse
     import inspect
 
-    from hermes_cli import harness
 
     turn = getattr(chat_turn_message, "_cmd_mission_chat_message", None)
     assert turn is not None, "the mission-chat turn body left persona.chat_turn_message"
     # Unwrapped: the admitted-turn decorator lives in `persona.chat_admission`.
     assert inspect.unwrap(turn).__globals__ is vars(chat_turn_message)
     parser = argparse.ArgumentParser(prog="harness")
-    harness.populate_parser(parser)
+    harness_parser.populate_parser(parser)
     args = parser.parse_args(["mission-chat", "message", "--persona", "dev", "--message", "hi"])
     assert args.func is turn, "the parser no longer runs the turn body this file drives"

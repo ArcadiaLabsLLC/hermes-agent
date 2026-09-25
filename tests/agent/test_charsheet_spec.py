@@ -386,7 +386,7 @@ def test_the_declaration_floor_is_two_while_the_spec_still_represents_one():
     chokepoint: that swallow never fires for a bad spec. ``CharacterDraft.load``
     reads JSON only and ``CharacterDraft.spec`` is computed on ACCESS, so
     ``list_drafts`` returns the bad draft. The raise lands one level up in
-    ``hermes_cli.harness._characters_draft_summary`` (``spec = draft.spec``),
+    ``hermes_cli.harness_parts.characters.payloads._characters_draft_summary`` (``spec = draft.spec``),
     inside ``_cmd_characters_list``'s own ``except _CHARACTERS_EXPECTED`` —
     ``{"ok": false, …}``, exit 2, and EVERY draft vanishes, not one.
     """

@@ -42,6 +42,9 @@ from hermes_cli.harness_parts.persona import (
 )
 from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run
 from hermes_cli.harness_parts import runtime_commands
+from hermes_cli.harness_parts import agent_commands
+from hermes_cli.harness_parts import init_commands
+from hermes_cli.harness_parts import workspace_commands
 
 SENDER_ROOT = "persona_chat_personainst_neko_aaaaaaaaaaaa"
 
@@ -570,7 +573,6 @@ def test_forge_delivery_turn_lands_a_real_turn_and_dedupes_a_retry(
 
     from types import SimpleNamespace
 
-    from hermes_cli import harness
     from tests.agent_runtime.test_persona_assignments import _assignment_config, _TranscriptDB
 
     monkeypatch.setenv("HERMES_HEAD_HOME", str(tmp_path))
@@ -591,7 +593,9 @@ def test_forge_delivery_turn_lands_a_real_turn_and_dedupes_a_retry(
                 raw={},
             )
 
-    monkeypatch.setattr(harness, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(agent_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(init_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(workspace_commands, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_delete, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)

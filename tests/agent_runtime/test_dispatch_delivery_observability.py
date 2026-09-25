@@ -50,6 +50,9 @@ from hermes_cli.harness_parts.persona import (
 )
 from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run
 from hermes_cli.harness_parts import runtime_commands
+from hermes_cli.harness_parts import agent_commands
+from hermes_cli.harness_parts import init_commands
+from hermes_cli.harness_parts import workspace_commands
 
 
 @pytest.fixture(autouse=True)
@@ -606,7 +609,6 @@ def test_a_bound_spawn_becomes_a_delivered_turn_in_the_senders_own_thread(
         persona_chat_session_id_for,
     )
     from agent_runtime.store import AgentStore
-    from hermes_cli import harness
     from tests.agent_runtime.test_persona_assignments import (
         _assignment_config,
         _TranscriptDB,
@@ -668,7 +670,9 @@ def test_a_bound_spawn_becomes_a_delivered_turn_in_the_senders_own_thread(
                 raw={},
             )
 
-    monkeypatch.setattr(harness, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(agent_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(init_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(workspace_commands, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_delete, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)

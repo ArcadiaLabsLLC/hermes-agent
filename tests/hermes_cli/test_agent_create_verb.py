@@ -20,6 +20,7 @@ import pytest
 from agent_runtime import paths
 from tests.agent_runtime.office_seed import seed_workspace_record
 from hermes_cli.harness_parts.persona import lifecycle_commands
+from hermes_cli.harness_parts import agent_commands
 
 WORKSPACE = "ws_agent_create_verb"
 
@@ -635,7 +636,7 @@ def test_the_verb_is_reachable_and_its_siblings_are_untouched():
     assert args.func is lifecycle_commands._cmd_agent_create
 
     # The slot was free and stays free-standing: `agent list` still routes.
-    assert root.parse_args(["harness", "agent", "list"]).func is harness._cmd_agent_list
+    assert root.parse_args(["harness", "agent", "list"]).func is agent_commands._cmd_agent_list
 
 
 # ── the refused create's own claim about itself ──────────────────────────────

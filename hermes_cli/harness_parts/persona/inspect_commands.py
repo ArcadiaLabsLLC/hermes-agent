@@ -28,12 +28,14 @@ from agent_runtime.tool_permissions import (
     permission_state_for_chat,
 )
 from agent_runtime.tool_visibility import ToolVisibilityOptions, resolve_tool_visibility
+from hermes_cli.harness_support import emit_harness_error
 from .chat_target import _persona_by_id
 
 __layer__ = "lanes"
 __all__ = [
     "_cmd_persona_assignment_task_id_migration",
     "_cmd_persona_assignments",
+    "_cmd_persona_instance_detail",
     "_cmd_persona_list",
     "_cmd_persona_permission_set",
     "_cmd_persona_show",
@@ -303,3 +305,23 @@ def _cmd_persona_assignment_task_id_migration(args) -> int:
             f"held={len(data['held'])}"
         )
     return 0 if data["ok"] else 2
+
+
+def _cmd_persona_instance_detail(args) -> int:
+    """Serve the persona-instance tool detail evicted from the frame (residue-slim
+    R2), rebuilt read-only from the stores so the launcher's visibility dialog
+    fetches identical bytes on open. A miss is an honest ``not_found``, never a
+    fabricated empty payload."""
+
+    from agent_runtime.snapshot import persona_instance_detail_for_id
+
+    entity_id = str(getattr(args, "instance_id", "") or "")
+    detail = persona_instance_detail_for_id(entity_id)
+    if detail is None:
+        return emit_harness_error(
+            ValueError(f"persona-instance '{entity_id}' did not resolve"),
+            args=args,
+            code="not_found",
+        )
+    print(emit_json(detail))
+    return 0

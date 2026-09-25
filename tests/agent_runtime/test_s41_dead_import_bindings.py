@@ -117,7 +117,9 @@ REMOVED_BINDINGS = {
 #: source symbols the aliases pointed at. A cut that took these too would be a
 #: behavior change, not a binding removal.
 RETAINED_BINDINGS = {
-    "hermes_cli/harness.py": {"emit_json"},
+    # harness.py's shared ``agent_runtime.cli_format`` line moved with the verb
+    # bodies that read it (lane H2); the usage verb is its first reader.
+    "hermes_cli/harness_parts/usage/commands.py": {"emit_json"},
     # Its only reader is the turn commit, which imports it itself (lanes H1, H3).
     "hermes_cli/harness_parts/persona/chat_turn_commit/__init__.py": {"WorkerSessionState"},
     "agent_runtime/persona_runtime.py": {"Callable", "TYPE_CHECKING"},

@@ -19,7 +19,7 @@ from types import SimpleNamespace
 
 import pytest
 
-import hermes_cli.harness as harness
+from agent_runtime.cli_format import emit_json
 from hermes_cli.harness_parts.persona import chat_admission, chat_delete, chat_events
 from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run
 
@@ -38,7 +38,7 @@ def _emit(args, *rest, **kwargs) -> str:
 def test_the_cli_json_lane_prints_exactly_emit_json():
     args = SimpleNamespace(json=True, stream=False)
 
-    assert _emit(args, PAYLOAD) == harness.emit_json(PAYLOAD) + "\n"
+    assert _emit(args, PAYLOAD) == emit_json(PAYLOAD) + "\n"
 
 
 def test_the_cli_text_lane_prints_the_error_by_default():
@@ -100,7 +100,7 @@ def test_a_non_callable_sink_falls_back_to_printing():
 
     args = SimpleNamespace(json=True, stream=False, payload_sink=None)
 
-    assert _emit(args, PAYLOAD) == harness.emit_json(PAYLOAD) + "\n"
+    assert _emit(args, PAYLOAD) == emit_json(PAYLOAD) + "\n"
 
 
 # --------------------------------------------------------------------------

@@ -8,7 +8,7 @@ distinction can never silently regress into a bare "not connected".
 import time
 
 from agent.credential_pool import STATUS_DEAD, STATUS_EXHAUSTED, PooledCredential
-from hermes_cli.harness import _credential_health, build_provider_visibility
+from hermes_cli.harness_parts.provider_visibility import _credential_health, build_provider_visibility
 
 
 def _credential(**overrides) -> PooledCredential:

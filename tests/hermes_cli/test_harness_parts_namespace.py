@@ -21,6 +21,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from hermes_cli.harness_parts import parser as harness_parser
 
 PARTS_DIR = Path(__file__).resolve().parents[2] / "hermes_cli" / "harness_parts"
 PART_MODULES = tuple(
@@ -43,10 +44,9 @@ def test_every_part_is_an_importable_module_that_binds_its_all(dotted: str) -> N
 
 
 def test_every_parser_handler_from_a_part_is_that_modules_own_function() -> None:
-    import hermes_cli.harness as harness
 
     parser = argparse.ArgumentParser(prog="harness")
-    harness.populate_parser(parser)
+    harness_parser.populate_parser(parser)
     stack, handlers = [parser], []
     while stack:
         current = stack.pop()

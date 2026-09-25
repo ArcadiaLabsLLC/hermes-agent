@@ -21,8 +21,9 @@ through any FUTURE re-shaping of the rows, not only through this one.
 
 from __future__ import annotations
 
-import hermes_cli.harness as harness
 from agent_runtime.store import RealmStore, WorkspaceStore
+from hermes_cli.harness_parts import realm_commands
+from hermes_cli.harness_parts import workspace_commands
 
 
 def _mk_realm_and_workspace():
@@ -33,7 +34,7 @@ def _mk_realm_and_workspace():
 
 def test_workspace_full_row_builds_without_mission_lane_residue(tmp_path, monkeypatch):
     _, workspace = _mk_realm_and_workspace()
-    row = harness._workspace_row(workspace, full=True)
+    row = workspace_commands._workspace_row(workspace, full=True)
     assert row["id"] == workspace.id
     assert row["kind"] == "workspace"
     # The S8 residue field is gone rather than crashing the whole row.
@@ -42,7 +43,7 @@ def test_workspace_full_row_builds_without_mission_lane_residue(tmp_path, monkey
 
 def test_realm_row_sync_is_honest_not_a_literal(tmp_path, monkeypatch):
     realm, _ = _mk_realm_and_workspace()
-    row = harness._realm_row(realm)
+    row = realm_commands._realm_row(realm)
     # No sidecar has ever been written for this realm: the honest value is
     # None ("not checked"), matching agent_runtime/snapshot.py's realm row.
     assert row["sync"] is None
