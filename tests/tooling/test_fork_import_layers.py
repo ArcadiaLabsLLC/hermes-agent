@@ -128,3 +128,18 @@ def test_fork_only_trees_are_discovered_not_listed():
     assert probe.fork_only_tree("agent/pet/generate/fork_only.py", upstream) is None
     roots = probe.layered_roots()
     assert {"agent/charsheet/", "tools/agent_chat_dispatch/"} <= set(roots) - set(probe.LAYERED_ROOTS)
+
+
+def test_packages_under_scripts_and_downstream_are_walked_and_flat_files_are_not():
+    """Q31 (lane B5): a PACKAGE under ``scripts/`` or ``tests/_downstream/`` is a layered
+    root — its modules must declare a layer — while a flat script or conftest there is not
+    walked. Positive control both ways, from the live tree: the three packages lane B5
+    created are found, and the flat gate entry beside them is not under any root."""
+    roots = set(probe.layered_roots())
+    assert {
+        "scripts/mutation_check/",
+        "tests/_downstream/id_markers/",
+        "tests/_downstream/hermes_cli_conftest/",
+    } <= roots
+    flat = ("scripts/changed_line_mutation_check.py", "tests/_downstream/conftest_plugin.py")
+    assert not [path for path in flat if path.startswith(tuple(roots))]

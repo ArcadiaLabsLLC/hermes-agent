@@ -72,6 +72,10 @@ LAYERS = ("models", "policy", "stores", "lanes", "wiring")
 #: ``FORK_ONLY_PARENTS`` (``agent/charsheet/``, ``tools/agent_chat_dispatch/`` …).
 LAYERED_ROOTS = ("agent_runtime/", "hermes_cli/harness_parts/", "plugins/eternia-harness/")
 FORK_ONLY_PARENTS = ("agent/", "tools/")
+#: Q31 (ruled 2026-09-24, landed by lane B5): under these parents only PACKAGES are
+#: walked — a package the program creates is born declared, while the flat scripts
+#: and conftests stay outside until their own lane opens them.
+PACKAGE_PARENTS = ("scripts/", "tests/_downstream/")
 HARNESS_PARTS = "hermes_cli/harness_parts/"
 
 SIZE_FIXTURE = FIXTURES / "size_ceiling_grandfathered.json"
@@ -723,16 +727,31 @@ def fork_only_tree(path: str, upstream: frozenset[str]) -> str | None:
     return None
 
 
+def package_roots(root: Path = ROOT, manifest: Path = MANIFEST) -> tuple[str, ...]:
+    """Every package directory under ``PACKAGE_PARENTS`` — a directory whose ``__init__.py``
+    is in the fork population — enumerated from the tree (Q31)."""
+    found = {
+        path.rsplit("/", 1)[0] + "/"
+        for path in fork_production_files(root, manifest)
+        if path.startswith(PACKAGE_PARENTS) and path.endswith("/__init__.py")
+    }
+    # A package strictly BELOW its parent: ``tests/_downstream/`` is itself a package
+    # (``tests/_downstream/__init__.py``), and walking it whole would pull in every flat
+    # conftest and helper there — exactly what the ruling leaves outside.
+    return tuple(sorted(found - set(PACKAGE_PARENTS)))
+
+
 @lru_cache(maxsize=None)
 def layered_roots(root: Path = ROOT, manifest: Path = MANIFEST) -> tuple[str, ...]:
-    """``LAYERED_ROOTS`` plus every fork-only tree under ``FORK_ONLY_PARENTS``, enumerated from the tree."""
+    """``LAYERED_ROOTS``, every fork-only tree under ``FORK_ONLY_PARENTS`` and every package
+    under ``PACKAGE_PARENTS``, enumerated from the tree."""
     upstream = upstream_paths(manifest)
     trees = {
         fork_only_tree(path, upstream)
         for path in fork_production_files(root, manifest)
         if path.startswith(FORK_ONLY_PARENTS)
     }
-    return LAYERED_ROOTS + tuple(sorted(t for t in trees if t))
+    return LAYERED_ROOTS + tuple(sorted(t for t in trees if t)) + package_roots(root, manifest)
 
 
 def layer_census(root: Path = ROOT, manifest: Path = MANIFEST) -> dict[str, list]:
