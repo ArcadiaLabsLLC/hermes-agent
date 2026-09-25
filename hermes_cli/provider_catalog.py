@@ -206,9 +206,7 @@ def disconnect_command_for(slug: str, flow: str, platform: str | None = None) ->
 
     Claude Code has no scriptable logout (only the interactive ``/logout``), so
     the command removes the same two sources ``read_claude_code_credentials()``
-    consults. ``platform`` is the host the command runs on (default: this
-    process). Windows must not emit ``rm -f``: PowerShell aliases ``rm`` to
-    ``Remove-Item``, and ``-f`` binds both ``-Force`` and ``-Filter``.
+    consults, host-native per ``platform`` (default: this process).
     """
     if flow != "external":
         return None

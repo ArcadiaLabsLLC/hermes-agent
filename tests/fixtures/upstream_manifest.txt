@@ -1,4 +1,4 @@
-# base 749220ef00
+# base 067fa1a257
 .coderabbit.yaml
 .dockerignore
 .env.example
@@ -27,6 +27,7 @@
 .github/dependabot.yml
 .github/scripts/run-workspace-checks.mjs
 .github/workflows/archive-inputs.yml
+.github/workflows/bootstrap-installer-build.yml
 .github/workflows/bootstrap-installer.yml
 .github/workflows/canary-release.yml
 .github/workflows/case-collision-check.yml
@@ -48,7 +49,6 @@
 .github/workflows/install-e2e-run.yml
 .github/workflows/install-e2e-windows-run.yml
 .github/workflows/install-e2e.yml
-.github/workflows/installer-tests.yml
 .github/workflows/js-autofix.yml
 .github/workflows/js-tests.yml
 .github/workflows/label-rerun.yml
@@ -61,7 +61,6 @@
 .github/workflows/plugin-catalog-ci.yml
 .github/workflows/pm-bundle.yml
 .github/workflows/profile-artifact-check.yml
-.github/workflows/publish-e2e-evidence.yml
 .github/workflows/review-labels.yml
 .github/workflows/rust-tests.yml
 .github/workflows/skills-index-freshness.yml
@@ -328,7 +327,6 @@ agent/skill_bundles.py
 agent/skill_commands.py
 agent/skill_preprocessing.py
 agent/skill_utils.py
-agent/ssl_guard.py
 agent/ssl_verify.py
 agent/status_output.py
 agent/stream_delivery.py
@@ -426,7 +424,6 @@ apps/bootstrap-installer/.gitignore
 apps/bootstrap-installer/eslint.config.mjs
 apps/bootstrap-installer/index.html
 apps/bootstrap-installer/package.json
-apps/bootstrap-installer/public/nous-girl.jpg
 apps/bootstrap-installer/public/nous-girl.png
 apps/bootstrap-installer/src-tauri/Cargo.toml
 apps/bootstrap-installer/src-tauri/Info.plist
@@ -612,6 +609,8 @@ apps/desktop/electron/channel-build-version.test.ts
 apps/desktop/electron/chat-onboarding-window.ts
 apps/desktop/electron/cli-provision.test.ts
 apps/desktop/electron/cli-provision.ts
+apps/desktop/electron/close-stop-kill.test.ts
+apps/desktop/electron/close-stop-kill.ts
 apps/desktop/electron/cloud-boot-cascade.test.ts
 apps/desktop/electron/cloud-boot-cascade.ts
 apps/desktop/electron/cloud-discovery.test.ts
@@ -667,6 +666,8 @@ apps/desktop/electron/desktop-uninstall.test.ts
 apps/desktop/electron/desktop-uninstall.ts
 apps/desktop/electron/dev-cdp.test.ts
 apps/desktop/electron/dev-cdp.ts
+apps/desktop/electron/dock-launch-order.test.ts
+apps/desktop/electron/dock-launch-order.ts
 apps/desktop/electron/embed-referer.ts
 apps/desktop/electron/entitlements.mac.inherit.plist
 apps/desktop/electron/entitlements.mac.plist
@@ -684,8 +685,6 @@ apps/desktop/electron/favicon.ts
 apps/desktop/electron/feature-flags.test.ts
 apps/desktop/electron/feature-flags.ts
 apps/desktop/electron/fetch-json-oauth-session.test.ts
-apps/desktop/electron/find-git-bash.test.ts
-apps/desktop/electron/find-git-bash.ts
 apps/desktop/electron/find-in-page-native-fixture/package.json
 apps/desktop/electron/find-in-page-native.test.mjs
 apps/desktop/electron/find-in-page.test.ts
@@ -720,10 +719,6 @@ apps/desktop/electron/git-root.test.ts
 apps/desktop/electron/git-root.ts
 apps/desktop/electron/git-worktree-ops.test.ts
 apps/desktop/electron/git-worktree-ops.ts
-apps/desktop/electron/github-api-auth.test.ts
-apps/desktop/electron/github-api-auth.ts
-apps/desktop/electron/gitlock.test.ts
-apps/desktop/electron/gitlock.ts
 apps/desktop/electron/guest-onboarding-flag.test.ts
 apps/desktop/electron/guest-onboarding.ts
 apps/desktop/electron/handoff-result.test.ts
@@ -733,6 +728,8 @@ apps/desktop/electron/hardening.ts
 apps/desktop/electron/host-backend-attach.ts
 apps/desktop/electron/host-backend-singleton.test.ts
 apps/desktop/electron/host-backend-singleton.ts
+apps/desktop/electron/host-published-token.test.ts
+apps/desktop/electron/host-published-token.ts
 apps/desktop/electron/hud-close.test.ts
 apps/desktop/electron/hud-close.ts
 apps/desktop/electron/hud-cursor.test.ts
@@ -766,6 +763,8 @@ apps/desktop/electron/hyprland.test.ts
 apps/desktop/electron/hyprland.ts
 apps/desktop/electron/install-stamp.ts
 apps/desktop/electron/intro-reveal-window.ts
+apps/desktop/electron/link-title-curl.test.ts
+apps/desktop/electron/link-title-curl.ts
 apps/desktop/electron/link-title-wall.test.ts
 apps/desktop/electron/link-title-wall.ts
 apps/desktop/electron/link-title-window.test.ts
@@ -774,14 +773,19 @@ apps/desktop/electron/linux-crash-diagnostics.test.ts
 apps/desktop/electron/linux-crash-diagnostics.ts
 apps/desktop/electron/linux-launcher-ready.test.ts
 apps/desktop/electron/linux-launcher-ready.ts
+apps/desktop/electron/linux-nvidia-egl-fallback.test.ts
+apps/desktop/electron/linux-nvidia-egl-fallback.ts
 apps/desktop/electron/local-backend-lifecycle.test.ts
 apps/desktop/electron/local-backend-lifecycle.ts
 apps/desktop/electron/local-skin.test.ts
 apps/desktop/electron/local-skin.ts
 apps/desktop/electron/log-rotation.test.ts
 apps/desktop/electron/log-rotation.ts
+apps/desktop/electron/mac-usage-strings.test.ts
 apps/desktop/electron/machine-profile.test.ts
 apps/desktop/electron/machine-profile.ts
+apps/desktop/electron/main-process-lag-watchdog.test.ts
+apps/desktop/electron/main-process-lag-watchdog.ts
 apps/desktop/electron/main-window-lifecycle.test.ts
 apps/desktop/electron/main-window-lifecycle.ts
 apps/desktop/electron/main.ts
@@ -815,6 +819,8 @@ apps/desktop/electron/native/hud-modifier-monitor-win.cs
 apps/desktop/electron/native/hud-modifier-monitor-x11.c
 apps/desktop/electron/native/hud-modifier-monitor.m
 apps/desktop/electron/native/hud-modifier-x11.test.py
+apps/desktop/electron/no-console-git.test.ts
+apps/desktop/electron/no-console-git.ts
 apps/desktop/electron/notification-actions.test.ts
 apps/desktop/electron/notification-actions.ts
 apps/desktop/electron/notification-ipc.test.ts
@@ -846,8 +852,6 @@ apps/desktop/electron/plugin-compat-notice.ts
 apps/desktop/electron/plugin-profile-routes.test.ts
 apps/desktop/electron/plugin-profile-routes.ts
 apps/desktop/electron/pool-child-exit.test.ts
-apps/desktop/electron/pool-eviction.test.ts
-apps/desktop/electron/pool-eviction.ts
 apps/desktop/electron/pool-limits.test.ts
 apps/desktop/electron/pool-limits.ts
 apps/desktop/electron/pool-reclamation.test.ts
@@ -882,6 +886,8 @@ apps/desktop/electron/preload-local-skin.test.ts
 apps/desktop/electron/preload.ts
 apps/desktop/electron/preview-capture.test.ts
 apps/desktop/electron/preview-capture.ts
+apps/desktop/electron/preview-file-watch.test.ts
+apps/desktop/electron/preview-file-watch.ts
 apps/desktop/electron/preview-guest-preload-entry.ts
 apps/desktop/electron/preview-guest-preload.test.ts
 apps/desktop/electron/preview-guest-preload.ts
@@ -947,6 +953,8 @@ apps/desktop/electron/shell-path.test.ts
 apps/desktop/electron/shell-path.ts
 apps/desktop/electron/source-backend.test.ts
 apps/desktop/electron/source-backend.ts
+apps/desktop/electron/source-python.test.ts
+apps/desktop/electron/source-python.ts
 apps/desktop/electron/spawn-helper-perms.test.ts
 apps/desktop/electron/spawn-helper-perms.ts
 apps/desktop/electron/ssh-bootstrap-coordinator.test.ts
@@ -972,8 +980,6 @@ apps/desktop/electron/translucency.test.ts
 apps/desktop/electron/translucency.ts
 apps/desktop/electron/tray-host.test.ts
 apps/desktop/electron/tray-host.ts
-apps/desktop/electron/update-api-check.test.ts
-apps/desktop/electron/update-api-check.ts
 apps/desktop/electron/update-api-proxy.test.ts
 apps/desktop/electron/update-api-proxy.ts
 apps/desktop/electron/update-gate-cancellation.test.ts
@@ -983,8 +989,6 @@ apps/desktop/electron/update-handoff-marker.test.ts
 apps/desktop/electron/update-marker.test.ts
 apps/desktop/electron/update-marker.ts
 apps/desktop/electron/update-prerequisites.test.ts
-apps/desktop/electron/update-remote.test.ts
-apps/desktop/electron/update-remote.ts
 apps/desktop/electron/updater-process.test.ts
 apps/desktop/electron/updater-process.ts
 apps/desktop/electron/updater/app-installer-recovery.test.ts
@@ -1029,8 +1033,6 @@ apps/desktop/electron/updater/store-client.ts
 apps/desktop/electron/updater/store.test.ts
 apps/desktop/electron/updater/store.ts
 apps/desktop/electron/updater/updater.test.ts
-apps/desktop/electron/venv-blocker-scan.test.ts
-apps/desktop/electron/venv-blocker-scan.ts
 apps/desktop/electron/venv-holder-select.test.ts
 apps/desktop/electron/venv-holder-select.ts
 apps/desktop/electron/vscode-marketplace.test.ts
@@ -1038,6 +1040,8 @@ apps/desktop/electron/vscode-marketplace.ts
 apps/desktop/electron/wake-indicator-window.ts
 apps/desktop/electron/wake-indicator.test.ts
 apps/desktop/electron/wake-indicator.ts
+apps/desktop/electron/web-text-decoder.test.ts
+apps/desktop/electron/web-text-decoder.ts
 apps/desktop/electron/window-accelerator.test.ts
 apps/desktop/electron/window-accelerator.ts
 apps/desktop/electron/window-below.test.ts
@@ -1064,6 +1068,8 @@ apps/desktop/electron/windows-remote-lifecycle.test.ts
 apps/desktop/electron/windows-remote-lifecycle.ts
 apps/desktop/electron/windows-sandbox-fallback.test.ts
 apps/desktop/electron/windows-sandbox-fallback.ts
+apps/desktop/electron/windows-stack-cookie-fallback.test.ts
+apps/desktop/electron/windows-stack-cookie-fallback.ts
 apps/desktop/electron/windows-system-ca.test.ts
 apps/desktop/electron/windows-system-ca.ts
 apps/desktop/electron/windows-user-env.test.ts
@@ -1106,7 +1112,6 @@ apps/desktop/public/hermes.png
 apps/desktop/public/intro-nous-girl.png
 apps/desktop/public/nous-badge.png
 apps/desktop/public/nous-girl-dark.png
-apps/desktop/public/nous-girl.jpg
 apps/desktop/public/nous-girl.png
 apps/desktop/scripts/.gitignore
 apps/desktop/scripts/after-extract.mjs
@@ -1161,8 +1166,6 @@ apps/desktop/scripts/diag-switch-autopsy.mjs
 apps/desktop/scripts/diag-switch-trace.mjs
 apps/desktop/scripts/dmgbuild-diagnostics.cjs
 apps/desktop/scripts/dmgbuild-diagnostics.test.mjs
-apps/desktop/scripts/ensure-rolldown-binding.mjs
-apps/desktop/scripts/ensure-rolldown-binding.test.mjs
 apps/desktop/scripts/eval.mjs
 apps/desktop/scripts/gen-msix-manifest.mjs
 apps/desktop/scripts/gen-share-codes.ts
@@ -1226,7 +1229,6 @@ apps/desktop/scripts/probe-renderer.mjs
 apps/desktop/scripts/probe-thread.mjs
 apps/desktop/scripts/profile-model-picker.mjs
 apps/desktop/scripts/profile-typing-lag.md
-apps/desktop/scripts/rebuild-native.mjs
 apps/desktop/scripts/reload-renderer.mjs
 apps/desktop/scripts/reload.mjs
 apps/desktop/scripts/run-electron-builder.mjs
@@ -1281,6 +1283,25 @@ apps/desktop/src/app/artifacts/artifact-utils.ts
 apps/desktop/src/app/artifacts/index.test.ts
 apps/desktop/src/app/artifacts/index.tsx
 apps/desktop/src/app/artifacts/remote-open.test.tsx
+apps/desktop/src/app/capabilities/catalog/catalog-alert.tsx
+apps/desktop/src/app/capabilities/catalog/catalog-browser.test.tsx
+apps/desktop/src/app/capabilities/catalog/catalog-browser.tsx
+apps/desktop/src/app/capabilities/catalog/catalog-card.tsx
+apps/desktop/src/app/capabilities/catalog/catalog-data.test.ts
+apps/desktop/src/app/capabilities/catalog/catalog-data.ts
+apps/desktop/src/app/capabilities/catalog/catalog-detail-dialog.tsx
+apps/desktop/src/app/capabilities/catalog/catalog-detail.tsx
+apps/desktop/src/app/capabilities/catalog/catalog-filters.tsx
+apps/desktop/src/app/capabilities/catalog/catalog-install-switch.tsx
+apps/desktop/src/app/capabilities/catalog/catalog-list-row.tsx
+apps/desktop/src/app/capabilities/catalog/catalog-metadata.tsx
+apps/desktop/src/app/capabilities/catalog/catalog-pointer.ts
+apps/desktop/src/app/capabilities/catalog/catalog-query.ts
+apps/desktop/src/app/capabilities/catalog/catalog.css
+apps/desktop/src/app/capabilities/catalog/skill-catalog.tsx
+apps/desktop/src/app/capabilities/catalog/store.ts
+apps/desktop/src/app/capabilities/catalog/update-skills-button.tsx
+apps/desktop/src/app/capabilities/catalog/use-catalog-filters.ts
 apps/desktop/src/app/capabilities/connectors/add-dialog.tsx
 apps/desktop/src/app/capabilities/connectors/add-server-draft.ts
 apps/desktop/src/app/capabilities/connectors/add-server-form.tsx
@@ -1340,7 +1361,6 @@ apps/desktop/src/app/capabilities/plugins/plugins-tab.test.tsx
 apps/desktop/src/app/capabilities/plugins/plugins-tab.tsx
 apps/desktop/src/app/capabilities/primitives.tsx
 apps/desktop/src/app/capabilities/scope-selector.tsx
-apps/desktop/src/app/capabilities/skills/embedded-hub-picker.tsx
 apps/desktop/src/app/capabilities/skills/frontmatter.test.ts
 apps/desktop/src/app/capabilities/skills/frontmatter.ts
 apps/desktop/src/app/capabilities/skills/official-skill-detail.tsx
@@ -1424,6 +1444,7 @@ apps/desktop/src/app/chat/composer/hooks/use-composer-voice-shortcuts.test.tsx
 apps/desktop/src/app/chat/composer/hooks/use-composer-voice.ts
 apps/desktop/src/app/chat/composer/hooks/use-emoji-completions.ts
 apps/desktop/src/app/chat/composer/hooks/use-live-completion-adapter.ts
+apps/desktop/src/app/chat/composer/hooks/use-mic-recorder.test.tsx
 apps/desktop/src/app/chat/composer/hooks/use-mic-recorder.ts
 apps/desktop/src/app/chat/composer/hooks/use-micro-actions.ts
 apps/desktop/src/app/chat/composer/hooks/use-popout-drag.test.tsx
@@ -1435,6 +1456,7 @@ apps/desktop/src/app/chat/composer/hooks/use-status-drawer.ts
 apps/desktop/src/app/chat/composer/hooks/use-status-presence.test.ts
 apps/desktop/src/app/chat/composer/hooks/use-status-presence.ts
 apps/desktop/src/app/chat/composer/hooks/use-voice-conversation-boundary.test.tsx
+apps/desktop/src/app/chat/composer/hooks/use-voice-conversation-meter.test.tsx
 apps/desktop/src/app/chat/composer/hooks/use-voice-conversation-rearm.test.tsx
 apps/desktop/src/app/chat/composer/hooks/use-voice-conversation.test.tsx
 apps/desktop/src/app/chat/composer/hooks/use-voice-conversation.ts
@@ -1612,6 +1634,7 @@ apps/desktop/src/app/chat/sidebar/gateway-groups.tsx
 apps/desktop/src/app/chat/sidebar/index.tsx
 apps/desktop/src/app/chat/sidebar/load-more-row.test.tsx
 apps/desktop/src/app/chat/sidebar/load-more-row.tsx
+apps/desktop/src/app/chat/sidebar/local-device-switch.tsx
 apps/desktop/src/app/chat/sidebar/order.test.ts
 apps/desktop/src/app/chat/sidebar/order.ts
 apps/desktop/src/app/chat/sidebar/profile-dropdown-switcher.test.tsx
@@ -1620,6 +1643,7 @@ apps/desktop/src/app/chat/sidebar/profile-launch-menu.test.tsx
 apps/desktop/src/app/chat/sidebar/profile-launch-menu.tsx
 apps/desktop/src/app/chat/sidebar/profile-rail-connect.test.tsx
 apps/desktop/src/app/chat/sidebar/profile-rail-fleet.test.tsx
+apps/desktop/src/app/chat/sidebar/profile-rail-status.test.tsx
 apps/desktop/src/app/chat/sidebar/profile-remote-override-dialog.test.tsx
 apps/desktop/src/app/chat/sidebar/profile-remote-override-dialog.tsx
 apps/desktop/src/app/chat/sidebar/profile-scope.test.ts
@@ -1791,6 +1815,7 @@ apps/desktop/src/app/hud/hud-shell.tsx
 apps/desktop/src/app/hud/hud-shell.viewed-interval.test.tsx
 apps/desktop/src/app/hud/layout.test.ts
 apps/desktop/src/app/hud/layout.ts
+apps/desktop/src/app/hud/resize-frame.test.tsx
 apps/desktop/src/app/hud/resize-handle.test.ts
 apps/desktop/src/app/hud/resize-handle.ts
 apps/desktop/src/app/hud/thread-focus.ts
@@ -1929,6 +1954,7 @@ apps/desktop/src/app/session/hooks/use-message-stream/duplicate-completion.test.
 apps/desktop/src/app/session/hooks/use-message-stream/folded-segment-refresh.test.tsx
 apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/desktop-bridge.test.ts
 apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/desktop-bridge.ts
+apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/fallback-switch.test.ts
 apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/index.ts
 apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/input-requests.approval-timeout.test.ts
 apps/desktop/src/app/session/hooks/use-message-stream/gateway-event/input-requests.test.ts
@@ -1955,6 +1981,7 @@ apps/desktop/src/app/session/hooks/use-message-stream/interim-sealing.test.tsx
 apps/desktop/src/app/session/hooks/use-message-stream/late-tool-events.test.tsx
 apps/desktop/src/app/session/hooks/use-message-stream/moa-progress-event.test.tsx
 apps/desktop/src/app/session/hooks/use-message-stream/moa-reference-event.test.tsx
+apps/desktop/src/app/session/hooks/use-message-stream/peer-transcript-notify.test.tsx
 apps/desktop/src/app/session/hooks/use-message-stream/pet-tool-failure-event.test.tsx
 apps/desktop/src/app/session/hooks/use-message-stream/provider-wait-event.test.tsx
 apps/desktop/src/app/session/hooks/use-message-stream/response-occurrences.test.tsx
@@ -1989,7 +2016,6 @@ apps/desktop/src/app/session/hooks/use-prompt-actions/slash.ts
 apps/desktop/src/app/session/hooks/use-prompt-actions/steering-recovery.test.tsx
 apps/desktop/src/app/session/hooks/use-prompt-actions/steering-session.ts
 apps/desktop/src/app/session/hooks/use-prompt-actions/submit-view-binding.test.ts
-apps/desktop/src/app/session/hooks/use-prompt-actions/submit-view-binding.test.tsx
 apps/desktop/src/app/session/hooks/use-prompt-actions/submit.ts
 apps/desktop/src/app/session/hooks/use-prompt-actions/utils.test.ts
 apps/desktop/src/app/session/hooks/use-prompt-actions/utils.ts
@@ -2013,6 +2039,7 @@ apps/desktop/src/app/session/hooks/use-session-actions/resume-empty-prose-pairin
 apps/desktop/src/app/session/hooks/use-session-actions/resume-structural-parts.test.ts
 apps/desktop/src/app/session/hooks/use-session-actions/transcript-provenance.test.ts
 apps/desktop/src/app/session/hooks/use-session-actions/transcript-provenance.ts
+apps/desktop/src/app/session/hooks/use-session-actions/unarchive-session.test.tsx
 apps/desktop/src/app/session/hooks/use-session-actions/utils.test.ts
 apps/desktop/src/app/session/hooks/use-session-actions/utils.ts
 apps/desktop/src/app/session/hooks/use-session-list-actions.reactivation.test.tsx
@@ -2020,6 +2047,8 @@ apps/desktop/src/app/session/hooks/use-session-list-actions.test.tsx
 apps/desktop/src/app/session/hooks/use-session-list-actions.ts
 apps/desktop/src/app/session/hooks/use-session-state-cache.test.tsx
 apps/desktop/src/app/session/hooks/use-session-state-cache.ts
+apps/desktop/src/app/session/hooks/use-transcript-peer-sync.test.tsx
+apps/desktop/src/app/session/hooks/use-transcript-peer-sync.ts
 apps/desktop/src/app/session/hooks/warm-resume-replay-barrier.test.tsx
 apps/desktop/src/app/session/hooks/wrong-session-closeout.test.tsx
 apps/desktop/src/app/session/new-session-route.ts
@@ -2132,6 +2161,7 @@ apps/desktop/src/app/settings/pool-limits-setting.tsx
 apps/desktop/src/app/settings/primitives.tsx
 apps/desktop/src/app/settings/profile-scope.test.tsx
 apps/desktop/src/app/settings/profile-scope.tsx
+apps/desktop/src/app/settings/providers-settings.terminal-disconnect.test.tsx
 apps/desktop/src/app/settings/providers-settings.test.tsx
 apps/desktop/src/app/settings/providers-settings.tsx
 apps/desktop/src/app/settings/quick-entry-settings.tsx
@@ -2225,7 +2255,6 @@ apps/desktop/src/app/starmap/time-axis.ts
 apps/desktop/src/app/starmap/timeline.tsx
 apps/desktop/src/app/starmap/types.ts
 apps/desktop/src/app/types.ts
-apps/desktop/src/app/updates-overlay.blockers.test.tsx
 apps/desktop/src/app/updates-overlay.manual.test.tsx
 apps/desktop/src/app/updates-overlay.tsx
 apps/desktop/src/app/wake-indicator/wake-indicator-app.tsx
@@ -2466,6 +2495,7 @@ apps/desktop/src/components/chat/vibe-hearts.test.ts
 apps/desktop/src/components/chat/vibe-hearts.tsx
 apps/desktop/src/components/chat/widget-shell.ts
 apps/desktop/src/components/chat/wordmark.tsx
+apps/desktop/src/components/chat/zoomable-image.test.tsx
 apps/desktop/src/components/chat/zoomable-image.tsx
 apps/desktop/src/components/confirm-host.test.tsx
 apps/desktop/src/components/confirm-host.tsx
@@ -2478,7 +2508,6 @@ apps/desktop/src/components/external-open-failed-dialog.test.tsx
 apps/desktop/src/components/external-open-failed-dialog.tsx
 apps/desktop/src/components/find-bar.test.tsx
 apps/desktop/src/components/find-bar.tsx
-apps/desktop/src/components/first-run-remote-form.tsx
 apps/desktop/src/components/free-tier/notice-owner.test.tsx
 apps/desktop/src/components/free-tier/notice-strip.tsx
 apps/desktop/src/components/free-tier/sign-in-dialog.test.tsx
@@ -2561,6 +2590,7 @@ apps/desktop/src/components/pane-shell/tree/lone-chat-sibling-zone.test.ts
 apps/desktop/src/components/pane-shell/tree/mode-layout-memory.test.ts
 apps/desktop/src/components/pane-shell/tree/model.ts
 apps/desktop/src/components/pane-shell/tree/multi-tab-drag.test.ts
+apps/desktop/src/components/pane-shell/tree/pane-reload-share.test.ts
 apps/desktop/src/components/pane-shell/tree/pane-reload.test.ts
 apps/desktop/src/components/pane-shell/tree/pane-share-memory.test.ts
 apps/desktop/src/components/pane-shell/tree/pane-toggle-visibility.test.ts
@@ -2600,6 +2630,7 @@ apps/desktop/src/components/pane-shell/tree/renderer/tree-group.test.tsx
 apps/desktop/src/components/pane-shell/tree/renderer/tree-group.tsx
 apps/desktop/src/components/pane-shell/tree/renderer/tree-node.tsx
 apps/desktop/src/components/pane-shell/tree/renderer/tree-split-cascade-resize.test.tsx
+apps/desktop/src/components/pane-shell/tree/renderer/tree-split-sash-preview.test.tsx
 apps/desktop/src/components/pane-shell/tree/renderer/tree-split.tsx
 apps/desktop/src/components/pane-shell/tree/resting-presets.test.ts
 apps/desktop/src/components/pane-shell/tree/store.ts
@@ -2724,6 +2755,8 @@ apps/desktop/src/components/ui/keyboard-first.test.ts
 apps/desktop/src/components/ui/keyboard-first.ts
 apps/desktop/src/components/ui/loader.tsx
 apps/desktop/src/components/ui/log-view.tsx
+apps/desktop/src/components/ui/masonry.css
+apps/desktop/src/components/ui/masonry.tsx
 apps/desktop/src/components/ui/menu.ts
 apps/desktop/src/components/ui/pagination.tsx
 apps/desktop/src/components/ui/pane-tab.test.tsx
@@ -2732,6 +2765,7 @@ apps/desktop/src/components/ui/popover.tsx
 apps/desktop/src/components/ui/profile-glyph.test.tsx
 apps/desktop/src/components/ui/profile-glyph.tsx
 apps/desktop/src/components/ui/progress.tsx
+apps/desktop/src/components/ui/reel.tsx
 apps/desktop/src/components/ui/row-button.test.tsx
 apps/desktop/src/components/ui/row-button.tsx
 apps/desktop/src/components/ui/sandboxed-frame.test.tsx
@@ -2865,6 +2899,7 @@ apps/desktop/src/lib/brand-icon.test.ts
 apps/desktop/src/lib/brand-icon.ts
 apps/desktop/src/lib/budgeted-loop.test.ts
 apps/desktop/src/lib/budgeted-loop.ts
+apps/desktop/src/lib/catalog-install.test.ts
 apps/desktop/src/lib/chat-empty.ts
 apps/desktop/src/lib/chat-messages.codex-commentary-reprojection.test.ts
 apps/desktop/src/lib/chat-messages.codex-json-sidecar.test.ts
@@ -3025,6 +3060,7 @@ apps/desktop/src/lib/media-dimensions.test.ts
 apps/desktop/src/lib/media-file-download.test.ts
 apps/desktop/src/lib/media.remote.test.ts
 apps/desktop/src/lib/media.ts
+apps/desktop/src/lib/mic-meter-context.ts
 apps/desktop/src/lib/middle-click.test.tsx
 apps/desktop/src/lib/middle-click.ts
 apps/desktop/src/lib/model-options.test.ts
@@ -3072,6 +3108,8 @@ apps/desktop/src/lib/preview-annotate/stack.test.ts
 apps/desktop/src/lib/preview-annotate/stack.ts
 apps/desktop/src/lib/preview-annotate/tokens.ts
 apps/desktop/src/lib/preview-external.ts
+apps/desktop/src/lib/preview-markdown-links.test.ts
+apps/desktop/src/lib/preview-markdown-links.ts
 apps/desktop/src/lib/preview-reach.test.ts
 apps/desktop/src/lib/preview-reach.ts
 apps/desktop/src/lib/preview-targets.test.ts
@@ -3125,6 +3163,8 @@ apps/desktop/src/lib/session-signatures.test.ts
 apps/desktop/src/lib/session-signatures.ts
 apps/desktop/src/lib/session-source.test.ts
 apps/desktop/src/lib/session-source.ts
+apps/desktop/src/lib/session-timer-since.test.ts
+apps/desktop/src/lib/session-timer-since.ts
 apps/desktop/src/lib/shared-gateway-restart.test.ts
 apps/desktop/src/lib/shared-gateway-restart.ts
 apps/desktop/src/lib/sibling-ws-url.test.ts
@@ -3135,6 +3175,7 @@ apps/desktop/src/lib/speech-text.ts
 apps/desktop/src/lib/spoken-reply.test.ts
 apps/desktop/src/lib/spoken-reply.ts
 apps/desktop/src/lib/stable-array.ts
+apps/desktop/src/lib/stale-transcript-guard.ts
 apps/desktop/src/lib/statusbar.test.ts
 apps/desktop/src/lib/statusbar.tsx
 apps/desktop/src/lib/steered-turn-hydration-order.test.ts
@@ -3193,6 +3234,7 @@ apps/desktop/src/lib/voice-client-direct.ts
 apps/desktop/src/lib/voice-live.routing.test.ts
 apps/desktop/src/lib/voice-live.ts
 apps/desktop/src/lib/voice-playback.routing.test.ts
+apps/desktop/src/lib/voice-playback.same-turn.test.ts
 apps/desktop/src/lib/voice-playback.ts
 apps/desktop/src/lib/voice-stop-word.test.ts
 apps/desktop/src/lib/voice-stop-word.ts
@@ -3229,6 +3271,8 @@ apps/desktop/src/plugins/hermes-bots/canonical-chat-open-failure-toast.test.ts
 apps/desktop/src/plugins/hermes-bots/canonical-chat-registry.test.ts
 apps/desktop/src/plugins/hermes-bots/canonical-chat.ts
 apps/desktop/src/plugins/hermes-bots/chat-empty.tsx
+apps/desktop/src/plugins/hermes-bots/cold-bot-switch-pending.test.ts
+apps/desktop/src/plugins/hermes-bots/cold-bot-switch-row.test.tsx
 apps/desktop/src/plugins/hermes-bots/create-agent-lazy-profile.test.tsx
 apps/desktop/src/plugins/hermes-bots/create-dialog.single-flight.test.ts
 apps/desktop/src/plugins/hermes-bots/create-dialog.tsx
@@ -3370,6 +3414,7 @@ apps/desktop/src/plugins/hermes-bots/user-sections.groups.test.ts
 apps/desktop/src/plugins/hermes-bots/user-sections.test.ts
 apps/desktop/src/plugins/hermes-bots/user-sections.ts
 apps/desktop/src/plugins/kanban/api.connection-scope.test.ts
+apps/desktop/src/plugins/kanban/api.events-cursor.test.ts
 apps/desktop/src/plugins/kanban/api.ts
 apps/desktop/src/plugins/kanban/board-switcher.test.tsx
 apps/desktop/src/plugins/kanban/board-switcher.tsx
@@ -3570,6 +3615,7 @@ apps/desktop/src/store/plugin-install-request.ts
 apps/desktop/src/store/pool-limits.ts
 apps/desktop/src/store/power.ts
 apps/desktop/src/store/preview-edit.ts
+apps/desktop/src/store/preview-explicit.ts
 apps/desktop/src/store/preview-open-browser.test.ts
 apps/desktop/src/store/preview-persistence.test.ts
 apps/desktop/src/store/preview-status-edge-cases.test.ts
@@ -3581,6 +3627,8 @@ apps/desktop/src/store/preview.test.ts
 apps/desktop/src/store/preview.ts
 apps/desktop/src/store/profile-agent-activation.test.ts
 apps/desktop/src/store/profile-cache.test.ts
+apps/desktop/src/store/profile-dot-state.test.ts
+apps/desktop/src/store/profile-dot-state.ts
 apps/desktop/src/store/profile-rail-prefs.ts
 apps/desktop/src/store/profile-remote-override.test.ts
 apps/desktop/src/store/profile-remote-override.ts
@@ -3590,6 +3638,7 @@ apps/desktop/src/store/profile-share.ts
 apps/desktop/src/store/profile-switch-failure.test.ts
 apps/desktop/src/store/profile.test.ts
 apps/desktop/src/store/profile.ts
+apps/desktop/src/store/project-scope.ts
 apps/desktop/src/store/projects.test.ts
 apps/desktop/src/store/projects.ts
 apps/desktop/src/store/prompts.test.ts
@@ -3667,6 +3716,8 @@ apps/desktop/src/store/sidebar-nav.test.ts
 apps/desktop/src/store/sidebar-nav.ts
 apps/desktop/src/store/sidebar-sort.test.ts
 apps/desktop/src/store/sidebar-sort.ts
+apps/desktop/src/store/skill-deeplink-install.test.ts
+apps/desktop/src/store/skill-deeplink-install.ts
 apps/desktop/src/store/starmap.ts
 apps/desktop/src/store/statusbar-prefs.test.ts
 apps/desktop/src/store/statusbar-prefs.ts
@@ -3705,6 +3756,7 @@ apps/desktop/src/store/tool-dismiss.ts
 apps/desktop/src/store/tool-drafting.ts
 apps/desktop/src/store/tool-view.ts
 apps/desktop/src/store/tours.ts
+apps/desktop/src/store/transcript-sync.ts
 apps/desktop/src/store/transcript-tail-cache.test.ts
 apps/desktop/src/store/transcript-tail-cache.ts
 apps/desktop/src/store/transcript-tail.test.ts
@@ -3781,6 +3833,8 @@ apps/shared/src/backend-scope.ts
 apps/shared/src/billing-payment-method.test-d.ts
 apps/shared/src/billing-policy.ts
 apps/shared/src/billing-types.ts
+apps/shared/src/catalog-browse.ts
+apps/shared/src/catalog-install.ts
 apps/shared/src/charge-settlement.ts
 apps/shared/src/color.test.ts
 apps/shared/src/color.ts
@@ -3829,7 +3883,6 @@ batch_runner.py
 cli-config.yaml.example
 cli.py
 compat_manifest.json
-constraints-termux.txt
 contributors/README.md
 contributors/emails/.gitkeep
 contributors/emails/0301chris@gmail.com
@@ -3888,6 +3941,7 @@ contributors/emails/188540289+SiaoZeng@users.noreply.github.com
 contributors/emails/189606558+GoldenLoaf24h@users.noreply.github.com
 contributors/emails/1908937833@qq.com
 contributors/emails/1940428933@qq.com
+contributors/emails/195337306+0xGr1mm@users.noreply.github.com
 contributors/emails/19729650+djsanchezsuarez@users.noreply.github.com
 contributors/emails/1littlecoder@gmail.com
 contributors/emails/2025hcsmile2010@gmail.com
@@ -3896,6 +3950,7 @@ contributors/emails/205820855+MrMongstad@users.noreply.github.com
 contributors/emails/2091538824thx@gmail.com
 contributors/emails/209938808+Danielmuzology@users.noreply.github.com
 contributors/emails/210261288+Christopher-Schulze@users.noreply.github.com
+contributors/emails/21045213+imgali@users.noreply.github.com
 contributors/emails/214786078+gaoanze888@users.noreply.github.com
 contributors/emails/215755014+Stoltemberg@users.noreply.github.com
 contributors/emails/217837358+Xipong@users.noreply.github.com
@@ -3943,6 +3998,7 @@ contributors/emails/3Nya3@users.noreply.github.com
 contributors/emails/4083812+apoapostolov@users.noreply.github.com
 contributors/emails/41980420+d31tcjg@users.noreply.github.com
 contributors/emails/42515890+OOOOOAO@users.noreply.github.com
+contributors/emails/42786356+pmaho@users.noreply.github.com
 contributors/emails/431013+amitcse@users.noreply.github.com
 contributors/emails/445481611@qq.com
 contributors/emails/4496266+trevornk@users.noreply.github.com
@@ -3968,7 +4024,9 @@ contributors/emails/60716910+DECRUX9812@users.noreply.github.com
 contributors/emails/6115107+686f6c61@users.noreply.github.com
 contributors/emails/61507425+Julientalbot@users.noreply.github.com
 contributors/emails/619963502@qq.com
+contributors/emails/65798732+1052326311@users.noreply.github.com
 contributors/emails/68141859@qq.com
+contributors/emails/6892567+josephsellers@users.noreply.github.com
 contributors/emails/691156824@qq.com
 contributors/emails/7121943+kvnloo@users.noreply.github.com
 contributors/emails/729922845@qq.com
@@ -4078,6 +4136,7 @@ contributors/emails/agent@openclaw.local
 contributors/emails/agentai891@gmail.com
 contributors/emails/agents@joinsensie.com
 contributors/emails/ahamoudhy@gmail.com
+contributors/emails/ahisblessed@users.noreply.github.com
 contributors/emails/ahmadalfakeh973@gmail.com
 contributors/emails/ahmedaboalayoun0016k@gmail.com
 contributors/emails/ahmedmoro@gmail.com
@@ -4357,6 +4416,7 @@ contributors/emails/dmelkk-secondbrain@users.noreply.github.com
 contributors/emails/dnethusahan.h05@gmail.com
 contributors/emails/dombejar@users.noreply.github.com
 contributors/emails/dominicbejar@gmail.com
+contributors/emails/donald.superhub@gmail.com
 contributors/emails/dongjiang1989@126.com
 contributors/emails/doug.jennewein@gmail.com
 contributors/emails/doug@buck.co
@@ -4677,6 +4737,7 @@ contributors/emails/jordanh@nvidia.com
 contributors/emails/jordyelfferich15@gmail.com
 contributors/emails/jorkeyliu@gmail.com
 contributors/emails/joseleos@gmail.com
+contributors/emails/josh@withvariable.com
 contributors/emails/joshua@amokk.net
 contributors/emails/joshuadavidfairbank@gmail.com
 contributors/emails/jquesnelle@gmail.com
@@ -5899,6 +5960,7 @@ hermes_cli/build_info.py
 hermes_cli/bundled_app.py
 hermes_cli/bundles.py
 hermes_cli/callbacks.py
+hermes_cli/chat_catalog.py
 hermes_cli/checkpoints.py
 hermes_cli/claw.py
 hermes_cli/cli_agent_setup_mixin.py
@@ -5978,7 +6040,6 @@ hermes_cli/data_cleanup.py
 hermes_cli/data_cleanup_holders.py
 hermes_cli/debug.py
 hermes_cli/default_soul.py
-hermes_cli/dep_ensure.py
 hermes_cli/desktop_console.py
 hermes_cli/desktop_update_verify.py
 hermes_cli/diagnostics_upload.py
@@ -6010,7 +6071,6 @@ hermes_cli/gateway_multiplex_mode.py
 hermes_cli/gateway_multiplex_s6.py
 hermes_cli/gateway_multiplex_served.py
 hermes_cli/gateway_profile_lifecycle.py
-hermes_cli/gateway_service_unit.py
 hermes_cli/gateway_setup_wizard.py
 hermes_cli/gateway_supervised_restart.py
 hermes_cli/gateway_windows.py
@@ -6152,7 +6212,6 @@ hermes_cli/plugin_compat.py
 hermes_cli/plugin_dev.py
 hermes_cli/plugin_events.py
 hermes_cli/plugin_packs.py
-hermes_cli/plugin_python_deps.py
 hermes_cli/plugin_validate.py
 hermes_cli/plugin_validate_desktop.py
 hermes_cli/plugins.py
@@ -6364,7 +6423,6 @@ hermes_cli/update_cmd.py
 hermes_cli/update_cmd_check.py
 hermes_cli/update_cmd_common.py
 hermes_cli/update_cmd_config.py
-hermes_cli/update_cmd_deps.py
 hermes_cli/update_cmd_drain_report.py
 hermes_cli/update_cmd_fleet.py
 hermes_cli/update_cmd_fleet_checkout.py
@@ -6384,6 +6442,7 @@ hermes_cli/update_handoff.py
 hermes_cli/update_host_obligation.py
 hermes_cli/update_inventory.py
 hermes_cli/update_lock.py
+hermes_cli/update_owning_install.py
 hermes_cli/update_receipt.py
 hermes_cli/update_restart_recovery.py
 hermes_cli/update_serve_obligations.py
@@ -6442,6 +6501,7 @@ hermes_cli/web_server_messaging.py
 hermes_cli/web_server_oauth.py
 hermes_cli/web_server_profiles.py
 hermes_cli/web_server_sessions.py
+hermes_cli/web_server_skew_exit.py
 hermes_cli/webhook.py
 hermes_cli/win_pty_bridge.py
 hermes_cli/windows_ssh_runtime.py
@@ -6535,7 +6595,6 @@ nix/moduleCommon.nix
 nix/nixosModules.nix
 nix/node-gyp-11-4-0-package-lock.json
 nix/node-gyp-11-4-0.nix
-nix/npm-12-0-2.nix
 nix/npm-pinned.nix
 nix/overlays.nix
 nix/packages.nix
@@ -8098,6 +8157,7 @@ pm/download_state.py
 pm/downloader.py
 pm/environment.py
 pm/environments.py
+pm/environments_adopt.py
 pm/extras.py
 pm/features.py
 pm/filesystem.py
@@ -8113,6 +8173,7 @@ pm/package.py
 pm/packages.py
 pm/paths.py
 pm/plugin_declarations.py
+pm/plugin_eviction.py
 pm/plugin_inputs.py
 pm/plugins_state.py
 pm/progress.py
@@ -8203,18 +8264,14 @@ scripts/ci/list_os_marked_tests.py
 scripts/ci/live_comment.py
 scripts/ci/lockfile_diff.py
 scripts/ci/profile_scope_patterns.json
-scripts/ci/publish_e2e_evidence.py
 scripts/ci/python_packages.py
 scripts/ci/required_results.py
 scripts/ci/setup_toolchain.py
-scripts/ci/test_install_ps1_cli_launchers.ps1
-scripts/ci/test_install_ps1_path_migration.ps1
 scripts/ci/timings_report.py
 scripts/contributor_audit.py
 scripts/desktop-update.ps1
 scripts/desktop-update/posix.sh
 scripts/desktop-update/repro.sh
-scripts/desktop-update/retry-policy.ps1
 scripts/desktop-update/runtime.ps1
 scripts/desktop-update/serve-ui.py
 scripts/desktop-update/ui.html
@@ -8236,12 +8293,10 @@ scripts/hermes-gateway
 scripts/install.cmd
 scripts/install.ps1
 scripts/install.sh
-scripts/install_psutil_android.py
 scripts/iso-certify.py
 scripts/keystroke_diagnostic.py
 scripts/kill_modal.sh
 scripts/launch_capture_probe.sh
-scripts/lib/node-bootstrap.sh
 scripts/lint_diff.py
 scripts/micro_compaction_report.py
 scripts/msix-shared.mjs
@@ -8312,11 +8367,8 @@ scripts/termux/termux_build.sh
 scripts/termux/termux_pkg_build.sh
 scripts/termux/validate_installed.py
 scripts/termux/wheelhouse_cache.py
-scripts/tests/test-install-ps1-gitbash-compatibility.ps1
 scripts/tests/test-install-ps1-longpath.ps1
 scripts/tests/test-install-ps1-node-compatibility.ps1
-scripts/tests/test-install-ps1-stage-protocol.ps1
-scripts/tests/test-install-ps1-uv-shim-validation.ps1
 scripts/update-test/HANDOFF.md
 scripts/update-test/hermes-update-rehearsal.ps1
 scripts/update-test/hermes-update-rehearsal.sh
@@ -9147,6 +9199,7 @@ tests/agent/test_fallback_429_after_timeout.py
 tests/agent/test_fallback_api_mode_preservation.py
 tests/agent/test_fallback_credential_isolation.py
 tests/agent/test_fallback_dynamic_credential.py
+tests/agent/test_fallback_entry_base_url.py
 tests/agent/test_fallback_exhaustion_cooldown.py
 tests/agent/test_fallback_reasoning_override.py
 tests/agent/test_fast_compression_lane.py
@@ -9290,7 +9343,6 @@ tests/agent/test_model_extra_type_guard.py
 tests/agent/test_model_metadata.py
 tests/agent/test_model_metadata_http.py
 tests/agent/test_model_metadata_local_ctx.py
-tests/agent/test_model_metadata_ssl.py
 tests/agent/test_model_streaming_config.py
 tests/agent/test_models_dev.py
 tests/agent/test_models_dev_provider_capabilities.py
@@ -9305,6 +9357,7 @@ tests/agent/test_native_compaction_nontext_retention.py
 tests/agent/test_native_compaction_summary_retention.py
 tests/agent/test_native_compaction_switch_capabilities.py
 tests/agent/test_native_preflight_estimate.py
+tests/agent/test_non_chat_primary_restore.py
 tests/agent/test_non_stream_stale_timeout.py
 tests/agent/test_none_deref_guards.py
 tests/agent/test_nonretryable_error_html_summary.py
@@ -9508,7 +9561,6 @@ tests/agent/test_skip_memory_store.py
 tests/agent/test_soul_legacy_bot_protocol.py
 tests/agent/test_soul_md_profile_isolation.py
 tests/agent/test_split_turn_compaction.py
-tests/agent/test_ssl_ca_guard.py
 tests/agent/test_ssl_transport_contracts.py
 tests/agent/test_ssl_verify.py
 tests/agent/test_stale_replay_prune.py
@@ -9686,7 +9738,6 @@ tests/ci/test_live_comment.py
 tests/ci/test_lockfile_diff.py
 tests/ci/test_plugin_validate_action.py
 tests/ci/test_protected_canary_publication.py
-tests/ci/test_publish_e2e_evidence.py
 tests/ci/test_required_results.py
 tests/ci/test_stable_release_graph.py
 tests/ci/test_tag_builds_summary.py
@@ -10253,6 +10304,8 @@ tests/gateway/test_channel_directory.py
 tests/gateway/test_channel_directory_connected_only.py
 tests/gateway/test_channel_overrides.py
 tests/gateway/test_chat_completions_approval.py
+tests/gateway/test_chat_completions_final_fallback.py
+tests/gateway/test_chat_completions_tool_progress_optout.py
 tests/gateway/test_checkpoint_config.py
 tests/gateway/test_checkpoint_prune_housekeeping.py
 tests/gateway/test_choice_picker.py
@@ -10461,6 +10514,7 @@ tests/gateway/test_hooks.py
 tests/gateway/test_host_attach_lifecycle.py
 tests/gateway/test_host_attach_standalone.py
 tests/gateway/test_host_gateway_lock_refusal.py
+tests/gateway/test_host_gateway_profile_env.py
 tests/gateway/test_host_rendezvous.py
 tests/gateway/test_host_rendezvous_windows.py
 tests/gateway/test_host_topology.py
@@ -11135,7 +11189,6 @@ tests/hermes_cli/test_auth_profile_fallback.py
 tests/hermes_cli/test_auth_provider_gate.py
 tests/hermes_cli/test_auth_provider_scope.py
 tests/hermes_cli/test_auth_qwen_provider.py
-tests/hermes_cli/test_auth_ssl_macos.py
 tests/hermes_cli/test_auth_store_read_failure.py
 tests/hermes_cli/test_auth_store_windows_encoding.py
 tests/hermes_cli/test_auth_toctou_file_modes.py
@@ -11157,7 +11210,6 @@ tests/hermes_cli/test_backup_zip_serialization.py
 tests/hermes_cli/test_bang_shell_mode.py
 tests/hermes_cli/test_banner.py
 tests/hermes_cli/test_banner_distribution_label.py
-tests/hermes_cli/test_banner_git_state.py
 tests/hermes_cli/test_banner_release_channel.py
 tests/hermes_cli/test_banner_skills.py
 tests/hermes_cli/test_banner_skills_width.py
@@ -11180,7 +11232,6 @@ tests/hermes_cli/test_browser_connect_default_chromium.py
 tests/hermes_cli/test_browser_connect_dual_stack.py
 tests/hermes_cli/test_browser_connect_real_profile_snapshot_errors.py
 tests/hermes_cli/test_browser_runtime.py
-tests/hermes_cli/test_build_info.py
 tests/hermes_cli/test_bundled_desktop_launch.py
 tests/hermes_cli/test_bundles.py
 tests/hermes_cli/test_busy_input_mode_command.py
@@ -11190,14 +11241,15 @@ tests/hermes_cli/test_cached_fetch_api_models.py
 tests/hermes_cli/test_canonical_custom_identity.py
 tests/hermes_cli/test_catalog_json.py
 tests/hermes_cli/test_catalog_variants.py
-tests/hermes_cli/test_certifi_repair.py
 tests/hermes_cli/test_chat_c_fail_loudly.py
+tests/hermes_cli/test_chat_catalog_excludes_generation_models.py
 tests/hermes_cli/test_chat_q_exit_clear.py
 tests/hermes_cli/test_chat_query_file.py
 tests/hermes_cli/test_chat_skills_flag.py
 tests/hermes_cli/test_checkout_mutation_guards.py
 tests/hermes_cli/test_checkpoints_clear_legacy.py
 tests/hermes_cli/test_checkpoints_prune.py
+tests/hermes_cli/test_claude_code_account_connection.py
 tests/hermes_cli/test_claw.py
 tests/hermes_cli/test_clear_stale_base_url.py
 tests/hermes_cli/test_cli_active_session_limit.py
@@ -11271,11 +11323,11 @@ tests/hermes_cli/test_cli_yolo_toggle.py
 tests/hermes_cli/test_clipboard_text_write.py
 tests/hermes_cli/test_cmd_uninstall.py
 tests/hermes_cli/test_cmd_update.py
-tests/hermes_cli/test_cmd_update_apt.py
 tests/hermes_cli/test_cmd_update_docker.py
 tests/hermes_cli/test_coalesce_session_args.py
 tests/hermes_cli/test_code_skew.py
 tests/hermes_cli/test_codex_cli_model_picker.py
+tests/hermes_cli/test_codex_credential_host_binding.py
 tests/hermes_cli/test_codex_device_login_ssl_hint.py
 tests/hermes_cli/test_codex_device_login_transient_retry.py
 tests/hermes_cli/test_codex_models.py
@@ -11394,7 +11446,6 @@ tests/hermes_cli/test_dashboard_param_clamps.py
 tests/hermes_cli/test_dashboard_plugin_routes_secret_scope.py
 tests/hermes_cli/test_dashboard_procs_kill_grace.py
 tests/hermes_cli/test_dashboard_register.py
-tests/hermes_cli/test_dashboard_spawn_executable.py
 tests/hermes_cli/test_dashboard_stop_spare_caller.py
 tests/hermes_cli/test_dashboard_system_gateway_elevation.py
 tests/hermes_cli/test_dashboard_token_auth.py
@@ -11408,13 +11459,12 @@ tests/hermes_cli/test_debug.py
 tests/hermes_cli/test_default_interface_resolution.py
 tests/hermes_cli/test_deferred_platform_client_tools.py
 tests/hermes_cli/test_deleted_profile_tombstone.py
-tests/hermes_cli/test_dep_ensure.py
 tests/hermes_cli/test_deprecated_cwd_warning.py
 tests/hermes_cli/test_desktop_build_git_windows.py
 tests/hermes_cli/test_desktop_console.py
 tests/hermes_cli/test_desktop_cron_ticker_profiles.py
+tests/hermes_cli/test_desktop_esbuild_ignore_scripts.py
 tests/hermes_cli/test_desktop_exe_integrity.py
-tests/hermes_cli/test_desktop_half_installed_get_windows.py
 tests/hermes_cli/test_desktop_install_after_update.py
 tests/hermes_cli/test_desktop_lifecycle_windows_live.py
 tests/hermes_cli/test_desktop_local_flag.py
@@ -11570,13 +11620,13 @@ tests/hermes_cli/test_install_bucket_separation.py
 tests/hermes_cli/test_install_cua_driver.py
 tests/hermes_cli/test_install_identity.py
 tests/hermes_cli/test_install_lock_timeout.py
-tests/hermes_cli/test_install_progress_stream.py
 tests/hermes_cli/test_interrupt_output_history_regression.py
 tests/hermes_cli/test_interrupt_requeue_image_payload.py
 tests/hermes_cli/test_inventory.py
 tests/hermes_cli/test_inventory_pricing.py
 tests/hermes_cli/test_inventory_reasoning_caps.py
 tests/hermes_cli/test_iron_proxy_cli.py
+tests/hermes_cli/test_isolated_serve_ledger_marker.py
 tests/hermes_cli/test_jobs_json_utf8_bom.py
 tests/hermes_cli/test_journey_render.py
 tests/hermes_cli/test_kanban_aux_affinity.py
@@ -11657,7 +11707,6 @@ tests/hermes_cli/test_launchd_restart_refresh.py
 tests/hermes_cli/test_launcher.py
 tests/hermes_cli/test_launcher_runtime_selection.py
 tests/hermes_cli/test_lazy_command_exports.py
-tests/hermes_cli/test_lazy_refresh_venv_repair.py
 tests/hermes_cli/test_lazy_secrets_dispatch.py
 tests/hermes_cli/test_lazy_secrets_import.py
 tests/hermes_cli/test_legacy_launchers_windows_live.py
@@ -11680,15 +11729,14 @@ tests/hermes_cli/test_local_models_activate_rescan.py
 tests/hermes_cli/test_local_models_routes.py
 tests/hermes_cli/test_local_picker_identity.py
 tests/hermes_cli/test_local_preset_admission.py
+tests/hermes_cli/test_local_provider_alias_parity.py
 tests/hermes_cli/test_local_quickstart.py
 tests/hermes_cli/test_local_recommendation.py
 tests/hermes_cli/test_local_recommendation_policy.py
 tests/hermes_cli/test_local_residency_admission.py
 tests/hermes_cli/test_local_runtime.py
 tests/hermes_cli/test_local_runtime_child_env.py
-tests/hermes_cli/test_local_runtime_downloads.py
 tests/hermes_cli/test_local_runtime_gguf.py
-tests/hermes_cli/test_local_runtime_hip_assets.py
 tests/hermes_cli/test_local_runtime_load_mode.py
 tests/hermes_cli/test_local_runtime_picker_row.py
 tests/hermes_cli/test_local_runtime_pm.py
@@ -11713,8 +11761,6 @@ tests/hermes_cli/test_managed_scope_overlay.py
 tests/hermes_cli/test_managed_scope_regression.py
 tests/hermes_cli/test_managed_scope_surfacing.py
 tests/hermes_cli/test_managed_scope_writeguard.py
-tests/hermes_cli/test_managed_uv.py
-tests/hermes_cli/test_managed_uv_windows_cutover.py
 tests/hermes_cli/test_managed_vision_capability.py
 tests/hermes_cli/test_manual_compress.py
 tests/hermes_cli/test_manual_serve_deferral.py
@@ -11796,6 +11842,7 @@ tests/hermes_cli/test_models_detect_credential_gate.py
 tests/hermes_cli/test_models_detect_live_catalog.py
 tests/hermes_cli/test_models_detect_vendor_ownership.py
 tests/hermes_cli/test_models_dev_preferred_merge.py
+tests/hermes_cli/test_models_relay_base_url.py
 tests/hermes_cli/test_modify_other_keys_aliases.py
 tests/hermes_cli/test_multiplex_cli_cache_scope.py
 tests/hermes_cli/test_multiplex_host_topology_reporting.py
@@ -11896,7 +11943,6 @@ tests/hermes_cli/test_plugin_private_repo_auth.py
 tests/hermes_cli/test_plugin_prompt_sections.py
 tests/hermes_cli/test_plugin_provider_picker_admission.py
 tests/hermes_cli/test_plugin_provider_picker_residue.py
-tests/hermes_cli/test_plugin_python_deps.py
 tests/hermes_cli/test_plugin_runtime_disable_gate.py
 tests/hermes_cli/test_plugin_scan_dunder_dirs.py
 tests/hermes_cli/test_plugin_scanner_recursion.py
@@ -11918,6 +11964,7 @@ tests/hermes_cli/test_plugins_cmd_list.py
 tests/hermes_cli/test_plugins_cmd_remove_bookkeeping.py
 tests/hermes_cli/test_plugins_hub_live_catalog.py
 tests/hermes_cli/test_plugins_hub_perf_guard.py
+tests/hermes_cli/test_plugins_picker_effective_state.py
 tests/hermes_cli/test_plugins_provenance.py
 tests/hermes_cli/test_plugins_transcription_registration.py
 tests/hermes_cli/test_plugins_tts_registration.py
@@ -11978,12 +12025,10 @@ tests/hermes_cli/test_provider_section3_grouping.py
 tests/hermes_cli/test_proxy.py
 tests/hermes_cli/test_proxy_off_loop.py
 tests/hermes_cli/test_prune_spares_pinned.py
-tests/hermes_cli/test_psutil_android_extract.py
 tests/hermes_cli/test_pty_bridge.py
 tests/hermes_cli/test_pty_keepalive_ws.py
 tests/hermes_cli/test_pty_session.py
 tests/hermes_cli/test_quarantine_forensic_logging.py
-tests/hermes_cli/test_quarantine_noop_restore.py
 tests/hermes_cli/test_quarantine_orphan_rescue.py
 tests/hermes_cli/test_quick_commands.py
 tests/hermes_cli/test_quiet_single_query.py
@@ -12021,13 +12066,11 @@ tests/hermes_cli/test_resume_quiet_stderr.py
 tests/hermes_cli/test_retirement_atomicity.py
 tests/hermes_cli/test_review_update_runtime.py
 tests/hermes_cli/test_router_provider.py
-tests/hermes_cli/test_run_with_idle_timeout.py
 tests/hermes_cli/test_runtime_install_progress.py
 tests/hermes_cli/test_runtime_machine_scope.py
 tests/hermes_cli/test_runtime_paths.py
 tests/hermes_cli/test_runtime_provider_late_binding.py
 tests/hermes_cli/test_runtime_provider_resolution.py
-tests/hermes_cli/test_runtime_repair_receipt.py
 tests/hermes_cli/test_runtime_transport_precedence.py
 tests/hermes_cli/test_safe_mode.py
 tests/hermes_cli/test_sale_pricing.py
@@ -12074,6 +12117,7 @@ tests/hermes_cli/test_session_recap.py
 tests/hermes_cli/test_session_recovery.py
 tests/hermes_cli/test_session_recovery_lost_and_found.py
 tests/hermes_cli/test_session_recovery_model_config.py
+tests/hermes_cli/test_session_recovery_timestamps.py
 tests/hermes_cli/test_session_save.py
 tests/hermes_cli/test_session_schema_history.py
 tests/hermes_cli/test_session_search_context_batch.py
@@ -12124,7 +12168,6 @@ tests/hermes_cli/test_shared_metrics_surface_attribution.py
 tests/hermes_cli/test_shared_metrics_tools_toggle.py
 tests/hermes_cli/test_shared_profile_warning.py
 tests/hermes_cli/test_shared_session_attach.py
-tests/hermes_cli/test_shim_fail_closed_windows_live.py
 tests/hermes_cli/test_show_config_credential.py
 tests/hermes_cli/test_sibling_config_migration.py
 tests/hermes_cli/test_signal_handler_kanban_worker.py
@@ -12197,6 +12240,7 @@ tests/hermes_cli/test_subcommands_batch.py
 tests/hermes_cli/test_subcommands_final_batch.py
 tests/hermes_cli/test_subcommands_followup.py
 tests/hermes_cli/test_subcommands_profile_gateway.py
+tests/hermes_cli/test_subprocess_text_encoding.py
 tests/hermes_cli/test_subprocess_timeouts.py
 tests/hermes_cli/test_subscription_cli.py
 tests/hermes_cli/test_system_stats_platform.py
@@ -12251,7 +12295,6 @@ tests/hermes_cli/test_update_behind_count_recovery.py
 tests/hermes_cli/test_update_bootstrap_cache_refresh.py
 tests/hermes_cli/test_update_channel.py
 tests/hermes_cli/test_update_channel_stable.py
-tests/hermes_cli/test_update_check.py
 tests/hermes_cli/test_update_cold_start_gateway_liveness.py
 tests/hermes_cli/test_update_command.py
 tests/hermes_cli/test_update_completion_process.py
@@ -12259,12 +12302,9 @@ tests/hermes_cli/test_update_completion_routing.py
 tests/hermes_cli/test_update_concurrent_quarantine.py
 tests/hermes_cli/test_update_config_clears_custom_fields.py
 tests/hermes_cli/test_update_config_migration_on_current.py
-tests/hermes_cli/test_update_config_migration_on_current_checkout.py
 tests/hermes_cli/test_update_contract.py
 tests/hermes_cli/test_update_cron_deadlock_guard.py
 tests/hermes_cli/test_update_cua_pm.py
-tests/hermes_cli/test_update_current_node_repair.py
-tests/hermes_cli/test_update_desktop_stale_warning.py
 tests/hermes_cli/test_update_diverged_rescue_ref.py
 tests/hermes_cli/test_update_eol_churn.py
 tests/hermes_cli/test_update_external_checkout.py
@@ -12285,16 +12325,11 @@ tests/hermes_cli/test_update_fleet_snapshot_settle.py
 tests/hermes_cli/test_update_gateway_launcher_refresh.py
 tests/hermes_cli/test_update_gateway_restart_aborted.py
 tests/hermes_cli/test_update_gateway_restart_fallback.py
-tests/hermes_cli/test_update_handoff_backend_reap.py
-tests/hermes_cli/test_update_handoff_checkout_cwd.py
-tests/hermes_cli/test_update_handoff_desktop_rebuild.py
-tests/hermes_cli/test_update_handoff_exit.py
 tests/hermes_cli/test_update_hangup_protection.py
 tests/hermes_cli/test_update_head_moved_gate.py
 tests/hermes_cli/test_update_host_obligation.py
 tests/hermes_cli/test_update_import_guard.py
 tests/hermes_cli/test_update_interrupted_pull.py
-tests/hermes_cli/test_update_interrupted_recovery.py
 tests/hermes_cli/test_update_inventory.py
 tests/hermes_cli/test_update_launch_completion.py
 tests/hermes_cli/test_update_launchd_fleet_restart.py
@@ -12308,10 +12343,8 @@ tests/hermes_cli/test_update_missing_configured_deps.py
 tests/hermes_cli/test_update_modified_notice.py
 tests/hermes_cli/test_update_no_gateway_restart.py
 tests/hermes_cli/test_update_obligation_identity.py
-tests/hermes_cli/test_update_orphan_backend_reap.py
 tests/hermes_cli/test_update_parked_branch_guard.py
 tests/hermes_cli/test_update_post_pull_syntax_guard.py
-tests/hermes_cli/test_update_post_swap_handoff.py
 tests/hermes_cli/test_update_products.py
 tests/hermes_cli/test_update_receipt.py
 tests/hermes_cli/test_update_receipt_endpoint.py
@@ -12321,28 +12354,19 @@ tests/hermes_cli/test_update_receipt_truthfulness.py
 tests/hermes_cli/test_update_restart_recovery.py
 tests/hermes_cli/test_update_scoped_reconciliation.py
 tests/hermes_cli/test_update_secret_import_lock.py
-tests/hermes_cli/test_update_self_lock.py
 tests/hermes_cli/test_update_serve_generation_recovery.py
-tests/hermes_cli/test_update_shim_fail_closed.py
-tests/hermes_cli/test_update_shim_parent_wait.py
 tests/hermes_cli/test_update_shim_self_lock.py
-tests/hermes_cli/test_update_skip_unchanged_editable_install.py
 tests/hermes_cli/test_update_sqlite_remediation.py
 tests/hermes_cli/test_update_stage.py
 tests/hermes_cli/test_update_stale_dashboard.py
 tests/hermes_cli/test_update_stale_gateway_yield.py
-tests/hermes_cli/test_update_stale_virtualenv.py
 tests/hermes_cli/test_update_state_autorestore.py
 tests/hermes_cli/test_update_target_identity.py
 tests/hermes_cli/test_update_unit_client_budget.py
 tests/hermes_cli/test_update_upstream_prompt_noninteractive.py
-tests/hermes_cli/test_update_venv_health.py
 tests/hermes_cli/test_update_venv_holder_retirement.py
-tests/hermes_cli/test_update_venv_ownership_preflight.py
 tests/hermes_cli/test_update_version_report.py
 tests/hermes_cli/test_update_wedged_gateway.py
-tests/hermes_cli/test_update_yes_flag.py
-tests/hermes_cli/test_update_zip_atomic_replace.py
 tests/hermes_cli/test_update_zip_completion.py
 tests/hermes_cli/test_update_zip_fallback_guards.py
 tests/hermes_cli/test_update_zip_release_preserve.py
@@ -12361,7 +12385,6 @@ tests/hermes_cli/test_venv_holder_windows_live.py
 tests/hermes_cli/test_venv_sync.py
 tests/hermes_cli/test_venv_sync_currency.py
 tests/hermes_cli/test_verify_console_scripts.py
-tests/hermes_cli/test_verify_core_dependencies.py
 tests/hermes_cli/test_version_command.py
 tests/hermes_cli/test_version_info.py
 tests/hermes_cli/test_vertex_model_picker.py
@@ -12415,6 +12438,7 @@ tests/hermes_cli/test_web_server_pty_import.py
 tests/hermes_cli/test_web_server_pty_reconnect.py
 tests/hermes_cli/test_web_server_session_search.py
 tests/hermes_cli/test_web_server_sessiondb_eventloop.py
+tests/hermes_cli/test_web_server_skew_exit.py
 tests/hermes_cli/test_web_server_skill_editor.py
 tests/hermes_cli/test_web_server_skills_profiles.py
 tests/hermes_cli/test_web_server_speak_stream.py
@@ -12431,6 +12455,7 @@ tests/hermes_cli/test_whatsapp_setup_ordering.py
 tests/hermes_cli/test_win_pty_bridge.py
 tests/hermes_cli/test_windows_gateway_cold_start_desktop_lifecycle.py
 tests/hermes_cli/test_windows_gateway_job_teardown.py
+tests/hermes_cli/test_windows_relaunch_verify_budget.py
 tests/hermes_cli/test_windows_update_restart_reconciliation.py
 tests/hermes_cli/test_worktree.py
 tests/hermes_cli/test_worktree_command.py
@@ -12690,11 +12715,11 @@ tests/install/macos-desktop-e2e.sh
 tests/install/windows-bundle-smoke.ps1
 tests/install/windows-bundled-e2e.ps1
 tests/install/windows-e2e.ps1
-tests/install_ps1_fake_uv.py
 tests/installation/__init__.py
 tests/installation/test_installer_common.py
 tests/installation_launcher_fixture.py
 tests/integration/test_local_runtime_pm_download.py
+tests/live_process_fixtures.py
 tests/manual/cron_inchannel_dm_e2e.py
 tests/manual/cron_inchannel_e2e.py
 tests/monitoring/__init__.py
@@ -12824,6 +12849,7 @@ tests/plugins/test_kanban_board_project_api.py
 tests/plugins/test_kanban_dashboard_plugin.py
 tests/plugins/test_kanban_dashboard_task_updated_hook.py
 tests/plugins/test_kanban_estimate.py
+tests/plugins/test_kanban_events_tail.py
 tests/plugins/test_kanban_link_tasks.py
 tests/plugins/test_kanban_model_override.py
 tests/plugins/test_kanban_read_admission.py
@@ -12867,6 +12893,7 @@ tests/pm/conftest.py
 tests/pm/test_activate_scripts.py
 tests/pm/test_activation_runtime.py
 tests/pm/test_activation_setup.py
+tests/pm/test_agent_browser_package.py
 tests/pm/test_archive_safety.py
 tests/pm/test_artifact_mirror.py
 tests/pm/test_bootstrap_import_closure.py
@@ -12922,6 +12949,7 @@ tests/pm/test_project_relock.py
 tests/pm/test_python_release_identity.py
 tests/pm/test_receipt.py
 tests/pm/test_recovery.py
+tests/pm/test_restart_needed.py
 tests/pm/test_ripgrep_vc_runtime.py
 tests/pm/test_runtime.py
 tests/pm/test_runtime_boot_gc.py
@@ -12995,22 +13023,14 @@ tests/scripts/desktop_update/test_desktop_update_shim_profile_cleanup.py
 tests/scripts/desktop_update/test_desktop_update_shim_progress.py
 tests/scripts/desktop_update/test_desktop_update_tcc_heal.py
 tests/scripts/desktop_update/test_desktop_update_windows_cwd.py
-tests/scripts/desktop_update/test_desktop_update_windows_gateway_flag.py
 tests/scripts/desktop_update/test_desktop_update_windows_pipe_drain.py
 tests/scripts/desktop_update/test_desktop_update_windows_progress.py
 tests/scripts/desktop_update/test_desktop_update_windows_python_handoff.py
-tests/scripts/desktop_update/test_desktop_update_windows_retry_policy.py
 tests/scripts/desktop_update/test_desktop_update_windows_timestamp.py
 tests/scripts/desktop_update/test_desktop_update_windows_ui_delivery.py
 tests/scripts/install/test_dmg_install_driver.py
-tests/scripts/install/test_install_autostash_conflict_recovery.py
 tests/scripts/install/test_install_clone_throttle_fallback.py
-tests/scripts/install/test_install_commit_pin_rollback.py
 tests/scripts/install/test_install_diverged_rescue_ref.py
-tests/scripts/install/test_install_lockfile_churn.py
-tests/scripts/install/test_install_macos_launcher.py
-tests/scripts/install/test_install_no_initial_commit.py
-tests/scripts/install/test_install_ps1_ascii_only.py
 tests/scripts/install/test_install_ps1_execution_policy.py
 tests/scripts/install/test_install_ps1_iex_failure.py
 tests/scripts/install/test_install_ps1_json_failure_frame.py
@@ -13018,24 +13038,12 @@ tests/scripts/install/test_install_ps1_managed_python_provenance.py
 tests/scripts/install/test_install_ps1_native_calls.py
 tests/scripts/install/test_install_ps1_script_suites.py
 tests/scripts/install/test_install_ps1_staged_git.py
-tests/scripts/install/test_install_sh_acp_launcher.py
-tests/scripts/install/test_install_sh_bootstrap_marker.py
-tests/scripts/install/test_install_sh_browser_install.py
 tests/scripts/install/test_install_sh_existing_destination.py
-tests/scripts/install/test_install_sh_node_deps_failure.py
-tests/scripts/install/test_install_sh_node_deps_workspaces.py
-tests/scripts/install/test_install_sh_node_prerelease.py
-tests/scripts/install/test_install_sh_node_probe.py
 tests/scripts/install/test_install_sh_node_tarball_without_xz.py
 tests/scripts/install/test_install_sh_output.py
 tests/scripts/install/test_install_sh_repository_stage.py
 tests/scripts/install/test_install_sh_reuse_supported_python.py
-tests/scripts/install/test_install_sh_symlink_stomp.py
-tests/scripts/install/test_install_sh_system_package_probe.py
-tests/scripts/install/test_install_sh_termux_python_bounds.py
 tests/scripts/install/test_install_sh_termux_refusal.py
-tests/scripts/install/test_install_sh_uv_lock_config.py
-tests/scripts/install/test_install_unmerged_index.py
 tests/scripts/install/test_pm_desktop_launch_capture.py
 tests/scripts/test_activation_guard.py
 tests/scripts/test_agent_build.py
@@ -13087,7 +13095,6 @@ tests/scripts/test_pm_build_consumers.py
 tests/scripts/test_pm_runtime_bundle.py
 tests/scripts/test_powershell_script_syntax.py
 tests/scripts/test_release_artifacts.py
-tests/scripts/test_release_bootstrap_installer_version.py
 tests/scripts/test_release_build_commit.py
 tests/scripts/test_release_canary_git.py
 tests/scripts/test_release_changelog.py
@@ -13176,6 +13183,7 @@ tests/skills/test_unbroker_skill.py
 tests/skills/test_weekly_review_planning_skill.py
 tests/skills/test_youtube_quiz.py
 tests/termux_fixtures.py
+tests/test_agent_close_lifecycle.py
 tests/test_atomic_json_writers_unified.py
 tests/test_atomic_replace_symlinks.py
 tests/test_atomic_write_fsync_dir_target.py
@@ -13210,7 +13218,6 @@ tests/test_mini_swe_runner.py
 tests/test_model_forces_max_completion_tokens.py
 tests/test_model_tools_async_bridge.py
 tests/test_no_shadowed_test_definitions.py
-tests/test_node_bootstrap_bash.py
 tests/test_old_updater_compat_surface.py
 tests/test_os_marker_gating.py
 tests/test_packaging_build_guard.py
@@ -13303,8 +13310,6 @@ tests/tools/test_browser_camofox_state.py
 tests/tools/test_browser_camofox_timeout.py
 tests/tools/test_browser_cdp_override.py
 tests/tools/test_browser_cdp_tool.py
-tests/tools/test_browser_chromium_autoinstall.py
-tests/tools/test_browser_chromium_check.py
 tests/tools/test_browser_cleanup.py
 tests/tools/test_browser_cloud_fallback.py
 tests/tools/test_browser_cloud_provider_cache.py
@@ -13321,11 +13326,9 @@ tests/tools/test_browser_extension_router_wiring.py
 tests/tools/test_browser_get_images_ssrf.py
 tests/tools/test_browser_hardening.py
 tests/tools/test_browser_headed_mode.py
-tests/tools/test_browser_homebrew_paths.py
 tests/tools/test_browser_hybrid_routing.py
 tests/tools/test_browser_lightpanda.py
 tests/tools/test_browser_lightpanda_serve.py
-tests/tools/test_browser_npx_warmup.py
 tests/tools/test_browser_open_timeout.py
 tests/tools/test_browser_orphan_reaper.py
 tests/tools/test_browser_pm.py
@@ -13547,9 +13550,6 @@ tests/tools/test_kanban_unknown_arguments.py
 tests/tools/test_kill_verify_tree_death.py
 tests/tools/test_known_file_write_baseline.py
 tests/tools/test_launchctl_guard_diagnostic.py
-tests/tools/test_lazy_deps.py
-tests/tools/test_lazy_deps_durable_target.py
-tests/tools/test_lazy_deps_managed.py
 tests/tools/test_line_ending_preservation.py
 tests/tools/test_live_env_cwd_override_sanitize.py
 tests/tools/test_llm_content_none_guard.py
@@ -13681,6 +13681,7 @@ tests/tools/test_patch_parser.py
 tests/tools/test_patch_v4a_gate.py
 tests/tools/test_patch_ws_diagnosis.py
 tests/tools/test_permanent_allowlist_reconcile.py
+tests/tools/test_persist_on_release.py
 tests/tools/test_plugin_compat_warning.py
 tests/tools/test_plugin_guard.py
 tests/tools/test_plugin_guard_block_reason.py
@@ -14337,7 +14338,6 @@ tools/environments/docker_egress.py
 tools/environments/file_sync.py
 tools/environments/local.py
 tools/environments/local_env_policy.py
-tools/environments/local_gitbash_probe.py
 tools/environments/local_pythonpath.py
 tools/environments/managed_modal.py
 tools/environments/modal.py
@@ -14520,7 +14520,6 @@ tools/voice_mode_transcript.py
 tools/wake_word.py
 tools/wake_word_engines.py
 tools/wakewords/README.md
-tools/wakewords/hey_hermes.onnx
 tools/wakewords/hey_hermes.tflite
 tools/web_result_cache.py
 tools/web_tools.py
@@ -14807,7 +14806,6 @@ ui-tui/packages/hermes-ink/tsconfig.json
 ui-tui/scripts/bench-history-scroll.tsx
 ui-tui/scripts/bench-streaming-md.tsx
 ui-tui/scripts/billing-fixtures.tsx
-ui-tui/scripts/build.mjs
 ui-tui/scripts/profile-tui.mjs
 ui-tui/scripts/visual/paths.mjs
 ui-tui/scripts/visual/render.tsx
@@ -14891,7 +14889,6 @@ ui-tui/src/__tests__/syntax.test.ts
 ui-tui/src/__tests__/terminalModes.test.ts
 ui-tui/src/__tests__/terminalParity.test.ts
 ui-tui/src/__tests__/terminalSetup.test.ts
-ui-tui/src/__tests__/termux.test.ts
 ui-tui/src/__tests__/termuxComposerLayout.test.ts
 ui-tui/src/__tests__/text.test.ts
 ui-tui/src/__tests__/textInputBurstInput.test.ts
