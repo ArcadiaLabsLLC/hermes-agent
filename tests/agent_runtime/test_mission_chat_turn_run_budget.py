@@ -47,10 +47,8 @@ from agent_runtime.mission_chat_turns import (
     persist_mission_chat_turn,
     transition_mission_chat_turn,
 )
-from agent_runtime.persona_chat_history import (
-    _safe_recent_messages,
-    _terminal_turn_marker_rows,
-)
+from agent_runtime.persona_chat_history.history_rows import _safe_recent_messages
+from agent_runtime.persona_chat_history.markers import _terminal_turn_marker_rows
 from agent_runtime.profile_runner import (
     AgentRunRequest,
     ProfileAgentRunner,

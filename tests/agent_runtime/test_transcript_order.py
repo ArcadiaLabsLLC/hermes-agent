@@ -27,10 +27,10 @@ from agent_runtime.mission_chat_turns import (
     persist_mission_chat_turn,
 )
 from agent_runtime.operator_channels import _conversation_contract
-from agent_runtime.persona_chat_history import (
+from agent_runtime.persona_chat_history.history_rows import _safe_recent_messages
+from agent_runtime.persona_chat_history.markers import (
     _terminal_turn_marker_rows,
     _ordered_message_rows,
-    _safe_recent_messages,
 )
 from agent_runtime.transcript_order import (
     TURN_SEQ_CONTENT,

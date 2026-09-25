@@ -172,7 +172,7 @@ def test_the_handler_still_leaves_operator_sends_unmarked():
 
 
 def test_the_read_side_types_a_delivery_row_and_leaves_the_others_alone():
-    from agent_runtime.persona_chat_history import _safe_recent_messages
+    from agent_runtime.persona_chat_history.history_rows import _safe_recent_messages
     from tests.agent_runtime.test_persona_chat_history_curation import FakeSessionDB
 
     db = FakeSessionDB(

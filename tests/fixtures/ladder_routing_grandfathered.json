@@ -214,16 +214,16 @@
    "site": "agent_runtime/persona_chat_continuity.py|PersonaChatRuntimeRegistry.transition|vocab|failed"
   },
   {
-   "arms": 4,
-   "site": "agent_runtime/persona_chat_history.py|_iso_timestamp|isinstance|value"
+   "arms": 6,
+   "site": "agent_runtime/persona_chat_history/curation.py|_safe_curated_messages|ladder|role"
   },
   {
-   "arms": 6,
-   "site": "agent_runtime/persona_chat_history.py|_safe_curated_messages|ladder|role"
+   "arms": 4,
+   "site": "agent_runtime/persona_chat_history/text.py|_iso_timestamp|isinstance|value"
   },
   {
    "arms": 3,
-   "site": "agent_runtime/persona_chat_history.py|_safe_message_role|ladder|role"
+   "site": "agent_runtime/persona_chat_history/text.py|_safe_message_role|ladder|role"
   },
   {
    "arms": 3,

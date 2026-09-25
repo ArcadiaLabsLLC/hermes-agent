@@ -90,7 +90,7 @@ _GRANDFATHERED: dict[tuple[str, ...], str] = {
         "are NOT this function, which is why the name alone never settled it"
     ),
     (
-        "agent_runtime/persona_chat_history.py::_safe_trace_int",
+        "agent_runtime/persona_chat_history/trace_rows.py::_safe_trace_int",
         "agent_runtime/profile_runner.py::_safe_exit_code",
     ): (
         "same coercion (int-or-None, rejecting bool) under two domain names. "

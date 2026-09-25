@@ -1948,6 +1948,7 @@ def test_snapshot_preserves_open_chat_and_emits_history(monkeypatch, isolate_age
         },
     )
     monkeypatch.setattr(history, "_default_session_db", lambda: db)
+    monkeypatch.setattr(history.summary, "_default_session_db", lambda: db)
     monkeypatch.setattr(snapshot_module, "_default_persona_session_db", lambda: db)
     PersonaInstanceStore().open_chat(persona_id="dev", session_id="chat_old_123")
 

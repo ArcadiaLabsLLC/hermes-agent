@@ -514,7 +514,7 @@ def test_the_retired_producer_entries_are_witnessed_on_their_live_consumer():
 
     ``persona_assignment.created`` last had a writer before S70 (`6b9a27a74`).
     Rows carrying it are still in real session history, and
-    ``persona_chat_history._trace_entry`` still renders them into the
+    ``persona_chat_history.trace_rows._trace_entry`` still renders them into the
     ``persona_chat_trace`` block that ships on the snapshot and status wire. If
     that stopped being true the honest outcome flips: de-register the type and
     state the ``contract_hash`` migration, rather than keep an exemption for a
@@ -531,16 +531,16 @@ def test_the_retired_producer_entries_are_witnessed_on_their_live_consumer():
 
     for event_type in RETIRED_PRODUCER_LIVE_CONSUMER_ALLOWLIST:
         # 1. The fetch filter still admits the type, or the row is never read.
-        assert event_type in persona_chat_history._TRACE_EVENT_TYPES, (
+        assert event_type in persona_chat_history.vocabulary._TRACE_EVENT_TYPES, (
             f"{event_type} is no longer in _TRACE_EVENT_TYPES, so no historical "
             "row carrying it can reach a reader. The registration is now excusing "
             "nothing — de-register it and state the contract_hash migration."
         )
 
     # 2. And the mapping still RESOLVES a historical row into a rendered entry.
-    entry = persona_chat_history._trace_entry(_HistoricalEvent())
+    entry = persona_chat_history.trace_rows._trace_entry(_HistoricalEvent())
     assert entry is not None, (
-        "persona_chat_history._trace_entry no longer resolves a historical "
+        "persona_chat_history.trace_rows._trace_entry no longer resolves a historical "
         "persona_assignment.created row. The live-consumer claim is false; flip "
         "to de-registration."
     )
@@ -551,7 +551,7 @@ def test_the_retired_producer_entries_are_witnessed_on_their_live_consumer():
     #    `.closed` still has an emitter and travels the identical path, so this
     #    is not a lane kept alive only by the row above.
     sibling = "persona_assignment.closed"
-    assert sibling in persona_chat_history._TRACE_EVENT_TYPES
+    assert sibling in persona_chat_history.vocabulary._TRACE_EVENT_TYPES
     assert sibling in emitted_event_types(), (
         f"{sibling} lost its emitter too. The whole assignment-trace lane may now "
         "be dead, which would retire the read-back argument for its sibling — "

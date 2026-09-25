@@ -10,7 +10,7 @@
   "agent_runtime/mission_chat_turns.py::_lock_fd_exclusive_nonblocking == agent_runtime/persona_chat_continuity.py::_try_lock",
   "agent_runtime/mission_chat_turns.py::_unlock_fd == agent_runtime/persona_chat_continuity.py::_unlock",
   "agent_runtime/paths.py::unlink_quietly == hermes_cli/_bytecode_sweep.py::_release_bytecode_sweep_lock",
-  "agent_runtime/persona_chat_history.py::_safe_trace_int == agent_runtime/profile_runner.py::_safe_exit_code",
+  "agent_runtime/persona_chat_history/trace_rows.py::_safe_trace_int == agent_runtime/profile_runner.py::_safe_exit_code",
   "hermes_cli/harness_parts/level.py::_load_level_bytes == hermes_cli/harness_parts/map.py::_load_map_bytes",
   "scripts/doc_cite_adjacency.py::_tracked == scripts/doc_cite_report.py::_tracked"
  ],
@@ -43,7 +43,7 @@
   "_refuse: agent/charsheet/fake_draftsman.py, tools/agent_chat_remote.py",
   "_resolve: agent_runtime/build_stamp.py, scripts/doc_cite_report.py",
   "_run: agent_runtime/discussions/run_store.py, scripts/generate_agent_runtime_response_fixtures.py",
-  "_safe_display_text: agent_runtime/observability.py, agent_runtime/persona_chat_history.py",
+  "_safe_display_text: agent_runtime/observability.py, agent_runtime/persona_chat_history/text.py",
   "_safe_exit_code: agent_runtime/mission_chat_turns.py, agent_runtime/profile_runner.py",
   "_safe_file_labels: agent_runtime/observability.py, agent_runtime/profile_runner.py, agent_runtime/progress.py",
   "_safe_text: agent_runtime/child_events.py, agent_runtime/events.py, agent_runtime/parity.py, agent_runtime/running_work.py, agent_runtime/snapshot.py",

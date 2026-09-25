@@ -193,7 +193,6 @@
   "agent_runtime/persona_chat_actor_prewarm.py",
   "agent_runtime/persona_chat_continuity.py",
   "agent_runtime/persona_chat_durability.py",
-  "agent_runtime/persona_chat_history.py",
   "agent_runtime/persona_chat_mints.py",
   "agent_runtime/persona_config_sync.py",
   "agent_runtime/persona_instance_identity.py",

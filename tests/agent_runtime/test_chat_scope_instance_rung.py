@@ -35,11 +35,10 @@ from agent_runtime.chat_session_scope import (
 )
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.persona_chat_history import (
-    CHAT_SCOPE_MISMATCH,
-    CHAT_SCOPE_UNRESOLVED,
     PERSONA_CHAT_SESSION_SOURCE,
     persona_chat_session_messages,
 )
+from agent_runtime.persona_chat_history.vocabulary import CHAT_SCOPE_MISMATCH, CHAT_SCOPE_UNRESOLVED
 
 SESSION_ID = "persona_chat_personainst_qa_agent_deadbeef"
 
