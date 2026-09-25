@@ -27,6 +27,7 @@ from pathlib import Path
 from agent_runtime.root_observability import attach_root_observability
 from agent_runtime.store import WorkspaceStore
 from hermes_cli.harness_support import (
+    load_document_bytes,
     _object_envelope,
     _print_stage42,
     emit_harness_error,
@@ -49,32 +50,6 @@ def _level_store():
 
 def _level_workspace_for(args) -> str | None:
     return getattr(args, "workspace", None) or WorkspaceStore().active_id()
-
-
-def _load_level_bytes(raw: str) -> bytes:
-    """Resolve a ``--document`` value to the EXACT bytes to store.
-
-    Deliberately NOT ``_load_request_json``: that helper parses, and a parsed
-    document re-serialized on the way to disk is the one thing this family
-    promises never to do. A path is read as bytes; anything else is taken as the
-    document text itself and encoded UTF-8.
-
-    **A path is the right call for anything real.** Windows caps a command line
-    at ~32 KB and a level is up to 1 MB, so the launcher writes a temp file and
-    passes its path; the inline form is for a hand-typed probe.
-    """
-
-    candidate = (raw or "").strip()
-    if candidate[:1] not in {"{", "["}:
-        try:
-            path = Path(candidate)
-            if path.is_file():
-                return path.read_bytes()
-        except OSError:
-            # Not a usable path — fall through and take the literal as the
-            # document, which is what the caller meant if it was not a filename.
-            pass
-    return candidate.encode("utf-8")
 
 
 def _level_row(workspace_id: str, token: str, raw: bytes | None, *, full: bool) -> dict:
@@ -139,7 +114,7 @@ def _cmd_level_set(args) -> int:
             ValueError("no workspace selected; pass --workspace"), args=args, code="invalid_request"
         )
     try:
-        raw = _load_level_bytes(args.document)
+        raw = load_document_bytes(args.document)
     except OSError as exc:
         return emit_harness_error(exc, args=args, code="invalid_payload")
     try:

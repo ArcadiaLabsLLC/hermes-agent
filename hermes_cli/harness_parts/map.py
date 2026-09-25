@@ -27,6 +27,7 @@ from pathlib import Path
 
 from agent_runtime.root_observability import attach_root_observability
 from hermes_cli.harness_support import (
+    load_document_bytes,
     _object_envelope,
     _print_stage42,
     emit_harness_error,
@@ -60,31 +61,6 @@ def _map_id_for(args) -> str | None:
 
     raw = getattr(args, "map", None)
     return (str(raw).strip() or None) if raw else None
-
-
-def _load_map_bytes(raw: str) -> bytes:
-    """Resolve a ``--document`` value to the EXACT bytes to store.
-
-    Deliberately NOT ``_load_request_json``: that helper parses, and a parsed
-    document re-serialized on the way to disk is the one thing this family
-    promises never to do. A path is read as bytes; anything else is taken as the
-    document text itself and encoded UTF-8.
-
-    A path is the right call for anything real — Windows caps a command line at
-    ~32 KB and a map carries a whole scene.
-    """
-
-    candidate = (raw or "").strip()
-    if candidate[:1] not in {"{", "["}:
-        try:
-            path = Path(candidate)
-            if path.is_file():
-                return path.read_bytes()
-        except OSError:
-            # Not a usable path — fall through and take the literal as the
-            # document, which is what the caller meant if it was not a filename.
-            pass
-    return candidate.encode("utf-8")
 
 
 def _map_row(map_id: str, raw: bytes | None, *, full: bool) -> dict:
@@ -226,7 +202,7 @@ def _cmd_map_set(args) -> int:
         return refusal
     store = _map_store()
     try:
-        raw = _load_map_bytes(args.document)
+        raw = load_document_bytes(args.document)
     except OSError as exc:
         return emit_harness_error(exc, args=args, code="invalid_payload")
     try:

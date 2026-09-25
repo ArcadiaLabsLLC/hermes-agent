@@ -1,7 +1,6 @@
 {
  "body_groups": [
   "agent_runtime/paths.py::unlink_quietly == hermes_cli/_bytecode_sweep.py::_release_bytecode_sweep_lock",
-  "hermes_cli/harness_parts/level.py::_load_level_bytes == hermes_cli/harness_parts/map.py::_load_map_bytes",
   "scripts/doc_cite_adjacency.py::_tracked == scripts/doc_cite_report.py::_tracked"
  ],
  "name_groups": [

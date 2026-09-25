@@ -541,6 +541,34 @@ def _load_request_json(raw: str) -> dict:
     return json.loads(candidate)
 
 
+def load_document_bytes(raw: str) -> bytes:
+    """Resolve a ``--document`` value to the EXACT bytes to store.
+
+    Deliberately NOT :func:`_load_request_json`: that helper parses, and a parsed
+    document re-serialized on the way to disk is the one thing the level and map
+    families promise never to do. A path is read as bytes; anything else is
+    taken as the document text itself and encoded UTF-8.
+
+    **A path is the right call for anything real.** Windows caps a command line
+    at ~32 KB and a level is up to 1 MB (a map carries a whole scene), so the
+    launcher writes a temp file and passes its path; the inline form is for a
+    hand-typed probe. ONE owner (lane W3-B): ``level._load_level_bytes`` and
+    ``map._load_map_bytes`` were byte-identical copies (a W0-G3 row).
+    """
+
+    candidate = (raw or "").strip()
+    if candidate[:1] not in {"{", "["}:
+        try:
+            path = Path(candidate)
+            if path.is_file():
+                return path.read_bytes()
+        except OSError:
+            # Not a usable path — fall through and take the literal as the
+            # document, which is what the caller meant if it was not a filename.
+            pass
+    return candidate.encode("utf-8")
+
+
 def _list_envelope(item_kind: str, items: list[dict], *, cursor: str | None = None, truncated: bool = False) -> dict:
     return {
         "schema_version": STAGE42_SCHEMA_VERSION,
