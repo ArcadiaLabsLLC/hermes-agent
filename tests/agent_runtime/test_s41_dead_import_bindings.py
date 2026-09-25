@@ -110,7 +110,8 @@ REMOVED_BINDINGS = {
     # silently vanishing; the module's absence is asserted in
     # ``test_every_source_symbol_the_bindings_pointed_at_is_untouched`` below and
     # owned by tests/agent_runtime/test_s56_worker_session_lane_removal.py (deleted 2026-09-24).
-    "hermes_cli/harness_parts/persona/chat_turn_commit/__init__.py": {"_relay_time"},
+    # The ``agent_runtime.states`` line moved with the settle phase (lane H3).
+    "hermes_cli/harness_parts/persona/chat_turn_commit/settle.py": {"_relay_time"},
 }
 
 #: The retained half of an import line that only lost some of its names, and the
@@ -120,8 +121,9 @@ RETAINED_BINDINGS = {
     # harness.py's shared ``agent_runtime.cli_format`` line moved with the verb
     # bodies that read it (lane H2); the usage verb is its first reader.
     "hermes_cli/harness_parts/usage/commands.py": {"emit_json"},
-    # Its only reader is the turn commit, which imports it itself (lanes H1, H3).
-    "hermes_cli/harness_parts/persona/chat_turn_commit/__init__.py": {"WorkerSessionState"},
+    # Its only reader is the turn commit's settle phase, which imports it itself
+    # (lanes H1, H3 — H3 moved the line out of the package ``__init__``).
+    "hermes_cli/harness_parts/persona/chat_turn_commit/settle.py": {"WorkerSessionState"},
     "agent_runtime/persona_runtime.py": {"Callable", "TYPE_CHECKING"},
     "agent_runtime/observability.py": {"datetime"},
     "agent_runtime/parity.py": {"event_rotation"},
