@@ -182,34 +182,6 @@
    "site": "agent_runtime/operator_channels.py|_settle_terminal_tool_calls|vocab|running"
   },
   {
-   "arms": 1,
-   "site": "agent_runtime/persona_assignments/summary.py|_persona_instance_is_active_lane|vocab|assigned"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/persona_assignments/summary.py|_persona_instance_is_active_lane|vocab|possessed"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/persona_assignments/summary.py|_persona_instance_is_active_lane|vocab|running"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/persona_assignments/summary.py|_persona_instance_is_active_lane|vocab|self_healing"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/persona_assignments/summary.py|_persona_instance_is_active_lane|vocab|waiting_on_human"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/persona_assignments/summary.py|_persona_instance_is_active_lane|vocab|waiting_on_proof"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/persona_assignments/summary.py|_persona_instance_is_active_lane|vocab|waiting_on_tool"
-  },
-  {
    "arms": 2,
    "site": "agent_runtime/persona_chat_continuity.py|PersonaChatRuntimeRegistry.transition|vocab|failed"
   },

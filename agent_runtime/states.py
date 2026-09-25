@@ -1,4 +1,5 @@
 from enum import StrEnum
+from typing import Final
 
 
 class TaskState(StrEnum):
@@ -41,6 +42,30 @@ class WorkerSessionState(StrEnum):
     BLOCKED = "blocked"
     CLOSED = "closed"
 
+
+
+#: The worker states in which a persona instance is an ACTIVE lane: the status
+#: and snapshot rosters list it as a working agent
+#: (``persona_assignments.summary.active_persona_instance_agent_summaries``),
+#: whatever work pointers it does or does not carry. The one reader tests
+#: membership; nothing compares a state to these words by hand.
+ACTIVE_LANE_STATES: Final[frozenset[WorkerSessionState]] = frozenset(
+    {
+        WorkerSessionState.ASSIGNED,
+        WorkerSessionState.RUNNING,
+        WorkerSessionState.WAITING_ON_TOOL,
+        WorkerSessionState.WAITING_ON_PROOF,
+        WorkerSessionState.SELF_HEALING,
+        WorkerSessionState.WAITING_ON_HUMAN,
+        WorkerSessionState.POSSESSED,
+    }
+)
+
+#: Persona-ASSIGNMENT states — a vocabulary of their own rather than worker
+#: states (``queued`` and ``needs_input`` are assignment words): the states an
+#: assignment still counts as open in, and the ones that close it.
+ACTIVE_ASSIGNMENT_STATES = frozenset({"queued", "assigned", "running", "waiting_on_tool", "waiting_on_proof", "needs_input"})
+TERMINAL_ASSIGNMENT_STATES = frozenset({"completed", "blocked", "cancelled"})
 
 _LEGACY_RUNNING_TASK_STATE_VALUES = frozenset(
     {

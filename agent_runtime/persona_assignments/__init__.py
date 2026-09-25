@@ -5,45 +5,72 @@ persona lane reads and writes), ``PersonaAssignmentStore`` (the assignment
 READ/CLOSE side), and the identity helpers most of the tree takes —
 ``canonical_persona_instance_id``, ``persona_instance_id_for``,
 ``persona_chat_session_id_for``, ``persona_instance_display_name``,
-``normalize_persona_id``, ``safe_assignment_token`` / ``safe_assignment_text``.
+``normalize_persona_id``, ``safe_assignment_token`` / ``safe_assignment_text``
+(those two now live in ``agent_runtime.serde``; re-exported here).
+
+The store is COMPOSED: ``store`` holds the row I/O and the class, and each lane
+module holds one verb family as functions over the store, bound onto the class
+as methods (``PersonaInstanceStore.open_chat is chat_binding.open_chat``), so a
+caller — or a test patching a class attribute — sees the class it always saw.
 
 Modules, lowest layer first (no module imports one above it — W0-G6):
 
-============  ======  ==========================================================
-module        layer   owns
-============  ======  ==========================================================
-vocabulary    models  assignment state sets, chat modes, typed lane reasons
-errors        models  the store's three refusals
-tokens        policy  token / text sanitizers, skill-override normalizer
-profile       policy  model-override and reasoning-effort validation
-identity      policy  id derivations, chat-session ids and owners (no store)
-summary       policy  wire summaries and tool-visibility detail
-scan          stores  whole-roster scans, unreadable-row ledger, presence probe
-retire        stores  the retired-instance archive layout and receipts
-store         stores  ``PersonaInstanceStore``
-lookups       stores  identity answers that read the roster
-assignments   stores  ``PersonaAssignmentStore`` + the task-id migration
-============  ======  ==========================================================
+==============  ======  ========================================================
+module          layer   owns
+==============  ======  ========================================================
+vocabulary      models  chat modes and the typed reasons the lane spends
+errors          models  the store's three refusals
+profile         policy  model / effort / skill-override validation
+identity        policy  id derivations, chat-session ids and owners (no store)
+summary         policy  wire summaries and tool-visibility detail
+scan            stores  whole-roster scans, unreadable-row ledger, presence probe
+retire          stores  the archive layout and the retire lane
+steering        stores  the parent-set lane and its acyclic commit
+replicate       stores  the realm-sync replication door
+repair          stores  steering and chat-binding repairs
+chat_binding    stores  open / refuse / clear / roll back a chat binding
+profile_writes  stores  ``update_profile`` / ``set_backing_profile``
+store           stores  ``PersonaInstanceStore``: rows, mint, events, bindings
+lookups         stores  identity answers that read the roster
+assignments     stores  ``PersonaAssignmentStore`` + the task-id migration
+==============  ======  ========================================================
+
+The assignment state sets and ``ACTIVE_LANE_STATES`` live in
+``agent_runtime.states``, beside the worker states they overlap.
 
 Stores written: ``paths.persona_instances_dir()`` (instance rows),
 ``paths.persona_assignments_dir()`` (assignment rows), the ``*_retire`` archive
 batches and their receipts, and the event log.
 
-Every name an importer takes from ``agent_runtime.persona_assignments`` today is
+Every name an importer takes from ``agent_runtime.persona_assignments`` is
 re-exported below, so no importer changes with the package.
 """
 
 from __future__ import annotations
 
-from agent_runtime.models import PERSONA_INSTANCE_ID_PREFIX, looks_like_persona_instance_id
+from agent_runtime.models import (
+    looks_like_persona_instance_id,
+    PERSONA_INSTANCE_ID_PREFIX,
+)
 
-from agent_runtime.tool_visibility import resolve_tool_visibility
+from agent_runtime.serde import (
+    safe_assignment_text,
+    safe_assignment_token,
+    safe_optional_token,
+)
+
+from agent_runtime.states import (
+    ACTIVE_ASSIGNMENT_STATES,
+    TERMINAL_ASSIGNMENT_STATES,
+)
+
+from agent_runtime.tool_visibility import (
+    resolve_tool_visibility,
+)
 
 from agent_runtime.persona_assignments.vocabulary import (
-    ACTIVE_ASSIGNMENT_STATES,
     CHAT_BINDING_CLEARED_REASON_DELETED,
     PERSONA_ROWS_UNREADABLE,
-    TERMINAL_ASSIGNMENT_STATES,
 )
 
 from agent_runtime.persona_assignments.errors import (
@@ -52,15 +79,9 @@ from agent_runtime.persona_assignments.errors import (
     StaleModelOverrideWrite,
 )
 
-from agent_runtime.persona_assignments.tokens import (
-    safe_assignment_text,
-    safe_assignment_token,
-    safe_optional_token,
-    _safe_skill_overrides,
-)
-
 from agent_runtime.persona_assignments.profile import (
     _model_supports_reasoning_effort,
+    _safe_skill_overrides,
 )
 
 from agent_runtime.persona_assignments.identity import (

@@ -12,10 +12,7 @@ from typing import Any
 
 from agent_runtime.agent_create_phases import timed_create_subphase
 from agent_runtime.models import PERSONA_INSTANCE_ID_PREFIX, PersonaInstance
-from agent_runtime.persona_assignments.tokens import (
-    safe_assignment_text,
-    safe_assignment_token,
-)
+from agent_runtime.serde import safe_assignment_text, safe_assignment_token
 
 __layer__ = "policy"
 

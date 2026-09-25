@@ -10,11 +10,15 @@ from typing import Any
 
 from agent_runtime.agent_create_phases import timed_create_subphase
 from agent_runtime.models import AgentPersona, PersonaAssignment, PersonaInstance
+from agent_runtime.persona_assignments.identity import _display_name_for_template
+from agent_runtime.persona_assignments.profile import _model_supports_reasoning_effort
 from agent_runtime.personas import (
     declared_lane_toolsets,
     effective_toolsets,
     profile_chat_toolsets,
 )
+from agent_runtime.serde import safe_assignment_token
+from agent_runtime.states import ACTIVE_LANE_STATES
 from agent_runtime.tool_permissions import (
     default_permission_mode,
     permission_options_for_chat,
@@ -24,9 +28,6 @@ from agent_runtime.tool_visibility import (
     resolve_tool_visibility,
     turn_tool_context_for_persona,
 )
-from agent_runtime.persona_assignments.identity import _display_name_for_template
-from agent_runtime.persona_assignments.profile import _model_supports_reasoning_effort
-from agent_runtime.persona_assignments.tokens import safe_assignment_token
 
 __layer__ = "policy"
 
@@ -310,7 +311,7 @@ def active_persona_instance_agent_summaries(
 def _persona_instance_is_active_lane(instance: PersonaInstance) -> bool:
     state = getattr(instance, "state", None)
     state_text = state.value if hasattr(state, "value") else str(state or "")
-    if state_text in {"running", "assigned", "waiting_on_tool", "waiting_on_proof", "self_healing", "waiting_on_human", "possessed"}:
+    if state_text in ACTIVE_LANE_STATES:
         return True
     return any(
         bool(getattr(instance, attr, None))

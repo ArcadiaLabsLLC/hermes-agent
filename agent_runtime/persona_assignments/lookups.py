@@ -20,10 +20,7 @@ from agent_runtime.persona_assignments.identity import (
     normalize_persona_id,
 )
 from agent_runtime.persona_assignments.store import PersonaInstanceStore
-from agent_runtime.persona_assignments.tokens import (
-    safe_assignment_text,
-    safe_assignment_token,
-)
+from agent_runtime.serde import safe_assignment_text, safe_assignment_token
 
 __layer__ = "stores"
 

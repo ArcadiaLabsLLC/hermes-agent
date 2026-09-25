@@ -15,17 +15,15 @@ from utils import atomic_json_write
 from agent_runtime import paths
 from agent_runtime.events import EventLog
 from agent_runtime.models import Event, PersonaAssignment
-from agent_runtime.serde import from_jsonable, to_jsonable
 from agent_runtime.persona_assignments.scan import PersonaAssignmentScan
-from agent_runtime.persona_assignments.tokens import (
+from agent_runtime.serde import (
+    from_jsonable,
     safe_assignment_text,
     safe_assignment_token,
     safe_optional_token,
+    to_jsonable,
 )
-from agent_runtime.persona_assignments.vocabulary import (
-    ACTIVE_ASSIGNMENT_STATES,
-    TERMINAL_ASSIGNMENT_STATES,
-)
+from agent_runtime.states import ACTIVE_ASSIGNMENT_STATES, TERMINAL_ASSIGNMENT_STATES
 
 __layer__ = "stores"
 

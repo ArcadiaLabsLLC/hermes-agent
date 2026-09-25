@@ -1,10 +1,13 @@
-"""Model-override and reasoning-effort validation for ``update_profile``: the
-override text sanitizer and the effort normalizer, plus ``_as_utc``.
+"""Profile-override validation for ``update_profile``: the model-override text
+sanitizer, the reasoning-effort normalizer, the skill-override list normalizer,
+and ``_as_utc``. Pure; the write side is ``profile_writes``.
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
+
+from agent_runtime.serde import safe_assignment_token
 
 __layer__ = "policy"
 
@@ -13,6 +16,7 @@ __all__ = [
     "_model_supports_reasoning_effort",
     "_normalize_reasoning_effort_override",
     "_safe_model_override_text",
+    "_safe_skill_overrides",
 ]
 
 
@@ -67,3 +71,15 @@ def _normalize_reasoning_effort_override(value: str) -> str | None:
         f"invalid reasoning_effort: {value!r} (expected one of none, "
         f"{', '.join(VALID_REASONING_EFFORTS)})"
     )
+
+
+def _safe_skill_overrides(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        skill = safe_assignment_token(value)
+        if not skill or skill in seen:
+            continue
+        seen.add(skill)
+        result.append(skill)
+    return result[:40]
