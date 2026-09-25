@@ -20,3 +20,4 @@ Pre-baked context primers for common task shapes in the hermes fork. Each compre
 - [[Merging upstream]] — the weekly merge: worktree, rules, tests, landing.
 - [[Running the suite]] — `run_tests.sh`, the validated scope, timeouts, what "green" means here.
 - [[Dispatching a lane]] — the brief shape, model tiering, the batched landing.
+- [[God-file program — handoff 2026-09-25]] — population ZERO on 2026-09-25; landing protocol, known reds and their owners, open owner calls, what is left in order, the traps the program measured. Read before touching any package the program split.
