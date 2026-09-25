@@ -323,10 +323,13 @@ def test_an_event_upstream_rejects_is_still_named(store_home, monkeypatch):
     registry = _drain_the_queue()
     evt = {
         "type": "completion",
-        "session_id": "proc_ghost",
-        # Routing metadata upstream demands positive proof for — and which
-        # resolves to no live persona chat root in this runtime.
-        "session_key": "persona_chat_ghostinstance_0123456789ab",
+        "session_id": "proc_foreign",
+        # Routing metadata upstream demands positive proof for — a gateway
+        # session, which is never a persona chat root, so it is left queued for
+        # its own consumer (the #64484 rule). A ``persona_chat_`` key naming no
+        # live instance is NOT this case since 23967867e5: that is an orphan,
+        # taken off the queue and dropped (see the contrast below).
+        "session_key": "agent:main:telegram:dm:4242",
         "command": "sleep 20",
         "exit_code": 0,
     }
@@ -337,7 +340,16 @@ def test_an_event_upstream_rejects_is_still_named(store_home, monkeypatch):
     assert tally["considered"] == 0  # upstream never handed it over
     assert registry.completion_queue.qsize() == 1  # …and put it straight back
     assert "not_owned" in _reasons()
-    assert "persona_chat_ghostinstance" in _row("not_owned")["detail"]
+    assert "agent:main:telegram:dm:4242" in _row("not_owned")["detail"]
+    _drain_the_queue()
+
+    # Contrast: the same event with a ghost persona root IS handed over — to be
+    # dropped loudly, never bounced as not_owned.
+    ghost = dict(evt, session_id="proc_ghost", session_key="persona_chat_ghostinstance_0123456789ab")
+    registry.completion_queue.put(ghost)
+    tally = dispatch_delivery.drain_background_completions(forge=_Forge())
+    assert (tally["considered"], tally["dropped"]) == (1, 1)
+    assert registry.completion_queue.qsize() == 0
     _drain_the_queue()
 
 
