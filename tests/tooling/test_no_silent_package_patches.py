@@ -23,6 +23,15 @@ the safe direction):
   ``from <package> import <name>`` reads the patched attribute, so it is a
   reader the patch reaches and is not counted).
 
+And every ``patch_where_bound(monkeypatch, <module expr>, "<name>", …)`` site
+(lane W3-D). The helper patches ``<name>`` in the module, its submodules and
+every loaded fork module that bound the same object under the SAME name, so
+``silent_readers`` is the wrong question for it — those it reaches. What it
+cannot reach is a module-scope ``from <that module, a submodule, or its
+origin> import <name> as <other>``: the reader looks up ``<other>``, the helper
+rebinds ``<name>``. That aliased binder is the site
+(``unreachable_readers``).
+
 Baseline: ``tests/fixtures/silent_package_patches_grandfathered.json`` — the
 sites on the day the gate landed, shrink-only. A fixed site loses its row; a
 new one is red. The fix for a site is to patch the module that LOOKS THE NAME
@@ -42,6 +51,7 @@ from scripts import god_file_probe as probe
 
 FIXTURE = probe.FIXTURES / "silent_package_patches_grandfathered.json"
 _SETATTR = re.compile(r"monkeypatch\.setattr\(")
+_HELPER = re.compile(r"patch_where_bound\(")
 _IDENT = re.compile(r"[A-Za-z_]\w*")
 
 
@@ -109,6 +119,15 @@ class ForkModules:
                 for alias in node.names:
                     yield source, alias.name, id(node) in top
 
+    def aliased_bindings(self, dotted: str):
+        """``(source module, name)`` for every module-scope ``from … import name as other``."""
+        tree = self.tree(dotted)
+        for node in tree.body if tree else ():
+            if isinstance(node, ast.ImportFrom):
+                source = _absolute(node.module or "", node.level, dotted, self.is_package(dotted))
+                for alias in node.names:
+                    if alias.asname and alias.asname != alias.name:
+                        yield source, alias.name
 
     def binders(self, name: str) -> list[tuple[str, str, bool]]:
         """``(module, source, module_scope)`` for every fork module binding *name* by import."""
@@ -146,6 +165,35 @@ def _expr_module(node: ast.AST, aliases: dict[str, str]) -> str | None:
     if not isinstance(node, ast.Name) or node.id not in aliases:
         return None
     return ".".join([aliases[node.id], *reversed(parts)])
+
+
+def helper_sites(tree: ast.Module, modules: ForkModules) -> set[tuple[str, str]]:
+    """``(module, name)`` for every ``patch_where_bound(monkeypatch, <module>, "<name>", …)``."""
+    aliases = _test_aliases(tree, modules)
+    sites: set[tuple[str, str]] = set()
+    for node in ast.walk(tree):
+        func = node.func if isinstance(node, ast.Call) else None
+        called = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+        if called != "patch_where_bound" or len(node.args) < 3:
+            continue
+        module, name = _expr_module(node.args[1], aliases), node.args[2]
+        if module in modules.paths and isinstance(name, ast.Constant) and isinstance(name.value, str):
+            sites.add((module, name.value))
+    return sites
+
+
+def unreachable_readers(modules: ForkModules, module: str, name: str) -> list[str]:
+    """Fork modules binding *name* under an ALIAS from *module*, a submodule of it, or
+    the module *module* imports it from — the readers ``patch_where_bound`` cannot rebind."""
+    sources = {module} | {source for source, bound, _ in modules.bindings(module) if bound == name}
+    return sorted(
+        {
+            dotted
+            for dotted in modules.paths
+            for source, bound in modules.aliased_bindings(dotted)
+            if bound == name and (source in sources or source.startswith(module + "."))
+        }
+    )
 
 
 def patch_sites(tree: ast.Module, modules: ForkModules) -> set[tuple[str, str]]:
@@ -206,6 +254,7 @@ def silent_package_patches(root: Path = probe.ROOT) -> set[str]:
         for _, bound, _ in modules.bindings(package)
         if silent_readers(modules, package, bound)
     }
+    aliased = {bound for dotted in modules.paths for _, bound in modules.aliased_bindings(dotted)}
     live: set[str] = set()
     for path in sorted((root / "tests").rglob("*.py")):
         if "fixtures" in path.parts:
@@ -215,14 +264,20 @@ def silent_package_patches(root: Path = probe.ROOT) -> set[str]:
         except (OSError, UnicodeDecodeError):
             continue
         calls = [text[m.end() : m.end() + 240] for m in _SETATTR.finditer(text)]
-        if not any(hot.intersection(_IDENT.findall(call)) for call in calls):
+        helper_calls = [text[m.end() : m.end() + 240] for m in _HELPER.finditer(text)]
+        setattr_hot = any(hot.intersection(_IDENT.findall(call)) for call in calls)
+        helper_hot = any(aliased.intersection(_IDENT.findall(call)) for call in helper_calls)
+        if not (setattr_hot or helper_hot):
             continue
         tree = _parse(path)
         if tree is None:
             continue
         rel = path.relative_to(root).as_posix()
-        for module, name in patch_sites(tree, modules):
+        for module, name in patch_sites(tree, modules) if setattr_hot else ():
             if silent_readers(modules, module, name):
+                live.add(f"{rel}::{module}:{name}")
+        for module, name in helper_sites(tree, modules) if helper_hot else ():
+            if unreachable_readers(modules, module, name):
                 live.add(f"{rel}::{module}:{name}")
     return live
 
@@ -269,3 +324,49 @@ def test_the_walk_finds_a_planted_silent_patch(tmp_path, monkeypatch):
     # Negative control: once the reader looks the name up through the package, the site is gone.
     (pkg / "user.py").write_text("from agent_runtime import splitpkg\n\ndef run():\n    return splitpkg.emit()\n", encoding="utf-8")
     assert silent_package_patches(tmp_path) == set()
+
+
+def test_the_walk_finds_a_helper_site_only_where_the_helper_cannot_reach(tmp_path, monkeypatch):
+    """Positive control for the ``patch_where_bound`` arm (lane W3-D): an aliased
+    module-scope binder is a site; a same-name binder (the helper rebinds it) is not."""
+    pkg = tmp_path / "agent_runtime" / "splitpkg"
+    pkg.mkdir(parents=True)
+    (tmp_path / "agent_runtime" / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "__init__.py").write_text("from .impl import emit\n", encoding="utf-8")
+    (pkg / "impl.py").write_text("def emit():\n    return 1\n", encoding="utf-8")
+    reader = tmp_path / "agent_runtime" / "reader.py"
+    reader.write_text("from agent_runtime.splitpkg import emit as _emit\n\ndef run():\n    return _emit()\n", encoding="utf-8")
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tests / "test_y.py").write_text(
+        "from tests._downstream.split_package_source import patch_where_bound\n"
+        "from agent_runtime import splitpkg\n"
+        "def test_b(monkeypatch):\n"
+        "    patch_where_bound(monkeypatch, splitpkg, 'emit', lambda: 2)\n",
+        encoding="utf-8",
+    )
+    files = ["agent_runtime/__init__.py", "agent_runtime/reader.py", *(f"agent_runtime/splitpkg/{f}" for f in ("__init__.py", "impl.py"))]
+    monkeypatch.setattr(probe, "fork_production_files", lambda root, *a, **k: list(files))
+    assert silent_package_patches(tmp_path) == {"tests/test_y.py::agent_runtime.splitpkg:emit"}
+    assert unreachable_readers(ForkModules(tmp_path), "agent_runtime.splitpkg", "emit") == ["agent_runtime.reader"]
+    # Negative control: the same reader binding the SAME name is reached by the helper.
+    reader.write_text("from agent_runtime.splitpkg import emit\n\ndef run():\n    return emit()\n", encoding="utf-8")
+    assert silent_package_patches(tmp_path) == set()
+
+
+def test_patch_where_bound_reaches_a_reader_outside_the_package(monkeypatch):
+    """The helper's lane W3-D widening, proven at runtime: ``agent_runtime.migrations``
+    binds ``load_agent_runtime_config`` from ``agent_runtime.config`` at module scope,
+    outside the package, and a helper stub on the package must reach it."""
+    import agent_runtime.config as config
+    import agent_runtime.migrations as migrations
+    from tests._downstream.split_package_source import patch_where_bound
+
+    assert migrations.load_agent_runtime_config is config.load_agent_runtime_config
+
+    def stub(*_a, **_k):
+        return None
+
+    patch_where_bound(monkeypatch, config, "load_agent_runtime_config", stub)
+    assert config.load_agent_runtime_config is stub
+    assert migrations.load_agent_runtime_config is stub

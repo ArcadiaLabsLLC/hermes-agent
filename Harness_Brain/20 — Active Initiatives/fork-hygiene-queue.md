@@ -148,4 +148,3 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-25 (lane W3-C)
 
-- [ ] **`patch_where_bound` reaches only modules INSIDE the package, and `test_no_silent_package_patches.py` walks only `monkeypatch.setattr` — so a `patch_where_bound` stub whose subject reads the name from OUTSIDE the package (`agent_runtime.config.load_agent_runtime_config` alone has 19 readers outside the package) is silent AND invisible to the gate** · `fork / suite` · the census should count `patch_where_bound(<package>, <name>)` as a site like a package `setattr` and ask the same `silent_readers` question, or the helper should take the reader module explicitly · evidence: lane W3-C row-1 commit body (every config site went through the helper) · filed by lane W3-C 2026-09-25 **TAKEN 2026-09-25 lane W3-D**
