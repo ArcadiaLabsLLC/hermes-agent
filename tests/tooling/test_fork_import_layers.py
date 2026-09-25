@@ -81,3 +81,16 @@ def test_the_layer_check_reds_an_upward_import_read_at_runtime(tmp_path, monkeyp
     finally:
         for name in [m for m in sys.modules if m.startswith("w0g6pkg")]:
             del sys.modules[name]
+
+
+def test_a_fork_submodule_under_an_upstream_package_is_not_a_private_name(tmp_path):
+    """Positive control both ways: ``from pkg import _mod`` of a real FILE is a
+    module import; ``from pkg import _name`` of a name is the private reach."""
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "__init__.py").write_text("_name = 1", encoding="utf-8")
+    (tmp_path / "pkg" / "_mod.py").write_text("", encoding="utf-8")
+    upstream = frozenset({"pkg/__init__.py"})
+    assert probe.is_private_upstream_import(tmp_path, upstream, "pkg", "_name")
+    assert not probe.is_private_upstream_import(tmp_path, upstream, "pkg", "_mod")
+    assert not probe.is_private_upstream_import(tmp_path, upstream, "pkg", "public")
+    assert not probe.is_private_upstream_import(tmp_path, upstream, "forkpkg", "_name")

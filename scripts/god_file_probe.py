@@ -692,6 +692,24 @@ def _upstream_module_path(module: str, upstream: frozenset[str]) -> str | None:
     return None
 
 
+def is_private_upstream_import(root: Path, upstream: frozenset[str], module: str, name: str | None) -> bool:
+    """``from <module> import <name>`` reaches a ``_private`` NAME of an upstream module.
+
+    Not when ``<module>.<name>`` is itself a module — upstream's or the fork's
+    (``from hermes_cli import _boot_clock`` imports the fork file
+    ``hermes_cli/_boot_clock.py``; the underscore is its filename, not a private
+    upstream name).
+    """
+    if not (name and name.startswith("_") and not name.startswith("__")):
+        return False
+    if not _upstream_module_path(module, upstream):
+        return False
+    submodule = root / module.replace(".", "/") / name
+    if submodule.with_suffix(".py").is_file() or (submodule / "__init__.py").is_file():
+        return False
+    return not _upstream_module_path(f"{module}.{name}", upstream)
+
+
 def layer_census(root: Path = ROOT, manifest: Path = MANIFEST) -> dict[str, list]:
     """The three W0-G6 populations, as sorted lists of rows.
 
@@ -714,13 +732,7 @@ def layer_census(root: Path = ROOT, manifest: Path = MANIFEST) -> dict[str, list
                 module == "hermes_cli.harness" or full == "hermes_cli.harness"
             ):
                 harness_imports.add(f"{path}|{full}")
-            if (
-                name
-                and name.startswith("_")
-                and not name.startswith("__")
-                and _upstream_module_path(module, upstream)
-                and not _upstream_module_path(f"{module}.{name}", upstream)
-            ):
+            if is_private_upstream_import(root, upstream, module, name):
                 private.add(f"{path}|{module}|{name}")
     return {
         "undeclared": sorted(undeclared),
