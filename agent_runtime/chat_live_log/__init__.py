@@ -156,7 +156,7 @@ from agent_runtime.chat_live_log.writes import (
     record_chat_tool,
 )
 
-__layer__ = "wiring"
+__layer__ = "lanes"
 
 __all__ = [
     "CHAT_LIVE_LOG_DIRNAME",

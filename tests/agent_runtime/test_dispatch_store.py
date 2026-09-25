@@ -219,12 +219,12 @@ def test_restore_never_answers_for_a_dispatch_this_process_supervises(store_home
     dispatch_id = _dispatch()
     monkeypatch.setattr("gateway.status._pid_exists", lambda pid: False)
     monkeypatch.setattr(
-        "tools.agent_chat_dispatch.supervised_dispatch_ids", lambda: {dispatch_id}
+        "agent_runtime.dispatch_store.supervision.supervised_dispatch_ids", lambda: {dispatch_id}
     )
     assert restore_undelivered_dispatches() == {"restored": 0, "checked": 1}
     assert get_dispatch(dispatch_id)["state"] == STATE_RUNNING
 
-    monkeypatch.setattr("tools.agent_chat_dispatch.supervised_dispatch_ids", lambda: set())
+    monkeypatch.setattr("agent_runtime.dispatch_store.supervision.supervised_dispatch_ids", lambda: set())
     assert restore_undelivered_dispatches()["restored"] == 1
     assert get_dispatch(dispatch_id)["state"] == STATE_UNKNOWN
 

@@ -21,7 +21,7 @@ from .vocabulary import (
     canonical_persona_chat_turn_id,
 )
 
-__layer__ = "policy"
+__layer__ = "stores"
 __all__ = [
     "_carry_run_budget",
     "_silent_turn_marker_row",

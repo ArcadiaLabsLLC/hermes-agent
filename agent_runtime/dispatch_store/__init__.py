@@ -18,22 +18,25 @@ Entry points and the modules to open, at most three:
 
 Modules, lowest layer first (no module imports one above it — W0-G6):
 
-========  ======  ============================================================
-module    layer   owns
-========  ======  ============================================================
-models    models  the row vocabulary (states, delivery states, reasons, re-arm
-                  outcomes, bounds), row ↔ dict, the media-map shape check
-db        stores  the one database: path, connect, schema + migrations, the
-                  always-close transaction, the read-only query and the six
-                  projections, the owner identity, the event append
-writes    lanes   ``record_dispatch`` / ``record_completion`` + ``_prune`` and
-                  the throttled backlog report
-delivery  lanes   the delivery-state machine and the boot sweep
-========  ======  ============================================================
+===========  ======  ============================================================
+module       layer   owns
+===========  ======  ============================================================
+models       models  the row vocabulary (states, delivery states, reasons, re-arm
+                     outcomes, bounds), row ↔ dict, the media-map shape check
+supervision  stores  which dispatch ids a live supervisor in THIS process still
+                     answers for (the tools lane writes it, ``db`` reads it)
+db           stores  the one database: path, connect, schema + migrations, the
+                     always-close transaction, the read-only query and the six
+                     projections, the owner identity, the event append
+writes       lanes   ``record_dispatch`` / ``record_completion`` + ``_prune`` and
+                     the throttled backlog report
+delivery     lanes   the delivery-state machine and the boot sweep
+===========  ======  ============================================================
 
-``tools.agent_chat_dispatch`` ↔ this package is a two-way LAZY cycle
-(``db._supervised_here`` here, ``record_completion`` there); ``db`` is the only
-module that may name ``tools.agent_chat_dispatch``, and only inside the function.
+No module here imports ``tools.agent_chat_dispatch``: the supervisors'
+process-local registry lives in ``supervision`` (they write it, ``db`` reads it),
+so the store never reaches up into the tools lane (W0-G6); the tools lane calls
+``record_completion`` downward.
 
 Why a durable store and not an in-memory record map
 ---------------------------------------------------

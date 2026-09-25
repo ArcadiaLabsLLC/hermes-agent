@@ -20,7 +20,7 @@ from agent_runtime.persona_chat_durability import (
 )
 from .chat_session import _persona_chat_native_history, _persona_chat_native_tip
 
-__layer__ = "stores"
+__layer__ = "lanes"
 __all__ = [
     "PERSONA_CHAT_OPERATOR_MESSAGE_LIMIT",
     "PERSONA_CHAT_REPLY_LIMIT",

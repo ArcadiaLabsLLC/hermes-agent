@@ -12,6 +12,11 @@ import threading
 import time
 from typing import Any
 
+from agent_runtime.dispatch_store.supervision import (
+    _forget_supervised,
+    _mark_supervised,
+    supervised_dispatch_ids,
+)
 from agent_runtime.subprocess_pumps import drain, release_pumps
 
 from .child import (
@@ -36,49 +41,6 @@ __layer__ = "lanes"
 _executor = None
 _executor_lock = threading.Lock()
 _executor_max_workers = 0
-
-#: Dispatch ids this process is actively supervising — and the guard that keeps
-#: the orphan sweep from answering for them.
-#:
-#: The sweep became PERIODIC in the previous commit, which turned a theoretical
-#: second writer into a real one: from the instant a child exits until this
-#: supervisor's ``record_completion`` lands — across ``proc.wait()`` and two
-#: pump joins — the sweep sees a dead PID on a ``running`` row and settles it
-#: ``unknown``. The 5s drain then delivers "the outcome is unknown" for a
-#: dispatch that COMPLETED, and the supervisor's real answer, written moments
-#: later, is absorbed by the delivery-turn replay dedup — so the sender is told
-#: nothing is known and never receives the answer sitting in the row.
-#:
-#: A row still supervised HERE is not an orphan by definition, so the sweep
-#: skips it. Process-local on purpose, and sufficient: the race is between two
-#: threads of one serve process, and a row whose supervisor died is exactly the
-#: row the sweep SHOULD settle.
-_supervised: set[str] = set()
-_supervised_lock = threading.Lock()
-
-
-def _mark_supervised(dispatch_id: str) -> None:
-    with _supervised_lock:
-        _supervised.add(str(dispatch_id))
-
-
-def _forget_supervised(dispatch_id: str) -> None:
-    with _supervised_lock:
-        _supervised.discard(str(dispatch_id))
-
-
-def supervised_dispatch_ids() -> set[str]:
-    """A snapshot of every dispatch this process is actively supervising.
-
-    The orphan sweep reads this to know which ``running`` rows are not orphans
-    at all. Returns a COPY: the sweep iterates while supervisors come and go,
-    and handing out the live set would make that a mutation-during-iteration
-    bug on a background thread.
-    """
-
-    with _supervised_lock:
-        return set(_supervised)
-
 
 def _get_executor(max_workers: int):
     """The shared dispatch executor, resized when the configured cap grows.

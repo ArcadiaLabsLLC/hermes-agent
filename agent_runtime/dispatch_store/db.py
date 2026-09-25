@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from ..serde import bounded_text
+from . import supervision
 from .models import (
     _SELECT,
     _TABLE,
@@ -148,19 +149,12 @@ class _transaction:
 def _supervised_here() -> set[str]:
     """Dispatch ids a live supervisor in THIS process is still answering for.
 
-    Read through the tools lane's own registry rather than duplicated here, so
-    "who owns this row right now" has exactly one answer. Imported lazily and
-    fails open to an empty set: a store that cannot see the registry sweeps
-    exactly as it did before, which is the previous behaviour rather than a new
-    hazard.
+    Read through the one registry (``supervision``) the tools lane's supervisors
+    write, so "who owns this row right now" has exactly one answer — looked up
+    on the module at call time, so a test that patches it reaches this reader.
     """
 
-    try:
-        from tools.agent_chat_dispatch import supervised_dispatch_ids
-
-        return supervised_dispatch_ids()
-    except Exception:  # pragma: no cover - defensive
-        return set()
+    return supervision.supervised_dispatch_ids()
 
 
 def _owner_identity() -> tuple[int, int | None]:

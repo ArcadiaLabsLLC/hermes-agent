@@ -14,9 +14,10 @@ Modules, by layer (lowest first; a module imports only its own layer or lower):
 * models — ``vocabulary`` (message kinds, terminal and silent markers, read
   statuses, limits).
 * policy — ``text`` (one message's text), ``trace_rows`` (one trace event's
-  row), ``markers`` (terminal and silent turn markers, transcript order),
-  ``curation`` (the transcript policy, its revision and cursor).
-* stores — ``history_rows`` (SessionDB session rows), ``trace`` (the event-log
+  row).
+* stores — ``markers`` (terminal and silent turn markers, transcript order;
+  read from the turn journal), ``curation`` (the transcript policy, its
+  revision and cursor; reads the turn journal), ``history_rows`` (SessionDB session rows), ``trace`` (the event-log
   trace tail).
 * lanes — ``summary``, ``messages``.
 

@@ -51,7 +51,7 @@ from .vocabulary import (
     logical_persona_chat_client_message_id,
 )
 
-__layer__ = "policy"
+__layer__ = "stores"
 __all__ = [
     "CurationState",
     "ROLE_CURATORS",

@@ -79,7 +79,8 @@ Entry points: ``agent_chat_send(wait=false)`` (``tools/agent_chat_tool``) ->
 ``local.dispatch_detached_turn`` -> ``local._run_dispatch_guarded`` -> ``child``;
 a cross-install dispatch -> ``local`` (the fork on ``remote_install_id``) ->
 ``remote`` -> ``child.parse_child_payload``; the orphan sweep's question
-(``agent_runtime.dispatch_store``) -> ``local.supervised_dispatch_ids``;
+(``agent_runtime.dispatch_store``) -> ``dispatch_store.supervision``, which
+``local``'s supervisors mark and forget;
 ``agent_chat_dispatches`` -> ``local.summarize_for_caller``. W0-G6 does not walk
 ``tools/`` (a fork-only tree in an upstream directory), so the layers below are
 declared for the day it does.
