@@ -27,7 +27,7 @@ from .models import (
 )
 from .persona_lifecycle import is_runtime_persona
 from .personas import declared_lane_toolsets, effective_toolsets, profile_chat_toolsets
-from .serde import from_jsonable, to_jsonable
+from .serde import from_jsonable, safe_text, to_jsonable
 from .state_patches import (
     emit_persona_instance_create,
     emit_persona_instance_patch,
@@ -4049,5 +4049,5 @@ def _safe_skill_overrides(values: list[str]) -> list[str]:
 
 
 def safe_assignment_text(value: Any, *, limit: int) -> str:
-    text = " ".join(str(value or "").replace("\x00", " ").split())
-    return text[:limit]
+    """:func:`agent_runtime.serde.safe_text`, spelled ``""`` for an empty value (store rows persist ``""``)."""
+    return safe_text(value, limit=limit) or ""

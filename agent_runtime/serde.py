@@ -147,6 +147,55 @@ def optional_text(value: Any) -> str | None:
     return text or None
 
 
+def safe_text(value: Any, *, limit: int) -> str | None:
+    """``value`` as ONE bounded line: NULs dropped, whitespace collapsed, cut to
+    ``limit``; ``None`` when nothing is left.
+
+    The one owner of the rule (program rule 15). ``persona_assignments.
+    safe_assignment_text`` is its empty-string spelling for the store rows that
+    persist ``""``; the mission-chat stream reads this one.
+    """
+
+    return " ".join(str(value or "").replace("\x00", " ").split())[:limit] or None
+
+
+def safe_block(value: Any, *, limit: int) -> str | None:
+    """Newline-PRESERVING bounded text; ``None`` when nothing is left.
+
+    Where :func:`safe_text` whitespace-collapses, this keeps line structure
+    (a key-per-line tool-input block stays readable): NULs become spaces, line
+    endings normalise to LF, and text past ``limit`` is cut with a visible
+    ``…(rest truncated)…`` marker rather than silently.
+    """
+
+    text = str(value or "").replace("\x00", " ").replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not text:
+        return None
+    if len(text) > limit:
+        text = f"{text[:limit]}\n…(rest truncated)…"
+    return text
+
+
+def safe_int(value: Any) -> int | None:
+    """``int(value)``, or ``None`` when it does not coerce. Never raises."""
+
+    try:
+        return int(value)
+    except Exception:  # noqa: BLE001 — a coercion answers None, it does not raise
+        return None
+
+
+def positive_int(value: Any, *, default: int | None = None) -> int | None:
+    """``int(value)`` when it coerces and is > 0, else ``default``. Never raises.
+
+    ``positive_int(x, default=0)`` is the non-negative count a token or call
+    tally wants: a negative or unreadable value counts as none.
+    """
+
+    parsed = safe_int(value)
+    return parsed if parsed is not None and parsed > 0 else default
+
+
 def safe_id(value: Any) -> str | None:
     """Sanitize a wire id into one safe to use as a filename or map key.
 

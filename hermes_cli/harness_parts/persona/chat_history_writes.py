@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import re
+from agent_runtime.serde import positive_int
 from agent_runtime.persona_assignments import (
     PERSONA_INSTANCE_ID_PREFIX,
     chat_session_owner_instance_id,
@@ -445,12 +446,12 @@ def _update_persona_chat_token_counts(*, session_db, session_id: str, result) ->
     """
     if session_db is None or not session_id or result is None:
         return
-    input_tokens = _positive_int_or_zero(getattr(result, "input_tokens", None))
-    output_tokens = _positive_int_or_zero(getattr(result, "output_tokens", None))
-    cache_read_tokens = _positive_int_or_zero(getattr(result, "cache_read_tokens", None))
-    cache_write_tokens = _positive_int_or_zero(getattr(result, "cache_write_tokens", None))
-    reasoning_tokens = _positive_int_or_zero(getattr(result, "reasoning_tokens", None))
-    api_calls = _positive_int_or_zero(getattr(result, "api_calls", None))
+    input_tokens = positive_int(getattr(result, "input_tokens", None), default=0)
+    output_tokens = positive_int(getattr(result, "output_tokens", None), default=0)
+    cache_read_tokens = positive_int(getattr(result, "cache_read_tokens", None), default=0)
+    cache_write_tokens = positive_int(getattr(result, "cache_write_tokens", None), default=0)
+    reasoning_tokens = positive_int(getattr(result, "reasoning_tokens", None), default=0)
+    api_calls = positive_int(getattr(result, "api_calls", None), default=0)
     if (
         input_tokens == 0
         and output_tokens == 0
@@ -473,11 +474,3 @@ def _update_persona_chat_token_counts(*, session_db, session_id: str, result) ->
         )
     except Exception:
         return
-
-
-def _positive_int_or_zero(value) -> int:
-    try:
-        parsed = int(value)
-    except Exception:
-        return 0
-    return max(parsed, 0)

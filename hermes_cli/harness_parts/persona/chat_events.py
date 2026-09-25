@@ -7,12 +7,13 @@ and send-refused events, and the ``_ChatProtocolV2Emitter`` that writes frames.
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import Any, Callable, Final, Mapping
+from typing import Callable, Final, Mapping
 import json
 import sys
 import time
 import uuid
 from agent_runtime.cli_format import emit_json
+from agent_runtime.clock import elapsed_ms
 from agent_runtime.events import EventLog
 from agent_runtime.mission_chat_turns import (
     MissionChatTurnPersistOutcome,
@@ -22,6 +23,7 @@ from agent_runtime.mission_chat_turns import (
 )
 from agent_runtime.models import Event
 from agent_runtime.persona_assignments import safe_assignment_text, safe_assignment_token
+from agent_runtime.serde import safe_block, safe_int, safe_text
 from hermes_time import now
 
 __layer__ = "stores"
@@ -388,7 +390,7 @@ class _ChatProtocolV2Emitter:
         if segment is None:
             return
         segment["state"] = state
-        segment["duration_ms"] = _elapsed_ms(segment.get("started_at"))
+        segment["duration_ms"] = elapsed_ms(segment.get("started_at"))
         self._emit_chat_frame(
             {
                 "type": "segment.end",
@@ -428,7 +430,7 @@ class _ChatProtocolV2Emitter:
                     "protocol_version": 2,
                     "turn_id": self.turn_id,
                     "state": state,
-                    "duration_ms": _elapsed_ms(self._started_at),
+                    "duration_ms": elapsed_ms(self._started_at),
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
                     "total_tokens": total_tokens,
@@ -452,7 +454,7 @@ class _ChatProtocolV2Emitter:
             "text": "",
             "started_at": time.monotonic(),
         }
-        segment["ttft_ms"] = _elapsed_ms(self._started_at)
+        segment["ttft_ms"] = elapsed_ms(self._started_at)
         self._current_segment = segment
         self.elements.append(segment)
         self._emit_chat_frame(
@@ -475,8 +477,8 @@ class _ChatProtocolV2Emitter:
         self._seq += 1
         self._tool_count += 1
         name = _tool_name_from_progress(payload)
-        command = _safe_stream_text(payload.get("command_full")) or _safe_stream_text(
-            payload.get("command_label")
+        command = safe_text(payload.get("command_full"), limit=_STREAM_TEXT_LIMIT) or safe_text(
+            payload.get("command_label"), limit=_STREAM_TEXT_LIMIT
         )
         tool = {
             "turn_id": self.turn_id,
@@ -485,14 +487,14 @@ class _ChatProtocolV2Emitter:
             "kind": "tool",
             "name": name,
             "state": "started",
-            "args": _safe_stream_text(payload.get("summary")),
+            "args": safe_text(payload.get("summary"), limit=_STREAM_TEXT_LIMIT),
             "command": command,
-            "status": _safe_stream_text(payload.get("status")),
-            "summary": _safe_stream_text(payload.get("summary")),
+            "status": safe_text(payload.get("status"), limit=_STREAM_TEXT_LIMIT),
+            "summary": safe_text(payload.get("summary"), limit=_STREAM_TEXT_LIMIT),
         }
         # Generic input record (already scrubbed/bounded at the progress sink).
         # Block-preserving: key-per-line structure is the rendering contract.
-        tool_input = _safe_stream_block(payload.get("tool_input"), limit=1200)
+        tool_input = safe_block(payload.get("tool_input"), limit=1200)
         if tool_input:
             tool["tool_input"] = tool_input
         self.elements.append(tool)
@@ -505,7 +507,7 @@ class _ChatProtocolV2Emitter:
                 "seq": tool["seq"],
                 "id": tool["id"],
                 "name": name,
-                "args": _safe_stream_text(payload.get("summary")),
+                "args": safe_text(payload.get("summary"), limit=_STREAM_TEXT_LIMIT),
                 "command": command,
                 "tool_input": tool.get("tool_input"),
             }
@@ -541,11 +543,11 @@ class _ChatProtocolV2Emitter:
         pending = self._active_tools.get(name) or []
         if not pending:
             return None
-        finished_command = _safe_stream_text(payload.get("command_full")) or _safe_stream_text(
-            payload.get("command_label")
+        finished_command = safe_text(payload.get("command_full"), limit=_STREAM_TEXT_LIMIT) or safe_text(
+            payload.get("command_label"), limit=_STREAM_TEXT_LIMIT
         )
         identities = (
-            ("tool_input", _safe_stream_block(payload.get("tool_input"), limit=1200)),
+            ("tool_input", safe_block(payload.get("tool_input"), limit=1200)),
             ("command", finished_command),
         )
         for field, value in identities:
@@ -571,26 +573,26 @@ class _ChatProtocolV2Emitter:
             }
             self.elements.append(tool)
         tool["state"] = "finished"
-        tool["status"] = _safe_stream_text(payload.get("status")) or "ok"
+        tool["status"] = safe_text(payload.get("status"), limit=_STREAM_TEXT_LIMIT) or "ok"
         tool["duration_ms"] = payload.get("duration_ms")
         files = payload.get("changed_files") or payload.get("files_touched") or []
         if isinstance(files, list):
             tool["files"] = [safe_assignment_text(item, limit=240) for item in files if safe_assignment_text(item, limit=240)]
         # Carry-through started command if the finished payload omits it.
         command = (
-            _safe_stream_text(payload.get("command_full"))
-            or _safe_stream_text(payload.get("command_label"))
+            safe_text(payload.get("command_full"), limit=_STREAM_TEXT_LIMIT)
+            or safe_text(payload.get("command_label"), limit=_STREAM_TEXT_LIMIT)
             or tool.get("command")
         )
         if command:
             tool["command"] = command
-        detail = _safe_stream_text(payload.get("detail"))
+        detail = safe_text(payload.get("detail"), limit=_STREAM_TEXT_LIMIT)
         if detail:
             tool["detail"] = detail
-        output = _safe_stream_text(payload.get("output"), limit=8000)
+        output = safe_text(payload.get("output"), limit=8000)
         if output:
             tool["output"] = output
-        exit_code = _safe_exit_code_value(payload.get("exit_code"))
+        exit_code = safe_int(payload.get("exit_code"))
         if exit_code is not None:
             tool["exit_code"] = exit_code
         # T7: the todo tool's structured checklist rides the finished event so the
@@ -607,22 +609,22 @@ class _ChatProtocolV2Emitter:
         # Generic input/result record (scrubbed/bounded at the progress sink;
         # block-preserving). Input carries through from the started element when
         # the finished payload omits it, mirroring the command carry-through.
-        tool_input = _safe_stream_block(payload.get("tool_input"), limit=1200) or tool.get("tool_input")
+        tool_input = safe_block(payload.get("tool_input"), limit=1200) or tool.get("tool_input")
         if tool_input:
             tool["tool_input"] = tool_input
         # Patch observability: the local diff artifact's path (same
-        # `_safe_stream_text` grade `command` rides — paths survive it) plus the
+        # `safe_text` grade `command` rides — paths survive it) plus the
         # +/− counts and the grammar. Scrubbed and bounded at the progress sink;
         # this is the live-turn carrier of the same four fields the snapshot
         # lane carries, so a streaming tile and a reloaded one agree.
-        patch_artifact = _safe_stream_text(payload.get("patch_artifact"), limit=500)
+        patch_artifact = safe_text(payload.get("patch_artifact"), limit=500)
         if patch_artifact:
             tool["patch_artifact"] = patch_artifact
         for count_key in ("patch_adds", "patch_dels"):
             count = payload.get(count_key)
             if isinstance(count, int) and not isinstance(count, bool):
                 tool[count_key] = count
-        patch_mode = _safe_stream_text(payload.get("patch_mode"), limit=20)
+        patch_mode = safe_text(payload.get("patch_mode"), limit=20)
         if patch_mode:
             tool["patch_mode"] = patch_mode
         self._emit_chat_frame(
@@ -715,39 +717,8 @@ _PROGRESS_EVENTS: Final[Mapping[str, Callable[[_ChatProtocolV2Emitter, dict[str,
     }
 )
 
-def _safe_stream_text(value: object, *, limit: int = 800) -> str | None:
-    return safe_assignment_text(value, limit=limit) or None
-
-
-def _safe_stream_block(value: object, *, limit: int) -> str | None:
-    """Newline-PRESERVING stream text for the tool input/result record.
-
-    ``safe_assignment_text`` whitespace-collapses, which would fold the
-    key-per-line block (the rendering contract for the console's Input/Result
-    dropdowns) into one unreadable line. The value was already secret-scrubbed
-    and bounded at the progress sink; this only re-bounds and strips NULs."""
-
-    text = str(value or "").replace("\x00", " ").replace("\r\n", "\n").replace("\r", "\n").strip()
-    if not text:
-        return None
-    if len(text) > limit:
-        text = f"{text[:limit]}\n…(rest truncated)…"
-    return text
-
-
-def _safe_exit_code_value(value: object) -> int | None:
-    try:
-        return int(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        return None
-
-
-def _elapsed_ms(started_at: object) -> int | None:
-    try:
-        started = float(started_at)
-    except Exception:
-        return None
-    return max(0, int((time.monotonic() - started) * 1000))
+#: The mission-chat stream's one-line text bound (``safe_text``'s limit on this lane).
+_STREAM_TEXT_LIMIT = 800
 
 
 def _tool_name_from_progress(payload: dict[str, object]) -> str:

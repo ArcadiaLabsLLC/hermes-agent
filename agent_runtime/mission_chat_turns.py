@@ -11,6 +11,7 @@ from typing import Any, Callable, Iterator, TypeVar
 
 from . import paths
 from .persona_assignments import safe_assignment_text, safe_assignment_token
+from .serde import safe_block
 from .mission_chat_phases import (
     TURN_PHASES_KEY,
     TURN_RECORD_SCHEMA_VERSION,
@@ -1523,8 +1524,8 @@ def _safe_elements(value: Any) -> list[dict[str, Any]]:
                     # (safe_assignment_text would fold the key-per-line contract
                     # the console dropdown renders into one line). Scrubbed and
                     # bounded upstream at the progress sink.
-                    "tool_input": _safe_block_text(raw.get("tool_input"), limit=1200),
-                    "tool_result": _safe_block_text(raw.get("tool_result"), limit=1800),
+                    "tool_input": safe_block(raw.get("tool_input"), limit=1200),
+                    "tool_result": safe_block(raw.get("tool_result"), limit=1800),
                 }
             )
             # T7: preserve the todo tool's structured checklist (id/content/status)
@@ -1562,19 +1563,6 @@ def _safe_elements(value: Any) -> list[dict[str, Any]]:
 _TODO_STATE_MAX_ITEMS = 64
 _TODO_STATE_MAX_CONTENT = 240
 _TODO_STATE_VALID_STATUS = {"pending", "in_progress", "completed", "cancelled"}
-
-
-def _safe_block_text(value: Any, *, limit: int) -> str | None:
-    """Newline-preserving bounded text for the tool input/result record (the
-    whitespace-collapsing ``safe_assignment_text`` would destroy the
-    key-per-line structure the console dropdown renders)."""
-
-    text = str(value or "").replace("\x00", " ").replace("\r\n", "\n").replace("\r", "\n").strip()
-    if not text:
-        return None
-    if len(text) > limit:
-        text = f"{text[:limit]}\n…(rest truncated)…"
-    return text
 
 
 def _safe_todo_state(value: Any) -> list[dict[str, str]] | None:
