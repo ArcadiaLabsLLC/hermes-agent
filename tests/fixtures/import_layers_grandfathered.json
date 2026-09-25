@@ -86,8 +86,6 @@
   "agent_runtime/auth_extensions.py",
   "agent_runtime/auxiliary_chat.py",
   "agent_runtime/background_completion.py",
-  "agent_runtime/blueprints/__init__.py",
-  "agent_runtime/blueprints/resolve.py",
   "agent_runtime/board_models.py",
   "agent_runtime/board_order.py",
   "agent_runtime/board_sync.py",

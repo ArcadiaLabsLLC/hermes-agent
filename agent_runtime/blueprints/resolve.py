@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from agent_runtime.personas import promote_profile_to_persona
 
+__layer__ = "models"
+
 # ``promote_profile_to_persona`` now lives in ``agent_runtime.personas`` — it is
 # persona lifecycle, not stage routing, and it
 # has a live caller outside this package (mission-lane removal, S1).
