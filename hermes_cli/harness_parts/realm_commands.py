@@ -41,6 +41,7 @@ from hermes_cli.harness_support import (
 
 __layer__ = "lanes"
 __all__ = [
+    "_SELECTION_MODES",
     "_cmd_realm_adopt",
     "_cmd_realm_agents_set",
     "_cmd_realm_agents_show",
@@ -64,6 +65,7 @@ __all__ = [
     "_realm_sync_credential",
     "_realm_sync_subtree",
     "_reconcile_active_workspace_to_realm",
+    "selection_from_args",
 ]
 
 
@@ -384,29 +386,52 @@ def _cmd_realm_skills_show(args) -> int:
     return 0
 
 
-def _cmd_realm_skills_set(args) -> int:
-    chosen = [
-        name
-        for name, present in (
-            ("--all", bool(getattr(args, "publish_all", False))),
-            ("--skills", getattr(args, "skills", None) is not None),
-            ("--none", bool(getattr(args, "publish_none", False))),
-        )
-        if present
+#: The publish-selection flags of ``realm skills set`` and ``realm agents set``:
+#: one row per flag, ``(flag, args attribute, mode, carries a list)``. Exactly
+#: one row must be given. A list row's value is its comma-separated selection
+#: (``--skills``/``--agents``, present when not None); a switch row stores an
+#: empty selection — ``--all``/``--workspace`` keep the stored list on the
+#: realm, ``--none`` empties it.
+_SELECTION_MODES: dict[str, tuple[tuple[str, str, str, bool], ...]] = {
+    "skills": (
+        ("--all", "publish_all", "all", False),
+        ("--skills", "skills", "selected", True),
+        ("--none", "publish_none", "selected", False),
+    ),
+    "agents": (
+        ("--workspace", "publish_workspace", "workspace", False),
+        ("--agents", "agents", "selected", True),
+        ("--none", "publish_none", "selected", False),
+    ),
+}
+
+
+def selection_from_args(args, noun: str) -> tuple[str, list[str]]:
+    """``(mode, selection)`` for a ``realm <noun> set`` call.
+
+    Raises :class:`ValueError` naming the flags when not exactly one is given.
+    """
+
+    rows = _SELECTION_MODES[noun]
+    given = [
+        row
+        for row in rows
+        if (getattr(args, row[1], None) is not None if row[3] else bool(getattr(args, row[1], False)))
     ]
-    if len(chosen) != 1:
-        return emit_harness_error(
-            ValueError("exactly one of --all, --skills, or --none is required"),
-            args=args,
-            code="invalid_request",
-        )
-    if getattr(args, "publish_all", False):
-        mode, selection = "all", []
-    elif getattr(args, "publish_none", False):
-        mode, selection = "selected", []
-    else:
-        mode = "selected"
-        selection = [slug.strip() for slug in str(args.skills).split(",") if slug.strip()]
+    if len(given) != 1:
+        flags = [row[0] for row in rows]
+        raise ValueError(f"exactly one of {', '.join(flags[:-1])}, or {flags[-1]} is required")
+    _flag, attr, mode, carries_list = given[0]
+    if not carries_list:
+        return mode, []
+    return mode, [item.strip() for item in str(getattr(args, attr)).split(",") if item.strip()]
+
+
+def _cmd_realm_skills_set(args) -> int:
+    try:
+        mode, selection = selection_from_args(args, "skills")
+    except ValueError as exc:
+        return emit_harness_error(exc, args=args, code="invalid_request")
     dry_run = bool(getattr(args, "dry_run", False))
     realm = RealmStore().set_skill_selection(
         args.realm_id, mode=mode, selection=selection, dry_run=dry_run
@@ -440,32 +465,10 @@ def _cmd_realm_agents_show(args) -> int:
 
 
 def _cmd_realm_agents_set(args) -> int:
-    chosen = [
-        name
-        for name, present in (
-            ("--workspace", bool(getattr(args, "publish_workspace", False))),
-            ("--agents", getattr(args, "agents", None) is not None),
-            ("--none", bool(getattr(args, "publish_none", False))),
-        )
-        if present
-    ]
-    if len(chosen) != 1:
-        return emit_harness_error(
-            ValueError("exactly one of --workspace, --agents, or --none is required"),
-            args=args,
-            code="invalid_request",
-        )
-    if getattr(args, "publish_workspace", False):
-        mode, selection = "workspace", []
-    elif getattr(args, "publish_none", False):
-        mode, selection = "selected", []
-    else:
-        mode = "selected"
-        selection = [
-            persona_id.strip()
-            for persona_id in str(args.agents).split(",")
-            if persona_id.strip()
-        ]
+    try:
+        mode, selection = selection_from_args(args, "agents")
+    except ValueError as exc:
+        return emit_harness_error(exc, args=args, code="invalid_request")
     dry_run = bool(getattr(args, "dry_run", False))
     RealmStore().set_agent_selection(
         args.realm_id,
