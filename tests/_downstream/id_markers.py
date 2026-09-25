@@ -1039,18 +1039,23 @@ ID_MARKS.update({
     "test_acp_refusal_closes_the_turn_and_is_not_replayed_into_the_next_prompt": (_NEEDS_ACP,),
 })
 
+if _WIN and not sys.flags.utf8_mode:
+    # Probe, not platform: the red is the cp1252 locale, so it does not occur under
+    # scripts/run_tests.sh / run_tests_bundled.sh, which export PYTHONUTF8=1 — there
+    # an unconditional strict xfail XPASSes.
+    ID_MARKS.update({
+        f"tests/hermes_cli/test_kanban_core_functionality.py::{test}": (
+            _up_red("write_text() of a non-ASCII worker log with no encoding= under the "
+                    "cp1252 locale: UnicodeEncodeError (class e-ENC)"),
+        )
+        for test in (
+            "test_dead_worker_reap_surfaces_the_workers_own_last_output",
+            "test_dead_worker_reap_reads_the_log_of_the_dispatching_board",
+        )
+    })
+
 if _WIN:
     ID_MARKS.update({
-        **{
-            f"tests/hermes_cli/test_kanban_core_functionality.py::{test}": (
-                _up_red("write_text() of a non-ASCII worker log with no encoding= under the "
-                        "cp1252 locale: UnicodeEncodeError (class e-ENC)"),
-            )
-            for test in (
-                "test_dead_worker_reap_surfaces_the_workers_own_last_output",
-                "test_dead_worker_reap_reads_the_log_of_the_dispatching_board",
-            )
-        },
         **{
             f"tests/acp_adapter/test_session.py::TestSymlinkAliasNormalization::{test}": (
                 _up_red("realpath over a Windows drive: an alias does not resolve to its "
