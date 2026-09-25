@@ -34,6 +34,7 @@ X:/
 | Need | Look |
 |---|---|
 | "Is this file ours or upstream's?" | [[Fork Boundary Map]] |
+| "Which command does this?" | [Operator command directory](../docs/agent-runtime-harness/10-command-directory.md) — task recipes plus generated CLI reference |
 | "Where does X live in the fork?" | [[Codebase Map]] |
 | "What's a hard rule?" | [[Architecture Invariants]] |
 | "Term I don't know?" | [[Glossary]] |

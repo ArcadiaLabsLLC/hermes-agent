@@ -16,6 +16,8 @@ The Hermes-native persona runtime behind Mission Control: personas → durable i
 
 ## Where the truth lives
 
+`commands_cursor::` 2026-09-25 — [Operator command directory](../../docs/agent-runtime-harness/10-command-directory.md): task-oriented recipes and a generated argparse reference; syntax, link and freshness checks live in `tests/scripts/test_emit_harness_command_directory.py`.
+
 `skills_cursor::` 2026-09-24 — [Client-neutral session skills](../../docs/downstream/session-skills.md)
 reuse the canonical resolver and transcript evidence. Launcher Intelligence is
 the first consumer; Mission Control keeps its existing catalog/assignment and
