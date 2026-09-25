@@ -134,7 +134,6 @@
   "agent_runtime/gateway_capabilities.py",
   "agent_runtime/gateway_identity.py",
   "agent_runtime/gateway_pairing_codes.py",
-  "agent_runtime/gateway_peers.py",
   "agent_runtime/gateway_queue_status.py",
   "agent_runtime/gateway_targets.py",
   "agent_runtime/gateway_tls.py",

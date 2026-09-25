@@ -1345,11 +1345,12 @@ def test_every_store_door_emits_its_event_with_ids_and_never_a_secret(
     from agent_runtime.decision_contract_registry import event_catalog
 
     seen: list = []
-    monkeypatch.setattr(
-        gateway_peers,
-        "_emit_peer_event",
-        lambda event_type, payload, **_kw: seen.append((event_type, payload)),
-    )
+    for _home in (gateway_peers.trust_store, gateway_peers.cache, gateway_peers.ceremony):
+        monkeypatch.setattr(
+            _home,
+            "_emit_peer_event",
+            lambda event_type, payload, **_kw: seen.append((event_type, payload)),
+        )
 
     credential = _pair(tmp_path)
     note_peer_seen(tmp_path, PEER_B)
@@ -1396,11 +1397,12 @@ def test_a_process_that_reads_a_revision_it_neither_wrote_nor_seeded_emits_exter
 
     _pair(tmp_path)
     seen: list = []
-    monkeypatch.setattr(
-        gateway_peers,
-        "_emit_peer_event",
-        lambda event_type, payload, **_kw: seen.append((event_type, payload)),
-    )
+    for _home in (gateway_peers.trust_store, gateway_peers.cache, gateway_peers.ceremony):
+        monkeypatch.setattr(
+            _home,
+            "_emit_peer_event",
+            lambda event_type, payload, **_kw: seen.append((event_type, payload)),
+        )
     gateway_peers._LAST_SEEN_REVISION.clear()
 
     gateway_peers.note_peer_store_read(tmp_path)  # seeds
@@ -1432,9 +1434,10 @@ def test_a_fresh_process_seeds_on_first_read_and_emits_nothing(tmp_path, monkeyp
     note_peer_seen(tmp_path, PEER_B)
 
     seen: list = []
-    monkeypatch.setattr(
-        gateway_peers, "_emit_peer_event", lambda t, p, **_kw: seen.append((t, p))
-    )
+    for _home in (gateway_peers.trust_store, gateway_peers.cache, gateway_peers.ceremony):
+        monkeypatch.setattr(
+            _home, "_emit_peer_event", lambda t, p, **_kw: seen.append((t, p))
+        )
     gateway_peers._LAST_SEEN_REVISION.clear()
 
     gateway_peers.note_peer_store_read(tmp_path)
@@ -1452,9 +1455,10 @@ def test_a_write_this_process_made_is_never_reported_as_external(tmp_path, monke
     gateway_peers.note_peer_store_read(tmp_path)
 
     seen: list = []
-    monkeypatch.setattr(
-        gateway_peers, "_emit_peer_event", lambda t, p, **_kw: seen.append((t, p))
-    )
+    for _home in (gateway_peers.trust_store, gateway_peers.cache, gateway_peers.ceremony):
+        monkeypatch.setattr(
+            _home, "_emit_peer_event", lambda t, p, **_kw: seen.append((t, p))
+        )
 
     note_peer_seen(tmp_path, PEER_B)
     gateway_peers.note_peer_store_read(tmp_path)
@@ -1481,7 +1485,7 @@ def test_a_write_the_disk_refuses_comes_back_as_a_typed_reason(tmp_path, monkeyp
             "[WinError 5] Access is denied: '.peers.json.x.tmp' -> 'peers.json'"
         )
 
-    monkeypatch.setattr(gateway_peers, "_write_peers", _denied)
+    monkeypatch.setattr(gateway_peers.trust_store, "_write_peers", _denied)
 
     outcome = record_peer(tmp_path, peer_install_id=PEER_B, secret="s" * 32)
 

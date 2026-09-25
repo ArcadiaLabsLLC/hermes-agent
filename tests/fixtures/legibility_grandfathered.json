@@ -68,7 +68,7 @@
   {
    "depth": 3,
    "lines": 172,
-   "unit": "agent_runtime/gateway_peers.py|dial_peer"
+   "unit": "agent_runtime/gateway_peers/dial.py|dial_peer"
   },
   {
    "depth": 1,

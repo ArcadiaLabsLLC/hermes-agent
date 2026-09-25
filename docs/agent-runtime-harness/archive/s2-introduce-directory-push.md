@@ -343,7 +343,7 @@ is named beside the change that moves it.
 ### S2 · `introduce`, expiry, attested `join`, `capabilities`, `gateway id` endpoints
 
 **Files:** `agent_runtime/gateway_capabilities.py` (new),
-`agent_runtime/serve_gateway_auth.py`, `agent_runtime/gateway_peers.py`,
+`agent_runtime/serve_gateway_auth.py`, `agent_runtime/gateway_peers/`,
 `agent_runtime/gateway_pairing_codes.py` (docstring only),
 `hermes_cli/harness_parts/serve.py`, `hermes_cli/harness_parts/gateway_commands.py`,
 `hermes_cli/harness.py`, `agent_runtime/serve_socket.py` (docstring of
@@ -485,7 +485,7 @@ is named beside the change that moves it.
 
 ### S2c · the cache sidecar, the events, `peer.announce`, `usable_peers`
 
-**Files:** `agent_runtime/gateway_peers.py`, `agent_runtime/gateway_announce.py`
+**Files:** `agent_runtime/gateway_peers/`, `agent_runtime/gateway_announce.py`
 (new), `agent_runtime/gateway_targets.py`, `agent_runtime/decision_contract_registry.py`,
 `agent_runtime/serve_rpc.py`, `agent_runtime/call_authorization.py`,
 `agent_runtime/serve_socket.py` (`peer_hello` optional fields),

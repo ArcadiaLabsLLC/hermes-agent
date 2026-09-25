@@ -534,7 +534,7 @@ integer moved.
 
 | sha | what |
 |---|---|
-| `dd8a8ad716` | `agent_runtime/gateway_peers.py` (the peer store) + `gateway_pairing_codes.py` (the code discipline both ceremonies share) + four more helpers hoisted into `store_file_io`. |
+| `dd8a8ad716` | `agent_runtime/gateway_peers/` (the peer store) + `gateway_pairing_codes.py` (the code discipline both ceremonies share) + four more helpers hoisted into `store_file_io`. |
 | `77768eea27` | 37 store tests. |
 | `6775911bbc` | `RpcCaller` grows a `peer` kind; `PEER_METHOD_ALLOWLIST`; `peer.ping`; five manifest-literal pins in the same commit. 18 + 122 passed. |
 | `db6bbdc899` | The peer hello on the gateway listener, `_credential_kind`, two client hellos, `_is_device` → `_is_gateway`. 49 passed across both lane suites. |

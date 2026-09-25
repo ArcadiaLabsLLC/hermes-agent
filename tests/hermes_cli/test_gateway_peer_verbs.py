@@ -931,11 +931,12 @@ def _reachability_events(monkeypatch) -> list:
     from agent_runtime import gateway_peers
 
     seen: list = []
-    monkeypatch.setattr(
-        gateway_peers,
-        "_emit_peer_event",
-        lambda event_type, payload, **_kw: seen.append((event_type, payload)),
-    )
+    for _home in (gateway_peers.trust_store, gateway_peers.cache, gateway_peers.ceremony):
+        monkeypatch.setattr(
+            _home,
+            "_emit_peer_event",
+            lambda event_type, payload, **_kw: seen.append((event_type, payload)),
+        )
     return seen
 
 

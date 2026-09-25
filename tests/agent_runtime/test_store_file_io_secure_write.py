@@ -495,13 +495,14 @@ def test_record_peer_refuses_the_unwritable_family_rather_than_writing_unlocked(
     from agent_runtime.gateway_peers import PeerRecord, peer_store_path
 
     real_store_lock = gateway_peers._store_lock
-    monkeypatch.setattr(
-        gateway_peers,
-        "_store_lock",
-        lambda root, **kwargs: real_store_lock(
-            root, timeout_seconds=_LOCK_TIMEOUT_SECONDS
-        ),
-    )
+    for _home in (gateway_peers.trust_store, gateway_peers.cache, gateway_peers.ceremony):
+        monkeypatch.setattr(
+            _home,
+            "_store_lock",
+            lambda root, **kwargs: real_store_lock(
+                root, timeout_seconds=_LOCK_TIMEOUT_SECONDS
+            ),
+        )
 
     with _held_in_a_thread(gateway_dir(tmp_path) / "devices.lock"):
         refusal = gateway_peers.record_peer(

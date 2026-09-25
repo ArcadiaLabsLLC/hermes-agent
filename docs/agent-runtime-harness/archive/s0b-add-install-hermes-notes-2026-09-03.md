@@ -12,7 +12,7 @@ Baseline hermes `504953f6ad` (`origin/main`), worktree `wt/s0b-hermes`, branch
 
 | store | trust fields (written by a ceremony or `revoke`, never by the network) | cache fields (what the network or the operator TOLD us) |
 |---|---|---|
-| `gateway/peers.json` — `_row()` at `agent_runtime/gateway_peers.py:866-893`, the one place the shape is written | `peer_install_id`, `secret_verifier`, `approved_at`, `revoked`, `revoked_at` | `display_name` (name-at-pairing; from the join hello's `peer_display_name` on A, `serve.py:703-705`, or the far `install.display_name` on B, `gateway_commands.py:672-678`), `endpoints` (max 4, `:203`), `cert_fingerprint`, `last_seen` (stamped by `note_peer_seen` on every verified peer hello, `serve.py:728`) |
+| `gateway/peers.json` — `_row()` at `agent_runtime/gateway_peers/ceremony.py:163-190`, the one place the shape is written | `peer_install_id`, `secret_verifier`, `approved_at`, `revoked`, `revoked_at` | `display_name` (name-at-pairing; from the join hello's `peer_display_name` on A, `serve.py:703-705`, or the far `install.display_name` on B, `gateway_commands.py:672-678`), `endpoints` (max 4, `:203`), `cert_fingerprint`, `last_seen` (stamped by `note_peer_seen` on every verified peer hello, `serve.py:728`) |
 | `gateway/devices.json` — `serve_gateway_auth.py:666-675` | `device_id`, `tier`, `verifier`, `created_at`, `revoked`, `revoked_at` | `name`, `last_seen` (`note_device_seen`, `serve.py:742`) |
 | `gateway/install.json` — `gateway_identity.py:220-224` | `install_id` (mint-iff-absent, never rewritten), `created_at` | `display_name` — what the install calls ITSELF; `set_display_name` (`:257-293`, `harness gateway rename`) rewrites the file and emits nothing; the frames echo the BOOT-time identity until restart (`serve.py:3900-3906`) |
 
@@ -90,7 +90,7 @@ plus tests. **No wire change, no behaviour change, no store-shape change** —
 
 What landed:
 
-* `agent_runtime/gateway_peers.py` — the module docstring gains a
+* `agent_runtime/gateway_peers/` — the module docstring gains a
   *Two kinds of field in one row: TRUST, and CACHE* section naming both sets
   and the honest residue (`note_peer_seen` writes a cache fact into a trust
   file on every verified hello, and stays there until S2c moves it under

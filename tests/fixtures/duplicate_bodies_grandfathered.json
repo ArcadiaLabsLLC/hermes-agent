@@ -36,7 +36,7 @@
   "_safe_text: agent_runtime/child_events.py, agent_runtime/events.py, agent_runtime/parity.py, agent_runtime/running_work.py, agent_runtime/snapshot/summaries.py",
   "_text: agent_runtime/chat_turn.py, agent_runtime/mission_chat_outcome.py, agent_runtime/persona_open_chat.py",
   "_tracked: scripts/doc_cite_adjacency.py, scripts/doc_cite_report.py",
-  "_unusable_reason: agent_runtime/serve_gateway_peers_rpc.py, hermes_cli/harness_parts/gateway_commands.py",
+  "_unusable_reason: agent_runtime/gateway_peers/cache.py, hermes_cli/harness_parts/gateway_commands.py",
   "_walk: agent_runtime/local_llama_adapter/engine.py, agent_runtime/machine_roots.py, hermes_cli/charsheet_payload_contract.py, scripts/dump_cli_contract.py",
   "_write_conflict_sidecar: agent_runtime/flow_graph_sync.py, agent_runtime/level_sync.py, agent_runtime/map_sync.py",
   "_write_json_atomic: agent/charsheet/draft.py, agent_runtime/mission_chat_steer.py",
