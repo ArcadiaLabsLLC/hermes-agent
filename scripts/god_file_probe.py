@@ -67,8 +67,11 @@ MAX_NESTING = 4
 MIN_DUPLICATE_BODY_LINES = 4
 #: Rule 16's layers, lowest first. A module may import its own layer or lower.
 LAYERS = ("models", "policy", "stores", "lanes", "wiring")
-#: The trees W0-G6 walks (every module must declare its layer, or be grandfathered).
+#: The trees W0-G6 walks (every module must declare its layer, or be grandfathered);
+#: :func:`layered_roots` adds every fork-only tree it DISCOVERS under
+#: ``FORK_ONLY_PARENTS`` (``agent/charsheet/``, ``tools/agent_chat_dispatch/`` …).
 LAYERED_ROOTS = ("agent_runtime/", "hermes_cli/harness_parts/", "plugins/eternia-harness/")
+FORK_ONLY_PARENTS = ("agent/", "tools/")
 HARNESS_PARTS = "hermes_cli/harness_parts/"
 
 SIZE_FIXTURE = FIXTURES / "size_ceiling_grandfathered.json"
@@ -757,6 +760,28 @@ def is_private_upstream_import(root: Path, upstream: frozenset[str], module: str
     return not _upstream_module_path(f"{module}.{name}", upstream)
 
 
+def fork_only_tree(path: str, upstream: frozenset[str]) -> str | None:
+    """The top-most directory above ``path`` (below its top-level parent) holding no upstream file."""
+    parts = path.split("/")
+    for depth in range(2, len(parts)):
+        prefix = "/".join(parts[:depth]) + "/"
+        if not any(u.startswith(prefix) for u in upstream):
+            return prefix
+    return None
+
+
+@lru_cache(maxsize=None)
+def layered_roots(root: Path = ROOT, manifest: Path = MANIFEST) -> tuple[str, ...]:
+    """``LAYERED_ROOTS`` plus every fork-only tree under ``FORK_ONLY_PARENTS``, enumerated from the tree."""
+    upstream = upstream_paths(manifest)
+    trees = {
+        fork_only_tree(path, upstream)
+        for path in fork_production_files(root, manifest)
+        if path.startswith(FORK_ONLY_PARENTS)
+    }
+    return LAYERED_ROOTS + tuple(sorted(t for t in trees if t))
+
+
 def layer_census(root: Path = ROOT, manifest: Path = MANIFEST) -> dict[str, list]:
     """The three W0-G6 populations, as sorted lists of rows.
 
@@ -771,7 +796,7 @@ def layer_census(root: Path = ROOT, manifest: Path = MANIFEST) -> dict[str, list
         tree = _tree(root, path)
         if tree is None:
             continue
-        if path.startswith(LAYERED_ROOTS) and not declares_layer(root, path):
+        if path.startswith(layered_roots(root, manifest)) and not declares_layer(root, path):
             undeclared.add(path)
         for module, name, _line in imports_of(path, tree):
             full = f"{module}.{name}" if name else module
@@ -815,7 +840,7 @@ def declared_modules(root: Path = ROOT) -> dict[str, str]:
     return {
         path: module_name(path)
         for path in fork_production_files(root)
-        if path.startswith(LAYERED_ROOTS) and declares_layer(root, path)
+        if path.startswith(layered_roots(root)) and declares_layer(root, path)
     }
 
 
