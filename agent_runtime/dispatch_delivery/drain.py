@@ -19,7 +19,7 @@ from .accounting import (
     read_delivery_drain_state,
 )
 from .completions import drain_background_completions
-from .forge import _sender_is_idle, _sender_persona, forge_delivery_turn, format_dispatch_delivery
+from .forge import DEFAULT_DRAIN_POLICY, DrainPolicy, forge_delivery_turn, format_dispatch_delivery
 from .vocabulary import (
     DEFAULT_DRAIN_INTERVAL_SECONDS,
     DRAIN_MIRROR_HEARTBEAT_SECONDS,
@@ -95,7 +95,9 @@ def delivery_drain_is_live() -> bool:
 # --------------------------------------------------------------------------
 
 
-def drain_once(*, forge: Callable | None = None, limit: int | None = None) -> dict[str, int]:
+def drain_once(
+    *, forge: Callable | None = None, limit: int | None = None, policy: DrainPolicy | None = None
+) -> dict[str, int]:
     """One delivery pass. Never raises; returns a per-pass tally.
 
     A pass that cannot read the store, cannot resolve a sender, or finds every
@@ -106,7 +108,7 @@ def drain_once(*, forge: Callable | None = None, limit: int | None = None) -> di
     from .. import dispatch_store
 
     budget = int(limit or MAX_DELIVERIES_PER_PASS)
-    lane = DispatchDrain(dispatch_store, forge or forge_delivery_turn)
+    lane = DispatchDrain(dispatch_store, forge or forge_delivery_turn, policy)
     try:
         rows = dispatch_store.pending_deliveries(limit=budget * 4)
     except Exception:
@@ -127,9 +129,10 @@ class DispatchDrain:
     -> :meth:`settle`, each either handing the row on or ending it.
     """
 
-    def __init__(self, store: Any, forge: Callable) -> None:
+    def __init__(self, store: Any, forge: Callable, policy: DrainPolicy | None = None) -> None:
         self.store = store
         self.forge = forge
+        self.policy = policy or DEFAULT_DRAIN_POLICY
         self.tally = {"considered": 0, "delivered": 0, "busy": 0, "dropped": 0, "failed": 0}
 
     def deliver_one(self, row: dict[str, Any]) -> None:
@@ -160,7 +163,7 @@ class DispatchDrain:
             self.store.drop_delivery(dispatch_id, reason="no_sender_session")
             self.tally["dropped"] += 1
             return None
-        owner = _sender_persona(root)
+        owner = self.policy.sender_persona(root)
         if owner is None:
             self.store.drop_delivery(dispatch_id, reason="sender_session_unresolvable")
             self.tally["dropped"] += 1
@@ -168,7 +171,7 @@ class DispatchDrain:
         return dispatch_id, root, owner
 
     def probe(self, root: str, event_key: str) -> bool:
-        if not _sender_is_idle(root):
+        if not self.policy.sender_is_idle(root):
             self.tally["busy"] += 1
             _record_sender_busy(event_key, root)  # A
             return False
@@ -286,6 +289,7 @@ def start_delivery_drain(
     *,
     stop_event: threading.Event,
     interval_seconds: float = DEFAULT_DRAIN_INTERVAL_SECONDS,
+    policy: DrainPolicy | None = None,
 ) -> threading.Thread:
     """Run the drain on a daemon thread until *stop_event* is set.
 
@@ -309,11 +313,11 @@ def start_delivery_drain(
             while not stop_event.wait(interval_seconds):
                 revision_before = _telemetry.outcome_revision  # A
                 try:
-                    drain_once()
+                    drain_once(policy=policy)
                 except Exception:  # pragma: no cover - a drain must never die
                     logger.debug("dispatch delivery pass failed", exc_info=True)
                 try:
-                    drain_background_completions()
+                    drain_background_completions(policy=policy)
                 except Exception:  # pragma: no cover
                     logger.debug("background completion pass failed", exc_info=True)
                 # The orphan sweep runs on its own, slower cadence: it walks

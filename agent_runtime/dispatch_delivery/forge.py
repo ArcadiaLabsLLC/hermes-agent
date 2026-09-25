@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Callable
 
 from ..mission_chat_door import run_mission_chat_turn
 from .accounting import IdleProbe, _LAST_IDLE_PROBE
@@ -238,12 +239,11 @@ def _probe_sender_idle(root_session_id: str) -> IdleProbe:
 def _sender_is_idle(root_session_id: str) -> bool:
     """True when the sender's chat root has no turn in flight.
 
-    THE DECISION, and the only function the drain's decision consults. It keeps
-    its name, signature and semantics deliberately: the drain's tests override
-    this exact attribute, and routing the decision through anything else would
-    silently stop those overrides from biting while the suite still printed
-    green. Accounting reads the stash below AFTER the fact; it never replaces
-    this call.
+    THE DECISION — the default :attr:`DrainPolicy.sender_is_idle`, and the
+    only idle answer a drain consults. Tests replace it by injecting a
+    :class:`DrainPolicy`, never by patching this name. Accounting reads the
+    stash below AFTER the fact; it never replaces this call (an injected
+    decision leaves no stash, which accounting names ``unprobed``).
     """
 
     probe = _probe_sender_idle(root_session_id)
@@ -270,6 +270,25 @@ def _sender_persona(root_session_id: str) -> tuple[str, str] | None:
     from ..persona_assignments import chat_session_owner_persona
 
     return chat_session_owner_persona(root_session_id)
+
+
+@dataclass(frozen=True)
+class DrainPolicy:
+    """The drain's two decision seams, injected — one object, not module globals.
+
+    ``DispatchDrain`` and ``BackgroundDrain`` (and the ownership filter the
+    background lane hands upstream) consult ONLY the policy they were built
+    with, so a test passes a policy instead of patching a name in every module
+    that happens to bind it (the retired ``patch_delivery_seam``, lane W3-B).
+    The defaults are the real decisions.
+    """
+
+    sender_is_idle: Callable[[str], bool] = _sender_is_idle
+    sender_persona: Callable[[str], "tuple[str, str] | None"] = _sender_persona
+
+
+#: The production policy: the real idle probe and the real ownership proof.
+DEFAULT_DRAIN_POLICY = DrainPolicy()
 
 
 # --------------------------------------------------------------------------

@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 
 from agent_runtime import dispatch_delivery, dispatch_store
-from tests._downstream.delivery_seams import patch_delivery_seam
+from agent_runtime.dispatch_delivery import DrainPolicy
 from agent_runtime.dispatch_delivery import (
     DELIVERY_REQUESTED_BY,
     delivery_client_message_id,
@@ -60,21 +60,22 @@ def store_home(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def resolvable_sender(monkeypatch):
+def resolvable_sender():
     """The sender's chat root resolves to a real persona instance.
 
     This IS the positive-ownership proof a restored completion needs — the drain
-    refuses to forge anything into a root it cannot resolve.
+    refuses to forge anything into a root it cannot resolve. A
+    ``DrainPolicy.sender_persona``: tests inject it, never patch it by name.
     """
 
-    patch_delivery_seam(monkeypatch, "_sender_persona",
-        lambda root: ("neko_supervisor", "personainst_neko") if root == SENDER_ROOT else None,
-    )
+    return lambda root: ("neko_supervisor", "personainst_neko") if root == SENDER_ROOT else None
 
 
 @pytest.fixture
-def idle_sender(monkeypatch):
-    patch_delivery_seam(monkeypatch, "_sender_is_idle", lambda root: True)
+def idle_sender():
+    """A ``DrainPolicy.sender_is_idle`` that always answers idle."""
+
+    return lambda root: True
 
 
 class _Forge:
@@ -115,7 +116,7 @@ def test_an_idle_sender_gets_the_completion_as_a_new_turn(
     dispatch_id = _completed()
     forge = _Forge()
 
-    tally = drain_once(forge=forge)
+    tally = drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=forge)
 
     assert tally["delivered"] == 1
     assert len(forge.calls) == 1
@@ -140,7 +141,7 @@ def test_the_forged_turn_carries_the_dispatch_identity_for_attribution(
     dispatch_id = _completed(notify_operator=True)
     forge = _Forge()
 
-    drain_once(forge=forge)
+    drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=forge)
 
     call = forge.calls[0]
     assert call["dispatch_id"] == dispatch_id
@@ -153,7 +154,7 @@ def test_an_unflagged_dispatch_forges_an_unflagged_delivery(
     dispatch_id = _completed(notify_operator=False)
     forge = _Forge()
 
-    drain_once(forge=forge)
+    drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=forge)
 
     assert forge.calls[0]["dispatch_id"] == dispatch_id
     assert forge.calls[0]["notify_operator"] is False
@@ -165,10 +166,12 @@ def test_a_busy_sender_requeues_instead_of_splicing(
     """Role alternation is the invariant: NEVER between a tool result and a reply."""
 
     dispatch_id = _completed()
-    patch_delivery_seam(monkeypatch, "_sender_is_idle", lambda root: False)
     forge = _Forge()
 
-    tally = drain_once(forge=forge)
+    tally = drain_once(
+        policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=lambda root: False),
+        forge=forge,
+    )
 
     assert tally == {"considered": 1, "delivered": 0, "busy": 1, "dropped": 0, "failed": 0}
     assert forge.calls == []
@@ -199,7 +202,7 @@ def test_a_failed_forge_releases_the_claim_for_a_later_retry(
     dispatch_id = _completed()
     forge = _Forge(ok=False)
 
-    tally = drain_once(forge=forge)
+    tally = drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=forge)
 
     assert tally["failed"] == 1
     row = get_dispatch(dispatch_id)
@@ -216,9 +219,9 @@ def test_retrying_a_delivery_lands_one_turn_not_two(
 
     dispatch_id = _completed()
     forge = _Forge(ok=False)
-    drain_once(forge=forge)
+    drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=forge)
     forge.ok = True
-    drain_once(forge=forge)
+    drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=forge)
 
     assert len({call["client_message_id"] for call in forge.calls}) == 1
     assert forge.calls[0]["client_message_id"] == f"dispatch-delivery-{dispatch_id}"
@@ -230,10 +233,12 @@ def test_an_unresolvable_sender_is_dropped_not_delivered_blindly(
     """#64484: absence of disproof is not ownership proof."""
 
     dispatch_id = _completed()
-    patch_delivery_seam(monkeypatch, "_sender_persona", lambda root: None)
     forge = _Forge()
 
-    tally = drain_once(forge=forge)
+    tally = drain_once(
+        policy=DrainPolicy(sender_persona=lambda root: None, sender_is_idle=idle_sender),
+        forge=forge,
+    )
 
     assert tally["dropped"] == 1
     assert forge.calls == []
@@ -247,7 +252,7 @@ def test_a_pass_is_bounded_so_a_burst_cannot_monopolise_the_thread(
         _completed()
     forge = _Forge()
 
-    tally = drain_once(forge=forge, limit=2)
+    tally = drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=forge, limit=2)
 
     assert tally["delivered"] == 2
     assert len(forge.calls) == 2
@@ -353,7 +358,7 @@ def test_an_unnameable_target_degrades_to_the_id_and_still_delivers(
     )
     forge = _Forge()
 
-    tally = drain_once(forge=forge)
+    tally = drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=forge)
 
     assert tally["delivered"] == 1
     header = forge.calls[0]["message"].splitlines()[0]
@@ -426,7 +431,7 @@ def test_losing_a_race_with_a_live_operator_does_not_burn_an_attempt(
         def __call__(self, **kwargs):
             return False, {"ok": False, "error_kind": "chat_busy"}
 
-    tally = drain_once(forge=_Busy())
+    tally = drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=_Busy())
 
     assert tally["busy"] == 1 and tally["failed"] == 0
     row = get_dispatch(dispatch_id)
@@ -439,7 +444,7 @@ def test_a_genuine_failure_still_burns_its_attempt(store_home, resolvable_sender
 
     dispatch_id = _completed()
 
-    tally = drain_once(forge=_Forge(ok=False))
+    tally = drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=_Forge(ok=False))
 
     assert tally["failed"] == 1
     assert get_dispatch(dispatch_id)["delivery_attempts"] == 1
@@ -542,7 +547,7 @@ def test_a_background_completion_that_cannot_be_delivered_stops_retrying(
     seen = []
     for _ in range(dispatch_delivery.MAX_BACKGROUND_DELIVERY_ATTEMPTS + 1):
         process_registry.completion_queue.put(evt)
-        seen.append(dispatch_delivery.drain_background_completions(forge=_Forge(ok=False)))
+        seen.append(dispatch_delivery.drain_background_completions(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=_Forge(ok=False)))
 
     # Every pass but the last retried; the last abandoned it, once.
     assert sum(pass_["failed"] for pass_ in seen) == dispatch_delivery.MAX_BACKGROUND_DELIVERY_ATTEMPTS
@@ -777,7 +782,7 @@ def test_a_delivered_delegation_is_acknowledged_on_its_own_durable_row(
     _queue_once(monkeypatch, durable_delegation)
     dispatch_delivery._background_attempts.clear()
 
-    tally = dispatch_delivery.drain_background_completions(forge=_Forge(ok=True))
+    tally = dispatch_delivery.drain_background_completions(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=_Forge(ok=True))
 
     assert tally["delivered"] == 1
     row = async_delegation.get_durable_delegation("deleg_testspecimen")
@@ -804,7 +809,7 @@ def test_a_delivered_delegation_is_not_re_enqueued_by_the_next_boot_restore(
     _queue_once(monkeypatch, durable_delegation)
     dispatch_delivery._background_attempts.clear()
 
-    assert dispatch_delivery.drain_background_completions(forge=_Forge(ok=True))["delivered"] == 1
+    assert dispatch_delivery.drain_background_completions(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=_Forge(ok=True))["delivered"] == 1
 
     next_boot: _queue.Queue = _queue.Queue()
     assert restore_undelivered_completions(next_boot) == 0
@@ -829,7 +834,7 @@ def test_a_completion_another_consumer_holds_is_never_double_delivered(
     assert claim_completion_delivery("deleg_testspecimen", "someone-else") is True
 
     forge = _Forge(ok=True)
-    tally = dispatch_delivery.drain_background_completions(forge=forge)
+    tally = dispatch_delivery.drain_background_completions(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=forge)
 
     assert tally["unclaimed"] == 1
     assert tally["delivered"] == 0
@@ -851,7 +856,7 @@ def test_a_failed_delegation_delivery_releases_its_claim_for_the_next_pass(
     registry = _queue_once(monkeypatch, durable_delegation)
     dispatch_delivery._background_attempts.clear()
 
-    tally = dispatch_delivery.drain_background_completions(forge=_Forge(ok=False))
+    tally = dispatch_delivery.drain_background_completions(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=_Forge(ok=False))
 
     assert tally["failed"] == 1
     row = async_delegation.get_durable_delegation("deleg_testspecimen")

@@ -69,7 +69,7 @@ map is ``lanes`` because the highest layer it re-exports is ``lanes``.
                                  outside BOUNCE_GATES) + the process singleton,
                                  _event_key, _delivery_outcome, _record_sender_busy, and the
                                  cross-process mirror file (read_delivery_drain_state)
-      forge.py          lanes    format_dispatch_delivery, idle gating
+      forge.py          lanes    format_dispatch_delivery, idle gating, DrainPolicy
                                  (_probe_sender_idle, _sender_is_idle, _sender_persona),
                                  forge_delivery_turn (through agent_runtime.mission_chat_door)
       completions.py    lanes    the background-completion lane: ownership (_chat_root_of_
@@ -87,11 +87,12 @@ map is ``lanes`` because the highest layer it re-exports is ``lanes``.
     forge_delivery_turn (also chat_history_writes)  forge
     delivery_drain_status / delivery_drain_is_live  drain -> accounting
 
-A seam is patched where it is BOUND. ``_sender_is_idle`` / ``_sender_persona``
-are bound in ``forge`` (their home), ``drain`` and ``completions`` (by import),
-and here (``tools/agent_chat_tool`` reads ``_sender_persona`` off this package
-at call time) — ``tests/_downstream/delivery_seams.patch_delivery_seam`` patches
-every module that binds the name, enumerated from the modules themselves.
+The drain's two decisions are INJECTED, never patched by name: ``forge.DrainPolicy``
+(``sender_is_idle``, ``sender_persona``, defaulting to ``_sender_is_idle`` /
+``_sender_persona``) is what ``DispatchDrain`` / ``BackgroundDrain`` consult, and
+``drain_once`` / ``drain_background_completions`` / ``start_delivery_drain`` take
+``policy=``. ``_sender_persona`` stays re-exported here because the agent-chat
+tool's detached lane reads it off this package at call time (lane W3-B).
 """
 
 from __future__ import annotations
@@ -134,6 +135,8 @@ from .drain import (
     sweep_orphaned_dispatches,
 )
 from .forge import (
+    DEFAULT_DRAIN_POLICY,
+    DrainPolicy,
     __layer__,
     _probe_sender_idle,
     _sender_is_idle,
@@ -196,7 +199,9 @@ __all__ = [
     "BOUNCE_GATES",
     "IDLE_SUB_REASONS",
     "BackgroundDrain",
+    "DEFAULT_DRAIN_POLICY",
     "DispatchDrain",
+    "DrainPolicy",
     "format_elapsed",
     "terminal_forge_rejections",
     "transient_forge_refusals",

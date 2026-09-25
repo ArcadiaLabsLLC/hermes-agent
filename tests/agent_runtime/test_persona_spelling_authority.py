@@ -37,7 +37,6 @@ from types import SimpleNamespace
 import pytest
 
 from agent_runtime import dispatch_store
-from tests._downstream.delivery_seams import patch_delivery_seam
 from agent_runtime.persona_assignments import (
     PersonaInstanceStore,
     personas_equal,
@@ -599,14 +598,15 @@ def _completed_dispatch(dispatch_id="dispatch-cap-hygiene", root="persona_chat_s
 def _drain_with(monkeypatch, forge_payload, *, root="persona_chat_sender"):
     from agent_runtime import dispatch_delivery
 
-    patch_delivery_seam(monkeypatch, "_sender_persona", lambda _root: ("profile:alice", "personainst_profile_alice")
+    policy = dispatch_delivery.DrainPolicy(
+        sender_persona=lambda _root: ("profile:alice", "personainst_profile_alice"),
+        sender_is_idle=lambda _root: True,
     )
-    patch_delivery_seam(monkeypatch, "_sender_is_idle", lambda _root: True)
 
     def _forge(**kwargs):
         return False, dict(forge_payload)
 
-    return dispatch_delivery.drain_once(forge=_forge)
+    return dispatch_delivery.drain_once(forge=_forge, policy=policy)
 
 
 def test_a_deterministic_forge_rejection_is_terminal_on_the_first_attempt(

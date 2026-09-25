@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import logging
 from typing import Any, Callable
 
@@ -12,7 +13,7 @@ from .accounting import (
     _record_sender_busy,
     _telemetry,
 )
-from .forge import _sender_is_idle, _sender_persona, forge_delivery_turn
+from .forge import DEFAULT_DRAIN_POLICY, DrainPolicy, _sender_persona, forge_delivery_turn
 from .vocabulary import (
     GATE_ABANDONED,
     GATE_EMPTY_TEXT,
@@ -41,7 +42,7 @@ logger = logging.getLogger(__name__)
 _background_attempts: dict[str, int] = {}
 
 
-def _owns_event_with_accounting(evt: dict[str, Any]) -> bool:
+def _owns_event_with_accounting(evt: dict[str, Any], policy: DrainPolicy = DEFAULT_DRAIN_POLICY) -> bool:
     """The queue's ownership filter — same boolean, now visible when it says no.
 
     DECISION [D]: byte-identical to the ``lambda evt:
@@ -53,8 +54,8 @@ def _owns_event_with_accounting(evt: dict[str, Any]) -> bool:
     ACCOUNTING [A]: the ``record_bounce`` line, and nothing else.
     """
 
-    root = _chat_root_of_completion(evt)
-    if root is None and _orphaned_persona_root(evt) is not None:
+    root = _chat_root_of_completion(evt, policy.sender_persona)
+    if root is None and _orphaned_persona_root(evt, policy.sender_persona) is not None:
         return True  # taken off the queue to be DROPPED, loudly, by the drain
     if root is None:
         try:  # A — accounting must never be able to change the answer below
@@ -74,7 +75,9 @@ def _owns_event_with_accounting(evt: dict[str, Any]) -> bool:
 # --------------------------------------------------------------------------
 
 
-def _chat_root_of_completion(evt: dict[str, Any]) -> str | None:
+def _chat_root_of_completion(
+    evt: dict[str, Any], sender_persona: Callable[[str], Any] = _sender_persona
+) -> str | None:
     """The persona chat root a queued completion belongs to, or None.
 
     POSITIVE proof, in the sense ``drain_notifications`` means it: the event has
@@ -88,12 +91,14 @@ def _chat_root_of_completion(evt: dict[str, Any]) -> str | None:
         candidate = str(evt.get(key) or "").strip()
         if not candidate.startswith("persona_chat_"):
             continue
-        if _sender_persona(candidate) is not None:
+        if sender_persona(candidate) is not None:
             return candidate
     return None
 
 
-def _orphaned_persona_root(evt: dict[str, Any]) -> str | None:
+def _orphaned_persona_root(
+    evt: dict[str, Any], sender_persona: Callable[[str], Any] = _sender_persona
+) -> str | None:
     """The persona chat root a PROCESS completion names when nobody owns it now, else None.
 
     The persona-instance-gone drop the owner ruling of 2026-09-24 gives this lane (it used
@@ -112,7 +117,7 @@ def _orphaned_persona_root(evt: dict[str, Any]) -> str | None:
         if not candidate.startswith("persona_chat_"):
             continue
         try:
-            owner = _sender_persona(candidate)
+            owner = sender_persona(candidate)
         except Exception:
             logger.debug("owner lookup failed for %s", candidate, exc_info=True)
             return None
@@ -232,7 +237,9 @@ def _settle_durable_completion(
         )
 
 
-def drain_background_completions(*, forge: Callable | None = None) -> dict[str, int]:
+def drain_background_completions(
+    *, forge: Callable | None = None, policy: DrainPolicy | None = None
+) -> dict[str, int]:
     """Deliver ``delegate_task(background)`` / ``terminal`` completions.
 
     These already publish to ``process_registry.completion_queue`` — the CLI and
@@ -297,7 +304,7 @@ def drain_background_completions(*, forge: Callable | None = None) -> dict[str, 
         from tools.process_registry import process_registry
     except Exception:
         return BackgroundDrain.empty_tally()
-    return BackgroundDrain(process_registry, forge or forge_delivery_turn).run()
+    return BackgroundDrain(process_registry, forge or forge_delivery_turn, policy).run()
 
 
 class BackgroundDrain:
@@ -310,9 +317,10 @@ class BackgroundDrain:
     — so a reader follows one completion from queue to outcome in order.
     """
 
-    def __init__(self, registry: Any, forge: Callable) -> None:
+    def __init__(self, registry: Any, forge: Callable, policy: DrainPolicy | None = None) -> None:
         self.registry = registry
         self.forge = forge
+        self.policy = policy or DEFAULT_DRAIN_POLICY
         self.tally = self.empty_tally()
 
     @staticmethod
@@ -337,7 +345,7 @@ class BackgroundDrain:
                 # named function exists so `not_owned` is visible: upstream
                 # re-queues a rejected event INSIDE drain_notifications, where the
                 # caller can never see it, and this closure is ours.
-                owns_event=_owns_event_with_accounting,
+                owns_event=functools.partial(_owns_event_with_accounting, policy=self.policy),
                 skip_poll_observed=False,
             )
         except Exception:
@@ -369,15 +377,15 @@ class BackgroundDrain:
     def own(self, evt: dict[str, Any], text: str) -> tuple[str, tuple[str, str], str] | None:
         """Ownership re-proven at delivery time: ``(root, owner, key)``, or the event ends here."""
 
-        root = _chat_root_of_completion(evt)
-        owner = _sender_persona(root) if root else None
+        root = _chat_root_of_completion(evt, self.policy.sender_persona)
+        owner = self.policy.sender_persona(root) if root else None
         # The queue has no durable per-event id, so the dedup key is derived
         # from the event's own stable identity (the process/delegation id plus
         # its type) rather than minted per attempt. Derived ONCE per event and
         # reused by both the forge's client_message_id below and the accounting
         # rows, so the two can never name the same completion differently.
         key = _event_key(evt)
-        orphan = _orphaned_persona_root(evt) if root is None else None
+        orphan = _orphaned_persona_root(evt, self.policy.sender_persona) if root is None else None
         if orphan is not None:
             # The instance that spawned it is gone: DROP, and say so. A silently
             # abandoned completion is the failure class this lane exists to retire.
@@ -410,7 +418,7 @@ class BackgroundDrain:
     def probe(self, evt: dict[str, Any], root: str, owner: tuple[str, str], text: str, key: str) -> bool:
         """Idle: go on. Busy: steer into the live turn, or re-queue for its idle one."""
 
-        if _sender_is_idle(root):
+        if self.policy.sender_is_idle(root):
             _telemetry.note_ownerless_streak(root, ownerless=False)  # A — episode over
             return True
         if _steer_into_busy_turn(evt, root, owner, text, key):

@@ -24,7 +24,7 @@ import time
 import pytest
 
 from agent_runtime import dispatch_delivery, persona_chat_continuity
-from tests._downstream.delivery_seams import patch_delivery_seam
+from agent_runtime.dispatch_delivery import DrainPolicy
 from agent_runtime.dispatch_store import DELIVERY_DELIVERED, get_dispatch
 from agent_runtime.file_locks import try_lock_fd, unlock_fd
 
@@ -235,17 +235,16 @@ def test_an_overridden_idle_decision_is_honored_and_admitted_as_unprobed(
 ):
     """The accounting must never re-derive the decision it is accounting for.
 
-    ``tests/agent_runtime/test_dispatch_delivery.py`` overrides
-    ``_sender_is_idle`` by name in ~11 tests. If the drain routed its decision
-    through ``_probe_sender_idle`` instead, every one of those overrides would
-    stop biting — the suite would keep printing green over behaviour nothing
-    tests any more. So: the override decides (the event is requeued), and
-    accounting records that it could not observe the decision rather than
-    quietly taking a second one.
+    ``tests/agent_runtime/test_dispatch_delivery.py`` injects
+    ``DrainPolicy.sender_is_idle`` in ~11 tests. If the drain routed its
+    decision through ``_probe_sender_idle`` instead of the policy, every one of
+    those injections would stop biting — the suite would keep printing green
+    over behaviour nothing tests any more. So: the injected decision decides
+    (the event is requeued), and accounting records that it could not observe
+    the decision rather than quietly taking a second one.
     """
 
     registry = _drain_the_queue()
-    patch_delivery_seam(monkeypatch, "_sender_is_idle", lambda root: False)
     evt = {
         "type": "completion",
         "session_id": SENDER_ROOT,
@@ -256,7 +255,10 @@ def test_an_overridden_idle_decision_is_honored_and_admitted_as_unprobed(
     registry.completion_queue.put(evt)
     forge = _Forge()
 
-    tally = dispatch_delivery.drain_background_completions(forge=forge)
+    tally = dispatch_delivery.drain_background_completions(
+        policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=lambda root: False),
+        forge=forge,
+    )
 
     # (a) the DECISION: requeued, untouched, exactly as the existing
     #     busy-requeues test pins it.
@@ -282,7 +284,7 @@ def test_a_real_busy_probe_is_named_by_its_sub_reason(store_home, resolvable_sen
     registry.completion_queue.put(evt)
 
     with persona_chat_continuity.persona_chat_root_lease(SENDER_ROOT, owner_id="op"):
-        tally = dispatch_delivery.drain_background_completions(forge=_Forge())
+        tally = dispatch_delivery.drain_background_completions(policy=DrainPolicy(sender_persona=resolvable_sender), forge=_Forge())
 
     assert tally["requeued"] == 1
     assert "sender_busy:lease_busy_owned" in _reasons()
@@ -556,14 +558,14 @@ def test_status_never_fails_because_telemetry_did(store_home, monkeypatch):
 
     from agent_runtime.status import build_status
 
-    patched = patch_delivery_seam(
-        monkeypatch,
+    # The status reader is BOUND in drain (``delivery_drain_status`` calls it
+    # there); a package-only patch would pass vacuously (the real, un-raising
+    # reader answers the same "absent").
+    monkeypatch.setattr(
+        dispatch_delivery.drain,
         "delivery_drain_is_live",
         lambda: (_ for _ in ()).throw(RuntimeError("telemetry exploded")),
     )
-    # The status reader is BOUND in drain; a package-only patch would pass
-    # vacuously (the real, un-raising reader answers the same "absent").
-    assert "agent_runtime.dispatch_delivery.drain" in patched
 
     assert build_status()["delivery_drain"] == {"live": False, "source": "absent"}
 
@@ -765,7 +767,7 @@ def test_an_empty_reply_is_recorded_as_a_silent_delivery(
 
     dispatch_id = _completed()
 
-    tally = dispatch_delivery.drain_once(forge=_Forge(ok=True, payload={"ok": True, "reply": "  "}))
+    tally = dispatch_delivery.drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=_Forge(ok=True, payload={"ok": True, "reply": "  "}))
 
     assert tally["delivered"] == 1
     assert get_dispatch(dispatch_id)["delivery_state"] == DELIVERY_DELIVERED
@@ -780,7 +782,7 @@ def test_a_turn_that_actually_replied_is_still_a_plain_delivery(
 
     _completed()
 
-    dispatch_delivery.drain_once(
+    dispatch_delivery.drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender),
         forge=_Forge(ok=True, payload={"ok": True, "reply": "3 failures, all in the chat panel"})
     )
 
@@ -800,7 +802,7 @@ def test_a_forge_that_reports_no_reply_at_all_is_not_called_silent(
 
     _completed()
 
-    dispatch_delivery.drain_once(forge=_Forge(ok=True, payload={"ok": True}))
+    dispatch_delivery.drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=_Forge(ok=True, payload={"ok": True}))
 
     assert _reasons() == [dispatch_delivery.DELIVERED_REASON]
 
@@ -816,7 +818,7 @@ def test_last_delivery_itself_names_the_silence(
 
     dispatch_id = _completed()
 
-    dispatch_delivery.drain_once(forge=_Forge(ok=True, payload={"ok": True, "reply": ""}))
+    dispatch_delivery.drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=_Forge(ok=True, payload={"ok": True, "reply": ""}))
 
     last = dispatch_delivery._telemetry.snapshot()["last_delivery"]
     assert last["event_key"] == f"dispatch:{dispatch_id}"
@@ -832,7 +834,7 @@ def test_a_silent_delivery_is_logged_at_warning(
     _completed()
 
     with caplog.at_level(logging.WARNING, logger="agent_runtime.dispatch_delivery"):
-        dispatch_delivery.drain_once(forge=_Forge(ok=True, payload={"ok": True, "reply": ""}))
+        dispatch_delivery.drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=_Forge(ok=True, payload={"ok": True, "reply": ""}))
 
     warnings = [
         record.getMessage()
@@ -857,7 +859,7 @@ def test_a_silent_background_completion_keeps_its_producer_detail(
     _queue_once(monkeypatch, durable_delegation)
     dispatch_delivery._background_attempts.clear()
 
-    tally = dispatch_delivery.drain_background_completions(
+    tally = dispatch_delivery.drain_background_completions(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender),
         forge=_Forge(ok=True, payload={"ok": True, "reply": ""})
     )
 
@@ -900,7 +902,7 @@ def test_the_typed_block_decides_over_the_reply_text(
 
     _completed()
 
-    dispatch_delivery.drain_once(
+    dispatch_delivery.drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender),
         forge=_Forge(
             ok=True,
             payload=_payload(
@@ -926,7 +928,7 @@ def test_a_visible_verdict_wins_even_over_an_empty_reply_field(
 
     _completed()
 
-    dispatch_delivery.drain_once(
+    dispatch_delivery.drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender),
         forge=_Forge(
             ok=True,
             payload=_payload(
@@ -951,7 +953,7 @@ def test_an_unreadable_verdict_is_not_treated_as_silence(
 
     _completed()
 
-    dispatch_delivery.drain_once(
+    dispatch_delivery.drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender),
         forge=_Forge(ok=True, payload=_payload("", {"state": "sideways"}))
     )
 
@@ -970,6 +972,6 @@ def test_a_payload_from_an_older_serve_still_classifies(
 
     _completed()
 
-    dispatch_delivery.drain_once(forge=_Forge(ok=True, payload=_payload("")))
+    dispatch_delivery.drain_once(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=_Forge(ok=True, payload=_payload("")))
 
     assert _reasons() == [dispatch_delivery.DELIVERED_SILENT_REASON]
