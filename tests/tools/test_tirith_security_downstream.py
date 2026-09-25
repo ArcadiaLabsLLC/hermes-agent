@@ -2,8 +2,8 @@
 
 The fork's ``tools.tirith_security`` keeps ALLOWING on a platform tirith ships
 no build for, but says so when ``security.tirith_fail_open`` is false — once,
-in the log and on the result. Upstream's autouse ``_reset_resolved_path`` is
-imported by name.
+in the log and on the result. Upstream's autouse ``_reset_tirith_state`` is
+imported by name (it replaced ``_reset_resolved_path`` at the 2026-09-25 merge).
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import tools.tirith_security as _tirith_mod
 from tests.tools.test_tirith_security import (  # noqa: F401 — upstream autouse fixture
-    _reset_resolved_path,
+    _reset_tirith_state,
 )
 from tools.tirith_security import check_command_security
 

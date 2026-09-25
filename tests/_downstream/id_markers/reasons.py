@@ -92,17 +92,6 @@ _FORK_SPAWN_DETACHED = (
     "the fork's hermes_cli.gateway_windows._spawn_detached(script_path) replaces "
     "upstream's breakaway retry; covered by tests/gateway/test_windows_gateway_spawn.py"
 )
-_WIN_REEXEC_BRANCH = (
-    "cmd_dashboard re-execs via subprocess.Popen on win32 and upstream stubs only "
-    "os.execvpe, so a real dashboard child is spawned (the fork's live-system guard "
-    "refuses it); the twin stubbing both branches is "
-    "tests/hermes_cli/test_dashboard_unified_launch_downstream.py"
-)
-_SQLITE_HANDLE_LEFT_OPEN = (
-    "upstream's `with kbc.connect()` does not close the sqlite handle, and Windows "
-    "refuses to rename a board directory with an open file (WinError 32/5); "
-    "test-side fix = kbc.connect_closing, PR candidate class win-path-spelling"
-)
 
 #: Single source: the banner in ``hermes_cli_conftest._KNOWN_DEFECTS`` and the
 #: strict xfail below carry this one string (ML-16).
@@ -126,7 +115,7 @@ _NO_REAL_ORPHAN_REAP = getattr(pytest.mark, NO_REAL_ORPHAN_REAP_MARK)
 #: Prefix of every row that skips an upstream test because it is POSIX-only
 #: (not because of fork behaviour); the tests-PR lane turns these rows into
 #: upstream platform marks.
-_POSIX_ONLY = "POSIX-only; upstream fix = @pytest.mark.linux_only"
+_POSIX_ONLY = "POSIX-only; upstream fix = @pytest.mark.platforms('linux')"
 
 
 def _posix_only(detail: str) -> pytest.MarkDecorator:

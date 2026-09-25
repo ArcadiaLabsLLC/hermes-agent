@@ -10,7 +10,7 @@ import pytest
 
 
 class TestSanePathIncludesHomebrew:
-    @pytest.mark.windows_only
+    @pytest.mark.platforms("windows")
     def test_make_run_env_preserves_windows_mixed_case_path_key(self, monkeypatch):
         """The fork's real-host form of upstream's mixed-case ``Path`` test.
 

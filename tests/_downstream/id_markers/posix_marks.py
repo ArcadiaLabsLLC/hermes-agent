@@ -105,12 +105,11 @@ if _WIN:
                 "TestCaps",
                 "TestProgrammingErrors",
                 "TestEnsureInstalled",
-                "TestFailedDownloadCaching",
-                "TestExplicitPathNoAutoDownload",
                 "TestBackgroundInstall",
                 "TestSpawnWarningDedup",
                 "TestAppTldSuppression",
-                "TestMkdtempOSErrorNoSpace",
+                "TestCircuitBreakerHalfOpen",
+                "TestEmojiVariationSelectorSuppression",
             )
         },
         "tests/tools/test_voice_wsl_pipewire.py::test_wsl_without_forwarding_still_blocks": (

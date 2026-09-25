@@ -81,7 +81,6 @@ def _gateway_fence_is_armed_for_this_test(request):
 #: in ``sys.modules`` holding its own reference.
 _AGENT_BROWSER_PROBE_BINDINGS = (
     "hermes_constants",
-    "hermes_cli.doctor_tools",
     "tools.browser_tool_install",
 )
 

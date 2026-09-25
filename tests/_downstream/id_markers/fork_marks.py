@@ -4,8 +4,7 @@ Fixture opt-ins (the credentials file, the real Windows pause, config reads thro
 load_config, the scoped monkeypatch undo, the claude home), the rule-4 strict xfails
 that name the fork symbol and its ``*_downstream.py`` sibling, and the timeouts the
 fork's ``--timeout=30`` cannot hold. A row whose premise happens to be win32 but whose
-cause is the fork (``_WIN_REEXEC_BRANCH``, ``_FORK_SYSTEM_PATH``, the
-``_escape_shell_arg`` xfail) is here, under ``if _WIN:``.
+cause is the fork (``_FORK_SYSTEM_PATH``) is here, under ``if _WIN:``.
 
 One ``ROWS`` table, already host-filtered; ``hooks._merge`` concatenates the four.
 The map is ``tests/_downstream/id_markers/__init__.py``.
@@ -35,7 +34,6 @@ from tests._downstream.id_markers.reasons import (
     TELEGRAM_PARITY_DEFECT_REASON,
     _TIRITH_CONFIG_VALUE,
     _WIN,
-    _WIN_REEXEC_BRANCH,
 )
 
 __layer__ = "models"
@@ -59,21 +57,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     "tests/hermes_cli/test_commands.py::TestSlackNativeSlashes::test_telegram_parity": (
         pytest.mark.xfail(strict=True, reason=TELEGRAM_PARITY_DEFECT_REASON),
     ),
-    # Tests ABOUT _pause_windows_gateways_for_update opt out of the fork
-    # conftest default that returns None; their service/process transports
-    # are mocked and the gateway fence still stands behind them.
-    **{
-        f"tests/hermes_cli/test_update_concurrent_quarantine.py::{test}": (_REAL_PAUSE,)
-        for test in (
-            "test_pause_windows_gateways_for_update_stops_profile_and_unmapped_pids",
-            "test_pause_and_resume_windows_gateway_service",
-            "test_pause_windows_gateway_service_failure_restores_every_attempted_service",
-            "test_pause_windows_gateway_service_surfaces_rollback_start_failure",
-            "test_pause_windows_gateways_aborts_when_service_discovery_is_indeterminate",
-            "test_pause_windows_gateways_aborts_when_gateway_pid_discovery_is_indeterminate",
-            "test_pause_kill_set_covers_venv_guard_abort_set",
-        )
-    },
     # The fork's hermes_cli.tirith_config lets TIRITH_* env win over config.yaml;
     # this upstream test pins the config value (fixture: tools_conftest).
     "tests/tools/test_approval.py::TestTirithImportErrorFailOpenPolicy::"
@@ -335,19 +318,8 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
 
 if _WIN:
     ROWS.update({
-        "tests/hermes_cli/test_dashboard_unified_launch.py::TestUnifiedDashboardRouting::"
-        "test_profile_launch_reexecs_machine_dashboard": (
-            pytest.mark.xfail(reason=_WIN_REEXEC_BRANCH, strict=True),
-        ),
         "tests/tools/test_local_env_blocklist.py::TestSanePathIncludesHomebrew::"
         "test_make_run_env_preserves_windows_mixed_case_path_key": (
             pytest.mark.xfail(reason=_FORK_SYSTEM_PATH, strict=True),
-        ),
-        "tests/tools/test_file_operations.py::TestShellFileOpsHelpers::"
-        "test_escape_shell_arg_rewrites_forward_slash_native_paths": (
-            _fork_replaces(
-                "ShellFileOperations._escape_shell_arg (native Windows paths, no /c/ rewrite)",
-                "tests/tools/test_file_operations_downstream.py",
-            ),
         ),
     })

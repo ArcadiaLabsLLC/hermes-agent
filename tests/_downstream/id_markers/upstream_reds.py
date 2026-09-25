@@ -21,7 +21,6 @@ from tests._downstream.id_markers.reasons import (
     _LIFECYCLE_SCAN,
     _PATH_SPELLING,
     _SEPARATOR_SPELLING,
-    _SQLITE_HANDLE_LEFT_OPEN,
     _TMP_LITERAL,
     _up_red,
     _up_red_skip,
@@ -35,10 +34,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
 
 if _WIN:
     ROWS.update({
-        "tests/hermes_cli/test_kanban_boards.py::TestBoardCRUD::"
-        "test_remove_clears_init_cache_for_recreated_db": (
-            pytest.mark.xfail(reason=_SQLITE_HANDLE_LEFT_OPEN, strict=True),
-        ),
         "tests/tools/test_approval.py::TestDetectDangerousRm::test_nonrecursive_verification_artifact_cleanup_is_not_dangerous": (
             pytest.mark.xfail(reason=_TMP_LITERAL, strict=True),
         ),
@@ -51,14 +46,6 @@ if _WIN:
         ),
         "tests/hermes_cli/test_kanban_db.py::"
         "test_worktree_workspace_explicit_target_materializes_linked_worktree": (
-            pytest.mark.xfail(reason=_SEPARATOR_SPELLING, strict=True),
-        ),
-        "tests/tools/test_file_operations.py::TestSearchFilesFallbackHiddenPaths::"
-        "test_hidden_root_with_hidden_ancestor_includes_files": (
-            pytest.mark.xfail(reason=_SEPARATOR_SPELLING, strict=True),
-        ),
-        "tests/tools/test_file_operations.py::TestSearchFilesFallbackHiddenPaths::"
-        "test_normal_root_still_excludes_hidden_descendants": (
             pytest.mark.xfail(reason=_SEPARATOR_SPELLING, strict=True),
         ),
         "tests/tools/test_file_tools_cwd_resolution.py::test_container_absolute_input_path_does_not_follow_host_symlink": (
@@ -164,11 +151,6 @@ if _WIN:
         "test_message_pages_identify_the_serving_profile[None]": (
             _up_red("with no serving profile the default page is the serving page, 120 != 1"),
         ),
-        "tests/hermes_cli/test_update_autostash.py::"
-        "test_cmd_update_ordinary_divergence_also_leaves_a_rescue_ref": (
-            _up_red("reads the ref at argv[2], but Windows git argv carries "
-                    "-c windows.appendAtomically=false"),
-        ),
         "tests/hermes_cli/test_web_server.py::TestWebServerEndpoints::"
         "test_activating_an_endpoint_carries_its_credential_either_way": (
             _up_red_skip("activation probes llm.modern.com live; the lookup outlives the "
@@ -210,8 +192,6 @@ if _WIN:
             'tests/hermes_cli/test_startup_fast_guards.py::test_normalize_hermes_home_env_rewrites_tilde_and_leaves_absolute_alone',
             'tests/hermes_cli/test_update_host_obligation.py::test_recovery_host_state_dir_matches_the_gateway_resolver[env0]',
             'tests/hermes_cli/test_update_host_obligation.py::test_recovery_host_state_dir_matches_the_gateway_resolver[env1]',
-            'tests/hermes_cli/test_worktree_command.py::test_list_shows_worktrees',
-            'tests/hermes_cli/test_worktree_pushed_tier.py::TestCronWorktreeMaintenance::test_repo_discovery_requires_worktrees_dir',
         )},
         **{node: (_up_red('bash invocation with Windows paths inside a POSIX command string (class c-E, #121226)'),) for node in (
             'tests/hermes_cli/test_agent_env_advertisement.py::TestWrapCommandAdvertisesHarness::test_shell_sets_default_and_preserves_outer',
@@ -225,7 +205,6 @@ if _WIN:
         )},
         **{node: (_up_red('asserts the POSIX branch of code that has a Windows branch (class e-BR)'),) for node in (
             'tests/hermes_cli/test_agent_plugins.py::test_server_declaration_joins_mcp_and_preserves_liveness',
-            'tests/hermes_cli/test_backup.py::TestImport::test_import_auto_installs_gateway_service',
             'tests/hermes_cli/test_cli_clarify_batch.py::TestClarifyBellOnPrompt::test_bell_on_prompt_rings_and_off_is_silent',
             'tests/hermes_cli/test_cli_init.py::TestPromptToolkitTerminalCompatibility::test_lf_enter_binding_respects_multiline_shortcuts',
             'tests/hermes_cli/test_cli_init.py::TestPromptToolkitTerminalCompatibility::test_cpr_gating_posix_suppresses_without_ssh',
@@ -249,7 +228,6 @@ if _WIN:
             'tests/hermes_cli/test_tui_npm_install.py::test_make_tui_argv_keeps_desktop_always_build_behaviour',
             'tests/hermes_cli/test_tui_npm_install.py::test_make_tui_argv_decodes_dev_prebuild_with_utf8_replace',
             'tests/hermes_cli/test_tui_npm_install.py::test_make_tui_argv_exits_with_recovery_hint_when_workspace_unrecoverable',
-            'tests/hermes_cli/test_tui_resume_flow.py::test_make_tui_argv_dev_prebuilds_hermes_ink',
         )},
         **{node: (_up_red('fake executable is an extensionless #! script, neither run nor found via PATHEXT (class e-EXE)'),) for node in (
             'tests/hermes_cli/test_goal_gates.py::test_run_gate_fail_captures_output',
@@ -275,8 +253,6 @@ if _WIN:
             'tests/hermes_cli/test_plugin_ownership_ledger.py::test_provider_overlay_switches_profiles_and_reveals_fresh_global_fallback',
             'tests/hermes_cli/test_plugin_ownership_ledger.py::test_direct_plugin_platform_registration_infers_immutable_scope',
             'tests/hermes_cli/test_plugin_validate.py::test_portable_validation_fails_orphan_and_reports_availability',
-            'tests/hermes_cli/test_restore_own_holder_guard.py::test_safe_restore_fallback_still_works_without_holder',
-            'tests/hermes_cli/test_update_import_guard.py::test_import_probe_sees_a_stale_editable_finder_instead_of_the_checkout_cwd',
         )},
         "tests/hermes_cli/test_completion.py::TestGenerateBash::test_valid_bash_syntax": (
             pytest.mark.xfail(strict=True, reason=(

@@ -71,8 +71,8 @@ FULL_TOOL_DESCRIPTIONS: Dict[str, Union[str, Callable[[], str]]] = {
 
 
 def _current_skill_manage_full() -> str:
-    from tools.skill_manager_tool import _skill_manage_description, _display_create_dir
-    return _skill_manage_description(_display_create_dir())
+    from tools.skill_manager_tool import _skill_manage_description
+    return _skill_manage_description()
 
 
 # These descriptions follow the new upstream batch/kernel contracts directly.

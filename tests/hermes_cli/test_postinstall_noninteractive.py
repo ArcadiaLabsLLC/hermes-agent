@@ -9,12 +9,6 @@ from types import SimpleNamespace
 
 import hermes_cli.path_setup as _path_setup
 
-# The REAL install-dir seam, captured at import time — ``tests/conftest.py``'s
-# autouse ``_isolate_hermes_shim_dir`` replaces the module attribute for every
-# test, and the sandbox test below has to know which path it is PROTECTING.
-_REAL_SHIM_INSTALL_DIR = _path_setup._shim_install_dir
-
-
 def _patch_common(monkeypatch, calls, *, stub_shim: bool = True):
     """Patch the side-effecting bits of cmd_postinstall for a hermetic run."""
     import hermes_cli.main as main_mod
@@ -88,14 +82,6 @@ def test_postinstall_json_emits_summary_as_final_line(monkeypatch, capsys):
     assert isinstance(summary["deps"], dict)
 
 
-def _snapshot(path: Path) -> object:
-    """Existence + mtime + size, so a rewrite of an existing file is visible."""
-    if not path.exists():
-        return None
-    st = path.stat()
-    return (st.st_mtime_ns, st.st_size)
-
-
 def test_postinstall_writes_its_shim_inside_the_sandbox_and_nowhere_else(
     tmp_path, monkeypatch, capsys, _isolate_hermes_shim_dir
 ):
@@ -109,8 +95,10 @@ def test_postinstall_writes_its_shim_inside_the_sandbox_and_nowhere_else(
     That is how an operator's Mac ended up with a `hermes` defaulting
     `HERMES_HOME` to a macOS temp path from an E2E run.
 
-    Two assertions, and the second is the one that matters: the shim went
-    INSIDE this test's tmp_path, and the real install dir was not touched.
+    The shim went INSIDE this test's tmp_path. "Nowhere else" is enforced by
+    upstream's ``tests/home_io_guard.py`` (2026-09-25 merge), which fails any
+    Python file I/O against the real Hermes home -- including this test's own
+    former read-back of the real install dir, which is why that snapshot left.
     """
     calls: list[tuple[str, object]] = []
     main_mod = _patch_common(monkeypatch, calls, stub_shim=False)
@@ -129,17 +117,6 @@ def test_postinstall_writes_its_shim_inside_the_sandbox_and_nowhere_else(
         monkeypatch.setattr(windows_env, "add_user_path_entry", lambda entry: True)
         monkeypatch.setattr(windows_env, "broadcast_environment_change", lambda: None)
 
-    real_dir = _REAL_SHIM_INSTALL_DIR()
-    real_shim = Path(real_dir) / _path_setup._shim_file_name() if real_dir else None
-    before = _snapshot(real_shim) if real_shim else None
-    # The listing too, so a shim written under some OTHER name in the real
-    # install dir is caught as well as a rewrite of the one we know about.
-    listing_before = (
-        sorted(p.name for p in Path(real_dir).iterdir())
-        if real_dir and Path(real_dir).is_dir()
-        else None
-    )
-
     main_mod.cmd_postinstall(SimpleNamespace(yes=True, non_interactive=False))
 
     shim = Path(_isolate_hermes_shim_dir) / _path_setup._shim_file_name()
@@ -149,11 +126,6 @@ def test_postinstall_writes_its_shim_inside_the_sandbox_and_nowhere_else(
     # The temp home is baked in — correct for this run, and it never leaves the
     # sandbox precisely because the file holding it did not either.
     assert os.environ["HERMES_HOME"] in shim.read_text(encoding="utf-8")
-    if real_shim is not None:
-        assert _snapshot(real_shim) == before, f"{real_shim} was written by a test"
-    if listing_before is not None:
-        after = sorted(p.name for p in Path(real_dir).iterdir())
-        assert after == listing_before, f"{real_dir} gained {set(after) - set(listing_before)}"
 
 
 def test_postinstall_says_out_loud_when_it_refuses_to_write_the_shim(

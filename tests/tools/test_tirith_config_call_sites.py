@@ -210,7 +210,8 @@ class TestCliStartupNotice:
         printed = []
         stub = types.SimpleNamespace(config=config, _tirith_security_checked=False)
         with patch("tools.tirith_security.ensure_installed", return_value=None):
-            with patch("tools.tirith_security.is_platform_supported", return_value=True):
+            with patch("tools.tirith_security.is_platform_supported", return_value=True), \
+                    patch("tools.tirith_security.missing_is_expected", return_value=False):
                 with patch.object(cli_mod, "_cprint", lambda text: printed.append(text)):
                     cli_mod.HermesCLI._ensure_tirith_security(stub)
         return printed

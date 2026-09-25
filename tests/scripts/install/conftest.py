@@ -19,7 +19,7 @@ by accident, writing their HERMES_HOME into a PUA-named directory in the
 checkout root because the path in their generated driver lost its
 backslashes — cannot pass on ANY Windows host, whichever bash runs them, and
 each carries its reason in ``POSIX_HOST_ONLY`` below. Upstream's own shape for
-such a test is ``@pytest.mark.linux_only`` (already used in this directory);
+such a test is ``@pytest.mark.platforms("linux")`` (already used in this directory);
 these files are upstream's, so the fork cannot add the marker, and the map is
 the stand-in. It retires entry by entry as upstream marks them. It is applied
 on a Windows host only, so the Linux lane still runs every one of them.
