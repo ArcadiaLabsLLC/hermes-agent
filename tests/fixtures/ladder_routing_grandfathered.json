@@ -366,14 +366,6 @@
    "site": "hermes_cli/harness_parts/board.py|_board_active_card_count|vocab|done"
   },
   {
-   "arms": 4,
-   "site": "hermes_cli/harness_parts/characters/auto.py|_characters_auto_plan|ladder|step"
-  },
-  {
-   "arms": 3,
-   "site": "hermes_cli/harness_parts/characters/auto.py|_characters_auto_steps|ladder|step"
-  },
-  {
    "arms": 1,
    "site": "hermes_cli/harness_parts/doctor_commands.py|_cmd_doctor|vocab|unknown"
   },

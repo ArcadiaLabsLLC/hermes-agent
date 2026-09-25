@@ -5,6 +5,10 @@ from __future__ import annotations
 
 import contextlib
 import sys
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from types import MappingProxyType
+from typing import Final
 
 from agent_runtime.cli_format import emit_json_line
 from agent.charsheet.errors import CharsheetRefusal
@@ -20,6 +24,8 @@ from .steps import (
 
 __layer__ = "lanes"
 __all__ = [
+    "CHARACTER_STEPS",
+    "CharacterStep",
     "_CHARACTERS_AUTO_STEPS",
     "_characters_auto_next",
     "_characters_auto_plan",
@@ -51,12 +57,73 @@ __all__ = [
 #     calls their bodies, so `reopen` repair, `status --json` history and every
 #     QA crop work identically afterwards.
 
-_CHARACTERS_AUTO_STEPS: tuple[str, ...] = (
-    "turnaround",
-    "approve-direction",
-    "rows",
-    "compose",
+@dataclass(frozen=True)
+class CharacterStep:
+    """One pipeline step as the autopilot drives it (program rule 12: the step
+    NAME reaches its behaviour through ``CHARACTER_STEPS``, never a ladder).
+
+    ``stages`` — the draft stages the step can run at. ``done`` — reads the
+    status payload and answers True when there is nothing left for the step to
+    do (the plan then skips it with ``done_reason``); None when the step always
+    has work at its stage. ``run`` — the step body both doors share, returning
+    ``(receipt, human line)``. ``next_hint`` — the ``next`` hint for a refusal,
+    or None when the step has no honest one.
+    """
+
+    stages: frozenset[str]
+    run: Callable[[object], tuple[dict, str]]
+    done: Callable[[dict], bool] | None = None
+    done_reason: str = ""
+    next_hint: Callable[[object], dict | None] | None = None
+
+
+def _turnaround_next(draft) -> dict | None:
+    # Same arm `start` takes for an anchorless draft: `turnaround` refuses
+    # without the anchor, and `<image>` is the one thing the runtime cannot
+    # know.
+    if draft.base_image is None:
+        return _characters_next("base", "--draft", draft.id, "--image", "<image>")
+    return None
+
+
+def _run_rows_step(draft) -> tuple[dict, str]:
+    # The pending list is re-read HERE rather than reused from the plan: the
+    # steps before this one can fail a row, and the batch must ask for what is
+    # missing now.
+    return _characters_step_rows(draft, draft.status_payload()["pending"]["rows"])
+
+
+#: The four pipeline steps, in the order the autopilot runs them. `compose` has
+#: no ``next_hint`` on purpose — see :func:`_characters_auto_next`.
+CHARACTER_STEPS: Final[Mapping[str, CharacterStep]] = MappingProxyType(
+    {
+        "turnaround": CharacterStep(
+            stages=frozenset({"turnaround"}),
+            run=_characters_step_turnaround,
+            done=lambda status: not status["missing"]["turnaround"],
+            done_reason="every authored direction already has a reference",
+            next_hint=_turnaround_next,
+        ),
+        "approve-direction": CharacterStep(
+            stages=frozenset({"turnaround"}),
+            run=_characters_step_approve_all,
+        ),
+        "rows": CharacterStep(
+            stages=frozenset({"turnaround", "rows"}),
+            run=_run_rows_step,
+            done=lambda status: not status["pending"]["rows"],
+            done_reason="every authored row already has an approved strip",
+            next_hint=lambda draft: _characters_rows_next(draft, None),
+        ),
+        "compose": CharacterStep(
+            stages=frozenset({"turnaround", "rows"}),
+            run=lambda draft: _characters_step_compose(draft, []),
+        ),
+    }
 )
+
+#: The step vocabulary: the table's keys, which `--through`'s ``choices=`` reads.
+_CHARACTERS_AUTO_STEPS: Final[tuple[str, ...]] = tuple(CHARACTER_STEPS)
 
 
 def _characters_auto_write(args, data: dict, human: str) -> None:
@@ -103,25 +170,28 @@ def _characters_auto_plan(draft, status: dict, through: str) -> tuple[list[str],
     one thing a caller who ended its turn cannot afford to be wrong about.
     """
     limit = _CHARACTERS_AUTO_STEPS.index(through)
-    stage = draft.stage
     plan: list[str] = []
     skipped: list[dict] = []
-    for index, step in enumerate(_CHARACTERS_AUTO_STEPS):
-        if index > limit:
-            reason = f"past --through {through}"
-        elif step in ("turnaround", "approve-direction") and stage != "turnaround":
-            reason = f"draft is at stage {stage!r}"
-        elif step in ("rows", "compose") and stage not in ("turnaround", "rows"):
-            reason = f"draft is at stage {stage!r}"
-        elif step == "turnaround" and not status["missing"]["turnaround"]:
-            reason = "every authored direction already has a reference"
-        elif step == "rows" and not status["pending"]["rows"]:
-            reason = "every authored row already has an approved strip"
+    for index, (name, step) in enumerate(CHARACTER_STEPS.items()):
+        reason = _characters_auto_skip_reason(step, draft.stage, status, past_through=index > limit, through=through)
+        if reason is None:
+            plan.append(name)
         else:
-            plan.append(step)
-            continue
-        skipped.append({"step": step, "reason": reason})
+            skipped.append({"step": name, "reason": reason})
     return plan, skipped
+
+
+def _characters_auto_skip_reason(
+    step: CharacterStep, stage: str, status: dict, *, past_through: bool, through: str
+) -> str | None:
+    """Why the plan skips ``step``, or None when it runs — three guards, in order."""
+    if past_through:
+        return f"past --through {through}"
+    if stage not in step.stages:
+        return f"draft is at stage {stage!r}"
+    if step.done is not None and step.done(status):
+        return step.done_reason
+    return None
 
 
 def _characters_auto_next(step: str, draft) -> dict | None:
@@ -133,14 +203,8 @@ def _characters_auto_next(step: str, draft) -> dict | None:
     verb from nudging anyone toward. The refusal text already names every
     flagged row and its basis; an autopilot adds nothing to that but pressure.
     """
-    if step == "turnaround" and draft.base_image is None:
-        # Same arm `start` takes for an anchorless draft: `turnaround` refuses
-        # without the anchor, and `<image>` is the one thing the runtime cannot
-        # know.
-        return _characters_next("base", "--draft", draft.id, "--image", "<image>")
-    if step == "rows":
-        return _characters_rows_next(draft, None)
-    return None
+    hint = CHARACTER_STEPS[step].next_hint
+    return None if hint is None else hint(draft)
 
 
 def _cmd_characters_auto(args) -> int:
@@ -248,19 +312,7 @@ def _characters_auto_steps(args, draft, through: str, refuse) -> int:
 
     for step in plan:
         try:
-            if step == "turnaround":
-                result, human = _characters_step_turnaround(draft)
-            elif step == "approve-direction":
-                result, human = _characters_step_approve_all(draft)
-            elif step == "rows":
-                # The pending list is re-read HERE rather than reused from the
-                # plan: the steps before this one can fail a row, and the batch
-                # must ask for what is missing now.
-                result, human = _characters_step_rows(
-                    draft, draft.status_payload()["pending"]["rows"]
-                )
-            else:
-                result, human = _characters_step_compose(draft, [])
+            result, human = CHARACTER_STEPS[step].run(draft)
         except _CHARACTERS_EXPECTED as exc:
             refuse(str(exc), step=step, draft=draft, hint=_characters_auto_next(step, draft))
             stopped_at, error = step, str(exc)
