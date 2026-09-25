@@ -109,7 +109,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 
 
-- [ ] **W0-G5's vocabulary arm reads every `StrEnum`/`Final` string member fork-wide as a routed word, so rule 14's typed reasons cannot be adopted for any vocabulary containing a common word** · `fork / gates` · measured by lane R3: `DemoteReason` (core_cache, "absent"/"unreadable") and `DiffScope` ("none") made 12 unrelated compares in `sync_merge`, `persona_assignments`, `realm_revert`, `harness_parts/level`/`map`/… NEW sites, and `OwnerState` (serve_socket, "absent"/"self") 5; the lanes kept the strings as constants. Fix the arm (scope arm (c) to compares against the enum's own members/type, or to the declaring module's readers) before asking the next lanes for enums · evidence: lane R3 commit messages `refactor(core_cache): INPUT_CLASSES…` and `refactor(serve_socket): RejectReason/LockOutcome…` (tree-over-sheet notes) · filed by lane R3 2026-09-25 **UNCLAIMED** **TAKEN 2026-09-25 lane Q-RUNTIME**
 
 ### Filed on arrival — 2026-09-25 (lane S2B)
 

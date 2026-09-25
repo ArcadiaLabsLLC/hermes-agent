@@ -17,7 +17,8 @@ Every arm below is a pure function of that population, and each gate under
   size       W0-G1  files over 800 CODE lines (non-blank, not ``#``-led;
                     docstrings count — ruling Q1)
   ladders    W0-G5  routing ladders on a string / an ``isinstance`` subject,
-                    and compares against a declared vocabulary's members
+                    and compares against the members of a declared vocabulary
+                    IN REACH (the declaring module and its importers)
   floor      W0-G7  functions over 150 lines or nested deeper than 4
   duplicates W0-G3  byte-identical bodies (alpha-renamed) and private helper
                     NAME collisions across modules
@@ -415,6 +416,39 @@ def vocabulary(root: Path = ROOT) -> frozenset[str]:
     return frozenset(w for w in words if w)
 
 
+def visible_vocabularies(root: Path = ROOT) -> dict[str, frozenset[str]]:
+    """``{path: words}`` — the vocabulary each module can SEE: its own declarations
+    plus those of every fork module it imports (resolved, module-level or deferred).
+
+    Scoped, not fork-wide (lane Q-RUNTIME 2026-09-25, the R3 finding): a union of
+    every ``Final``/``Enum`` string read ``"none"`` in ``DiffScope`` or ``"absent"``
+    in ``DemoteReason`` as a routed word in every module that happened to compare
+    against the same common English word, so typed reasons (rule 14) could not be
+    adopted for any vocabulary containing one. A compare is a routing on a
+    vocabulary only where that vocabulary is in reach — the declaring module and
+    its importers.
+    """
+    trees = {path: _tree(root, path) for path in fork_production_files(root)}
+    declared = {
+        module_name(path): frozenset(w for w in _vocabulary_strings(tree) if w)
+        for path, tree in trees.items()
+        if tree is not None
+    }
+    declared = {module: words for module, words in declared.items() if words}
+    out: dict[str, frozenset[str]] = {}
+    for path, tree in trees.items():
+        if tree is None:
+            continue
+        seen: set[str] = set(declared.get(module_name(path), ()))
+        for module, name, _ in imports_of(path, tree):
+            for candidate in (f"{module}.{name}" if name else module, module):
+                if candidate in declared:
+                    seen |= declared[candidate]
+                    break
+        out[path] = frozenset(seen)
+    return out
+
+
 def _vocab_compares(node: ast.AST, words: frozenset[str]) -> Iterator[str]:
     for child in ast.walk(node):
         if isinstance(child, ast.Compare) and len(child.ops) == 1 and isinstance(
@@ -441,13 +475,18 @@ def _own_statements(node: ast.FunctionDef | ast.AsyncFunctionDef) -> Iterator[as
 
 
 def ladder_census(root: Path = ROOT) -> dict[tuple[str, str, str, str], int]:
-    """``{(path, function, kind, subject): arms}`` — kinds ``ladder`` / ``isinstance`` / ``vocab``."""
-    words = vocabulary(root)
+    """``{(path, function, kind, subject): arms}`` — kinds ``ladder`` / ``isinstance`` / ``vocab``.
+
+    A ``vocab`` row counts only the vocabularies the module can see
+    (:func:`visible_vocabularies`), never the fork-wide union.
+    """
+    visible = visible_vocabularies(root)
     out: dict[tuple[str, str, str, str], int] = {}
     for path in fork_production_files(root):
         tree = _tree(root, path)
         if tree is None:
             continue
+        words = visible.get(path, frozenset())
         for unit in iter_units(path, tree):
             for kind, subject, arms in _ladders_in(unit.node.body):
                 key = (path, unit.qualname, kind, subject)

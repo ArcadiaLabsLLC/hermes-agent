@@ -9,7 +9,9 @@ the right instrument for "this is never written"):
 * ``isinstance`` — >= 3 ``isinstance`` arms on one subject;
 * ``vocab`` — a compare against a member of a vocabulary the fork declares as a
   ``Final`` string collection or a string ``Enum``. The vocabulary is
-  ENUMERATED from those declarations by the same walk, never typed here.
+  ENUMERATED from those declarations by the same walk, never typed here, and a
+  module is held only to the vocabularies in its reach (its own and its
+  imports') — never the fork-wide union.
 
 Baseline: ``tests/fixtures/ladder_routing_grandfathered.json`` (one row per
 ``path|function|kind|subject``; arms only shrink).
@@ -82,3 +84,35 @@ def test_no_grandfathered_ladder_grew():
 def test_a_converted_ladder_loses_its_row():
     drift = _drift()
     assert not drift.stale, "delete these rows — the ladder is gone:\n" + drift.render()
+
+
+def test_a_vocabulary_word_routes_only_where_the_vocabulary_is_in_reach(tmp_path):
+    """The vocab arm is SCOPED: a compare against a declared word is a routing on
+    that vocabulary in the declaring module and its importers, never in a module
+    that merely spells the same common word (lane R3's ``DemoteReason``/"absent"
+    and ``DiffScope``/"none" measurement). Positive control: the importer's
+    compare IS counted, so the scope did not simply switch the arm off."""
+
+    import subprocess
+
+    pkg = tmp_path / "vocabpkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "reasons.py").write_text(
+        "from enum import Enum\n\nclass Reason(str, Enum):\n    ABSENT = 'absent'\n\n"
+        "def own(r):\n    return r == 'absent'\n",
+        encoding="utf-8",
+    )
+    (pkg / "importer.py").write_text(
+        "from vocabpkg.reasons import Reason\n\ndef reads(r):\n    return r == 'absent'\n",
+        encoding="utf-8",
+    )
+    (pkg / "stranger.py").write_text("def unrelated(r):\n    return r == 'absent'\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+
+    rows = {key for key in probe.ladder_census(tmp_path) if key[2] == "vocab"}
+
+    assert ("vocabpkg/reasons.py", "own", "vocab", "absent") in rows
+    assert ("vocabpkg/importer.py", "reads", "vocab", "absent") in rows
+    assert not any(key[0] == "vocabpkg/stranger.py" for key in rows), rows
