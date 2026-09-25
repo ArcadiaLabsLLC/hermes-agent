@@ -31,6 +31,8 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path
 
+__layer__ = "models"
+
 # Alpha at/below which a pixel is background and contributes no colour. Same
 # floor as the pet atlas's component detection, so the palette is built from
 # exactly the pixels that survive keying.

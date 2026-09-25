@@ -73,6 +73,8 @@ from pathlib import Path
 
 from agent.charsheet.errors import DraftBusy
 
+__layer__ = "stores"
+
 logger = logging.getLogger(__name__)
 
 #: The lock file's name, beside ``draft.json`` in the draft directory. Inside

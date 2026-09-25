@@ -10,9 +10,9 @@
  "private_upstream_imports": [
   "agent/charsheet/_upstream_doors.py|agent.pet.generate.atlas|_clear_transparent_rgb",
   "agent/charsheet/_upstream_doors.py|agent.pet.generate.atlas|_fit_to_cell",
-  "agent/charsheet/prompts.py|agent.pet.generate.prompts|_ASSUMED_STRIP_WIDTH",
-  "agent/charsheet/prompts.py|agent.pet.generate.prompts|_BACKGROUND",
-  "agent/charsheet/prompts.py|agent.pet.generate.prompts|_spacing_spec",
+  "agent/charsheet/_upstream_doors.py|agent.pet.generate.prompts|_ASSUMED_STRIP_WIDTH",
+  "agent/charsheet/_upstream_doors.py|agent.pet.generate.prompts|_BACKGROUND",
+  "agent/charsheet/_upstream_doors.py|agent.pet.generate.prompts|_spacing_spec",
   "agent_runtime/_upstream_doors.py|agent.auxiliary_client|_compression_threshold_for_model",
   "agent_runtime/_upstream_doors.py|agent.message_sanitization|_sanitize_surrogates",
   "agent_runtime/_upstream_doors.py|gateway.status|_pid_exists",
@@ -71,14 +71,7 @@
   "tools/tool_full_descriptions.py|tools.skill_manager_tool|_skill_manage_description"
  ],
  "undeclared": [
-  "agent/charsheet/__init__.py",
-  "agent/charsheet/draft_lock.py",
-  "agent/charsheet/errors.py",
   "agent/charsheet/fake_draftsman.py",
-  "agent/charsheet/palette.py",
-  "agent/charsheet/prompts.py",
-  "agent/charsheet/revisions.py",
-  "agent/charsheet/spec.py",
   "agent_runtime/__init__.py",
   "agent_runtime/agent_create_phases.py",
   "agent_runtime/agent_create_reservations.py",

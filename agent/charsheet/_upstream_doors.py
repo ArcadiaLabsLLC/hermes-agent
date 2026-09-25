@@ -41,6 +41,9 @@ __all__ = [
     "frame_x_bounds",
     "imagegen",
     "normalize_cells",
+    "prompt_assumed_strip_width",
+    "prompt_background",
+    "prompt_spacing_spec",
     "remove_background",
 ]
 
@@ -60,6 +63,32 @@ def clear_transparent_rgb(image):
     from agent.pet.generate.atlas import _clear_transparent_rgb
 
     return _clear_transparent_rgb(image)
+
+
+def prompt_spacing_spec(slot_count: int):
+    """``agent.pet.generate.prompts._spacing_spec`` — the proportional-containment
+    spacing math the prompts module reuses (tuned against a real provider; a copy
+    would drift). Private upstream; held widening row (``upstream-footprint-ledger.md``,
+    ruling Q7): publish ``spacing_spec``."""
+    from agent.pet.generate.prompts import _spacing_spec
+
+    return _spacing_spec(slot_count)
+
+
+def prompt_assumed_strip_width() -> int:
+    """``agent.pet.generate.prompts._ASSUMED_STRIP_WIDTH`` — the strip width the
+    spacing math assumes, read at call time. Held widening row as above."""
+    from agent.pet.generate.prompts import _ASSUMED_STRIP_WIDTH
+
+    return _ASSUMED_STRIP_WIDTH
+
+
+def prompt_background() -> str:
+    """``agent.pet.generate.prompts._BACKGROUND`` — the chroma-key wording, read at
+    call time. Held widening row as above."""
+    from agent.pet.generate.prompts import _BACKGROUND
+
+    return _BACKGROUND
 
 
 def charsheet_setting(key: str, default):

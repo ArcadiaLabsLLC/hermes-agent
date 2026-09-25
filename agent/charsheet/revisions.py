@@ -56,6 +56,8 @@ from pathlib import Path
 
 from agent.charsheet._support import utc_now
 
+__layer__ = "stores"
+
 SCHEMA = 1
 
 STATE_FILENAME = "state.json"

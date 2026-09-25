@@ -240,6 +240,7 @@ without touching the ratchet. Each carries the PR that retires the import.
 | `tools/mcp_tool_loop.py` | `_signal_reconnect` | `agent_runtime/_upstream_doors.py::mcp_signal_reconnect`, read by `agent_runtime/mcp_admission/transport.py::_wake_parked_servers` (lane B4, ruling Q7) | held widening PR: publish `signal_reconnect` |
 | `tools/mcp_tool_loop.py` | `_wait_for_server_session_ready` | `agent_runtime/_upstream_doors.py::mcp_wait_for_session`, read by `agent_runtime/mcp_admission/transport.py::_wake_parked_servers` (lane B4, ruling Q7) | held widening PR: publish `wait_for_server_session_ready` |
 | `tools/mcp_tool_registration.py` | `_register_server_tools` | `agent_runtime/_upstream_doors.py::mcp_register_server_tools`, read by `agent_runtime/mcp_admission/transport.py::_reregister_warm_server` (lane B4, ruling Q7) | held widening PR: publish `register_server_tools` |
+| `agent/pet/generate/prompts.py` | `_spacing_spec`, `_ASSUMED_STRIP_WIDTH`, `_BACKGROUND` | `agent/charsheet/_upstream_doors.py::prompt_spacing_spec` / `::prompt_assumed_strip_width` / `::prompt_background` (call-time), read by `agent/charsheet/prompts.py` (lane W3-B, ruling Q7) | held widening PR: publish `spacing_spec`, `ASSUMED_STRIP_WIDTH` and `BACKGROUND` |
 
 ## Fork modules that shadow an upstream symbol (recorded parallels, no diff row)
 

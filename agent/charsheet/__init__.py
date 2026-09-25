@@ -45,6 +45,8 @@ from agent.charsheet.spec import (
     row_key,
 )
 
+__layer__ = "models"
+
 __all__ = [
     "CHAR8",
     "DEFAULT_FRAME_H",
