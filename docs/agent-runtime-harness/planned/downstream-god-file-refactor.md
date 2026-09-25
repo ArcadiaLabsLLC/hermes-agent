@@ -316,6 +316,15 @@ W0-D lists every function/method ≥ 10 lines and branch arm ≥ 10 lines in the
 
 Filled by the lanes. Every row: file, symbol, reason, and the thing that would have to change for it to become a deletion.
 
+**H1's §4.2 census (2026-09-24): zero deletions.** Every argv verb with a method twin is still declared as an argv capability by the launcher, whose method lanes answer `null` = "let argv carry it" (`EterniaLauncher` `lib/features/mission_control/data/bridge/mission_action_method_lanes.dart`). Kept, each until the launcher row that retires its argv lowering lands:
+
+| file | symbol | method twin | launcher argv caller |
+|---|---|---|---|
+| `hermes_cli/harness_parts/persona_commands.py` | `_cmd_mission_chat_message` | `runtime.chat.message` | `harness_persona_capabilities.dart` `['harness','mission-chat','message']` |
+| `hermes_cli/harness_parts/persona_commands.py` | `_cmd_mission_chat_steer` | `runtime.chat.steer` | same file, `['harness','mission-chat','steer']` |
+| `hermes_cli/harness_parts/office.py` | `_cmd_office_actor_upsert` / `_cmd_office_actor_remove` / `_cmd_office_set_folders` / `_cmd_office_resolve_conflict` | `runtime.office.{upsert,remove,surface.update,resolve_conflict}` | `harness_office_capabilities.dart` |
+| `hermes_cli/harness_parts/persona_commands.py` | `_cmd_persona_instance_open_chat` | `runtime.persona.instance.open_chat` | `mission_open_chat_lowering.dart` (argv fall-through) |
+
 ---
 
 ## 5. The duplicate collapse list (downstream side; exact-body census, ≥ 4 lines)
