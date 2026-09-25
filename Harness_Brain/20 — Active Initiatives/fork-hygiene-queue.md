@@ -141,7 +141,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 - [ ] **`prompt_observability`'s skills-catalog concept stays split across `catalog_store` (48 code lines) and `catalog_lookup` (73) because `context_store` sits between them — it writes through one and is read by the other; passing the catalog writer into `context_store`'s persist would let the two fold into one module** · `fork / refactor` · evidence: lane W3-A fold-review commit 14726ae2a8 · filed by lane W3-A 2026-09-25 **UNCLAIMED**
 ## Filed on arrival — 2026-09-25 (round-2 gate pass)
 
-- [ ] **`test_no_silent_package_patches.py` walks every test file once PER TEST and hit the 30 s per-test timeout in the round-2 tooling run (three test workers foreign to it on the box); alone it is 15.4 s for the walk** · `fork / gates` · compute the census once per session (a module-level cache keyed on the tree, or a session fixture) so the three tests share one walk; then it is one 15 s call, not three, and the timeout margin is real · evidence: `X:/wt/_holds/round2-gates/tooling.log` (Timeout in `silent_package_patches` → `read_text`), `silent-alone.log` (3 passed in 15.96 s, 9 foreign pytest workers running) · filed by orchestrator 2026-09-25 **UNCLAIMED** **TAKEN 2026-09-25 lane GATES2**
 
 ## Filed on arrival — 2026-09-25 (lane W3-C)
 
