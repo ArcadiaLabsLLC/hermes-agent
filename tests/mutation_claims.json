@@ -1947,7 +1947,7 @@
     },
     {
       "id": "s4-a-restored-entry-blocks-nothing",
-      "path": "agent_runtime/store.py",
+      "path": "agent_runtime/store/ledgers.py",
       "symbol": "active_skill_tombstones",
       "operator": "count-restored-entries-as-live-blocks",
       "find": "    return [\n        entry\n        for entry in (getattr(realm, \"skill_tombstones\", None) or [])\n        if getattr(entry, \"restored_at\", None) is None\n    ]",
@@ -1962,7 +1962,7 @@
     },
     {
       "id": "s4-the-cap-evicts-settled-history-before-a-live-block",
-      "path": "agent_runtime/store.py",
+      "path": "agent_runtime/store/ledgers.py",
       "symbol": "prune_settled_ledger",
       "operator": "bound-oldest-first-ignoring-settled",
       "find": "    over = len(items) - cap\n    dropped: set[int] = set()\n    for index, item in enumerate(items):\n        if len(dropped) >= over:\n            break\n        if settled(item):\n            dropped.add(index)\n    kept = [item for index, item in enumerate(items) if index not in dropped]\n    return kept[-cap:]",
@@ -2622,7 +2622,7 @@
     },
     {
       "id": "iws-ws1-the-activation-write-emits-no-row-to-express-it",
-      "path": "agent_runtime/store.py",
+      "path": "agent_runtime/store/workspaces.py",
       "symbol": "WorkspaceStore.set_active",
       "operator": "drop-the-paired-patch-from-the-chokepoint",
       "find": "        _emit_active_scope_patch(self.event_log)\n        if value:\n            _append_store_event(self.event_log, \"workspace.activated\", workspace_id=value, name=name)",

@@ -16,7 +16,6 @@
   "agent_runtime/persona_chat_continuity.py": 1646,
   "agent_runtime/running_work.py": 1517,
   "agent_runtime/runtime_hud.py": 1103,
-  "agent_runtime/store.py": 911,
   "agent_runtime/stream.py": 1385,
   "agent_runtime/terminal_envelope.py": 963,
   "hermes_cli/harness_parts/gateway_commands.py": 1645,

@@ -1649,7 +1649,7 @@ def _scope_fingerprint() -> str:
     """Cheap mtime/size fingerprint of scope/catalog state (Stage 12 backstop).
 
     Covers exactly the state whose writers have historically slipped the
-    event rule or sit outside ``agent_runtime/store.py``: the active-scope
+    event rule or sit outside ``agent_runtime/store/``: the active-scope
     pointer files, the workspace/realm/persona stores, the blueprint
     catalog, and the head-home SessionDB. Evented, high-churn stores
     (tasks/runs/proofs/incidents) are guarded by the store/event CI

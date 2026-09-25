@@ -21,7 +21,7 @@ def test_the_population_is_the_fork_and_only_the_fork():
     """Positive control on the enumeration: known fork files are in, a known upstream file is out."""
     files = set(probe.fork_production_files())
     assert "hermes_cli/harness.py" in files
-    assert "agent_runtime/store.py" in files
+    assert "agent_runtime/store/base.py" in files
     assert "tests/_downstream/id_markers.py" in files
     assert "hermes_cli/main.py" not in files, "an upstream file entered the fork population"
     assert not any(p.startswith("tests/") and not p.startswith("tests/_downstream/") for p in files)

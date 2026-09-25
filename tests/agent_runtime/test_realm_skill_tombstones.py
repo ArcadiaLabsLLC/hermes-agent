@@ -56,7 +56,7 @@ def test_tombstone_ledger_is_bounded_oldest_first(monkeypatch):
     # The real cap is 200; the eviction ORDER is the behaviour under test, so
     # the bound is narrowed rather than minting 201 realm saves for it.
     assert store_module.SKILL_TOMBSTONE_LEDGER_CAP == 200
-    monkeypatch.setattr(store_module, "SKILL_TOMBSTONE_LEDGER_CAP", 3)
+    monkeypatch.setattr(store_module.ledgers, "SKILL_TOMBSTONE_LEDGER_CAP", 3)
     realm = _realm()
 
     for index in range(5):
@@ -244,7 +244,7 @@ def test_the_ledger_cap_evicts_settled_history_before_a_live_block():
     # history push a LIVE block off the front — an evicted block is a
     # resurrected skill, which is the one thing this ledger exists to prevent.
     with pytest.MonkeyPatch.context() as patched:
-        patched.setattr(store_module, "SKILL_TOMBSTONE_LEDGER_CAP", 2)
+        patched.setattr(store_module.ledgers, "SKILL_TOMBSTONE_LEDGER_CAP", 2)
         realm = _realm()
         # The settled entry sits BETWEEN the two live blocks, so a plain
         # oldest-first ``[-cap:]`` would keep it and evict ``live-old`` — the
@@ -290,7 +290,7 @@ def test_tombstone_round_trips_through_the_realm_record():
     # The nested record travels as a plain object inside the realm JSON — no new
     # serde code, and no schema_version bump on either side (§2.1 / §5).
     raw = json.loads(
-        store_module.paths.realm_path(realm.id).read_text(encoding="utf-8")
+        store_module.base.paths.realm_path(realm.id).read_text(encoding="utf-8")
     )
     assert raw["schema_version"] == 1
     assert raw["skill_tombstones"] == [

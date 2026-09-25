@@ -12,7 +12,7 @@ aliases: [Where does X live]
 
 | concern | modules | canon doc |
 |---|---|---|
-| entities + config | `config.py` (runtime config, authority), `store.py` (`RealmStore`, `WorkspaceStore`), `persona_assignments.py` (`PersonaInstanceStore`), `persona_profile_binding.py`, `agent_create.py`, `agent_retire.py` | [01](../../docs/agent-runtime-harness/01-system-architecture.md) |
+| entities + config | `config.py` (runtime config, authority), `store/` (`RealmStore`, `WorkspaceStore`), `persona_assignments.py` (`PersonaInstanceStore`), `persona_profile_binding.py`, `agent_create.py`, `agent_retire.py` | [01](../../docs/agent-runtime-harness/01-system-architecture.md) |
 | data + shapes | `snapshot.py` (the core), `core_cache.py` (fingerprint cache), `state_patches/`, `events.py`, `serde.py` (one authority for wire coercion + atomic JSON), `paths.py` | [02](../../docs/agent-runtime-harness/02-runtime-data-and-shapes.md) |
 | transport | `serve_rpc.py` (`_METHODS` registry, `method()` decorator, tiers), `serve_socket.py` (server / client / `SocketOwnerLock`), `stream.py` (frames, folds, Stage-5 demote deferral), `serve_registry.py`, `gateway_peers.py`, `gateway_identity.py`, `gateway_tls.py`, `gateway_announce.py` | [03](../../docs/agent-runtime-harness/03-transport-and-wire.md), [09](../../docs/agent-runtime-harness/09-multi-device-runtime.md) |
 | boot | `boot_timeline.py`, `build_stamp.py`, `persona_prewarm.py`, `persona_chat_actor_prewarm.py`, `machine_roots.py`, `harness_doctor.py` | [04](../../docs/agent-runtime-harness/04-boot-and-lifecycle.md) |

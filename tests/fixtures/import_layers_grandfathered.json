@@ -245,7 +245,6 @@
   "agent_runtime/snapshot_build_ledger.py",
   "agent_runtime/states.py",
   "agent_runtime/status.py",
-  "agent_runtime/store.py",
   "agent_runtime/store_file_io.py",
   "agent_runtime/stream.py",
   "agent_runtime/stream_resume.py",

@@ -7,7 +7,7 @@ offset. That class recurred three times (realm adopt → realm sync →
 realm/workspace use) while emission was left to caller convention.
 
 This test makes the convention structural: every function in
-``agent_runtime/store.py`` that writes store state must either couple an
+``agent_runtime/store/`` that writes store state must either couple an
 event append in its own body or be explicitly classified below with a
 written justification. A new write path fails CI until consciously
 classified. See docs/agent-runtime-harness/archive/2026-08-22-pre-consolidation/12-read-path-freshness-hardening.md.
@@ -41,8 +41,9 @@ EXEMPT: dict[str, str] = {
 def _qualified_writers() -> dict[str, bool]:
     """Map '<Class>.<func>' → 'couples an event append' for every writer."""
 
-    source = Path(store_module.__file__).read_text(encoding="utf-8")
-    tree = ast.parse(source)
+    # The store is a package since lane 2B-A: every module in it is scanned,
+    # so a writer cannot leave the invariant by moving to a sibling file.
+    package = Path(store_module.__file__).parent
     writers: dict[str, bool] = {}
 
     def call_name(node: ast.Call) -> str | None:
@@ -71,7 +72,8 @@ def _qualified_writers() -> dict[str, bool]:
                     writers[f"{owner}.{child.name}"] = appends
                 visit(child, owner)
 
-    visit(tree, "<module>")
+    for path in sorted(package.glob("*.py")):
+        visit(ast.parse(path.read_text(encoding="utf-8")), "<module>")
     return writers
 
 

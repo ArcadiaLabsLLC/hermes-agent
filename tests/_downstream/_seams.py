@@ -9,7 +9,7 @@ production name from growing back.
 
 from __future__ import annotations
 
-__all__ = ["reset_unreadable_instance_rows"]
+__all__ = ["active_workspace_lifts", "reset_unreadable_instance_rows"]
 
 
 def reset_unreadable_instance_rows() -> None:
@@ -26,3 +26,11 @@ def reset_unreadable_instance_rows() -> None:
 
     with scan._unreadable_instance_lock:
         scan._unreadable_instance_rows.clear()
+
+
+def active_workspace_lifts(realm):
+    """The lift markers that currently say "this id is NOT deleted"."""
+
+    from agent_runtime.store.ledgers import workspace_lift_is_active
+
+    return [lift for lift in (getattr(realm, "workspace_lifts", None) or []) if workspace_lift_is_active(lift)]

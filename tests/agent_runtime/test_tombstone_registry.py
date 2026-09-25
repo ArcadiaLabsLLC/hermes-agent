@@ -3550,6 +3550,19 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         scope=HARNESS_NAMESPACE,
     ),
     *rows(
+        # Lane 2B-A (god-file program Wave 2 batch two, 2026-09-25): dead-code
+        # queue row `active_workspace_lifts`, sheet
+        # god-file-layout-sheets/store.md §5 (TEST SEAM).
+        "s-2ba",
+        "HEAD",
+        Form.CODE,
+        "a tests-only filter over a realm's live workspace lifts with no "
+        "production caller; it lives in tests/_downstream/_seams.py and asks "
+        "store.ledgers.workspace_lift_is_active the same way",
+        "active_workspace_lifts",
+        scope=_AR,
+    ),
+    *rows(
         # Lane R1 (god-file program Wave 2, 2026-09-25): dead-code queue row
         # `reset_unreadable_instance_rows`, sheet
         # god-file-layout-sheets/persona_assignments.md §5 (TEST SEAM).

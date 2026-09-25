@@ -41,10 +41,10 @@ from agent_runtime.realm_sync import (
 from agent_runtime.store import (
     RealmStore,
     active_skill_tombstones,
-    active_workspace_lifts,
     lift_deleted_workspace,
     skill_tombstoned,
 )
+from tests._downstream._seams import active_workspace_lifts
 from agent_runtime.profile_home import get_shared_skills_dir
 
 T0 = datetime(2026, 8, 31, 12, 0, 0, tzinfo=timezone.utc)
@@ -173,7 +173,7 @@ def test_a_non_list_ledger_is_tolerated_rather_than_iterated():
 
 
 def test_the_merge_bounds_the_ledger_and_evicts_settled_history_first(monkeypatch):
-    monkeypatch.setattr(store_module, "SKILL_TOMBSTONE_LEDGER_CAP", 2)
+    monkeypatch.setattr(store_module.ledgers, "SKILL_TOMBSTONE_LEDGER_CAP", 2)
     # Rebind the module-level import the merge closes over, the way the store's
     # own cap test narrows the bound rather than minting 201 entries.
     monkeypatch.setattr(

@@ -49,7 +49,7 @@ definition: display name, role, model/provider/api_mode, toolsets, skills,
 `hermes_profile`, budgets, readiness. Personas are **data**, from the config
 block (`config.persona_records_from_config`, `agent_runtime/config/persona_records.py:43`)
 merged with persisted store rows (`ensure_persisted_personas`, `:142`, over
-`store.AgentStore` at `store.py:152`). Nothing in code declares them — S11 left
+`store.AgentStore` at `store/base.py:196`). Nothing in code declares them — S11 left
 `DEFAULT_PERSONA_IDS`, `BASE_PERSONA_ID`, `DEFAULT_SUPERVISOR_PERSONA_ID`,
 `ALLOWED_TOOLSETS_BY_ROLE` and `PER_ROLE_TOOL_DENIES` as scoped tombstone rows
 against `agent_runtime.personas` (`tests/agent_runtime/test_tombstone_registry.py`,
@@ -260,7 +260,7 @@ the honest "standalone" answer (`runtime_hud.py:721-725`).
 travels with it, so a member holding a stale local copy neither republishes nor
 re-adopts a deleted workspace. Since 2026-08-28 the same idea guards skill
 packages: `skill_tombstones` (`SkillTombstone`, `models.py:104`), a per-realm
-ledger capped at `SKILL_TOMBSTONE_LEDGER_CAP = 200` (`store.py:34`), serialized
+ledger capped at `SKILL_TOMBSTONE_LEDGER_CAP = 200` (`store/ledgers.py:31`), serialized
 additively at the existing schema version — the delete lane it powers is
 documented under [Skills](#skills).
 
@@ -268,7 +268,7 @@ Realms own what publishes: `skill_publish_mode`
 (`all` | `selected`) and `agent_publish_mode` (`workspace` | `selected`), with
 personas required by a roster or an Office placement pinned regardless, so a
 pulled workspace can never point at an absent persona definition. Stores:
-`WorkspaceStore` (`store.py:173`), `RealmStore` (`:472`); active pointers are
+`WorkspaceStore` (`store/workspaces.py:36`), `RealmStore` (`store/realms.py:38`); active pointers are
 single files (`paths.active_workspace_path()` / `active_realm_path()`).
 Server-bound realms authorize every sync action against the Eternia backend and
 **fail closed** (`realm_membership.py:1-12`) — which half of which verb that
@@ -786,7 +786,7 @@ naming the slug even with no local copy), prunes the slug from
 `skill_selection` (R-F), and unlinks the per-realm inbox mirror (a cache the
 next pull rebuilds). The match rule is single and one-to-many: a bare `foo`
 tombstone covers top-level `foo` AND categorized `<cat>/foo`
-(`store.skill_tombstone_matches`, `store.py:451`) — which is why the delete
+(`store.skill_tombstone_matches`, `store/ledgers.py:69`) — which is why the delete
 receipt's `archived` array is the truth and its scalar fields are only the
 single-package convenience. Enforcement is entirely client-side, because a
 GitHub-App push has no pre-receive hook, and it closes at three points in
@@ -921,7 +921,7 @@ continuity, scope and evidence.
 Two things were deliberately kept: `agent_runtime/blueprints/resolve.py`, a
 permanent re-export of `promote_profile_to_persona` for the upstream
 profile-promotion endpoint, and `task_store_stub.TaskStoreStub` (re-exported as
-`TaskStore` at `store.py:149`) under ruling R-3 — though its stated cause has
+`TaskStore` at `store/__init__.py:79`) under ruling R-3 — though its stated cause has
 since changed; see Open rows. Personas and profiles were **not** deleted:
 nothing under `.hermes/profiles/` was touched, only the hardcoded logic that
 declared them.

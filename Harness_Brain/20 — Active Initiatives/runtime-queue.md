@@ -25,6 +25,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 
 
+### Filed on arrival — 2026-09-25 (lane 2B-A)
+
+- [ ] **`config.persona_records` (policy) lazily reads `store.AgentStore` (stores) — an upward edge the store split made VISIBLE (store was undeclared), masked on `main` only by the acp red in `test_fork_import_layers`** · `fork / layers` · `ensure_persisted_personas` / `persona_skill_sources` are store READS living at the policy layer and re-exported through `config/__init__`, and `persona_assignments.identity` / `summary` (policy) call them; re-declaring `config` as stores makes 5 edges instead of 1 — the structural answer is the roster as an argument (the store read moves to the stores-layer callers) · evidence: lane 2B-A store MOVE body; layer walk with acp stubbed · filed by lane 2B-A 2026-09-25 **UNCLAIMED**
+
 ### Filed on arrival — 2026-09-24 (lane LLAMA-H)
 
 - [ ] **The launcher still speaks the fork's local-llama contract: the persona provider rename to upstream's `llamacpp` and the pinned-tag setup wizard are a launcher re-vendor** · `fork / local llama` · cross-repo, hermes moves first: accept `llamacpp` as a persona provider (set-model, then the turn through `agent_runtime/local_llama_adapter/provider.py::turn_scope`'s lease), then `EterniaLauncher/lib/features/mission_control/` switches the model-menu id (`kHermesLocalLlamaProviderId`), the visibility `provider_id` and the QA keys, and its wizard drops `destination_parent` and asset sizes (`installation.plan` now names upstream's `runtimes_root()` install dir, `download_bytes` is 0) · evidence: the module docstrings of `agent_runtime/local_llama_adapter/provider.py` and `setup.py` · filed by lane LLAMA-H 2026-09-24 **UNCLAIMED**
