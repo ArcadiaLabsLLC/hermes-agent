@@ -1175,7 +1175,7 @@ lane reasons (`agent_chat/mission_agent_model_switcher_view_model.dart`);
 `probedHomeCaption` puts the probed home on screen
 (`agent_model_menu.dart`); and the swallowed 401 became a stated status —
 `usage {phase} failed (HTTP {status} — re-auth may be required)`
-(`hermes_cli/harness.py:3840-3843`), with class-name-only discipline preserved for
+(`hermes_cli/harness_parts/usage/detect.py::_usage_failure_reason`), with class-name-only discipline preserved for
 everything that is not an HTTP status, because a bare status code leaks nothing.
 
 ## The board — still capability-only

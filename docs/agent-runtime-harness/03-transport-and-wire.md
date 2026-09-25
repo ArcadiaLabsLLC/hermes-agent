@@ -801,7 +801,7 @@ merge the client cannot vouch for (`PATCH_VALUE_BUDGET_BYTES`, `:115-116`).
 core-section table, and a `patch` for an entity it cannot fold is strictly WORSE
 than the `delta` it replaced — the consumer pays the patch and then a whole core
 anyway. So it declares: `hermes harness stream --fold-entities a,b`
-(`hermes_cli/harness.py:1816`, parsed by
+(`hermes_cli/harness_parts/parser/machine.py::add_stream`, parsed by
 `agent_runtime/patch_coverage.py::parse_fold_entities_option`)
 or `{"op":"subscribe","lane":"stream","fold_entities":[…]}` (`:2623-2631`).
 Rules, all in `agent_runtime/patch_coverage.py`:

@@ -201,7 +201,7 @@ what the fixture mirror below enforces.
 | turn-record `phases` block (schema v3) | `agent_runtime/mission_chat_phases.py`; the key lands via `_safe_journal_metadata` (`mission_chat_turns.py::_safe_journal_metadata`) → `mission_chat_phases.py::safe_turn_phases` | `tool/mission_chat_latency_audit.dart` |
 | `[MissionChatTiming]` / `[MissionChatOutcome]` / `[MissionDropTiming]` | launcher — see the launcher section below | `tool/mission_chat_latency_audit.dart`; drop line read by eye |
 | `[MissionAgentCreate] lane=… gesture=… correlation=… …` and `[MissionOfficeWrite] <ws> retire lane: …` | launcher — see the launcher section below | the placement verb's two lanes, read by eye; the ADOPT line is also read by `mission_office_placement_instance_key_test.dart` |
-| `prompt_observability` rows + `trace_events` | `agent_runtime/prompt_observability.py:198`, persisted `:1421-1464` | `harness prompt-context show --context-id` (`hermes_cli/harness.py:892-903`) and the slimmed `chat.final` echo |
+| `prompt_observability` rows + `trace_events` | `agent_runtime/prompt_observability.py:198`, persisted by `persist_prompt_observability_context` (`:1450`) | `harness prompt-context show --context-id` (`prompt_context_commands.py::_cmd_prompt_context_show`) and the slimmed `chat.final` echo |
 
 ### The snapshot build family
 
@@ -448,7 +448,7 @@ Two consumers: the live `chat.final`
 echo carries a slimmed projection (`slim_chat_final_observability`,
 `agent_runtime/prompt_observability.py::slim_chat_final_observability`); evicted rows are
 fetched by `harness prompt-context show --context-id <id> [--json]`
-(`hermes_cli/harness.py:892-903`, handler `hermes_cli/harness.py::_cmd_prompt_context_show`) — read-only, honest
+(`hermes_cli/harness_parts/parser/surfaces.py::add_prompt_context`, handler `hermes_cli/harness_parts/prompt_context_commands.py::_cmd_prompt_context_show`) — read-only, honest
 `not_found` on absence. `trace_events` are the turn's tool-call trace, passed at
 `_mission_chat_commit_turn` and read by `used_skills_context`
 (`prompt_observability.py:2946-2981`) to report which skills were actually
@@ -680,7 +680,7 @@ not by trusting the audit's own status.**
 | `serve_rpc.py` baseline `or 0` — an unreadable event log became watermark 0, killing the sink's baseline gate and re-opening the resync↔restart loop | `baseline_offset = int(...) or 0` | typed absence: `baseline_offset = event_offset_of(watermark)` then an explicit `is None` arm — `agent_runtime/serve_rpc.py:1074-1075` |
 | empty `patches` shipped as a `patch` frame — the client advanced its watermark having folded nothing | coverable ⇒ promoted | promotion now also requires `batch_carries_patch_rows(batch)`; the honest answer for a pair-less batch is the full core — `agent_runtime/stream.py:927-938`, argued at `:673-700` |
 | `office_surface` could never satisfy the office scope gate, so every folder-only patch frame was dropped with no patch and no resync | `entity == OFFICE_ACTOR_ENTITY` and a slash-prefixed id | one predicate: `office_patch_scope(patch) == workspace_id` — `agent_runtime/serve_office_subscriptions.py:486` |
-| `_usage_lane_detected` — a credential fault DELETED the lane from the Limits panel, and an empty envelope rendered as a positive claim that no provider is signed in | `except Exception: return False` | three outcomes, not two: true / false / **raise**, with the raise caught per provider and the lane emitted `unavailable` naming the exception class — `hermes_cli/harness.py::_usage_lane_detected`, `hermes_cli/harness.py::build_account_usage` |
+| `_usage_lane_detected` — a credential fault DELETED the lane from the Limits panel, and an empty envelope rendered as a positive claim that no provider is signed in | `except Exception: return False` | three outcomes, not two: true / false / **raise**, with the raise caught per provider and the lane emitted `unavailable` naming the exception class — `hermes_cli/harness_parts/usage/detect.py::_usage_lane_detected`, `hermes_cli/harness_parts/usage/commands.py::build_account_usage` |
 
 The highest-value read-side swallow also closed: the actor-directory read
 skipped undecodable files and returned a shorter list that described itself as
