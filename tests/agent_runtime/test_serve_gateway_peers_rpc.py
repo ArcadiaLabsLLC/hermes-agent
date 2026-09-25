@@ -27,6 +27,8 @@ import json
 
 import pytest
 
+from tests._downstream.split_package_source import patch_where_bound
+
 from agent_runtime.call_authorization import (
     LOCAL_CONSOLE_METHODS,
     TIER_CONSOLE,
@@ -328,16 +330,25 @@ def test_a_runtime_with_no_subscriber_pays_nothing(store, monkeypatch):
     """Checked before any store read, so a serve with no launcher attached does
     not open two files on every peer write."""
 
-    from agent_runtime import serve_gateway_peers_rpc
+    from agent_runtime import gateway_peers, serve_gateway_peers_rpc
 
-    monkeypatch.setattr(
-        "agent_runtime.gateway_peers.list_peers",
-        lambda root: (_ for _ in ()).throw(AssertionError("read the store")),
+    reads: list = []
+    patch_where_bound(
+        monkeypatch, gateway_peers, "list_peers", lambda root: reads.append(root) or []
     )
 
     serve_gateway_peers_rpc.publish_peer_event(
         "gateway.peer.updated", {"peer_install_id": PEER_A}
     )
+    assert reads == []
+
+    # POSITIVE CONTROL: the same stub with one subscriber attached — the store
+    # read MUST happen, so the stub is the one ``publish_peer_event`` looks up.
+    _call("runtime.gateway.peers.subscribe", sink=_Sink())
+    serve_gateway_peers_rpc.publish_peer_event(
+        "gateway.peer.updated", {"peer_install_id": PEER_A}
+    )
+    assert reads, "the stub reached nothing"
 
 
 # ── the fetch-through ────────────────────────────────────────────────────────

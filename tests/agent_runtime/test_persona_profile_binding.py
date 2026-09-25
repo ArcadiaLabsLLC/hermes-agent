@@ -14,6 +14,8 @@ import json
 import pytest
 
 from agent_runtime import paths
+from agent_runtime import config as runtime_config
+from tests._downstream.split_package_source import patch_where_bound
 from agent_runtime.events import EventLog
 from agent_runtime.models import AgentPersona, PersonaInstance
 from agent_runtime.persona_assignments import PersonaInstanceStore
@@ -160,8 +162,8 @@ def test_binding_index_reports_the_config_store_disagreement(profiles, monkeypat
     def _catalog(_cfg=None):
         return [_persona(hermes_profile="alpha")]
 
-    monkeypatch.setattr("agent_runtime.config.persona_records_from_config", _catalog)
-    monkeypatch.setattr("agent_runtime.config.load_agent_runtime_config", lambda *a, **k: _Cfg())
+    patch_where_bound(monkeypatch, runtime_config, "persona_records_from_config", _catalog)
+    patch_where_bound(monkeypatch, runtime_config, "load_agent_runtime_config", lambda *a, **k: _Cfg())
 
     diverged = [binding for binding in binding_index().values() if binding.diverged]
 
@@ -547,8 +549,10 @@ def test_doctor_surfaces_the_divergence_without_repairing_it(profiles, monkeypat
     from agent_runtime import harness_doctor
 
     _seed(_persona(hermes_profile="beta"))
-    monkeypatch.setattr(
-        "agent_runtime.config.persona_records_from_config",
+    patch_where_bound(
+        monkeypatch,
+        runtime_config,
+        "persona_records_from_config",
         lambda cfg=None: [_persona(hermes_profile="alpha")],
     )
 

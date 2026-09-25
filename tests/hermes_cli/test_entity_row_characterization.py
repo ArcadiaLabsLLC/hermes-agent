@@ -57,6 +57,8 @@ from __future__ import annotations
 
 import pytest
 
+from tests._downstream.split_package_source import patch_where_bound
+
 from agent_runtime.board_store import BoardStore
 from agent_runtime.office_store import OfficeStore
 from agent_runtime.store import RealmStore, WorkspaceStore
@@ -516,9 +518,8 @@ def test_workspace_row_delegates_to_the_snapshot_builder(fixture_store, monkeypa
         row["name"] = "FROM-BUILDER"
         return row
 
-    monkeypatch.setattr(snapshot.summaries, "workspace_summary", _tagged)
-    monkeypatch.setattr(snapshot.sections, "workspace_summary", _tagged)
-    monkeypatch.setattr(snapshot, "workspace_summary", _tagged)
+    # scope_activation reads the package lazily; summaries/sections hold the same object.
+    patch_where_bound(monkeypatch, snapshot, "workspace_summary", _tagged)
     assert workspace_commands._workspace_row(fixture_store["workspace"])["name"] == "FROM-BUILDER"
 
 
@@ -532,9 +533,8 @@ def test_realm_row_delegates_to_the_snapshot_builder(fixture_store, monkeypatch)
         row["name"] = "FROM-BUILDER"
         return row
 
-    monkeypatch.setattr(snapshot.summaries, "realm_summary", _tagged)
-    monkeypatch.setattr(snapshot.sections, "realm_summary", _tagged)
-    monkeypatch.setattr(snapshot, "realm_summary", _tagged)
+    # scope_activation reads the package lazily; summaries/sections hold the same object.
+    patch_where_bound(monkeypatch, snapshot, "realm_summary", _tagged)
     assert realm_commands._realm_row(fixture_store["realm"])["name"] == "FROM-BUILDER"
 
 
@@ -554,10 +554,9 @@ def test_board_and_card_rows_delegate_to_the_snapshot_builders(fixture_store, mo
         row["priority"] = "FROM-BUILDER"
         return row
 
+    # harness_parts.board imports both from ``snapshot.boards`` inside the row builders.
     monkeypatch.setattr(snapshot.boards, "board_summary_row", _tagged_board)
-    monkeypatch.setattr(snapshot, "board_summary_row", _tagged_board)
     monkeypatch.setattr(snapshot.boards, "board_card_row", _tagged_card)
-    monkeypatch.setattr(snapshot, "board_card_row", _tagged_card)
     boards, board = fixture_store["boards"], fixture_store["board"]
     assert board_commands._board_row(boards, board)["title"] == "FROM-BUILDER"
     assert board_commands._card_row(fixture_store["card"])["priority"] == "FROM-BUILDER"
@@ -579,10 +578,9 @@ def test_office_rows_delegate_to_the_snapshot_builders(fixture_store, monkeypatc
         row["persona_id"] = "FROM-BUILDER"
         return row
 
+    # harness_parts.office imports both from ``snapshot.offices`` inside the row builders.
     monkeypatch.setattr(snapshot.offices, "office_summary_row", _tagged_surface)
-    monkeypatch.setattr(snapshot, "office_summary_row", _tagged_surface)
     monkeypatch.setattr(snapshot.offices, "office_actor_summary_row", _tagged_actor)
-    monkeypatch.setattr(snapshot, "office_actor_summary_row", _tagged_actor)
     office, workspace = fixture_store["office"], fixture_store["workspace"]
     assert office_commands._office_surface_row(office, workspace.id)["folders"] == ["FROM-BUILDER"]
     assert office_commands._office_actor_row(fixture_store["actor"])["persona_id"] == "FROM-BUILDER"

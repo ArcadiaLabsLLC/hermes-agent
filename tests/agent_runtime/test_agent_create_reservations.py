@@ -111,7 +111,8 @@ def test_legacy_done_receipt(qa_persona, seeded_workspace, monkeypatch):
             "the skills phase was re-entered for a PRE-PLAN done receipt"
         )
 
-    monkeypatch.setattr(agent_create, "run_skills_phase", _never)
+    # ``perform`` binds the phase by import, so the stub goes where it is LOOKED UP.
+    monkeypatch.setattr(agent_create.perform, "run_skills_phase", _never)
 
     replay = perform_agent_create(
         {
@@ -136,6 +137,21 @@ def test_legacy_done_receipt(qa_persona, seeded_workspace, monkeypatch):
         PersonaInstanceStore().get(replay.result["persona_instance_id"]).skill_overrides
         is None
     )
+
+    # POSITIVE CONTROL: the same stub, one variable changed (a FRESH key asking
+    # for a skill) — the phase MUST run, so the stub must be the one ``perform``
+    # calls. Without it the replay's silence could be a stub that reached nothing.
+    with pytest.raises(AssertionError, match="re-entered"):
+        perform_agent_create(
+            {
+                "persona_id": "qa",
+                "workspace_id": WORKSPACE,
+                "position": [3.0, 4.0],
+                "idempotency_key": "control-fresh",
+                "placement_id": "qa_control_agent_3",
+                "skills": ["harness-qa-verdict"],
+            }
+        )
 
 
 def test_a_skill_less_create_writes_a_receipt_that_is_shaped_like_a_legacy_one(
