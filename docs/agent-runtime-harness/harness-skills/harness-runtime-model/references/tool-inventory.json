@@ -396,7 +396,7 @@
       "toolset": "terminal",
       "mutating": true,
       "gated": true,
-      "description": "Run shell commands; cwd/exported env persist. Use background=true with notify=true for long tasks; pty=true for interactive CLIs. Prefer file tools for file..."
+      "description": "Run shell commands; cwd/exported env persist. Use background=true for long tasks (exit notice by default; notify=false opts out); pty=true for interactive CL..."
     },
     {
       "name": "todo_list",
