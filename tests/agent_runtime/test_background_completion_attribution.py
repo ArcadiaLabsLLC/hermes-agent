@@ -34,6 +34,7 @@ from unittest.mock import patch
 import pytest
 
 from agent_runtime import dispatch_delivery
+from tests._downstream.delivery_seams import patch_delivery_seam
 from agent_runtime.persona_chat_continuity import chat_root_session_key_scope
 
 SENDER_ROOT = "persona_chat_personainst_neko_aaaaaaaaaaaa"
@@ -163,9 +164,7 @@ class _Forge:
 
 @pytest.fixture
 def resolvable_sender(monkeypatch):
-    monkeypatch.setattr(
-        dispatch_delivery,
-        "_sender_persona",
+    patch_delivery_seam(monkeypatch, "_sender_persona",
         lambda root: ("neko_supervisor", "personainst_neko")
         if root == SENDER_ROOT
         else None,
@@ -174,7 +173,7 @@ def resolvable_sender(monkeypatch):
 
 @pytest.fixture
 def idle_sender(monkeypatch):
-    monkeypatch.setattr(dispatch_delivery, "_sender_is_idle", lambda root: True)
+    patch_delivery_seam(monkeypatch, "_sender_is_idle", lambda root: True)
 
 
 def _real_completion_event(session_key: str) -> dict:

@@ -24,6 +24,7 @@ import time
 import pytest
 
 from agent_runtime import dispatch_delivery, persona_chat_continuity
+from tests._downstream.delivery_seams import patch_delivery_seam
 from agent_runtime.dispatch_store import DELIVERY_DELIVERED, get_dispatch
 from agent_runtime.file_locks import try_lock_fd, unlock_fd
 
@@ -244,7 +245,7 @@ def test_an_overridden_idle_decision_is_honored_and_admitted_as_unprobed(
     """
 
     registry = _drain_the_queue()
-    monkeypatch.setattr(dispatch_delivery, "_sender_is_idle", lambda root: False)
+    patch_delivery_seam(monkeypatch, "_sender_is_idle", lambda root: False)
     evt = {
         "type": "completion",
         "session_id": SENDER_ROOT,
@@ -555,11 +556,14 @@ def test_status_never_fails_because_telemetry_did(store_home, monkeypatch):
 
     from agent_runtime.status import build_status
 
-    monkeypatch.setattr(
-        dispatch_delivery,
+    patched = patch_delivery_seam(
+        monkeypatch,
         "delivery_drain_is_live",
         lambda: (_ for _ in ()).throw(RuntimeError("telemetry exploded")),
     )
+    # The status reader is BOUND in drain; a package-only patch would pass
+    # vacuously (the real, un-raising reader answers the same "absent").
+    assert "agent_runtime.dispatch_delivery.drain" in patched
 
     assert build_status()["delivery_drain"] == {"live": False, "source": "absent"}
 

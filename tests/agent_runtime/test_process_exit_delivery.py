@@ -18,6 +18,7 @@ import time
 import pytest
 
 from agent_runtime import dispatch_delivery
+from tests._downstream.delivery_seams import patch_delivery_seam
 from tools.process_registry import ProcessRegistry, ProcessSession
 
 ROOT = "persona_chat_personainst_chara_a2_7b31d0e4_a238c5f9c4c2"
@@ -31,7 +32,7 @@ def owners(monkeypatch, tmp_path):
 
     monkeypatch.setattr(runtime_paths, "store_root", lambda: tmp_path / "runtime")
     table = {ROOT: (PERSONA, INSTANCE)}
-    monkeypatch.setattr(dispatch_delivery, "_sender_persona", lambda session_id: table.get(session_id))
+    patch_delivery_seam(monkeypatch, "_sender_persona", lambda session_id: table.get(session_id))
     return table
 
 
@@ -55,7 +56,7 @@ def _drain_with(registry, monkeypatch, event, *, idle=True, forge=None):
     import tools.process_registry as registry_mod
 
     monkeypatch.setattr(registry_mod, "process_registry", registry)
-    monkeypatch.setattr(dispatch_delivery, "_sender_is_idle", lambda root: idle)
+    patch_delivery_seam(monkeypatch, "_sender_is_idle", lambda root: idle)
     registry.completion_queue.put(event)
     return dispatch_delivery.drain_background_completions(forge=forge)
 
@@ -84,7 +85,7 @@ def test_a_retired_instance_drops_the_completion_loudly_instead_of_requeueing(
     event = _exited_spawn_event(registry)
     owners.clear()  # the instance that spawned it is gone
 
-    with caplog.at_level(logging.WARNING, logger=dispatch_delivery.logger.name):
+    with caplog.at_level(logging.WARNING, logger=dispatch_delivery.completions.logger.name):
         tally = _drain_with(
             registry, monkeypatch, event,
             forge=lambda **kwargs: pytest.fail("an orphaned completion must not be forged"),
@@ -104,7 +105,7 @@ def test_an_unreadable_owner_lookup_is_not_proof_of_absence(owners, monkeypatch)
     def _raises(session_id):
         raise OSError("store unreadable")
 
-    monkeypatch.setattr(dispatch_delivery, "_sender_persona", _raises)
+    patch_delivery_seam(monkeypatch, "_sender_persona", _raises)
     tally = _drain_with(
         registry, monkeypatch, event,
         forge=lambda **kwargs: pytest.fail("an unproven owner must not be forged"),

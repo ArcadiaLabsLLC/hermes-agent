@@ -13,6 +13,7 @@ from __future__ import annotations
 import pytest
 
 from agent_runtime import dispatch_delivery, dispatch_store
+from tests._downstream.delivery_seams import patch_delivery_seam
 from agent_runtime.dispatch_delivery import (
     DELIVERY_REQUESTED_BY,
     delivery_client_message_id,
@@ -66,16 +67,14 @@ def resolvable_sender(monkeypatch):
     refuses to forge anything into a root it cannot resolve.
     """
 
-    monkeypatch.setattr(
-        dispatch_delivery,
-        "_sender_persona",
+    patch_delivery_seam(monkeypatch, "_sender_persona",
         lambda root: ("neko_supervisor", "personainst_neko") if root == SENDER_ROOT else None,
     )
 
 
 @pytest.fixture
 def idle_sender(monkeypatch):
-    monkeypatch.setattr(dispatch_delivery, "_sender_is_idle", lambda root: True)
+    patch_delivery_seam(monkeypatch, "_sender_is_idle", lambda root: True)
 
 
 class _Forge:
@@ -166,7 +165,7 @@ def test_a_busy_sender_requeues_instead_of_splicing(
     """Role alternation is the invariant: NEVER between a tool result and a reply."""
 
     dispatch_id = _completed()
-    monkeypatch.setattr(dispatch_delivery, "_sender_is_idle", lambda root: False)
+    patch_delivery_seam(monkeypatch, "_sender_is_idle", lambda root: False)
     forge = _Forge()
 
     tally = drain_once(forge=forge)
@@ -231,7 +230,7 @@ def test_an_unresolvable_sender_is_dropped_not_delivered_blindly(
     """#64484: absence of disproof is not ownership proof."""
 
     dispatch_id = _completed()
-    monkeypatch.setattr(dispatch_delivery, "_sender_persona", lambda root: None)
+    patch_delivery_seam(monkeypatch, "_sender_persona", lambda root: None)
     forge = _Forge()
 
     tally = drain_once(forge=forge)

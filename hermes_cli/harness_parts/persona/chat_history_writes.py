@@ -157,7 +157,7 @@ def _resolve_relay_sender_marker(
     The name is kept for the AST gate that pins ``_cmd_mission_chat_message``
     to this single call site.
     """
-    from agent_runtime import dispatch_delivery as _dispatch_delivery
+    from agent_runtime.dispatch_delivery import vocabulary as _dispatch_delivery
     from agent_runtime import relay_policy as _relay_policy
 
     delivery = _dispatch_delivery.parse_delivery_requested_by(requested_by)

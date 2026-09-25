@@ -2,7 +2,6 @@
  "ceiling": 800,
  "counter": "code lines: non-blank, not '#'-led, docstrings count (ruling Q1)",
  "files": {
-  "agent_runtime/dispatch_delivery.py": 1311,
   "agent_runtime/mcp_admission.py": 1452,
   "agent_runtime/operator_channels.py": 1394,
   "agent_runtime/running_work.py": 1517,
