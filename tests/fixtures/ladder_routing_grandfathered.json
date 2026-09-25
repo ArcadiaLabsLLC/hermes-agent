@@ -199,14 +199,6 @@
   },
   {
    "arms": 3,
-   "site": "agent_runtime/profile_runner/progress.py|_progress_payload_from_callback|ladder|callback_event"
-  },
-  {
-   "arms": 3,
-   "site": "agent_runtime/profile_runner/tool_payloads.py|_todo_items_from|isinstance|value"
-  },
-  {
-   "arms": 3,
    "site": "agent_runtime/progress.py|ChatProgressSink.emit|ladder|event_type"
   },
   {

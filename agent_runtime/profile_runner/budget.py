@@ -20,11 +20,11 @@ from agent_runtime.run_budget import (
 )
 from agent_runtime.turn_budget import TurnWallBudget
 
+from agent_runtime.serde import positive_int
 from agent_runtime.profile_runner.errors import RunBudgetExceeded
 from agent_runtime.profile_runner.models import (
     AgentRunRequest,
     AgentRunResult,
-    _positive_int,
 )
 
 __layer__ = "policy"
@@ -221,9 +221,9 @@ def _enforce_result_budgets(
     """
 
     ledger = ledger if ledger is not None else RunBudgetLedger()
-    max_api_calls = _positive_int(request.max_api_calls)
+    max_api_calls = positive_int(request.max_api_calls)
     if max_api_calls is not None:
-        api_calls = _positive_int(result.api_calls)
+        api_calls = positive_int(result.api_calls)
         ledger.declare(
             RunBudgetKind.API_CALLS,
             enforcement=RunBudgetEnforcement.TRIPS_RUN,
@@ -242,9 +242,9 @@ def _enforce_result_budgets(
             raise RunBudgetExceeded(
                 message, session_id=result.session_id, run_budget=ledger.accounting()
             )
-    max_total_tokens = _positive_int(request.max_total_tokens)
+    max_total_tokens = positive_int(request.max_total_tokens)
     if max_total_tokens is not None:
-        total_tokens = _positive_int(result.total_tokens)
+        total_tokens = positive_int(result.total_tokens)
         ledger.declare(
             RunBudgetKind.TOTAL_TOKENS,
             enforcement=RunBudgetEnforcement.TRIPS_RUN,
@@ -269,8 +269,8 @@ def _emit_budget_pressure_warning(result: AgentRunResult, request: AgentRunReque
     callback = request.progress_callback
     if callback is None:
         return
-    max_total_tokens = _positive_int(request.max_total_tokens)
-    total_tokens = _positive_int(result.total_tokens)
+    max_total_tokens = positive_int(request.max_total_tokens)
+    total_tokens = positive_int(result.total_tokens)
     if max_total_tokens is None or total_tokens is None:
         return
     if total_tokens > max_total_tokens:

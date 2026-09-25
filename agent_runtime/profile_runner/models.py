@@ -13,7 +13,6 @@ __layer__ = "models"
 __all__ = [
     "AgentRunRequest",
     "AgentRunResult",
-    "_positive_int",
 ]
 
 
@@ -159,13 +158,3 @@ class AgentRunResult:
     # run-record accumulator that used to filter it to ``_ms``/``_count`` keys.
     profile_timing: dict[str, Any] = field(default_factory=dict)
     raw: dict[str, Any] = field(default_factory=dict)
-
-
-def _positive_int(value: Any) -> int | None:
-    if isinstance(value, bool):
-        return None
-    try:
-        number = int(value)
-    except (TypeError, ValueError):
-        return None
-    return number if number > 0 else None

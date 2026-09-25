@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from contextlib import contextmanager
 from typing import Any
 
-from agent_runtime.profile_runner.models import _positive_int
 
+from agent_runtime.serde import positive_int
 __layer__ = "models"
 
 __all__ = [
@@ -101,7 +101,7 @@ class _ProviderErrorCapture:
             summary = agent._summarize_api_error(error)
         except Exception:
             summary = str(error)
-        self.status_code = _positive_int(getattr(error, "status_code", None))
+        self.status_code = positive_int(getattr(error, "status_code", None))
         self.context = dict(context) if isinstance(context, dict) else {}
         self.summary = summary
         self.provider = getattr(agent, "provider", None) or None

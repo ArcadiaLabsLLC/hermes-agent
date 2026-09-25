@@ -79,16 +79,9 @@ _MIN_BODY_LINES = 4
 #: NOT folded, each with the reason. Keyed by the sorted ``file::name`` tuple
 #: so a row names exactly which pair it excuses.
 _GRANDFATHERED: dict[tuple[str, ...], str] = {
-    (
-        "agent_runtime/mcp_admission.py::_positive_int",
-        "agent_runtime/profile_runner/models.py::_positive_int",
-    ): (
-        "a genuine duplicate, and foldable onto a serde helper — held back "
-        "only to keep the fold commit reviewable. Note the tree ALSO carries "
-        "four unrelated `_positive_int`s (config.py, kanban_db.py, "
-        "kanban_diagnostics.py, browser_route.py) that take a `default` and "
-        "are NOT this function, which is why the name alone never settled it"
-    ),
+    # ``mcp_admission._positive_int == profile_runner._positive_int`` lost its row
+    # when lane R3 folded the second onto ``serde.positive_int``;
+    # ``mcp_admission``'s copy folds in its own lane.
     # ``persona_chat_history._safe_trace_int == profile_runner._safe_exit_code``
     # lost its row when lane R2 folded the first into ``serde.strict_int``;
     # ``profile_runner``'s copy folds in its own lane.

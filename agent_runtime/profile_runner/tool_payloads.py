@@ -5,9 +5,11 @@ fields, the todo-state payload, and the safe label/exit-code/summary coercions.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Callable
 import re
 
+from agent_runtime.redaction import looks_sensitive_or_pathish, safe_file_labels
+from agent_runtime.serde import strict_int
 from agent_runtime.profile_runner.dispatch_payloads import (
     _agent_chat_dispatch_fields,
     _agent_chat_dispatch_reply_fields,
@@ -17,10 +19,7 @@ from agent_runtime.profile_runner.dispatch_payloads import (
 from agent_runtime.profile_runner.operator_redaction import (
     _attach_tool_io,
     _line_has_secret,
-    _looks_sensitive_or_pathish,
     _patch_paths_from_invocation,
-    _safe_exit_code,
-    _safe_file_labels,
     _safe_operator_command,
     _safe_operator_output,
     _safe_operator_paths,
@@ -98,7 +97,7 @@ def _tool_finished_payload(event_type: str, tool_name: str | None, *, duration: 
     duration_ms = _duration_ms(duration)
     if duration_ms is not None:
         payload["duration_ms"] = duration_ms
-    exit_code = _safe_exit_code((result or {}).get("exit_code") if isinstance(result, dict) else None)
+    exit_code = strict_int((result or {}).get("exit_code") if isinstance(result, dict) else None)
     if exit_code is not None:
         payload["exit_code"] = exit_code
     skill_name = _safe_skill_tool_name(tool_name, invocation) or _safe_skill_tool_name(tool_name, result)
@@ -161,7 +160,7 @@ def _dev_work_payload(tool_name: str | None, *, status: str, result: Any, invoca
         # The tool RESULT often returns no file list; the diff headers in the
         # INVOCATION are the reliable record of what an edit call touched.
         candidates = _candidate_file_values(result, None) or _patch_paths_from_invocation(invocation)
-        labels = _safe_file_labels(candidates)
+        labels = safe_file_labels(candidates)
         operator_paths = _safe_operator_paths(candidates)
         payload: dict[str, Any] = {"phase": "dev_work", "step": "patch"}
         if operator_paths:
@@ -193,7 +192,7 @@ def _dev_work_payload(tool_name: str | None, *, status: str, result: Any, invoca
         return payload
     if normalized_tool in {"write_file", "edit_file", "file.write", "file.edit"}:
         candidates = _candidate_file_values(result, invocation)
-        labels = _safe_file_labels(candidates)
+        labels = safe_file_labels(candidates)
         operator_paths = _safe_operator_paths(candidates)
         payload = {"phase": "dev_work", "step": "write_file" if normalized_tool == "write_file" else "code_edit"}
         if operator_paths:
@@ -421,12 +420,23 @@ def _todo_items_from(source: Any) -> list[Any] | None:
             value = json.loads(value)
         except (json.JSONDecodeError, TypeError, ValueError):
             return None
-    if isinstance(value, dict):
-        todos = value.get("todos")
-        return todos if isinstance(todos, list) else None
-    if isinstance(value, list):
-        return value
+    for kind, extract in _TODO_SOURCES:
+        if isinstance(value, kind):
+            return extract(value)
     return None
+
+
+def _todos_of_mapping(value: dict) -> list[Any] | None:
+    todos = value.get("todos")
+    return todos if isinstance(todos, list) else None
+
+
+#: Where a decoded todo source keeps its list, by shape (the string guard above
+#: decodes first): a result/invocation mapping carries ``todos``; a bare list IS it.
+_TODO_SOURCES: tuple[tuple[type, Callable[[Any], list[Any] | None]], ...] = (
+    (dict, _todos_of_mapping),
+    (list, lambda value: value),
+)
 
 
 def _duration_ms(value: Any) -> int | None:
@@ -441,7 +451,7 @@ def _duration_ms(value: Any) -> int | None:
 
 def _safe_label(value: Any) -> str | None:
     text = str(value or "").strip()
-    if not text or _looks_sensitive_or_pathish(text):
+    if not text or looks_sensitive_or_pathish(text):
         return None
     if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,64}", text):
         return None

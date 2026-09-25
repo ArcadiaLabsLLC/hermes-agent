@@ -206,11 +206,30 @@ def positive_int(value: Any, *, default: int | None = None) -> int | None:
     """``int(value)`` when it coerces and is > 0, else ``default``. Never raises.
 
     ``positive_int(x, default=0)`` is the non-negative count a token or call
-    tally wants: a negative or unreadable value counts as none.
+    tally wants: a negative or unreadable value counts as none. A ``bool`` is not
+    a count (``True`` is not 1): lane R3 folded ``profile_runner._positive_int``,
+    whose budgets refused it, onto this owner.
     """
 
-    parsed = safe_int(value)
+    parsed = strict_int(value)
     return parsed if parsed is not None and parsed > 0 else default
+
+
+def positive_float(value: Any) -> float | None:
+    """A positive, finite ``float(value)``, or ``None``. Never raises; a ``bool`` is
+    not a number here. The run-budget seconds owner (lane R3 folded
+    ``profile_runner._positive_float``; ``mcp_admission``'s copy folds in its lane).
+    """
+
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number <= 0 or number != number or number == float("inf"):
+        return None
+    return number
 
 
 def safe_id(value: Any) -> str | None:

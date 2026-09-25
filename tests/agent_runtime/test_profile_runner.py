@@ -2065,3 +2065,26 @@ def test_tool_result_merely_containing_ok_false_text_is_not_a_failure():
 
     assert not _is_error_result('The fixture body was: {"data": {"ok": false}} etc.')
     assert not _is_error_result(json.dumps({"content": '{"ok": false}', "path": "x.json"}))
+
+
+def test_a_failing_agent_ready_callback_is_a_typed_warning_not_a_failed_run():
+    """Positive control for ``execute._emit_agent_ready_callback_warning`` (dead-code
+    queue: DECIDE, untested live): an ``agent_ready_callback`` that raises on start
+    or on cleanup surfaces as one ``run.progress`` warning naming the phase and the
+    exception class, and never fails the run."""
+
+    from agent_runtime.profile_runner import execute
+
+    seen: list[dict] = []
+    request = AgentRunRequest(
+        profile="default",
+        user_message="hi",
+        progress_callback=seen.append,
+        agent_ready_callback=lambda agent: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    assert execute._notify_agent_ready(request, object()) is None
+    execute._cleanup_agent_ready(lambda: (_ for _ in ()).throw(KeyError("gone")), request)
+    assert [(e["phase"], e["step"], e["severity"], e["summary"]) for e in seen] == [
+        ("agent_ready_callback", "start", "warning", "Agent ready callback start failed: RuntimeError"),
+        ("agent_ready_callback", "cleanup", "warning", "Agent ready callback cleanup failed: KeyError"),
+    ]

@@ -5,10 +5,11 @@ input/result, targets and paths — what an operator's tool-IO view may show.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 import re
 
+from agent_runtime.redaction import safe_file_labels
+from agent_runtime.serde import strict_int
 __layer__ = "policy"
 
 __all__ = [
@@ -29,13 +30,10 @@ __all__ = [
     "_attach_tool_io",
     "_is_error_result",
     "_line_has_secret",
-    "_looks_sensitive_or_pathish",
     "_operator_path_sensitive",
     "_patch_paths_from_invocation",
     "_render_kv_line_token",
     "_render_operator_kv_block",
-    "_safe_exit_code",
-    "_safe_file_labels",
     "_safe_operator_command",
     "_safe_operator_output",
     "_safe_operator_paths",
@@ -421,29 +419,12 @@ def _safe_tool_result_detail(tool_name: str | None, result: Any) -> str | None:
     normalized_tool = (tool_name or "").lower()
     if normalized_tool == "patch":
         files = result.get("files_modified") or result.get("modified_files") or result.get("files")
-        labels = _safe_file_labels(files)
+        labels = safe_file_labels(files)
         if labels:
             return f"Patch modified {len(labels)} files: {', '.join(labels[:4])}{'…' if len(labels) > 4 else ''}"
         if result.get("success") is True:
             return "Patch completed successfully; no file list returned."
     return None
-
-
-def _safe_file_labels(value: Any) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    labels: list[str] = []
-    for item in value:
-        text = str(item or "").strip()
-        if not text:
-            continue
-        label = Path(text.replace("\\", "/")).name
-        if not label or _looks_sensitive_or_pathish(label):
-            continue
-        if not re.fullmatch(r"[A-Za-z0-9_.-]{1,96}", label):
-            continue
-        labels.append(label)
-    return labels
 
 
 def _is_error_result(result: Any) -> bool:
@@ -456,7 +437,7 @@ def _is_error_result(result: Any) -> bool:
         # console for sends that never reached their target (2026-07-23).
         if result.get("ok") is False:
             return True
-        exit_code = _safe_exit_code(result.get("exit_code"))
+        exit_code = strict_int(result.get("exit_code"))
         if exit_code is not None:
             return exit_code != 0
     if isinstance(result, str):
@@ -473,24 +454,4 @@ def _is_error_result(result: Any) -> bool:
             except (ValueError, TypeError):
                 return False
             return isinstance(parsed, dict) and parsed.get("ok") is False
-    return False
-
-
-def _safe_exit_code(value: Any) -> int | None:
-    if isinstance(value, bool):
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _looks_sensitive_or_pathish(value: str) -> bool:
-    lowered = value.lower()
-    if any(marker in lowered for marker in ("secret", "token", "password", "api_key", "apikey", "authorization", "bearer", "credential", "cookie", "private_key", "sk-")):
-        return True
-    if ":/" in value or "\\" in value or value.startswith(("/", "~")):
-        return True
-    if re.search(r"(^|\s)([A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+", value):
-        return True
     return False

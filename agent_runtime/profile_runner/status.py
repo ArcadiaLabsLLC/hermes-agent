@@ -15,10 +15,10 @@ from agent_runtime.profile_runner.models import AgentRunRequest
 __layer__ = "policy"
 
 __all__ = [
+    "StatusEmitter",
     "_binding_for_profile",
     "_elapsed_ms",
     "_emit_request_timing",
-    "_positive_float",
     "_profile_status_callback",
 ]
 
@@ -48,55 +48,60 @@ def _emit_request_timing(request: AgentRunRequest, timing_key: str, started: flo
     return duration_ms
 
 
-def _profile_status_callback(request: AgentRunRequest, timing: dict[str, Any]):
-    def emit(payload: Any) -> None:
+class StatusEmitter:
+    """The run's status callback: records the agent's profile timings into the
+    run's ``timing`` and forwards every payload to the request's progress
+    callback (a forwarding failure is swallowed — an instrument never fails a run).
+    """
+
+    def __init__(self, request: AgentRunRequest, timing: dict[str, Any]) -> None:
+        self.request = request
+        self.timing = timing
+
+    def emit(self, payload: Any) -> None:
         if isinstance(payload, dict):
-            timing_key = payload.get("timing_key")
-            duration_ms = payload.get("duration_ms")
-            if (
-                isinstance(timing_key, str)
-                and timing_key.endswith("_ms")
-                and timing_key.startswith(("agent_init_", "conversation_", "provider_"))
-            ):
-                try:
-                    parsed = int(duration_ms)
-                except (TypeError, ValueError):
-                    parsed = -1
-                if parsed >= 0:
-                    timing[f"profile_{timing_key}"] = parsed
-            timing_values = payload.get("timing_values")
-            if isinstance(timing_values, dict):
-                for key, value in timing_values.items():
-                    if not isinstance(key, str) or not key.startswith(("conversation_", "provider_")):
-                        continue
-                    if not key.endswith(("_ms", "_count")):
-                        continue
-                    try:
-                        parsed = int(value)
-                    except (TypeError, ValueError):
-                        continue
-                    if parsed >= 0:
-                        timing[f"profile_{key}"] = parsed
-        callback = request.progress_callback
+            self._record_timing_key(payload)
+            self._record_timing_values(payload.get("timing_values"))
+        callback = self.request.progress_callback
         if callback is not None:
             try:
                 callback(payload)
             except Exception:
                 pass
 
-    return emit
+    def _record_timing_key(self, payload: dict) -> None:
+        timing_key = payload.get("timing_key")
+        if not (
+            isinstance(timing_key, str)
+            and timing_key.endswith("_ms")
+            and timing_key.startswith(("agent_init_", "conversation_", "provider_"))
+        ):
+            return
+        try:
+            parsed = int(payload.get("duration_ms"))
+        except (TypeError, ValueError):
+            parsed = -1
+        if parsed >= 0:
+            self.timing[f"profile_{timing_key}"] = parsed
+
+    def _record_timing_values(self, timing_values: Any) -> None:
+        if not isinstance(timing_values, dict):
+            return
+        for key, value in timing_values.items():
+            if not isinstance(key, str) or not key.startswith(("conversation_", "provider_")):
+                continue
+            if not key.endswith(("_ms", "_count")):
+                continue
+            try:
+                parsed = int(value)
+            except (TypeError, ValueError):
+                continue
+            if parsed >= 0:
+                self.timing[f"profile_{key}"] = parsed
 
 
-def _positive_float(value: Any) -> float | None:
-    if isinstance(value, bool):
-        return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    if number <= 0 or number != number or number == float("inf"):
-        return None
-    return number
+def _profile_status_callback(request: AgentRunRequest, timing: dict[str, Any]):
+    return StatusEmitter(request, timing).emit
 
 
 def _binding_for_profile(profile: str | None) -> PersonaProfileBinding:

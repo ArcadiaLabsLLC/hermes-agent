@@ -39,10 +39,10 @@ def _make_runner(monkeypatch, captured: dict):
     monkeypatch.setattr(pr.status, "_binding_for_profile", lambda profile: _Binding())
     monkeypatch.setattr(pr.runner, "_binding_for_profile", lambda profile: _Binding())
     monkeypatch.setattr(pr.runtime_resolve, "_resolve_request_runtime", lambda request: {})
-    monkeypatch.setattr(pr.runner, "_resolve_request_runtime", lambda request: {})
-    monkeypatch.setattr(pr.runner, "persona_profile_context", lambda *a, **k: contextlib.nullcontext())
+    monkeypatch.setattr(pr.execute, "_resolve_request_runtime", lambda request: {})
+    monkeypatch.setattr(pr.execute, "persona_profile_context", lambda *a, **k: contextlib.nullcontext())
     monkeypatch.setattr(pr.workdir, "_agent_workdir", lambda *a, **k: contextlib.nullcontext())
-    monkeypatch.setattr(pr.runner, "_agent_workdir", lambda *a, **k: contextlib.nullcontext())
+    monkeypatch.setattr(pr.execute, "_agent_workdir", lambda *a, **k: contextlib.nullcontext())
     return pr.ProfileAgentRunner(agent_factory=fake_factory)
 
 

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from agent_runtime._upstream_doors import sanitize_surrogates
 from agent_runtime.profile_runner.models import AgentRunRequest
 
 __layer__ = "lanes"
@@ -85,12 +86,8 @@ def _sanitized_user_message_text(text: str) -> str:
     """
 
     try:
-        from agent.message_sanitization import _sanitize_surrogates
-    except Exception:  # pragma: no cover - upstream helper relocated
-        return text
-    try:
-        return _sanitize_surrogates(text)
-    except Exception:  # pragma: no cover - defensive
+        return sanitize_surrogates(text)
+    except Exception:  # pragma: no cover - upstream helper relocated, or defensive
         return text
 
 

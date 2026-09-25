@@ -49,7 +49,9 @@ from tests._downstream.split_package_source import package_tree
 #: The lock that serializes process-global cwd mutation.
 LOCK_NAME = "_WORKDIR_LOCK"
 #: The run chokepoint that must hold it for the full turn.
-RUN_CHOKEPOINT = "ProfileAgentRunner._execute_agent_run"
+#: (Lane R3 turned ``ProfileAgentRunner._execute_agent_run`` into phases; the
+#: whole-run scope stack, ``_WORKDIR_LOCK`` first, is ``AgentRunExecution.scopes``.)
+RUN_CHOKEPOINT = "AgentRunExecution.scopes"
 
 
 def _module_tree() -> ast.Module:

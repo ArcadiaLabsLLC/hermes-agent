@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, Callable
 
 from agent_runtime.profile_runner.errors import RunBudgetExceeded
@@ -19,6 +20,9 @@ from agent_runtime.profile_runner.operator_redaction import _is_error_result
 __layer__ = "stores"
 
 __all__ = [
+    "CALLBACK_EVENTS",
+    "ProgressBuilder",
+    "RUN_EVENTS",
     "_progress_adapter",
     "_progress_payload_from_callback",
 ]
@@ -88,34 +92,72 @@ def _progress_adapter(
     return emit
 
 
-def _progress_payload_from_callback(event_type: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
-    callback_event = str(args[0]) if args else event_type
-    if event_type == "run.tool.started":
-        tool_name = _safe_label(args[1]) if len(args) > 1 else None
-        invocation = args[2] if len(args) > 2 else kwargs.get("input") or kwargs.get("tool_input")
-        return _tool_started_payload(event_type, tool_name, invocation=invocation)
-    if event_type == "run.tool.finished":
-        tool_name = _safe_label(args[1]) if len(args) > 1 else None
-        invocation = args[2] if len(args) > 2 else None
-        result = args[3] if len(args) > 3 else None
-        return _tool_finished_payload(event_type, tool_name, duration=None, is_error=_is_error_result(result), result=result, invocation=invocation)
+#: A payload builder: the adapter label, the callback args, the callback kwargs.
+ProgressBuilder = Callable[[str, tuple[Any, ...], dict[str, Any]], dict[str, Any]]
 
+
+def _run_tool_started(event_type: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
     tool_name = _safe_label(args[1]) if len(args) > 1 else None
-    if callback_event == "tool.started":
-        invocation = args[3] if len(args) > 3 else kwargs.get("input") or kwargs.get("tool_input")
-        return _tool_started_payload(event_type, tool_name, invocation=invocation)
-    if callback_event == "tool.completed":
-        return _tool_finished_payload(event_type, tool_name, duration=kwargs.get("duration"), is_error=bool(kwargs.get("is_error")), result=kwargs.get("result"), invocation=kwargs.get("input") or kwargs.get("tool_input"))
-    if callback_event in {"reasoning.available", "_thinking"}:
-        payload = {
-            "type": event_type,
-            "phase": "thinking_process",
-            "step": "reasoning_summary",
-            "status": "running",
-            "summary": "Agent thinking process updated",
-        }
-        reasoning = _safe_reasoning_summary(args, kwargs)
-        if reasoning:
-            payload["reasoning_summary"] = reasoning
-        return payload
+    invocation = args[2] if len(args) > 2 else kwargs.get("input") or kwargs.get("tool_input")
+    return _tool_started_payload(event_type, tool_name, invocation=invocation)
+
+
+def _run_tool_finished(event_type: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
+    tool_name = _safe_label(args[1]) if len(args) > 1 else None
+    invocation = args[2] if len(args) > 2 else None
+    result = args[3] if len(args) > 3 else None
+    return _tool_finished_payload(event_type, tool_name, duration=None, is_error=_is_error_result(result), result=result, invocation=invocation)
+
+
+def _tool_started(event_type: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
+    tool_name = _safe_label(args[1]) if len(args) > 1 else None
+    invocation = args[3] if len(args) > 3 else kwargs.get("input") or kwargs.get("tool_input")
+    return _tool_started_payload(event_type, tool_name, invocation=invocation)
+
+
+def _tool_completed(event_type: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
+    tool_name = _safe_label(args[1]) if len(args) > 1 else None
+    return _tool_finished_payload(event_type, tool_name, duration=kwargs.get("duration"), is_error=bool(kwargs.get("is_error")), result=kwargs.get("result"), invocation=kwargs.get("input") or kwargs.get("tool_input"))
+
+
+def _reasoning(event_type: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
+    payload = {
+        "type": event_type,
+        "phase": "thinking_process",
+        "step": "reasoning_summary",
+        "status": "running",
+        "summary": "Agent thinking process updated",
+    }
+    reasoning = _safe_reasoning_summary(args, kwargs)
+    if reasoning:
+        payload["reasoning_summary"] = reasoning
+    return payload
+
+
+def _progress_default(event_type: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
     return {"type": event_type, "phase": "tool", "step": "progress", "status": "running", "summary": "Run progress update"}
+
+
+#: One payload builder per callback, keyed on the name it arrives under (rule 12).
+#: TWO vocabularies ride one callback: the adapter's own event label (the
+#: ``run.tool.*`` labels the runner binds, checked FIRST) and the agent's
+#: callback event (``args[0]``). An event neither table names is the default
+#: progress payload — the boundary, not a third arm.
+RUN_EVENTS: Mapping[str, ProgressBuilder] = {
+    "run.tool.started": _run_tool_started,
+    "run.tool.finished": _run_tool_finished,
+}
+CALLBACK_EVENTS: Mapping[str, ProgressBuilder] = {
+    "tool.started": _tool_started,
+    "tool.completed": _tool_completed,
+    "reasoning.available": _reasoning,
+    "_thinking": _reasoning,
+}
+
+
+def _progress_payload_from_callback(event_type: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
+    build = RUN_EVENTS.get(event_type)
+    if build is None:
+        callback_event = str(args[0]) if args else event_type
+        build = CALLBACK_EVENTS.get(callback_event, _progress_default)
+    return build(event_type, args, kwargs)

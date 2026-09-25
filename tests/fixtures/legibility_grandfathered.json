@@ -162,11 +162,6 @@
   },
   {
    "depth": 5,
-   "lines": 424,
-   "unit": "agent_runtime/profile_runner/runner.py|ProfileAgentRunner._execute_agent_run"
-  },
-  {
-   "depth": 5,
    "lines": 32,
    "unit": "agent_runtime/queued_skills.py|_queue_lock"
   },

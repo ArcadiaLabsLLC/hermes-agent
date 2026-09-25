@@ -100,7 +100,7 @@ def _agent_chat_dispatch_fields(tool_name: str | None, invocation: Any) -> dict[
 
 #: Opaque runtime identifiers (``persona_chat_personainst_dev_bbbbbbbbbbbb``,
 #: ``personainst_dev_3ebfce41``). Deliberately NOT run through
-#: :func:`_looks_sensitive_or_pathish` — that helper's path heuristic would also
+#: :func:`redaction.looks_sensitive_or_pathish` — that helper's path heuristic would also
 #: have to be taught these shapes; the strict charset below is the whole guard,
 #: plus the secret-marker check, so an id containing e.g. ``token`` is dropped.
 _DISPATCH_ID_RE = re.compile(r"[A-Za-z0-9_.:-]{1,240}")

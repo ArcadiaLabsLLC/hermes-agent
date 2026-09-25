@@ -71,3 +71,16 @@ def test_strict_int_refuses_bool():
     assert serde.strict_int("3") == 3
     assert serde.strict_int(-2) == -2
     assert serde.strict_int("x") is None
+
+
+def test_positive_int_refuses_a_bool_and_positive_float_is_finite():
+    """Lane R3 folded ``profile_runner._positive_int`` / ``_positive_float`` —
+    both refused ``bool`` (``True`` is not a budget of 1) — onto these owners."""
+
+    assert serde.positive_int(True) is None
+    assert serde.positive_int(True, default=0) == 0
+    assert serde.positive_float("2.5") == 2.5
+    assert serde.positive_float(True) is None
+    assert serde.positive_float(0) is None
+    assert serde.positive_float(float("nan")) is None
+    assert serde.positive_float(float("inf")) is None

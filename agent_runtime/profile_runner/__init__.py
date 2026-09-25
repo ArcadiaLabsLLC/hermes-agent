@@ -27,8 +27,8 @@ runtime_resolve            stores  per-request runtime resolution memo
 model_input_observability  stores  compaction and model-input receipts
 resident_actor             lanes   the resident chat actor around a run
 mcp_lane                   lanes   MCP admission notices in a run
-execute                    lanes   agent-ready notification, usage ledger
-runner                     lanes   ``ProfileAgentRunner``
+execute                    lanes   ``AgentRunExecution`` (one run, phase by phase)
+runner                     lanes   ``ProfileAgentRunner`` (admit MCP, run, tear down)
 =========================  ======  ============================================
 
 Stores written: none of its own beyond the process memos (``workdir``,

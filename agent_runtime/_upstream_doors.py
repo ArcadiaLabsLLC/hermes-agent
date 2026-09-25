@@ -26,6 +26,7 @@ __all__ = [
     "compression_threshold_for_model",
     "default_hermes_home",
     "pid_exists",
+    "sanitize_surrogates",
     "profiles_root",
     "skills_walker",
 ]
@@ -77,3 +78,14 @@ def skills_walker():
     from tools.skills_tool import _find_all_skills
 
     return _find_all_skills
+
+
+def sanitize_surrogates(text: str) -> str:
+    """``agent.message_sanitization._sanitize_surrogates`` — read by
+    ``profile_runner.resident_actor._sanitized_user_message_text``. Held widening
+    row (ruling Q7, ``upstream-footprint-ledger.md``): publish
+    ``sanitize_surrogates``. Raises what the upstream helper raises, and
+    ImportError if it relocates — the caller keeps its own fallback."""
+    from agent.message_sanitization import _sanitize_surrogates
+
+    return _sanitize_surrogates(text)
