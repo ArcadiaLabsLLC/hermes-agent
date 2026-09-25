@@ -125,8 +125,8 @@ the file.
 - `tests/agent_runtime/test_harness_serve.py` already pins the RELATIONSHIP that matters at the serve level —
   the boot captures `serve_boot._prewarm_provider_runtime` as the provider prewarm and runs it after the first
   build — and is unchanged.
-- The re-seat itself gets one fork-only unit test beside it (new module in `tests/agent_runtime/`, name it
-  `test_serve_prewarm_truststore.py`): monkeypatch `agent.ssl_verify.install_truststore` with a recorder, call
+- The re-seat itself gets one fork-only unit test beside it (a new module in `tests/agent_runtime/`, named for
+  the serve prewarm): monkeypatch `agent.ssl_verify.install_truststore` with a recorder, call
   `_prewarm_provider_runtime()`, and assert it was called exactly once; a second case makes the recorder raise
   and asserts the prewarm still returns. That is the relationship (prewarm → upstream's one authority, failure
   isolated), not a snapshot of the function body. Killing mutation to record in the commit body: replace the
@@ -280,3 +280,82 @@ the supersession pass in §4 closes the ones whose files upstream fixed (**§5 Q
 `scripts/run_tests.sh`, `scripts/release.py`. The `[up-fp]` fixture (`files=200 deleted_lines=999 heavy=4` at
 base `749220ef00`) is re-measured at the NEW base after `--refresh-manifest`; it must go down and the fixture
 follows it (rule 2) — the exact numbers are the merge lane's to take, never this note's to predict.
+
+---
+
+## 4. The merge worktree plan — order of operations and the gates
+
+One lane, one worktree, one branch, one landing. Commands are the ones in `Merging upstream.md`; this section
+only fixes the ORDER and names what is specific to this merge.
+
+0. **Prerequisites (before the worktree).** `pip install truststore` into `C:/Users/beast/.venvs/hermes-test`
+   (§1). Export `HERMES_PYTHON` to that interpreter for the lane (§3.1 `run_tests.sh`). Re-take
+   `git merge-tree --write-tree origin/main upstream/main` after a fresh `git fetch upstream` — upstream moves
+   ~850 commits a day; the 55/74 figures in §1 are the shape, not the count the lane will meet.
+1. **Cut** from a NEUTRAL cwd: `git -C X:/Eternia/hermes-agent fetch origin && git -C X:/Eternia/hermes-agent
+   fetch upstream`; `git -C X:/Eternia/hermes-agent worktree add X:/wt/h-merge2 -b merge/upstream-<date>
+   origin/main`. Never in the primary checkout.
+2. **Merge:** `git merge upstream/main --no-ff --no-commit`; resolve every file by §3's rule, in this order —
+   the two modify/delete files first (accept the deletion of `agent/ssl_guard.py` and `hermes_cli/dep_ensure.py`;
+   `git rm` them), then `hermes_cli/main.py` (the port), then the rest of §3.1, then §3.2, then `pyproject.toml`
+   + `uv.lock`. Commit `merge: upstream/main <sha> into main (<date>)`, body = each conflicted file + the rule
+   applied (§3's rows, verbatim). The merged tree at this commit is IMPORTABLE but not whole: serve boots
+   (`_prewarm_provider_runtime` swallows the `ImportError`), `hermes postinstall` fails at its function-local
+   import until step 3. That is acceptable on the branch, never on `main` — steps 3–4 land in the same push.
+3. **Re-seat A** — `fix(merge): serve prewarm asks agent.ssl_verify.install_truststore` (§2.1): `serve/boot.py`,
+   delete the `process_bootstrap` memo and its test, add the prewarm test, record its killing mutation in the
+   body.
+4. **Re-seat B** — `fix(merge): postinstall provisions through pm` (§2.2): `_downstream_cli.py`, the three test
+   files, the fence tuple; killing mutation recorded.
+5. **Supersession pass** (Upstream Sync § Each merge) — one commit: the ledger rows §3 names retire or shrink
+   (`python scripts/upstream_footprint.py --ledger docs/agent-runtime-harness/planned/upstream-footprint-ledger.md`
+   regenerates the numbers; dispositions are hand-edited); `--refresh-manifest` at the new base; the `[up-fp]`
+   line re-taken and `tests/fixtures/upstream_footprint.json` LOWERED to it with a `reasons` row naming this
+   merge (rule 2: the fixture follows the tree down; a rise anywhere is a defect to explain in the same row).
+   Report the pass as rows retired / kept. The Upstream Sync PR table: #121647 closed as superseded (§2.1); the
+   `up/win-*` PRs re-checked file by file (§5 Q7).
+6. **Touched tests** — every test file that imports a conflicted or re-seated module, ONE run, backgrounded,
+   logged to `X:/wt/h-merge2/.lane-logs/`, exit code captured unpiped; then the repaired files re-run. Classify
+   every red by running the same file on `origin/main` (`X:/wt/h-merge2-base`): merge-caused → `fix(merge): …`;
+   pre-existing → named in the report, not fixed here. Expect the toolset-manifest gate
+   (`scripts/dump_toolset_manifest.py`) to red on upstream tool renames — regenerate after reading the diff, as
+   `Merging upstream.md` § Known shapes says.
+7. **Push the candidate:** `git push -u origin merge/upstream-<date>`. Report ≤ 30 lines: upstream sha, conflicts
+   per file + rule, rows retired/kept, `[up-fp]` before/after, suite counts with reds classified.
+8. **Landing (operator or landing lane), the gates, ONCE, in this order, all backgrounded and logged:**
+   - the validated suite — `scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/hermes_state`
+     (≥ 25 min; owner ruling: once per program / before any upstream PR, never per commit);
+   - the two contract dumps with `--check` (CLI contract, payload contract) and `scripts/doc_cite_adjacency.py`
+     in its ruled scope;
+   - `tests/scripts/test_upstream_footprint.py` (the ratchet), `tests/test_coverage_claims_resolve.py` (this note
+     and the deleted tests' citations), `tests/test_no_source_grep_assertions.py` (its register will carry stale
+     lines for the deleted `test_dep_ensure*` / `test_ssl_ca_guard` files — prune them);
+   - `python scripts/check_compat_pointers.py` (the `find_shell_configs` COMPAT block leaves with
+     `uninstall.py`'s hunk; the manifest row is deleted with it).
+   Then `git push origin merge/upstream-<date>:main` if fast-forward (a non-ff is a replay — `git rebase
+   origin/main` in the worktree — never a force). Reconcile the primary checkout (`git -C X:/Eternia/hermes-agent
+   fetch origin && git -C X:/Eternia/hermes-agent merge --ff-only origin/main`), update the Upstream Sync
+   cursor, delete the queue row, remove the worktree.
+9. **Cross-repo consequence, after landing:** the launcher's `hermes postinstall --yes --json` contract is
+   unchanged (schema `/1`, `git_bash_path` still emitted), and the launcher does not run hermes's installers, so
+   nothing in the launcher must move first. One launcher row IS owed and is filed with this note (§5 Q3's
+   evidence): the launcher's Update/Repair path assumes a checkout-local venv (`.hermes\venvs\hermes-agent`,
+   per the lifecycle-buttons note) while upstream's update now goes through pm's committed environment
+   (`pm.environments.selected_venv`) — verify the two agree on the merged tree before the next launcher release.
+
+## 5. Open questions for the owner — each with the default the lane takes if unanswered
+
+| # | question | recommended default |
+|---|---|---|
+| Q1 | **When is this merge cut?** Upstream is 1,831 commits ahead today and the base moved 2026-09-24; every day adds conflicts (the 2026-09-21 trial had 40, 09-24 had 73, today 55 after one landing). | Cut the worktree the day this note is read; the design holds for any tip after `ac2ffe60d0` because every rule in §3 is by CLASS, not by hunk text. |
+| Q2 | **Delete the fork's `shared_ssl_context` memo with `ssl_guard`, or keep it and re-measure first?** Rule 9 says adopt; the fork's ~900 ms/turn measurement was against certifi, which truststore does not parse. | Delete in the merge lane (step 3) and re-measure serve's first turn on the merged tree in the same lane; a regression is a NEW row against `resolve_httpx_verify`, filed on arrival, not a reason to resurrect a memo of a parse that no longer happens. |
+| Q3 | **Stop persisting `HERMES_GIT_BASH_PATH` User-scope from postinstall?** `pm.shell.bash()` finds a pm-installed Git from the store without it; upstream still honours the var when an operator sets it; the launcher stores `git_bash_path` itself. | Stop (rule 10). Keep `hermes_cli/windows_env.py` for its other caller. |
+| Q4 | **Adopt pm's committed-environment contract for the Windows gateway task / update path** (`_pm_runtime_venv_dir` replaces `resolve_managed_python`; the venv-holder clearing block goes)? This is the one adoption in §3 with three fork callers and a live Windows install behind it. | Adopt, with the three callers re-pointed in the merge lane and `hermes update` exercised once on the merged tree on this box before landing; if the update path on a checkout-local venv install cannot complete, keep `resolve_managed_python` as a RECORDED parallel row (upstream symbol `pm.environments.selected_venv`, reason, retire condition = the launcher's install moves onto pm bundles). |
+| Q5 | **Keep `F821` in ruff `select` after upstream dropped it?** The 2026-09-24 merge relied on it precisely because merge-dropped names are the recurring class — and noted it is ignored under `tests/**`, `tools/**`, `agent/**`, `gateway/**` anyway. | Keep `F821` (one additive token), and file the per-tree ignores as the next fork-hygiene row: an F821 that cannot see `tools/` did not catch the `heartbeat` NameError at 09-24 either. |
+| Q6 | **Retire the fork's shared-test-venv probe in `scripts/run_tests.sh` in favour of upstream's `HERMES_PYTHON` door?** | Retire it; `HERMES_PYTHON=C:/Users/beast/.venvs/hermes-test/Scripts/python.exe` goes in the lane briefs and `Harness_Brain`'s setup note; a box without it gets upstream's activation, which is upstream's supported path. |
+| Q7 | **Close the six `up/win-*` test PRs whose files upstream fixed its own way** (`#121219` line-wrap, `#121220` env-var case, `#121221` line endings, `#121222` tilde-home, `#121224` path spelling, `#121225` posix-only)? Their hunks leave the fork's tree with this merge either way. | Decide per PR from the merged tree, not from this note: for each, run the PR's files on Windows on the merged tree; green → close as superseded with a one-line comment naming the upstream commit; red → the PR stands and the fork hunk is re-applied as its carry. `#121218` and `#121226` touch files not in the conflict set and stand as they are. |
+| Q8 | **The `[up-fp]` fixture is LOWERED in the merge lane's supersession commit** — that commit is the only place the new base's numbers exist. Confirm the lane may write the fixture (a ratchet row is claimed like any other). | Yes: the row for this merge is the claim; the fixture's `reasons` entry names the merge sha. |
+
+**What this note does not decide.** The exact conflict count on the day (Q1), the three numbers of the ratchet
+line, and whether any `theirs` on a Windows-carry test is red on Windows — all of those are measurements the
+merge lane takes, and this note's rules say what to do with each answer.
