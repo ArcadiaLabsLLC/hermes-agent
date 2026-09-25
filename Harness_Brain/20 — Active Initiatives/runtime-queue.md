@@ -23,6 +23,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+- [ ] **Expose runtime-authoritative provider setup and supported browser authentication to Launcher through a secret-safe typed transport.** · Owner-approved 2026-09-25; both Mission Control and Intelligence consume it, with exact profile scope and no duplicate catalog/auth manager. Evidence: `EterniaLauncher/docs/companion/planned/INTELLIGENCE_HOME_PROVIDER_AUDIT_2026-09-25.md`. **TAKEN 2026-09-25 provider-home**
+
 
 ### Filed on arrival — 2026-09-24 (lane LLAMA-H)
 
