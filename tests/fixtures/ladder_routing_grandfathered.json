@@ -2,10 +2,6 @@
  "kinds": "ladder = >=3 arms comparing one subject to strings (literals, names bound to one, Enum members); isinstance = >=3 isinstance arms on one subject; vocab = compares re-spelling a Final/Enum vocabulary member in the module's REACH (arms = count)",
  "sites": [
   {
-   "arms": 4,
-   "site": "agent_runtime/agent_create.py|perform_agent_create|ladder|record.state"
-  },
-  {
    "arms": 5,
    "site": "agent_runtime/board_sync.py|apply_board_pull|ladder|decision.action"
   },
