@@ -92,7 +92,7 @@ additional to the provider-identity dispositions on the existing ACP rows.
 | `hermes_cli/subcommands/auth.py` | 37 | 0 | hook | `auth set-key` / `auth login` parsers (with `auth_commands.py`): launcher spellings kept (lane S2); waits on the sub-verbs-on-a-builtin-parser widening PR | S3 |
 | `hermes_cli/subcommands/mcp.py` | 10 | 0 | upstream | PR candidate: `hermes mcp test --env KEY=VALUE` (G13) | S3 |
 | `hermes_cli/uninstall.py` | 3 | 1 | upstream | PR candidate: warn that the checkout's git history is deleted (G16). `_comparable_path` and the PLUGIN-COMPAT `find_shell_configs` block left at the 2026-09-25 merge (`067fa1a257`) (upstream's `link.resolve()` normalizes extended-path prefixes) | S3 |
-| `hermes_cli/update_cmd.py` | 9 | 0 | upstream | PR candidate: fork-history guard — a fork's failed fast-forward never resets (`hermes_cli/update_history.py`) (class G17 updater fork safety); the tail import of `_warn_legacy_console_gateway_task` is dead (no reader by grep), REVERT that line | S3 |
+| `hermes_cli/update_cmd.py` | 11 | 0 | upstream | PR candidate: fork-history guard — a fork's failed fast-forward never resets (`hermes_cli/update_history.py`) (class G17 updater fork safety); the tail import of `_warn_legacy_console_gateway_task` is dead (no reader by grep), REVERT that line | S3 |
 | `hermes_cli/update_cmd_git.py` | 5 | 2 | upstream | PR candidate: fork sync pushes without `--force-with-lease`; diverged-fork message (G17) | S3 |
 | `hermes_cli/update_cmd_windows.py` | 30 | 1 | upstream | PR candidate: launcher refresh tolerates `ManagedPythonUnavailable` and warns about a legacy visible-console task (G11). The venv-holder clearing family left at the 2026-09-25 merge (`067fa1a257`) (upstream `5e4a2a3d24`) | S3 |
 | `hermes_cli/update_inventory.py` | 15 | 0 | upstream | PR candidate: cached fork-history assessment in the update plan (G17) | S3 |
@@ -115,7 +115,7 @@ additional to the provider-identity dispositions on the existing ACP rows.
 | `scripts/run_tests.sh` | 116 | 1 | upstream | §0.4: runner improvements (P5); carry the hermetic-env rows. The shared-test-venv probe RETIRED at the 2026-09-25 merge (`067fa1a257`) for upstream's `HERMES_PYTHON` door (Q6); the PATHEXT line left (upstream forwards it) | S3 |
 | `scripts/run_tests_parallel.py` | 181 | 42 | upstream | §0.4: runner improvements (P5); carry the hermetic-env rows | S3 |
 | `tests/_fixtures/env_filter.py` | 10 | 1 | upstream | PR candidate: one compiled credential-suffix alternation in `_looks_like_credential` (hermes-suite-perf Stage 2); moved from the `tests/conftest.py` row with upstream's carve-out at the 2026-09-25 merge (`067fa1a257`) | S3 |
-| `tests/_fixtures/live_system_guard.py` | 150 | 8 | upstream | PR candidates, moved from the `tests/conftest.py` row with upstream's carve-out at the 2026-09-25 merge (`067fa1a257`): the backend-spawn arm (`hermes gateway | serve |
+| `tests/_fixtures/live_system_guard.py` | 159 | 8 | upstream | PR candidates, moved from the `tests/conftest.py` row with upstream's carve-out at the 2026-09-25 merge (`067fa1a257`): the backend-spawn arm (`hermes gateway | serve |
 | `tests/agent/test_coding_context.py` | 13 | 2 | upstream | lifted: up/win-line-endings | up/win-line-endings |
 | `tests/agent/test_compression_adoption_preserves_live_tail.py` | 1 | 1 | upstream | PR candidate: stale doc pointers (docstring/comment names a moved or never-existing test path) | S3 |
 | `tests/agent/test_image_routing.py` | 1 | 1 | upstream | lifted: up/win-tilde-home | up/win-tilde-home |
@@ -140,7 +140,7 @@ additional to the provider-identity dispositions on the existing ACP rows.
 | `tests/hermes_cli/test_local_runtime.py` | 5 | 0 | upstream | PR candidate (lane CARRY2A): the stub's POST /models/unload marks the model unloaded so `unload_model`'s 15 s confirmation loop exits; that loop is upstream's own (prod identical), the fork's repo-wide --timeout=30 only turns upstream's wait into a red (3 tests time out on upstream's bytes) | S3 |
 | `tests/hermes_cli/test_node_runtime_npm_resolution.py` | 3 | 0 | upstream | PR candidate: linux-only markers (@pytest.mark.linux_only; needs per-test proof the behaviour is Linux-specific) | S3 |
 | `tests/hermes_cli/test_orphan_desktop_serve_reap.py` | 5 | 0 | upstream | PR candidate: linux-only markers (@pytest.mark.linux_only; needs per-test proof the behaviour is Linux-specific) | S3 |
-| `tests/hermes_cli/test_projects_db.py` | 16 | 4 | upstream | lifted: up/win-path-spelling | up/win-path-spelling |
+| `tests/hermes_cli/test_projects_db.py` | 19 | 7 | upstream | lifted: up/win-path-spelling | up/win-path-spelling |
 | `tests/hermes_cli/test_prompt_compose_command.py` | 25 | 11 | upstream | lifted: up/win-shell-invocation | up/win-shell-invocation |
 | `tests/hermes_cli/test_setup_hermes_script.py` | 19 | 1 | upstream | lifted: up/win-shell-invocation | up/win-shell-invocation |
 | `tests/hermes_cli/test_win_pty_bridge.py` | 41 | 3 | upstream | lifted: up/win-conpty-line-wrap | up/win-conpty-line-wrap |
@@ -160,7 +160,7 @@ additional to the provider-identity dispositions on the existing ACP rows.
 | `tests/tools/test_local_env_relative_cwd.py` | 25 | 2 | upstream | lifted: up/win-shell-invocation | up/win-shell-invocation |
 | `tests/tools/test_local_env_windows_msys.py` | 15 | 3 | upstream | PR candidate: win-path-spelling extension (os.path.join); REVERT duplicated S5 banner | S3 |
 | `tests/tools/test_modal_sandbox_fixes.py` | 28 | 4 | hook | expects `tool_describe` injected by `model_tools.py` (waits on its tool-filter/injection hook PR); `_native_host_cwd` is G2 (Windows paths PR) | S3 |
-| `tests/tools/test_skills_hub.py` | 11 | 0 | upstream | lifted: up/win-line-endings; rest PR candidate: held, test stays red on Windows for another reason (R10): jo.txt write_bytes does not fix the KeyError | up/win-line-endings |
+| `tests/tools/test_skills_hub.py` | 15 | 3 | upstream | lifted: up/win-line-endings; rest PR candidate: held, test stays red on Windows for another reason (R10): jo.txt write_bytes does not fix the KeyError | up/win-line-endings |
 | `tests/tools/test_subprocess_home_isolation.py` | 9 | 2 | upstream | lifted: up/win-path-spelling | up/win-path-spelling |
 | `tests/tools/test_terminal_output_transform_hook.py` | 6 | 1 | upstream | lifted: up/win-shell-invocation | up/win-shell-invocation |
 | `tools/approval_context.py` | 3 | 9 | upstream | PR candidate: `_tirith_fail_open` reads the one tirith flag authority with env overrides (`hermes_cli/tirith_config.py`) (class G18 tirith config authority) | S3 |
@@ -169,7 +169,7 @@ additional to the provider-identity dispositions on the existing ACP rows.
 | `tools/browser_tool_lifecycle.py` | 2 | 1 | upstream | PR candidate: daemon socket-dir binding compared by file identity (`tools/path_identity.denotes_same_file`) (G2) | S3 |
 | `tools/code_execution_env.py` | 3 | 2 | upstream | PR candidate: interpreter / prefix identity via `denotes_same_file` (G2) | S3 |
 | `tools/credential_files.py` | 1 | 1 | upstream | PR candidate: container-side paths via `as_posix()` on Windows hosts (G2) | S3 |
-| `tools/environments/local.py` | 160 | 1 | upstream | PR candidate (G2): MSYS spellings, `_shell_arg_safe_path`. `_windows_bash_candidates` RETIRED at the 2026-09-25 merge (`067fa1a257`) (bash discovery is upstream `pm.shell`); `_bash_from_git` / `_is_windows_system_shim` lost their production caller with it (dead code, reported by lane MERGE) | S3 |
+| `tools/environments/local.py` | 107 | 1 | upstream | PR candidate (G2): MSYS spellings, `_shell_arg_safe_path`. `_windows_bash_candidates` RETIRED at the 2026-09-25 merge (`067fa1a257`) (bash discovery is upstream `pm.shell`); `_bash_from_git` / `_is_windows_system_shim` deleted with it (tombstoned) | S3 |
 | `tools/file_tools.py` | 24 | 2 | upstream | wire briefs for write_file/patch/search_files moved to the eternia-harness `llm_request` middleware (lane MOVE-A; registry keeps upstream's text). Left: PR candidate (G2) - the `_posix_match_forms` device-path guard over `tools/path_identity.py` | S3 |
 | `tools/file_tools_write_guards.py` | 5 | 4 | upstream | PR candidate: sensitive / config / instruction path guards compare by identity and POSIX match forms (G2) | S3 |
 | `tools/image_generation_tool.py` | 2 | 2 | carry | fork-only: `load_config_readonly` applies the `local-llama-hermes` read projection (`hermes_cli/config_read_scope.project_readonly_config`, a ContextVar) - not a mutation refusal and not an upstream PR (re-dispositioned from G8 2026-09-24, lane LEDGER-DOCS, per the UPPR2 finding); here: the FAL config read routed through it. Leaves with the config.py hook | S3 |

@@ -11,7 +11,6 @@ All tests run on POSIX CI: they build real fake directory trees under
 """
 
 import os
-from unittest.mock import patch
 
 import pytest
 
@@ -20,23 +19,8 @@ from tools.environments.local import (
     _WINDOWS_PATH_SEP,
     _augment_windows_system_path,
     _find_bash,
-    _is_windows_system_shim,
     _windows_system_path_dirs,
 )
-
-
-class TestIsWindowsSystemShim:
-    def test_system32_bash_is_stub(self):
-        with patch.dict(os.environ, {"SystemRoot": r"C:\Windows"}):
-            assert _is_windows_system_shim(r"C:\Windows\System32\bash.exe")
-            assert _is_windows_system_shim("C:/Windows/System32/bash.exe")
-            assert _is_windows_system_shim(r"c:\windows\system32\bash.exe")
-            assert _is_windows_system_shim(r"C:\Windows\SysWOW64\bash.exe")
-
-    def test_real_git_bash_is_not_stub(self):
-        with patch.dict(os.environ, {"SystemRoot": r"C:\Windows"}):
-            assert not _is_windows_system_shim(r"C:\Program Files\Git\bin\bash.exe")
-            assert not _is_windows_system_shim("")
 
 
 class TestFindWindowsGitBash:

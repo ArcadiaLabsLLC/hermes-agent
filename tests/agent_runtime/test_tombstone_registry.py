@@ -3634,6 +3634,20 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "RepoContextExcerpt",
         scope=_AR,
     ),
+    # -- the 2026-09-25 upstream merge ------------------------------------
+    *rows(
+        "merge-2026-09-25",
+        "2aa09594c5",
+        Form.ATTR,
+        "the fork's Git Bash discovery helpers lost their only caller when the "
+        "merge took upstream's tools/environments/local.py (bash discovery is "
+        "upstream pm.shell.windows_bash_candidates, which drops the System32 / "
+        "WindowsApps stubs itself); a second resolver beside pm.shell would be "
+        "the duplicate authority rule 9 retires",
+        "_bash_from_git",
+        "_is_windows_system_shim",
+        scope=("tools.environments.local",),
+    ),
 )
 
 

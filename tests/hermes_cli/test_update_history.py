@@ -15,7 +15,7 @@ def git(repo, *args, input=None):
 
 
 @pytest.fixture
-def repo(tmp_path):
+def repo(tmp_path, monkeypatch):
     git(tmp_path, "init", "-b", "main")
     git(tmp_path, "config", "user.name", "Contributor")
     git(tmp_path, "config", "user.email", "contributor@example.invalid")
@@ -23,6 +23,8 @@ def repo(tmp_path):
     git(tmp_path, "add", "behavior.txt")
     git(tmp_path, "commit", "-m", "original behavior")
     git(tmp_path, "remote", "add", "origin", "https://example.invalid/owner/hermes-agent")
+    # This throwaway repo stands in for a fork checkout: its first commit is the fork root.
+    monkeypatch.setattr(history, "FORK_ROOT_COMMIT", git(tmp_path, "rev-parse", "HEAD"))
     return tmp_path
 
 
@@ -138,3 +140,17 @@ def test_upstream_sync_push_never_forces(monkeypatch, tmp_path):
     monkeypatch.setattr(update_cmd_git, "_git_ok", lambda cmd, args, cwd, **kw: calls.append(args) or False)
     assert update_cmd_git._sync_fork_with_upstream(["git"], tmp_path) is False
     assert calls == [["push", "origin", "main"]]
+
+
+def test_a_checkout_without_fork_history_is_not_guarded(repo, monkeypatch):
+    """Upstream's throwaway repos run upstream's own rescue path: no refusal, no refs."""
+    folded_tip(repo, related=False)
+    monkeypatch.setattr(history, "FORK_ROOT_COMMIT", "0" * 40)  # unknown object: not fork history
+    assert history.guard_fork_history(["git"], repo, "origin/main").relationship == "unrelated"
+    assert git(repo, "for-each-ref", "refs/hermes-update-backups") == ""
+
+
+def test_the_running_checkout_carries_fork_history():
+    """Positive control on the real tree: the guard stays armed in this repository."""
+    root = Path(__file__).resolve().parents[2]
+    assert history.has_fork_ancestry(["git"], root) is True

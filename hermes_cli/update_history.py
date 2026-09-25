@@ -11,6 +11,12 @@ import uuid
 #: exit 2 only when ``.update-incomplete`` exists). A fold review is deterministic.
 HISTORY_REVIEW_EXIT = 2
 
+#: The first commit of the fork's reconstructed history (2026-09-15, "fork: build
+#: test platform"; its parent is upstream's). A checkout whose HEAD does not descend
+#: from it carries no fork history for the guard to protect: upstream's own updater
+#: tests build throwaway repositories and exercise upstream's rescue-ref path there.
+FORK_ROOT_COMMIT = "5a411b1657eb8373d4f719a117f6d0aacd2b9fd7"
+
 @dataclass(frozen=True)
 class HistoryAssessment:
     target: str
@@ -67,14 +73,30 @@ def assess_history(git_cmd, cwd: Path, target: str) -> HistoryAssessment:
     return HistoryAssessment(target, head, tip, relation, same_tree, left, right, shallow)
 
 
+def has_fork_ancestry(git_cmd, cwd: Path) -> bool:
+    """True when HEAD descends from :data:`FORK_ROOT_COMMIT`.
+
+    ``merge-base --is-ancestor`` answers 0 (yes) / 1 (no); anything else means the
+    object is unknown here, which is "no fork history" for a full clone and "cannot
+    tell, keep guarding" for a shallow one.
+    """
+    result = _git(git_cmd, cwd, "merge-base", "--is-ancestor", FORK_ROOT_COMMIT, "HEAD")
+    if result.returncode in (0, 1):
+        return result.returncode == 0
+    return _git(git_cmd, cwd, "rev-parse", "--is-shallow-repository").stdout.strip() == "true"
+
+
 def guard_fork_history(git_cmd, cwd: Path, target: str) -> HistoryAssessment:
     """Refuse non-FF fork updates, preserving both known tips atomically first.
 
     Deliberately no expiry: these refs may be the only surviving attribution or
     local work after a remote fold. Never push, reset, rebase, stash or checkout.
+    A checkout without fork history (:func:`has_fork_ancestry`) is not guarded.
     """
     history = assess_history(git_cmd, cwd, target)
     if history.relationship in {"equal", "fast_forward", "local_ahead"}:
+        return history
+    if not has_fork_ancestry(git_cmd, cwd):
         return history
     print("HERMES_UPDATE_HISTORY_REVIEW_REQUIRED")
     refs = []

@@ -147,6 +147,19 @@ if _WIN:
             _up_red("spawns a real `hermes serve` (SystemExit 1 upstream; the fork's "
                     "live-system guard refuses the spawn)"),
         ),
+        "tests/hermes_cli/test_desktop_lifecycle_windows_live.py::"
+        "test_holder_scan_fallback_respects_token_classifier": (
+            _up_red("patches hermes_cli.main._detect_venv_python_processes, but upstream's "
+                    "update_cmd_windows._desktop_owns_gateway_lifecycle calls its own module-level "
+                    "binding since 27df3b8847 (upstream-owned function, byte-identical here)"),
+        ),
+        "tests/tools/test_approved_command_clean_slate.py::"
+        "test_retry_backoff_does_not_clear_genuine_interrupt": (
+            _up_red_skip("patches time.sleep module-wide, so terminal_tool's cleanup thread "
+                         "busy-loops; under upstream's tests/home_io_guard.py (2026-09-25 merge) "
+                         "the spin starves the test past the 30 s thread timeout, which kills "
+                         "the process (upstream-owned test, loop and guard; green before the guard)"),
+        ),
         "tests/hermes_cli/test_session_message_page_owner.py::"
         "test_message_pages_identify_the_serving_profile[None]": (
             _up_red("with no serving profile the default page is the serving page, 120 != 1"),

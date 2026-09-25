@@ -703,8 +703,10 @@ def _complete_source_update(request: dict | None) -> None:
 def _reconcile_diverged_checkout(git_cmd, branch: str, pre_pull_sha, *, target_ref=None) -> None:
     """Fast-forward failed: merge on a custom branch (local commits survive) or reset --hard on the
     same branch after parking the old HEAD behind a rescue ref. ``sys.exit(1)`` on failure."""
-    if _is_fork(_get_origin_url(git_cmd, _m().PROJECT_ROOT)):
-        from hermes_cli.update_history import guard_fork_history
+    from hermes_cli.update_history import guard_fork_history, has_fork_ancestry
+    # A checkout with no fork history takes upstream's rescue-ref path below.
+    if (_is_fork(_get_origin_url(git_cmd, _m().PROJECT_ROOT))
+            and has_fork_ancestry(git_cmd, _m().PROJECT_ROOT)):
         guard_fork_history(git_cmd, _m().PROJECT_ROOT, f"origin/{branch}")
         # Even a failed FF on an unchanged/local-ahead fork is not a reset permit.
         print("Fork fast-forward failed; checkout preserved. Inspect the Git failure before retrying.")

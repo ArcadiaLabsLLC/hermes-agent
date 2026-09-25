@@ -153,13 +153,15 @@ _PYTHON_BASENAME_RE = re.compile(r"^pythonw?(\d+(\.\d+)*)?(\.exe)?$")
 
 
 def _without_python_c_argv(raw: list[str]) -> list[str]:
-    """*raw* cut after CODE when it is ``python [opts] -c CODE ARGS...``.
+    """*raw* cut after CODE / SCRIPT when it is ``python [opts] -c CODE ARGS...`` or
+    ``python [opts] SCRIPT ARGS...``.
 
-    ``python -c CODE ARGS...`` runs CODE; ARGS are only its ``sys.argv``, so a
-    ``-m hermes_cli.main serve`` tail there is inert data (the live venv-holder /
-    desktop-lifecycle E2Es spawn exactly that sleeper for psutil to classify) and
-    never an entry point. Keep CODE (it may itself spawn), drop ARGS.
-    Mirrors ``tests/conftest.py``'s live-system guard helper of the same name.
+    ARGS are only the program's ``sys.argv``, so a ``-m hermes_cli.main serve`` tail
+    there is inert data (the live venv-holder / desktop-lifecycle E2Es spawn exactly
+    that sleeper, as ``-c`` or as a script, for psutil to classify) and never an entry
+    point. A SCRIPT that IS ``hermes_cli/main.py`` or a ``hermes`` launcher keeps its
+    ARGS; ``-m MODULE ARGS`` is never cut. Mirrors
+    ``tests/_fixtures/live_system_guard.py``'s helper of the same name.
     """
     if not raw or not _PYTHON_BASENAME_RE.match(_basename(raw[0])):
         return raw
@@ -171,8 +173,14 @@ def _without_python_c_argv(raw: list[str]) -> list[str]:
         if token in ("-X", "-W"):
             index += 2
             continue
-        if not token.startswith("-") or token == "-m":
+        if token == "-m":
             return raw
+        if not token.startswith("-"):
+            # SCRIPT: cut its ARGS unless the script itself is a hermes entry point.
+            script = _basename(token)
+            if script in ("hermes", "hermes.exe") or token.replace("\\", "/").lower().endswith("hermes_cli/main.py"):
+                return raw
+            return raw[: index + 1]
         index += 1
     return raw
 

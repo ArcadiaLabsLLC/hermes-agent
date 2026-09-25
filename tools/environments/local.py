@@ -1043,59 +1043,6 @@ def _shell_arg_safe_path(path: str) -> str:
     return native.replace('\\', '/')
 
 
-def _is_windows_system_shim(path: str) -> bool:
-    """True when ``path`` lives under the Windows system dirs that host the
-    WSL launcher (``C:\\Windows\\System32\\bash.exe`` and friends).
-
-    ``shutil.which("bash")`` happily returns that stub on any box with the
-    WSL optional feature enabled, and routing the agent's terminal through it
-    invokes ``wsl`` — which fails with "no installed distributions" on a
-    normal Windows host.  We must never treat it as Git Bash.
-    """
-    if not path:
-        return False
-    system_root = os.environ.get("SystemRoot") or os.environ.get("windir") or r"C:\Windows"
-
-    def _norm(p: str) -> str:
-        # Separator- and case-agnostic so mixed C:\...\ / forward-slash forms
-        # (and POSIX-hosted unit tests) compare correctly.
-        return p.replace("\\", "/").rstrip("/").lower()
-
-    norm = _norm(path)
-    root = _norm(system_root)
-    for sub in ("system32", "syswow64", "sysnative"):
-        if norm.startswith(f"{root}/{sub}/"):
-            return True
-    return False
-
-
-def _bash_from_git() -> "str | None":
-    """Derive ``bash.exe`` from the installed ``git`` executable.
-
-    Git for Windows ships ``bash.exe`` beside ``git.exe`` in predictable
-    layouts.  ``git`` is a hard install prerequisite for Hermes, so if it's on
-    PATH we can locate its bash without any separate provisioning.  We
-    ``realpath`` first so scoop/chocolatey shims resolve to the real install.
-    """
-    git = shutil.which("git")
-    if not git or _is_windows_system_shim(git):
-        return None
-    git_dir = os.path.dirname(os.path.realpath(git))
-    # git.exe can live in <root>\cmd, <root>\bin, or <root>\mingw64\bin;
-    # bash.exe lives in <root>\bin or <root>\usr\bin.  Probe relative to the
-    # git dir covering all three git.exe locations.
-    for rel in (
-        (os.pardir, "bin", "bash.exe"),
-        (os.pardir, "usr", "bin", "bash.exe"),
-        (os.pardir, os.pardir, "bin", "bash.exe"),
-        (os.pardir, os.pardir, "usr", "bin", "bash.exe"),
-    ):
-        candidate = os.path.normpath(os.path.join(git_dir, *rel))
-        if os.path.isfile(candidate):
-            return candidate
-    return None
-
-
 def _windows_system_path_dirs() -> "list[str]":
     """Windows dirs that host the native command tooling the agent may shell
     out to from its bash terminal — ``cmd.exe``, ``powershell.exe`` (Windows

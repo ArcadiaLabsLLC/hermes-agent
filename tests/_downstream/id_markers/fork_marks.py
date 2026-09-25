@@ -57,6 +57,11 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     "tests/hermes_cli/test_commands.py::TestSlackNativeSlashes::test_telegram_parity": (
         pytest.mark.xfail(strict=True, reason=TELEGRAM_PARITY_DEFECT_REASON),
     ),
+    # A test ABOUT _pause_windows_gateways_for_update opts out of the fork conftest
+    # default that returns None; its transports are mocked and the gateway fence
+    # still stands behind it (upstream renamed the seven it replaced, 2026-09-25).
+    "tests/hermes_cli/test_update_concurrent_quarantine.py::"
+    "test_pause_stops_launcher_after_worker_drain": (_REAL_PAUSE,),
     # The fork's hermes_cli.tirith_config lets TIRITH_* env win over config.yaml;
     # this upstream test pins the config value (fixture: tools_conftest).
     "tests/tools/test_approval.py::TestTirithImportErrorFailOpenPolicy::"
@@ -272,15 +277,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
         _fork_replaces(
             "agent_runtime.pool_rotation sidecar cursor (credential_rotation.json)",
             "tests/hermes_cli/test_oauth_status_pool_observation_downstream.py",
-        ),
-    ),
-    # A local-path origin reads as a fork, and the fork never resets a diverged
-    # fork checkout (update_history.guard_fork_history exits 2; 1487c101ee).
-    "tests/hermes_cli/test_update_diverged_rescue_ref.py::"
-    "test_hermes_update_keeps_local_commit_behind_a_rescue_ref": (
-        _fork_replaces(
-            "hermes_cli.update_cmd._reconcile_diverged_checkout fork-history guard",
-            "tests/hermes_cli/test_update_diverged_rescue_ref_downstream.py",
         ),
     ),
     # An upstream custom-endpoint flow whose context probe resolves a fixture host

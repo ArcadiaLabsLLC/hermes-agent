@@ -1,7 +1,6 @@
 """Tests for tools/skills_hub.py — source adapters, lock file, taps, dedup logic."""
 
 import json
-import os
 import time
 from typing import List, Optional
 from unittest.mock import patch, MagicMock
@@ -1084,8 +1083,10 @@ class TestOptionalSkillSourceBinaryAssets:
         bundle = src.fetch("official/mlops/models/neutts")
 
         assert bundle is not None
-        assert bundle.files[os.path.join("assets", "neutts-cli", "samples", "jo.wav")] == wav_bytes
-        assert bundle.files[os.path.join("assets", "neutts-cli", "samples", "jo.txt")] == b"hello\n"
+        # Bundle keys are POSIX-relative on every host; carry of fork PR #121221
+        # (up/win-line-endings) - upstream's os.path.join keys are red on Windows.
+        assert bundle.files["assets/neutts-cli/samples/jo.wav"] == wav_bytes
+        assert bundle.files["assets/neutts-cli/samples/jo.txt"] == b"hello\n"
         assert "assets/neutts-cli/src/neutts_cli/__pycache__/cli.cpython-312.pyc" not in bundle.files
 
     def test_fetch_rejects_sibling_directory_traversal(self, tmp_path):
