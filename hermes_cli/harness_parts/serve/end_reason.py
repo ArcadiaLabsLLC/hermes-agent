@@ -7,12 +7,14 @@ from __future__ import annotations
 import os
 import sys
 import threading
+from enum import StrEnum
 from typing import Any, Callable
 
 
 __layer__ = "stores"
 
 __all__ = [
+    "EndReason",
     "CONSOLE_CTRL_END_REASONS",
     "END_REASON_UNCAUGHT_PREFIX",
     "END_REASON_UNKNOWN",
@@ -61,7 +63,7 @@ def _install_service_stop_signal(
 
     def _stop(*_args: Any) -> None:
         if note is not None:
-            note("sigterm")
+            note(EndReason.SIGTERM)
         stop.set()
 
     try:
@@ -104,6 +106,28 @@ def _restore_service_stop_signal(saved: Any) -> None:
 # writes nothing, and THAT SILENCE IS THE READING — the launcher words a stale
 # row with no sidecar ``ended=absent``, which is a fact, not an absence of one.
 #
+class EndReason(StrEnum):
+    """The closed set of words a runtime writes for why it ended (rule 14).
+
+    Closed because the launcher's runtime sheet switches on it, and a word it
+    has never seen renders as a shrug. ``uncaught:<Type>`` is the one
+    open-ended word and is a PREFIX (:data:`END_REASON_UNCAUGHT_PREFIX`), not a
+    member.
+    """
+
+    # the ordinary ends, one per code path
+    DRAINED = "drained"  # a drain op completed; _finish_drain owns it
+    SHUTDOWN_OP = "shutdown_op"  # {"op":"shutdown"} — an ORDER from the stdio owner
+    STDIN_EOF = "stdin_eof"  # the pipe closed on a NON-service serve
+    # the operator and the OS
+    CTRL_CLOSE = "ctrl_close"
+    CTRL_C = "ctrl_c"
+    SIGTERM = "sigterm"
+    LOGOFF = "logoff"
+    # the fallback
+    UNKNOWN_EXIT = "unknown_exit"
+
+
 #: Windows console control events → the word. ``wincon.h``'s numbers, matched
 #: rather than imported because ``signal.CTRL_*`` covers only two of the five.
 #:
@@ -114,12 +138,12 @@ def _restore_service_stop_signal(saved: Any) -> None:
 #: all. LOGOFF and SHUTDOWN share ``logoff`` for the same reason RL-16 gave them
 #: one word: the distinction a reader needs is "the session/machine went away",
 #: not which of the two notifications the OS chose.
-CONSOLE_CTRL_END_REASONS: dict[int, str] = {
-    0: "ctrl_c",  # CTRL_C_EVENT
-    1: "ctrl_c",  # CTRL_BREAK_EVENT
-    2: "ctrl_close",  # CTRL_CLOSE_EVENT — the console window's X
-    5: "logoff",  # CTRL_LOGOFF_EVENT
-    6: "logoff",  # CTRL_SHUTDOWN_EVENT
+CONSOLE_CTRL_END_REASONS: dict[int, EndReason] = {
+    0: EndReason.CTRL_C,  # CTRL_C_EVENT
+    1: EndReason.CTRL_C,  # CTRL_BREAK_EVENT
+    2: EndReason.CTRL_CLOSE,  # CTRL_CLOSE_EVENT — the console window's X
+    5: EndReason.LOGOFF,  # CTRL_LOGOFF_EVENT
+    6: EndReason.LOGOFF,  # CTRL_SHUTDOWN_EVENT
 }
 
 #: POSIX signals → the word, by NAME because ``SIGHUP`` does not exist on
@@ -127,11 +151,11 @@ CONSOLE_CTRL_END_REASONS: dict[int, str] = {
 #: hangup is the session going away, which is what ``logoff`` means on the other
 #: platform, and one vocabulary that reads the same on both is worth more than a
 #: sixth word that only ever appears on one.
-SIGNAL_END_REASONS: dict[str, str] = {"SIGTERM": "sigterm", "SIGHUP": "logoff"}
+SIGNAL_END_REASONS: dict[str, EndReason] = {"SIGTERM": EndReason.SIGTERM, "SIGHUP": EndReason.LOGOFF}
 
 #: What nothing-set-a-reason writes. Not a failure: a route this recorder was
 #: never taught, said plainly instead of guessed at.
-END_REASON_UNKNOWN = "unknown_exit"
+END_REASON_UNKNOWN = EndReason.UNKNOWN_EXIT
 
 #: ``uncaught:`` is the one open-ended word — the exception's type name is the
 #: whole value of it — and it is a PREFIX rather than a member below.
@@ -141,21 +165,7 @@ END_REASON_UNCAUGHT_PREFIX = "uncaught:"
 #: and a word it has never seen renders as a shrug. A caller that hands over
 #: anything else gets ``unknown_exit`` — the record says "I do not know", which
 #: is true, rather than passing an unvetted string through to an operator's UI.
-END_REASON_VOCABULARY: frozenset[str] = frozenset(
-    {
-        # the ordinary ends, one per code path
-        "drained",  # a drain op completed; _finish_drain owns it
-        "shutdown_op",  # {"op":"shutdown"} — an ORDER from the stdio owner
-        "stdin_eof",  # the pipe closed on a NON-service serve (see below)
-        # the operator and the OS
-        "ctrl_close",
-        "ctrl_c",
-        "sigterm",
-        "logoff",
-        # the fallback
-        END_REASON_UNKNOWN,
-    }
-)
+END_REASON_VOCABULARY: frozenset[str] = frozenset(member.value for member in EndReason)
 
 #: A type name arrives from ``type(exc).__name__`` and is therefore an
 #: identifier — but it reaches an operator's screen, so it is validated rather
