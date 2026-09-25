@@ -12,8 +12,9 @@ Why it exists
 Both fields were spelled as bare string literals inside
 ``hermes_cli/harness_parts/persona_commands.py``: 26 ``"execution_state"``
 sites across 7 values, 35 ``"error_kind"`` sites across 16 literal values plus
-4 dynamic ones. That file is ``exec``'d into ``harness.py``'s globals rather
-than imported, so nothing could import the vocabulary to check it, and 16
+4 dynamic ones. That file was ``exec``'d into ``harness.py``'s globals rather
+than imported (until lane H1; lane H3 split it into ``harness_parts/persona/``),
+so nothing could import the vocabulary to check it, and 16
 read-only Launcher consumers depend on the exact spellings. A typo was a silent
 wire break: the Launcher would simply not match, and no test in either repo
 would notice.
@@ -343,8 +344,9 @@ class ProviderRefusal:
         """What the caller should do next, in one sentence.
 
         Lives on the value object rather than inline in the CLI lane because
-        ``persona_commands.py`` is ``exec``'d into ``harness.py``'s globals and
-        cannot be imported — prose written there is prose no test can read. It
+        the answer belongs to the refusal, not to any one lane that reports it
+        (the CLI part was also ``exec``'d until lane H1, so prose written there
+        was prose no test could read). It
         names the WAIT when the provider named one, and it always says the turn
         needs no ``turn-resolve``, because the single most expensive thing the
         old behaviour did was send operators to that verb.

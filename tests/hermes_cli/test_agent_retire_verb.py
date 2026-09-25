@@ -240,9 +240,8 @@ def test_both_retire_doors_carry_the_SAME_console_identity(
     these through.
     """
 
-    # Patched on ``hermes_cli.harness``, not on ``persona_commands``: this file
-    # is exec'd into harness.py's globals, so the name the running handler
-    # resolves is harness's. A patch on the source module would go green while
+    # Patched where the running handler looks the name up (lanes H1/H3: the
+    # handler's own module). A patch anywhere else would go green while
     # the shipped path ran unpatched — the vacuous-test shape this repo has been
     # bitten by before.
 

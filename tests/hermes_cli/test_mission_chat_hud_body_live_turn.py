@@ -101,7 +101,7 @@ def _run_turn(harness, client_message_id: str) -> str:
 def test_a_live_turn_feeds_the_hud_body_including_the_board_digest(
     monkeypatch, capsys, isolate_agent_runtime_root, capturing_provider
 ):
-    """The whole join, end to end: real stores, the exec'd turn body, and the
+    """The whole join, end to end: real stores, the real turn body, and the
     bytes the provider received."""
 
     from agent_runtime.board_store import BoardStore

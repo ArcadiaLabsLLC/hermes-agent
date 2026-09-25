@@ -10,9 +10,9 @@ HUD and its snapshot/unchanged delivery, and the volatile tail the agent reads
 every single turn.
 
 All of that lived inside ``_cmd_mission_chat_message`` in
-``hermes_cli/harness_parts/persona_commands.py`` — a command part that is
-``exec``-loaded into ``harness.py``'s globals (``harness._load_command_parts``)
-rather than imported. That has a specific, expensive consequence: the assembly
+``hermes_cli/harness_parts/persona_commands.py`` — a command part that was
+``exec``-loaded into ``harness.py``'s globals until lane H1 (lane H3 split it
+into ``harness_parts/persona/``). That had a specific, expensive consequence: the assembly
 was not reachable by a unit test. Everything guarding it had to be an AST
 source-shape assertion ("this function calls ``render_capability_block`` and
 puts the result in a list named ``volatile_lines``"), which pins the SHAPE of the

@@ -413,10 +413,9 @@ def _persona_commands_tree() -> ast.Module:
 
 
 #: The single deliberate literal left in the CLI lane, and why. A default
-#: argument is evaluated when the ``def`` executes, and ``persona_commands.py``
-#: is EXEC'd into ``harness.py``'s globals — so the enum name cannot be bound
-#: yet without a module-level import there, which is the namespace collision
-#: the exec'd-part discipline forbids. Pinned to the member instead.
+#: argument is evaluated when the ``def`` executes, and until lane H1 the part
+#: was EXEC'd into ``harness.py``'s globals, where a module-level import was the
+#: namespace collision the exec'd-part discipline forbade. Pinned to the member.
 DECLARED_LITERAL_EXCEPTIONS = {
     ("_retired_persona_instance_refusal", "error_kind"): (
         ChatErrorKind.RETIRED_PERSONA_INSTANCE

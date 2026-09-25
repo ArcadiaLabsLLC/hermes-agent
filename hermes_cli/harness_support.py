@@ -69,12 +69,11 @@ __all__ = [
 def harness_repo_root() -> Path:
     """The hermes-agent checkout root, anchored to this file.
 
-    The command parts are exec'd into harness.py's globals, so a part reading
-    ``__file__`` sees *harness.py's* path, not its own — ``parents[1]`` there
-    means the repo root only by accident of harness.py living one level down.
-    Anchoring here removes that coupling: this module's ``__file__`` is
-    ``<repo>/hermes_cli/harness_support.py`` whether it is imported or a caller
-    is exec'd.
+    Until lane H1 the command parts were exec'd into harness.py's globals, so
+    a part reading ``__file__`` saw *harness.py's* path; since lane H3 a part
+    can also sit one package deeper (``harness_parts/persona/``). Anchoring
+    here keeps one answer for every caller: this module's ``__file__`` is
+    ``<repo>/hermes_cli/harness_support.py``.
     """
 
     return Path(__file__).resolve().parents[1]

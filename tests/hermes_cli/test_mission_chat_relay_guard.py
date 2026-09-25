@@ -270,8 +270,8 @@ def test_direct_operator_send_carries_no_relay_refusal(tmp_path, monkeypatch, ca
 # --------------------------------------------------------------------------- #
 # Omitted-session default resolution (relay threading)                        #
 #                                                                             #
-# persona_commands.py is an exec'd command part, so the wiring is pinned with #
-# an AST guard over the exact bytes exec'd — the same pattern the other       #
+# The wiring is pinned with an AST guard over the persona package's source — #
+# the same pattern the other                                                  #
 # mission-chat handler guards use (test_mission_chat_records_injection.py).   #
 # --------------------------------------------------------------------------- #
 

@@ -1,8 +1,8 @@
 """The mission-chat per-turn context, asserted on its OUTPUT rather than its shape.
 
 ``_cmd_mission_chat_message`` lives in ``hermes_cli/harness_parts/persona_commands.py``,
-a command part ``exec``-loaded into ``harness.py``'s globals rather than
-imported. Everything assembled inside it could therefore only ever be guarded by
+a command part that was ``exec``-loaded into ``harness.py``'s globals until lane
+H1. Everything assembled inside it could therefore only ever be guarded by
 AST source-shape assertions — "this function calls ``render_capability_block``
 and puts the result in a list literal named ``volatile_lines``". Those guards pin
 the SHAPE of the code and say nothing about the BYTES the agent receives: a
@@ -114,7 +114,7 @@ def _resolvers(**overrides) -> MissionChatTurnResolvers:
     """Every impure seam faked, so the builder runs with no runtime root.
 
     That this is POSSIBLE is the point of the extraction: the same assembly
-    inside the exec'd CLI body needed a live store, a skill catalog and a
+    inside the CLI body needed a live store, a skill catalog and a
     profile home before a single assertion could be made about it.
     """
 

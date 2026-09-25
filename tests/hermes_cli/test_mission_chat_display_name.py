@@ -19,8 +19,7 @@ from tests._downstream.persona_source import package_source, turn_body
 
 
 def _persona_commands_source() -> str:
-    # persona_commands.py is an exec'd command part (not importable); parse the
-    # file text, which is exactly what harness exec's into its globals.
+    # The persona package's source as one text (tests/_downstream/persona_source.py).
     return package_source()
 
 

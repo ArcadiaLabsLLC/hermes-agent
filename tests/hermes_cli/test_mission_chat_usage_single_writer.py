@@ -22,9 +22,8 @@ exactly one usage authority exists —
   row) → the function MUST NOT call ``_update_persona_chat_token_counts``;
   stacking the turn totals on top double-counts.
 
-persona_commands.py is an exec'd command part (harness._load_command_parts),
-not an importable module, so — like the record-at-injection guards — this
-parses the exact source text that gets exec'd.
+Like the record-at-injection guards, this parses the persona package's source
+(`tests/_downstream/persona_source.py`).
 """
 
 import ast

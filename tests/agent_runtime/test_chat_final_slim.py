@@ -2,7 +2,7 @@
 
 ``slim_chat_final_observability`` is the ONE shape the terminal frame embeds
 (ruling §7.3). It lives in ``agent_runtime.prompt_observability`` (importable)
-because ``persona_commands.py`` is exec'd into harness globals; these tests pin
+beside the row it projects; these tests pin
 the projection without driving the CLI. The harness-driven emission-shape guard
 (the sabotage anchor for the wire) lives in ``test_persona_assignments.py``.
 """

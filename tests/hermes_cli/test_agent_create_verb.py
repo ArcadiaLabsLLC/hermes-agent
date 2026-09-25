@@ -1037,9 +1037,8 @@ def test_a_refused_console_identity_stops_the_create_before_any_write(
     exist. ANTI-VACUITY is the store — a refusal that still wrote a row would
     leave one here.
 
-    Patched on ``hermes_cli.harness`` rather than on ``persona_commands``: that
-    file is exec'd into harness.py's globals, so the name the running handler
-    resolves is harness's, and a patch on the source module would go green while
+    Patched where the running handler looks the name up (lanes H1/H3: the
+    handler's own module), because a patch anywhere else would go green while
     the shipped path ran unpatched.
     """
 

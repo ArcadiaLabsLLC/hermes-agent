@@ -15,10 +15,7 @@ from tests._downstream.persona_source import package_source, turn_body
 
 
 def _mission_chat_message_func():
-    # persona_commands.py is an exec'd command part (harness._load_command_parts),
-    # not an importable module — its names (e.g. PersonaChatBusyError) live in
-    # hermes_cli.harness's globals. Parse the file source, which is exactly the
-    # text that gets exec'd.
+    # Parsed over the persona package's source (tests/_downstream/persona_source.py).
     import hermes_cli.harness as harness
 
     # Split on 2026-07-31: record-at-injection happens on the write side, which
@@ -68,7 +65,7 @@ def test_chat_turn_renders_the_same_dict_it_records():
     # (That the rendered body really IS the recorded dict is asserted on the
     # output in tests/agent_runtime/test_mission_chat_turn_context.py ::
     # test_the_body_the_envelope_carries_is_the_rendered_stable_hud — an
-    # assertion the exec'd CLI body could never support.)
+    # assertion the exec'd CLI body of the time could never support.)
     func = _mission_chat_message_func()
 
     recorded = set()

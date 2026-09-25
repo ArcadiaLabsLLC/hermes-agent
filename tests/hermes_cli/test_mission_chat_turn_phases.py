@@ -79,8 +79,8 @@ class _TickClock:
 def scripted_marks(monkeypatch):
     """Give the LIVE handler a scripted anchor.
 
-    ``persona_commands`` is exec'd into ``harness.py`` globals, so its import of
-    ``TurnPhaseMarks`` is function-local and re-executed on every turn — which
+    The turn's front door imports ``TurnPhaseMarks`` function-locally, so the
+    import is re-executed on every turn — which
     means patching the class on its owning module reaches the real handler
     without any seam existing in the handler itself.
     """

@@ -718,8 +718,8 @@ def attach_prompt_observability_turn_results(
     record-at-injection fields are deliberately NOT touched: the peek shows
     exactly what was fed, never a post-hoc re-derivation.
 
-    Lives here (not in the CLI part) because ``persona_commands.py`` is exec'd
-    into harness globals — nothing defined there is importable or unit-testable.
+    Lives here, not in the CLI lane (``harness_parts/persona/``), because it is
+    the row's own lifecycle, unit-tested beside the row it mutates.
     Mutates ``context`` in place and returns it.
     """
 
@@ -783,9 +783,8 @@ def slim_chat_final_observability(
 ) -> dict[str, Any]:
     """Project a built observability row down to the ``chat.final`` wire subset.
 
-    Pure and side-effect-free (``persona_commands.py`` is exec'd into harness
-    globals, so this lives here where it is importable/unit-testable and is
-    called at the emit site). ONE shape (ruling 0): always returns the same key
+    Pure and side-effect-free, beside the row it projects, and called at the
+    CLI lane's emit site (``harness_parts/persona/``). ONE shape (ruling 0): always returns the same key
     set, and the collection-typed fields keep their empty shape (``{}`` / ``[]``)
     even if the row lacked them, so the launcher never decodes a ``null`` where
     it expects a map or list. Never mutates ``context`` and never re-derives
@@ -3646,8 +3645,7 @@ def turn_usage_from_result(result: Any) -> dict[str, int] | None:
     context budget must show; the sums are what the message cost.
 
     Lives here, beside the envelope contract it feeds, rather than in the CLI
-    command part — `hermes_cli/harness_parts/persona_commands.py` is exec'd into
-    harness globals, so nothing defined there is importable or unit-testable.
+    lane (`hermes_cli/harness_parts/persona/`), which only reads it.
     """
     if result is None:
         return None

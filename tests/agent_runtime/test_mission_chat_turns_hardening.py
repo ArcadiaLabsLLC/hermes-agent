@@ -540,8 +540,7 @@ def test_chat_emitter_carries_explicit_empty_todo_state_on_both_lanes():
     # explicit empty list, and it must ride BOTH the turn-store element and the
     # live tool.finished frame so the launcher can clear its panel. A non-todo
     # tool still gains no key on either lane.
-    # The emitter is exec'd into the `harness` namespace (harness_parts pattern),
-    # so it resolves as `harness._ChatProtocolV2Emitter`, not a standalone import.
+    # The emitter lives in `harness_parts/persona/chat_events.py` (lane H3).
 
     def _drive(payload):
         frames: list[dict] = []

@@ -9,7 +9,7 @@ cannot quietly reintroduce the resolve instruction or drop the typed fields.
 
 **Executable, not source-shaped (2026-07-31).** Six guards here used to
 ``ast.parse`` the command part and assert on dict-literal STRINGS, because
-``persona_commands.py`` is an ``exec``'d command part rather than an importable
+``persona_commands.py`` was an ``exec``'d command part (until lane H1) rather than an importable
 module. That was a workaround for a missing seam, and it carried the usual cost
 of one: it pinned the SPELLING of a literal, not the BEHAVIOUR, so it passed
 just as happily against a lane that never reached the payload at all. Now that

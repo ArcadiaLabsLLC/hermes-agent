@@ -93,7 +93,7 @@ def test_the_handler_no_longer_reads_the_retired_namespace_attributes():
     gate there had the SAME hole spelled the other way round.
     """
 
-    # persona_commands.py is exec'd into harness.py's globals, not imported.
+    # The handler lives in harness_parts/persona/inspect_commands.py (lane H3).
 
     source = inspect.getsource(inspect_commands._cmd_persona_tool_diff)
     assert namespace_reads(source).isdisjoint({"task_id", "goal_id"})

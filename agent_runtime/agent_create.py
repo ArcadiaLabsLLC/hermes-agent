@@ -27,12 +27,12 @@ Where this deviates from the plan, out loud
 -------------------------------------------
 ``archive/2026-08-22-pre-consolidation/AGENT_CREATE_ONE_CALL_PLAN_2026-08-16.md`` AC-0 says the extraction goes
 "UPWARD, not downward" — into the CLI's ``persona_commands.py``. That direction
-is not available: ``persona_commands.py`` is not an importable module. It is
-``exec``'d into ``hermes_cli/harness.py``'s globals
-(``harness.py:3667-3674``), and its functions close over names that live in
-those globals and nowhere else — importing it and calling ``_persona_by_id``
-raises ``NameError``. So the shared layer has to land somewhere BOTH lanes can
-import, which is here, and the CLI calls down into it. The plan's requirement
+was not available when this landed: the file was ``exec``'d into
+``hermes_cli/harness.py``'s globals and its functions closed over names that
+lived nowhere else. It is an importable package now
+(``hermes_cli/harness_parts/persona/``, lanes H1/H3), but the direction stays
+right on its own terms: the shared layer lives where BOTH lanes can import it
+without a CLI dependency, which is here, and the CLI calls down into it. The plan's requirement
 ("the CLI and the RPC handler share one copy", "do not invent a second rule")
 is met; only its stated direction is not.
 

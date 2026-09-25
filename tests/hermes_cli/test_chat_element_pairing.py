@@ -8,7 +8,7 @@ elements came out CROSSED. Element `[0]`'s `summary` named one skill while its
 `read_file` pairs in the same turn. A trace an operator debugs from was
 attributing each call's input to its neighbour.
 
-The emitter is an exec'd command part, so these drive it exactly the way the
+These drive the emitter (`persona/chat_events.py`) exactly the way the
 mission-chat handler does: construct it with frames suppressed and feed it the
 runner's `run.tool.started` / `run.tool.finished` progress payloads.
 """

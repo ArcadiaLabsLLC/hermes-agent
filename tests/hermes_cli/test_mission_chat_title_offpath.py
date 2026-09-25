@@ -5,9 +5,8 @@ call. It writes SessionDB-only state that NOTHING in the terminal frame depends
 on, so it must run AFTER the terminal frame is emitted — not between the last
 streamed delta and `chat.final`, where the operator's console visibly hangs.
 
-`persona_commands.py` is an exec'd command part (harness._load_command_parts),
-not an importable module for its full turn handlers, so the ORDERING is pinned
-with an AST guard over the exact source text that gets exec'd (the same pattern
+The ORDERING is pinned with an AST guard over the persona package's source
+(`tests/_downstream/persona_source.py`; the same pattern
 `test_mission_chat_records_injection.py` uses). The SWALLOW contract the
 post-emit placement relies on — a title failure can never propagate and corrupt
 the one-JSON-object stdout / flip the exit code — is pinned behaviorally through
@@ -55,8 +54,7 @@ EMIT_SEAM = "_mission_chat_emit"
 
 
 def _persona_commands_tree() -> ast.Module:
-    # Parse the exact bytes harness._load_command_parts() exec's — the handlers
-    # are not importable functions, so structural ordering is asserted on source.
+    # Structural ordering is asserted on the persona package's source.
     import hermes_cli.harness as harness
 
     return ast.parse(package_source())

@@ -1,8 +1,7 @@
 """C8 guards — the retired lanes stay retired (ruling: one ordering authority).
 
-`persona_commands.py` is an exec'd command part (harness._load_command_parts),
-so the retirements are pinned with AST/source guards over the exact bytes that
-get exec'd (the accepted pattern — see test_mission_chat_title_offpath.py):
+The retirements are pinned with AST/source guards over the persona package's
+source (`tests/_downstream/persona_source.py`; see test_mission_chat_title_offpath.py):
 
 * the legacy ``chat.delta`` wire lane is GONE — no emitter method, no frame
   writer, no double-emit per token (ruling 0: one shape);

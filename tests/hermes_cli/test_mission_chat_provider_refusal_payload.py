@@ -2,8 +2,7 @@
 
 Sibling of ``test_mission_chat_budget_payload`` and written the same way —
 driving the real ``_cmd_mission_chat_message`` and reading the emitted envelope
-plus the persisted journal record, never the source text of a file that is
-``exec``'d and cannot be imported.
+plus the persisted journal record, never the source text of the handler.
 
 The 2026-09-11 incident: the operator's OpenAI Codex plan ran out, the provider
 answered ``HTTP 429`` with ``error.type = usage_limit_reached``, and Mission

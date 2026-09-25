@@ -371,10 +371,8 @@ def test_a_process_that_pins_its_own_runtime_root_skips_the_declaration(
 def _mint_on_the_cli_lane(session_id: str) -> None:
     """Mint a persona-chat session through the REAL CLI-lane acquisition.
 
-    ``harness_parts/persona_commands.py`` is exec'd into ``hermes_cli.harness``'s
-    globals (``_load_command_parts``), so the harness module IS the import
-    surface for its helpers — importing the part file directly would compile it
-    without the harness globals it is written against.
+    The session-DB acquisition the CLI lane itself calls, imported from the
+    module that looks it up (``harness_parts/persona/``, lanes H1/H3).
     """
 
     from hermes_cli.harness_parts.persona.chat_delete import _default_persona_session_db

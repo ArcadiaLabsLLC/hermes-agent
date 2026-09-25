@@ -4,8 +4,8 @@ What this file used to be
 -------------------------
 Before ``agent_runtime.mission_chat_turn_context``, the entire per-turn assembly
 (wall budget, capability account, situational HUD, volatile tail) lived inside
-``_cmd_mission_chat_message``. That function is in an ``exec``-loaded command
-part (``harness._load_command_parts``), not an importable module, so the only
+``_cmd_mission_chat_message``. That function was in an ``exec``-loaded command
+part until lane H1, not an importable module, so the only
 guards available were AST source-shape assertions: "the body calls
 ``capability_block_for_persona`` exactly once", "the result of
 ``render_capability_block`` appears in a list literal named ``volatile_lines``",
@@ -107,14 +107,14 @@ def test_the_cli_body_resolves_no_per_turn_policy_of_its_own(name):
 
     Everything in ``_POLICY_CALLS`` is per-turn policy that now belongs to
     ``agent_runtime.mission_chat_turn_context``, where it is unit-testable. A
-    call reappearing here means the assembly leaked back into the exec'd body —
+    call reappearing here means the assembly leaked back into the CLI body —
     and with it, the AST-guards-only regime this refactor retired.
     """
 
     func = _mission_chat_message_func()
     assert not _calls_named(func, name), (
         f"{name}() is per-turn policy: call it through "
-        "build_mission_chat_turn_context, not inside the exec'd CLI body "
+        "build_mission_chat_turn_context, not inside the CLI body "
         "(see agent_runtime/mission_chat_turn_context.py)"
     )
 
