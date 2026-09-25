@@ -103,12 +103,14 @@ def _source_from_path(path: str, skill: str, args):
 
 
 #: The explicit promotion sources, in the order a refusal names them:
-#: ``(flag, args attribute, resolver)``. At most one may be given; none means
-#: the implied source — exactly one realm inbox holding the skill.
+#: ``(flag, reader, resolver)``. At most one may be given; none means the
+#: implied source — exactly one realm inbox holding the skill. Each reader is
+#: spelled as ``args.<dest>`` so the flag-reachability gate sees the read; a
+#: ``getattr(args, attr)`` over the table's attribute name is invisible to it.
 _PROMOTION_SOURCES = (
-    ("--from-realm", "from_realm", _source_from_realm),
-    ("--from-profile", "from_profile", _source_from_profile),
-    ("--from-path", "from_path", _source_from_path),
+    ("--from-realm", lambda args: args.from_realm, _source_from_realm),
+    ("--from-profile", lambda args: args.from_profile, _source_from_profile),
+    ("--from-path", lambda args: args.from_path, _source_from_path),
 )
 
 
@@ -124,8 +126,8 @@ def _resolve_promotion_source(args, skill: str):
 
     given = [
         (flag, value, resolve)
-        for flag, attr, resolve in _PROMOTION_SOURCES
-        if (value := str(getattr(args, attr, "") or "").strip())
+        for flag, read, resolve in _PROMOTION_SOURCES
+        if (value := str(read(args) or "").strip())
     ]
 
     if len(given) > 1:
