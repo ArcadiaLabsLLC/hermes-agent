@@ -247,10 +247,10 @@ empty canvas whose owner is live is intended, not garbage
 
 What the graph does *not* do: schedule, gate, or execute. It feeds the agent's
 `## Runtime Situation` block, whose declared field roster
-(`runtime_hud.py:151` `HUD_FIELDS`) is `preview · scope · lane · mission ·
+(`runtime_hud/fields.py:72` `HUD_FIELDS`) is `preview · scope · lane · mission ·
 roster · steering · board` plus two volatile rows (`turn_budget`, capability).
 Steering is the one block always emitted, because an explicit empty block is
-the honest "standalone" answer (`runtime_hud.py:721-725`).
+the honest "standalone" answer (`runtime_hud/hud.py:199-203`).
 
 ## Realms and workspaces
 

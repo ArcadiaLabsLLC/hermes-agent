@@ -220,7 +220,6 @@
   "agent_runtime/run_budget.py",
   "agent_runtime/running_work.py",
   "agent_runtime/runtime_config.py",
-  "agent_runtime/runtime_hud.py",
   "agent_runtime/runtime_instances.py",
   "agent_runtime/scope_activation.py",
   "agent_runtime/serde.py",
