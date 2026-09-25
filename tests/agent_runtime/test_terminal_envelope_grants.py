@@ -323,6 +323,8 @@ def test_config_load_fault_grants_nothing(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "agent_runtime.config.load_root_runtime_config", _boom, raising=False
     )
+    # grants reads the policy submodule (the package door is ``stores``).
+    monkeypatch.setattr("agent_runtime.config.loader.load_root_runtime_config", _boom)
     decision = envelope_decision("git push origin main", scope=_dev_scope(tmp_path))
     assert decision.outcome == OUTCOME_REFUSE
     assert decision.failure_class == ENVELOPE_COMMAND_REQUIRES_GRANT

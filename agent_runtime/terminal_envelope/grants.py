@@ -44,7 +44,7 @@ def envelope_config(cfg: Any | None = None):
         resolved = getattr(cfg, "terminal_envelope", None)
         return resolved if resolved is not None else TerminalEnvelopeConfig()
     try:
-        from ..config import load_root_runtime_config
+        from ..config.loader import load_root_runtime_config
 
         return load_root_runtime_config().terminal_envelope
     except Exception:  # pragma: no cover - defensive; a config fault must not open the gate
@@ -53,7 +53,7 @@ def envelope_config(cfg: Any | None = None):
 
 
 def _lanes_for_role(grants: Mapping[str, Any], canon_role: str) -> Any:
-    """The lane map for a role, honoring :data:`_ROLE_ALIASES` on config keys.
+    """The lane map for a role, honoring the persona aliases (:func:`canonical_role`) on config keys.
 
     The canonical spelling wins outright when present; an alias is only
     consulted when the canonical key is absent. Never unions the two — a
