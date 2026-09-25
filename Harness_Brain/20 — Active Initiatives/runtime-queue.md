@@ -115,7 +115,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-25 (lane S2B)
 
-- [ ] **the alice_supervisor ⇄ neko_supervisor alias: one copy left, `terminal_envelope._ROLE_ALIASES` (one-way)** · `fork / config` · the owner `personas.persona_id_aliases` exists and `config`'s three copies folded onto it (lane 2B-C config CHANGE); `terminal_envelope.canonical_role` folds in lane 2B-B's CHANGE · evidence: `terminal_envelope.md` §3, `config.md` §2 · filed by lane S2B 2026-09-25 **UNCLAIMED**
+- [ ] **the alice_supervisor ⇄ neko_supervisor alias: one copy left, `terminal_envelope._ROLE_ALIASES` (one-way)** · `fork / config` · the owner `personas.persona_id_aliases` exists and `config`'s three copies folded onto it (lane 2B-C config CHANGE); `terminal_envelope.canonical_role` folds in lane 2B-B's CHANGE · evidence: `terminal_envelope.md` §3, `config.md` §2 · filed by lane S2B 2026-09-25 **UNCLAIMED** **TAKEN 2026-09-25 lane 2B-B**
 
 ### Filed on arrival — 2026-09-25 (lane S2A)
 
