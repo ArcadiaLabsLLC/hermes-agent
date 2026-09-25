@@ -159,10 +159,6 @@
   },
   {
    "arms": 4,
-   "site": "agent_runtime/stream/vocabulary.py|_redaction_safe_json|isinstance|value"
-  },
-  {
-   "arms": 4,
    "site": "agent_runtime/sync_merge.py|classify_three_way_pull|ladder|ls"
   },
   {

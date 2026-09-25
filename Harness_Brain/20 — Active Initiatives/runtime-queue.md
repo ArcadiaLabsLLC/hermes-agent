@@ -25,6 +25,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 
 
+### Filed on arrival — 2026-09-25 (lane B4)
+
+- [ ] **The stream watchdog appends a spurious `state.reconciled` one heartbeat after the first evented delta** · `fork / stream` · on a fresh home, `WorkspaceStore().set_active(...)` under a live `stream_frames` ships `delta workspace.activated` and then `delta state.reconciled`: the pass adopts its pre-batch fingerprint, so something the delta's OWN core build writes moves `_scope_fingerprint` again, and each spurious reconcile is one uncovered batch = one full-core build. Identical on the MOVE tree (be4c9d4a95), so not introduced by the split. Find the self-perturbing path (`agent_runtime/stream/fingerprint.py`'s three families vs what `snapshot.build` creates) and exclude or pre-create it, landing the adopt-and-stay-quiet control lane B4 drafted (`test_an_evented_write_adopts_its_fingerprint_and_never_reconciles`, withdrawn because it is red on the untouched code) · evidence: lane B4 report 2026-09-25 · lane B4
+
 ### Filed on arrival — 2026-09-25 (lane 2B-A)
 
 

@@ -33,7 +33,6 @@ Row grammar: `- [ ] **symbol** · file · lines · class · evidence · lane`. C
 - [ ] **`isolated_repo_context_for_run [if @108]`** · `agent_runtime/repo_context.py` 109-119 · 11 · DECIDE (delete / field-only / untested live) · census: `agent_runtime/repo_context.py:109-119 isolated_repo_context_for_run [if @108] arm 11 lines, 0 hits` · R4 · VERDICT 2026-09-25 (lane Q-DEAD-B): DESIGN — one unit with the `repo_execution_context_for_task` row above **TAKEN 2026-09-25 lane Q-DEAD-B**
 - [ ] **`existing_run_worktrees`** · `agent_runtime/repo_context.py` 379-398 · 20 · DECIDE (delete / field-only / untested live) · census: `agent_runtime/repo_context.py:379-398 existing_run_worktrees function 20 lines, 0 hits` · R4 · VERDICT 2026-09-25 (lane Q-DEAD-B): DESIGN — one unit with the `repo_execution_context_for_task` row above **TAKEN 2026-09-25 lane Q-DEAD-B**
 - [ ] **`remove_harness_worktree_for_repo`** · `agent_runtime/repo_context.py` 484-494 · 11 · DECIDE (delete / field-only / untested live) · census: `agent_runtime/repo_context.py:484-494 remove_harness_worktree_for_repo function 11 lines, 0 hits` · R4 · VERDICT 2026-09-25 (lane Q-DEAD-B): DESIGN — one unit with the `repo_execution_context_for_task` row above **TAKEN 2026-09-25 lane Q-DEAD-B**
-- [ ] **`stream_frames [if @1583]`** · `agent_runtime/stream.py` 1584-1603 · 20 · DECIDE (delete / field-only / untested live) · census: `agent_runtime/stream.py:1584-1603 stream_frames [if @1583] arm 20 lines, 0 hits` · R3 **TAKEN 2026-09-25 lane B4**
 
 ## Owed censuses (rows arrive when they run)
 

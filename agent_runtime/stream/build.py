@@ -8,7 +8,9 @@ import time
 from collections.abc import Iterable, Iterator
 from typing import Any
 
-from .. import core_cache, demote_core_reuse
+from .. import demote_core_reuse
+from ..core_cache.lane import REFUSAL_CORE_BEHIND_FRAME, close_cache_lane
+from ..core_cache.shadow import shadow_validate
 from ..models import Event
 from ..parity import core_event_offset
 from ..patch_coverage import batch_required_fold_tokens, normalize_fold_entities
@@ -18,9 +20,9 @@ from ..snapshot.receipts import BUILD_ROLE_REUSED
 
 from .build_policy import _defer_demote_build_for_active_turns, _log_snapshot_build
 from .frames import batch_carries_patch_rows, delta_batch_frame, fold_variants_frame, heartbeat_frame, patch_batch_frame
-from .vocabulary import BATCH_REASON_DEMOTE, DEFAULT_STREAM_CALLER, _SNAPSHOT_CANCEL_POLL_SECONDS
+from .vocabulary import BATCH_REASON_DEMOTE, DEFAULT_STREAM_CALLER, FRAME_HEARTBEAT, _SNAPSHOT_CANCEL_POLL_SECONDS
 
-__layer__ = "wiring"
+__layer__ = "lanes"
 
 
 def _bounded_sleep(poll_interval_seconds: float) -> None:
@@ -194,7 +196,7 @@ def _full_core_batch_frames(
     one does not" report.
 
     The producer of a stale core here is the boot cache lane, and closing that
-    lane's window correctly (``core_cache.shadow_validate``) is the root fix — but
+    lane's window correctly (``shadow_validate``) is the root fix — but
     it is NOT sufficient, which is why this guard is not belt-and-braces. The
     operator's log shows the same shape on 2026-08-20 at 18:30:11 and 18:38:43,
     where the boot's shadow validation DIVERGED and closed the window about ten
@@ -281,8 +283,8 @@ def _full_core_batch_frames(
         # one (``accept_inflight`` is default-off here, deliberately). So the
         # answer is to stop the lane and pay for the build once, rather than to
         # ship a frame whose watermark is a lie about its own core.
-        core_cache.close_cache_lane(
-            reason=core_cache.REFUSAL_CORE_BEHIND_FRAME,
+        close_cache_lane(
+            reason=REFUSAL_CORE_BEHIND_FRAME,
             caller=caller,
             detail=f"core_offset={core_offset} frame_offset={last_offset}",
         )
@@ -375,7 +377,7 @@ def _batch_frames_with_liveness(
                 # says the producer is alive while a core builds, which is the
                 # same true sentence for every subscriber in the room and
                 # carries no state either half could disagree about.
-                if frame.get("type") == "heartbeat":
+                if frame.get("type") == FRAME_HEARTBEAT:
                     yield frame
                     continue
                 yield fold_variants_frame(

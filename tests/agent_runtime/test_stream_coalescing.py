@@ -154,6 +154,40 @@ def test_a_backlog_one_over_the_cap_flushes_mid_pass_and_chains_without_a_gap(
     assert second["coalesced_count"] == 1
     assert second["watermark"]["event_offset"] == offsets[cap]
 
+
+def test_a_flush_marks_a_delta_but_never_a_heartbeat(monkeypatch, isolate_agent_runtime_root):
+    """Positive control for ``StreamSession.flush``'s bookkeeping: any frame but a
+    heartbeat marks the pass as having shipped a delta (which is what adopts the
+    fingerprint candidate); a liveness heartbeat alone never does."""
+
+    from agent_runtime.stream.session import StreamSession
+
+    session = StreamSession(
+        event_log=EventLog(),
+        poll_interval_seconds=0.01,
+        heartbeat_interval_seconds=60,
+        delta_debounce_seconds=0,
+        max_frames=None,
+        resync=False,
+        fold_entities=None,
+        promote_fold_entities=None,
+        fold_room=None,
+        caller="test",
+        wants_stale_first=False,
+    )
+    cases = (
+        ([{"type": "heartbeat"}], False),
+        ([{"type": "heartbeat"}, {"type": "delta"}], True),
+    )
+    for shipped, expected in cases:
+        patch_where_bound(
+            monkeypatch, stream_mod, "_batch_frames_with_liveness", lambda *a, _out=shipped, **k: iter(_out)
+        )
+        session.emitted_delta = False
+        session.pending = [(1, None)]
+        assert list(session.flush()) == shipped
+        assert session.emitted_delta is expected
+
 def test_stream_single_event_keeps_delta_batch_golden_shape(
     isolate_agent_runtime_root,
 ):
