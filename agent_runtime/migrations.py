@@ -74,7 +74,7 @@ def validate_runtime_config(cfg: AgentRuntimeConfig | None = None) -> dict[str, 
 
 
 def _runtime_default_warnings() -> list[dict[str, str]]:
-    from .config import describe_runtime_default_authority
+    from .config import OVERRIDE_STATE_REDUNDANT, OVERRIDE_STATE_SHADOWING, describe_runtime_default_authority
 
     try:
         authority = describe_runtime_default_authority()
@@ -83,7 +83,7 @@ def _runtime_default_warnings() -> list[dict[str, str]]:
     warnings: list[dict[str, str]] = []
     override = authority.get("harness_override", {})
     top = authority.get("top_level", {})
-    if override.get("model_state") == "shadowing":
+    if override.get("model_state") == OVERRIDE_STATE_SHADOWING:
         warnings.append({
             "field": "agent_runtime.default_model",
             "reason": (
@@ -92,7 +92,7 @@ def _runtime_default_warnings() -> list[dict[str, str]]:
                 "remove it unless the harness is deliberately pinned"
             ),
         })
-    elif override.get("model_state") == "redundant":
+    elif override.get("model_state") == OVERRIDE_STATE_REDUNDANT:
         warnings.append({
             "field": "agent_runtime.default_model",
             "reason": (

@@ -5,7 +5,7 @@ Map: ``agent_runtime/config/__init__.py``.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable, Mapping
 
 import yaml
 
@@ -16,6 +16,7 @@ from ..permission_modes import (
     SUPPORTED_PERMISSION_MODES,
     normalize_permission_mode,
 )
+from ..serde import positive_float, positive_int
 from ..runtime_config import CoordinatorPermissionConfig, EventLogConfig, McpAdmissionConfig, MissionChatConfig, PersonaChatConfig, ReadModelConfig, SupervisionConfig, TerminalEnvelopeConfig, ToolPermissionConfig
 from .schema import (
     MCP_ADMISSION_MAX_TOOL_CALLS_CEILING,
@@ -29,12 +30,10 @@ from .schema import (
 __layer__ = "policy"
 
 
-def _clean_config_str(value: Any) -> str | None:
-    """Return a stripped non-empty string, else None (empty/whitespace == unset)."""
-    if not isinstance(value, str):
-        return None
-    trimmed = value.strip()
-    return trimmed or None
+def _mapping(raw: Any) -> dict[str, Any]:
+    """A section's mapping, or ``{}`` for any other YAML shape (a malformed block is an absent one)."""
+
+    return raw if isinstance(raw, dict) else {}
 
 
 def _string_list(value: Any) -> list[str]:
@@ -62,7 +61,7 @@ def _read_model_config(raw: dict[str, Any]) -> ReadModelConfig:
     # operator root still carries ``read_model.enabled: true``, and a config that
     # sets a key the runtime no longer implements must load and be ignored rather
     # than fault the whole runtime out of a boot.
-    raw = raw if isinstance(raw, dict) else {}
+    raw = _mapping(raw)
     defaults = ReadModelConfig()
     filename = str(raw.get("db_filename", defaults.db_filename) or defaults.db_filename).strip()
     if not filename or "/" in filename or "\\" in filename:
@@ -76,7 +75,7 @@ def _read_model_config(raw: dict[str, Any]) -> ReadModelConfig:
 
 
 def _persona_chat_config(raw: dict[str, Any]) -> PersonaChatConfig:
-    raw = raw if isinstance(raw, dict) else {}
+    raw = _mapping(raw)
     defaults = PersonaChatConfig()
     return PersonaChatConfig(
         hot_sessions_enabled=bool(
@@ -106,7 +105,7 @@ def _mission_chat_config(raw: dict[str, Any]) -> MissionChatConfig:
     single turn outlives the mission deadline. Clamping (rather than rejecting)
     keeps a fat-fingered stanza from failing every turn on the lane."""
 
-    raw = raw if isinstance(raw, dict) else {}
+    raw = _mapping(raw)
     defaults = MissionChatConfig()
     return MissionChatConfig(
         default_max_seconds=_clamped_positive_float(
@@ -170,7 +169,7 @@ def _compaction_threshold_tokens(value: Any, default: int) -> int:
 
 
 def _event_log_config(raw: dict[str, Any]) -> EventLogConfig:
-    raw = raw if isinstance(raw, dict) else {}
+    raw = _mapping(raw)
     defaults = EventLogConfig()
     cap = raw.get("rotation_cap_bytes", defaults.rotation_cap_bytes)
     try:
@@ -185,7 +184,7 @@ def _event_log_config(raw: dict[str, Any]) -> EventLogConfig:
 
 
 def _supervision_config(raw: dict[str, Any]) -> SupervisionConfig:
-    raw = raw if isinstance(raw, dict) else {}
+    raw = _mapping(raw)
     defaults = SupervisionConfig()
     return SupervisionConfig(
         child_events_enabled=bool(raw.get("child_events_enabled", defaults.child_events_enabled)),
@@ -217,9 +216,9 @@ def _mcp_admission_config(raw: dict[str, Any]) -> McpAdmissionConfig:
     not be reachable by a config typo either.
     """
 
-    raw = raw if isinstance(raw, dict) else {}
+    raw = _mapping(raw)
     defaults = McpAdmissionConfig()
-    timeout = _optional_float(raw.get("connect_timeout_seconds"))
+    timeout = positive_float(raw.get("connect_timeout_seconds"))
     if timeout is None or timeout <= 0:
         timeout = defaults.connect_timeout_seconds
     return McpAdmissionConfig(
@@ -246,7 +245,7 @@ def _tool_permission_config(raw: dict[str, Any]) -> ToolPermissionConfig:
     the one place this block behaves like the deny-by-default policies beside it.
     """
 
-    raw = raw if isinstance(raw, dict) else {}
+    raw = _mapping(raw)
     if "default_mode" not in raw:
         return ToolPermissionConfig()
     text = normalize_permission_mode(raw.get("default_mode"))
@@ -286,7 +285,7 @@ def _terminal_envelope_config(raw: dict[str, Any]) -> TerminalEnvelopeConfig:
     at a stanza that appears to be in force.
     """
 
-    raw = raw if isinstance(raw, dict) else {}
+    raw = _mapping(raw)
     grants: dict[str, dict[str, Any]] = {}
     raw_grants = raw.get("grants")
     if isinstance(raw_grants, dict):
@@ -306,43 +305,30 @@ def _terminal_envelope_config(raw: dict[str, Any]) -> TerminalEnvelopeConfig:
     return TerminalEnvelopeConfig(grants=grants)
 
 
-def _positive_int(value: Any, default: int) -> int:
-    try:
-        number = int(value)
-    except (TypeError, ValueError):
-        return default
-    return number if number > 0 else default
-
-
 def _clamped_positive_int(value: Any, default: int, *, minimum: int, maximum: int) -> int:
-    number = _positive_int(value, default)
+    number = positive_int(value, default=default)
     return max(minimum, min(maximum, number))
 
 
 def _clamped_positive_float(value: Any, default: float, *, minimum: float, maximum: float) -> float:
-    number = _optional_float(value)
+    number = positive_float(value)
     if number is None:
         number = default
     return max(minimum, min(maximum, float(number)))
 
 
-
-
-def _optional_int(value: Any) -> int | None:
-    if value is None or isinstance(value, bool):
-        return None
-    try:
-        number = int(value)
-    except (TypeError, ValueError):
-        return None
-    return number if number > 0 else None
-
-
-def _optional_float(value: Any) -> float | None:
-    if value is None or isinstance(value, bool):
-        return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    return number if number > 0 else None
+#: THE section table (rule 12): one row per ``RuntimeConfig`` section, the key
+#: its ``agent_runtime.<key>`` block and its dataclass field. The loader iterates
+#: it; ``tests/agent_runtime/test_config.py`` pins its keys to the dataclass's
+#: section fields, because a missing row is silent — the field keeps its default.
+SECTION_PARSERS: Mapping[str, Callable[[Any], Any]] = {
+    "read_model": _read_model_config,
+    "persona_chat": _persona_chat_config,
+    "event_log": _event_log_config,
+    "supervision": _supervision_config,
+    "coordinator_permissions": _coordinator_permission_config,
+    "mission_chat": _mission_chat_config,
+    "mcp_admission": _mcp_admission_config,
+    "terminal_envelope": _terminal_envelope_config,
+    "tool_permissions": _tool_permission_config,
+}

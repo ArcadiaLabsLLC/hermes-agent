@@ -9,9 +9,10 @@ import logging
 from typing import Any
 
 from ..personas import PROFILE_ROLE_SENTINEL, validate_toolsets
+from ..serde import positive_float, positive_int
 from .loader import load_agent_runtime_config
 from .schema import AgentRuntimeConfig
-from .sections import _optional_float, _optional_int, _string_list
+from .sections import _string_list
 
 logger = logging.getLogger(__name__)
 
@@ -67,10 +68,10 @@ def persona_records_from_config(cfg: AgentRuntimeConfig | None = None):
             field=f"agent_runtime.personas.{persona_id}.repo_scope",
         )
         p.repo_scope_label = overrides.get("repo_scope_label", p.repo_scope_label)
-        p.iteration_budget = _optional_int(overrides.get("iteration_budget", p.iteration_budget))
-        p.max_wall_seconds = _optional_float(overrides.get("max_wall_seconds", p.max_wall_seconds))
-        p.max_api_calls = _optional_int(overrides.get("max_api_calls", p.max_api_calls))
-        p.max_total_tokens = _optional_int(overrides.get("max_total_tokens", p.max_total_tokens))
+        p.iteration_budget = positive_int(overrides.get("iteration_budget", p.iteration_budget))
+        p.max_wall_seconds = positive_float(overrides.get("max_wall_seconds", p.max_wall_seconds))
+        p.max_api_calls = positive_int(overrides.get("max_api_calls", p.max_api_calls))
+        p.max_total_tokens = positive_int(overrides.get("max_total_tokens", p.max_total_tokens))
         if "skills" in overrides or "skills_remove" in overrides:
             additions = _string_list(overrides.get("skills", []))
             removals = set(_string_list(overrides.get("skills_remove", [])))

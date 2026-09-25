@@ -50,13 +50,18 @@ from agent_runtime.config.schema import (  # noqa: F401 — the vocabulary
     TOOL_PERMISSION_DEFAULT_MODE_UNKNOWN,
     AgentRuntimeConfig,
 )
-from agent_runtime.config.sections import (  # noqa: F401 — the three test-pinned parsers + two
+from agent_runtime.config.sections import (  # noqa: F401 — THE section table + the test-pinned parsers
+    SECTION_PARSERS,
     _event_log_config,
     _mcp_admission_config,
     _mission_chat_config,
     _read_model_config,
 )
 from agent_runtime.config.loader import (  # noqa: F401
+    OVERRIDE_STATE_ABSENT,
+    OVERRIDE_STATE_OVERRIDE_ONLY,
+    OVERRIDE_STATE_REDUNDANT,
+    OVERRIDE_STATE_SHADOWING,
     describe_runtime_default_authority,
     harness_root_config_path,
     load_agent_runtime_config,

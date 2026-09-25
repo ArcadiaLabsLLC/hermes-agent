@@ -47,6 +47,22 @@ class AutonomyLevel(StrEnum):
 # operator chat turn. Unknown roles remain data and ``validate_toolsets`` applies
 # no role-specific ceiling.
 PROFILE_ROLE_SENTINEL = "profile"
+
+#: Historical persona-id spellings, BOTH directions: a key persisted under one
+#: spelling is also consulted (never substituted) under the other. The one
+#: owner of the ``alice_supervisor`` <-> ``neko_supervisor`` alias.
+_PERSONA_ID_ALIASES: dict[str, tuple[str, ...]] = {
+    "alice_supervisor": ("neko_supervisor",),
+    "neko_supervisor": ("alice_supervisor",),
+}
+
+
+def persona_id_aliases(persona_id: str) -> tuple[str, ...]:
+    """The OTHER spellings ``persona_id`` is also known by (``()`` for most ids)."""
+
+    return _PERSONA_ID_ALIASES.get(str(persona_id or "").strip(), ())
+
+
 def coerce_agent_role(role: AgentRole | str | None) -> AgentRole | str:
     """Resolve a persona role token to an ``AgentRole``.
 

@@ -2,7 +2,6 @@
  "body_groups": [
   "agent/charsheet/draft.py::_sheet_revision == hermes_cli/harness_parts/pets_commands.py::_pet_sheet_revision",
   "agent/charsheet/palette.py::_as_rgba == agent/charsheet/pipeline.py::_open_rgba",
-  "agent_runtime/config/sections.py::_clean_config_str == agent_runtime/mission_chat_outcome.py::_text",
   "agent_runtime/default_scope.py::_get_realm == agent_runtime/default_scope.py::_get_workspace",
   "agent_runtime/mcp_admission.py::_positive_float == agent_runtime/relay_policy.py::parse_deadline_epoch",
   "agent_runtime/mcp_lane.py::_clean == agent_runtime/tool_visibility.py::_clean_names",
@@ -27,8 +26,6 @@
   "_looks_sensitive_or_pathish: agent_runtime/events.py, agent_runtime/observability.py, agent_runtime/progress.py",
   "_mint: agent_runtime/gateway_identity.py, agent_runtime/gateway_tls.py, agent_runtime/serve_auth.py",
   "_normalize: scripts/generate_agent_runtime_response_fixtures.py, scripts/generate_agent_runtime_stream_fixtures.py",
-  "_optional_int: agent_runtime/config/sections.py, agent_runtime/tool_permissions.py",
-  "_positive_int: agent_runtime/config/sections.py, agent_runtime/mcp_admission.py",
   "_prepare: agent_runtime/locks.py, agent_runtime/persona_chat_actor_prewarm.py",
   "_read: agent_runtime/agent_create_reservations.py, agent_runtime/chat_turn_reservations.py",
   "_read_json: agent_runtime/mission_chat_steer.py, agent_runtime/serve_registry.py",

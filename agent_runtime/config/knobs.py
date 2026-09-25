@@ -9,14 +9,44 @@ import logging
 
 from ..dispatch_session_policy import normalize_dispatch_session_policy
 from ..runtime_config import MissionChatConfig
+from typing import Any, Callable
+
+from ..personas import persona_id_aliases
+from ..serde import optional_str
 from .loader import harness_root_config_path, load_agent_runtime_config, load_root_runtime_config
 from .persona_records import _expand_machine_root_tokens
 from .schema import AgentRuntimeConfig
-from .sections import _clean_config_str, _compaction_threshold_tokens, _string_list
+from .sections import _compaction_threshold_tokens, _string_list
 
 logger = logging.getLogger(__name__)
 
 __layer__ = "policy"
+
+
+def _root_knob(cfg: AgentRuntimeConfig | None, name: str, coerce: Callable[[Any], Any]) -> Any:
+    """One ``mission_chat.<name>`` knob: from ``cfg`` when one is given, else from
+    the ROOT config (harness-wide policy — see :func:`harness_root_config_path`).
+
+    The six ``mission_chat_*`` readers below are this one shape; a root-config
+    fault degrades to the built-in default rather than failing the turn.
+    """
+
+    default = getattr(MissionChatConfig(), name)
+    if cfg is not None:
+        return coerce(getattr(cfg.mission_chat, name, default))
+    try:
+        return coerce(getattr(load_root_runtime_config().mission_chat, name))
+    except Exception:  # pragma: no cover - defensive; a config fault must not kill a turn
+        logger.debug("mission_chat %s load failed; using the built-in default", name, exc_info=True)
+        return default
+
+
+def _compaction_knob(value: Any) -> int:
+    return _compaction_threshold_tokens(value, MissionChatConfig().compaction_threshold_tokens)
+
+
+def _dispatch_policy_knob(value: Any) -> str:
+    return normalize_dispatch_session_policy(value, MissionChatConfig().dispatch_session_policy)
 
 
 def chat_lane_restore_toolsets(persona_id: str, cfg: AgentRuntimeConfig | None = None) -> list[str]:
@@ -44,11 +74,7 @@ def chat_lane_restore_toolsets(persona_id: str, cfg: AgentRuntimeConfig | None =
         return []
     cfg = cfg or load_agent_runtime_config(harness_root_config_path())
     personas = cfg.personas if isinstance(getattr(cfg, "personas", None), dict) else {}
-    keys = [persona_id]
-    if persona_id == "neko_supervisor":
-        keys.append("alice_supervisor")
-    elif persona_id == "alice_supervisor":
-        keys.append("neko_supervisor")
+    keys = [persona_id, *persona_id_aliases(persona_id)]
     for key in keys:
         raw = personas.get(key)
         if isinstance(raw, dict) and "chat_lane_restore_toolsets" in raw:
@@ -67,19 +93,7 @@ def mission_chat_compaction_threshold_tokens(cfg: AgentRuntimeConfig | None = No
     failing the turn.
     """
 
-    if cfg is not None:
-        return _compaction_threshold_tokens(
-            getattr(cfg.mission_chat, "compaction_threshold_tokens", None),
-            MissionChatConfig().compaction_threshold_tokens,
-        )
-    try:
-        return int(load_root_runtime_config().mission_chat.compaction_threshold_tokens)
-    except Exception:  # pragma: no cover - defensive; a config fault must not kill a turn
-        logger.debug(
-            "mission_chat compaction threshold load failed; using the built-in default",
-            exc_info=True,
-        )
-        return MissionChatConfig().compaction_threshold_tokens
+    return _root_knob(cfg, "compaction_threshold_tokens", _compaction_knob)
 
 
 def mission_chat_clarify_token_binding(cfg: AgentRuntimeConfig | None = None) -> bool:
@@ -94,15 +108,7 @@ def mission_chat_clarify_token_binding(cfg: AgentRuntimeConfig | None = None) ->
     answers one — so flipping it off returns the lane to today's precedence with
     no migration and nothing to unwind."""
 
-    if cfg is not None:
-        return bool(
-            getattr(cfg.mission_chat, "clarify_token_binding", MissionChatConfig().clarify_token_binding)
-        )
-    try:
-        return bool(load_root_runtime_config().mission_chat.clarify_token_binding)
-    except Exception:  # pragma: no cover - defensive; a config fault must not kill a turn
-        logger.debug("mission_chat clarify-token gate load failed; using the built-in default", exc_info=True)
-        return MissionChatConfig().clarify_token_binding
+    return _root_knob(cfg, "clarify_token_binding", bool)
 
 
 def mission_chat_dispatch_session_policy(cfg: AgentRuntimeConfig | None = None) -> str:
@@ -118,19 +124,7 @@ def mission_chat_dispatch_session_policy(cfg: AgentRuntimeConfig | None = None) 
     over this) is decided in one place:
     :func:`agent_runtime.dispatch_session_policy.resolve_dispatch_session_decision`."""
 
-    if cfg is not None:
-        return normalize_dispatch_session_policy(
-            getattr(cfg.mission_chat, "dispatch_session_policy", None),
-            MissionChatConfig().dispatch_session_policy,
-        )
-    try:
-        return normalize_dispatch_session_policy(
-            load_root_runtime_config().mission_chat.dispatch_session_policy,
-            MissionChatConfig().dispatch_session_policy,
-        )
-    except Exception:  # pragma: no cover - defensive; a config fault must not kill a turn
-        logger.debug("mission_chat dispatch policy load failed; using the built-in default", exc_info=True)
-        return MissionChatConfig().dispatch_session_policy
+    return _root_knob(cfg, "dispatch_session_policy", _dispatch_policy_knob)
 
 
 def mission_chat_default_max_seconds(cfg: AgentRuntimeConfig | None = None) -> float:
@@ -143,13 +137,7 @@ def mission_chat_default_max_seconds(cfg: AgentRuntimeConfig | None = None) -> f
     documents for ``chat_lane_restore_toolsets``). A config fault degrades to
     the historical default rather than failing the turn."""
 
-    if cfg is not None:
-        return float(getattr(cfg.mission_chat, "default_max_seconds", MissionChatConfig().default_max_seconds))
-    try:
-        return float(load_root_runtime_config().mission_chat.default_max_seconds)
-    except Exception:  # pragma: no cover - defensive; a config fault must not kill a turn
-        logger.debug("mission_chat default budget load failed; using the built-in default", exc_info=True)
-        return MissionChatConfig().default_max_seconds
+    return _root_knob(cfg, "default_max_seconds", float)
 
 
 def resolve_mission_chat_max_seconds(
@@ -185,33 +173,13 @@ def mission_chat_dispatch_max_seconds(cfg: AgentRuntimeConfig | None = None) -> 
     profile's background work is budgeted — and degrades to the built-in
     default rather than failing the dispatch."""
 
-    if cfg is not None:
-        return float(
-            getattr(cfg.mission_chat, "dispatch_max_seconds", MissionChatConfig().dispatch_max_seconds)
-        )
-    try:
-        return float(load_root_runtime_config().mission_chat.dispatch_max_seconds)
-    except Exception:  # pragma: no cover - defensive; a config fault must not kill a dispatch
-        logger.debug("mission_chat dispatch budget load failed; using the built-in default", exc_info=True)
-        return MissionChatConfig().dispatch_max_seconds
+    return _root_knob(cfg, "dispatch_max_seconds", float)
 
 
 def mission_chat_dispatch_max_concurrent(cfg: AgentRuntimeConfig | None = None) -> int:
     """How many detached dispatches may run at once (executor width)."""
 
-    if cfg is not None:
-        return int(
-            getattr(
-                cfg.mission_chat,
-                "dispatch_max_concurrent",
-                MissionChatConfig().dispatch_max_concurrent,
-            )
-        )
-    try:
-        return int(load_root_runtime_config().mission_chat.dispatch_max_concurrent)
-    except Exception:  # pragma: no cover - defensive
-        logger.debug("mission_chat dispatch concurrency load failed; using the built-in default", exc_info=True)
-        return MissionChatConfig().dispatch_max_concurrent
+    return _root_knob(cfg, "dispatch_max_concurrent", int)
 
 
 def resolve_mission_chat_dispatch_max_seconds(
@@ -258,15 +226,11 @@ def mission_chat_workdir(persona_id: str, cfg: AgentRuntimeConfig | None = None)
         return None
     cfg = cfg or load_agent_runtime_config(harness_root_config_path())
     personas = cfg.personas if isinstance(getattr(cfg, "personas", None), dict) else {}
-    keys = [persona_id]
-    if persona_id == "neko_supervisor":
-        keys.append("alice_supervisor")
-    elif persona_id == "alice_supervisor":
-        keys.append("neko_supervisor")
+    keys = [persona_id, *persona_id_aliases(persona_id)]
     for key in keys:
         raw = personas.get(key)
         if isinstance(raw, dict) and "workdir" in raw:
-            value = _clean_config_str(raw.get("workdir"))
+            value = optional_str(raw.get("workdir"))
             if value is None:
                 return None
             return _expand_machine_root_tokens(

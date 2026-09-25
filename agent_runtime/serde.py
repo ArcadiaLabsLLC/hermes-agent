@@ -147,6 +147,20 @@ def optional_text(value: Any) -> str | None:
     return text or None
 
 
+def optional_str(value: Any) -> str | None:
+    """A stripped non-empty ``str``, else ``None`` — a non-string is NOT coerced.
+
+    The config spelling of :func:`optional_text`: a YAML value that is not a
+    string (a number, a list, a mapping) is an absent opinion here, never its
+    ``str()``. Lane 2B-C folded ``config._clean_config_str`` onto it;
+    ``mission_chat_outcome._text`` folds in its lane.
+    """
+
+    if not isinstance(value, str):
+        return None
+    return value.strip() or None
+
+
 def safe_text(value: Any, *, limit: int) -> str | None:
     """``value`` as ONE bounded line: NULs dropped, whitespace collapsed, cut to
     ``limit``; ``None`` when nothing is left.

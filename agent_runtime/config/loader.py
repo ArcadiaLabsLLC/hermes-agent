@@ -10,23 +10,22 @@ from pathlib import Path
 from typing import Any
 
 from hermes_constants import get_config_path
+from ..personas import persona_id_aliases
 from ..redaction_mode import normalize_redaction_mode
+from ..serde import optional_str, positive_int
 from .schema import ROOT_ONLY_CONFIG_KEYS, AgentRuntimeConfig
-from .sections import (
-    _clean_config_str,
-    _coordinator_permission_config,
-    _event_log_config,
-    _mcp_admission_config,
-    _mission_chat_config,
-    _persona_chat_config,
-    _positive_int,
-    _read_model_config,
-    _supervision_config,
-    _terminal_envelope_config,
-    _tool_permission_config,
-)
+from .sections import SECTION_PARSERS
 
 __layer__ = "policy"
+
+#: ``_override_state``'s words: how an ``agent_runtime.default_*`` override
+#: stands against the top-level ``model.*`` authority. They ride the doctor's
+#: JSON and the launcher's Model Authority panel as strings, so they are named
+#: constants beside their producer (no Enum); the readers compare by name.
+OVERRIDE_STATE_ABSENT = "absent"
+OVERRIDE_STATE_OVERRIDE_ONLY = "override_only"
+OVERRIDE_STATE_REDUNDANT = "redundant"
+OVERRIDE_STATE_SHADOWING = "shadowing"
 
 
 def _top_level_model_authority(top: dict[str, Any]) -> tuple[str | None, str | None]:
@@ -38,10 +37,10 @@ def _top_level_model_authority(top: dict[str, Any]) -> tuple[str | None, str | N
     """
     model_block = top.get("model")
     if isinstance(model_block, dict):
-        model = _clean_config_str(model_block.get("default")) or _clean_config_str(model_block.get("name"))
-        return (model, _clean_config_str(model_block.get("provider")))
+        model = optional_str(model_block.get("default")) or optional_str(model_block.get("name"))
+        return (model, optional_str(model_block.get("provider")))
     if isinstance(model_block, str):
-        return (_clean_config_str(model_block), None)
+        return (optional_str(model_block), None)
     return (None, None)
 
 
@@ -53,7 +52,7 @@ def _resolve_default_authority(
 ) -> tuple[str | None, str]:
     """Resolve a runtime default: an explicit ``agent_runtime.*`` override wins;
     otherwise the top-level ``model.*`` authority; otherwise unset."""
-    override = _clean_config_str(override_value)
+    override = optional_str(override_value)
     if override is not None:
         return (override, override_source)
     if top_value is not None:
@@ -80,15 +79,7 @@ def load_agent_runtime_config(config_path: Path | None = None) -> AgentRuntimeCo
     resolved_provider, default_provider_source = _resolve_default_authority(
         raw.get("default_provider"), top_provider, "agent_runtime.default_provider", "model.provider"
     )
-    read_model = _read_model_config(raw.get("read_model") or {})
-    persona_chat = _persona_chat_config(raw.get("persona_chat") or {})
-    event_log = _event_log_config(raw.get("event_log") or {})
-    supervision = _supervision_config(raw.get("supervision") or {})
-    coordinator_permissions = _coordinator_permission_config(raw.get("coordinator_permissions") or {})
-    mission_chat = _mission_chat_config(raw.get("mission_chat") or {})
-    mcp_admission = _mcp_admission_config(raw.get("mcp_admission") or {})
-    terminal_envelope = _terminal_envelope_config(raw.get("terminal_envelope") or {})
-    tool_permissions = _tool_permission_config(raw.get("tool_permissions") or {})
+    sections = {name: parse(raw.get(name) or {}) for name, parse in SECTION_PARSERS.items()}
     cfg = AgentRuntimeConfig(
         schema_version=int(raw.get("schema_version", 1)),
         store_root=raw.get("store_root"),
@@ -108,16 +99,8 @@ def load_agent_runtime_config(config_path: Path | None = None) -> AgentRuntimeCo
         # measured it; S57 re-verified each by hand, AST + string form). A yaml
         # that still sets any of them now loads and is IGNORED — ``raw`` is read
         # by ``.get`` per key, so an unknown key is simply never consulted.
-        lock_acquire_timeout_seconds=_positive_int(raw.get("lock_acquire_timeout_seconds"), 15),
-        read_model=read_model,
-        persona_chat=persona_chat,
-        event_log=event_log,
-        supervision=supervision,
-        coordinator_permissions=coordinator_permissions,
-        mission_chat=mission_chat,
-        mcp_admission=mcp_admission,
-        terminal_envelope=terminal_envelope,
-        tool_permissions=tool_permissions,
+        lock_acquire_timeout_seconds=positive_int(raw.get("lock_acquire_timeout_seconds"), default=15),
+        **sections,
         personas=raw.get("personas", {}) or {},
         default_model_source=default_model_source,
         default_provider_source=default_provider_source,
@@ -136,19 +119,10 @@ def _override_state(override: str | None, top_value: str | None) -> str:
       agents silently run something other than what the user set).
     """
     if override is None:
-        return "absent"
+        return OVERRIDE_STATE_ABSENT
     if top_value is None:
-        return "override_only"
-    return "redundant" if override == top_value else "shadowing"
-
-
-#: Historical spellings a persisted persona key may also be known by. Reported
-#: ALONGSIDE the persisted key (``persona_id_alias``), never substituted for it:
-#: a provenance report that renames what it found is not provenance.
-_RUNTIME_DEFAULT_PERSONA_ALIASES: dict[str, str] = {
-    "alice_supervisor": "neko_supervisor",
-    "neko_supervisor": "alice_supervisor",
-}
+        return OVERRIDE_STATE_OVERRIDE_ONLY
+    return OVERRIDE_STATE_REDUNDANT if override == top_value else OVERRIDE_STATE_SHADOWING
 
 
 def describe_runtime_default_authority(config_path: Path | None = None) -> dict[str, Any]:
@@ -169,8 +143,8 @@ def describe_runtime_default_authority(config_path: Path | None = None) -> dict[
     top = loaded if isinstance(loaded, dict) else {}
     raw = top.get("agent_runtime", {}) or {}
     top_model, top_provider = _top_level_model_authority(top)
-    override_model = _clean_config_str(raw.get("default_model"))
-    override_provider = _clean_config_str(raw.get("default_provider"))
+    override_model = optional_str(raw.get("default_model"))
+    override_provider = optional_str(raw.get("default_provider"))
     resolved_model, model_source = _resolve_default_authority(
         raw.get("default_model"), top_model, "agent_runtime.default_model", "model.default"
     )
@@ -184,8 +158,8 @@ def describe_runtime_default_authority(config_path: Path | None = None) -> dict[
         for pid, overrides in personas.items():
             if not isinstance(overrides, dict):
                 continue
-            pin_model = _clean_config_str(overrides.get("model"))
-            pin_provider = _clean_config_str(overrides.get("provider"))
+            pin_model = optional_str(overrides.get("model"))
+            pin_provider = optional_str(overrides.get("provider"))
             if pin_model is None and pin_provider is None:
                 continue
             # S66: report what is ACTUALLY IN THE CONFIG. This used to rewrite a
@@ -195,7 +169,9 @@ def describe_runtime_default_authority(config_path: Path | None = None) -> dict[
             # name the report gave them. The alias is still surfaced, but as a
             # separate, clearly-labelled field rather than by falsifying the
             # first one.
-            alias = _RUNTIME_DEFAULT_PERSONA_ALIASES.get(pid)
+            # The historical spelling (personas.persona_id_aliases) is reported
+            # ALONGSIDE the persisted key, never substituted for it.
+            alias = next(iter(persona_id_aliases(pid)), None)
             persona_pins.append({
                 "persona_id": pid,
                 "persona_id_alias": alias,

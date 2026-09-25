@@ -738,3 +738,12 @@ def test_the_supervisor_alias_is_honoured_in_both_directions(tmp_path, keyed, as
     assert chat_lane_restore_toolsets(asked, cfg) == ["file"]
     assert mission_chat_workdir(asked, cfg) == tmp_path.as_posix()
     assert chat_lane_restore_toolsets("dev", cfg) == []
+
+
+def test_the_section_table_has_one_row_per_config_section():
+    """``SECTION_PARSERS`` is what the loader iterates: a section with no row keeps
+    its dataclass default silently, so its keys are pinned to the dataclass."""
+
+    from agent_runtime.config import SECTION_PARSERS
+
+    assert set(SECTION_PARSERS) == set(_section_fields())
