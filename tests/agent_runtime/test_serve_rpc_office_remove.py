@@ -511,7 +511,7 @@ def test_the_rpc_archive_reaches_the_same_chokepoint_the_cli_does(monkeypatch):
         cfg.read_model.delta_patches = True
         return cfg
 
-    monkeypatch.setattr(sp, "load_root_runtime_config", _loader)
+    monkeypatch.setattr(sp.emit, "load_root_runtime_config", _loader)
 
     _seed()
     before = max((o for o, _ in EventLog().iter_from_offset(0)), default=0)

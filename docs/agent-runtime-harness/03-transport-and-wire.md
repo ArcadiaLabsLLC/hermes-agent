@@ -980,7 +980,7 @@ lists truncated to 200 items, secrets rewritten via the single-homed
 
 ## 4. Patch frames and the fold negotiation
 
-The producer half is `agent_runtime/state_patches.py`. With
+The producer half is the `agent_runtime/state_patches/` package. With
 `read_model.delta_patches` on, a store chokepoint mutating a keyed entity
 appends a `state.patched` event carrying a **wire-level op** — `upsert` (with
 `changed`), `remove`, or `refresh` (`:96-98`). The projection is hermes': at

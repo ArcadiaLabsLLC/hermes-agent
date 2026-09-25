@@ -343,7 +343,7 @@ def test_a_cleared_pointer_is_a_null_on_the_wire_not_an_absent_key(monkeypatch):
         cfg.read_model.delta_patches = True
         return cfg
 
-    monkeypatch.setattr(sp, "load_root_runtime_config", _loader)
+    monkeypatch.setattr(sp.emit, "load_root_runtime_config", _loader)
 
     log = EventLog()
     assert sp.emit_scope_patch(log, active_workspace_id=None, active_realm_id=None)
@@ -472,7 +472,7 @@ def test_set_active_emits_the_scope_row_beside_its_domain_event(monkeypatch):
         cfg.read_model.delta_patches = True
         return cfg
 
-    monkeypatch.setattr(sp, "load_root_runtime_config", _loader)
+    monkeypatch.setattr(sp.emit, "load_root_runtime_config", _loader)
 
     log = EventLog()
     realms = RealmStore(event_log=log)
@@ -545,7 +545,7 @@ def test_a_refused_activation_emits_nothing(monkeypatch):
         cfg.read_model.delta_patches = True
         return cfg
 
-    monkeypatch.setattr(sp, "load_root_runtime_config", _loader)
+    monkeypatch.setattr(sp.emit, "load_root_runtime_config", _loader)
 
     log = EventLog()
     workspaces = WorkspaceStore(event_log=log)

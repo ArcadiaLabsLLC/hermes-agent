@@ -2577,7 +2577,7 @@
     },
     {
       "id": "iws-ws1-the-scope-patch-carries-only-the-pointer-that-moved",
-      "path": "agent_runtime/state_patches.py",
+      "path": "agent_runtime/state_patches/emit.py",
       "symbol": "emit_scope_patch",
       "operator": "drop-the-unmoved-pointer-from-the-row",
       "find": "    changed: dict[str, Any] = {\n        \"active_workspace_id\": safe_id(active_workspace_id),\n        \"active_realm_id\": safe_id(active_realm_id),\n    }",
@@ -2592,7 +2592,7 @@
     },
     {
       "id": "iws-ws1-a-cleared-pointer-leaves-the-row-as-an-absent-key",
-      "path": "agent_runtime/state_patches.py",
+      "path": "agent_runtime/state_patches/emit.py",
       "symbol": "emit_scope_patch",
       "operator": "drop-null-pointers-from-the-payload",
       "find": "        \"active_realm_id\": safe_id(active_realm_id),\n    }\n    return emit_state_patch(",

@@ -70,7 +70,7 @@ def set_delta_patches(monkeypatch):
         # The producer flag reader (_delta_patches_enabled) is pinned to the
         # ROOT config via load_root_runtime_config(); patch that symbol so the
         # fixture still injects the flag through the reader's actual loader.
-        monkeypatch.setattr(sp, "load_root_runtime_config", _loader)
+        monkeypatch.setattr(sp.emit, "load_root_runtime_config", _loader)
 
     return _apply
 
@@ -606,7 +606,7 @@ def test_a_create_row_that_cannot_fit_losslessly_degrades_to_refresh(
     """
 
     set_delta_patches(True)
-    monkeypatch.setattr("agent_runtime.state_patches.PATCH_VALUE_BUDGET_BYTES", 8)
+    monkeypatch.setattr("agent_runtime.state_patches.payload.PATCH_VALUE_BUDGET_BYTES", 8)
     store = PersonaInstanceStore()
     before = _log_end()
     instance = store.open_chat(

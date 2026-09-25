@@ -26,7 +26,7 @@ from agent_runtime.persona_assignments.identity import (
     persona_chat_session_id_for,
 )
 from agent_runtime.serde import dedupe_tokens, safe_assignment_text, safe_optional_token
-from agent_runtime.state_patches import (
+from agent_runtime.state_patches.persona_instance import (
     emit_persona_instance_create,
     emit_persona_instance_patch,
     emit_persona_instance_remove,

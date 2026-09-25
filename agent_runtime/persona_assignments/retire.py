@@ -26,7 +26,7 @@ from agent_runtime.serde import (
     safe_assignment_token,
     safe_optional_token,
 )
-from agent_runtime.state_patches import emit_persona_instance_remove
+from agent_runtime.state_patches.persona_instance import emit_persona_instance_remove
 
 if TYPE_CHECKING:
     from agent_runtime.persona_assignments.store import PersonaInstanceStore

@@ -71,7 +71,7 @@ def set_delta_patches(monkeypatch):
             cfg.read_model.delta_patches = enabled
             return cfg
 
-        monkeypatch.setattr(sp, "load_root_runtime_config", _loader)
+        monkeypatch.setattr(sp.emit, "load_root_runtime_config", _loader)
         monkeypatch.setattr(st, "delta_patches_enabled", lambda config=None: enabled)
 
     return _apply

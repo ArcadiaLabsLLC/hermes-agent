@@ -16,7 +16,7 @@ Where the milliseconds are
 --------------------------
 ``perform_agent_create`` → ``PersonaInstanceStore.add_instance`` →
 ``emit_persona_instance_create`` → ``project_persona_instance_full_wire_row``
-(``state_patches.py``) → ``persona_instance_summary``
+(``state_patches.persona_instance``) → ``persona_instance_summary``
 (``persona_assignments.py``) → ``resolve_tool_visibility``
 (``tool_visibility.py``). That last call is INLINE on the create's critical path
 — the RPC does not return until the wire row is projected — and on a cold

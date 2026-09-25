@@ -258,7 +258,7 @@ def test_a_raising_loader_is_off_and_warns(hermes_root, monkeypatch, caplog):
     def _boom():
         raise OSError("config.yaml is unreadable")
 
-    monkeypatch.setattr("agent_runtime.state_patches.load_root_runtime_config", _boom)
+    monkeypatch.setattr("agent_runtime.state_patches.emit.load_root_runtime_config", _boom)
 
     with caplog.at_level(logging.WARNING, logger="agent_runtime.state_patches"):
         assert delta_patches_enabled() is False

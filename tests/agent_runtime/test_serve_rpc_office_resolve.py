@@ -1151,7 +1151,7 @@ def _with_delta_patches(monkeypatch):
         cfg.read_model.delta_patches = True
         return cfg
 
-    monkeypatch.setattr(sp, "load_root_runtime_config", _loader)
+    monkeypatch.setattr(sp.emit, "load_root_runtime_config", _loader)
 
 
 def test_the_adopt_arm_emits_the_actor_patch_its_archive_sibling_always_did(monkeypatch):
@@ -1309,7 +1309,7 @@ def test_a_resolve_batch_demotes_for_todays_client_and_promotes_for_a_declaring_
         cfg.read_model.delta_patches = True
         return cfg
 
-    monkeypatch.setattr(sp, "load_root_runtime_config", _loader)
+    monkeypatch.setattr(sp.emit, "load_root_runtime_config", _loader)
 
     _seed()
     _seed_conflict()

@@ -243,7 +243,6 @@
   "agent_runtime/skill_sync.py",
   "agent_runtime/skills_inventory.py",
   "agent_runtime/snapshot_build_ledger.py",
-  "agent_runtime/state_patches.py",
   "agent_runtime/states.py",
   "agent_runtime/status.py",
   "agent_runtime/store.py",

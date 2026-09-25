@@ -72,7 +72,7 @@ def patch_lane_on(monkeypatch):
         cfg.read_model.delta_patches = True
         return cfg
 
-    monkeypatch.setattr(sp, "load_root_runtime_config", _loader)
+    monkeypatch.setattr(sp.emit, "load_root_runtime_config", _loader)
     monkeypatch.setattr(st, "delta_patches_enabled", lambda config=None: True)
 
 

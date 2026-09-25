@@ -63,7 +63,7 @@ def _set_patch_lane(monkeypatch, enabled: bool) -> None:
         cfg.read_model.delta_patches = enabled
         return cfg
 
-    monkeypatch.setattr(sp, "load_root_runtime_config", _loader)
+    monkeypatch.setattr(sp.emit, "load_root_runtime_config", _loader)
 
 
 @pytest.fixture

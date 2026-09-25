@@ -140,10 +140,8 @@ def _correlation_id_param(params: dict) -> str | None:
     every caller answers its ``frame``.
     """
 
-    from agent_runtime.state_patches import (
-        CORRELATION_ID_MAX_LEN,
-        normalize_correlation_id,
-    )
+    from agent_runtime.state_patches.models import CORRELATION_ID_MAX_LEN
+    from agent_runtime.state_patches.payload import normalize_correlation_id
 
     raw = params.get("correlation_id")
     if raw is None:

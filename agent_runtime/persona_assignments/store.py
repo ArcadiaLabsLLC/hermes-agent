@@ -45,7 +45,7 @@ from agent_runtime.serde import (
     safe_optional_token,
     to_jsonable,
 )
-from agent_runtime.state_patches import emit_persona_instance_patch
+from agent_runtime.state_patches.persona_instance import emit_persona_instance_patch
 from agent_runtime.states import WorkerSessionState
 
 __layer__ = "stores"

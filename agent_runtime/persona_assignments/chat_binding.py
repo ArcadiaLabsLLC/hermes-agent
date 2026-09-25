@@ -30,7 +30,7 @@ from agent_runtime.persona_assignments.identity import (
 )
 from agent_runtime.persona_assignments.vocabulary import _CHAT_MODES
 from agent_runtime.serde import safe_assignment_text, safe_assignment_token
-from agent_runtime.state_patches import (
+from agent_runtime.state_patches.persona_instance import (
     emit_persona_instance_create,
     emit_persona_instance_patch,
 )
