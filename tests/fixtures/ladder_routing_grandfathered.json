@@ -3,11 +3,11 @@
  "sites": [
   {
    "arms": 3,
-   "site": "agent_runtime/chat_live_log.py|_normalized_role|ladder|role"
+   "site": "agent_runtime/chat_live_log/lines.py|_normalized_role|ladder|role"
   },
   {
    "arms": 3,
-   "site": "agent_runtime/chat_live_log.py|chat_live_log_stats|ladder|kind"
+   "site": "agent_runtime/chat_live_log/backfill.py|chat_live_log_stats|ladder|kind"
   },
   {
    "arms": 1,
