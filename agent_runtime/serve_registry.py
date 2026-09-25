@@ -1027,9 +1027,9 @@ def pid_alive(pid: int) -> bool | None:
     """
 
     try:
-        from gateway.status import _pid_exists
+        from ._upstream_doors import pid_exists
 
-        return bool(_pid_exists(int(pid)))
+        return bool(pid_exists(int(pid)))
     except Exception:
         return None
 

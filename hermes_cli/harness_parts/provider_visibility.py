@@ -9,6 +9,16 @@ from __future__ import annotations
 from typing import Optional
 
 from agent_runtime.cli_format import emit_json
+from hermes_cli.harness_parts._upstream_doors import (
+    classify_exhausted_status,
+    configured_model_label,
+    display_source,
+    effective_provider_label,
+    exhausted_until,
+    first_env_value,
+    format_exhausted_status,
+    status_api_keys,
+)
 
 __layer__ = "policy"
 __all__ = [
@@ -34,17 +44,13 @@ def _credential_health(entry) -> dict:
     a dead credential (which the human list renders with NO marker — a latent
     "looks healthy" bug) is surfaced explicitly.
     """
-    from agent.credential_pool import STATUS_DEAD, STATUS_EXHAUSTED, _exhausted_until
-    from hermes_cli.auth_commands import (
-        _classify_exhausted_status,
-        _format_exhausted_status,
-    )
+    from agent.credential_pool import STATUS_DEAD, STATUS_EXHAUSTED
 
     last_status = getattr(entry, "last_status", None)
     if last_status not in {STATUS_EXHAUSTED, STATUS_DEAD}:
         return {"state": "healthy"}
 
-    message = _format_exhausted_status(entry).strip()
+    message = format_exhausted_status(entry).strip()
     if last_status == STATUS_DEAD:
         return {
             "state": "dead",
@@ -54,7 +60,7 @@ def _credential_health(entry) -> dict:
             "message": message or "credential dead (re-auth required)",
         }
 
-    label, retryable = _classify_exhausted_status(entry)
+    label, retryable = classify_exhausted_status(entry)
     state = {"auth failed": "auth_failed", "rate-limited": "rate_limited"}.get(
         label, "exhausted"
     )
@@ -62,7 +68,7 @@ def _credential_health(entry) -> dict:
         "state": state,
         "code": getattr(entry, "last_error_code", None),
         "reason": getattr(entry, "last_error_reason", None),
-        "retry_at": _exhausted_until(entry) if retryable else None,
+        "retry_at": exhausted_until(entry) if retryable else None,
         "message": message,
     }
 
@@ -158,7 +164,6 @@ def build_provider_visibility() -> dict:
     """
     from agent.credential_pool import list_custom_pool_providers, load_pool
     from hermes_cli.auth import PROVIDER_REGISTRY
-    from hermes_cli.auth_commands import _display_source
 
     provider_ids = sorted(
         {*PROVIDER_REGISTRY.keys(), "openrouter", *list_custom_pool_providers()}
@@ -177,7 +182,7 @@ def build_provider_visibility() -> dict:
                     "index": idx,
                     "label": entry.label,
                     "auth_type": entry.auth_type,
-                    "source": _display_source(entry.source),
+                    "source": display_source(entry.source),
                     "selected": current is not None and entry.id == current.id,
                     "health": _credential_health(entry),
                     # Last-4 only, matching the dashboard's existing preview
@@ -225,8 +230,6 @@ def build_provider_visibility() -> dict:
 
 
 def _provider_visibility_environment() -> dict:
-    from hermes_cli.status import _configured_model_label, _effective_provider_label
-
     try:
         from hermes_cli.config import load_config
 
@@ -234,8 +237,8 @@ def _provider_visibility_environment() -> dict:
     except Exception:
         config = {}
     return {
-        "model": _configured_model_label(config),
-        "provider": _effective_provider_label(),
+        "model": configured_model_label(config),
+        "provider": effective_provider_label(),
     }
 
 
@@ -244,10 +247,11 @@ def _provider_visibility_api_keys() -> list[dict]:
     registry, then Anthropic, which the box renders last through the dedicated
     lookup (it also resolves OAuth tokens)."""
     from hermes_cli.auth import get_anthropic_key
-    from hermes_cli.status import _first_env_value
-    from hermes_cli.status_auth import _API_KEYS
 
-    out = [{"name": name, "configured": bool(_first_env_value(env_ref))} for name, env_ref in _API_KEYS.items()]
+    out = [
+        {"name": name, "configured": bool(first_env_value(env_ref))}
+        for name, env_ref in status_api_keys().items()
+    ]
     out.append({"name": "Anthropic", "configured": bool(get_anthropic_key())})
     return out
 

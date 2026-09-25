@@ -1672,11 +1672,11 @@ def build_input_fingerprint() -> CoreFingerprint | None:
 
     # 4 — profile inputs + the sticky active-profile pointer.
     try:
-        from hermes_cli.profiles import _get_default_hermes_home, _get_profiles_root
+        from ._upstream_doors import default_hermes_home, profiles_root as _profiles_root
 
-        profiles_root = _get_profiles_root()
+        profiles_root = _profiles_root()
         entries.append(_stat_entry(profiles_root))
-        entries.append(_stat_entry(_get_default_hermes_home() / "active_profile"))
+        entries.append(_stat_entry(default_hermes_home() / "active_profile"))
         try:
             profile_dirs = sorted(os.scandir(profiles_root), key=lambda item: item.name)
         except OSError:

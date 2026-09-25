@@ -332,9 +332,10 @@ def _prewarm_provider_runtime() -> None:
     exactly as it would without prewarm.
     """
     try:
-        from agent.process_bootstrap import _load_openai_cls, shared_ssl_context
+        from agent.process_bootstrap import shared_ssl_context
+        from hermes_cli.harness_parts._upstream_doors import load_openai_cls
 
-        _load_openai_cls()
+        load_openai_cls()
         shared_ssl_context()
     except Exception:
         pass

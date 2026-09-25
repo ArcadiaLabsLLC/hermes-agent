@@ -233,9 +233,9 @@ def _runtime_paths_diagnostic(available_personas: list) -> dict:
     except Exception as exc:  # pragma: no cover - diagnostic only
         out["error"] = repr(exc)
     try:
-        from hermes_cli.profiles import _get_profiles_root
+        from ._upstream_doors import profiles_root
 
-        root = _get_profiles_root()
+        root = profiles_root()
         out["profiles_root"] = str(root)
         out["profiles_root_exists"] = root.is_dir()
         out["profiles_root_entries"] = sorted(p.name for p in root.iterdir()) if root.is_dir() else []

@@ -18,6 +18,12 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Final, Optional
 
+from hermes_cli.harness_parts._upstream_doors import (
+    fetch_anthropic_account_usage,
+    fetch_codex_account_usage,
+    fetch_openrouter_account_usage,
+)
+
 __layer__ = "policy"
 __all__ = [
     "USAGE_LANES",
@@ -116,21 +122,15 @@ def _fetch_nous_usage():
 
 
 def _fetch_codex_usage():
-    from agent.account_usage import _fetch_codex_account_usage
-
-    return _fetch_codex_account_usage()
+    return fetch_codex_account_usage()
 
 
 def _fetch_anthropic_usage():
-    from agent.account_usage import _fetch_anthropic_account_usage
-
-    return _fetch_anthropic_account_usage()
+    return fetch_anthropic_account_usage()
 
 
 def _fetch_openrouter_usage():
-    from agent.account_usage import _fetch_openrouter_account_usage
-
-    return _fetch_openrouter_account_usage(None, None)
+    return fetch_openrouter_account_usage(None, None)
 
 
 #: Every usage lane, in stable emission order. Adding a provider is one row here.
