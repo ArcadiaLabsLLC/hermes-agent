@@ -343,7 +343,7 @@ Cleared with evidence, so nobody re-audits them.
 - **`agent_runtime/delivery_directive.py` — the module is live, only its name
   is historical.** Every line of code in the file serves
   `reap_orphan_worktrees` (`:38`) and its two helpers; callers:
-  `harness_doctor.py:7,181` (`doctor --fix`) and `runtime_commands.py:35-37`
+  `harness_doctor/probes.py:10,41` (`doctor --fix`) and `runtime_commands.py:35-37`
   (`harness worktree reap`), plus a 500-line pinning suite
   (`test_delivery_directive.py`). The docstring accurately narrates the removed
   half (`:1-18`). A module rename would touch 4 production files + tests to fix

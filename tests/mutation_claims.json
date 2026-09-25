@@ -1029,7 +1029,7 @@
     },
     {
       "id": "a4-doctor-prescribes-retire-for-an-orphan-retire-cannot-reach",
-      "path": "agent_runtime/harness_doctor.py",
+      "path": "agent_runtime/harness_doctor/census.py",
       "symbol": "_placement_census_report",
       "operator": "drop-pulled-orphan-repair",
       "find": "            \"re-creating its agent still clears it, and the retire's replay \"\n            \"sweeps live placements — or evict the desk from this install with \"\n            \"`harness office actor-remove --workspace <ws> --actor <key> \"\n            \"--local-only`; one reading instance_retired is cleared the same \"\n            \"two ways; one reading instance_unknown — a realm-pulled placement \"\n            \"this install never held, whose instance stayed on the peer — has \"\n            \"nothing to retire and is cleared with actor-remove --local-only \"\n            \"or `runtime.office.remove` alone (drop --local-only only if you \"\n            \"mean to delete the placement realm-wide, which is what the \"\n            \"launcher's own delete does); an unplaced row is either awaiting a \"",
@@ -1170,7 +1170,7 @@
     },
     {
       "id": "ax7-the-doctor-goes-back-to-prescribing-the-tombstoning-form",
-      "path": "agent_runtime/harness_doctor.py",
+      "path": "agent_runtime/harness_doctor/census.py",
       "symbol": "_placement_census_report",
       "operator": "drop-the-diagnostic-qualifier",
       "find": "            \"nothing to retire and is cleared with actor-remove --local-only \"\n            \"or `runtime.office.remove` alone (drop --local-only only if you \"\n            \"mean to delete the placement realm-wide, which is what the \"\n            \"launcher's own delete does); an unplaced row is either awaiting a \"",
@@ -1185,7 +1185,7 @@
     },
     {
       "id": "hh1-doctor-counts-are-none-when-a-section-was-not-examined",
-      "path": "agent_runtime/harness_doctor.py",
+      "path": "agent_runtime/harness_doctor/run.py",
       "symbol": "run_harness_doctor",
       "operator": "count-an-unobserved-class-as-zero",
       "find": "            finding_counts[count_name] = (\n                None\n                if unexamined_section\n                else len(reports[section.name].get(list_key) or [])\n            )",
@@ -1201,7 +1201,7 @@
     },
     {
       "id": "hh1-a-section-publishes-every-payload-key-its-row-declares",
-      "path": "agent_runtime/harness_doctor.py",
+      "path": "agent_runtime/harness_doctor/run.py",
       "symbol": "run_harness_doctor",
       "operator": "publish-only-the-first-declared-key",
       "find": "        for destination, key in section.publish:\n            _publish_at(payload, destination, report if key is None else report.get(key))",
@@ -1233,7 +1233,7 @@
     },
     {
       "id": "hh8-the-census-opens-actor-items-for-duplicate-holders",
-      "path": "agent_runtime/harness_doctor.py",
+      "path": "agent_runtime/harness_doctor/census.py",
       "symbol": "_placement_census_report",
       "operator": "drop-the-duplicate-placement-sweep",
       "find": "        duplicate_placements.extend(ws_duplicates)\n",
@@ -1249,7 +1249,7 @@
     },
     {
       "id": "hh8-a-same-instance-duplicate-moves-the-verdict",
-      "path": "agent_runtime/harness_doctor.py",
+      "path": "agent_runtime/harness_doctor/census.py",
       "symbol": "_placement_census_report",
       "operator": "demote-the-same-instance-duplicate-to-a-notice",
       "find": "    if orphan_actors or same_instance_duplicates:",
@@ -1265,7 +1265,7 @@
     },
     {
       "id": "hh8-the-duplicate-classifier-asks-the-unbound-arm-first",
-      "path": "agent_runtime/harness_doctor.py",
+      "path": "agent_runtime/harness_doctor/census.py",
       "symbol": "_duplicate_placement_reason",
       "operator": "swap-the-unbound-and-same-instance-arms",
       "find": "    if any(not binding for binding in bindings):\n        return DUPLICATE_PLACEMENT_UNBOUND_HOLDER\n    if len(set(bindings)) == 1:\n        return DUPLICATE_PLACEMENT_SAME_INSTANCE",
@@ -1281,7 +1281,7 @@
     },
     {
       "id": "hh11-the-census-canonicalizes-the-actor-side-of-the-join",
-      "path": "agent_runtime/harness_doctor.py",
+      "path": "agent_runtime/harness_doctor/census.py",
       "symbol": "_census_live_actor_bindings",
       "operator": "read-the-actor-binding-raw",
       "find": "        (actor, _census_instance_key(actor.persona_instance_id, persona_id=actor.persona_id))",
@@ -1297,7 +1297,7 @@
     },
     {
       "id": "hh11-a-short-office-scan-forces-the-census-unknown",
-      "path": "agent_runtime/harness_doctor.py",
+      "path": "agent_runtime/harness_doctor/census.py",
       "symbol": "_placement_census_report",
       "operator": "drop-the-office-side-unreadable-arm",
       "find": "        if scan.unreadable:\n            unreadable.append(f\"office:{workspace_id}:{scan.unreadable}\")\n",
@@ -1389,7 +1389,7 @@
     },
     {
       "id": "hh4-the-orphan-reason-stops-reading-the-receipt",
-      "path": "agent_runtime/harness_doctor.py",
+      "path": "agent_runtime/harness_doctor/census.py",
       "symbol": "_orphan_actor_reason",
       "operator": "drop-receipt-evidence",
       "find": "    failures = (receipt or {}).get(\"office_archive_failures\") or []",
@@ -4230,7 +4230,7 @@
     },
     {
       "id": "w5-the-join-sweep-claims-a-class-keyed-actor",
-      "path": "agent_runtime/harness_doctor.py",
+      "path": "agent_runtime/harness_doctor/census.py",
       "symbol": "_census_join_workspace",
       "operator": "drop-class-keyed-skip",
       "find": "        if not instance_id:\n",

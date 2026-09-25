@@ -78,12 +78,7 @@
   {
    "depth": 2,
    "lines": 255,
-   "unit": "agent_runtime/harness_doctor.py|_placement_census_report"
-  },
-  {
-   "depth": 2,
-   "lines": 161,
-   "unit": "agent_runtime/harness_doctor.py|run_harness_doctor"
+   "unit": "agent_runtime/harness_doctor/census.py|_placement_census_report"
   },
   {
    "depth": 1,
