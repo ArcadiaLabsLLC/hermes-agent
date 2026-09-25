@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-09-25 (lane MERGE, filed by the orchestrator)
+
+- [ ] **`agent_runtime/local_llama_adapter/{engine,setup}.py` import six `hermes_cli.local_runtime.binaries` names upstream `27df3b8847` deleted (`server_binary`, `default_tag`, `resolve_assets`, `installed_tags`, `manifest_verified`, `ensure_runtime_installed`) — four tests red on the merge candidate at `d0a074a395`; the merge cannot land until the adapter is re-seated onto upstream's `binaries.installed_engine` / `ensure_engine`** · `fork / local llama` · re-seat C of the 2026-09-25 merge, same shape as re-seats A/B (`docs/agent-runtime-harness/planned/upstream-merge-2026-09-25-design.md` §2); the design note missed it because it looked for deleted MODULES, not deleted names · evidence: lane MERGE report 2026-09-25, `X:/wt/h-merge2/.lane-logs/` · filed 2026-09-25 **TAKEN 2026-09-25 lane MERGE**
+
 ### Filed on arrival — 2026-09-25 (program-end suite, filed by the orchestrator)
 
 - [ ] **`agent_runtime/kanban_blocked_pm_tick.py` imports `hermes_cli.kanban_blocked_pm` (two deferred imports), so `tests/agent_runtime/test_no_kanban_dependency.py::test_agent_runtime_imports_no_kanban_modules` is red on `main` since `7d28e958ad` (2026-09-24, the blocked-card PM router riding upstream's dispatch tick)** · `fork / runtime` · either the tick module moves out of `agent_runtime` to the kanban lane that owns it, or the gate's rule changes with a recorded reason — not a third option · evidence: `X:/wt/_holds/gates-0925/rerun.log` · filed 2026-09-25 **UNCLAIMED**
@@ -153,6 +157,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 
 ## Seams — fork edits inside upstream files (additive only)
+
+### Filed on arrival — 2026-09-25 (lane MERGE, filed by the orchestrator)
+
+- [ ] **Under truststore each `httpx.Client()` still re-parses the trust store (~210 ms per client, measured at merge re-seat A `877a77986b`; 234 ms under certifi) — the retired fork memo's cost did not go away with its premise** · `fork / seams` · share one default context through upstream's `agent.ssl_verify.resolve_httpx_verify` (an additive door), never a second fork memo · evidence: lane MERGE report 2026-09-25, `X:/wt/h-merge2/.lane-logs/reseatA.log` · filed 2026-09-25 **UNCLAIMED**
+
 
 ### Filed on arrival — 2026-09-25 (orchestrator, the `[up-fp]` raise)
 
