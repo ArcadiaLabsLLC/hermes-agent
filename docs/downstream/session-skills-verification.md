@@ -7,6 +7,12 @@ Every candidate failure reproduced on that baseline. This is **not** an
 all-green suite. Focused skills/ACP tests passed; the separately caught missing
 layer declarations in the new modules were corrected and the layer gate passed.
 
+Before landing, the candidate rebased cleanly onto `ebc8ce4430`. Incoming work
+already repairs the S41, remote-dispatch and dispatch-tally fixtures listed
+below. The skills/ACP and import-layer tests passed again after that rebase;
+the full-scope counts above describe the earlier measured candidate, not a
+second full run on the rebased tree.
+
 ## Existing failures, not waived
 
 | Finding | Failing subjects |

@@ -16,6 +16,11 @@ The Hermes-native persona runtime behind Mission Control: personas → durable i
 
 ## Where the truth lives
 
+`skills_cursor::` 2026-09-24 — [Client-neutral session skills](../../docs/downstream/session-skills.md)
+reuse the canonical resolver and transcript evidence. Launcher Intelligence is
+the first consumer; Mission Control keeps its existing catalog/assignment and
+runtime ownership. [Verification limits](../../docs/downstream/session-skills-verification.md).
+
 - **[`docs/agent-runtime-harness/00-index.md`](../../docs/agent-runtime-harness/00-index.md) — the canon. Read first.** Nine domain docs: 01 architecture · 02 data and shapes · 03 transport and wire · 04 boot and lifecycle · 05 chat turn lane · 06 office and board · 07 observability · 08 performance and debt ledger · 09 multi-device runtime. `planned/` = designed, not shipped (106 files incl. field notes); `archive/` = history.
 - **The launcher half:** `EterniaLauncher/docs/mission_control/00-index.md` (eight domain docs) and `EterniaLauncher/docs/mission_control/10-multi-device-architecture.md` — read doc 10 first for the multi-device target and ledger.
 - **The work queue is the launcher's** `mission-control-queue.md` (both repos). This note carries a cursor, never rows.

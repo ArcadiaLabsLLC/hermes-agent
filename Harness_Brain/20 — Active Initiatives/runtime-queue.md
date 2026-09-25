@@ -23,7 +23,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
-- [ ] **Expose client-neutral, session-scoped skill list/detail facts and evidence-backed load activity through ACP, reusing canonical resolution.** · Owner approved 2026-09-24; cross-repo consumer: `EterniaLauncher/docs/companion/planned/SKILLS_EXPERIENCE_AUDIT_2026-09-24.md`. No second catalog, runtime manager or skill execution claim. **TAKEN 2026-09-24 codex-skills**
 
 ### Filed on arrival — 2026-09-24 (lane LLAMA-H)
 

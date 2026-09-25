@@ -1,3 +1,5 @@
+import asyncio
+import threading
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -67,3 +69,46 @@ def test_history_reads_the_existing_persisted_transcript(tmp_path):
     assert skill_load_history(history) == [{"id": "example", "count": 1}]
     assert manager.skill_history("unknown") == ([], False)
     db.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("change", ["workspace", "session"])
+async def test_a_read_cannot_outlive_its_session_scope(monkeypatch, change):
+    from agent_runtime import acp_skills
+    state = SessionState("session-a", SimpleNamespace(), cwd="before")
+    manager = Mock(spec=SessionManager)
+    manager.peek_session.return_value = state
+    started, release = threading.Event(), threading.Event()
+
+    def read(*_args):
+        started.set()
+        assert release.wait(5), "test did not release the read"
+        return {"skills": []}
+
+    monkeypatch.setitem(acp_skills._READS, "hermes/skills/list", read)
+    task = asyncio.create_task(HermesACPAgent(manager).ext_method(
+        "hermes/skills/list", {"sessionId": state.session_id}))
+    try:
+        assert await asyncio.to_thread(started.wait, 5)
+        if change == "workspace":
+            state.cwd = "after"
+        else:
+            manager.peek_session.return_value = SessionState("session-a", SimpleNamespace())
+    finally:
+        release.set()
+    with pytest.raises(RequestError) as error:
+        await task
+    assert error.value.code == -32002
+
+
+@pytest.mark.asyncio
+async def test_wire_budget_refuses_instead_of_truncating(monkeypatch):
+    from agent_runtime import acp_skills
+    manager = Mock(spec=SessionManager)
+    manager.peek_session.return_value = SessionState("session-a", SimpleNamespace())
+    monkeypatch.setitem(acp_skills._READS, "hermes/skills/detail",
+                        lambda *_: {"content": "x" * 1024 * 1024})
+    with pytest.raises(RequestError) as error:
+        await HermesACPAgent(manager).ext_method("hermes/skills/detail", {"sessionId": "session-a"})
+    assert error.value.code == -32010
+    assert error.value.data["reason"] == "response_too_large"
