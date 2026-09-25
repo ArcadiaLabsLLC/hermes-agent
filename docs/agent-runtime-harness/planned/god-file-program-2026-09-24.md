@@ -1,6 +1,6 @@
 # Planned — the god-file program (2026-09-24 refresh): 62 fork files, the enterprise bar, and the gates that hold it
 
-**Status:** DESIGN 2026-09-24 (Fable, lane GOD-D, read-only against `main` @ `78501db796`). Not dispatched. This note is the **refresh of [`downstream-god-file-refactor.md`](downstream-god-file-refactor.md) (2026-09-21)** — that plan stays the program's spine (its §0.1 counter, §0.2 fence, §0.4 exec trap, §0.5 gates, §1 rules 1–11, §2 lane layouts, §3 order, §5 duplicate list, §6 method, §7 owed, §8 ledger). This note re-takes its numbers (41 → 62 files), adds the owner's 2026-09-24 bar as rules with gates, moves the dead-code list into a launcher-format queue, and names which §§ of the 09-21 plan it supersedes (§1 below). Where the two disagree, THIS note wins, and the 09-21 plan is amended at Wave 0 to point here. Layout sheets for wave 1: [`god-file-layout-sheets/`](god-file-layout-sheets/). Dead code: `Harness_Brain/20 — Active Initiatives/dead-code-burn-down-queue.md`. Weakness escalation per domain: fork `CLAUDE.md` § "Weakness escalation".
+**Status:** DESIGN 2026-09-24 (Fable, lane GOD-D, read-only against `main` @ `78501db796`); **Wave 0 + Wave 1 LANDED the same day** (§3.1a — four hashes, `[ds-size]` 40/73,870 → 37/58,300); **Wave 2 first batch SHEETED** (§3.1b, lane GOD-S2 against `bf4377f226`), not dispatched. This note is the **refresh of [`downstream-god-file-refactor.md`](downstream-god-file-refactor.md) (2026-09-21)** — that plan stays the program's spine (its §0.1 counter, §0.2 fence, §0.4 exec trap, §0.5 gates, §1 rules 1–11, §2 lane layouts, §3 order, §5 duplicate list, §6 method, §7 owed, §8 ledger). This note re-takes its numbers (41 → 62 files), adds the owner's 2026-09-24 bar as rules with gates, moves the dead-code list into a launcher-format queue, and names which §§ of the 09-21 plan it supersedes (§1 below). Where the two disagree, THIS note wins, and the 09-21 plan is amended at Wave 0 to point here. Layout sheets for wave 1: [`god-file-layout-sheets/`](god-file-layout-sheets/). Dead code: `Harness_Brain/20 — Active Initiatives/dead-code-burn-down-queue.md`. Weakness escalation per domain: fork `CLAUDE.md` § "Weakness escalation".
 
 **The owner's brief (2026-09-24, verbatim intent).** *God file breakups … broken down but also refactored to be enterprise grade, no if if if else routing, code legibility dramatically up, how the codebase connects legibility and structure up, unification of helpers and code blocks reusable; as you go a dead code deletion list like we did in the launcher; add weakness escalation per domain to the todo / agents.md like in launcher.* And: every fork `.py` over 800 lines — 62 files, 120,253 lines (`X:/wt/_holds/god-files-over-800-2026-09-24.txt`, re-taken in §0).
 
@@ -165,6 +165,35 @@ S1 ──► R1 · R2 · R3 · R4 · C1 · T1        (any order, any parallelism
 
 Dependency-first, smallest blast radius first inside each wave: within R1–R4 a lane opens its files in ascending patch-site count (the 09-21 §0.3 column), so the file the most tests pin is moved with the most retargets already rehearsed.
 
+### 3.1a Wave 1 — DONE 2026-09-24 (W0 + H1–H4; four landings on `main`)
+
+| lane | landing on `main` | what landed |
+|---|---|---|
+| W0 | `7425b754a7` (tier commit) | `scripts/god_file_probe.py` + the five grandfather fixtures; gates G1–G7 live |
+| H1 | `73201f631e` | the seven exec'd parts are modules; W0-G4 to the full form |
+| H3 | `d0639591b0` | `persona_commands.py` → `harness_parts/persona/` (21 modules); `TurnCommit` phases |
+| H4 | `d567f07f62` | `serve.py` → `harness_parts/serve/` (16 modules + `serve_gateway_credentials.py`); `ServeSession`, `OP_HANDLERS`, `CREDENTIAL_KINDS`, `EndReason` |
+| H2 | `bf4377f226` | `harness.py` → 98 code lines; `parser/`, `usage/`, `characters/` + 12 modules; `_upstream_doors.py` ×2; `clock.py`; `serde` folds |
+
+`[ds-size]` (code counter, ruling Q1): **W0 baseline `units=40 total=73870`** (`7425b754a7`) → after H1 `units=40 total=73803` → after H4 `units=39 total=69761` → after H3 `units=39 total=67503` (rebased onto H4) → **after H2 `units=37 total=58300`** (`scripts/god_file_probe.py --check` on `bf4377f226`, 2026-09-24: every arm `0 NEW, 0 GREW, 0 STALE`). Three files and 15,570 code lines left the ceiling population in one day. What the four lanes recorded as "where I followed the tree over the sheet" — import cycles inside a sheet's layout (H3), a module over 800 when two groups joined (H4's `session.py` at 1,016, H2's `runtime_commands`), a table's owner module crossing the ceiling (H4's credential table → a new module) — is folded into every Wave 2 sheet's §1 as drawn import edges with the layer derived from what each module actually imports, lazy imports included (the gate's `imports_of` walks every `Import` node).
+
+### 3.1b Wave 2 — the first batch (ten `agent_runtime/` sheets, 2026-09-24, lane GOD-S2)
+
+Sheets in [`god-file-layout-sheets/`](god-file-layout-sheets/): `serve_rpc.md`, `realm_sync.md`, `core_cache.md`, `persona_assignments.md`, `prompt_observability.md`, `profile_runner.md`, `serve_socket.md`, `snapshot.md`, `office_store.md`, `persona_chat_history.md`. Two rulings the sheets apply as facts: **every package is named after its file** (`agent_runtime/serve_rpc/`, `agent_runtime/persona_assignments/`, …), because 41–72 test files and up to 60 production importers spell each path and the H3/H4 precedent (package = old module name, `__init__` = the public names) kept all of them green through the MOVE — the 09-21 §2 names (`persona_instances/`, `office/`, `persona_chat/history/`) are retired; and **a class is moved whole for exactly one commit** (`PersonaInstanceStore`, `OfficeStore`, `_execute_agent_run`, `mission_chat_prompt_observability`) — the H4 `loop.py` precedent — then split by composition in the CHANGE.
+
+**Order inside each lane and the parallel groups.** Four lanes run in parallel; inside a lane the files are sequential, ordered so that a file lands before the files that import it at module level, and the helper owners (`clock.now_iso`, `serde.read_json`/`positive_float`, `store_conflicts`, `store_events`, `file_locks`, `redaction`'s scrubbers, `git_cmd`) are created by the FIRST sheet that needs them and folded toward by every later one ("tree wins" when two lanes race to create the same owner — the second folds).
+
+| group | lane | files, in order | why this order |
+|---|---|---|---|
+| G1 | R1 | `persona_assignments` → `office_store` | `office_store` lazily imports `identity` (R1's leaf); `store_conflicts`/`store_events` are created in the second |
+| G2 | R2 | `prompt_observability` → `persona_chat_history` | disjoint importers; both fold `_safe_int` toward `serde` |
+| G3 | R4 | `realm_sync` | alone in this batch; `git_cmd` created here |
+| G4 | R3 | `serve_rpc` → `serve_socket` → `core_cache` → `profile_runner` → `snapshot` | `serve_rpc` creates `clock.now_iso`; `core_cache` imports two `serve_socket` constants at module level; `snapshot` imports six of the ten at module level and is **last of Wave 2** — its `__layer__` declarations land only after the three lazy reaches into it (`core_cache.contract_versions`, `prompt_observability.skills_catalog_by_hash`, `office_store`'s actor cap) are closed by their own sheets |
+
+Parallelism is safe across groups because each package re-exports every name its importers take today; the only cross-group edits are the two coordinated one-liners the sheets name (`MAX_OFFICE_ACTORS_PROJECTED` → `office_models.py`, R1/R3; the `_default_session_db` wrapper, R1/R2), each with a "tree wins" rule. **Second batch** (not yet sheeted): the 18 remaining R1–R4 files of §3.2, in the same groups, after this batch lands.
+
+**Two owner questions the sheets raise** (each with the default the lanes apply until answered): (Q6) three ladder/routing sites have **no test reaching them today** — `persona_assignments._persona_instance_is_active_lane`, `serve_socket._os_error_token`, `realm_sync.sync_artifacts_for_workspace_agent`'s caller — so their killing mutations are green by construction; the sheets land a positive control FIRST, in the MOVE (default: yes, a control before the table — the capture-is-a-vehicle rule). (Q7) `prompt_observability` and `profile_runner` reach three PRIVATE upstream names (`_compression_threshold_for_model`, `_find_all_skills`, `_sanitize_surrogates`); the sheets route each through `agent_runtime/_upstream_doors.py` and file a held widening row per name in `upstream-footprint-ledger.md` (default: door now, widening PR when the next upstream batch is cut).
+
 ### 3.2 Target shape per file — the module list, one line each, and the seam each exposes
 
 The 09-21 §2 tables stand for the 41 they cover (H2, H3, H4, R1–R4, C1, T1, S1); the three wave-1 sheets carry line ranges. Below: the **21 files new to scope** plus the two whose 09-21 row this refresh changes. Format: `file → modules` · *seam* (what the outside calls).
@@ -234,19 +263,21 @@ Per the scope rule; each sheet's § Doors carries the per-import table. The clas
 
 | lane | files | status | MOVE | CHANGE | `[ds-size]` after |
 |---|--:|---|---|---|--:|
-| W0 | — | designed here | — | 1 | 62 (+4) |
-| H1 | 8 | planned (unchanged) | — | 2 | 62 |
-| S1 | 1 | planned | 1 | — | 61 |
-| H2 | 2 | sheet `harness.md` | 1 | 1 | 59 |
-| H3 | 1 | sheet `persona_commands.md` | 1 | 1 | 58 |
-| R1 | 7 | planned | 1 | 1 | 51 |
-| R2 | 15 | planned | 1 | 1 | 36 |
-| R3 | 16 | planned | 1 | 1 | 20 |
-| R4 | 10 | planned | 1 | 1 | 10 |
-| C1 · T1 | 2 · 2 | planned (Q2) | 1 · 1 | 1 · 1 | 10 (the four are outside the 62 count) |
-| S2 | 7 | planned | 1 | 1 | 3 |
-| T2 | 2 | planned | 1 | — | 1 |
-| H4 | 1 | sheet `serve.md` | 1 | 1 | 0 |
+| W0 | — | **DONE** `7425b754a7` | — | 1 | code 40 / 73,870 |
+| H1 | 8 | **DONE** `73201f631e` | — | 2 | 40 / 73,803 |
+| S1 | 1 | planned | 1 | — | — |
+| H4 | 1 | **DONE** `d567f07f62` (sheet `serve.md`) | 1 | 4 | 39 / 69,761 |
+| H3 | 1 | **DONE** `d0639591b0` (sheet `persona_commands.md`) | 1 | 1 | 39 / 67,503 |
+| H2 | 2 | **DONE** `bf4377f226` (sheet `harness.md`; `runtime_commands` split still owed — runtime-queue row) | 1 | 5 | **37 / 58,300** |
+| R1 | 7 | Wave 2 batch 1: sheets `persona_assignments.md`, `office_store.md` (G1) | 2 | 2 | 35 |
+| R2 | 15 | Wave 2 batch 1: sheets `prompt_observability.md`, `persona_chat_history.md` (G2) | 2 | 2 | 33 |
+| R3 | 16 | Wave 2 batch 1: sheets `serve_rpc.md`, `serve_socket.md`, `core_cache.md`, `profile_runner.md`, `snapshot.md` (G4) | 5 | 5 | 28 |
+| R4 | 10 | Wave 2 batch 1: sheet `realm_sync.md` (G3) | 1 | 1 | 27 |
+| C1 · T1 | 2 · 2 | planned (Q2: yes) | 1 · 1 | 1 · 1 | 27 (the four are outside the 62 count) |
+| S2 | 7 | planned | 1 | 1 | 20 |
+| T2 | 2 | planned | 1 | — | 18 |
+
+The `[ds-size] after` column now carries the CODE counter (ruling Q1) — units, and for the landed lanes the total; the 18 remaining R1–R4 files of the second batch and the S/T/C lanes take it to 0. Wave 1 spent nine CHANGE commits where the plan budgeted four, each with its red recorded — the count that matters is commits per RED, not per lane, and it stayed one.
 
 Fourteen lanes, ≤ 29 commits (plus ≤ 1 `style:` per lane), for 66 files.
 
