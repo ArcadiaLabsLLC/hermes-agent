@@ -302,9 +302,8 @@ def mission_chat_mcp_lane_line(persona: Any, *, lane: str | None = None) -> str:
 
     try:
         # Local import: ``profile_readiness`` pulls in ``hermes_cli`` and this
-        # module is imported by every visibility resolve. Private-but-canonical
-        # is the deliberate trade — a second copy of the role policy is worse
-        # than reaching across for the first one.
+        # module is imported by every visibility resolve. A second copy of the
+        # role policy would be worse than reaching across for the first one.
         from .profile_readiness import effective_required_mcp_servers
 
         declared = effective_required_mcp_servers(persona)
