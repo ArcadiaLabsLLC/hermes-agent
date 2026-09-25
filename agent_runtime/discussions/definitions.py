@@ -14,6 +14,8 @@ from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Any
 
+__layer__ = "stores"
+
 CAPACITIES = (2, 4, 6, 8, 10, 12)
 MAX_PARTICIPANTS = CAPACITIES[-1]
 MAX_REVISION = 2**53 - 1  # Lossless in JSON clients as well as Python/SQLite.

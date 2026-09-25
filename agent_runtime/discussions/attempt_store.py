@@ -17,6 +17,8 @@ from hermes_cli.sqlite_util import transaction
 from .definition_store import _encode
 from .run_store import DiscussionError, digest, text
 
+__layer__ = "stores"
+
 
 def _ready(conn: sqlite3.Connection) -> bool:
     if conn.execute("SELECT 1 FROM sqlite_master WHERE name='mc_discussion_attempts_schema'").fetchone() is None:
