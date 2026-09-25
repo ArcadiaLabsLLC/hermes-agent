@@ -111,7 +111,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-25 (lane S2B)
 
-- [ ] **the alice_supervisor ⇄ neko_supervisor alias is spelled four times with two directions** · `fork / config` · `terminal_envelope._ROLE_ALIASES`, `config._RUNTIME_DEFAULT_PERSONA_ALIASES`, inline in `chat_lane_restore_toolsets` and `mission_chat_workdir` → one `personas.persona_id_aliases` owner · evidence: `terminal_envelope.md` §3, `config.md` §2 · filed by lane S2B 2026-09-25 **UNCLAIMED**
+- [ ] **the alice_supervisor ⇄ neko_supervisor alias is spelled four times with two directions** · `fork / config` · `terminal_envelope._ROLE_ALIASES`, `config._RUNTIME_DEFAULT_PERSONA_ALIASES`, inline in `chat_lane_restore_toolsets` and `mission_chat_workdir` → one `personas.persona_id_aliases` owner · evidence: `terminal_envelope.md` §3, `config.md` §2 · filed by lane S2B 2026-09-25 **UNCLAIMED** **TAKEN 2026-09-25 lane 2B-C**
 
 
 ### Filed on arrival — 2026-09-25 (lane S2A)
