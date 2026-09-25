@@ -40,8 +40,9 @@ ignored on read and the attempt slot is simply reused by the next ``propose``.
 
 All reads hit the disk fresh — the store caches nothing between calls, so
 several store instances (or processes) over one root always agree.  Concurrent
-writers are last-writer-wins per item; there is no lock (by design: this module
-must not import ``agent_runtime``).
+writers are last-writer-wins per item; there is no lock (by design: no module of
+this package imports ``agent_runtime`` at import time — its one call-time reach is
+:func:`agent.charsheet._support.shared_characters_dir`, ruling Q9).
 """
 
 from __future__ import annotations
@@ -51,8 +52,9 @@ import os
 import re
 import shutil
 import tempfile
-from datetime import datetime, timezone
 from pathlib import Path
+
+from agent.charsheet._support import utc_now
 
 SCHEMA = 1
 
@@ -69,10 +71,6 @@ _RESERVED_NAMES = frozenset(
     | {f"com{digit}" for digit in "0123456789"}
     | {f"lpt{digit}" for digit in "0123456789"}
 )
-
-
-def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def _attempt_suffix(image_path: Path) -> str:
@@ -199,7 +197,7 @@ class ImageRevisionStore:
         filename = f"attempt-{index + 1}{_attempt_suffix(source)}"
         self._copy_into(source, directory, filename)
         state["attempts"].append(
-            {"file": filename, "note": str(note), "created": _utc_now()}
+            {"file": filename, "note": str(note), "created": utc_now()}
         )
         state["approved"] = None
         self._write_state(key, state)

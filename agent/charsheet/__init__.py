@@ -19,8 +19,10 @@ operator accepts that ROW by name, which is recorded on the installed character.
 
 This subpackage is fork-owned but lives inside the upstream ``agent`` namespace
 so it ships with the plain hermes wheel (the packaging boundary rules out
-``agent_runtime``); nothing here imports ``agent_runtime``, and the pixel work
-imports upstream ``agent.pet.generate`` rather than editing it.
+``agent_runtime``); nothing here imports ``agent_runtime`` at import time — the
+one reach, the install-wide library's location, is a CALL-time import in
+:func:`agent.charsheet._support.shared_characters_dir` (ruling Q9) — and the
+pixel work imports upstream ``agent.pet.generate`` rather than editing it.
 
 - :mod:`agent.charsheet.spec` — the data model (pure stdlib, no Pillow).
 """

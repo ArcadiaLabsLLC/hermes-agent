@@ -1,6 +1,5 @@
 {
  "body_groups": [
-  "agent/charsheet/draft/installed.py::_sheet_revision == hermes_cli/harness_parts/pets_commands.py::_pet_sheet_revision",
   "agent_runtime/default_scope.py::_get_realm == agent_runtime/default_scope.py::_get_workspace",
   "agent_runtime/mcp_admission.py::_positive_float == agent_runtime/relay_policy.py::parse_deadline_epoch",
   "agent_runtime/mcp_lane.py::_clean == agent_runtime/tool_visibility.py::_clean_names",
@@ -35,7 +34,6 @@
   "_tracked: scripts/doc_cite_adjacency.py, scripts/doc_cite_report.py",
   "_walk: agent_runtime/local_llama_adapter/engine.py, agent_runtime/machine_roots.py, hermes_cli/charsheet_payload_contract.py, scripts/dump_cli_contract.py",
   "_write_conflict_sidecar: agent_runtime/flow_graph_sync.py, agent_runtime/level_sync.py, agent_runtime/map_sync.py",
-  "_write_json_atomic: agent/charsheet/_support.py, agent_runtime/mission_chat_steer.py",
   "_write_manifest: agent_runtime/event_rotation.py, scripts/generate_agent_runtime_stream_fixtures.py"
  ]
 }

@@ -2,11 +2,6 @@
  "functions": [
   {
    "depth": 2,
-   "lines": 151,
-   "unit": "agent/charsheet/draft/draft.py|CharacterDraft.compose"
-  },
-  {
-   "depth": 2,
    "lines": 152,
    "unit": "agent_runtime/call_authorization.py|authorize_call"
   },

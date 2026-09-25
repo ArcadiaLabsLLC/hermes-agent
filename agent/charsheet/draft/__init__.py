@@ -47,20 +47,34 @@ running would cost more than it protects.
 
 Package map (lane B1, sheet ``god-file-layout-sheets/draft.md`` §1). Layers point
 down (models <- policy <- stores <- lanes <- wiring); this map is ``lanes``
-because it imports the class. ``CharacterDraft`` is moved WHOLE for one commit
-(ruling Q8) — the only module in the batch over the 500 cap, and only here.
+because it imports the class. ``CharacterDraft`` is the only entry the CLI sees:
+it keeps its constructor, create/load/list, the properties, the lock and the
+guards, and delegates each stage verb — same name, same signature — to one of
+five objects it composes.
 
-    agent/charsheet/_support.py  models  utc_now, the two atomic writers, slugify, safe_segment
+    agent/charsheet/_support.py  models  utc_now, the two atomic writers, slugify, safe_segment,
+                                         and the ONE call-time reach into agent_runtime (Q9)
     agent/charsheet/draft/
       __init__.py    lanes    this map; re-exports CharacterDraft, the constants and the test-pinned names
-      layout.py      models   SCHEMA, STAGES, the file names, thumb defaults; characters_dir, drafts_dir,
-                              stamp_recorded_home; the spec round-trip; the revision keys; path_or_none, read_palette
+      layout.py      models   SCHEMA, Stage + STAGE_ORDER + VERB_STAGES, the file names, thumb defaults;
+                              characters_dir, drafts_dir, stamp_recorded_home; the spec round-trip;
+                              the revision keys; path_or_none, read_palette
       migration.py   lanes    migrate_characters_home (+ _migration_entry_id)
-      installed.py   stores   sprite_payload, the sheet revision, _handedness_accepted — the installed readers
-      draft.py       lanes    CharacterDraft (whole, this commit)
+      installed.py   stores   sprite_payload, sheet_revision, _handedness_accepted — the installed readers
+      draft.py       lanes    CharacterDraft: identity, create/load/list, properties, lock, guards, delegators
+      directions.py  lanes    DirectionStage: base image, turnaround, re-roll/approve directions
+      rows.py        lanes    RowStage: run_rows, reroll_row, add_state
+      thumbs.py      lanes    Thumbs: row_thumb, direction_thumb, _finish_thumb
+      compose.py     lanes    Composer: compose (collect -> validate -> guard_slug -> write_sheet -> manifest), reopen
+      status.py      lanes    StatusReport: status_payload, _item_status
 
     entry point                                     opens
-    CharacterDraft.*                                draft -> layout -> _support
+    CharacterDraft.create / load / list_drafts      draft -> layout -> _support
+    run_turnaround / reroll_direction / approve_*   draft -> directions -> layout
+    run_rows / reroll_row / add_state               draft -> rows -> layout
+    row_thumb / direction_thumb                     draft -> thumbs -> layout
+    compose / reopen                                draft -> compose -> installed
+    status_payload                                  draft -> status -> layout
     migrate_characters_home                         migration -> layout -> _support
     sprite_payload                                  installed -> layout
 """
@@ -69,13 +83,20 @@ from __future__ import annotations
 
 from agent.charsheet._support import slugify
 
-from . import draft, installed, layout, migration
+from . import compose, directions, draft, installed, layout, migration, rows, status, thumbs
+from .compose import (
+    Composer,
+)
+from .directions import (
+    DirectionStage,
+)
 from .draft import (
     CharacterDraft,
 )
 from .installed import (
     _handedness_accepted,
     _row_json,
+    sheet_revision,
     sprite_payload,
 )
 from .layout import (
@@ -89,7 +110,10 @@ from .layout import (
     SCHEMA,
     SHEET_FILENAME,
     STAGES,
+    STAGE_ORDER,
+    Stage,
     THUMBS_DIRNAME,
+    VERB_STAGES,
     characters_dir,
     drafts_dir,
     path_or_none,
@@ -103,6 +127,15 @@ from .layout import (
 from .migration import (
     _migration_entry_id,
     migrate_characters_home,
+)
+from .rows import (
+    RowStage,
+)
+from .status import (
+    StatusReport,
+)
+from .thumbs import (
+    Thumbs,
 )
 
 __layer__ = "lanes"

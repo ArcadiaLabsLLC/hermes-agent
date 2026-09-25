@@ -3510,10 +3510,10 @@
     },
     {
       "id": "longrun-rows-generates-without-the-draft-lock",
-      "path": "agent/charsheet/draft/draft.py",
-      "symbol": "CharacterDraft.run_rows",
+      "path": "agent/charsheet/draft/rows.py",
+      "symbol": "RowStage.run_rows",
       "operator": "drop-the-generation-lock",
-      "find": "        with self.generation_lock(\"rows\"):",
+      "find": "        with draft.generation_lock(\"rows\"):",
       "replace": "        with contextlib.nullcontext():",
       "test": [
         "{python}",

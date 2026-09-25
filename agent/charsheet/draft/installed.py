@@ -6,7 +6,7 @@ import base64
 import json
 from pathlib import Path
 
-from agent.charsheet._support import _safe_segment, slugify
+from agent.charsheet._support import safe_segment, slugify
 from agent.pet.constants import DEFAULT_SCALE, LOOP_MS
 
 from .layout import MANIFEST_FILENAME, SHEET_FILENAME, characters_dir, spec_from_dict
@@ -27,7 +27,7 @@ def _row_json(row) -> dict:
 # ──────────────────────────── installed sheets ────────────────────────────
 
 
-def _sheet_revision(path: Path) -> str:
+def sheet_revision(path: Path) -> str:
     """``mtime_ns:size`` — the pet payload's cache key, same meaning."""
     try:
         stat = path.stat()
@@ -74,7 +74,7 @@ def sprite_payload(slug: str, *, include_sheet: bool = True) -> dict:
     ``docs/spatial/CHARACTER_8WAY_SPRITE_FORMAT_SPEC_2026-08-17.md``): a directional
     row is ``<state>-<direction>``, and row 0 is the front-facing idle.
     """
-    safe = _safe_segment(slugify(slug))
+    safe = safe_segment(slugify(slug))
     directory = characters_dir() / safe
     manifest_path = directory / MANIFEST_FILENAME
     sheet_path = directory / SHEET_FILENAME
@@ -106,7 +106,7 @@ def sprite_payload(slug: str, *, include_sheet: bool = True) -> dict:
             if include_sheet
             else {"sheet": str(sheet_path)}
         ),
-        "spritesheetRevision": _sheet_revision(sheet_path),
+        "spritesheetRevision": sheet_revision(sheet_path),
         "frameW": spec.frame_w,
         "frameH": spec.frame_h,
         "framesByRow": {row.key: row.frames for row in spec.rows()},

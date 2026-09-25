@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
+from enum import StrEnum
 from pathlib import Path
+from types import MappingProxyType
+from typing import Final
 
-from agent.charsheet._support import _write_json_atomic
+from agent.charsheet._support import shared_characters_dir, write_json_atomic
 from agent.charsheet.spec import DEFAULT_FRAME_H, DEFAULT_FRAME_W, DirectionScheme, SheetSpec, StateSpec
-from agent_runtime.profile_home import get_shared_characters_dir
 
 __layer__ = "models"
 
@@ -24,9 +27,32 @@ __layer__ = "models"
 # bump all three, which is the argument for splitting them first.
 SCHEMA = 1
 
+class Stage(StrEnum):
+    """A draft's stage. A member IS its string, so ``draft.json`` is unchanged."""
+
+    TURNAROUND = "turnaround"
+    ROWS = "rows"
+    COMPOSED = "composed"
+
+
 # turnaround → rows → composed. Order is the tuple order; nothing branches on a
 # stage count.
-STAGES: tuple[str, ...] = ("turnaround", "rows", "composed")
+STAGE_ORDER: Final[tuple[Stage, ...]] = (Stage.TURNAROUND, Stage.ROWS, Stage.COMPOSED)
+STAGES = STAGE_ORDER
+
+#: The stage each verb requires — the one table the module docstring's "it is
+#: enforced" points at. ``CharacterDraft._require_stage`` is its only reader.
+VERB_STAGES: Final[Mapping[str, Stage]] = MappingProxyType({
+    "run_turnaround": Stage.TURNAROUND,
+    "reroll_direction": Stage.TURNAROUND,
+    "approve_direction": Stage.TURNAROUND,
+    "approve_all_directions": Stage.TURNAROUND,
+    "run_rows": Stage.ROWS,
+    "reroll_row": Stage.ROWS,
+    "add_state": Stage.ROWS,
+    "compose": Stage.ROWS,
+    "reopen": Stage.COMPOSED,
+})
 
 DRAFTS_DIRNAME = ".drafts"
 DRAFT_FILENAME = "draft.json"
@@ -75,7 +101,9 @@ DEFAULT_THUMB_FRAME = 0
 def characters_dir() -> Path:
     """The ONE install-wide character library (created on demand).
 
-    Delegates to :func:`agent_runtime.profile_home.get_shared_characters_dir` and adds
+    Delegates to :func:`agent_runtime.profile_home.get_shared_characters_dir` — at
+    CALL time, through :func:`agent.charsheet._support.shared_characters_dir`
+    (ruling Q9), so this module imports cleanly without the runtime — and adds
     nothing but the mkdir. This is the single site in hermes that spells the
     characters location: ``drafts_dir``, ``create``, ``load``, ``list_drafts``,
     the install writer and the CLI's installed-character rows all resolve
@@ -88,7 +116,7 @@ def characters_dir() -> Path:
     serve prewarm mirroring another persona home mid-read — became a characters
     incident. One directory per root has no such question to get wrong.
     """
-    path = get_shared_characters_dir()
+    path = shared_characters_dir()
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -127,7 +155,7 @@ def stamp_recorded_home(directory: Path, home: str) -> bool:
     if str(data.get("hermes_home", "") or "").strip():
         return False
     data["hermes_home"] = str(home)
-    _write_json_atomic(path, data)
+    write_json_atomic(path, data)
     return True
 
 
