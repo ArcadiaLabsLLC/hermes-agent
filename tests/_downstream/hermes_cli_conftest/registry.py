@@ -47,7 +47,6 @@ __layer__ = "stores"
 # executing every original assertion.
 _WEB_BUILD_PREREQ_FILES = frozenset({
     "test_cmd_update.py",
-    "test_update_yes_flag.py",
 })
 
 _ENV_GAP_SKIPS: EnvGapSkipRegistry = {

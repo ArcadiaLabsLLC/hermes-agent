@@ -61,15 +61,16 @@ _API_MODE_PACKAGE_REQUIREMENTS = {
     "anthropic_messages": ["anthropic"],
 }
 
-# Distribution -> the ``tools.lazy_deps`` feature carrying its pinned spec.
-# Rendered into the remediation command so an operator following the diagnostic
-# lands on the version provisioning would have installed, not on whatever is
-# newest on PyPI today.
-_LAZY_FEATURE_FOR_DISTRIBUTION = {
-    "anthropic": "provider.anthropic",
-    "boto3": "provider.bedrock",
-    "google-auth": "provider.vertex",
-    "azure-identity": "provider.azure_identity",
+# Distribution -> the ``pm`` extra that installs its LOCKED version. Upstream's
+# package manager replaced ``tools.lazy_deps`` at the 2026-09-25 merge; its one
+# remediation command (``pm.extras.install_hint``) installs the extra from the
+# lock, so an operator following the diagnostic still lands on the version
+# provisioning would have installed, not on whatever is newest on PyPI today.
+_PM_EXTRA_FOR_DISTRIBUTION = {
+    "anthropic": "anthropic",
+    "boto3": "bedrock",
+    "google-auth": "vertex",
+    "azure-identity": "azure-identity",
 }
 
 # Distributions that the declared ones import through, whose corruption
@@ -97,23 +98,20 @@ def required_packages_for(*, provider: str | None = None, api_mode: str | None =
 def install_command_for(distribution: str) -> str:
     """The exact command an operator should run to install ``distribution``.
 
-    Uses the ``tools.lazy_deps`` pin when the distribution has one. Falls back
-    to the bare name if lazy_deps is unavailable (mobile core and stripped
-    installs drop it).
+    A distribution a ``pm`` extra owns gets upstream's one remediation command
+    (``pm.extras.install_hint``: install the extra from the lock). Anything else,
+    or a stripped install without ``pm``, falls back to the bare name.
     """
     canonical = canonical_distribution(distribution)
-    spec = canonical
-    feature = _LAZY_FEATURE_FOR_DISTRIBUTION.get(canonical)
-    if feature:
+    extra = _PM_EXTRA_FOR_DISTRIBUTION.get(canonical)
+    if extra:
         try:
-            from tools.lazy_deps import LAZY_DEPS
+            from pm.extras import install_hint
 
-            specs = LAZY_DEPS.get(feature) or ()
-            if specs:
-                spec = " ".join(specs)
+            return install_hint(extra)
         except Exception:
             pass
-    return f"pip install {spec}"
+    return f"pip install {canonical}"
 
 
 def _integrity_scan_distributions(packages: list[str]) -> list[str]:
