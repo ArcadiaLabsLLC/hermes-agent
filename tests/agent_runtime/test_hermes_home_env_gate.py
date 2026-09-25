@@ -65,6 +65,8 @@ SCANNED_ROOTS = (
     "agent",
     "agent_runtime",
     "hermes_cli/harness_parts",
+    # The agent-chat tool's handlers (lane B1 split them out of the entry below).
+    "tools/agent_chat",
 )
 #: ``tools/mission_goal_tool.py`` stood here until 2026-08-20 and had been
 #: DELETED since the mission-lane removal (``2154f05428``). The resolver below

@@ -252,10 +252,8 @@ def read_chat_lane_tail(
         MAX_PERSONA_CHAT_MESSAGE_TAIL,
         persona_chat_session_messages,
     )
-    from tools.agent_chat_tool import (
-        _resolve_chat_lane_target,
-        _session_belongs_to_chat_lane,
-    )
+    from tools.agent_chat.lane import _session_belongs_to_chat_lane
+    from tools.agent_chat.threads import _resolve_chat_lane_target
 
     target, refusal = _resolve_chat_lane_target(
         persona_id, requested_by_session=requested_by_session, verb="agent_chat_open"
