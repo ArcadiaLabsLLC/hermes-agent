@@ -820,10 +820,10 @@
     {
       "id": "d1-wire-refusal-loses-its-pinned-reason",
       "path": "agent_runtime/serve_rpc/office_actor_writes.py",
-      "symbol": "_runtime_office_upsert",
+      "symbol": "_upsert_actor_archived",
       "operator": "collapse-refusal-reason",
-      "find": "                \"reason\": \"actor_archived\",\n                \"workspace_id\": workspace_id,\n                \"actor_key\": details[\"actor_key\"],",
-      "replace": "                \"reason\": \"class_key_collision\",\n                \"workspace_id\": workspace_id,\n                \"actor_key\": details[\"actor_key\"],",
+      "find": "            \"reason\": \"actor_archived\",\n            \"workspace_id\": scope.workspace_id,\n            \"actor_key\": details[\"actor_key\"],",
+      "replace": "            \"reason\": \"class_key_collision\",\n            \"workspace_id\": scope.workspace_id,\n            \"actor_key\": details[\"actor_key\"],",
       "test": [
         "{python}",
         "-m",
