@@ -29,5 +29,5 @@ For any change on the path from a message arriving at `hermes harness persona in
 
 - Handler: `hermes_cli/harness_parts/persona/chat_turn_message.py::_cmd_mission_chat_message` → `persona/chat_turn_commit::_mission_chat_commit_turn` (lane H3 split `persona_commands.py`; the package `__init__.py` is the map).
 - Runner: `agent_runtime/profile_runner/runner.py::ProfileAgentRunner._execute_agent_run`.
-- Ledger: `agent_runtime/mission_chat_turns.py`; live log `agent_runtime/chat_live_log.py`; history/curation `persona_chat_history.py`; continuity (clarify tickets, mint receipts) `persona_chat_continuity.py`.
+- Ledger: `agent_runtime/mission_chat_turns/`; live log `agent_runtime/chat_live_log.py`; history/curation `persona_chat_history.py`; continuity (clarify tickets, mint receipts) `persona_chat_continuity.py`.
 - Tests: `tests/agent_runtime/test_mission_chat_*.py`, `test_profile_runner.py`, `test_persona_chat_history_curation.py`.

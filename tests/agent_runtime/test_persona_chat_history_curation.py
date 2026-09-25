@@ -1092,7 +1092,7 @@ def test_recent_interrupted_marker_survives_retention_churn_and_synthesizes(
 ):
     from agent_runtime import mission_chat_turns
 
-    monkeypatch.setattr(mission_chat_turns, "_RETENTION_MAX_TURNS_PER_SESSION", 10)
+    monkeypatch.setattr(mission_chat_turns.storage, "_RETENTION_MAX_TURNS_PER_SESSION", 10)
     # Old settled turns that retention will churn through.
     for index in range(15):
         persist_mission_chat_turn(

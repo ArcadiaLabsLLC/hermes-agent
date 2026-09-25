@@ -225,7 +225,7 @@ def test_retention_evicts_everything_except_the_inflight_bucket(state, lifecycle
 
     from agent_runtime import mission_chat_turns
 
-    monkeypatch.setattr(mission_chat_turns, "_RETENTION_MAX_TURNS_PER_SESSION", 1)
+    monkeypatch.setattr(mission_chat_turns.storage, "_RETENTION_MAX_TURNS_PER_SESSION", 1)
     _seed("s_cap", "m_old", state)
     # The protected record being written pushes the session over the cap.
     persist_mission_chat_turn(
@@ -357,7 +357,7 @@ def test_the_runtime_table_agrees_with_this_files_classification():
 def test_the_import_guards_reject_every_way_the_table_can_rot(monkeypatch, mutation):
     """A guard nothing can trip is decoration. Trip each one."""
 
-    from agent_runtime import mission_chat_turns as store
+    from agent_runtime.mission_chat_turns import states as store
 
     for name, value in mutation.items():
         monkeypatch.setattr(store, name, value)

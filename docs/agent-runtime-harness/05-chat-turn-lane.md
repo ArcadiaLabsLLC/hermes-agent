@@ -425,7 +425,7 @@ legacy behavior byte-for-byte" (`:616-628`) — callers must treat it as fall-th
 ## 7. Turn durability and the run budget
 
 **One file per chat session** — `mission_chat_turns/<safe_session_key>.json` with a co-located lock
-(`agent_runtime/mission_chat_turns.py:26-52`), so concurrent turns in different chats never contend;
+(`agent_runtime/mission_chat_turns/storage.py:29-55`), so concurrent turns in different chats never contend;
 the legacy monolith splits once on first read/write and is renamed aside, never deleted. Retention:
 100 turns per session, 50 session files, inside the per-session lock (`:72-73`).
 

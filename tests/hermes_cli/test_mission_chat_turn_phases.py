@@ -950,7 +950,7 @@ def _seed_session_file(tmp_path, monkeypatch, session_id: str, session: dict) ->
     """
 
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "runtime"))
-    from agent_runtime import mission_chat_turns as store_module
+    from agent_runtime.mission_chat_turns import storage as store_module
 
     path = store_module._session_file_path(session_id)
     path.parent.mkdir(parents=True, exist_ok=True)

@@ -49,13 +49,13 @@ def store_write_counter(monkeypatch):
     flush rewrites exactly that one session file)."""
 
     counter = {"writes": 0}
-    original = mission_chat_turns._write_session_file
+    original = mission_chat_turns.journal._write_session_file
 
     def _counting_write(path, data):
         counter["writes"] += 1
         original(path, data)
 
-    monkeypatch.setattr(mission_chat_turns, "_write_session_file", _counting_write)
+    monkeypatch.setattr(mission_chat_turns.journal, "_write_session_file", _counting_write)
     return counter
 
 
@@ -198,7 +198,7 @@ def _persist_completed(session_id: str, client_message_id: str) -> None:
 
 
 def test_per_session_tail_bound_keeps_most_recent(monkeypatch):
-    monkeypatch.setattr(mission_chat_turns, "_RETENTION_MAX_TURNS_PER_SESSION", 5)
+    monkeypatch.setattr(mission_chat_turns.storage, "_RETENTION_MAX_TURNS_PER_SESSION", 5)
     for index in range(8):
         _persist_completed("s1", f"m{index}")
 
@@ -207,18 +207,18 @@ def test_per_session_tail_bound_keeps_most_recent(monkeypatch):
 
 
 def _live_session_keys(candidate_keys):
-    return [key for key in candidate_keys if mission_chat_turns._session_file_path(key).exists()]
+    return [key for key in candidate_keys if mission_chat_turns.storage._session_file_path(key).exists()]
 
 
 def _archived(session_key):
     return (
-        mission_chat_turns._archive_dir()
-        / mission_chat_turns._session_file_path(session_key).name
+        mission_chat_turns.storage._archive_dir()
+        / mission_chat_turns.storage._session_file_path(session_key).name
     ).exists()
 
 
 def test_session_bound_evicts_oldest_session_files_to_archive(monkeypatch):
-    monkeypatch.setattr(mission_chat_turns, "_RETENTION_MAX_SESSIONS", 3)
+    monkeypatch.setattr(mission_chat_turns.storage, "_RETENTION_MAX_SESSIONS", 3)
     keys = [f"s{index}" for index in range(5)]
     for key in keys:
         _persist_completed(key, "m1")
@@ -231,7 +231,7 @@ def test_session_bound_evicts_oldest_session_files_to_archive(monkeypatch):
 
 
 def test_running_records_survive_per_session_retention(monkeypatch):
-    monkeypatch.setattr(mission_chat_turns, "_RETENTION_MAX_TURNS_PER_SESSION", 3)
+    monkeypatch.setattr(mission_chat_turns.storage, "_RETENTION_MAX_TURNS_PER_SESSION", 3)
     persist_mission_chat_turn(
         session_id="s1",
         client_message_id="m_live",
@@ -253,7 +253,7 @@ def test_running_records_survive_per_session_retention(monkeypatch):
 
 
 def test_session_file_with_running_record_never_evicted(monkeypatch):
-    monkeypatch.setattr(mission_chat_turns, "_RETENTION_MAX_SESSIONS", 2)
+    monkeypatch.setattr(mission_chat_turns.storage, "_RETENTION_MAX_SESSIONS", 2)
     persist_mission_chat_turn(
         session_id="s_live",
         client_message_id="m_live",
@@ -267,7 +267,7 @@ def test_session_file_with_running_record_never_evicted(monkeypatch):
 
     # s_live is the OLDEST session file, yet its running record keeps its file
     # off the GC's chopping block — a newer completed session is evicted instead.
-    assert mission_chat_turns._session_file_path("s_live").exists()
+    assert mission_chat_turns.storage._session_file_path("s_live").exists()
     assert not _archived("s_live")
     record = mission_chat_turn_record(session_id="s_live", client_message_id="m_live")
     assert record["state"] == "running"
@@ -281,12 +281,12 @@ def test_active_record_immune_even_when_oldest():
         "m_mid": {"state": "completed", "updated_at": "2026-01-02T00:00:00Z"},
         "m_new": {"state": "completed", "updated_at": "2026-01-03T00:00:00Z"},
     }
-    original_turns = mission_chat_turns._RETENTION_MAX_TURNS_PER_SESSION
-    mission_chat_turns._RETENTION_MAX_TURNS_PER_SESSION = 2
+    original_turns = mission_chat_turns.storage._RETENTION_MAX_TURNS_PER_SESSION
+    mission_chat_turns.storage._RETENTION_MAX_TURNS_PER_SESSION = 2
     try:
-        mission_chat_turns._apply_session_turn_cap(session, protected_message="m_old_active")
+        mission_chat_turns.storage._apply_session_turn_cap(session, protected_message="m_old_active")
     finally:
-        mission_chat_turns._RETENTION_MAX_TURNS_PER_SESSION = original_turns
+        mission_chat_turns.storage._RETENTION_MAX_TURNS_PER_SESSION = original_turns
 
     assert sorted(session.keys()) == ["m_new", "m_old_active"]
 
@@ -296,20 +296,20 @@ def test_protected_session_immune_to_session_file_gc():
     # when it ranks oldest by recency. A newer, unprotected session is evicted.
     _persist_completed("s_old", "m1")
     _persist_completed("s_new", "m1")
-    original_sessions = mission_chat_turns._RETENTION_MAX_SESSIONS
-    mission_chat_turns._RETENTION_MAX_SESSIONS = 1
+    original_sessions = mission_chat_turns.storage._RETENTION_MAX_SESSIONS
+    mission_chat_turns.storage._RETENTION_MAX_SESSIONS = 1
     try:
-        mission_chat_turns._gc_session_files(protected_session_key="s_old")
+        mission_chat_turns.storage._gc_session_files(protected_session_key="s_old")
     finally:
-        mission_chat_turns._RETENTION_MAX_SESSIONS = original_sessions
+        mission_chat_turns.storage._RETENTION_MAX_SESSIONS = original_sessions
 
-    assert mission_chat_turns._session_file_path("s_old").exists()
-    assert not mission_chat_turns._session_file_path("s_new").exists()
+    assert mission_chat_turns.storage._session_file_path("s_old").exists()
+    assert not mission_chat_turns.storage._session_file_path("s_new").exists()
     assert _archived("s_new")
 
 
 def test_retention_is_invisible_to_the_typed_outcome(monkeypatch):
-    monkeypatch.setattr(mission_chat_turns, "_RETENTION_MAX_TURNS_PER_SESSION", 2)
+    monkeypatch.setattr(mission_chat_turns.storage, "_RETENTION_MAX_TURNS_PER_SESSION", 2)
     for index in range(4):
         outcome = persist_mission_chat_turn(
             session_id="s1",
@@ -329,7 +329,7 @@ def test_defaults_exceed_projection_message_tail():
     # displayable agent row can lose its turn_elements.
     from agent_runtime.persona_chat_history import MAX_PERSONA_CHAT_MESSAGE_TAIL
 
-    assert mission_chat_turns._RETENTION_MAX_TURNS_PER_SESSION >= (
+    assert mission_chat_turns.storage._RETENTION_MAX_TURNS_PER_SESSION >= (
         MAX_PERSONA_CHAT_MESSAGE_TAIL * 2
     )
 
