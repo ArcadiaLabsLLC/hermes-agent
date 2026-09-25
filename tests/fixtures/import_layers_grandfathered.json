@@ -144,7 +144,6 @@
   "agent_runtime/init_observability.py",
   "agent_runtime/kanban_blocked_pm_tick.py",
   "agent_runtime/level_sync.py",
-  "agent_runtime/local_llama_adapter/__init__.py",
   "agent_runtime/local_llama_adapter/config.py",
   "agent_runtime/local_llama_adapter/engine.py",
   "agent_runtime/local_llama_adapter/manager.py",

@@ -9,6 +9,8 @@ parameters, and the two gap fallbacks (a user-supplied ``llama-server``, extra m
 No import-time process or filesystem I/O.
 """
 
+__layer__ = "policy"
+
 PROVIDER_ID = "local-llama-hermes"
 DISPLAY_NAME = "Local llama Hermes"
 SCHEMA = "hermes.local_llama/v1"
