@@ -24,7 +24,6 @@
   "scripts/changed_line_mutation_check.py": 831,
   "tests/_downstream/hermes_cli_conftest.py": 893,
   "tests/_downstream/id_markers.py": 1053,
-  "tools/agent_chat_dispatch.py": 842,
   "tools/agent_chat_tool.py": 1429
  }
 }

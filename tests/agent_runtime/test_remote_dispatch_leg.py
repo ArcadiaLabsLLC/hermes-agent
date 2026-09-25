@@ -356,7 +356,7 @@ def test_the_stdout_event_name_is_taken_from_serve_rather_than_guessed():
 
 @pytest.fixture
 def no_sleep(monkeypatch):
-    monkeypatch.setattr(agent_chat_dispatch.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(agent_chat_dispatch.remote.time, "sleep", lambda _s: None)
 
 
 @pytest.fixture
@@ -643,12 +643,12 @@ def test_a_local_spec_never_takes_the_remote_leg(monkeypatch):
 
     taken = []
     monkeypatch.setattr(
-        agent_chat_dispatch,
+        agent_chat_dispatch.local,
         "_run_remote_dispatch",
         lambda *args: taken.append("remote"),
     )
     monkeypatch.setattr(
-        agent_chat_dispatch.subprocess,
+        agent_chat_dispatch.local.subprocess,
         "Popen",
         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("spawned")),
     )
