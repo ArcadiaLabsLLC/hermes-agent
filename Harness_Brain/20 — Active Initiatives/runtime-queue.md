@@ -96,6 +96,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 - [ ] **`agent_runtime` reaches UP into the CLI namespace: lazy `from hermes_cli import harness` in `agent_runtime/discussions/native.py`, `dispatch_delivery.py`, `peer_directory.py`, `persona_open_chat.py`** · `fork / runtime` · runtime → CLI is an upward import that W0-G6 cannot see until those modules declare `__layer__`; the god-file lanes R1–R4 declare layers and invert the dependency (the CLI registers what the runtime needs) · evidence: lane W0 2026-09-24, `docs/agent-runtime-harness/planned/downstream-god-file-refactor-reach-census.md` **UNCLAIMED**
 
+- [ ] **~22 test docstrings and 4 production comments still say `persona_commands` is "exec'd / not importable"; the tests they justify are AST source-shape pins that can now be behaviour pins** · `fork / refactor` · lane H3 (persona_commands → 16 modules) rewrites them as it splits; list: `git grep "exec'd into\|_load_command_parts"` · evidence: lane H1 2026-09-24 **UNCLAIMED**
+
 ## Seams — fork edits inside upstream files (additive only)
 
 ### Filed on arrival — 2026-09-24 (seam lane S2)

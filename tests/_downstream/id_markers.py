@@ -1045,8 +1045,7 @@ if _WIN and not sys.flags.utf8_mode:
     # an unconditional strict xfail XPASSes.
     ID_MARKS.update({
         f"tests/hermes_cli/test_kanban_core_functionality.py::{test}": (
-            _up_red("write_text() of a non-ASCII worker log with no encoding= under the "
-                    "cp1252 locale: UnicodeEncodeError (class e-ENC)"),
+            _up_red("write_text() of a non-ASCII worker log with no encoding= under the cp1252 locale: UnicodeEncodeError (class e-ENC)"),
         )
         for test in (
             "test_dead_worker_reap_surfaces_the_workers_own_last_output",
