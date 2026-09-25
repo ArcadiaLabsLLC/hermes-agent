@@ -14,6 +14,7 @@ import time
 import pytest
 
 from agent_runtime import snapshot as snapshot_mod
+from tests._downstream.split_package_source import patch_where_bound
 
 
 @pytest.fixture(autouse=True)
@@ -303,7 +304,7 @@ def test_the_stream_hydrate_joins_the_running_build(monkeypatch):
         }
 
     monkeypatch.setattr(snapshot_mod.build, "_build_snapshot_uncoalesced", fake_build)
-    monkeypatch.setattr(stream_mod, "_identity_map", lambda _snap: {})
+    patch_where_bound(monkeypatch, stream_mod, "_identity_map", lambda _snap: {})
 
     leader = threading.Thread(target=snapshot_mod.build_snapshot)
     leader.start()

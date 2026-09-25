@@ -15,7 +15,7 @@ import ast
 from pathlib import Path
 from types import ModuleType
 
-__all__ = ["package_files", "package_source", "package_tree"]
+__all__ = ["package_files", "package_source", "package_tree", "patch_where_bound"]
 
 
 def package_files(package: ModuleType) -> list[Path]:
@@ -35,3 +35,28 @@ def package_source(package: ModuleType) -> str:
 def package_tree(package: ModuleType) -> ast.Module:
     """``ast.parse(package_source(package))``."""
     return ast.parse(package_source(package))
+
+
+def patch_where_bound(monkeypatch, package: ModuleType, name: str, value: object) -> None:
+    """Stub ``name`` wherever ``package`` or one of its modules BINDS it.
+
+    A split package re-exports names its modules bound by import (lane B4's
+    ``stream``); a stub on the package attribute alone reaches no module-global
+    read, silently. Patched: the package itself when it binds ``name``, and every
+    module of it whose ``name`` is the SAME object the package holds (or, when the
+    package does not hold it, every module that binds it at all). Fails loudly
+    when nothing binds it — a stub that reaches nothing is the defect.
+    """
+    import importlib
+    import pkgutil
+
+    original = vars(package).get(name)
+    targets = [package] if name in vars(package) else []
+    for info in pkgutil.walk_packages(package.__path__, package.__name__ + "."):
+        module = importlib.import_module(info.name)
+        bound = vars(module)
+        if name in bound and (original is None or bound[name] is original):
+            targets.append(module)
+    assert targets, f"nothing in {package.__name__} binds {name!r}"
+    for target in targets:
+        monkeypatch.setattr(target, name, value)

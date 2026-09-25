@@ -81,6 +81,26 @@ def test_delta_frame_masks_secret_assignments():
     assert frame["entity"]["event"]["payload"]["output"] == "API_TOKEN=[redacted]\nall good"
 
 
+
+def test_delta_frame_masks_a_secret_inside_a_tuple_and_ships_the_tuple_as_a_list():
+    """Positive control for ``_redaction_safe_json``'s tuple arm (sheet ``stream.md``
+    §6): a tuple is walked like a list — its strings masked, the value shipped as a
+    JSON list — never passed through whole to ``to_jsonable``."""
+
+    frame = delta_frame(
+        Event(
+            ts=now(),
+            type="run.tool.finished",
+            task_id="task_secret_tuple",
+            run_id="run_secret_tuple",
+            persona_id="dev",
+            payload={"output": ("API_TOKEN=super-secret", "all good")},
+        ),
+        offset=124,
+    )
+
+    assert frame["entity"]["event"]["payload"]["output"] == ["API_TOKEN=[redacted]", "all good"]
+
 def test_harness_stream_command_outputs_ndjson(isolate_agent_runtime_root, capsys):
 
     assert (

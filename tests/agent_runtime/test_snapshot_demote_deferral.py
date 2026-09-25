@@ -30,6 +30,7 @@ from agent_runtime.stream import (
     SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS,
     _defer_demote_build_for_active_turns,
 )
+from tests._downstream.split_package_source import patch_where_bound
 
 
 class _FakeClock:
@@ -55,7 +56,7 @@ def _in_flight(monkeypatch, values):
     def _read():
         return script.pop(0) if len(script) > 1 else script[0]
 
-    monkeypatch.setattr(stream_mod, "_agent_runs_in_flight", _read)
+    patch_where_bound(monkeypatch, stream_mod, "_agent_runs_in_flight", _read)
 
 
 def _admitted(monkeypatch, values):
@@ -73,7 +74,7 @@ def _admitted(monkeypatch, values):
     def _read():
         return script.pop(0) if len(script) > 1 else script[0]
 
-    monkeypatch.setattr(stream_mod, "_chat_turns_admitted", _read)
+    patch_where_bound(monkeypatch, stream_mod, "_chat_turns_admitted", _read)
 
 
 def test_the_bound_covers_the_measured_pre_admit_p95_and_is_a_constant():
@@ -162,7 +163,7 @@ def test_an_unreadable_run_counter_does_not_defer(monkeypatch):
     the exact failure mode this plan exists to end.
     """
 
-    monkeypatch.setattr(stream_mod, "_agent_runs_in_flight", lambda: None)
+    patch_where_bound(monkeypatch, stream_mod, "_agent_runs_in_flight", lambda: None)
     clock = _FakeClock()
     waited = _defer_demote_build_for_active_turns(
         reason=BATCH_REASON_DEMOTE, caller="hub", sleeper=clock.sleep, clock=clock
@@ -175,7 +176,7 @@ def test_a_cancelled_request_abandons_the_wait_immediately(monkeypatch):
     """A consumer that went away must not be waited FOR."""
 
     _in_flight(monkeypatch, [2])
-    monkeypatch.setattr(stream_mod, "request_cancelled", lambda: True)
+    patch_where_bound(monkeypatch, stream_mod, "request_cancelled", lambda: True)
     clock = _FakeClock()
     waited = _defer_demote_build_for_active_turns(
         reason=BATCH_REASON_DEMOTE, caller="hub", sleeper=clock.sleep, clock=clock
@@ -346,7 +347,7 @@ def test_an_unreadable_admitted_counter_reads_unknown_and_never_zero(
     """
 
     _in_flight(monkeypatch, [1])
-    monkeypatch.setattr(stream_mod, "_chat_turns_admitted", lambda: None)
+    patch_where_bound(monkeypatch, stream_mod, "_chat_turns_admitted", lambda: None)
     clock = _FakeClock()
     with caplog.at_level("INFO", logger=stream_mod.logger.name):
         _defer_demote_build_for_active_turns(
@@ -508,7 +509,7 @@ def test_hydrate_full_core_and_cancel_preserve_bypass(monkeypatch):
 
     _in_flight(monkeypatch, [0])
     _admitted(monkeypatch, [1])
-    monkeypatch.setattr(stream_mod, "request_cancelled", lambda: True)
+    patch_where_bound(monkeypatch, stream_mod, "request_cancelled", lambda: True)
     clock = _FakeClock()
     waited = _defer_demote_build_for_active_turns(
         reason=BATCH_REASON_DEMOTE, caller="hub", sleeper=clock.sleep, clock=clock
@@ -642,18 +643,21 @@ def test_the_demote_lane_actually_calls_the_deferral_before_it_builds(monkeypatc
             self.elapsed_ms = None
             self.build_info = {"caller": caller, "role": "led", "generation": 1}
 
-    monkeypatch.setattr(
+    patch_where_bound(
+        monkeypatch,
         stream_mod, "_defer_demote_build_for_active_turns", _fake_defer
     )
-    monkeypatch.setattr(stream_mod, "_SnapshotBuildJob", _FakeJob)
-    monkeypatch.setattr(
+    patch_where_bound(monkeypatch, stream_mod, "_SnapshotBuildJob", _FakeJob)
+    patch_where_bound(
+        monkeypatch,
         stream_mod, "_build_with_liveness", lambda *a, **k: iter(())
     )
-    monkeypatch.setattr(stream_mod, "request_cancelled", lambda: False)
-    monkeypatch.setattr(stream_mod.demote_core_reuse, "consult", lambda floor: None)
-    monkeypatch.setattr(stream_mod.demote_core_reuse, "remember", lambda snap: None)
-    monkeypatch.setattr(stream_mod, "core_event_offset", lambda snap: None)
-    monkeypatch.setattr(
+    patch_where_bound(monkeypatch, stream_mod, "request_cancelled", lambda: False)
+    monkeypatch.setattr(stream_mod.build.demote_core_reuse, "consult", lambda floor: None)
+    monkeypatch.setattr(stream_mod.build.demote_core_reuse, "remember", lambda snap: None)
+    patch_where_bound(monkeypatch, stream_mod, "core_event_offset", lambda snap: None)
+    patch_where_bound(
+        monkeypatch,
         stream_mod, "delta_batch_frame", lambda batch, snapshot: {"watermark": {}}
     )
 

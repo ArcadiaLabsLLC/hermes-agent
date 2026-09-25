@@ -28,6 +28,7 @@ from agent_runtime.events import EventLog
 from agent_runtime.models import Event
 from agent_runtime.stream import stream_frames
 from tests.agent_runtime.stream_liveness_helpers import drain_boot_liveness
+from tests._downstream.split_package_source import patch_where_bound
 
 _PREFIX = "snapshot_build "
 
@@ -96,7 +97,7 @@ def _slow_build(monkeypatch, seconds: float = 0.15):
         time.sleep(seconds)
         return real(*args, **kwargs)
 
-    monkeypatch.setattr(stream_mod, "build_snapshot", slow)
+    patch_where_bound(monkeypatch, stream_mod, "build_snapshot", slow)
 
 
 def test_hydrate_logs_the_build_it_paid_for(
@@ -166,7 +167,7 @@ def test_lane_off_batch_is_labelled_full_core_not_demote(
     make the grep that matters return every frame ever built.
     """
 
-    monkeypatch.setattr(stream_mod, "delta_patches_enabled", lambda config=None: False)
+    patch_where_bound(monkeypatch, stream_mod, "delta_patches_enabled", lambda config=None: False)
     frames = stream_frames(
         poll_interval_seconds=0.01,
         heartbeat_interval_seconds=60,
