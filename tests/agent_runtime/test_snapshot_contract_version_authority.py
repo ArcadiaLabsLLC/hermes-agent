@@ -103,10 +103,9 @@ AUTHORITY_FILE = "test_snapshot_contract_version_authority.py"
 #: demanding the number exist nowhere. Named as a pair (not a bare filename) so
 #: the exemption cannot widen to some other literal in the same module, and
 #: witnessed by :func:`test_the_definition_site_is_where_it_claims_to_be`.
-DEFINITION_SITE = ("context.py", "SNAPSHOT_CONTRACT_VERSION")
-#: Where the definition site LIVES (lane R3 split snapshot.py into a package and
+#: Keyed on the repo-relative PATH (lane R3 split snapshot.py into a package and
 #: put the contract version in its leaf, ``snapshot/context.py``).
-DEFINITION_HOME = "agent_runtime/snapshot"
+DEFINITION_SITE = ("agent_runtime/snapshot/context.py", "SNAPSHOT_CONTRACT_VERSION")
 
 #: The authority's own symbol. Derived from :data:`DEFINITION_SITE` so the two
 #: cannot drift, and used below to make it STRUCTURALLY impossible for any
@@ -141,11 +140,11 @@ AUTHORITY_SYMBOL = DEFINITION_SITE[1]
 #: ``SNAPSHOT_CONTRACT_VERSION`` would no longer be independent, and the entry
 #: would have stopped being true.
 LANE_CONTRACT_ALLOWLIST = {
-    ("platform_actions.py", "ACTIONS_CONTRACT_VERSION"): (
+    ("hermes_cli/platform_actions.py", "ACTIONS_CONTRACT_VERSION"): (
         "Upstream plugin platform-action capability contract, independent of "
         "snapshot parity and its version. Versions adapter action dispatch."
     ),
-    ("protocol.py", "RPC_CONTRACT_VERSION"): (
+    ("agent_runtime/serve_rpc/protocol.py", "RPC_CONTRACT_VERSION"): (
         "the JSON-RPC METHOD-SURFACE contract, declared in serve_rpc/protocol.py and "
         "published by serve_rpc/registry.py::manifest as "
         "`{'contract': RPC_CONTRACT_VERSION, 'methods': method_names()}`. It "
@@ -154,7 +153,7 @@ LANE_CONTRACT_ALLOWLIST = {
         "not move it. Nothing on the snapshot frame reads it and it never "
         "reaches `parity.contract_version`."
     ),
-    ("constants.py", "OPS_CONTRACT_VERSION"): (
+    ("hermes_cli/harness_parts/serve/constants.py", "OPS_CONTRACT_VERSION"): (
         "the serve dispatcher's OP-SURFACE contract (EG-4.1), published under "
         "`ops` on `ready`/`hello_ok`/`version` beside — never inside — the "
         "method manifest. It versions the shape of the ops advertisement "
@@ -163,7 +162,7 @@ LANE_CONTRACT_ALLOWLIST = {
         "reads it. Lives in hermes_cli/harness_parts/serve/constants.py, "
         "beside the op vocabulary the dispatcher reads."
     ),
-    ("hello.py", "HELLO_CONTRACT_VERSION"): (
+    ("agent_runtime/serve_socket/hello.py", "HELLO_CONTRACT_VERSION"): (
         "the socket HELLO HANDSHAKE contract, declared in serve_socket/hello.py, "
         "stamped on every `server_hello` by serve_socket/server.py and folded into "
         "the HMAC proof preimage by hello_proof "
@@ -172,7 +171,7 @@ LANE_CONTRACT_ALLOWLIST = {
         "concern that is settled before any snapshot is ever sent, and one that "
         "must be able to move without restamping contract_hash."
     ),
-    ("contract.py", "CONTRACT_VERSION"): (
+    ("agent_runtime/discussions/contract.py", "CONTRACT_VERSION"): (
         "the Discussion RPC lane's own contract (agent_runtime/discussions/"
         "contract.py), stamped as `contract_version` on each `runtime.discussion.*` "
         "reply. It versions that lane's request/result shapes and nothing on the "
@@ -181,18 +180,11 @@ LANE_CONTRACT_ALLOWLIST = {
     ),
 }
 
-#: Where each lane-exempt module LIVES, repo-relative parent. The exemption is
-#: keyed on the basename (that is what ``restatements`` receives), so the gate
-#: must also know the one location that basename is allowed to mean — otherwise
-#: a newcomer with the same name anywhere in the scanned roots would inherit an
-#: exemption it was never reasoned about. Witnessed by the lookalike test.
-LANE_CONTRACT_MODULE_HOMES = {
-    "platform_actions.py": "hermes_cli",
-    "protocol.py": "agent_runtime/serve_rpc",
-    "constants.py": "hermes_cli/harness_parts/serve",
-    "hello.py": "agent_runtime/serve_socket",
-    "contract.py": "agent_runtime/discussions",
-}
+#: Every key above is a repo-relative POSIX PATH, never a basename: that is
+#: what ``restatements`` receives from the gate. A basename key exempted every
+#: module of that name in the scanned roots, and went red the day a second
+#: ``contract.py`` (``persona_instance_sync/``) arrived. Witnessed by the
+#: lookalike test, which drives a same-basename newcomer through the detector.
 
 #: Integer literals bound to a contract-version name that are NOT restatements,
 #: each with the reason it cannot rot. Witnessed below rather than trusted.
@@ -201,6 +193,12 @@ FLOOR_ALLOWLIST: dict[tuple[str, str], str] = {}
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
+
+
+def _relpath(path: str) -> str:
+    """The key every exemption is spelled in: repo-relative, POSIX separators."""
+
+    return Path(path).resolve().relative_to(_repo_root()).as_posix()
 
 
 def _mentions_version(node: ast.expr) -> bool:
@@ -427,10 +425,9 @@ def test_no_other_module_states_the_contract_version():
 
     offenders: list[str] = []
     for path, tree in _scanned_modules().items():
-        name = Path(path).name
-        if name == AUTHORITY_FILE:
+        if Path(path).name == AUTHORITY_FILE:
             continue
-        for lineno, why in restatements(tree, filename=name):
+        for lineno, why in restatements(tree, filename=_relpath(path)):
             offenders.append(f"{path}:{lineno}: {why}")
 
     assert offenders == [], (
@@ -452,7 +449,7 @@ def test_the_definition_site_is_where_it_claims_to_be():
     """
 
     filename, symbol = DEFINITION_SITE
-    module = _repo_root() / DEFINITION_HOME / filename
+    module = _repo_root() / filename
     assert module.is_file(), f"{filename} no longer exists; the exemption is stale"
 
     tree = ast.parse(module.read_text(encoding="utf-8"))
@@ -597,23 +594,13 @@ def test_each_lane_contract_is_witnessed_as_an_INDEPENDENT_contract():
 
     root = _repo_root()
     for (filename, symbol), reason in LANE_CONTRACT_ALLOWLIST.items():
-        # An entry's module may live in any scanned root (OPS_CONTRACT_VERSION
-        # lives with the dispatcher in hermes_cli/harness_parts/serve, not in
-        # agent_runtime), and `restatements` keys on the BARE name — so resolve
-        # through the same scan the gate reads, and demand the name is unique
-        # across it: a second module with the same basename would let this
-        # exemption cover a file it was never written for.
-        candidates = [
-            Path(path) for path in _scanned_modules() if Path(path).name == filename
-        ]
-        assert candidates, f"lane allowlist names {filename}, which no longer exists"
-        assert len(candidates) == 1, (
-            f"lane allowlist key {filename!r} is ambiguous across the scanned "
-            f"roots: {sorted(str(c) for c in candidates)} — bare-name keying "
-            "requires uniqueness"
-        )
-        module = candidates[0]
+        # Keyed on the repo-relative path, so the entry names exactly one
+        # module; it must still be one the gate scans.
+        module = root / filename
         assert module.is_file(), f"lane allowlist names {filename}, which no longer exists"
+        assert any(_relpath(p) == filename for p in _scanned_modules()), (
+            f"{filename} is outside the scanned roots {SCANNED_ROOTS}; its exemption covers nothing"
+        )
 
         source = module.read_text(encoding="utf-8")
         tree = ast.parse(source)
@@ -648,37 +635,39 @@ def test_each_lane_contract_is_witnessed_as_an_INDEPENDENT_contract():
 
 
 def test_a_lane_exemption_cannot_be_claimed_by_a_lookalike_basename():
-    """The detector keys on BASENAME, so a second file of the same name anywhere
-    in the scanned roots would inherit the exemption for free.
+    """A same-basename newcomer anywhere in the scanned roots inherits nothing.
 
-    ``tests/agent_runtime/serve_rpc.py`` does not exist today. If it ever does,
-    it would be exempt from a gate it was never reasoned about — so the
-    uniqueness the exemption silently depends on is stated here instead of
-    assumed.
+    The exemption used to be keyed on the basename, so a second ``contract.py``
+    was exempt for free (and the gate went red the day
+    ``persona_instance_sync/contract.py`` arrived). Keyed on a path, the
+    lookalike is judged like any other module — driven here, both directions,
+    for every entry: the exempt path is clean, and the SAME declaration under
+    the same basename in another directory is a restatement.
     """
 
-    counts: dict[str, list[str]] = {}
-    for path in _scanned_modules():
-        counts.setdefault(Path(path).name, []).append(path)
+    for filename, symbol in LANE_CONTRACT_ALLOWLIST:
+        declaration = ast.parse(f"{symbol} = 1")
+        assert not restatements(declaration, filename=filename), filename
+        lookalike = f"agent_runtime/lookalike/{Path(filename).name}"
+        assert restatements(declaration, filename=lookalike), (
+            f"{lookalike} inherited the exemption written for {filename}; "
+            "the key has regressed to a basename"
+        )
 
-    for filename, _symbol in LANE_CONTRACT_ALLOWLIST:
-        paths = counts.get(filename, [])
-        assert len(paths) == 1, (
-            f"{filename} exists {len(paths)} times in the scanned roots ({paths}). "
-            "The lane exemption is keyed on the basename, so every one of them "
-            "is exempt. Make the key a path, or rename the newcomer."
-        )
-        home = LANE_CONTRACT_MODULE_HOMES.get(filename)
-        assert home is not None, (
-            f"{filename} has a lane exemption but no declared home in "
-            "LANE_CONTRACT_MODULE_HOMES — declare where the exempt module lives"
-        )
-        parent = Path(paths[0]).parent.as_posix()
-        assert parent.endswith(home), (
-            f"the only {filename} is at {paths[0]}, not under {home}/ — either "
-            "the module moved (update its declared home with the reasoning) or "
-            "a lookalike replaced it"
-        )
+
+def test_a_real_second_contract_py_is_judged_not_exempted():
+    """Positive control on the tree itself: two ``contract.py`` modules exist,
+    only one is exempt, and the other stays clean on its own merits."""
+
+    contracts = sorted(_relpath(p) for p in _scanned_modules() if Path(p).name == "contract.py")
+    assert "agent_runtime/discussions/contract.py" in contracts
+    assert len(contracts) >= 2, f"the control needs a second contract.py: {contracts}"
+    exempt = {path for path, _ in LANE_CONTRACT_ALLOWLIST}
+    others = [p for p in contracts if p not in exempt]
+    assert others, contracts
+    trees = {_relpath(p): tree for p, tree in _scanned_modules().items()}
+    for path in others:
+        assert restatements(trees[path], filename=path) == [], path
 
 
 def test_the_floor_allowlist_is_witnessed_not_trusted():
@@ -691,7 +680,7 @@ def test_the_floor_allowlist_is_witnessed_not_trusted():
 
     root = _repo_root()
     for (filename, symbol), reason in FLOOR_ALLOWLIST.items():
-        matches = list((root / "tests" / "agent_runtime").glob(filename))
+        matches = list(root.glob(filename))
         assert matches, f"allowlist names {filename}, which no longer exists"
         tree = ast.parse(matches[0].read_text(encoding="utf-8"))
 
