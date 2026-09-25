@@ -11,33 +11,41 @@ The package map (program rule 16; layout sheet ``stream.md`` §1)
 Modules, lowest layer first; no module imports one above it (W0-G6)::
 
     agent_runtime/stream/
-      __init__.py      wiring  this map; re-exports the importers' names and the tests' names
+      __init__.py      lanes   this map; re-exports the importers' names and the tests' names
       vocabulary.py    models  STREAM_SCHEMA_VERSION / _PATCH_, DEFAULT_STREAM_CALLER,
                                BATCH_REASON_DEMOTE, the deferral bound + poll,
                                FOLD_VARIANTS_FRAME_TYPE, _DELTA_BATCH_CAP, the cancel poll,
-                               the package logger, _redaction_safe_json, _first_text
+                               FRAME_* / EVENT_* (the wire and log words, spelled once),
+                               the package logger, _redaction_safe_json (over
+                               redaction.scrub_tree), first_text
                                (a vocabulary module: exempt from the floor)
-      build_policy.py  wiring  what a core build records and when it stands aside: the
+      build_policy.py  stores  what a core build records and when it stands aside: the
                                Stage 5/7 deferral, _log_snapshot_build, log_stream_attach /
                                log_stream_denied
-      frames.py        wiring  one frame each: hydrate, heartbeat, delta, delta batch,
+      frames.py        lanes   one frame each: hydrate, heartbeat, delta, delta batch,
                                patch batch, fold variants (+ resolve_fold_variant); the
                                watchdog append, _delta_op, _identity_map
-      build.py         wiring  one core build with liveness: _is_one_shot,
+      build.py         lanes   one core build with liveness: _is_one_shot,
                                _SnapshotBuildJob, _build_with_liveness, the batch frames
-      session.py       wiring  stream_frames (the session that owns a tail) and
-                               _scope_fingerprint
+      fingerprint.py   stores  _scope_fingerprint: the watchdog's stat of event-less state,
+                               by store family (pointers + catalogs, chat DB, running_work)
+      session.py       lanes   stream_frames -> StreamSession (stale_first -> boot ->
+                               tail; a pass = measure -> fingerprint -> room -> drain ->
+                               settle -> flush -> beat)
 
     entry point                                        opens
     stream_frames (serve subscriptions, harness stream) session -> build -> frames
+                                                        (+ fingerprint, one call a pass)
     _build_with_liveness / _batch_frames_with_liveness  build -> frames -> build_policy
     the frame builders (fixture generator, stream_resume) frames
     log_stream_attach / log_stream_denied (serve)       build_policy
     resolve_fold_variant (serve_stream_hub)             frames
 
-Every module but ``vocabulary`` is ``wiring`` in this commit only because the
-spans still name two package maps (``core_cache``, and ``profile_runner`` in
-the deferral's lazy import); the CHANGE reads their defining modules instead.
+No module here names a package MAP: ``core_cache.lane`` / ``.shadow`` /
+``.walk``, ``profile_runner.workdir``, ``snapshot.build`` / ``.receipts`` and
+``state_patches.models`` / ``.emit`` are read at their defining modules, which is
+what keeps the package at ``lanes``. ``frames`` is ``lanes`` because
+``hydrate_frame`` builds the snapshot itself.
 """
 
 from __future__ import annotations
@@ -50,7 +58,7 @@ from ..request_control import request_cancelled
 from ..snapshot.build import build_snapshot
 from ..state_patches.emit import delta_patches_enabled
 
-from . import build, build_policy, frames, session, vocabulary
+from . import build, build_policy, fingerprint, frames, session, vocabulary
 from .build import (
     _SnapshotBuildJob,
     _batch_frames_with_liveness,
@@ -65,6 +73,9 @@ from .build_policy import (
     log_stream_attach,
     log_stream_denied,
 )
+from .fingerprint import (
+    _scope_fingerprint,
+)
 from .frames import (
     _delta_op,
     _identity_map,
@@ -78,19 +89,26 @@ from .frames import (
     resolve_fold_variant,
 )
 from .session import (
-    _scope_fingerprint,
+    StreamSession,
     stream_frames,
 )
 from .vocabulary import (
     BATCH_REASON_DEMOTE,
     DEFAULT_STREAM_CALLER,
+    EVENT_RUN_PROGRESS,
+    EVENT_STATE_RECONCILED,
     FOLD_VARIANTS_FRAME_TYPE,
+    FRAME_DELTA,
+    FRAME_HEARTBEAT,
+    FRAME_HYDRATE,
+    FRAME_PATCH,
     SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS,
     STREAM_PATCH_SCHEMA_VERSION,
     STREAM_SCHEMA_VERSION,
     _DELTA_BATCH_CAP,
+    first_text,
     logger,
 )
 
-__layer__ = "wiring"
+__layer__ = "lanes"
 

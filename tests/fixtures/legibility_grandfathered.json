@@ -106,11 +106,6 @@
    "unit": "agent_runtime/skill_promotion.py|execute_promotion"
   },
   {
-   "depth": 6,
-   "lines": 425,
-   "unit": "agent_runtime/stream/session.py|stream_frames"
-  },
-  {
    "depth": 2,
    "lines": 181,
    "unit": "hermes_cli/harness_parts/office.py|_cmd_office_actor_upsert"

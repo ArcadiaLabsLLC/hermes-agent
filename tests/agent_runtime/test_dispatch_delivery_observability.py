@@ -595,7 +595,8 @@ def test_the_mirror_is_in_no_freshness_fingerprint(store_home):
     assert name not in serve.constants._FINGERPRINT_ROOT_FILES
     assert name not in serve.constants._FINGERPRINT_STORE_DIRS
     assert all(name not in str(path) for path in running_work_store_paths())
-    assert name not in inspect.getsource(stream._scope_fingerprint)
+    # The fingerprint is three store-family helpers now; the pin reads them all.
+    assert name not in inspect.getsource(stream.fingerprint)
     assert name not in inspect.getsource(serve.boot._runtime_state_fingerprint)
 
 

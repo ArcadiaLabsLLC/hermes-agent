@@ -14,7 +14,7 @@ from ..snapshot.receipts import BUILD_CALLER_UNKNOWN, BUILD_SECTIONS_WAIT_THRESH
 
 from .vocabulary import BATCH_REASON_DEMOTE, SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS, _SNAPSHOT_DEMOTE_DEFERRAL_POLL_SECONDS, logger
 
-__layer__ = "wiring"
+__layer__ = "stores"
 
 
 def _agent_runs_in_flight() -> int | None:
@@ -33,7 +33,7 @@ def _agent_runs_in_flight() -> int | None:
     """
 
     try:
-        from ..profile_runner import agent_runs_in_flight
+        from ..profile_runner.workdir import agent_runs_in_flight
 
         return int(agent_runs_in_flight())
     except Exception:

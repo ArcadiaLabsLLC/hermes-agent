@@ -4,7 +4,6 @@ watchdog's ``state.reconciled`` append, the delta op and the identity map."""
 
 from __future__ import annotations
 
-import logging
 import time
 from collections.abc import Iterable
 from typing import Any
@@ -18,9 +17,9 @@ from ..snapshot.build import build_snapshot
 from ..state_patches.models import STATE_PATCHED_EVENT_TYPE
 
 from .build_policy import _log_snapshot_build
-from .vocabulary import DEFAULT_STREAM_CALLER, FOLD_VARIANTS_FRAME_TYPE, STREAM_PATCH_SCHEMA_VERSION, STREAM_SCHEMA_VERSION, _first_text, _redaction_safe_json
+from .vocabulary import EVENT_RUN_PROGRESS, EVENT_STATE_RECONCILED, FRAME_DELTA, FRAME_HEARTBEAT, FRAME_HYDRATE, FRAME_PATCH, logger, DEFAULT_STREAM_CALLER, FOLD_VARIANTS_FRAME_TYPE, STREAM_PATCH_SCHEMA_VERSION, STREAM_SCHEMA_VERSION, first_text, _redaction_safe_json
 
-__layer__ = "wiring"
+__layer__ = "lanes"
 
 
 def hydrate_frame(
@@ -81,7 +80,7 @@ def hydrate_frame(
     parity = snap.get("parity") if isinstance(snap.get("parity"), dict) else {}
     watermark = parity.get("watermark") if isinstance(parity.get("watermark"), dict) else {}
     frame: dict[str, Any] = {
-        "type": "hydrate",
+        "type": FRAME_HYDRATE,
         "schema_version": STREAM_SCHEMA_VERSION,
         "generated_at": snap.get("generated_at") or now(),
         "watermark": dict(watermark or {}),
@@ -134,7 +133,7 @@ def heartbeat_frame(
     """
 
     frame = {
-        "type": "heartbeat",
+        "type": FRAME_HEARTBEAT,
         "schema_version": STREAM_SCHEMA_VERSION,
         "generated_at": now(),
         "watermark": {
@@ -168,7 +167,7 @@ def _delta_entity(event: Event) -> dict[str, Any]:
 
 def delta_frame(event: Event, *, offset: int, snapshot: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
-        "type": "delta",
+        "type": FRAME_DELTA,
         "schema_version": STREAM_SCHEMA_VERSION,
         "generated_at": now(),
         "watermark": {
@@ -289,7 +288,7 @@ def patch_batch_frame(
             f"{len(batch)} events, none of them {STATE_PATCHED_EVENT_TYPE}"
         )
     return {
-        "type": "patch",
+        "type": FRAME_PATCH,
         "schema_version": STREAM_PATCH_SCHEMA_VERSION,
         "generated_at": now(),
         "watermark": {
@@ -383,12 +382,12 @@ def _append_state_reconciled(log: EventLog, fingerprint: str) -> bool:
 
     try:
         tail = log.tail(1)
-        if tail and tail[0].type == "state.reconciled" and tail[0].payload.get("fingerprint") == fingerprint:
+        if tail and tail[0].type == EVENT_STATE_RECONCILED and tail[0].payload.get("fingerprint") == fingerprint:
             return True
         log.append(
             Event(
                 now(),
-                "state.reconciled",
+                EVENT_STATE_RECONCILED,
                 None,
                 None,
                 None,
@@ -397,7 +396,7 @@ def _append_state_reconciled(log: EventLog, fingerprint: str) -> bool:
         )
         return True
     except Exception:  # noqa: BLE001
-        logging.getLogger(__name__).warning("state.reconciled append failed", exc_info=True)
+        logger.warning("state.reconciled append failed", exc_info=True)
         return False
 
 
@@ -409,7 +408,7 @@ def _delta_op(event: Event) -> str:
     # unrouted type. Keep this table in step with the event catalog — an arm for
     # a type that cannot be appended is a classifier branch that reads as live.
     event_type = str(event.type or "")
-    if event_type.startswith("run.tool.") or event_type == "run.progress":
+    if event_type.startswith("run.tool.") or event_type == EVENT_RUN_PROGRESS:
         return "chat.trace.appended"
     if event_type.startswith("incident."):
         return event_type
@@ -423,7 +422,7 @@ def _identity_map(snapshot: dict[str, Any]) -> dict[str, str]:
     for instance in section_rows(snapshot.get("persona_instances")):
         if not isinstance(instance, dict):
             continue
-        canonical = _first_text(instance, "persona_instance_id", "instance_id", "id")
+        canonical = first_text(instance, "persona_instance_id", "instance_id", "id")
         if not canonical:
             continue
         for key in ("persona_instance_id", "instance_id", "id", "agent_profile_id"):
@@ -436,7 +435,7 @@ def _identity_map(snapshot: dict[str, Any]) -> dict[str, str]:
     for channel in section_rows(snapshot.get("operator_channels")):
         if not isinstance(channel, dict):
             continue
-        canonical = _first_text(channel, "persona_instance_id", "channel_id", "id")
+        canonical = first_text(channel, "persona_instance_id", "channel_id", "id")
         if not canonical:
             continue
         for key in ("persona_instance_id", "channel_id", "id", "session_id"):

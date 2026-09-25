@@ -1,15 +1,13 @@
 """``stream_frames`` — the session that owns a tail: the stale-first paint, the
-boot build, the tail loop — and the scope fingerprint the watchdog takes per
-pass."""
+boot build, the tail loop (:class:`StreamSession`)."""
 
 from __future__ import annotations
 
-import hashlib
 import time
 from collections.abc import Callable, Iterable, Iterator
 from typing import Any
 
-from .. import core_cache, paths
+from ..core_cache import lane as cache_lane
 from ..events import EventLog
 from ..models import Event
 from ..parity import events_watermark
@@ -19,10 +17,11 @@ from ..state_patches.emit import delta_patches_enabled
 
 from .build import _SnapshotBuildJob, _batch_frames_with_liveness, _bounded_sleep, _build_with_liveness, _is_one_shot
 from .build_policy import _log_snapshot_build
+from .fingerprint import _scope_fingerprint
 from .frames import _append_state_reconciled, _resume_offset, heartbeat_frame, hydrate_frame
-from .vocabulary import DEFAULT_STREAM_CALLER, _DELTA_BATCH_CAP
+from .vocabulary import DEFAULT_STREAM_CALLER, FRAME_HEARTBEAT, _DELTA_BATCH_CAP
 
-__layer__ = "wiring"
+__layer__ = "lanes"
 
 
 def stream_frames(
@@ -116,19 +115,109 @@ def stream_frames(
     it.
     """
 
-    log = event_log or EventLog()
-    delta_patches = delta_patches_enabled()
-    declared_entities = normalize_fold_entities(fold_entities)
-    # Resolved ONCE beside the floor and for the same reason. ``None`` collapses
-    # to the floor, so every caller but the hub produces exactly the frames it
-    # produced before this parameter existed.
-    promote_entities = (
-        declared_entities
-        if promote_fold_entities is None
-        else normalize_fold_entities(promote_fold_entities)
-    )
+    yield from StreamSession(
+        event_log=event_log,
+        poll_interval_seconds=poll_interval_seconds,
+        heartbeat_interval_seconds=heartbeat_interval_seconds,
+        delta_debounce_seconds=delta_debounce_seconds,
+        max_frames=max_frames,
+        resync=resync,
+        fold_entities=fold_entities,
+        promote_fold_entities=promote_fold_entities,
+        fold_room=fold_room,
+        caller=caller,
+        wants_stale_first=wants_stale_first,
+    ).frames()
 
-    def _room() -> tuple[frozenset[str], frozenset[str]]:
+
+#: A pass's verdict to the tail loop: stop the generator, or run the next pass
+#: at once (skipping the poll sleep). ``None`` is the ordinary end of a pass.
+_STOP = object()
+_AGAIN = object()
+
+
+class StreamSession:
+    """One ``stream_frames`` request: the room it folds for and the tail it owns.
+
+    Phases, in order — :meth:`stale_first` → :meth:`boot` → :meth:`tail`, whose
+    loop runs :meth:`_pass` = :meth:`measure` (only while the position is
+    unknown) → the fingerprint → :meth:`room` → :meth:`drain` → :meth:`settle` →
+    :meth:`flush` → :meth:`beat`. Every phase that yields is a generator whose
+    RETURN value says whether the frame budget is spent (``_STOP``) or the next
+    pass must start now (``_AGAIN``); :meth:`emit` is the one place a frame is
+    counted. The parameters are ``stream_frames``' own; its docstring is the
+    contract.
+    """
+
+    def __init__(
+        self,
+        *,
+        event_log: EventLog | None,
+        poll_interval_seconds: float,
+        heartbeat_interval_seconds: float,
+        delta_debounce_seconds: float,
+        max_frames: int | None,
+        resync: bool,
+        fold_entities: Iterable[str] | None,
+        promote_fold_entities: Iterable[str] | None,
+        fold_room: Callable[[], tuple[Any, Any]] | None,
+        caller: str,
+        wants_stale_first: bool,
+    ) -> None:
+        self.log = event_log or EventLog()
+        self.poll_interval_seconds = poll_interval_seconds
+        self.heartbeat_interval_seconds = heartbeat_interval_seconds
+        self.delta_debounce_seconds = delta_debounce_seconds
+        self.max_frames = max_frames
+        self.fold_room = fold_room
+        self.caller = caller
+        self.wants_stale_first = wants_stale_first
+        self.delta_patches = delta_patches_enabled()
+        self.declared_entities = normalize_fold_entities(fold_entities)
+        # Resolved ONCE beside the floor and for the same reason. ``None`` collapses
+        # to the floor, so every caller but the hub produces exactly the frames it
+        # produced before this parameter existed.
+        self.promote_entities = (
+            self.declared_entities
+            if promote_fold_entities is None
+            else normalize_fold_entities(promote_fold_entities)
+        )
+        self.resync_pending = bool(resync)
+        self.emitted = 0
+        self.offset: int | None = None
+        self.known_fingerprint = ""
+        self.last_heartbeat = 0.0
+        # One drain pass's state, reset at the top of every pass.
+        self.pending: list[tuple[int, Event]] = []
+        self.batch_base: int | None = None
+        self.batch_floor = self.declared_entities
+        self.batch_promote = self.promote_entities
+        self.emitted_delta = False
+
+    def frames(self) -> Iterator[dict[str, Any]]:
+        if (yield from self.stale_first()):
+            return
+        if (yield from self.boot()):
+            return
+        yield from self.tail()
+
+    def emit(self, frame: dict[str, Any], *, beat: bool = True):
+        """Yield one frame, count it, and answer whether the budget is now spent.
+
+        ``beat=False`` for the boot's frames: the heartbeat clock starts at the
+        tail, after the authoritative hydrate.
+        """
+
+        yield frame
+        self.emitted += 1
+        if beat:
+            self.last_heartbeat = time.monotonic()
+        return self.max_frames is not None and self.emitted >= self.max_frames
+
+    def heartbeat_due(self) -> bool:
+        return time.monotonic() - self.last_heartbeat >= self.heartbeat_interval_seconds
+
+    def room(self) -> tuple[frozenset[str], frozenset[str]]:
         """The (floor, union) this drain pass promotes against.
 
         ``fold_room`` is the serve hub's live reading of its two subscriber
@@ -156,183 +245,168 @@ def stream_frames(
         on its ack cannot disagree about a set that moved between them.
         """
 
-        if fold_room is None:
-            return declared_entities, promote_entities
+        if self.fold_room is None:
+            return self.declared_entities, self.promote_entities
         try:
-            floor, union = fold_room()
+            floor, union = self.fold_room()
         except Exception:
             # A room that cannot be read is answered with the pair this
             # generator was BUILT with — the conservative direction, and the
             # same one every other ambiguity in this module takes.
-            return declared_entities, promote_entities
+            return self.declared_entities, self.promote_entities
         return normalize_fold_entities(floor), normalize_fold_entities(union)
 
-    resync_pending = bool(resync)
-    emitted = 0
-    # EG-3.1's mismatch half. A persisted core whose fingerprint does NOT match
-    # is not authority — but it is also not nothing, and the alternative is
-    # showing the operator an empty canvas for the length of a full build. So it
-    # goes out FIRST, wearing the stale label
-    # (``parity.freshness.state = "stale"``, the field the launcher's envelope
-    # already maps to ``MissionSnapshotHealth.stale``), and the authoritative
-    # hydrate below replaces it when the build completes.
-    #
-    # It is an ordinary ``hydrate`` frame, not a new type: the hydrate's own
-    # contract is "apply this exactly like a fresh snapshot", so a second one
-    # re-baselines a client with no new wire vocabulary. The stale frame's
-    # watermark is deliberately NOT used to seed ``offset`` — the tail is
-    # resumed from the AUTHORITATIVE frame below, so nothing between the two is
-    # skipped.
-    #
-    # TWO conditions, and they are different questions. ``wants_stale_first``
-    # asks whether anybody in this generator's room paints (see the parameter).
-    # ``_is_one_shot`` asks whether this request has room for a second frame at
-    # all: the stale frame is yielded at the HEAD and the budget check below
-    # returns immediately after it, so a one-shot that took the stale core would
-    # answer with a core that is by definition NOT authoritative — and the
-    # launcher's forced-refresh lane
-    # (``mission_control_bridge.dart::_loadSnapshotFromStreamHydrate``, read
-    # 2026-08-18) scans that stdout for a ``type == "hydrate"`` line and applies
-    # whatever it finds through ``applyForcedSnapshot``, i.e. PAST its own
-    # sequence gate. Refusing here is what keeps "force a refresh" from meaning
-    # "re-paint the projection you were already unhappy with".
-    stale_core = (
-        core_cache.take_stale_first_core(caller=caller)
-        if wants_stale_first and not _is_one_shot(max_frames)
-        else None
-    )
-    if stale_core is not None:
-        yield hydrate_frame(
-            snapshot=stale_core,
-            delta_patches=delta_patches,
-            fold_entities=declared_entities,
-            caller=caller,
-        )
-        emitted += 1
-        if max_frames is not None and emitted >= max_frames:
-            return
-    # The boot's authoritative core, built with the stream SAYING SO while it
-    # runs (MC-4 / P6, evidence A-x2). This used to be a bare synchronous
-    # ``hydrate_frame()``: on 2026-08-18 that build took 29,560 ms and the lane
-    # emitted nothing for the whole of it, so the launcher's watchdog fired
-    # ``stream_teardown cause=liveness_deadline`` 0.67 s before the frame
-    # arrived, and the finished core was delivered to a retired request and
-    # discarded with no receipt. A batch build has heartbeat through its build
-    # since ``_full_core_batch_frames`` shipped; the BOOT build — the longest one
-    # any consumer ever waits on — was the one lane that stayed silent.
-    #
-    # ``accept_inflight=True`` is carried deliberately and is the whole reason
-    # the job grew the flag: ``hydrate_frame``'s own build sets it (the serve
-    # prewarms a build right after ``ready``, and this frame is allowed to ride
-    # it because its watermark comes from the snapshot itself and the tail below
-    # resumes from exactly that offset). A job without it would make every boot
-    # wait for the prewarm and THEN pay a second full build.
-    boot_job = _SnapshotBuildJob(caller=caller, accept_inflight=True)
-    for liveness in _build_with_liveness(
-        boot_job,
-        # No applied core exists yet, so there is no position to advertise. See
-        # ``heartbeat_frame``: liveness without a position must not be stamped 0.
-        heartbeat_offset=None,
-        heartbeat_interval_seconds=heartbeat_interval_seconds,
-        # A one-shot is answered with a CORE or with nothing — see
-        # ``_is_one_shot``. Suppressed rather than merely uncounted so the
-        # frames a one-shot consumer sees stay exactly what it asked for.
-        emit_liveness=not _is_one_shot(max_frames),
-    ):
-        # NOT counted toward ``emitted``, and this is the deliberate half of the
-        # ``max_frames`` decision. These frames are emitted while the FIRST
-        # content frame is still being built, so counting them would let a
-        # budget be spent before any core existed — a ``--max-frames 1`` request
-        # returning a heartbeat and no core. That is not hypothetical for the
-        # consumer: the launcher's forced-refresh lane
+    def stale_first(self):
+        # EG-3.1's mismatch half. A persisted core whose fingerprint does NOT match
+        # is not authority — but it is also not nothing, and the alternative is
+        # showing the operator an empty canvas for the length of a full build. So it
+        # goes out FIRST, wearing the stale label
+        # (``parity.freshness.state = "stale"``, the field the launcher's envelope
+        # already maps to ``MissionSnapshotHealth.stale``), and the authoritative
+        # hydrate below replaces it when the build completes.
+        #
+        # It is an ordinary ``hydrate`` frame, not a new type: the hydrate's own
+        # contract is "apply this exactly like a fresh snapshot", so a second one
+        # re-baselines a client with no new wire vocabulary. The stale frame's
+        # watermark is deliberately NOT used to seed ``offset`` — the tail is
+        # resumed from the AUTHORITATIVE frame below, so nothing between the two is
+        # skipped.
+        #
+        # TWO conditions, and they are different questions. ``wants_stale_first``
+        # asks whether anybody in this generator's room paints (see the parameter).
+        # ``_is_one_shot`` asks whether this request has room for a second frame at
+        # all: the stale frame is yielded at the HEAD and the budget check below
+        # returns immediately after it, so a one-shot that took the stale core would
+        # answer with a core that is by definition NOT authoritative — and the
+        # launcher's forced-refresh lane
         # (``mission_control_bridge.dart::_loadSnapshotFromStreamHydrate``, read
-        # 2026-08-18) scans stdout for a ``type == "hydrate"`` line and silently
-        # returns null when it finds none, so the refresh would no-op with no
-        # receipt. The budget counts CONTENT; the tail loop's own heartbeats
-        # below still count, because by then a core has been delivered and the
-        # consumer is being kept alive rather than kept waiting.
-        yield liveness
-    if request_cancelled():
-        return
-    if boot_job.error is not None:
-        raise boot_job.error
-    if boot_job.snapshot is None:
-        raise RuntimeError("snapshot build completed without a result")
-    hydrate = hydrate_frame(
-        snapshot=boot_job.snapshot,
-        delta_patches=delta_patches,
-        fold_entities=declared_entities,
-        caller=caller,
-    )
-    if boot_job.elapsed_ms is not None:
-        # The receipt ``hydrate_frame`` would have billed itself, billed here
-        # because the build moved out from under it. Byte-shaped identically —
-        # same reason, same fields, same order — and ``waited_ms`` comes from the
-        # job's own measurement, taken ON the build thread: measuring around the
-        # wait here would round every build up by as much as one
-        # ``_SNAPSHOT_CANCEL_POLL_SECONDS``, which is the exact reason
-        # ``_SnapshotBuildJob.elapsed_ms`` exists.
-        _log_snapshot_build(
-            reason="hydrate",
-            waited_ms=boot_job.elapsed_ms,
-            offset=(hydrate.get("watermark") or {}).get("event_offset"),
-            snapshot=boot_job.snapshot,
-            build_info=boot_job.build_info,
+        # 2026-08-18) scans that stdout for a ``type == "hydrate"`` line and applies
+        # whatever it finds through ``applyForcedSnapshot``, i.e. PAST its own
+        # sequence gate. Refusing here is what keeps "force a refresh" from meaning
+        # "re-paint the projection you were already unhappy with".
+        stale_core = (
+            cache_lane.take_stale_first_core(caller=self.caller)
+            if self.wants_stale_first and not _is_one_shot(self.max_frames)
+            else None
         )
-    offset = _resume_offset(hydrate)
-    if offset is None:
-        # Cannot resume from an unknown position. Re-baseline the client on the
-        # first batch and re-measure the tail below until the log is readable.
-        resync_pending = True
-    # Memoize BEFORE the first yield: a generator body pauses at yield, so a
-    # memo taken after it would absorb any write racing the consumer's first
-    # pull — exactly the writes the watchdog exists to catch.
-    known_fingerprint = _scope_fingerprint()
-    yield hydrate
-    emitted += 1
-    if max_frames is not None and emitted >= max_frames:
-        return
-
-    last_heartbeat = time.monotonic()
-    while True:
-        if request_cancelled():
-            return
-        if offset is None:
-            # Still no readable tail. Emit liveness (with an honestly null
-            # position) and retry the measurement — never fall back to 0, which
-            # would tail the whole log from its head as if it were new.
-            if events_watermark().get("event_offset") is None:
-                if time.monotonic() - last_heartbeat >= heartbeat_interval_seconds:
-                    yield heartbeat_frame(offset=None)
-                    emitted += 1
-                    last_heartbeat = time.monotonic()
-                    if max_frames is not None and emitted >= max_frames:
-                        return
-                _bounded_sleep(poll_interval_seconds)
-                continue
-            # The tail is readable again, but the client's baseline predates
-            # whatever landed while it was not — and there is no cursor to
-            # replay that span from. Re-baseline explicitly (the "explicit
-            # resync" this lane exists for): a fresh full core, tailed from ITS
-            # OWN measured offset, so the recovery leaves neither a gap nor a
-            # replay. Resuming from the newly measured tail alone would silently
-            # drop the span; resuming from 0 would re-render the whole log.
-            rebaseline = hydrate_frame(
-                delta_patches=delta_patches,
-                fold_entities=declared_entities,
-                caller=caller,
+        if stale_core is None:
+            return False
+        return (
+            yield from self.emit(
+                hydrate_frame(
+                    snapshot=stale_core,
+                    delta_patches=self.delta_patches,
+                    fold_entities=self.declared_entities,
+                    caller=self.caller,
+                ),
+                beat=False,
             )
-            offset = _resume_offset(rebaseline)
-            if offset is None:
-                continue
-            batch_base = offset
-            resync_pending = True
-            known_fingerprint = _scope_fingerprint()
-            yield rebaseline
-            emitted += 1
-            last_heartbeat = time.monotonic()
-            if max_frames is not None and emitted >= max_frames:
+        )
+
+    def boot(self):
+        # The boot's authoritative core, built with the stream SAYING SO while it
+        # runs (MC-4 / P6, evidence A-x2). This used to be a bare synchronous
+        # ``hydrate_frame()``: on 2026-08-18 that build took 29,560 ms and the lane
+        # emitted nothing for the whole of it, so the launcher's watchdog fired
+        # ``stream_teardown cause=liveness_deadline`` 0.67 s before the frame
+        # arrived, and the finished core was delivered to a retired request and
+        # discarded with no receipt. A batch build has heartbeat through its build
+        # since ``_full_core_batch_frames`` shipped; the BOOT build — the longest one
+        # any consumer ever waits on — was the one lane that stayed silent.
+        #
+        # ``accept_inflight=True`` is carried deliberately and is the whole reason
+        # the job grew the flag: ``hydrate_frame``'s own build sets it (the serve
+        # prewarms a build right after ``ready``, and this frame is allowed to ride
+        # it because its watermark comes from the snapshot itself and the tail below
+        # resumes from exactly that offset). A job without it would make every boot
+        # wait for the prewarm and THEN pay a second full build.
+        boot_job = _SnapshotBuildJob(caller=self.caller, accept_inflight=True)
+        for liveness in _build_with_liveness(
+            boot_job,
+            # No applied core exists yet, so there is no position to advertise. See
+            # ``heartbeat_frame``: liveness without a position must not be stamped 0.
+            heartbeat_offset=None,
+            heartbeat_interval_seconds=self.heartbeat_interval_seconds,
+            # A one-shot is answered with a CORE or with nothing — see
+            # ``_is_one_shot``. Suppressed rather than merely uncounted so the
+            # frames a one-shot consumer sees stay exactly what it asked for.
+            emit_liveness=not _is_one_shot(self.max_frames),
+        ):
+            # NOT counted toward ``emitted``, and this is the deliberate half of the
+            # ``max_frames`` decision. These frames are emitted while the FIRST
+            # content frame is still being built, so counting them would let a
+            # budget be spent before any core existed — a ``--max-frames 1`` request
+            # returning a heartbeat and no core. That is not hypothetical for the
+            # consumer: the launcher's forced-refresh lane
+            # (``mission_control_bridge.dart::_loadSnapshotFromStreamHydrate``, read
+            # 2026-08-18) scans stdout for a ``type == "hydrate"`` line and silently
+            # returns null when it finds none, so the refresh would no-op with no
+            # receipt. The budget counts CONTENT; the tail loop's own heartbeats
+            # below still count, because by then a core has been delivered and the
+            # consumer is being kept alive rather than kept waiting.
+            yield liveness
+        if request_cancelled():
+            return True
+        return (yield from self.boot_hydrate(boot_job))
+
+    def boot_hydrate(self, boot_job: _SnapshotBuildJob):
+        """The boot build's result as the authoritative hydrate, and its receipt."""
+
+        if boot_job.error is not None:
+            raise boot_job.error
+        if boot_job.snapshot is None:
+            raise RuntimeError("snapshot build completed without a result")
+        hydrate = hydrate_frame(
+            snapshot=boot_job.snapshot,
+            delta_patches=self.delta_patches,
+            fold_entities=self.declared_entities,
+            caller=self.caller,
+        )
+        if boot_job.elapsed_ms is not None:
+            # The receipt ``hydrate_frame`` would have billed itself, billed here
+            # because the build moved out from under it. Byte-shaped identically —
+            # same reason, same fields, same order — and ``waited_ms`` comes from the
+            # job's own measurement, taken ON the build thread: measuring around the
+            # wait here would round every build up by as much as one
+            # ``_SNAPSHOT_CANCEL_POLL_SECONDS``, which is the exact reason
+            # ``_SnapshotBuildJob.elapsed_ms`` exists.
+            _log_snapshot_build(
+                reason="hydrate",
+                waited_ms=boot_job.elapsed_ms,
+                offset=(hydrate.get("watermark") or {}).get("event_offset"),
+                snapshot=boot_job.snapshot,
+                build_info=boot_job.build_info,
+            )
+        self.offset = _resume_offset(hydrate)
+        if self.offset is None:
+            # Cannot resume from an unknown position. Re-baseline the client on the
+            # first batch and re-measure the tail below until the log is readable.
+            self.resync_pending = True
+        # Memoize BEFORE the first yield: a generator body pauses at yield, so a
+        # memo taken after it would absorb any write racing the consumer's first
+        # pull — exactly the writes the watchdog exists to catch.
+        self.known_fingerprint = _scope_fingerprint()
+        return (yield from self.emit(hydrate, beat=False))
+
+    def tail(self):
+        self.last_heartbeat = time.monotonic()
+        while True:
+            if request_cancelled():
                 return
+            outcome = yield from self._pass()
+            if outcome is _STOP:
+                return
+            if outcome is _AGAIN:
+                continue
+            # Cancellation latency is bounded even when a caller chooses a long
+            # poll interval; the production default remains 250ms.
+            _bounded_sleep(self.poll_interval_seconds)
+
+    def _pass(self):
+        if self.offset is None:
+            outcome = yield from self.measure()
+            if outcome is not None:
+                return outcome
         # Fingerprint BEFORE reading events. A delta batch rebuilds one full
         # snapshot per BATCH (W1 coalescing — it was per event, ~9MB a time);
         # a memo taken AFTER the batch would absorb any event-less write that
@@ -341,264 +415,120 @@ def stream_frames(
         # read, a racing write always lands in a LATER iteration's candidate
         # and reconciles at the next heartbeat.
         fingerprint_candidate = _scope_fingerprint()
-        # The room, re-read once per drain pass. See ``_room``: a restart-free
+        # The room, re-read once per drain pass. See :meth:`room`: a restart-free
         # join is only safe when the producer can NOTICE it, and this is where it
         # does. Read beside the fingerprint and for a sibling reason — both are
         # facts about the world that must be taken before the events are, so a
         # change racing the drain lands in a later pass rather than being missed
         # by this one.
-        batch_floor, batch_promote = _room()
-        emitted_delta = False
-        pending: list[tuple[int, Event]] = []
+        self.batch_floor, self.batch_promote = self.room()
+        self.emitted_delta = False
+        self.pending = []
         # The offset a flushed batch applies FROM (S6 gap detection): the cursor
         # before the batch's first entry. Advanced to the flushed offset after
         # every emit so contiguous batches chain base→watermark→base with no gap.
-        batch_base = offset
-        for next_offset, event in log.iter_from_offset(offset):
-            offset = int(next_offset)
-            pending.append((offset, event))
-            if len(pending) >= _DELTA_BATCH_CAP:
-                for frame in _batch_frames_with_liveness(
-                    pending,
-                    base_offset=batch_base,
-                    delta_patches=delta_patches,
-                    resync=resync_pending,
-                    heartbeat_interval_seconds=heartbeat_interval_seconds,
-                    fold_entities=batch_floor,
-                    promote_fold_entities=batch_promote,
-                    caller=caller,
-                ):
-                    yield frame
-                    emitted += 1
-                    last_heartbeat = time.monotonic()
-                    if frame.get("type") != "heartbeat":
-                        emitted_delta = True
-                    if max_frames is not None and emitted >= max_frames:
-                        return
-                resync_pending = False
-                batch_base = offset
-                pending = []
-        if pending and delta_debounce_seconds > 0:
-            # Settle window: an event burst usually lands over a few tens of
-            # milliseconds — one bounded sleep lets the tail join the SAME
-            # frame instead of costing a full core each. 200ms sits well
-            # inside the declared ≤2×heartbeat staleness SLO.
-            time.sleep(delta_debounce_seconds)
-            for next_offset, event in log.iter_from_offset(offset):
-                offset = int(next_offset)
-                pending.append((offset, event))
-                if len(pending) >= _DELTA_BATCH_CAP:
-                    for frame in _batch_frames_with_liveness(
-                        pending,
-                        base_offset=batch_base,
-                        delta_patches=delta_patches,
-                        resync=resync_pending,
-                        heartbeat_interval_seconds=heartbeat_interval_seconds,
-                        fold_entities=batch_floor,
-                        promote_fold_entities=batch_promote,
-                        caller=caller,
-                    ):
-                        yield frame
-                        emitted += 1
-                        last_heartbeat = time.monotonic()
-                        if frame.get("type") != "heartbeat":
-                            emitted_delta = True
-                        if max_frames is not None and emitted >= max_frames:
-                            return
-                    resync_pending = False
-                    batch_base = offset
-                    pending = []
-        if pending:
-            for frame in _batch_frames_with_liveness(
-                pending,
-                base_offset=batch_base,
-                delta_patches=delta_patches,
-                resync=resync_pending,
-                heartbeat_interval_seconds=heartbeat_interval_seconds,
-                fold_entities=batch_floor,
-                promote_fold_entities=batch_promote,
-                caller=caller,
-            ):
-                yield frame
-                emitted += 1
-                last_heartbeat = time.monotonic()
-                if frame.get("type") != "heartbeat":
-                    emitted_delta = True
-                if max_frames is not None and emitted >= max_frames:
-                    return
-            resync_pending = False
-        if emitted_delta:
+        self.batch_base = self.offset
+        if (yield from self.drain()) or (yield from self.settle()):
+            return _STOP
+        if self.pending and (yield from self.flush()):
+            return _STOP
+        if self.emitted_delta:
             # Evented mutations legitimately move the fingerprint; adopt the
             # pre-batch candidate so the watchdog only fires on offset-less
             # changes. (An evented write landing between the candidate and the
             # batch read can cause one spurious reconcile — harmless: it is
             # just an extra full-core delta.)
-            known_fingerprint = fingerprint_candidate
+            self.known_fingerprint = fingerprint_candidate
+        return (yield from self.beat(fingerprint_candidate))
 
-        if not emitted_delta and time.monotonic() - last_heartbeat >= heartbeat_interval_seconds:
-            if fingerprint_candidate != known_fingerprint and _append_state_reconciled(log, fingerprint_candidate):
-                known_fingerprint = fingerprint_candidate
-                # Skip the sleep: the next iteration reads the appended event
-                # and emits the reconcile delta (which resets the heartbeat).
-                continue
-            yield heartbeat_frame(offset=offset)
-            emitted += 1
-            last_heartbeat = time.monotonic()
-            if max_frames is not None and emitted >= max_frames:
-                return
+    def measure(self):
+        """The position is unknown: wait for a readable tail, then re-baseline."""
 
-        # Cancellation latency is bounded even when a caller chooses a long
-        # poll interval; the production default remains 250ms.
-        _bounded_sleep(poll_interval_seconds)
+        if events_watermark().get("event_offset") is None:
+            # Still no readable tail. Emit liveness (with an honestly null
+            # position) and retry the measurement — never fall back to 0, which
+            # would tail the whole log from its head as if it were new.
+            if self.heartbeat_due() and (yield from self.emit(heartbeat_frame(offset=None))):
+                return _STOP
+            _bounded_sleep(self.poll_interval_seconds)
+            return _AGAIN
+        # The tail is readable again, but the client's baseline predates
+        # whatever landed while it was not — and there is no cursor to
+        # replay that span from. Re-baseline explicitly (the "explicit
+        # resync" this lane exists for): a fresh full core, tailed from ITS
+        # OWN measured offset, so the recovery leaves neither a gap nor a
+        # replay. Resuming from the newly measured tail alone would silently
+        # drop the span; resuming from 0 would re-render the whole log.
+        rebaseline = hydrate_frame(
+            delta_patches=self.delta_patches,
+            fold_entities=self.declared_entities,
+            caller=self.caller,
+        )
+        self.offset = _resume_offset(rebaseline)
+        if self.offset is None:
+            return _AGAIN
+        self.resync_pending = True
+        self.known_fingerprint = _scope_fingerprint()
+        if (yield from self.emit(rebaseline)):
+            return _STOP
+        return None
 
+    def drain(self):
+        """Read the log from the cursor; a batch that reaches the cap flushes MID-pass."""
 
-def _scope_fingerprint() -> str:
-    """Cheap mtime/size fingerprint of scope/catalog state (Stage 12 backstop).
+        for next_offset, event in self.log.iter_from_offset(self.offset):
+            self.offset = int(next_offset)
+            self.pending.append((self.offset, event))
+            if len(self.pending) >= _DELTA_BATCH_CAP and (yield from self.flush()):
+                return True
+        return False
 
-    Covers exactly the state whose writers have historically slipped the
-    event rule or sit outside ``agent_runtime/store/``: the active-scope
-    pointer files, the workspace/realm/persona stores, the blueprint
-    catalog, and the head-home SessionDB. Evented, high-churn stores
-    (tasks/runs/proofs/incidents) are guarded by the store/event CI
-    invariant instead — fingerprinting them here would only mask violations
-    that test already prevents.
+    def settle(self):
+        """Settle window: an event burst usually lands over a few tens of
+        milliseconds — one bounded sleep lets the tail join the SAME frame
+        instead of costing a full core each. 200ms sits well inside the declared
+        ≤2×heartbeat staleness SLO."""
 
-    The SessionDB matters because the persona-chat directory (Chat History)
-    is derived from it and its writers emit no EventLog events: with the S6
-    patch lane on, a chat-session mint never appears in any patch frame, so
-    watermark-gated consumers kept their hydrate-time chat list for the
-    stream's whole lifetime (live incident 2026-07-25: the Launcher's Chat
-    History froze for ~36h until a restart re-hydrated). The per-session
-    turn-element files are deliberately NOT statted here: element flushes
-    land many times per second during a streaming turn and would make the
-    watchdog append a reconcile (= one full-core delta) every heartbeat.
+        if not self.pending or self.delta_debounce_seconds <= 0:
+            return False
+        time.sleep(self.delta_debounce_seconds)
+        return (yield from self.drain())
 
-    The ``running_work`` durable stores (``processes.json`` + the
-    background-work ``state.db``) are the same class as the SessionDB: a
-    background process starting or exiting rewrites the checkpoint, and a
-    delegation dispatch/finalize writes ``async_delegations`` — with NO
-    EventLog event either way. The serve read-model cache adopted them on
-    2026-08-03 (``_runtime_state_fingerprint``); this backstop did not, so a
-    stream consumer rendered the last pre-exit ``running_work`` row forever
-    (live incident 2026-08-11: a 20-second terminal task showed
-    "Terminal · running" in the Launcher's Activity panel minutes after the
-    durable side had settled). Resolved through the writers' own path
-    authority, ``running_work_store_paths`` — never a second path list free
-    to drift. Note the background-work ``state.db`` can be a DIFFERENT file
-    from the chat SessionDB statted above: the chat scope consults a durable
-    head-home pointer the background-work writers do not.
+    def flush(self):
+        """Ship the pending batch (with liveness while its core builds)."""
 
-    Both SQLite stores are keyed through ``core_cache.sqlite_fingerprint_triples``
-    — the same masked triple the boot-cache lane keys them by — and NOT by a raw
-    stat of the three siblings, which is what this function did until
-    2026-08-21. The mask collapses "no ``-wal`` on disk" and "a zero-length
-    ``-wal`` on disk" into one triple, because SQLite deletes the WAL on a clean
-    last-close and re-creates it EMPTY on the next open: the difference between
-    those two states is the lifetime of somebody's connection, never content.
-    Under the raw stat a poll landing while any process merely HELD the database
-    open read a fresh ``mtime_ns``, and a poll landing at rest read ``absent`` —
-    so a database nobody was writing flapped the fingerprint twice per open, and
-    each flap costs one synthetic ``state.reconciled``, which ``patch_coverage``
-    classifies UNCOVERED, which demotes the whole batch to a full core rebuild.
-    Measured on the operator's runtime over the 22.16 h to 2026-08-21 09:06:
-    2 433 ``snapshot_build reason=demote`` against 35 hydrates (median build_ms
-    3 083, max 37 266 — 2.29 h of CPU), and 1 239 ``state.reconciled`` — 96.9 %
-    of every event appended in the window — at a median 9.0 s spacing, i.e. the
-    watchdog reconciling on roughly every other heartbeat, indefinitely, with
-    nothing to reconcile. 3 338 distinct fingerprints over 4 597 reconciles
-    against a recurring at-rest anchor is that flip's signature and not a
-    write's: real writes do not come back to the same value.
+        for frame in _batch_frames_with_liveness(
+            self.pending,
+            base_offset=self.batch_base,
+            delta_patches=self.delta_patches,
+            resync=self.resync_pending,
+            heartbeat_interval_seconds=self.heartbeat_interval_seconds,
+            fold_entities=self.batch_floor,
+            promote_fold_entities=self.batch_promote,
+            caller=self.caller,
+        ):
+            spent = yield from self.emit(frame)
+            if frame.get("type") != FRAME_HEARTBEAT:
+                self.emitted_delta = True
+            if spent:
+                return True
+        self.resync_pending = False
+        self.batch_base = self.offset
+        self.pending = []
+        return False
 
-    The narrowing is a NARROWING, not a disabling, and the line it holds is the
-    same one the turn-element exclusion above holds. A committed write still
-    moves this fingerprint within one poll, by one of two paths that SQLite's
-    durability rules leave no gap between: uncheckpointed, the ``-wal`` sibling
-    is non-empty and is keyed in full (mask suspended); checkpointed, the frames
-    are in ``state.db``, whose own mtime and size are the FIRST triple here. So
-    the ≤2×heartbeat staleness SLO that 2026-07-25 and 2026-08-11 bought is
-    intact — ``test_scope_fingerprint_covers_head_home_session_db`` and
-    ``test_scope_fingerprint_covers_running_work_stores`` still pin those two
-    incidents, and ``test_scope_fingerprint_moves_on_committed_chat_write``
-    pins the direction a constant fingerprint would trivially break.
+    def beat(self, fingerprint_candidate: str):
+        """No delta this pass and a heartbeat is due: reconcile a silent write, or beat."""
 
-    ``PRAGMA data_version`` was evaluated first and REJECTED, recorded here so
-    it is not re-proposed as the obvious answer it looks like. Measured on
-    SQLite 3.45.3: (a) its value is only comparable WITHIN one connection — a
-    fresh connection per poll, which is the only shape a stateless fingerprint
-    can take, returns a constant and detects nothing; (b) making it work
-    therefore means the stream process holding a SessionDB connection open for
-    its whole lifetime, which is the exact shape of MCF-27 (every full snapshot
-    build leaked a chat SessionDB connection) two days after that was found;
-    (c) it is NOT checkpoint-immune as its reputation suggests — a
-    ``wal_checkpoint(TRUNCATE)`` with no data change bumps it, so it does not
-    even buy a clean answer for the case the mask leaves uncovered; and (d) it
-    buys nothing here anyway. Scenario-by-scenario against this mask — read-only
-    open/close, write-capable open/close with no write, WAL creation, WAL
-    deletion, ``utime`` on the WAL, uncommitted write, rollback, PASSIVE
-    checkpoint, committed write from another PROCESS — the two agree on every
-    state except the PASSIVE checkpoint, which cannot occur without a preceding
-    commit that both already reported.
-    """
-
-    parts: list[str] = []
-    for path in (paths.active_realm_path(), paths.active_workspace_path()):
-        try:
-            stat = path.stat()
-            parts.append(f"{path.name}:{stat.st_mtime_ns}:{stat.st_size}")
-        except OSError:
-            parts.append(f"{path.name}:absent")
-    directories = [paths.workspaces_dir(), paths.realms_dir(), paths.agents_dir()]
-    for directory in directories:
-        try:
-            entries = [
-                entry
-                for pattern in ("*.json", "*.yaml", "*.yml")
-                for entry in directory.glob(pattern)
-            ]
-        except OSError:
-            continue
-        for entry in sorted(entries):
-            try:
-                stat = entry.stat()
-                parts.append(f"{entry.name}:{stat.st_mtime_ns}:{stat.st_size}")
-            except OSError:
-                continue
-    try:
-        from ..chat_session_scope import chat_session_db_path
-
-        db_path = chat_session_db_path()
-        for suffix, mtime_ns, size in core_cache.sqlite_fingerprint_triples(db_path):
-            parts.append(f"{db_path.name}{suffix}:{mtime_ns}:{size}")
-    except Exception:  # noqa: BLE001 — chat persistence absence is itself stable
-        parts.append("session_db:unresolved")
-    try:
-        from ..running_work import running_work_store_paths
-
-        store_paths = running_work_store_paths()
-        if not store_paths:
-            # An empty tuple means "the home could not be resolved", not
-            # "nothing to watch" — same sentinel rule as the serve cache: the
-            # part is stable, so an unresolvable home never flaps the
-            # fingerprint, but the absence is recorded rather than silent.
-            parts.append("running_work_stores:unresolved")
-        for store_path in store_paths:
-            # The checkpoint is plain JSON; the delegation store is SQLite,
-            # whose mutations can land in the WAL without moving the main
-            # file's mtime — key the siblings through the shared authority like
-            # the chat DB above.
-            if store_path.suffix == ".db":
-                for suffix, mtime_ns, size in core_cache.sqlite_fingerprint_triples(
-                    store_path
-                ):
-                    parts.append(f"bgwork:{store_path.name}{suffix}:{mtime_ns}:{size}")
-                continue
-            try:
-                stat = store_path.stat()
-                parts.append(
-                    f"bgwork:{store_path.name}:{stat.st_mtime_ns}:{stat.st_size}"
-                )
-            except OSError:
-                parts.append(f"bgwork:{store_path.name}:absent")
-    except Exception:  # noqa: BLE001 — same posture as the chat DB above
-        parts.append("running_work_stores:unresolved")
-    return hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()[:16]
+        if self.emitted_delta or not self.heartbeat_due():
+            return None
+        if fingerprint_candidate != self.known_fingerprint and _append_state_reconciled(
+            self.log, fingerprint_candidate
+        ):
+            self.known_fingerprint = fingerprint_candidate
+            # Skip the sleep: the next iteration reads the appended event
+            # and emits the reconcile delta (which resets the heartbeat).
+            return _AGAIN
+        if (yield from self.emit(heartbeat_frame(offset=self.offset))):
+            return _STOP
+        return None

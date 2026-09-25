@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import re
+from functools import singledispatch
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -175,3 +176,45 @@ def mask_secret_lines(text: str) -> str:
         REDACTED_SECRET_LINE if TEXT_SECRET_ASSIGNMENT_RE.search(line) else line
         for line in text.split("\n")
     )
+
+
+def scrub_tree(
+    value: Any,
+    *,
+    scrub: Callable[[str], str],
+    list_cap: int,
+    leaf: Callable[[Any], Any] = lambda item: item,
+) -> Any:
+    """A JSON-shaped tree with every string passed through ``scrub``.
+
+    The ONE walk (program §3 / sheet ``stream.md``): a mapping keeps its keys
+    (as ``str``) and walks its values, a list or tuple becomes a list of at most
+    ``list_cap`` walked items, a string is scrubbed, anything else goes through
+    ``leaf``. The scrubber is the caller's — the patterns are single-homed here,
+    but which one applies is the reader's question. Dispatch is the standard
+    library's type table (``functools.singledispatch``), so a subclass takes its
+    base's arm exactly as the ``isinstance`` ladder it replaces did.
+    """
+
+    return _scrub(value, scrub, list_cap, leaf)
+
+
+@singledispatch
+def _scrub(value: Any, scrub: Callable[[str], str], list_cap: int, leaf: Callable[[Any], Any]) -> Any:
+    return leaf(value)
+
+
+@_scrub.register(dict)
+def _scrub_mapping(value: dict, scrub: Callable[[str], str], list_cap: int, leaf: Callable[[Any], Any]) -> Any:
+    return {str(key): _scrub(item, scrub, list_cap, leaf) for key, item in value.items()}
+
+
+@_scrub.register(list)
+@_scrub.register(tuple)
+def _scrub_sequence(value: Any, scrub: Callable[[str], str], list_cap: int, leaf: Callable[[Any], Any]) -> Any:
+    return [_scrub(item, scrub, list_cap, leaf) for item in value[:list_cap]]
+
+
+@_scrub.register(str)
+def _scrub_text(value: str, scrub: Callable[[str], str], list_cap: int, leaf: Callable[[Any], Any]) -> Any:
+    return scrub(value)

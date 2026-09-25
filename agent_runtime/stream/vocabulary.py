@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from ..redaction import ENV_SECRET_ASSIGNMENT_RE
+from ..redaction import ENV_SECRET_ASSIGNMENT_RE, scrub_tree
 from ..serde import optional_text, to_jsonable
 
 __layer__ = "models"
@@ -117,21 +117,36 @@ _DELTA_BATCH_CAP = 256
 _SNAPSHOT_CANCEL_POLL_SECONDS = 0.1
 
 
+def _mask_env_assignment(text: str) -> str:
+    return _SECRET_ASSIGNMENT_RE.sub(lambda match: f"{match.group(1)}=[redacted]", text)
+
+
 def _redaction_safe_json(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {str(key): _redaction_safe_json(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_redaction_safe_json(item) for item in value[:200]]
-    if isinstance(value, tuple):
-        return [_redaction_safe_json(item) for item in value[:200]]
-    if isinstance(value, str):
-        return _SECRET_ASSIGNMENT_RE.sub(lambda match: f"{match.group(1)}=[redacted]", value)
-    return to_jsonable(value)
+    """A frame payload as JSON with env-style secret assignments masked: the walk
+    is ``redaction.scrub_tree`` (lists and tuples capped at 200), every non-string
+    leaf goes through ``serde.to_jsonable``."""
+
+    return scrub_tree(value, scrub=_mask_env_assignment, list_cap=200, leaf=to_jsonable)
 
 
-def _first_text(payload: dict[str, Any], *keys: str) -> str | None:
+def first_text(payload: dict[str, Any], *keys: str) -> str | None:
     for key in keys:
         text = optional_text(payload.get(key))
         if text:
             return text
     return None
+
+
+#: The wire words a frame's ``type`` carries — the ones the launcher's
+#: ``mission_control_bridge.dart`` scans for — spelled once. Plain constants, not
+#: an Enum: ``serve/`` compares these words too, and an Enum would make them a
+#: fork-wide vocabulary for W0-G5's arm (c). ``FOLD_VARIANTS_FRAME_TYPE`` above is
+#: the internal envelope's word and never reaches a wire.
+FRAME_HYDRATE = "hydrate"
+FRAME_HEARTBEAT = "heartbeat"
+FRAME_DELTA = "delta"
+FRAME_PATCH = "patch"
+#: The two EventLog types this package reads or writes by name: the watchdog's
+#: synthetic reconcile and the run-progress trace.
+EVENT_STATE_RECONCILED = "state.reconciled"
+EVENT_RUN_PROGRESS = "run.progress"
