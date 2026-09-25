@@ -34,7 +34,6 @@
   "agent_runtime/stream.py": 1385,
   "agent_runtime/terminal_envelope.py": 963,
   "hermes_cli/harness_parts/gateway_commands.py": 1645,
-  "hermes_cli/harness_parts/parser/__init__.py": 1615,
   "scripts/changed_line_mutation_check.py": 831,
   "tests/_downstream/hermes_cli_conftest.py": 893,
   "tests/_downstream/id_markers.py": 1053,

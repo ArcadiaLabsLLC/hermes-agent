@@ -107,10 +107,10 @@ class _ArgvRequest:
         self.progress_monotonic: float | None = None
 
 
-#: The harness parser tree's builder (``hermes_cli.harness.build_parser``),
-#: BOUND by the harness — its ``_cmd_serve`` binds it before a serve runs —
-#: because no harness part may import ``hermes_cli.harness`` (W0-G6): the parser
-#: is the harness's, and the lane only borrows it per request.
+#: The harness parser tree's builder (``harness_parts.parser.build_parser``),
+#: BOUND by the parser's ``serve`` trampoline (``parser.machine._cmd_serve``)
+#: before a serve runs, so this package never imports the parser package (which
+#: imports every verb family): the lane only borrows the tree per request.
 _harness_parser_builder: Callable[[Any], None] | None = None
 
 
@@ -133,7 +133,7 @@ def _build_harness_parser() -> argparse.ArgumentParser:
     builder = _harness_parser_builder
     if builder is None:
         raise HarnessParserUnbound(
-            "the serve argv lane has no harness parser; hermes_cli.harness binds it "
+            "the serve argv lane has no harness parser; the serve trampoline binds it "
             "(bind_harness_parser) before serving"
         )
     parser = argparse.ArgumentParser(prog="hermes")

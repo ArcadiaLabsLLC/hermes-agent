@@ -82,8 +82,8 @@ def _claim_protocol_pipes() -> tuple[int, int]:
 
 def _cmd_serve(args, *, harness_parser: Callable[[Any], None] | None = None) -> int:
     """``hermes harness serve``. *harness_parser* is the harness's parser-tree
-    builder, bound into the argv lane (``hermes_cli.harness`` passes it; a harness
-    part may not import that module — W0-G6)."""
+    builder, bound into the argv lane (the parser's ``serve`` trampoline passes
+    it, so this package never imports the parser package)."""
 
     # Started before anything else this command does: everything from process
     # creation up to here is the interpreter + hermes import tax, and it is the

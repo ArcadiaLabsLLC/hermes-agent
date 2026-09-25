@@ -3,12 +3,13 @@
 Entry points (what calls in):
 
 * ``commands._cmd_serve`` / ``commands._cmd_serve_connect`` — the two CLI verbs
-  ``hermes_cli.harness`` wires (lazily, so no other verb pays serve's import).
+  the parser wires through ``harness_parts.parser.machine``'s trampolines (lazily,
+  so no other verb pays serve's import).
 * ``loop.serve_loop`` — the dispatch loop over explicit streams; every serve test
   and the two field tools drive it directly.
 * ``argv_lane.dispatch_argv`` — one argv request through the harness parser,
-  which ``hermes_cli.harness`` binds (``bind_harness_parser``) so no part of
-  this package imports it.
+  which the ``serve`` trampoline binds (``bind_harness_parser``) so no part of
+  this package imports the parser package.
 * ``frames.current_serve_request_id`` — read by the harness verbs to learn the
   request they run under.
 * ``gateway_listener.gateway_listen_config`` — read by ``gateway_commands``.

@@ -5,7 +5,7 @@ split the 8,201-line ``harness_parts/persona_commands.py`` into this package. Th
 file is the MAP and binds nothing: import the module that owns a name, and patch a
 name in the module that LOOKS IT UP (W0-G4's rule, one module per lookup).
 
-Entry points: ``hermes_cli/harness.py``'s parser wires each ``_cmd_*`` handler
+Entry points: the parser (``harness_parts.parser.persona``) wires each ``_cmd_*`` handler
 from its module; ``agent_runtime`` callers (dispatch delivery, discussions, the
 peer directory, open-chat, the agent-chat tool, actor prewarm) import the one
 module they need.
