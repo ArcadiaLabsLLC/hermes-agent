@@ -17,23 +17,20 @@ _REAL_SHIM_INSTALL_DIR = _path_setup._shim_install_dir
 
 def _patch_common(monkeypatch, calls, *, stub_shim: bool = True):
     """Patch the side-effecting bits of cmd_postinstall for a hermetic run."""
-    import hermes_cli.config as config_mod
-    import hermes_cli.dep_ensure as dep_ensure
     import hermes_cli.main as main_mod
     import hermes_cli.path_setup as path_setup
+    import pm
+    import pm.shell
 
     monkeypatch.setattr(_owner_hermes_cli_install_method, "stamp_install_method", lambda _method: None)
+    # No test here may reach a real pm install: the recorder is the whole of pm.ensure.
     monkeypatch.setattr(
-        dep_ensure,
-        "ensure_dependency",
-        lambda dep, interactive=True: calls.append((dep, interactive)) or True,
+        pm, "ensure", lambda name, **kw: calls.append((name, kw.get("explicit"))) or None,
     )
+    monkeypatch.setattr(pm, "installed_package", lambda name, **kw: None)
     monkeypatch.setattr(main_mod, "_has_any_provider_configured", lambda: False)
     # Shell provisioning + PATH registration must not touch the real machine.
-    monkeypatch.setattr(
-        dep_ensure, "ensure_git_bash",
-        lambda interactive=True: r"C:\Program Files\Git\bin\bash.exe",
-    )
+    monkeypatch.setattr(pm.shell, "bash", lambda: r"C:\Program Files\Git\bin\bash.exe")
     if stub_shim:
         monkeypatch.setattr(
             path_setup, "register_hermes_command",
@@ -48,7 +45,7 @@ def _patch_common(monkeypatch, calls, *, stub_shim: bool = True):
 
 
 def test_postinstall_yes_bootstraps_without_provider_setup(monkeypatch, capsys):
-    calls: list[tuple[str, bool]] = []
+    calls: list[tuple[str, object]] = []
     main_mod = _patch_common(monkeypatch, calls)
 
     setup_called = False
@@ -62,17 +59,17 @@ def test_postinstall_yes_bootstraps_without_provider_setup(monkeypatch, capsys):
     main_mod.cmd_postinstall(SimpleNamespace(yes=True, non_interactive=False))
 
     assert calls == [
-        ("node", False),
-        ("browser", False),
-        ("ripgrep", False),
-        ("ffmpeg", False),
+        ("node", True),
+        ("agent-browser", True),
+        ("ripgrep", True),
+        ("ffmpeg", True),
     ]
     assert setup_called is False
     assert "Provider setup skipped" in capsys.readouterr().out
 
 
 def test_postinstall_json_emits_summary_as_final_line(monkeypatch, capsys):
-    calls: list[tuple[str, bool]] = []
+    calls: list[tuple[str, object]] = []
     main_mod = _patch_common(monkeypatch, calls)
 
     main_mod.cmd_postinstall(
@@ -115,7 +112,7 @@ def test_postinstall_writes_its_shim_inside_the_sandbox_and_nowhere_else(
     Two assertions, and the second is the one that matters: the shim went
     INSIDE this test's tmp_path, and the real install dir was not touched.
     """
-    calls: list[tuple[str, bool]] = []
+    calls: list[tuple[str, object]] = []
     main_mod = _patch_common(monkeypatch, calls, stub_shim=False)
 
     # A resolvable target, so the run reaches the write instead of refusing.
@@ -167,7 +164,7 @@ def test_postinstall_says_out_loud_when_it_refuses_to_write_the_shim(
     The whole `PathSetupResult` used to be read only inside the `--json`
     branch, so a human running `hermes postinstall` was told nothing at all.
     """
-    calls: list[tuple[str, bool]] = []
+    calls: list[tuple[str, object]] = []
     main_mod = _patch_common(monkeypatch, calls)
     monkeypatch.setattr(
         _path_setup, "register_hermes_command",

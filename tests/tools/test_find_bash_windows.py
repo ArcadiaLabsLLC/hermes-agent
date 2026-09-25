@@ -19,45 +19,10 @@ from tools.environments import local
 from tools.environments.local import (
     _WINDOWS_PATH_SEP,
     _augment_windows_system_path,
-    _bash_from_git,
     _find_bash,
     _is_windows_system_shim,
     _windows_system_path_dirs,
 )
-
-
-@pytest.fixture
-def clean_win_env(tmp_path):
-    """A sandboxed Windows-ish environment with no Git Bash present anywhere."""
-    env = {
-        "SystemRoot": str(tmp_path / "Windows"),
-        "LOCALAPPDATA": str(tmp_path / "AppData" / "Local"),
-        "ProgramFiles": str(tmp_path / "Program Files"),
-        "ProgramFiles(x86)": str(tmp_path / "Program Files (x86)"),
-    }
-    for v in env.values():
-        os.makedirs(v, exist_ok=True)
-    # Drop any real HERMES_GIT_BASH_PATH the CI box might carry.
-    with patch.dict(os.environ, env, clear=False):
-        os.environ.pop("HERMES_GIT_BASH_PATH", None)
-        yield tmp_path
-
-
-def _find_windows_bash():
-    """Upstream's ``_find_bash`` on its Windows branch, every candidate startable.
-
-    The fork's ``_find_windows_git_bash`` duplicate is retired (upstream c4622a1d5b);
-    the candidate ORDER these tests pin is ``_windows_bash_candidates``, shared by both.
-    """
-    with patch.object(local, "_IS_WINDOWS", True),             patch.object(local, "_bash_starts", return_value=True):
-        return _find_bash()
-
-
-def _make(path):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as f:
-        f.write("")
-    return path
 
 
 class TestIsWindowsSystemShim:
@@ -75,76 +40,50 @@ class TestIsWindowsSystemShim:
 
 
 class TestFindWindowsGitBash:
-    def test_wsl_stub_only_returns_none(self, clean_win_env):
-        """Only System32\\bash.exe on PATH → resolver returns None (stub rejected)."""
-        stub = _make(str(clean_win_env / "Windows" / "System32" / "bash.exe"))
+    """Bash discovery moved to upstream's ``pm.shell`` at the 2026-09-25 merge.
 
-        def which(name):
-            return {"bash": stub, "git": None}.get(name)
+    The candidate ladder (Program Files Git, per-user and 32-bit roots, the
+    portable Git under ``%LOCALAPPDATA%/hermes/git``, stub rejection) is
+    upstream's and pinned by ``tests/pm/test_shell_candidates.py``; the fork's
+    own ordering (portable Git and git-derived bash first) left with the fork's
+    ``_windows_bash_candidates``. What stays pinned here: ``_find_bash`` asks pm
+    and fails loudly instead of falling through to the WSL stub, and an
+    operator's ``HERMES_GIT_BASH_PATH`` outranks every discovered install.
+    """
 
-        from hermes_cli.dep_ensure import _resolve_windows_git_bash
+    def test_find_bash_raises_when_pm_finds_no_shell(self, monkeypatch):
+        import pm.shell
 
-        with patch.object(local, "_IS_WINDOWS", True),                 patch.object(local.shutil, "which", side_effect=which):
-            assert _resolve_windows_git_bash() is None
+        monkeypatch.setattr(pm.shell, "bash", lambda: None)
+        with pytest.raises(RuntimeError, match="No shell found"):
+            _find_bash()
 
-    def test_find_bash_raises_on_wsl_stub_only(self, clean_win_env):
-        stub = _make(str(clean_win_env / "Windows" / "System32" / "bash.exe"))
+    def test_find_bash_returns_pm_answer(self, monkeypatch):
+        import pm.shell
 
-        def which(name):
-            return {"bash": stub, "git": None}.get(name)
+        chosen = r"C:\Program Files\Git\bin\bash.exe"
+        monkeypatch.setattr(pm.shell, "bash", lambda: chosen)
+        assert _find_bash() == chosen
 
-        with patch.object(local, "_IS_WINDOWS", True), \
-                patch.object(local.shutil, "which", side_effect=which):
-            with pytest.raises(RuntimeError, match="Git Bash not found"):
-                _find_bash()
+    def test_wsl_stub_only_yields_no_candidate(self):
+        from pm.shell import windows_bash_candidates
 
-    @pytest.mark.parametrize(
-        "git_rel,bash_rel",
-        [
-            (("Git", "cmd", "git.exe"), ("Git", "bin", "bash.exe")),
-            (("Git", "bin", "git.exe"), ("Git", "usr", "bin", "bash.exe")),
-            (("Git", "mingw64", "bin", "git.exe"), ("Git", "bin", "bash.exe")),
-        ],
-    )
-    def test_derives_bash_from_git(self, clean_win_env, git_rel, bash_rel):
-        root = clean_win_env / "Program Files"
-        git = _make(str(root.joinpath(*git_rel)))
-        bash = _make(str(root.joinpath(*bash_rel)))
+        stub = r"C:\Windows\System32\bash.exe"
+        assert stub not in windows_bash_candidates(stub, {"ProgramFiles": r"D:\Progs"})
 
-        def which(name):
-            return {"git": git, "bash": None}.get(name)
+    def test_hermes_git_bash_path_takes_precedence(self):
+        from pm.shell import windows_bash_candidates
 
-        with patch.object(local.shutil, "which", side_effect=which):
-            assert _find_windows_bash() == bash
-            assert _bash_from_git() == bash
-
-    def test_hermes_git_bash_path_takes_precedence(self, clean_win_env):
-        override = _make(str(clean_win_env / "custom" / "bash.exe"))
-        # Also plant a git-derived bash that must be ignored in favour of the override.
-        _make(str(clean_win_env / "Program Files" / "Git" / "cmd" / "git.exe"))
-        _make(str(clean_win_env / "Program Files" / "Git" / "bin" / "bash.exe"))
-        with patch.dict(os.environ, {"HERMES_GIT_BASH_PATH": override}):
-            with patch.object(local.shutil, "which", return_value=None):
-                assert _find_windows_bash() == override
-
-    def test_portable_git_precedes_git_derived(self, clean_win_env):
-        portable = _make(
-            str(clean_win_env / "AppData" / "Local" / "hermes" / "git" / "bin" / "bash.exe")
+        override = r"E:\custom\bash.exe"
+        candidates = windows_bash_candidates(
+            r"C:\msys64\usr\bin\bash.exe",
+            {
+                "ProgramFiles": r"D:\Progs",
+                "LOCALAPPDATA": r"C:\Users\u\AppData\Local",
+                "HERMES_GIT_BASH_PATH": override,
+            },
         )
-        git = _make(str(clean_win_env / "Program Files" / "Git" / "cmd" / "git.exe"))
-        _make(str(clean_win_env / "Program Files" / "Git" / "bin" / "bash.exe"))
-
-        def which(name):
-            return {"git": git, "bash": None}.get(name)
-
-        with patch.object(local.shutil, "which", side_effect=which):
-            assert _find_windows_bash() == portable
-
-    def test_standard_location_fallback(self, clean_win_env):
-        """No git on PATH, no portable — standard Program Files install is found."""
-        bash = _make(str(clean_win_env / "Program Files" / "Git" / "bin" / "bash.exe"))
-        with patch.object(local.shutil, "which", return_value=None):
-            assert _find_windows_bash() == bash
+        assert candidates[0] == override
 
 
 class TestWindowsSystemPathAugmentation:

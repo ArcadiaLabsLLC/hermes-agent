@@ -81,7 +81,6 @@ def _gateway_fence_is_armed_for_this_test(request):
 #: in ``sys.modules`` holding its own reference.
 _AGENT_BROWSER_PROBE_BINDINGS = (
     "hermes_constants",
-    "hermes_cli.dep_ensure",
     "hermes_cli.doctor_tools",
     "tools.browser_tool_install",
 )
@@ -102,7 +101,7 @@ def _agent_browser_probe_never_spawns(monkeypatch, request):
     The exemption was a hole in the fence's real-store rule kept open because
     the probe had no single seam. Individual seams were tried and did not close
     the class: the reachers are a FAMILY (``doctor``, ``dep_ensure`` via
-    ``cmd_postinstall``, ``nous_subscription`` via ``tools_config``'s
+    ``cmd_postinstall`` until pm replaced it on 2026-09-25, ``nous_subscription`` via ``tools_config``'s
     ``tools_command`` / ``_visible_providers`` / picker surfaces), several of
     them in tests that do not even take ``monkeypatch``. One fixture over the
     probe itself is the owner the class wanted.
