@@ -119,7 +119,7 @@ def stub_runtime(monkeypatch):
         }
 
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.runtime_resolve.resolve_runtime_provider", _resolve
+        "agent_runtime.profile_runner.execute.resolve_runtime_provider", _resolve
     )
 
 

@@ -99,7 +99,7 @@ def reset_fake_agent_response():
 
 
 def test_runner_passes_toolsets_and_blocked_tools_to_ai_agent(monkeypatch):
-    monkeypatch.setattr("agent_runtime.profile_runner.runtime_resolve.resolve_runtime_provider", lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"})
+    monkeypatch.setattr("agent_runtime.profile_runner.execute.resolve_runtime_provider", lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"})
     runner = ProfileAgentRunner(agent_factory=FakeAgent)
     progress_events = []
 
@@ -294,7 +294,7 @@ def test_persona_chat_runner_applies_one_turn_compression_proof_overrides():
 
 def test_runner_attaches_redaction_safe_model_input(monkeypatch):
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.runtime_resolve.resolve_runtime_provider",
+        "agent_runtime.profile_runner.execute.resolve_runtime_provider",
         lambda requested, target_model: {
             "provider": requested,
             "model": target_model,
@@ -395,7 +395,7 @@ def test_system_prompt_section_receipts_fail_closed_on_cached_prompt_drift(
 
 def test_runner_attaches_agent_owned_final_cache_routing_observability(monkeypatch):
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.runtime_resolve.resolve_runtime_provider",
+        "agent_runtime.profile_runner.execute.resolve_runtime_provider",
         lambda requested, target_model: {
             "provider": requested,
             "model": target_model,
@@ -512,7 +512,7 @@ def test_runner_persists_provider_conversation_timing_from_agent_status_callback
 
 def test_runner_resolves_runtime_credentials_for_explicit_provider(monkeypatch):
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.runtime_resolve.resolve_runtime_provider",
+        "agent_runtime.profile_runner.execute.resolve_runtime_provider",
         lambda requested, target_model: {
             "provider": requested,
             "model": target_model,
@@ -578,7 +578,7 @@ def test_runner_reports_missing_profile_before_agent_construction(monkeypatch):
 
 
 def test_runner_raises_failed_agent_results_before_decision_parsing(monkeypatch):
-    monkeypatch.setattr("agent_runtime.profile_runner.runtime_resolve.resolve_runtime_provider", lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"})
+    monkeypatch.setattr("agent_runtime.profile_runner.execute.resolve_runtime_provider", lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"})
     FakeAgent.response = {
         "final_response": None,
         "messages": [],
@@ -1951,7 +1951,7 @@ def test_runner_threads_cache_scope_id_to_agent_factory(monkeypatch):
     kwarg while session_id is left None (persona-chat shape). It must not be
     conflated with session_id — the transcript-load key stays untouched."""
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.runtime_resolve.resolve_runtime_provider",
+        "agent_runtime.profile_runner.execute.resolve_runtime_provider",
         lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"},
     )
     runner = ProfileAgentRunner(agent_factory=FakeAgent)
@@ -1979,7 +1979,7 @@ def test_runner_defaults_cache_scope_id_none_for_worker_lanes(monkeypatch):
     """Lanes that don't set cache_scope_id thread None — the codex transport
     then falls back to session_id, so worker/mission-run behavior is unchanged."""
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.runtime_resolve.resolve_runtime_provider",
+        "agent_runtime.profile_runner.execute.resolve_runtime_provider",
         lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"},
     )
     runner = ProfileAgentRunner(agent_factory=FakeAgent)

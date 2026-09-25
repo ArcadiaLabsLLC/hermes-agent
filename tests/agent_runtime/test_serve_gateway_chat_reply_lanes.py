@@ -148,7 +148,7 @@ def scripted_model(monkeypatch):
 
     monkeypatch.setattr(profile_runner.runner, "_default_agent_factory", _ScriptedAgent)
     monkeypatch.setattr(
-        profile_runner.runtime_resolve,
+        profile_runner.execute,
         "resolve_runtime_provider",
         lambda requested, target_model: {
             "provider": requested or "scripted",

@@ -4792,7 +4792,7 @@
     },
     {
       "id": "llama-h-runner-bypasses-cloud",
-      "path": "agent_runtime/profile_runner/runtime_resolve.py",
+      "path": "agent_runtime/profile_runner/execute.py",
       "symbol": "_resolve_request_runtime",
       "operator": "weaken-runner",
       "find": "    if request.provider == PROVIDER_ID:\n        from ..local_llama_adapter.provider import resolve",
