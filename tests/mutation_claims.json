@@ -3510,7 +3510,7 @@
     },
     {
       "id": "longrun-rows-generates-without-the-draft-lock",
-      "path": "agent/charsheet/draft.py",
+      "path": "agent/charsheet/draft/draft.py",
       "symbol": "CharacterDraft.run_rows",
       "operator": "drop-the-generation-lock",
       "find": "        with self.generation_lock(\"rows\"):",
@@ -3810,7 +3810,7 @@
     },
     {
       "id": "charsheet-no-sheet-still-reads-and-inlines-the-bytes",
-      "path": "agent/charsheet/draft.py",
+      "path": "agent/charsheet/draft/installed.py",
       "symbol": "sprite_payload",
       "operator": "ignore-the-metadata-only-mode",
       "find": "            if include_sheet\n            else {\"sheet\": str(sheet_path)}",
@@ -4293,7 +4293,7 @@
     },
     {
       "id": "w7-the-migrate-refusal-names-the-directory-it-left-the-entry-in",
-      "path": "agent/charsheet/draft.py",
+      "path": "agent/charsheet/draft/migration.py",
       "symbol": "migrate_characters_home/_relocate",
       "operator": "drop-source-directory-from-the-refusal",
       "find": "        left_where_it_is = {**row, \"directory\": str(child)}\n",

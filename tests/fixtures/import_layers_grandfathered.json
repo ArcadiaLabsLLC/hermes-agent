@@ -73,7 +73,6 @@
  ],
  "undeclared": [
   "agent/charsheet/__init__.py",
-  "agent/charsheet/draft.py",
   "agent/charsheet/draft_lock.py",
   "agent/charsheet/errors.py",
   "agent/charsheet/fake_draftsman.py",

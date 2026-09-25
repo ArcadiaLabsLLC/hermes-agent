@@ -11,7 +11,7 @@ import json
 from agent_runtime.cli_format import emit_json
 from agent.charsheet.errors import CharsheetRefusal, DraftBusy
 
-__layer__ = "policy"
+__layer__ = "lanes"
 __all__ = [
     "_CHARACTERS_EXPECTED",
     "_attempt_label",
