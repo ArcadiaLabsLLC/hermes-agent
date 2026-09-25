@@ -14,18 +14,18 @@ This package IS the object the root ``conftest.py`` registers (by the module nam
 execs this file under a synthetic module name, where a relative import has no parent::
 
     tests/_downstream/hermes_cli_conftest/
-      __init__.py     wiring   this map; ``import dotenv`` FIRST; binds the fixtures, the hooks, every pinned name
+      __init__.py     wiring   this map; ``import dotenv`` FIRST; binds the fixtures and every pinned name;
+                               DEFINES the five pytest hooks, _OWNER_DIR and the KNOWN DEFECTS tracker
       fences.py       lanes    "no test reaches this machine": the gateway fence, the pause token, psutil, agent-browser
       isolation.py    lanes    "no test's state outlives it": kanban workers, web_server.app, PAIRING_DIR, sys.modules
       probes.py       stores   every host probe, each answering once per process
-      registry.py     stores   TABLES: _ENV_GAP_SKIPS, the prerequisite file/id sets, _KNOWN_DEFECTS
-      hooks.py        wiring   _OWNER_DIR / _OWNER_NODEID_PREFIX, the five hooks, the accumulators
+      registry.py     stores   TABLES: _ENV_GAP_SKIPS, _WEB_BUILD_PREREQ_FILES, _KNOWN_DEFECTS
 
 Following an entry point: the root registration -> here (1); "why was this test
-skipped?" -> ``hooks`` -> ``registry`` -> ``probes`` (3); "why is psutil / the pause
+skipped?" -> here -> ``registry`` -> ``probes`` (3); "why is psutil / the pause
 token / agent-browser patched under me?" -> ``fences`` (1); "why did my sys.modules swap
-not stick?" -> ``isolation`` (1); the KNOWN DEFECTS banner -> ``hooks`` -> ``registry`` (2).
-Layers go DOWN: here -> ``hooks`` -> ``registry`` -> ``probes``; ``fences`` and
+not stick?" -> ``isolation`` (1); the KNOWN DEFECTS banner -> here -> ``registry`` (2).
+Layers go DOWN: here -> ``registry`` -> ``probes``; ``fences`` and
 ``isolation`` import neither. A conftest that runs for UPSTREAM tests never imports
 ``agent_runtime``.
 """
@@ -40,6 +40,11 @@ from __future__ import annotations
 # sys.modules their own guard is a no-op; upstream bytes untouched.
 import dotenv  # noqa: F401
 
+import pathlib  # noqa: E402
+
+import pytest  # noqa: E402
+
+from tests._env_gap_fence import KnownDefectTracker, apply_skips, is_owned  # noqa: E402
 from tests._downstream.hermes_cli_conftest.fences import (  # noqa: E402, F401
     _gateway_fence_is_armed_for_this_test,
     _AGENT_BROWSER_PROBE_BINDINGS,
@@ -60,41 +65,100 @@ from tests._downstream.hermes_cli_conftest.probes import (  # noqa: E402, F401
     _node_version,
     _web_build_prereq_failure,
     _web_build_prereq_reason,
-    _local_model_probe_failure,
-    _local_model_probe_reason,
-    _POSIX_MODE_BITS_PROBE,
     _no_module,
     _no_posix_mode_bits,
     _no_os_chown,
     _no_posix_wait_status,
     _no_posix_privilege_api,
     _posix_only_branch,
-    _SHEBANG_EXEC_PROBE,
     _no_shebang_script_execution,
 )
+from tests.hermes_cli import _gateway_fence  # noqa: E402
 from tests._downstream.hermes_cli_conftest.registry import (  # noqa: E402, F401
     _WEB_BUILD_PREREQ_FILES,
-    _LOCAL_MODEL_PROBE_NODE_IDS,
     _ENV_GAP_SKIPS,
     TELEGRAM_PARITY_DEFECT_REASON,
     _KNOWN_DEFECTS,
 )
-from tests._downstream.hermes_cli_conftest.hooks import (  # noqa: E402, F401
-    _OWNER_DIR,
-    _OWNER_NODEID_PREFIX,
-    _WINDOWS,
-    _HOST,
-    _ENV_GAPS,
-    pytest_configure,
-    pytest_collection_modifyitems,
-    _STALE_ENV_GAP_ENTRIES,
-    _KNOWN_DEFECT_FAILURES,
-    pytest_runtest_logreport,
-    pytest_sessionfinish,
-    pytest_terminal_summary,
-)
 
 __layer__ = "wiring"
+
+#: The directory this conftest's registries own. The hooks below are GLOBAL and
+#: every registry is keyed by file BASENAME, so without it a combined run lets
+#: one directory's rows skip a same-named file in another (the tracker scopes the
+#: report half by its own owner prefix). tests/_env_gap_fence.py carries the
+#: measurement and the shared half of this scoping.
+_OWNER_DIR = pathlib.Path(__file__).resolve().parents[2] / "hermes_cli"
+
+#: The KNOWN DEFECTS banner (tests/_env_gap_fence.KnownDefectTracker): a known
+#: defect's FAILED or xfailed call, under tests/hermes_cli/ only.
+_KNOWN_DEFECT_TRACKER = KnownDefectTracker(_KNOWN_DEFECTS, "tests/hermes_cli/conftest.py")
+
+
+def pytest_configure(config):  # noqa: D401 — pytest hook
+    """Register the one mark this directory owns (the real-pause opt-out)."""
+    config.addinivalue_line(
+        "markers",
+        f"{_gateway_fence.REAL_PAUSE_MARK}: let this test drive the REAL "
+        "_pause_windows_gateways_for_update (it reads this machine's live "
+        "gateway table and Scheduled Task). The test must mock the spawn "
+        "itself; the process-wide gateway fence still stands behind it.",
+    )
+
+
+def pytest_collection_modifyitems(items):  # noqa: D401 — pytest hook
+    """Apply the prerequisite guards, then the probe-backed env-gap skips.
+
+    Items OUTSIDE this directory are skipped first. This is a global pytest
+    hook — once this conftest is loaded, pytest hands it every item in the
+    session — and every registry it reads is keyed by file BASENAME, so in a
+    combined run (``pytest tests/hermes_cli tests/cli``) a row here would reach
+    a same-named file one directory over and skip it. See the ownership block in
+    tests/_env_gap_fence.py for the measurement.
+    """
+    for item in items:
+        if not is_owned(item.path, _OWNER_DIR):
+            continue
+        # The web-UI build prerequisite (registry._WEB_BUILD_PREREQ_FILES):
+        # probed lazily, only for an item of a file that needs it. NOT an
+        # _ENV_GAP_SKIPS row — a prerequisite goes INERT on a host that meets
+        # the floor, which the registry gate would read as a rotted row.
+        if item.path.name in _WEB_BUILD_PREREQ_FILES and (reason := _web_build_prereq_reason()) is not None:
+            item.add_marker(pytest.mark.skip(reason=reason))
+    apply_skips(items, _ENV_GAP_SKIPS, owner_dir=_OWNER_DIR)
+
+
+def pytest_runtest_logreport(report):  # noqa: D401 — pytest hook
+    """Record the known-defect tests' outcomes.
+
+    The known-defect test is ``xfail(strict=True)``, so its ordinary outcome is
+    ``skipped`` with ``wasxfail`` set — NOT ``failed``; the tracker takes both,
+    and a strict XPASS (``failed``, no ``wasxfail``) is the day someone must read
+    the row and delete it.
+    """
+    _KNOWN_DEFECT_TRACKER.record(report)
+
+
+def pytest_sessionfinish(session, exitstatus):  # noqa: D401 — pytest hook
+    """Latch the gateway fence on for whatever the process does next.
+
+    Every fixture has torn down by now and every monkeypatch is undone, which
+    is precisely the state the measured escape ran in: ``_cmd_update_impl``
+    parks ``_resume_windows_gateways_after_update`` on ``atexit`` mid-test, and
+    it fires at interpreter exit against the operator's real profile. Arming is
+    a flag the already-installed wrappers read at spawn time, so it does not
+    have to beat that handler in atexit's LIFO order — it only has to be down
+    before the handler runs, and session finish always is.
+
+    Nothing is disarmed after this point, on purpose. The run is over; no
+    legitimate test spawn can still be owed.
+    """
+    _gateway_fence.arm_permanently()
+
+
+def pytest_terminal_summary(terminalreporter):  # noqa: D401 — pytest hook
+    """Explain the deliberate reds."""
+    _KNOWN_DEFECT_TRACKER.report(terminalreporter, "KNOWN DEFECTS — fenced xfail(strict), still open")
 
 
 # ── History (relocated from the flat file's comment blocks by lane B5, 2026-09-25) ──

@@ -204,22 +204,24 @@ def _sys_modules_identity_is_restored():
             # repair and unpacking its ``rpartition`` yields nothing, so skip
             # it rather than crash — policing junk keys is not this guard's
             # question.
-            if not isinstance(name, str):
-                continue
-            if sys.modules.get(name) is not module:
-                sys.modules[name] = module
-                # The parent package attribute is the OTHER half, and on its
-                # own it is enough to keep the split alive: ``import
-                # hermes_cli.main`` binds ``main`` on the ``hermes_cli``
-                # package object, and ``from hermes_cli import main`` reads
-                # THAT attribute, not sys.modules. Restoring only the
-                # sys.modules row leaves the two spellings answering with two
-                # different module objects -- measured: the update tests kept
-                # failing until this line existed.
-                parent_name, _, child = name.rpartition(".")
-                parent = sys.modules.get(parent_name) if parent_name else None
-                if parent is not None and getattr(parent, child, None) is not module:
-                    try:
-                        setattr(parent, child, module)
-                    except Exception:
-                        pass
+            if isinstance(name, str) and sys.modules.get(name) is not module:
+                _restore_binding(name, module)
+
+
+def _restore_binding(name: str, module) -> None:
+    """Put back one module a test replaced or dropped — BOTH halves of the binding."""
+    sys.modules[name] = module
+    # The parent package attribute is the OTHER half, and on its own it is
+    # enough to keep the split alive: ``import hermes_cli.main`` binds ``main``
+    # on the ``hermes_cli`` package object, and ``from hermes_cli import main``
+    # reads THAT attribute, not sys.modules. Restoring only the sys.modules row
+    # leaves the two spellings answering with two different module objects --
+    # measured: the update tests kept failing until this line existed.
+    parent_name, _, child = name.rpartition(".")
+    parent = sys.modules.get(parent_name) if parent_name else None
+    if parent is None or getattr(parent, child, None) is module:
+        return
+    try:
+        setattr(parent, child, module)
+    except Exception:
+        pass

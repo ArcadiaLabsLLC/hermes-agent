@@ -9,15 +9,6 @@ directory's scope and its hooks run; the upstream conftest carries no fork line
 
 from __future__ import annotations
 
-from tests._env_gap_fence import (
-    HOST_DEPENDENCY_GAP as _HOST,
-    WINDOWS_ENV_GAP as _WINDOWS,
-    EnvGapRegistry,
-    StaleEntryTracker,
-    apply_marks,
-    register_marks,
-)
-
 
 
 # ── Environment-gap fence — migrated to probe-backed skips (2026-08-10) ─────
@@ -124,14 +115,7 @@ import tempfile
 
 import pytest
 
-from tests._env_gap_fence import (
-    EnvGapRegistry,
-    EnvGapSkipRegistry,
-    StaleEntryTracker,
-    apply_marks,
-    apply_skips,
-    register_marks,
-)
+from tests._env_gap_fence import EnvGapSkipRegistry, KnownDefectTracker, apply_skips
 
 
 def _cached(fn):
@@ -209,11 +193,8 @@ def _no_process_groups() -> bool:
     return not hasattr(os, "getpgid")
 
 
-# The mark-only lane is retired. tests/test_env_gap_registry.py asserts this
-# stays empty: neither its staleness check nor its orphan check can see a
-# mark-only row, so anything left here would be unguarded by construction.
-_ENV_GAPS: EnvGapRegistry = {}
-
+# The mark-only lane (_ENV_GAPS) is deleted fork-wide (lane B5, Q30);
+# tests/test_env_gap_registry.py still refuses it if it comes back.
 
 _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
     # ── NTFS records no POSIX mode bits ────────────────────────────────────
@@ -316,8 +297,6 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
 #: reach a same-named file in another directory. See tests/_env_gap_fence.py.
 _OWNER_DIR = pathlib.Path(__file__).resolve().parents[1] / "tools"
 
-_STALE = StaleEntryTracker(_ENV_GAPS, "tests/tools/conftest.py")
-
 
 # ── Known defects that are deliberately NOT fenced ─────────────────────────
 #
@@ -342,43 +321,26 @@ _KNOWN_DEFECTS: dict[str, str] = {
     ),
 }
 
-_KNOWN_DEFECT_FAILURES: list[str] = []
-
-
-def pytest_configure(config):  # noqa: D401 — pytest hook
-    """Register the environment-gap marks."""
-    register_marks(config)
+#: The banner's owner (tests/_env_gap_fence.KnownDefectTracker): a known defect's
+#: FAILED or xfailed call is recorded, and only for reports under tests/tools/ —
+#: this lane used to match ``failed`` alone with no owner filter, so a strict
+#: xfail here would have retired its own banner (fork-hygiene row, lane B5).
+_KNOWN_DEFECT_TRACKER = KnownDefectTracker(_KNOWN_DEFECTS, "tests/tools/conftest.py")
 
 
 def pytest_collection_modifyitems(items):  # noqa: D401 — pytest hook
     """Skip every registered node whose probe reports its gap on this host."""
-    apply_marks(items, _ENV_GAPS, owner_dir=_OWNER_DIR)
     apply_skips(items, _ENV_GAP_SKIPS, owner_dir=_OWNER_DIR)
 
 
 def pytest_runtest_logreport(report):  # noqa: D401 — pytest hook
-    """Record stale mark-only passes, and failures of the known-defect tests."""
-    if report.when == "call":
-        file_name = report.nodeid.split("::", 1)[0].rsplit("/", 1)[-1]
-        if report.outcome == "failed" and file_name in _KNOWN_DEFECTS:
-            _KNOWN_DEFECT_FAILURES.append(report.nodeid)
-            return
-    _STALE.record(report)
+    """Record the known-defect tests' outcomes."""
+    _KNOWN_DEFECT_TRACKER.record(report)
 
 
 def pytest_terminal_summary(terminalreporter):  # noqa: D401 — pytest hook
-    """Explain the deliberate reds, then surface any stale mark-only rows."""
-    if _KNOWN_DEFECT_FAILURES:
-        terminalreporter.write_sep("=", "KNOWN DEFECTS — deliberately not fenced")
-        seen: set[str] = set()
-        for nodeid in sorted(set(_KNOWN_DEFECT_FAILURES)):
-            file_name = nodeid.split("::", 1)[0].rsplit("/", 1)[-1]
-            terminalreporter.write_line(f"  {nodeid}")
-            if file_name not in seen:
-                seen.add(file_name)
-                terminalreporter.write_line(f"  {_KNOWN_DEFECTS[file_name]}")
-                terminalreporter.write_line("")
-    _STALE.report(terminalreporter)
+    """Explain the deliberate reds."""
+    _KNOWN_DEFECT_TRACKER.report(terminalreporter, "KNOWN DEFECTS — deliberately not fenced")
 
 
 _TIRITH_CONFIG_MARK = "tirith_config_value_under_test"
@@ -392,7 +354,7 @@ def _tirith_config_value_under_test(request, _hermetic_environment, monkeypatch)
     ``hermes_cli.tirith_config``, where the environment wins over config.yaml;
     upstream's ``_hermetic_environment`` sets ``TIRITH_ENABLED=false`` for every
     test, so a test about the config value would read the env instead. Applied
-    by test id from ``tests/_downstream/id_markers.py``, so the upstream test
+    by test id from ``tests/_downstream/id_markers/``, so the upstream test
     file carries no edit.
     """
     if request.node.get_closest_marker(_TIRITH_CONFIG_MARK) is None:
@@ -409,13 +371,10 @@ __all__ = [
     "_no_unwritable_dir_via_chmod",
     "_no_af_unix",
     "_no_process_groups",
-    "_ENV_GAPS",
     "_ENV_GAP_SKIPS",
     "_OWNER_DIR",
-    "_STALE",
     "_KNOWN_DEFECTS",
-    "_KNOWN_DEFECT_FAILURES",
-    "pytest_configure",
+    "_KNOWN_DEFECT_TRACKER",
     "pytest_collection_modifyitems",
     "pytest_runtest_logreport",
     "pytest_terminal_summary",

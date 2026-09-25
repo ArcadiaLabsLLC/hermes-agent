@@ -1,4 +1,4 @@
-"""The TABLES: the probe-backed env-gap registry, the prerequisite file/id sets, the known defects.
+"""The TABLES: the probe-backed env-gap registry, the web-build prerequisite files, the known defects.
 
 A table module (floor-exempt) -- the file a lane edits to add a row. Every
 ``_ENV_GAP_SKIPS`` row names a live probe from ``probes``; ``tests/test_env_gap_registry.py``
@@ -22,10 +22,10 @@ from tests._downstream.hermes_cli_conftest.probes import (
 )
 
 #: The one-line reason the ``xfail`` mark on ``test_telegram_parity`` carries.
-#: The mark (applied by id from ``tests/_downstream/id_markers.py``, which
+#: The mark (applied by id from ``tests/_downstream/id_markers/``, which
 #: owns the text) and this banner share ONE string rather than restating it, so the fence and the report cannot drift apart into two
 #: accounts of one defect — the register-rot shape C25 is about.
-from tests._downstream.id_markers import TELEGRAM_PARITY_DEFECT_REASON  # noqa: E402 — single source, the table applies the mark
+from tests._downstream.id_markers.reasons import TELEGRAM_PARITY_DEFECT_REASON  # noqa: E402 — single source, the table applies the mark
 
 __layer__ = "stores"
 
@@ -49,26 +49,6 @@ _WEB_BUILD_PREREQ_FILES = frozenset({
     "test_cmd_update.py",
     "test_update_yes_flag.py",
 })
-
-# ── Prerequisite guard: tests that construct AIAgent against a local model ──
-#
-# These two build a real `AIAgent` with `base_url=http://127.0.0.1:11434/v1`.
-# `agent_init` probes that endpoint (`detect_local_server_type` /
-# `query_ollama_num_ctx`) several times over httpx. On a host where the port
-# refuses immediately — nothing listening, or a real ollama answering — the
-# probes cost milliseconds and the tests run normally. On a host where the port
-# is BLACKHOLED (a firewall or a WSL/Docker port proxy that drops SYN instead
-# of sending RST) every probe burns its full timeout, the test blows the 30s
-# per-test cap, and pytest-timeout's thread method kills the whole process.
-#
-# The probe below distinguishes those cases directly: a refusal or a successful
-# connect means the prerequisite holds and the guard stays inert.
-_LOCAL_MODEL_PROBE_NODE_IDS = {
-    "test_timeouts.py": frozenset({
-        "test_default_non_stream_stale_timeout_auto_disables_for_local_endpoints",
-        "test_explicit_non_stream_stale_timeout_is_honored_for_local_endpoints",
-    }),
-}
 
 _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
     # ── Spawn shapes the loader does not support ──────────────────────────
@@ -268,6 +248,8 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
         ),
     ],
 }
+
+
 
 _KNOWN_DEFECTS: dict[str, str] = {
     "test_commands.py": (

@@ -113,7 +113,7 @@ TELEGRAM_PARITY_DEFECT_REASON = (
     "a slot (something else loses one) or declares it _SLACK_VIA_HERMES_ONLY. "
     "strict=True: the day parity holds, this XPASSes and reds — delete the "
     "mark and this row. Full account: _KNOWN_DEFECTS in "
-    "tests/_downstream/hermes_cli_conftest."
+    "tests/_downstream/hermes_cli_conftest/registry.py."
 )
 
 _CREDENTIALS_FILE = getattr(pytest.mark, ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK)

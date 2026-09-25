@@ -83,7 +83,7 @@ _AGENT_BROWSER_PROBE_BINDINGS = (
     "hermes_constants",
     "hermes_cli.dep_ensure",
     "hermes_cli.doctor_tools",
-    "tools.browser_tool_lifecycle",
+    "tools.browser_tool_install",
 )
 
 

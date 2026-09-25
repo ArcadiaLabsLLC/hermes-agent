@@ -318,33 +318,55 @@ def test_a_directorys_registry_cannot_reach_another_directorys_file():
     )
 
 
-def test_the_stale_row_tracker_does_not_claim_another_directorys_pass():
+def test_the_known_defect_tracker_does_not_claim_another_directorys_report():
     """The same interaction on the reporting half.
 
     ``pytest_runtest_logreport`` is global too, so in a combined run the tracker
-    sees every other directory's reports. A pass one directory over, in a
-    same-named file, would be printed as a stale row of OURS — and the operator's
-    instruction for a stale row is to DELETE it, which would retire a fence that
-    was never stale.
+    sees every other directory's reports. A failure one directory over, in a
+    same-named file, would be printed in OUR known-defects banner — an account of
+    a defect that is not ours. (The tracker this pinned before lane B5 was the
+    mark-only lane's StaleEntryTracker, deleted with that lane (Q30); the owner
+    prefix it derived lives on in KnownDefectTracker, and so does this check.)
     """
 
-    from tests._env_gap_fence import StaleEntryTracker
+    from types import SimpleNamespace
 
-    class _Report:
-        def __init__(self, nodeid: str) -> None:
-            self.nodeid = nodeid
-            self.when = "call"
-            self.outcome = "passed"
+    from tests._env_gap_fence import KnownDefectTracker
 
-    registry = {
-        "test_update_command.py": [("windows_env_gap", "reason", {"test_a"})],
-    }
-    tracker = StaleEntryTracker(registry, "tests/gateway/conftest.py")
-    tracker.record(_Report("tests/cli/test_update_command.py::test_a"))
-    assert not tracker._passed, (
-        "tests/gateway's tracker claimed a tests/cli pass as its own stale row"
+    tracker = KnownDefectTracker({"test_update_command.py": "banner"}, "tests/gateway/conftest.py")
+    theirs = SimpleNamespace(
+        nodeid="tests/cli/test_update_command.py::test_a", when="call", outcome="failed"
     )
-    tracker.record(_Report("tests/gateway/test_update_command.py::test_a"))
-    assert tracker._passed == ["tests/gateway/test_update_command.py::test_a"], (
-        "the tracker stopped seeing its own directory's rows"
+    mine = SimpleNamespace(
+        nodeid="tests/gateway/test_update_command.py::test_a", when="call", outcome="failed"
     )
+    assert tracker.record(theirs) is False
+    assert not tracker.failures, (
+        "tests/gateway's tracker claimed a tests/cli failure as its own known defect"
+    )
+    assert tracker.record(mine) is True
+    assert tracker.failures == ["tests/gateway/test_update_command.py::test_a"], (
+        "the tracker stopped seeing its own directory's reports"
+    )
+
+
+def test_the_known_defect_tracker_records_an_xfail_and_a_strict_xpass():
+    """Both arms of the classifier, the one tools_conftest's copy lacked.
+
+    A strict xfail reports ``skipped`` + ``wasxfail`` — never ``failed`` — so a
+    classifier matching ``failed`` alone retires the banner the moment the defect
+    is fenced. A strict XPASS arrives as ``failed`` with no ``wasxfail``. An
+    ordinary pass in the same file is neither.
+    """
+
+    from types import SimpleNamespace
+
+    from tests._env_gap_fence import KnownDefectTracker
+
+    tracker = KnownDefectTracker({"test_x.py": "banner"}, "tests/tools/conftest.py")
+    node = "tests/tools/test_x.py::test_a"
+    tracker.record(SimpleNamespace(nodeid=node, when="call", outcome="skipped", wasxfail="r"))
+    tracker.record(SimpleNamespace(nodeid=node, when="call", outcome="failed"))
+    tracker.record(SimpleNamespace(nodeid=node, when="call", outcome="passed"))
+    tracker.record(SimpleNamespace(nodeid=node, when="setup", outcome="failed"))
+    assert tracker.failures == [node, node]

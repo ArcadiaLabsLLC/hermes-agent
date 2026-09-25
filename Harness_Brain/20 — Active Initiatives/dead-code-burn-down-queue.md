@@ -51,10 +51,6 @@ A "dead" verdict computed before a lane's commits is stale. Re-verify each row a
 
 Delete it. When the last row of an instalment closes, the program ledger (`god-file-program-2026-09-24.md` §8) takes the count in the same commit.
 
-## Filed on arrival — 2026-09-25 (lane S3, class row)
-
-- [ ] **three empty `_ENV_GAPS` registries and the mark-only lane behind them (`apply_marks`, `StaleEntryTracker`, `EnvGapRegistry`, `register_marks` + the two marks)** · `fork / suite` · asserted empty by `test_env_gap_registry`; program §9 Q30 default: delete fork-wide — lane B5 deletes the hermes_cli copy, siblings + shared helpers on Q30's word · evidence: program §9 Q30, hermes_cli_conftest.md §5 · filed by lane S3 2026-09-25 **UNCLAIMED** **TAKEN 2026-09-25 lane B5**
-
 ## Filed on arrival — 2026-09-25, lane B3
 
 - [ ] **`persona_chat_continuity.bounds._safe_text`** · `agent_runtime/persona_chat_continuity/bounds.py` · 2 · DELETE (0 callers: `git grep -nw _safe_text agent_runtime/persona_chat_continuity` → the def and one docstring mention in `_bounded_free_text`; the census missed it by size) · the sheet drew a rename to a public `bounded_text`, which would now collide by name with `serde.bounded_text` (lane 2B-A) — deletion is the answer, under "Working a slice" · lane B3 CHANGE 2026-09-25 · R1 **UNCLAIMED**

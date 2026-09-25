@@ -179,11 +179,6 @@
    "depth": 3,
    "lines": 152,
    "unit": "scripts/run_tests_bundled.py|run"
-  },
-  {
-   "depth": 5,
-   "lines": 78,
-   "unit": "tests/_downstream/hermes_cli_conftest/isolation.py|_sys_modules_identity_is_restored"
   }
  ],
  "max_depth": 4,
