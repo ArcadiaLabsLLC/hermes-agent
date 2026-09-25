@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from agent_runtime import running_work
+from tests._downstream.split_package_source import patch_where_bound
 from hermes_cli.harness import build_parser
 
 
@@ -38,8 +39,7 @@ def _stub_build(monkeypatch, fn):
     CLI's lazy import) and ``running_work.surface`` (``find_work_row``, which
     bound it by definition — a stub on the package alone never reaches it)."""
 
-    monkeypatch.setattr(running_work, "build_running_work", fn)
-    monkeypatch.setattr(running_work.surface, "build_running_work", fn)
+    patch_where_bound(monkeypatch, running_work, "build_running_work", fn)
 
 
 @pytest.fixture

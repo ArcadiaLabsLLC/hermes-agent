@@ -583,12 +583,9 @@ def test_a_prewarm_that_stood_DOWN_recorded_no_construction(monkeypatch):
     monkeypatch.setattr(
         prewarm, "_persona_chat_runtime_registry_present", lambda: True, raising=False
     )
-    monkeypatch.setattr(
-        "agent_runtime.profile_runner.workdir.agent_runs_in_flight", lambda: 1
-    )
-    monkeypatch.setattr(
-        "agent_runtime.profile_runner.agent_runs_in_flight", lambda: 1
-    )
+    from agent_runtime import profile_runner
+
+    patch_where_bound(monkeypatch, profile_runner, "agent_runs_in_flight", lambda: 1)
     prewarm.reset_construction_spans_for_tests()
     try:
         outcome = prewarm.prewarm_chat_actor("chat-root-that-yields")

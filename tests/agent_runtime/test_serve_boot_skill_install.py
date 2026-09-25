@@ -20,6 +20,7 @@ from types import SimpleNamespace
 
 from hermes_cli.harness_parts.serve import commands as serve_module
 from hermes_cli.harness_parts.serve import install_harness_skills_at_boot, serve_loop
+from tests._downstream.split_package_source import patch_where_bound
 
 SHUTDOWN = json.dumps({"op": "shutdown"}) + "\n"
 
@@ -152,8 +153,8 @@ def test_boot_install_runs_exactly_what_a_realm_pull_runs(monkeypatch):
         calls["personas"] = seen
         return [_result("harness-runtime-model")]
 
-    monkeypatch.setattr(runtime_config, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(runtime_config, "ensure_persisted_personas", _ensure_personas)
+    patch_where_bound(monkeypatch, runtime_config, "load_agent_runtime_config", lambda: cfg)
+    patch_where_bound(monkeypatch, runtime_config, "ensure_persisted_personas", _ensure_personas)
     monkeypatch.setattr(skill_install, "install_harness_skills", _install_skills)
     monkeypatch.setattr(
         skill_install, "install_harness_skills_for_personas", _install_for_personas
@@ -174,8 +175,8 @@ def test_boot_install_summary_names_every_failed_package(monkeypatch):
     from agent_runtime import config as runtime_config
     from agent_runtime import skill_install
 
-    monkeypatch.setattr(runtime_config, "load_agent_runtime_config", lambda: object())
-    monkeypatch.setattr(runtime_config, "ensure_persisted_personas", lambda _cfg: [])
+    patch_where_bound(monkeypatch, runtime_config, "load_agent_runtime_config", lambda: object())
+    patch_where_bound(monkeypatch, runtime_config, "ensure_persisted_personas", lambda _cfg: [])
     monkeypatch.setattr(
         skill_install,
         "install_harness_skills",

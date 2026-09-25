@@ -21,6 +21,7 @@ import pytest
 from agent_runtime import paths
 from agent_runtime.agent_create import perform_agent_create
 from tests.agent_runtime.office_seed import seed_workspace_record
+from tests._downstream.split_package_source import patch_where_bound
 
 WORKSPACE = "ws_agent_create_service"
 
@@ -351,7 +352,7 @@ def test_an_unreadable_roster_is_its_own_reason_not_persona_not_found(
     def _explode(*args, **kwargs):
         raise OSError("config file is locked by another process")
 
-    monkeypatch.setattr(runtime_config, "load_agent_runtime_config", _explode)
+    patch_where_bound(monkeypatch, runtime_config, "load_agent_runtime_config", _explode)
 
     with pytest.raises(agent_create.AgentCreateInvalid) as caught:
         agent_create.normalize_agent_create(
@@ -542,7 +543,7 @@ def test_the_roster_fault_arm_stamps_rolled_back(monkeypatch, qa_persona):
     def _explode(*args, **kwargs):
         raise OSError("config file is locked by another process")
 
-    monkeypatch.setattr(runtime_config, "load_agent_runtime_config", _explode)
+    patch_where_bound(monkeypatch, runtime_config, "load_agent_runtime_config", _explode)
 
     outcome = perform_agent_create(_params(placement_id="qa_roster_stamp_agent_2"))
 

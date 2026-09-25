@@ -29,7 +29,11 @@ from dataclasses import dataclass
 
 import pytest
 
+from tests._downstream.split_package_source import patch_where_bound
+
 from agent_runtime import persona_chat_actor_prewarm as prewarm_module
+from agent_runtime import config as runtime_config
+from agent_runtime import persona_assignments, persona_chat_continuity, profile_runner
 from agent_runtime.persona_chat_actor_prewarm import (
     OUTCOME_ALREADY_RESIDENT,
     OUTCOME_REGISTRY_OFF,
@@ -778,9 +782,8 @@ def test_a_prewarm_stands_down_while_a_real_turn_is_in_flight(stub_runtime, monk
             "the prewarm assembled a request while a turn was running"
         ),
     )
-    monkeypatch.setattr(
-        "agent_runtime.persona_chat_continuity.persona_chat_runtime_registry",
-        lambda: registry,
+    patch_where_bound(
+        monkeypatch, persona_chat_continuity, "persona_chat_runtime_registry", lambda: registry
     )
     outcomes: list[str] = []
 
@@ -826,9 +829,8 @@ def test_admitted_same_root_skips_before_prepare(stub_runtime, monkeypatch):
     from agent_runtime import turn_activity
 
     registry = PersonaChatRuntimeRegistry()
-    monkeypatch.setattr(
-        "agent_runtime.persona_chat_continuity.persona_chat_runtime_registry",
-        lambda: registry,
+    patch_where_bound(
+        monkeypatch, persona_chat_continuity, "persona_chat_runtime_registry", lambda: registry
     )
     monkeypatch.setattr(
         prewarm_module,
@@ -860,8 +862,7 @@ def test_admitted_same_root_skips_before_prepare(stub_runtime, monkeypatch):
     # The running-only control: Stage 5's behaviour is preserved unchanged, and
     # the admitted counter is back to zero so it cannot be what refused.
     assert turn_activity.chat_turns_admitted() == 0
-    monkeypatch.setattr("agent_runtime.profile_runner.workdir.agent_runs_in_flight", lambda: 1)
-    monkeypatch.setattr("agent_runtime.profile_runner.agent_runs_in_flight", lambda: 1)
+    patch_where_bound(monkeypatch, profile_runner, "agent_runs_in_flight", lambda: 1)
     assert prewarm_chat_actor("chat_root_admitted") == OUTCOME_SKIPPED_TURN_ACTIVE
 
 
@@ -884,9 +885,8 @@ def test_admission_during_prepare_skips_before_construction(stub_runtime, monkey
     from agent_runtime import turn_activity
 
     registry = PersonaChatRuntimeRegistry()
-    monkeypatch.setattr(
-        "agent_runtime.persona_chat_continuity.persona_chat_runtime_registry",
-        lambda: registry,
+    patch_where_bound(
+        monkeypatch, persona_chat_continuity, "persona_chat_runtime_registry", lambda: registry
     )
 
     admission: list = []
@@ -957,9 +957,8 @@ def test_a_queued_root_is_not_queued_twice(monkeypatch):
     with the gestures."""
 
     registry = PersonaChatRuntimeRegistry()
-    monkeypatch.setattr(
-        "agent_runtime.persona_chat_continuity.persona_chat_runtime_registry",
-        lambda: registry,
+    patch_where_bound(
+        monkeypatch, persona_chat_continuity, "persona_chat_runtime_registry", lambda: registry
     )
     monkeypatch.setattr(prewarm_module, "_ensure_worker", lambda: None)
 
@@ -993,9 +992,7 @@ def test_the_boot_pass_takes_the_most_recently_active_chats_up_to_the_cap(monkey
                 rows.append(instance)
             return rows
 
-    monkeypatch.setattr(
-        "agent_runtime.persona_assignments.PersonaInstanceStore", _Store
-    )
+    patch_where_bound(monkeypatch, persona_assignments, "PersonaInstanceStore", _Store)
 
     assert _boot_candidates(limit=2) == ["root_new", "root_mid"]
     assert _boot_candidates(limit=9) == ["root_new", "root_mid", "root_old"]
@@ -1013,9 +1010,7 @@ def test_an_instance_with_no_bound_chat_root_is_not_a_candidate(monkeypatch):
             unbound.default_chat_session_id = None
             return [unbound, bound]
 
-    monkeypatch.setattr(
-        "agent_runtime.persona_assignments.PersonaInstanceStore", _Store
-    )
+    patch_where_bound(monkeypatch, persona_assignments, "PersonaInstanceStore", _Store)
 
     assert _boot_candidates(limit=8) == ["root_bound"]
 
@@ -1070,12 +1065,13 @@ def test_the_boot_pass_honours_max_hot_sessions_as_the_cap(monkeypatch):
 
     registry = PersonaChatRuntimeRegistry()
     seen: list[int] = []
-    monkeypatch.setattr(
-        "agent_runtime.persona_chat_continuity.persona_chat_runtime_registry",
-        lambda: registry,
+    patch_where_bound(
+        monkeypatch, persona_chat_continuity, "persona_chat_runtime_registry", lambda: registry
     )
-    monkeypatch.setattr(
-        "agent_runtime.config.load_root_runtime_config",
+    patch_where_bound(
+        monkeypatch,
+        runtime_config,
+        "load_root_runtime_config",
         lambda: RuntimeConfig(
             persona_chat=PersonaChatConfig(
                 hot_sessions_enabled=True, max_hot_sessions=3
@@ -1107,9 +1103,8 @@ def test_the_worker_logs_one_outcome_line_per_item(monkeypatch, caplog):
     )
     monkeypatch.setattr(prewarm_module, "_ensure_worker", lambda: None)
     registry = PersonaChatRuntimeRegistry()
-    monkeypatch.setattr(
-        "agent_runtime.persona_chat_continuity.persona_chat_runtime_registry",
-        lambda: registry,
+    patch_where_bound(
+        monkeypatch, persona_chat_continuity, "persona_chat_runtime_registry", lambda: registry
     )
 
     request_chat_actor_prewarm("chat_root_1")
