@@ -26,7 +26,7 @@ from acp.schema import (
 
 from acp_adapter.auth import TERMINAL_SETUP_AUTH_METHOD_ID, build_auth_methods, detect_provider
 from agent_runtime.acp_skills import SKILLS_CAPABILITY, SkillsInspectionMixin
-from acp_adapter.commands import HERMES_VERSION, SlashCommandsMixin, _estimate_tokens
+from acp_adapter.commands import SlashCommandsMixin, _estimate_tokens
 from acp_adapter.content import PromptBlock, _content_blocks_to_openai_user_content, _extract_text
 from acp_adapter.events import (
     AssistantMessageIdAllocator, _build_plan_update_from_todo_result, _send_update, flush_open_tool_calls,
@@ -525,6 +525,8 @@ class HermesACPAgent(SkillsInspectionMixin, SlashCommandsMixin, acp.Agent):
         self, protocol_version: int | None = None, client_capabilities: ClientCapabilities | None = None,
         client_info: Implementation | None = None, **kwargs: Any,
     ) -> InitializeResponse:
+        from hermes_cli.version_info import get_version_info
+
         auth_methods = build_auth_methods()
         logger.info(
             "Initialize from %s (protocol v%s)", client_info.name if client_info else "unknown",
@@ -533,7 +535,7 @@ class HermesACPAgent(SkillsInspectionMixin, SlashCommandsMixin, acp.Agent):
 
         return InitializeResponse(
             protocol_version=acp.PROTOCOL_VERSION,
-            agent_info=Implementation(name="hermes-agent", version=HERMES_VERSION),
+            agent_info=Implementation(name="hermes-agent", version=get_version_info().base_version),
             agent_capabilities=AgentCapabilities(
                 field_meta={"hermesSkills": SKILLS_CAPABILITY},
                 load_session=True,

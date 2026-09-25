@@ -196,7 +196,7 @@ def models_dev_id_for(slug: str) -> str:
     return MODELS_DEV_LANE_IDS.get(slug, slug)
 
 
-def disconnect_command_for(slug: str, flow: str) -> str | None:
+def disconnect_command_for(slug: str, flow: str, platform: str | None = None) -> str | None:
     """The documented command that clears an EXTERNAL provider's credentials.
 
     External providers store credentials outside Hermes, so Hermes never
@@ -206,15 +206,24 @@ def disconnect_command_for(slug: str, flow: str) -> str | None:
 
     Claude Code has no scriptable logout (only the interactive ``/logout``), so
     the command removes the same two sources ``read_claude_code_credentials()``
-    consults.
+    consults. ``platform`` is the host the command runs on (default: this
+    process). Windows must not emit ``rm -f``: PowerShell aliases ``rm`` to
+    ``Remove-Item``, and ``-f`` binds both ``-Force`` and ``-Filter``.
     """
     if flow != "external":
         return None
     if slug == "claude-code":
         import sys as _sys
 
+        host = platform or _sys.platform
+        if host == "win32":
+            literal = '"$HOME/.claude/.credentials.json"'
+            return (
+                f"if (Test-Path -LiteralPath {literal}) {{ "
+                f"Remove-Item -LiteralPath {literal} -Force -ErrorAction Stop }}"
+            )
         rm_file = "rm -f ~/.claude/.credentials.json"
-        if _sys.platform == "darwin":
+        if host == "darwin":
             return (
                 'security delete-generic-password -s "Claude Code-credentials" '
                 f"2>/dev/null; {rm_file}"

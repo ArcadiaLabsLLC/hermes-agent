@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -92,16 +93,19 @@ def test_resolve_workspace_for_file_survives_deleted_cwd(tmp_path: Path, monkeyp
     assert _short_path(str(file_path)) == str(file_path)
 
 
-def test_normalize_path_expands_tilde(monkeypatch, tmp_path):
-    # point_home_at, not a bare HOME setenv: ntpath.expanduser prefers
-    # USERPROFILE, so a HOME-only patch expanded "~" to the real profile. The
-    # home comes from tmp_path rather than a "/home/user" literal, which
-    # os.path.abspath drive-qualifies on Windows.
-    from tests._home_env import point_home_at
-
-    home = point_home_at(monkeypatch, tmp_path)
+@pytest.mark.platforms("linux")
+def test_normalize_path_expands_tilde(monkeypatch):
+    # expanduser keys off USERPROFILE on native Windows, HOME elsewhere —
+    # set the var the running host actually consults (host-native rule:
+    # never fake the platform).
+    if sys.platform == "win32":
+        monkeypatch.setenv("USERPROFILE", r"C:\Users\fakeuser")
+        expected_base = r"C:\Users\fakeuser"
+    else:
+        monkeypatch.setenv("HOME", "/home/user")
+        expected_base = "/home/user"
     p = normalize_path("~/x.py")
-    assert p == os.path.abspath(str(home / "x.py"))
+    assert p == os.path.abspath(os.path.join(expected_base, "x.py"))
 
 
 def test_find_git_worktree_cache_is_capped(tmp_path: Path, monkeypatch):
