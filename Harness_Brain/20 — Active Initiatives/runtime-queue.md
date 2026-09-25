@@ -106,8 +106,9 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 - [ ] **`test_hermetic_env_blanking[HERMES_HEAD_HOME]` is red on main: the witness no longer finds the reader in `profile_home.py`** · `fork / test env` · red in lane R4's touched-test run on `09d722bb30` against files the lane never touched, so either the reader moved out of `agent_runtime/profile_home.py` in a Wave 1/2 MOVE and the witness still greps the old module, or the variable lost its reader — find which and re-point or delete the parameter · evidence: lane R4 report (holding file, 2026-09-25) · filed by lane R4 2026-09-25 **UNCLAIMED**
 
 
-### Filed on arrival — 2026-09-25 (lane R2)
+### Filed on arrival — 2026-09-25 (lane R1)
 
+- [ ] **R2's landing left `test_doc_cite_adjacency` red on main: 10 unbudgeted foreign line cites to `persona_chat_history.py` / `prompt_observability.py` plus 3 stale waivers** · `fork / docs` · re-anchor the 02/05/06/07 cites to the new modules' symbols and delete the stale waivers — this is the Wave 2 batch-1 Haiku re-anchor pass (PYTHONUTF8=1), which should also take every other cite the four batch-1 lanes moved · evidence: `X:/wt/_holds/main-cite-891eb6db2d.log` (3 failed on `891eb6db2d`, before R1) · filed by lane R1 2026-09-25 **UNCLAIMED**
 
 
 ## Seams — fork edits inside upstream files (additive only)
