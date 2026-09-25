@@ -33,623 +33,57 @@ Hard invariants this store upholds:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
 from pathlib import Path
-from collections.abc import Sequence
-from typing import Any, Callable, NamedTuple
+from typing import Any
 
 from hermes_time import now
 from utils import atomic_json_write
 
-from . import office_layout_policy, office_models, paths
-from .errors import (
+from agent_runtime import office_models, paths
+from agent_runtime.errors import (
     ActorArchived,
     ActorsUnreadable,
-    AlreadyExists,
     ArchiveUnreadable,
     NotFound,
-    StaleRevision,
     SyncConflict,
     WorkspaceUnresolved,
 )
-from .events import EventLog
-from .locks import office_lock
-from .models import Event, OfficeActor, OfficeItem, OfficeSurface
-# Eager, not lazy: the rule now lives in stdlib-only ``agent_runtime.redaction``,
-# so importing it costs nothing. The old lazy ``from .realm_sync import …`` was
-# dodging ``realm_sync``'s weight — the tell that ``realm_sync`` was the wrong
-# home for a constant four other modules needed.
-from .redaction import SECRET_ASSIGNMENT_RE
-from .serde import from_jsonable, safe_id, to_jsonable
-from .sync_merge import merge_archived_ledgers as _merge_archived_ledgers
-
-ARCHIVED_LEDGER_CAP = 5000
-MAX_ITEMS_PER_ACTOR = 32
-MAX_FOLDERS = 64
-
-
-def merge_archived_ledgers(peer_keys, local_keys) -> list[str]:
-    """Union two ``archived_actor_keys`` ledgers at THIS family's ledger cap.
-
-    The rule itself is :func:`sync_merge.merge_archived_ledgers`, lifted there
-    on 2026-09-03 when ``BoardStore.adopt_remote_board`` took the same union
-    over ``archived_card_ids`` — read that docstring for why the union exists,
-    why the peer's order leads, and what the ledger means realm-wide. This
-    wrapper exists so the cap that binds an office ledger stays this module's
-    fact and every existing office caller keeps its two-argument spelling.
-    """
-
-    return _merge_archived_ledgers(peer_keys, local_keys, cap=ARCHIVED_LEDGER_CAP)
-
-
-# THE ONE-DESK-PER-PERSONA FENCE IS GONE (retired 2026-09-18, owner ruling).
-#
-# ``DUPLICATE_DESK_REFUSAL_CODE``, ``DuplicateDeskRefused``,
-# ``_duplicate_desk_collision``, ``_duplicate_desk_message`` and
-# ``OfficeStore._guard_duplicate_desk`` lived here until that date. They enforced
-# "one persona holds one live desk on a level" (D6) at the write chokepoint,
-# which cost a full ``scan_actors`` per desk write.
-#
-# The owner's ruling: *"i want desks to just be one type all agents can use, no
-# more per persona desk, just one single desk object."* A desk is pure furniture
-# — there is no seating, occupancy, home position or pathing to one in either
-# repo — so a desk's ``persona_id`` is an ADDRESS (the actor-file key,
-# CONTRACT 43) and never an owner. The launcher now mints a generic desk under
-# its OWN synthetic id (``desk_<8 base36>``, one actor file per desk, unlimited
-# per workspace), which makes "two desks for one persona" the NORMAL shape
-# rather than the refused one. A fence for an invariant that no longer exists
-# refuses correct writes, so it is deleted rather than re-keyed.
-#
-# What did NOT change: the class-key fence, the archived-key (tombstone) fence,
-# the conflict guard, the revision check and every EventLog emission on the
-# write path. Handling of legacy per-persona desks is the LAUNCHER's, at its one
-# load chokepoint (drop-and-report) — see the plan
-# ``EterniaLauncher/docs/mission_control/planned/generic-desk-and-inspector-tables.md``.
-
-
-#: The hook :meth:`OfficeStore.upsert_actor` calls INSIDE ``office_lock`` to
-#: answer "where does this unaimed placement go".
-#:
-#: Takes the workspace's live :class:`ActorScan` — the scan itself and not its
-#: ``actors`` list, so the policy sees whether the floor it is deciding against
-#: was fully readable and can refuse or proceed on its own terms; a store that
-#: unwrapped the list here would take that choice away silently, which is the
-#: shape ``scan_actors`` exists to end. Returns the point the single item in the
-#: payload is written at.
-#:
-#: The store supplies the SET and the lock; the policy supplies the ARITHMETIC.
-#: Neither half is the other's authority — ``office_layout_policy`` stays pure
-#: and store-free, and this store stays ignorant of lattices.
-OfficePositionPolicy = Callable[["ActorScan"], tuple[float, float]]
-
-
-#: How many unreadable file names one scan CARRIES before the rest become an
-#: overflow count. A store holding a pathological number of undecodable files
-#: must not turn every scan — and every shortfall row derived from one — into an
-#: unbounded list, and an operator who cannot fix ten of them will not be helped
-#: by the eleventh name. The cap is on the NAMES only: ``total`` stays exact.
-MAX_UNREADABLE_ACTOR_FILE_NAMES = 10
-
-
-@dataclass(frozen=True, slots=True)
-class UnreadableActorFiles:
-    """The actor files a scan could not decode — BY NAME, bounded, and counted.
-
-    ``ActorScan`` carried only a count, so the shortfall row it feeds could say
-    "ActorsUnreadable: 3" and nothing more, while ``read_actor_dir`` had the
-    paths in its hand and dropped them. A count tells an operator that something
-    is wrong; a name tells them which file to open. So the names travel.
-
-    Bounded on purpose (:data:`MAX_UNREADABLE_ACTOR_FILE_NAMES`) with the
-    remainder carried as an explicit ``+N more`` rather than silently trimmed:
-    a truncated list that describes itself as whole is the exact defect
-    ``ActorScan`` was created to close, one layer down.
-
-    ``total`` is the one representation of "how many": :attr:`ActorScan.
-    unreadable` reads it rather than keeping a second copy. It is NOT
-    ``len(names)`` once the cap bites, which is why the cap has to be visible in
-    the rendering.
-    """
-
-    #: The file names, at most :data:`MAX_UNREADABLE_ACTOR_FILE_NAMES` of them,
-    #: each ``<directory>/<file>.json`` so an ``actors/`` entry and an
-    #: ``archive/`` entry with the same token cannot be confused.
-    names: tuple[str, ...] = ()
-    #: EVERY undecodable file, capped by nothing. The names may be a prefix of
-    #: this; the count never is.
-    total: int = 0
-
-    @classmethod
-    def of(cls, names: Sequence[str]) -> "UnreadableActorFiles":
-        """THE mint. Caps the names, keeps the count exact."""
-
-        ordered = tuple(str(name) for name in names)
-        return cls(names=ordered[:MAX_UNREADABLE_ACTOR_FILE_NAMES], total=len(ordered))
-
-    def merge(self, other: "UnreadableActorFiles") -> "UnreadableActorFiles":
-        """Two directories' shortfalls as one. Re-caps rather than concatenating
-        two already-capped lists, so a merge of two full lists is still bounded
-        and the count is still the sum of the two totals."""
-
-        return UnreadableActorFiles(
-            names=(*self.names, *other.names)[:MAX_UNREADABLE_ACTOR_FILE_NAMES],
-            total=self.total + other.total,
-        )
-
-    def __bool__(self) -> bool:
-        return bool(self.total)
-
-    def describe(self) -> str:
-        """One line an operator can act on: the names, then what was elided.
-
-        ``""`` when nothing was unreadable — a caller that renders this into a
-        message is asking for the shortfall, and a shortfall of nothing has no
-        words.
-        """
-
-        if not self.total:
-            return ""
-        elided = self.total - len(self.names)
-        if not self.names:
-            return f"{self.total} unnamed"
-        rendered = ", ".join(self.names)
-        return f"{rendered}, +{elided} more" if elided > 0 else rendered
-
-
-#: The shortfall of a directory that had nothing to report. One shared value
-#: because it is immutable and every empty scan means the same thing.
-NO_UNREADABLE_ACTOR_FILES = UnreadableActorFiles()
-
-
-class ActorScan(NamedTuple):
-    """What an actor-directory scan FOUND, beside what it could not read.
-
-    The second field is the whole point. ``read_actor_dir`` has always skipped
-    a file it could not decode and returned the rest, so every reader downstream
-    received a SHORTER list that described itself as complete — and the office
-    projection then computed ``actors_truncated`` from the already-shortened
-    list, arriving at 0. A launcher rendering that answer cannot tell a desk that
-    was removed from a desk whose file the platform would not open.
-
-    Two fields rather than a bare list because the two facts have to travel
-    TOGETHER: any seam that carried only the actors would re-open the hole at
-    that seam, which is exactly how the projection acquired it.
-
-    The second field is now the FILES and not a bare count: see
-    :class:`UnreadableActorFiles`. :attr:`unreadable` survives as a property
-    over ``unreadable_files.total`` — every reader that only wants the number
-    keeps its spelling, and there is still exactly one place the number lives.
-    """
-
-    actors: list[OfficeActor]
-    #: The ``*.json`` files in the scanned directories that existed and did not
-    #: decode. NEVER folded into ``actors`` and never silently empty.
-    unreadable_files: UnreadableActorFiles = NO_UNREADABLE_ACTOR_FILES
-
-    @property
-    def unreadable(self) -> int:
-        """How many files did not decode. Derived, never stored twice."""
-
-        return self.unreadable_files.total
-
-
-#: The one word an outcome that simply WORKED is spelled with. Failures are
-#: ``<verb>_failed:<ExceptionClass>`` — the class, never the message, the same
-#: disclosure rule the rest of this runtime's receipts follow and the same
-#: vocabulary ``office_sync.OfficeArchiveOutcome`` mints on the pull side.
-OUTCOME_OK = "ok"
-
-
-@dataclass(frozen=True, slots=True)
-class OfficeActorOutcome:
-    """What one of this store's best-effort loops actually DID to one key.
-
-    THE class fix (H-H3), and the local twin of ``office_sync``'s pull-side
-    ``OfficeArchiveOutcome``. This store's loops all share one hazard: they
-    survive a single bad file on purpose — a prune must not die because one
-    actor will not decode, and a whole office must not vanish because one
-    conflict sidecar is mid-write — and for a long time each one paid for that
-    survival in a different, ad-hoc currency. The prune kept two parallel raw
-    dicts; the conflict read kept nothing at all and quietly substituted a
-    filename. Three shapes for one question is three places the answer can be
-    wrong differently.
-
-    ONE outcome per key the loop REACHED, successes included. A list of only
-    failures cannot answer "did this loop reach this key at all", which is the
-    question an operator asks after a retire says a desk is gone and the canvas
-    still shows it.
-
-    TWO fields carry the verdict, and the split is deliberate:
-
-    * ``outcome`` is what a PROGRAM branches on. It is a token, and a failed one
-      names the exception CLASS and never its message — a message can carry a
-      path, a display name or a secret-shaped fragment, and these rows ride an
-      operator ack and a launcher decode.
-    * ``error`` is what a HUMAN reads: the ``class: message`` string this
-      store's retire ack has carried to the launcher since before this type
-      existed. ``None`` on success. It is kept rather than dropped to satisfy
-      the rule above because deleting it would take information away from the
-      operator, which is the opposite of what typing the outcome is for; the
-      rule it bends is about the TOKEN, and the token stays clean.
-
-    ``actor_key`` is ``None`` for a shortfall that belongs to no actor — the
-    same shape ``agent_retire`` already uses when the office projection itself
-    will not construct. The unreadable file's own key is precisely what could
-    not be decoded, so naming one would be inventing it.
-    """
-
-    workspace_id: str
-    actor_key: str | None
-    outcome: str
-    error: str | None = None
-
-    @classmethod
-    def archived(cls, workspace_id: str, actor_key: str) -> "OfficeActorOutcome":
-        return cls(workspace_id=workspace_id, actor_key=actor_key, outcome=OUTCOME_OK)
-
-    @classmethod
-    def archive_failed(
-        cls, workspace_id: str, actor_key: str, exc: BaseException
-    ) -> "OfficeActorOutcome":
-        return cls(
-            workspace_id=workspace_id,
-            actor_key=actor_key,
-            outcome=f"archive_failed:{type(exc).__name__}",
-            error=f"{type(exc).__name__}: {exc}",
-        )
-
-    @classmethod
-    def scan_unreadable(cls, workspace_id: str, scan: ActorScan) -> "OfficeActorOutcome":
-        """The shortfall row for a workspace whose actor directory read short.
-
-        NAMES the files, and not only how many there were. The row's job is to
-        turn an empty failure list back into the positive claim
-        ``agent_retire``'s docstring says it is — a count does that, but a count
-        is also the whole of what an operator gets, and "3 files here would not
-        open" is not something anyone can act on. ``read_actor_dir`` is standing
-        on the paths (:class:`UnreadableActorFiles`), so the row spends them.
-
-        The COUNT stays in ``outcome``, which is the machine-read half and is
-        matched on by prefix; the names ride ``error``, which is the half meant
-        for a human. Bounded there by the scan, not here — see
-        :data:`MAX_UNREADABLE_ACTOR_FILE_NAMES`.
-        """
-
-        return cls(
-            workspace_id=workspace_id,
-            actor_key=None,
-            outcome=f"scan_unreadable:{scan.unreadable}",
-            error=f"ActorsUnreadable: {scan.unreadable} ({scan.unreadable_files.describe()})",
-        )
-
-    @classmethod
-    def conflict_read(cls, workspace_id: str, actor_key: str) -> "OfficeActorOutcome":
-        return cls(workspace_id=workspace_id, actor_key=actor_key, outcome=OUTCOME_OK)
-
-    @classmethod
-    def conflict_key_from_filename(
-        cls, workspace_id: str, token: str, exc: BaseException
-    ) -> "OfficeActorOutcome":
-        """A conflict sidecar that would not decode, named by its FILENAME.
-
-        The substitution stays — a conflict the operator can half-name beats a
-        conflict they cannot see at all — but it stops being silent. The
-        filename is ``office_models.actor_file_token(actor_key)``, which is
-        sanitised and truncated at 64 characters with a hash suffix, so for a
-        long key it is NOT the actor key and ``office resolve-conflict --actor
-        <it>`` will not find anything. A caller handed a bare list could not
-        tell that entry from a real one.
-        """
-
-        return cls(
-            workspace_id=workspace_id,
-            actor_key=token,
-            outcome=f"conflict_unreadable:{type(exc).__name__}",
-            error=f"{type(exc).__name__}: {exc}",
-        )
-
-    @property
-    def succeeded(self) -> bool:
-        return self.outcome == OUTCOME_OK
-
-    def as_dict(self) -> dict[str, Any]:
-        return {
-            "workspace_id": self.workspace_id,
-            "actor_key": self.actor_key,
-            "outcome": self.outcome,
-        }
-
-    def as_failure_row(self) -> dict[str, Any]:
-        """The ``{actor_key, workspace_id, error}`` shape the retire ack carries
-        and the launcher decodes (``MissionAgentOfficeArchiveFailure``).
-
-        Derived rather than built beside the outcome, so the ack and the typed
-        record cannot disagree about which keys failed — which is the whole
-        reason the counts below became lengths instead of their own tallies.
-        """
-
-        return {
-            "actor_key": self.actor_key,
-            "workspace_id": self.workspace_id,
-            "error": self.error,
-        }
-
-
-class ConflictScan(NamedTuple):
-    """The conflict sidecars a workspace HAS, beside what they cost to read.
-
-    ``ActorScan``'s shape, deliberately, for the same question one directory
-    over: what did this read find, and what did it have to guess at. ``keys``
-    is complete — every sidecar contributes exactly one entry whether or not it
-    decoded — so this is NOT the hazard of a list that is short and says it is
-    whole. What was silent is WHICH entries are guesses,
-    and that lives in ``outcomes`` — projected by :attr:`guessed_keys` for the
-    two readers that hand these keys to an operator.
-    """
-
-    keys: list[str]
-    outcomes: list[OfficeActorOutcome]
-
-    @property
-    def unreadable(self) -> int:
-        return sum(1 for outcome in self.outcomes if not outcome.succeeded)
-
-    @property
-    def guessed_keys(self) -> list[str]:
-        """The subset of ``keys`` that is a FILENAME token, not a key read out
-        of a sidecar payload — the entries ``office resolve-conflict --actor
-        <it>`` may not find (RD-5).
-
-        THE derivation, so the snapshot lane and the CLI lane cannot answer
-        differently about which of one scan's keys are guesses: both call
-        ``scan_conflicts`` ONCE and take both lists off the same result. Derived
-        from ``outcomes`` rather than tallied beside them for the reason
-        ``as_failure_row`` is derived — two parallel lists are two things free
-        to drift.
-
-        ``keys`` and ``outcomes`` are appended in lockstep — exactly one entry
-        per sidecar, in every arm — so the pairing is positional and total.
-        """
-
-        return [key for key, outcome in zip(self.keys, self.outcomes) if not outcome.succeeded]
-
-
-def read_actor_dir(directory) -> ActorScan:
-    """One directory of actor files, COUNTING the ones that would not open.
-
-    THE decoder for an actor directory, wherever the directory came from. It
-    was a private method on the store until AX6, which meant the pull's reader
-    of a PEER's ``office/<ws>/actors`` (``office_sync._read_remote_office``)
-    had to spell the same walk, the same swallow and the same count a second
-    time — two spellings of one discipline, free to drift, in the two places
-    whose disagreement produces a DELETION (a remote key that reads as absent
-    is how the pull infers "the peer removed this desk"). It takes no ``self``
-    and never did, so the extraction is a move rather than a redesign.
-
-    The skip stays — a whole office must not vanish because one file is
-    mid-write or held by an AV scanner — but ``continue`` alone made the skip
-    invisible, and an invisible skip is a shortened projection that reports
-    itself complete. The count leaves with the rows.
-
-    Logged once per scan, aggregated by exception CLASS: an operator needs to
-    know whether they are looking at a share violation or a half-written JSON
-    file, and per-file lines would turn a directory of stale files into a log
-    flood on every read of the office. Class only, never the message — the same
-    disclosure rule the rest of this runtime's receipts follow. The location is
-    ``<parent>/<name>`` rather than the bare directory name, because every one
-    of these directories is called ``actors`` and the line now has two possible
-    origins: a local workspace and a pulled peer's copy of one.
-    """
-
-    actors: list[OfficeActor] = []
-    if not directory.exists():
-        return ActorScan(actors)
-    # The NAMES, not just a tally: the reader is standing on the paths, and the
-    # shortfall row downstream can only name a file if this loop keeps one.
-    # Qualified by the directory (``actors/x.json`` vs ``archive/x.json``)
-    # because ``scan_actors`` merges two of these and the file TOKEN alone is
-    # the same in both.
-    unreadable_names: list[str] = []
-    classes: dict[str, int] = {}
-    for path in sorted(directory.glob("*.json")):
-        try:
-            actors.append(from_jsonable(OfficeActor, _read_json(path)))
-        except Exception as exc:  # noqa: BLE001 — the scan survives one bad file
-            unreadable_names.append(f"{directory.name}/{path.name}")
-            name = type(exc).__name__
-            classes[name] = classes.get(name, 0) + 1
-    unreadable = UnreadableActorFiles.of(unreadable_names)
-    if classes:
-        import logging
-
-        logging.getLogger(__name__).warning(
-            "office actor files unreadable in %s: %d (%s) [%s]",
-            f"{directory.parent.name}/{directory.name}",
-            unreadable.total,
-            ", ".join(f"{name} x{count}" for name, count in sorted(classes.items())),
-            unreadable.describe(),
-        )
-    return ActorScan(actors, unreadable)
-
-
-def _safe_actor_ref(value: Any, *, fallback: str = "operator") -> str:
-    return safe_id(value) or fallback
-
-
-def _normalize_persona_id(value: Any) -> str | None:
-    # Mirrors the launcher's OfficeAgentIdentity normalization: trim + lower.
-    text = str(value or "").strip().lower()
-    return safe_id(text)
-
-
-def _safe_folder(value: Any) -> str:
-    return " ".join(str(value or "").split())[:80]
-
-
-def _safe_display_name(value: Any) -> str | None:
-    text = " ".join(str(value or "").split())[:120]
-    return text or None
-
-
-def _assert_display_name_publishable(name: str) -> None:
-    """Typed write-time rejection of secret-shaped display names (plan §4.2).
-
-    The realm-sync publish scan (`_assert_no_secret_artifacts`) hard-fails the
-    WHOLE realm publish on a content match; rejecting at the write chokepoint
-    keeps that scan defense-in-depth instead of the primary gate.
-    """
-
-    if SECRET_ASSIGNMENT_RE.search(name):
-        raise ValueError("invalid_request: display_name looks like a secret assignment")
-
-
-def _canonical_actor_key(persona_id: str, persona_instance_id: str | None) -> str:
-    if persona_instance_id:
-        from .persona_assignments import canonical_persona_instance_id  # single derivation authority
-
-        canonical = canonical_persona_instance_id(persona_instance_id, persona_id=persona_id)
-        if canonical:
-            return canonical
-    return persona_id
-
-
-def _item_point(value: Any) -> tuple[float, float]:
-    """The ``[x, y]`` a raw item carries, validated.
-
-    Lifted out of :func:`_normalize_item` so the ONE caller that does not have a
-    point yet — an unaimed placement, whose slot :meth:`OfficeStore.upsert_actor`
-    resolves under its own lock — can hand the resolved one in without a second
-    copy of these checks.
-    """
-
-    if not isinstance(value, (list, tuple)) or len(value) < 2:
-        raise ValueError("invalid_request: item position must be [x, y]")
-    try:
-        x = float(value[0])
-        y = float(value[1])
-    except (TypeError, ValueError) as exc:
-        raise ValueError("invalid_request: item position must be numeric") from exc
-    if x != x or y != y or abs(x) == float("inf") or abs(y) == float("inf"):
-        raise ValueError("invalid_request: item position must be finite")
-    return (x, y)
-
-
-def _normalize_item(
-    raw: Any, *, persona_id: str, position: tuple[float, float] | None = None
-) -> OfficeItem:
-    """One raw item dict as the store will persist it.
-
-    ``position``, when supplied, is the RESOLVED point and OVERRIDES whatever
-    the raw item carried — the unaimed lane's answer, computed inside
-    ``office_lock`` by :meth:`OfficeStore.upsert_actor`'s ``position_policy``.
-    Absent, the raw item must carry its own and :func:`_item_point` validates
-    it, which is every other lane unchanged.
-
-    A BLANK ``folder`` is filled with the kind's default HERE, at the write
-    boundary (M9 / H-H9). It used to persist as ``""``, and one stored value
-    then meant two things: three separate readers compensated for it
-    independently — ``office_layout_policy.item_folder`` resolves it before
-    scanning, the launcher's ``MissionOfficeSceneItem`` substitutes the default
-    at decode, and a third reader compensated again — so "which folder is this
-    item in" had three answers derived three ways from a value that said
-    nothing. Filling it once, where the row is written, makes one stored row
-    mean one thing.
-
-    The READ-side fallbacks stay, and are not now redundant: rows written before
-    this landed still hold ``""`` on disk, and ``office_sync.apply_office_pull``
-    adopts a peer's actor files WITHOUT passing through this function, so a peer
-    on an older hermes can still deliver one. The cross-repo fixture case
-    ``blank_folder_falls_back_to_kind`` pins exactly that residue and is
-    unchanged by this — what changes is that this store stops MINTING the shape.
-    """
-
-    if not isinstance(raw, dict):
-        raise ValueError("invalid_request: item must be an object")
-    item_id = safe_id(raw.get("item_id"))
-    if not item_id:
-        raise ValueError("invalid_request: item_id required")
-    item_persona = _normalize_persona_id(raw.get("persona_id")) or persona_id
-    x, y = position if position is not None else _item_point(raw.get("position"))
-    display_name = _safe_display_name(raw.get("display_name"))
-    if display_name:
-        _assert_display_name_publishable(display_name)
-    kind = office_models.normalize_item_kind(raw.get("kind"))
-    # ``folder_for_kind``, not a local pair of constants: it is the SAME
-    # authority the layout policy's own fallback spends, so the folder this
-    # write persists and the folder that policy would have inferred cannot
-    # disagree — which they could the moment a second spelling of "Agents"
-    # existed.
-    folder = _safe_folder(raw.get("folder")) or office_layout_policy.folder_for_kind(kind)
-    # ``minted_kind`` is deliberately NOT read off the payload and is left at
-    # ``None`` here: it is the STORE's record of what this item was minted as,
-    # and a value a client could send would be the self-declaration the field
-    # exists to replace. ``_stamp_minted_kinds`` decides it, inside the lock,
-    # against what the actor already holds.
-    return OfficeItem(
-        item_id=item_id,
-        persona_id=item_persona,
-        kind=kind,
-        position=[x, y],
-        folder=folder,
-        display_name=display_name,
-        pet_slug=safe_id(raw.get("pet_slug")),
-        scale=office_models.normalize_scale(raw.get("scale", office_models.SCALE_DEFAULT)),
-    )
-
-
-def _stamp_minted_kinds(
-    items: list[OfficeItem], prior: OfficeActor | None
-) -> list[OfficeItem]:
-    """Record what each item was MINTED as — once, at its first write (H-H12).
-
-    ``kind`` is mutable: every upsert re-sends the whole item list, so any later
-    write may re-spell an agent's item as a desk (or the reverse), and the store
-    accepts it. That made "was this really an agent?" a question with no stored
-    answer, and the desk-litter classifier had to ask the ``item_id`` STRING
-    instead — reading launcher minting conventions that nothing enforces, so a
-    launcher rename would silently reclassify mis-kinded agents as widowed
-    desks. The store now records the answer itself, and a spelling stops being
-    evidence.
-
-    STICKY BY ITEM ID, and that is the whole mechanism: an item already on
-    record keeps the ``minted_kind`` its first write gave it, and only an item
-    this actor has never held is stamped from the kind it arrives with. A write
-    can therefore change what an item IS and never what it was minted as, which
-    is the difference the classifier needs.
-
-    ``prior`` is the live row, or the ARCHIVED one when the key is being re-added
-    — the same precedence ``base_revision`` uses one line down, and for the same
-    reason: a resurrection carries its history forward rather than starting a
-    second one.
-
-    NOT retroactive. Items written before this existed carry ``None`` until
-    something rewrites them, and an actor adopted from a peer that has not
-    upgraded carries ``None`` too. Readers must treat that as "cannot say" and
-    never as "no" — over-claiming here is the expensive direction, exactly as it
-    was for the id-shape reader this replaces.
-    """
-
-    on_record = {
-        item.item_id: item.minted_kind
-        for item in (getattr(prior, "items", ()) or ())
-        if item.minted_kind
-    }
-    return [
-        replace(item, minted_kind=on_record.get(item.item_id) or item.kind)
-        for item in items
-    ]
-
-
-def _normalize_folders(values: Any) -> list[str]:
-    folders: list[str] = [*office_models.DEFAULT_FOLDERS]
-    if isinstance(values, (list, tuple)):
-        for value in values:
-            folder = _safe_folder(value)
-            if folder and folder not in folders:
-                folders.append(folder)
-            if len(folders) >= MAX_FOLDERS:
-                break
-    return folders
+from agent_runtime.events import EventLog
+from agent_runtime.locks import office_lock
+from agent_runtime.models import Event, OfficeActor, OfficeSurface
+from agent_runtime.serde import from_jsonable, safe_id, to_jsonable
+from agent_runtime.office_store.files import (
+    _archive_conflict_sidecar,
+    _check_revision,
+    _free_surface_archive_dir,
+    _read_json,
+    _write_actor,
+    _write_surface,
+    read_actor_dir,
+)
+from agent_runtime.office_store.models import (
+    ActorScan,
+    ARCHIVED_LEDGER_CAP,
+    ConflictScan,
+    MAX_ITEMS_PER_ACTOR,
+    merge_archived_ledgers,
+    OfficeActorOutcome,
+    OfficePositionPolicy,
+)
+from agent_runtime.office_store.normalize import (
+    _canonical_actor_key,
+    _normalize_folders,
+    _normalize_item,
+    _normalize_persona_id,
+    _safe_actor_ref,
+    _stamp_minted_kinds,
+)
+
+__layer__ = "stores"
+
+__all__ = [
+    "OfficeStore",
+]
 
 
 class OfficeStore:
@@ -675,7 +109,7 @@ class OfficeStore:
             # Function-local like every other ``state_patches`` reach in this
             # class, so the patch module's import weight stays off the store's
             # own import path.
-            from .state_patches import CORRELATION_ID_KEY, normalize_correlation_id
+            from ..state_patches import CORRELATION_ID_KEY, normalize_correlation_id
 
             body = {key: value for key, value in payload.items() if value is not None}
             token = normalize_correlation_id(correlation_id)
@@ -768,8 +202,8 @@ class OfficeStore:
         """
 
         try:
-            from .snapshot import MAX_OFFICE_ACTORS_PROJECTED
-            from .state_patches import emit_office_actor_patch, emit_office_actor_refresh
+            from ..snapshot import MAX_OFFICE_ACTORS_PROJECTED
+            from ..state_patches import emit_office_actor_patch, emit_office_actor_refresh
 
             scan = self.scan_actors(actor.workspace_id)
             if scan.unreadable or len(scan.actors) > MAX_OFFICE_ACTORS_PROJECTED:
@@ -827,7 +261,7 @@ class OfficeStore:
         """
 
         try:
-            from .state_patches import emit_office_surface_patch
+            from ..state_patches import emit_office_surface_patch
 
             emit_office_surface_patch(
                 self.event_log, surface, correlation_id=correlation_id
@@ -859,7 +293,7 @@ class OfficeStore:
         """
 
         try:
-            from .state_patches import emit_office_actor_remove
+            from ..state_patches import emit_office_actor_remove
 
             emit_office_actor_remove(
                 self.event_log,
@@ -903,7 +337,7 @@ class OfficeStore:
         """
 
         try:
-            from .state_patches import emit_office_conflict_resolved_patch
+            from ..state_patches import emit_office_conflict_resolved_patch
 
             emit_office_conflict_resolved_patch(
                 self.event_log,
@@ -1915,7 +1349,7 @@ class OfficeStore:
         wsid = safe_id(workspace_id)
         if not wsid:
             return False
-        from .store import WorkspaceStore
+        from ..store import WorkspaceStore
 
         return wsid in {
             getattr(w, "id", None)
@@ -2028,7 +1462,7 @@ class OfficeStore:
         did not declare ``office_surface``."""
 
         try:
-            from .state_patches import emit_office_surface_refresh
+            from ..state_patches import emit_office_surface_refresh
 
             emit_office_surface_refresh(self.event_log, workspace_id)
         except Exception:
@@ -2058,7 +1492,7 @@ class OfficeStore:
         and survive instance churn by design.
         """
 
-        from .persona_assignments import canonical_persona_instance_id
+        from ..persona_assignments import canonical_persona_instance_id
 
         bound = actor.persona_instance_id
         if not bound:
@@ -2115,7 +1549,7 @@ class OfficeStore:
         target = str(persona_instance_id or "").strip()
         if not target:
             return {"archived": 0, "failed": 0, "archived_actor_keys": [], "failures": []}
-        from .persona_assignments import canonical_persona_instance_id
+        from ..persona_assignments import canonical_persona_instance_id
 
         canonical = canonical_persona_instance_id(target) or target
         outcomes: list[OfficeActorOutcome] = []
@@ -2187,7 +1621,7 @@ class OfficeStore:
         target = str(persona_instance_id or "").strip()
         if not target:
             return []
-        from .persona_assignments import canonical_persona_instance_id
+        from ..persona_assignments import canonical_persona_instance_id
 
         canonical = canonical_persona_instance_id(target) or target
         keys: list[str] = []
@@ -2356,7 +1790,7 @@ class OfficeStore:
 
         if allow_class_key:
             return
-        from .office_class_key_guard import (
+        from ..office_class_key_guard import (
             ClassKeyedPlacementRefused,
             class_key_collision,
             refusal_message,
@@ -2399,7 +1833,7 @@ class OfficeStore:
 
         if allow_class_key:
             return
-        from .office_class_key_guard import (
+        from ..office_class_key_guard import (
             ClassKeyedPlacementRefused,
             class_key_collision,
             refusal_message,
@@ -2432,62 +1866,3 @@ class OfficeStore:
             refusal_message(collision) + " Resolve with --take local to keep the migrated state.",
             safe_details={**collision, "take": "remote"},
         )
-
-
-# --- module-level file helpers ---------------------------------------------
-
-
-def _read_json(path) -> dict:
-    import json
-
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _write_surface(surface: OfficeSurface) -> None:
-    atomic_json_write(paths.office_surface_path(surface.workspace_id), to_jsonable(surface), indent=2, sort_keys=True)
-
-
-def _write_actor(actor: OfficeActor) -> None:
-    atomic_json_write(paths.office_actor_path(actor.workspace_id, actor.actor_key), to_jsonable(actor), indent=2, sort_keys=True)
-
-
-def _archive_conflict_sidecar(workspace_id: str, actor_key: str) -> None:
-    sidecar_path = paths.office_conflict_path(workspace_id, actor_key)
-    if not sidecar_path.exists():
-        return
-    try:
-        payload = _read_json(sidecar_path)
-    except Exception:
-        payload = {"actor_key": actor_key}
-    payload["resolved_at"] = to_jsonable(now())
-    from .office_models import actor_file_token
-
-    dest = paths.office_conflicts_dir(workspace_id) / f"{actor_file_token(actor_key)}.resolved.json"
-    atomic_json_write(dest, payload, indent=2, sort_keys=True)
-    sidecar_path.unlink(missing_ok=True)
-
-
-def _free_surface_archive_dir(workspace_id: str):
-    """First unused archive slot for ``workspace_id``.
-
-    Deterministic rather than timestamped so a test can name the destination,
-    and suffixed rather than refusing so an operator who archives a re-created
-    orphan a second time is not stuck with a conflict they cannot resolve
-    without hand-moving files — which is the thing this verb exists to avoid.
-    """
-
-    base = paths.office_archived_surface_dir(workspace_id)
-    if not base.exists():
-        return base
-    for attempt in range(2, 1000):
-        candidate = base.with_name(f"{base.name}-{attempt}")
-        if not candidate.exists():
-            return candidate
-    raise AlreadyExists(f"office_archive:{workspace_id}")
-
-
-def _check_revision(current: int | None, expected: int | None) -> None:
-    if expected is None:
-        return
-    if current is None or int(current) != int(expected):
-        raise StaleRevision(f"stale_revision: expected {expected}, have {current}")
