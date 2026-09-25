@@ -159,7 +159,7 @@
   },
   {
    "arms": 4,
-   "site": "agent_runtime/stream.py|_redaction_safe_json|isinstance|value"
+   "site": "agent_runtime/stream/vocabulary.py|_redaction_safe_json|isinstance|value"
   },
   {
    "arms": 4,

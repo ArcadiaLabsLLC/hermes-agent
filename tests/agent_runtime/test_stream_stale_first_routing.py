@@ -362,7 +362,7 @@ def _repo_python_sources() -> list[str]:
 #: that DEFINES ``stream_frames`` names it on every internal reference.
 def _in_production_scope(relative: str) -> bool:
     return not relative.startswith("tests/") and not relative.endswith(
-        "agent_runtime/stream.py"
+        "agent_runtime/stream/session.py"
     )
 
 

@@ -62,6 +62,7 @@ from agent_runtime.stream import (
     fold_variants_frame,
     resolve_fold_variant,
 )
+from tests._downstream.split_package_source import patch_where_bound
 
 _TS = datetime(2026, 8, 27, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -298,7 +299,7 @@ def test_homogeneous_room_emits_a_bare_patch_and_builds_no_core(monkeypatch):
     def _refuse(*args, **kwargs):
         raise AssertionError("a homogeneous room must not pay for a core")
 
-    monkeypatch.setattr(stream_module, "build_snapshot", _refuse)
+    patch_where_bound(monkeypatch, stream_module, "build_snapshot", _refuse)
 
     batch = [_EVENT_MATRIX[4], _EVENT_MATRIX[0]]  # office move + persona upsert
     wide = frozenset({PERSONA_INSTANCE_ENTITY, OFFICE_ACTOR_ENTITY})
@@ -317,12 +318,13 @@ def test_homogeneous_room_emits_a_bare_patch_and_builds_no_core(monkeypatch):
 def test_split_room_emits_one_envelope_carrying_both_halves(monkeypatch):
     import agent_runtime.stream as stream_module
 
-    monkeypatch.setattr(
+    patch_where_bound(
+        monkeypatch,
         stream_module,
         "build_snapshot",
         lambda **kwargs: {"generated_at": "2026-08-27T12:00:00Z", "core": {"big": True}},
     )
-    monkeypatch.setattr(stream_module, "core_event_offset", lambda snapshot: None)
+    patch_where_bound(monkeypatch, stream_module, "core_event_offset", lambda snapshot: None)
 
     batch = [_EVENT_MATRIX[4]]  # an office_actor move upsert
     phone = frozenset({PERSONA_INSTANCE_ENTITY, "incident"})
@@ -343,12 +345,13 @@ def test_a_batch_nobody_can_fold_stays_a_bare_core(monkeypatch):
 
     import agent_runtime.stream as stream_module
 
-    monkeypatch.setattr(
+    patch_where_bound(
+        monkeypatch,
         stream_module,
         "build_snapshot",
         lambda **kwargs: {"generated_at": "2026-08-27T12:00:00Z", "core": {}},
     )
-    monkeypatch.setattr(stream_module, "core_event_offset", lambda snapshot: None)
+    patch_where_bound(monkeypatch, stream_module, "core_event_offset", lambda snapshot: None)
 
     batch = [_EVENT_MATRIX[0], _EVENT_MATRIX[13]]  # a reconcile poisons it
     frames = _frames(
@@ -365,12 +368,13 @@ def test_resync_is_never_split(monkeypatch):
 
     import agent_runtime.stream as stream_module
 
-    monkeypatch.setattr(
+    patch_where_bound(
+        monkeypatch,
         stream_module,
         "build_snapshot",
         lambda **kwargs: {"generated_at": "2026-08-27T12:00:00Z", "core": {}},
     )
-    monkeypatch.setattr(stream_module, "core_event_offset", lambda snapshot: None)
+    patch_where_bound(monkeypatch, stream_module, "core_event_offset", lambda snapshot: None)
 
     batch = [_EVENT_MATRIX[4]]
     frames = _frames(

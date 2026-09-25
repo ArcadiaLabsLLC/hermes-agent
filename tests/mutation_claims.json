@@ -2728,7 +2728,7 @@
     },
     {
       "id": "ctp5-demote-deferral-fires-on-every-lane",
-      "path": "agent_runtime/stream.py",
+      "path": "agent_runtime/stream/build_policy.py",
       "symbol": "_defer_demote_build_for_active_turns",
       "operator": "drop-lane-guard",
       "find": "    if reason != BATCH_REASON_DEMOTE:\n        return 0\n",
@@ -2743,7 +2743,7 @@
     },
     {
       "id": "ctp5-deferral-bound-widened-to-a-starvation",
-      "path": "agent_runtime/stream.py",
+      "path": "agent_runtime/stream/vocabulary.py",
       "symbol": "SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS",
       "operator": "widen-bound",
       "find": "SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS = 3500",
@@ -2758,7 +2758,7 @@
     },
     {
       "id": "ctp5-deferral-ignores-a-cancelled-consumer",
-      "path": "agent_runtime/stream.py",
+      "path": "agent_runtime/stream/build_policy.py",
       "symbol": "_defer_demote_build_for_active_turns",
       "operator": "drop-cancellation-break",
       "find": "        if request_cancelled():\n            break\n        now_s = _now()",
@@ -2773,7 +2773,7 @@
     },
     {
       "id": "ctp5-deferral-decided-after-the-build-worker-starts",
-      "path": "agent_runtime/stream.py",
+      "path": "agent_runtime/stream/build.py",
       "symbol": "_full_core_batch_frames",
       "operator": "reorder-yield-after-job",
       "find": "    _defer_demote_build_for_active_turns(reason=reason, caller=caller)\n    if request_cancelled():\n        return\n\n    job = _SnapshotBuildJob(caller=caller)",
@@ -2788,7 +2788,7 @@
     },
     {
       "id": "ctp5-a-zero-wait-still-logs-a-deferral",
-      "path": "agent_runtime/stream.py",
+      "path": "agent_runtime/stream/build_policy.py",
       "symbol": "_defer_demote_build_for_active_turns",
       "operator": "loosen-receipt-guard",
       "find": "    if waited_ms > 0:\n        # Closed vocabulary",

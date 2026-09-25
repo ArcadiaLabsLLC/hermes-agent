@@ -34,6 +34,7 @@ import pytest
 import agent_runtime.stream as stream_mod
 from agent_runtime.request_control import request_cancel_scope
 from agent_runtime.stream import stream_frames
+from tests._downstream.split_package_source import patch_where_bound
 
 _PREFIX = "snapshot_build "
 _PAIR = re.compile(r"(?P<key>[a-z_]+)=(?P<value>\S+)")
@@ -83,7 +84,7 @@ class _GatedBuild:
             assert self.gate.wait(20), "the gated build was never released"
             return real(*args, **kwargs)
 
-        monkeypatch.setattr(stream_mod, "build_snapshot", _gated)
+        patch_where_bound(monkeypatch, stream_mod, "build_snapshot", _gated)
 
     def release(self) -> None:
         self.gate.set()
@@ -105,7 +106,7 @@ class _PollCounter:
             self.count += 1
             return real()
 
-        monkeypatch.setattr(stream_mod, "request_cancelled", _counting)
+        patch_where_bound(monkeypatch, stream_mod, "request_cancelled", _counting)
 
     def wait_for_cadence(self, gated: _GatedBuild) -> None:
         """Release ``gated`` once the wait loop has polled enough times."""
@@ -391,7 +392,7 @@ def test_the_hydrate_receipt_reports_the_number_measured_on_the_build_thread(
             super().run()
             self.elapsed_ms = _SENTINEL_ELAPSED_MS
 
-    monkeypatch.setattr(stream_mod, "_SnapshotBuildJob", _SentinelJob)
+    patch_where_bound(monkeypatch, stream_mod, "_SnapshotBuildJob", _SentinelJob)
 
     with caplog.at_level(logging.INFO, logger="agent_runtime.stream"):
         frames = list(

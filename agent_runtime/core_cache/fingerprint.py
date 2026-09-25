@@ -385,7 +385,7 @@ def contract_versions() -> dict[str, int]:
 
     from ..parity import PARITY_ENVELOPE_VERSION
     from ..snapshot.context import SNAPSHOT_CONTRACT_VERSION
-    from ..stream import STREAM_SCHEMA_VERSION
+    from ..stream.vocabulary import STREAM_SCHEMA_VERSION
 
     return {
         "snapshot_contract": int(SNAPSHOT_CONTRACT_VERSION),
