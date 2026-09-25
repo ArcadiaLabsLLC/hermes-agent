@@ -6,10 +6,12 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Mapping, Sequence
 
+from ..serde import positive_float, positive_int
+
 from .outcomes import McpAdmission, McpAdmissionDenial
 from .vocabulary import LANE_MISSION_CHAT, MCP_ADMISSION_DISABLED, MCP_OPERATING_SKILLS, MCP_READ_ONLY_SUBSET_UNKNOWN, MCP_SERVER_NOT_CONFIGURED, READ_ONLY_EXCLUDED_TOOLS, READ_ONLY_INCLUDED_TOOLS, _DEFAULT_CONNECT_TIMEOUT_SECONDS, _DEFAULT_MAX_TOOL_CALLS_PER_RUN, _MCP_TOOLSET_PREFIX, logger
 
-__layer__ = "stores"
+__layer__ = "policy"
 
 
 def admission_config(cfg: Any | None = None):
@@ -26,7 +28,7 @@ def admission_config(cfg: Any | None = None):
         resolved = getattr(cfg, "mcp_admission", None)
         return resolved if resolved is not None else McpAdmissionConfig()
     try:
-        from ..config import load_root_runtime_config
+        from ..config.loader import load_root_runtime_config
 
         return load_root_runtime_config().mcp_admission
     except Exception:  # pragma: no cover - defensive; a config fault must not open the gate
@@ -61,67 +63,94 @@ def resolve_mcp_admission(
     finding.
     """
 
-    from ..personas import role_from_persona
+    return Resolution(persona, lane=lane, permission_mode=permission_mode, cfg=cfg).run()
 
-    config = admission_config(cfg)
-    lane = str(lane or "").strip()
-    permission_mode = str(permission_mode or "profile_default").strip() or "profile_default"
-    # ``coerce_agent_role`` returns a plain ``str`` for anything outside the
-    # one-member ``AgentRole`` enum, whose only member (``pm``) is mothballed,
-    # so ``.value`` was the branch that could not be taken and the ``except``
-    # labelled "defensive" was the live path. ``str()`` covers both: a StrEnum
-    # stringifies to its own value.
-    role = str(role_from_persona(persona))
-    requested = tuple(_requested_servers(persona))
-    timeout = _positive_float(getattr(config, "connect_timeout_seconds", None)) or _DEFAULT_CONNECT_TIMEOUT_SECONDS
-    # No "unlimited" spelling: a missing / zero / negative / unparseable value
-    # falls back to the default rather than retiring the bound. The root parser
-    # already clamps, so this is the second half of the same rule for callers
-    # that hand in a hand-built config object (tests, --explain-mcp previews).
-    call_budget = _positive_int(getattr(config, "max_tool_calls_per_run", None)) or _DEFAULT_MAX_TOOL_CALLS_PER_RUN
 
-    def _empty(denials: Sequence[McpAdmissionDenial]) -> McpAdmission:
+class Resolution:
+    """One :func:`resolve_mcp_admission` call, as its phases.
+
+    ``run`` = :meth:`gate_denials` (the config gate) → the requested set (taken at
+    construction) → :meth:`configured` (declared but unspawnable ⇒ typed denial)
+    → :meth:`resolve_roots` (the machine_roots taxonomy, reused verbatim) →
+    :meth:`admission` (the permission mode, per server). Every phase appends to
+    ONE denial list; :meth:`empty` is the early answer for the two gates. Nothing
+    here imports ``transport``: resolution stays pure (invariant 2).
+    """
+
+    def __init__(self, persona: Any, *, lane: str, permission_mode: str, cfg: Any) -> None:
+        from ..personas import role_from_persona
+
+        self.persona = persona
+        self.config = admission_config(cfg)
+        self.lane = str(lane or "").strip()
+        self.permission_mode = str(permission_mode or "profile_default").strip() or "profile_default"
+        # ``coerce_agent_role`` returns a plain ``str`` for anything outside the
+        # one-member ``AgentRole`` enum, whose only member (``pm``) is mothballed,
+        # so ``.value`` was the branch that could not be taken and the ``except``
+        # labelled "defensive" was the live path. ``str()`` covers both: a StrEnum
+        # stringifies to its own value.
+        self.role = str(role_from_persona(persona))
+        self.requested = tuple(_requested_servers(persona))
+        self.timeout = (
+            positive_float(getattr(self.config, "connect_timeout_seconds", None))
+            or _DEFAULT_CONNECT_TIMEOUT_SECONDS
+        )
+        # No "unlimited" spelling: a missing / zero / negative / unparseable value
+        # falls back to the default rather than retiring the bound. The root parser
+        # already clamps, so this is the second half of the same rule for callers
+        # that hand in a hand-built config object (tests, --explain-mcp previews).
+        self.call_budget = (
+            positive_int(getattr(self.config, "max_tool_calls_per_run", None))
+            or _DEFAULT_MAX_TOOL_CALLS_PER_RUN
+        )
+        self.denials: list[McpAdmissionDenial] = []
+
+    def run(self) -> McpAdmission:
+        if not getattr(self.config, "enabled", False):
+            return self.empty(self.gate_denials())
+        if not self.requested:
+            return self.empty([])
+        return self.admission(self.resolve_roots(self.configured()))
+
+    def empty(self, denials: Sequence[McpAdmissionDenial]) -> McpAdmission:
         return McpAdmission(
-            lane=lane,
-            role=role,
-            permission_mode=permission_mode,
-            enabled=bool(getattr(config, "enabled", False)),
-            requested=requested,
+            lane=self.lane,
+            role=self.role,
+            permission_mode=self.permission_mode,
+            enabled=bool(getattr(self.config, "enabled", False)),
+            requested=self.requested,
             denied=tuple(denials),
-            connect_timeout_seconds=timeout,
-            max_tool_calls_per_run=call_budget,
+            connect_timeout_seconds=self.timeout,
+            max_tool_calls_per_run=self.call_budget,
         )
 
-    if not getattr(config, "enabled", False):
-        return _empty(
-            [
-                McpAdmissionDenial(
-                    server=name,
-                    code=MCP_ADMISSION_DISABLED,
-                    summary=(
-                        f"MCP admission is disabled, so '{name}' is not registered for this run."
-                    ),
-                    fix_hint=(
-                        "Set agent_runtime.mcp_admission.enabled: true in the ROOT "
-                        "config.yaml to admit servers declared by this persona profile."
-                    ),
-                )
-                for name in requested
-            ]
-        )
+    def gate_denials(self) -> list[McpAdmissionDenial]:
+        return [
+            McpAdmissionDenial(
+                server=name,
+                code=MCP_ADMISSION_DISABLED,
+                summary=(
+                    f"MCP admission is disabled, so '{name}' is not registered for this run."
+                ),
+                fix_hint=(
+                    "Set agent_runtime.mcp_admission.enabled: true in the ROOT "
+                    "config.yaml to admit servers declared by this persona profile."
+                ),
+            )
+            for name in self.requested
+        ]
 
-    if not requested:
-        return _empty([])
+    def configured(self) -> dict[str, Any]:
+        """The requested servers the profile gives a spawnable block; the rest denied."""
 
-    denials: list[McpAdmissionDenial] = []
-    candidates = list(requested)
-
-    configured = _configured_servers_for(persona)
-    resolvable: dict[str, Any] = {}
-    for name in candidates:
-        raw = configured.get(name)
-        if not isinstance(raw, Mapping):
-            denials.append(
+        configured = _configured_servers_for(self.persona)
+        resolvable: dict[str, Any] = {}
+        for name in self.requested:
+            raw = configured.get(name)
+            if isinstance(raw, Mapping):
+                resolvable[name] = raw
+                continue
+            self.denials.append(
                 McpAdmissionDenial(
                     server=name,
                     code=MCP_SERVER_NOT_CONFIGURED,
@@ -142,11 +171,11 @@ def resolve_mcp_admission(
                     ),
                 )
             )
-            continue
-        resolvable[name] = raw
+        return resolvable
 
-    resolved: dict[str, Any] = {}
-    if resolvable:
+    def resolve_roots(self, resolvable: dict[str, Any]) -> dict[str, Any]:
+        if not resolvable:
+            return {}
         from ..machine_roots import resolve_mcp_servers
 
         issues: list[tuple[str, Any]] = []
@@ -157,7 +186,7 @@ def resolve_mcp_admission(
             # Reuse the EXISTING machine_roots taxonomy verbatim (unbound_root,
             # root_target_missing, platform_unsupported, …) rather than minting a
             # parallel one — proving reuse is part of the R1 test plan.
-            denials.append(
+            self.denials.append(
                 McpAdmissionDenial(
                     server=str(name),
                     code=issue.code,
@@ -165,38 +194,41 @@ def resolve_mcp_admission(
                     fix_hint=issue.fix_hint,
                 )
             )
+        return resolved
 
-    admitted: list[str] = []
-    compiled: dict[str, dict[str, Any]] = {}
-    blocked: list[str] = []
-    for name in candidates:
-        entry = resolved.get(name)
-        if not isinstance(entry, Mapping):
-            continue
-        filtered, excluded, denial = _apply_permission_mode(
-            name, dict(entry), permission_mode=permission_mode
+    def admission(self, resolved: dict[str, Any]) -> McpAdmission:
+        admitted: list[str] = []
+        compiled: dict[str, dict[str, Any]] = {}
+        blocked: list[str] = []
+        for name in self.requested:
+            entry = resolved.get(name)
+            if not isinstance(entry, Mapping):
+                continue
+            filtered, excluded, denial = _apply_permission_mode(
+                name, dict(entry), permission_mode=self.permission_mode
+            )
+            if denial is not None:
+                self.denials.append(denial)
+                continue
+            filtered["connect_timeout"] = _bounded_connect_timeout(
+                filtered.get("connect_timeout"), self.timeout
+            )
+            admitted.append(name)
+            compiled[name] = filtered
+            blocked.extend(_prefixed_tool_names(name, excluded))
+        return McpAdmission(
+            lane=self.lane,
+            role=self.role,
+            permission_mode=self.permission_mode,
+            enabled=True,
+            requested=self.requested,
+            server_names=tuple(admitted),
+            denied=tuple(self.denials),
+            server_configs=compiled,
+            blocked_tool_names=tuple(sorted(set(blocked))),
+            connect_timeout_seconds=self.timeout,
+            max_tool_calls_per_run=self.call_budget,
         )
-        if denial is not None:
-            denials.append(denial)
-            continue
-        filtered["connect_timeout"] = _bounded_connect_timeout(filtered.get("connect_timeout"), timeout)
-        admitted.append(name)
-        compiled[name] = filtered
-        blocked.extend(_prefixed_tool_names(name, excluded))
-
-    return McpAdmission(
-        lane=lane,
-        role=role,
-        permission_mode=permission_mode,
-        enabled=True,
-        requested=requested,
-        server_names=tuple(admitted),
-        denied=tuple(denials),
-        server_configs=compiled,
-        blocked_tool_names=tuple(sorted(set(blocked))),
-        connect_timeout_seconds=timeout,
-        max_tool_calls_per_run=call_budget,
-    )
 
 
 def _requested_servers(persona) -> list[str]:
@@ -347,28 +379,10 @@ def _bounded_connect_timeout(configured: Any, budget: float) -> float:
     the caller's deadline.
     """
 
-    value = _positive_float(configured)
+    value = positive_float(configured)
     if value is None:
         return budget
     return min(value, budget)
-
-
-def _positive_float(value: Any) -> float | None:
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    return number if number > 0 else None
-
-
-def _positive_int(value: Any) -> int | None:
-    if isinstance(value, bool):
-        return None
-    try:
-        number = int(value)
-    except (TypeError, ValueError):
-        return None
-    return number if number > 0 else None
 
 
 def scope_toolsets_to_admission(

@@ -97,8 +97,10 @@ Both paths run the filter, so ``read_only`` after ``profile_default`` now
 subtracts AT REGISTRATION TIME rather than relying on ``blocked_tool_names``
 (which stays, as defence in depth for a resident actor's cached tool list).
 
-The warm path is the one place this module reaches for an upstream private. It
-fails CLOSED — an unavailable seam registers nothing, which surfaces as a typed
+The warm path reaches upstream privates in eight places (``tools.mcp_tool``,
+``_scope``, ``_loop``, ``_registration``), every one through a door in
+``agent_runtime/_upstream_doors.py`` with a held widening row. It fails
+CLOSED — an unavailable seam registers nothing, which surfaces as a typed
 ``mcp_not_registered_on_lane`` denial rather than a silently full surface — and
 ``tests/agent_runtime/test_mcp_admission_r2.py`` pins the seam so upstream drift
 is loud instead of silent.
@@ -113,21 +115,23 @@ first; no module imports one above it (W0-G6)::
 
     agent_runtime/mcp_admission/
       __init__.py       lanes   this docstring + map; re-exports the importers' and the tests' names
-      vocabulary.py     models  the MCP_* denial codes, LANE_MISSION_CHAT, the toolset prefix,
+      vocabulary.py     models  the MCP_* denial codes and MCP_DENIAL_CODES, LANE_MISSION_CHAT, the toolset prefix,
                                 TRANSPORT_WARM / _COLD, the parked-wake bound, the read-only
                                 tool tables, MCP_OPERATING_SKILLS, the two defaults
                                 (a vocabulary module: exempt from the floor)
       outcomes.py       models  McpAdmissionDenial, McpAdmission, McpAdmissionOutcome,
                                 McpTeardownOutcome, McpCallBudget; render_mcp_admission_line
-      resolve.py        stores  resolution, pure (zero spawns): admission_config / _enabled,
-                                resolve_mcp_admission, scope_toolsets_to_admission,
+      resolve.py        policy  resolution, pure (zero spawns): admission_config / _enabled,
+                                resolve_mcp_admission (Resolution: gate -> configured ->
+                                resolve_roots -> admission), scope_toolsets_to_admission,
                                 admitted_operating_skill_ids, admission_requirement_failures
       transport.py      stores  the process's warm transports, behind agent_runtime._upstream_doors:
                                 _default_registrar, classify_admission_transport,
                                 mcp_sdk_available, the live / parked reads, the parked wake,
                                 the warm re-registration
-      registration.py   lanes   the registry scope's two ends: admit_mcp_servers (the mutex,
-                                the call budget's meter) and teardown_mcp_admission
+      registration.py   lanes   the registry scope's two ends: admit_mcp_servers (Admission:
+                                acquire -> classify -> meter -> register_bounded -> outcome)
+                                and teardown_mcp_admission
 
     entry point                                           opens
     admit_mcp_servers / teardown_mcp_admission (runner)   registration -> transport -> outcomes
@@ -140,9 +144,9 @@ first; no module imports one above it (W0-G6)::
 A monkeypatch lands where a name is BOUND (``_default_registrar`` is read by
 ``registration``; ``_PARKED_WAKE_TIMEOUT_SECONDS`` by ``transport``): patch the
 binding module (``tests/_downstream/split_package_source.py::patch_where_bound``).
-``resolve`` is ``stores`` in this commit only because ``admission_config``'s
-lazy import names the ``config`` package map (``stores``); the CHANGE reads
-``config.loader`` (``policy``) and ``resolve`` drops to ``policy``.
+``resolve`` reads ``config.loader`` (``policy``), never the ``config`` package
+map (``stores``): that is what keeps it at ``policy``, below
+``profile_runner/toolsets.py`` (``policy``), which reads it.
 """
 
 from __future__ import annotations
@@ -160,11 +164,13 @@ from .outcomes import (
     render_mcp_admission_line,
 )
 from .registration import (
+    Admission,
     _ADMISSION_LOCK,
     admit_mcp_servers,
     teardown_mcp_admission,
 )
 from .resolve import (
+    Resolution,
     admission_config,
     admission_enabled,
     admission_requirement_failures,
@@ -188,6 +194,7 @@ from .vocabulary import (
     MCP_ADMISSION_LANE_BUSY,
     MCP_ADMISSION_TEARDOWN_FAILED,
     MCP_ADMISSION_TIMEOUT,
+    MCP_DENIAL_CODES,
     MCP_OPERATING_SKILLS,
     MCP_READ_ONLY_SUBSET_UNKNOWN,
     MCP_SDK_UNAVAILABLE,
@@ -198,6 +205,7 @@ from .vocabulary import (
     TRANSPORT_COLD,
     TRANSPORT_WARM,
     _PARKED_WAKE_TIMEOUT_SECONDS,
+    machine_root_issue_codes,
 )
 
 __layer__ = "lanes"

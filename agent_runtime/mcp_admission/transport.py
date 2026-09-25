@@ -7,6 +7,16 @@ from __future__ import annotations
 import time
 from typing import Any, Iterable, Mapping, Sequence
 
+from .._upstream_doors import (
+    mcp_key_name,
+    mcp_register_server_tools,
+    mcp_resolve_server_key,
+    mcp_sdk_available_flag,
+    mcp_server_map,
+    mcp_signal_reconnect,
+    mcp_wait_for_session,
+)
+
 from .vocabulary import TRANSPORT_COLD, TRANSPORT_WARM, _PARKED_WAKE_TIMEOUT_SECONDS, logger
 
 __layer__ = "stores"
@@ -98,7 +108,8 @@ def classify_admission_transport(servers: Iterable[str] | None) -> dict[str, str
 def mcp_sdk_available() -> bool:
     """Does this RUNTIME have an MCP client at all?
 
-    The single place ``agent_runtime`` reads ``tools/mcp_tool._MCP_AVAILABLE``.
+    The single place ``agent_runtime`` reads ``tools/mcp_tool._MCP_AVAILABLE``
+    (through its door, ``_upstream_doors.mcp_sdk_available_flag``).
     That flag is set once at import from ``try: from mcp import ClientSession``,
     so it answers exactly one question — is the optional ``mcp`` pip extra in
     this venv — and it answers it for the life of the process. A pip install
@@ -112,23 +123,20 @@ def mcp_sdk_available() -> bool:
     """
 
     try:
-        from tools.mcp_tool import _MCP_AVAILABLE
+        return mcp_sdk_available_flag()
     except Exception:  # pragma: no cover - tools.mcp_tool is importable in-process
         logger.debug("MCP admission could not read the SDK availability flag", exc_info=True)
         return False
-    return bool(_MCP_AVAILABLE)
 
 
 def _current_mcp_servers() -> dict[str, Any]:
     """Read connections owned or adopted by the current profile only."""
-    from tools.mcp_tool import _servers, _lock
-    from tools.mcp_tool_scope import _key_name, _resolve_server_key
-
-    with _lock:
+    servers, lock = mcp_server_map()
+    with lock:
         return {
-            name: _servers[key]
-            for name in {_key_name(key) for key in _servers}
-            if (key := _resolve_server_key(name)) in _servers
+            name: servers[key]
+            for name in {mcp_key_name(key) for key in servers}
+            if (key := mcp_resolve_server_key(name)) in servers
         }
 
 
@@ -190,21 +198,16 @@ def _wake_parked_servers(names: Sequence[str]) -> frozenset[str]:
     wanted = [str(name) for name in names if str(name)]
     if not wanted:
         return frozenset()
-    try:
-        from tools.mcp_tool_loop import (
-            _signal_reconnect,
-            _wait_for_server_session_ready,
-        )
-    except Exception:  # pragma: no cover - upstream drift ⇒ behave as before
-        logger.debug("MCP admission could not reach the reconnect seam", exc_info=True)
-        return frozenset()
+    # The two reconnect seams are read through their doors at CALL time: a seam
+    # upstream drift has moved raises inside the per-server guards below, and
+    # the name routes cold — the same fail-closed answer as before.
 
     cache = _current_mcp_servers()
     parked = {name: cache[name] for name in wanted if name in cache}
     nudged: dict[str, Any] = {}
     for name, server in parked.items():
         try:
-            if _signal_reconnect(server):
+            if mcp_signal_reconnect(server):
                 nudged[name] = server
         except Exception:  # pragma: no cover - defensive
             logger.debug("MCP admission could not nudge %r", name, exc_info=True)
@@ -228,7 +231,7 @@ def _wake_parked_servers(names: Sequence[str]) -> frozenset[str]:
             continue
         try:
             remaining = min(budget, max(0.0, deadline - time.monotonic()))
-            if _wait_for_server_session_ready(server, timeout=remaining):
+            if mcp_wait_for_session(server, remaining):
                 revived.add(name)
         except Exception:  # pragma: no cover - defensive
             logger.debug("MCP admission could not wait for %r", name, exc_info=True)
@@ -257,12 +260,10 @@ def _reregister_warm_server(name: str, config: dict[str, Any]) -> list[str]:
     """
 
     try:
-        from tools.mcp_tool_registration import _register_server_tools
-
         server = _current_mcp_servers().get(name)
         if server is None:  # pragma: no cover - raced against a disconnect
             return []
-        registered = list(_register_server_tools(name, server, config) or [])
+        registered = list(mcp_register_server_tools(name, server, config) or [])
         # Keep ``_existing_tool_names()`` consistent with what is really in the
         # registry, so a later cold registration of a DIFFERENT server does not
         # report this one's stale pre-teardown surface.

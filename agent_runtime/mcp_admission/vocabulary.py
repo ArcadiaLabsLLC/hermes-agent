@@ -8,7 +8,10 @@ A vocabulary module (sheet ``mcp_admission.md`` §1): exempt from the 100-line f
 from __future__ import annotations
 
 import logging
+from functools import cache
 from typing import Mapping
+
+from ..mcp_lane import MCP_NOT_REGISTERED_ON_LANE
 
 __layer__ = "models"
 
@@ -265,3 +268,37 @@ _DEFAULT_CONNECT_TIMEOUT_SECONDS = 20.0
 #: line — the budget is a loop bound, not a work bound, and a QA turn that trips
 #: it has stopped making progress rather than merely being thorough.
 _DEFAULT_MAX_TOOL_CALLS_PER_RUN = 120
+
+
+#: Every denial code this package writes, spelled ONCE (program rule 14): the
+#: eight above plus mcp_lane's ``MCP_NOT_REGISTERED_ON_LANE``, reused rather than
+#: re-spelled. ``McpAdmissionDenial`` refuses a code outside this tuple or the
+#: machine_roots taxonomy (:func:`machine_root_issue_codes`) at construction — the
+#: ``mission_chat_outcome._guard_turn_outcome_vocabulary`` model. Plain words, not a
+#: ``StrEnum``: the tests and the launcher's issue contract read them by name.
+MCP_DENIAL_CODES: tuple[str, ...] = (
+    MCP_ADMISSION_DISABLED,
+    MCP_ADMISSION_LANE_BUSY,
+    MCP_ADMISSION_TIMEOUT,
+    MCP_SERVER_NOT_CONFIGURED,
+    MCP_READ_ONLY_SUBSET_UNKNOWN,
+    MCP_ADMISSION_TEARDOWN_FAILED,
+    MCP_ADMISSION_BUDGET_EXHAUSTED,
+    MCP_SDK_UNAVAILABLE,
+    MCP_NOT_REGISTERED_ON_LANE,
+)
+
+
+@cache
+def machine_root_issue_codes() -> frozenset[str]:
+    """The machine_roots issue taxonomy resolution reuses verbatim (``unbound_root``,
+    ``root_target_missing``, …), enumerated from that module's own ``ISSUE_*``
+    constants — never re-typed here. Imported lazily, as resolution imports it."""
+
+    from .. import machine_roots
+
+    return frozenset(
+        value
+        for name, value in vars(machine_roots).items()
+        if name.startswith("ISSUE_") and isinstance(value, str)
+    )
