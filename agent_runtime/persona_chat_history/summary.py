@@ -20,7 +20,6 @@ from ..persona_assignments import (
 )
 from ..persona_chat_continuity import PERSONA_CHAT_SESSION_SOURCE
 from .history_rows import (
-    _canonical_persona_id,
     _get_session_row,
     _history_row,
     _infer_persona_id,
@@ -30,7 +29,7 @@ from .history_rows import (
     _persisted_persona_instance_id,
     _persona_chat_candidate_sort_key,
 )
-from .vocabulary import DEFAULT_PERSONA_CHAT_MESSAGE_TAIL
+from .vocabulary import DEFAULT_PERSONA_CHAT_MESSAGE_TAIL, canonical_chat_persona_id
 
 __layer__ = "lanes"
 __all__ = [
@@ -130,7 +129,7 @@ class HistorySummary:
             instance_id = safe_assignment_text(getattr(instance, "id", None), limit=160)
             if instance_id:
                 self.instances_by_id[instance_id] = instance
-            persona_id = _canonical_persona_id(getattr(instance, "persona_id", None))
+            persona_id = canonical_chat_persona_id(getattr(instance, "persona_id", None))
             if persona_id:
                 self.instances_by_persona[persona_id] = instance
             session_id = safe_assignment_text(

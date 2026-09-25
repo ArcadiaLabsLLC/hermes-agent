@@ -37,12 +37,13 @@ from __future__ import annotations
 #: imports the other transitively at module scope, so there is no cycle to
 #: dodge here.
 from ..persona_chat_continuity import PERSONA_CHAT_SESSION_SOURCE
-from .history_rows import _canonical_persona_id, _default_session_db
+from .history_rows import _default_session_db
 from .messages import persona_chat_session_messages
 from .summary import persona_chat_history_summary
 from .trace import persona_chat_trace_summary
 from .vocabulary import (
     DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
+    canonical_chat_persona_id,
     MAX_PERSONA_CHAT_MESSAGE_TAIL,
     PERSONA_HARNESS_DELIVERY_KIND,
     PERSONA_PRE_TRACE_ACK_KIND,
@@ -65,8 +66,8 @@ __all__ = [
     "PERSONA_TURN_BUDGET_EXHAUSTED_KIND",
     "PERSONA_TURN_INTERRUPTED_KIND",
     "_SECRET_RE",
-    "_canonical_persona_id",
     "_default_session_db",
+    "canonical_chat_persona_id",
     "canonical_persona_chat_turn_id",
     "logical_persona_chat_client_message_id",
     "persona_chat_history_summary",
