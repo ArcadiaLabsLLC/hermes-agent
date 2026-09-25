@@ -32,7 +32,7 @@ already sendable, exactly as ``agent_chat_threads`` does locally.
 Why every row is REACHABLE and not merely present
 --------------------------------------------------
 
-Both projections filter through ``_resolve_mission_chat_persona_id`` for the
+Both projections filter through ``resolve_mission_chat_persona_id`` for the
 reason ``agent_chat_threads`` does: a row that cannot be sent to is worse than a
 missing row, because an agent will address it and lose a turn finding out. A
 roster is an offer, and an offer has to be honourable.
@@ -155,7 +155,7 @@ def peer_roster_projection(*, scope_workspace_id: str | None) -> dict[str, Any]:
     )
     from .persona_chat_history import persona_chat_history_summary
     from .workspace_scope import addressable_roster
-    from hermes_cli.harness_parts.persona import chat_target as _chat_target
+    from .mission_chat_persona import resolve_mission_chat_persona_id
 
     store = PersonaInstanceStore()
     store.ensure_for_personas(list(ensure_persisted_personas(load_agent_runtime_config())))
@@ -185,7 +185,7 @@ def peer_roster_projection(*, scope_workspace_id: str | None) -> dict[str, Any]:
         # and it matters more across a machine boundary: an agent that addresses
         # an unreachable row loses a turn AND a network round trip finding out.
         try:
-            reachable = _chat_target._resolve_mission_chat_persona_id(persona_id, persona_id)
+            reachable = resolve_mission_chat_persona_id(persona_id, persona_id)
         except ValueError:
             continue
         if len(rows) >= ROSTER_ROW_CAP:

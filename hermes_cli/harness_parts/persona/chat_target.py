@@ -14,10 +14,11 @@ from agent_runtime.persona_assignments import (
     PersonaAssignmentStore,
     PersonaInstanceStore,
     normalize_persona_id as _normalize_cli_persona_id,
-    normalize_persona_or_template_id as _normalize_cli_persona_or_template_id,
-    persona_id_from_instance_id as _persona_id_from_instance_id,
     safe_assignment_text,
     safe_assignment_token,
+)
+from agent_runtime.mission_chat_persona import (
+    resolve_mission_chat_persona_id as _resolve_mission_chat_persona_id,
 )
 from agent_runtime.personas import profile_chat_toolsets, profile_persona_resolution
 
@@ -306,21 +307,10 @@ def _mission_chat_bare_persona_target(
     return None
 
 
-def _resolve_mission_chat_persona_id(persona_id, persona_instance_id) -> str:
-    """Resolve the chat target persona from whichever identity the caller sent.
-
-    Prefer the persona id; when it is mangled (a stale instance-shaped id from a
-    legacy SessionDB row, a display token, etc.) but the caller also supplied a
-    resolvable persona_instance_id, the instance wins instead of failing the
-    whole send.
-    """
-    try:
-        return _normalize_cli_persona_or_template_id(persona_id)
-    except ValueError:
-        instance_token = safe_assignment_token(persona_instance_id)
-        if instance_token:
-            return _persona_id_from_instance_id(instance_token)
-        raise
+# ``_resolve_mission_chat_persona_id`` is the runtime's
+# ``agent_runtime.mission_chat_persona.resolve_mission_chat_persona_id``, bound
+# to its historical name in the import header (lane W3-B moved it down so the
+# runtime's peer roster stops reaching into this part).
 
 
 # ``_normalize_cli_persona_id``, ``_persona_id_from_instance_id`` and

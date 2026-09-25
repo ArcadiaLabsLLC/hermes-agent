@@ -797,7 +797,7 @@ def _mission_chat_door_bound():
     from agent_runtime import mission_chat_door
     from hermes_cli.harness_parts.mission_chat_door_binding import bind_mission_chat_door
 
-    previous = mission_chat_door._turn
+    previous = mission_chat_door._turn, mission_chat_door._open_chat
     bind_mission_chat_door()
     yield
-    mission_chat_door._turn = previous
+    mission_chat_door._turn, mission_chat_door._open_chat = previous

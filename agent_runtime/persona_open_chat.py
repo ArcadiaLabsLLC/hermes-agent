@@ -223,7 +223,6 @@ def perform_persona_instance_open_chat(
             )
         )
 
-    payloads: list[dict] = []
     args = SimpleNamespace(
         persona_id=persona_id,
         persona_instance_id=_text(params, "persona_instance_id"),
@@ -261,19 +260,28 @@ def perform_persona_instance_open_chat(
         # prints nothing at all. It is set true so a sink that somehow went
         # missing degrades to a JSON line rather than to prose.
         json=True,
-        payload_sink=payloads.append,
     )
 
-    from hermes_cli.harness_parts.persona import chat_open as _chat_open
+    # Through the mission-chat door's open-chat slot (lane W3-B), never the
+    # CLI namespace: the door installs ``args.payload_sink`` and hands back the
+    # last row. Unbound is a typed refusal on the wire, not an import.
+    from .mission_chat_door import MissionChatDoorUnbound, run_open_chat
+    from .serve_rpc import ERR_HANDLER_FAILED
 
-    exit_code = _chat_open._cmd_persona_instance_open_chat(args)
-    row = payloads[-1] if payloads else None
+    try:
+        exit_code, row = run_open_chat(args)
+    except MissionChatDoorUnbound as exc:
+        return PersonaOpenChatOutcome(
+            refusal=PersonaOpenChatRefusal(
+                code=ERR_HANDLER_FAILED,
+                message=str(exc),
+                data={"reason": "mission_chat_door_unbound"},
+            )
+        )
     if not isinstance(row, dict):
         # Unreachable while every arm goes through the seam, and asserted rather
         # than assumed: a handler that grew an exit with no payload would
         # otherwise answer this lane with a silent success.
-        from .serve_rpc import ERR_HANDLER_FAILED
-
         return PersonaOpenChatOutcome(
             refusal=PersonaOpenChatRefusal(
                 code=ERR_HANDLER_FAILED,
