@@ -59,6 +59,7 @@ from agent_runtime.mcp_admission import (
 )
 from tests.agent_runtime.persona_samples import sample_personas
 from agent_runtime.runtime_config import McpAdmissionConfig
+from tests._downstream.split_package_source import patch_where_bound
 
 #: sha256 of the vendored snapshot of the LAUNCHER's own per-profile allowlist.
 #: Refresh instructions live in ``tests/agent_runtime/fixtures/README.md`` —
@@ -1015,7 +1016,7 @@ def torn_down(monkeypatch):
         seen.append(tuple(servers))
         return McpTeardownOutcome(servers=tuple(servers))
 
-    monkeypatch.setattr(mcp_admission, "teardown_mcp_admission", _record)
+    patch_where_bound(monkeypatch, mcp_admission, "teardown_mcp_admission", _record)
     return seen
 
 

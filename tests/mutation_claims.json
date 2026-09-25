@@ -3420,7 +3420,7 @@
     },
     {
       "id": "mcpsdk-an-absent-client-is-its-own-denial",
-      "path": "agent_runtime/mcp_admission.py",
+      "path": "agent_runtime/mcp_admission/registration.py",
       "symbol": "admit_mcp_servers",
       "operator": "never-blame-the-runtime",
       "find": "    sdk_missing = bool(missed) and register is None and not mcp_sdk_available()",
@@ -3435,7 +3435,7 @@
     },
     {
       "id": "mcpsdk-the-probe-reads-the-flag",
-      "path": "agent_runtime/mcp_admission.py",
+      "path": "agent_runtime/mcp_admission/transport.py",
       "symbol": "mcp_sdk_available",
       "operator": "assume-the-sdk-is-there",
       "find": "    return bool(_MCP_AVAILABLE)",

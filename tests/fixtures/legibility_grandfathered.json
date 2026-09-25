@@ -33,12 +33,12 @@
   {
    "depth": 1,
    "lines": 198,
-   "unit": "agent_runtime/mcp_admission.py|admit_mcp_servers"
+   "unit": "agent_runtime/mcp_admission/registration.py|admit_mcp_servers"
   },
   {
    "depth": 2,
    "lines": 157,
-   "unit": "agent_runtime/mcp_admission.py|resolve_mcp_admission"
+   "unit": "agent_runtime/mcp_admission/resolve.py|resolve_mcp_admission"
   },
   {
    "depth": 1,

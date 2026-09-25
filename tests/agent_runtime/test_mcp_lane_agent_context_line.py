@@ -38,6 +38,7 @@ from agent_runtime.mcp_lane import (
     set_entry_point_lane,
 )
 from tests.agent_runtime.persona_samples import sample_personas
+from tests._downstream.split_package_source import patch_where_bound
 
 
 def _persona(persona_id: str):
@@ -237,7 +238,7 @@ def test_the_flag_off_line_costs_no_root_config_load_and_no_profile_read(monkeyp
     def _never_profile(*_args, **_kwargs):
         raise AssertionError("the flag-off path must not read the persona profile")
 
-    monkeypatch.setattr(mcp_admission, "resolve_mcp_admission", _never_config)
+    patch_where_bound(monkeypatch, mcp_admission, "resolve_mcp_admission", _never_config)
     monkeypatch.setattr(persona_runtime, "resolve_mcp_admission", _never_config)
     monkeypatch.setattr(parse_cache, "cached_yaml_file", _never_profile)
     monkeypatch.setattr(profile_context, "resolve_persona_profile", _never_profile)

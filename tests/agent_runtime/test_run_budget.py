@@ -60,6 +60,7 @@ from agent_runtime.run_budget import (
     RunBudgetTripReason,
 )
 from agent_runtime.turn_budget import TurnWallBudget
+from tests._downstream.split_package_source import patch_where_bound
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────
@@ -521,7 +522,7 @@ def test_mcp_untripped_dispatches_and_shows_headroom(monkeypatch, clean_registry
     import agent_runtime.mcp_admission as mcp_admission
 
     stub = _StubTools(clean_registry)
-    monkeypatch.setattr(mcp_admission, "_default_registrar", stub.register)
+    patch_where_bound(monkeypatch, mcp_admission, "_default_registrar", stub.register)
 
     result = _run(
         _dispatching_agent(stub, "get_buttons", 3),
@@ -544,7 +545,7 @@ def test_mcp_tripped_refuses_the_call_and_still_lands_the_turn(monkeypatch, clea
     import agent_runtime.mcp_admission as mcp_admission
 
     stub = _StubTools(clean_registry)
-    monkeypatch.setattr(mcp_admission, "_default_registrar", stub.register)
+    patch_where_bound(monkeypatch, mcp_admission, "_default_registrar", stub.register)
     events: list[dict] = []
 
     result = _run(
@@ -576,7 +577,7 @@ def test_the_refusal_envelope_is_unchanged(monkeypatch, clean_registry):
     import agent_runtime.mcp_admission as mcp_admission
 
     stub = _StubTools(clean_registry)
-    monkeypatch.setattr(mcp_admission, "_default_registrar", stub.register)
+    patch_where_bound(monkeypatch, mcp_admission, "_default_registrar", stub.register)
     refusals: list[dict] = []
 
     class _Capturing(_Agent):

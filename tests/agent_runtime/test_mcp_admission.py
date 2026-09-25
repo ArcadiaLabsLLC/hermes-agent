@@ -1486,7 +1486,10 @@ def test_no_admission_code_branches_on_an_elapsed_millisecond_count():
 
     from agent_runtime import mcp_admission
 
-    source = pathlib.Path(mcp_admission.__file__).read_text(encoding="utf-8")
+    from tests._downstream.split_package_source import package_source
+
+    # Every module of the package, read as one text (lane B4 split the file).
+    source = package_source(mcp_admission)
     tree = ast.parse(source)
     offenders = []
     for node in ast.walk(tree):
