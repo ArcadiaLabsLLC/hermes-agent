@@ -16,7 +16,7 @@ from agent_runtime.profile_runner.tool_payloads import (
 )
 from agent_runtime.profile_runner.operator_redaction import _is_error_result
 
-__layer__ = "policy"
+__layer__ = "stores"
 
 __all__ = [
     "_progress_adapter",

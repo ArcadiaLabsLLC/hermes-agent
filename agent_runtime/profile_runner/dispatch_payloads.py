@@ -10,7 +10,7 @@ import re
 
 from agent_runtime.profile_runner.operator_redaction import _line_has_secret
 
-__layer__ = "policy"
+__layer__ = "stores"
 
 __all__ = [
     "_DISPATCH_ID_RE",

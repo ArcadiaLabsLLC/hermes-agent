@@ -18,11 +18,11 @@ models                     models  ``AgentRunRequest``, ``AgentRunResult``
 toolsets                   policy  blocked tools, enabled toolsets
 budget                     policy  wall budget, tool guard, result budgets
 status                     policy  timing, status callback, profile binding
-progress                   policy  callback -> progress payloads
-dispatch_payloads          policy  agent-chat dispatch payload fields
-tool_payloads              policy  tool/dev-work/todo payloads, safe labels
 operator_redaction         policy  the operator-facing scrubbers
 workdir                    stores  working directory, in-flight census
+tool_payloads              stores  tool/dev-work/todo payloads, safe labels
+dispatch_payloads          stores  dispatch payload fields (reads a persona label)
+progress                   stores  callback -> progress payloads
 runtime_resolve            stores  per-request runtime resolution memo
 model_input_observability  stores  compaction and model-input receipts
 resident_actor             lanes   the resident chat actor around a run

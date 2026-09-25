@@ -28,7 +28,7 @@ from agent_runtime.profile_runner.operator_redaction import (
     _safe_tool_result_detail,
 )
 
-__layer__ = "policy"
+__layer__ = "stores"
 
 __all__ = [
     "_PATCH_MODES",
