@@ -8,8 +8,8 @@
   "wiring"
  ],
  "private_upstream_imports": [
-  "agent/charsheet/pipeline.py|agent.pet.generate.atlas|_clear_transparent_rgb",
-  "agent/charsheet/pipeline.py|agent.pet.generate.atlas|_fit_to_cell",
+  "agent/charsheet/_upstream_doors.py|agent.pet.generate.atlas|_clear_transparent_rgb",
+  "agent/charsheet/_upstream_doors.py|agent.pet.generate.atlas|_fit_to_cell",
   "agent/charsheet/prompts.py|agent.pet.generate.prompts|_ASSUMED_STRIP_WIDTH",
   "agent/charsheet/prompts.py|agent.pet.generate.prompts|_BACKGROUND",
   "agent/charsheet/prompts.py|agent.pet.generate.prompts|_spacing_spec",
@@ -78,7 +78,6 @@
   "agent/charsheet/errors.py",
   "agent/charsheet/fake_draftsman.py",
   "agent/charsheet/palette.py",
-  "agent/charsheet/pipeline.py",
   "agent/charsheet/prompts.py",
   "agent/charsheet/revisions.py",
   "agent/charsheet/spec.py",

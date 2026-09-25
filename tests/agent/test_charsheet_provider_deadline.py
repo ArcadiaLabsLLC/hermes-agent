@@ -36,7 +36,7 @@ def test_a_provider_that_never_answers_is_refused_within_the_deadline(monkeypatc
         return []
 
     monkeypatch.setattr(pipeline.imagegen, "generate", _never_returns)
-    monkeypatch.setattr(pipeline, "provider_timeout_seconds", lambda: 0.3)
+    monkeypatch.setattr(pipeline.provider, "provider_timeout_seconds", lambda: 0.3)
 
     started = time.monotonic()
     try:
@@ -76,7 +76,7 @@ def test_the_providers_own_failure_still_reaches_the_caller(monkeypatch):
         raise _Boom("no image backend configured")
 
     monkeypatch.setattr(pipeline.imagegen, "generate", _explodes)
-    monkeypatch.setattr(pipeline, "provider_timeout_seconds", lambda: 5.0)
+    monkeypatch.setattr(pipeline.provider, "provider_timeout_seconds", lambda: 5.0)
 
     with pytest.raises(_Boom, match="no image backend configured"):
         pipeline._generate_image(
@@ -99,7 +99,7 @@ def test_a_non_positive_budget_runs_the_call_inline_on_this_thread(monkeypatch):
         return ["/tmp/whatever.png"]
 
     monkeypatch.setattr(pipeline.imagegen, "generate", _records)
-    monkeypatch.setattr(pipeline, "provider_timeout_seconds", lambda: 0.0)
+    monkeypatch.setattr(pipeline.provider, "provider_timeout_seconds", lambda: 0.0)
 
     result = pipeline._generate_image(
         "draw a knight",
@@ -114,7 +114,7 @@ def test_a_non_positive_budget_runs_the_call_inline_on_this_thread(monkeypatch):
 
 def test_an_empty_answer_is_still_the_no_image_refusal_it_always_was(monkeypatch):
     monkeypatch.setattr(pipeline.imagegen, "generate", lambda prompt, **kwargs: [])
-    monkeypatch.setattr(pipeline, "provider_timeout_seconds", lambda: 5.0)
+    monkeypatch.setattr(pipeline.provider, "provider_timeout_seconds", lambda: 5.0)
 
     with pytest.raises(ValueError, match="returned no image"):
         pipeline._generate_image(

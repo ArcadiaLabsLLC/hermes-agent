@@ -124,7 +124,7 @@ def home(tmp_path, monkeypatch):
 @pytest.fixture
 def fake(tmp_path, monkeypatch):
     provider = draftsman(tmp_path / "generated")
-    monkeypatch.setattr(pipeline, "_generate_image", provider)
+    monkeypatch.setattr(pipeline.provider, "_generate_image", provider)
     return provider
 
 
@@ -145,7 +145,7 @@ def _installed(tmp_path_factory):
     root = tmp_path_factory.mktemp("installed")
     with pytest.MonkeyPatch.context() as patch:
         patch.setenv("HERMES_HOME", str(root / "home"))
-        patch.setattr(pipeline, "_generate_image", draftsman(root / "generated"))
+        patch.setattr(pipeline.provider, "_generate_image", draftsman(root / "generated"))
         draft = run_to_composed(write_base(root / "src"))
         return {"home": root / "home", "id": draft.id, "slug": draft.slug}
 
@@ -424,7 +424,7 @@ def test_a_second_generation_on_one_draft_is_refused_rather_than_interleaved(
             assert not worker.is_alive(), "the second writer blocked instead of refusing"
         return fake(prompt, **kwargs)
 
-    monkeypatch.setattr(pipeline, "_generate_image", _racing)
+    monkeypatch.setattr(pipeline.provider, "_generate_image", _racing)
     draft.run_rows()
 
     assert arrived, "the first batch never reached the provider"

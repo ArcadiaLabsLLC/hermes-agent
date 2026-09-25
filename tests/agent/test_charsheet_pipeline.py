@@ -105,7 +105,7 @@ class FakeProvider(FakeDraftsman):
 def fake(tmp_path, monkeypatch):
     """The seam, replaced. Returns the recorder so tests can read its calls."""
     provider = FakeProvider(tmp_path / "generated")
-    monkeypatch.setattr(pipeline, "_generate_image", provider)
+    monkeypatch.setattr(pipeline.provider, "_generate_image", provider)
     return provider
 
 
@@ -127,7 +127,7 @@ def built(tmp_path_factory, base_image):
     root = tmp_path_factory.mktemp("built")
     provider = FakeProvider(root / "generated")
     with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(pipeline, "_generate_image", provider)
+        patch.setattr(pipeline.provider, "_generate_image", provider)
         refs = pipeline.generate_turnaround(
             SPEC, "an arrow knight", base_image, out_dir=root / "turnaround"
         )
@@ -547,7 +547,7 @@ def test_a_turnaround_strip_that_cannot_be_cut_into_the_authored_directions_is_r
         strip_image([(direction, 0, 1) for direction in order[:-1]]).save(path, format="PNG")
         return path
 
-    monkeypatch.setattr(pipeline, "_generate_image", _one_pose_short)
+    monkeypatch.setattr(pipeline.provider, "_generate_image", _one_pose_short)
 
     with pytest.raises(ValueError) as caught:
         pipeline.generate_turnaround(
@@ -624,7 +624,7 @@ def test_the_diagonal_view_language_pairs_are_exact_left_right_mirrors():
 
 def test_a_row_whose_poses_touch_is_re_rolled_rather_than_accepted(monkeypatch, refs, tmp_path, base_image):
     provider = FakeProvider(tmp_path / "retry", mode="touching-once")
-    monkeypatch.setattr(pipeline, "_generate_image", provider)
+    monkeypatch.setattr(pipeline.provider, "_generate_image", provider)
     row = SPEC.row_by_key("walk-e")
 
     accepted = pipeline.generate_row_strip(
@@ -637,7 +637,7 @@ def test_a_row_whose_poses_touch_is_re_rolled_rather_than_accepted(monkeypatch, 
 
 def test_a_row_that_never_becomes_sliceable_fails_loudly(monkeypatch, refs, tmp_path):
     provider = FakeProvider(tmp_path / "blank", mode="blank")
-    monkeypatch.setattr(pipeline, "_generate_image", provider)
+    monkeypatch.setattr(pipeline.provider, "_generate_image", provider)
     row = SPEC.row_by_key("walk-e")
 
     with pytest.raises(ValueError, match="produced no sliceable strip"):

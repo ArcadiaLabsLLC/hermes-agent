@@ -3555,7 +3555,7 @@
     },
     {
       "id": "longrun-provider-deadline-never-refuses",
-      "path": "agent/charsheet/pipeline.py",
+      "path": "agent/charsheet/pipeline/provider.py",
       "symbol": "_within_deadline",
       "operator": "never-notice-the-abandoned-call",
       "find": "    if worker.is_alive():",
@@ -4339,7 +4339,7 @@
     },
     {
       "id": "ph-draftsman-seam-never-honoured",
-      "path": "agent/charsheet/pipeline.py",
+      "path": "agent/charsheet/pipeline/provider.py",
       "symbol": "_draftsman",
       "operator": "ignore-the-declared-seam",
       "find": "    fake = draftsman_from_env()\n    return _generate_image if fake is None else fake",
@@ -4355,7 +4355,7 @@
     },
     {
       "id": "ph-draftsman-resolved-once-per-process",
-      "path": "agent/charsheet/pipeline.py",
+      "path": "agent/charsheet/pipeline/provider.py",
       "symbol": "_draftsman",
       "operator": "resolve-at-import-time",
       "find": "def _draftsman():",

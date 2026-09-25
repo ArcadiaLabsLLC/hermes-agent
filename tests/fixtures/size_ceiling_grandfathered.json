@@ -3,7 +3,6 @@
  "counter": "code lines: non-blank, not '#'-led, docstrings count (ruling Q1)",
  "files": {
   "agent/charsheet/draft.py": 1600,
-  "agent/charsheet/pipeline.py": 1898,
   "agent_runtime/dispatch_delivery.py": 1311,
   "agent_runtime/mcp_admission.py": 1452,
   "agent_runtime/operator_channels.py": 1394,
