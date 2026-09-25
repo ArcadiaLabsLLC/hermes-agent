@@ -19,7 +19,6 @@ __all__ = [
     "PersonaAssignmentScan",
     "PersonaInstanceScan",
     "PersonaScanRefusal",
-    "reset_unreadable_instance_rows",
     "_note_unreadable_instance_row",
     "_session_presence_probe",
     "_unreadable_instance_lock",
@@ -55,19 +54,6 @@ def _note_unreadable_instance_row(row_path: Path) -> bool:
         _unreadable_instance_rows.add(key)
         return True
 
-
-def reset_unreadable_instance_rows() -> None:
-    """Forget the re-mint history, as a fresh process would. Tests only.
-
-    Same shape and same reason as ``core_cache.reset_process_state``: a property
-    of the PROCESS has to be resettable for a test to exercise a second
-    process's behaviour without spawning one — and, here, so that one case's
-    corrupt row cannot silence the next case's first legitimate repair when the
-    two happen to resolve the same path.
-    """
-
-    with _unreadable_instance_lock:
-        _unreadable_instance_rows.clear()
 
 
 class PersonaInstanceScan(NamedTuple):

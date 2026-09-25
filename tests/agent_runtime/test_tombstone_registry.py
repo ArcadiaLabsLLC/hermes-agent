@@ -3549,6 +3549,19 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "_cmd_gateway_peers_revoke",
         scope=HARNESS_NAMESPACE,
     ),
+    *rows(
+        # Lane R1 (god-file program Wave 2, 2026-09-25): dead-code queue row
+        # `reset_unreadable_instance_rows`, sheet
+        # god-file-layout-sheets/persona_assignments.md §5 (TEST SEAM).
+        "s-r1",
+        "HEAD",
+        Form.CODE,
+        "a tests-only reset of the process-wide unreadable-row ledger with no "
+        "production caller; it lives in tests/_downstream/_seams.py and reaches "
+        "into persona_assignments.scan the same way",
+        "reset_unreadable_instance_rows",
+        scope=_AR,
+    ),
 )
 
 

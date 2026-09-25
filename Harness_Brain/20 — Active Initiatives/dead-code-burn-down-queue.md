@@ -18,7 +18,6 @@ Row grammar: `- [ ] **symbol** · file · lines · class · evidence · lane`. C
 ## First instalment — filed 2026-09-24 by lane GOD-D (census over the 62 files; struck: 24 `@method`-registered `serve_rpc` handlers, false positives by construction)
 
 - [ ] **`fingerprint_home_capture`, `iter_fingerprint_paths`, `BUILD_SELF_PERTURBED_CLASSES`** · `agent_runtime/core_cache.py` · 23 + 5 + 5 · TEST SEAM · the `core-cache-home-capture-timing.md` instrument; 0 production callers, 2–3 test files each · R3
-- [ ] **`reset_unreadable_instance_rows`** · `agent_runtime/persona_assignments.py` · 12 · TEST SEAM · 0 production, 1 test · R1
 - [ ] **`reset_runtime_resolve_cache`** · `agent_runtime/profile_runner.py` · 5 · TEST SEAM · 0 production, 2 tests · R3
 - [ ] **`hud_field`, `volatile_hud_keys`** · `agent_runtime/runtime_hud.py` · 4 + 4 · TEST SEAM · 0 production, 2 tests each · R2
 - [ ] **`active_workspace_lifts`** · `agent_runtime/store.py` · 4 · TEST SEAM · 0 production, 1 test · R1

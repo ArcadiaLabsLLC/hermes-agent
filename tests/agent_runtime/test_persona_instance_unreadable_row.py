@@ -35,6 +35,7 @@ import pytest
 from agent_runtime import paths, persona_assignments
 from agent_runtime.events import EventLog
 from agent_runtime.models import AgentPersona
+from tests._downstream._seams import reset_unreadable_instance_rows
 from agent_runtime.persona_assignments import (
     PersonaInstanceStore,
     persona_instance_id_for,
@@ -47,9 +48,9 @@ pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 def fresh_remint_history():
     """Every case starts as a process that has repaired nothing."""
 
-    persona_assignments.reset_unreadable_instance_rows()
+    reset_unreadable_instance_rows()
     yield
-    persona_assignments.reset_unreadable_instance_rows()
+    reset_unreadable_instance_rows()
 
 
 def _persona(persona_id: str = "dev", *, role: str = "dev") -> AgentPersona:

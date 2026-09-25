@@ -114,7 +114,6 @@ from agent_runtime.persona_assignments.scan import (
     PersonaAssignmentScan,
     PersonaInstanceScan,
     PersonaScanRefusal,
-    reset_unreadable_instance_rows,
 )
 
 from agent_runtime.persona_assignments.retire import (
@@ -177,7 +176,6 @@ __all__ = [
     "PersonaInstanceStore",
     "personas_equal",
     "PersonaScanRefusal",
-    "reset_unreadable_instance_rows",
     "resolve_default_chat_session_id_for_instance",
     "resolve_tool_visibility",
     "retire_receipt_path",
