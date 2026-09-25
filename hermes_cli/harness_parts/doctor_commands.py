@@ -6,9 +6,15 @@ Separate because the doctor reads every store and writes repairs only under
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from enum import Enum, auto
+from types import MappingProxyType
+from typing import Final
+
 from agent_runtime.cli_format import emit_json
 from agent_runtime.harness_doctor import (
     DEFAULT_WORKTREE_MIN_AGE_SECONDS,
+    HEALTH_UNKNOWN,
     doctor_detail_sources,
     run_harness_doctor,
 )
@@ -18,13 +24,61 @@ from hermes_cli.harness_support import ERROR_EXIT_CODES
 
 __layer__ = "lanes"
 __all__ = [
+    "DoctorMode",
     "_cmd_doctor",
+    "doctor_mode",
 ]
+
+
+class DoctorMode(Enum):
+    """What one ``harness doctor`` invocation is allowed to do, resolved ONCE from its flags."""
+
+    #: No ``--fix``: examine and report, repair nothing.
+    REPORT = auto()
+    #: ``--fix --dry-run``: report the repairs that would run.
+    DRY_RUN = auto()
+    #: ``--fix --yes``: apply the repairs.
+    FIX = auto()
+    #: ``--fix`` alone: refused — a repair needs ``--yes`` (or ``--dry-run`` to preview).
+    UNCONFIRMED = auto()
+
+
+#: ``(--fix, --dry-run, --yes)`` -> mode: every combination, so an unlisted one is
+#: a KeyError at the table rather than a silent fall-through.
+_DOCTOR_MODES: Final[Mapping[tuple[bool, bool, bool], DoctorMode]] = MappingProxyType(
+    {
+        (False, False, False): DoctorMode.REPORT,
+        (False, False, True): DoctorMode.REPORT,
+        (False, True, False): DoctorMode.REPORT,
+        (False, True, True): DoctorMode.REPORT,
+        (True, True, False): DoctorMode.DRY_RUN,
+        (True, True, True): DoctorMode.DRY_RUN,
+        (True, False, True): DoctorMode.FIX,
+        (True, False, False): DoctorMode.UNCONFIRMED,
+    }
+)
+
+#: The human ``repairs:`` line each mode prints (None: no line).
+_REPAIRS_LINE: Final[Mapping[DoctorMode, str | None]] = MappingProxyType(
+    {DoctorMode.REPORT: None, DoctorMode.DRY_RUN: "dry run", DoctorMode.FIX: "applied"}
+)
+
+
+def doctor_mode(args) -> DoctorMode:
+    """The one place ``--fix`` / ``--dry-run`` / ``--yes`` are read together."""
+    return _DOCTOR_MODES[
+        (
+            bool(getattr(args, "fix", False)),
+            bool(getattr(args, "dry_run", False)),
+            bool(getattr(args, "yes", False)),
+        )
+    ]
 
 
 def _cmd_doctor(args) -> int:
     resolution = resolve_runtime()
-    if getattr(args, "fix", False) and not getattr(args, "dry_run", False) and not getattr(args, "yes", False):
+    mode = doctor_mode(args)
+    if mode is DoctorMode.UNCONFIRMED:
         data = {
             "ok": False,
             "error": "confirmation_required",
@@ -113,7 +167,7 @@ def _cmd_doctor(args) -> int:
             source = detail_sources.get(name)
             detail = source.get("error") if isinstance(source, dict) else None
             print(f"  {name}: {health}" + (f" ({detail})" if detail else ""))
-        if event_log.get("health") == "unknown":
+        if event_log.get("health") == HEALTH_UNKNOWN:
             print(f"event log: unknown ({event_log.get('error') or 'unreadable'})")
         else:
             print(
@@ -167,7 +221,7 @@ def _cmd_doctor(args) -> int:
             )
         for notice in (hygiene.get("model_authority") or {}).get("notices") or []:
             print(f"model authority: {notice}")
-        if getattr(args, "fix", False):
-            mode = "dry run" if getattr(args, "dry_run", False) else "applied"
-            print(f"repairs: {mode}")
+        repairs = _REPAIRS_LINE[mode]
+        if repairs is not None:
+            print(f"repairs: {repairs}")
     return 0

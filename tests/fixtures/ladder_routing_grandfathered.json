@@ -367,10 +367,6 @@
   },
   {
    "arms": 1,
-   "site": "hermes_cli/harness_parts/doctor_commands.py|_cmd_doctor|vocab|unknown"
-  },
-  {
-   "arms": 1,
    "site": "hermes_cli/harness_parts/gateway_commands.py|cmd_gateway_introduce|vocab|unknown"
   },
   {
