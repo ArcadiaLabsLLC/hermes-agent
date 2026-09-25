@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from agent_runtime.cli_format import emit_json
+from agent_runtime.clock import parse_iso
 from agent_runtime.root_observability import attach_root_observability
 
 from .detect import (
@@ -20,7 +21,6 @@ from .detect import (
 from .lanes import _fetch_usage_lanes
 from .serialize import (
     _empty_usage_envelope,
-    _parse_usage_iso,
     _stamp_usage_degraded,
     _unavailable_usage_lane,
     _usage_lanes_suppressed,
@@ -129,7 +129,7 @@ def _render_account_usage_human(payload: dict) -> None:
             AccountUsageWindow(
                 label=w.get("label"),
                 used_percent=w.get("used_percent"),
-                reset_at=_parse_usage_iso(w.get("reset_at")),
+                reset_at=parse_iso(w.get("reset_at")),
                 detail=w.get("detail"),
             )
             for w in lane.get("windows") or []

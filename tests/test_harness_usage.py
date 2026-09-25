@@ -44,6 +44,12 @@ def _snapshot(provider="openai-codex"):
     )
 
 
+def _wire_instant(stamp):
+    """A wire stamp as an aware instant, after proving it is a UTC ``Z`` stamp."""
+    assert isinstance(stamp, str) and stamp.endswith("Z"), stamp
+    return datetime.fromisoformat(stamp[:-1] + "+00:00")
+
+
 def test_usage_codex_logged_in_active(monkeypatch):
     monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: "openai-codex")
     monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: p == "openai-codex")
@@ -65,16 +71,19 @@ def test_usage_codex_logged_in_active(monkeypatch):
     assert lane["available"] is True
     assert lane["plan"] == "Pro"
     assert lane["source"] == "usage_api"
-    assert lane["fetched_at"] == "2026-07-23T12:34:56+00:00"
+    # The wire stamp is a RELATIONSHIP, not a spelling: UTC, Z-suffixed (what the
+    # fork's one normalizer writes and the launcher's DateTime.tryParse reads),
+    # and the same instant the snapshot carried.
+    assert _wire_instant(lane["fetched_at"]) == datetime(2026, 7, 23, 12, 34, 56, tzinfo=timezone.utc)
     assert lane["unavailable_reason"] is None
 
     session, weekly = lane["windows"]
     assert session["label"] == "Session"
     assert session["used_percent"] == 15.0
-    assert session["reset_at"] == "2026-07-23T15:00:00+00:00"
+    assert _wire_instant(session["reset_at"]) == datetime(2026, 7, 23, 15, 0, 0, tzinfo=timezone.utc)
     assert session["detail"] is None
     assert weekly["label"] == "Weekly"
-    assert weekly["reset_at"] == "2026-07-27T00:00:00+00:00"
+    assert _wire_instant(weekly["reset_at"]) == datetime(2026, 7, 27, 0, 0, 0, tzinfo=timezone.utc)
     assert lane["details"] == ["Credits balance: $12.50"]
 
 
