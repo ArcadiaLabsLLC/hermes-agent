@@ -126,6 +126,12 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 - [ ] **`gateway_peers._emit_peer_event` cannot fold onto `store_events.emit_store_event`: the helper drops None-valued keys, the peer reachability event sends `"unreachable_since": None` — two event emitters, two None rules** · `fork / runtime` · decide the one rule (a typed absent-marker, or None preserved) and fold; until then every future emitter fold has to check this first · evidence: B2 gateway_peers CHANGE body · filed by lane B2 2026-09-25 **UNCLAIMED**
 
 
+### Filed on arrival — 2026-09-25 (lane B3)
+
+- [ ] **`persona_chat_history.history_rows._canonical_persona_id` is a pure spelling function read PRIVATELY by five modules in three packages (`operator_channels/{instances,summary}`, `snapshot/warnings`, `persona_chat_history/{summary,trace}`), and because it lives in a stores module every policy-shaped reader is pinned at `stores`** · `fork / runtime` · hoist it to `persona_chat_history/vocabulary.py` under a public name (not `canonical_persona_id` — `personas.canonical_persona_id` is a different alias rule) and retarget the five readers; `operator_channels/instances` and `summary` then declare `policy` · evidence: lane B3 operator_channels MOVE/CHANGE bodies · filed by lane B3 2026-09-25 **UNCLAIMED**
+- [ ] **The delivery drain's decision seams (`_sender_is_idle`, `_sender_persona`) are module globals the tests override BY NAME, and after the split they are bound in three modules (`forge`, `drain`, `completions`) plus the package** · `fork / runtime` · `DispatchDrain` / `BackgroundDrain` now exist: give them one injected `DrainPolicy(sender_is_idle, sender_persona)` defaulting to the real functions, have the tests pass a policy, and retire `tests/_downstream/delivery_seams.patch_delivery_seam` (which patches every binder, enumerated, as the stop-gap) · evidence: lane B3 dispatch_delivery MOVE body (17 patch sites; one status test would have passed vacuously) · filed by lane B3 2026-09-25 **UNCLAIMED**
+
+
 ## Seams — fork edits inside upstream files (additive only)
 
 ### Filed on arrival — 2026-09-25 (lane 2B-B)
