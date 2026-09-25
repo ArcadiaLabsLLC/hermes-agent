@@ -287,6 +287,24 @@ class SessionManager:
         if state is not None:
             self._persist(state)
 
+    def peek_session(self, session_id: str) -> Optional[SessionState]:
+        """A read capability never restores or creates an agent implicitly."""
+        with self._lock:
+            return self._sessions.get(session_id)
+
+    def skill_history(self, session_id: str) -> tuple[list[dict], bool]:
+        """Use the transcript owner, including compacted lineage; no second usage store."""
+        state = self.peek_session(session_id)
+        if state is None:
+            return [], False
+        db = self._get_db()
+        if db is not None:
+            current_id = getattr(state.agent, "session_id", None) or session_id
+            if db.get_session(current_id) is not None:
+                _model, display = db.get_resume_conversations(current_id)
+                return display, True
+        return list(state.history), not bool(state.history)
+
     # ---- persistence via SessionDB ------------------------------------------
 
     def _install_state(self, session_id: str, agent: Any, cwd: str, model: str,
