@@ -259,7 +259,7 @@ def test_a_two_frame_budget_has_room_for_the_stale_core(
 #: could be present in a comment or a docstring.
 _PRODUCTION_CALL_SITES = (
     ("hermes_cli/harness_parts/runtime_commands.py", "_cmd_stream"),
-    ("hermes_cli/harness_parts/serve.py", "_stream_source"),
+    ("hermes_cli/harness_parts/serve/loop.py", "_stream_source"),
 )
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]

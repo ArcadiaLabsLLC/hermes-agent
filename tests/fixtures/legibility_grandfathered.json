@@ -408,27 +408,27 @@
   {
    "depth": 4,
    "lines": 194,
-   "unit": "hermes_cli/harness_parts/serve.py|_cmd_serve_connect"
+   "unit": "hermes_cli/harness_parts/serve/commands.py|_cmd_serve_connect"
   },
   {
    "depth": 0,
    "lines": 181,
-   "unit": "hermes_cli/harness_parts/serve.py|_gateway_authenticator"
+   "unit": "hermes_cli/harness_parts/serve/gateway_listener.py|_gateway_authenticator"
   },
   {
    "depth": 6,
    "lines": 3760,
-   "unit": "hermes_cli/harness_parts/serve.py|serve_loop"
+   "unit": "hermes_cli/harness_parts/serve/loop.py|serve_loop"
   },
   {
    "depth": 4,
    "lines": 856,
-   "unit": "hermes_cli/harness_parts/serve.py|serve_loop._handle_message"
+   "unit": "hermes_cli/harness_parts/serve/loop.py|serve_loop._handle_message"
   },
   {
    "depth": 5,
    "lines": 207,
-   "unit": "hermes_cli/harness_parts/serve.py|serve_loop._run"
+   "unit": "hermes_cli/harness_parts/serve/loop.py|serve_loop._run"
   },
   {
    "depth": 4,

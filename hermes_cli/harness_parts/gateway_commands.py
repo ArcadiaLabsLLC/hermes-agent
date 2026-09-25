@@ -264,7 +264,7 @@ def _endpoint(store_root) -> dict[str, Any]:
 
     from agent_runtime.serve_socket import read_socket_owner
 
-    from hermes_cli.harness_parts.serve import gateway_listen_config
+    from hermes_cli.harness_parts.serve.gateway_listener import gateway_listen_config
 
     try:
         owner = read_socket_owner(store_root) or {}

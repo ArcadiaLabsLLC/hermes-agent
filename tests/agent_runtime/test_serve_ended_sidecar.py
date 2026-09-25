@@ -481,9 +481,9 @@ def test_the_serve_entry_point_turns_the_recorder_on(tmp_path: Path) -> None:
     import ast
     import inspect
 
-    from hermes_cli.harness_parts import serve as serve_module
+    from hermes_cli.harness_parts.serve import commands as serve_commands
 
-    tree = ast.parse(inspect.getsource(serve_module))
+    tree = ast.parse(inspect.getsource(serve_commands))
     body = next(
         node
         for node in ast.walk(tree)

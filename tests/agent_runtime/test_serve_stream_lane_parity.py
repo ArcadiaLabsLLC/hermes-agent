@@ -91,7 +91,13 @@ from tests.agent_runtime.test_stream_contract_fixture import FIXTURES, _shape_dr
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GENERATOR = REPO_ROOT / "scripts" / "generate_agent_runtime_stream_fixtures.py"
-SERVE_SOURCE = Path(serve_module.__file__)
+SERVE_PACKAGE = Path(serve_module.__file__).parent
+
+
+def _serve_source() -> str:
+    """Every module of the serve package, concatenated: the claims below are about the package."""
+
+    return "".join(p.read_text(encoding="utf-8") for p in sorted(SERVE_PACKAGE.glob("*.py")))
 
 #: The declaration BOTH lanes make in this file. It is the launcher's own
 #: shipped set (``kMissionFoldDeclaredEntities``'s first two entries) written the
@@ -440,7 +446,7 @@ def test_no_op_the_dispatcher_answers_is_left_off_the_advertisement():
     Its contract is advertised as ``hello_contract`` on ``server_hello``.
     """
 
-    source = SERVE_SOURCE.read_text(encoding="utf-8")
+    source = _serve_source()
     dispatched = set(re.findall(r'\bop == "([a-z_]+)"', source))
     # Anti-vacuity: the scrape found the real branch table, not zero of it.
     assert {"ping", "subscribe", "version", "shutdown"} <= dispatched
@@ -1185,7 +1191,7 @@ def test_the_serve_producer_still_takes_the_hubs_stop_event():
     scrape above is one: this is a claim about a closure no test can reach.
     """
 
-    source = SERVE_SOURCE.read_text(encoding="utf-8")
+    source = _serve_source()
     assert "def _stream_source(stop" in source, (
         "`_stream_source` no longer accepts the hub's per-generation stop event. "
         "The hub probes BY SIGNATURE and silently falls back to a no-argument "

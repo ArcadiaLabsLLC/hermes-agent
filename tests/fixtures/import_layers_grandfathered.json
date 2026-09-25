@@ -1,7 +1,7 @@
 {
  "harness_imports": [
-  "hermes_cli/harness_parts/serve.py|hermes_cli.harness.build_parser",
-  "hermes_cli/harness_parts/serve.py|hermes_cli.harness.emit_harness_error"
+  "hermes_cli/harness_parts/serve/argv_lane.py|hermes_cli.harness.build_parser",
+  "hermes_cli/harness_parts/serve/argv_lane.py|hermes_cli.harness.emit_harness_error"
  ],
  "layers": [
   "models",
@@ -68,8 +68,8 @@
   "hermes_cli/harness.py|hermes_cli.status|_configured_model_label",
   "hermes_cli/harness.py|hermes_cli.status|_effective_provider_label",
   "hermes_cli/harness.py|hermes_cli.status|_first_env_value",
-  "hermes_cli/harness_parts/serve.py|agent.process_bootstrap|_load_openai_cls",
-  "hermes_cli/harness_parts/serve.py|hermes_cli|_boot_clock",
+  "hermes_cli/harness_parts/serve/boot.py|agent.process_bootstrap|_load_openai_cls",
+  "hermes_cli/harness_parts/serve/boot.py|hermes_cli|_boot_clock",
   "hermes_cli/model_picker_policy.py|hermes_cli.auth_codex|_pool_codex_access_token",
   "hermes_cli/model_picker_policy.py|hermes_cli.auth_codex|_read_codex_tokens",
   "hermes_cli/model_picker_policy.py|hermes_cli.codex_models|_add_context_variants",
@@ -292,7 +292,6 @@
   "agent_runtime/workspace_scope.py",
   "agent_runtime/workspace_template.py",
   "hermes_cli/harness_parts/gateway_commands.py",
-  "hermes_cli/harness_parts/serve.py",
   "plugins/eternia-harness/__init__.py",
   "plugins/eternia-harness/dashboard/plugin_api.py"
  ]

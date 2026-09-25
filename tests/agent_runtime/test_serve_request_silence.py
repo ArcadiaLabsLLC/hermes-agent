@@ -56,6 +56,7 @@ import time
 import pytest
 
 from hermes_cli.harness_parts import serve as serve_module
+from hermes_cli.harness_parts.serve import loop as serve_reader_module
 from hermes_cli.harness_parts.serve import serve_loop
 
 WAIT = 20.0
@@ -161,7 +162,7 @@ def impatient(monkeypatch):
     ``_DRAIN_EXIT_DEADLINE_SECONDS`` uses, and for the same reason.
     """
 
-    monkeypatch.setattr(serve_module, "_REQUEST_SILENCE_SECONDS", 0.05)
+    monkeypatch.setattr(serve_reader_module, "_REQUEST_SILENCE_SECONDS", 0.05)
 
 
 # ── DEFECT A ────────────────────────────────────────────────────────────────

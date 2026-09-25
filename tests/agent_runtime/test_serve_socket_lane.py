@@ -54,6 +54,7 @@ from agent_runtime.serve_socket import (
     verify_hello_proof,
 )
 from hermes_cli.harness_parts import serve as serve_module
+from hermes_cli.harness_parts.serve import loop as serve_reader_module
 from hermes_cli.harness_parts.serve import serve_loop
 
 WAIT = 15.0
@@ -3165,7 +3166,7 @@ def test_drain_progress_reaches_the_SOCKET_client_and_not_only_stdio(monkeypatch
     saw, and that it carries the in-flight request it is reporting about.
     """
 
-    monkeypatch.setattr(serve_module, "_DRAIN_PROGRESS_INTERVAL_SECONDS", 0.05)
+    monkeypatch.setattr(serve_reader_module, "_DRAIN_PROGRESS_INTERVAL_SECONDS", 0.05)
 
     started = threading.Event()
     release = threading.Event()

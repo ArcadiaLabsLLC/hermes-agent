@@ -53,10 +53,10 @@ def hermetic_runtime_root(tmp_path, monkeypatch):
 def gateway_configured(monkeypatch):
     """An operator who has turned the lane on, so the endpoint is answerable."""
 
-    from hermes_cli.harness_parts import serve as serve_module
+    from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
     monkeypatch.setattr(
-        serve_module, "gateway_listen_config", lambda: ("10.0.0.4", 8765)
+        serve_gateway_listener, "gateway_listen_config", lambda: ("10.0.0.4", 8765)
     )
 
 
@@ -164,11 +164,12 @@ def test_peers_pair_refuses_when_a_wildcard_bind_enumerates_no_address(
 
     from agent_runtime.gateway_peers import list_peers
     from agent_runtime.serve_gateway_auth import pairing_store_path
-    from hermes_cli.harness_parts import gateway_commands, serve as serve_module
+    from hermes_cli.harness_parts import gateway_commands
+    from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
     from hermes_cli.harness_parts.gateway_commands import NO_DIAL_HOST_SENTENCE
     from hermes_cli.harness_support import ERROR_EXIT_CODES
 
-    monkeypatch.setattr(serve_module, "gateway_listen_config", lambda: ("::", 8765))
+    monkeypatch.setattr(serve_gateway_listener, "gateway_listen_config", lambda: ("::", 8765))
     monkeypatch.setattr(gateway_commands, "_machine_addresses", lambda: [])
 
     code = _dispatch(["harness", "gateway", "peers", "pair", "--json"])
@@ -249,9 +250,9 @@ def test_pair_states_when_no_listener_is_advertising_the_endpoint(capsys, monkey
     """A code minted against a lane nobody is listening on is still valid, and
     an operator who does not know that will blame the code."""
 
-    from hermes_cli.harness_parts import serve as serve_module
+    from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
-    monkeypatch.setattr(serve_module, "gateway_listen_config", lambda: (None, 0))
+    monkeypatch.setattr(serve_gateway_listener, "gateway_listen_config", lambda: (None, 0))
 
     _code, payload = _run(capsys, "pair")
 

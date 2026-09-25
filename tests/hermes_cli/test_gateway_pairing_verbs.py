@@ -46,10 +46,10 @@ def hermetic_runtime_root(tmp_path, monkeypatch):
 def gateway_configured(monkeypatch):
     """An operator who has turned the lane on, so the endpoint is answerable."""
 
-    from hermes_cli.harness_parts import serve as serve_module
+    from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
     monkeypatch.setattr(
-        serve_module, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
+        serve_gateway_listener, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
     )
 
 
@@ -143,11 +143,11 @@ def test_no_payload_a_pair_writes_can_carry_a_bind_address(capsys, monkeypatch):
     attempt before it reached two machines.
     """
 
-    from hermes_cli.harness_parts import serve as serve_module
+    from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
     for bind in ("0.0.0.0", "::", "*"):
         monkeypatch.setattr(
-            serve_module, "gateway_listen_config", lambda bind=bind: (bind, 8765)
+            serve_gateway_listener, "gateway_listen_config", lambda bind=bind: (bind, 8765)
         )
         _code, payload = _run(capsys, "pair")
         scanned = json.loads(payload["qr_payload"])
@@ -260,9 +260,9 @@ def test_pair_says_so_when_nothing_is_listening_for_the_code(capsys, monkeypatch
     """A code minted against a lane nobody is listening on is still a valid code,
     and an operator who does not know that will blame the code."""
 
-    from hermes_cli.harness_parts import serve as serve_module
+    from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
-    monkeypatch.setattr(serve_module, "gateway_listen_config", lambda: (None, 0))
+    monkeypatch.setattr(serve_gateway_listener, "gateway_listen_config", lambda: (None, 0))
 
     code, payload = _run(capsys, "pair")
 

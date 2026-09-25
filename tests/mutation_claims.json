@@ -3525,7 +3525,7 @@
     },
     {
       "id": "longrun-drain-terminates-over-a-live-generation",
-      "path": "hermes_cli/harness_parts/serve.py",
+      "path": "hermes_cli/harness_parts/serve/loop.py",
       "symbol": "serve_loop._drain_monitor/terminal",
       "operator": "hold-only-for-chat-turns",
       "find": "                        \"terminal\": not (chat_turn_ids or long_run_ids),",
@@ -3540,7 +3540,7 @@
     },
     {
       "id": "longrun-busy-frame-drops-the-long-run-count",
-      "path": "hermes_cli/harness_parts/serve.py",
+      "path": "hermes_cli/harness_parts/serve/loop.py",
       "symbol": "_busy_frame",
       "operator": "zero-the-long-run-count",
       "find": "            long_runs = sum(1 for item in inflight.values() if item.is_long_run)",
@@ -4170,7 +4170,7 @@
     },
     {
       "id": "w5-the-reply-seam-is-not-wired-to-the-pool",
-      "path": "hermes_cli/harness_parts/serve.py",
+      "path": "hermes_cli/harness_parts/serve/loop.py",
       "symbol": "serve_loop/_handle_message spawn_reply wiring",
       "operator": "unwire-seam",
       "find": "                        spawn_reply=_spawn_reply,\n",
@@ -4957,7 +4957,7 @@
     },
     {
       "id": "llama-h-serve-binds-the-adapter",
-      "path": "hermes_cli/harness_parts/serve.py",
+      "path": "hermes_cli/harness_parts/serve/loop.py",
       "symbol": "serve_loop",
       "operator": "weaken-serve",
       "find": "                    bind_local_llama(store_root_path, harness_root_config_path())\n",

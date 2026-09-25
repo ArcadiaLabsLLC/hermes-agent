@@ -150,14 +150,14 @@ LANE_CONTRACT_ALLOWLIST = {
         "not move it. Nothing on the snapshot frame reads it and it never "
         "reaches `parity.contract_version`."
     ),
-    ("serve.py", "OPS_CONTRACT_VERSION"): (
+    ("constants.py", "OPS_CONTRACT_VERSION"): (
         "the serve dispatcher's OP-SURFACE contract (EG-4.1), published under "
         "`ops` on `ready`/`hello_ok`/`version` beside — never inside — the "
         "method manifest. It versions the shape of the ops advertisement "
         "itself ({contract, transport, ops, subscribe_lanes}); adding an op "
         "deliberately does not move it, and nothing on the snapshot frame "
-        "reads it. Lives in hermes_cli/harness_parts/serve.py, where the "
-        "dispatcher lives."
+        "reads it. Lives in hermes_cli/harness_parts/serve/constants.py, "
+        "beside the op vocabulary the dispatcher reads."
     ),
     ("serve_socket.py", "HELLO_CONTRACT_VERSION"): (
         "the socket HELLO HANDSHAKE contract, stamped on every `server_hello` "
@@ -184,7 +184,7 @@ LANE_CONTRACT_ALLOWLIST = {
 LANE_CONTRACT_MODULE_HOMES = {
     "platform_actions.py": "hermes_cli",
     "serve_rpc.py": "agent_runtime",
-    "serve.py": "hermes_cli/harness_parts",
+    "constants.py": "hermes_cli/harness_parts/serve",
     "serve_socket.py": "agent_runtime",
     "contract.py": "agent_runtime/discussions",
 }
@@ -593,7 +593,7 @@ def test_each_lane_contract_is_witnessed_as_an_INDEPENDENT_contract():
     root = _repo_root()
     for (filename, symbol), reason in LANE_CONTRACT_ALLOWLIST.items():
         # An entry's module may live in any scanned root (OPS_CONTRACT_VERSION
-        # lives with the dispatcher in hermes_cli/harness_parts, not in
+        # lives with the dispatcher in hermes_cli/harness_parts/serve, not in
         # agent_runtime), and `restatements` keys on the BARE name — so resolve
         # through the same scan the gate reads, and demand the name is unique
         # across it: a second module with the same basename would let this

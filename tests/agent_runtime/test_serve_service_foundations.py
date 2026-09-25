@@ -700,9 +700,9 @@ def test_cmd_serve_wires_the_process_level_drain_levers():
     import ast
     from pathlib import Path
 
-    import hermes_cli.harness_parts.serve as serve_module
+    from hermes_cli.harness_parts.serve import commands as serve_commands
 
-    tree = ast.parse(Path(serve_module.__file__).read_bytes().decode("utf-8"))
+    tree = ast.parse(Path(serve_commands.__file__).read_bytes().decode("utf-8"))
     keywords: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == "_cmd_serve":

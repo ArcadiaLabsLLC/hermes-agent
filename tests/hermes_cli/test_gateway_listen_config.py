@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import pytest
 
-from hermes_cli.harness_parts import serve as serve_module
-from hermes_cli.harness_parts.serve import gateway_listen_config
+from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
+from hermes_cli.harness_parts.serve.gateway_listener import gateway_listen_config
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ def config(monkeypatch):
     def _install(block):
         state["block"] = block
         monkeypatch.setattr(
-            serve_module,
+            serve_gateway_listener,
             "load_config_readonly",
             lambda: {"remote_gateway": block},
             raising=False,
