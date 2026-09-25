@@ -14,9 +14,9 @@ F821 holds that it imports everything it reads, and W0-G4
 neither execs a part nor re-exports one. A test patches a name on the module
 that looks it up, never on ``hermes_cli.harness``.
 
-``hermes_cli.harness.emit_harness_error`` (still imported that way by
-``harness_parts/serve.py``) keeps resolving because harness.py imports it from
-here and it is on W0-G4's allowlist.
+``hermes_cli.harness.emit_harness_error`` keeps resolving because harness.py
+imports it from here and it is on W0-G4's allowlist; ``harness_parts/serve``
+imports it from here directly.
 """
 
 from __future__ import annotations

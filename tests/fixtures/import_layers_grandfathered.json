@@ -1,8 +1,5 @@
 {
- "harness_imports": [
-  "hermes_cli/harness_parts/serve/argv_lane.py|hermes_cli.harness.build_parser",
-  "hermes_cli/harness_parts/serve/argv_lane.py|hermes_cli.harness.emit_harness_error"
- ],
+ "harness_imports": [],
  "layers": [
   "models",
   "policy",

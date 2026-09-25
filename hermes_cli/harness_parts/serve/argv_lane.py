@@ -7,7 +7,7 @@ from __future__ import annotations
 import argparse
 import threading
 import time
-from typing import Any
+from typing import Any, Callable
 
 from hermes_cli.harness_parts.serve.constants import (
     _CHAT_TURN_COMMANDS,
@@ -17,6 +17,8 @@ from hermes_cli.harness_parts.serve.constants import (
 __layer__ = "lanes"
 
 __all__ = [
+    "HarnessParserUnbound",
+    "bind_harness_parser",
     "ARGV_ROOT",
     "ArgvRootUnsupported",
     "HandlerExit",
@@ -105,15 +107,38 @@ class _ArgvRequest:
         self.progress_monotonic: float | None = None
 
 
+#: The harness parser tree's builder (``hermes_cli.harness.build_parser``),
+#: BOUND by the harness — its ``_cmd_serve`` binds it before a serve runs —
+#: because no harness part may import ``hermes_cli.harness`` (W0-G6): the parser
+#: is the harness's, and the lane only borrows it per request.
+_harness_parser_builder: Callable[[Any], None] | None = None
+
+
+class HarnessParserUnbound(RuntimeError):
+    """``dispatch_argv`` ran before anything bound the harness parser."""
+
+
+def bind_harness_parser(build_parser: Callable[[Any], None]) -> None:
+    """Bind the function that adds the ``harness`` tree to a subparsers action."""
+
+    global _harness_parser_builder
+    _harness_parser_builder = build_parser
+
+
 def _build_harness_parser() -> argparse.ArgumentParser:
     """A fresh top-level parser holding only the harness tree. Built per
     request: cheap next to any handler, and avoids sharing one parser
     across pool threads."""
-    from hermes_cli.harness import build_parser
 
+    builder = _harness_parser_builder
+    if builder is None:
+        raise HarnessParserUnbound(
+            "the serve argv lane has no harness parser; hermes_cli.harness binds it "
+            "(bind_harness_parser) before serving"
+        )
     parser = argparse.ArgumentParser(prog="hermes")
     subparsers = parser.add_subparsers(dest="command")
-    build_parser(subparsers)
+    builder(subparsers)
     return parser
 
 
@@ -202,7 +227,7 @@ def dispatch_argv(argv: list[str]) -> int:
     ``argv_parse_failed``, unchanged — and :class:`HandlerExit` from the
     handler. Only the middle one means "nothing ran".
     """
-    from hermes_cli.harness import emit_harness_error
+    from hermes_cli.harness_support import emit_harness_error
 
     root = argv[0] if argv else ""
     if root != ARGV_ROOT:

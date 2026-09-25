@@ -5,8 +5,9 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any
+from typing import Any, Callable
 
+from hermes_cli.harness_parts.serve.argv_lane import bind_harness_parser
 from hermes_cli.harness_parts.serve.constants import (
     DEFAULT_POOL_SIZE,
 )
@@ -79,7 +80,11 @@ def _claim_protocol_pipes() -> tuple[int, int]:
     return protocol_in, protocol_out
 
 
-def _cmd_serve(args) -> int:
+def _cmd_serve(args, *, harness_parser: Callable[[Any], None] | None = None) -> int:
+    """``hermes harness serve``. *harness_parser* is the harness's parser-tree
+    builder, bound into the argv lane (``hermes_cli.harness`` passes it; a harness
+    part may not import that module — W0-G6)."""
+
     # Started before anything else this command does: everything from process
     # creation up to here is the interpreter + hermes import tax, and it is the
     # single largest term in a cold boot.
@@ -116,6 +121,8 @@ def _cmd_serve(args) -> int:
             )
         )
         return 2
+    if harness_parser is not None:
+        bind_harness_parser(harness_parser)
     protocol_in, protocol_out = _claim_protocol_pipes()
     writer = os.fdopen(protocol_out, "w", encoding="utf-8", newline="\n")
     # Function-local on purpose: this file is exec'd into harness.py's globals.

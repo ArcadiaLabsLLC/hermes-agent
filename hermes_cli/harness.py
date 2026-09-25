@@ -6634,12 +6634,13 @@ def _cmd_doctor(args) -> int:
 def _cmd_serve(args) -> int:
     # Lazy: serve is the process's main loop, owns the sys.stdout/sys.stderr
     # swaps, and every other verb would pay its import weight.
-    from hermes_cli.harness_parts.serve import _cmd_serve as _run_serve
+    from hermes_cli.harness_parts.serve.commands import _cmd_serve as _run_serve
 
-    return _run_serve(args)
+    # The argv lane parses with THIS module's tree; the part may not import it.
+    return _run_serve(args, harness_parser=build_parser)
 
 
 def _cmd_serve_connect(args) -> int:
-    from hermes_cli.harness_parts.serve import _cmd_serve_connect as _run_connect
+    from hermes_cli.harness_parts.serve.commands import _cmd_serve_connect as _run_connect
 
     return _run_connect(args)
