@@ -196,7 +196,7 @@ chat-session override  >  instance override  >  persona default  >  config defau
 ```
 
 The chat-session override persists under `mission_control_chat_model_override`
-(`hermes_cli/harness_parts/persona/chat_session.py::_resolve_chat_model_override`, `agent_runtime/persona_chat_history/vocabulary.py:307`) via
+(`hermes_cli/harness_parts/persona/chat_session.py::_resolve_chat_model_override`, `agent_runtime/persona_chat_history/vocabulary.py:326`) via
 `_resolve_chat_model_override`. Its scope is literally
 `mission_control_chat_session` (`:7085`, inside `_chat_effective_model_payload`) — per-thread,
 not per-instance. Values validate against
