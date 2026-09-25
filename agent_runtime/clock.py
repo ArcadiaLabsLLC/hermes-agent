@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from functools import singledispatch
 
 __layer__ = "models"
-__all__ = ["elapsed_ms", "iso_timestamp", "now_iso", "now_iso_micro", "parse_iso_utc"]
+__all__ = ["elapsed_ms", "iso_timestamp", "now_iso", "now_iso_micro", "parse_iso", "parse_iso_utc"]
 
 
 def elapsed_ms(started: object) -> int | None:
@@ -153,3 +153,31 @@ def _parse_iso_utc_datetime(value: datetime) -> datetime:
 
 def _as_aware(moment: datetime) -> datetime:
     return moment if moment.tzinfo is not None else moment.replace(tzinfo=timezone.utc)
+
+
+def parse_iso(value: object) -> datetime | None:
+    """A stamp AS WRITTEN: a ``datetime`` passes through, an epoch number is read
+    in LOCAL time, an ISO string (``Z`` accepted) keeps whatever offset it
+    carries — naive stays naive. ``None`` when it will not parse.
+
+    NOT :func:`parse_iso_utc`, which forces every answer aware: the operator
+    console orders rows by ``parse_iso(...).isoformat()`` strings, and that key
+    has always been the value as written (lane B3 moved the body here from
+    ``operator_channels._parse_time``; ``running_work`` folds its float form in
+    its own lane).
+    """
+
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        try:
+            return datetime.fromtimestamp(float(value))
+        except (OverflowError, OSError, ValueError):
+            return None
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None

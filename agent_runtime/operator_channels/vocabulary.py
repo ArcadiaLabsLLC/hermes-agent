@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
 from typing import Any
 
+from ..clock import parse_iso
 from ..models import PersonaInstance
 from ..persona_chat_history.vocabulary import (
     PERSONA_TURN_BUDGET_EXHAUSTED_KIND,
@@ -32,6 +32,22 @@ _TOOL_OK_STATUSES = {"passed", "ok", "completed", "success", "succeeded", "done"
 _TOOL_FAILED_STATUSES = {"failed", "error", "blocked", "crashed", "timeout"}
 
 _CHAT_INSTANCE_MODES = {"chat", "free_floating"}
+
+# ── the task trace's status words, by what a progress row renders as ────────
+#
+# The TRACE status vocabulary is the task trace's own; it is declared nowhere
+# else, and several of its words (``done``, ``completed``, ``blocked``,
+# ``failed``) are spelled fork-wide for other questions (``states.py``), so they
+# are named here and read by name, never enum-ised (program batch-1 rule).
+TRACE_HANDOFF_STATUSES = frozenset({"handoff", "ready_for_qa", "next_stage_ready", "backend_join_ready"})
+TRACE_FINAL_STATUSES = frozenset({"done", "completed", "passed", "approved"})
+TRACE_BLOCKER_STATUSES = frozenset({"blocked", "failed", "needs_input"})
+#: A tool_call still waiting for its finish row; ``_SETTLED_TOOL_CALL_STATUS``
+#: below is what a terminally-ended turn settles it to.
+TOOL_CALL_RUNNING = "running"
+#: The message kinds that are conversation FLOW (a channel carrying any is not
+#: an empty channel, whatever the legacy trace lane says).
+FLOW_MESSAGE_KINDS = frozenset({"thinking_summary", "turn", "tool_call"})
 
 # ── terminal turn markers, as the conversation contract renders them ─────────
 #
@@ -115,27 +131,10 @@ def _safe_conversation_list(value: Any, *, limit: int) -> list[str]:
 def _conversation_message_sort_key(message: dict[str, Any]) -> tuple[int, str, str]:
     if message.get("kind") == "goal_input":
         return (0, "", str(message.get("id") or ""))
-    parsed = _parse_time(message.get("timestamp"))
+    parsed = parse_iso(message.get("timestamp"))
     if parsed is not None:
         return (1, parsed.isoformat(), str(message.get("id") or ""))
     return (2, str(message.get("timestamp") or ""), str(message.get("id") or ""))
-
-
-def _parse_time(value: Any) -> datetime | None:
-    if isinstance(value, datetime):
-        return value
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        try:
-            return datetime.fromtimestamp(float(value))
-        except (OverflowError, OSError, ValueError):
-            return None
-    text = str(value or "").strip()
-    if not text:
-        return None
-    try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError:
-        return None
 
 
 def _safe_instance_id(instance: PersonaInstance) -> str | None:
@@ -153,7 +152,7 @@ def _display_name_from_history(history: dict[str, Any] | None) -> str | None:
     return None
 
 
-def _first_text(*values: Any) -> str | None:
+def first_present_text(*values: Any) -> str | None:
     for value in values:
         text = safe_assignment_text(value, limit=240)
         if text:

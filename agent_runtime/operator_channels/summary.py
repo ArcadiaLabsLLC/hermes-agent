@@ -5,25 +5,26 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 from ..models import PersonaInstance
-from ..persona_assignments.identity import persona_instance_id_for
-from ..persona_chat_history.history_rows import _canonical_persona_id
 from ..serde import safe_assignment_text, safe_assignment_token
 
-from .contract import _conversation_contract, _turn_identity_dropped, _turn_identity_mismatched
+from .conversation import _conversation_contract, _turn_identity_dropped, _turn_identity_mismatched
 from .instances import (
-    _canonical_instance,
+    ChannelIdentity,
     _channel_key_for_instance,
     _latest_history,
-    _merged_trace,
     _operator_conversation_relationships,
     _source_instance_ids_conflict,
+    channel_identity,
+    is_dormant_channel,
+    is_newborn_channel,
 )
 from .vocabulary import (
+    FLOW_MESSAGE_KINDS,
     OPERATOR_CHANNELS_SCHEMA_VERSION,
     _display_name_from_history,
-    _first_text,
     _safe_instance_id,
     _safe_session,
+    first_present_text,
 )
 
 __layer__ = "stores"
@@ -191,30 +192,28 @@ class _OperatorChannelBuilder:
         omitted_history_session_ids: set[str] | None = None,
         conversation_relationships: dict[str, tuple[str, str | None]] | None = None,
     ) -> dict[str, Any] | None:
-        history = self._bound_history() or _latest_history(self.history_rows)
-        trace = _merged_trace(self.trace_rows)
-        canonical = _canonical_instance(self.instances, history=history)
-        persona_id = _first_text(
-            getattr(canonical, "persona_id", None) if canonical is not None else None,
-            history.get("persona_id") if history else None,
-            trace.get("persona_id") if trace else None,
-        )
-        persona_id = _canonical_persona_id(persona_id) or persona_id or "unknown"
-        canonical_id = _first_text(
-            getattr(canonical, "id", None) if canonical is not None else None,
-            history.get("persona_instance_id") if history else None,
-            trace.get("persona_instance_id") if trace else None,
-            persona_instance_id_for(persona_id),
-        )
-        session_id = _first_text(
-            history.get("session_id") if history else None,
-            trace.get("session_id") if trace else None,
-            getattr(canonical, "session_id", None) if canonical is not None else None,
-        )
-        if canonical is None and history is None and trace is None:
-            return None
+        """``identity -> sources -> conversation -> warnings -> row``."""
 
-        source_instance_ids = sorted(
+        identity = channel_identity(self)
+        if identity.is_empty:
+            return None
+        source_instance_ids = self._source_instance_ids()
+        conversation = self._conversation(
+            identity,
+            accountant=accountant,
+            display_names=display_names,
+            conversation_relationships=conversation_relationships,
+        )
+        warnings = self._warnings(
+            identity,
+            source_instance_ids,
+            conversation,
+            omitted_history_session_ids=omitted_history_session_ids or set(),
+        )
+        return self._row(identity, source_instance_ids, conversation, warnings)
+
+    def _source_instance_ids(self) -> list[str]:
+        return sorted(
             {
                 item
                 for item in [
@@ -232,6 +231,51 @@ class _OperatorChannelBuilder:
                 if item
             }
         )
+
+    def _conversation(
+        self,
+        identity: ChannelIdentity,
+        *,
+        accountant: Any,
+        display_names: dict[str, str] | None,
+        conversation_relationships: dict[str, tuple[str, str | None]] | None,
+    ) -> dict[str, Any]:
+        channel_id = identity.channel_id
+        root_thread_id, parent_thread_id = (conversation_relationships or {}).get(
+            identity.canonical_id,
+            (channel_id, None),
+        )
+        canonical = identity.canonical
+        return _conversation_contract(
+            channel_id=channel_id,
+            persona_id=identity.persona_id,
+            persona_instance_id=identity.canonical_id,
+            session_id=identity.session_id,
+            task_id=identity.task_id,
+            goal_id=identity.goal_id,
+            title=first_present_text(
+                identity.history.get("title") if identity.history else None,
+                getattr(canonical, "current_chat_goal", None) if canonical is not None else None,
+                "Mission run",
+            )
+            or "Mission run",
+            state=safe_assignment_token(getattr(canonical, "state", None)) if canonical is not None else "unknown",
+            history=identity.history,
+            trace=identity.trace,
+            accountant=accountant,
+            display_names=display_names,
+            root_thread_id=root_thread_id,
+            parent_thread_id=parent_thread_id,
+        )
+
+    def _warnings(
+        self,
+        identity: ChannelIdentity,
+        source_instance_ids: list[str],
+        conversation: dict[str, Any],
+        *,
+        omitted_history_session_ids: set[str],
+    ) -> list[dict[str, Any]]:
         warnings = list(self.warnings)
         if _source_instance_ids_conflict(
             source_instance_ids,
@@ -246,139 +290,54 @@ class _OperatorChannelBuilder:
                     "entity_ids": source_instance_ids,
                 }
             )
-        task_id = _first_text(
-            getattr(canonical, "current_task_id", None) if canonical is not None else None,
-            history.get("task_id") if history else None,
-            trace.get("task_id") if trace else None,
-        )
-
-        entries = list(trace.get("entries") or []) if trace else []
-        channel_id = f"{persona_id}::{session_id or canonical_id}"
-        root_thread_id, parent_thread_id = (conversation_relationships or {}).get(
-            canonical_id,
-            (channel_id, None),
-        )
-        goal_id = _first_text(
-            getattr(canonical, "goal_id", None) if canonical is not None else None,
-            history.get("goal_id") if history else None,
-        )
-        conversation = _conversation_contract(
-            channel_id=channel_id,
-            persona_id=persona_id,
-            persona_instance_id=canonical_id,
-            session_id=session_id,
-            task_id=task_id,
-            goal_id=goal_id,
-            title=_first_text(
-                history.get("title") if history else None,
-                getattr(canonical, "current_chat_goal", None) if canonical is not None else None,
-                "Mission run",
-            )
-            or "Mission run",
-            state=safe_assignment_token(getattr(canonical, "state", None)) if canonical is not None else "unknown",
-            history=history,
-            trace=trace,
-            accountant=accountant,
-            display_names=display_names,
-            root_thread_id=root_thread_id,
-            parent_thread_id=parent_thread_id,
-        )
-        if _turn_identity_dropped(entries, conversation.get("messages") or []):
+        messages = conversation.get("messages") or []
+        entries = list(identity.trace.get("entries") or []) if identity.trace else []
+        if _turn_identity_dropped(entries, messages):
             warnings.append(
                 {
                     "code": "operator_conversations.turn_identity_dropped",
                     "detail": "trace entries carry turn_id but projected tool/thinking conversation rows dropped it",
-                    "entity_id": channel_id,
+                    "entity_id": identity.channel_id,
                 }
             )
-        if _turn_identity_mismatched(conversation.get("messages") or []):
+        if _turn_identity_mismatched(messages):
             warnings.append(
                 {
                     "code": "operator_conversations.turn_identity_mismatched",
                     "detail": "a projected terminal reply turn_id disagrees with its typed assistant client_message_id",
-                    "entity_id": channel_id,
+                    "entity_id": identity.channel_id,
                 }
             )
-        # session_without_history and trace_empty are both evaluated AFTER the
-        # conversation is built: a channel whose goal turns already flow as
-        # canonical messages is not an empty channel, even when the legacy trace
-        # lane happens to be null.
-        conversation_messages = conversation.get("messages") or []
-        has_flow_messages = any(
-            message.get("kind") in {"thinking_summary", "turn", "tool_call"}
-            for message in conversation_messages
-        )
-        # ONE shared predicate for the NEWBORN channel state: a freshly-created
-        # chat that has a session id but into which nothing has flowed yet — no
-        # curated history row, no trace, no task binding, and zero projected
-        # conversation messages (operator rows included). A newborn is neither a
-        # projection loss nor an empty-trace anomaly; both warnings stay silent
-        # until real content arrives (live 2026-07-18: creating a fresh
-        # neko_supervisor chat surfaced two false-positive contract warnings).
-        is_newborn_channel = (
-            bool(session_id)
-            and history is None
-            and trace is None
-            and task_id is None
-            and not conversation_messages
-        )
-        # session_without_history is the genuine projection-loss signal: real
-        # content flowed (conversation messages or a trace) but no curated
-        # history row backs it. A newborn — nothing has flowed yet — stays silent.
-        if (
-            history is None
-            and session_id
-            and not is_newborn_channel
-            and session_id not in (omitted_history_session_ids or set())
-        ):
-            warnings.append(
-                {
-                    "code": "session_without_history",
-                    "detail": "operator channel has a session id but no curated chat history row",
-                    "entity_id": session_id,
-                }
-            )
-        # A dormant instance channel — no session, no history, no task binding,
-        # and an empty conversation — has never had anything to trace; flagging
-        # it would emit a permanent false-positive parity warning for every
-        # idle seeded/probe persona instance.
-        dormant_channel = (
-            history is None
-            and session_id is None
-            and task_id is None
-            and not conversation_messages
-        )
-        if (
-            trace is None
-            and not has_flow_messages
-            and (history is None or task_id)
-            and not dormant_channel
-            and not is_newborn_channel
-        ):
-            warnings.append(
-                {
-                    "code": "trace_empty",
-                    "detail": "operator channel has no tool/progress trace rows",
-                }
-            )
+        warnings.extend(_emptiness_warnings(identity, messages, omitted_history_session_ids))
+        return warnings
+
+    def _row(
+        self,
+        identity: ChannelIdentity,
+        source_instance_ids: list[str],
+        conversation: dict[str, Any],
+        warnings: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        canonical, history = identity.canonical, identity.history
+        entries = list(identity.trace.get("entries") or []) if identity.trace else []
         return {
             "schema_version": OPERATOR_CHANNELS_SCHEMA_VERSION,
-            "channel_id": channel_id,
-            "persona_id": persona_id,
-            "persona_instance_id": canonical_id,
-            "session_id": session_id,
-            "task_id": task_id,
-            "goal_id": goal_id,
-            "display_name": _first_text(
+            "channel_id": identity.channel_id,
+            "persona_id": identity.persona_id,
+            "persona_instance_id": identity.canonical_id,
+            "session_id": identity.session_id,
+            "task_id": identity.task_id,
+            "goal_id": identity.goal_id,
+            "display_name": first_present_text(
                 getattr(canonical, "display_name", None) if canonical is not None else None,
                 _display_name_from_history(history),
-                persona_id,
+                identity.persona_id,
             ),
             "state": safe_assignment_token(getattr(canonical, "state", None)) if canonical is not None else "unknown",
             "mode": safe_assignment_token(getattr(canonical, "mode", None)) if canonical is not None else None,
             "source_instance_ids": source_instance_ids,
             "history": history,
-            "trace": trace,
+            "trace": identity.trace,
             "conversation": conversation,
             "conversation_status": conversation.get("status"),
             "message_count": int(history.get("message_count") or len(history.get("messages") or [])) if history else 0,
@@ -386,3 +345,49 @@ class _OperatorChannelBuilder:
             "tool_trace_count": len([entry for entry in entries if entry.get("tool_name")]),
             "warnings": warnings,
         }
+
+
+def _emptiness_warnings(
+    identity: ChannelIdentity, messages: list[Any], omitted_history_session_ids: set[str]
+) -> list[dict[str, Any]]:
+    """``session_without_history`` and ``trace_empty``, evaluated AFTER the conversation.
+
+    A channel whose goal turns already flow as canonical messages is not an
+    empty channel, even when the legacy trace lane happens to be null; a
+    newborn and a dormant channel (:func:`instances.is_newborn_channel`,
+    :func:`instances.is_dormant_channel`) raise neither warning.
+    """
+
+    newborn = is_newborn_channel(identity, messages)
+    warnings: list[dict[str, Any]] = []
+    # session_without_history is the genuine projection-loss signal: real
+    # content flowed (conversation messages or a trace) but no curated history
+    # row backs it. A newborn — nothing has flowed yet — stays silent.
+    if (
+        identity.history is None
+        and identity.session_id
+        and not newborn
+        and identity.session_id not in omitted_history_session_ids
+    ):
+        warnings.append(
+            {
+                "code": "session_without_history",
+                "detail": "operator channel has a session id but no curated chat history row",
+                "entity_id": identity.session_id,
+            }
+        )
+    has_flow_messages = any(message.get("kind") in FLOW_MESSAGE_KINDS for message in messages)
+    if (
+        identity.trace is None
+        and not has_flow_messages
+        and (identity.history is None or identity.task_id)
+        and not is_dormant_channel(identity, messages)
+        and not newborn
+    ):
+        warnings.append(
+            {
+                "code": "trace_empty",
+                "detail": "operator channel has no tool/progress trace rows",
+            }
+        )
+    return warnings

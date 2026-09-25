@@ -4,14 +4,17 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..clock import parse_iso
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..transcript_order import TURN_SEQ_CONTENT
 
 from .vocabulary import (
+    TRACE_BLOCKER_STATUSES,
+    TRACE_FINAL_STATUSES,
+    TRACE_HANDOFF_STATUSES,
     _TELEMETRY_SUMMARY_RE,
     _TOOL_FAILED_STATUSES,
     _TOOL_OK_STATUSES,
-    _parse_time,
     _safe_conversation_list,
     _safe_conversation_text,
 )
@@ -75,7 +78,7 @@ def _conversation_trace_message(
     if not summary or _TELEMETRY_SUMMARY_RE.search(summary):
         return None
     status = safe_assignment_token(entry.get("status")) or "running"
-    role = "blocker" if status in {"blocked", "failed", "needs_input"} else "proof" if "proof" in summary.lower() else "agent"
+    role = "blocker" if status in TRACE_BLOCKER_STATUSES else "proof" if "proof" in summary.lower() else "agent"
     kind = "blocker" if role == "blocker" else "proof" if role == "proof" else _conversation_kind_from_status(status)
     refs: dict[str, Any] = {"source": "persona_chat_trace"}
     for key in ("task_id", "run_id", "stage_id"):
@@ -222,8 +225,8 @@ def _conversation_tool_call_messages(
             if files:
                 message["tool"]["files"] = files
             _merge_tool_detail(message["tool"], entry)
-            started = _parse_time(message.pop("_started_ts", None))
-            finished = _parse_time(entry.get("ts"))
+            started = parse_iso(message.pop("_started_ts", None))
+            finished = parse_iso(entry.get("ts"))
             if "duration_ms" not in message["tool"] and started is not None and finished is not None and finished >= started:
                 message["tool"]["duration_ms"] = int((finished - started).total_seconds() * 1000)
             continue
@@ -365,12 +368,16 @@ def _tool_status_token(value: Any) -> str:
     return status
 
 
+#: A progress row's status -> the conversation kind it renders as, first hit;
+#: any other status is an ``agent_update``.
+TRACE_STATUS_KINDS: tuple[tuple[frozenset[str], str], ...] = (
+    (TRACE_HANDOFF_STATUSES, "handoff"),
+    (TRACE_FINAL_STATUSES, "final"),
+)
+
+
 def _conversation_kind_from_status(status: str) -> str:
-    if status in {"handoff", "ready_for_qa", "next_stage_ready", "backend_join_ready"}:
-        return "handoff"
-    if status in {"done", "completed", "passed", "approved"}:
-        return "final"
-    return "agent_update"
+    return next((kind for statuses, kind in TRACE_STATUS_KINDS if status in statuses), "agent_update")
 
 
 def _conversation_title_for_kind(kind: str) -> str:

@@ -10,21 +10,31 @@ the highest layer it re-exports is ``stores``.
       __init__.py           stores   this map; re-exports the entry point and the test-read names
       vocabulary.py         policy   the schema versions, the kind/status sets, the terminal-marker
                                      presentation, the two regexes, and the safe coercions that
-                                     read them (_safe_conversation_text, _parse_time, _first_text)
-      instances.py          stores   which instance a channel is: channel keys, the canonical
-                                     instance, recency, the merged trace, the ancestry graph
-      summary.py            stores   operator_channel_summary + _OperatorChannelBuilder
-      contract.py           policy   one channel's conversation: _conversation_contract,
-                                     terminal-tool settling, order, dedupe, cap
+                                     read them (_safe_conversation_text, first_present_text);
+                                     the TRACE_*_STATUSES sets read by name (clock.parse_iso
+                                     parses every stamp here)
+      instances.py          stores   which instance a channel is: ChannelIdentity (the ONE
+                                     derivation the build and the ancestry graph share), channel
+                                     keys, recency, the merged trace, the newborn / dormant
+                                     predicates, the ancestry graph
+      summary.py            stores   operator_channel_summary + _OperatorChannelBuilder (build =
+                                     identity -> sources -> conversation -> warnings -> row)
+      conversation.py       policy   one channel's conversation: _conversation_contract,
+                                     terminal-tool settling, order, dedupe (DEDUPE_RULES), cap
       history_messages.py   policy   a curated history row -> a conversation message
+                                     (HistoryMessage phases; HISTORY_ROW_SHAPES)
       trace_messages.py     policy   a trace entry -> conversation messages (progress, thinking,
                                      subagent prompts, tool calls)
 
     entry point                                   opens
-    operator_channel_summary                      summary -> instances, contract
-    _conversation_contract                        contract -> history_messages, trace_messages
+    operator_channel_summary                      summary -> instances, conversation
+    _conversation_contract                        conversation -> history_messages, trace_messages
     _conversation_history_message                 history_messages
-    _dedupe_conversation_messages / _turn_identity_dropped    contract
+    _dedupe_conversation_messages / _turn_identity_dropped    conversation
+
+``conversation.py`` is the sheet's ``contract.py``: that basename is taken twice
+already in this tree, and a lane exemption keyed on it
+(``test_snapshot_contract_version_authority``) would cover every copy.
 
 ``instances`` and ``summary`` are ``stores`` only because the canonical persona
 spelling (``_canonical_persona_id``) lives in ``persona_chat_history.history_rows``;
@@ -33,12 +43,18 @@ the projection itself performs no I/O.
 
 from __future__ import annotations
 
-from . import contract, history_messages, instances, summary, trace_messages, vocabulary
-from .contract import (
+from . import conversation, history_messages, instances, summary, trace_messages, vocabulary
+from .conversation import (
+    DEDUPE_FLOW_KINDS,
+    DEDUPE_RULES,
+    DedupeState,
     __layer__,
     _apply_conversation_cap,
     _conversation_contract,
     _dedupe_conversation_messages,
+    _drop_flow_echo,
+    _drop_repeated_subagent_prompt,
+    _drop_thinking_repeat,
     _latest_message_timestamp,
     _order_conversation_messages,
     _settle_terminal_tool_calls,
@@ -46,12 +62,31 @@ from .contract import (
     _turn_identity_mismatched,
 )
 from .history_messages import (
+    AGENT,
+    HIDDEN_REDACTION_STATUSES,
+    HIDDEN_TEXT,
+    HISTORY_ROW_SHAPES,
+    HistoryMessage,
+    OPERATOR,
+    RowShape,
+    SYSTEM,
+    ShapeBuilder,
     __layer__,
     _carry_history_run_budget,
     _carry_turn_seq,
     _conversation_history_message,
+    _delivery_block,
+    _harness_delivery_shape,
+    _operator_shape,
+    _pre_trace_ack_shape,
+    _relay_sender_instance_id,
+    _relayed_shape,
+    _reply_shape,
+    _system_shape,
+    history_row_shape,
 )
 from .instances import (
+    ChannelIdentity,
     __layer__,
     _canonical_instance,
     _channel_key_for_instance,
@@ -64,13 +99,18 @@ from .instances import (
     _source_instance_ids_conflict,
     _trace_entry_key,
     _trace_entry_sort_key,
+    channel_identity,
+    is_dormant_channel,
+    is_newborn_channel,
 )
 from .summary import (
     _OperatorChannelBuilder,
     __layer__,
+    _emptiness_warnings,
     operator_channel_summary,
 )
 from .trace_messages import (
+    TRACE_STATUS_KINDS,
     _TOOL_DETAIL_INT_FIELDS,
     _TOOL_DETAIL_STR_FIELDS,
     __layer__,
@@ -84,8 +124,13 @@ from .trace_messages import (
     _tool_status_token,
 )
 from .vocabulary import (
+    FLOW_MESSAGE_KINDS,
     OPERATOR_CHANNELS_SCHEMA_VERSION,
     OPERATOR_CONVERSATION_SCHEMA_VERSION,
+    TOOL_CALL_RUNNING,
+    TRACE_BLOCKER_STATUSES,
+    TRACE_FINAL_STATUSES,
+    TRACE_HANDOFF_STATUSES,
     _CHAT_INSTANCE_MODES,
     _CONVERSATION_MESSAGE_CAP,
     _CONVERSATION_TRIMMABLE_KINDS,
@@ -98,12 +143,11 @@ from .vocabulary import (
     __layer__,
     _conversation_message_sort_key,
     _display_name_from_history,
-    _first_text,
-    _parse_time,
     _safe_conversation_list,
     _safe_conversation_text,
     _safe_instance_id,
     _safe_session,
+    first_present_text,
 )
 
 __layer__ = "stores"

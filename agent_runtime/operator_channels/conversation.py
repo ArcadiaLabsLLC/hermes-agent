@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import dataclass, field
+from types import MappingProxyType
+from typing import Any, Callable, Mapping
 
 from ..persona_chat_history.vocabulary import (
     canonical_persona_chat_turn_id,
@@ -11,9 +13,10 @@ from ..persona_chat_history.vocabulary import (
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..transcript_order import order_transcript_rows
 
-from .history_messages import _conversation_history_message
+from .history_messages import AGENT, _conversation_history_message
 from .trace_messages import _conversation_tool_call_messages, _conversation_trace_message
 from .vocabulary import (
+    TOOL_CALL_RUNNING,
     OPERATOR_CONVERSATION_SCHEMA_VERSION,
     _CONVERSATION_MESSAGE_CAP,
     _CONVERSATION_TRIMMABLE_KINDS,
@@ -57,7 +60,7 @@ def _turn_identity_mismatched(messages: list[Any]) -> bool:
     for message in messages:
         if not isinstance(message, dict):
             continue
-        if safe_assignment_token(message.get("role")) != "agent":
+        if safe_assignment_token(message.get("role")) != AGENT:
             continue
         client_message_id = safe_assignment_text(
             message.get("client_message_id"), limit=240
@@ -218,7 +221,7 @@ def _settle_terminal_tool_calls(
     if not settled_reason_by_turn:
         return
     for message in messages:
-        if message.get("kind") != "tool_call" or message.get("status") != "running":
+        if message.get("kind") != "tool_call" or message.get("status") != TOOL_CALL_RUNNING:
             continue
         reason = settled_reason_by_turn.get(
             safe_assignment_token(message.get("turn_id")) or ""
@@ -309,55 +312,93 @@ def _order_conversation_messages(
     )
 
 
+@dataclass
+class DedupeState:
+    """What the dedupe pass has seen, and the two text sets it reads by kind."""
+
+    flow_texts: set[Any]
+    reply_texts: set[str]
+    seen_assignments: set[str] = field(default_factory=set)
+    seen_thinking_texts: set[Any] = field(default_factory=set)
+
+    @classmethod
+    def of(cls, messages: list[dict[str, Any]]) -> "DedupeState":
+        return cls(
+            # A run's reasoning often lands twice: once as the run-summary flow
+            # message (thinking_summary/turn) and once as a trace progress row
+            # (agent_update). The flow message wins; the duplicate progress row
+            # is curated out.
+            flow_texts={
+                message.get("display_text")
+                for message in messages
+                if message.get("kind") in DEDUPE_FLOW_KINDS and message.get("display_text")
+            },
+            # The model's final text segment is often captured as a trailing
+            # "thinking" step whose text IS the reply verbatim. Rendering both
+            # paints the reply twice (an untimestamped Thinking bubble above the
+            # real one) — the reply wins, the echo is curated out.
+            reply_texts={
+                str(message.get("display_text") or "").strip()
+                for message in messages
+                if message.get("kind") == "reply" and message.get("display_text")
+            },
+        )
+
+
+#: The flow kinds whose text an ``agent_update`` progress row duplicates.
+DEDUPE_FLOW_KINDS = frozenset({"thinking_summary", "turn"})
+
+
+def _drop_repeated_subagent_prompt(message: dict[str, Any], state: DedupeState) -> bool:
+    refs = message.get("refs")
+    assignment_id = (
+        safe_assignment_text(refs.get("assignment_id"), limit=160) if isinstance(refs, dict) else None
+    )
+    if not assignment_id or message.get("display_title") != "Subagent prompt":
+        return False
+    if assignment_id in state.seen_assignments:
+        return True
+    state.seen_assignments.add(assignment_id)
+    return False
+
+
+def _drop_flow_echo(message: dict[str, Any], state: DedupeState) -> bool:
+    return message.get("display_text") in state.flow_texts
+
+
+def _drop_thinking_repeat(message: dict[str, Any], state: DedupeState) -> bool:
+    # Per-step trace thinking and the per-run summary can carry the same text
+    # (the final reasoning step often IS the decision rationale). Keep the first
+    # occurrence in timeline order; drop later repeats — and any that echo a
+    # reply.
+    text = message.get("display_text")
+    if text and str(text).strip() in state.reply_texts:
+        return True
+    if text and text in state.seen_thinking_texts:
+        return True
+    if text:
+        state.seen_thinking_texts.add(text)
+    return False
+
+
+#: A message's kind -> the rule that decides whether it is a duplicate. A kind
+#: with no rule is always kept.
+DEDUPE_RULES: Mapping[str, Callable[[dict[str, Any], DedupeState], bool]] = MappingProxyType(
+    {
+        "handoff": _drop_repeated_subagent_prompt,
+        "agent_update": _drop_flow_echo,
+        "thinking_summary": _drop_thinking_repeat,
+    }
+)
+
+
 def _dedupe_conversation_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    seen_assignments: set[str] = set()
-    seen_thinking_texts: set[str] = set()
-    # A run's reasoning often lands twice: once as the run-summary flow message
-    # (thinking_summary/turn) and once as a trace progress row (agent_update).
-    # The flow message wins; the duplicate progress row is curated out.
-    flow_texts = {
-        message.get("display_text")
-        for message in messages
-        if message.get("kind") in {"thinking_summary", "turn"} and message.get("display_text")
-    }
-    # The model's final text segment is often captured as a trailing "thinking"
-    # step whose text IS the reply verbatim. Rendering both paints the reply
-    # twice (an untimestamped Thinking bubble above the real one) — the reply
-    # wins, the echo is curated out.
-    reply_texts = {
-        str(message.get("display_text") or "").strip()
-        for message in messages
-        if message.get("kind") == "reply" and message.get("display_text")
-    }
+    state = DedupeState.of(messages)
     deduped: list[dict[str, Any]] = []
     for message in messages:
-        refs = message.get("refs")
-        assignment_id = (
-            safe_assignment_text(refs.get("assignment_id"), limit=160)
-            if isinstance(refs, dict)
-            else None
-        )
-        if (
-            assignment_id
-            and message.get("kind") == "handoff"
-            and message.get("display_title") == "Subagent prompt"
-        ):
-            if assignment_id in seen_assignments:
-                continue
-            seen_assignments.add(assignment_id)
-        if message.get("kind") == "agent_update" and message.get("display_text") in flow_texts:
+        rule = DEDUPE_RULES.get(message.get("kind"))
+        if rule is not None and rule(message, state):
             continue
-        # Per-step trace thinking and the per-run summary can carry the same
-        # text (the final reasoning step often IS the decision rationale).
-        # Keep the first occurrence in timeline order; drop later repeats.
-        if message.get("kind") == "thinking_summary":
-            text = message.get("display_text")
-            if text and str(text).strip() in reply_texts:
-                continue
-            if text and text in seen_thinking_texts:
-                continue
-            if text:
-                seen_thinking_texts.add(text)
         deduped.append(message)
     return deduped
 

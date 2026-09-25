@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterable
 
+from ..clock import parse_iso
 from ..models import PersonaInstance
 from ..persona_assignments.identity import persona_instance_id_for
 from ..persona_chat_history.history_rows import _canonical_persona_id
@@ -11,8 +13,7 @@ from ..serde import safe_assignment_text, safe_assignment_token
 
 from .vocabulary import (
     _CHAT_INSTANCE_MODES,
-    _first_text,
-    _parse_time,
+    first_present_text,
     _safe_instance_id,
     _safe_session,
 )
@@ -21,6 +22,110 @@ if TYPE_CHECKING:  # the builder imports this module; annotation only
     from .summary import _OperatorChannelBuilder
 
 __layer__ = "stores"
+
+
+@dataclass(frozen=True)
+class ChannelIdentity:
+    """Who one operator channel is: the rows it projects and the ids derived from them.
+
+    ONE derivation, read by the channel build and by the ancestry graph — the
+    two spelled it separately, field for field, before lane B3.
+    """
+
+    history: dict[str, Any] | None
+    trace: dict[str, Any] | None
+    canonical: PersonaInstance | None
+    persona_id: str
+    canonical_id: str
+    session_id: str | None
+
+    @property
+    def channel_id(self) -> str:
+        return f"{self.persona_id}::{self.session_id or self.canonical_id}"
+
+    @property
+    def is_empty(self) -> bool:
+        return self.canonical is None and self.history is None and self.trace is None
+
+    def _canonical_attr(self, name: str) -> Any:
+        return getattr(self.canonical, name, None) if self.canonical is not None else None
+
+    @property
+    def task_id(self) -> str | None:
+        return first_present_text(
+            self._canonical_attr("current_task_id"),
+            self.history.get("task_id") if self.history else None,
+            self.trace.get("task_id") if self.trace else None,
+        )
+
+    @property
+    def goal_id(self) -> str | None:
+        return first_present_text(
+            self._canonical_attr("goal_id"),
+            self.history.get("goal_id") if self.history else None,
+        )
+
+
+def channel_identity(builder: Any) -> ChannelIdentity:
+    """The :class:`ChannelIdentity` of one ``_OperatorChannelBuilder``."""
+
+    history = builder._bound_history() or _latest_history(builder.history_rows)
+    trace = _merged_trace(builder.trace_rows)
+    canonical = _canonical_instance(builder.instances, history=history)
+    attr = (lambda name: getattr(canonical, name, None)) if canonical is not None else (lambda name: None)
+    persona_id = first_present_text(
+        attr("persona_id"),
+        history.get("persona_id") if history else None,
+        trace.get("persona_id") if trace else None,
+    )
+    persona_id = _canonical_persona_id(persona_id) or persona_id or "unknown"
+    canonical_id = first_present_text(
+        attr("id"),
+        history.get("persona_instance_id") if history else None,
+        trace.get("persona_instance_id") if trace else None,
+        persona_instance_id_for(persona_id),
+    )
+    session_id = first_present_text(
+        history.get("session_id") if history else None,
+        trace.get("session_id") if trace else None,
+        attr("session_id"),
+    )
+    return ChannelIdentity(history, trace, canonical, persona_id, canonical_id or "", session_id)
+
+
+def is_newborn_channel(identity: ChannelIdentity, messages: list[Any]) -> bool:
+    """A freshly-created chat into which nothing has flowed yet.
+
+    It has a session id, but no curated history row, no trace, no task binding,
+    and zero projected conversation messages (operator rows included). A newborn
+    is neither a projection loss nor an empty-trace anomaly; both warnings stay
+    silent until real content arrives (live 2026-07-18: creating a fresh
+    neko_supervisor chat surfaced two false-positive contract warnings).
+    """
+
+    return (
+        bool(identity.session_id)
+        and identity.history is None
+        and identity.trace is None
+        and identity.task_id is None
+        and not messages
+    )
+
+
+def is_dormant_channel(identity: ChannelIdentity, messages: list[Any]) -> bool:
+    """An instance channel that has never had anything to trace.
+
+    No session, no history, no task binding, and an empty conversation;
+    flagging it would emit a permanent false-positive parity warning for every
+    idle seeded/probe persona instance.
+    """
+
+    return (
+        identity.history is None
+        and identity.session_id is None
+        and identity.task_id is None
+        and not messages
+    )
 
 
 def _operator_conversation_relationships(
@@ -39,36 +144,16 @@ def _operator_conversation_relationships(
     channel_by_instance_id: dict[str, str] = {}
     canonical_instances: dict[str, PersonaInstance] = {}
     for builder in builders:
-        history = builder._bound_history() or _latest_history(builder.history_rows)
-        trace = _merged_trace(builder.trace_rows)
-        canonical = _canonical_instance(builder.instances, history=history)
-        if canonical is None:
+        identity = channel_identity(builder)
+        if identity.canonical is None:
             continue
-        persona_id = _first_text(
-            getattr(canonical, "persona_id", None),
-            history.get("persona_id") if history else None,
-            trace.get("persona_id") if trace else None,
-        )
-        persona_id = _canonical_persona_id(persona_id) or persona_id or "unknown"
-        canonical_id = _first_text(
-            getattr(canonical, "id", None),
-            history.get("persona_instance_id") if history else None,
-            trace.get("persona_instance_id") if trace else None,
-            persona_instance_id_for(persona_id),
-        )
-        session_id = _first_text(
-            history.get("session_id") if history else None,
-            trace.get("session_id") if trace else None,
-            getattr(canonical, "session_id", None),
-        )
-        channel_id = f"{persona_id}::{session_id or canonical_id}"
-        canonical_instances[canonical_id] = canonical
+        canonical_instances[identity.canonical_id] = identity.canonical
         for instance in builder.instances:
             instance_id = _safe_instance_id(instance)
             if not instance_id:
                 continue
             instances_by_id[instance_id] = instance
-            channel_by_instance_id[instance_id] = channel_id
+            channel_by_instance_id[instance_id] = identity.channel_id
 
     relationships: dict[str, tuple[str, str | None]] = {}
     for canonical_id, instance in canonical_instances.items():
@@ -213,7 +298,7 @@ def _instance_recency(instance: PersonaInstance) -> tuple[int, str]:
         getattr(instance, "updated_at", None),
         getattr(instance, "last_heartbeat_at", None),
     ):
-        parsed = _parse_time(value)
+        parsed = parse_iso(value)
         if parsed is not None:
             return (1, parsed.isoformat())
     return (0, _safe_instance_id(instance) or "")
@@ -227,7 +312,7 @@ def _latest_history(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
 
 def _row_recency(row: dict[str, Any]) -> tuple[int, str]:
     for key in ("updated_at", "created_at"):
-        parsed = _parse_time(row.get(key))
+        parsed = parse_iso(row.get(key))
         if parsed is not None:
             return (1, parsed.isoformat())
     return (0, str(row.get("session_id") or ""))
@@ -261,7 +346,7 @@ def _trace_entry_key(entry: dict[str, Any]) -> str:
 
 
 def _trace_entry_sort_key(entry: dict[str, Any]) -> tuple[int, str]:
-    parsed = _parse_time(entry.get("ts"))
+    parsed = parse_iso(entry.get("ts"))
     if parsed is not None:
         return (1, parsed.isoformat())
     return (0, str(entry.get("ts") or ""))
