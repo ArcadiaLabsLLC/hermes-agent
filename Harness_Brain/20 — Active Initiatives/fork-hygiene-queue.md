@@ -108,4 +108,3 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-24 (lane H1)
 
-- [ ] **`pyproject.toml` still carries the per-file `"hermes_cli/harness.py" = ["F821"]` ignore; harness.py is F821-clean since H1** · `fork / lint` · drop it in a non-`refactor(` commit (W0-G2 bars refactor commits from touching upstream files; pyproject is a permanent carry) · evidence: lane H1 2026-09-24 **UNCLAIMED**

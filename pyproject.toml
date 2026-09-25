@@ -708,9 +708,8 @@ select = ["PLW1514", "F821", "ASYNC210", "ASYNC220", "ASYNC221", "ASYNC251"]
 # Never a directory glob: a glob hid a merge-dropped `import os` in a test and
 # a production NameError in tools/terminal_tool.py (fork-hygiene 2026-09-24).
 # ---------------------------------------------------------------------------
-# Exec-assembled / rebound parts: their bodies resolve against the host's
-# globals (harness.py exec's its parts; tui_gateway's method_ctx.bind_module).
-"hermes_cli/harness.py" = ["F821"]
+# Rebound parts: their bodies resolve against the host's globals
+# (tui_gateway's method_ctx.bind_module).
 "tui_gateway/agent_callbacks.py" = ["F821"]
 "tui_gateway/change_watcher.py" = ["F821"]
 "tui_gateway/compute_host_bridge.py" = ["F821"]
