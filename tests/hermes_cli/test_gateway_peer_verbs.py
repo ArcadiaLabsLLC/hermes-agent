@@ -1489,7 +1489,7 @@ def test_every_peer_verb_is_reachable_through_the_real_argparse_tree():
         args = root.parse_args(["harness", "gateway", "peers", verb])
         # The tree routes through a lazy shim, so the identity check is on what
         # the shim reaches rather than on the shim itself.
-        assert args.func.__name__ == f"_cmd_gateway_peers_{verb}"
+        assert args.func.__name__ == f"cmd_gateway_peers_{verb}"
         assert expected is not None
 
     assert root.parse_args(

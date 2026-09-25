@@ -871,14 +871,34 @@ def _literal_string_set(node: ast.AST | None) -> set[str]:
     return set()
 
 
+def _stage42_parser_tree() -> ast.Module:
+    """The harness parser tree's source, every module of ``harness_parts/parser/`` read as ONE.
+
+    The tree was one ``populate_parser`` body until lane H2 cut it into
+    ``PARSER_FAMILIES``; its subparser variable names come from that one scope,
+    so walking the package whole reads exactly what walking the body did.
+    """
+
+    root = Path(__file__).resolve().parents[2] / "hermes_cli" / "harness_parts" / "parser"
+    body: list[ast.stmt] = []
+    for path in sorted(root.glob("*.py")):
+        body.extend(ast.parse(path.read_text(encoding="utf-8")).body)
+    return ast.Module(body=body, type_ignores=[])
+
+
 def _stage42_parser_ownership(
-    source: str,
+    build: ast.AST | str,
     common_dests: set[str],
 ):
-    """Return each Stage 42 handler's flags and per-verb destination collisions."""
+    """Return each Stage 42 handler's flags and per-verb destination collisions.
 
-    tree = ast.parse(source)
-    build = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "build_parser")
+    ``build`` is the parser tree (:func:`_stage42_parser_tree`), or — for the
+    positive controls below — source holding one ``build_parser`` function.
+    """
+
+    if isinstance(build, str):
+        tree = ast.parse(build)
+        build = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "build_parser")
     registrations: dict[str, set[str]] = {}
     local_dests: dict[str, set[str]] = {}
     equivalent_local_overrides: dict[str, set[str]] = {}
@@ -1119,7 +1139,6 @@ def test_every_stage42_global_flag_is_honored():
     """Every flag advertised by a real verb reaches a real reader."""
 
     paths = list(_stage42_lane_sources())
-    harness_source = paths[0].read_text(encoding="utf-8")
     sources = [
         (_stage42_source_module(path), path.read_text(encoding="utf-8"))
         for path in paths
@@ -1128,9 +1147,12 @@ def test_every_stage42_global_flag_is_honored():
     sources.append(("hermes_cli.harness", support.read_text(encoding="utf-8")))
     reads, calls = _stage42_function_facts(sources)
     registrations = _stage42_parser_ownership(
-        harness_source,
+        _stage42_parser_tree(),
         _STAGE42_PRESENTATION_DESTS,
     )
+    # Anti-vacuity: from the plugin seam (Stage 1) until lane H2 this walked a
+    # two-line `build_parser` that registers nothing, and passed on an empty list.
+    assert len(registrations) > 50, f"only {len(registrations)} stage42 registrations found"
     # The root parser registration supplies options before the chosen verb;
     # its `harness_command` default is replaced by every real subparser. The
     # per-verb registrations below are the semantic ownership boundary.
