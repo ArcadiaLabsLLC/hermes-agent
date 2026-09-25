@@ -1,7 +1,6 @@
 {
  "body_groups": [
-  "agent_runtime/paths.py::unlink_quietly == hermes_cli/_bytecode_sweep.py::_release_bytecode_sweep_lock",
-  "scripts/doc_cite_adjacency.py::_tracked == scripts/doc_cite_report.py::_tracked"
+  "agent_runtime/paths.py::unlink_quietly == hermes_cli/_bytecode_sweep.py::_release_bytecode_sweep_lock"
  ],
  "name_groups": [
   "_bounded_refs: agent_runtime/child_events.py, agent_runtime/continuity.py",
@@ -26,7 +25,6 @@
   "_safe_file_labels: agent_runtime/observability.py, agent_runtime/progress.py",
   "_safe_text: agent_runtime/child_events.py, agent_runtime/events.py, agent_runtime/parity.py, agent_runtime/snapshot/summaries.py",
   "_text: agent_runtime/chat_turn.py, agent_runtime/mission_chat_outcome.py, agent_runtime/persona_open_chat.py",
-  "_tracked: scripts/doc_cite_adjacency.py, scripts/doc_cite_report.py",
   "_walk: agent_runtime/local_llama_adapter/engine.py, agent_runtime/machine_roots.py, hermes_cli/charsheet_payload_contract.py, scripts/dump_cli_contract.py",
   "_write_conflict_sidecar: agent_runtime/flow_graph_sync.py, agent_runtime/level_sync.py, agent_runtime/map_sync.py",
   "_write_manifest: agent_runtime/event_rotation.py, scripts/generate_agent_runtime_stream_fixtures.py"

@@ -100,6 +100,14 @@ import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
+# The tracked-path index has ONE owner, doc_cite_report (lane W3-B folded the
+# byte-identical copy here, a W0-G3 row). Imported as ``scripts.*`` by the tests,
+# as a sibling when this file runs as a script (``scripts/`` is sys.path[0]).
+try:
+    from scripts.doc_cite_report import _tracked
+except ImportError:  # pragma: no cover - script entry point
+    from doc_cite_report import _tracked
+
 DEFAULT_ROOT = "docs/agent-runtime-harness"
 DEFAULT_BASELINE = "docs/agent-runtime-harness/cite-adjacency-baseline.json"
 DEFAULT_FOREIGN_BUDGET = "docs/agent-runtime-harness/foreign-line-cites.json"
@@ -247,17 +255,6 @@ def _git(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["git", *args], cwd=REPO_ROOT, check=False, capture_output=True, text=True
     )
-
-
-def _tracked() -> tuple[set[str], dict[str, list[str]]]:
-    completed = _git("ls-files")
-    if completed.returncode != 0:
-        raise RuntimeError(f"git ls-files failed: {completed.stderr.strip()}")
-    paths = {row.strip() for row in completed.stdout.splitlines() if row.strip()}
-    by_name: dict[str, list[str]] = defaultdict(list)
-    for path in paths:
-        by_name[path.rsplit("/", 1)[-1]].append(path)
-    return paths, by_name
 
 
 def resolve_candidates(
