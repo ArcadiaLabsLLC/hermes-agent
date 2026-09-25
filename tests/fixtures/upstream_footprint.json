@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-24",
   "base": "749220ef00",
-  "files": 195,
-  "deleted_lines": 990,
+  "files": 200,
+  "deleted_lines": 999,
   "heavy": 4,
   "reasons": [
     {
@@ -222,6 +222,54 @@
       "files": "flat (195): base f24a1d7f92 -> 749220ef00, 417 upstream commits, no conflicts; the manifest is re-cut (base tree UNION upstream/main 26b5494667)",
       "deleted_lines": "flat (990)",
       "reason": "history-preserving merge and the supersession pass: 1 hunk retired (tests/hermes_cli/test_doctor_journal_modes.py's win32 skip on test_partial_holder_scan_is_never_an_all_clear, 14 -> 7 added: upstream now scans holders on Windows); no ledger row left, all 19 open upstream PRs still open; heavy flat at 4"
+    },
+    {
+      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/auth.py",
+      "files": "counted in 195 -> 200",
+      "deleted_lines": "added/deleted at 749220ef00: 13/1 -> 18/1; batch total 990 -> 999; heavy unchanged at 4",
+      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue § Seams row of the same date, which lowers this fixture back."
+    },
+    {
+      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/auth_codex.py",
+      "files": "195 -> 200 across the eight files of this batch (four newly touched)",
+      "deleted_lines": "added/deleted at 749220ef00: new: 11/1; batch total 990 -> 999; heavy unchanged at 4",
+      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue § Seams row of the same date, which lowers this fixture back."
+    },
+    {
+      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/auth_codex_browser.py",
+      "files": "195 -> 200 across the eight files of this batch (four newly touched)",
+      "deleted_lines": "added/deleted at 749220ef00: new: 4/1; batch total 990 -> 999; heavy unchanged at 4",
+      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue § Seams row of the same date, which lowers this fixture back."
+    },
+    {
+      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/auth_minimax.py",
+      "files": "195 -> 200 across the eight files of this batch (four newly touched)",
+      "deleted_lines": "added/deleted at 749220ef00: new: 14/2; batch total 990 -> 999; heavy unchanged at 4",
+      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue § Seams row of the same date, which lowers this fixture back."
+    },
+    {
+      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/auth_nous.py",
+      "files": "counted in 195 -> 200",
+      "deleted_lines": "added/deleted at 749220ef00: 2/1 -> 22/1; batch total 990 -> 999; heavy unchanged at 4",
+      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue § Seams row of the same date, which lowers this fixture back."
+    },
+    {
+      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/auth_xai.py",
+      "files": "195 -> 200 across the eight files of this batch (four newly touched)",
+      "deleted_lines": "added/deleted at 749220ef00: new: 13/1; batch total 990 -> 999; heavy unchanged at 4",
+      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue § Seams row of the same date, which lowers this fixture back."
+    },
+    {
+      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/provider_catalog.py",
+      "files": "counted in 195 -> 200",
+      "deleted_lines": "added/deleted at 749220ef00: 189/0 -> 192/0; batch total 990 -> 999; heavy unchanged at 4",
+      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue § Seams row of the same date, which lowers this fixture back."
+    },
+    {
+      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/subcommands/auth.py",
+      "files": "counted in 195 -> 200",
+      "deleted_lines": "added/deleted at 749220ef00: 35/0 -> 37/0; batch total 990 -> 999; heavy unchanged at 4",
+      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue § Seams row of the same date, which lowers this fixture back."
     }
   ]
 }
