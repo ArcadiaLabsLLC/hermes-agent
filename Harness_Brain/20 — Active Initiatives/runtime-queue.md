@@ -23,6 +23,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+- [ ] **Expose client-neutral, session-scoped skill list/detail facts and evidence-backed load activity through ACP, reusing canonical resolution.** · Owner approved 2026-09-24; cross-repo consumer: `EterniaLauncher/docs/companion/planned/SKILLS_EXPERIENCE_AUDIT_2026-09-24.md`. No second catalog, runtime manager or skill execution claim. **TAKEN 2026-09-24 codex-skills**
+
 ### Filed on arrival — 2026-09-24 (lane LLAMA-H)
 
 - [ ] **The launcher still speaks the fork's local-llama contract: the persona provider rename to upstream's `llamacpp` and the pinned-tag setup wizard are a launcher re-vendor** · `fork / local llama` · cross-repo, hermes moves first: accept `llamacpp` as a persona provider (set-model, then the turn through `agent_runtime/local_llama_adapter/provider.py::turn_scope`'s lease), then `EterniaLauncher/lib/features/mission_control/` switches the model-menu id (`kHermesLocalLlamaProviderId`), the visibility `provider_id` and the QA keys, and its wizard drops `destination_parent` and asset sizes (`installation.plan` now names upstream's `runtimes_root()` install dir, `download_bytes` is 0) · evidence: the module docstrings of `agent_runtime/local_llama_adapter/provider.py` and `setup.py` · filed by lane LLAMA-H 2026-09-24 **UNCLAIMED**
