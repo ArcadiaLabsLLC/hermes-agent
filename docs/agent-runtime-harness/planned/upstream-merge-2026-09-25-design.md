@@ -345,6 +345,8 @@ only fixes the ORDER and names what is specific to this merge.
 
 ## 5. Open questions for the owner — each with the default the lane takes if unanswered
 
+**RULED 2026-09-25 (owner: "sounds good"): every default below is the ruling.** Q4's live `hermes update` on the merged tree is the gate on that adoption; Q7 is decided per PR from the merged tree on Windows.
+
 | # | question | recommended default |
 |---|---|---|
 | Q1 | **When is this merge cut?** Upstream is 1,831 commits ahead today and the base moved 2026-09-24; every day adds conflicts (the 2026-09-21 trial had 40, 09-24 had 73, today 55 after one landing). | Cut the worktree the day this note is read; the design holds for any tip after `ac2ffe60d0` because every rule in §3 is by CLASS, not by hunk text. |
