@@ -452,7 +452,7 @@ deliberately distinct enforcement semantics (`:75-93`): `TRIPS_RUN` (raises `Run
 through, and `turn_run_budget_metadata` (`:419`) the one adapter turning "the run that just
 ended" into the journal fragment a settle point splices in (`run_budget.py:46`) — both
 absence-preserving. Neither is the only code that touches the block: two live consumers read it
-straight off the record they were handed (`operator_channels.py:927-929`,
+straight off the record they were handed (`agent_runtime/operator_channels/contract.py::_dedupe_conversation_messages`,
 `agent_runtime/persona_chat_history/curation.py:475`). Default wall budget is **240 s**
 (`runtime_config.py:150-164`), tunable at
 `agent_runtime.mission_chat.default_max_seconds` and clamped; an explicit `--max-seconds` always

@@ -2100,7 +2100,7 @@ first two correct the plan I was handed rather than confirming it.
   thread, not a subprocess.** I went looking for the spawn the plan told me to check for
   and found something narrower and worse: `mcp_admission.admit_mcp_servers` runs its
   registrar on a thread it starts itself (`threading.Thread(..., name="mcp-admission")`,
-  `agent_runtime/mcp_admission.py:1226`), and the cold path from there is
+  `agent_runtime/mcp_admission/transport.py::_default_registrar`), and the cold path from there is
   `register_mcp_servers`, which spawns. A ContextVar crosses neither boundary — not the
   thread, not the spawn — so the `os.environ` mirror is the ONLY channel by which an
   admitted MCP server learns which persona home it is serving. Drop the mirror for the

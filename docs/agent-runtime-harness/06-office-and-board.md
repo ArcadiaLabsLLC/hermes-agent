@@ -392,7 +392,7 @@ warned permanently and un-actionably — the canonical singleton refuses retire 
 design, and nothing mints that row shape any more (live evidence: the
 `neko_supervisor` canonical channel against its 2026-07-20 history row
 attributed to `personainst_neko_supervisor_agent_47a47348`). The predicate
-(`_source_instance_ids_conflict`, `operator_channels.py:1517`) now fires on
+(`_source_instance_ids_conflict`, `agent_runtime/operator_channels/instances.py::_instance_recency`) now fires on
 divergent sessions, divergent personas, or **two or more distinct LIVE instance
 rows** on one channel — the genuine collision, which the pre-existing
 true-collision test still pins.

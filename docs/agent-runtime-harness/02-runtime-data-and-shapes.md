@@ -28,7 +28,7 @@ Directories present in the live root, with the module that owns each:
 | `persona_instances/` + `_archive/` | `paths.py:20,24` | one `personainst_*.json` per instance |
 | `persona_assignments/` + `_archive/` | `paths.py:37,41` | persona↔channel bindings |
 | `persona_chat_mint_receipts/` | `paths.py:45` | durable idempotency receipts for server-minted chat roots |
-| `persona_chat_leases/`, `persona_chat_clarify_tickets/` | `persona_chat_continuity.py:815,1236` | per-chat leases and clarify tickets |
+| `persona_chat_leases/`, `persona_chat_clarify_tickets/` | `agent_runtime/persona_chat_continuity/mint_receipts.py::PersonaChatMintReceiptStore,1236` | per-chat leases and clarify tickets |
 | `mission_chat_turns/` + `_archive/` | `mission_chat_turns/storage.py:33-42` | one `<safe_session_key>.json` + `.lock` per chat |
 | `mission_chat_steer/` | `mission_chat_steer.py:328` | per-session steer drops |
 | `tool_turn_context/`, `queued_skills/` | `tool_turn_history.py:132`, `queued_skills.py:16` | per-turn tool context; skill inbox |

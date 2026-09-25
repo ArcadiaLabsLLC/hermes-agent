@@ -913,7 +913,7 @@ answers on its own thread.
 
 ## 3. The mission-control stream
 
-`agent_runtime/stream.py::stream_frames` (`:1221`) is the single producer body.
+`agent_runtime/stream/session.py::stream_frames` (the whole function at `:1221`) is the single producer body.
 It yields exactly one `hydrate`, then tails the event log from that frame's
 `watermark.event_offset` (`_resume_offset`, `:305`) emitting `patch`, full-core
 `delta`, and `heartbeat` frames. **An unknown resume position is not byte 0**:
@@ -1016,14 +1016,14 @@ Rules, all in `agent_runtime/patch_coverage.py`:
   (`accepted_fold_entities`, `:380`): one producer fans every frame to every
   subscriber, so a promotion must be safe for everyone in the room.
 - **The accepted set is echoed, not assumed** — on the `subscribed` ack
-  (`serve.py:2737`) and again on the hydrate (`stream.py:365`). A client can be
+  (`serve.py:2737`) and again on the hydrate (`agent_runtime/stream/build_policy.py::log_stream_attach`). A client can be
   honoured for strictly less than it asked for.
 - **A malformed declaration is REFUSED**, not read as absent (`subscribe_denied`
   / `invalid_fold_entities`, `serve.py:2633-2639`) — a client that meant to
   narrow and was silently widened back would get patches it cannot fold.
 - A batch naming any undeclared entity is demoted IN FULL to a core-bearing
   frame; there is no partial patch frame (`_batch_frames_with_liveness`,
-  `stream.py:1135`). The demotion bills `snapshot_build reason=demote`
+  `agent_runtime/stream/session.py::stream_frames`). The demotion bills `snapshot_build reason=demote`
   (`BATCH_REASON_DEMOTE`, `:64`), which makes a foldable update that paid for a
   whole snapshot greppable.
 
@@ -1058,7 +1058,7 @@ neither joins `PEER_METHOD_ALLOWLIST`.
 
 ## 5. Attachment receipts
 
-`log_stream_attach` (`stream.py:377`) writes ONE line per attachment to the
+`log_stream_attach` (`agent_runtime/stream/build_policy.py::log_stream_denied`) writes ONE line per attachment to the
 shared producer, at subscribe time, into the serve child's own `agent.log`.
 Three call sites attach a reader to the same producer, and until this line
 existed the log named none of them:
@@ -1072,7 +1072,7 @@ existed the log named none of them:
 `op` is the call as the client made it, `purpose` is what the attachment is FOR
 — neither implies the other. `pid` rides LAST here and on both build families
 (`snapshot_build`, `snapshot_build_core`), so an attachment and the builds it
-paid for join on one key instead of on wall clocks (`stream.py:118-179`). It
+paid for join on one key instead of on wall clocks (`agent_runtime/stream/build.py::_is_one_shot`). It
 never raises — an instrument must not be why a subscribe fails.
 
 **Who paints the boot's one stale core is a property of the ROOM**, so
@@ -1082,7 +1082,7 @@ tables at producer-build time, `_cmd_stream` (`runtime_commands.py:690`) states
 `True`, default `False`. It cannot be re-derived inside the producer: the
 subscriber attaching FIRST at boot is the RPC office lane, whose sink discards
 every non-`office_actor` row, and measured 2026-08-18 two boots in three handed
-the stale paint to that sink (`stream.py:1016-1032`).
+the stale paint to that sink (`agent_runtime/stream/build.py::_build_with_liveness`).
 
 ## 6. The office push lane is a re-envelope, not a second derivation
 
@@ -1192,7 +1192,7 @@ refused as `mcp_admission_lane_busy` rather than raced. And **the registry scope
 belongs to the run while the transport belongs to the process**:
 `teardown_mcp_admission` removes the admitted tools at every admitted run's end
 while the connection in `tools/mcp_tool._servers` stays warm for the next
-(`agent_runtime/mcp_admission.py:38-52`). Admission POLICY belongs to the
+(`agent_runtime/mcp_admission/resolve.py::resolve_mcp_admission`). Admission POLICY belongs to the
 chat-lane doc. Relay hops are gated by `agent_runtime/relay_policy.py` — one
 authority, so in-process tool relay, CLI and serve transport get the same depth
 / cycle / budget answer from explicit envelope data rather than inference.
@@ -1283,7 +1283,7 @@ authority, so in-process tool relay, CLI and serve transport get the same depth
   lease code. Source: `…/mission-control-stream.md:361-383`.
 - **The measured patch-lane saving** — 486 bytes against an 822,671-byte core,
   the ~99.96% reduction the S6/S7 acceptance names. Cited at
-  `patch_coverage.py:347` and `stream.py:578-581` as 2026-07/08 measurements;
+  `patch_coverage.py:347` and `agent_runtime/stream/frames.py::heartbeat_frame` as 2026-07/08 measurements;
   not re-measured here, so a historical figure, not a benchmark.
 
 ## Supersedes

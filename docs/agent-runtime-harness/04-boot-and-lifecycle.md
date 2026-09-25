@@ -196,7 +196,7 @@ would be inherited by every subprocess a handler spawns, which is a different qu
 ## Stage 5 — the hygiene sweeps
 
 **Orphaned turns** (`orphaned_turn_sweep_ms`, `serve.py:3839` →
-`agent_runtime/persona_chat_continuity.py:891`). A native turn holds the OS-backed root lease for
+`agent_runtime/persona_chat_continuity/mint_receipts.py::PersonaChatMintReceiptStore`). A native turn holds the OS-backed root lease for
 its entire execution and the kernel releases it when the holder dies, so "in-flight record AND
 acquirable lease" is proof the turn can no longer settle itself; a session whose lease is HELD is
 a live turn in another process and is skipped. It runs BEFORE `ready` — the first hydrate is only
@@ -337,7 +337,7 @@ cannot touch: two shipped incidents came from writers that mutate durable state 
 event at all, and an offset key cannot see them at any price.
 
 A mismatch does not mean a blank canvas: `take_stale_first_core` serves the last persisted core
-**labeled stale** while the build runs (`core_cache/lane.py:383`, `stream.py:1393`). The one-shot
+**labeled stale** while the build runs (`core_cache/lane.py:383`, `agent_runtime/stream/session.py::stream_frames`). The one-shot
 belongs to the SUBSCRIBER, not the process — derived at producer-build time by
 `serve.py::_room_wants_stale_first`  — because a boot starts two `stream_frames`
 generators and the module-global version handed the allowance to whichever raced first. A
@@ -478,7 +478,7 @@ residue above, exactly as predicted. That re-take stays owed
 
 ## Stage 10 — demote builds and same-offset core reuse
 
-`agent_runtime/demote_core_reuse.py`, consumed only by `agent_runtime/stream.py` (`:1038`,
+`agent_runtime/demote_core_reuse.py`, consumed only by `agent_runtime/stream/session.py::stream_frames` (`:1038`,
 `:1064`, `:1122`). The waste: three `snapshot_build reason=demote role=led` lines at the SAME
 offset 89961793 on 2026-08-22 10:50, `build_ms` 3017 / 3210 / 2388, identical fingerprint.
 `build_snapshot`'s coalescer cannot merge them — it is deliberately strict, and a caller
