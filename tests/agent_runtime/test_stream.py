@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from argparse import Namespace
 
+import pytest
+
 from hermes_time import now
 
 from agent_runtime.events import EventLog
@@ -239,3 +241,81 @@ def test_recovered_watermark_re_baselines_instead_of_replaying_or_gapping(
     # of the four rows the re-baseline's core already covers.
     assert third["type"] == "delta"
     assert third["entity"]["event"]["task_id"] == "task_after_recovery"
+
+
+def _delta_event_types(frame) -> list[str]:
+    return [
+        str((item.get("event") or {}).get("type"))
+        for item in frame.get("events") or []
+        if isinstance(item, dict)
+    ]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "runtime-queue row (lane W3-C VERDICT 2026-09-25): the delta's own core build "
+        "is the SECOND writer open of a fresh chat SessionDB, and upstream "
+        "hermes_state_schema._run_data_migrations stamps state_meta.fts_storage_version "
+        "on that open — state.db's mtime moves, the watchdog reconciles it. Remove this "
+        "marker with the fix."
+    ),
+)
+def test_an_evented_write_adopts_its_fingerprint_and_never_reconciles(
+    isolate_agent_runtime_root,
+):
+    """One evented write on a fresh home is ONE delta, never a delta plus a reconcile.
+
+    The pass adopts its pre-batch fingerprint after a delta, so anything the
+    delta's OWN core build writes to a fingerprinted store comes back one
+    heartbeat later as a synthetic ``state.reconciled`` — an uncovered batch, one
+    more full-core build, for a write nobody made.
+
+    POSITIVE CONTROL (same stream, one variable changed): a genuinely silent
+    write — the pointer file's mtime moved with no event — MUST reconcile, so the
+    quiet arm cannot pass by the watchdog never running here.
+    """
+
+    import os
+
+    from agent_runtime import paths
+    from agent_runtime.store import WorkspaceStore
+    from tests.agent_runtime.office_seed import seed_workspace_record
+
+    seed_workspace_record("ws_watchdog")
+    frames = stream_frames(
+        poll_interval_seconds=0.02,
+        delta_debounce_seconds=0.0,
+        heartbeat_interval_seconds=0.3,
+        max_frames=60,
+    )
+    first = next(frames)
+    while first["type"] != "hydrate":
+        first = next(frames)
+
+    WorkspaceStore().set_active("ws_watchdog")
+    frame = next(frames)
+    while frame["type"] != "delta":
+        frame = next(frames)
+    assert "workspace.activated" in _delta_event_types(frame)
+
+    after: list[str] = []
+    beats = 0
+    while beats < 3:
+        frame = next(frames)
+        if frame["type"] == "heartbeat":
+            beats += 1
+        elif frame["type"] == "delta":
+            after.extend(_delta_event_types(frame))
+    assert "state.reconciled" not in after, after
+
+    pointer = paths.active_workspace_path()
+    stamp = pointer.stat().st_mtime_ns + 10**9
+    os.utime(pointer, ns=(stamp, stamp))
+    reconciled: list[str] = []
+    for _ in range(20):
+        frame = next(frames)
+        if frame["type"] == "delta":
+            reconciled.extend(_delta_event_types(frame))
+            break
+    assert reconciled == ["state.reconciled"], reconciled
