@@ -36,8 +36,8 @@ the highest layer it re-exports is ``stores``.
 already in this tree, and a lane exemption keyed on it
 (``test_snapshot_contract_version_authority``) would cover every copy.
 
-``instances`` and ``summary`` are ``stores`` only because the canonical persona
-spelling (``_canonical_persona_id``) lives in ``persona_chat_history.history_rows``;
+``instances`` and ``summary`` are ``policy``: the canonical persona spelling
+they read is ``persona_chat_history.vocabulary.canonical_chat_persona_id``, and
 the projection itself performs no I/O.
 """
 

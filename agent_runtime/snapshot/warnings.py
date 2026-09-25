@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 from agent_runtime.events import event_summary_missing
 from agent_runtime.models import looks_like_persona_instance_id
-from agent_runtime.persona_chat_history.history_rows import _canonical_persona_id
+from agent_runtime.persona_chat_history.vocabulary import canonical_chat_persona_id
 from agent_runtime.persona_instance_identity import (
     backed_persona_identity,
     classify_orphan_persona_instances,
@@ -144,7 +144,7 @@ def _referential_warnings(frame: _WarningFrame) -> list[dict]:
 
     data, instances, warnings = frame.data, frame.instances, []
     instance_personas = {
-        _canonical_persona_id(inst.get("persona_id")) for inst in instances if isinstance(inst, dict)
+        canonical_chat_persona_id(inst.get("persona_id")) for inst in instances if isinstance(inst, dict)
     }
     instance_ids = {
         str(inst.get("persona_instance_id") or inst.get("agent_profile_id") or "")
@@ -206,7 +206,7 @@ def _referential_warnings(frame: _WarningFrame) -> list[dict]:
     for row in data.get("persona_chat_trace") or []:
         if not isinstance(row, dict):
             continue
-        row_persona = _canonical_persona_id(row.get("persona_id"))
+        row_persona = canonical_chat_persona_id(row.get("persona_id"))
         row_instance = str(row.get("persona_instance_id") or "")
         if row_persona not in instance_personas and row_instance not in instance_ids:
             warnings.append(
@@ -247,7 +247,7 @@ def _live_mission_shadow_warnings(frame: _WarningFrame) -> list[dict]:
     chat_latest_by_persona: dict[str, datetime] = {}
     mission_latest_by_persona: dict[str, tuple[datetime, str | None]] = {}
     for row in chat_rows:
-        persona_id = _canonical_persona_id(row.get("persona_id")) or ""
+        persona_id = canonical_chat_persona_id(row.get("persona_id")) or ""
         if not persona_id:
             continue
         timestamp = _parse_iso_timestamp(row.get("updated_at")) or _parse_iso_timestamp(row.get("created_at"))

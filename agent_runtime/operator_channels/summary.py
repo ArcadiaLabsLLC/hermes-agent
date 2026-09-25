@@ -27,7 +27,7 @@ from .vocabulary import (
     first_present_text,
 )
 
-__layer__ = "stores"
+__layer__ = "policy"
 
 
 def operator_channel_summary(

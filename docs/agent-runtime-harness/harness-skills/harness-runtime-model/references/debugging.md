@@ -34,7 +34,7 @@ projection — do not "restore" it.
 Divergence classes that have actually bitten (history + closeouts in
 `Launcher_Brain/20 — Active Initiatives/mission-control-parity-audit.md`):
 
-- **Identity mismatch** — canonicalize persona identity with `_canonical_persona_id`
+- **Identity mismatch** — canonicalize persona identity with `persona_chat_history.vocabulary.canonical_chat_persona_id`
   (preserves `profile:alice`), NEVER `safe_assignment_token` (mangles →
   `profile_alice`). Mismatched keys silently orphan trace/history rows.
 - **Missing chat tool calls** — confirm `ChatProgressSink` emitted `run.tool.*` for the

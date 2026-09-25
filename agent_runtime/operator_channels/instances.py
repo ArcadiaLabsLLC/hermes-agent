@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Iterable
 from ..clock import parse_iso
 from ..models import PersonaInstance
 from ..persona_assignments.identity import persona_instance_id_for
-from ..persona_chat_history.history_rows import _canonical_persona_id
+from ..persona_chat_history.vocabulary import canonical_chat_persona_id
 from ..serde import safe_assignment_text, safe_assignment_token
 
 from .vocabulary import (
@@ -21,7 +21,7 @@ from .vocabulary import (
 if TYPE_CHECKING:  # the builder imports this module; annotation only
     from .summary import _OperatorChannelBuilder
 
-__layer__ = "stores"
+__layer__ = "policy"
 
 
 @dataclass(frozen=True)
@@ -78,7 +78,7 @@ def channel_identity(builder: Any) -> ChannelIdentity:
         history.get("persona_id") if history else None,
         trace.get("persona_id") if trace else None,
     )
-    persona_id = _canonical_persona_id(persona_id) or persona_id or "unknown"
+    persona_id = canonical_chat_persona_id(persona_id) or persona_id or "unknown"
     canonical_id = first_present_text(
         attr("id"),
         history.get("persona_instance_id") if history else None,
@@ -199,7 +199,7 @@ def _operator_conversation_relationships(
 def _channel_key_for_instance(instance: PersonaInstance) -> str:
     mode = safe_assignment_token(getattr(instance, "mode", None))
     session_id = _safe_session(getattr(instance, "session_id", None))
-    persona_id = _canonical_persona_id(getattr(instance, "persona_id", None)) or "unknown"
+    persona_id = canonical_chat_persona_id(getattr(instance, "persona_id", None)) or "unknown"
     if session_id and mode in _CHAT_INSTANCE_MODES:
         return f"session:{session_id}"
     task_id = safe_assignment_text(getattr(instance, "current_task_id", None), limit=160)
@@ -263,10 +263,10 @@ def _source_instance_ids_conflict(
         persona
         for persona in [
             *(
-                _canonical_persona_id(getattr(instance, "persona_id", None))
+                canonical_chat_persona_id(getattr(instance, "persona_id", None))
                 for instance in instances
             ),
-            *(_canonical_persona_id(row.get("persona_id")) for row in rows),
+            *(canonical_chat_persona_id(row.get("persona_id")) for row in rows),
         ]
         if persona
     }

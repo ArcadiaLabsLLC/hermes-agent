@@ -133,7 +133,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-25 (lane B3)
 
-- [ ] **`persona_chat_history.history_rows._canonical_persona_id` is a pure spelling function read PRIVATELY by five modules in three packages (`operator_channels/{instances,summary}`, `snapshot/warnings`, `persona_chat_history/{summary,trace}`), and because it lives in a stores module every policy-shaped reader is pinned at `stores`** · `fork / runtime` · hoist it to `persona_chat_history/vocabulary.py` under a public name (not `canonical_persona_id` — `personas.canonical_persona_id` is a different alias rule) and retarget the five readers; `operator_channels/instances` and `summary` then declare `policy` · evidence: lane B3 operator_channels MOVE/CHANGE bodies · filed by lane B3 2026-09-25 **TAKEN 2026-09-25 lane W3-D** · VERDICT 2026-09-25 lane W3-C: HOISTED — `persona_chat_history/vocabulary.py::canonical_chat_persona_id` (public, in the package `__all__`), the package's own readers (`history_rows`, `summary`, `trace`) retargeted, killing mutation recorded in the landing commit. LEFT, fenced to lane W3-B this wave: `operator_channels/instances` and `snapshot/warnings` still import `history_rows._canonical_persona_id`, which survives ONLY as a binding of the same object (identity pinned in `test_persona_chat_history_curation.py`); retarget those two, delete the binding, then `operator_channels/{instances,summary}` declare `policy`.
 
 
 ### Filed on arrival — 2026-09-25 (lane B4, filed by the orchestrator)

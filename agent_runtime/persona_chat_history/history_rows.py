@@ -38,7 +38,6 @@ __all__ = [
     "_persisted_persona_instance_id",
     "_persona_chat_candidate_sort_key",
     "_infer_persona_id",
-    "_canonical_persona_id",
 ]
 
 
@@ -455,13 +454,6 @@ def _persona_token_from_chat_session_tail(value: str) -> str | None:
     if len(parts) == 2 and len(parts[1]) == 12 and all(ch in "0123456789abcdef" for ch in parts[1].lower()):
         token = parts[0]
     return canonical_chat_persona_id(token)
-
-
-#: NOT a second definition — the same object as the vocabulary's, bound here only
-#: for ``operator_channels.instances`` and ``snapshot.warnings``, which read it by
-#: this private name and sit outside lane W3-C's fence. Deleted when they
-#: retarget (runtime-queue row, VERDICT 2026-09-25 lane W3-C).
-_canonical_persona_id = canonical_chat_persona_id
 
 
 def _fallback_title(raw: dict[str, Any], *, persona_id: str) -> str:

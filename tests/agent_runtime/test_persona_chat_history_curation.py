@@ -2181,4 +2181,3 @@ def test_the_history_rows_persona_spelling_is_the_vocabularys_one_public_functio
     one = vocabulary.canonical_chat_persona_id
     assert summary.canonical_chat_persona_id is one
     assert trace.canonical_chat_persona_id is one
-    assert history_rows._canonical_persona_id is one
