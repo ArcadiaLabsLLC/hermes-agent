@@ -250,7 +250,7 @@ def test_the_flag_off_line_costs_no_root_config_load_and_no_profile_read(monkeyp
     assert MCP_NOT_REGISTERED_ON_LANE in line
 
 
-def test_the_line_never_fails_a_turn(monkeypatch):
+def test_the_line_never_fails_a_turn(monkeypatch, caplog):
     import agent_runtime.mcp_lane as mcp_lane
 
     def _boom(*_a, **_k):
@@ -258,7 +258,38 @@ def test_the_line_never_fails_a_turn(monkeypatch):
 
     monkeypatch.setattr(mcp_lane, "mcp_lane_requirement_failures", _boom)
 
-    assert mission_chat_mcp_lane_line(_qa_declaring("launcher_qa")) == ""
+    with caplog.at_level("WARNING", logger="agent_runtime.mcp_lane"):
+        assert mission_chat_mcp_lane_line(_qa_declaring("launcher_qa")) == ""
+    assert "mcp_lane_line_render_failed" in caplog.text
+    assert "RuntimeError" in caplog.text
+
+
+def test_a_broken_declaration_import_is_heard_not_read_as_no_declaration(
+    monkeypatch, caplog
+):
+    """Lane W3-C measured it: a renamed ``effective_required_mcp_servers`` made
+    the line go empty with no log — "this persona declares nothing" and "the
+    declaration could not be read" were one answer. The line still never fails
+    a turn, but the broken read now logs a WARNING naming the exception.
+
+    POSITIVE CONTROL (same persona, import intact): the line renders and
+    nothing is logged, so the warning arm cannot pass by always logging.
+    """
+
+    import agent_runtime.profile_readiness as profile_readiness
+
+    with caplog.at_level("WARNING", logger="agent_runtime.mcp_lane"):
+        assert MCP_NOT_REGISTERED_ON_LANE in mission_chat_mcp_lane_line(
+            _qa_declaring("launcher_qa")
+        )
+    assert "mcp_lane_line" not in caplog.text
+
+    monkeypatch.delattr(profile_readiness, "effective_required_mcp_servers")
+    caplog.clear()
+    with caplog.at_level("WARNING", logger="agent_runtime.mcp_lane"):
+        assert mission_chat_mcp_lane_line(_qa_declaring("launcher_qa")) == ""
+    assert "mcp_lane_line_declaration_unreadable" in caplog.text
+    assert "ImportError" in caplog.text
 
 
 def test_the_role_policy_is_imported_never_re_implemented():

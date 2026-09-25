@@ -27,7 +27,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-25 (lane W3-C)
 
-- [ ] **`mcp_lane.mission_chat_mcp_lane_line` answers `""` on ANY exception around its declaration read, so a broken import of `profile_readiness.effective_required_mcp_servers` reads as "this persona declares no MCP server" — measured by lane W3-C's rename mutation: the line went empty with no log** · `fork / runtime` · narrow the guard to the lookup's own failures and log the rest, or type the answer (`declared` / `unreadable`) · evidence: lane W3-C row-3 commit body · filed by lane W3-C 2026-09-25 **TAKEN 2026-09-25 lane W3-D**
 
 ### Filed on arrival — 2026-09-25 (lane B4)
 

@@ -29,11 +29,14 @@ and here is why."
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from typing import Any, Iterable, Sequence
 
 from .serde import unique_texts
+
+logger = logging.getLogger(__name__)
 
 #: ``requirement_failures[].code`` for the drop this module accounts for.
 MCP_NOT_REGISTERED_ON_LANE = "mcp_not_registered_on_lane"
@@ -299,7 +302,11 @@ def mission_chat_mcp_lane_line(persona: Any, *, lane: str | None = None) -> str:
       ``launcher_qa``) is imported, never re-implemented — the design's standing
       "do not write a second copy" rule.
 
-    Never raises: a context line must not be able to fail a turn.
+    Never raises: a context line must not be able to fail a turn. But it is
+    never SILENT either: "declares no MCP server" is only ever answered by a
+    declaration read that succeeded. A read or render that failed (a broken
+    import, a malformed persona, a wedged registry) logs a WARNING naming the
+    exception and renders nothing — the turn proceeds, the defect is heard.
     """
 
     try:
@@ -309,7 +316,13 @@ def mission_chat_mcp_lane_line(persona: Any, *, lane: str | None = None) -> str:
         from .profile_readiness import effective_required_mcp_servers
 
         declared = effective_required_mcp_servers(persona)
-    except Exception:  # pragma: no cover - defensive; a declaration probe is best-effort
+    except Exception as exc:  # noqa: BLE001 — never fail a turn; never silent
+        logger.warning(
+            "mcp_lane_line_declaration_unreadable persona=%s error=%s: %s",
+            getattr(persona, "id", None),
+            type(exc).__name__,
+            exc,
+        )
         return ""
     if not declared:
         return ""
@@ -317,7 +330,13 @@ def mission_chat_mcp_lane_line(persona: Any, *, lane: str | None = None) -> str:
         return render_mcp_lane_line(
             mcp_lane_requirement_failures(declared_servers=declared, lane=lane)
         )
-    except Exception:  # pragma: no cover - defensive
+    except Exception as exc:  # noqa: BLE001 — never fail a turn; never silent
+        logger.warning(
+            "mcp_lane_line_render_failed persona=%s error=%s: %s",
+            getattr(persona, "id", None),
+            type(exc).__name__,
+            exc,
+        )
         return ""
 
 
