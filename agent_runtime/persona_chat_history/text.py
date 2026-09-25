@@ -9,7 +9,7 @@ import json
 import re
 from typing import Any
 
-from ..persona_assignments import safe_assignment_text, safe_assignment_token
+from ..serde import safe_assignment_text, safe_assignment_token
 from ..redaction_mode import redaction_observe_enabled
 from .vocabulary import PERSONA_CHAT_MESSAGE_TEXT_LIMIT, _SECRET_RE
 

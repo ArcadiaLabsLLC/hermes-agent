@@ -109,7 +109,7 @@ def one_stale_two_healthy(monkeypatch):
     # database must positively enumerate. Both are satisfied here so the test
     # measures the verb, not the guard — the guard has its own test below.
     monkeypatch.setattr(
-        "agent_runtime.persona_chat_history._default_session_db",
+        "agent_runtime.chat_session_scope.open_chat_session_db",
         lambda *a, **k: _FakeSessionDB(["persona_chat_a", "persona_chat_b"]),
     )
     monkeypatch.setattr(

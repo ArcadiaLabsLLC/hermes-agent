@@ -155,21 +155,20 @@ def _session_presence_probe(session_db: Any | None = None) -> tuple[Any | None, 
     db = session_db
     if db is None:
         try:
-            from ..chat_session_scope import resolve_process_chat_scope
-
-            from ..persona_chat_history import _default_session_db
+            from ..chat_session_scope import open_chat_session_db, resolve_process_chat_scope
 
             # DESTRUCTIVE posture: a head RECORDED for the shared runtime root
             # is enough to read or mint a transcript, and deliberately NOT
             # enough to clear a live binding. This lane still requires that THIS
             # process named the head — byte-identical to the shipped 8c3942a21
-            # guard. The acquisition itself stays on the shared
-            # ``_default_session_db`` delegate, so there is still exactly one.
+            # guard. The acquisition itself is ``chat_session_scope``'s one
+            # opener — the owner every history read goes through — so there is
+            # still exactly one.
             # A PROCESS question — "did this process name a head" — not a
             # per-conversation one, so it resolves on the process ladder.
             if not resolve_process_chat_scope().explicitly_named:
                 return None, "head_home_not_authoritative"
-            db = _default_session_db()
+            db = open_chat_session_db()
         except Exception:
             db = None
     if db is None:

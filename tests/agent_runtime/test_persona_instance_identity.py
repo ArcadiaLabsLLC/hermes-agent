@@ -777,13 +777,13 @@ def test_repair_skips_when_head_home_is_not_authoritative(monkeypatch):
     operator chat as absent — the live 2026-07-25 reconcile cleared 10 live
     bindings exactly this way. Fail closed with a typed skip instead."""
 
-    from agent_runtime import persona_chat_history
+    from agent_runtime import chat_session_scope
 
     _bind("personainst_gone", persona_id="dev", session_id="persona_chat_gone")
     monkeypatch.delenv("HERMES_HEAD_HOME", raising=False)
     monkeypatch.setattr(
-        persona_chat_history,
-        "_default_session_db",
+        chat_session_scope,
+        "open_chat_session_db",
         lambda: (_ for _ in ()).throw(AssertionError("guard must refuse before resolving the DB")),
     )
 
@@ -798,15 +798,15 @@ def test_repair_skips_when_head_home_is_not_authoritative(monkeypatch):
 def test_reconcile_repairs_stale_chat_bindings_and_dry_run_is_inert(monkeypatch):
     import os
 
-    from agent_runtime import persona_chat_history
+    from agent_runtime import chat_session_scope
 
     _bind("personainst_gone", persona_id="dev", session_id="persona_chat_gone")
     # The presence probe fails closed without an explicit head authority; the
     # repair path under test assumes correctly-routed maintenance.
     monkeypatch.setenv("HERMES_HEAD_HOME", os.environ.get("HERMES_HOME", ""))
     monkeypatch.setattr(
-        persona_chat_history,
-        "_default_session_db",
+        chat_session_scope,
+        "open_chat_session_db",
         lambda: _FakeSessionDB(["persona_chat_live"]),
     )
 

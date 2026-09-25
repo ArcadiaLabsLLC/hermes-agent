@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from ..persona_assignments import safe_assignment_text, safe_assignment_token
+from ..serde import safe_assignment_text, safe_assignment_token
 from ..serde import non_negative_int
 from ..redaction import TEXT_SECRET_VALUE_ASSIGNMENT_RE
 

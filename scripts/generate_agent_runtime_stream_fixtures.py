@@ -57,7 +57,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import importlib
 import os
+import pkgutil
 from pathlib import Path
 import sys
 import tempfile
@@ -842,10 +844,20 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
 
     base_offset = events_position()["event_offset"]
 
+    # The mint is looked up in whichever package module binds it (the package
+    # re-exports it; the store and its lanes import it), so pin it in every one,
+    # enumerated from the package rather than listed.
     minted = persona_assignments.persona_chat_session_id_for
-    persona_assignments.persona_chat_session_id_for = (
-        lambda _instance_id: FIXTURE_CREATE_CHAT_SESSION_ID
-    )
+    pinned_in = [persona_assignments] + [
+        module
+        for module in (
+            importlib.import_module(f"{persona_assignments.__name__}.{info.name}")
+            for info in pkgutil.iter_modules(persona_assignments.__path__)
+        )
+        if getattr(module, "persona_chat_session_id_for", None) is minted
+    ]
+    for module in pinned_in:
+        module.persona_chat_session_id_for = lambda _instance_id: FIXTURE_CREATE_CHAT_SESSION_ID
     head_home_before = os.environ.get("HERMES_HEAD_HOME")
     os.environ.setdefault(
         "HERMES_HEAD_HOME", os.environ.get("HERMES_HOME") or str(paths.store_root())
@@ -861,7 +873,8 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
             }
         )
     finally:
-        persona_assignments.persona_chat_session_id_for = minted
+        for module in pinned_in:
+            module.persona_chat_session_id_for = minted
         if head_home_before is None:
             os.environ.pop("HERMES_HEAD_HOME", None)
         else:

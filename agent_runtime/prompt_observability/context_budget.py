@@ -11,7 +11,7 @@ from typing import Any
 from hermes_cli.profiles import get_profile_dir
 
 from .._upstream_doors import compression_threshold_for_model
-from ..persona_assignments import safe_assignment_text, safe_assignment_token
+from ..serde import safe_assignment_text, safe_assignment_token
 
 __layer__ = "policy"
 __all__ = [

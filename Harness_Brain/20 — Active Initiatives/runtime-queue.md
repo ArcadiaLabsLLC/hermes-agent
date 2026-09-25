@@ -108,7 +108,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-25 (lane R2)
 
-- [ ] **When R1 lands, eight R2 policy-layer modules import `..persona_assignments`, whose `__init__` becomes `stores` — a W0-G6 upward import** · `fork / god-file` · `persona_chat_history/{vocabulary,text,trace_rows,curation,markers}.py` and `prompt_observability/{hoist,safe_views,context_budget}.py` must be retargeted to `persona_assignments.tokens` / `.identity` at the R1 landing, in the same commit; the `_default_session_db` wrapper deletion (dead-code queue) is ready once R1's CHANGE lands, since `persona_assignments/scan.py` is its last reader · evidence: lane R2 report (holding file, 2026-09-25) · filed by orchestrator 2026-09-25 **UNCLAIMED**
 
 
 ## Seams — fork edits inside upstream files (additive only)

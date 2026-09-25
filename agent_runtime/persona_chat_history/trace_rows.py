@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from ..persona_assignments import safe_assignment_text, safe_assignment_token
+from ..serde import safe_assignment_text, safe_assignment_token
 from ..serde import strict_int
 from ..transcript_order import TURN_SEQ_CONTENT
 from .vocabulary import (

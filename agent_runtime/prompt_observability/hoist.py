@@ -9,7 +9,7 @@ import hashlib
 import json
 from typing import Any
 
-from ..persona_assignments import safe_assignment_token
+from ..serde import safe_assignment_token
 from ..serde import non_negative_int, to_jsonable
 from .safe_views import (
     _safe_cache_routing,
