@@ -8,7 +8,8 @@ Entry points (what calls in):
 * ``lane.close_cache_lane`` / ``lane.note_full_build_completed`` /
   ``lane.reset_process_state`` — the process-level lane.
 * ``home.declare_fingerprint_home_boot_site`` / ``capture_fingerprint_home`` —
-  the serve boot pins the fingerprint home.
+  the serve boot pins the fingerprint home; ``home.capture_for_harness_command``
+  is the CLI dispatch's instant (``hermes_cli.harness._harness_entry``).
 * ``shadow.maybe_start_shadow_validation`` — the shadow check.
 
 Modules, lowest layer first (no module imports one above it — W0-G6):
@@ -20,12 +21,12 @@ vocabulary   models  file names, demote reasons, receipts, refusals, bounds
 models       models  the value types passed between stages
 walk         stores  the stat walker and its exclusion/content rules
 home         stores  the fingerprint home (process state, one writer)
-fingerprint  stores  ``build_input_fingerprint``, stamp tokens
+fingerprint  stores  ``build_input_fingerprint`` over ``INPUT_CLASSES``, stamp tokens
 generations  stores  the generation layout and paths
 restat       stores  the post-build restat
 persist      stores  ``write_back``: staging/landing a generation, reaping
 convergence  stores  the convergence streak (process state, one writer)
-read         stores  reading and judging the persisted pair
+read         stores  reading and judging the persisted pair (``DIFFERENT_QUESTION_CHECKS``)
 lane         lanes   the armed lane and consult memo (process state)
 decision     lanes   ``consult``, the demote log line
 shadow       lanes   shadow validation

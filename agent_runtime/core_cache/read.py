@@ -4,6 +4,8 @@ fingerprint: ``read_persisted_core``, the demote checks, ``label_core``.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import json
 from typing import Any
 
@@ -45,6 +47,7 @@ from agent_runtime.core_cache.generations import (
 __layer__ = "stores"
 
 __all__ = [
+    "DIFFERENT_QUESTION_CHECKS",
     "_judge_persisted_pair",
     "_persisted_entries",
     "_read_pair",
@@ -224,12 +227,25 @@ def _sidecar_answers_a_different_question(sidecar: dict) -> str:
     """
 
     stamp = build_stamp_token()
-    if stamp is None:
-        return DEMOTE_BUILD_STAMP_UNKNOWN
-    if sidecar.get("build_stamp") != stamp:
-        return DEMOTE_BUILD_STAMP_MISMATCH
-    if sidecar.get("contract_versions") != contract_versions():
-        return DEMOTE_CONTRACT_MISMATCH
+    for reason, differs in DIFFERENT_QUESTION_CHECKS:
+        if differs(sidecar, stamp):
+            return reason
+    return ""
+
+
+def _stamp_unknown(sidecar: dict, stamp: str | None) -> bool:
+    return stamp is None
+
+
+def _stamp_differs(sidecar: dict, stamp: str | None) -> bool:
+    return sidecar.get("build_stamp") != stamp
+
+
+def _contract_differs(sidecar: dict, stamp: str | None) -> bool:
+    return sidecar.get("contract_versions") != contract_versions()
+
+
+def _root_differs(sidecar: dict, stamp: str | None) -> bool:
     try:
         from .. import paths as _paths
 
@@ -237,16 +253,30 @@ def _sidecar_answers_a_different_question(sidecar: dict) -> str:
     except Exception:
         current_root = None
     recorded_root = sidecar.get("runtime_root")
-    if current_root is not None and recorded_root and str(recorded_root) != current_root:
-        return DEMOTE_RUNTIME_ROOT_MISMATCH
+    return bool(current_root is not None and recorded_root and str(recorded_root) != current_root)
+
+
+def _home_differs(sidecar: dict, stamp: str | None) -> bool:
     # ABSENT MUST NOT DEMOTE. Every sidecar written before MC-2 carries no
     # ``fingerprint_home``, and treating absent as mismatch would demote every
     # install a SECOND time for no information — once for the closure change that
     # stage already forced, then again for a field it could not have written.
     recorded_home = sidecar.get("fingerprint_home")
-    if recorded_home and str(recorded_home) != str(resolved_fingerprint_home()[0]):
-        return DEMOTE_HOME_MISMATCH
-    return ""
+    return bool(recorded_home and str(recorded_home) != str(resolved_fingerprint_home()[0]))
+
+
+#: "Is this persisted pair about the same code, contract, root and home as the
+#: process judging it?" — one row per dimension, walked IN ORDER, the first row
+#: that differs naming the demote (rule 12). The order is the conjunction's, and
+#: it is load-bearing: see :func:`_sidecar_answers_a_different_question`. Each
+#: predicate takes the sidecar and the ONE build stamp this judgement read.
+DIFFERENT_QUESTION_CHECKS: tuple[tuple[str, Callable[[dict, str | None], bool]], ...] = (
+    (DEMOTE_BUILD_STAMP_UNKNOWN, _stamp_unknown),
+    (DEMOTE_BUILD_STAMP_MISMATCH, _stamp_differs),
+    (DEMOTE_CONTRACT_MISMATCH, _contract_differs),
+    (DEMOTE_RUNTIME_ROOT_MISMATCH, _root_differs),
+    (DEMOTE_HOME_MISMATCH, _home_differs),
+)
 
 
 # --------------------------------------------------------------------------- #

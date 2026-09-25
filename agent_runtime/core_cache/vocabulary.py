@@ -71,7 +71,11 @@ __all__ = [
 ]
 
 
-logger = logging.getLogger(__name__)
+#: The receipt channel's NAME, pinned rather than derived from ``__name__``: the
+#: channel table (the package docstring) names ``agent_runtime.core_cache`` as the
+#: one logger every receipt rides, and a census or operator filter keyed on it
+#: must not follow the file the logger happens to be declared in.
+logger = logging.getLogger("agent_runtime.core_cache")
 
 
 #: The cache's own home under the agent-runtime store root. A DEDICATED

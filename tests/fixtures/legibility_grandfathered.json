@@ -36,16 +36,6 @@
    "unit": "agent_runtime/call_authorization.py|authorize_call"
   },
   {
-   "depth": 4,
-   "lines": 236,
-   "unit": "agent_runtime/core_cache/fingerprint.py|build_input_fingerprint"
-  },
-  {
-   "depth": 1,
-   "lines": 223,
-   "unit": "agent_runtime/core_cache/persist.py|write_back"
-  },
-  {
    "depth": 3,
    "lines": 188,
    "unit": "agent_runtime/default_scope.py|preview_default_scope_migration"

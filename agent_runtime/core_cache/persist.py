@@ -44,6 +44,8 @@ from agent_runtime.core_cache.read import _runtime_root_for_sidecar
 __layer__ = "stores"
 
 __all__ = [
+    "_sidecar_for",
+    "_stage_and_land",
     "GENERATION_RESIDUE_BOUND",
     "_GENERATION_RESIDUE_NAMES",
     "_entries_payload",
@@ -123,44 +125,9 @@ def write_back(core: dict, *, fingerprint: CoreFingerprint | None = None) -> boo
     :data:`SELF_PERTURBED_SESSION_DB`; the mechanism is
     :func:`_restat_on_post_build_reality`.
 
-    **Named consequence, AMENDED: a cold store converged in two builds, not
-    one.** The build is not a pure reader —
-    ``PersonaInstanceStore.ensure_for_personas`` materializes missing instance
-    rows, and the chat SessionDB is CREATED by the first process that opens it.
-    On a store where neither had happened yet, the pre-build key described inputs
-    the build itself then changed, so the next process demoted once and rebuilt.
-    That was a property of the conservative direction, not a defect. IC-2 closes
-    exactly that gap for exactly those inputs: the mint and the close are inside
-    the audited set, so their triples are re-stat'd before the key is persisted
-    and a cold store now converges on the FIRST build. What is unchanged is the
-    reason a store may still take two: any input outside the audited set that
-    moved during the build.
-
-    **Cost, named with the rest below, INCLUDING who pays it.** The re-stat is a
-    second full walk (~300 ms on the operator's live root, less since the
-    ``deleted_archive`` and ``realm_sync/**/.git`` exclusions) on a path that
-    only runs after a build measured in seconds — 11,235 ms for the cold-boot
-    re-projection this lane exists to replace. It is skipped entirely when the
-    caller passed no fingerprint, because that key was already walked after the
-    build. The part not to discover later: ``build_snapshot`` calls this INSIDE
-    its coalescing window, so the riders waiting on the leader wait for the walk
-    too, exactly as they already wait for the megabyte serialize and the fsync
-    beside it. The trade is ~300 ms once per LED build against a next process
-    that can be served at all; if receipts show the rider wait matters, the
-    refinement is to narrow the re-stat to the audited paths (which is all it
-    reads) rather than to drop it — that loses only the ``foreign_moved=``
-    observable.
-
-    **Cost, named rather than discovered.** EVERY successful default-store build
-    writes here, and a live-store core is megabytes, so a serve process that
-    demotes several delta batches in a minute writes that many times. Priced and
-    accepted for this landing: the write is ~5 ms of serialize plus one fsync
-    against a build that costs seconds, and the alternative — skipping the write
-    when the persisted pair would already match — needs the FULL judgement (a
-    sidecar-only check leaves a tampered core permanently unhealed, because the
-    read path refuses it while the write path keeps declining to replace it). If
-    receipts show the churn matters, that is the refinement, gated on
-    :func:`read_persisted_core`, not a narrowing of which builds write.
+    The cost of this write — and who pays it — and the cold-store convergence
+    history are recorded in ``docs/agent-runtime-harness/history/core_cache.md``
+    § ``write_back`` (rule 7).
     """
 
     from ..serde import to_jsonable
@@ -190,80 +157,14 @@ def write_back(core: dict, *, fingerprint: CoreFingerprint | None = None) -> boo
         else _RestatOutcome(key, 0, 0, _RESTAT_SKIPPED)
     )
     key = restat.key
-    parity = payload.get("parity") if isinstance(payload.get("parity"), dict) else {}
-    watermark = parity.get("watermark") if isinstance(parity.get("watermark"), dict) else {}
-    fingerprint_home, home_authoritative = resolved_fingerprint_home()
-    sidecar = {
-        "fingerprint": key.digest,
-        "fingerprint_entries": key.count,
-        # WHICH QUESTION this key answers, not just what it answered. A digest is
-        # only comparable between two processes that resolved the same home; a
-        # pair written under one and judged under another is a DIFFERENT closure,
-        # and ``_judge_persisted_pair`` demotes it as ``home_mismatch`` rather
-        # than letting it wear the generic ``fingerprint_mismatch``. The
-        # authoritative flag rides beside it because an unauthoritative head is a
-        # fact a demote should be able to name — it means the home was the
-        # ambient resolution at capture time, so it is only as good as the moment
-        # it was taken.
-        "fingerprint_home": str(fingerprint_home),
-        "fingerprint_home_authoritative": home_authoritative,
-        "build_stamp": stamp,
-        "contract_versions": contract_versions(),
-        # DIAGNOSTIC ONLY. Recorded so a divergence receipt can name the log
-        # position the core was built at. It is NEVER an input to the match
-        # decision below — see the module header on why an offset key is
-        # refused.
-        "event_offset": watermark.get("event_offset"),
-        "core_sha256": _core_digest(payload),
-        "runtime_root": str(_runtime_root_for_sidecar(parity)),
-        "generated_at": payload.get("generated_at"),
-    }
+    sidecar = _sidecar_for(payload, key, stamp)
     # BEFORE the writes, because the pair on disk is about to become this
     # process's own and the previous boot's answer would be unrecoverable after.
     # A process boundary is not a convergence event — see
     # :func:`_capture_boot_streak_seed`.
     _capture_boot_streak_seed(key)
     generation = _new_generation_name()
-    staged = _cache_dir() / generation
-    try:
-        # The SAME atomic writer as everything else this module lands
-        # (``utils.atomic_json_write``, compact separators for the two large
-        # payloads), because one atomic-write authority is this module's rule. It
-        # is not what makes the trio atomic — the pointer replace below is — but a
-        # second staging convention inside one directory is how a half-written
-        # file gets read as a whole one.
-        atomic_json_write(
-            staged / CORE_FILENAME, payload, indent=None, separators=(",", ":"), sort_keys=True
-        )
-        atomic_json_write(staged / SIDECAR_FILENAME, sidecar, indent=None, sort_keys=True)
-        # The convergence authority runs BEFORE the entries write and hands it
-        # the number, rather than the entries write deriving one of its own: the
-        # streak is ``_note_written_key``'s to decide, and a second site computing
-        # it from the same seed would be two rules for one question (property 6).
-        # It sits INSIDE the staging block, after the two files that make a cache
-        # exist — see that function's docstring for the one window in which it can
-        # now advance for a generation that does not publish, and why that window
-        # is narrower than it looks.
-        streak = _note_written_key(key)
-        atomic_json_write(
-            staged / ENTRIES_FILENAME,
-            _entries_payload(key, streak),
-            indent=None,
-            separators=(",", ":"),
-            sort_keys=True,
-        )
-        # THE LANDING. Everything above wrote into a directory nothing points at;
-        # this one replace is the write-back.
-        atomic_json_write(
-            pointer_path(), {"generation": generation}, indent=None, sort_keys=True
-        )
-    except Exception:
-        logger.warning("snapshot_core_cache_write ok=false reason=io", exc_info=True)
-        # The pointer never named it, so this is housekeeping and not a retraction
-        # — the previous generation is still live and still whole. Best effort by
-        # construction: if it fails, the directory is inert residue and the next
-        # successful write-back reaps it.
-        shutil.rmtree(staged, ignore_errors=True)
+    if not _stage_and_land(payload, sidecar, key, generation):
         return False
     logger.info(
         "snapshot_core_cache_write ok=true inputs=%d fingerprint=%s offset=%s "
@@ -412,3 +313,87 @@ def _receipt_generation_residue(leftover: tuple[str, ...], live: str) -> None:
         len(leftover),
         ",".join(leftover[:_GENERATION_RESIDUE_NAMES]),
     )
+
+
+def _sidecar_for(payload: dict, key: CoreFingerprint, stamp: str) -> dict:
+    """The sidecar a write-back lands beside the core: WHICH QUESTION the key
+    answers (home, stamp, contract versions) and what it answered."""
+
+    parity = payload.get("parity") if isinstance(payload.get("parity"), dict) else {}
+    watermark = parity.get("watermark") if isinstance(parity.get("watermark"), dict) else {}
+    fingerprint_home, home_authoritative = resolved_fingerprint_home()
+    sidecar = {
+        "fingerprint": key.digest,
+        "fingerprint_entries": key.count,
+        # WHICH QUESTION this key answers, not just what it answered. A digest is
+        # only comparable between two processes that resolved the same home; a
+        # pair written under one and judged under another is a DIFFERENT closure,
+        # and ``_judge_persisted_pair`` demotes it as ``home_mismatch`` rather
+        # than letting it wear the generic ``fingerprint_mismatch``. The
+        # authoritative flag rides beside it because an unauthoritative head is a
+        # fact a demote should be able to name — it means the home was the
+        # ambient resolution at capture time, so it is only as good as the moment
+        # it was taken.
+        "fingerprint_home": str(fingerprint_home),
+        "fingerprint_home_authoritative": home_authoritative,
+        "build_stamp": stamp,
+        "contract_versions": contract_versions(),
+        # DIAGNOSTIC ONLY. Recorded so a divergence receipt can name the log
+        # position the core was built at. It is NEVER an input to the match
+        # decision below — see the module header on why an offset key is
+        # refused.
+        "event_offset": watermark.get("event_offset"),
+        "core_sha256": _core_digest(payload),
+        "runtime_root": str(_runtime_root_for_sidecar(parity)),
+        "generated_at": payload.get("generated_at"),
+    }
+    return sidecar
+
+
+def _stage_and_land(payload: dict, sidecar: dict, key: CoreFingerprint, generation: str) -> bool:
+    """Write the trio into ``generation`` (a directory nothing points at yet) and
+    land it by replacing the pointer; on any failure log ``ok=false reason=io``,
+    remove the staging directory and answer False (MCF-21: all three or none)."""
+
+    staged = _cache_dir() / generation
+    try:
+        # The SAME atomic writer as everything else this module lands
+        # (``utils.atomic_json_write``, compact separators for the two large
+        # payloads), because one atomic-write authority is this module's rule. It
+        # is not what makes the trio atomic — the pointer replace below is — but a
+        # second staging convention inside one directory is how a half-written
+        # file gets read as a whole one.
+        atomic_json_write(
+            staged / CORE_FILENAME, payload, indent=None, separators=(",", ":"), sort_keys=True
+        )
+        atomic_json_write(staged / SIDECAR_FILENAME, sidecar, indent=None, sort_keys=True)
+        # The convergence authority runs BEFORE the entries write and hands it
+        # the number, rather than the entries write deriving one of its own: the
+        # streak is ``_note_written_key``'s to decide, and a second site computing
+        # it from the same seed would be two rules for one question (property 6).
+        # It sits INSIDE the staging block, after the two files that make a cache
+        # exist — see that function's docstring for the one window in which it can
+        # now advance for a generation that does not publish, and why that window
+        # is narrower than it looks.
+        streak = _note_written_key(key)
+        atomic_json_write(
+            staged / ENTRIES_FILENAME,
+            _entries_payload(key, streak),
+            indent=None,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        # THE LANDING. Everything above wrote into a directory nothing points at;
+        # this one replace is the write-back.
+        atomic_json_write(
+            pointer_path(), {"generation": generation}, indent=None, sort_keys=True
+        )
+    except Exception:
+        logger.warning("snapshot_core_cache_write ok=false reason=io", exc_info=True)
+        # The pointer never named it, so this is housekeeping and not a retraction
+        # — the previous generation is still live and still whole. Best effort by
+        # construction: if it fails, the directory is inert residue and the next
+        # successful write-back reaps it.
+        shutil.rmtree(staged, ignore_errors=True)
+        return False
+    return True

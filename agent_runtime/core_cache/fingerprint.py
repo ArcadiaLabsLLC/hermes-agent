@@ -7,7 +7,7 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable, NamedTuple
 
 from agent_runtime.core_cache.vocabulary import (
     MAX_FINGERPRINT_ENTRIES,
@@ -30,11 +30,29 @@ from agent_runtime.core_cache.home import _pinned_to_fingerprint_home
 __layer__ = "stores"
 
 __all__ = [
+    "INPUT_CLASSES",
+    "InputClass",
+    "_collect_store_root",
+    "_collect_running_work",
+    "_collect_session_db",
+    "_collect_profile_inputs",
+    "_collect_config_authorities",
+    "_collect_skill_registries",
+    "_collect_event_rotation",
     "_fingerprint_over",
     "build_input_fingerprint",
     "build_stamp_token",
     "contract_versions",
 ]
+
+
+class InputClass(NamedTuple):
+    """One input class of the core's closure: its name, whether it is pinned to
+    the fingerprint home, and the collector that appends its entries."""
+
+    name: str
+    pinned: bool
+    collect: Callable[[list[FingerprintEntry]], bool]
 
 
 def build_input_fingerprint() -> CoreFingerprint | None:
@@ -52,75 +70,53 @@ def build_input_fingerprint() -> CoreFingerprint | None:
     store and of the home this process resolved once, never of the
     ``HERMES_HOME`` the build itself exports mid-walk. Which classes are pinned
     and which are not is part of the specification, so it is stated per class
-    rather than left to be re-derived:
-
-    1. the agent-runtime store root subtree — ``paths.store_root()``, walked
-       recursively so an ADDED file flips the key (offices, boards, personas,
-       assignments, the event log and its rotation manifest, prompt
-       observability, realm-sync baselines: everything the projection reads
-       from the store, without a name list to fall behind). That "without a name
-       list" is the class's design and it now has TWO stated exceptions, which is
-       why the sentence no longer stands alone: ``deleted_archive/`` is excluded
-       because the PROJECTION has no reader for it (the full argument — including
-       the ``harness_doctor`` reader that does exist and why it does not re-admit
-       the tree — is written at ``_EXCLUDED_STORE_ENTRIES``), and the orphaned-
-       surface graveyard ``office_archive/`` is excluded because the runtime
-       writes it, without bound, and the projection is deliberately built not to
-       see it. Both arguments live at that constant. A THIRD exception is nested
-       rather than top-level and carries its own argument at its own constant:
-       ``realm_sync/**/.git`` — a synced worktree's git bookkeeping, which
-       ``build_snapshot`` is forbidden to read (Decision 7) and reads through
-       ``realm_sync_state/<realm>.json`` instead, while the four
-       ``realm_sync/<realm>/*_baseline.json`` sidecars beside it STAY in the
-       closure (see :data:`_EXCLUDED_NESTED_STORE_NAMES`). An exception with a
-       reason at the constant is not the failure mode the sentence warns about;
-       an unargued name list is. NOT pinned:
-       ``resolve_runtime`` reads ``HERMES_AGENT_RUNTIME_ROOT`` and then the ROOT
-       config, neither of which follows the profile home — measured unchanged
-       across a persona flip on both the same thread and another one;
-    2. the ``running_work`` durable stores — ``running_work_store_paths()``, the
-       ONE authority for them (they hang off the HERMES home, not the store
-       root, and both mutate with NO event). PINNED;
-    3. the chat SessionDB — ``chat_session_db_path()``, the database the CHAT
-       LANE writes, plus its WAL siblings. PINNED;
-    4. the profile inputs ``agents_readiness`` reads — the profiles root and,
-       per profile, ``profile.yaml`` + ``config.yaml``, plus the sticky
-       ``active_profile`` pointer that decides which one a bare invocation
-       resolves. NOT pinned: ``_get_profiles_root`` anchors to
-       ``get_default_hermes_root()``, which maps ``<root>/profiles/<name>`` back
-       to ``<root>``, so a profile flip resolves the SAME directory — measured.
-       The two YAML files are CONTENT-KEYED
-       (:func:`_config_input_is_content_keyed`); the profiles root and the
-       ``active_profile`` pointer are not;
-    5. the config inputs — ``get_config_path()``, taken PINNED (it is literally
-       ``get_hermes_home() / "config.yaml"``, so a persona scope swaps the file
-       being stat'd), and the ROOT ``harness_root_config_path()`` left ambient
-       because it anchors to the hermes root like class 4. Two authorities in
-       production because the CLI profile redirect makes them genuinely
-       different files. Both CONTENT-KEYED, with class 4's two: these four are
-       the whole of that mask's class;
-    6. the skill registries — ``get_all_skills_dirs()`` (local profile skills,
-       the shared canonical root, configured external roots) walked per root,
-       plus the in-repo harness-skill source root the hash comparison reads.
-       PINNED, and this is the class the measured 1,237-entry divergence came
-       from: index 0 is the AMBIENT home's ``skills/``;
-    7. the event-rotation lane — the manifest and the resolved LIVE slice.
-       Under the store root today, so class 1 covers them; stat'd explicitly
-       anyway because the resolution is free to move the live slice elsewhere
-       and a frozen ``events.jsonl`` entry after a rotation is exactly the
-       silent-staleness shape this whole module is against. NOT pinned: both
-       resolve off the store root.
+    rather than left to be re-derived: the classes are :data:`INPUT_CLASSES`,
+    each collector's docstring states its class, and any collector refusing
+    makes the whole answer ``None``.
     """
 
     entries: list[FingerprintEntry] = []
+    for input_class in INPUT_CLASSES:
+        if not input_class.collect(entries):
+            return None
+    return _fingerprint_over(entries)
 
-    # 1 — the agent-runtime store root subtree.
+
+def _collect_store_root(entries: list[FingerprintEntry]) -> bool:
+    """Input class 1 — the agent-runtime store root subtree.
+
+    Resolved through ``paths.store_root()``, walked
+    recursively so an ADDED file flips the key (offices, boards, personas,
+    assignments, the event log and its rotation manifest, prompt
+    observability, realm-sync baselines: everything the projection reads
+    from the store, without a name list to fall behind). That "without a name
+    list" is the class's design and it now has TWO stated exceptions, which is
+    why the sentence no longer stands alone: ``deleted_archive/`` is excluded
+    because the PROJECTION has no reader for it (the full argument — including
+    the ``harness_doctor`` reader that does exist and why it does not re-admit
+    the tree — is written at ``_EXCLUDED_STORE_ENTRIES``), and the orphaned-
+    surface graveyard ``office_archive/`` is excluded because the runtime
+    writes it, without bound, and the projection is deliberately built not to
+    see it. Both arguments live at that constant. A THIRD exception is nested
+    rather than top-level and carries its own argument at its own constant:
+    ``realm_sync/**/.git`` — a synced worktree's git bookkeeping, which
+    ``build_snapshot`` is forbidden to read (Decision 7) and reads through
+    ``realm_sync_state/<realm>.json`` instead, while the four
+    ``realm_sync/<realm>/*_baseline.json`` sidecars beside it STAY in the
+    closure (see :data:`_EXCLUDED_NESTED_STORE_NAMES`). An exception with a
+    reason at the constant is not the failure mode the sentence warns about;
+    an unargued name list is. NOT pinned:
+    ``resolve_runtime`` reads ``HERMES_AGENT_RUNTIME_ROOT`` and then the ROOT
+    config, neither of which follows the profile home — measured unchanged
+    across a persona flip on both the same thread and another one.
+    """
+
     try:
         from .. import paths as _paths
 
         root = _paths.store_root()
     except Exception:
-        return None
+        return False
     if not _walk_tree(
         root,
         entries,
@@ -133,9 +129,18 @@ def build_input_fingerprint() -> CoreFingerprint | None:
             root=root,
             bound=MAX_FINGERPRINT_ENTRIES,
         )
-        return None
+        return False
+    return True
 
-    # 2 — the running_work durable stores.
+
+def _collect_running_work(entries: list[FingerprintEntry]) -> bool:
+    """Input class 2 — the running_work durable stores.
+
+    Resolved through ``running_work_store_paths()``, the
+    ONE authority for them (they hang off the HERMES home, not the store
+    root, and both mutate with NO event). PINNED.
+    """
+
     try:
         from ..running_work import running_work_store_paths
 
@@ -151,15 +156,23 @@ def build_input_fingerprint() -> CoreFingerprint | None:
         with _pinned_to_fingerprint_home():
             store_paths = running_work_store_paths()
     except Exception:
-        return None
+        return False
     if not store_paths:
         # The authority could not resolve a home. "I cannot fingerprint these"
         # is not "there is nothing to watch" — refuse.
-        return None
+        return False
     for path in store_paths:
         _db_entries(path, entries)
+    return True
 
-    # 3 — the chat SessionDB.
+
+def _collect_session_db(entries: list[FingerprintEntry]) -> bool:
+    """Input class 3 — the chat SessionDB.
+
+    Resolved through ``chat_session_db_path()``, the database the CHAT
+    LANE writes, plus its WAL siblings. PINNED.
+    """
+
     try:
         from ..chat_session_scope import chat_session_db_path
 
@@ -173,9 +186,24 @@ def build_input_fingerprint() -> CoreFingerprint | None:
             chat_db = chat_session_db_path()
         _db_entries(chat_db, entries)
     except Exception:
-        return None
+        return False
+    return True
 
-    # 4 — profile inputs + the sticky active-profile pointer.
+
+def _collect_profile_inputs(entries: list[FingerprintEntry]) -> bool:
+    """Input class 4 — profile inputs + the sticky active-profile pointer.
+
+    Resolved through the profiles root and,
+    per profile, ``profile.yaml`` + ``config.yaml``, plus the sticky
+    ``active_profile`` pointer that decides which one a bare invocation
+    resolves. NOT pinned: ``_get_profiles_root`` anchors to
+    ``get_default_hermes_root()``, which maps ``<root>/profiles/<name>`` back
+    to ``<root>``, so a profile flip resolves the SAME directory — measured.
+    The two YAML files are CONTENT-KEYED
+    (:func:`_config_input_is_content_keyed`); the profiles root and the
+    ``active_profile`` pointer are not.
+    """
+
     try:
         from .._upstream_doors import default_hermes_home, profiles_root as _profiles_root
 
@@ -200,9 +228,22 @@ def build_input_fingerprint() -> CoreFingerprint | None:
             entries.append(_config_input_entry(Path(entry.path) / "profile.yaml"))
             entries.append(_config_input_entry(Path(entry.path) / "config.yaml"))
     except Exception:
-        return None
+        return False
+    return True
 
-    # 5 — the two config authorities.
+
+def _collect_config_authorities(entries: list[FingerprintEntry]) -> bool:
+    """Input class 5 — the two config authorities.
+
+    Resolved through ``get_config_path()``, taken PINNED (it is literally
+    ``get_hermes_home() / "config.yaml"``, so a persona scope swaps the file
+    being stat'd), and the ROOT ``harness_root_config_path()`` left ambient
+    because it anchors to the hermes root like class 4. Two authorities in
+    production because the CLI profile redirect makes them genuinely
+    different files. Both CONTENT-KEYED, with class 4's two: these four are
+    the whole of that mask's class.
+    """
+
     try:
         from hermes_constants import get_config_path
 
@@ -226,9 +267,20 @@ def build_input_fingerprint() -> CoreFingerprint | None:
         # NOT pinned: anchored to the hermes ROOT, like class 4.
         entries.append(_config_input_entry(harness_root_config_path()))
     except Exception:
-        return None
+        return False
+    return True
 
-    # 6 — the skill registries.
+
+def _collect_skill_registries(entries: list[FingerprintEntry]) -> bool:
+    """Input class 6 — the skill registries.
+
+    Resolved through ``get_all_skills_dirs()`` (local profile skills,
+    the shared canonical root, configured external roots) walked per root,
+    plus the in-repo harness-skill source root the hash comparison reads.
+    PINNED, and this is the class the measured 1,237-entry divergence came
+    from: index 0 is the AMBIENT home's ``skills/``.
+    """
+
     try:
         from agent.skill_utils import get_all_skills_dirs
 
@@ -248,7 +300,7 @@ def build_input_fingerprint() -> CoreFingerprint | None:
         with _pinned_to_fingerprint_home():
             roots = [*get_all_skills_dirs(), harness_skill_source_root()]
     except Exception:
-        return None
+        return False
     seen_roots: set[str] = set()
     for skill_root in roots:
         key = str(skill_root)
@@ -261,18 +313,46 @@ def build_input_fingerprint() -> CoreFingerprint | None:
                 root=key,
                 bound=MAX_SKILL_ENTRIES_PER_ROOT,
             )
-            return None
+            return False
+    return True
 
-    # 7 — the event-rotation lane.
+
+def _collect_event_rotation(entries: list[FingerprintEntry]) -> bool:
+    """Input class 7 — the event-rotation lane.
+
+    Resolved through the manifest and the resolved LIVE slice.
+    Under the store root today, so class 1 covers them; stat'd explicitly
+    anyway because the resolution is free to move the live slice elsewhere
+    and a frozen ``events.jsonl`` entry after a rotation is exactly the
+    silent-staleness shape this whole module is against. NOT pinned: both
+    resolve off the store root.
+    """
+
     try:
         from .. import event_rotation as _event_rotation
 
         entries.append(_stat_entry(_event_rotation.manifest_path()))
         entries.append(_stat_entry(_event_rotation.live_path()))
     except Exception:
-        return None
+        return False
+    return True
 
-    return _fingerprint_over(entries)
+
+#: The seven input classes, IN ORDER (the order is the entries' order before
+#: :func:`_fingerprint_over` sorts them, and the order refusals are met in).
+#: ``pinned`` states whether the class resolves HOME-RELATIVE and is therefore
+#: taken under :func:`_pinned_to_fingerprint_home` — part of the specification,
+#: stated per class rather than left to be re-derived. ``collect`` appends the
+#: class's entries and answers False to refuse the whole fingerprint.
+INPUT_CLASSES: tuple[InputClass, ...] = (
+    InputClass("store_root", pinned=False, collect=_collect_store_root),
+    InputClass("running_work", pinned=True, collect=_collect_running_work),
+    InputClass("session_db", pinned=True, collect=_collect_session_db),
+    InputClass("profile_inputs", pinned=False, collect=_collect_profile_inputs),
+    InputClass("config_authorities", pinned=True, collect=_collect_config_authorities),
+    InputClass("skill_registries", pinned=True, collect=_collect_skill_registries),
+    InputClass("event_rotation", pinned=False, collect=_collect_event_rotation),
+)
 
 
 def _fingerprint_over(entries: Iterable[FingerprintEntry]) -> CoreFingerprint:

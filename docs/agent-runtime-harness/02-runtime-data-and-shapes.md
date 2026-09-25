@@ -40,7 +40,7 @@ Directories present in the live root, with the module that owns each:
 | `levels/` | `paths.py:302`, `agent_runtime/level_sync.py` | one `<workspace token>.json` per workspace LEVEL — the launcher's `SceneSerializer` bytes VERBATIM. hermes validates only that it is UTF-8 JSON carrying a `version` and reformats nothing; realm-synced whole-document (adopt / converge / keep-local / HOLD) |
 | `flow_graphs/` | `checkpoint.py:62` | checkpoint flow graphs |
 | `realm_sync/`, `realm_sync_state/` | `realm_sync/git.py` (`_sync_repo_path`), `realm_sync/sidecar.py` (`realm_sync_sidecar_path`) | per-realm git worktrees + sync state |
-| `serve_read_model/` | `core_cache/vocabulary.py:82` | the persisted snapshot core (below) |
+| `serve_read_model/` | `core_cache/vocabulary.py:86` | the persisted snapshot core (below) |
 | `serve_instances/` | `serve_registry.py` (`SERVE_INSTANCES_DIRNAME`) | one `<pid>.json` per live serve, one `<pid>.ended.json` per serve that ended, one `<pid>.stderr.log` per `--service` runtime (below) |
 | `deleted_archive/`, `migration_backups/`, `wt_reaped_patches/`, `locks/` | `paths.py:302`, `default_scope.py:552`, `delivery_directive.py:65` | archive-never-delete and lock trees |
 
@@ -418,12 +418,12 @@ retired and this one is live.
 
 **A pair is a core plus the fingerprint of every input the build read.** The
 on-disk unit is a trio inside a generation directory: `core.json`,
-`sidecar.json`, `entries.json` (`core_cache/vocabulary.py:83-96`). The sidecar carries
+`sidecar.json`, `entries.json` (`core_cache/vocabulary.py:87-100`). The sidecar carries
 the digest and the cheap facts read on every consult; `entries.json` holds the
 full stat set the digest summarises, in its own file so the cheap half of the
 judgement does not pay for the diagnostic half. `live.json` is a pointer naming
 the live generation and is **the one file whose replacement publishes a
-write-back** (`core_cache/vocabulary.py:98-103`) — a pointer, not a directory rename,
+write-back** (`core_cache/vocabulary.py:102-107`) — a pointer, not a directory rename,
 because between two renames there is no live generation at all.
 
 Live pair (2026-08-22 15:46), sidecar verbatim:
@@ -454,11 +454,11 @@ into the match decision (`planned/core-cache-input-closure.md` (the relocated mo
 SQLite is the one mtime-blind case covered explicitly: a WAL commit that has not
 checkpointed leaves `state.db`'s mtime untouched, so the `-wal` and `-journal`
 siblings are fingerprinted beside it, under a mask that stops *reading* the
-database from looking like *writing* it (`core_cache/vocabulary.py:550-603`).
+database from looking like *writing* it (`core_cache/vocabulary.py:554-607`).
 
 **Demote** is the read-side outcome: a persisted pair that is not served. Every
 demote emits `snapshot_core_cache core_source=rebuilt caller=… reason=…`; the ten
-reasons are enumerated at `core_cache/vocabulary.py:143-175`. `absent` is deliberately *not*
+reasons are enumerated at `core_cache/vocabulary.py:147-179`. `absent` is deliberately *not*
 logged, so a census must never read "no demote line" as "no demote". Read entry
 point `core_cache.consult()` (`:3112`); write-back `core_cache.write_back()`
 (`:1708`), one unit by MCF-21 — a torn trio is unrepresentable.
@@ -511,7 +511,7 @@ six committed wire goldens):
 
 | Survivor | Why |
 | --- | --- |
-| `serve_read_model/` (`core_cache/vocabulary.py:82`) | the LIVE core cache. Never was the read model; the rename that would have de-collided the name is cancelled, because with the other one gone there is nothing left to collide with |
+| `serve_read_model/` (`core_cache/vocabulary.py:86`) | the LIVE core cache. Never was the read model; the rename that would have de-collided the name is cancelled, because with the other one gone there is nothing left to collide with |
 | `read_model.delta_patches` (`runtime_config.py`) | gates the live S7-A patch producer. Its YAML key path is cross-repo wire — the launcher's base seed writes it |
 | `ReadModelConfig.enabled` / `.serve_snapshot_from_db` / `.db_filename` | reader-less, but on the snapshot WIRE via `asdict(cfg)` → `core.runtime_config`, in six goldens the launcher mirrors byte-for-byte. Deleting them is a contract bump plus a two-repo manifest change, not a grep-clean cut — see the Open row |
 | `paths.snapshot_path()` | the one authority for where a legacy `snapshot.json` lives, so an orphan left by an older build is still nameable |

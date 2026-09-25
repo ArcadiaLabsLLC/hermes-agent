@@ -362,7 +362,7 @@ points at it, and lands by replacing ONE small pointer file (`live.json`). Atomi
 single replace; a crash at any earlier point leaves a directory the pointer never named,
 invisible to every reader and reaped by the next write-back.
 
-Receipts are indexed, not merely emitted: the channel table at `core_cache/__init__.py:66-81` lists every
+Receipts are indexed, not merely emitted: the channel table at `core_cache/__init__.py:68-83` lists every
 token, its second channel and its census rule; `test_core_cache_channel_table.py` drives BOTH
 directions (a token no row names, a row naming a token no writer emits); and
 `core_cache_census.py` executes those rules as code (`scripts/core_cache_demote_census.py`).
@@ -605,7 +605,7 @@ that is unchanged behaviour, not a regression, and its parent still has the exit
    cache harder** (`planned/core-cache-input-closure.md` (the relocated module docstring)).
 8. **The fingerprint decides cache validity, full stop.** No event-tail replay, ever.
 9. **Adding a receipt to the core-cache lane means adding a ROW to the channel table**, and the
-   test drives both directions (`core_cache/__init__.py:82-86`).
+   test drives both directions (`core_cache/__init__.py:84-88`).
 10. **The serve's cwd is a per-turn value**, safe to mutate process-globally only while turns are
     serialized by `profile_runner._WORKDIR_LOCK` (an `RLock`, `profile_runner.py:1434`) held for
     the WHOLE run. Nothing else enforces it, and widening turn concurrency starts by failing

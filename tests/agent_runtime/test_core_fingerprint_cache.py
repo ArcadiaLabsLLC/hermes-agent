@@ -2776,3 +2776,23 @@ def test_a_disarmed_lane_takes_its_own_key(
         "a build after the lane disarmed answered from the boot's memo instead "
         "of stat'ing the store it is about to describe"
     )
+
+
+def test_the_different_question_checks_name_the_first_dimension_that_differs(monkeypatch):
+    """``read.DIFFERENT_QUESTION_CHECKS`` is walked IN ORDER (lane R3's table for
+    the old conjunction), so a pair that differs in BOTH the build stamp and the
+    contract versions is demoted for the stamp: an upgrade explains a contract
+    change, not the other way round. Positive control for the table's order.
+    """
+
+    monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: "stamp:now")
+    sidecar = {"build_stamp": "stamp:before", "contract_versions": {"snapshot_contract": -1}}
+    assert (
+        core_cache.read._sidecar_answers_a_different_question(sidecar)
+        == core_cache.DEMOTE_BUILD_STAMP_MISMATCH
+    )
+    sidecar["build_stamp"] = "stamp:now"
+    assert (
+        core_cache.read._sidecar_answers_a_different_question(sidecar)
+        == core_cache.DEMOTE_CONTRACT_MISMATCH
+    )

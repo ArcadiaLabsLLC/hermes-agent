@@ -17,7 +17,7 @@ Row grammar: `- [ ] **symbol** · file · lines · class · evidence · lane`. C
 
 ## First instalment — filed 2026-09-24 by lane GOD-D (census over the 62 files; struck: 24 `@method`-registered `serve_rpc` handlers, false positives by construction)
 
-- [ ] **`fingerprint_home_capture`, `iter_fingerprint_paths`, `BUILD_SELF_PERTURBED_CLASSES`** · `agent_runtime/core_cache/` · 23 + 5 + 5 · TEST SEAM · the `core-cache-home-capture-timing.md` instrument; 0 production callers, 2–3 test files each · R3
+- [ ] **`fingerprint_home_capture`, `iter_fingerprint_paths`, `BUILD_SELF_PERTURBED_CLASSES`, `reset_fingerprint_home`** · `agent_runtime/core_cache/` · 23 + 5 + 5 + 21 · TEST SEAM · the `core-cache-home-capture-timing.md` instrument; 0 production callers, 2–3 test files each · R3 · `reset_fingerprint_home` joined 2026-09-25 (R3 CHANGE): its one production caller `lane.reset_process_state` is itself test/script-only, and `tests/agent_runtime/conftest.py` resets the home around every test through it — a deletion needs that sandbox re-plumbed first, so the row stays a TEST SEAM, not a DELETE
 - [ ] **`reset_runtime_resolve_cache`** · `agent_runtime/profile_runner.py` · 5 · TEST SEAM · 0 production, 2 tests · R3
 - [ ] **`hud_field`, `volatile_hud_keys`** · `agent_runtime/runtime_hud.py` · 4 + 4 · TEST SEAM · 0 production, 2 tests each · R2
 - [ ] **`active_workspace_lifts`** · `agent_runtime/store.py` · 4 · TEST SEAM · 0 production, 1 test · R1
@@ -28,7 +28,6 @@ Row grammar: `- [ ] **symbol** · file · lines · class · evidence · lane`. C
 - [ ] **`ids_marked`** · `tests/_downstream/id_markers.py` · 6 · TEST SEAM (already under `tests/`; the row is that nothing in the hooks reads it — delete or make a hook read it) · T2
 - [ ] **module-level `_emit_chat_frame` and `_emit_chat_final`** · `hermes_cli/harness_parts/persona_commands.py` 6420–6429 · 8 · TEST SEAM · one production caller for `_emit_chat_final` (2400) and none for the module-level `_emit_chat_frame` beyond three test patches; the emitter METHOD of the same name is the survivor and the pair is renamed in H3's MOVE · sheet `persona_commands.md` §5 · H3
 - [ ] **`_persona_chat_fault_injection` and `_maybe_inject_boot_fault`** · `persona_commands.py` 156–161, `serve.py` 1440–1456 · 6 + 17 · DECIDE · env-driven fault seams read by production at boot/turn time (`HERMES_PERSONA_CHAT_FAULT`); one ruling for both: keep as production seams (they are how the field proofs inject faults) or move behind the plugin's test hook · sheets §5 · H3 / H4
-- [ ] **`_capture_core_cache_fingerprint_home`** · `hermes_cli/harness.py` 2066–2104 · 39 · KEEP, MOVE · called once from `_harness_entry`; it is the core-cache instrument living in the CLI entry file — R3 takes it into `core_cache/` · sheet `harness.md` §5 · R3
 - [ ] **`_default_session_db`** · `agent_runtime/persona_chat_history/history_rows.py` 91-100 · 10 · DELETE (sheet persona_chat_history.md §5) once `agent_runtime/persona_assignments` (scan.py, R1's CHANGE) stops importing it: lane R2's CHANGE retargeted every package-internal reader to `chat_session_scope.open_chat_session_db`, so R1's lazy import is its last reader · R2
 
 ## Second instalment — the reach census (W0-D), filed 2026-09-24 by lane W0
