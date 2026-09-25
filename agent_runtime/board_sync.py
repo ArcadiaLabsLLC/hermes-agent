@@ -22,10 +22,10 @@ from typing import Any, NamedTuple
 from utils import atomic_json_write
 
 from . import board_models, paths
-from .board_store import BoardStore, _read_json
+from .board_store import BoardStore
 from .events import EventLog
 from .models import Board, BoardCard
-from .serde import from_jsonable, to_jsonable
+from .serde import from_jsonable, read_json, to_jsonable
 
 # The classifier was lifted VERBATIM to ``sync_merge`` on 2026-07-17 when the
 # Mission Office family became its second consumer. These aliases keep every
@@ -166,7 +166,7 @@ def _read_remote_board(board_dir: Path) -> RemoteBoard:
     board_unreadable = False
     if def_path.exists():
         try:
-            board = from_jsonable(Board, _read_json(def_path))
+            board = from_jsonable(Board, read_json(def_path))
         except Exception:
             board = None
             board_unreadable = True
@@ -176,7 +176,7 @@ def _read_remote_board(board_dir: Path) -> RemoteBoard:
     if cards_dir.exists():
         for card_path in sorted(cards_dir.glob("*.json")):
             try:
-                card = from_jsonable(BoardCard, _read_json(card_path))
+                card = from_jsonable(BoardCard, read_json(card_path))
             except Exception:
                 # COUNTED, not dropped. See ``RemoteBoard``: this absence is the
                 # pull's delete signal, so it may not be silent.

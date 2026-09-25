@@ -9,24 +9,31 @@ allocated between neighbours by ``board_order``, tiebreak by ``card_id``).
 Entry points and the modules to open, at most three:
 
 * ``add_card`` / ``edit_card`` / ``move_card`` (the CLI, ``tools/board_tool``)
-  → ``store`` → ``files`` (with ``models`` for the bounds).
+  → ``store`` → ``card_mechanics`` → ``files``.
 * ``archive_card`` / ``restore_card`` → ``store`` → ``files``.
 * ``scan_all`` / ``scan_cards`` (``realm_sync``, ``snapshot.sections``,
   ``store.WorkspaceStore.delete``) → ``store`` → ``files``.
-* ``adopt_remote_*`` / ``resolve_conflict`` (``board_sync``, the CLI) → ``store``.
+* ``adopt_remote_*`` / ``resolve_conflict`` (``board_sync``, the CLI) →
+  ``adopt`` → ``files`` (the one-line delegation on ``BoardStore`` is not a hop).
 
 Modules, lowest layer first (no module imports one above it — W0-G6):
 
-=======  ======  ================================================================
-module   layer   owns
-=======  ======  ================================================================
-models   models  ``BoardScan`` / ``CardScan``, the verb tokens,
-                 ``ARCHIVED_LEDGER_CAP``, the text / title / actor / label /
-                 checklist bounds, card sort, the idempotency-key grammar
-files    stores  the board on disk: the reader, the two writers, the conflict
-                 sidecar archive step, the revision guard
-store    stores  ``BoardStore`` — every verb (moved whole for this commit, Q8)
-=======  ======  ================================================================
+==============  ======  =========================================================
+module          layer   owns
+==============  ======  =========================================================
+models          models  ``BoardScan`` / ``CardScan``, the verb tokens,
+                        ``ARCHIVED_LEDGER_CAP``, the text / title / actor / label
+                        / checklist bounds, card sort, the idempotency-key grammar
+files           stores  the board on disk: the two writers, where a card is, the
+                        per-directory scans, the conflict guard, the locked
+                        archive step
+card_mechanics  stores  ``CardOrdering`` (the ONE ordering read; append /
+                        allocate / rebalance) and ``IdempotencyReceipts``
+                        (replay with typed refusals; record per board, per verb)
+adopt           stores  the realm-pull arms: ``adopt_remote_board``,
+                        ``adopt_remote_card``, ``resolve_conflict``
+store           stores  ``BoardStore`` — the verbs; nothing imports it but the map
+==============  ======  =========================================================
 
 Stores written: ``<boards_root>/<board_id>/`` (``board.json``, ``cards/``,
 ``archive/``, ``conflicts/``, the idempotency receipts) — this package only.
@@ -51,11 +58,26 @@ from agent_runtime.board_store.models import (  # noqa: F401 — the package's e
     _sort_cards,
 )
 from agent_runtime.board_store.files import (  # noqa: F401 — the package's export floor
-    _archive_conflict_sidecar,
-    _check_revision,
-    _read_json,
+    archive_card_locked,
+    board_id_of_archived_card,
+    board_id_of_conflict,
+    card_path_active,
+    guard_card_conflict,
+    locate_card,
+    scan_active_cards,
+    scan_archived_cards,
+    scan_card_dir,
     _write_board,
     _write_card,
+)
+from agent_runtime.board_store.card_mechanics import (  # noqa: F401 — the package's export floor
+    CardOrdering,
+    IdempotencyReceipts,
+)
+from agent_runtime.board_store.adopt import (  # noqa: F401 — the package's export floor
+    adopt_remote_board,
+    adopt_remote_card,
+    resolve_conflict,
 )
 from agent_runtime.board_store.store import (  # noqa: F401 — the package's export floor
     BoardStore,
