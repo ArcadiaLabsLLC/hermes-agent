@@ -7,7 +7,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .rows import _safe_text
+from .._upstream_doors import pid_exists
+
+from .rows import bounded_operator_text
 from .vocabulary import PID_DEAD, PID_NO_BASELINE, PID_RECYCLED, PID_START_TIME_UNREADABLE, PID_VERIFIED, _CHECKPOINT_FILENAME, _STATE_DB_FILENAME
 
 __layer__ = "stores"
@@ -92,14 +94,17 @@ def _pid_identity(pid: Any, expected_start: Any) -> tuple[bool, bool, str]:
     if pid_int <= 0:
         return False, False, PID_DEAD
     try:
-        from gateway.status import _pid_exists, get_process_start_time
+        from gateway.status import get_process_start_time
     except Exception:
         # Without the probe we cannot even test liveness. Refusing to claim
         # anything is the honest answer, and the row keeps its unknown status
         # rather than being reported dead.
         return True, False, PID_START_TIME_UNREADABLE
     try:
-        alive = bool(_pid_exists(pid_int))
+        # The existence probe is upstream's private ``_pid_exists``, read through
+        # the package's door (which imports it at call time, so a stub on
+        # ``gateway.status`` still reaches it); an ImportError lands here too.
+        alive = bool(pid_exists(pid_int))
     except Exception:
         return True, False, PID_START_TIME_UNREADABLE
     if not alive:
@@ -154,7 +159,7 @@ def _owner_of(
     a projection that exists to stop stale claims must not manufacture one.
     """
 
-    token = _safe_text(session_id, limit=240)
+    token = bounded_operator_text(session_id, limit=240)
     if not token:
         return "", ""
     if memo is not None and token in memo:

@@ -147,10 +147,6 @@
   },
   {
    "arms": 6,
-   "site": "agent_runtime/running_work/lanes_chat.py|_delegation_status|ladder|raw"
-  },
-  {
-   "arms": 6,
    "site": "agent_runtime/serde.py|to_jsonable|isinstance|value"
   },
   {

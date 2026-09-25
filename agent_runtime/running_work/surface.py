@@ -11,10 +11,10 @@ from ..parity import ProjectionAccountant
 from .lanes_chat import _collect_chat_turns, _collect_delegations, _collect_dispatches
 from .lanes_process import _collect_cron, _collect_terminal
 from .ownership import _ambient_context
-from .rows import _module, _safe_text, _source, _strip_ansi
-from .vocabulary import KIND_CHAT_TURN, KIND_CRON_JOB, KIND_DELEGATION, KIND_DISPATCH, KIND_TERMINAL, PEEK_TAIL_LIMIT, REASON_NOT_IN_PROCESS, RUNNING_WORK_KINDS, SOURCE_OK, SOURCE_UNAVAILABLE, STATUS_VALUES
+from .rows import _module, bounded_operator_text, _source, _strip_ansi
+from .vocabulary import KIND_CHAT_TURN, KIND_CRON_JOB, KIND_DELEGATION, KIND_DISPATCH, KIND_TERMINAL, KILL_NOT_FOUND, PEEK_TAIL_LIMIT, REASON_NOT_IN_PROCESS, RUNNING_WORK_KINDS, SOURCE_OK, SOURCE_UNAVAILABLE, STATUS_VALUES
 
-__layer__ = "wiring"
+__layer__ = "lanes"
 
 
 _COLLECTORS = (
@@ -164,7 +164,7 @@ def peek_work(work_id: str) -> dict[str, Any]:
             payload["tail_reason"] = f"buffer_unreadable:{type(exc).__name__}"
             return payload
         payload["tail_available"] = True
-        payload["tail"] = _safe_text(tail, limit=PEEK_TAIL_LIMIT)
+        payload["tail"] = bounded_operator_text(tail, limit=PEEK_TAIL_LIMIT)
         payload["truncated"] = len(buffered) > PEEK_TAIL_LIMIT
         return payload
 
@@ -244,13 +244,13 @@ def cancel_work(work_id: str, *, reason: str = "operator_cancel") -> dict[str, A
                 "work_id": work_id,
                 "detail": type(exc).__name__,
             }
-        killed = str(result.get("status")) != "not_found"
+        killed = str(result.get("status")) != KILL_NOT_FOUND
         return {
             "status": "cancelled" if killed else "error",
             "code": "" if killed else "not_found",
             "work_id": work_id,
             "kind": kind,
-            "result": _safe_text(result.get("status"), limit=80),
+            "result": bounded_operator_text(result.get("status"), limit=80),
         }
 
     if kind == KIND_DELEGATION:
