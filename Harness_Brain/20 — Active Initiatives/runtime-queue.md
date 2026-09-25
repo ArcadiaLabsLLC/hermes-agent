@@ -114,6 +114,12 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 - [ ] **the alice_supervisor ⇄ neko_supervisor alias is spelled four times with two directions** · `fork / config` · `terminal_envelope._ROLE_ALIASES`, `config._RUNTIME_DEFAULT_PERSONA_ALIASES`, inline in `chat_lane_restore_toolsets` and `mission_chat_workdir` → one `personas.persona_id_aliases` owner · evidence: `terminal_envelope.md` §3, `config.md` §2 · filed by lane S2B 2026-09-25 **UNCLAIMED**
 
 
+### Filed on arrival — 2026-09-25 (lane S2A)
+
+- [ ] **`agent/charsheet/draft.py:77` imports `agent_runtime.profile_home` at module level, against the packaging boundary `agent/charsheet/__init__.py`, `revisions.py:44` and `draft_lock.py` all state** · `fork / charsheet` · a plain-wheel import of `agent.charsheet.draft` fails; program §9 Q9 holds the default (one lazy door in `_support.py`, docstrings corrected) — lane B1 executes it · evidence: sheet `draft.md` §4 · filed by lane S2A 2026-09-25 **UNCLAIMED**
+- [ ] **Two callers outside the CLI run a mission-chat turn through the PRIVATE handler `chat_turn_message._cmd_mission_chat_message` — `dispatch_delivery.forge_delivery_turn` and `tools/agent_chat_tool.agent_chat_send`; the tool also reads `chat_target`'s private decision functions** · `fork / runtime` · the second instance of the reaches-UP-into-the-CLI-namespace row; program §9 Q10 holds the default (`agent_runtime/mission_chat_door.py`, bound at boot) — lanes B1/B3 execute it · evidence: sheets `dispatch_delivery.md` §4, `agent_chat_tool.md` §4 · filed by lane S2A 2026-09-25 **UNCLAIMED**
+
+
 ## Seams — fork edits inside upstream files (additive only)
 
 ### Filed on arrival — 2026-09-24 (seam lane S2)
