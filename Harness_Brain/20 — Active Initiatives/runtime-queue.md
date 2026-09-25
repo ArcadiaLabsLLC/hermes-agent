@@ -101,6 +101,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 - [ ] **H2 sheet leftovers** · `fork / refactor` · `runtime_commands` → `runtime/{work,verify}` + `WorkCancelOutcome`; `PromotionSourceKind` probes; realm `_SELECTION_MODES`; `_cmd_skills_promote` "refused" constant (R4, the last W0-G5 harness row); `_pet_sheet_revision` fold (C1); `_usage_iso`/`_parse_usage_iso` → `clock` (R3); `dispatch_store`/`running_work` `_pid_exists` → doors (R1/R2) · evidence: `docs/agent-runtime-harness/planned/god-file-layout-sheets/harness.md` §1–§3, lane H2 2026-09-24 **UNCLAIMED**
 
+### Filed on arrival — 2026-09-25 (lane R4)
+
+- [ ] **`test_hermetic_env_blanking[HERMES_HEAD_HOME]` is red on main: the witness no longer finds the reader in `profile_home.py`** · `fork / test env` · red in lane R4's touched-test run on `09d722bb30` against files the lane never touched, so either the reader moved out of `agent_runtime/profile_home.py` in a Wave 1/2 MOVE and the witness still greps the old module, or the variable lost its reader — find which and re-point or delete the parameter · evidence: lane R4 report (holding file, 2026-09-25) · filed by lane R4 2026-09-25 **UNCLAIMED**
+
+
 ## Seams — fork edits inside upstream files (additive only)
 
 ### Filed on arrival — 2026-09-24 (seam lane S2)
