@@ -826,6 +826,11 @@ def _persist_provider_state_to_store(
         return _save_auth_store(auth_store, target_path=target_path)
 
 
+def persist_provider_login(provider_id: str, state: Dict[str, Any]) -> Path:
+    """Save a fresh login to the selected store without changing inference selection."""
+    return _persist_provider_state_to_store(provider_id, state, _auth_file_path(), set_active=False)
+
+
 def _save_provider_state_to_source(
     auth_store: Dict[str, Any], provider_id: str, state: Dict[str, Any], source_path: Optional[Path],
 ) -> None:

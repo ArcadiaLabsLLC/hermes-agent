@@ -261,7 +261,7 @@ def test_set_key_internal_failure_reports_class_name_only(home, monkeypatch, cap
     assert payload["error"] == "set-key failed (RuntimeError)"
 
 
-# --- auth login: the contract lands, the flows have not ---------------------
+# --- unsupported sign-in remains an explicit limitation --------------------
 
 
 def test_auth_login_reports_an_unwrapped_flow_with_the_command_to_run(
@@ -273,14 +273,14 @@ def test_auth_login_reports_an_unwrapped_flow_with_the_command_to_run(
     MUTATION (kill): emit `{"event": "done", "ok": true}` — red.
     """
     rc = nia.auth_login_command(
-        SimpleNamespace(provider="openai-codex", json=True, profile=None)
+        SimpleNamespace(provider="qwen-oauth", json=True, profile=None)
     )
     assert rc == 1
     event = json.loads(capsys.readouterr().out.strip())
     assert event["event"] == "error"
-    assert event["code"] == "flow_not_wrapped"
-    assert event["flow"] == "device_code"
-    assert event["cli_command"] == "hermes auth add openai-codex"
+    assert event["code"] == "unsupported_flow"
+    assert event["flow"] == "external"
+    assert event["cli_command"]
     assert event["home"] == str(home)
 
 

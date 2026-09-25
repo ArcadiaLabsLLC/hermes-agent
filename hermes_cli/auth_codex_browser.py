@@ -108,7 +108,8 @@ def _codex_browser_exchange_code(code: str, *, redirect_uri: str, code_verifier:
 
 
 def _codex_browser_login(
-    *, open_browser: bool = True, timeout_seconds: Optional[float] = None) -> Dict[str, Any]:
+    *, open_browser: bool = True, timeout_seconds: Optional[float] = None,
+    on_verification=None) -> Dict[str, Any]:
     """Authorization-code + PKCE login on the loopback listener; returns the device-flow creds shape.
 
     Raises ``AuthError(code=CODEX_BROWSER_PORT_BUSY_CODE)`` when :1455 cannot be bound so the caller
@@ -125,6 +126,8 @@ def _codex_browser_login(
     redirect_uri = f"http://localhost:{server.server_address[1]}{CODEX_BROWSER_CALLBACK_PATH}"
     auth_url = _codex_browser_authorize_url(
         redirect_uri=redirect_uri, state=state, code_challenge=_pkce_code_challenge(code_verifier))
+    if on_verification is not None:
+        on_verification(auth_url, "")
 
     print()
     print("Signing in to OpenAI Codex (browser authorization)...")

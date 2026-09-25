@@ -28,7 +28,10 @@ Unreal tree, not beside this checkout):
 Brain-routing rules:
 
 - Runtime and fork truth belongs in `docs/`; the brain cites it and records the WHY.
-- Mission Control is the runtime's only product surface, and its queue is split by
+- Mission Control and Intelligence consume the same runtime authorities through
+  typed ports; Intelligence is Launcher's AI umbrella, with Chat one route.
+  Provider catalog, authentication, credentials and health remain Hermes-owned.
+  Runtime work is split by
   REPOSITORY: a row lives where its fix lives. The hermes half is
   `Harness_Brain/20 — Active Initiatives/runtime-queue.md`, grouped by the Fork Boundary
   Map's three kinds of file (fork-owned / seams / upstream-owned) so the heading says what

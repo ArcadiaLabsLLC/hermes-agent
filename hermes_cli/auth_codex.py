@@ -1060,7 +1060,7 @@ def _codex_exchange_authorization_code(
     return tokens
 
 
-def _codex_device_code_login() -> Dict[str, Any]:
+def _codex_device_code_login(*, on_verification=None) -> Dict[str, Any]:
     """Run the OpenAI device code login flow and return credentials dict."""
     from hermes_cli.auth import _utc_now_z
     issuer, client_id = "https://auth.openai.com", CODEX_OAUTH_CLIENT_ID
@@ -1073,6 +1073,8 @@ def _codex_device_code_login() -> Dict[str, Any]:
     print(f"     \033[94m{issuer}/codex/device\033[0m\n")
     print("  2. Enter this code:")
     print(f"     \033[94m{user_code}\033[0m\n")
+    if on_verification is not None:
+        on_verification(f"{issuer}/codex/device", str(user_code))
     print("Waiting for sign-in... (press Ctrl+C to cancel)")
     code_resp = _codex_poll_authorization_code(
         issuer, device_auth_id=device_data["device_auth_id"], user_code=user_code,
@@ -1085,3 +1087,11 @@ def _codex_device_code_login() -> Dict[str, Any]:
             "refresh_token": tokens.get("refresh_token", "")},
         "base_url": _codex_base_url(), "last_refresh": _utc_now_z(), "auth_mode": "chatgpt",
         "source": "device-code"}
+
+
+def login_codex_account(on_verification, *, flow="device_code") -> None:
+    """Connect an account in the selected store without choosing an inference route."""
+    from hermes_cli.auth_codex_browser import _codex_browser_login
+    state = (_codex_browser_login(open_browser=False, on_verification=on_verification)
+             if flow == "browser" else _codex_device_code_login(on_verification=on_verification))
+    _save_codex_tokens(state["tokens"], last_refresh=state["last_refresh"], set_active=False)

@@ -164,7 +164,9 @@ def _minimax_save_auth_state(auth_state: Dict[str, Any]) -> None:
     _save_active_provider_state("minimax-oauth", auth_state)
 
 
-def _minimax_oauth_login(*, region: str = "global", open_browser: bool = True, timeout_seconds: float = 15.0) -> Dict[str, Any]:
+def _minimax_oauth_login(*, region: str = "global", open_browser: bool = True,
+                       timeout_seconds: float = 15.0, on_verification=None,
+                       persist: bool = True) -> Dict[str, Any]:
     """Run MiniMax OAuth flow, persist tokens, return auth state dict."""
     from hermes_cli.auth import PROVIDER_REGISTRY, _can_open_graphical_browser, _is_remote_session, _minimax_pkce_pair, _minimax_request_user_code, _minimax_save_auth_state, _print_device_code_instructions
     pconfig = PROVIDER_REGISTRY["minimax-oauth"]
@@ -194,6 +196,8 @@ def _minimax_oauth_login(*, region: str = "global", open_browser: bool = True, t
         )
 
         interval_raw = code_data.get("interval")
+        if on_verification is not None:
+            on_verification(str(code_data["verification_uri"]), str(code_data["user_code"]))
         print("Waiting for approval...")
 
         token_data = _minimax_poll_token(
@@ -217,11 +221,19 @@ def _minimax_oauth_login(*, region: str = "global", open_browser: bool = True, t
         **_minimax_expiry_fields(token_data["expired_in"]),
     }
 
-    _minimax_save_auth_state(auth_state)
+    if persist:
+        _minimax_save_auth_state(auth_state)
     print("\u2713 MiniMax OAuth login successful.")
     if msg := token_data.get("notification_message"):
         print(f"Note from MiniMax: {msg}")
     return auth_state
+
+
+def login_minimax_account(on_verification) -> None:
+    """Connect without changing the selected provider or model."""
+    from hermes_cli.auth import persist_provider_login
+    state = _minimax_oauth_login(open_browser=False, on_verification=on_verification, persist=False)
+    persist_provider_login("minimax-oauth", state)
 
 
 def _refresh_minimax_oauth_state(state: Dict[str, Any], *, timeout_seconds: float = 15.0, force: bool = False) -> Dict[str, Any]:

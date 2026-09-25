@@ -273,11 +273,6 @@ def auth_set_key_command(args) -> int:
     return 0
 
 
-#: Login flows this verb can drive end to end. Empty today — see
-#: [auth_login_command].
-_WRAPPED_LOGIN_FLOWS: frozenset[str] = frozenset()
-
-
 def _login_flow_for(provider: str) -> tuple[Optional[str], Optional[str]]:
     """``(flow, cli_command)`` for ``provider`` from the login catalog."""
     try:
@@ -300,31 +295,21 @@ def _login_flow_for(provider: str) -> tuple[Optional[str], Optional[str]]:
 
 
 def auth_login_command(args) -> int:
-    """``hermes auth login <provider> --json`` — the NDJSON login stream.
+    """NDJSON browser sign-in; unsupported providers fail without prompting."""
+    from hermes_cli.provider_browser_login import browser_login_command, supports_browser_login
+    from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 
-    STATE OF THIS VERB, stated plainly rather than faked: no flow is wrapped
-    yet, so every call terminates immediately with a ``flow_not_wrapped``
-    error naming the command the operator should run instead.
-
-    Why it ships that way. The plan's contract is
-    ``code`` → ``pending``* → ``done|error``, wrapping the existing per-provider
-    device-code functions. Those functions
-    (``auth.py::_xai_oauth_device_code_login``, ``_codex_device_code_login``,
-    ``_nous_device_code_login``, and the MiniMax flow) each ``print()`` their
-    own operator UX inline and block in their own poll loop; none accepts an
-    emit callback. Turning them into event emitters is four separate refactors
-    of live OAuth code, and there is no way to prove such a refactor correct
-    without performing a real provider login — which this work is explicitly
-    forbidden from doing. Shipping an untested rewrite of the credential
-    acquisition path would trade a visible gap for an invisible one.
-
-    So the CONTRACT lands (a client can code against these event shapes now)
-    and the flows migrate one at a time behind [_WRAPPED_LOGIN_FLOWS]. Until
-    then a client renders the ``cli_command`` — honest and actionable, which is
-    the same fallback the plan specifies for any flow the verb does not cover.
-    """
     provider = str(getattr(args, "provider", "") or "").strip().lower()
     flow, cli_command = _login_flow_for(provider)
+    home, applied_profile = resolve_target_home(getattr(args, "profile", None))
+
+    if supports_browser_login(provider):
+        token = set_hermes_home_override(home) if applied_profile is not None else None
+        try:
+            return browser_login_command(provider, home=home, flow=getattr(args, "flow", None))
+        finally:
+            if token is not None:
+                reset_hermes_home_override(token)
 
     def emit(event: dict) -> None:
         print(json.dumps(event), flush=True)
@@ -339,24 +324,9 @@ def auth_login_command(args) -> int:
             }
         )
         return 1
-    if flow not in _WRAPPED_LOGIN_FLOWS:
-        emit(
-            {
-                "event": "error",
-                "ok": False,
-                "reason": (
-                    f"The {flow} login flow is not driveable from this verb yet. "
-                    f"Run `{cli_command}` in a terminal."
-                ),
-                "code": "flow_not_wrapped",
-                "flow": flow,
-                "cli_command": cli_command,
-                "home": resolve_target_home(getattr(args, "profile", None))[0],
-            }
-        )
-        return 1
-    # Unreachable while _WRAPPED_LOGIN_FLOWS is empty; the branch exists so the
-    # first wrapped flow is an addition to that set, not a rewrite of this verb.
-    raise NonInteractiveAuthError(  # pragma: no cover
-        f"flow {flow} claims to be wrapped but has no driver", code="internal_error"
-    )
+    emit({
+        "event": "error", "ok": False, "code": "unsupported_flow",
+        "reason": "This provider does not support browser sign-in from this app.",
+        "flow": flow, "cli_command": cli_command, "home": home,
+    })
+    return 1
