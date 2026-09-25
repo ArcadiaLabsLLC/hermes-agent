@@ -61,23 +61,33 @@ def test_os_system_hermes_dashboard_blocked():
     with pytest.raises(RuntimeError, match="live-system guard"):
         os.system("hermes dashboard --no-open")
 
-def test_non_backend_hermes_subcommand_passes_through():
-    """``hermes status``-shaped argv is not a backend spawn and must run."""
-    completed = subprocess.run([sys.executable, "-c", "pass", "hermes", "status"])
-    assert completed.returncode == 0
+# The pass-through cases spawn an entry point named ``hermes`` that does not
+# exist: the guard reads it as the hermes entry point, and a pass-through is
+# proved by the OS refusing the spawn (FileNotFoundError), never by a process
+# running. (``python -c pass hermes …`` cannot prove it: since 10aa344964 the
+# guard stops at CODE, so its tail is inert whatever the classifier says.)
 
-def test_hermes_profile_verb_passes_through():
+
+def _absent_hermes(tmp_path) -> str:
+    return str(tmp_path / "hermes")
+
+
+def test_non_backend_hermes_subcommand_passes_through(tmp_path):
+    """``hermes status``-shaped argv is not a backend spawn and must run."""
+    with pytest.raises(FileNotFoundError):
+        subprocess.run([_absent_hermes(tmp_path), "status"])
+    with pytest.raises(RuntimeError, match="live-system guard"):  # control: same entry point, a backend verb
+        subprocess.run([_absent_hermes(tmp_path), "serve"])
+
+def test_hermes_profile_verb_passes_through(tmp_path):
     """Nor is ``hermes profile list`` — the arm is keyed to the subcommand."""
-    completed = subprocess.run(
-        [sys.executable, "-c", "pass", "hermes", "profile", "list"]
-    )
-    assert completed.returncode == 0
+    with pytest.raises(FileNotFoundError):
+        subprocess.run([_absent_hermes(tmp_path), "profile", "list"])
 
 @pytest.mark.spawns_gateway_lookalike
-def test_gateway_lookalike_marker_allows_only_gateway_shape():
-    # A real interpreter executing pass; trailing words only exercise argv classification.
-    result = subprocess.run([sys.executable, "-c", "pass", "hermes", "gateway", "run"])
-    assert result.returncode == 0
+def test_gateway_lookalike_marker_allows_only_gateway_shape(tmp_path):
+    with pytest.raises(FileNotFoundError):  # the marker lets the gateway shape through to the OS
+        subprocess.run([_absent_hermes(tmp_path), "gateway", "run"])
     for subcommand in ("serve", "dashboard"):
         with pytest.raises(RuntimeError, match="live-system guard"):
-            subprocess.run([sys.executable, "-c", "pass", "hermes", subcommand])
+            subprocess.run([_absent_hermes(tmp_path), subcommand])
