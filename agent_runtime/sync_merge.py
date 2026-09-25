@@ -19,6 +19,13 @@ from dataclasses import dataclass
 from enum import Enum
 
 
+#: ``PullDecision.reason`` words a caller branches on, named beside their one
+#: producer (``persona_instance_sync.pull`` reads them by name).
+REASON_ARCHIVED_LOCAL = "archived_local"
+REASON_ARCHIVE_VS_EDIT = "archive_vs_edit"
+REASON_CONVERGED = "converged"
+
+
 class PullAction(str, Enum):
     NOOP = "noop"
     WRITE_REMOTE = "write_remote"  # adopt/take-remote/converge → write remote + baseline
@@ -70,8 +77,8 @@ def classify_three_way_pull(
         # Ledger blocks resurrection: a pulled remote copy never re-creates a
         # locally archived entity. A remote EDIT of it is a loud conflict.
         if rs in ("absent", "unchanged"):
-            return PullDecision(PullAction.NOOP, "archived_local")
-        return PullDecision(PullAction.CONFLICT, "archive_vs_edit")
+            return PullDecision(PullAction.NOOP, REASON_ARCHIVED_LOCAL)
+        return PullDecision(PullAction.CONFLICT, REASON_ARCHIVE_VS_EDIT)
 
     if ls == "unchanged":
         if rs == "unchanged":
@@ -87,7 +94,7 @@ def classify_three_way_pull(
             return PullDecision(PullAction.KEEP_LOCAL, "unpublished")
         if rs == "changed":
             if local_hash == remote_hash:
-                return PullDecision(PullAction.WRITE_REMOTE, "converged")
+                return PullDecision(PullAction.WRITE_REMOTE, REASON_CONVERGED)
             return PullDecision(PullAction.CONFLICT, "both_changed")
         if rs == "absent":
             return PullDecision(PullAction.CONFLICT, "edit_vs_remove")
@@ -98,7 +105,7 @@ def classify_three_way_pull(
             return PullDecision(PullAction.KEEP_LOCAL, "new_local")
         if rs == "new":
             if local_hash == remote_hash:
-                return PullDecision(PullAction.WRITE_REMOTE, "converged")
+                return PullDecision(PullAction.WRITE_REMOTE, REASON_CONVERGED)
             return PullDecision(PullAction.CONFLICT, "new_both")
         return PullDecision(PullAction.CONFLICT, "new_both")
 

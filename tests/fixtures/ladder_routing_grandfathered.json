@@ -190,10 +190,6 @@
    "site": "agent_runtime/persona_config_sync.py|_plain|isinstance|value"
   },
   {
-   "arms": 4,
-   "site": "agent_runtime/persona_instance_sync/projection.py|_wire_value|isinstance|value"
-  },
-  {
    "arms": 3,
    "site": "agent_runtime/profile_artifact_sync.py|_legacy_destination|ladder|segment"
   },

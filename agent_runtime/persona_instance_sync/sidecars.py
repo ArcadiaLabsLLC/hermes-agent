@@ -187,38 +187,3 @@ def read_remote_persona_instances(subtree) -> tuple[dict[str, dict[str, Any]], s
     if parsed is None:
         return {}, None
     return parsed, "projection"
-
-
-def _write_conflict_sidecar(
-    realm_id: str,
-    instance_id: str,
-    kind: str,
-    remote_body: dict[str, Any],
-    local_hash: str | None,
-    remote_hash: str | None,
-) -> None:
-    """Park the body a HOLD refused to adopt.
-
-    Best-effort: a sidecar this machine cannot write is not a reason to clobber
-    the row the hold exists to protect.
-    """
-
-    from utils import atomic_json_write
-
-    try:
-        atomic_json_write(
-            instance_conflict_path(realm_id, instance_id),
-            {
-                "schema_version": 1,
-                "realm_id": realm_id,
-                "persona_instance_id": instance_id,
-                "kind": kind,
-                "local_hash": local_hash,
-                "remote_hash": remote_hash,
-                "remote_body": remote_body,
-            },
-            indent=2,
-            sort_keys=True,
-        )
-    except Exception:  # noqa: BLE001 — the HOLD stands with or without its receipt
-        pass

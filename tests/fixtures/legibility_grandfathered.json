@@ -121,11 +121,6 @@
    "unit": "agent_runtime/persona_instance_identity.py|reconcile_persona_instances"
   },
   {
-   "depth": 3,
-   "lines": 273,
-   "unit": "agent_runtime/persona_instance_sync/pull.py|apply_persona_instance_pull"
-  },
-  {
    "depth": 1,
    "lines": 215,
    "unit": "agent_runtime/persona_profile_binding.py|rebind_persona_profile"

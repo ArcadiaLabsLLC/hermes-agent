@@ -2308,10 +2308,10 @@
     {
       "id": "ir-h3-baseline-re-derived-from-the-local-write",
       "path": "agent_runtime/persona_instance_sync/pull.py",
-      "symbol": "apply_persona_instance_pull",
+      "symbol": "PullPass._row_write",
       "operator": "align-the-baseline-to-local-instead-of-remote",
-      "find": "        written.append((instance_id, remote_body))\n        # THE baseline-alignment property",
-      "replace": "        written.append((instance_id, remote_body))\n        remote_hash = persona_instance_def_hash(project_persona_instance(store.get(instance_id))) + 'x'\n        # THE baseline-alignment property",
+      "find": "        # THE baseline-alignment property",
+      "replace": "        row.remote_hash = persona_instance_def_hash(project_persona_instance(self.store.get(row.instance_id))) + 'x'\n        # THE baseline-alignment property",
       "test": [
         "{python}",
         "-m",
@@ -2323,10 +2323,10 @@
     {
       "id": "ir-h3-a-short-remote-answer-deletes-the-replica",
       "path": "agent_runtime/persona_instance_sync/pull.py",
-      "symbol": "apply_persona_instance_pull",
+      "symbol": "PullPass._row_context",
       "operator": "treat-upstream-absent-as-a-delete",
-      "find": "            if local_hash is not None:\n                summary.upstream_absent.append(instance_id)\n            else:\n                baseline.pop(key, None)\n            continue",
-      "replace": "            baseline.pop(key, None)\n            __import__('agent_runtime.paths', fromlist=['x']).persona_instance_path(instance_id).unlink(missing_ok=True)\n            continue",
+      "find": "            if local_hash is not None:\n                self.summary.upstream_absent.append(instance_id)\n            else:\n                self.baseline.pop(key, None)\n            return None",
+      "replace": "            self.baseline.pop(key, None)\n            __import__('agent_runtime.paths', fromlist=['x']).persona_instance_path(instance_id).unlink(missing_ok=True)\n            return None",
       "test": [
         "{python}",
         "-m",
@@ -2338,10 +2338,10 @@
     {
       "id": "ir-h3-hold-clobbers-the-locally-edited-replica",
       "path": "agent_runtime/persona_instance_sync/pull.py",
-      "symbol": "apply_persona_instance_pull",
+      "symbol": "PullPass._row_hold",
       "operator": "adopt-on-conflict",
-      "find": "        if decision.action == PullAction.CONFLICT:\n            summary.held.append(instance_id)\n",
-      "replace": "        if decision.action == PullAction.CONFLICT:\n            summary.held.append(instance_id)\n            store.replicate_instance(remote_body, realm_id=realm_id, adopt_existing=local_record)\n",
+      "find": "        self.summary.held.append(row.instance_id)\n",
+      "replace": "        self.summary.held.append(row.instance_id)\n        self.store.replicate_instance(row.remote_body, realm_id=self.realm_id, adopt_existing=row.local_record)\n",
       "test": [
         "{python}",
         "-m",
@@ -2398,10 +2398,10 @@
     {
       "id": "ir-h3-steering-collapses-to-a-single-phase",
       "path": "agent_runtime/persona_instance_sync/pull.py",
-      "symbol": "apply_persona_instance_pull",
+      "symbol": "PullPass.phase_two",
       "operator": "never-run-phase-two",
-      "find": "    for instance_id, remote_body in written:\n        parents = [str(item) for item in (remote_body.get(\"steered_by\") or [])]",
-      "replace": "    for instance_id, remote_body in written[:0]:\n        parents = [str(item) for item in (remote_body.get(\"steered_by\") or [])]",
+      "find": "        for instance_id, remote_body in self.written:\n",
+      "replace": "        for instance_id, remote_body in self.written[:0]:\n",
       "test": [
         "{python}",
         "-m",
@@ -2533,10 +2533,10 @@
     {
       "id": "ir-h4-the-next-pull-revives-a-deleted-desks-agent",
       "path": "agent_runtime/persona_instance_sync/pull.py",
-      "symbol": "apply_persona_instance_pull",
+      "symbol": "PullPass.phase_one",
       "operator": "drop-the-resurrection-guard",
-      "find": "    archived_keys = _locally_archived_actor_keys() | set(summary.retired)",
-      "replace": "    archived_keys = set()",
+      "find": "        self.archived_keys = _locally_archived_actor_keys() | set(self.summary.retired)",
+      "replace": "        self.archived_keys = set()",
       "test": [
         "{python}",
         "-m",
@@ -4006,10 +4006,10 @@
     {
       "id": "ir-heal-a-dropped-edge-never-re-enters-phase-two",
       "path": "agent_runtime/persona_instance_sync/pull.py",
-      "symbol": "apply_persona_instance_pull",
+      "symbol": "PullPass._row_keep_or_heal",
       "operator": "never-heal-a-kept-local-row",
-      "find": "            if healable:\n                heal_pending[instance_id] = healable\n                written.append((instance_id, remote_body))",
-      "replace": "            if False:\n                heal_pending[instance_id] = healable\n                written.append((instance_id, remote_body))",
+      "find": "        if healable:\n            self.heal_pending[row.instance_id] = healable\n",
+      "replace": "        if False:\n            self.heal_pending[row.instance_id] = healable\n",
       "test": [
         "{python}",
         "-m",
@@ -4051,7 +4051,7 @@
     {
       "id": "ir-heal-records-drops-no-parent-can-repair",
       "path": "agent_runtime/persona_instance_sync/pull.py",
-      "symbol": "apply_persona_instance_pull",
+      "symbol": "PullPass._record_still_absent",
       "operator": "record-every-drop-not-just-parent-absent",
       "find": "            {str(row.get(\"parent\") or \"\") for row in dropped if row.get(\"reason\") == \"parent_absent\"}",
       "replace": "            {str(row.get(\"parent\") or \"\") for row in dropped}",
@@ -4068,8 +4068,8 @@
       "path": "agent_runtime/persona_instance_sync/pull.py",
       "symbol": "apply_persona_instance_pull",
       "operator": "clear-the-ledger-on-an-absent-projection",
-      "find": "    if source is None:\n        # Not published. Never a removal",
-      "replace": "    if source is None:\n        write_dropped_steering_ledger(realm_id, {})\n        # Not published. Never a removal",
+      "find": "    if source is None or source == \"unreadable\":\n",
+      "replace": "    if source is None or source == \"unreadable\":\n        write_dropped_steering_ledger(realm_id, {})\n",
       "test": [
         "{python}",
         "-m",
@@ -4081,10 +4081,10 @@
     {
       "id": "ir-heal-reports-a-healed-row-as-still-local",
       "path": "agent_runtime/persona_instance_sync/pull.py",
-      "symbol": "apply_persona_instance_pull",
+      "symbol": "PullPass._settle_heal",
       "operator": "account-a-heal-as-kept-local",
-      "find": "            # ``adopted`` and not ``converged``: a travelling field DID move\n            # forward onto an existing row, and ``converged`` promises no write.\n            summary.adopted.append(instance_id)",
-      "replace": "            summary.kept_local.append(instance_id)",
+      "find": "            # ``adopted`` and not ``converged``: a travelling field DID move\n            # forward onto an existing row, and ``converged`` promises no write.\n            self.summary.adopted.append(instance_id)",
+      "replace": "            self.summary.kept_local.append(instance_id)",
       "test": [
         "{python}",
         "-m",

@@ -7,6 +7,11 @@ resolving it moves the sidecar aside as ``<token>.resolved.json`` stamped with
 ``resolved_at`` (:func:`archive_conflict_sidecar`). :func:`check_revision` is the
 optimistic-concurrency check a guarded write spends.
 
+:func:`park_conflict_sidecar` is the PULL side: the one best-effort write of
+the body a HOLD refused to adopt (lane 2B-C created it for
+``persona_instance_sync``; ``flow_graph_sync``, ``level_sync`` and ``map_sync``
+fold their ``_write_conflict_sidecar`` copies in their own lanes).
+
 Owners today: ``office_store``. ``board_store``'s three twins
 (``_guard_no_conflict``, ``_archive_conflict_sidecar``, ``_check_revision``) fold
 here in its own lane. Each store keeps only its own PATHS and its own refusal
@@ -26,7 +31,7 @@ from agent_runtime.serde import read_json, to_jsonable
 
 __layer__ = "stores"
 
-__all__ = ["archive_conflict_sidecar", "check_revision", "guard_no_conflict"]
+__all__ = ["archive_conflict_sidecar", "check_revision", "guard_no_conflict", "park_conflict_sidecar"]
 
 
 def guard_no_conflict(sidecar_path: Path, refusal: str) -> None:
@@ -51,6 +56,42 @@ def archive_conflict_sidecar(sidecar_path: Path, resolved_path: Path, fallback: 
     payload["resolved_at"] = to_jsonable(now())
     atomic_json_write(resolved_path, payload, indent=2, sort_keys=True)
     sidecar_path.unlink(missing_ok=True)
+
+
+def park_conflict_sidecar(
+    path: Path,
+    *,
+    realm_id: str,
+    key_field: str,
+    key: str,
+    kind: str,
+    remote_body: Any,
+    local_hash: str | None,
+    remote_hash: str | None,
+) -> None:
+    """Park the body a HOLD refused to adopt: ``{schema_version, realm_id,
+    <key_field>: key, kind, local_hash, remote_hash, remote_body}``.
+
+    Best-effort: a sidecar this machine cannot write is not a reason to clobber
+    the row the hold exists to protect, so a write fault is swallowed.
+    """
+    try:
+        atomic_json_write(
+            path,
+            {
+                "schema_version": 1,
+                "realm_id": realm_id,
+                key_field: key,
+                "kind": kind,
+                "local_hash": local_hash,
+                "remote_hash": remote_hash,
+                "remote_body": remote_body,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    except Exception:  # noqa: BLE001 — the HOLD stands with or without its receipt
+        pass
 
 
 def check_revision(current: int | None, expected: int | None) -> None:

@@ -8,6 +8,8 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass, field, fields
+from datetime import datetime
+from functools import singledispatch
 from typing import Any
 
 import yaml
@@ -24,7 +26,7 @@ from .contract import (
     REFUSAL_UNEXPECTED_KEY,
 )
 
-__layer__ = "stores"  # policy once the CHANGE reads persona_assignments.identity (policy), not the stores package
+__layer__ = "policy"
 
 
 # --- projection ---------------------------------------------------------------
@@ -108,29 +110,48 @@ def persona_instance_def_hash(body: Any) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+@singledispatch
 def _wire_value(value: Any) -> Any:
     """One field as it travels: plain YAML/JSON scalars and containers only.
 
-    ``datetime`` is rendered through ``serde.to_jsonable``'s spelling (ISO-8601
-    microseconds, ``Z``) rather than refused, because ``model_override_issued_at``
-    MUST travel and ``from_jsonable`` parses exactly that shape back. Anything
-    else exotic raises ``TypeError`` and is dropped with accounting — determinism
-    is load-bearing for the change detector and the content hash.
+    A strategy by type (rule 12): each shape that may travel is a registration
+    below. ``datetime`` is rendered through ``serde.to_jsonable``'s spelling
+    (ISO-8601 microseconds, ``Z``) rather than refused, because
+    ``model_override_issued_at`` MUST travel and ``from_jsonable`` parses exactly
+    that shape back. Anything else exotic lands HERE, raises ``TypeError`` and is
+    dropped with accounting — determinism is load-bearing for the change
+    detector and the content hash, which is also why this is not
+    ``serde.to_jsonable`` (it neither sorts dict keys nor refuses).
     """
 
-    from datetime import datetime
-
-    if isinstance(value, datetime):
-        from ..serde import to_jsonable
-
-        return to_jsonable(value)
-    if value is None or isinstance(value, (str, bool, int, float)):
-        return value
-    if isinstance(value, (list, tuple)):
-        return [_wire_value(item) for item in value]
-    if isinstance(value, dict):
-        return {str(key): _wire_value(item) for key, item in sorted(value.items(), key=lambda kv: str(kv[0]))}
     raise TypeError(type(value).__name__)
+
+
+@_wire_value.register(datetime)
+def _wire_datetime(value: datetime) -> str:
+    from ..serde import to_jsonable
+
+    return to_jsonable(value)
+
+
+@_wire_value.register(type(None))
+@_wire_value.register(str)
+@_wire_value.register(bool)
+@_wire_value.register(int)
+@_wire_value.register(float)
+def _wire_scalar(value: Any) -> Any:
+    return value
+
+
+@_wire_value.register(list)
+@_wire_value.register(tuple)
+def _wire_sequence(value: list | tuple) -> list[Any]:
+    return [_wire_value(item) for item in value]
+
+
+@_wire_value.register(dict)
+def _wire_mapping(value: dict) -> dict[str, Any]:
+    return {str(key): _wire_value(item) for key, item in sorted(value.items(), key=lambda kv: str(kv[0]))}
 
 
 def project_persona_instance(record: Any, *, dropped: list[str] | None = None) -> dict[str, Any]:
@@ -193,7 +214,7 @@ def project_persona_instances(
       an authored ``display_name`` is this one's.
     """
 
-    from ..persona_assignments import is_canonical_persona_channel
+    from ..persona_assignments.identity import is_canonical_persona_channel
     from ..persona_config_sync import find_nonportable_values
 
     records = records or {}
@@ -334,7 +355,7 @@ def refuse_persona_instance(instance_id: str, body: Any):
     pulling.
     """
 
-    from ..persona_assignments import persona_instance_id_for
+    from ..persona_assignments.identity import persona_instance_id_for
     from ..sync_admission import Refusal, refuse_entity
 
     if not valid_persona_instance_id(instance_id):
