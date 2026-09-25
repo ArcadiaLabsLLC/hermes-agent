@@ -28,6 +28,7 @@ import json
 import pytest
 
 from agent_runtime import paths
+from agent_runtime.gateway_endpoints import candidates as endpoint_candidates
 
 
 @pytest.fixture(autouse=True)
@@ -55,9 +56,10 @@ def gateway_configured(monkeypatch):
 
     from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
-    monkeypatch.setattr(
-        serve_gateway_listener, "gateway_listen_config", lambda: ("10.0.0.4", 8765)
-    )
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(
+            _home, "gateway_listen_config", lambda: ("10.0.0.4", 8765)
+        )
 
 
 def _dispatch(argv: list[str]) -> int:
@@ -97,7 +99,7 @@ def test_pair_prints_a_typed_code_and_a_join_payload_that_agree(capsys):
         # R-D3: the whole candidate list rides the payload so the far side's
         # ``peers join`` can dial in order. One row here, because this fixture's
         # bind names one interface — the list is not an enumeration, it is
-        # whatever ``_candidate_endpoints`` answers, which for a concrete bind is
+        # whatever ``candidate_endpoints`` answers, which for a concrete bind is
         # exactly that bind.
         "endpoints": [{"host": "10.0.0.4", "port": 8765}],
         "install_id": payload["install_id"],
@@ -134,7 +136,7 @@ def test_a_wildcard_bind_in_the_live_sidecar_still_yields_a_dialable_payload(
         },
     )
     monkeypatch.setattr(
-        "agent_runtime.gateway_endpoints.candidates._machine_addresses",
+        "agent_runtime.gateway_endpoints.candidates.machine_addresses",
         lambda: ["192.168.1.203", "10.97.7.100"],
     )
 
@@ -166,8 +168,9 @@ def test_peers_pair_refuses_when_a_wildcard_bind_enumerates_no_address(
     from hermes_cli.harness_parts.gateway_commands import NO_DIAL_HOST_SENTENCE
     from hermes_cli.harness_support import ERROR_EXIT_CODES
 
-    monkeypatch.setattr(serve_gateway_listener, "gateway_listen_config", lambda: ("::", 8765))
-    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates._machine_addresses", lambda: [])
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(_home, "gateway_listen_config", lambda: ("::", 8765))
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates.machine_addresses", lambda: [])
 
     code = _dispatch(["harness", "gateway", "peers", "pair", "--json"])
     out = capsys.readouterr()
@@ -249,7 +252,8 @@ def test_pair_states_when_no_listener_is_advertising_the_endpoint(capsys, monkey
 
     from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
-    monkeypatch.setattr(serve_gateway_listener, "gateway_listen_config", lambda: (None, 0))
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(_home, "gateway_listen_config", lambda: (None, 0))
 
     _code, payload = _run(capsys, "pair")
 
@@ -418,7 +422,7 @@ def fake_dials(monkeypatch):
 
     _FakeClient.dialled = []
     _FakeClient.outcomes = {}
-    monkeypatch.setattr(serve_socket, "ServeSocketClient", _FakeClient)
+    monkeypatch.setattr(serve_socket.client, "ServeSocketClient", _FakeClient)
     return _FakeClient
 
 
@@ -1045,12 +1049,12 @@ def _on_link_payload(host: str = "192.168.1.203") -> str:
 
 
 def _this_machine_is_on(monkeypatch, *addresses: str) -> None:
-    """Pin what ``_machine_addresses`` answers, which is the on-link test's
+    """Pin what ``machine_addresses`` answers, which is the on-link test's
     only input. The Mac's own address was 192.168.1.39/24 on ``en0``."""
 
 
     monkeypatch.setattr(
-        "agent_runtime.gateway_endpoints.candidates._machine_addresses", lambda: list(addresses)
+        "agent_runtime.gateway_endpoints.candidates.machine_addresses", lambda: list(addresses)
     )
 
 
@@ -1209,7 +1213,7 @@ def test_the_reachability_event_leads_with_the_policy_word_so_a_reader_can_see_i
 
 
 def test_the_classifier_calls_an_on_link_ehostunreach_a_policy():
-    from hermes_cli.harness_parts.gateway_commands import classify_dial_error
+    from agent_runtime.gateway_endpoints import classify_dial_error
 
     assert (
         classify_dial_error(
@@ -1225,7 +1229,7 @@ def test_the_classifier_reads_the_linux_number_too():
     """113 on Linux, 65 on Darwin/BSD, and the exception can arrive from either
     — a fixture, a proxied dial, a log replayed on the other platform."""
 
-    from hermes_cli.harness_parts.gateway_commands import classify_dial_error
+    from agent_runtime.gateway_endpoints import classify_dial_error
 
     assert (
         classify_dial_error(
@@ -1242,7 +1246,7 @@ def test_the_classifier_reads_the_windows_winerror_rather_than_the_errno():
     to the CRT's own ``EHOSTUNREACH``, which is a different number from either
     POSIX one. Reading only ``errno`` would miss the Windows case entirely."""
 
-    from hermes_cli.harness_parts.gateway_commands import classify_dial_error
+    from agent_runtime.gateway_endpoints import classify_dial_error
 
     exc = OSError(110, "No route to host")
     exc.winerror = 10065
@@ -1254,7 +1258,7 @@ def test_the_classifier_reads_the_windows_winerror_rather_than_the_errno():
 
 
 def test_the_classifier_needs_the_host_to_be_on_one_of_our_own_subnets():
-    from hermes_cli.harness_parts.gateway_commands import classify_dial_error
+    from agent_runtime.gateway_endpoints import classify_dial_error
 
     unreachable = OSError(_EHOSTUNREACH_DARWIN, "No route to host")
 
@@ -1275,7 +1279,7 @@ def test_the_classifier_only_ever_looks_at_a_host_unreachable_errno():
     claim like that spent on a listener that is merely down is worse than no
     claim at all."""
 
-    from hermes_cli.harness_parts.gateway_commands import classify_dial_error
+    from agent_runtime.gateway_endpoints import classify_dial_error
 
     mine = ["192.168.1.39"]
     for exc in (
@@ -1295,7 +1299,7 @@ def test_a_v6_link_local_host_is_on_link_by_definition_and_a_global_one_is_not()
     is this machine refusing itself; a GLOBAL v6 address carries no prefix
     length here, so it is never called on-link."""
 
-    from hermes_cli.harness_parts.gateway_commands import classify_dial_error
+    from agent_runtime.gateway_endpoints import classify_dial_error
 
     unreachable = OSError(_EHOSTUNREACH_DARWIN, "No route to host")
 
@@ -1324,7 +1328,7 @@ def test_the_classifier_asks_this_machine_when_it_is_given_no_address_list(
     refused connection would pay for a routing-table read (two subprocesses on
     macOS, one on Windows, each with a two-second ceiling)."""
 
-    from hermes_cli.harness_parts import gateway_commands
+    from agent_runtime import gateway_endpoints
 
     asked: list[int] = []
 
@@ -1332,17 +1336,17 @@ def test_the_classifier_asks_this_machine_when_it_is_given_no_address_list(
         asked.append(1)
         return ["192.168.1.39"]
 
-    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates._machine_addresses", _addresses)
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates.machine_addresses", _addresses)
 
     assert (
-        gateway_commands.classify_dial_error(
+        gateway_endpoints.classify_dial_error(
             ConnectionRefusedError("shut"), "192.168.1.203"
         )
         == "unreachable"
     )
     assert asked == []
     assert (
-        gateway_commands.classify_dial_error(
+        gateway_endpoints.classify_dial_error(
             OSError(_EHOSTUNREACH_DARWIN, "No route to host"), "192.168.1.203"
         )
         == "local_policy"

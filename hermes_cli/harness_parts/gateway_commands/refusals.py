@@ -1,13 +1,21 @@
 """``StoreRefusal`` -> harness error (R-D6 / R-D14), the operator sentences,
-the grant payload's shape, and ``_dial_target`` — the one refusal the
+the grant payload's shape, the ``--correlation`` fence both write verbs share,
+and ``_dial_target`` — the one refusal the
 payload writers share when this root has no address to hand out.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Mapping
+from types import MappingProxyType
+from typing import Any, Final
 
-from agent_runtime.gateway_endpoints.candidates import _candidate_endpoints, _dial_host
+from agent_runtime.gateway_endpoints import (
+    SOURCE_CONFIG,
+    SOURCE_LIVE,
+    candidate_endpoints,
+    dial_host,
+)
 from hermes_cli.harness_support import emit_harness_error
 
 __layer__ = "lanes"
@@ -26,7 +34,10 @@ __layer__ = "lanes"
 #:   R-D14. See :data:`_STORE_WRITE_REASONS` for why these three left family 7.
 #: * every remaining I/O condition on the root — retryable in the sense family 7
 #:   already means (an AV hold releases, the identical call then succeeds).
-_REFUSAL_CODES = {
+#:
+#: The families as written; :data:`_REFUSAL_CODES` is this table plus the
+#: write reasons below, built in ONE expression.
+_REFUSAL_FAMILIES = {
     "too_many_pending": "pairing_codes_pending",
     "locked_out": "pairing_locked_out",
     "invalid_tier": "invalid_payload",
@@ -63,12 +74,15 @@ _REFUSAL_CODES = {
 _STORE_WRITE_REASONS = frozenset(
     {"permission_denied", "unwritable", "root_not_a_directory"}
 )
-for _reason in _STORE_WRITE_REASONS:
-    _REFUSAL_CODES[_reason] = "store_unwritable"
-del _reason
+#: The whole taxonomy, frozen: the families plus every store-write reason
+#: mapped to ``store_unwritable``. One expression rather than a module-level
+#: loop that mutated a dict literal after the fact.
+_REFUSAL_CODES: Final[Mapping[str, str]] = MappingProxyType(
+    {**_REFUSAL_FAMILIES, **{reason: "store_unwritable" for reason in _STORE_WRITE_REASONS}}
+)
 
 
-def _refusal(refusal: Any, *, args, store_path: Any = None) -> int:
+def store_refusal_error(refusal: Any, *, args, store_path: Any = None) -> int:
     """One ``StoreRefusal`` as a harness error, with BOTH words on it.
 
     R-D6. The mapping above is many-to-one on purpose — the family answers "what
@@ -122,7 +136,7 @@ def _store_write_refusal(exc: OSError, *, args, store_path: Any) -> int:
     """An ``OSError`` that ESCAPED a store call, as the same R-D14 refusal.
 
     The store functions on this lane catch ``OSError`` around their locked
-    read-modify-write and return a ``StoreRefusal``, which :func:`_refusal`
+    read-modify-write and return a ``StoreRefusal``, which :func:`store_refusal_error`
     already classifies. This covers what that ``try`` does not span — the event
     append and the cache touch that ``record_peer`` runs after its lock is
     released, and any future write that acquires a raise on the way out.
@@ -137,17 +151,17 @@ def _store_write_refusal(exc: OSError, *, args, store_path: Any) -> int:
     reason = os_error_reason(exc)
     if reason not in _STORE_WRITE_REASONS:
         reason = "unwritable"
-    return _refusal(
+    return store_refusal_error(
         _StoreWriteRefusal(reason, str(exc)), args=args, store_path=store_path
     )
 
 
 class _StoreWriteRefusal:
-    """A ``StoreRefusal``-shaped pair, so :func:`_refusal` has one input type.
+    """A ``StoreRefusal``-shaped pair, so :func:`store_refusal_error` has one input type.
 
     Not the real class: importing ``serve_gateway_auth`` here would pull the
     whole device-store module into every verb that only needs two strings, and
-    the only contract ``_refusal`` reads is ``.reason`` / ``.detail``.
+    the only contract ``store_refusal_error`` reads is ``.reason`` / ``.detail``.
     """
 
     __slots__ = ("reason", "detail")
@@ -217,9 +231,9 @@ def _dial_target(store_root, endpoint: dict, *, args):
     a code minted before the first boot is a legitimate thing to have).
     """
 
-    endpoints = _candidate_endpoints(store_root)
-    dial = _dial_host(endpoints)
-    if dial is None and endpoint.get("source") in {"live", "config"}:
+    endpoints = candidate_endpoints(store_root)
+    dial = dial_host(endpoints)
+    if dial is None and endpoint.get("source") in {SOURCE_LIVE, SOURCE_CONFIG}:
         return (
             None,
             [],
@@ -238,3 +252,51 @@ def _dial_target(store_root, endpoint: dict, *, args):
             ),
         )
     return dial, endpoints, 0
+
+
+class PhaseStop(Exception):
+    """A verb phase refused; ``code`` is the exit code, already rendered.
+
+    The ``Introduce`` / ``Join`` phase objects raise it so each phase can refuse
+    in one line and the verb has ONE place (its ``run``) that turns a refusal
+    back into the return value.
+    """
+
+    def __init__(self, code: int) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+def parse_correlation(args) -> str | None:
+    """``--correlation``, fenced exactly as the RPC lane fences ``correlation_id``.
+
+    The SAME rule (``serve_rpc._correlation_id_param`` -> ``state_patches``),
+    read from the module that owns it rather than restated — R-IP17 says the
+    grant id is one token and every party writes it, which is only true if every
+    party agrees what a legal one looks like. Refused and never repaired: a
+    sanitized id would print a value neither the backend nor this install used.
+    ``introduce`` and ``peers join`` both spent this block; it is one now.
+    """
+
+    raw = getattr(args, "correlation", None)
+    if raw is None or not str(raw).strip():
+        return None
+    from agent_runtime.state_patches.models import CORRELATION_ID_MAX_LEN
+    from agent_runtime.state_patches.payload import normalize_correlation_id
+
+    correlation = normalize_correlation_id(raw)
+    if correlation is None:
+        raise PhaseStop(
+            emit_harness_error(
+                RuntimeError("correlation_id_invalid"),
+                reason="correlation_id_invalid",
+                args=args,
+                code="invalid_payload",
+                message=(
+                    "--correlation is the backend grant id and must be a "
+                    f"generated token of at most {CORRELATION_ID_MAX_LEN} "
+                    "characters from [A-Za-z0-9_.:-]"
+                ),
+            )
+        )
+    return correlation

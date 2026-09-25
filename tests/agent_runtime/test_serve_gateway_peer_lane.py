@@ -36,6 +36,8 @@ from contextlib import contextmanager
 
 import pytest
 
+from agent_runtime.gateway_endpoints import candidates as endpoint_candidates
+
 from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
 from agent_runtime.gateway_identity import ensure_install_identity
 from agent_runtime.gateway_peers import (
@@ -169,9 +171,10 @@ def running_serve(**kwargs):
 
 @pytest.fixture(autouse=True)
 def gateway_on(monkeypatch):
-    monkeypatch.setattr(
-        serve_gateway_listener, "gateway_listen_config", lambda: ("127.0.0.1", 0)
-    )
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(
+            _home, "gateway_listen_config", lambda: ("127.0.0.1", 0)
+        )
 
 
 def _store_root():

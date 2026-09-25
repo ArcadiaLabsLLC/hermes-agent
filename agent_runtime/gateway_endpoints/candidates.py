@@ -26,9 +26,17 @@ from .addresses import (
     _shares_24,
     _shares_64,
 )
-from .routes import _DEFAULT_ROUTE_PROBE, _default_route_address
+from .routes import _DEFAULT_ROUTE_PROBE, default_route_address
 
 __layer__ = "stores"
+
+#: The three answers :func:`listener_endpoint` gives about WHERE its endpoint
+#: came from, read by name at every compare site. Plain constants and not an
+#: Enum: ``unknown`` is a fork-wide word (``turn_visibility.VisibilityState``),
+#: and this vocabulary is this module's (layout sheet gateway_commands.md §2).
+SOURCE_LIVE = "live"
+SOURCE_CONFIG = "config"
+SOURCE_UNKNOWN = "unknown"
 
 
 def gateway_listen_config() -> tuple[str | None, int]:
@@ -70,7 +78,7 @@ def gateway_listen_config() -> tuple[str | None, int]:
     return host, max(0, min(65535, port))
 
 
-def _endpoint(store_root) -> dict[str, Any]:
+def listener_endpoint(store_root) -> dict[str, Any]:
     """Where a phone should dial, and HOW CONFIDENT this answer is.
 
     Three sources, and the block says which one answered, because they are not
@@ -90,9 +98,7 @@ def _endpoint(store_root) -> dict[str, Any]:
     nobody chose.
     """
 
-    from agent_runtime.serve_socket import read_socket_owner
-
-    from hermes_cli.harness_parts.serve.gateway_listener import gateway_listen_config
+    from agent_runtime.serve_socket.owner_lock import read_socket_owner
 
     try:
         owner = read_socket_owner(store_root) or {}
@@ -103,22 +109,22 @@ def _endpoint(store_root) -> dict[str, Any]:
         return {
             "host": live.get("host"),
             "port": int(live["port"]),
-            "source": "live",
+            "source": SOURCE_LIVE,
         }
     host, port = gateway_listen_config()
     if host is None:
-        return {"host": None, "port": None, "source": "unknown"}
-    return {"host": host, "port": port or None, "source": "config"}
+        return {"host": None, "port": None, "source": SOURCE_UNKNOWN}
+    return {"host": host, "port": port or None, "source": SOURCE_CONFIG}
 
 
-def _machine_addresses() -> list[str]:
+def machine_addresses() -> list[str]:
     """This machine's dialable addresses, best-effort, stdlib only, IN DIAL ORDER.
 
     Called ONLY when the listener bound a wildcard — the case where the config
     says "every interface" and therefore names none. Three sources, deduped:
 
     0. **The routing table's owner of ``0.0.0.0/0``**
-       (:func:`_default_route_address`, R-D8), which is the only source that
+       (:func:`default_route_address`, R-D8), which is the only source that
        tells a LAN apart from a full-tunnel VPN. Silent when the table declines,
        and then the two below are exactly what D1 shipped.
     1. **The default-route probe**, using the UDP-connect trick: a
@@ -166,7 +172,7 @@ def _machine_addresses() -> list[str]:
     # A machine whose hostname resolves to nothing and whose probe names the
     # tunnel therefore still offers its LAN address, because this source found
     # it rather than merely reordering what the other two found.
-    table_route = _keep(_default_route_address())
+    table_route = _keep(default_route_address())
 
     default_route: str | None = None
     probe = None
@@ -209,7 +215,7 @@ def _is_on_link(host: str, addresses: list[str] | None = None) -> bool:
     to it came back ``EHOSTUNREACH`` — the address was on-link and the refusal
     was a policy.
 
-    v4 asks :func:`_shares_24` against :func:`_machine_addresses`, the same
+    v4 asks :func:`_shares_24` against :func:`machine_addresses`, the same
     prefix test D1's ranking already uses. v6 answers from the address itself
     wherever it can: link-local is on-link by definition, unique-local shares a
     /64 with one of ours or it does not, and a global v6 address is never called
@@ -224,11 +230,11 @@ def _is_on_link(host: str, addresses: list[str] | None = None) -> bool:
             return True
         if not _in_network(host, _V6_UNIQUE_LOCAL):
             return False
-        mine = _machine_addresses() if addresses is None else list(addresses)
+        mine = machine_addresses() if addresses is None else list(addresses)
         return any(_shares_64(host, address) for address in mine)
     if _ipv4(host) is None:
         return False
-    mine = _machine_addresses() if addresses is None else list(addresses)
+    mine = machine_addresses() if addresses is None else list(addresses)
     return any(_shares_24(host, address) for address in mine)
 
 
@@ -251,7 +257,7 @@ def classify_dial_error(exc, host: str, *, addresses: list[str] | None = None) -
 
     ``addresses`` exists for the caller that already knows this machine's
     addresses and for tests; when it is ``None`` this asks
-    :func:`_machine_addresses` — but only AFTER the errno test, so the common
+    :func:`machine_addresses` — but only AFTER the errno test, so the common
     refusals (``ConnectionRefusedError``, a timeout) never pay for a
     routing-table read.
     """
@@ -265,10 +271,10 @@ def classify_dial_error(exc, host: str, *, addresses: list[str] | None = None) -
     return DIAL_LOCAL_POLICY if _is_on_link(host, addresses) else DIAL_UNREACHABLE
 
 
-def _candidate_endpoints(store_root) -> list[dict]:
+def candidate_endpoints(store_root) -> list[dict]:
     """Where the OTHER install should dial this one, as a peer row's list.
 
-    Built from :func:`_endpoint` — the same three sources, the same confidence
+    Built from :func:`listener_endpoint` — the same three sources, the same confidence
     ordering — and reduced to the shape ``gateway_peers.clean_endpoints`` keeps.
     Empty when this root has no address to offer, which is a real state and not
     an error: an install that has never opened its gateway listener can still
@@ -283,7 +289,7 @@ def _candidate_endpoints(store_root) -> list[dict]:
     being down. What was missing was the other half: an operator who binds a
     wildcard has not declined to be reachable, they have declined to CHOOSE, and
     this machine can answer that question itself. So a wildcard now enumerates
-    :func:`_machine_addresses`; a concrete host is still exactly one row;
+    :func:`machine_addresses`; a concrete host is still exactly one row;
     ``unknown`` is still ``[]``.
 
     Computed in the CLI process, at CLI time, and deliberately NOT put on the
@@ -292,13 +298,13 @@ def _candidate_endpoints(store_root) -> list[dict]:
     stale one for the life of the serve.
     """
 
-    endpoint = _endpoint(store_root)
+    endpoint = listener_endpoint(store_root)
     host, port = endpoint.get("host"), endpoint.get("port")
     if not host or not port:
         return []
     port = int(port)
     if str(host).strip().lower() in _WILDCARD_HOSTS:
-        return [{"host": address, "port": port} for address in _machine_addresses()]
+        return [{"host": address, "port": port} for address in machine_addresses()]
     # A listener pinned to loopback is kept as a row rather than filtered: the
     # two-roots lane is exactly that shape — two installs on one box, pairing
     # over 127.0.0.1 on purpose. The filter above exists for ENUMERATED
@@ -306,11 +312,11 @@ def _candidate_endpoints(store_root) -> list[dict]:
     return [{"host": str(host), "port": port}]
 
 
-def _dial_host(endpoints: list[dict]) -> tuple[str, int] | None:
+def dial_host(endpoints: list[dict]) -> tuple[str, int] | None:
     """The ONE address every payload writer names, or ``None``.
 
     R-D1: *a payload host is a dialable address or the verb refuses.* Before
-    this existed, four writers each took ``_endpoint(root)["host"]`` — the
+    this existed, four writers each took ``listener_endpoint(root)["host"]`` — the
     LISTENER'S BIND — and a wildcard bind therefore put the literal ``0.0.0.0``
     into a join payload, a QR payload and a grant. That is not an address: on
     Windows dialling it fails with ``WSAEADDRNOTAVAIL`` and on macOS it resolves
@@ -318,16 +324,16 @@ def _dial_host(endpoints: list[dict]) -> tuple[str, int] | None:
     reported the far install as unreachable when nothing was wrong with either
     listener.
 
-    The answer is simply the first of :func:`_candidate_endpoints`, which after
+    The answer is simply the first of :func:`candidate_endpoints`, which after
     R-D2 is the default-route address. Defined as its own function rather than
     inlined four times because "which address do we hand out" must have exactly
-    one answer — the same reason :func:`_self_endpoints` exists — and because
+    one answer — the same reason :func:`candidate_endpoints` exists — and because
     ``gateway id`` prints it as ``dial_host`` for the launcher's sheet to read
     (R-D4). ``None`` when the list is empty, which the callers distinguish from
     "the lane is off" using the endpoint's own ``source``.
 
     **It takes the LIST, not the root, and D1b is why.** D1 wrote it as
-    ``_dial_host(store_root)``, which enumerated a second time; enumerating was
+    ``dial_host(store_root)``, which enumerated a second time; enumerating was
     two socket calls then and is a routing-table process spawn now (~0.4 s on
     the operator's Windows PC), and both callers — ``_dial_target`` and
     ``gateway id`` — were already holding the list they asked for again. Same
@@ -338,15 +344,3 @@ def _dial_host(endpoints: list[dict]) -> tuple[str, int] | None:
         return None
     first = endpoints[0]
     return str(first["host"]), int(first["port"])
-
-
-def _self_endpoints(store_root) -> list[dict]:
-    """Backwards-compatible spelling of :func:`_candidate_endpoints`.
-
-    Kept as a name rather than as a body: ``peers join`` and ``peers pair`` both
-    call it, and S2's point is that the endpoints a hello ADVERTISES and the
-    endpoints ``gateway id`` PRINTS are one list. Two functions with two answers
-    is how an install ends up advertising an address it does not print.
-    """
-
-    return _candidate_endpoints(store_root)

@@ -21,6 +21,7 @@ import json
 import pytest
 
 from agent_runtime import paths
+from agent_runtime.gateway_endpoints import candidates as endpoint_candidates
 
 
 @pytest.fixture(autouse=True)
@@ -48,9 +49,10 @@ def gateway_configured(monkeypatch):
 
     from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
-    monkeypatch.setattr(
-        serve_gateway_listener, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
-    )
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(
+            _home, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
+        )
 
 
 @pytest.fixture(autouse=True)
@@ -58,7 +60,7 @@ def enumerated_addresses(monkeypatch):
     """This box's interfaces, stubbed, because the bind above is a WILDCARD.
 
     The fixture bind is ``0.0.0.0``, and since R-D1 that means every payload
-    host comes from :func:`_machine_addresses` rather than from the bind — so
+    host comes from :func:`machine_addresses` rather than from the bind — so
     without this stub these assertions would be about whatever adapters the
     machine running the suite happens to have, which is a test that fails on a
     laptop that changed networks. The two values are the operator's own
@@ -67,7 +69,7 @@ def enumerated_addresses(monkeypatch):
 
 
     monkeypatch.setattr(
-        "agent_runtime.gateway_endpoints.candidates._machine_addresses",
+        "agent_runtime.gateway_endpoints.candidates.machine_addresses",
         lambda: ["192.168.1.203", "10.97.7.100"],
     )
 
@@ -144,9 +146,10 @@ def test_no_payload_a_pair_writes_can_carry_a_bind_address(capsys, monkeypatch):
     from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
     for bind in ("0.0.0.0", "::", "*"):
-        monkeypatch.setattr(
-            serve_gateway_listener, "gateway_listen_config", lambda bind=bind: (bind, 8765)
-        )
+        for _home in (serve_gateway_listener, endpoint_candidates):
+            monkeypatch.setattr(
+                _home, "gateway_listen_config", lambda bind=bind: (bind, 8765)
+            )
         _code, payload = _run(capsys, "pair")
         scanned = json.loads(payload["qr_payload"])
         assert scanned["host"] == "192.168.1.203", bind
@@ -165,7 +168,7 @@ def test_a_wildcard_bind_with_nothing_to_enumerate_refuses_rather_than_minting(
     from hermes_cli.harness_parts.gateway_commands import NO_DIAL_HOST_SENTENCE
     from hermes_cli.harness_support import ERROR_EXIT_CODES
 
-    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates._machine_addresses", lambda: [])
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates.machine_addresses", lambda: [])
 
     code = _dispatch(["harness", "gateway", "pair", "--json"])
     out = capsys.readouterr()
@@ -259,7 +262,8 @@ def test_pair_says_so_when_nothing_is_listening_for_the_code(capsys, monkeypatch
 
     from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
-    monkeypatch.setattr(serve_gateway_listener, "gateway_listen_config", lambda: (None, 0))
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(_home, "gateway_listen_config", lambda: (None, 0))
 
     code, payload = _run(capsys, "pair")
 

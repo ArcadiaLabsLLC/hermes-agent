@@ -98,48 +98,22 @@ gateway_endpoints; ``peers join`` — join, join_payload, refusals;
 Stores written: none directly — every write is ``agent_runtime.gateway_peers``'
 or ``serve_gateway_auth``'s, through their public doors.
 
-Every name the parser, a runtime caller or a test takes from
-``hermes_cli.harness_parts.gateway_commands`` is re-exported below (the
-endpoint names FROM ``agent_runtime.gateway_endpoints``, for one commit).
+Re-exported below: the eight ``cmd_*`` (the parser's ``func=`` targets), the
+``__all__`` names (the R-D20 words and ``classify_dial_error``, which live in
+``agent_runtime.gateway_endpoints``), and the refusal vocabulary the tests pin.
+The address policy is imported from ``agent_runtime.gateway_endpoints``, never
+from here.
 """
 
 from __future__ import annotations
 
-from agent_runtime.gateway_endpoints.addresses import (  # noqa: F401
+from agent_runtime.gateway_endpoints import (  # noqa: F401
     DIAL_LOCAL_POLICY,
     DIAL_UNREACHABLE,
-    LOCAL_POLICY_SENTENCE,
-    MAX_CANDIDATE_ENDPOINTS,
-)
-from agent_runtime.gateway_endpoints.routes import (  # noqa: F401
-    _default_route_address,
-    _first_inet_address,
-    _linux_default_route,
-    _macos_default_route_interface,
-    _run_route_command,
-    _windows_default_route_address,
-)
-from agent_runtime.gateway_endpoints.candidates import (  # noqa: F401
-    _candidate_endpoints,
-    _dial_host,
-    _endpoint,
-    _is_on_link,
-    _machine_addresses,
-    _self_endpoints,
     classify_dial_error,
 )
-from .refusals import (  # noqa: F401
-    GRANT_PAYLOAD_KEYS,
-    GRANT_PAYLOAD_MAX_BYTES,
-    LISTENER_OFF_SENTENCE,
-    NO_DIAL_HOST_SENTENCE,
-    _REFUSAL_CODES,
-    _STORE_WRITE_REASONS,
-    _dial_target,
-    _refusal,
-)
+
 from .devices import (  # noqa: F401
-    _install_and_certificate,
     cmd_gateway_devices_list,
     cmd_gateway_devices_revoke,
     cmd_gateway_pair,
@@ -148,17 +122,18 @@ from .introduce import (  # noqa: F401
     cmd_gateway_introduce,
     cmd_gateway_peers_pair,
 )
-from .join_payload import (  # noqa: F401
-    _clean_candidates,
-    _parse_join_payload,
-)
-from .join import (  # noqa: F401
-    cmd_gateway_peers_join,
-)
+from .join import cmd_gateway_peers_join  # noqa: F401
 from .peers import (  # noqa: F401
-    _unusable_reason,
     cmd_gateway_peers_list,
     cmd_gateway_peers_revoke,
+)
+from .refusals import (  # noqa: F401
+    _REFUSAL_CODES,
+    _STORE_WRITE_REASONS,
+    GRANT_PAYLOAD_KEYS,
+    GRANT_PAYLOAD_MAX_BYTES,
+    LISTENER_OFF_SENTENCE,
+    NO_DIAL_HOST_SENTENCE,
 )
 
 __layer__ = "wiring"

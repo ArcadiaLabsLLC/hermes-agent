@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 
-from agent_runtime.gateway_endpoints.candidates import _endpoint
+from agent_runtime.gateway_endpoints import SOURCE_CONFIG, SOURCE_LIVE, listener_endpoint
 from agent_runtime.root_observability import attach_root_observability
 from hermes_cli.harness_support import (
     _list_envelope,
@@ -15,7 +15,7 @@ from hermes_cli.harness_support import (
     emit_harness_error,
 )
 
-from .refusals import LISTENER_OFF_SENTENCE, _dial_target, _refusal
+from .refusals import LISTENER_OFF_SENTENCE, _dial_target, store_refusal_error
 
 __layer__ = "lanes"
 
@@ -71,7 +71,7 @@ def cmd_gateway_pair(args) -> int:
     # The dial host is decided BEFORE the mint, so a root that cannot say where
     # a phone should dial refuses without having burned one of the three pending
     # codes the operator is allowed.
-    endpoint = _endpoint(root)
+    endpoint = listener_endpoint(root)
     dial, endpoints, failure = _dial_target(root, endpoint, args=args)
     if failure:
         return failure
@@ -80,7 +80,7 @@ def cmd_gateway_pair(args) -> int:
     if isinstance(code, StoreRefusal):
         # R-D14: a pairing.json this machine cannot write is not the network's
         # fault, and the refusal now says which file to fix.
-        return _refusal(code, args=args, store_path=pairing_store_path(root))
+        return store_refusal_error(code, args=args, store_path=pairing_store_path(root))
 
     payload = {
         # R-D1: a DIALABLE address, never the bind. ``endpoint`` below still
@@ -113,7 +113,7 @@ def cmd_gateway_pair(args) -> int:
         # of them scans.
         "qr_payload": json.dumps(payload, separators=(",", ":"), sort_keys=True),
     }
-    if endpoint["source"] != "live":
+    if endpoint["source"] != SOURCE_LIVE:
         # Stated, never silent: a code minted against a lane nobody is listening
         # on is still a valid code, and an operator who does not know that will
         # blame the code.
@@ -121,7 +121,7 @@ def cmd_gateway_pair(args) -> int:
             "no running serve advertised a gateway listener for this root, so "
             "the endpoint above is what the config says the NEXT boot will use. "
             "The code is valid either way."
-            if endpoint["source"] == "config"
+            if endpoint["source"] == SOURCE_CONFIG
             else LISTENER_OFF_SENTENCE + " The code is valid either way."
         )
 
@@ -189,7 +189,7 @@ def cmd_gateway_devices_revoke(args) -> int:
 
     outcome = revoke_device(paths.store_root(), device_id)
     if isinstance(outcome, StoreRefusal):
-        return _refusal(
+        return store_refusal_error(
             outcome, args=args, store_path=device_store_path(paths.store_root())
         )
     row = outcome.payload()

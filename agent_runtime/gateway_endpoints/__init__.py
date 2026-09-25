@@ -21,8 +21,8 @@ candidates  stores  ``gateway_listen_config``, the listener endpoint, this
                     one dial host, and ``classify_dial_error``
 ==========  ======  ==========================================================
 
-Entry points and the modules an agent opens: ``_candidate_endpoints`` /
-``_dial_host`` / ``_endpoint`` (callers: ``gateway_peers.dial``,
+Entry points and the modules an agent opens: ``candidate_endpoints`` /
+``dial_host`` / ``listener_endpoint`` (callers: ``gateway_peers.dial``,
 ``serve/boot_phases``, ``gateway id``, the payload writers) — candidates,
 routes, addresses; ``classify_dial_error`` (caller: ``gateway_peers.dial``,
 ``peers join``) — candidates, addresses.
@@ -33,20 +33,31 @@ Stores written: none. ``routes`` spawns ``route`` / ``ip`` / ``ifconfig`` and
 
 from __future__ import annotations
 
-from .addresses import (  # noqa: F401
+from .addresses import (
     DIAL_LOCAL_POLICY,
     DIAL_UNREACHABLE,
     LOCAL_POLICY_SENTENCE,
     MAX_CANDIDATE_ENDPOINTS,
 )
-from .candidates import (  # noqa: F401
-    _candidate_endpoints,
-    _dial_host,
-    _endpoint,
-    _machine_addresses,
-    _self_endpoints,
+from .candidates import (
+    SOURCE_CONFIG,
+    SOURCE_LIVE,
+    SOURCE_UNKNOWN,
+    candidate_endpoints,
     classify_dial_error,
+    dial_host,
     gateway_listen_config,
+    listener_endpoint,
+    machine_addresses,
+)
+from .routes import (
+    ROUTE_PROBES,
+    default_route_address,
+    first_inet_address,
+    linux_default_route,
+    macos_default_route_interface,
+    run_route_command,
+    windows_default_route_address,
 )
 
 __layer__ = "stores"
@@ -56,6 +67,20 @@ __all__ = [
     "DIAL_UNREACHABLE",
     "LOCAL_POLICY_SENTENCE",
     "MAX_CANDIDATE_ENDPOINTS",
+    "ROUTE_PROBES",
+    "SOURCE_CONFIG",
+    "SOURCE_LIVE",
+    "SOURCE_UNKNOWN",
+    "candidate_endpoints",
     "classify_dial_error",
+    "default_route_address",
+    "dial_host",
+    "first_inet_address",
     "gateway_listen_config",
+    "linux_default_route",
+    "listener_endpoint",
+    "machine_addresses",
+    "macos_default_route_interface",
+    "run_route_command",
+    "windows_default_route_address",
 ]

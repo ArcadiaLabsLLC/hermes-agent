@@ -69,7 +69,7 @@ def _gateway_install_row(identity) -> dict:
     #   the one module both sides import.
     # * ``endpoints`` / ``endpoints_source`` — where another machine should dial
     #   this one, and how confident that answer is. The SAME list a join payload
-    #   advertises (``_candidate_endpoints``), so what this prints and what a
+    #   advertises (``candidate_endpoints``), so what this prints and what a
     #   hello offers cannot drift.
     # * ``listener`` — the live block minus nothing secret: an outcome, a host,
     #   a port and the fingerprint a client pins. The private key is not in it
@@ -92,14 +92,14 @@ def _gateway_install_row(identity) -> dict:
         from agent_runtime import paths
         from agent_runtime.gateway_capabilities import GATEWAY_CAPABILITIES
         from agent_runtime.gateway_endpoints import (
-            _candidate_endpoints,
-            _dial_host,
-            _endpoint,
+            candidate_endpoints,
+            dial_host,
+            listener_endpoint,
         )
 
         root = paths.store_root()
-        endpoint = _endpoint(root)
-        row["endpoints"] = _candidate_endpoints(root)
+        endpoint = listener_endpoint(root)
+        row["endpoints"] = candidate_endpoints(root)
         row["endpoints_source"] = endpoint["source"]
         row["listener"] = {
             "host": endpoint.get("host"),
@@ -108,7 +108,7 @@ def _gateway_install_row(identity) -> dict:
         }
         # The list this row already holds, not a second enumeration of it: since
         # D1b that walk reads the routing table, which is a process spawn.
-        dial = _dial_host(row["endpoints"])
+        dial = dial_host(row["endpoints"])
         row["dial_host"] = {"host": dial[0], "port": dial[1]} if dial else None
         row["capabilities"] = list(GATEWAY_CAPABILITIES)
     except Exception:

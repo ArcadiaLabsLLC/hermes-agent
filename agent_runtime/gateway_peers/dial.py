@@ -34,7 +34,7 @@ def _dial_failure_word(exc: BaseException, host: str) -> str:
     segment one of THIS machine's addresses sits on — a question only the
     interface enumeration in ``gateway_commands`` can answer, which is why the
     classifier lives there and is reached from here the same way
-    :func:`dial_peer` already reaches ``_candidate_endpoints``: a function-local
+    :func:`dial_peer` already reaches ``candidate_endpoints``: a function-local
     import, so nothing at module load couples this layer to the CLI one.
 
     A CLI half that will not import falls back to the exception class, which is
@@ -178,9 +178,9 @@ class Dial:
         except Exception:
             self.self_fingerprint = None
         try:
-            from ..gateway_endpoints import _candidate_endpoints
+            from ..gateway_endpoints import candidate_endpoints
 
-            self.self_endpoints = _candidate_endpoints(self.root)
+            self.self_endpoints = candidate_endpoints(self.root)
         except Exception:
             self.self_endpoints = []
 

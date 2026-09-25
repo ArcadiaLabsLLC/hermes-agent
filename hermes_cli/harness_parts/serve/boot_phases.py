@@ -399,13 +399,13 @@ class BootPhases:
             try:
                 from agent_runtime.gateway_announce import announce_in_background
                 from agent_runtime.gateway_endpoints import (
-                    _candidate_endpoints,
+                    candidate_endpoints,
                 )
 
                 announce_in_background(
                     self.store_root_path,
                     {
-                        "endpoints": _candidate_endpoints(self.store_root_path),
+                        "endpoints": candidate_endpoints(self.store_root_path),
                         "cert_fingerprint": self.gateway_block.get("cert_fingerprint"),
                         "display_name": self.install_block.get("display_name"),
                     },

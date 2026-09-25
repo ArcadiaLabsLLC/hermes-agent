@@ -1170,7 +1170,7 @@ def test_the_chat_dial_names_a_local_network_permission_rather_than_an_oserror(
         cert_fingerprint="ab" * 32,
     )
     monkeypatch.setattr(
-        "agent_runtime.gateway_endpoints.candidates._machine_addresses", lambda: ["192.168.1.39"]
+        "agent_runtime.gateway_endpoints.candidates.machine_addresses", lambda: ["192.168.1.39"]
     )
 
     class _Client:
@@ -1216,7 +1216,7 @@ def test_a_chat_dial_that_is_merely_refused_keeps_the_word_it_had(
         cert_fingerprint="ab" * 32,
     )
     monkeypatch.setattr(
-        "agent_runtime.gateway_endpoints.candidates._machine_addresses", lambda: ["192.168.1.39"]
+        "agent_runtime.gateway_endpoints.candidates.machine_addresses", lambda: ["192.168.1.39"]
     )
 
     class _Client:

@@ -11,7 +11,7 @@ from hermes_cli.harness_support import (
     emit_harness_error,
 )
 
-from .refusals import _refusal, _store_write_refusal
+from .refusals import _store_write_refusal, store_refusal_error
 
 __layer__ = "lanes"
 
@@ -26,7 +26,12 @@ def cmd_gateway_peers_list(args) -> int:
     """
 
     from agent_runtime import paths
-    from agent_runtime.gateway_peers import list_peers, read_peer_cache, usable_peers
+    from agent_runtime.gateway_peers import (
+        list_peers,
+        read_peer_cache,
+        unusable_reason,
+        usable_peers,
+    )
 
     root = paths.store_root()
     cache = read_peer_cache(root)
@@ -55,37 +60,13 @@ def cmd_gateway_peers_list(args) -> int:
         row["usable"] = peer is not None
         row["ref"] = peer.ref if peer is not None else None
         row["unusable_reason"] = (
-            None if peer is not None else _unusable_reason(record, cached)
+            None if peer is not None else unusable_reason(record, cached)
         )
         rows.append(row)
 
     envelope = attach_root_observability(_list_envelope("gateway_peer", rows))
     _print_stage42(envelope, args=args, default_output="json")
     return 0
-
-
-def _unusable_reason(record, cached) -> str:
-    """Why one row is not in ``usable_peers``, in the resolver's own vocabulary.
-
-    The SAME words ``gateway_targets`` refuses with, so an operator comparing a
-    list against a failed send reads one vocabulary rather than two. Ordered as
-    the predicate orders them: a decision this operator made outranks a clock,
-    and both outrank the far side's decision.
-    """
-
-    from agent_runtime.gateway_targets import (
-        REASON_PEER_EXPIRED,
-        REASON_PEER_REVOKED,
-        REASON_PEER_REVOKED_YOU,
-    )
-
-    if record.revoked:
-        return REASON_PEER_REVOKED
-    if record.expired:
-        return REASON_PEER_EXPIRED
-    if cached is not None and cached.revoked_you:
-        return REASON_PEER_REVOKED_YOU
-    return ""
 
 
 def cmd_gateway_peers_revoke(args) -> int:
@@ -171,7 +152,7 @@ def cmd_gateway_peers_revoke(args) -> int:
         # is outside that span. Both doors, one answer (R-D14).
         return _store_write_refusal(exc, args=args, store_path=peers)
     if isinstance(outcome, StoreRefusal):
-        return _refusal(outcome, args=args, store_path=peers)
+        return store_refusal_error(outcome, args=args, store_path=peers)
     row = outcome.payload()
     row["takes_effect"] = "next_handshake"
     row["scope"] = "this_install_only"

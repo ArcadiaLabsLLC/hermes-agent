@@ -1,13 +1,15 @@
 """The routing table's owner of ``0.0.0.0/0`` (R-D8), per platform.
 
 One bounded ``route`` / ``ip`` / ``ifconfig`` spawn per question, the three
-platform parsers, and ``_default_route_address`` which picks between them.
+platform parsers, and ``default_route_address`` which picks between them.
 ``None`` on any doubt; the caller then ranks by the R-D2 probe alone.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Callable, Mapping
+from types import MappingProxyType
+from typing import Any, Final
 
 from .addresses import _WILDCARD_HOSTS, _ipv4
 
@@ -37,7 +39,7 @@ _DEFAULT_ROUTE_PROBE = ("1.1.1.1", 53)
 _ROUTE_COMMAND_TIMEOUT_SECONDS = 2.0
 
 
-def _run_route_command(argv: list[str]) -> str | None:
+def run_route_command(argv: list[str]) -> str | None:
     """One routing-table command's stdout, or ``None``. Never raises.
 
     Every way this can fail — the binary missing, a non-zero exit, a hang, a
@@ -80,7 +82,7 @@ def _run_route_command(argv: list[str]) -> str | None:
     return completed.stdout or ""
 
 
-def _windows_default_route_address(text: str) -> str | None:
+def windows_default_route_address(text: str) -> str | None:
     """The ``Interface`` column of ``route print -4``'s true default row.
 
     The row shape is the anchor, not the ``Active Routes:`` header, which is
@@ -120,7 +122,7 @@ def _windows_default_route_address(text: str) -> str | None:
     return None if best is None else best[1]
 
 
-def _macos_default_route_interface(text: str) -> str | None:
+def macos_default_route_interface(text: str) -> str | None:
     """The ``interface:`` line of ``route -n get default`` — a NAME, not an
     address, which is why macOS needs the second command below."""
 
@@ -131,7 +133,7 @@ def _macos_default_route_interface(text: str) -> str | None:
     return None
 
 
-def _first_inet_address(text: str) -> str | None:
+def first_inet_address(text: str) -> str | None:
     """The first ``inet <address>`` of an ``ifconfig``/``ip addr`` block.
 
     One reader for both platforms: macOS writes ``inet 192.168.1.5 netmask
@@ -153,7 +155,7 @@ def _first_inet_address(text: str) -> str | None:
     return None
 
 
-def _linux_default_route(text: str) -> tuple[str | None, str | None]:
+def linux_default_route(text: str) -> tuple[str | None, str | None]:
     """``(src, dev)`` from the first ``default`` line of ``ip -4 route show
     default``.
 
@@ -181,7 +183,7 @@ def _linux_default_route(text: str) -> tuple[str | None, str | None]:
     return None, None
 
 
-def _default_route_address() -> str | None:
+def default_route_address() -> str | None:
     """R-D8: the address that owns ``0.0.0.0/0``, read from the routing table.
 
     The operator's sentence — *"the exact router-granted address"* — made
@@ -202,25 +204,43 @@ def _default_route_address() -> str | None:
 
     import sys
 
-    if sys.platform == "win32":
-        printed = _run_route_command(["route", "print", "-4"])
-        return _windows_default_route_address(printed) if printed else None
+    return ROUTE_PROBES.get(sys.platform, _linux_probe)()
 
-    if sys.platform == "darwin":
-        printed = _run_route_command(["route", "-n", "get", "default"])
-        interface = _macos_default_route_interface(printed) if printed else None
-        if not interface:
-            return None
-        printed = _run_route_command(["ifconfig", interface])
-        return _first_inet_address(printed) if printed else None
 
-    printed = _run_route_command(["ip", "-4", "route", "show", "default"])
+def _windows_probe() -> str | None:
+    printed = run_route_command(["route", "print", "-4"])
+    return windows_default_route_address(printed) if printed else None
+
+
+def _macos_probe() -> str | None:
+    printed = run_route_command(["route", "-n", "get", "default"])
+    interface = macos_default_route_interface(printed) if printed else None
+    if not interface:
+        return None
+    printed = run_route_command(["ifconfig", interface])
+    return first_inet_address(printed) if printed else None
+
+
+def _linux_probe() -> str | None:
+    printed = run_route_command(["ip", "-4", "route", "show", "default"])
     if not printed:
         return None
-    source, device = _linux_default_route(printed)
+    source, device = linux_default_route(printed)
     if source:
         return source
     if not device:
         return None
-    printed = _run_route_command(["ip", "-4", "-o", "addr", "show", "dev", device])
-    return _first_inet_address(printed) if printed else None
+    printed = run_route_command(["ip", "-4", "-o", "addr", "show", "dev", device])
+    return first_inet_address(printed) if printed else None
+
+
+#: ``sys.platform`` -> the probe that asks THAT platform's routing table. Every
+#: platform outside the table asks ``ip`` (the Linux probe), which is what the
+#: ladder this replaced did in its final arm.
+ROUTE_PROBES: Final[Mapping[str, Callable[[], str | None]]] = MappingProxyType(
+    {
+        "win32": _windows_probe,
+        "darwin": _macos_probe,
+        "linux": _linux_probe,
+    }
+)

@@ -182,16 +182,6 @@
   },
   {
    "depth": 2,
-   "lines": 266,
-   "unit": "hermes_cli/harness_parts/gateway_commands/introduce.py|cmd_gateway_introduce"
-  },
-  {
-   "depth": 3,
-   "lines": 443,
-   "unit": "hermes_cli/harness_parts/gateway_commands/join.py|cmd_gateway_peers_join"
-  },
-  {
-   "depth": 2,
    "lines": 181,
    "unit": "hermes_cli/harness_parts/office.py|_cmd_office_actor_upsert"
   },
