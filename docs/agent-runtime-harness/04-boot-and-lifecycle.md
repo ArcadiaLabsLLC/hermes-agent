@@ -415,7 +415,7 @@ create reads. The older claim that warming without it "primes nothing the create
 populate, plugin discovery, `check_fn` probes) is process/callable-keyed and warms either way.
 The alignment is load-bearing on exactly one configuration — an install whose runtime default is
 the BOUNDED posture, root `config.yaml` `agent_runtime.tool_permissions.default_mode:
-profile_default` (`config.py:1015-1047`). The shipped default is `unbounded`, under which the two
+profile_default` (`config/sections.py:237-271`). The shipped default is `unbounded`, under which the two
 keys coincide and the call is free; `test_the_warm_fills_the_exact_toolset_key_the_create_reads`
 is the gate that reds if the line is removed.
 

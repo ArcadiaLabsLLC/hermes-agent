@@ -1,3 +1,5 @@
+import pytest
+
 from agent_runtime.config import (
     describe_runtime_default_authority,
     load_agent_runtime_config,
@@ -637,3 +639,102 @@ def test_authority_report_flags_provider_only_pin(tmp_path):
 
     assert pins["dev"]["provider_pinned_without_model"] is True
     assert pins["dev"]["matches_runtime_default"] is None
+
+
+# ── positive controls for the config package's routing tables (sheet config.md §6) ──
+
+_EVERY_SECTION_NON_DEFAULT = (
+    "agent_runtime:\n"
+    "  read_model:\n    enabled: true\n"
+    "  persona_chat:\n    hot_sessions_enabled: true\n"
+    "  event_log:\n    rotation_cap_bytes: 1024\n"
+    "  supervision:\n    child_events_enabled: true\n"
+    "  coordinator_permissions:\n    max_spawns: 2\n"
+    "  mission_chat:\n    default_max_seconds: 600\n"
+    "  mcp_admission:\n    enabled: true\n"
+    "  terminal_envelope:\n    grants:\n      dev:\n        chat: [git]\n"
+    "  tool_permissions:\n    default_mode: profile_default\n"
+)
+
+
+def _section_fields() -> dict[str, type]:
+    """Every ``RuntimeConfig`` field whose default is itself a dataclass — a section."""
+
+    import dataclasses
+
+    from agent_runtime.runtime_config import RuntimeConfig
+
+    sections = {}
+    for f in dataclasses.fields(RuntimeConfig):
+        if f.default_factory is not dataclasses.MISSING and dataclasses.is_dataclass(f.default_factory):
+            sections[f.name] = f.default_factory
+    return sections
+
+
+def test_every_config_section_reaches_its_parser(tmp_path):
+    """A YAML naming every section with a non-default value loads non-default in
+    every section — a section the loader forgot would silently keep its dataclass
+    default, which no other test can see."""
+
+    p = tmp_path / "config.yaml"
+    p.write_text(_EVERY_SECTION_NON_DEFAULT, encoding="utf-8")
+    cfg = load_agent_runtime_config(p)
+    sections = _section_fields()
+    assert len(sections) >= 9, sections
+    assert [name for name, cls in sections.items() if getattr(cfg, name) == cls()] == []
+
+
+_KNOB_CASES = (
+    ("mission_chat_compaction_threshold_tokens", "compaction_threshold_tokens: 40000", 40_000),
+    ("mission_chat_clarify_token_binding", "clarify_token_binding: false", False),
+    ("mission_chat_dispatch_session_policy", "dispatch_session_policy: sticky", "sticky"),
+    ("mission_chat_default_max_seconds", "default_max_seconds: 600", 600.0),
+    ("mission_chat_dispatch_max_seconds", "dispatch_max_seconds: 900", 900.0),
+    ("mission_chat_dispatch_max_concurrent", "dispatch_max_concurrent: 7", 7),
+)
+
+
+@pytest.mark.parametrize("reader,line,expected", _KNOB_CASES)
+def test_a_knob_reads_an_explicit_config(tmp_path, reader, line, expected):
+    from agent_runtime import config
+
+    p = tmp_path / "config.yaml"
+    p.write_text(f"agent_runtime:\n  mission_chat:\n    {line}\n", encoding="utf-8")
+    assert getattr(config, reader)(load_agent_runtime_config(p)) == expected
+
+
+@pytest.mark.parametrize("reader,line,expected", _KNOB_CASES)
+def test_a_knob_degrades_to_the_built_in_default_on_a_root_fault(monkeypatch, tmp_path, reader, line, expected):
+    """The fault arm, with its positive control: the same ROOT config yields the
+    configured value until the root load faults, then the built-in default."""
+
+    from agent_runtime import config
+    from agent_runtime.config import knobs, loader
+    from agent_runtime.runtime_config import MissionChatConfig
+
+    root = tmp_path / "config.yaml"
+    root.write_text(f"agent_runtime:\n  mission_chat:\n    {line}\n", encoding="utf-8")
+    monkeypatch.setattr(loader, "harness_root_config_path", lambda: root)
+    assert getattr(config, reader)() == expected
+
+    def _boom():
+        raise RuntimeError("root config unreadable")
+
+    monkeypatch.setattr(knobs, "load_root_runtime_config", _boom)
+    assert getattr(config, reader)() == getattr(MissionChatConfig(), line.split(":", 1)[0])
+
+
+@pytest.mark.parametrize("keyed,asked", [("neko_supervisor", "alice_supervisor"), ("alice_supervisor", "neko_supervisor")])
+def test_the_supervisor_alias_is_honoured_in_both_directions(tmp_path, keyed, asked):
+    from agent_runtime.config import chat_lane_restore_toolsets, mission_chat_workdir
+
+    p = tmp_path / "config.yaml"
+    p.write_text(
+        f"agent_runtime:\n  personas:\n    {keyed}:\n"
+        f"      chat_lane_restore_toolsets: [file]\n      workdir: {tmp_path.as_posix()}\n",
+        encoding="utf-8",
+    )
+    cfg = load_agent_runtime_config(p)
+    assert chat_lane_restore_toolsets(asked, cfg) == ["file"]
+    assert mission_chat_workdir(asked, cfg) == tmp_path.as_posix()
+    assert chat_lane_restore_toolsets("dev", cfg) == []

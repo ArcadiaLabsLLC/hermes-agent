@@ -17,7 +17,7 @@ def _point_config_at(monkeypatch, path):
     # load_agent_runtime_config / describe_runtime_default_authority both read
     # get_config_path() from the config module namespace; snapshot.build_snapshot
     # loads the config with no path, so this one patch drives every surface.
-    monkeypatch.setattr("agent_runtime.config.get_config_path", lambda: path)
+    monkeypatch.setattr("agent_runtime.config.loader.get_config_path", lambda: path)
 
 
 def test_snapshot_runtime_default_follows_top_level_model(tmp_path, monkeypatch):

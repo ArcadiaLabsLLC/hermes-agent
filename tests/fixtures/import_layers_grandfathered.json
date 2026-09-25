@@ -105,7 +105,6 @@
   "agent_runtime/cli_format.py",
   "agent_runtime/codex_observability.py",
   "agent_runtime/compression_metadata.py",
-  "agent_runtime/config.py",
   "agent_runtime/continuity.py",
   "agent_runtime/conversation_observability.py",
   "agent_runtime/coordinator_permissions.py",

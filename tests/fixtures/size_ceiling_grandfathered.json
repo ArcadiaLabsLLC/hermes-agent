@@ -7,7 +7,6 @@
   "agent_runtime/agent_create.py": 1439,
   "agent_runtime/board_store.py": 925,
   "agent_runtime/chat_live_log.py": 849,
-  "agent_runtime/config.py": 902,
   "agent_runtime/dispatch_delivery.py": 1311,
   "agent_runtime/dispatch_store.py": 1019,
   "agent_runtime/gateway_peers.py": 1621,

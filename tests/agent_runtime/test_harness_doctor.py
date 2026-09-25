@@ -25,7 +25,7 @@ def _persona() -> AgentPersona:
 def _write_config(monkeypatch, tmp_path, body: str):
     p = tmp_path / "config.yaml"
     p.write_text(body, encoding="utf-8")
-    monkeypatch.setattr("agent_runtime.config.get_config_path", lambda: p)
+    monkeypatch.setattr("agent_runtime.config.loader.get_config_path", lambda: p)
     return p
 
 
@@ -53,6 +53,24 @@ def test_harness_doctor_flags_shadowing_model_authority(isolate_agent_runtime_ro
     assert any("shadows the runtime default" in notice for notice in authority["notices"])
     # Informational only — a stale pin never turns the doctor into a fix job.
     assert report["summary"]["needs_fix"] is False
+
+
+def test_harness_doctor_flags_a_redundant_model_override(isolate_agent_runtime_root, tmp_path, monkeypatch):
+    """Positive control beside the shadowing case: the two notices are different
+    states of one vocabulary, so each needs its own fixture or a swap stays green."""
+
+    _write_config(
+        monkeypatch,
+        tmp_path,
+        "model:\n  default: gpt-5.6-luna\nagent_runtime:\n  default_model: gpt-5.6-luna\n",
+    )
+
+    report = run_harness_doctor(include_worktrees=False, snapshot_builder=lambda: {"runs": [], "tasks": []})
+
+    authority = report["model_authority"]
+    assert authority["harness_override"]["model_state"] == "redundant"
+    assert authority["notices"] == ["agent_runtime.default_model duplicates model.default and is unmaintained"]
+    assert not any("shadows" in notice for notice in authority["notices"])
 
 
 def test_harness_doctor_model_authority_clean_when_only_top_level(isolate_agent_runtime_root, tmp_path, monkeypatch):

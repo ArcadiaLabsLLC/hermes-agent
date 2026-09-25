@@ -501,6 +501,7 @@ def test_chat_lane_preview_matches_actual_lane_with_restore_config(
         },
     )
     monkeypatch.setattr(cfgmod, "load_agent_runtime_config", lambda *a, **k: fake)
+    monkeypatch.setattr(cfgmod.knobs, "load_agent_runtime_config", lambda *a, **k: fake)
 
     persona = _persona("neko_supervisor")
     session_id = bounded_chat_session(persona.id)

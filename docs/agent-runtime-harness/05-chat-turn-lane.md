@@ -456,7 +456,7 @@ straight off the record they were handed (`operator_channels.py:927-929`,
 `agent_runtime/persona_chat_history/curation.py:475`). Default wall budget is **240 s**
 (`runtime_config.py:150-164`), tunable at
 `agent_runtime.mission_chat.default_max_seconds` and clamped; an explicit `--max-seconds` always
-wins, including outside the clamp (`config.py:820-840`). The last `max(60s, 15%)` is reserved for
+wins, including outside the clamp (`config/knobs.py:155-176`). The last `max(60s, 15%)` is reserved for
 the graceful checkpoint, so a default turn has ~180 s of tool-using time.
 
 **The volatile tail** is how the agent is told any of this. Contributors register by name with their
