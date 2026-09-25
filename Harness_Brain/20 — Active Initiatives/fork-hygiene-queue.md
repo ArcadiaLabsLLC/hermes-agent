@@ -132,7 +132,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 - [ ] **`test_every_stage42_global_flag_is_honored` is a source walk keyed on the name `args`: a flag read through `self.args` or a renamed parameter reads as unhonoured, so phase objects must read flags in the handler** · `fork / gates` · a source walk certifying a POSITIVE guarantee ("this flag is honoured") by spelling — the fork CLAUDE.md gate rule says ask the runtime or the element model; re-key it on the parser's `set_defaults` targets and the attribute reads they reach · evidence: B2 gateway_commands CHANGE body · filed by lane B2 2026-09-25 **UNCLAIMED**
 
-
 ## Filed on arrival — 2026-09-25 (lane Q-GATES)
 
 - [ ] **The live-system guard's refusal tests spawn the REAL command when the refusal list regresses** · `fork / tests` · dropping `serve` from `_BACKEND_SUBCOMMANDS` (tests/conftest.py) made `test_subprocess_run_hermes_serve_blocked` start a live `hermes serve --port 8090` from the operator runtime; point every blocked-spawn case in `tests/test_live_system_guard_self_test_downstream.py` at an absent `hermes` path (the pattern its pass-through cases now use) so a regression reds with FileNotFoundError instead of booting a backend · evidence: lane Q-GATES commit `test(guard): lookalike and pass-through …` body · filed by lane Q-GATES 2026-09-25
@@ -141,9 +140,12 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 - [ ] **tools_conftest.py's known-defect lane runs the pre-ML-16 classifier (`failed` only, no owner-prefix filter) — a strict xfail in tests/tools would retire its own banner** · `fork / suite` · fold onto `_env_gap_fence.KnownDefectTracker` (lane B5 creates it) with the xfail control · evidence: god-file-layout-sheets/hermes_cli_conftest.md §2 row 3 · filed by lane S3 2026-09-25 **UNCLAIMED**
 - [ ] **tests/test_env_gap_registry.py::_registry_module_path reads a fence only as a flat FILE; a packaged fence falls back to the upstream conftest and every check SKIPS (green by blindness)** · `fork / suite` · the `__init__.py` arm + the "directory is found" control land in lane B5's MOVE, before the conftest package exists · evidence: hermes_cli_conftest.md §6.2 · filed by lane S3 2026-09-25 **UNCLAIMED**
 
-## Filed on arrival — 2026-09-25 (lane B1)
-
-
 ## Filed on arrival — 2026-09-25 (lane B3)
 
 - [ ] **`tests/agent_runtime/test_snapshot_contract_version_authority.py` is red on `origin/main` (2 tests): its lane exemption is keyed on the BASENAME `contract.py`, and `agent_runtime/discussions/contract.py` + `agent_runtime/persona_instance_sync/contract.py` (lane 2B-C) are two** · `fork / gates` · key the exemption on a path (the test's own advice) — a basename key exempts every future `contract.py` the god-file lanes create; lane B3 named its module `conversation.py` to stay out of it · evidence: lane B3 operator_channels CHANGE body · filed by lane B3 2026-09-25 **UNCLAIMED**
+
+## Filed on arrival — 2026-09-25 (lane W3-A)
+
+- [ ] **23 grandfathered silent package-attribute monkeypatches (10 on `agent_runtime.config`, 7 on `agent_runtime.snapshot`, 2 each on `mission_chat_turns` / `persona_assignments`, 1 each on `agent_create` / `gateway_peers`) — re-point each to the module that looks the name up and delete its row** · `fork / suite` · evidence: `tests/fixtures/silent_package_patches_grandfathered.json`, lane W3-A commit 33d3ca26d5 · filed by lane W3-A 2026-09-25 **UNCLAIMED**
+- [ ] **The shared test venv lacks the `acp` extra, so W0-G6's runtime test reds on its LAST assertion (`agent_runtime.acp_skills: No module named 'acp'`) with the layer assertion green — `tests/tooling` is 1 failed / 46 passed on that alone** · `fork / suite` · re-sync the extra the gate names (`pip install -e .[acp]`), or make the venv recipe carry it · evidence: lane W3-A commit f3a1b7b418 body · filed by lane W3-A 2026-09-25 **UNCLAIMED**
+- [ ] **`prompt_observability`'s skills-catalog concept stays split across `catalog_store` (48 code lines) and `catalog_lookup` (73) because `context_store` sits between them — it writes through one and is read by the other; passing the catalog writer into `context_store`'s persist would let the two fold into one module** · `fork / refactor` · evidence: lane W3-A fold-review commit 14726ae2a8 · filed by lane W3-A 2026-09-25 **UNCLAIMED**
