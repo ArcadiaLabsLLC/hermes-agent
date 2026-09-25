@@ -12,10 +12,10 @@ lane and nothing below carries a task frame.
 
 `hermes harness serve --ndjson` is one warm process replacing the per-call CLI
 spawns the Launcher bridge otherwise pays a ~3s import tax on
-(`hermes_cli/harness_parts/serve.py:1-7`). Requests arrive as NDJSON, one frame
+(hermes_cli/harness_parts/serve/__init__.py:1-7). Requests arrive as NDJSON, one frame
 per line, and dispatch into the **existing** harness argparse tree unchanged:
-`dispatch_argv` (`serve.py:2273`) builds a fresh parser per request
-(`_build_harness_parser`, `:2293`) and calls the same `_cmd_*` handler the CLI
+`dispatch_argv` (hermes_cli/harness_parts/serve/argv_lane.py:220) builds a fresh parser per request
+(`_build_harness_parser`, hermes_cli/harness_parts/serve/argv_lane.py:128) and calls the same `_cmd_*` handler the CLI
 would, including the harness error-envelope contract — argv arrives verbatim as
 the bridge already builds it, which keeps the per-call CLI fallback
 byte-identical to the served path. **`ready` is a BOOT frame, not a request
@@ -866,7 +866,7 @@ existed the log named none of them:
 |---|---|---|
 | socket/stdio op lane | `subscribe` / `stream_lane` | `serve.py:5426-5428` |
 | RPC office lane | `runtime.office.subscribe` / `office_patch` | `serve_office_subscriptions.py:902` |
-| argv CLI | `harness_stream` / `cli_stream` | `runtime_commands.py:654-655` |
+| argv CLI | `harness_stream` / `cli_stream` | `runtime_commands.py:669-670` |
 
 `op` is the call as the client made it, `purpose` is what the attachment is FOR
 — neither implies the other. `pid` rides LAST here and on both build families

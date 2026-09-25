@@ -81,7 +81,7 @@ Measured before→after, each with the commit that carries the proof in its body
 | **Event-log rotation with sidecar `base_offset`** | `agent_runtime/event_rotation.py` | logical offsets stay monotonic across archive rotation; live slice is 8.6 MB against an 81 MB archive base |
 | **Delta patches on the wire** | `agent_runtime/state_patches.py`, `schema_version: 2` | stops shipping a full core per event |
 | **`parse_cache`** — `(path, mtime_ns, size)` keyed leaf loads | `agent_runtime/parse_cache.py` | archived doc 14's item 1 as applied to YAML/frontmatter leaves (the JSON store models are still uncached — open row 4) |
-| **Serve read-model response cache** — status/snapshot `--json` replayed on a runtime-state fingerprint, 20 s TTL | `hermes_cli/harness_parts/serve.py:397-408,619` | a replayed response stamps `served_from_cache` + `cache_age_ms`; it caches the *payload*, not the parsed models |
+| **Serve read-model response cache** — status/snapshot `--json` replayed on a runtime-state fingerprint, 20 s TTL | `hermes_cli/harness_parts/serve/constants.py:35-40,605-611` | a replayed response stamps `served_from_cache` + `cache_age_ms`; it caches the *payload*, not the parsed models |
 
 ---
 

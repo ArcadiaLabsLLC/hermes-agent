@@ -461,7 +461,7 @@ the graceful checkpoint, so a default turn has ~180 s of tool-using time.
 
 **The volatile tail** is how the agent is told any of this. Contributors register by name with their
 own byte budget — `turn_budget` 1024, `capability` 4096, `mcp_admission` 2048
-(`mission_chat_turn_context.py:115-123`, composed at `:526-539`). Per-contributor, not global, so a
+(`mission_chat_turn_context.py:178-184`, where the byte budgets are defined). Per-contributor, not global, so a
 long capability account cannot squeeze out the countdown. Over-budget content states its shortfall
 twice: in band, so the agent reads it was not told everything, and as a typed accounting row, so no
 operator has to grep prose to learn a fact was clipped.

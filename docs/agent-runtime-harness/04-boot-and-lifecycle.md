@@ -109,7 +109,7 @@ What an operator sees, and the way through:
   the same as "nothing is stale" (`runtime_commands.py:118-128`).
 - `harness persona-instance reconcile` runs its other phases and reports
   `session_binding_skipped: "head_home_not_authoritative"` with zero repairs
-  (`persona_instance_identity.py:781`, `:837`).
+  (persona_instance_identity.py:781, :846).
 - Re-run with `HERMES_HEAD_HOME=<the head home>` set — the same value the launcher spawns the
   serve with, i.e. the **base profile home** (`<root>/profiles/base`), not the state root.
 
