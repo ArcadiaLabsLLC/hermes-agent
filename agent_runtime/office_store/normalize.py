@@ -18,7 +18,7 @@ from agent_runtime.redaction import SECRET_ASSIGNMENT_RE
 from agent_runtime.serde import safe_id
 from agent_runtime.office_store.models import MAX_FOLDERS
 
-__layer__ = "stores"
+__layer__ = "policy"
 
 __all__ = [
     "_assert_display_name_publishable",
@@ -26,7 +26,7 @@ __all__ = [
     "_item_point",
     "_normalize_folders",
     "_normalize_item",
-    "_normalize_persona_id",
+    "_normalize_actor_persona_ref",
     "_safe_actor_ref",
     "_safe_display_name",
     "_safe_folder",
@@ -38,7 +38,7 @@ def _safe_actor_ref(value: Any, *, fallback: str = "operator") -> str:
     return safe_id(value) or fallback
 
 
-def _normalize_persona_id(value: Any) -> str | None:
+def _normalize_actor_persona_ref(value: Any) -> str | None:
     # Mirrors the launcher's OfficeAgentIdentity normalization: trim + lower.
     text = str(value or "").strip().lower()
     return safe_id(text)
@@ -67,7 +67,7 @@ def _assert_display_name_publishable(name: str) -> None:
 
 def _canonical_actor_key(persona_id: str, persona_instance_id: str | None) -> str:
     if persona_instance_id:
-        from ..persona_assignments import canonical_persona_instance_id  # single derivation authority
+        from ..persona_assignments.identity import canonical_persona_instance_id  # single derivation authority
 
         canonical = canonical_persona_instance_id(persona_instance_id, persona_id=persona_id)
         if canonical:
@@ -130,7 +130,7 @@ def _normalize_item(
     item_id = safe_id(raw.get("item_id"))
     if not item_id:
         raise ValueError("invalid_request: item_id required")
-    item_persona = _normalize_persona_id(raw.get("persona_id")) or persona_id
+    item_persona = _normalize_actor_persona_ref(raw.get("persona_id")) or persona_id
     x, y = position if position is not None else _item_point(raw.get("position"))
     display_name = _safe_display_name(raw.get("display_name"))
     if display_name:

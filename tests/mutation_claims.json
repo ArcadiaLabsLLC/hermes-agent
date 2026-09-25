@@ -438,8 +438,8 @@
     },
     {
       "id": "s5-prune-archives-without-naming-what-left",
-      "path": "agent_runtime/office_store/store.py",
-      "symbol": "OfficeStore.archive_actors_for_instance",
+      "path": "agent_runtime/office_store/archive.py",
+      "symbol": "archive_actors_for_instance",
       "operator": "drop-the-identity-keep-the-count",
       "find": "                outcomes.append(OfficeActorOutcome.archived(wsid, actor.actor_key))",
       "replace": "                pass",
@@ -453,8 +453,8 @@
     },
     {
       "id": "s5-office-prune-swallows-its-failures",
-      "path": "agent_runtime/office_store/store.py",
-      "symbol": "OfficeStore.archive_actors_for_instance",
+      "path": "agent_runtime/office_store/archive.py",
+      "symbol": "archive_actors_for_instance",
       "operator": "restore-the-swallow",
       "find": "            \"failures\": failures,",
       "replace": "            \"failures\": [],",
@@ -483,8 +483,8 @@
     },
     {
       "id": "s5-replay-reconstructs-no-actor-keys",
-      "path": "agent_runtime/office_store/store.py",
-      "symbol": "OfficeStore.archived_actor_keys_for_instance",
+      "path": "agent_runtime/office_store/archive.py",
+      "symbol": "archived_actor_keys_for_instance",
       "operator": "empty-the-archive-read",
       "find": "            keys.append(actor.actor_key)",
       "replace": "            pass",
@@ -573,11 +573,11 @@
     },
     {
       "id": "s8b-retire-office-removal-loses-the-gesture-token",
-      "path": "agent_runtime/office_store/store.py",
-      "symbol": "OfficeStore.archive_actors_for_instance",
+      "path": "agent_runtime/office_store/archive.py",
+      "symbol": "archive_actors_for_instance",
       "operator": "drop-correlation-thread",
-      "find": "                    self.remove_actor(\n                        wsid,\n                        actor.actor_key,\n                        reason=reason,\n                        updated_by=\"harness\",\n                        correlation_id=correlation_id,\n                    )",
-      "replace": "                    self.remove_actor(\n                        wsid,\n                        actor.actor_key,\n                        reason=reason,\n                        updated_by=\"harness\",\n                    )",
+      "find": "                    store.remove_actor(\n                        wsid,\n                        actor.actor_key,\n                        reason=reason,\n                        updated_by=\"harness\",\n                        correlation_id=correlation_id,\n                    )",
+      "replace": "                    store.remove_actor(\n                        wsid,\n                        actor.actor_key,\n                        reason=reason,\n                        updated_by=\"harness\",\n                    )",
       "test": [
         "{python}",
         "-m",
@@ -759,7 +759,7 @@
     },
     {
       "id": "d1-tombstone-fence-never-fires",
-      "path": "agent_runtime/office_store/store.py",
+      "path": "agent_runtime/office_store/guards.py",
       "symbol": "_guard_archived_actor",
       "operator": "remove-guard",
       "find": "        if not archived_path.exists() and actor_key not in archived_keys:\n            return",
@@ -774,7 +774,7 @@
     },
     {
       "id": "d1-tombstone-fence-forgets-the-ledger-witness",
-      "path": "agent_runtime/office_store/store.py",
+      "path": "agent_runtime/office_store/guards.py",
       "symbol": "_guard_archived_actor",
       "operator": "drop-evidence-source",
       "find": "        if not archived_path.exists() and actor_key not in archived_keys:",
@@ -789,11 +789,11 @@
     },
     {
       "id": "d1-tombstone-fence-refuses-live-rows-too",
-      "path": "agent_runtime/office_store/store.py",
+      "path": "agent_runtime/office_store/actor_writes.py",
       "symbol": "upsert_actor",
       "operator": "widen-guard-condition",
-      "find": "            if existing is None:\n                self._guard_archived_actor(",
-      "replace": "            if True:\n                self._guard_archived_actor(",
+      "find": "        if existing is None:\n            store._guard_archived_actor(",
+      "replace": "        if True:\n            store._guard_archived_actor(",
       "test": [
         "{python}",
         "-m",
@@ -879,10 +879,10 @@
     },
     {
       "id": "c1-pull-adopts-the-peer-ledger-wholesale",
-      "path": "agent_runtime/office_store/store.py",
-      "symbol": "OfficeStore.adopt_remote_surface",
+      "path": "agent_runtime/office_store/adoption.py",
+      "symbol": "adopt_remote_surface",
       "operator": "drop-archived-ledger-union",
-      "find": "                surface.archived_actor_keys = merge_archived_ledgers(\n                    surface.archived_actor_keys,\n                    self.get_surface(wsid).archived_actor_keys,\n                )",
+      "find": "                surface.archived_actor_keys = merge_archived_ledgers(\n                    surface.archived_actor_keys,\n                    store.get_surface(wsid).archived_actor_keys,\n                )",
       "replace": "                surface.archived_actor_keys = list(surface.archived_actor_keys)",
       "test": [
         "{python}",
@@ -984,11 +984,11 @@
     },
     {
       "id": "c4-prune-swallows-its-directory-shortfall",
-      "path": "agent_runtime/office_store/store.py",
-      "symbol": "OfficeStore.archive_actors_for_instance",
+      "path": "agent_runtime/office_store/archive.py",
+      "symbol": "archive_actors_for_instance",
       "operator": "drop-scan-shortfall-row",
-      "find": "            scan = self.scan_actors(wsid)\n            if scan.unreadable:\n                outcomes.append(OfficeActorOutcome.scan_unreadable(wsid, scan))",
-      "replace": "            scan = self.scan_actors(wsid)",
+      "find": "            scan = store.scan_actors(wsid)\n            if scan.unreadable:\n                outcomes.append(OfficeActorOutcome.scan_unreadable(wsid, scan))",
+      "replace": "            scan = store.scan_actors(wsid)",
       "test": [
         "{python}",
         "-m",
@@ -999,8 +999,8 @@
     },
     {
       "id": "c4-replay-evidence-answers-over-a-short-world",
-      "path": "agent_runtime/office_store/store.py",
-      "symbol": "OfficeStore.archived_actor_keys_for_instance",
+      "path": "agent_runtime/office_store/archive.py",
+      "symbol": "archived_actor_keys_for_instance",
       "operator": "drop-completeness-refusal",
       "find": "            if scan.unreadable:\n                raise ActorsUnreadable(\n                    f\"office actors unreadable in {wsid}: {scan.unreadable}\"\n                )",
       "replace": "            pass",
@@ -1139,7 +1139,7 @@
     },
     {
       "id": "ax7-a-diagnostic-repair-mints-a-realm-wide-tombstone",
-      "path": "agent_runtime/office_store/store.py",
+      "path": "agent_runtime/office_store/archive.py",
       "symbol": "_archive_actor_locked",
       "operator": "ignore-the-eviction-mode",
       "find": "        if record_tombstone and actor.actor_key not in surface.archived_actor_keys:",
@@ -1542,11 +1542,11 @@
     },
     {
       "id": "hh10-the-policys-answer-is-discarded",
-      "path": "agent_runtime/office_store/store.py",
-      "symbol": "upsert_actor",
+      "path": "agent_runtime/office_store/actor_writes.py",
+      "symbol": "_place_unaimed",
       "operator": "discard-resolved-slot",
-      "find": "                        position=position_policy(self.scan_actors(wsid)),",
-      "replace": "                        position=(position_policy(self.scan_actors(wsid)) and (0.0, 0.0)),",
+      "find": "            position=position_policy(store.scan_actors(wsid)),",
+      "replace": "            position=(position_policy(store.scan_actors(wsid)) and (0.0, 0.0)),",
       "test": [
         "{python}",
         "-m",
@@ -1557,11 +1557,11 @@
     },
     {
       "id": "hh10-the-policy-is-handed-a-bare-list",
-      "path": "agent_runtime/office_store/store.py",
-      "symbol": "upsert_actor",
+      "path": "agent_runtime/office_store/actor_writes.py",
+      "symbol": "_place_unaimed",
       "operator": "unwrap-scan-at-the-seam",
-      "find": "position=position_policy(self.scan_actors(wsid)),",
-      "replace": "position=position_policy(self.scan_actors(wsid).actors),",
+      "find": "position=position_policy(store.scan_actors(wsid)),",
+      "replace": "position=position_policy(store.scan_actors(wsid).actors),",
       "test": [
         "{python}",
         "-m",
@@ -1572,8 +1572,8 @@
     },
     {
       "id": "hh10-a-multi-item-payload-is-guessed-at",
-      "path": "agent_runtime/office_store/store.py",
-      "symbol": "upsert_actor",
+      "path": "agent_runtime/office_store/actor_writes.py",
+      "symbol": "ActorUpsert.parse",
       "operator": "drop-multi-item-refusal",
       "find": "            if len(raw_items) != 1:\n                raise ValueError(\n                    \"invalid_request: position_policy resolves ONE item's slot; \"\n                    f\"payload carries {len(raw_items)}\"\n                )\n",
       "replace": "",
@@ -1587,11 +1587,11 @@
     },
     {
       "id": "hh10-the-placement-read-leaves-the-lock-again",
-      "path": "agent_runtime/office_store/store.py",
+      "path": "agent_runtime/office_store/actor_writes.py",
       "symbol": "upsert_actor",
       "operator": "resolve-slot-outside-office-lock",
-      "find": "            items = []\n\n        if not dry_run:",
-      "replace": "            items = [\n                _normalize_item(\n                    raw_items[0],\n                    persona_id=persona_id,\n                    position=position_policy(self.scan_actors(wsid)),\n                )\n            ]\n            position_policy = None\n\n        if not dry_run:",
+      "find": "    items = request.items\n    if not dry_run:",
+      "replace": "    items = _place_unaimed(store, wsid, request, position_policy) if position_policy else request.items\n    position_policy = None\n    if not dry_run:",
       "test": [
         "{python}",
         "-m",
@@ -1602,7 +1602,7 @@
     },
     {
       "id": "hh3-an-unreadable-conflict-sidecar-passes-for-a-read-key",
-      "path": "agent_runtime/office_store/store.py",
+      "path": "agent_runtime/office_store/conflicts.py",
       "symbol": "scan_conflicts",
       "operator": "mint-read-outcome-in-the-except-arm",
       "find": "                outcomes.append(\n                    OfficeActorOutcome.conflict_key_from_filename(\n                        workspace_id, path.stem, exc\n                    )\n                )\n                keys.append(path.stem)",
@@ -1617,7 +1617,7 @@
     },
     {
       "id": "hh3-a-sidecar-with-no-actor-key-passes-for-a-read-key",
-      "path": "agent_runtime/office_store/store.py",
+      "path": "agent_runtime/office_store/conflicts.py",
       "symbol": "scan_conflicts",
       "operator": "drop-the-empty-key-guess-arm",
       "find": "            if not key:\n                outcomes.append(\n                    OfficeActorOutcome.conflict_key_from_filename(\n                        workspace_id, path.stem, ValueError(\"actor_key missing\")\n                    )\n                )\n                keys.append(path.stem)\n                continue\n",
@@ -1632,7 +1632,7 @@
     },
     {
       "id": "hh3-a-resolved-sidecar-reads-as-a-live-conflict",
-      "path": "agent_runtime/office_store/store.py",
+      "path": "agent_runtime/office_store/conflicts.py",
       "symbol": "scan_conflicts",
       "operator": "drop-resolved-sidecar-skip",
       "find": "            if path.name.endswith(\".resolved.json\"):\n                continue\n",
@@ -1647,7 +1647,7 @@
     },
     {
       "id": "hh3-the-prune-ack-keeps-its-own-tally-again",
-      "path": "agent_runtime/office_store/store.py",
+      "path": "agent_runtime/office_store/archive.py",
       "symbol": "archive_actors_for_instance",
       "operator": "hand-keep-the-archived-count",
       "find": "            \"archived\": len(archived_keys),",
@@ -1707,7 +1707,7 @@
     },
     {
       "id": "ax5-the-projection-guard-goes-blind-to-a-short-read",
-      "path": "agent_runtime/office_store/store.py",
+      "path": "agent_runtime/office_store/patches.py",
       "symbol": "_emit_actor_patch",
       "operator": "demote-only-on-truncation",
       "find": "            if scan.unreadable or len(scan.actors) > MAX_OFFICE_ACTORS_PROJECTED:",
@@ -3270,11 +3270,11 @@
     },
     {
       "id": "uaf-surface-authored-before-the-fences-again",
-      "path": "agent_runtime/office_store/store.py",
-      "symbol": "OfficeStore.upsert_actor",
+      "path": "agent_runtime/office_store/actor_writes.py",
+      "symbol": "upsert_actor",
       "operator": "restore-ensure-surface-above-the-lock",
-      "find": "            self._refuse_unresolvable_workspace(wsid)\n        with office_lock(wsid):",
-      "replace": "            self.ensure_surface(wsid, created_by=updated_by)\n        with office_lock(wsid):",
+      "find": "        store._refuse_unresolvable_workspace(wsid)\n    with office_lock(wsid):",
+      "replace": "        store.ensure_surface(wsid, created_by=updated_by)\n    with office_lock(wsid):",
       "test": [
         "{python}",
         "-m",
@@ -3285,11 +3285,11 @@
     },
     {
       "id": "uaf-fence-refusal-still-authors-the-office",
-      "path": "agent_runtime/office_store/store.py",
-      "symbol": "OfficeStore.upsert_actor",
+      "path": "agent_runtime/office_store/actor_writes.py",
+      "symbol": "upsert_actor",
       "operator": "restore-ensure-surface-above-the-lock",
-      "find": "            self._refuse_unresolvable_workspace(wsid)\n        with office_lock(wsid):",
-      "replace": "            self.ensure_surface(wsid, created_by=updated_by)\n        with office_lock(wsid):",
+      "find": "        store._refuse_unresolvable_workspace(wsid)\n    with office_lock(wsid):",
+      "replace": "        store.ensure_surface(wsid, created_by=updated_by)\n    with office_lock(wsid):",
       "test": [
         "{python}",
         "-m",
@@ -3630,10 +3630,10 @@
     },
     {
       "id": "sh-resolve-adopt-arm-writes-past-the-patch-lane",
-      "path": "agent_runtime/office_store/store.py",
-      "symbol": "OfficeStore.resolve_conflict",
+      "path": "agent_runtime/office_store/conflicts.py",
+      "symbol": "resolve_conflict",
       "operator": "drop-the-adopted-rows-patch",
-      "find": "                        self._emit_actor_patch(\n                            actor, created=created, correlation_id=correlation_id\n                        )",
+      "find": "                        store._emit_actor_patch(\n                            actor, created=created, correlation_id=correlation_id\n                        )",
       "replace": "                        pass",
       "test": [
         "{python}",

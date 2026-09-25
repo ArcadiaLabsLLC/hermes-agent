@@ -111,11 +111,6 @@
    "unit": "agent_runtime/mission_chat_turns.py|_gc_session_files"
   },
   {
-   "depth": 3,
-   "lines": 249,
-   "unit": "agent_runtime/office_store/store.py|OfficeStore.upsert_actor"
-  },
-  {
    "depth": 1,
    "lines": 203,
    "unit": "agent_runtime/operator_channels.py|_OperatorChannelBuilder.build"

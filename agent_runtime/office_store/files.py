@@ -1,28 +1,26 @@
-"""The office store's file helpers — the ONE place a surface, an actor or a
-conflict sidecar is written to disk — and ``read_actor_dir``, the actor
+"""The office store's file helpers — the ONE place a surface, a live actor or an
+archived actor is written to disk (conflict sidecars go through
+``agent_runtime.store_conflicts``) — and ``read_actor_dir``, the actor
 directory read every scan goes through.
 """
 
 from __future__ import annotations
 
-from hermes_time import now
 from utils import atomic_json_write
 
 from agent_runtime import paths
-from agent_runtime.errors import AlreadyExists, StaleRevision
+from agent_runtime.errors import AlreadyExists
 from agent_runtime.models import OfficeActor, OfficeSurface
-from agent_runtime.serde import from_jsonable, to_jsonable
 from agent_runtime.office_store.models import ActorScan, UnreadableActorFiles
+from agent_runtime.serde import from_jsonable, read_json, to_jsonable
 
 __layer__ = "stores"
 
 __all__ = [
     "read_actor_dir",
-    "_archive_conflict_sidecar",
-    "_check_revision",
     "_free_surface_archive_dir",
-    "_read_json",
     "_write_actor",
+    "_write_archived_actor",
     "_write_surface",
 ]
 
@@ -66,7 +64,7 @@ def read_actor_dir(directory) -> ActorScan:
     classes: dict[str, int] = {}
     for path in sorted(directory.glob("*.json")):
         try:
-            actors.append(from_jsonable(OfficeActor, _read_json(path)))
+            actors.append(from_jsonable(OfficeActor, read_json(path)))
         except Exception as exc:  # noqa: BLE001 — the scan survives one bad file
             unreadable_names.append(f"{directory.name}/{path.name}")
             name = type(exc).__name__
@@ -88,34 +86,21 @@ def read_actor_dir(directory) -> ActorScan:
 # --- module-level file helpers ---------------------------------------------
 
 
-def _read_json(path) -> dict:
-    import json
-
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
 def _write_surface(surface: OfficeSurface) -> None:
     atomic_json_write(paths.office_surface_path(surface.workspace_id), to_jsonable(surface), indent=2, sort_keys=True)
 
 
+def _write_archived_actor(actor: OfficeActor) -> None:
+    atomic_json_write(
+        paths.office_archived_actor_path(actor.workspace_id, actor.actor_key),
+        to_jsonable(actor),
+        indent=2,
+        sort_keys=True,
+    )
+
+
 def _write_actor(actor: OfficeActor) -> None:
     atomic_json_write(paths.office_actor_path(actor.workspace_id, actor.actor_key), to_jsonable(actor), indent=2, sort_keys=True)
-
-
-def _archive_conflict_sidecar(workspace_id: str, actor_key: str) -> None:
-    sidecar_path = paths.office_conflict_path(workspace_id, actor_key)
-    if not sidecar_path.exists():
-        return
-    try:
-        payload = _read_json(sidecar_path)
-    except Exception:
-        payload = {"actor_key": actor_key}
-    payload["resolved_at"] = to_jsonable(now())
-    from ..office_models import actor_file_token
-
-    dest = paths.office_conflicts_dir(workspace_id) / f"{actor_file_token(actor_key)}.resolved.json"
-    atomic_json_write(dest, payload, indent=2, sort_keys=True)
-    sidecar_path.unlink(missing_ok=True)
 
 
 def _free_surface_archive_dir(workspace_id: str):
@@ -135,10 +120,3 @@ def _free_surface_archive_dir(workspace_id: str):
         if not candidate.exists():
             return candidate
     raise AlreadyExists(f"office_archive:{workspace_id}")
-
-
-def _check_revision(current: int | None, expected: int | None) -> None:
-    if expected is None:
-        return
-    if current is None or int(current) != int(expected):
-        raise StaleRevision(f"stale_revision: expected {expected}, have {current}")

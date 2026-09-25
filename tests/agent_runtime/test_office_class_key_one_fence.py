@@ -458,7 +458,7 @@ _VERDICTS = (FENCED, SANCTIONED_OVERRIDE, UNFENCED, PRIMITIVE)
 #: column to every block; that is the cost of the pin and much cheaper than the
 #: hole it closes.
 FENCED_ACTOR_WRITERS: dict[tuple[str, str], dict[str, str]] = {
-    ("agent_runtime/office_store/store.py", "upsert_actor"): {
+    ("agent_runtime/office_store/actor_writes.py", "upsert_actor"): {
         "class_key": (
             "FENCED — _guard_class_keyed_write, first inside the lock; override is the "
             "explicit allow_class_key parameter"
@@ -469,7 +469,7 @@ FENCED_ACTOR_WRITERS: dict[tuple[str, str], dict[str, str]] = {
             "parameter, which is ORTHOGONAL to allow_class_key and never implied by it."
         ),
     },
-    ("agent_runtime/office_store/store.py", "resolve_conflict"): {
+    ("agent_runtime/office_store/conflicts.py", "resolve_conflict"): {
         "class_key": (
             "FENCED — _guard_class_keyed_adoption (peer-authored record, past upsert_actor); "
             "override is the explicit allow_class_key parameter"
@@ -480,7 +480,7 @@ FENCED_ACTOR_WRITERS: dict[tuple[str, str], dict[str, str]] = {
             "refuse, and refusing here would leave the conflict sidecar unresolvable."
         ),
     },
-    ("agent_runtime/office_store/store.py", "restore_actor"): {
+    ("agent_runtime/office_store/actor_writes.py", "restore_actor"): {
         "class_key": (
             "SANCTIONED OVERRIDE — un-archiving IS the deliberate resurrection the fence "
             "refuses elsewhere, and the exit refusal_message points at. Fencing it would "
@@ -506,7 +506,7 @@ FENCED_ACTOR_WRITERS: dict[tuple[str, str], dict[str, str]] = {
 #: NOT blessed. Named, with its ruling, so the witness DOCUMENTS the hole instead
 #: of silently passing over it.
 CARVED_OUT_ACTOR_WRITERS: dict[tuple[str, str], dict[str, str]] = {
-    ("agent_runtime/office_store/store.py", "adopt_remote_actor"): {
+    ("agent_runtime/office_store/adoption.py", "adopt_remote_actor"): {
         "class_key": (
             "UNFENCED, BY RULING (D3, 2026-08-30) — filed as OPEN HOLE, HELD FOR A "
             "RULING under task #33. The realm-sync pull's "
@@ -855,7 +855,7 @@ def test_the_carve_out_is_a_live_hole_and_not_a_stale_note(tmp_path):
         "CARVED_OUT_ACTOR_WRITERS into FENCED_ACTOR_WRITERS with the new ruling, "
         "and delete this test."
     )
-    assert ("agent_runtime/office_store/store.py", "adopt_remote_actor") in CARVED_OUT_ACTOR_WRITERS
+    assert ("agent_runtime/office_store/adoption.py", "adopt_remote_actor") in CARVED_OUT_ACTOR_WRITERS
 
 
 # ── witness 4: the fence cannot be blinded by a file it cannot read ─────────

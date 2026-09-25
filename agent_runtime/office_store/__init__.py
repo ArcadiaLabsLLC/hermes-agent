@@ -4,24 +4,42 @@ Entry points (what calls in): ``OfficeStore`` (the single write chokepoint for
 the Mission Office domain — every office verb, the office RPC lane, realm sync
 and the snapshot builder), ``read_actor_dir`` / ``ActorScan`` (the actor
 directory read ``office_sync`` takes), and the typed outcome
-``OfficeActorOutcome``.
+``OfficeActorOutcome`` — the reference for typed store outcomes (rule 14).
+
+The store is COMPOSED: ``store`` holds the reads, the event append and the
+class, and each lane module holds one verb family as functions over the store,
+bound onto the class as methods (``OfficeStore.upsert_actor is
+actor_writes.upsert_actor``), so every caller — and every test patching a class
+attribute — sees the class it always saw. The invariants the store upholds are
+``store``'s module docstring.
 
 Modules, lowest layer first (no module imports one above it — W0-G6):
 
-==========  ======  ============================================================
-module      layer   owns
-==========  ======  ============================================================
-models      models  scans, typed outcomes, the position-policy hook, the caps
-normalize   stores  write-time payload normalization and display-name checks
-files       stores  surface / actor / sidecar writes and the actor-dir read
-store       stores  ``OfficeStore`` (its module docstring holds the invariants)
-==========  ======  ============================================================
+==============  ======  ========================================================
+module          layer   owns
+==============  ======  ========================================================
+models          models  scans, typed outcomes, the position-policy hook, caps
+normalize       policy  write-time payload normalization, display-name checks
+files           stores  THE file writes (surface, live actor, archived actor)
+patches         stores  the ``state.patched`` producers
+guards          stores  the tombstone and class-key fences
+surface_writes  stores  ensure / update a surface
+conflicts       stores  scan and resolve sync conflicts; the conflict guard
+actor_writes    stores  ``ActorUpsert``; upsert / remove / restore an actor
+adoption        stores  adopt a peer's surface or actor (realm sync)
+archive         stores  orphaned surfaces, a retired instance's actors
+store           stores  ``OfficeStore``: reads, events, lane bindings
+==============  ======  ========================================================
+
+Shared owners this package spends: ``agent_runtime.store_events`` (the event
+append), ``agent_runtime.store_conflicts`` (sidecars, the revision check),
+``agent_runtime.serde.read_json``.
 
 Stores written: ``paths.office_dir(workspace)`` — the surface file, one JSON file
 per actor, ``archive/`` and the conflict sidecars — and the event log.
 
-Every name an importer takes from ``agent_runtime.office_store`` today is
-re-exported below, so no importer changes with the package.
+Every name an importer takes from ``agent_runtime.office_store`` is re-exported
+below, so no importer changes with the package.
 """
 
 from __future__ import annotations
@@ -43,12 +61,10 @@ from agent_runtime.office_store.models import (
 
 from agent_runtime.office_store.normalize import (
     _assert_display_name_publishable,
-    _normalize_persona_id,
 )
 
 from agent_runtime.office_store.files import (
     read_actor_dir,
-    _read_json,
     _write_actor,
     _write_surface,
 )
@@ -75,8 +91,6 @@ __all__ = [
     "read_actor_dir",
     "UnreadableActorFiles",
     "_assert_display_name_publishable",
-    "_normalize_persona_id",
-    "_read_json",
     "_write_actor",
     "_write_surface",
 ]

@@ -14,9 +14,7 @@
   "scripts/doc_cite_adjacency.py::_tracked == scripts/doc_cite_report.py::_tracked"
  ],
  "name_groups": [
-  "_archive_conflict_sidecar: agent_runtime/board_store.py, agent_runtime/office_store/files.py",
   "_bounded_refs: agent_runtime/child_events.py, agent_runtime/continuity.py",
-  "_check_revision: agent_runtime/board_store.py, agent_runtime/office_store/files.py",
   "_correlation_id: agent_runtime/agent_retire.py, agent_runtime/chat_turn.py",
   "_decode: agent_runtime/gateway_identity.py, agent_runtime/media_proxy.py",
   "_drain: agent_runtime/persona_chat_actor_prewarm.py, agent_runtime/persona_prewarm.py, tools/agent_chat_dispatch.py",

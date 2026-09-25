@@ -27,8 +27,8 @@ from utils import atomic_json_write
 from . import office_models, paths
 from .events import EventLog
 from .models import OfficeActor, OfficeSurface
-from .office_store import ActorScan, OfficeStore, _read_json
-from .serde import from_jsonable, to_jsonable
+from .office_store import ActorScan, OfficeStore
+from .serde import from_jsonable, read_json, to_jsonable
 from .sync_merge import PullAction, classify_three_way_pull
 
 #: The one word every office sync arm spends when it cannot READ the world it
@@ -336,7 +336,7 @@ def _read_remote_office(office_dir: Path) -> RemoteOffice:
     surface_unreadable = False
     if surface_path.exists():
         try:
-            surface = from_jsonable(OfficeSurface, _read_json(surface_path))
+            surface = from_jsonable(OfficeSurface, read_json(surface_path))
         except Exception:
             surface = None
             surface_unreadable = True
