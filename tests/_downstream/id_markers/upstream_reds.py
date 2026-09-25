@@ -127,12 +127,6 @@ if _WIN:
         "test_infrastructure_spawn_refusal_never_charges_the_card": (
             _up_red("the refused spawn auto-blocks the card; no Windows marker in the text"),
         ),
-        **{
-            f"tests/hermes_cli/test_kanban_worker_session_source.py::{test}": (
-                _up_red("the retag matches worker cwd against a backslashed workspace root"),
-            )
-            for test in ("test_retag_reclaims_legacy_worker_rows", "test_retag_gate_is_per_board")
-        },
         "tests/hermes_cli/test_mcp_config.py::TestMcpRemoveEvictsManager::"
         "test_remove_evicts_in_memory_provider": (
             _up_red("fakes a console with isatty(); _stdin_is_console() also asks "
@@ -180,6 +174,86 @@ if _WIN:
         "tests/tools/test_file_write_safety.py::TestBomHandling::test_a_dangling_symlink_destination_is_occupied": (
             _up_red("readlink hands back the extended-length \\?\ spelling (class c-D)"),
         ),
+        # Red on pure upstream/main 067fa1a257 on this box too (coordinator's
+        # pure_upstream_rerun.log): upstream Windows reds, byte-identical files.
+        "tests/hermes_cli/test_home_init_soul_symlink.py::test_initialize_home_replaces_unwritable_soul_symlink[cyclic]": (
+            _up_red("a cyclic symlink resolves to WinError 1921, not the POSIX loop error"),
+        ),
+        "tests/hermes_cli/test_shallow_boundary_repair.py::test_failed_shallow_maintenance_restores_original_bytes": (
+            _up_red("read-only git object files refuse the restore on Windows (WinError 5)"),
+        ),
+        "tests/hermes_cli/test_update_no_gateway_restart.py::test_restart_deferral_crosses_real_completion_process": (
+            _up_red("the real completion child exits 1 on Windows; no Windows marker in the text"),
+        ),
+        # Upstream-NEW test files (2026-09-25 merge) red on PURE upstream/main 067fa1a257
+        # on this box too (lane log upnew_pure.log: 60 failed in 13 files).
+        **{node: (_up_red('red on pure upstream/main 067fa1a257 on Windows (upstream-new file, 2026-09-25 merge)'),) for node in (
+            'tests/hermes_cli/test_backup_preflight.py::test_preflight_captures_committed_wal_without_application_imports',
+            'tests/hermes_cli/test_install_bucket_separation.py::TestProfileCopyExclusions::test_copies_profile_payload_without_install_artifacts[export]',
+            'tests/hermes_cli/test_memory_dependency_admission.py::test_setup_requires_dependencies_and_keeps_the_existing_union[False]',
+            'tests/hermes_cli/test_memory_dependency_admission.py::test_setup_requires_dependencies_and_keeps_the_existing_union[True]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_atexit_recovers_only_stopped_serves_after_cached_update[0-False]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_atexit_recovers_only_stopped_serves_after_cached_update[0-True]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_atexit_recovers_only_stopped_serves_after_cached_update[9-False]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_atexit_recovers_only_stopped_serves_after_cached_update[9-True]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_historical_payload_maps_to_takeover_request_schema[None-False]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_historical_payload_maps_to_takeover_request_schema[None-True]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_historical_payload_maps_to_takeover_request_schema[resume1-False]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_historical_payload_maps_to_takeover_request_schema[resume1-True]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_only_known_early_updater_restarts_with_original_arguments[unrelated-False]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_only_known_early_updater_restarts_with_original_arguments[unrelated-True]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_only_known_early_updater_restarts_with_original_arguments[update_cmd-False]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_only_known_early_updater_restarts_with_original_arguments[update_cmd-True]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[False-utf-8-0]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[False-utf-8-7]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[False-utf-8-sig-0]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[False-utf-8-sig-7]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[None-utf-8-0]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[None-utf-8-7]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[None-utf-8-sig-0]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[None-utf-8-sig-7]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[True-utf-8-0]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[True-utf-8-7]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[True-utf-8-sig-0]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[True-utf-8-sig-7]',
+            'tests/hermes_cli/test_shared_profile_warning.py::test_cli_entrypoint_registers_and_warns_once_for_live_shared_home[cli]',
+            'tests/hermes_cli/test_shared_profile_warning.py::test_cli_entrypoint_registers_and_warns_once_for_live_shared_home[serve]',
+            'tests/hermes_cli/test_shared_profile_warning.py::test_cli_startup_quarantines_corrupt_ledger[\\xff]',
+            'tests/hermes_cli/test_shared_profile_warning.py::test_cli_startup_quarantines_corrupt_ledger[{broken]',
+            'tests/hermes_cli/test_shared_profile_warning.py::test_warning_tracks_live_other_install_in_same_home',
+            'tests/hermes_cli/test_source_build.py::test_installed_npm_does_not_authorize_missing_workspace_dependencies',
+            'tests/hermes_cli/test_source_channel_integration.py::test_retirement_refuses_to_downgrade_newer_source[shallow]',
+            'tests/hermes_cli/test_source_launcher_publication.py::test_running_source_launcher_can_republish_itself[native-with-maker]',
+            'tests/hermes_cli/test_source_launcher_publication.py::test_running_source_launcher_can_republish_itself[native]',
+            'tests/hermes_cli/test_update_completion_process.py::test_bootstrap_does_not_initialize_old_site_packages',
+            'tests/hermes_cli/test_update_completion_process.py::test_failed_build_preserves_exit_status_without_maintenance',
+            'tests/hermes_cli/test_update_completion_process.py::test_old_process_new_git_tree_completes_in_fresh_python[None]',
+            'tests/hermes_cli/test_update_completion_process.py::test_old_process_new_git_tree_completes_in_fresh_python[receipt]',
+            'tests/hermes_cli/test_update_completion_process.py::test_old_process_new_git_tree_completes_in_fresh_python[request]',
+            'tests/hermes_cli/test_update_completion_process.py::test_prepare_failure_preserves_correlated_pm_receipt',
+            'tests/hermes_cli/test_update_completion_process.py::test_progress_is_forwarded_before_held_stage_is_released[prepare]',
+            'tests/hermes_cli/test_update_completion_process.py::test_progress_is_forwarded_before_held_stage_is_released[selected]',
+            'tests/hermes_cli/test_update_target_identity.py::test_branch_update_uses_real_refs_and_completion_request[fork-late-reverted]',
+            'tests/hermes_cli/test_update_target_identity.py::test_branch_update_uses_real_refs_and_completion_request[fork-late-wrong-branch]',
+            'tests/hermes_cli/test_update_target_identity.py::test_update_syntax_failure_restores_pre_update_head[True-early]',
+            'tests/hermes_cli/test_update_target_identity.py::test_update_syntax_failure_restores_pre_update_head[True-late-other-branch]',
+            'tests/hermes_cli/test_update_target_identity.py::test_update_syntax_failure_restores_pre_update_head[True-late]',
+            'tests/hermes_cli/test_update_target_identity.py::test_update_syntax_failure_restores_pre_update_head[True-origin]',
+            'tests/hermes_cli/test_venv_sync_currency.py::test_own_tree_sync_reuses_pm_without_writing_an_extra_stamp',
+            'tests/hermes_cli/test_version_info.py::test_get_version_info_derives_identity_from_reachable_release_tag',
+            'tests/hermes_cli/test_version_info.py::test_get_version_info_takes_the_version_a_calver_only_release_shipped',
+            'tests/hermes_cli/test_web_memory_provider_setup_install.py::test_setup_admits_real_provider_union_and_keeps_selection_on_failure[pip_dependencies-cli]',
+            'tests/hermes_cli/test_web_memory_provider_setup_install.py::test_setup_admits_real_provider_union_and_keeps_selection_on_failure[pip_dependencies-dashboard]',
+            'tests/hermes_cli/test_web_memory_provider_setup_install.py::test_setup_admits_real_provider_union_and_keeps_selection_on_failure[pyproject-cli]',
+            'tests/hermes_cli/test_web_memory_provider_setup_install.py::test_setup_admits_real_provider_union_and_keeps_selection_on_failure[pyproject-dashboard]',
+            'tests/hermes_cli/test_web_memory_provider_setup_install.py::test_setup_admits_real_provider_union_and_keeps_selection_on_failure[python_dependencies-cli]',
+            'tests/hermes_cli/test_web_memory_provider_setup_install.py::test_setup_admits_real_provider_union_and_keeps_selection_on_failure[python_dependencies-dashboard]',
+        )},
+        "tests/hermes_cli/test_isolated_serve_ledger_marker.py::"
+        "test_isolated_serve_ledger_row_is_marked_and_ordinary_serve_is_not": (
+            _up_red("spawns a real `hermes serve` against a tmp home (the fork's live-system "
+                    "guard backend-spawn arm refuses it by design; green on pure upstream)"),
+        ),
         "tests/hermes_cli/test_session_message_page_owner.py::"
         "test_message_pages_identify_the_serving_profile[None]": (
             _up_red("with no serving profile the default page is the serving page, 120 != 1"),
@@ -207,18 +281,11 @@ if _WIN:
             'tests/hermes_cli/test_backup.py::TestSafeCopyDb::test_aborts_when_source_remains_busy_past_deadline',
         )},
         **{node: (_up_red('CRLF written where LF is asserted (class c-B, issue class #121221)'),) for node in (
-            'tests/hermes_cli/test_backup_stability.py::test_quick_snapshot_is_published_with_manifest',
-            'tests/hermes_cli/test_oneshot_surrogate.py::test_oneshot_replaces_lone_surrogate_and_exits_zero',
         )},
         **{node: (_up_red('HOME patched, USERPROFILE not, in a ~-expansion (class c-C, #121222)'),) for node in (
             'tests/hermes_cli/test_resume_latest_and_in_dir.py::test_in_dir_expands_user_home',
         )},
         **{node: (_up_red('path spelling: separators or drive-qualified POSIX literals (class c-D, PR class win-path-spelling #121224)'),) for node in (
-            'tests/hermes_cli/test_agent_plugins.py::test_loads_manifest_skill_and_stdio_server',
-            'tests/hermes_cli/test_browser_connect_default_chromium.py::TestLinuxProfileDir::test_native_path_when_nothing_exists',
-            'tests/hermes_cli/test_browser_connect_default_chromium.py::TestLinuxProfileDir::test_snap_chromium_profile_is_found',
-            'tests/hermes_cli/test_browser_connect_default_chromium.py::TestLinuxProfileDir::test_flatpak_chrome_profile_is_found',
-            'tests/hermes_cli/test_browser_connect_default_chromium.py::TestLinuxProfileDir::test_native_profile_wins_when_present',
             'tests/hermes_cli/test_plugin_manifest_v2.py::TestDirectoryPluginKeepsIdentityOverEntryPoint::test_loader_and_listing_prefer_the_installed_directory',
             'tests/hermes_cli/test_ssh_session_token_parser.py::test_token_file_rejects_parent_escape',
             'tests/hermes_cli/test_startup_fast_guards.py::test_literal_tilde_hermes_home_expands_before_any_reader',
@@ -242,10 +309,6 @@ if _WIN:
             'tests/hermes_cli/test_cli_init.py::TestPromptToolkitTerminalCompatibility::test_lf_enter_binding_respects_multiline_shortcuts',
             'tests/hermes_cli/test_cli_init.py::TestPromptToolkitTerminalCompatibility::test_cpr_gating_posix_suppresses_without_ssh',
             'tests/hermes_cli/test_ctrl_enter_newline.py::test_ctrl_j_legacy_submit_when_multiline_shortcuts_disabled',
-            'tests/hermes_cli/test_external_process_auth_status.py::test_auth_verified_from_on_disk_credential_store',
-            'tests/hermes_cli/test_external_process_auth_status.py::test_auth_verified_from_copilot_cli_plaintext_store',
-            'tests/hermes_cli/test_external_process_auth_status.py::test_explicit_filter_keeps_signed_in_external_process_row',
-            'tests/hermes_cli/test_external_process_auth_status.py::test_catalog_key_resolves_from_copilot_cli_store',
             'tests/hermes_cli/test_install_cua_driver.py::TestInstallCuaDriverUpgrade::test_upgrade_with_binary_present_runs_installer',
             'tests/hermes_cli/test_install_cua_driver.py::TestInstallCuaDriverUpgrade::test_non_upgrade_without_binary_runs_installer',
             'tests/hermes_cli/test_local_runtime_child_env.py::test_spawn_server_keeps_the_callers_environment',
@@ -276,15 +339,10 @@ if _WIN:
             'tests/hermes_cli/test_doctor_wal_checkpoint_guard.py::test_session_count_reads_a_home_with_uri_reserved_characters',
         )},
         **{node: (_up_red('prompt_toolkit needs a real Windows console; none under pytest (class e-TTY)'),) for node in (
-            'tests/hermes_cli/test_modify_other_keys_aliases.py::test_buffer_level_shift_space_no_raw_csi',
-            'tests/hermes_cli/test_modify_other_keys_aliases.py::test_buffer_level_shift_letter_no_raw_csi',
         )},
         **{node: (_up_red('no Windows marker in the failure text; red at the tag on this box (class f-?)'),) for node in (
             'tests/hermes_cli/test_anon_sign_in_flow.py::test_the_scope_is_entered_for_the_preconditions_and_the_persist_but_never_around_a_wait',
             'tests/hermes_cli/test_noninteractive_git.py::TestNoninteractiveGitEnv::test_safe_directory_reset_still_revokes_wildcard_for_real_git',
-            'tests/hermes_cli/test_plugin_ownership_ledger.py::test_shared_entrypoint_module_uses_the_active_profile_scope',
-            'tests/hermes_cli/test_plugin_ownership_ledger.py::test_provider_overlay_switches_profiles_and_reveals_fresh_global_fallback',
-            'tests/hermes_cli/test_plugin_ownership_ledger.py::test_direct_plugin_platform_registration_infers_immutable_scope',
             'tests/hermes_cli/test_plugin_validate.py::test_portable_validation_fails_orphan_and_reports_availability',
         )},
         "tests/hermes_cli/test_completion.py::TestGenerateBash::test_valid_bash_syntax": (
