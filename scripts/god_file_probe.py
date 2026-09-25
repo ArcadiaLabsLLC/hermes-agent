@@ -410,46 +410,8 @@ def vocabulary(root: Path = ROOT) -> frozenset[str]:
 
 
 def visible_vocabularies(root: Path = ROOT) -> dict[str, frozenset[str]]:
-    """``{path: words}`` — the vocabulary each module can SEE: its own declarations
-    plus those of every fork module it imports (resolved, module-level or deferred),
-    and of the module an imported NAME was declared in (a re-export followed, lane
-    Q-GATES: ``from pkg import Family`` reaches ``pkg.families``).
-
-    Scoped, not fork-wide (lane Q-RUNTIME 2026-09-25, the R3 finding): a union of
-    every ``Final``/``Enum`` string read ``"none"`` in ``DiffScope`` or ``"absent"``
-    in ``DemoteReason`` as a routed word in every module that happened to compare
-    against the same common English word, so typed reasons (rule 14) could not be
-    adopted for any vocabulary containing one. A compare is a routing on a
-    vocabulary only where that vocabulary is in reach — the declaring module and
-    its importers.
-    """
-    trees = {path: _tree(root, path) for path in fork_production_files(root)}
-    declared = {
-        module_name(path): frozenset(w for w in _vocabulary_strings(tree) if w)
-        for path, tree in trees.items()
-        if tree is not None
-    }
-    declared = {module: words for module, words in declared.items() if words}
-    out: dict[str, frozenset[str]] = {}
-    for path, tree in trees.items():
-        if tree is None:
-            continue
-        seen: set[str] = set(declared.get(module_name(path), ()))
-        for module, name, _ in imports_of(path, tree):
-            origin = _declaring_module(root, module, name, declared)
-            seen |= declared.get(origin, frozenset()) if origin else frozenset()
-        out[path] = frozenset(seen)
-    return out
-
-
-def _declaring_module(root: Path, module: str, name: str | None, declared: dict[str, frozenset[str]]) -> str | None:
-    """The declaring module an import reaches: the module itself, ``module.name``, or a re-export's origin."""
-    for candidate in (f"{module}.{name}" if name else module, module):
-        if candidate in declared:
-            return candidate
-    source = _scope.module_path(root, module) if name else None
-    binding = _scope.module_bindings(root, source).get(name) if source else None
-    return binding[2] if binding else None
+    """``{path: words}`` in reach of each fork production module — :func:`god_file_scope.visible_vocabularies`."""
+    return _scope.visible_vocabularies(root, fork_production_files(root))
 
 
 def _compared_elements(node: ast.AST) -> Iterator[ast.AST]:
@@ -656,16 +618,7 @@ module_name = _scope.module_name
 _resolve_from = _scope.resolve_from
 
 
-def imports_of(path: str, tree: ast.Module) -> Iterator[tuple[str, str | None, int]]:
-    """``(module, imported name or None, line)`` for every import, module-level or deferred."""
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                yield alias.name, None, node.lineno
-        elif isinstance(node, ast.ImportFrom):
-            base = _resolve_from(path, node)
-            for alias in node.names:
-                yield base, alias.name, node.lineno
+imports_of = _scope.imports_of
 
 
 def _top_assignment(tree: ast.Module, name: str) -> ast.expr | None:
