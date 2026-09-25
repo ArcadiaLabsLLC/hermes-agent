@@ -153,7 +153,7 @@ def test_profile_template_memo_collapses_repeat_reads(monkeypatch):
         calls.append(1)
         return [_Template()]
 
-    monkeypatch.setattr(snapshot_mod, "available_profile_templates", fake_templates)
+    monkeypatch.setattr(snapshot_mod.summaries, "available_profile_templates", fake_templates)
 
     first = snapshot_mod._profile_templates_cached()
     second = snapshot_mod._profile_templates_cached()
@@ -170,12 +170,12 @@ def test_profile_template_memo_invalidates_when_fetcher_is_swapped(monkeypatch):
             self.description = ""
 
     monkeypatch.setattr(
-        snapshot_mod, "available_profile_templates", lambda: [_Template("alpha")]
+        snapshot_mod.summaries, "available_profile_templates", lambda: [_Template("alpha")]
     )
     assert [t.name for t in snapshot_mod._profile_templates_cached()] == ["alpha"]
 
     monkeypatch.setattr(
-        snapshot_mod, "available_profile_templates", lambda: [_Template("beta")]
+        snapshot_mod.summaries, "available_profile_templates", lambda: [_Template("beta")]
     )
     assert [t.name for t in snapshot_mod._profile_templates_cached()] == ["beta"]
 
@@ -187,7 +187,7 @@ def test_profile_template_memo_survives_fetch_failure(monkeypatch):
     def broken():
         raise RuntimeError("profile store unavailable")
 
-    monkeypatch.setattr(snapshot_mod, "available_profile_templates", broken)
+    monkeypatch.setattr(snapshot_mod.summaries, "available_profile_templates", broken)
 
     assert snapshot_mod._profile_templates_cached() == []
     assert snapshot_mod._available_persona_summary([]) == []

@@ -774,6 +774,9 @@ def test_a_workspace_over_the_projection_cap_keeps_the_honest_refresh(
     # Two live actors from the fixture; a cap of 1 puts the store over it.
     with pytest.MonkeyPatch.context() as capped:
         capped.setattr(
+            "agent_runtime.snapshot.offices.MAX_OFFICE_ACTORS_PROJECTED", 1, raising=True
+        )
+        capped.setattr(
             "agent_runtime.snapshot.MAX_OFFICE_ACTORS_PROJECTED", 1, raising=True
         )
 

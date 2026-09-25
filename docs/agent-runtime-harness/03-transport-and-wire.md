@@ -1157,7 +1157,7 @@ fixture landing, and a hermes-only half of one is exactly the failure this repo
 already paid for: hermes green, the launcher's byte-compare red on every push.
 So the readiness-split attribution went to a LOG RECEIPT (`sections_top` on
 `snapshot_build_core`) and `agents_readiness` kept its exact span, meaning and
-key (`agent_runtime/snapshot.py:824-837`). The same discipline keeps
+key (`agent_runtime/snapshot/sections.py:140-153`). The same discipline keeps
 `correlation_id` an UNREGISTERED optional payload key — the contract hash
 derives from the registry rows alone, so registering it would shift
 `decision_contract_hash` inside every generated core.

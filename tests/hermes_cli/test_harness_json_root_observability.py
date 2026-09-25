@@ -289,11 +289,11 @@ def test_snapshot_frame_already_carries_parity_resolution():
     """The ``_cmd_snapshot`` ledger reason is a claim about the producer; pin
     it at the producer so the exemption cannot outlive the block."""
 
-    snapshot_source = (
-        Path(harness_module.__file__).parent.parent
-        / "agent_runtime"
-        / "snapshot.py"
-    ).read_text(encoding="utf-8")
+    # The snapshot builder is a package since lane R3; its modules read as one text.
+    import agent_runtime.snapshot as snapshot_package
+    from tests._downstream.split_package_source import package_source
+
+    snapshot_source = package_source(snapshot_package)
     tree = ast.parse(snapshot_source)
     stamped = any(
         isinstance(node, ast.Dict)

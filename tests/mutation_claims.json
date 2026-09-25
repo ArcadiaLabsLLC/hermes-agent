@@ -1767,7 +1767,7 @@
     },
     {
       "id": "dcw-h1-the-snapshot-drops-the-conflict-provenance-again",
-      "path": "agent_runtime/snapshot.py",
+      "path": "agent_runtime/snapshot/offices.py",
       "symbol": "_offices_summary",
       "operator": "pass-an-empty-guess-list",
       "find": "                conflict_guessed_keys=conflicts.guessed_keys,",
@@ -1782,7 +1782,7 @@
     },
     {
       "id": "dcw-h1-the-conflict-warning-goes-blind-to-the-guess-list",
-      "path": "agent_runtime/snapshot.py",
+      "path": "agent_runtime/snapshot/offices.py",
       "symbol": "_office_parity_warnings",
       "operator": "never-read-the-rows-guess-list",
       "find": "        guessed = set(office.get(\"conflict_guessed_keys\") or ())",
@@ -1797,7 +1797,7 @@
     },
     {
       "id": "dcw-h1-an-older-office-row-takes-the-parity-section-down",
-      "path": "agent_runtime/snapshot.py",
+      "path": "agent_runtime/snapshot/offices.py",
       "symbol": "_office_parity_warnings",
       "operator": "index-the-additive-key",
       "find": "        guessed = set(office.get(\"conflict_guessed_keys\") or ())",
@@ -1812,7 +1812,7 @@
     },
     {
       "id": "dcw-h1-the-row-builder-defaults-the-guess-list",
-      "path": "agent_runtime/snapshot.py",
+      "path": "agent_runtime/snapshot/offices.py",
       "symbol": "office_summary_row",
       "operator": "default-the-required-keyword",
       "find": "    conflict_guessed_keys,\n",

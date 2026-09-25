@@ -77,7 +77,7 @@ def session_db_ledger(monkeypatch) -> _Ledger:
         handle.close = counting_close
         return handle
 
-    monkeypatch.setattr(snapshot_mod, "_default_persona_session_db", counting_acquire)
+    monkeypatch.setattr(snapshot_mod.details, "_default_persona_session_db", counting_acquire)
     return ledger
 
 
@@ -193,7 +193,7 @@ def test_a_build_completes_and_releases_nothing_when_the_acquisition_answers_Non
     mutant, which is precisely why it cannot be the only one here.
     """
 
-    monkeypatch.setattr(snapshot_mod, "_default_persona_session_db", lambda: None)
+    monkeypatch.setattr(snapshot_mod.details, "_default_persona_session_db", lambda: None)
 
     with caplog.at_level(logging.DEBUG, logger=snapshot_mod.__name__):
         data = snapshot_mod._build_snapshot_uncoalesced()
@@ -233,7 +233,7 @@ def test_the_release_survives_a_handle_whose_close_raises(monkeypatch, caplog):
             raise AttributeError(name)
 
     monkeypatch.setattr(
-        snapshot_mod, "_default_persona_session_db", lambda: _RefusesToClose()
+        snapshot_mod.details, "_default_persona_session_db", lambda: _RefusesToClose()
     )
 
     with caplog.at_level(logging.DEBUG, logger=snapshot_mod.__name__):

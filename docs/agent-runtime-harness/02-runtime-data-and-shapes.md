@@ -273,14 +273,14 @@ PRAGMA is a query-that-sets. The upstream guard also refuses unsafe WAL use
 with vulnerable SQLite builds; `hermes_state_wal.py::is_sqlite_wal_reset_vulnerable`
 and `apply_wal_with_fallback` own that decision. Deployment must verify the
 linked SQLite version rather than disabling the guard. The snapshot's `persona_chat` section reads this
-database through `chat_session_scope.open_chat_session_db` (`agent_runtime/snapshot.py::_default_persona_session_db`).
+database through `chat_session_scope.open_chat_session_db` (`agent_runtime/snapshot/details.py::_default_persona_session_db`).
 
 ---
 
 ## The snapshot core
 
 A **core** is one dict: the whole read model for the runtime, built by
-`build_snapshot()` (`snapshot.py:514`) from the three storage families above.
+`build_snapshot()` (`snapshot/build.py:40`) from the three storage families above.
 Top-level sections include `summary`, `runtime_default`, `runtime_config`,
 `migration`, `prompt_observability`, `repo_scopes`, `workspaces`, `realms`,
 `boards` / `boards_unreadable`, `offices` / `offices_unreadable`,
@@ -288,10 +288,10 @@ Top-level sections include `summary`, `runtime_default`, `runtime_config`,
 
 Seven sections are timed and land in `parity.sections_ms`: `events`,
 `agents_readiness`, `prompt_observability`, `boards_offices`, `running_work`,
-`persona_chat`, `parity` (`snapshot.py:773-902,1030,1097`).
+`persona_chat`, `parity` (`snapshot/sections.py:89-218,1030,1097`).
 
 `parity` is the frame's self-describing provenance envelope
-(`snapshot.py:1372-1400`), keyed in build order: `contract_version`,
+(`snapshot/envelope.py:329-357`), keyed in build order: `contract_version`,
 `generated_at`, `redaction_mode`, `redaction_observed`, `build_ms`,
 `sections_ms`, `snapshot_bytes`, `event_log_bytes`, `projection_age_ms`,
 `watermark`, `runtime_root`, `resolution`, `profile`, `capabilities`,
@@ -307,9 +307,9 @@ in-flight build began earlier and may miss writes the caller already observed.
 boot-hydrate lane — `hydrate_frame` (`stream.py:471`) and the `stream_frames`
 boot job that drives it (`:1221`) — because the hydrate's payload carries its own
 watermark and the stream tails from exactly that offset
-(`snapshot.py:522-536`). Roles:
+(`snapshot/build.py:48-62`). Roles:
 `BUILD_ROLE_LED` / `RODE` / `SHARED_NEXT` / `CACHE` / `REUSED`
-(`snapshot.py:283-306`).
+(`snapshot/receipts.py:183-208`).
 
 `agent_runtime/demote_core_reuse.py` adds a second, *sequential* saving: one
 demote build's core reused by the next demote build **at the same event offset**.
@@ -319,7 +319,7 @@ an in-flight build is not.
 ### The build receipt
 
 One line per **actual** build, emitted by the caller that ran it
-(`_log_snapshot_build_core`, `snapshot.py:373`); every other line about a build
+(`_log_snapshot_build_core`, `snapshot/build_log.py:33`); every other line about a build
 is a *wait*. Format, pinned:
 
 ```
@@ -330,9 +330,9 @@ snapshot_build_core role=%s caller=%s generation=%s build_ms=%s offset=%s sectio
 receipt and a serve's `agent.log`. `sections_top` is the three most expensive
 sections as `name:ms`, sorted cost-descending then by name, so consecutive boots
 of the same shape print the same string and a diff means the shape moved
-(`snapshot.py:353`). A sibling receipt splits the misleading `agents_readiness`
+(`snapshot/receipts.py:256`). A sibling receipt splits the misleading `agents_readiness`
 number into its two halves: `snapshot_agents_readiness walk_ms=%d
-tool_visibility_ms=%d pid=%d` (`snapshot.py:432`). The often-quoted numbers for
+tool_visibility_ms=%d pid=%d` (`snapshot/build_log.py:88`). The often-quoted numbers for
 that split — 4,001 ms first build (3,054 tool visibility / 947 walk) against
 183 ms steady state (36 / 146) — are the **bench from `25cd488d33`'s commit
 body**, 5 personas against the operator's profiles root, and appear in no live

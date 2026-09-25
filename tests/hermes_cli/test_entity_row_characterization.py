@@ -214,7 +214,7 @@ def test_board_full_row_accounts_its_card_bound(fixture_store, monkeypatch):
 
     from agent_runtime import snapshot
 
-    monkeypatch.setattr(snapshot, "MAX_BOARD_CARDS_PROJECTED", 1)
+    monkeypatch.setattr(snapshot.boards, "MAX_BOARD_CARDS_PROJECTED", 1)
     boards, board = fixture_store["boards"], fixture_store["board"]
     for i in range(3):
         boards.add_card(board_id=board.board_id, title=f"filler {i}")
@@ -230,6 +230,7 @@ def test_board_full_row_accounts_its_card_bound(fixture_store, monkeypatch):
 def test_office_full_row_accounts_its_actor_bound(fixture_store, monkeypatch):
     from agent_runtime import snapshot
 
+    monkeypatch.setattr(snapshot.offices, "MAX_OFFICE_ACTORS_PROJECTED", 1)
     monkeypatch.setattr(snapshot, "MAX_OFFICE_ACTORS_PROJECTED", 1)
     office, workspace = fixture_store["office"], fixture_store["workspace"]
     for name in ("bob", "carol"):
@@ -515,6 +516,8 @@ def test_workspace_row_delegates_to_the_snapshot_builder(fixture_store, monkeypa
         row["name"] = "FROM-BUILDER"
         return row
 
+    monkeypatch.setattr(snapshot.summaries, "_workspace_summary", _tagged)
+    monkeypatch.setattr(snapshot.sections, "_workspace_summary", _tagged)
     monkeypatch.setattr(snapshot, "_workspace_summary", _tagged)
     assert workspace_commands._workspace_row(fixture_store["workspace"])["name"] == "FROM-BUILDER"
 
@@ -529,6 +532,8 @@ def test_realm_row_delegates_to_the_snapshot_builder(fixture_store, monkeypatch)
         row["name"] = "FROM-BUILDER"
         return row
 
+    monkeypatch.setattr(snapshot.summaries, "_realm_summary", _tagged)
+    monkeypatch.setattr(snapshot.sections, "_realm_summary", _tagged)
     monkeypatch.setattr(snapshot, "_realm_summary", _tagged)
     assert realm_commands._realm_row(fixture_store["realm"])["name"] == "FROM-BUILDER"
 
@@ -549,7 +554,9 @@ def test_board_and_card_rows_delegate_to_the_snapshot_builders(fixture_store, mo
         row["priority"] = "FROM-BUILDER"
         return row
 
+    monkeypatch.setattr(snapshot.boards, "board_summary_row", _tagged_board)
     monkeypatch.setattr(snapshot, "board_summary_row", _tagged_board)
+    monkeypatch.setattr(snapshot.boards, "_board_card_row", _tagged_card)
     monkeypatch.setattr(snapshot, "_board_card_row", _tagged_card)
     boards, board = fixture_store["boards"], fixture_store["board"]
     assert board_commands._board_row(boards, board)["title"] == "FROM-BUILDER"
@@ -572,7 +579,9 @@ def test_office_rows_delegate_to_the_snapshot_builders(fixture_store, monkeypatc
         row["persona_id"] = "FROM-BUILDER"
         return row
 
+    monkeypatch.setattr(snapshot.offices, "office_summary_row", _tagged_surface)
     monkeypatch.setattr(snapshot, "office_summary_row", _tagged_surface)
+    monkeypatch.setattr(snapshot.offices, "_office_actor_summary_row", _tagged_actor)
     monkeypatch.setattr(snapshot, "_office_actor_summary_row", _tagged_actor)
     office, workspace = fixture_store["office"], fixture_store["workspace"]
     assert office_commands._office_surface_row(office, workspace.id)["folders"] == ["FROM-BUILDER"]

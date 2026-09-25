@@ -103,7 +103,10 @@ AUTHORITY_FILE = "test_snapshot_contract_version_authority.py"
 #: demanding the number exist nowhere. Named as a pair (not a bare filename) so
 #: the exemption cannot widen to some other literal in the same module, and
 #: witnessed by :func:`test_the_definition_site_is_where_it_claims_to_be`.
-DEFINITION_SITE = ("snapshot.py", "SNAPSHOT_CONTRACT_VERSION")
+DEFINITION_SITE = ("context.py", "SNAPSHOT_CONTRACT_VERSION")
+#: Where the definition site LIVES (lane R3 split snapshot.py into a package and
+#: put the contract version in its leaf, ``snapshot/context.py``).
+DEFINITION_HOME = "agent_runtime/snapshot"
 
 #: The authority's own symbol. Derived from :data:`DEFINITION_SITE` so the two
 #: cannot drift, and used below to make it STRUCTURALLY impossible for any
@@ -449,7 +452,7 @@ def test_the_definition_site_is_where_it_claims_to_be():
     """
 
     filename, symbol = DEFINITION_SITE
-    module = _repo_root() / "agent_runtime" / filename
+    module = _repo_root() / DEFINITION_HOME / filename
     assert module.is_file(), f"{filename} no longer exists; the exemption is stale"
 
     tree = ast.parse(module.read_text(encoding="utf-8"))
@@ -475,7 +478,7 @@ def test_the_gate_scanned_a_real_tree():
     names = {Path(p).name for p in scanned}
     # Files the gate MUST be looking at, because each one held a stale literal.
     for expected in (
-        "snapshot.py",
+        "context.py",
         "test_stage19_visibility.py",
         "test_office_store.py",
         "test_stream_contract_fixture.py",

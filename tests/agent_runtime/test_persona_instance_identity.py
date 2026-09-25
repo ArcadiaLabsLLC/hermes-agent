@@ -254,7 +254,8 @@ def test_reconcile_never_folds_task_bound_or_cross_persona_rows():
 
 def test_snapshot_emits_identity_map_and_duplicate_warning(monkeypatch):
     cfg = _runtime_config()
-    monkeypatch.setattr("agent_runtime.snapshot.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.envelope.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.sections.load_agent_runtime_config", lambda: cfg)
     _seed_row(
         "personainst_neko_supervisor",
         persona_id="neko_supervisor",
@@ -301,7 +302,11 @@ def test_snapshot_emits_identity_map_and_duplicate_warning(monkeypatch):
 
 def test_snapshot_reports_shape_valid_missing_steering_foreign_keys(monkeypatch):
     monkeypatch.setattr(
-        "agent_runtime.snapshot.load_agent_runtime_config",
+        "agent_runtime.snapshot.envelope.load_agent_runtime_config",
+        lambda: _runtime_config(),
+    )
+    monkeypatch.setattr(
+        "agent_runtime.snapshot.sections.load_agent_runtime_config",
         lambda: _runtime_config(),
     )
     missing = "personainst_neko_supervisor_agent_gone"
@@ -553,11 +558,12 @@ class _FakeTemplate:
 
 def test_snapshot_emits_orphan_and_no_warning_for_real_agent(monkeypatch):
     cfg = _runtime_config()
-    monkeypatch.setattr("agent_runtime.snapshot.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.envelope.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.sections.load_agent_runtime_config", lambda: cfg)
     # Provide an authoritative (non-empty) profile catalog so the profile:* orphan lane
     # engages; ``codex_create_probe`` is absent from it and must be flagged.
     monkeypatch.setattr(
-        "agent_runtime.snapshot.available_profile_templates",
+        "agent_runtime.snapshot.summaries.available_profile_templates",
         lambda: [_FakeTemplate("alice"), _FakeTemplate("base")],
     )
     # The reconcile prune lane reads the catalog through _profile_template_names; keep it

@@ -1096,7 +1096,7 @@ reads one file, and the two stop being free to drift.
 **Two ways an actor list can be short, and the row says both.**
 `actors_truncated` is the cut WE chose; `actors_unreadable` is files the platform
 would not open. Both are REQUIRED keyword arguments of `office_summary_row`
-(`snapshot.py:1718+`), so a caller holding a bare list has to say `0` out loud
+(`snapshot/offices.py:59+`), so a caller holding a bare list has to say `0` out loud
 rather than get it by default.
 
 **`conflict_guessed_keys` rides the row beside `conflict_actor_keys`** and names
@@ -1149,10 +1149,10 @@ third was an observability artifact over a real 24 s window.
   leaked surface without hand surgery.
 - **`snapshot build Nms`** was ONE build wearing three log lines: the line is
   emitted per *hydrate caller* and measures that caller's WAIT. The vocabulary
-  now says so — `led` / `rode` / `shared_next` (`snapshot.py:283-285`) plus a
+  now says so — `led` / `rode` / `shared_next` (`snapshot/receipts.py:183-185`) plus a
   fourth, `cache`, added when the persisted-core fingerprint hit — printed on
   `snapshot_build_core role=… caller=… generation=… build_ms=… offset=…`
-  (`snapshot.py:403`). **A boot's build count is the count of `led` lines, never
+  (`snapshot/build_log.py:63`). **A boot's build count is the count of `led` lines, never
   the count of lines.** The provider prewarm was moved behind the read-model
   build on one thread (`serve.py:3353-3363`, injected rather than hardcoded) so
   its SDK import stops contending with the boot-critical build.

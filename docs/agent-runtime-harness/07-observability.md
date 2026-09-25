@@ -59,7 +59,7 @@ the create receipt (`agent_create_phases.py:23-24`) then inherited verbatim.
    passes `first_chunk_at=None` rather than a zero when no first chunk was seen
    (the fork's `ttfb=` log token that said the same was retired 2026-09-24 as a
    duplicate of it); `_log_agents_readiness_split`
-   (`snapshot.py:437-454`) prints nothing when the section never ran, and two
+   (`snapshot/build_log.py:97-114`) prints nothing when the section never ran, and two
    honest zeros when it ran and cost nothing. **Absent-as-zero is the canonical
    lie of this codebase** — it is how a census once MEASURED A FALSE ZERO
    (`core_cache/__init__.py:59-62`).
@@ -78,7 +78,7 @@ the create receipt (`agent_create_phases.py:23-24`) then inherited verbatim.
    aids behind a flag: the phases block rides persists the turn already performs
    (`:37-39`), the snapshot receipts ride the ordinary `Logger` family so
    `hermes serve` lands them in `agent.log` with no extra flag
-   (`snapshot.py:397-398`, `stream.py:181-182`), and the launcher's lines reach
+   (`snapshot/build_log.py:57-58`, `stream.py:181-182`), and the launcher's lines reach
    the diag tee in release too.
 5. **Never subtract wall stamps across processes.** `anchored_at` is the single
    wall stamp on a turn record, and exists only for eyeballing the turn against
@@ -104,7 +104,7 @@ the create receipt (`agent_create_phases.py:23-24`) then inherited verbatim.
    request_assembled` is hermes, `request_assembled → provider_first_byte` is
    the client plus the wire.
 8. **One authority per span.** A second measurement is a second authority, and
-   the two will drift. `build_receipt_facts` (`snapshot.py:324-336`) READS
+   the two will drift. `build_receipt_facts` (`snapshot/receipts.py:227-239`) READS
    `build_ms` off the envelope the build stamped rather than re-timing it;
    `snapshot_build`'s deprecated `elapsed_ms=` carries the identical value as
    `waited_ms=` (`stream.py:197-200`); `agent_create_phases` repeats
@@ -174,7 +174,7 @@ goldens AND by the launcher's mirror of them — so two extra keys there is a
 cross-stack fixture landing. Not theory: the `agents_readiness` split was first
 written as two `sections_ms` keys and had to be pulled back out (`0e4567f5fd`,
 2026-08-21), leaving hermes green and the launcher's producer-contract
-byte-compare red on every push in between. Argument at `snapshot.py:824-837`;
+byte-compare red on every push in between. Argument at `snapshot/sections.py:140-153`;
 `agent_create_phases.py:14-21` cites it as why the create's spans are a log line
 instead. The exception that proves the rule: `phases` on the create's RPC result
 and on the turn record are client-visible, but both are additive keys on
@@ -185,9 +185,9 @@ what the fixture mirror below enforces.
 
 | receipt (grep this) | emitter | consumer |
 |---|---|---|
-| `snapshot_build_core role=… caller=… generation=… build_ms=… offset=… sections_top=… pid=…` | `agent_runtime/snapshot.py:398-408` (fn `:369`, call site `:683`) | operator grep (`role=led` is the build count); `tests/agent_runtime/test_snapshot_build_logging.py:758` pins the prefix |
+| `snapshot_build_core role=… caller=… generation=… build_ms=… offset=… sections_top=… pid=…` | `agent_runtime/snapshot/build_log.py:58-68` (fn `:369`, call site `:683`) | operator grep (`role=led` is the build count); `tests/agent_runtime/test_snapshot_build_logging.py:758` pins the prefix |
 | `snapshot_build reason=… waited_ms=… elapsed_ms=… build_ms=… role=… caller=… generation=… offset=… events=…` (+`sections_top=`, +`core_source=`, then `pid=` last) | `agent_runtime/stream.py:336-339` (fn `_log_snapshot_build` `:268`) | operator grep; a launcher in the field still parses `elapsed_ms` (`stream.py:301-302`); `tests/agent_runtime/test_stream_build_timing_log.py` |
-| `snapshot_agents_readiness walk_ms=… tool_visibility_ms=… pid=…` | const `snapshot.py:432-434`, emitted `:449-454` | joins `snapshot_build_core` on `pid`; pinned by regex at `tests/agent_runtime/test_agents_readiness_attribution.py:51` |
+| `snapshot_agents_readiness walk_ms=… tool_visibility_ms=… pid=…` | const `snapshot/build_log.py:88-90`, emitted in `_log_agents_readiness_split` (`:93`) | joins `snapshot_build_core` on `pid`; pinned by regex at `tests/agent_runtime/test_agents_readiness_attribution.py:51` |
 | `stream_attach op=… purpose=… … pid=…` | `agent_runtime/stream.py:284-290` | boot-investigation join (third `pid=`-bearing family) |
 | `stream_denied lane=… reason=… connection=… client=… transport=… tier=… pid=…` | `agent_runtime/stream.py:424-469`, emitted from `serve.py::_deny_subscribe`  | the other half of `stream_attach`: WHICH of the six subscribe refusals closed a lane, and on which connection. Added because a cockpit's stream to a second machine died 7 ms after its subscribe on 2026-09-04 and neither machine held the reason (R-D26); `tests/agent_runtime/test_serve_socket_lane.py` |
 | `snapshot_core_cache …` / `snapshot_core_cache_write …` / `snapshot_core_shadow …` / `snapshot_core_cache_lane_closed …` | `agent_runtime/core_cache/` — see the channel table below | `agent_runtime/core_cache_census.py` via `scripts/core_cache_demote_census.py` |
@@ -207,11 +207,11 @@ what the fixture mirror below enforces.
 
 `snapshot_build_core` is ONE line per ACTUAL build, emitted by the caller that
 ran it, on the thread that paid for it, before its waiters are notified
-(`snapshot.py:682-689`). Every other line about a build is a WAIT
+(`snapshot/build.py:208-215`). Every other line about a build is a WAIT
 (`stream.py`'s `snapshot_build`). Until the two were separated, the 2026-08-17
 boot's "three concurrent builds" were one build plus two riders logging their
 waits, and the most expensive build of that boot — the serve prewarm — logged
-nothing at all (`snapshot.py:374-381`). A build that raised logs nothing: "the
+nothing at all (`snapshot/build_log.py:34-41`). A build that raised logs nothing: "the
 exception is the receipt" (`:685-686`). An injected-store (fixture) build emits
 no receipt (`:570-573`). `sections_top` rides every `snapshot_build_core`, and a
 WAIT line only when the build under it crossed `BUILD_SECTIONS_WAIT_THRESHOLD_MS`
@@ -708,7 +708,7 @@ drift.
 3. **Every receipt leads with a family token**, then `key=value`. A census greps
    tokens, never the prose after them (`core_cache/__init__.py:46-50`).
 4. **Observability must never be the reason something fails.** Instruments are
-   defensive by construction (`snapshot.py:333-335`), the boot-timeline
+   defensive by construction (`snapshot/receipts.py:236-238`), the boot-timeline
    annotation is wrapped in a bare `except` (`serve.py:1057-1058`), and
    `log_create_subphases` never raises and never measures
    (`agent_create_phases.py:230`).
@@ -773,5 +773,5 @@ verified above; the numbers cannot be re-derived from the tree. First two from
   effort=medium): see the canonical note on doc 08's luna row.
 * **First-build cost, 5 runtime personas, 2026-08-22**: 4,001 ms (3,054 tool
   visibility / 947 readiness walk); later builds in the same process 183 ms
-  (36 / 146). A code comment at `agent_runtime/snapshot.py:422-424` — verified
+  (36 / 146). A code comment at `agent_runtime/snapshot/build_log.py:82-84` — verified
   as written there, not re-measured here.

@@ -382,6 +382,8 @@ def test_the_parity_watermark_does_not_count_events_appended_during_the_build(
             appended["after"] = events_position()["event_offset"]
             return original(data, **kwargs)
 
+        patched.setattr(snapshot_mod.envelope, "_parity_envelope", _append_then_stamp)
+        patched.setattr(snapshot_mod.sections, "_parity_envelope", _append_then_stamp)
         patched.setattr(snapshot_mod, "_parity_envelope", _append_then_stamp)
 
         offset = build_snapshot()["parity"]["watermark"]["event_offset"]

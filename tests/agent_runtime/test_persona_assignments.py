@@ -479,7 +479,8 @@ def test_assignment_complete_is_idempotent_for_same_terminal_state(isolate_agent
 def test_status_and_snapshot_expose_persona_instances_unconditionally(monkeypatch, isolate_agent_runtime_root):
     cfg = _assignment_config()
     monkeypatch.setattr("agent_runtime.status.load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr("agent_runtime.snapshot.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.envelope.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.sections.load_agent_runtime_config", lambda: cfg)
     # S56: the worker session that used to make ``dev`` an active-lane agent is
     # gone; a chat instance carrying a live goal/assignment is the surviving way
     # in (``ensure_for_personas`` settles every non-chat instance back to idle).
@@ -544,7 +545,8 @@ def test_status_and_snapshot_expose_persona_instances_unconditionally(monkeypatc
 
 def test_snapshot_exposes_operator_created_idle_persona_instance(monkeypatch, isolate_agent_runtime_root):
     cfg = _assignment_config()
-    monkeypatch.setattr("agent_runtime.snapshot.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.envelope.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.sections.load_agent_runtime_config", lambda: cfg)
     created = mint_free_floating("profile:reviewer")
 
     snapshot = build_snapshot()
@@ -1919,7 +1921,8 @@ def test_snapshot_preserves_open_chat_and_emits_history(monkeypatch, isolate_age
     import agent_runtime.snapshot as snapshot_module
 
     cfg = _assignment_config()
-    monkeypatch.setattr("agent_runtime.snapshot.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.envelope.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.sections.load_agent_runtime_config", lambda: cfg)
     db = _FakeSessionDB(
         [
             {
@@ -1950,7 +1953,7 @@ def test_snapshot_preserves_open_chat_and_emits_history(monkeypatch, isolate_age
     )
     monkeypatch.setattr(history, "_default_session_db", lambda: db)
     monkeypatch.setattr(chat_session_scope, "open_chat_session_db", lambda scope=None: db)
-    monkeypatch.setattr(snapshot_module, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(snapshot_module.details, "_default_persona_session_db", lambda: db)
     PersonaInstanceStore().open_chat(persona_id="dev", session_id="chat_old_123")
 
     snapshot = build_snapshot()
@@ -4959,7 +4962,8 @@ def test_retire_refuses_missing_instance(isolate_agent_runtime_root):
 
 def test_retire_excludes_instance_from_snapshot_projection(monkeypatch, isolate_agent_runtime_root):
     cfg = _assignment_config()
-    monkeypatch.setattr("agent_runtime.snapshot.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.envelope.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.sections.load_agent_runtime_config", lambda: cfg)
     store = PersonaInstanceStore()
     instance = _placement_instance()
 

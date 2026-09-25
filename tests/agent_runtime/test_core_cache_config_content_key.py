@@ -239,7 +239,8 @@ class _CountedStoreReads:
 
         monkeypatch.setattr(store_mod.AgentStore, "list_all", counted_list_all)
         monkeypatch.setattr(events_mod.CachedEventLog, "tail", counted_tail)
-        monkeypatch.setattr(snapshot_mod, "AgentStore", store_mod.AgentStore)
+        monkeypatch.setattr(snapshot_mod.details, "AgentStore", store_mod.AgentStore)
+        monkeypatch.setattr(snapshot_mod.sections, "AgentStore", store_mod.AgentStore)
 
 
 # --------------------------------------------------------------------------- #

@@ -206,24 +206,24 @@
    "unit": "agent_runtime/skill_promotion.py|execute_promotion"
   },
   {
-   "depth": 2,
-   "lines": 334,
-   "unit": "agent_runtime/snapshot.py|_build_snapshot_in_runtime_scope"
+   "depth": 5,
+   "lines": 216,
+   "unit": "agent_runtime/snapshot/build.py|build_snapshot"
   },
   {
    "depth": 1,
    "lines": 338,
-   "unit": "agent_runtime/snapshot.py|_parity_envelope"
+   "unit": "agent_runtime/snapshot/envelope.py|_parity_envelope"
+  },
+  {
+   "depth": 2,
+   "lines": 334,
+   "unit": "agent_runtime/snapshot/sections.py|_build_snapshot_in_runtime_scope"
   },
   {
    "depth": 4,
    "lines": 284,
-   "unit": "agent_runtime/snapshot.py|_parity_warnings"
-  },
-  {
-   "depth": 5,
-   "lines": 216,
-   "unit": "agent_runtime/snapshot.py|build_snapshot"
+   "unit": "agent_runtime/snapshot/warnings.py|_parity_warnings"
   },
   {
    "depth": 6,

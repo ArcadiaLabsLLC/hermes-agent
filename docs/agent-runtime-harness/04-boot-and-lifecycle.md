@@ -310,7 +310,7 @@ a sidecar carrying the fingerprint of every input the build read; the next proce
 inputs again. The read path, in order:
 
 1. `build_snapshot` calls `core_cache.consult(caller=...)` **before the coalescer**
-   (`snapshot.py:586`) — a ~50 ms stat check with no shared state, which behind the build
+   (`snapshot/build.py:112`) — a ~50 ms stat check with no shared state, which behind the build
    lock would serialize the cheap answer behind an expensive build.
 2. `consult` returns immediately unless `lane_armed()` (`core_cache/lane.py:296-298`). The riders
    of one boot share ONE judgement and each still emits its own receipt.
@@ -320,12 +320,12 @@ inputs again. The read path, in order:
 4. Miss → `_log_demote` with a reason from the `DEMOTE_*` vocabulary (`core_cache/decision.py:75`).
    `absent` is the one reason NOT logged — the ordinary cold start would print a line on every
    build in every process — so **a census must not read "no demote line" as "no demote."**
-5. A cache hit ALSO starts `maybe_start_shadow_validation` (`snapshot.py:602`): the full build
+5. A cache hit ALSO starts `maybe_start_shadow_validation` (`snapshot/build.py:128`): the full build
    runs in the background and compares field-for-field, at most once per process, marked as a
    shadow so completing it does not close the lane.
 6. On a full build: `pre_build_fingerprint()` (the consult's own key, reused — an OLDER key can
    only cost the next process a rebuild), `write_back`, then `note_full_build_completed()`
-   (`snapshot.py:699`), which disarms the lane (`:659-703`).
+   (`snapshot/build.py:225`), which disarms the lane (`:659-703`).
 
 **Validity is the stat fingerprint, full stop.** `event_offset` is recorded in the sidecar as a
 diagnostic and never read as an input to the match. The offset-keyed design stays refused — but

@@ -1085,6 +1085,7 @@ def test_a_failing_prewarm_never_takes_the_runtime_down(monkeypatch):
     def boom(**_kwargs):
         raise RuntimeError("store torn mid-read")
 
+    monkeypatch.setattr(snapshot_mod.build, "build_snapshot", boom)
     monkeypatch.setattr(snapshot_mod, "build_snapshot", boom)
 
     # Best effort by contract: it swallows, logs, and the serve keeps serving.

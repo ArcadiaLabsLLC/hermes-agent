@@ -214,8 +214,9 @@ class _CountingStores:
         monkeypatch.setattr(office_mod.OfficeStore, "scan_actors", counted_scan)
         monkeypatch.setattr(events_mod.CachedEventLog, "tail", counted_tail)
         # The snapshot module holds its own bindings for two of the three.
-        monkeypatch.setattr(snapshot_mod, "AgentStore", store_mod.AgentStore)
-        monkeypatch.setattr(snapshot_mod, "OfficeStore", office_mod.OfficeStore)
+        monkeypatch.setattr(snapshot_mod.details, "AgentStore", store_mod.AgentStore)
+        monkeypatch.setattr(snapshot_mod.sections, "AgentStore", store_mod.AgentStore)
+        monkeypatch.setattr(snapshot_mod.sections, "OfficeStore", office_mod.OfficeStore)
 
 
 # --------------------------------------------------------------------------- #
@@ -1230,7 +1231,7 @@ def test_a_mismatch_serves_labeled_stale_first_then_authoritative(
         assert gate.wait(20), "the gated build was never released"
         return real_build(*args, **kwargs)
 
-    monkeypatch.setattr(snapshot_mod, "_build_snapshot_uncoalesced", gated_build)
+    monkeypatch.setattr(snapshot_mod.build, "_build_snapshot_uncoalesced", gated_build)
 
     frames: list[dict] = []
     failure: list[BaseException] = []
