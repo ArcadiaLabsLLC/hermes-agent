@@ -86,7 +86,9 @@ def persona_chat_history_summary(
         omitted_session_ids=omitted_session_ids,
     )
     summary.index_instances()
-    db = session_db or chat_session_scope.open_chat_session_db()
+    # A summary is a read: the fallback never opens a writer (which would
+    # create the store or run upstream's migration from a read path).
+    db = session_db or chat_session_scope.open_chat_session_db(read_only=True)
     if db is None:
         return []
     summary.session_candidates(db)

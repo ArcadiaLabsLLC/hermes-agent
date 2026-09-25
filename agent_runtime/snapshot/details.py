@@ -53,10 +53,13 @@ __all__ = [
 
 def _default_persona_session_db():
     # Same acquisition as the projection lane it feeds — see
-    # ``chat_session_scope`` for the resolution ladder.
+    # ``chat_session_scope`` for the resolution ladder. READ-ONLY: the read
+    # model never writes the chat store, and a writer open here ran upstream's
+    # data migration inside the build, moving the ``state.db`` the stream
+    # watchdog fingerprints (``open_chat_session_db``'s docstring).
     from ..chat_session_scope import open_chat_session_db
 
-    return open_chat_session_db()
+    return open_chat_session_db(read_only=True)
 
 
 @contextmanager

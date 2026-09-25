@@ -3,8 +3,6 @@ from __future__ import annotations
 import json
 from argparse import Namespace
 
-import pytest
-
 from hermes_time import now
 
 from agent_runtime.events import EventLog
@@ -251,16 +249,6 @@ def _delta_event_types(frame) -> list[str]:
     ]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "runtime-queue row (lane W3-C VERDICT 2026-09-25): the delta's own core build "
-        "is the SECOND writer open of a fresh chat SessionDB, and upstream "
-        "hermes_state_schema._run_data_migrations stamps state_meta.fts_storage_version "
-        "on that open — state.db's mtime moves, the watchdog reconciles it. Remove this "
-        "marker with the fix."
-    ),
-)
 def test_an_evented_write_adopts_its_fingerprint_and_never_reconciles(
     isolate_agent_runtime_root,
 ):

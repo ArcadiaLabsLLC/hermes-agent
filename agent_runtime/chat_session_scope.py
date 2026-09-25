@@ -613,21 +613,32 @@ def chat_session_db_path() -> Path:
     return resolve_process_chat_scope().db_path
 
 
-def open_chat_session_db(scope: ChatSessionScope | None = None) -> Any | None:
+def open_chat_session_db(
+    scope: ChatSessionScope | None = None, *, read_only: bool = False
+) -> Any | None:
     """Open the operator-visible chat ``SessionDB``; ``None`` when unavailable.
 
     Callers that must fail loudly wrap the ``None`` in their own typed error —
     the acquisition is shared, the failure posture is not.
+
+    ``read_only=True`` is the READ-MODEL door: upstream's ``mode=ro`` attach, no
+    schema init, no data migration, no scratch purge, and ``None`` when the file
+    does not exist yet (a read never creates the store). A writer open is not a
+    read: upstream ``_run_data_migrations`` stamps ``fts_storage_version`` on a
+    fresh database's second writer open, so a build that opened a writer moved
+    ``state.db``'s mtime under the stream watchdog that stats it and minted a
+    spurious ``state.reconciled`` (runtime-queue, lane W3-C verdict).
     """
 
     resolved = scope or resolve_process_chat_scope()
     try:
         from hermes_state import SessionDB
 
-        db = SessionDB(db_path=resolved.db_path)
+        db = SessionDB(db_path=resolved.db_path, read_only=read_only)
     except Exception:
         return None
-    _purge_retired_scratch_once(db, resolved.db_path)
+    if not read_only:
+        _purge_retired_scratch_once(db, resolved.db_path)
     return db
 
 
