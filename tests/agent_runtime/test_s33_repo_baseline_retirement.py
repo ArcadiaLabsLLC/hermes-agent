@@ -6,14 +6,15 @@ S32 (``a54e802cd``) proved that ``persona_runtime``'s three
 whole baseline lane: once ``_attach_repo_baseline`` is gone,
 ``repo_context.capture_repo_baseline`` has no production caller either.
 
-The worktree-creator lane is a separate, live regression seam and stays whole.
+The worktree-creator lane is a separate regression seam and stays whole — since
+2026-09-25 (owner ruling, lane SEAM) whole in ``tests/_downstream/_seams.py``.
 """
 
 from __future__ import annotations
 
 import inspect
 
-from agent_runtime import repo_context
+from tests._downstream import _seams
 
 
 REMOVED_PERSONA_RUNTIME_SYMBOLS = (
@@ -41,8 +42,8 @@ def test_the_worktree_creator_trio_stays_live_as_regression_infrastructure():
         "_worktree_token",
         "_ensure_isolated_worktree",
     ):
-        assert callable(getattr(repo_context, name)), name
+        assert callable(getattr(_seams, name)), name
 
-    source = inspect.getsource(repo_context)
+    source = inspect.getsource(_seams)
     assert "isolated_repo_context_for_run(" in source
     assert "_ensure_isolated_worktree(" in source

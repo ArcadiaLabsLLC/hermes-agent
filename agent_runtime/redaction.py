@@ -107,7 +107,8 @@ TEXT_SECRET_ASSIGNMENT_RE = re.compile(
 #: Two groups: (1) key, (2) value. Used where the redacted text must stay
 #: readable around the removed value — prompt capture and repo-context
 #: excerpts that are fed back to an agent. Consumers: ``profile_runner``,
-#: ``prompt_observability``, ``repo_context``.
+#: ``prompt_observability``, and the test seam's repo-context excerpts
+#: (``tests/_downstream/_seams.py``).
 TEXT_SECRET_VALUE_ASSIGNMENT_RE = re.compile(
     r"(?i)(" + TEXT_SECRET_KEYS + r")" + SECRET_KEY_SEPARATOR + r"([^\s,;]+)"
 )

@@ -3613,6 +3613,27 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "chat_live_log_failures",
         scope=_AR,
     ),
+    *rows(
+        # Lane SEAM (2026-09-25): dead-code queue rows
+        # `repo_execution_context_for_task` / `isolated_repo_context_for_run` /
+        # `existing_run_worktrees` / `remove_harness_worktree_for_repo`, owner
+        # ruling TEST SEAM as one unit. The two dataclasses went with them:
+        # only the creator chain ever constructed either.
+        "s-seam",
+        "HEAD",
+        Form.CODE,
+        "the run-worktree creator lane had no production caller since S5/S8; "
+        "it lives in tests/_downstream/_seams.py as the constructor the "
+        "worktree suites build real worktrees with, while the reaper "
+        "(remove_orphan_worktree) stays in agent_runtime.repo_context",
+        "repo_execution_context_for_task",
+        "isolated_repo_context_for_run",
+        "existing_run_worktrees",
+        "remove_harness_worktree_for_repo",
+        "RepoExecutionContext",
+        "RepoContextExcerpt",
+        scope=_AR,
+    ),
 )
 
 

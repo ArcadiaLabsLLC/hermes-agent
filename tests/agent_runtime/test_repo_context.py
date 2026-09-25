@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from agent_runtime.repo_context import repo_execution_context_for_task, safe_affected_repo_labels
+from agent_runtime.repo_context import safe_affected_repo_labels
+from tests._downstream._seams import repo_execution_context_for_task
 from types import SimpleNamespace
 
 Task = SimpleNamespace

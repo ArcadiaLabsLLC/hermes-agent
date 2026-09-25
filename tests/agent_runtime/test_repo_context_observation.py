@@ -3,12 +3,14 @@ import subprocess
 import time
 from pathlib import Path
 
-from agent_runtime.repo_context import (
-    HARNESS_WORKTREE_BASE_MAX_CHARS,
+from agent_runtime.repo_context import HARNESS_WORKTREE_BASE_MAX_CHARS
+from tests._downstream import _seams
+from tests._downstream._seams import (
     HARNESS_WORKTREE_ADD_TIMEOUT_SECONDS,
     RepoExecutionContext,
     isolated_repo_context_for_run,
 )
+from tests._downstream.split_package_source import patch_where_bound
 
 
 def _git(repo, *args):
@@ -65,12 +67,10 @@ def test_isolated_repo_context_gc_removes_old_clean_runtime_worktrees(tmp_path, 
 
 
 def test_isolated_repo_context_gc_count_cap_reaps_oldest_clean_worktrees(tmp_path, monkeypatch):
-    import agent_runtime.repo_context as rc
-
     runtime_root = tmp_path / "runtime"
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(runtime_root))
-    monkeypatch.setattr(rc, "HARNESS_WORKTREE_GC_MAX_PER_REPO", 2)
-    monkeypatch.setattr(rc, "HARNESS_WORKTREE_GC_MIN_AGE_SECONDS", 0)
+    patch_where_bound(monkeypatch, _seams, "HARNESS_WORKTREE_GC_MAX_PER_REPO", 2)
+    patch_where_bound(monkeypatch, _seams, "HARNESS_WORKTREE_GC_MIN_AGE_SECONDS", 0)
     repo = tmp_path / "repo"
     repo.mkdir()
     _git(repo, "init")
@@ -97,13 +97,11 @@ def test_isolated_repo_context_gc_count_cap_reaps_oldest_clean_worktrees(tmp_pat
 
 
 def test_isolated_repo_context_gc_count_cap_spares_dirty_and_fresh_worktrees(tmp_path, monkeypatch):
-    import agent_runtime.repo_context as rc
-
     runtime_root = tmp_path / "runtime"
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(runtime_root))
-    monkeypatch.setattr(rc, "HARNESS_WORKTREE_GC_MAX_PER_REPO", 1)
+    patch_where_bound(monkeypatch, _seams, "HARNESS_WORKTREE_GC_MAX_PER_REPO", 1)
     # Large grace: every existing worktree is "fresh" so the count cap must skip them.
-    monkeypatch.setattr(rc, "HARNESS_WORKTREE_GC_MIN_AGE_SECONDS", 24 * 60 * 60)
+    patch_where_bound(monkeypatch, _seams, "HARNESS_WORKTREE_GC_MIN_AGE_SECONDS", 24 * 60 * 60)
     repo = tmp_path / "repo"
     repo.mkdir()
     _git(repo, "init")
@@ -165,8 +163,6 @@ def test_support_link_is_excluded_whatever_shape_the_host_gives_it(tmp_path, mon
     privilege Windows does not hand a test.
     """
 
-    import agent_runtime.repo_context as rc
-
     runtime_root = tmp_path / "runtime"
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(runtime_root))
 
@@ -174,7 +170,7 @@ def test_support_link_is_excluded_whatever_shape_the_host_gives_it(tmp_path, mon
         target.write_text("link stand-in\n", encoding="utf-8")
         return True
 
-    monkeypatch.setattr(rc, "_link_local_support_dir", _as_a_blob)
+    patch_where_bound(monkeypatch, _seams, "_link_local_support_dir", _as_a_blob)
     repo = _backend_like_repo(tmp_path)
     source = RepoExecutionContext(workdir=repo, repo_label="eternia-backend", source="test")
 
@@ -213,12 +209,10 @@ def test_worktree_removal_severs_venv_link_and_preserves_real_venv(tmp_path, mon
 
 
 def test_gc_count_cap_with_venv_links_preserves_real_venv(tmp_path, monkeypatch):
-    import agent_runtime.repo_context as rc
-
     runtime_root = tmp_path / "runtime"
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(runtime_root))
-    monkeypatch.setattr(rc, "HARNESS_WORKTREE_GC_MAX_PER_REPO", 1)
-    monkeypatch.setattr(rc, "HARNESS_WORKTREE_GC_MIN_AGE_SECONDS", 0)
+    patch_where_bound(monkeypatch, _seams, "HARNESS_WORKTREE_GC_MAX_PER_REPO", 1)
+    patch_where_bound(monkeypatch, _seams, "HARNESS_WORKTREE_GC_MIN_AGE_SECONDS", 0)
     repo = _backend_like_repo(tmp_path)
     source = RepoExecutionContext(workdir=repo, repo_label="eternia-backend", source="test")
 
