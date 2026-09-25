@@ -24,6 +24,8 @@ from pathlib import Path
 import pytest
 
 from scripts import changed_line_mutation_check as gate
+from scripts.mutation_check import run as run_lane
+from scripts.mutation_check import selection
 
 
 #: Captured at import, BEFORE `conftest.no_changed_sources_by_default` swaps
@@ -85,7 +87,7 @@ def touched(monkeypatch):
         def _changed_lines(base: str, relative_path: str) -> set[int]:
             return set(mapping.get(Path(relative_path), set()))
 
-        monkeypatch.setattr(gate, "_changed_lines", _changed_lines)
+        monkeypatch.setattr(selection, "_changed_lines", _changed_lines)
 
     return _install
 
@@ -258,12 +260,12 @@ def test_a_zero_with_changed_sources_reads_differently_from_a_zero_with_none(
     )
     touched({})
 
-    monkeypatch.setattr(gate, "_changed_sources", lambda base: [])
+    monkeypatch.setattr(run_lane, "_changed_sources", lambda base: [])
     gate.run("BASE", claims, _exemptions_file(tmp_path), wall_budget_seconds=900, list_only=True)
     quiet = capsys.readouterr().out
 
     monkeypatch.setattr(
-        gate, "_changed_sources", lambda base: ["agent_runtime/office_store.py", "hermes_cli/x.py"]
+        run_lane, "_changed_sources", lambda base: ["agent_runtime/office_store.py", "hermes_cli/x.py"]
     )
     gate.run("BASE", claims, _exemptions_file(tmp_path), wall_budget_seconds=900, list_only=True)
     loud = capsys.readouterr().out
@@ -294,7 +296,7 @@ def test_a_changed_source_a_claim_anchors_in_is_not_reported_unregistered(
     touched({})
     anchored = str(claim_files["first"]).replace("\\", "/")
 
-    monkeypatch.setattr(gate, "_changed_sources", lambda base: [anchored, "agent/other.py"])
+    monkeypatch.setattr(run_lane, "_changed_sources", lambda base: [anchored, "agent/other.py"])
     gate.run("BASE", claims, _exemptions_file(tmp_path), wall_budget_seconds=900, list_only=True)
     out = capsys.readouterr().out
 
@@ -322,7 +324,7 @@ def test_the_census_reads_the_diff_and_leaves_tests_and_deletions_out(monkeypatc
         recorded.append(argv)
         return _Completed()
 
-    monkeypatch.setattr(gate.subprocess, "run", _run)
+    monkeypatch.setattr(selection.subprocess, "run", _run)
 
     assert REAL_CHANGED_SOURCES("BASE") == [
         "agent_runtime/office_store.py",
@@ -384,7 +386,7 @@ def test_a_moved_file_warns_about_the_derivation_and_never_fails_the_run(
     history in the case below.
     """
 
-    monkeypatch.setattr(gate, "_commits_since_derivation", lambda claim: 4)
+    monkeypatch.setattr(run_lane, "_commits_since_derivation", lambda claim: 4)
     claim = _claim("dated", claim_files["first"], "beta = 2", "beta = 99")
     claim[gate.DERIVED_AT_KEY] = "0123456789abcdef0123456789abcdef01234567"
     claims = _claims_file(tmp_path, [claim])
@@ -415,7 +417,7 @@ def test_a_claim_with_no_derivation_recorded_says_nothing(
     not a quiet stub.
     """
 
-    monkeypatch.setattr(gate, "_commits_since_derivation", gate._commits_since_derivation)
+    monkeypatch.setattr(run_lane, "_commits_since_derivation", gate._commits_since_derivation)
     claims = _claims_file(
         tmp_path, [_claim("undated", claim_files["first"], "beta = 2", "beta = 99")]
     )
@@ -516,7 +518,7 @@ def test_a_spent_budget_refuses_before_the_lock_and_names_both_cures(
     # gate names, and it needs no `undo()` call at all.
     with pytest.MonkeyPatch.context() as patched:
         patched.setattr(
-            gate, "_run_command", lambda command: ran.append(list(command)) or 0
+            run_lane, "_run_command", lambda command: ran.append(list(command)) or 0
         )
         claims = _claims_file(
             tmp_path, [_claim("a", claim_files["first"], "alpha = 1", "alpha = 99")]
@@ -534,7 +536,7 @@ def test_a_spent_budget_refuses_before_the_lock_and_names_both_cures(
 
     assert code == 2
     assert ran == [], "a refused run still executed a command"
-    assert not gate.LOCK_PATH.exists(), "a refused run left the gate lock behind"
+    assert not run_lane.LOCK_PATH.exists(), "a refused run left the gate lock behind"
     assert "wall budget exhausted" in err
     assert "--wall-budget-seconds 0" in err
     assert "after 0 of 1 claim(s)" in err

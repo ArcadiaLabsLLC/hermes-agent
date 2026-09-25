@@ -558,7 +558,7 @@
     },
     {
       "id": "s4b-the-inventory-drops-the-claims-it-did-not-select",
-      "path": "scripts/changed_line_mutation_check.py",
+      "path": "scripts/mutation_check/run.py",
       "symbol": "run",
       "operator": "empty-the-unselected-report",
       "find": "        for claim in unselected:",
@@ -1077,7 +1077,7 @@
     },
     {
       "id": "hh14-the-anchor-escapes-the-symbol-it-names",
-      "path": "scripts/changed_line_mutation_check.py",
+      "path": "scripts/mutation_check/anchor.py",
       "symbol": "_symbol_span",
       "operator": "widen-span-to-whole-file",
       "find": "    return offsets[node.lineno - 1], offsets[min(end_lineno, len(offsets) - 1)]",
@@ -1093,7 +1093,7 @@
     },
     {
       "id": "hh14-a-stale-symbol-goes-back-to-passing-in-silence",
-      "path": "scripts/changed_line_mutation_check.py",
+      "path": "scripts/mutation_check/anchor.py",
       "symbol": "_symbol_span",
       "operator": "degrade-missing-symbol-to-whole-file",
       "find": "    if not nodes:\n        raise RuntimeError(f\"symbol not found in {path}: {head}\")",
@@ -1108,7 +1108,7 @@
     },
     {
       "id": "hh14-a-re-indented-block-goes-unanchored",
-      "path": "scripts/changed_line_mutation_check.py",
+      "path": "scripts/mutation_check/anchor.py",
       "symbol": "_candidate_offsets",
       "operator": "drop-the-reindent-lane",
       "find": "    if found:\n        return found",
@@ -1124,7 +1124,7 @@
     },
     {
       "id": "hh14-the-mutant-is-spliced-at-the-first-occurrence-again",
-      "path": "scripts/changed_line_mutation_check.py",
+      "path": "scripts/mutation_check/run.py",
       "symbol": "run",
       "operator": "splice-by-first-occurrence",
       "find": "        mutated = text[: anchor.offset] + anchor.replace + text[anchor.offset + len(anchor.find) :]",
@@ -4261,7 +4261,7 @@
     },
     {
       "id": "w7-the-definition-walk-stops-descending-into-blocks",
-      "path": "scripts/changed_line_mutation_check.py",
+      "path": "scripts/mutation_check/anchor.py",
       "symbol": "_qualified_definitions",
       "operator": "skip-block-bodies",
       "find": "            elif isinstance(child, BLOCK_STATEMENTS):",

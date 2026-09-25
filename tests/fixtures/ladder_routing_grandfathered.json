@@ -247,7 +247,7 @@
   },
   {
    "arms": 4,
-   "site": "scripts/changed_line_mutation_check.py|_qualified_definitions.walk|isinstance|child"
+   "site": "scripts/mutation_check/anchor.py|_qualified_definitions.walk|isinstance|child"
   },
   {
    "arms": 4,

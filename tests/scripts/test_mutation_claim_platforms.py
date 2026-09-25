@@ -30,6 +30,8 @@ from pathlib import Path
 import pytest
 
 from scripts import changed_line_mutation_check as gate
+from scripts.mutation_check import run as run_lane
+from scripts.mutation_check import selection
 
 
 TARGET = "value = 5\n"
@@ -64,7 +66,7 @@ def _files(tmp_path: Path, claims: list[dict]) -> tuple[Path, Path]:
 @pytest.fixture
 def host(monkeypatch):
     def _install(name: str) -> None:
-        monkeypatch.setattr(gate, "_current_platform", lambda: name)
+        monkeypatch.setattr(run_lane, "_current_platform", lambda: name)
 
     return _install
 
@@ -72,7 +74,7 @@ def host(monkeypatch):
 @pytest.fixture
 def touched(monkeypatch):
     def _install(lines: set[int]) -> None:
-        monkeypatch.setattr(gate, "_changed_lines", lambda base, path: set(lines))
+        monkeypatch.setattr(selection, "_changed_lines", lambda base, path: set(lines))
 
     return _install
 
