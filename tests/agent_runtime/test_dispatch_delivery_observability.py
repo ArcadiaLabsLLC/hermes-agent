@@ -163,7 +163,7 @@ def test_an_unreadable_journal_is_named_rather_than_read_as_busy(store_home, mon
     """Fail-closed is right; fail-closed and SILENT is what this retires."""
 
     monkeypatch.setattr(
-        "agent_runtime.mission_chat_turns.mission_chat_turn_records",
+        "agent_runtime.mission_chat_turns.reads.mission_chat_turn_records",
         lambda *, session_id: (_ for _ in ()).throw(RuntimeError("journal gone")),
     )
 
@@ -616,6 +616,7 @@ def test_a_bound_spawn_becomes_a_delivered_turn_in_the_senders_own_thread(
     monkeypatch, capsys, tmp_path, registry_left_as_found
 ):
     from types import SimpleNamespace
+
 
     from agent_runtime.mission_chat_turns import (
         TERMINAL_TURN_STATES,

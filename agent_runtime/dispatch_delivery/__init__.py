@@ -63,17 +63,21 @@ map is ``lanes`` because the highest layer it re-exports is ``lanes``.
       vocabulary.py     models   DELIVERY_REQUESTED_BY and the requested_by marker (build /
                                  parse, delivery_client_message_id), REPLY_LIMIT, the drain
                                  bounds, the DELIVERED_* reasons, DRAIN_STATE_FILENAME,
-                                 STEER_ACK_SECONDS, the terminal / transient refusal classes
-      accounting.py     stores   [A] IdleProbe, _DrainTelemetry + the process singleton,
+                                 STEER_ACK_SECONDS, the terminal / transient refusal classes,
+                                 BOUNCE_GATES + IDLE_SUB_REASONS (the closed outcome vocabulary)
+      accounting.py     stores   [A] IdleProbe, _DrainTelemetry (record_bounce refuses a gate
+                                 outside BOUNCE_GATES) + the process singleton,
                                  _event_key, _delivery_outcome, _record_sender_busy, and the
                                  cross-process mirror file (read_delivery_drain_state)
       forge.py          lanes    format_dispatch_delivery, idle gating
                                  (_probe_sender_idle, _sender_is_idle, _sender_persona),
-                                 forge_delivery_turn
+                                 forge_delivery_turn (through agent_runtime.mission_chat_door)
       completions.py    lanes    the background-completion lane: ownership (_chat_root_of_
                                  completion, _orphaned_persona_root), the durable claim/settle,
-                                 the steer, drain_background_completions
-      drain.py          lanes    drain_once, sweep_orphaned_dispatches, start_delivery_drain and
+                                 the steer, drain_background_completions = BackgroundDrain
+                                 (own -> probe -> claim -> forge_turn -> settle per event)
+      drain.py          lanes    drain_once = DispatchDrain (the same five phases per row),
+                                 sweep_orphaned_dispatches, start_delivery_drain and
                                  its thread; delivery_drain_status / delivery_drain_is_live
 
     entry point                                     opens
@@ -109,6 +113,7 @@ from .accounting import (
     read_delivery_drain_state,
 )
 from .completions import (
+    BackgroundDrain,
     __layer__,
     _background_attempts,
     _chat_root_of_completion,
@@ -120,6 +125,7 @@ from .completions import (
     drain_background_completions,
 )
 from .drain import (
+    DispatchDrain,
     __layer__,
     delivery_drain_is_live,
     delivery_drain_status,
@@ -129,14 +135,15 @@ from .drain import (
 )
 from .forge import (
     __layer__,
-    _elapsed,
     _probe_sender_idle,
     _sender_is_idle,
     _sender_persona,
     forge_delivery_turn,
     format_dispatch_delivery,
+    format_elapsed,
 )
 from .vocabulary import (
+    BOUNCE_GATES,
     DEFAULT_DRAIN_INTERVAL_SECONDS,
     DELIVERED_REASON,
     DELIVERED_SILENT_REASON,
@@ -147,6 +154,26 @@ from .vocabulary import (
     DRAIN_OWNERLESS_WARN_AFTER,
     DRAIN_REPEAT_LOG_EVERY,
     DRAIN_STATE_FILENAME,
+    GATE_ABANDONED,
+    GATE_EMPTY_TEXT,
+    GATE_FORGE_BUSY,
+    GATE_FORGE_FAILED,
+    GATE_FORGE_REJECTED,
+    GATE_NOT_OWNED,
+    GATE_NO_ROOT,
+    GATE_OWNER_UNRESOLVED,
+    GATE_PERSONA_INSTANCE_MISSING,
+    GATE_SENDER_BUSY,
+    GATE_STEERED,
+    GATE_UNCLAIMED,
+    IDLE_JOURNAL_INFLIGHT,
+    IDLE_JOURNAL_UNREADABLE,
+    IDLE_LEASE_BUSY_OWNED,
+    IDLE_LEASE_BUSY_OWNERLESS,
+    IDLE_LEASE_PROBE_ERROR,
+    IDLE_SUB_REASONS,
+    IDLE_UNKNOWN,
+    IDLE_UNPROBED,
     MAX_BACKGROUND_DELIVERY_ATTEMPTS,
     MAX_DELIVERIES_PER_PASS,
     MAX_DRAIN_OUTCOME_ROWS,
@@ -154,16 +181,25 @@ from .vocabulary import (
     REPLY_LIMIT,
     STEER_ACK_SECONDS,
     __layer__,
-    _terminal_forge_rejections,
-    _transient_forge_refusals,
+    bounce_reason,
     delivery_client_message_id,
     delivery_requested_by,
     parse_delivery_requested_by,
+    refused_bounce_reason,
+    terminal_forge_rejections,
+    transient_forge_refusals,
 )
 
 __layer__ = "lanes"
 
 __all__ = [
+    "BOUNCE_GATES",
+    "IDLE_SUB_REASONS",
+    "BackgroundDrain",
+    "DispatchDrain",
+    "format_elapsed",
+    "terminal_forge_rejections",
+    "transient_forge_refusals",
     "DELIVERED_REASON",
     "DELIVERED_SILENT_REASON",
     "DELIVERY_REASONS",

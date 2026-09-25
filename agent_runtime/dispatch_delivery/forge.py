@@ -6,13 +6,24 @@ import time
 from types import SimpleNamespace
 from typing import Any
 
+from ..mission_chat_door import run_mission_chat_turn
 from .accounting import IdleProbe, _LAST_IDLE_PROBE
-from .vocabulary import REPLY_LIMIT, delivery_requested_by
+from .vocabulary import (
+    IDLE_JOURNAL_INFLIGHT,
+    IDLE_JOURNAL_UNREADABLE,
+    IDLE_LEASE_BUSY_OWNED,
+    IDLE_LEASE_BUSY_OWNERLESS,
+    IDLE_LEASE_PROBE_ERROR,
+    REPLY_LIMIT,
+    delivery_requested_by,
+)
 
 __layer__ = "lanes"
 
 
-def _elapsed(seconds: float) -> str:
+def format_elapsed(seconds: float) -> str:
+    """Seconds as the delivered block's prose ("3m12s"); not :func:`clock.elapsed_ms`'s arithmetic."""
+
     seconds = int(max(0.0, seconds))
     if seconds < 60:
         return f"{seconds}s"
@@ -97,7 +108,7 @@ def format_dispatch_delivery(row: dict[str, Any]) -> str:
         lines.append(
             "Dispatched: "
             + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(dispatched_at))
-            + f" ({_elapsed(completed_at - dispatched_at)} ago)"
+            + f" ({format_elapsed(completed_at - dispatched_at)} ago)"
         )
     if ask:
         lines.append("")
@@ -183,7 +194,8 @@ def _probe_sender_idle(root_session_id: str) -> IdleProbe:
     * ``lease_probe_error`` — anything else the probe raised.
     """
 
-    from ..mission_chat_turns import INFLIGHT_TURN_STATES, mission_chat_turn_records
+    from ..mission_chat_turns.reads import mission_chat_turn_records
+    from ..mission_chat_turns.states import INFLIGHT_TURN_STATES
     from ..persona_chat_continuity import PersonaChatBusyError, persona_chat_root_lease
 
     try:
@@ -191,13 +203,13 @@ def _probe_sender_idle(root_session_id: str) -> IdleProbe:
     except Exception as exc:
         # Cannot read the journal ⇒ cannot prove idle. Fail closed: a delayed
         # delivery costs nothing, a spliced one corrupts a conversation.
-        return IdleProbe(False, "journal_unreadable", repr(exc))
+        return IdleProbe(False, IDLE_JOURNAL_UNREADABLE, repr(exc))
     for record in records or []:
         state = str((record or {}).get("state") or "")
         if state in INFLIGHT_TURN_STATES:
             return IdleProbe(
                 False,
-                "journal_inflight",
+                IDLE_JOURNAL_INFLIGHT,
                 f"client_message_id={(record or {}).get('client_message_id')!r} state={state}",
             )
 
@@ -214,12 +226,12 @@ def _probe_sender_idle(root_session_id: str) -> IdleProbe:
         # empty payload means the lock is held with no readable owner.
         owner = dict(getattr(exc, "owner", None) or {})
         if owner:
-            return IdleProbe(False, "lease_busy_owned", f"owner={owner}")
+            return IdleProbe(False, IDLE_LEASE_BUSY_OWNED, f"owner={owner}")
         return IdleProbe(
-            False, "lease_busy_ownerless", "lease held with no readable owner file"
+            False, IDLE_LEASE_BUSY_OWNERLESS, "lease held with no readable owner file"
         )
     except Exception as exc:
-        return IdleProbe(False, "lease_probe_error", repr(exc))
+        return IdleProbe(False, IDLE_LEASE_PROBE_ERROR, repr(exc))
     return IdleProbe.idle()
 
 
@@ -279,13 +291,16 @@ def forge_delivery_turn(
 ) -> tuple[bool, dict[str, Any] | None]:
     """Run one delivery as a real mission-chat turn. Returns ``(ok, payload)``.
 
-    Goes through the canonical handler, with the payload taken off the
-    ``payload_sink`` seam so nothing is printed into the serve frame protocol.
+    Goes through the mission-chat turn door (:mod:`agent_runtime.mission_chat_door`),
+    which the CLI binds to the canonical handler at plugin registration and at
+    serve boot; the door takes the payload off the handler's ``payload_sink``
+    seam, so nothing is printed into the serve frame protocol. An unbound door
+    raises ``MissionChatDoorUnbound`` — a forge exception, which the drain
+    records as ``forge_failed:exception`` and retries within its budget.
     """
 
     from ..config import mission_chat_default_max_seconds
 
-    payloads: list[dict] = []
     args = SimpleNamespace(
         persona_id=persona_id,
         persona_instance_id=persona_instance_id,
@@ -320,11 +335,7 @@ def forge_delivery_turn(
         # hops of a conversation that is already over.
         relay_chain=[],
         relay_deadline_epoch=None,
-        payload_sink=payloads.append,
     )
-    from hermes_cli.harness_parts.persona import chat_turn_message as _chat_turn_message
-
-    exit_code = _chat_turn_message._cmd_mission_chat_message(args)
-    payload = payloads[-1] if payloads else None
+    exit_code, payload = run_mission_chat_turn(args)
     ok = exit_code == 0 and bool((payload or {}).get("ok"))
     return ok, payload

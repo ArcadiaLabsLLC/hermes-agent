@@ -14,9 +14,20 @@ from .accounting import (
 )
 from .forge import _sender_is_idle, _sender_persona, forge_delivery_turn
 from .vocabulary import (
+    GATE_ABANDONED,
+    GATE_EMPTY_TEXT,
+    GATE_FORGE_BUSY,
+    GATE_FORGE_FAILED,
+    GATE_NO_ROOT,
+    GATE_NOT_OWNED,
+    GATE_OWNER_UNRESOLVED,
+    GATE_PERSONA_INSTANCE_MISSING,
+    GATE_STEERED,
+    GATE_UNCLAIMED,
     MAX_BACKGROUND_DELIVERY_ATTEMPTS,
     STEER_ACK_SECONDS,
-    _transient_forge_refusals,
+    bounce_reason,
+    transient_forge_refusals,
 )
 
 __layer__ = "lanes"
@@ -49,7 +60,7 @@ def _owns_event_with_accounting(evt: dict[str, Any]) -> bool:
         try:  # A — accounting must never be able to change the answer below
             _telemetry.record_bounce(
                 _event_key(evt),
-                "not_owned",
+                GATE_NOT_OWNED,
                 f"session_key={str(evt.get('session_key') or '')!r}",
             )
         except Exception:  # pragma: no cover - defensive
@@ -282,43 +293,82 @@ def drain_background_completions(*, forge: Callable | None = None) -> dict[str, 
     loudly rather than spin quietly.
     """
 
-    tally = {
-        "considered": 0,
-        "delivered": 0,
-        "requeued": 0,
-        "failed": 0,
-        "abandoned": 0,
-        "unclaimed": 0,
-        "dropped": 0,
-        "steered": 0,
-    }
-    forge = forge or forge_delivery_turn
     try:
         from tools.process_registry import process_registry
     except Exception:
-        return tally
+        return BackgroundDrain.empty_tally()
+    return BackgroundDrain(process_registry, forge or forge_delivery_turn).run()
 
-    _telemetry.note_pass_start()  # A — a pass with no finish is a HUNG pass
-    try:
-        pairs = process_registry.drain_notifications(
-            # D — the boolean is byte-identical to the `lambda evt:
-            # _chat_root_of_completion(evt) is not None` this replaces. The
-            # named function exists so `not_owned` is visible: upstream
-            # re-queues a rejected event INSIDE drain_notifications, where the
-            # caller can never see it, and this closure is ours.
-            owns_event=_owns_event_with_accounting,
-            skip_poll_observed=False,
-        )
-    except Exception:
-        logger.debug("background completion drain failed", exc_info=True)
-        _telemetry.note_pass_finished(tally)  # A
-        return tally
 
-    for evt, text in pairs:
+class BackgroundDrain:
+    """One pass of the background-completion lane, one event at a time.
+
+    ``deliver_one`` is the per-event sequence the pass used to spell as a
+    163-line ``for`` body: :meth:`own` -> :meth:`probe` -> :meth:`claim` ->
+    :meth:`forge_turn` -> :meth:`settle`. Each phase either hands the event on
+    or ends it — recorded in the tally and, as ACCOUNTING [A], in the telemetry
+    — so a reader follows one completion from queue to outcome in order.
+    """
+
+    def __init__(self, registry: Any, forge: Callable) -> None:
+        self.registry = registry
+        self.forge = forge
+        self.tally = self.empty_tally()
+
+    @staticmethod
+    def empty_tally() -> dict[str, int]:
+        return {
+            "considered": 0,
+            "delivered": 0,
+            "requeued": 0,
+            "failed": 0,
+            "abandoned": 0,
+            "unclaimed": 0,
+            "dropped": 0,
+            "steered": 0,
+        }
+
+    def run(self) -> dict[str, int]:
+        _telemetry.note_pass_start()  # A — a pass with no finish is a HUNG pass
+        try:
+            pairs = self.registry.drain_notifications(
+                # D — the boolean is byte-identical to the `lambda evt:
+                # _chat_root_of_completion(evt) is not None` this replaces. The
+                # named function exists so `not_owned` is visible: upstream
+                # re-queues a rejected event INSIDE drain_notifications, where the
+                # caller can never see it, and this closure is ours.
+                owns_event=_owns_event_with_accounting,
+                skip_poll_observed=False,
+            )
+        except Exception:
+            logger.debug("background completion drain failed", exc_info=True)
+            _telemetry.note_pass_finished(self.tally)  # A
+            return self.tally
+        for evt, text in pairs:
+            self.deliver_one(evt, text)
+        _telemetry.note_pass_finished(self.tally)  # A
+        return self.tally
+
+    def deliver_one(self, evt: dict[str, Any], text: str) -> None:
         # A — a probe stashed for a PREVIOUS event must never be attributed to
         # this one. Cleared per event, never carried across.
         _LAST_IDLE_PROBE.set(None)
-        tally["considered"] += 1
+        self.tally["considered"] += 1
+        target = self.own(evt, text)
+        if target is None:
+            return
+        root, owner, key = target
+        if not self.probe(evt, root, owner, text, key):
+            return
+        claim = self.claim(evt, root, key)
+        if claim is None:
+            return
+        ok, payload, forge_error = self.forge_turn(root, owner, text, key)
+        self.settle(evt, claim, root, key, ok, payload, forge_error)
+
+    def own(self, evt: dict[str, Any], text: str) -> tuple[str, tuple[str, str], str] | None:
+        """Ownership re-proven at delivery time: ``(root, owner, key)``, or the event ends here."""
+
         root = _chat_root_of_completion(evt)
         owner = _sender_persona(root) if root else None
         # The queue has no durable per-event id, so the dedup key is derived
@@ -336,60 +386,65 @@ def drain_background_completions(*, forge: Callable | None = None) -> dict[str, 
                 key,
                 orphan,
             )
-            tally["dropped"] += 1
-            _telemetry.record_bounce(key, "persona_instance_missing", f"root={orphan}", root=orphan)
-            continue
+            self.tally["dropped"] += 1
+            _telemetry.record_bounce(key, GATE_PERSONA_INSTANCE_MISSING, f"root={orphan}", root=orphan)
+            return None
         if root is None or owner is None or not text:
             # Ownership was proven at drain time; if it cannot be re-proven now
             # the event goes BACK on the queue rather than being dropped.
-            process_registry.completion_queue.put(evt)
-            tally["requeued"] += 1
+            self.registry.completion_queue.put(evt)
+            self.tally["requeued"] += 1
             # A — name WHICH operand failed, tested in the order the `or`
             # expression above already evaluates them.
             if root is None:
-                reason = "no_root"
+                reason = GATE_NO_ROOT
                 detail = f"session_key={str(evt.get('session_key') or '')!r}"
             elif owner is None:
-                reason = "owner_unresolved"
-                detail = f"root={root}"
+                reason, detail = GATE_OWNER_UNRESOLVED, f"root={root}"
             else:
-                reason = "empty_text"
-                detail = f"root={root}"
+                reason, detail = GATE_EMPTY_TEXT, f"root={root}"
             _telemetry.record_bounce(key, reason, detail, root=root or "")
-            continue
-        if not _sender_is_idle(root):
-            if _steer_into_busy_turn(evt, root, owner, text, key):
-                tally["steered"] += 1
-                _telemetry.record_bounce(key, "steered", f"root={root}", root=root)  # A
-                continue
-            process_registry.completion_queue.put(evt)
-            tally["requeued"] += 1
-            _record_sender_busy(key, root)  # A
-            continue
-        _telemetry.note_ownerless_streak(root, ownerless=False)  # A — episode over
-        persona_id, instance_id = owner
-        # Taken AFTER the idle probe: a claim burnt on a busy sender would spend
-        # a durable attempt on a race with a live operator, which is the exact
-        # over-counting the dispatch lane's `refund_attempt` had to undo.
+            return None
+        return root, owner, key
+
+    def probe(self, evt: dict[str, Any], root: str, owner: tuple[str, str], text: str, key: str) -> bool:
+        """Idle: go on. Busy: steer into the live turn, or re-queue for its idle one."""
+
+        if _sender_is_idle(root):
+            _telemetry.note_ownerless_streak(root, ownerless=False)  # A — episode over
+            return True
+        if _steer_into_busy_turn(evt, root, owner, text, key):
+            self.tally["steered"] += 1
+            _telemetry.record_bounce(key, GATE_STEERED, f"root={root}", root=root)  # A
+            return False
+        self.registry.completion_queue.put(evt)
+        self.tally["requeued"] += 1
+        _record_sender_busy(key, root)  # A
+        return False
+
+    def claim(self, evt: dict[str, Any], root: str, key: str) -> str | None:
+        """The durable claim (``""`` when ledgerless), or ``None`` when the event ends here.
+
+        Taken AFTER the idle probe: a claim burnt on a busy sender would spend a
+        durable attempt on a race with a live operator, which is the exact
+        over-counting the dispatch lane's `refund_attempt` had to undo.
+        """
+
         claim = _claim_durable_completion(evt)
         if claim is None:
             # The row is not ours to deliver: another consumer holds the claim,
             # or it already settled. Not re-queued — spinning on a completion
             # somebody else owns is how a queue silently starves the events
             # behind it.
-            tally["unclaimed"] += 1
+            self.tally["unclaimed"] += 1
             _telemetry.record_bounce(  # A
                 key,
-                "unclaimed",
+                GATE_UNCLAIMED,
                 "durable row held by another consumer, or already settled",
                 root=root,
             )
-            continue
-        durable = bool(claim)
-        if (
-            not durable
-            and _background_attempts.get(key, 0) >= MAX_BACKGROUND_DELIVERY_ATTEMPTS
-        ):
+            return None
+        if not claim and _background_attempts.get(key, 0) >= MAX_BACKGROUND_DELIVERY_ATTEMPTS:
             # Terminal, and LOUD. A silently-abandoned completion is the failure
             # class this whole lane exists to retire, so it leaves a named log
             # line rather than disappearing off the queue.
@@ -405,17 +460,22 @@ def drain_background_completions(*, forge: Callable | None = None) -> dict[str, 
                 root,
             )
             _background_attempts.pop(key, None)
-            tally["abandoned"] += 1
+            self.tally["abandoned"] += 1
             _telemetry.record_bounce(  # A
                 key,
-                "abandoned",
+                GATE_ABANDONED,
                 f"{MAX_BACKGROUND_DELIVERY_ATTEMPTS} failed deliveries, dropped for good",
                 root=root,
             )
-            continue
-        forge_error = ""  # A
+            return None
+        return claim
+
+    def forge_turn(
+        self, root: str, owner: tuple[str, str], text: str, key: str
+    ) -> tuple[bool, dict[str, Any] | None, str]:
+        persona_id, instance_id = owner
         try:
-            ok, payload = forge(
+            ok, payload = self.forge(
                 root_session_id=root,
                 persona_id=persona_id,
                 persona_instance_id=instance_id,
@@ -424,58 +484,48 @@ def drain_background_completions(*, forge: Callable | None = None) -> dict[str, 
             )
         except Exception as exc:
             logger.warning("background completion delivery failed", exc_info=True)
-            ok, payload = False, None
-            forge_error = repr(exc)  # A
+            return False, None, repr(exc)  # A — the repr is the forge_error
+        return ok, payload, ""
+
+    def settle(
+        self,
+        evt: dict[str, Any],
+        claim: str,
+        root: str,
+        key: str,
+        ok: bool,
+        payload: dict[str, Any] | None,
+        forge_error: str,
+    ) -> None:
         if ok:
             # Acknowledge on the row that owns the question. Without this the
             # next boot's restore sweep re-queues a completion this process
             # already delivered.
             _settle_durable_completion(evt, claim, delivered=True)
             _background_attempts.pop(key, None)
-            tally["delivered"] += 1
+            self.tally["delivered"] += 1
             reason, visibility_detail = _delivery_outcome(payload)  # A
-            _telemetry.record_bounce(  # A
-                key,
-                reason,
-                "; ".join(
-                    part
-                    for part in (
-                        f"producer_started_at={evt.get('started_at')!r}",
-                        visibility_detail,
-                    )
-                    if part
-                ),
-                root=root,
+            detail = "; ".join(
+                part for part in (f"producer_started_at={evt.get('started_at')!r}", visibility_detail) if part
             )
-            continue
+            _telemetry.record_bounce(key, reason, detail, root=root)  # A
+            return
         _settle_durable_completion(evt, claim, delivered=False)
-        process_registry.completion_queue.put(evt)
+        self.registry.completion_queue.put(evt)
         # Same rule the dispatch lane follows: losing a race with a live
         # operator is not a failure, so a `chat_busy` refusal does not count
         # against the cap.
         error_kind = str((payload or {}).get("error_kind") or "")
-        if error_kind in _transient_forge_refusals():
-            tally["requeued"] += 1
-            _telemetry.record_bounce(key, "forge_busy", "", root=root)  # A
-        elif durable:
-            # The durable row counted this attempt at claim time; counting it
-            # here as well is the second ledger, so the tally records the
-            # failure and nothing else does.
-            tally["failed"] += 1
-            _telemetry.record_bounce(  # A
-                key,
-                f"forge_failed:{error_kind or ('exception' if forge_error else 'unknown')}",
-                forge_error,
-                root=root,
-            )
-        else:
+        if error_kind in transient_forge_refusals():
+            self.tally["requeued"] += 1
+            _telemetry.record_bounce(key, GATE_FORGE_BUSY, "", root=root)  # A
+            return
+        if not claim:
+            # Ledgerless: the process-local counter is the only budget. A
+            # durable row counted this attempt at claim time; counting it here
+            # as well would be the second ledger, so it records the failure and
+            # nothing else does.
             _background_attempts[key] = _background_attempts.get(key, 0) + 1
-            tally["failed"] += 1
-            _telemetry.record_bounce(  # A
-                key,
-                f"forge_failed:{error_kind or ('exception' if forge_error else 'unknown')}",
-                forge_error,
-                root=root,
-            )
-    _telemetry.note_pass_finished(tally)  # A
-    return tally
+        self.tally["failed"] += 1
+        failed = bounce_reason(GATE_FORGE_FAILED, error_kind or ("exception" if forge_error else "unknown"))
+        _telemetry.record_bounce(key, failed, forge_error, root=root)  # A

@@ -187,7 +187,7 @@ def test_an_inflight_turn_record_alone_blocks_delivery(store_home, monkeypatch):
     """
 
     monkeypatch.setattr(
-        "agent_runtime.mission_chat_turns.mission_chat_turn_records",
+        "agent_runtime.mission_chat_turns.reads.mission_chat_turn_records",
         lambda *, session_id: [{"state": "executing"}],
     )
     assert dispatch_delivery._sender_is_idle(SENDER_ROOT) is False
@@ -571,6 +571,7 @@ def test_forge_delivery_turn_lands_a_real_turn_and_dedupes_a_retry(
     """
 
     from types import SimpleNamespace
+
 
     from tests.agent_runtime.test_persona_assignments import _assignment_config, _TranscriptDB
 

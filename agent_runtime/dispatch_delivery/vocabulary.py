@@ -20,7 +20,7 @@ DELIVERY_REQUESTED_BY = "harness-delivery"
 REPLY_LIMIT = 8000
 
 
-def _terminal_forge_rejections() -> frozenset[str]:
+def terminal_forge_rejections() -> frozenset[str]:
     """``error_kind`` values a RETRY can never turn into a delivery.
 
     The attempt cap exists to converge rows that are genuinely undeliverable
@@ -57,7 +57,7 @@ def _terminal_forge_rejections() -> frozenset[str]:
     return frozenset(str(kind) for kind in kinds)
 
 
-def _transient_forge_refusals() -> frozenset[str]:
+def transient_forge_refusals() -> frozenset[str]:
     """``error_kind`` values that name a LIVE RACE, so the attempt is refunded.
 
     ``chat_busy`` was the only member while the busy seam gave one answer.
@@ -147,6 +147,82 @@ DELIVERED_SILENT_REASON = "delivered_silent"
 #: this drain delivered, and hiding it from that field would restore exactly the
 #: blindness the split is here to end.
 DELIVERY_REASONS = frozenset({DELIVERED_REASON, DELIVERED_SILENT_REASON})
+
+#: The busy sub-reasons :func:`~agent_runtime.dispatch_delivery.forge.
+#: _probe_sender_idle` answers with — ``IdleProbe``'s own vocabulary, one entry
+#: per distinct cause (the probe's docstring says what each one means). A probe
+#: carrying anything else is refused at construction.
+IDLE_JOURNAL_INFLIGHT = "journal_inflight"
+IDLE_JOURNAL_UNREADABLE = "journal_unreadable"
+IDLE_LEASE_BUSY_OWNED = "lease_busy_owned"
+IDLE_LEASE_BUSY_OWNERLESS = "lease_busy_ownerless"
+IDLE_LEASE_PROBE_ERROR = "lease_probe_error"
+IDLE_SUB_REASONS: tuple[str, ...] = (
+    IDLE_JOURNAL_INFLIGHT,
+    IDLE_JOURNAL_UNREADABLE,
+    IDLE_LEASE_BUSY_OWNED,
+    IDLE_LEASE_BUSY_OWNERLESS,
+    IDLE_LEASE_PROBE_ERROR,
+)
+#: What the ACCOUNTING says when it has no probe to read (a test overrode the
+#: decision) or the probe carried no sub-reason. Never produced by the probe.
+IDLE_UNPROBED = "unprobed"
+IDLE_UNKNOWN = "unknown"
+
+#: The gates a drain outcome is recorded under — the one vocabulary with
+#: seventeen writers (every ``[D]`` site of both lanes) and one reader
+#: (``_DrainTelemetry.snapshot``). A composite reason is ``<gate>:<detail>``;
+#: the GATE is the part before the first colon, and only ``sender_busy``'s
+#: detail is closed (:data:`IDLE_SUB_REASONS` + the two accounting words) —
+#: ``forge_rejected`` / ``forge_failed`` carry a ``ChatErrorKind``, which
+#: ``mission_chat_outcome`` owns. ``record_bounce`` refuses anything else.
+#: Plain strings, not a StrEnum: ``dropped``-class words are spelled fork-wide
+#: for other questions, and the gate must not count those (program batch-1 rule).
+GATE_NOT_OWNED = "not_owned"
+GATE_NO_ROOT = "no_root"
+GATE_OWNER_UNRESOLVED = "owner_unresolved"
+GATE_EMPTY_TEXT = "empty_text"
+GATE_PERSONA_INSTANCE_MISSING = "persona_instance_missing"
+GATE_SENDER_BUSY = "sender_busy"
+GATE_STEERED = "steered"
+GATE_UNCLAIMED = "unclaimed"
+GATE_ABANDONED = "abandoned"
+GATE_FORGE_REJECTED = "forge_rejected"
+GATE_FORGE_BUSY = "forge_busy"
+GATE_FORGE_FAILED = "forge_failed"
+BOUNCE_GATES: tuple[str, ...] = (
+    DELIVERED_REASON,
+    DELIVERED_SILENT_REASON,
+    GATE_NOT_OWNED,
+    GATE_NO_ROOT,
+    GATE_OWNER_UNRESOLVED,
+    GATE_EMPTY_TEXT,
+    GATE_PERSONA_INSTANCE_MISSING,
+    GATE_SENDER_BUSY,
+    GATE_STEERED,
+    GATE_UNCLAIMED,
+    GATE_ABANDONED,
+    GATE_FORGE_REJECTED,
+    GATE_FORGE_BUSY,
+    GATE_FORGE_FAILED,
+)
+
+
+def bounce_reason(gate: str, detail: str) -> str:
+    """The composite ``<gate>:<detail>`` spelling, written in one place."""
+
+    return f"{gate}:{detail}"
+
+
+def refused_bounce_reason(reason: str) -> str | None:
+    """Why *reason* is outside the closed vocabulary, or ``None`` when it is inside."""
+
+    gate, _, detail = str(reason or "").partition(":")
+    if gate not in BOUNCE_GATES:
+        return f"unknown gate {gate!r}"
+    if gate == GATE_SENDER_BUSY and detail not in (*IDLE_SUB_REASONS, IDLE_UNPROBED, IDLE_UNKNOWN):
+        return f"unknown sender_busy sub-reason {detail!r}"
+    return None
 
 #: The durable cross-process mirror of the state below, written under the
 #: agent-runtime store root. REQUIRED, not a nicety: the launcher's visibility

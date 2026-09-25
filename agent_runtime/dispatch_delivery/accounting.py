@@ -17,6 +17,13 @@ from typing import Any
 from utils import atomic_json_write
 
 from .vocabulary import (
+    GATE_SENDER_BUSY,
+    IDLE_LEASE_BUSY_OWNERLESS,
+    IDLE_SUB_REASONS,
+    IDLE_UNKNOWN,
+    IDLE_UNPROBED,
+    bounce_reason,
+    refused_bounce_reason,
     DELIVERED_REASON,
     DELIVERED_SILENT_REASON,
     DELIVERY_REASONS,
@@ -59,6 +66,13 @@ class IdleProbe:
     is_idle: bool
     busy_sub: str = ""
     detail: str = ""
+
+    def __post_init__(self) -> None:
+        # The probe's vocabulary is closed (vocabulary.IDLE_SUB_REASONS): a cause
+        # spelled any other way is a defect in the probe, refused here rather
+        # than recorded as a reason no reader knows.
+        if self.busy_sub and self.busy_sub not in IDLE_SUB_REASONS:
+            raise ValueError(f"IdleProbe refused busy_sub {self.busy_sub!r} (vocabulary.IDLE_SUB_REASONS)")
 
     @staticmethod
     def idle() -> "IdleProbe":
@@ -174,6 +188,12 @@ class _DrainTelemetry:
         complete answer rather than one that only ever shows the bad half.
         """
 
+        refusal = refused_bounce_reason(str(reason or ""))
+        if refusal is not None:
+            # THE single writer of the gate vocabulary refuses a gate no reader
+            # knows (rule 14): every caller spells a vocabulary constant, so this
+            # fires only on a spelling defect — loudly, at the site that made it.
+            raise ValueError(f"record_bounce refused {reason!r}: {refusal} (vocabulary.BOUNCE_GATES)")
         key = (str(event_key or ""), str(reason or ""))
         now = time.time()
         text = str(detail or "")[:DRAIN_DETAIL_LIMIT]
@@ -343,14 +363,14 @@ def _record_sender_busy(event_key: str, root: str) -> None:
     if probe is None:
         _telemetry.record_bounce(
             event_key,
-            "sender_busy:unprobed",
+            bounce_reason(GATE_SENDER_BUSY, IDLE_UNPROBED),
             "the idle decision was overridden, so no probe ran",
             root=root,
         )
         return
-    sub = probe.busy_sub or "unknown"
-    _telemetry.record_bounce(event_key, f"sender_busy:{sub}", probe.detail, root=root)
-    streak = _telemetry.note_ownerless_streak(root, ownerless=sub == "lease_busy_ownerless")
+    sub = probe.busy_sub or IDLE_UNKNOWN
+    _telemetry.record_bounce(event_key, bounce_reason(GATE_SENDER_BUSY, sub), probe.detail, root=root)
+    streak = _telemetry.note_ownerless_streak(root, ownerless=sub == IDLE_LEASE_BUSY_OWNERLESS)
     if streak:
         logger.warning(
             "persona chat root lease for %s is LOCKED with no owner for %d consecutive"

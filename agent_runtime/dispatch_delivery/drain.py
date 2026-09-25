@@ -23,11 +23,16 @@ from .forge import _sender_is_idle, _sender_persona, forge_delivery_turn, format
 from .vocabulary import (
     DEFAULT_DRAIN_INTERVAL_SECONDS,
     DRAIN_MIRROR_HEARTBEAT_SECONDS,
+    GATE_FORGE_BUSY,
+    GATE_FORGE_FAILED,
+    GATE_FORGE_REJECTED,
+    GATE_UNCLAIMED,
     MAX_DELIVERIES_PER_PASS,
     ORPHAN_SWEEP_INTERVAL_SECONDS,
-    _terminal_forge_rejections,
-    _transient_forge_refusals,
+    bounce_reason,
     delivery_client_message_id,
+    terminal_forge_rejections,
+    transient_forge_refusals,
 )
 
 __layer__ = "lanes"
@@ -100,67 +105,96 @@ def drain_once(*, forge: Callable | None = None, limit: int | None = None) -> di
 
     from .. import dispatch_store
 
-    tally = {"considered": 0, "delivered": 0, "busy": 0, "dropped": 0, "failed": 0}
-    forge = forge or forge_delivery_turn
+    budget = int(limit or MAX_DELIVERIES_PER_PASS)
+    lane = DispatchDrain(dispatch_store, forge or forge_delivery_turn)
     try:
-        rows = dispatch_store.pending_deliveries(
-            limit=int(limit or MAX_DELIVERIES_PER_PASS) * 4
-        )
+        rows = dispatch_store.pending_deliveries(limit=budget * 4)
     except Exception:
         logger.debug("dispatch delivery drain could not read the store", exc_info=True)
-        return tally
-
-    budget = int(limit or MAX_DELIVERIES_PER_PASS)
+        return lane.tally
     for row in rows:
-        if tally["delivered"] >= budget:
+        if lane.tally["delivered"] >= budget:
             break
-        tally["considered"] += 1
+        lane.deliver_one(row)
+    return lane.tally
+
+
+class DispatchDrain:
+    """One pass of the dispatch-store lane, one row at a time.
+
+    The same shape as ``completions.BackgroundDrain`` so the two lanes read
+    alike: :meth:`own` -> :meth:`probe` -> :meth:`claim` -> :meth:`forge_turn`
+    -> :meth:`settle`, each either handing the row on or ending it.
+    """
+
+    def __init__(self, store: Any, forge: Callable) -> None:
+        self.store = store
+        self.forge = forge
+        self.tally = {"considered": 0, "delivered": 0, "busy": 0, "dropped": 0, "failed": 0}
+
+    def deliver_one(self, row: dict[str, Any]) -> None:
+        self.tally["considered"] += 1
         # A — a probe stashed for a PREVIOUS row must never be attributed to
         # this one. Cleared per event, never carried across.
         _LAST_IDLE_PROBE.set(None)
-        dispatch_id = str(row.get("dispatch_id") or "")
-        root = str(row.get("sender_session_id") or "")
-        if not dispatch_id:
-            continue
-        if not root:
-            # Nowhere to deliver, ever. Terminal rather than retried, so it
-            # stops occupying the queue — and recorded, so it is not silent.
-            dispatch_store.drop_delivery(dispatch_id, reason="no_sender_session")
-            tally["dropped"] += 1
-            continue
-
-        owner = _sender_persona(root)
-        if owner is None:
-            dispatch_store.drop_delivery(dispatch_id, reason="sender_session_unresolvable")
-            tally["dropped"] += 1
-            continue
-
+        target = self.own(row)
+        if target is None:
+            return
+        dispatch_id, root, owner = target
         # The dispatch lane's event identity, so a bounced dispatch and a
         # bounced queue completion read out of the same vocabulary.
         event_key = f"dispatch:{dispatch_id}"
-        if not _sender_is_idle(root):
-            tally["busy"] += 1
-            _record_sender_busy(event_key, root)  # A
-            continue
-        _telemetry.note_ownerless_streak(root, ownerless=False)  # A — episode over
+        if not self.probe(root, event_key) or not self.claim(dispatch_id, root, event_key):
+            return
+        ok, payload, forge_error = self.forge_turn(row, dispatch_id, root, owner)
+        self.settle(dispatch_id, root, event_key, ok, payload, forge_error)
 
+    def own(self, row: dict[str, Any]) -> tuple[str, str, tuple[str, str]] | None:
+        dispatch_id = str(row.get("dispatch_id") or "")
+        root = str(row.get("sender_session_id") or "")
+        if not dispatch_id:
+            return None
+        if not root:
+            # Nowhere to deliver, ever. Terminal rather than retried, so it
+            # stops occupying the queue — and recorded, so it is not silent.
+            self.store.drop_delivery(dispatch_id, reason="no_sender_session")
+            self.tally["dropped"] += 1
+            return None
+        owner = _sender_persona(root)
+        if owner is None:
+            self.store.drop_delivery(dispatch_id, reason="sender_session_unresolvable")
+            self.tally["dropped"] += 1
+            return None
+        return dispatch_id, root, owner
+
+    def probe(self, root: str, event_key: str) -> bool:
+        if not _sender_is_idle(root):
+            self.tally["busy"] += 1
+            _record_sender_busy(event_key, root)  # A
+            return False
+        _telemetry.note_ownerless_streak(root, ownerless=False)  # A — episode over
+        return True
+
+    def claim(self, dispatch_id: str, root: str, event_key: str) -> bool:
         claim_id = f"serve-{os.getpid()}-{uuid.uuid4().hex[:8]}"
         try:
-            if not dispatch_store.claim_delivery(dispatch_id, claim_id):
+            if not self.store.claim_delivery(dispatch_id, claim_id):
                 _telemetry.record_bounce(  # A
-                    event_key, "unclaimed", "store refused the claim", root=root
+                    event_key, GATE_UNCLAIMED, "store refused the claim", root=root
                 )
-                continue
+                return False
         except Exception as exc:
             logger.debug("dispatch %s claim failed", dispatch_id, exc_info=True)
-            _telemetry.record_bounce(event_key, "unclaimed", repr(exc), root=root)  # A
-            continue
+            _telemetry.record_bounce(event_key, GATE_UNCLAIMED, repr(exc), root=root)  # A
+            return False
+        return True
 
+    def forge_turn(
+        self, row: dict[str, Any], dispatch_id: str, root: str, owner: tuple[str, str]
+    ) -> tuple[bool, dict[str, Any] | None, str]:
         persona_id, instance_id = owner
-        payload: dict[str, Any] | None = None
-        forge_error = ""  # A
         try:
-            ok, payload = forge(
+            ok, payload = self.forge(
                 root_session_id=root,
                 persona_id=persona_id,
                 persona_instance_id=instance_id,
@@ -172,17 +206,27 @@ def drain_once(*, forge: Callable | None = None, limit: int | None = None) -> di
             )
         except Exception as exc:
             logger.warning("dispatch %s delivery turn failed", dispatch_id, exc_info=True)
-            ok = False
-            forge_error = repr(exc)  # A
+            return False, None, repr(exc)  # A — the repr is the forge_error
+        return ok, payload, ""
+
+    def settle(
+        self,
+        dispatch_id: str,
+        root: str,
+        event_key: str,
+        ok: bool,
+        payload: dict[str, Any] | None,
+        forge_error: str,
+    ) -> None:
         if ok:
-            dispatch_store.mark_delivered(dispatch_id)
-            tally["delivered"] += 1
+            self.store.mark_delivered(dispatch_id)
+            self.tally["delivered"] += 1
             # The tally counts what moved through the QUEUE, which a silent
             # delivery genuinely did; the reason below is what carries whether
             # anyone saw it.
             reason, visibility_detail = _delivery_outcome(payload)  # A
             _telemetry.record_bounce(event_key, reason, visibility_detail, root=root)  # A
-            continue
+            return
         # The sender took its lease between the idle probe and the forge. That
         # is a RACE WITH A LIVE OPERATOR, not a failure — the completion is
         # perfectly deliverable and will be, moments later. Refund the attempt
@@ -194,31 +238,26 @@ def drain_once(*, forge: Callable | None = None, limit: int | None = None) -> di
         # ``delivery_error`` where the Activity panel renders it, and the row
         # leaves the queue instead of replaying an identical refusal eight times.
         # ``harness mission-chat dispatch redeliver <id>`` re-arms it once the
-        # verdict's cause is fixed. See :func:`_terminal_forge_rejections`.
-        if error_kind in _terminal_forge_rejections():
-            dispatch_store.drop_delivery(
+        # verdict's cause is fixed. See :func:`vocabulary.terminal_forge_rejections`.
+        if error_kind in terminal_forge_rejections():
+            self.store.drop_delivery(
                 dispatch_id,
-                reason=f"{dispatch_store.DROP_REASON_FORGE_REJECTED}:{error_kind}",
+                reason=f"{self.store.DROP_REASON_FORGE_REJECTED}:{error_kind}",
             )
-            tally["dropped"] += 1
+            self.tally["dropped"] += 1
             _telemetry.record_bounce(  # A
-                event_key, f"forge_rejected:{error_kind}", forge_error, root=root
+                event_key, bounce_reason(GATE_FORGE_REJECTED, error_kind), forge_error, root=root
             )
-            continue
-        busy = error_kind in _transient_forge_refusals()
-        dispatch_store.release_delivery_claim(dispatch_id, refund_attempt=busy)
+            return
+        busy = error_kind in transient_forge_refusals()
+        self.store.release_delivery_claim(dispatch_id, refund_attempt=busy)
         if busy:
-            tally["busy"] += 1
-            _telemetry.record_bounce(event_key, "forge_busy", "", root=root)  # A
-        else:
-            tally["failed"] += 1
-            _telemetry.record_bounce(  # A
-                event_key,
-                f"forge_failed:{error_kind or ('exception' if forge_error else 'unknown')}",
-                forge_error,
-                root=root,
-            )
-    return tally
+            self.tally["busy"] += 1
+            _telemetry.record_bounce(event_key, GATE_FORGE_BUSY, "", root=root)  # A
+            return
+        self.tally["failed"] += 1
+        failed = bounce_reason(GATE_FORGE_FAILED, error_kind or ("exception" if forge_error else "unknown"))
+        _telemetry.record_bounce(event_key, failed, forge_error, root=root)  # A
 
 
 def sweep_orphaned_dispatches() -> int:

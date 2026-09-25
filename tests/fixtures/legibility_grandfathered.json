@@ -26,11 +26,6 @@
    "unit": "agent_runtime/discussions/service.py|DiscussionService.bindings"
   },
   {
-   "depth": 3,
-   "lines": 258,
-   "unit": "agent_runtime/dispatch_delivery/completions.py|drain_background_completions"
-  },
-  {
    "depth": 5,
    "lines": 42,
    "unit": "agent_runtime/events.py|_archived_event_slices"

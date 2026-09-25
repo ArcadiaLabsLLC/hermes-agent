@@ -343,7 +343,7 @@ def test_duplicate_in_flight_is_a_turn_lifecycle_kind_and_not_a_chat_root_one():
 
     It is a statement about a TURN ("this id is the one running"), not about
     root ownership ("someone else holds the lock"), and the family placement is
-    what the dispatch lane's ``_terminal_forge_rejections`` reads to decide
+    what the dispatch lane's ``terminal_forge_rejections`` reads to decide
     whether an attempt is burnable. Filing it under the chat-root family would
     silently make it terminal there.
     """
@@ -371,9 +371,9 @@ def test_the_dispatch_lane_refunds_a_duplicate_in_flight_attempt():
     from agent_runtime import dispatch_delivery
 
     kind = str(ChatErrorKind.CHAT_TURN_DUPLICATE_IN_FLIGHT)
-    assert kind in dispatch_delivery._transient_forge_refusals()
-    assert str(ChatErrorKind.CHAT_BUSY) in dispatch_delivery._transient_forge_refusals()
-    assert kind not in dispatch_delivery._terminal_forge_rejections(), (
+    assert kind in dispatch_delivery.transient_forge_refusals()
+    assert str(ChatErrorKind.CHAT_BUSY) in dispatch_delivery.transient_forge_refusals()
+    assert kind not in dispatch_delivery.terminal_forge_rejections(), (
         "a duplicate-in-flight refusal is transient by definition; dropping the "
         "row on the first one discards a completion that was about to land"
     )
