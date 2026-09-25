@@ -326,7 +326,7 @@ def _drain_over(connection: Any, deadline: Any) -> dict[str, Any]:
 def _handshake(connection: Any, report: dict[str, Any], token: str, client_build: Any) -> int | None:
     """The hello; the refusal's exit code, or ``None`` once ``hello_ok`` is in the report."""
 
-    from agent_runtime.serve_socket import ServeHelloProtocolError
+    from agent_runtime.serve_socket.hello import ServeHelloProtocolError
 
     try:
         hello = connection.hello(
@@ -367,12 +367,9 @@ def _cmd_serve_connect(args) -> int:
     from agent_runtime import paths
     from agent_runtime.build_stamp import build_stamp
     from agent_runtime.serve_auth import read_token
-    from agent_runtime.serve_socket import (
-        HELLO_CONTRACT_VERSION,
-        ServeHelloProtocolError,
-        ServeSocketClient,
-        resolve_socket_target,
-    )
+    from agent_runtime.serve_socket.hello import HELLO_CONTRACT_VERSION, ServeHelloProtocolError
+    from agent_runtime.serve_socket.client import ServeSocketClient
+    from agent_runtime.serve_socket.target import resolve_socket_target
 
     store_root = paths.store_root()
     # ``allow_stale`` is asked for so the REFUSAL can name what it refused —

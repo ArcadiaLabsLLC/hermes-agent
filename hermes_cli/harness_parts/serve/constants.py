@@ -183,7 +183,7 @@ unchanged on stdio — every frame, reply, and exit code is byte-identical,
 because the socket lane is injected and OFF unless ``_cmd_serve`` turns it on.
 
 - ownership: one serve per root owns the socket, decided by an OS-held
-  exclusive lock (``agent_runtime/serve_socket.py``). The loser runs
+  exclusive lock (``agent_runtime/serve_socket/owner_lock.py``). The loser runs
   stdio-only and says so on ``ready`` under ``"socket"``:
   ``{"outcome":"lock_held_by","pid":…,"owner_started_at":…}``. The winner's
   ``ready`` carries ``{"outcome":"listening","host":"127.0.0.1","port":…}`` —

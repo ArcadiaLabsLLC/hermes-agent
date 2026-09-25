@@ -145,7 +145,7 @@ class BootPhases:
         if not (self.socket_lane and self.store_root_path is not None):
             return None
         try:
-            from agent_runtime.serve_socket import SocketOwnerLock
+            from agent_runtime.serve_socket.owner_lock import SocketOwnerLock
 
             # ``log`` is what makes R-L2's takeover an OPERATOR-visible
             # event rather than a field on a frame nobody kept: the
@@ -180,7 +180,8 @@ class BootPhases:
         from agent_runtime.config import harness_root_config_path
         from agent_runtime.local_llama_adapter.rpc import bind as bind_local_llama
         from agent_runtime.serve_auth import read_token as _read_serve_token
-        from agent_runtime.serve_socket import SOCKET_HOST, ServeSocketServer
+        from agent_runtime.serve_socket.vocabulary import SOCKET_HOST
+        from agent_runtime.serve_socket.server import ServeSocketServer
 
         bind_local_llama(self.store_root_path, harness_root_config_path())
         self.local_llama_bound_root = self.store_root_path
@@ -270,7 +271,7 @@ class BootPhases:
         DETACHED (which is the normal case — RL-2) has no stdout to read at all.
         """
 
-        from agent_runtime.serve_socket import read_socket_owner
+        from agent_runtime.serve_socket.owner_lock import read_socket_owner
 
         try:
             owner_record = read_socket_owner(self.store_root_path)
@@ -297,7 +298,7 @@ class BootPhases:
         return 0
 
     def _boot_gateway_lane(self) -> None:
-        from agent_runtime.serve_socket import SOCKET_HOST
+        from agent_runtime.serve_socket.vocabulary import SOCKET_HOST
         # 3b. THE SECOND DOOR (remote-gateway Stage 1). Off unless an operator
         #     names an interface in `remote_gateway.listen`, and the block SAYS
         #     which of those it is either way — `disabled` is a different fact

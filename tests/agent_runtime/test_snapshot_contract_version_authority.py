@@ -160,10 +160,11 @@ LANE_CONTRACT_ALLOWLIST = {
         "reads it. Lives in hermes_cli/harness_parts/serve/constants.py, "
         "beside the op vocabulary the dispatcher reads."
     ),
-    ("serve_socket.py", "HELLO_CONTRACT_VERSION"): (
-        "the socket HELLO HANDSHAKE contract, stamped on every `server_hello` "
-        "(serve_socket.py:913, :1093) and folded into the HMAC proof preimage "
-        "at :527 (`f'v{HELLO_CONTRACT_VERSION}|{port}|{nonce}'`). It gates "
+    ("hello.py", "HELLO_CONTRACT_VERSION"): (
+        "the socket HELLO HANDSHAKE contract, declared in serve_socket/hello.py, "
+        "stamped on every `server_hello` by serve_socket/server.py and folded into "
+        "the HMAC proof preimage by hello_proof "
+        "(`f'v{HELLO_CONTRACT_VERSION}|{port}|{nonce}'`). It gates "
         "whether a client can answer the challenge frame at all — a connection "
         "concern that is settled before any snapshot is ever sent, and one that "
         "must be able to move without restamping contract_hash."
@@ -186,7 +187,7 @@ LANE_CONTRACT_MODULE_HOMES = {
     "platform_actions.py": "hermes_cli",
     "protocol.py": "agent_runtime/serve_rpc",
     "constants.py": "hermes_cli/harness_parts/serve",
-    "serve_socket.py": "agent_runtime",
+    "hello.py": "agent_runtime/serve_socket",
     "contract.py": "agent_runtime/discussions",
 }
 

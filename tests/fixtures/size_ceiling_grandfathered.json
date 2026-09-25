@@ -21,7 +21,6 @@
   "agent_runtime/profile_runner.py": 2733,
   "agent_runtime/running_work.py": 1517,
   "agent_runtime/runtime_hud.py": 1103,
-  "agent_runtime/serve_socket.py": 2194,
   "agent_runtime/snapshot.py": 1775,
   "agent_runtime/state_patches.py": 1023,
   "agent_runtime/store.py": 911,

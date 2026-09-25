@@ -979,7 +979,7 @@ class MessageHandling:
         """The version handshake, enforced end to end at the door."""
         from agent_runtime.serve_rpc import registry as serve_rpc
 
-        from agent_runtime.serve_socket import HELLO_CONTRACT_VERSION
+        from agent_runtime.serve_socket.hello import HELLO_CONTRACT_VERSION
 
         return {
             "event": "hello_ok",

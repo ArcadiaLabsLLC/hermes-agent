@@ -3010,12 +3010,12 @@ def test_a_handshake_that_RAISES_still_rejects_charges_and_is_counted():
         port,
         _logs,
     ):
-        original = serve_socket.verify_hello_proof
+        original = serve_socket.server.verify_hello_proof
 
         def _explode(*args, **kwargs):
             raise RuntimeError("boom from inside the handshake")
 
-        serve_socket.verify_hello_proof = _explode
+        serve_socket.server.verify_hello_proof = _explode
         try:
             for _ in range(2):
                 _g, reply = raw_handshake(port, token="the-shared-secret")
@@ -3024,7 +3024,7 @@ def test_a_handshake_that_RAISES_still_rejects_charges_and_is_counted():
                     "reason": REJECT_HELLO_MALFORMED,
                 }
         finally:
-            serve_socket.verify_hello_proof = original
+            serve_socket.server.verify_hello_proof = original
 
         payload = server.connections_payload()
         assert payload["handshake_errors"] == 2

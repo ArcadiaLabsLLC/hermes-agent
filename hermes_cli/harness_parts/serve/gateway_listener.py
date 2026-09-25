@@ -160,7 +160,7 @@ def start_gateway_listener(
         return None, {"outcome": "disabled"}
 
     from agent_runtime.gateway_tls import ensure_certificate, server_ssl_context
-    from agent_runtime.serve_socket import ServeSocketServer
+    from agent_runtime.serve_socket.server import ServeSocketServer
 
     certificate = ensure_certificate(
         store_root, common_name=display_name if isinstance(display_name, str) else None

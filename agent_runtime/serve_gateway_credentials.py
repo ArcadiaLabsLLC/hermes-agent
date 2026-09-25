@@ -83,7 +83,8 @@ def credential_kind(message: dict[str, Any]) -> CredentialKind | None:
 
 
 def _bad_proof() -> Any:
-    from agent_runtime.serve_socket import REJECT_BAD_PROOF, HelloAuthOutcome
+    from agent_runtime.serve_socket.vocabulary import REJECT_BAD_PROOF
+    from agent_runtime.serve_socket.hello import HelloAuthOutcome
 
     return HelloAuthOutcome(ok=False, reject_reason=REJECT_BAD_PROOF)
 
@@ -100,7 +101,7 @@ def _redeem_device_pairing_code(store_root: Any, message: dict[str, Any], nonce:
     """
 
     from agent_runtime.serve_gateway_auth import DeviceCredential, redeem_pairing_code
-    from agent_runtime.serve_socket import HelloAuthOutcome
+    from agent_runtime.serve_socket.hello import HelloAuthOutcome
 
     outcome = redeem_pairing_code(
         store_root,
@@ -129,7 +130,7 @@ def _redeem_peer_join_code(store_root: Any, message: dict[str, Any], nonce: str,
     """
 
     from agent_runtime.gateway_peers import PeerCredential, note_dial_result, redeem_peer_code
-    from agent_runtime.serve_socket import HelloAuthOutcome
+    from agent_runtime.serve_socket.hello import HelloAuthOutcome
 
     # The joining install must NAME itself in the same frame: the edge
     # is symmetric, so a row keyed by nothing would be a peer this
@@ -179,7 +180,7 @@ def _verify_peer_proof(store_root: Any, message: dict[str, Any], nonce: str, por
         note_peer_store_read,
         verify_peer_proof,
     )
-    from agent_runtime.serve_socket import HelloAuthOutcome
+    from agent_runtime.serve_socket.hello import HelloAuthOutcome
 
     # S2c (R-S2-8). The revision read that makes an EXTERNAL write
     # visible, taken on a read this lane was making anyway. The serve is
@@ -217,7 +218,7 @@ def _verify_device_proof(store_root: Any, message: dict[str, Any], nonce: str, p
     """A paired device: an HMAC keyed by its own token's digest, bound to the port."""
 
     from agent_runtime.serve_gateway_auth import note_device_seen, verify_device_proof
-    from agent_runtime.serve_socket import HelloAuthOutcome
+    from agent_runtime.serve_socket.hello import HelloAuthOutcome
 
     auth = verify_device_proof(
         store_root,

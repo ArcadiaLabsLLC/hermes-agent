@@ -251,7 +251,7 @@
   },
   {
    "arms": 3,
-   "site": "agent_runtime/serve_socket.py|_os_error_token|isinstance|exc"
+   "site": "agent_runtime/serve_socket/wire.py|_os_error_token|isinstance|exc"
   },
   {
    "arms": 6,

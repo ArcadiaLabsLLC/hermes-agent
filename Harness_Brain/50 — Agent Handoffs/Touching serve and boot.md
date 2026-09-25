@@ -6,7 +6,7 @@ tags: [handoff, program/agent-runtime-harness]
 
 # Touching serve and boot
 
-For any change to `hermes harness serve`: `harness_parts/serve.py` (`serve_loop`, the drain, the socket lane, the gateway listener), `agent_runtime/serve_socket.py`, `serve_registry.py`, the prewarms, the boot timeline. Reach for this before touching anything the launcher's restart path exercises.
+For any change to `hermes harness serve`: `harness_parts/serve.py` (`serve_loop`, the drain, the socket lane, the gateway listener), `agent_runtime/serve_socket/`, `serve_registry.py`, the prewarms, the boot timeline. Reach for this before touching anything the launcher's restart path exercises.
 
 > [!important] This is the restart-fence code, and its proofs are field proofs
 > The runtime died at EVERY launcher restart in the post-rebuild field run (5/5) before RB-1..RB-9 and RS-1..7 landed; the killers were the boot sweep run blind on the loading-fallback identity and a build-behind restart spawning a second runtime mid-drain that lost the socket lock. Unit gates: RB-7 (reproduces the field byte for byte, red-first), RO-9 (both arms). The proof that closes a row is an OPERATOR BOOT reading the receipts, not a green suite.

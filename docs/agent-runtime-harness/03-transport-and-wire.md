@@ -103,7 +103,7 @@ does its own exclusion. Pinned in
 
 **Two transports, one dispatcher.** `serve_loop` is transport-agnostic. One
 serve per root owns a localhost socket, decided by an OS-held exclusive lock
-(`agent_runtime/serve_socket.py`); the loser runs stdio-only and says so on
+(`agent_runtime/serve_socket/`); the loser runs stdio-only and says so on
 `ready`. **A DEAD owner is not an owner** (R-L2, 2026-09-04). The identity
 sidecar `serve_socket.owner.json` outlives its process — a killed serve never
 gets to unlink it — so `SocketOwnerLock.acquire` proves the pid with
@@ -127,7 +127,7 @@ socket lock and only then unregisters its row — but the release is the last ac
 of a shutdown that first waits out every in-flight request, so for that whole
 window the holder is alive, holding, and finished. Two facts now let a contender
 read that from outside the process. First, the drain ANNOUNCES itself:
-`SocketOwnerLock.mark_draining` (`agent_runtime/serve_socket.py`) stamps
+`SocketOwnerLock.mark_draining` (`agent_runtime/serve_socket/`) stamps
 `draining_at` on the owner sidecar as the first act of the drain, before the
 listener closes, additively — the port an already-attached client is using stays
 on the record. Second, the moment the registry stops advertising the runtime is
@@ -411,6 +411,207 @@ Acceptance: `tests/agent_runtime/test_gateway_peer_cross_install_chat_e2e.py`.
 an assertion the far side cannot check), so a cross-install dispatch is a fresh
 chain root on B and **A→B→A across two installs is not detected as a cycle**.
 
+### 1.4 The socket lane — the protocol, as `serve_socket.py`'s module docstring stated it
+
+Relocated verbatim by lane R3's MOVE (the single-file module became the `agent_runtime/serve_socket/` package; ruling Q3: prose relocates, it is never a reason to split). The package map is `agent_runtime/serve_socket/__init__.py`; `hello_proof` in `agent_runtime/serve_socket/hello.py` stays the authority for the proof this prose describes.
+
+The socket lane: one durable, multi-client serve per runtime root.
+
+#### What this module owns
+
+Transport mechanism only — bind, accept, authenticate, frame, count, close —
+plus the ONE-OWNER lock that decides which serve gets to run the lane for a
+root. It owns no protocol policy: every authenticated line is handed to the
+injected ``dispatch_line`` callback, which is the SAME dispatcher the stdio
+lane feeds. One dispatcher, N transports; a second copy of the op table is
+exactly the duplicated-authority shape this stack keeps retiring.
+
+#### Why localhost TCP and not a named pipe
+
+A Windows named pipe would give a real ACL — the correct control — but only
+through ``pywin32``, a dependency this runtime does not have and will not take
+on for one transport slice. Loopback TCP on an EPHEMERAL port is available
+everywhere Python is, keeps macOS/Linux on the same code path, and is reachable
+by any local process — which is precisely why the hello handshake below is
+mandatory and why the per-root token landed one slice EARLIER than this file
+(``agent_runtime/serve_auth.py``). ``SO_REUSEADDR`` is deliberately NOT set: on
+Windows it permits a second process to bind a port already in use, which would
+turn "the address is taken" into a silent hijack.
+
+#### Auth is first, and the token never travels
+
+The SERVER speaks first. On accept it writes exactly one frame::
+
+    {"event":"server_hello","nonce":"<64 hex chars>","boot_id":…,
+     "contract":<frame schema>,"hello_contract":3,"algorithm":"hmac-sha256"}
+
+and the client answers::
+
+    {"op":"hello","client":…,"client_build":…,
+     "proof":"<hex HMAC-SHA256(key=token, msg="v3|<dialled port>|<nonce>")>"}
+
+**The message is not the bare nonce**, and the two spellings above were wrong in
+both halves until 2026-08-27: this block said ``hello_contract`` 2 and
+``msg=nonce`` while :data:`HELLO_CONTRACT_VERSION` has been 3 and
+:func:`hello_proof` has bound the PORT since the relay defence landed. A client
+written against the prose computes a proof over the wrong message and is refused
+with ``bad_proof``, which is the least debuggable possible failure — it looks
+exactly like a wrong credential. Found by the launcher's socket client actually
+being built against it (launcher `527940a0e`). :func:`hello_proof` is the
+authority; this paragraph is a description of it and must be re-read against it,
+never trusted over it.
+
+Before that proof is verified a connection can do exactly nothing: no ops, no
+subscription, no answers. A wrong or missing proof gets ONE typed
+``hello_rejected`` frame and the connection is closed.
+
+Why a proof and not the token (the hardening this replaced)
+    The first cut sent ``{"op":"hello","token":<raw>}``, and discovery could
+    hand a client a target it had itself classified ``stale_dead_pid`` — so a
+    local impostor that bound the dead serve's port harvested the real token in
+    cleartext, live-proven. Two independent halves close that: discovery
+    returns LIVE rows only (:func:`resolve_socket_target`, with a non-live row
+    reachable exclusively through an explicit ``allow_stale=True`` that carries
+    the classification so the caller must refuse it by name), and the token
+    itself never traverses the wire at all. A stolen transcript is unreplayable
+    — the nonce is fresh per CONNECTION — and an impostor server learns only
+    one HMAC, bound to the port the victim DIALLED, which therefore does not
+    verify at the real service's port. That binding is load-bearing and was not
+    in the first pass: freshness alone stops replay but not a live relay, since
+    an impostor can dial the real service, adopt its nonce as its own
+    challenge, and forward the answer. Binding to anything the greeting merely
+    asserts (`boot_id`, a claimed port) would be binding to a number the
+    impostor echoes; the dialled port is the one value each end knows from its
+    own socket. The token value still appears in no frame, no log line, no
+    error, and no registry entry; the proof is the only derived artifact.
+
+    ``hello_contract`` is versioned on the ``server_hello`` frame precisely so
+    the future Launcher client asserts the handshake it was written against
+    instead of proceeding on hope. There is no compatibility shim: the socket
+    lane has no other clients yet, and a shim that accepted the old token hello
+    would keep the cleartext lane open forever.
+
+Repeated AUTH failures trip a rate limiter, so a local process cannot grind the
+256-bit secret by reconnecting. Capacity, drain, and handshake-timeout
+rejections are NOT auth failures and never touch that limiter — charging them
+to it produced a permanent self-sustaining lockout (a ``rate_limited``
+rejection re-armed its own window, so 12 polite retries with the RIGHT
+credential over 12s never recovered). Handshake timeouts have a throttle of
+their own, and pre-hello connections have a bound of their own: counting only
+AUTHENTICATED peers against ``max_connections`` let 64 silent sockets sit on
+the runtime's threads without a single rejection.
+
+#### Two listeners, one implementation (Stage 1)
+
+This class binds the LOOPBACK lane, and — when an operator opts in — a second
+GATEWAY listener bound beyond loopback. They are the same class with three
+constructor arguments filled in, deliberately, because the hardened parts here
+are the parts a second copy would get wrong: the accept loop that announces its
+own death, the pre-auth bound that counts peers who have proven nothing, the two
+rate limiters and the rule that server-state refusals never charge the auth one,
+the lingering close that keeps a rejection frame alive. A second listener class
+would be a second place all of that has to stay true.
+
+The three arguments, all defaulted to what the loopback lane has always done, so
+a server constructed without them is byte-identical to the one that shipped:
+
+* ``port`` — 0 (ephemeral) by default; pinned for an operator who has to write a
+  firewall rule and tell a phone a number that survives a restart.
+* ``ssl_context`` — ``None`` by default. The loopback lane stays PLAINTEXT and
+  that is the local trust model unchanged: a local process that could read the
+  token file gains nothing from a TLS layer, and adding one would cost every
+  local client a handshake to protect a wire that never leaves the machine. The
+  gateway lane is wrapped (R1: encrypt, self-signed per-install certificate,
+  fingerprint pinned by the client).
+* ``authenticator`` — ``None`` means the per-root token, i.e. the code that was
+  inline here before the seam existed. The gateway lane injects a per-DEVICE
+  check (``serve_gateway_auth.py``), which is the only way a connection ever
+  gets a ``device_id``/``device_tier`` stamp, which is in turn the only way
+  ``call_authorization`` mints a ``device`` caller.
+
+What the gateway lane does NOT get is a second dispatcher, a second op table, or
+a second hello contract. It answers the same ``server_hello``, over the same
+frame vocabulary, into the same ``dispatch_line`` callback. Where it must differ
+— the credential, the encryption, the ops it is offered — it differs by an
+argument, not by a branch.
+
+#### One owner per root
+
+Two serves can legitimately run against one root (a launcher restart overlaps
+its replacement; a QA lane spawns its own). Only one may own the socket, or
+"connect to the service for root X" has two answers. The winner is decided by
+an OS-held exclusive lock on ``<store_root>/serve_socket.lock``, held for the
+process's lifetime, following the same ``msvcrt.locking`` / ``fcntl.flock``
+pattern as ``agent_runtime/locks.py``. The loser does not fail: it runs
+stdio-only and SAYS SO on its ready frame
+(``socket: {"outcome": "lock_held_by", "pid": …}``). A silent degrade here
+would be indistinguishable from a socket that never worked.
+
+**It retries in exactly one case, and the case is written down** (RS-4,
+2026-09-07). This paragraph used to end "and does not retry", and that was the
+rule the operator's restart broke: a build-behind restart drained the old
+runtime, the replacement asked for the lock 14 s into that drain, and the old
+owner was alive and holding it — because the lock is released at the END of a
+drain, after the in-flight work. The replacement degraded permanently against a
+process that was about to let go. So a contender that can PROVE the holder is
+leaving — ``draining_at`` on the sidecar, or a holder with no registry row —
+polls the lock every :data:`SOCKET_LOCK_DRAIN_POLL_SECONDS` for up to
+:data:`SOCKET_LOCK_DRAIN_WAIT_SECONDS` and takes the lane when it frees,
+reporting ``took_over_from`` and ``waited_for_drain_ms``. A holder that is alive
+and SERVING is refused immediately, without one poll, exactly as it always was;
+a wait that expires degrades exactly as today and carries the number.
+
+The holder's identity lives in a sidecar, ``serve_socket.owner.json``, and not
+in the lock file itself: on Windows ``msvcrt.locking`` is a MANDATORY lock, so
+a loser cannot read the bytes of the file it just lost. The sidecar is also
+where a leaving owner announces itself: :meth:`SocketOwnerLock.mark_draining`
+stamps ``draining_at`` on it as the FIRST act of the drain, before the listener
+closes, so no window exists in which the lane refuses new connections while
+still advertising itself as healthy.
+
+**A DEAD owner is not an owner** (R-L2, 2026-09-04). The sidecar outlives its
+process — a killed serve never gets to unlink it — and until this stage a boot
+that found one simply believed it. On the operator's machine that cost a whole
+session: the replacement serve read a sidecar naming a corpse, answered
+``lock_held_by``, ran stdio-only, and therefore never opened the LAN listener
+the operator had just enabled. :class:`SocketOwnerLock` now proves the pid with
+the same probe the registry uses for ``stale_dead_pid``
+(``serve_registry.pid_alive``) and, when it is provably gone, takes the lane and
+says so: ``took_over_from`` and ``owner_started_at`` on the block, and one
+``serve_socket_owner_takeover`` line on the service log. A LIVE owner is refused
+exactly as before.
+
+#### Fingerprint exclusion (load-bearing)
+
+``serve_socket.lock`` and ``serve_socket.owner.json`` MUST NOT be added to any
+freshness fingerprint — not serve's ``_FINGERPRINT_ROOT_FILES`` /
+``_FINGERPRINT_STORE_DIRS``, not ``stream._scope_fingerprint``, and they MUST BE
+PRESENT in ``core_cache._EXCLUDED_STORE_ENTRIES``. They appear at
+the first socket boot and vanish on every clean exit, which inside a
+fingerprint would cold the read-model cache exactly when a fresh runtime is
+warming up and make the stream emit ``state.reconciled`` on every restart. Same
+standing precedent as ``dispatch_delivery.DRAIN_STATE_FILENAME``,
+``serve_auth.SERVE_AUTH_TOKEN_FILENAME``, and ``serve_instances/``.
+
+The sentence above names TWO obligations because there are two fingerprint
+designs in this runtime with OPPOSITE defaults, and one doctrine written for the
+first silently fails to bind the second. Serve's read-cache key and
+``stream._scope_fingerprint`` are ALLOWLISTS — a file nobody enumerates is
+already out, so "do not add these" is satisfied by inaction.
+``core_cache.build_input_fingerprint`` is a DENYLIST walk of the whole store
+root — everything not named in ``_EXCLUDED_STORE_ENTRIES`` is IN, so the same
+words there require an action, and until 2026-08-18 nobody had taken it: both
+files sat inside the read-model core's key and cost it a hit on every boot. A
+new store-root writer has to satisfy both halves; naming only the allowlists is
+how this one was missed.
+
+#### Root as INPUT
+
+Every entry point takes ``store_root``. This module never resolves a root and
+never reads ``HERMES_HOME``: multiple roots coexist on this machine, and a
+transport free to re-derive its own root could bind a socket for one root while
+answering from another — silently, because both answers would be well-formed.
+
 ## 2. Capability advertisement — `rpc` and `ops`
 
 A durable service outlives the install it was started from, so "what does the
@@ -441,7 +642,7 @@ because both read one tuple (`OPS_EVERY_TRANSPORT` minus `OPS_GATEWAY_DENIED`).
 **`hello_ok` also carries `reached_at: {host, port}` — the one address on this
 lane that is measured rather than inferred** (D12, ruled 2026-09-05). It is the
 accepting socket's own `getsockname()`, read once at accept
-(`serve_socket.py::_reached_at`, parked on `SocketConnection.reached_at`), so on
+(`serve_socket/wire.py::_reached_at`, parked on `SocketConnection.reached_at`), so on
 a wildcard bind it names the single interface *this* connection arrived on — the
 address that demonstrably carried a packet, as against the routing-table read
 (R-D8) and datagram probe (R-D2) every published candidate comes from. The same

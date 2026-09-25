@@ -238,7 +238,6 @@
   "agent_runtime/serve_gateway_peers_rpc.py",
   "agent_runtime/serve_office_subscriptions.py",
   "agent_runtime/serve_registry.py",
-  "agent_runtime/serve_socket.py",
   "agent_runtime/serve_stream_hub.py",
   "agent_runtime/session_extensions.py",
   "agent_runtime/skill_install.py",

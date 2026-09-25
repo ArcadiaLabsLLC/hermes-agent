@@ -75,7 +75,7 @@ How a client learns the method set
 ``RPC_CONTRACT_VERSION`` + the method names ride the frames a client ALREADY
 reads to learn what it is talking to — ``ready`` on stdio, ``hello_ok`` on the
 socket, and the re-askable ``{"op":"version"}`` reply on both. That is the
-``hello_contract`` precedent (``agent_runtime/serve_socket.py:217``) followed
+``hello_contract`` precedent (``agent_runtime/serve_socket/hello.py``) followed
 rather than a parallel discovery scheme: the server advertises, the client
 asserts. See :func:`manifest`.
 
