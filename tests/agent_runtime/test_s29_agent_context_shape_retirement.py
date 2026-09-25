@@ -68,7 +68,7 @@ def test_the_contract_45_situational_hud_observability_field_survives_s39():
     kept ``situational_hud`` as the distinct runtime/steering projection.
     """
 
-    from agent_runtime import prompt_observability
+    from agent_runtime.prompt_observability import mission_chat
 
-    source = inspect.getsource(prompt_observability)
+    source = inspect.getsource(mission_chat)
     assert '"situational_hud"' in source

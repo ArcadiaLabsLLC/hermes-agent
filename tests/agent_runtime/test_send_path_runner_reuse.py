@@ -210,7 +210,7 @@ def test_a_turn_whose_wire_matched_its_composition_reports_no_bound(stub_runtime
 
 
 def _budget(final_model_input, *, metered):
-    from agent_runtime.prompt_observability import _context_budget
+    from agent_runtime.prompt_observability.context_budget import _context_budget
 
     return _context_budget(
         {"effective_model": "gpt-5.1", "effective_provider": "openai"},

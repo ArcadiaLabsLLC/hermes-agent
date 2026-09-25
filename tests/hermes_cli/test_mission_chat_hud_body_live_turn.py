@@ -147,7 +147,7 @@ def test_the_recorded_hud_is_the_one_the_live_turn_rendered(
     """
 
     from agent_runtime.board_store import BoardStore
-    from agent_runtime.prompt_observability import (
+    from agent_runtime.prompt_observability.context_store import (
         load_latest_prompt_observability_contexts,
     )
 

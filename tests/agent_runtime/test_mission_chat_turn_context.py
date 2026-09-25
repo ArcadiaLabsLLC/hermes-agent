@@ -1296,7 +1296,7 @@ def _prompt_observability_walk_gate(monkeypatch, walked_home):
     """Park a REAL ``snapshot_prompt_observability`` build inside its binding.
 
     The sibling of ``_readiness_walk_gate``, one snapshot section over. The gate
-    is ``prompt_observability._installed_skill_catalog``, the first call the
+    is ``prompt_observability.skills_resolver._installed_skill_catalog``, the first call the
     per-persona body makes INSIDE ``skill_profile_context`` on a cache miss (a
     fresh ``_SkillObservabilityResolver`` guarantees the miss).
 
@@ -1314,7 +1314,7 @@ def _prompt_observability_walk_gate(monkeypatch, walked_home):
     entered = threading.Event()
     release = threading.Event()
     observed: list[str] = []
-    real = prompt_observability._installed_skill_catalog
+    real = prompt_observability.skills_resolver._installed_skill_catalog
 
     def _gated():
         observed.append(str(get_hermes_home()))
@@ -1322,9 +1322,14 @@ def _prompt_observability_walk_gate(monkeypatch, walked_home):
         release.wait(10)
         return real()
 
-    monkeypatch.setattr(prompt_observability, "_installed_skill_catalog", _gated)
+    monkeypatch.setattr(prompt_observability.mission_chat, "_installed_skill_catalog", _gated)
+    monkeypatch.setattr(prompt_observability.skills_context, "_installed_skill_catalog", _gated)
+    monkeypatch.setattr(prompt_observability.skills_resolver, "_installed_skill_catalog", _gated)
     monkeypatch.setattr(
-        prompt_observability, "load_latest_prompt_observability_contexts", lambda: []
+        prompt_observability.catalog_lookup, "load_latest_prompt_observability_contexts", lambda: []
+    )
+    monkeypatch.setattr(
+        prompt_observability.context_store, "load_latest_prompt_observability_contexts", lambda: []
     )
     monkeypatch.setattr(profile_context, "profile_exists", lambda name: name == "qa")
     monkeypatch.setattr(profile_context, "get_profile_dir", lambda name: walked_home)

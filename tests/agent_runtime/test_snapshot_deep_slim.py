@@ -88,7 +88,7 @@ def test_skills_catalog_by_hash_resolves_persisted_list(isolate_agent_runtime_ro
             "available_skills": catalog,
         }
     )
-    content_hash = po._skills_list_content_hash(catalog)
+    content_hash = po.hoist._skills_list_content_hash(catalog)
     resolved = po.skills_catalog_by_hash(content_hash)
     assert resolved == catalog, "the walk reproduces the evicted skill list byte-for-byte"
     tampered = content_hash[:-1] + ("0" if content_hash[-1] != "0" else "1")

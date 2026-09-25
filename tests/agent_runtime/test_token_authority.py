@@ -23,16 +23,15 @@ from agent_runtime.usage_ledger import (
     on_post_api_request,
     record_usage,
 )
-from agent_runtime.prompt_observability import (
+from agent_runtime.prompt_observability import turn_usage_from_result
+from agent_runtime.prompt_observability.context_budget import (
     BUDGET_BASIS_ESTIMATE_MESSAGES_ONLY,
     BUDGET_BASIS_ESTIMATE_WITH_TOOLS,
     BUDGET_BASIS_METERED_FIRST_CALL,
     _context_budget,
     _context_budget_needs_refresh,
-    _safe_final_model_input,
-    _safe_turn_usage,
-    turn_usage_from_result,
 )
+from agent_runtime.prompt_observability.safe_views import _safe_final_model_input, _safe_turn_usage
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

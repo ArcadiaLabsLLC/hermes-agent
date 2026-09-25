@@ -46,7 +46,7 @@
   "_safe_display_text: agent_runtime/observability.py, agent_runtime/persona_chat_history.py",
   "_safe_exit_code: agent_runtime/mission_chat_turns.py, agent_runtime/profile_runner.py",
   "_safe_file_labels: agent_runtime/observability.py, agent_runtime/profile_runner.py, agent_runtime/progress.py",
-  "_safe_int: agent_runtime/mission_chat_turns.py, agent_runtime/persona_chat_history.py, agent_runtime/prompt_observability.py",
+  "_safe_int: agent_runtime/mission_chat_turns.py, agent_runtime/persona_chat_history.py, agent_runtime/prompt_observability/safe_views.py",
   "_safe_text: agent_runtime/child_events.py, agent_runtime/events.py, agent_runtime/parity.py, agent_runtime/running_work.py, agent_runtime/snapshot.py",
   "_text: agent_runtime/chat_turn.py, agent_runtime/dispatch_store.py, agent_runtime/mission_chat_outcome.py, agent_runtime/persona_open_chat.py",
   "_tracked: scripts/doc_cite_adjacency.py, scripts/doc_cite_report.py",

@@ -192,9 +192,9 @@ def test_persist_writes_ref_shaped_compact_row(isolate_agent_runtime_root):
     persisted = json.loads(raw)
 
     # One copy of each fact: refs instead of inline lists, aliases gone.
-    assert persisted["available_skills_ref"] == po._skills_list_content_hash(row["available_skills"])
-    assert persisted["accessible_skills_ref"] == po._skills_list_content_hash(row["accessible_skills"])
-    for field in po.HOISTED_SKILL_LIST_FIELDS:
+    assert persisted["available_skills_ref"] == po.hoist._skills_list_content_hash(row["available_skills"])
+    assert persisted["accessible_skills_ref"] == po.hoist._skills_list_content_hash(row["accessible_skills"])
+    for field in po.hoist.HOISTED_SKILL_LIST_FIELDS:
         assert field not in persisted, field
     # Ruling §7.2: final_model_input STAYS in the row (compact, not evicted).
     assert persisted["final_model_input"]["message_count"] == 6
@@ -238,8 +238,8 @@ def test_persist_normalizes_alias_only_legacy_input(isolate_agent_runtime_root):
     persisted = json.loads(
         (paths.prompt_observability_dir() / "ctx_alias_only.json").read_text(encoding="utf-8")
     )
-    assert persisted["accessible_skills_ref"] == po._skills_list_content_hash(accessible)
-    assert persisted["available_skills_ref"] == po._skills_list_content_hash(catalog)
+    assert persisted["accessible_skills_ref"] == po.hoist._skills_list_content_hash(accessible)
+    assert persisted["available_skills_ref"] == po.hoist._skills_list_content_hash(catalog)
     assert "skills" not in persisted and "skills_catalog" not in persisted
     assert po.skills_catalog_by_hash(persisted["accessible_skills_ref"]) == accessible
 
@@ -247,7 +247,7 @@ def test_persist_normalizes_alias_only_legacy_input(isolate_agent_runtime_root):
 def test_skills_catalog_by_hash_is_an_o1_store_read(isolate_agent_runtime_root):
     row = _canonical_row("ctx_store_hit", instance_id="personainst_a", session_id="sess_a")
     po.persist_prompt_observability_context(row)
-    ref = po._skills_list_content_hash(row["available_skills"])
+    ref = po.hoist._skills_list_content_hash(row["available_skills"])
 
     # Remove every persisted ctx row: the legacy walk has NOTHING to find, so a
     # successful resolve proves the content-addressed store lane, not the walk.
@@ -268,7 +268,7 @@ def test_skills_catalog_by_hash_materializes_a_live_projection_miss(
     """
 
     catalog = _catalog(3)
-    ref = po._skills_list_content_hash(catalog)
+    ref = po.hoist._skills_list_content_hash(catalog)
     calls = []
 
     def fake_build_snapshot(*, prompt_skills_catalogs=None, **_kwargs):
@@ -279,10 +279,10 @@ def test_skills_catalog_by_hash_materializes_a_live_projection_miss(
 
     monkeypatch.setattr("agent_runtime.snapshot.build_snapshot", fake_build_snapshot)
 
-    assert po.load_skills_catalog_from_store(ref) is None
+    assert po.catalog_store.load_skills_catalog_from_store(ref) is None
     assert po.skills_catalog_by_hash(ref) == catalog
     assert calls == [True]
-    assert po.load_skills_catalog_from_store(ref) == catalog
+    assert po.catalog_store.load_skills_catalog_from_store(ref) == catalog
 
     # The immutable body is now a direct store hit.  A second lookup must not
     # rebuild the live projection.
@@ -295,12 +295,12 @@ def test_corrupt_catalog_store_file_is_a_typed_miss(isolate_agent_runtime_root):
     # never fake content served under a hash it doesn't match.
     row = _canonical_row("ctx_corrupt", instance_id="personainst_a", session_id="sess_a")
     po.persist_prompt_observability_context(row)
-    ref = po._skills_list_content_hash(row["available_skills"])
+    ref = po.hoist._skills_list_content_hash(row["available_skills"])
     catalog_path = paths.prompt_observability_catalogs_dir() / f"{ref}.json"
 
     # Tamper 1: valid JSON, wrong content — the integrity re-hash catches it.
     catalog_path.write_text(json.dumps([{"name": "tampered"}]), encoding="utf-8")
-    assert po.load_skills_catalog_from_store(ref) is None
+    assert po.catalog_store.load_skills_catalog_from_store(ref) is None
     # The persisted ROW still resolves nothing through the walk (it carries a
     # ref, not an inline list) — an honest miss, never the tampered payload.
     resolved = po.skills_catalog_by_hash(ref)
@@ -309,7 +309,7 @@ def test_corrupt_catalog_store_file_is_a_typed_miss(isolate_agent_runtime_root):
 
     # Tamper 2: invalid JSON — same typed miss.
     catalog_path.write_text("{not json", encoding="utf-8")
-    assert po.load_skills_catalog_from_store(ref) is None
+    assert po.catalog_store.load_skills_catalog_from_store(ref) is None
 
 
 def test_legacy_inline_rows_still_resolve_via_walk(isolate_agent_runtime_root):
@@ -326,7 +326,7 @@ def test_legacy_inline_rows_still_resolve_via_walk(isolate_agent_runtime_root):
         )
     )
     _write_legacy_file(legacy, mtime=1_700_000_100.0)
-    ref = po._skills_list_content_hash(catalog)
+    ref = po.hoist._skills_list_content_hash(catalog)
     assert (paths.prompt_observability_catalogs_dir() / f"{ref}.json").exists() is False
     assert po.skills_catalog_by_hash(ref) == catalog
 
@@ -533,7 +533,7 @@ def test_retention_keeps_newest_k_live_and_archives_older(isolate_agent_runtime_
     archived_row = po.load_persisted_context_row("ctx_lane_0")
     assert archived_row is not None
     assert archived_row["context_id"] == "ctx_lane_0"
-    index = po._load_prompt_observability_index()
+    index = po.context_store._load_prompt_observability_index()
     assert index["archived_count"] == 2
 
 
@@ -683,7 +683,7 @@ def test_deleted_indexed_file_typed_miss_fallback_then_heal(isolate_agent_runtim
         ),
         mtime=1_700_000_900.0,
     )
-    healed = po._load_prompt_observability_index()
+    healed = po.context_store._load_prompt_observability_index()
     lane0 = next(
         entry for entry in healed["entries"] if entry["instance_id"] == "personainst_l0"
     )
@@ -721,7 +721,7 @@ def test_corrupt_index_falls_back_then_heals_at_next_persist(isolate_agent_runti
         ),
         mtime=1_700_000_950.0,
     )
-    healed = po._load_prompt_observability_index()
+    healed = po.context_store._load_prompt_observability_index()
     assert healed is not None
     assert healed["schema_version"] == 1
     lane = next(entry for entry in healed["entries"] if entry["instance_id"] == "personainst_l0")

@@ -3990,7 +3990,7 @@
     },
     {
       "id": "w2-the-turn-receipt-stops-saying-what-the-preload-cost",
-      "path": "agent_runtime/prompt_observability.py",
+      "path": "agent_runtime/prompt_observability/skills_context.py",
       "symbol": "_skill_md_bytes",
       "operator": "answer-absent-for-a-resolved-skill",
       "find": "        return int(Path(candidate.skill_md).stat().st_size)",

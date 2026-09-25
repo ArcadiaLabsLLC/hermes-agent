@@ -384,7 +384,7 @@ def _reset_snapshot_catalog_memos():
     `snapshot.available_profile_templates`) and a warm memo would mask the
     patch. Start every test cold."""
     for module_name, attr in (
-        ("agent_runtime.prompt_observability", "_skill_catalog_memo"),
+        ("agent_runtime.prompt_observability.skills_resolver", "_skill_catalog_memo"),
         ("agent_runtime.snapshot", "_profile_template_memo"),
     ):
         module = sys.modules.get(module_name)

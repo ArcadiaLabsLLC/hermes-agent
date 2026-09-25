@@ -522,7 +522,7 @@ def test_inventory_carries_publishability_on_shared_rows_and_a_full_sweep():
 def test_prompt_observability_publishability_agrees_with_the_inventory_vocabulary():
     """Both surfaces MUST use one vocabulary or the Skills sheet and the
     inventory would disagree about what 'publishable' means."""
-    from agent_runtime.prompt_observability import _skill_publishability
+    from agent_runtime.prompt_observability.skills_context import _skill_publishability
 
     assert _skill_publishability("shared_core") == (True, sp.REASON_SHARED_ROOT)
     assert _skill_publishability("profile_local") == (False, sp.REASON_PROFILE_LOCAL_ONLY)

@@ -263,27 +263,27 @@
   },
   {
    "arms": 3,
-   "site": "agent_runtime/prompt_observability.py|_attach_context_file_prompt_contributions|ladder|name"
+   "site": "agent_runtime/prompt_observability/context_files.py|_attach_context_file_prompt_contributions|ladder|name"
   },
   {
    "arms": 3,
-   "site": "agent_runtime/prompt_observability.py|_context_file_summary|ladder|path.name"
+   "site": "agent_runtime/prompt_observability/context_files.py|_context_file_summary|ladder|path.name"
   },
   {
    "arms": 6,
-   "site": "agent_runtime/prompt_observability.py|_file_kind|ladder|name"
+   "site": "agent_runtime/prompt_observability/context_files.py|_file_kind|ladder|name"
   },
   {
    "arms": 1,
-   "site": "agent_runtime/prompt_observability.py|_skill_trace_event_counts_as_used|vocab|blocked"
+   "site": "agent_runtime/prompt_observability/skills_context.py|_skill_trace_event_counts_as_used|vocab|blocked"
   },
   {
    "arms": 1,
-   "site": "agent_runtime/prompt_observability.py|_skill_trace_event_counts_as_used|vocab|completed"
+   "site": "agent_runtime/prompt_observability/skills_context.py|_skill_trace_event_counts_as_used|vocab|completed"
   },
   {
    "arms": 1,
-   "site": "agent_runtime/prompt_observability.py|_skill_trace_event_counts_as_used|vocab|failed"
+   "site": "agent_runtime/prompt_observability/skills_context.py|_skill_trace_event_counts_as_used|vocab|failed"
   },
   {
    "arms": 1,

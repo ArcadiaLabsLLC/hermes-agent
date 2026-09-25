@@ -1886,7 +1886,11 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "zero references and the verb was never wired",
         "load_final_model_input_for_context",
         "_mission_chat_template_prompt_chars",
-        scope=("agent_runtime.prompt_observability",),
+        scope=(
+            "agent_runtime.prompt_observability",
+            "agent_runtime.prompt_observability.context_files",
+            "agent_runtime.prompt_observability.context_store",
+        ),
     ),
     *rows(
         "s54",

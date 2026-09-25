@@ -24,8 +24,8 @@ def test_skill_catalog_memo_collapses_repeat_walks(monkeypatch):
 
     monkeypatch.setattr(skills_tool, "_find_all_skills", fake_walk)
 
-    first = po.available_skills_context()
-    second = po.available_skills_context()
+    first = po.skills_context.available_skills_context()
+    second = po.skills_context.available_skills_context()
 
     assert len(calls) == 1
     assert first == second
@@ -38,12 +38,12 @@ def test_skill_catalog_memo_invalidates_when_walker_is_swapped(monkeypatch):
     monkeypatch.setattr(skills_tool, "_find_all_skills", lambda **_: [
         {"name": "alpha", "description": "", "category": "skills"},
     ])
-    assert [row["name"] for row in po.available_skills_context()] == ["alpha"]
+    assert [row["name"] for row in po.skills_context.available_skills_context()] == ["alpha"]
 
     monkeypatch.setattr(skills_tool, "_find_all_skills", lambda **_: [
         {"name": "beta", "description": "", "category": "skills"},
     ])
-    assert [row["name"] for row in po.available_skills_context()] == ["beta"]
+    assert [row["name"] for row in po.skills_context.available_skills_context()] == ["beta"]
 
 
 def test_skill_catalog_memo_expires_after_ttl(monkeypatch):
@@ -54,10 +54,10 @@ def test_skill_catalog_memo_expires_after_ttl(monkeypatch):
         return []
 
     monkeypatch.setattr(skills_tool, "_find_all_skills", fake_walk)
-    monkeypatch.setattr(po, "_SKILL_CATALOG_TTL_SECONDS", 0.0)
+    monkeypatch.setattr(po.skills_resolver, "_SKILL_CATALOG_TTL_SECONDS", 0.0)
 
-    po.available_skills_context()
-    po.available_skills_context()
+    po.skills_context.available_skills_context()
+    po.skills_context.available_skills_context()
 
     assert len(calls) == 2
 
@@ -73,8 +73,8 @@ def test_skill_catalog_memo_caches_empty_catalog(monkeypatch):
 
     monkeypatch.setattr(skills_tool, "_find_all_skills", fake_walk)
 
-    po.available_skills_context()
-    po.available_skills_context()
+    po.skills_context.available_skills_context()
+    po.skills_context.available_skills_context()
 
     assert len(calls) == 1
 
@@ -127,7 +127,7 @@ def test_skill_observability_resolver_is_linear_across_production_shaped_roster(
 
     resolver = po._SkillObservabilityResolver()
     for index in range(8):
-        rows = po._accessible_skills_context(
+        rows = po.skills_resolver._accessible_skills_context(
             SimpleNamespace(
                 id=f"persona-{index}",
                 hermes_profile="base",

@@ -5,10 +5,8 @@ from __future__ import annotations
 import inspect
 from types import SimpleNamespace
 
-from agent_runtime.prompt_observability import (
-    _backfill_derived_fields,
-    mission_chat_prompt_observability,
-)
+from agent_runtime.prompt_observability import mission_chat_prompt_observability
+from agent_runtime.prompt_observability.context_store import _backfill_derived_fields
 
 
 def test_fresh_prompt_rows_have_no_mission_hud_writer_or_key() -> None:

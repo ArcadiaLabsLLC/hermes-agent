@@ -3659,7 +3659,7 @@ def test_mission_chat_message_stream_terminal_frame_is_slim(
     The terminal ``chat.final`` frame carries the slim typed observability subset
     and NO ``turn_elements``. Re-adding ``turn_elements`` to the emit path, or
     restoring the full row, turns this red."""
-    from agent_runtime.prompt_observability import CHAT_FINAL_OBSERVABILITY_FIELDS
+    from agent_runtime.prompt_observability.turn_results import CHAT_FINAL_OBSERVABILITY_FIELDS
 
     cfg = _assignment_config()
     db = _TranscriptDB()
@@ -3977,7 +3977,8 @@ def test_profile_prompt_observability_uses_profile_skills_and_chat_title(
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr(prompt_observability, "get_profile_dir", lambda profile: profile_dir)
+    monkeypatch.setattr(prompt_observability.context_budget, "get_profile_dir", lambda profile: profile_dir)
+    monkeypatch.setattr(prompt_observability.context_files, "get_profile_dir", lambda profile: profile_dir)
     db = _TranscriptDB()
     db.create_session("persona_chat_alice", "agent_runtime_persona_chat")
     db.set_session_title("persona_chat_alice", "Alice Agent chat")
@@ -4035,7 +4036,8 @@ def test_prompt_observability_reports_used_skill_from_skill_view_trace(
         json.dumps({"skills": [{"skill_name": "agent-runtime-harness"}]}),
         encoding="utf-8",
     )
-    monkeypatch.setattr(prompt_observability, "get_profile_dir", lambda profile: profile_dir)
+    monkeypatch.setattr(prompt_observability.context_budget, "get_profile_dir", lambda profile: profile_dir)
+    monkeypatch.setattr(prompt_observability.context_files, "get_profile_dir", lambda profile: profile_dir)
 
     context = prompt_observability.mission_chat_prompt_observability(
         persona=AgentPersona(
@@ -4087,7 +4089,8 @@ def test_prompt_observability_refreshes_stale_derived_fields(
         json.dumps({"skills": [{"skill_name": "fresh-profile-skill"}]}),
         encoding="utf-8",
     )
-    monkeypatch.setattr(prompt_observability, "get_profile_dir", lambda profile: profile_dir)
+    monkeypatch.setattr(prompt_observability.context_budget, "get_profile_dir", lambda profile: profile_dir)
+    monkeypatch.setattr(prompt_observability.context_files, "get_profile_dir", lambda profile: profile_dir)
     db = _TranscriptDB()
     db.create_session("persona_chat_alice", "agent_runtime_persona_chat")
     db.set_session_title("persona_chat_alice", "Alice Agent chat")
@@ -4146,7 +4149,7 @@ def test_prompt_observability_refreshes_stale_derived_fields(
         session_db=db,
     )
 
-    merged = prompt_observability._merge_latest_contexts([built])
+    merged = prompt_observability.context_store._merge_latest_contexts([built])
 
     refreshed = merged[0]
     assert refreshed["context_id"] == "ctx_stale"
@@ -4175,7 +4178,8 @@ def test_snapshot_prompt_observability_builds_profile_instance_context(
         json.dumps({"skills": [{"skill_name": "alice-profile-skill"}]}),
         encoding="utf-8",
     )
-    monkeypatch.setattr(prompt_observability, "get_profile_dir", lambda profile: profile_dir)
+    monkeypatch.setattr(prompt_observability.context_budget, "get_profile_dir", lambda profile: profile_dir)
+    monkeypatch.setattr(prompt_observability.context_files, "get_profile_dir", lambda profile: profile_dir)
     db = _TranscriptDB()
     db.create_session("persona_chat_personainst_profile_alice", "agent_runtime_persona_chat")
     db.set_session_title("persona_chat_personainst_profile_alice", "Alice Agent chat")
@@ -4253,7 +4257,7 @@ def test_snapshot_prompt_observability_builds_profile_instance_context(
     )
     expected_accessible = expected_context["accessible_skills"]
     assert "skills_catalogs" not in snapshot
-    assert context["accessible_skills_ref"] == prompt_observability._skills_list_content_hash(
+    assert context["accessible_skills_ref"] == prompt_observability.hoist._skills_list_content_hash(
         expected_accessible
     )
 

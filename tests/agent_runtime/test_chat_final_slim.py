@@ -11,10 +11,8 @@ from __future__ import annotations
 
 import json
 
-from agent_runtime.prompt_observability import (
-    CHAT_FINAL_OBSERVABILITY_FIELDS,
-    slim_chat_final_observability,
-)
+from agent_runtime.prompt_observability import slim_chat_final_observability
+from agent_runtime.prompt_observability.turn_results import CHAT_FINAL_OBSERVABILITY_FIELDS
 
 
 def _fat_row() -> dict:
