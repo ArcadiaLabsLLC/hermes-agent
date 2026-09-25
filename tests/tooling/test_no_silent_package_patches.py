@@ -47,6 +47,8 @@ import re
 import warnings
 from pathlib import Path
 
+import pytest
+
 from scripts import god_file_probe as probe
 
 FIXTURE = probe.FIXTURES / "silent_package_patches_grandfathered.json"
@@ -238,9 +240,17 @@ def silent_readers(modules: ForkModules, package: str, name: str) -> list[str]:
     )
 
 
+#: The whole-tree walk is ~13-15 s and lands in whichever ROOT test runs first
+#: in the process; every other ROOT test reads this cache. Pinned by
+#: ``test_the_census_is_walked_once_per_tree``. The walk is budgeted by the
+#: ``_WALK_BUDGET`` mark below, never by the 30 s ``addopts`` default: under
+#: load the first caller overran that default in the round-2 tooling run.
 @functools.lru_cache(maxsize=None)
 def _census(root: Path) -> frozenset[str]:
     return frozenset(silent_package_patches(root))
+
+
+_WALK_BUDGET = pytest.mark.timeout(120)
 
 
 def silent_package_patches(root: Path = probe.ROOT) -> set[str]:
@@ -286,6 +296,7 @@ def _fixture() -> set[str]:
     return set(json.loads(FIXTURE.read_text(encoding="utf-8"))["sites"])
 
 
+@_WALK_BUDGET
 def test_no_new_silent_package_patch():
     drift = probe.compare_sets("silent package patches", set(_census(probe.ROOT)), _fixture())
     assert not drift.new, (
@@ -294,9 +305,47 @@ def test_no_new_silent_package_patch():
     )
 
 
+@_WALK_BUDGET
 def test_a_fixed_site_loses_its_row():
     drift = probe.compare_sets("silent package patches", set(_census(probe.ROOT)), _fixture())
     assert not drift.stale, "delete these rows — the site is gone:\n" + drift.render()
+
+
+@_WALK_BUDGET
+def test_the_census_is_walked_once_per_tree(tmp_path, monkeypatch):
+    """One walk per tree per process, and never another tree's answer.
+
+    Walks are counted at the walk itself (zero when an earlier test in the
+    process already paid it); a cache that ignored its key would hand the
+    planted tree the real tree's census.
+    """
+    walks: list[Path] = []
+    walk = silent_package_patches
+
+    def counted(root: Path = probe.ROOT) -> set[str]:
+        walks.append(root)
+        return walk(root)
+
+    monkeypatch.setitem(globals(), "silent_package_patches", counted)
+    _census(probe.ROOT)
+    _census(probe.ROOT)
+    assert len(walks) <= 1, f"the census walked {len(walks)} times in one process"
+    pkg = tmp_path / "agent_runtime" / "splitpkg"
+    pkg.mkdir(parents=True)
+    (tmp_path / "agent_runtime" / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "__init__.py").write_text("from .impl import emit\n", encoding="utf-8")
+    (pkg / "impl.py").write_text("def emit():\n    return 1\n", encoding="utf-8")
+    (pkg / "user.py").write_text("from .impl import emit\n", encoding="utf-8")
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_x.py").write_text(
+        "from agent_runtime import splitpkg\n"
+        "def test_a(monkeypatch):\n"
+        "    monkeypatch.setattr(splitpkg, 'emit', lambda: 2)\n",
+        encoding="utf-8",
+    )
+    files = ["agent_runtime/__init__.py", *(f"agent_runtime/splitpkg/{f}" for f in ("__init__.py", "impl.py", "user.py"))]
+    monkeypatch.setattr(probe, "fork_production_files", lambda root, *a, **k: list(files))
+    assert _census(tmp_path) == {"tests/test_x.py::agent_runtime.splitpkg:emit"}
 
 
 def test_the_walk_finds_a_planted_silent_patch(tmp_path, monkeypatch):
