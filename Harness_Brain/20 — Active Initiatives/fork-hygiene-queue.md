@@ -136,6 +136,10 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 ## Filed on arrival — 2026-09-25 (lane B3)
 
 
+## Filed on arrival — 2026-09-25 (lane LLAMA-ALIAS, filed by the orchestrator)
+
+- [ ] **`tests/test_coverage_claims_resolve.py::test_every_coverage_claim_names_a_test_that_exists` is red on `main` — doc citations of tests that do not exist, in `docs/gateway/` and the god-file layout sheets** · `fork / docs gates` · re-anchor or delete each stale citation (the sheets moved tests the god-file lanes renamed); proved pre-existing at `478fcc5ba5` in a throwaway worktree · evidence: `X:/wt/llama-alias/.lane-logs/base-coverage.log` (lane LLAMA-ALIAS touched-test run, 2791 passed / 1 failed) · filed 2026-09-25 **UNCLAIMED**
+
 ## Filed on arrival — 2026-09-25 (lane W3-A)
 
 - [ ] **`prompt_observability`'s skills-catalog concept stays split across `catalog_store` (48 code lines) and `catalog_lookup` (73) because `context_store` sits between them — it writes through one and is read by the other; passing the catalog writer into `context_store`'s persist would let the two fold into one module** · `fork / refactor` · evidence: lane W3-A fold-review commit 14726ae2a8 · filed by lane W3-A 2026-09-25 **UNCLAIMED**
