@@ -122,6 +122,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 
 
+### Filed on arrival — 2026-09-25 (lane B2)
+
+- [ ] **`gateway_peers._emit_peer_event` cannot fold onto `store_events.emit_store_event`: the helper drops None-valued keys, the peer reachability event sends `"unreachable_since": None` — two event emitters, two None rules** · `fork / runtime` · decide the one rule (a typed absent-marker, or None preserved) and fold; until then every future emitter fold has to check this first · evidence: B2 gateway_peers CHANGE body · filed by lane B2 2026-09-25 **UNCLAIMED**
+
+
 ## Seams — fork edits inside upstream files (additive only)
 
 ### Filed on arrival — 2026-09-25 (lane 2B-B)
