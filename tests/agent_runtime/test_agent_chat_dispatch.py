@@ -1005,6 +1005,7 @@ class _QuickJoin:
 
     def __init__(self, thread):
         self.thread = thread
+        self.stop = thread.stop
 
     def join(self, timeout=None):
         self.thread.join(min(timeout or 0.2, 0.2))
@@ -1027,6 +1028,27 @@ def _piped_pumps():
     return proc, tail, threads, out_w, err_w
 
 
+def test_a_pump_hands_the_sink_whole_lines_across_split_writes():
+    """The sink contract: one append per line even when a line arrives in two
+    writes, CRLF folded to LF as the text-mode stream did, and an unterminated
+    tail flushed at EOF — the tail bound keeps a single chunk whole, so a
+    payload split across appends is a payload it can drop."""
+
+    import time
+
+    out_r, out_w = os.pipe()
+    stream = os.fdopen(out_r, "r", encoding="utf-8")
+    sink: list[str] = []
+    pump = subprocess_pumps.drain(stream, sink)
+    os.write(out_w, b'{"capability_')
+    time.sleep(0.2)
+    os.write(out_w, b'id": "x"}\r\nlast')
+    os.close(out_w)
+    subprocess_pumps.release_pumps(None, [_QuickJoin(pump)])
+    assert not pump.is_alive()
+    assert sink == ['{"capability_id": "x"}\n', "last"]
+
+
 def test_the_pumps_release_when_the_writers_close():
     """Positive control for the pump pair (sheet agent_chat_dispatch.md §6.3),
     the cooperative arm: every writer closes, both pumps end inside the join
@@ -1045,21 +1067,28 @@ def test_the_pumps_release_when_the_writers_close():
     assert tail.text() == '{"capability_id": "x"}\n'
 
 
-@pytest.mark.skipif(
-    os.name == "nt",
-    reason="closing a pipe another thread is blocked reading HANGS on Windows — "
-    "runtime-queue row 'agent_chat_dispatch._release_pumps forced release hangs on Windows'",
-)
 def test_the_pumps_are_forced_loose_when_a_survivor_holds_the_pipe():
     """The forced arm: a grandchild still holds both write ends, so readline
     never sees EOF; closing the parent's read handles must free both pumps."""
 
     import time
 
+    import threading
+
     proc, _tail, threads, out_w, err_w = _piped_pumps()
     try:
+        # The release runs on its own daemon thread under a deadline, so a
+        # release that parks (the Windows close-under-a-blocked-reader hang)
+        # reds this case instead of wedging the run that holds it.
+        releaser = threading.Thread(
+            target=subprocess_pumps.release_pumps,
+            args=(proc, [_QuickJoin(t) for t in threads]),
+            daemon=True,
+        )
         started = time.monotonic()
-        subprocess_pumps.release_pumps(proc, [_QuickJoin(t) for t in threads])
+        releaser.start()
+        releaser.join(15)
+        assert not releaser.is_alive(), "release_pumps parked on a pipe a survivor holds"
         assert time.monotonic() - started < 12
         assert not any(t.is_alive() for t in threads)
     finally:
