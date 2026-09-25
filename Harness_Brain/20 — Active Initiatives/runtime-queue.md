@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-09-25 (lane LAYERS-DESIGN, filed by the orchestrator)
+
+- [ ] **`gateway_peers/trust_store.py` (stores) calls `serve_gateway_peers_rpc.publish_peer_event` (lanes) from inside its event append — a store reaching up into the serve lane's notification hub; the sheet routes it through a listener list the lane registers at boot (exec lane L1)** · `fork / runtime` · evidence: `docs/agent-runtime-harness/planned/god-file-layout-sheets/layers-undeclared-2026-09-25.md` §2.1 `serve_gateway_peers_rpc` row · filed by lane LAYERS-DESIGN 2026-09-25 **UNCLAIMED** (the L1 exec lane closes it)
+
 ### Filed on arrival — 2026-09-25 (lane LLAMA-ALIAS)
 
 - [ ] **Drop `local-llama-hermes` once the launcher speaks `llamacpp`: `PROVIDER_ID` becomes `llamacpp`, `PROVIDER_ID_ALIASES` and `is_local_llama_provider` in `agent_runtime/local_llama_adapter/__init__.py` collapse to one id, and the two sub-64K floor exemptions keyed on the `requested_provider` literal (`agent/agent_init.py`, `agent/conversation_compression.py`) move with it** · `fork / local llama` · gated on the launcher switch row (`EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`); stored persona rows still carrying `local-llama-hermes` need a one-chokepoint rewrite-and-report · evidence: the lane LLAMA-ALIAS commit `feat(local-llama): accept upstream's llamacpp as a persona provider id through one chokepoint` (input accepts both ids, output publishes `local-llama-hermes` for one release, owner ruling 2026-09-25) · filed by lane LLAMA-ALIAS 2026-09-25

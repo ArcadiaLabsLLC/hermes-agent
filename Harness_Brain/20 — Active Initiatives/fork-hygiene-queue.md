@@ -136,6 +136,10 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 ## Filed on arrival — 2026-09-25 (lane B3)
 
 
+## Filed on arrival — 2026-09-25 (lane LAYERS-DESIGN, filed by the orchestrator)
+
+- [ ] **W0-G6 keys a `from pkg import name` to `pkg/__init__`'s layer whatever submodule defines `name`, so a package door at the package's top layer manufactures an upward edge for every lower-layer consumer — 13 of the 66 undeclared modules were held by exactly this, and any future door re-creates the class** · `fork / gates` · fix: `layer_violations` resolves a door name to its defining submodule (the re-export follow `god_file_scope.visible_vocabularies` already does) · evidence: `docs/agent-runtime-harness/planned/god-file-layout-sheets/layers-undeclared-2026-09-25.md` §1 class A, §4 · filed by lane LAYERS-DESIGN 2026-09-25 **UNCLAIMED**
+
 ## Filed on arrival — 2026-09-25 (lane LLAMA-ALIAS, filed by the orchestrator)
 
 - [ ] **`tests/test_coverage_claims_resolve.py::test_every_coverage_claim_names_a_test_that_exists` is red on `main` — doc citations of tests that do not exist, in `docs/gateway/` and the god-file layout sheets** · `fork / docs gates` · re-anchor or delete each stale citation (the sheets moved tests the god-file lanes renamed); proved pre-existing at `478fcc5ba5` in a throwaway worktree · evidence: `X:/wt/llama-alias/.lane-logs/base-coverage.log` (lane LLAMA-ALIAS touched-test run, 2791 passed / 1 failed) · filed 2026-09-25 **UNCLAIMED**
