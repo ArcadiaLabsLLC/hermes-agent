@@ -21,7 +21,6 @@ Row grammar: `- [ ] **symbol** · file · lines · class · evidence · lane`. C
 - [ ] **`reset_runtime_resolve_cache`** · `agent_runtime/profile_runner/` · 5 · TEST SEAM · 0 production, 2 tests · R3
 - [ ] **`hud_field`, `volatile_hud_keys`** · `agent_runtime/runtime_hud.py` · 4 + 4 · TEST SEAM · 0 production, 2 tests each · R2
 - [ ] **`active_workspace_lifts`** · `agent_runtime/store.py` · 4 · TEST SEAM · 0 production, 1 test · R1
-- [ ] **`ORPHAN_ACTOR_REASONS`** · `agent_runtime/harness_doctor.py` · 5 · DECIDE · KEEP if the doctor's report cites its members by string, else TEST SEAM (09-21 plan §4.1 row, unchanged) · R3 **TAKEN 2026-09-25 lane 2B-C**
 - [ ] **`READ_ONLY_ALLOWLIST_PROFILE`** · `agent_runtime/mcp_admission.py` · 1 · TEST SEAM · 09-21 §4.1 row, unchanged · R3
 - [ ] **`repo_execution_context_for_task`, `isolated_repo_context_for_run`** · `agent_runtime/repo_context.py` · 27 + 35 · DECIDE · 0 production callers, 4 and 6 test files — either the isolated-worktree entry the task lane will call (then KEEP with the caller named) or a seam the tests kept alive; program §3.2 names `isolated_repo_context_for_run` as the module's seam, so the R4 sheet rules it · R4
 - [ ] **`_split_discovery_roots`** · `scripts/run_tests_parallel.py` · 3 · TEST SEAM · 0 callers in the script, 1 test · S2

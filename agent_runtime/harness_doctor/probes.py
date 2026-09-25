@@ -180,7 +180,7 @@ def _root_config_misplacement_report(_context: _DoctorProbeContext | None = None
 
 
 def _model_authority_report(_context: _DoctorProbeContext | None = None) -> dict[str, Any]:
-    from ..config import describe_runtime_default_authority
+    from ..config import OVERRIDE_STATE_REDUNDANT, OVERRIDE_STATE_SHADOWING, describe_runtime_default_authority
 
     try:
         authority = describe_runtime_default_authority()
@@ -191,11 +191,11 @@ def _model_authority_report(_context: _DoctorProbeContext | None = None) -> dict
     redundant_pins = [p for p in pins if p.get("matches_runtime_default") is True]
     provider_only_pins = [p for p in pins if p.get("provider_pinned_without_model")]
     notices: list[str] = []
-    if override.get("model_state") == "shadowing":
+    if override.get("model_state") == OVERRIDE_STATE_SHADOWING:
         notices.append(
             f"agent_runtime.default_model ({override.get('model')}) shadows the runtime default from model.default"
         )
-    elif override.get("model_state") == "redundant":
+    elif override.get("model_state") == OVERRIDE_STATE_REDUNDANT:
         notices.append("agent_runtime.default_model duplicates model.default and is unmaintained")
     if redundant_pins:
         notices.append(
@@ -216,7 +216,7 @@ def _model_authority_report(_context: _DoctorProbeContext | None = None) -> dict
         "top_level": authority.get("top_level", {}),
         "harness_override": override,
         "persona_pins": pins,
-        "divergent": override.get("model_state") == "shadowing",
+        "divergent": override.get("model_state") == OVERRIDE_STATE_SHADOWING,
         "notices": notices,
     }
 

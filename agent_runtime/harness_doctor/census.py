@@ -5,7 +5,8 @@ Map: ``agent_runtime/harness_doctor/__init__.py``.
 
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Callable
 
 from .model import HEALTH_DEFECT, HEALTH_NOTICE, HEALTH_OK, HEALTH_UNKNOWN, _DoctorProbeContext, _error_text
 
@@ -393,6 +394,240 @@ def _census_duplicate_placements(
     return ws_duplicates
 
 
+# ── the census, as phases: read-and-gate once, then questions of the world ────
+#
+# ``_placement_census_report`` was one 255-line body. Its comment map already
+# named the phases — read both stores and gate them, read the retired set once
+# with a receipt memo, run the per-workspace sweeps, fold the unplaced rows,
+# decide the health — so each is now a function and the verb only sequences
+# them. The READ and the GATE still happen once, in order, for the whole census.
+
+
+@dataclass(frozen=True)
+class _CensusWorld:
+    """Both stores, read IN FULL and gated — the only thing the sweeps may ask.
+
+    ``receipt_for`` is the per-census retire-receipt memo (H-H4): one read per
+    orphaned INSTANCE, never per actor and never on the healthy path, and it
+    stays one read across every workspace rather than one per workspace.
+    """
+
+    live_rows: dict[str, Any]
+    scans: list[tuple[str, Any]]
+    retired: frozenset[str]
+    receipt_for: Callable[[str], dict[str, Any] | None]
+
+
+def _census_world() -> _CensusWorld | dict[str, Any]:
+    """Read the roster and every workspace's actors; the unknown report on any gap."""
+
+    # ``_normalize_persona_id`` was imported here beside ``OfficeStore`` — the
+    # STORE's own spelling of a persona id, borrowed rather than re-derived so
+    # the two halves of a persona-level join could not disagree. Its only
+    # readers were the desk sweeps (2026-09-18), and the joins that remain are
+    # keyed on ``persona_instance_id`` through :func:`_census_instance_key`,
+    # which is that same borrow-the-authority rule applied to the other id.
+    from ..office_store import OfficeStore
+    from ..persona_assignments import PersonaInstanceStore, retired_persona_instance_ids
+
+    unreadable: list[str] = []
+    try:
+        roster = PersonaInstanceStore().scan_all()
+    except Exception as exc:
+        return _census_unknown(_error_text(exc))
+    if roster.unreadable:
+        unreadable.append(f"persona_instances:{roster.unreadable}")
+    live_rows = {
+        _census_instance_key(row.id, persona_id=row.persona_id): row
+        for row in roster.instances
+    }
+    store = OfficeStore()
+    try:
+        workspace_ids = list(store.list_workspaces())
+    except Exception as exc:
+        return _census_unknown(_error_text(exc))
+    scans: list[tuple[str, Any]] = []
+    for workspace_id in workspace_ids:
+        try:
+            scan = store.scan_actors(workspace_id)
+        except Exception as exc:
+            unreadable.append(f"office:{workspace_id} ({_error_text(exc)})")
+            continue
+        if scan.unreadable:
+            unreadable.append(f"office:{workspace_id}:{scan.unreadable}")
+        scans.append((workspace_id, scan))
+    # EVERY scan first, the partition second, and the gate between them. One
+    # unreadable file anywhere in either store is enough to make the JOIN — not
+    # merely one row of it — untrustworthy, because the census's two findings
+    # are both statements about ABSENCE ("no live actor references this row",
+    # "no live row backs this actor") and absence is precisely what a file that
+    # would not open is indistinguishable from.
+    if unreadable:
+        return _census_unknown(
+            "unreadable: " + ", ".join(sorted(unreadable)), unreadable=unreadable
+        )
+    # Read ONCE for the whole census, never per row. The archive is one
+    # directory per retire, forever, and ``retired_persona_instance_ids`` says
+    # so at its own docstring. It NEVER raises — a listing it could not walk
+    # answers the empty set — so it cannot re-open the unreadable gate above.
+    # Its remaining reader is the orphan partition (H-H4), which tells an
+    # instance this install tombstoned from one it never held.
+    retired = retired_persona_instance_ids()
+    receipts: dict[str, dict[str, Any] | None] = {}
+
+    def _retire_receipt_for(instance_id: str) -> dict[str, Any] | None:
+        if instance_id not in receipts:
+            receipts[instance_id] = (
+                PersonaInstanceStore().read_retire_receipt(instance_id)
+                if instance_id in retired
+                else None
+            )
+        return receipts[instance_id]
+
+    return _CensusWorld(live_rows, scans, retired, _retire_receipt_for)
+
+
+def _census_sweeps(
+    world: _CensusWorld,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], dict[str, dict[str, Any]], set[str]]:
+    """``(placed, orphan_actors, duplicate_placements, per_workspace, referenced)``.
+
+    Two sweeps per workspace over ONE resolved binding list. ``referenced`` is
+    folded across workspaces, and returned, so the caller decides what is
+    unplaced — "which rows did the workspaces claim" is an answer, not a side
+    effect.
+    """
+
+    placed: list[dict[str, Any]] = []
+    orphans: list[dict[str, Any]] = []
+    duplicates: list[dict[str, Any]] = []
+    per_workspace: dict[str, dict[str, Any]] = {}
+    referenced: set[str] = set()
+    for workspace_id, scan in world.scans:
+        bindings = _census_live_actor_bindings(scan)
+        ws_placed, ws_orphans, ws_referenced = _census_join_workspace(
+            workspace_id,
+            bindings,
+            live_rows=world.live_rows,
+            retired=world.retired,
+            receipt_for=world.receipt_for,
+        )
+        referenced |= ws_referenced
+        ws_duplicates = _census_duplicate_placements(workspace_id, bindings)
+        placed.extend(ws_placed)
+        orphans.extend(ws_orphans)
+        duplicates.extend(ws_duplicates)
+        per_workspace[workspace_id] = {
+            "placed": len(ws_placed),
+            "unplaced_rows": [],
+            "orphan_actors": ws_orphans,
+            "duplicate_placements": ws_duplicates,
+            "observed": True,
+        }
+    return placed, orphans, duplicates, per_workspace, referenced
+
+
+def _census_unplaced(
+    live_rows: dict[str, Any], referenced: set[str], per_workspace: dict[str, dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Live placement-backed rows no live actor references, filed per workspace too."""
+
+    from ..persona_assignments import is_canonical_persona_channel
+
+    unplaced: list[dict[str, Any]] = []
+    for key, row in sorted(live_rows.items()):
+        if key in referenced:
+            continue
+        if is_canonical_persona_channel(row):
+            # The persona's global operator channel is not a placement and was
+            # never meant to hold one. Counting it would report one "unplaced"
+            # row per persona on every healthy runtime — a finding the operator
+            # can never clear, which is how a census stops being read.
+            continue
+        entry = {
+            "persona_instance_id": key,
+            "persona_id": row.persona_id,
+            "workspace_id": row.workspace_id,
+        }
+        unplaced.append(entry)
+        bucket = per_workspace.get(row.workspace_id or "")
+        if isinstance(bucket, dict) and isinstance(bucket.get("unplaced_rows"), list):
+            bucket["unplaced_rows"].append(entry)
+    return unplaced
+
+
+def _census_health(
+    orphan_actors: list[dict[str, Any]],
+    unplaced_rows: list[dict[str, Any]],
+    duplicate_placements: list[dict[str, Any]],
+) -> str:
+    """The census verdict: an orphan or a ``same_instance`` duplicate is a DEFECT.
+
+    An unplaced row or a non-``same_instance`` duplicate raises the census to
+    ``notice`` and NEVER past it: an orphan actor is a defect because it renders
+    as an agent nothing can message, while neither of these mis-renders
+    anything. Promoting either would turn ``needs_fix`` on for a store with no
+    actual fault, and the doctor's whole contract is that its flags mean
+    something. A duplicate placement splits on that same line — see
+    :func:`_duplicate_placement_reason`. (The ``desk_litter`` term rode the
+    notice arm until 2026-09-18 and left with the census that produced it.)
+    """
+
+    same_instance_duplicates = [
+        row
+        for row in duplicate_placements
+        if row.get("reason") == DUPLICATE_PLACEMENT_SAME_INSTANCE
+    ]
+    if orphan_actors or same_instance_duplicates:
+        return HEALTH_DEFECT
+    if unplaced_rows or duplicate_placements:
+        return HEALTH_NOTICE
+    return HEALTH_OK
+
+
+# A4. The orphan half used to read "retiring or re-creating its agent", and for
+# the orphan this census reports most often that names the ONE verb that cannot
+# work. A realm-pulled placement is born orphaned — office actors sync, persona
+# instances are per-install by ruling — so its instance has never existed here,
+# and `agent retire` refuses `not_found` terminally. The refusal is correct;
+# prescribing it was not. Both repairs are named, keyed on the fact that
+# decides between them (does this install hold the instance), never on the id's
+# shape.
+#
+# AX7. The pulled-orphan repair names `--local-only`, and that is not a detail.
+# A doctor remediation is DIAGNOSTIC intent: the operator asked what is wrong
+# with THIS install's projection, not to delete a placement on every machine in
+# the realm. Prescribing the tombstoning form would have this report quietly
+# authoring realm-wide deletes on the operator's behalf — the authored form
+# stays available, and stays for the moment the operator actually means it.
+#
+# H-H4 turns the prose split into the rows' own ``reason`` field, so the three
+# repairs are keyed on a token a reader can grep rather than on a sentence they
+# have to parse — and the sentence now names the tokens instead of
+# re-describing the conditions behind them. It names them WITHOUT dropping
+# either of the two guarantees A4 and AX7 put in this string: the arms are
+# still told apart by a fact rather than a spelling, and the form prescribed for
+# the pulled orphan is still the local-only one.
+CENSUS_REMEDIATION = (
+    "an orphan actor reading retire_incomplete was named by its own "
+    "retire's failure list: re-run `agent retire` — retiring or "
+    "re-creating its agent still clears it, and the retire's replay "
+    "sweeps live placements — or evict the desk from this install with "
+    "`harness office actor-remove --workspace <ws> --actor <key> "
+    "--local-only`; one reading instance_retired is cleared the same "
+    "two ways; one reading instance_unknown — a realm-pulled placement "
+    "this install never held, whose instance stayed on the peer — has "
+    "nothing to retire and is cleared with actor-remove --local-only "
+    "or `runtime.office.remove` alone (drop --local-only only if you "
+    "mean to delete the placement realm-wide, which is what the "
+    "launcher's own delete does); an unplaced row is either awaiting a "
+    "placement or is the roster-only recovery door working as designed; "
+    "a duplicate_placements row reading "
+    "same_instance is one instance's placement claimed by two live actor "
+    "rows — remove or re-place one holder, whose actor_key is named"
+)
+
+
 def _placement_census_report(_context: _DoctorProbeContext | None = None) -> dict[str, Any]:
     """Per-workspace roster/office join: placed, unplaced rows, orphan actors.
 
@@ -437,165 +672,13 @@ def _placement_census_report(_context: _DoctorProbeContext | None = None) -> dic
     to forbid.
     """
 
-    # ``_normalize_persona_id`` was imported here beside ``OfficeStore`` — the
-    # STORE's own spelling of a persona id, borrowed rather than re-derived so
-    # the two halves of a persona-level join could not disagree. Its only
-    # readers were the desk sweeps (2026-09-18), and the joins that remain are
-    # keyed on ``persona_instance_id`` through :func:`_census_instance_key`,
-    # which is that same borrow-the-authority rule applied to the other id.
-    from ..office_store import OfficeStore
-    from ..persona_assignments import (
-        PersonaInstanceStore,
-        is_canonical_persona_channel,
-        retired_persona_instance_ids,
-    )
-
-    unreadable: list[str] = []
-
-    try:
-        roster = PersonaInstanceStore().scan_all()
-    except Exception as exc:
-        return _census_unknown(_error_text(exc))
-    if roster.unreadable:
-        unreadable.append(f"persona_instances:{roster.unreadable}")
-
-    live_rows = {
-        _census_instance_key(row.id, persona_id=row.persona_id): row
-        for row in roster.instances
-    }
-
-    store = OfficeStore()
-    try:
-        workspace_ids = list(store.list_workspaces())
-    except Exception as exc:
-        return _census_unknown(_error_text(exc))
-
-    placed: list[dict[str, Any]] = []
-    orphan_actors: list[dict[str, Any]] = []
-    duplicate_placements: list[dict[str, Any]] = []
-    per_workspace: dict[str, dict[str, Any]] = {}
-    referenced: set[str] = set()
-
-    scans: list[tuple[str, Any]] = []
-    for workspace_id in workspace_ids:
-        try:
-            scan = store.scan_actors(workspace_id)
-        except Exception as exc:
-            unreadable.append(f"office:{workspace_id} ({_error_text(exc)})")
-            continue
-        if scan.unreadable:
-            unreadable.append(f"office:{workspace_id}:{scan.unreadable}")
-        scans.append((workspace_id, scan))
-
-    # EVERY scan first, the partition second, and the gate between them. One
-    # unreadable file anywhere in either store is enough to make the JOIN — not
-    # merely one row of it — untrustworthy, because the census's two findings
-    # are both statements about ABSENCE ("no live actor references this row",
-    # "no live row backs this actor") and absence is precisely what a file that
-    # would not open is indistinguishable from.
-    if unreadable:
-        return _census_unknown(
-            "unreadable: " + ", ".join(sorted(unreadable)), unreadable=unreadable
-        )
-
-    # Read ONCE for the whole census, never per row. The archive is one
-    # directory per retire, forever, and ``retired_persona_instance_ids`` says
-    # so at its own docstring. It NEVER raises — a listing it could not walk
-    # answers the empty set — so it cannot re-open the unreadable gate above.
-    # Its remaining reader is the orphan partition (H-H4), which tells an
-    # instance this install tombstoned from one it never held.
-    retired_instances = retired_persona_instance_ids()
-    #: One receipt read per orphaned instance, for the whole census (H-H4).
-    retire_receipts: dict[str, dict[str, Any] | None] = {}
-
-    def _retire_receipt_for(instance_id: str) -> dict[str, Any] | None:
-        """This instance's retire receipt, read at most once per census.
-
-        The memo is the CALLER's, which is why the join sweep takes a resolver
-        rather than a store: the read is per orphaned INSTANCE, never per actor
-        and never on the healthy path, so a clean store reaches zero reads —
-        what keeps this affordable in a section that already walks both stores
-        in full — and it stays that way across every workspace rather than per
-        workspace.
-        """
-
-        if instance_id not in retire_receipts:
-            retire_receipts[instance_id] = (
-                PersonaInstanceStore().read_retire_receipt(instance_id)
-                if instance_id in retired_instances
-                else None
-            )
-        return retire_receipts[instance_id]
-
-    for workspace_id, scan in scans:
-        # Two sweeps, two functions, one resolved binding list between them.
-        # The read and the gate above are what had to happen once and in order;
-        # everything from here is a question asked of the world they produced.
-        bindings = _census_live_actor_bindings(scan)
-        ws_placed, ws_orphans, ws_referenced = _census_join_workspace(
-            workspace_id,
-            bindings,
-            live_rows=live_rows,
-            retired=retired_instances,
-            receipt_for=_retire_receipt_for,
-        )
-        referenced |= ws_referenced
-        ws_duplicates = _census_duplicate_placements(workspace_id, bindings)
-
-        placed.extend(ws_placed)
-        orphan_actors.extend(ws_orphans)
-        duplicate_placements.extend(ws_duplicates)
-        per_workspace[workspace_id] = {
-            "placed": len(ws_placed),
-            "unplaced_rows": [],
-            "orphan_actors": ws_orphans,
-            "duplicate_placements": ws_duplicates,
-            "observed": True,
-        }
-
-    unplaced_rows: list[dict[str, Any]] = []
-    for key, row in sorted(live_rows.items()):
-        if key in referenced:
-            continue
-        if is_canonical_persona_channel(row):
-            # The persona's global operator channel is not a placement and was
-            # never meant to hold one. Counting it would report one "unplaced"
-            # row per persona on every healthy runtime — a finding the operator
-            # can never clear, which is how a census stops being read.
-            continue
-        entry = {
-            "persona_instance_id": key,
-            "persona_id": row.persona_id,
-            "workspace_id": row.workspace_id,
-        }
-        unplaced_rows.append(entry)
-        bucket = per_workspace.get(row.workspace_id or "")
-        if isinstance(bucket, dict) and isinstance(bucket.get("unplaced_rows"), list):
-            bucket["unplaced_rows"].append(entry)
-
-    same_instance_duplicates = [
-        row
-        for row in duplicate_placements
-        if row.get("reason") == DUPLICATE_PLACEMENT_SAME_INSTANCE
-    ]
-    if orphan_actors or same_instance_duplicates:
-        health = HEALTH_DEFECT
-    elif unplaced_rows or duplicate_placements:
-        # An unplaced row or a non-``same_instance`` duplicate raises the census
-        # to ``notice`` and NEVER past it: an orphan actor is a defect because
-        # it renders as an agent nothing can message, while neither of these
-        # mis-renders anything. Promoting either would turn ``needs_fix`` on for
-        # a store with no actual fault, and the doctor's whole contract is that
-        # its flags mean something.
-        #
-        # A duplicate placement splits on that same line — see
-        # :func:`_duplicate_placement_reason`. (The ``desk_litter`` term rode
-        # this arm until 2026-09-18 and left with the census that produced it.)
-        health = HEALTH_NOTICE
-    else:
-        health = HEALTH_OK
-    report: dict[str, Any] = {
-        "health": health,
+    world = _census_world()
+    if not isinstance(world, _CensusWorld):
+        return world
+    placed, orphan_actors, duplicate_placements, per_workspace, referenced = _census_sweeps(world)
+    unplaced_rows = _census_unplaced(world.live_rows, referenced, per_workspace)
+    return {
+        "health": _census_health(orphan_actors, unplaced_rows, duplicate_placements),
         "observed": True,
         "placed": len(placed),
         "placed_actors": placed,
@@ -603,48 +686,5 @@ def _placement_census_report(_context: _DoctorProbeContext | None = None) -> dic
         "orphan_actors": orphan_actors,
         "duplicate_placements": duplicate_placements,
         "workspaces": per_workspace,
-        # A4. The orphan half used to read "retiring or re-creating its agent",
-        # and for the orphan this census reports most often that names the ONE
-        # verb that cannot work. A realm-pulled placement is born orphaned —
-        # office actors sync, persona instances are per-install by ruling — so
-        # its instance has never existed here, and `agent retire` refuses
-        # `not_found` terminally. The refusal is correct; prescribing it was
-        # not. Both repairs are named, keyed on the fact that decides between
-        # them (does this install hold the instance), never on the id's shape.
-        #
-        # AX7. The pulled-orphan repair names `--local-only`, and that is not a
-        # detail. A doctor remediation is DIAGNOSTIC intent: the operator asked
-        # what is wrong with THIS install's projection, not to delete a
-        # placement on every machine in the realm. Prescribing the tombstoning
-        # form would have this report quietly authoring realm-wide deletes on
-        # the operator's behalf — the authored form stays available, and stays
-        # for the moment the operator actually means it.
-        #
-        # H-H4 turns the prose split into the rows' own ``reason`` field, so the
-        # three repairs are keyed on a token a reader can grep rather than on a
-        # sentence they have to parse — and the sentence now names the tokens
-        # instead of re-describing the conditions behind them. It names them
-        # WITHOUT dropping either of the two guarantees A4 and AX7 put in this
-        # string: the arms are still told apart by a fact rather than a
-        # spelling, and the form prescribed for the pulled orphan is still the
-        # local-only one.
-        "remediation": (
-            "an orphan actor reading retire_incomplete was named by its own "
-            "retire's failure list: re-run `agent retire` — retiring or "
-            "re-creating its agent still clears it, and the retire's replay "
-            "sweeps live placements — or evict the desk from this install with "
-            "`harness office actor-remove --workspace <ws> --actor <key> "
-            "--local-only`; one reading instance_retired is cleared the same "
-            "two ways; one reading instance_unknown — a realm-pulled placement "
-            "this install never held, whose instance stayed on the peer — has "
-            "nothing to retire and is cleared with actor-remove --local-only "
-            "or `runtime.office.remove` alone (drop --local-only only if you "
-            "mean to delete the placement realm-wide, which is what the "
-            "launcher's own delete does); an unplaced row is either awaiting a "
-            "placement or is the roster-only recovery door working as designed; "
-            "a duplicate_placements row reading "
-            "same_instance is one instance's placement claimed by two live actor "
-            "rows — remove or re-place one holder, whose actor_key is named"
-        ),
+        "remediation": CENSUS_REMEDIATION,
     }
-    return report

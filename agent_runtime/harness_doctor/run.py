@@ -118,21 +118,7 @@ def run_harness_doctor(
         section.name: reports[section.name].get("health", HEALTH_UNKNOWN)
         for section in DOCTOR_SECTIONS
     }
-    # A count is an OBSERVATION. When the probe for a class did not run, the
-    # honest count is ``None`` ("not observed"), never ``0`` ("observed none") —
-    # a zero here is what sends an investigator hunting a defect class the
-    # doctor never actually looked at. The rule is applied HERE, once, for every
-    # count in the table: it used to be re-typed per entry, which is a rule
-    # copied six times and free to be forgotten on the seventh.
-    finding_counts: dict[str, Any] = {}
-    for section in DOCTOR_SECTIONS:
-        unexamined_section = section_health[section.name] == HEALTH_UNKNOWN
-        for count_name, list_key in section.counts:
-            finding_counts[count_name] = (
-                None
-                if unexamined_section
-                else len(reports[section.name].get(list_key) or [])
-            )
+    finding_counts = _finding_counts(reports, section_health)
     defective = sorted(k for k, v in section_health.items() if v == HEALTH_DEFECT)
     unexamined = sorted(k for k, v in section_health.items() if v == HEALTH_UNKNOWN)
     worktrees = reports["orphan_worktrees"]
@@ -167,12 +153,41 @@ def run_harness_doctor(
         # publish here need no second listing.
         "findings": {},
     }
+    _publish_reports(payload, reports)
+    payload["repairs"] = repairs
+    return payload
+
+
+def _finding_counts(reports: dict[str, dict[str, Any]], section_health: dict[str, str]) -> dict[str, Any]:
+    """Every ``summary.finding_counts`` entry the table declares.
+
+    A count is an OBSERVATION. When the probe for a class did not run, the
+    honest count is ``None`` ("not observed"), never ``0`` ("observed none") —
+    a zero here is what sends an investigator hunting a defect class the doctor
+    never actually looked at. The rule is applied HERE, once, for every count in
+    the table: it used to be re-typed per entry, which is a rule copied six
+    times and free to be forgotten on the seventh.
+    """
+
+    finding_counts: dict[str, Any] = {}
+    for section in DOCTOR_SECTIONS:
+        unexamined_section = section_health[section.name] == HEALTH_UNKNOWN
+        for count_name, list_key in section.counts:
+            finding_counts[count_name] = (
+                None
+                if unexamined_section
+                else len(reports[section.name].get(list_key) or [])
+            )
+    return finding_counts
+
+
+def _publish_reports(payload: dict[str, Any], reports: dict[str, dict[str, Any]]) -> None:
+    """Land every section's report where its table row says (``DoctorSection.publish``)."""
+
     for section in DOCTOR_SECTIONS:
         report = reports[section.name]
         for destination, key in section.publish:
             _publish_at(payload, destination, report if key is None else report.get(key))
-    payload["repairs"] = repairs
-    return payload
 
 
 # ── THE table ─────────────────────────────────────────────────────────────────

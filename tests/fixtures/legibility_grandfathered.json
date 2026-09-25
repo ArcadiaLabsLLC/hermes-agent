@@ -76,11 +76,6 @@
    "unit": "agent_runtime/gateway_peers.py|dial_peer"
   },
   {
-   "depth": 2,
-   "lines": 255,
-   "unit": "agent_runtime/harness_doctor/census.py|_placement_census_report"
-  },
-  {
    "depth": 1,
    "lines": 198,
    "unit": "agent_runtime/mcp_admission.py|admit_mcp_servers"
