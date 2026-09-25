@@ -276,7 +276,7 @@ def test_the_completion_event_carries_a_count_and_never_the_map(
         captured[kind] = payload
         return original(kind, **payload)
 
-    monkeypatch.setattr(dispatch_store, "_emit", _capture)
+    monkeypatch.setattr(dispatch_store.writes, "_emit", _capture)
     entries = [
         {
             "reference": f"X:\\Eternia\\artifacts\\{'p' * 180}-{index}.png",
@@ -298,7 +298,7 @@ def test_the_completion_event_carries_a_count_and_never_the_map(
 def test_a_local_completions_event_is_unchanged(store_home, monkeypatch):
     captured: dict = {}
     monkeypatch.setattr(
-        dispatch_store, "_emit", lambda kind, **payload: captured.setdefault(kind, payload)
+        dispatch_store.writes, "_emit", lambda kind, **payload: captured.setdefault(kind, payload)
     )
     record_dispatch(
         dispatch_id="dispatch-local2",

@@ -3195,7 +3195,7 @@
     },
     {
       "id": "p4-completion-event-carries-the-whole-map",
-      "path": "agent_runtime/dispatch_store.py",
+      "path": "agent_runtime/dispatch_store/writes.py",
       "symbol": "record_completion",
       "operator": "widen-event-payload",
       "find": "            media_count=len(media_rows) or None,\n",
@@ -3210,7 +3210,7 @@
     },
     {
       "id": "p4-store-takes-the-peers-map-unbounded",
-      "path": "agent_runtime/dispatch_store.py",
+      "path": "agent_runtime/dispatch_store/models.py",
       "symbol": "_media_rows",
       "operator": "drop-bound",
       "find": "        if len(rows) >= MEDIA_MAP_LIMIT:\n            break\n",

@@ -34,12 +34,12 @@ __all__ = [
 
 
 def pid_exists(pid: int) -> bool:
-    """``gateway.status._pid_exists`` — serve_registry reads it here.
+    """``gateway.status._pid_exists`` — serve_registry and the dispatch store's
+    boot sweep (``dispatch_store.delivery``) read it here.
 
-    ``dispatch_store`` and ``running_work`` still import it themselves: both are
-    over the 800-line ceiling and grandfathered by W0-G1, whose GREW arm refuses
-    the one line the door's import costs them. Their lanes (R1/R2) move them
-    when they split those files.
+    ``running_work`` still imports it itself: it is over the 800-line ceiling
+    and grandfathered by W0-G1, whose GREW arm refuses the one line the door's
+    import costs it. Its lane (R2) moves it when it splits the file.
     """
     from gateway.status import _pid_exists
 

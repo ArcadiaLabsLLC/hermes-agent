@@ -63,7 +63,7 @@
   {
    "depth": 2,
    "lines": 155,
-   "unit": "agent_runtime/dispatch_store.py|record_completion"
+   "unit": "agent_runtime/dispatch_store/writes.py|record_completion"
   },
   {
    "depth": 5,
