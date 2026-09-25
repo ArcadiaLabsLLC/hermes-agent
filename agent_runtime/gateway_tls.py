@@ -90,6 +90,7 @@ import hashlib
 import os
 import ssl
 import tempfile
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -236,6 +237,45 @@ def ensure_certificate(
         return _error(store_root, "mint_failed")
 
 
+_STDLIB_CONTEXT_LOCK = threading.Lock()
+
+
+def stdlib_ssl_context(protocol: int, configure=None) -> ssl.SSLContext:
+    """The interpreter's own ``ssl.SSLContext(protocol)``, whatever ``ssl.SSLContext`` is bound to.
+
+    Upstream's process start calls ``agent.ssl_verify.install_truststore()`` (the
+    2026-09-25 merge), and ``truststore.inject_into_ssl()`` rebinds
+    ``ssl.SSLContext`` to truststore's CLIENT-only class. The gateway builds both
+    ends of its own pinned-certificate TLS - a server context and a CERT_NONE
+    client that compares the fingerprint itself - neither of which may go through
+    the platform verifier. Public truststore API only: extract, construct,
+    re-inject in a ``finally`` so the process-wide injection is left as found.
+
+    ``configure(context)`` runs INSIDE the extracted window: the stdlib class's
+    property setters (``verify_mode``, ``check_hostname``, ...) resolve the
+    module-global ``ssl.SSLContext`` and recurse forever once it is truststore's.
+    """
+
+    def build() -> ssl.SSLContext:
+        context = ssl.SSLContext(protocol)
+        if configure is not None:
+            configure(context)
+        return context
+
+    try:
+        import truststore
+    except ImportError:
+        return build()
+    with _STDLIB_CONTEXT_LOCK:
+        if ssl.SSLContext is not truststore.SSLContext:
+            return build()
+        truststore.extract_from_ssl()
+        try:
+            return build()
+        finally:
+            truststore.inject_into_ssl()
+
+
 def server_ssl_context(store_root: Path | str) -> ssl.SSLContext:
     """A server-side context for the gateway listener. Raises if there is none.
 
@@ -254,13 +294,14 @@ def server_ssl_context(store_root: Path | str) -> ssl.SSLContext:
     identity = ensure_certificate(store_root)
     if not identity.ok:
         raise RuntimeError(f"gateway certificate unavailable: {identity.state}")
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    # No client certificates: the client proves itself with the device HMAC over
-    # the application handshake, one layer up. Asking for one here would be a
-    # second, weaker identity story that nothing checks.
-    context.verify_mode = ssl.CERT_NONE
-    context.load_cert_chain(certfile=identity.cert_path, keyfile=identity.key_path)
-    return context
+    def configure(context: ssl.SSLContext) -> None:
+        # No client certificates: the client proves itself with the device HMAC over
+        # the application handshake, one layer up. Asking for one here would be a
+        # second, weaker identity story that nothing checks.
+        context.verify_mode = ssl.CERT_NONE
+        context.load_cert_chain(certfile=identity.cert_path, keyfile=identity.key_path)
+
+    return stdlib_ssl_context(ssl.PROTOCOL_TLS_SERVER, configure)
 
 
 # ---------------------------------------------------------------------------
