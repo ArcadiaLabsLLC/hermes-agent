@@ -94,10 +94,11 @@ def test_creation_stamps_the_personas_profile_explicitly(store_root, monkeypatch
     PERSONA record, never into the instance the assertion reads. The only way it
     can appear on the instance is the resolver under test running.
     """
+    from agent_runtime.config import ensure_persisted_personas
     from agent_runtime.persona_assignments import _profile_id_for_persona_or_template
 
     _write_persona(store_root, "qa", "launcher-qa")
-    assert _profile_id_for_persona_or_template("qa") == "launcher-qa"
+    assert _profile_id_for_persona_or_template("qa", ensure_persisted_personas) == "launcher-qa"
 
 
 def test_creation_leaves_an_unbound_persona_null(store_root):
@@ -107,17 +108,19 @@ def test_creation_leaves_an_unbound_persona_null(store_root):
     after. Inventing a default here would break that promise silently, so the
     absence is pinned.
     """
+    from agent_runtime.config import ensure_persisted_personas
     from agent_runtime.persona_assignments import _profile_id_for_persona_or_template
 
     _write_persona(store_root, "drifter", None)
-    assert _profile_id_for_persona_or_template("drifter") is None
+    assert _profile_id_for_persona_or_template("drifter", ensure_persisted_personas) is None
 
 
 def test_synthetic_profile_channel_is_unchanged(store_root):
     """The pre-existing ``profile:<name>`` behaviour must not regress."""
+    from agent_runtime.config import ensure_persisted_personas
     from agent_runtime.persona_assignments import _profile_id_for_persona_or_template
 
-    assert _profile_id_for_persona_or_template("profile:alice") == "alice"
+    assert _profile_id_for_persona_or_template("profile:alice", ensure_persisted_personas) == "alice"
 
 
 # ---------------------------------------------------------------------------

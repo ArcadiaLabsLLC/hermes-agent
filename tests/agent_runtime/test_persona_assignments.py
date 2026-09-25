@@ -4472,8 +4472,6 @@ def test_profile_persona_instance_preview_reflects_an_operator_restriction(
 def test_profile_visibility_preserves_custom_instance_role_without_config(monkeypatch):
     from agent_runtime.persona_assignments import _profile_visibility_persona
 
-    monkeypatch.setattr("agent_runtime.config.load_agent_runtime_config", lambda: object())
-    monkeypatch.setattr("agent_runtime.config.ensure_persisted_personas", lambda cfg: [])
     instance = PersonaInstance(
         id="personainst_profile_researcher",
         persona_id="profile:researcher",
@@ -4484,7 +4482,7 @@ def test_profile_visibility_preserves_custom_instance_role_without_config(monkey
         state=WorkerSessionState.IDLE,
     )
 
-    persona = _profile_visibility_persona(instance)
+    persona = _profile_visibility_persona(instance, lambda: [])
 
     assert persona.id == "profile:researcher"
     assert persona.role == "literature_reviewer"
@@ -4505,10 +4503,6 @@ def test_profile_visibility_uses_configured_custom_role_without_rewriting_raw_id
         system_prompt_path="SOUL.md",
         hermes_profile="researcher",
     )
-    monkeypatch.setattr("agent_runtime.config.load_agent_runtime_config", lambda: object())
-    monkeypatch.setattr(
-        "agent_runtime.config.ensure_persisted_personas", lambda cfg: [configured]
-    )
     instance = PersonaInstance(
         id="personainst_profile_researcher",
         persona_id="profile:researcher",
@@ -4519,7 +4513,7 @@ def test_profile_visibility_uses_configured_custom_role_without_rewriting_raw_id
         state=WorkerSessionState.IDLE,
     )
 
-    persona = _profile_visibility_persona(instance)
+    persona = _profile_visibility_persona(instance, lambda: [configured])
 
     assert persona.id == "profile:researcher"
     assert persona.display_name == "Raw Profile Chat"

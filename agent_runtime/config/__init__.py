@@ -9,8 +9,9 @@ Entry points (what calls in):
 * A per-turn knob such as ``mission_chat_default_max_seconds``
   (``chat_request``, ``profile_runner``) → ``knobs`` → ``loader`` →
   ``sections``.
-* ``ensure_persisted_personas`` (``persona_assignments``, ``agent create``,
-  ``snapshot``) → ``persona_records`` → ``loader``.
+* ``ensure_persisted_personas`` (``agent create``, ``snapshot``, the CLI)
+  → ``roster`` (the store read) → ``persona_records`` (the pure merge) →
+  ``loader``.
 * ``harness doctor``'s two config sections
   (``describe_runtime_default_authority``, ``scan_misplaced_root_only_keys``) →
   ``loader``.
@@ -29,13 +30,19 @@ loader           policy  the two loads, the model-authority resolution, the two
 knobs            policy  the per-turn ROOT-config readers and the two
                          ``resolve_*`` precedence chokepoints
 persona_records  policy  persona records from config, the ``${roots.…}``
-                         expansion, the merge with the persisted store
+                         expansion, the merge with a roster passed IN
+roster           stores  ``ensure_persisted_personas`` /
+                         ``persona_skill_sources``: the persona-store read
 ===============  ======  ======================================================
 
-The package sits at ``policy``, not higher: two ``policy`` modules
-(``persona_assignments.identity`` / ``summary``) read it. ``persona_records``
-reaches ``.store`` lazily (undeclared today) — the runtime-queue row filed with
-this split names that reach.
+The package door sits at ``stores`` because it re-exports ``roster``. So a
+``policy`` module takes its config from the submodule (``config.loader``,
+``config.knobs``, ``config.persona_records``), never from the package, and a
+``policy`` module that needs the persona roster takes it as an ARGUMENT from
+its ``stores`` caller (``persona_assignments.summary``'s ``roster=``; the two
+identity lookups that read it live in ``persona_assignments.lookups``). Lane
+Q-RUNTIME 2026-09-25 retired the ``persona_records`` → ``.store`` reach this
+way.
 """
 
 from __future__ import annotations
@@ -70,8 +77,12 @@ from agent_runtime.config.loader import (  # noqa: F401
 )
 from agent_runtime.config.persona_records import (  # noqa: F401
     _expand_machine_root_tokens,
-    ensure_persisted_personas,
+    merge_persisted_personas,
     persona_records_from_config,
+    skill_sources_for,
+)
+from agent_runtime.config.roster import (  # noqa: F401
+    ensure_persisted_personas,
     persona_skill_sources,
 )
 from agent_runtime.config.knobs import (  # noqa: F401
@@ -87,4 +98,4 @@ from agent_runtime.config.knobs import (  # noqa: F401
     resolve_mission_chat_max_seconds,
 )
 
-__layer__ = "policy"
+__layer__ = "stores"

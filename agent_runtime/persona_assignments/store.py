@@ -13,6 +13,7 @@ from utils import atomic_json_write
 
 from agent_runtime import paths
 from agent_runtime.agent_create_phases import timed_create_subphase
+from agent_runtime.config.roster import ensure_persisted_personas
 from agent_runtime.errors import PersonaInstancesUnreadable
 from agent_runtime.events import EventLog
 from agent_runtime.models import AgentPersona, Event, PersonaInstance
@@ -329,7 +330,7 @@ class PersonaInstanceStore:
             ),
             display_name=display_name,
             default_display_name=default_display_name,
-            profile_id=_profile_id_for_persona_or_template(normalized_persona),
+            profile_id=_profile_id_for_persona_or_template(normalized_persona, ensure_persisted_personas),
             kill_active=False,
             workspace_id=workspace_id,
             realm_id=realm_id,

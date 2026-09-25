@@ -27,7 +27,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-25 (lane 2B-A)
 
-- [ ] **`config.persona_records` (policy) lazily reads `store.AgentStore` (stores) — an upward edge the store split made VISIBLE (store was undeclared), masked on `main` only by the acp red in `test_fork_import_layers`** · `fork / layers` · `ensure_persisted_personas` / `persona_skill_sources` are store READS living at the policy layer and re-exported through `config/__init__`, and `persona_assignments.identity` / `summary` (policy) call them; re-declaring `config` as stores makes 5 edges instead of 1 — the structural answer is the roster as an argument (the store read moves to the stores-layer callers) · evidence: lane 2B-A store MOVE body; layer walk with acp stubbed · filed by lane 2B-A 2026-09-25 **UNCLAIMED** **TAKEN 2026-09-25 lane Q-RUNTIME**
 
 ### Filed on arrival — 2026-09-24 (lane LLAMA-H)
 
@@ -121,7 +120,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-25 (lane 2B-C)
 
-- [ ] **`agent_runtime/config/` is declared `policy` while `persona_records.ensure_persisted_personas` / `persona_skill_sources` read the persona store (`.store`, lazily)** · `fork / layers` · two `policy` modules (`persona_assignments/identity.py`, `summary.py`) call `ensure_persisted_personas`, so any higher layer on the config package is an upward import for them; when `agent_runtime/store/` declares its layer (lane 2B-A) the reach from `persona_records` reds W0-G6. Structural answer: inject the persona catalog into the two policy callers (or lift their lookups into a `stores` module) and raise `persona_records` to `stores` · evidence: config MOVE commit body (lane 2B-C) · filed by lane 2B-C 2026-09-25 **UNCLAIMED** **TAKEN 2026-09-25 lane Q-RUNTIME**
 
 
 ## Seams — fork edits inside upstream files (additive only)

@@ -136,6 +136,7 @@ def persona_instance_detail_for_id(entity_id: str, *, event_log=None) -> dict | 
     token = str(entity_id or "").strip()
     if not token:
         return None
+    from ..config import ensure_persisted_personas
     from ..persona_assignments import persona_instance_tool_detail
 
     event_log = event_log or CachedEventLog()
@@ -144,7 +145,7 @@ def persona_instance_detail_for_id(entity_id: str, *, event_log=None) -> dict | 
     for instance in PersonaInstanceStore(event_log=event_log).ensure_for_personas(agents):
         if str(getattr(instance, "id", "") or "") == token:
             persona = personas_by_id.get(str(getattr(instance, "persona_id", "") or ""))
-            return persona_instance_tool_detail(instance, persona)
+            return persona_instance_tool_detail(instance, persona, roster=ensure_persisted_personas)
     persona = personas_by_id.get(token)
     if persona is not None:
         return _agent_tool_detail(persona)

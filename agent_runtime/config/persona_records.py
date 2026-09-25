@@ -1,6 +1,7 @@
-"""Persona records declared in config, and their merge with the persisted persona store.
+"""Persona records declared in config, and their merge with a persisted roster the caller passes in.
 
-Map: ``agent_runtime/config/__init__.py``.
+Map: ``agent_runtime/config/__init__.py``. The store READ is ``config.roster``
+(``stores``); everything here takes the roster as an argument.
 """
 
 from __future__ import annotations
@@ -103,12 +104,12 @@ def persona_records_from_config(cfg: AgentRuntimeConfig | None = None):
     return list(personas.values())
 
 
-def persona_skill_sources(cfg: AgentRuntimeConfig | None = None) -> dict[str, dict[str, Any]]:
+def skill_sources_for(stored, cfg: AgentRuntimeConfig) -> dict[str, dict[str, Any]]:
     """Which tier answered each persona's ``skills``, and what the config lost.
 
     S0a A6c — ACCOUNTING ONLY, no write. The persona→skill seed row asked why a
     config ``skills:`` addition does not reach a placement. The mechanism is the
-    same store-wins merge as toolsets (``ensure_persisted_personas`` merges
+    same store-wins merge as toolsets (:func:`merge_persisted_personas` merges
     ``{**catalog, **stored}``), but the ANSWER is different and does not
     transfer: skills have a store-writing verb with its own supersede clock
     (``persona set-skills`` → ``AgentPersona.skills_override_issued_at``) and the
@@ -120,16 +121,16 @@ def persona_skill_sources(cfg: AgentRuntimeConfig | None = None) -> dict[str, di
     says which tier the effective list came from, and ``catalog_only_skills``
     names the config entries the store row does not carry — the silent
     difference an operator previously had to diff two files to see.
+
+    ``stored`` is the persisted roster, passed in: this module is ``policy`` and
+    never reads the store (``config.roster`` is the reader).
     """
 
-    from ..store import AgentStore
-
-    cfg = cfg or load_agent_runtime_config()
-    stored = {persona.id: persona for persona in AgentStore().list_all()}
+    stored_by_id = {persona.id: persona for persona in stored}
     catalog = {persona.id: persona for persona in persona_records_from_config(cfg)}
     rows: dict[str, dict[str, Any]] = {}
-    for persona_id in set(stored) | set(catalog):
-        stored_row = stored.get(persona_id)
+    for persona_id in set(stored_by_id) | set(catalog):
+        stored_row = stored_by_id.get(persona_id)
         catalog_row = catalog.get(persona_id)
         effective = list(getattr(stored_row or catalog_row, "skills", []) or [])
         declared = list(getattr(catalog_row, "skills", []) or []) if catalog_row else []
@@ -140,15 +141,11 @@ def persona_skill_sources(cfg: AgentRuntimeConfig | None = None) -> dict[str, di
     return rows
 
 
-def ensure_persisted_personas(cfg: AgentRuntimeConfig | None = None):
-    """Return the persisted persona store plus data-declared config records."""
-    from ..store import AgentStore
+def merge_persisted_personas(stored, cfg: AgentRuntimeConfig):
+    """The persisted roster (``stored``, passed in) over the config-declared records — store wins."""
 
-    cfg = cfg or load_agent_runtime_config()
-    store = AgentStore()
-    stored = {persona.id: persona for persona in store.list_all()}
     catalog = {persona.id: persona for persona in persona_records_from_config(cfg)}
-    merged = {**catalog, **stored}
+    merged = {**catalog, **{persona.id: persona for persona in stored}}
     return list(merged.values())
 
 

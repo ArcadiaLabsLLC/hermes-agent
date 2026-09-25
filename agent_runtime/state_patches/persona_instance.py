@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Iterable
 
-from ..config import AgentRuntimeConfig
+from ..config import AgentRuntimeConfig, ensure_persisted_personas
 from ..events import EVENT_PAYLOAD_LIMIT_BYTES, EventLog
 from .emit import delta_patches_enabled, emit_state_patch
 from .models import (
@@ -198,7 +198,9 @@ def project_persona_instance_full_wire_row(instance: Any) -> dict[str, Any]:
     # the ``state.patched`` append that ``emit_persona_instance_create`` performs
     # around it. Free for every other caller — see ``timed_create_subphase``.
     with timed_create_subphase("wire_row_ms"):
-        return persona_instance_summary(instance, _resolve_persona_for(instance))
+        return persona_instance_summary(
+            instance, _resolve_persona_for(instance), roster=ensure_persisted_personas
+        )
 
 
 def emit_persona_instance_create(
