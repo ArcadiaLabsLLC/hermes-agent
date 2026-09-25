@@ -6,6 +6,8 @@ its own credential and selection envelopes.
 
 from __future__ import annotations
 
+from typing import Any, Callable
+
 import uuid
 
 from hermes_time import now
@@ -392,16 +394,19 @@ def _cmd_realm_skills_show(args) -> int:
 #: (``--skills``/``--agents``, present when not None); a switch row stores an
 #: empty selection — ``--all``/``--workspace`` keep the stored list on the
 #: realm, ``--none`` empties it.
-_SELECTION_MODES: dict[str, tuple[tuple[str, str, str, bool], ...]] = {
+#: ``(flag, reader, mode, carries_list)`` per noun. Each reader is spelled as
+#: ``args.<dest>`` so the flag-reachability gate sees the read; a ``getattr``
+#: over a table attribute name is invisible to it.
+_SELECTION_MODES: dict[str, tuple[tuple[str, Callable[[Any], Any], str, bool], ...]] = {
     "skills": (
-        ("--all", "publish_all", "all", False),
-        ("--skills", "skills", "selected", True),
-        ("--none", "publish_none", "selected", False),
+        ("--all", lambda args: args.publish_all, "all", False),
+        ("--skills", lambda args: args.skills, "selected", True),
+        ("--none", lambda args: args.publish_none, "selected", False),
     ),
     "agents": (
-        ("--workspace", "publish_workspace", "workspace", False),
-        ("--agents", "agents", "selected", True),
-        ("--none", "publish_none", "selected", False),
+        ("--workspace", lambda args: args.publish_workspace, "workspace", False),
+        ("--agents", lambda args: args.agents, "selected", True),
+        ("--none", lambda args: args.publish_none, "selected", False),
     ),
 }
 
@@ -416,15 +421,15 @@ def selection_from_args(args, noun: str) -> tuple[str, list[str]]:
     given = [
         row
         for row in rows
-        if (getattr(args, row[1], None) is not None if row[3] else bool(getattr(args, row[1], False)))
+        if (row[1](args) is not None if row[3] else bool(row[1](args)))
     ]
     if len(given) != 1:
         flags = [row[0] for row in rows]
         raise ValueError(f"exactly one of {', '.join(flags[:-1])}, or {flags[-1]} is required")
-    _flag, attr, mode, carries_list = given[0]
+    _flag, read, mode, carries_list = given[0]
     if not carries_list:
         return mode, []
-    return mode, [item.strip() for item in str(getattr(args, attr)).split(",") if item.strip()]
+    return mode, [item.strip() for item in str(read(args)).split(",") if item.strip()]
 
 
 def _cmd_realm_skills_set(args) -> int:
