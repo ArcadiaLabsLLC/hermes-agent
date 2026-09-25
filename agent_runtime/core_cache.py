@@ -61,7 +61,7 @@ Two mtime-blind cases are covered explicitly rather than assumed:
 * **In-place rewrites inside a directory.** Replacing an existing entry does
   not move the CONTAINING directory's mtime on NTFS, which is why every file
   is stat'd individually instead of trusting its parent (the same reasoning as
-  the boards-tree per-card stat pattern in ``harness_parts/serve.py``).
+  the boards-tree per-card stat pattern in ``harness_parts/serve/boot.py``).
 
 =============================================================================
 THE INPUT CLOSURE — THE ONE THING THIS STAGE CAN GET WRONG
@@ -830,7 +830,7 @@ _WAL_SIBLING = "-wal"
 #: its own new triple and a removed one takes its triple with it, so the parent's
 #: timestamp is strictly redundant with the walk that produced it. That is the
 #: same reasoning as the boards-tree per-card stat pattern in
-#: ``harness_parts/serve.py``, taken one step further.
+#: ``harness_parts/serve/boot.py``, taken one step further.
 _DIR_MARK = -2
 
 
@@ -1207,7 +1207,7 @@ def sqlite_fingerprint_triples(db_path: Any) -> tuple[tuple[str, int, int], ...]
       median 9.0 s spacing. 3 338 DISTINCT fingerprints over 4 597 reconciles,
       against a recurring at-rest anchor: the signature of one entry alternating
       between a stable "absent" string and a fresh ``mtime_ns`` on every open.
-    * ``harness_parts.serve._runtime_state_fingerprint`` (the read-model cache),
+    * ``harness_parts.serve.boot._runtime_state_fingerprint`` (the read-model cache),
       where the same flip keeps the cache permanently cold — the defect a
       2026-08-09 analysis named and nobody propagated the mask to.
 
@@ -3831,7 +3831,7 @@ def take_stale_first_core(*, caller: str) -> dict | None:
     exists to deliver was thrown away, and the operator watched an empty canvas
     for the length of a full build. The rule is now stated where the room is
     known (``stream_frames``' ``wants_stale_first``, derived at producer-build
-    time by ``serve.py::_room_wants_stale_first``), and the one-shot is
+    time by ``serve/subscriptions.py::_room_wants_stale_first``), and the one-shot is
     structural: :func:`agent_runtime.stream.stream_frames` asks this ONCE, at its
     head, before its tail loop.
 

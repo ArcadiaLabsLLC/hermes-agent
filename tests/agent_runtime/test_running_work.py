@@ -1383,9 +1383,9 @@ def test_a_process_starting_invalidates_the_serve_poll_response_cache(
 
     from hermes_cli.harness_parts import serve
 
-    before = serve._runtime_state_fingerprint()
+    before = serve.boot._runtime_state_fingerprint()
     _write_checkpoint(home, [{"session_id": "sess-new", "pid": os.getpid()}])
-    after = serve._runtime_state_fingerprint()
+    after = serve.boot._runtime_state_fingerprint()
 
     assert before is not None
     assert after != before

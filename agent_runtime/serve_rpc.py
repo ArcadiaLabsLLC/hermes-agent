@@ -52,7 +52,7 @@ has a different cure:
 
 Why this is a lane and not a replacement
 ----------------------------------------
-``hermes_cli/harness_parts/serve.py`` dispatches ``{"id","argv"}`` frames into
+``hermes_cli/harness_parts/serve/handle_message.py`` dispatches ``{"id","argv"}`` frames into
 the harness argparse tree. That lane is byte-identity tested and stays the
 fallback; this one sits BESIDE it. A frame is routed here when it carries
 ``jsonrpc`` or ``method`` — neither of which the argv lane has ever sent — so

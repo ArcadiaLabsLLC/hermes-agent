@@ -54,7 +54,6 @@ from agent_runtime.serve_socket import (
     verify_hello_proof,
 )
 from hermes_cli.harness_parts import serve as serve_module
-from hermes_cli.harness_parts.serve import loop as serve_reader_module
 from hermes_cli.harness_parts.serve import serve_loop
 
 WAIT = 15.0
@@ -1571,10 +1570,8 @@ def test_the_connect_verb_refuses_a_target_that_is_not_live_and_names_why():
     import io
     from contextlib import redirect_stdout
 
-    from hermes_cli.harness_parts.serve import (
-        SERVE_CONNECT_NO_SERVICE_EXIT_CODE,
-        _cmd_serve_connect,
-    )
+    from hermes_cli.harness_parts.serve import SERVE_CONNECT_NO_SERVICE_EXIT_CODE
+    from hermes_cli.harness_parts.serve.commands import _cmd_serve_connect
 
     dead = _dead_pid()
     _write_registry_row(pid=dead, port=61999)
@@ -2724,7 +2721,7 @@ def test_two_connections_asking_to_drain_at_once_start_exactly_one_drain():
     second state of its own.
     """
 
-    original_init = serve_module._DrainState.__init__
+    original_init = serve_module.drain._DrainState.__init__
 
     def _slow_init(self, deadline_seconds):
         time.sleep(0.25)
@@ -2738,7 +2735,7 @@ def test_two_connections_asking_to_drain_at_once_start_exactly_one_drain():
         release.wait(WAIT)
         return 0
 
-    serve_module._DrainState.__init__ = _slow_init
+    serve_module.drain._DrainState.__init__ = _slow_init
     try:
         with running_serve(dispatch=_dispatch, drain_poll_interval_seconds=0.01) as handle:
             with client(handle, name="first") as (first, _r1), client(handle, name="second") as (second, _r2):
@@ -2825,7 +2822,7 @@ def test_two_connections_asking_to_drain_at_once_start_exactly_one_drain():
                 assert completions[0]["requests_completed"] == 1
     finally:
         release.set()
-        serve_module._DrainState.__init__ = original_init
+        serve_module.drain._DrainState.__init__ = original_init
 
 
 class _StallingSink(_Sink):
@@ -2928,7 +2925,7 @@ def test_the_socket_files_move_no_freshness_fingerprint():
     root = _store_root()
     root.mkdir(parents=True, exist_ok=True)
     before = (
-        serve_module._runtime_state_fingerprint(),
+        serve_module.boot._runtime_state_fingerprint(),
         stream_module._scope_fingerprint(),
     )
     lock = SocketOwnerLock(root)
@@ -2938,7 +2935,7 @@ def test_the_socket_files_move_no_freshness_fingerprint():
         assert socket_lock_path(root).exists()
         assert socket_owner_path(root).exists()
         after = (
-            serve_module._runtime_state_fingerprint(),
+            serve_module.boot._runtime_state_fingerprint(),
             stream_module._scope_fingerprint(),
         )
         assert after == before
@@ -3166,7 +3163,7 @@ def test_drain_progress_reaches_the_SOCKET_client_and_not_only_stdio(monkeypatch
     saw, and that it carries the in-flight request it is reporting about.
     """
 
-    monkeypatch.setattr(serve_reader_module, "_DRAIN_PROGRESS_INTERVAL_SECONDS", 0.05)
+    monkeypatch.setattr(serve_module.drain, "_DRAIN_PROGRESS_INTERVAL_SECONDS", 0.05)
 
     started = threading.Event()
     release = threading.Event()

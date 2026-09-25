@@ -71,11 +71,12 @@ HARNESS_ROOT = pathlib.Path(__file__).resolve().parents[2] / "hermes_cli"
 HARNESS = HARNESS_ROOT / "harness.py"
 
 #: Where a handler can legitimately read `args.<dest>`: the parser file, the
-#: shared support module, and the six exec'd command parts.
+#: shared support module, and the command parts — modules and packages alike
+#: (``harness_parts/serve/`` is a package since lane H4).
 _LANE = [
     HARNESS,
     HARNESS_ROOT / "harness_support.py",
-    *sorted((HARNESS_ROOT / "harness_parts").glob("*.py")),
+    *sorted((HARNESS_ROOT / "harness_parts").rglob("*.py")),
 ]
 
 

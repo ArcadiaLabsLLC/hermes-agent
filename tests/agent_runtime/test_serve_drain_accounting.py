@@ -34,7 +34,6 @@ import time
 import pytest
 
 from hermes_cli.harness_parts import serve as serve_module
-from hermes_cli.harness_parts.serve import loop as serve_reader_module
 from hermes_cli.harness_parts.serve import DRAIN_TIMEOUT_EXIT_CODE, serve_loop
 
 WAIT = 20.0
@@ -195,7 +194,7 @@ def test_a_drain_the_reader_outran_is_declared_abandoned_in_a_frame(monkeypatch)
     with it, so widening the wait cannot hand the race to the monitor instead.
     """
 
-    monkeypatch.setattr(serve_reader_module, "_DRAIN_ABANDON_GRACE_SECONDS", 2.0)
+    monkeypatch.setattr(serve_module.session, "_DRAIN_ABANDON_GRACE_SECONDS", 2.0)
 
     pipe, sink = _Pipe(), _Sink()
     result = _run_serve(
@@ -248,7 +247,7 @@ def test_a_blocking_wakeup_cannot_stop_the_forced_exit(monkeypatch):
     the hang the deadline exists to bound, arriving through the front door.
     """
 
-    monkeypatch.setattr(serve_reader_module, "_DRAIN_EXIT_DEADLINE_SECONDS", 0.2)
+    monkeypatch.setattr(serve_module.drain, "_DRAIN_EXIT_DEADLINE_SECONDS", 0.2)
 
     exits: list[int] = []
     wakeup_entered = threading.Event()
@@ -322,7 +321,7 @@ def test_the_exit_watchdog_covers_the_teardown_not_just_what_follows_it(monkeypa
     still forced down on schedule; armed late, it is never armed at all.
     """
 
-    monkeypatch.setattr(serve_reader_module, "_DRAIN_EXIT_DEADLINE_SECONDS", 0.3)
+    monkeypatch.setattr(serve_module.drain, "_DRAIN_EXIT_DEADLINE_SECONDS", 0.3)
 
     exits: list[int] = []
     release = threading.Event()
@@ -370,8 +369,8 @@ def test_a_completed_drain_is_never_relabelled_abandoned(monkeypatch):
     latched and is mid-publish, and the reader reaches its EOF path first.
     """
 
-    monkeypatch.setattr(serve_reader_module, "_DRAIN_ABANDON_GRACE_SECONDS", 0.2)
-    monkeypatch.setattr(serve_reader_module, "_DRAIN_EXIT_DEADLINE_SECONDS", 30.0)
+    monkeypatch.setattr(serve_module.session, "_DRAIN_ABANDON_GRACE_SECONDS", 0.2)
+    monkeypatch.setattr(serve_module.drain, "_DRAIN_EXIT_DEADLINE_SECONDS", 30.0)
 
     release = threading.Event()
     pipe = _Pipe()
@@ -420,14 +419,14 @@ def test_the_completion_count_cannot_miss_a_request_that_just_landed(monkeypatch
     restart dropped that request" about work that completed.
     """
 
-    original = serve_module._DrainState.note_completed
+    original = serve_module.drain._DrainState.note_completed
 
     def _slow_note_completed(self):
         time.sleep(0.25)
         original(self)
 
     monkeypatch.setattr(
-        serve_module._DrainState, "note_completed", _slow_note_completed
+        serve_module.drain._DrainState, "note_completed", _slow_note_completed
     )
 
     pipe, sink = _Pipe(), _Sink()

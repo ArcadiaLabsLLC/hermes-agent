@@ -8,8 +8,8 @@ from typing import Any
 
 from hermes_cli.harness_parts.serve.constants import (
     GATEWAY_TRANSPORT,
+    OPS,
     OPS_CONTRACT_VERSION,
-    OPS_EVERY_TRANSPORT,
     OPS_GATEWAY_DENIED,
     OPS_STDIO_ONLY,
     SUBSCRIBE_LANES,
@@ -50,9 +50,9 @@ def ops_manifest(*, transport: str, service: bool = False) -> dict[str, Any]:
     those four unchanged.
     """
 
-    ops = set(OPS_EVERY_TRANSPORT)
-    if transport == "stdio":
-        ops |= set(OPS_STDIO_ONLY)
+    ops = set(OPS)
+    if transport != "stdio":
+        ops -= set(OPS_STDIO_ONLY)
     if transport == GATEWAY_TRANSPORT:
         # The per-transport shape earning its keep a second time. A device
         # learns what it may ask by MEMBERSHIP — the set-plus-integer rule the

@@ -289,7 +289,7 @@ def test_serve_fingerprint_flips_on_turn_flushes(isolate_agent_runtime_root):
     cached snapshot serves stale turn elements (the monolith stat went dead
     with the per-session split)."""
 
-    from hermes_cli.harness_parts.serve import _runtime_state_fingerprint
+    from hermes_cli.harness_parts.serve.boot import _runtime_state_fingerprint
 
     persist_mission_chat_turn(
         session_id="chat_fp_session",

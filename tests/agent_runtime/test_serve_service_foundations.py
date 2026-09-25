@@ -659,7 +659,7 @@ def test_a_second_drain_is_reported_not_restarted():
     ],
 )
 def test_a_client_supplied_deadline_is_clamped_into_the_sane_band(raw, expected):
-    from hermes_cli.harness_parts.serve import _drain_deadline_seconds
+    from hermes_cli.harness_parts.serve.drain import _drain_deadline_seconds
 
     assert _drain_deadline_seconds(raw, 30.0) == expected
 

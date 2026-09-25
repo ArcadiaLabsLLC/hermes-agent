@@ -144,7 +144,7 @@ def drain_recorder(monkeypatch):
     real_begin_drain = serve_socket_module.ServeSocketServer.begin_drain
     real_release = serve_socket_module.SocketOwnerLock.release
     real_unregister = serve_registry_module.unregister_serve_instance
-    real_write_end = serve_module._ServeEndReason.write
+    real_write_end = serve_module.end_reason._ServeEndReason.write
 
     def begin_drain(self):
         # Read the sidecar BEFORE the listener closes: RS-3 wants the drain
@@ -179,12 +179,12 @@ def drain_recorder(monkeypatch):
     monkeypatch.setattr(
         serve_registry_module, "unregister_serve_instance", unregister
     )
-    monkeypatch.setattr(serve_module._ServeEndReason, "write", write_end)
+    monkeypatch.setattr(serve_module.end_reason._ServeEndReason, "write", write_end)
     # The end-reason recorder is armed below (it is what writes the ended note),
     # and arming it installs a process-wide console-control handler on Windows.
     # A unit test has no business leaving one on the pytest process.
     monkeypatch.setattr(
-        serve_module, "_install_console_ctrl_reason_handler", lambda recorder: None
+        serve_module.boot_phases, "_install_console_ctrl_reason_handler", lambda recorder: None
     )
     seen["steps"] = steps
     return seen

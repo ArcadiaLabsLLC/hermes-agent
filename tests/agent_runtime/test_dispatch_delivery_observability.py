@@ -561,11 +561,11 @@ def test_the_mirror_is_in_no_freshness_fingerprint(store_home):
     from hermes_cli.harness_parts import serve
 
     name = dispatch_delivery.DRAIN_STATE_FILENAME
-    assert name not in serve._FINGERPRINT_ROOT_FILES
-    assert name not in serve._FINGERPRINT_STORE_DIRS
+    assert name not in serve.constants._FINGERPRINT_ROOT_FILES
+    assert name not in serve.constants._FINGERPRINT_STORE_DIRS
     assert all(name not in str(path) for path in running_work_store_paths())
     assert name not in inspect.getsource(stream._scope_fingerprint)
-    assert name not in inspect.getsource(serve._runtime_state_fingerprint)
+    assert name not in inspect.getsource(serve.boot._runtime_state_fingerprint)
 
 
 # ---------------------------------------------------------------------------

@@ -696,7 +696,7 @@ class SocketOwnerLock:
 
         * the sidecar carries :data:`SOCKET_OWNER_DRAINING_KEY` — the owner
           stamped it itself, as the first act of its drain, before it closed its
-          listener (``hermes_cli/harness_parts/serve.py``);
+          listener (``hermes_cli/harness_parts/serve/boot_phases.py``);
         * the owner's registry row is GONE. ``_finish_drain`` unregisters as the
           statement after it releases this lock, and nothing else removes a live
           serve's row, so a live pid with no row is a serve inside the last

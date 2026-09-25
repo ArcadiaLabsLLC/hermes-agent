@@ -406,21 +406,6 @@
    "unit": "hermes_cli/harness_parts/persona_commands.py|_mission_chat_commit_turn"
   },
   {
-   "depth": 6,
-   "lines": 3760,
-   "unit": "hermes_cli/harness_parts/serve/loop.py|serve_loop"
-  },
-  {
-   "depth": 4,
-   "lines": 856,
-   "unit": "hermes_cli/harness_parts/serve/loop.py|serve_loop._handle_message"
-  },
-  {
-   "depth": 5,
-   "lines": 207,
-   "unit": "hermes_cli/harness_parts/serve/loop.py|serve_loop._run"
-  },
-  {
    "depth": 4,
    "lines": 233,
    "unit": "mobile_core/src/hermes_mobile_core/_vendor/agent/transports/chat_completions.py|ChatCompletionsTransport.build_kwargs"

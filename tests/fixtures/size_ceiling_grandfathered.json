@@ -36,7 +36,6 @@
   "hermes_cli/harness.py": 5151,
   "hermes_cli/harness_parts/gateway_commands.py": 1645,
   "hermes_cli/harness_parts/persona_commands.py": 6299,
-  "hermes_cli/harness_parts/serve/loop.py": 2180,
   "scripts/changed_line_mutation_check.py": 831,
   "tests/_downstream/hermes_cli_conftest.py": 893,
   "tests/_downstream/id_markers.py": 1053,

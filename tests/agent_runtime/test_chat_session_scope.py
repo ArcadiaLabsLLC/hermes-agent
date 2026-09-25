@@ -454,7 +454,7 @@ def test_the_serve_fingerprint_keys_on_the_chat_scope_not_hermes_home(
     every chat write goes to the chat scope; whenever the two diverge a cached
     snapshot could serve a frozen Chat History for the life of the process."""
 
-    from hermes_cli.harness_parts.serve import _runtime_state_fingerprint
+    from hermes_cli.harness_parts.serve.boot import _runtime_state_fingerprint
 
     _cli_lane(monkeypatch, runtime_root)
     monkeypatch.setenv("HERMES_HEAD_HOME", str(runtime_root["head_home"]))

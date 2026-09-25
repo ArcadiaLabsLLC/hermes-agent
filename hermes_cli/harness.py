@@ -2145,7 +2145,7 @@ def _cmd_roots_unset(args) -> int:
 # service half Stage 0a shipped and tested. These two handlers hold no rule of
 # their own: WHAT a name may be, WHERE the record lives, and WHEN a record is
 # minted are all decided there, because the greeting frame
-# (`harness_parts/serve.py`, the `install` block) reads the same module and two
+# (`harness_parts/serve/boot_phases.py`, the `install` block) reads the same module and two
 # answers to "what is this install called" is the whole failure this lane exists
 # to prevent.
 #

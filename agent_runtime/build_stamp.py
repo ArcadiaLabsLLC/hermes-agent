@@ -341,7 +341,7 @@ def _git(root: Path, args: list[str], *, allow_empty: bool = False) -> tuple[str
             # stdin pinned to the null device: serve's handlers already learned
             # this the hard way — a child inheriting serve's stdin pipe blocks
             # forever against the Launcher's open pipe (see
-            # ``_claim_protocol_pipes`` in harness_parts/serve.py).
+            # ``_claim_protocol_pipes`` in harness_parts/serve/commands.py).
             stdin=subprocess.DEVNULL,
             env={**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"},
         )

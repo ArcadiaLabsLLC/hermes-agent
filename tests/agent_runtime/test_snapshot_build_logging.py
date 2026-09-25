@@ -380,7 +380,7 @@ def test_the_prewarm_names_itself_on_the_line_it_used_to_never_emit(
         lambda **_kwargs: _core(build_ms=21400),
     )
 
-    serve_mod._prewarm_read_model_snapshot()
+    serve_mod.boot._prewarm_read_model_snapshot()
 
     receipts = _lines(build_log, _CORE_PREFIX)
     assert len(receipts) == 1

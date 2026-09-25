@@ -222,11 +222,11 @@ def test_a_serve_hosted_turn_is_observed_as_serve_with_hot_sessions_disabled(
     from hermes_cli.harness_parts import serve as serve_module
 
     monkeypatch.setattr(persona_commands, "persona_chat_runtime_registry", lambda: None)
-    token = serve_module._request_id.set("req-42")
+    token = serve_module.frames._request_id.set("req-42")
     try:
         assert persona_commands._mission_chat_lease_provenance() == ("req-42", "serve")
     finally:
-        serve_module._request_id.reset(token)
+        serve_module.frames._request_id.reset(token)
 
 
 def test_a_cli_turn_is_observed_as_cli_even_with_the_cache_enabled(monkeypatch):
@@ -235,7 +235,7 @@ def test_a_cli_turn_is_observed_as_cli_even_with_the_cache_enabled(monkeypatch):
     from hermes_cli.harness_parts import serve as serve_module
 
     monkeypatch.setattr(persona_commands, "persona_chat_runtime_registry", lambda: object())
-    assert serve_module._request_id.get() is None
+    assert serve_module.frames._request_id.get() is None
     assert persona_commands._mission_chat_lease_provenance() == (None, "cli")
 
 

@@ -55,7 +55,6 @@ from __future__ import annotations
 import importlib.util
 import inspect
 import json
-import re
 import threading
 import time
 from contextlib import contextmanager
@@ -436,9 +435,9 @@ def test_no_op_the_dispatcher_answers_is_left_off_the_advertisement():
     An op that exists and is NOT advertised is invisible: no client sends it, so
     no test that drives the wire can find it, and the advertisement quietly
     becomes a subset of the truth — which is how a client ends up probing again
-    for the one op that was forgotten. So the dispatcher's own source is the
-    witness: every ``op == "…"`` branch in ``serve.py`` must be advertised on at
-    least one transport.
+    for the one op that was forgotten. So the dispatcher's own op table is the
+    witness, read at RUNTIME: every key of ``handle_message.OP_HANDLERS`` must
+    be advertised on at least one transport.
 
     ``hello`` is the one deliberate exclusion. It is the socket's FIRST line,
     consumed by ``serve_socket`` before this dispatcher exists; a hello that
@@ -446,9 +445,10 @@ def test_no_op_the_dispatcher_answers_is_left_off_the_advertisement():
     Its contract is advertised as ``hello_contract`` on ``server_hello``.
     """
 
-    source = _serve_source()
-    dispatched = set(re.findall(r'\bop == "([a-z_]+)"', source))
-    # Anti-vacuity: the scrape found the real branch table, not zero of it.
+    from hermes_cli.harness_parts.serve.handle_message import OP_HANDLERS
+
+    dispatched = set(OP_HANDLERS)
+    # Anti-vacuity: the table is the real one, not an empty stand-in.
     assert {"ping", "subscribe", "version", "shutdown"} <= dispatched
 
     advertised = set(serve_module.ops_manifest(transport="stdio")["ops"]) | set(
@@ -1192,7 +1192,7 @@ def test_the_serve_producer_still_takes_the_hubs_stop_event():
     """
 
     source = _serve_source()
-    assert "def _stream_source(stop" in source, (
+    assert "def _stream_source(self, stop" in source, (
         "`_stream_source` no longer accepts the hub's per-generation stop event. "
         "The hub probes BY SIGNATURE and silently falls back to a no-argument "
         "call, so nothing raises — the producer just goes back to being "

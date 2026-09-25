@@ -227,7 +227,7 @@ def test_projection_parity_warnings_orphan_and_conflict():
 
 
 def test_serve_fingerprint_flips_on_card_mutations():
-    from hermes_cli.harness_parts.serve import _runtime_state_fingerprint
+    from hermes_cli.harness_parts.serve.boot import _runtime_state_fingerprint
 
     ws = _make_workspace()
     store = BoardStore()

@@ -308,10 +308,14 @@ teardown order is byte-identical to what it was.
 
 from __future__ import annotations
 
+from typing import Final
 
 __layer__ = "models"
 
 __all__ = [
+    "HELLO_OP",
+    "OPS",
+    "READER_STOP",
     "DEFAULT_DRAIN_DEADLINE_SECONDS",
     "DEFAULT_POOL_SIZE",
     "DRAINING_EXIT_CODE",
@@ -403,7 +407,7 @@ FINGERPRINT_HOME_BOOT_SITE = "serve_loop:booting_frame_emitted"
 OPS_CONTRACT_VERSION = 1
 
 #: Ops this dispatcher answers on EVERY transport.
-OPS_EVERY_TRANSPORT: tuple[str, ...] = (
+OPS_EVERY_TRANSPORT: Final[tuple[str, ...]] = (
     "cancel",
     "connections",
     "drain",
@@ -416,7 +420,24 @@ OPS_EVERY_TRANSPORT: tuple[str, ...] = (
 
 #: Ops only the process that owns this runtime's stdin may use. See the
 #: ``shutdown`` refusal in ``_handle_message``.
-OPS_STDIO_ONLY: tuple[str, ...] = ("shutdown",)
+OPS_STDIO_ONLY: Final[tuple[str, ...]] = ("shutdown",)
+
+#: THE op vocabulary: every op the dispatcher answers and ``ops_manifest``
+#: advertises, before the per-transport denials below. One vocabulary, two
+#: readers that cannot disagree — the manifest subtracts from it, and the
+#: dispatcher's op table (``handle_message.OP_HANDLERS``) is checked against it
+#: at import.
+OPS: Final[tuple[str, ...]] = (*OPS_EVERY_TRANSPORT, *OPS_STDIO_ONLY)
+
+#: The socket handshake's first line. Consumed by ``serve_socket`` before the
+#: dispatcher exists, so a ``hello`` that REACHES the dispatcher is a second one:
+#: answered (``unexpected_hello``), never advertised — which is why it is not
+#: in :data:`OPS`.
+HELLO_OP = "hello"
+
+#: What an op returns to stop the stdio reader (the stdio ``shutdown`` op).
+#: A named signal rather than a string compared at the reader.
+READER_STOP = "shutdown"
 
 #: The transport name the gateway listener tags its connections and frames with.
 #: The same string ``call_authorization.TRANSPORT_GATEWAY`` keys its structural
