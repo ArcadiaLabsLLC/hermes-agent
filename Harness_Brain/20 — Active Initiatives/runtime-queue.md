@@ -137,7 +137,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-25 (lane B4, filed by the orchestrator)
 
-- [ ] **running_work's `REGISTRY_EXITED` and `KILL_NOT_FOUND` boundary words have no test pinning their values** · `fork / tests` · a positive control per word: the surface reads the word, a changed spelling reds · evidence: B4 CHANGE `f1635138af` · filed by lane B4 2026-09-25 **TAKEN 2026-09-25 lane W3-C**
 
 
 ## Seams — fork edits inside upstream files (additive only)
