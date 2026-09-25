@@ -24,7 +24,7 @@ import ast
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
-from typing import Callable, Mapping
+from typing import Callable, Iterable, Iterator, Mapping
 
 _COLLECTIONS = (ast.Tuple, ast.Set, ast.List)
 _ENUM_BASES = frozenset({"Enum", "StrEnum", "IntEnum", "Flag", "IntFlag"})
@@ -281,3 +281,61 @@ def file_scope(root: Path, path: str) -> FileScope:
         if id(node) not in top:  # a deferred import binds too
             builder.bind_all(statement_bindings(root, path, node))
     return builder.scope(frozenset(vocabulary_strings(parsed)) if parsed is not None else frozenset())
+
+
+# ── what a file reaches ─────────────────────────────────────────────────────
+
+
+def imports_of(path: str, tree: ast.Module) -> Iterator[tuple[str, str | None, int]]:
+    """``(module, imported name or None, line)`` for every import, module-level or deferred."""
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                yield alias.name, None, node.lineno
+        elif isinstance(node, ast.ImportFrom):
+            base = resolve_from(path, node)
+            for alias in node.names:
+                yield base, alias.name, node.lineno
+
+
+def visible_vocabularies(root: Path, files: Iterable[str]) -> dict[str, frozenset[str]]:
+    """``{path: words}`` — the vocabulary each module can SEE: its own declarations
+    plus those of every fork module it imports (resolved, module-level or deferred),
+    and of the module an imported NAME was declared in (a re-export followed, lane
+    Q-GATES: ``from pkg import Family`` reaches ``pkg.families``).
+
+    Scoped, not fork-wide (lane Q-RUNTIME 2026-09-25, the R3 finding): a union of
+    every ``Final``/``Enum`` string read ``"none"`` in ``DiffScope`` or ``"absent"``
+    in ``DemoteReason`` as a routed word in every module that happened to compare
+    against the same common English word, so typed reasons (rule 14) could not be
+    adopted for any vocabulary containing one. A compare is a routing on a
+    vocabulary only where that vocabulary is in reach — the declaring module and
+    its importers.
+    """
+    trees = {path: tree(root, path) for path in files}
+    declared = {
+        module_name(path): frozenset(w for w in vocabulary_strings(parsed) if w)
+        for path, parsed in trees.items()
+        if parsed is not None
+    }
+    declared = {module: words for module, words in declared.items() if words}
+    out: dict[str, frozenset[str]] = {}
+    for path, parsed in trees.items():
+        if parsed is None:
+            continue
+        seen: set[str] = set(declared.get(module_name(path), ()))
+        for module, name, _ in imports_of(path, parsed):
+            origin = _declaring_module(root, module, name, declared)
+            seen |= declared.get(origin, frozenset()) if origin else frozenset()
+        out[path] = frozenset(seen)
+    return out
+
+
+def _declaring_module(root: Path, module: str, name: str | None, declared: dict[str, frozenset[str]]) -> str | None:
+    """The declaring module an import reaches: the module itself, ``module.name``, or a re-export's origin."""
+    for candidate in (f"{module}.{name}" if name else module, module):
+        if candidate in declared:
+            return candidate
+    source = module_path(root, module) if name else None
+    binding = module_bindings(root, source).get(name) if source else None
+    return binding[2] if binding else None
