@@ -63,3 +63,8 @@ Delete it. When the last row of an instalment closes, the program ledger (`god-f
 ## Filed on arrival — 2026-09-25 (owner ruling: no fragmentation)
 
 - [ ] **Fold review of the batch-1 packages against the no-fragmentation rule (floor 100 code lines unless vocabulary/errors/table; no flow across more than three modules)** · `fork / god-file` · 50 of the 193 landed modules are under 100 code lines; the census classifies most as vocabulary, errors, models or tables, which the rule allows, and names nine fold CANDIDATES to read rather than assume: `serve_rpc/{scope,agent,chat}.py` (2–4 functions each), `prompt_observability/{catalog_store,catalog_lookup}.py` (one catalog concept in two files, split to break a cycle), `persona_assignments/{profile,scan}.py`, `profile_runner/{toolsets,mcp_lane,resident_actor,workdir,runtime_resolve}.py` (five runner phases at 37–76 lines), `harness_parts/serve/loop.py` (a 7-line trampoline). Verdict per candidate: FOLD (one MOVE commit, hash proof) or KEEP with the concept named · evidence: `X:/wt/_holds/fragmentation-census-2026-09-25.log` · filed by orchestrator 2026-09-25 **UNCLAIMED**
+
+## Filed on arrival — 2026-09-25 (lane S3, class row)
+
+- [ ] **three empty `_ENV_GAPS` registries and the mark-only lane behind them (`apply_marks`, `StaleEntryTracker`, `EnvGapRegistry`, `register_marks` + the two marks)** · `fork / suite` · asserted empty by `test_env_gap_registry`; program §9 Q30 default: delete fork-wide — lane B5 deletes the hermes_cli copy, siblings + shared helpers on Q30's word · evidence: program §9 Q30, hermes_cli_conftest.md §5 · filed by lane S3 2026-09-25 **UNCLAIMED**
+
