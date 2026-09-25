@@ -43,7 +43,7 @@ S1a, `serve_gateway_auth.py` — no overlap with this lane).
   claimed.
 - Inheritance arm actually lives in `agent_runtime/models.py:424-461`
   (`apply_instance_model_overrides`), not `agent_create.py` as dispatched;
-  `agent_create.py:1024` holds `_inherited_skills_ack` and `:1223` the
+  `agent_create/phases.py:190` holds `_inherited_skills_ack` and `:1223` the
   create-time split.
 - `agent_runtime/persona_config_sync.py` — `skills` is in
   `PERSONA_DEF_ALLOWED_KEYS`; `model_override_issued_at` is deliberately

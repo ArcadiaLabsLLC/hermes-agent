@@ -15,7 +15,7 @@ stages are open.** Source plan:
 | The RPC boundary refusal (loud, never sanitized) | `agent_runtime/serve_rpc.py::_correlation_id_param` (`:379`), `CORRELATION_ID_INVALID_REASON` (`:368`) |
 | CI-1a/b — the office write path, domain event AND paired patch | `agent_runtime/office_store.py::_emit` (`:173`) threads it through `upsert_actor` / `update_surface` / archive; `agent_runtime/state_patches.py::emit_state_patch` (`:465`) normalizes and attaches |
 | CI-2 — launcher mints, sends, and prints | mint: `mintMissionCorrelationId` (defined `lib/features/mission_control/office/mission_office_correlation.dart:72`), called at `office/mission_office_layout_controller.dart:1289`; sent on four RPCs in `office/mission_office_rpc.dart` (`:960`, `:1179`, `:1452`, `:1722`); fold receipt at `mission_control_bridge.dart:2363-2371` |
-| CI-4 first half — `runtime.agent.create` | `agent_runtime/agent_create.py:470-487`, echoed at `:1153`; argv `--correlation-id` at `hermes_cli/harness.py:1329` threaded at `hermes_cli/harness_parts/persona_commands.py:494` |
+| CI-4 first half — `runtime.agent.create` | `agent_runtime/agent_create/request.py:365-382`, echoed at `:1153`; argv `--correlation-id` at `hermes_cli/harness.py:1329` threaded at `hermes_cli/harness_parts/persona_commands.py:494` |
 
 ## What is still open
 

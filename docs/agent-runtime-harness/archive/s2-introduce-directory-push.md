@@ -490,7 +490,7 @@ is named beside the change that moves it.
 `agent_runtime/serve_rpc.py`, `agent_runtime/call_authorization.py`,
 `agent_runtime/serve_socket.py` (`peer_hello` optional fields),
 `hermes_cli/harness_parts/serve.py`, `hermes_cli/harness_parts/gateway_commands/`,
-`hermes_cli/harness.py` (`rename` → announce), `agent_runtime/agent_create.py`
+`hermes_cli/harness.py` (`rename` → announce), `agent_runtime/agent_create/`
 / `agent_runtime/agent_retire.py` (roster-changed hook), `tools/agent_chat_tool.py`,
 `tools/agent_chat_dispatch.py` (`note_dial_result`), `agent_runtime/peer_directory.py`,
 `tests/fixtures/stream_frames/*` (regenerated), `tests/agent_runtime/test_s15_event_contract_pruning.py`.

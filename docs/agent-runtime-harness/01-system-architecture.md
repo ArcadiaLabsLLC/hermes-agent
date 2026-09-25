@@ -107,7 +107,7 @@ order is instance-first and that is not arbitrary: a placement written first
 would be a half-state naming an instance the runtime never minted, and the
 launcher's codec refuses on principle to derive a binding for an actor that has
 none — the function's own docstring is the long form. (This paragraph carried
-`agent_create.py:692` from consolidation until 2026-08-27, when the correction
+`agent_create/phases.py:25` from consolidation until 2026-08-27, when the correction
 recorded that the function "was at `:1205`". By 2026-08-31 it was at `:1271`:
 the correction rotted the same way the citation it corrected did, which is the
 whole case for naming symbols instead of lines and is why this note no longer

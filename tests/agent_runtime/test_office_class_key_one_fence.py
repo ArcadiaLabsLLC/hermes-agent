@@ -161,7 +161,7 @@ def _agent_create_into(workspace_id: str, monkeypatch) -> object:
 
     _backend_dev_persona()
     monkeypatch.setattr(
-        agent_create,
+        agent_create.perform,
         "placement_actor_payload",
         # ``position`` joined the real signature in S2 (the resolved slot is
         # passed in rather than re-read off the request). Accepted and ignored:

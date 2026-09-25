@@ -52,7 +52,7 @@ parent happened to hold, rather than on the binding of the persona whose turn sp
 The heuristic is correct for what it was written for — a systemd unit hardcoding the
 hermes ROOT must still honour `hermes profile use` — and removing it is not the fix.
 
-**B-4 is also absent.** `agent_runtime/agent_create.py` does not handle `hermes_profile`
+**B-4 is also absent.** `agent_runtime/agent_create/` does not handle `hermes_profile`
 at all (grep: no matches), so a created agent gets no explicit binding at creation and
 the null-binding backfill has nothing to run against.
 
@@ -83,7 +83,7 @@ the null-binding backfill has nothing to run against.
 - **B-4 needs the refusal vocabulary that already exists.** `agent_create` distinguishes
   `persona_not_found` from `persona_roster_unavailable` on purpose — one means "send a
   different id", the other "send the same id when the runtime is healthy"
-  (`agent_create.py:207-217`). An invalid `hermes_profile` at creation needs its own
+  (`agent_create/request.py:129-139`). An invalid `hermes_profile` at creation needs its own
   third spelling rather than being folded into either.
 - **Measure under the right home.** The running Launcher's serve spawns with
   `HERMES_HOME=profiles/base`. Verifying B-2 under any other profile measures a different

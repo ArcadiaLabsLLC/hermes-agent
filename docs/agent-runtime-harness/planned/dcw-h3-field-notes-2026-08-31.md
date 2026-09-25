@@ -23,7 +23,7 @@ than quietly corrected.
 Measured against the real blobs at the real sha, not a fixture:
 
 ```
-changed lines in agent_runtime/agent_create.py at 0ecb921b9d : 82
+changed lines in agent_runtime/agent_create/ at 0ecb921b9d : 82
 claim   hh2-the-one-reply-builder-stops-observing-the-revision  (symbol: _reply)
 anchor lines            : 1170, 1171
 anchor lines ∩ changed  : {}            <- NOT SELECTED, the row's miss

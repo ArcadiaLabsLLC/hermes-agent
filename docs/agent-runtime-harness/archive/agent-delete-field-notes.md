@@ -33,7 +33,7 @@ Measured: it does not.
 
 * launcher mint (`mission_agent_identity.dart:163`) — `'${personaToken}_agent_${hex8()}'`
 * launcher discriminator (`mission_agent_identity.dart:121`) — `RegExp(r'_agent_(\d+|[0-9a-f]{8})$')`
-* hermes mint (`agent_create.py:338`) — `f"{token}_{uuid.uuid4().hex[:8]}"`
+* hermes mint (`agent_create/request.py:233`) — `f"{token}_{uuid.uuid4().hex[:8]}"`
 
 The hermes mint has no `_agent_` marker, so `agent create --persona profile:alice`
 with `--placement-id` OMITTED mints `profile_alice_5f3a9c21`, derives
@@ -48,7 +48,7 @@ minting non-discriminable ids forever.
 
 **Adaptation:** fix the mint to `f"{token}_agent_{uuid.uuid4().hex[:8]}"` as part
 of R1. Nothing pins the old shape (no test, no fixture, no caller references
-`mint_placement_id` outside `agent_create.py:538`), and ids already minted keep
+`mint_placement_id` outside `agent_create/request.py:433`), and ids already minted keep
 working — the fence is on new ids only.
 
 ## F2 — R1's fence has THREE boundaries, not one (plan assumption falsified)
@@ -62,7 +62,7 @@ at all.
 
 | verb | placement id first normalised | reaches |
 | --- | --- | --- |
-| `agent create` / `runtime.agent.create` | `agent_create.py:540` (`_parse_request`) | `AgentCreateRequest` |
+| `agent create` / `runtime.agent.create` | `agent_create/request.py:435` (`_parse_request`) | `AgentCreateRequest` |
 | `persona instance create --add-instance` | `persona_commands.py:772` | `PersonaInstanceStore.add_instance` (`persona_assignments.py:2270`) |
 | `persona instance open-chat --add-instance` | `persona_commands.py:966` | `PersonaInstanceStore.add_instance` |
 
@@ -148,7 +148,7 @@ archive read and `859-863` for the ledger clear + `archived_path.unlink`).
 | `serve_rpc._runtime_office_upsert` (`serve_rpc.py:1282`) | wire `runtime.office.upsert` | **No — mechanical.** A stale launcher canvas re-sends a removed actor on the next save. Its own docstring already refuses to take a consent parameter ("a parameter is not consent") and points operator intent at `actor-restore`. This is the lane that caused the live incident. |
 | `office_cli._cmd_office_actor_upsert` (`office.py:238`, bare) | CLI `harness office actor-upsert` | **No — mechanical.** Also the launcher's own save path (`harness_capability_registry.dart:581`). |
 | `office_cli._cmd_office_actor_upsert` (`office.py:297`, the `--allow-class-key` replay) | CLI, after a refusal the operator read | **Yes — the only one.** The operator has been shown `class_key_collision` (whose message names `resurrects_archived_class_key`) and has typed an override meaning "bring this back". |
-| `agent_create.perform_agent_create` (`agent_create.py:1720`) | `agent create` / `runtime.agent.create` | Borderline. `persona_instance_id` is derived deterministically from `placement_id`, so re-creating a retired agent at the SAME placement re-upserts an archived key. Judged NOT a resurrection gesture — see F5. |
+| `agent_create.perform_agent_create` (`agent_create/perform.py:323`) | `agent create` / `runtime.agent.create` | Borderline. `persona_instance_id` is derived deterministically from `placement_id`, so re-creating a retired agent at the SAME placement re-upserts an archived key. Judged NOT a resurrection gesture — see F5. |
 | `workspace_template._copy_office` (`workspace_template.py:130`) | template apply | **No — mechanical.** Says so itself: "a template apply holds no operator intent about THIS destination". |
 | `scripts/office_actor_rekey_to_instance.py:189` | migration | Never in the arm by construction (upserts the NEW key, archives the OLD). |
 

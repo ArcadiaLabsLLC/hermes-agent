@@ -138,7 +138,7 @@ remote device can be held to.
   `perform_agent_retire(params: dict) -> AgentRetireOutcome`. One positional
   dict. No actor, no scope, no context. Its docstring (`:252-256`) states the
   `console` scope as prose.
-- `agent_runtime/agent_create.py:1205` —
+- `agent_runtime/agent_create/phases.py:371` —
   `perform_agent_create(params: dict, *, updated_by: str = "operator", persona=None)`.
   `updated_by` is an audit/stamp field, not a permission one — it flows to the
   store, and no branch reads it as an identity.

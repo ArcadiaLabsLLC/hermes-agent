@@ -780,7 +780,7 @@ ride them, don't re-derive:
   Stage 0's critical path.
 - **Stage 3's dedupe hook has a shipped precedent.** `runtime.agent.create` carries
   `idempotency_key` reservations replaying the ack as `idempotent_replay: true`
-  (`agent_create.py:522`, `agent_create_reservations.py:248`); `already_retired: true`
+  (`agent_create/request.py:417`, `agent_create_reservations.py:248`); `already_retired: true`
   is the retire analogue. Copy this to mission-chat send.
   **ANSWERED 2026-08-27, and the premise underneath it was false.** Mission-chat
   send did NOT need this hook: `client_message_id` plus the per-session turn

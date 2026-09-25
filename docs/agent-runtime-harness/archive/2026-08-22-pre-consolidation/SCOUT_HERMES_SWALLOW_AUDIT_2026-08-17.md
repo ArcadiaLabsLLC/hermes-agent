@@ -223,7 +223,7 @@ resync-first registration.
   lives.
 * Office WRITES, upsert: three writers — runtime.office.upsert (serve_rpc:814),
   harness office actor-upsert (office.py:149), perform_agent_create
-  (agent_create.py:810-813). All share OfficeStore.upsert_actor AND all call
+  (agent_create/outcome.py:86-89). All share OfficeStore.upsert_actor AND all call
   class_key_collision separately (serve_rpc:928, agent_create:794, office.py) —
   fence at three call sites, not in the store;
   scripts/office_actor_rekey_to_instance.py:95-97 flags any new writer reaching
@@ -239,7 +239,7 @@ resync-first registration.
   the CLI lane only (serve_rpc.py:1203-1212). One store, two input grammars.
 * agent create: runtime.agent.create (serve_rpc:1352) and harness agent create
   (persona_commands.py:398) both -> perform_agent_create — ONE chokepoint
-  (agent_create.py:604), 5-line shim (serve_rpc:1389-1395). Cleanest lane pair
+  (agent_create/request.py:499), 5-line shim (serve_rpc:1389-1395). Cleanest lane pair
   in the audit. Legacy persona instance create/open-chat --add-instance still
   call PersonaInstanceStore().add_instance directly (persona_commands:547,
   :740) — share the PREDICATE but not the SEQUENCE: roster row with no
@@ -299,7 +299,7 @@ resync-first registration.
 =====================================================================
 Every MINTING lane validates against the roster, one shared predicate:
 * runtime.agent.create -> perform_agent_create -> normalize_agent_create
-  (agent_create.py:407-419) -> _persona_is_unknown (:249-287) -> STRICT
+  (agent_create/request.py:302-314) -> _persona_is_unknown (:249-287) -> STRICT
   persona_roster() (:161-177); read fault raises PersonaRosterUnavailable ->
   reason persona_roster_unavailable (:413), provably before any store touch
   (:372-376).
@@ -312,7 +312,7 @@ Every MINTING lane validates against the roster, one shared predicate:
   must NOT be fenced.
 * open-chat --new-session mints no roster row (:956-967).
 NO LANE LEFT THAT MINTS WITHOUT VALIDATION. Two narrow gaps:
-* agent_create.py:278-279 — _persona_is_unknown returns False for ANY non-None
+* agent_create/request.py:173-174 — _persona_is_unknown returns False for ANY non-None
   persona. Safety argument "caller's resolver is a strict superset" is true
   today for _persona_by_id (persona_commands.py:6045-6095, synthesizes only for
   profile: ids = the D-U1 carve-out) but is an UNENFORCED invariant: a future

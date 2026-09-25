@@ -113,7 +113,7 @@ the evidence, what breaks, the kill proof, and the class of decision it needs.
     and a third spelling `_REPLY_LIMIT = 8000` at `tools/agent_chat_tool.py:71`;
     `dispatch_store.py:129-131` documents the mirror in prose only.
 - **PROOF of the defect class:** the repo's own precedent convicts the shape:
-  `agent_create.py:526-533` duplicates four `ERR_*` codes from `serve_rpc.py`
+  `agent_create/request.py:421-428` duplicates four `ERR_*` codes from `serve_rpc.py`
   *and pins them* — "`test_agent_create_service.py` asserts each constant
   equals `serve_rpc`'s same-named one, so a change to either goes red." The two
   pairs above are the same shape minus the fence: a comment is not a gate, and
@@ -372,7 +372,7 @@ Cleared with evidence, so nobody re-audits them.
   production importers — even `projector.py` has its one CLI caller. The dead
   shells in this repo hide behind live imports, not missing ones.
 - **`ERR_INVALID_PARAMS` / `ERR_HANDLER_FAILED` / `ERR_NOT_FOUND` /
-  `ERR_CONFLICT` duplicated in `agent_create.py:530-533` vs
+  `ERR_CONFLICT` duplicated in `agent_create/request.py:425-428` vs
   `serve_rpc.py:134-139`** — deliberate dependency-inversion (serve_rpc imports
   agent_create) and fenced: `test_agent_create_service.py` asserts equality.
   This is the *pattern* Stage 3 extends, not a defect.
