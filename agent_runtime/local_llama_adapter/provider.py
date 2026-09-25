@@ -1,8 +1,9 @@
 """Persona-facing half: the provider profile, the visibility block, and the turn route.
 
 A persona that picked a local model keeps the launcher's provider id ``local-llama-hermes`` and
-a preset UUID (the launcher contract; renaming it to upstream's ``llamacpp`` is a launcher
-change, not this wave). The turn itself runs on upstream's ``llamacpp`` provider: the endpoint
+a preset UUID (the launcher contract). Upstream's ``llamacpp`` is accepted as an input alias of
+that id (``is_local_llama_provider``) until the launcher switches; what is published stays
+``local-llama-hermes``. The turn itself runs on upstream's ``llamacpp`` provider: the endpoint
 comes from ``resolve_runtime_provider(requested="llamacpp")`` (the ``server.json`` upstream's
 supervisor publishes), under a whole-turn lease (row 12). Row 10 (generation parameters) rides
 the agent factory's kwargs; row 21 is the visibility block.
@@ -17,7 +18,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from . import DISPLAY_NAME, PROVIDER_ID
+from . import DISPLAY_NAME, PROVIDER_ID, is_local_llama_provider
 from .config import ConfigStore
 
 
@@ -72,7 +73,7 @@ def _routed(runtime):
 
 @contextmanager
 def turn_scope(request):
-    if request.provider != PROVIDER_ID:
+    if not is_local_llama_provider(request.provider):
         yield
         return
     from .rpc import get_manager
@@ -85,7 +86,7 @@ def turn_scope(request):
 
 @contextmanager
 def prewarm_scope(request):
-    if request.provider != PROVIDER_ID or not request.prewarm_only:
+    if not is_local_llama_provider(request.provider) or not request.prewarm_only:
         yield
         return
     with _routed(resolve(request.model, root=request.runtime_root)):

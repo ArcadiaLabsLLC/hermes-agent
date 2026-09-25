@@ -224,8 +224,8 @@ def _runtime_resolve_cache_key(request: AgentRunRequest) -> tuple:
 def _resolve_request_runtime(
     request: AgentRunRequest, timing: dict[str, Any] | None = None
 ) -> dict[str, Any]:
-    from ..local_llama_adapter import PROVIDER_ID
-    if request.provider == PROVIDER_ID:
+    from ..local_llama_adapter import is_local_llama_provider
+    if is_local_llama_provider(request.provider):
         from ..local_llama_adapter.provider import resolve
         return resolve(request.model, root=request.runtime_root)
     if not request.provider:

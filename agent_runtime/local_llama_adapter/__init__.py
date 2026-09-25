@@ -12,10 +12,20 @@ No import-time process or filesystem I/O.
 __layer__ = "policy"
 
 PROVIDER_ID = "local-llama-hermes"
+# Upstream's ``llamacpp`` is accepted as an INPUT spelling of this provider for one release
+# (owner ruling 2026-09-25): the launcher switches to it, then ``local-llama-hermes`` is dropped.
+# Output (persona rows, the catalog visibility ``provider_id``) keeps publishing ``PROVIDER_ID``.
+PROVIDER_ID_ALIASES = frozenset({PROVIDER_ID, "llamacpp"})
 DISPLAY_NAME = "Local llama Hermes"
 SCHEMA = "hermes.local_llama/v1"
 SETUP_SCHEMA = "hermes.local_llama.setup/v1"
 MODEL_ALIAS_PREFIX = "hermes-local-"
+
+
+def is_local_llama_provider(provider) -> bool:
+    """The one chokepoint for "is this persona on the managed local model". Readers accept
+    every id in ``PROVIDER_ID_ALIASES``; writers normalize to ``PROVIDER_ID``."""
+    return provider in PROVIDER_ID_ALIASES
 
 
 def model_alias(model_id: str) -> str:

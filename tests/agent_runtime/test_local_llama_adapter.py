@@ -542,3 +542,52 @@ def test_setup_mutations_pass_the_same_epoch_guard(manager):
         manager.setup.submit("activate", {**guards(manager), "expect_epoch": str(uuid.uuid4()),
                                           "validation_token": "t", "expect_inventory_revision": 0})
     assert caught.value.reason == "stale_epoch"
+
+
+# ── the upstream ``llamacpp`` provider id is an input alias (lane LLAMA-ALIAS) ──
+@pytest.mark.parametrize("provider_id", [PROVIDER_ID, "llamacpp"])
+def test_either_provider_id_takes_the_whole_turn_lease(provider_id, monkeypatch):
+    from contextlib import contextmanager, nullcontext
+    leases = []
+
+    class _Manager:
+        @contextmanager
+        def lease(self, model, turn, agent):
+            leases.append((model, turn, agent))
+            yield runtime_row()
+
+    monkeypatch.setattr(rpc, "get_manager", lambda root=None, create=False: _Manager())
+    monkeypatch.setattr(provider, "_routed", lambda runtime: nullcontext())
+    request = SimpleNamespace(provider=provider_id, model="preset-id", turn_id="turn-1", session_id=None,
+                              persona_instance_id="agent-1", runtime_root=None, prewarm_only=False)
+    with provider.turn_scope(request):
+        pass
+    assert leases == [("preset-id", "turn-1", "agent-1")]
+
+
+def test_a_cloud_provider_takes_no_lease(monkeypatch):
+    monkeypatch.setattr(rpc, "get_manager", lambda **kw: pytest.fail("a cloud turn reached the lease"))
+    with provider.turn_scope(SimpleNamespace(provider="anthropic", model="claude-x")):
+        pass
+
+
+@pytest.mark.parametrize("provider_id", [PROVIDER_ID, "llamacpp"])
+def test_either_provider_id_resolves_through_the_adapter(provider_id, monkeypatch):
+    from agent_runtime import profile_runner
+    monkeypatch.setattr(profile_runner.execute, "resolve_runtime_provider", lambda **kw: pytest.fail("reached the cloud resolver"))
+    calls = []
+    monkeypatch.setattr(provider, "resolve", lambda model, *, root=None: calls.append(model) or runtime_row())
+    request = profile_runner.AgentRunRequest(profile=None, provider=provider_id, model="preset-id")
+    assert profile_runner._resolve_request_runtime(request)["model"] == "hermes-local-example"
+    assert calls == ["preset-id"]
+
+
+@pytest.mark.parametrize("provider_id", [PROVIDER_ID, "llamacpp"])
+def test_either_provider_id_is_ready_on_the_local_catalog_not_a_credential(provider_id, monkeypatch):
+    from agent_runtime import profile_readiness
+    monkeypatch.setattr(provider, "catalog_visibility",
+                        lambda: {"models": [{"model_id": "preset-id", "selectable": True}]})
+    persona = SimpleNamespace(provider=provider_id, model="preset-id")
+    assert profile_readiness._provider_issue(persona) is None
+    missing = SimpleNamespace(provider=provider_id, model="other-id")
+    assert profile_readiness._provider_issue(missing)[0] == profile_readiness.READINESS_CONFIG_ERROR

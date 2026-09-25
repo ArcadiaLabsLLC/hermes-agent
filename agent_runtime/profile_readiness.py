@@ -308,8 +308,8 @@ def _provider_issue_cache_clear() -> None:
 def _provider_issue(persona) -> tuple[str, str] | None:
     provider = getattr(persona, "provider", None)
     model = getattr(persona, "model", None)
-    from .local_llama_adapter import PROVIDER_ID
-    if provider == PROVIDER_ID:
+    from .local_llama_adapter import is_local_llama_provider
+    if is_local_llama_provider(provider):
         # Saved local identity is not an API-key credential. Live readiness is
         # checked at the model lease boundary; do not hide the configurable agent
         # merely because its local server is off or this probe is out of process.
