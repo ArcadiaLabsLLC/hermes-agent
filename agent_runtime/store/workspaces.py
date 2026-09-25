@@ -15,17 +15,17 @@ from ..errors import AlreadyExists, NotFound, WorkspaceDeleteBlocked
 from ..events import EventLog
 from ..models import Realm, Workspace, WorkspaceLift
 from ..serde import safe_id
+from ..store_events import emit_store_event
 from .base import (
-    _append_store_event,
     _dedupe_ids,
-    _emit_active_scope_patch,
     _list_models,
-    _read_json,
     _read_model,
-    _resolve_activation_write,
     _safe_display_name,
     _slugify,
     _write_model,
+    apply_activation,
+    read_model_json,
+    read_pointer,
 )
 from .ledgers import DELETED_WORKSPACE_LEDGER_CAP, _prune_workspace_lifts
 from .realms import RealmStore
@@ -72,12 +72,11 @@ class WorkspaceStore:
         if path.exists():
             raise AlreadyExists(item.id)
         _write_model(path, item)
-        _append_store_event(
+        emit_store_event(
             self.event_log,
             "workspace.created",
-            workspace_id=item.id,
-            name=item.name,
-            realm_id=item.realm_id,
+            {"workspace_id": item.id, "name": item.name, "realm_id": item.realm_id},
+            domain="store",
         )
         return self.get(item.id)
 
@@ -96,39 +95,29 @@ class WorkspaceStore:
         item.updated_at = now()
         _write_model(paths.workspace_path(item.id), item)
         if emit_event:
-            _append_store_event(
-                self.event_log, "workspace.updated", workspace_id=item.id, change="saved", name=item.name
+            emit_store_event(
+                self.event_log,
+                "workspace.updated",
+                {"workspace_id": item.id, "change": "saved", "name": item.name},
+                domain="store",
             )
         return self.get(item.id)
 
     def set_active(self, workspace_id: str | None, *, issued_at: str | None = None) -> dict:
         value = safe_id(workspace_id)
         name = self.get(value).name if value else None
-        decision, current_value, basis = _resolve_activation_write(
-            paths.active_workspace_path(), "workspace_id", value, issued_at
-        )
-        if decision != "apply":
-            return {"workspace_id": current_value, "applied": False, "reason": decision, "requested_workspace_id": value}
-        _write_model(
+        return apply_activation(
             paths.active_workspace_path(),
-            {"workspace_id": value, "updated_at": now(), "intent_issued_at": basis},
+            "workspace_id",
+            value,
+            issued_at,
+            name=name,
+            event_type="workspace.activated",
+            event_log=self.event_log,
         )
-        # WS1: the patch FIRST, then the event it pairs with. The order is the
-        # one direction worth guaranteeing — an activate event in the log is
-        # preceded by the row that expresses it.
-        _emit_active_scope_patch(self.event_log)
-        if value:
-            _append_store_event(self.event_log, "workspace.activated", workspace_id=value, name=name)
-        else:
-            _append_store_event(self.event_log, "workspace.activated", cleared=True)
-        return {"workspace_id": value, "applied": True}
 
     def active_id(self) -> str | None:
-        try:
-            raw = _read_json(paths.active_workspace_path())
-        except Exception:
-            return None
-        return safe_id(raw.get("workspace_id"))
+        return read_pointer(paths.active_workspace_path(), "workspace_id")
 
     def active_intent_issued_at(self) -> str | None:
         """The supersede basis stored ALONGSIDE the active workspace pointer.
@@ -149,7 +138,7 @@ class WorkspaceStore:
         """
 
         try:
-            raw = _read_json(paths.active_workspace_path())
+            raw = read_model_json(paths.active_workspace_path())
         except Exception:
             return None
         value = raw.get("intent_issued_at")
@@ -161,8 +150,11 @@ class WorkspaceStore:
         if persona and persona not in item.agent_ids:
             item.agent_ids.append(persona)
         item = self.save(item, emit_event=False)
-        _append_store_event(
-            self.event_log, "workspace.updated", workspace_id=item.id, change="agent_added", persona_id=persona
+        emit_store_event(
+            self.event_log,
+            "workspace.updated",
+            {"workspace_id": item.id, "change": "agent_added", "persona_id": persona},
+            domain="store",
         )
         return item
 
@@ -171,8 +163,11 @@ class WorkspaceStore:
         persona = safe_id(persona_id)
         item.agent_ids = [value for value in item.agent_ids if value != persona]
         item = self.save(item, emit_event=False)
-        _append_store_event(
-            self.event_log, "workspace.updated", workspace_id=item.id, change="agent_removed", persona_id=persona
+        emit_store_event(
+            self.event_log,
+            "workspace.updated",
+            {"workspace_id": item.id, "change": "agent_removed", "persona_id": persona},
+            domain="store",
         )
         return item
 
@@ -181,8 +176,11 @@ class WorkspaceStore:
         item.name = _safe_display_name(name)
         item.slug = _slugify(item.name)
         item = self.save(item, emit_event=False)
-        _append_store_event(
-            self.event_log, "workspace.updated", workspace_id=item.id, change="renamed", name=item.name
+        emit_store_event(
+            self.event_log,
+            "workspace.updated",
+            {"workspace_id": item.id, "change": "renamed", "name": item.name},
+            domain="store",
         )
         return item
 
@@ -190,7 +188,12 @@ class WorkspaceStore:
         item = self.get(workspace_id)
         item.archived = True
         item = self.save(item, emit_event=False)
-        _append_store_event(self.event_log, "workspace.archived", workspace_id=item.id, name=item.name)
+        emit_store_event(
+            self.event_log,
+            "workspace.archived",
+            {"workspace_id": item.id, "name": item.name},
+            domain="store",
+        )
         return item
 
     def delete(self, workspace_id: str, *, reason: str = "operator_delete") -> dict:
@@ -294,8 +297,11 @@ class WorkspaceStore:
                 # guarded above.
                 realm.default_workspace_id = None
             RealmStore(event_log=self.event_log).save(realm, emit_event=False)
-            _append_store_event(
-                self.event_log, "realm.updated", realm_id=realm.id, change="workspace_deleted"
+            emit_store_event(
+                self.event_log,
+                "realm.updated",
+                {"realm_id": realm.id, "change": "workspace_deleted"},
+                domain="store",
             )
 
         paths.workspace_path(item.id).unlink(missing_ok=True)
@@ -303,13 +309,16 @@ class WorkspaceStore:
             # Clear the dangling pointer; verb-layer callers may re-reconcile
             # to the realm's default afterwards.
             self.set_active(None)
-        _append_store_event(
+        emit_store_event(
             self.event_log,
             "workspace.deleted",
-            workspace_id=item.id,
-            name=item.name,
-            realm_id=item.realm_id,
-            reason=reason,
+            {
+                "workspace_id": item.id,
+                "name": item.name,
+                "realm_id": item.realm_id,
+                "reason": reason,
+            },
+            domain="store",
         )
         return {
             "id": item.id,

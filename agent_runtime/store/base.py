@@ -6,7 +6,6 @@ files (``AgentStore``, ``RunStore``, ``IncidentStore``) with ``ACTIVE_RUN_STATES
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 from pathlib import Path
@@ -18,9 +17,10 @@ from utils import atomic_json_write
 from .. import paths
 from ..errors import NotFound
 from ..events import EventLog
-from ..models import AgentPersona, AgentRun, Event, Incident
-from ..serde import from_jsonable, safe_id, to_jsonable
+from ..models import AgentPersona, AgentRun, Incident
+from ..serde import from_jsonable, read_json, safe_id, to_jsonable
 from ..states import RunState
+from ..store_events import emit_store_event
 
 __layer__ = "stores"
 
@@ -48,38 +48,36 @@ def _dedupe_ids(values: list[str]) -> list[str]:
     return result
 
 
-def _read_json(path: Path) -> dict:
-    if not path.exists():
-        raise NotFound(str(path))
-    return json.loads(path.read_text(encoding="utf-8"))
+def read_model_json(path: Path) -> dict:
+    """``serde.read_json`` with the store's missing-file contract: a model file
+    that is not there is :class:`~agent_runtime.errors.NotFound`, the exception
+    every store caller already catches."""
+
+    try:
+        return read_json(path)
+    except FileNotFoundError:
+        raise NotFound(str(path)) from None
+
+
+def read_pointer(path: Path, key: str) -> str | None:
+    """One active pointer (``key`` of the pointer file at ``path``), or ``None``
+    when the file is missing or unreadable — the read ``active_id()`` performs,
+    shared so a store write never has to construct a store to re-read one."""
+
+    try:
+        raw = read_model_json(path)
+    except Exception:
+        return None
+    return safe_id(raw.get(key))
 
 
 def _read_model(cls: type[T], path: Path) -> T:
-    return from_jsonable(cls, _read_json(path))
+    return from_jsonable(cls, read_model_json(path))
 
 
 def _write_model(path: Path, model) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     atomic_json_write(path, to_jsonable(model), indent=2, sort_keys=True)
-
-
-def _append_store_event(event_log: EventLog, event_type: str, **payload) -> None:
-    """Advance the EventLog watermark after a store mutation (Stage 12).
-
-    The stream/read-model pipeline is watermark-gated: a store write with no
-    event is invisible to every consumer (launcher snapshot, serve read model)
-    until an unrelated event advances the offset. Emission lives HERE, at the
-    store chokepoint, so programmatic callers are covered — not just CLI verbs.
-    Payload values of None are dropped. Best effort: a broken event log must
-    not fail the write, but the failure is logged, never silent.
-    """
-    try:
-        body = {key: value for key, value in payload.items() if value is not None}
-        event_log.append(Event(now(), event_type, None, None, None, body))
-    except Exception:
-        logging.getLogger(__name__).warning(
-            "store event append failed: %s", event_type, exc_info=True
-        )
 
 
 def _emit_active_scope_patch(event_log: EventLog) -> None:
@@ -92,13 +90,15 @@ def _emit_active_scope_patch(event_log: EventLog) -> None:
     free-rides on this row's fold gate instead of demoting the batch to a full
     O(world) core.
 
-    **Both pointers are re-read from the store**, not taken from the caller's
+    **Both pointers are re-read from disk** (:func:`read_pointer`, the read
+    ``active_id()`` performs — no store is constructed inside a store write),
+    not taken from the caller's
     local variable, and that is deliberate: a realm activate can re-park the
     workspace through a second write, and the patch's contract is that it carries
     the pair as it stands ON DISK when the event is appended. Reading is two small
     JSON files that the write path has just touched.
 
-    Best effort, exactly like :func:`_append_store_event` beside it — a broken
+    Best effort, exactly like ``store_events.emit_store_event`` — a broken
     event log must not fail an activation. The empty-frame hazard a silent skip
     would otherwise open (the covered domain event riding alone and shipping a
     patch frame with no rows) is closed one level up by
@@ -113,13 +113,11 @@ def _emit_active_scope_patch(event_log: EventLog) -> None:
 
     try:
         from ..state_patches.emit import emit_scope_patch
-        from .realms import RealmStore
-        from .workspaces import WorkspaceStore
 
         emit_scope_patch(
             event_log,
-            active_workspace_id=WorkspaceStore(event_log=event_log).active_id(),
-            active_realm_id=RealmStore(event_log=event_log).active_id(),
+            active_workspace_id=read_pointer(paths.active_workspace_path(), "workspace_id"),
+            active_realm_id=read_pointer(paths.active_realm_path(), "realm_id"),
         )
     except Exception:
         logging.getLogger(__name__).warning(
@@ -144,6 +142,14 @@ def _parse_intent_basis(value):
         return None
 
 
+#: The three answers of the active-pointer compare-and-set. Plain constants, not
+#: an Enum: the words ride the RPC result as ``reason`` and are spelled by
+#: ``scope_activation`` and the launcher (fork-hygiene row 2026-09-25).
+ACTIVATION_APPLY = "apply"
+ACTIVATION_SUPERSEDED = "superseded"
+ACTIVATION_DUPLICATE = "duplicate"
+
+
 def _resolve_activation_write(pointer_path: Path, key: str, value: str | None, issued_at: str | None) -> tuple[str, str | None, str]:
     """Compare-and-set decision for an active-pointer write.
 
@@ -164,19 +170,51 @@ def _resolve_activation_write(pointer_path: Path, key: str, value: str | None, i
     """
     basis = issued_at or now()
     try:
-        current = _read_json(pointer_path)
+        current = read_model_json(pointer_path)
     except Exception:
-        return "apply", None, basis
+        return ACTIVATION_APPLY, None, basis
     current_value = safe_id(current.get(key))
     incoming = _parse_intent_basis(basis)
     stored = _parse_intent_basis(current.get("intent_issued_at"))
     if incoming is None or stored is None:
-        return "apply", current_value, basis
+        return ACTIVATION_APPLY, current_value, basis
     if incoming < stored:
-        return "superseded", current_value, basis
+        return ACTIVATION_SUPERSEDED, current_value, basis
     if incoming == stored and value == current_value:
-        return "duplicate", current_value, basis
-    return "apply", current_value, basis
+        return ACTIVATION_DUPLICATE, current_value, basis
+    return ACTIVATION_APPLY, current_value, basis
+
+
+def apply_activation(
+    pointer_path: Path,
+    key: str,
+    value: str | None,
+    issued_at: str | None,
+    *,
+    name: str | None,
+    event_type: str,
+    event_log: EventLog,
+) -> dict:
+    """The ONE active-pointer write (``WorkspaceStore.set_active`` and
+    ``RealmStore.set_active`` are this with their key, path and event).
+
+    Refused intents (:data:`ACTIVATION_SUPERSEDED` / :data:`ACTIVATION_DUPLICATE`)
+    write nothing and emit nothing, and answer the pointer as it stands. An
+    applied one writes the pointer with its basis, then the scope patch, then
+    the ``<kind>.activated`` event — WS1: the patch FIRST, so an activate event
+    in the log is always preceded by the row that expresses it, and both
+    pointers ride every row, so a realm activate that also re-parks the
+    workspace can never ship half a pair.
+    """
+
+    decision, current_value, basis = _resolve_activation_write(pointer_path, key, value, issued_at)
+    if decision != ACTIVATION_APPLY:
+        return {key: current_value, "applied": False, "reason": decision, f"requested_{key}": value}
+    _write_model(pointer_path, {key: value, "updated_at": now(), "intent_issued_at": basis})
+    _emit_active_scope_patch(event_log)
+    payload = {key: value, "name": name} if value else {"cleared": True}
+    emit_store_event(event_log, event_type, payload, domain="store")
+    return {key: value, "applied": True}
 
 
 def _list_models(cls: type[T], directory: Path) -> list[T]:
@@ -199,11 +237,11 @@ class AgentStore:
 
     def save(self, persona: AgentPersona) -> AgentPersona:
         _write_model(paths.agent_path(persona.id), persona)
-        _append_store_event(
+        emit_store_event(
             self.event_log,
             "persona.updated",
-            persona_id=persona.id,
-            display_name=persona.display_name,
+            {"persona_id": persona.id, "display_name": persona.display_name},
+            domain="store",
         )
         return persona
 

@@ -23,7 +23,7 @@ import agent_runtime.store as store_module
 # Write primitives whose presence marks a function as a store writer.
 _WRITE_CALLS = {"_write_model", "atomic_json_write"}
 # Calls that count as coupling an event to the mutation.
-_EVENT_CALLS = {"append", "_append_store_event"}
+_EVENT_CALLS = {"append", "emit_store_event"}
 
 # Functions allowed to write WITHOUT appending an event, each with the reason
 # the exemption is sound. Adding a name here is a reviewed decision, not a
@@ -88,7 +88,7 @@ def test_every_store_writer_couples_an_event_or_is_classified():
         "Store writer(s) with NO event append and no reviewed exemption: "
         f"{unclassified}. An event-less store mutation is invisible to the "
         "watermark-gated stream/read-model pipeline (Stage 12). Either emit "
-        "via _append_store_event inside the mutator, or add a justified "
+        "via store_events.emit_store_event inside the mutator, or add a justified "
         "EXEMPT entry in this test."
     )
 

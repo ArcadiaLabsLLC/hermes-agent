@@ -714,3 +714,14 @@ def validate_agent_publish_mode(mode: str) -> None:
 
     if mode not in REALM_AGENT_PUBLISH_MODES:
         raise ValueError(f"invalid agent_publish_mode: {mode!r}")
+
+
+REALM_SKILL_PUBLISH_MODES = ("all", "selected")
+
+
+def validate_skill_publish_mode(mode: str) -> None:
+    """Refuse a mode ``Realm.skill_publish_mode`` does not know — the agent
+    twin's exact shape, asked by ``RealmStore.set_skill_selection``."""
+
+    if mode not in REALM_SKILL_PUBLISH_MODES:
+        raise ValueError(f"invalid skill_publish_mode: {mode!r}")

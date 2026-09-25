@@ -2622,11 +2622,11 @@
     },
     {
       "id": "iws-ws1-the-activation-write-emits-no-row-to-express-it",
-      "path": "agent_runtime/store/workspaces.py",
-      "symbol": "WorkspaceStore.set_active",
+      "path": "agent_runtime/store/base.py",
+      "symbol": "apply_activation",
       "operator": "drop-the-paired-patch-from-the-chokepoint",
-      "find": "        _emit_active_scope_patch(self.event_log)\n        if value:\n            _append_store_event(self.event_log, \"workspace.activated\", workspace_id=value, name=name)",
-      "replace": "        if value:\n            _append_store_event(self.event_log, \"workspace.activated\", workspace_id=value, name=name)",
+      "find": "    _emit_active_scope_patch(event_log)\n    payload = {key: value, \"name\": name} if value else {\"cleared\": True}",
+      "replace": "    payload = {key: value, \"name\": name} if value else {\"cleared\": True}",
       "test": [
         "{python}",
         "-m",

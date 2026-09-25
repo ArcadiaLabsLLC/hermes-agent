@@ -276,9 +276,9 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     "realm.updated": EventContract("realm.updated", "Realm updated", ("realm_id", "change"), ("server_id",)),
     # RealmStore.archive — the one realm mutation whose event was emitted but
     # never registered, so its append raised and was swallowed by
-    # _append_store_event's best-effort wrapper and the archive stayed invisible
+    # store_events.emit_store_event's best-effort wrapper and the archive stayed invisible
     # to watermark-gated consumers. ``name`` rides in detail_fields because
-    # _append_store_event drops None values. Mirrors workspace.archived.
+    # emit_store_event drops None values. Mirrors workspace.archived.
     "realm.archived": EventContract("realm.archived", "Realm archived", ("realm_id",), ("name",)),
     # Activation events carry realm_id/workspace_id when a scope is activated
     # and {"cleared": true} when the active pointer is cleared — so the ids

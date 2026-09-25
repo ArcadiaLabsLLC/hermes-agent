@@ -93,11 +93,6 @@ def skill_tombstone_matches(entry_slug: str, slug: str) -> bool:
     return False
 
 
-#: Historical private name, kept for this module's own call sites (the
-#: ``validate_skill_slug`` / ``_validate_slug`` idiom in ``skill_promotion``).
-_tombstone_blocks = skill_tombstone_matches
-
-
 def active_skill_tombstones(realm: Realm) -> list[SkillTombstone]:
     """The ledger entries that currently BLOCK — the ONE spelling of "active".
 
@@ -262,7 +257,7 @@ def skill_tombstoned(realm: Realm, slug: str) -> SkillTombstone | None:
     if not clean:
         return None
     for entry in active_skill_tombstones(realm):
-        if _tombstone_blocks(entry.slug, clean):
+        if skill_tombstone_matches(entry.slug, clean):
             return entry
     return None
 

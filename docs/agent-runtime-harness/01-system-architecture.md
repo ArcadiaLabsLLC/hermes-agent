@@ -49,7 +49,7 @@ definition: display name, role, model/provider/api_mode, toolsets, skills,
 `hermes_profile`, budgets, readiness. Personas are **data**, from the config
 block (`config.persona_records_from_config`, `agent_runtime/config/persona_records.py:43`)
 merged with persisted store rows (`ensure_persisted_personas`, `:142`, over
-`store.AgentStore` at `store/base.py:196`). Nothing in code declares them — S11 left
+`store.AgentStore` at `store/base.py:234`). Nothing in code declares them — S11 left
 `DEFAULT_PERSONA_IDS`, `BASE_PERSONA_ID`, `DEFAULT_SUPERVISOR_PERSONA_ID`,
 `ALLOWED_TOOLSETS_BY_ROLE` and `PER_ROLE_TOOL_DENIES` as scoped tombstone rows
 against `agent_runtime.personas` (`tests/agent_runtime/test_tombstone_registry.py`,
@@ -268,7 +268,7 @@ Realms own what publishes: `skill_publish_mode`
 (`all` | `selected`) and `agent_publish_mode` (`workspace` | `selected`), with
 personas required by a roster or an Office placement pinned regardless, so a
 pulled workspace can never point at an absent persona definition. Stores:
-`WorkspaceStore` (`store/workspaces.py:36`), `RealmStore` (`store/realms.py:38`); active pointers are
+`WorkspaceStore` (`store/workspaces.py:36`), `RealmStore` (`store/realms.py:42`); active pointers are
 single files (`paths.active_workspace_path()` / `active_realm_path()`).
 Server-bound realms authorize every sync action against the Eternia backend and
 **fail closed** (`realm_membership.py:1-12`) — which half of which verb that

@@ -11,25 +11,29 @@ from hermes_time import now
 from .. import paths
 from ..errors import AlreadyExists, SkillTombstoneRefused
 from ..events import EventLog
-from ..models import Realm, SkillTombstone, validate_agent_publish_mode
+from ..models import (
+    Realm,
+    SkillTombstone,
+    validate_agent_publish_mode,
+    validate_skill_publish_mode,
+)
 from ..serde import safe_id
+from ..store_events import emit_store_event
 from .base import (
-    _append_store_event,
-    _emit_active_scope_patch,
     _list_models,
-    _read_json,
     _read_model,
-    _resolve_activation_write,
     _safe_display_name,
     _slugify,
     _write_model,
+    apply_activation,
+    read_pointer,
 )
 from .ledgers import (
     _normalize_agent_selection,
     _normalize_skill_selection,
     _prune_skill_tombstones,
-    _tombstone_blocks,
     active_skill_tombstones,
+    skill_tombstone_matches,
 )
 
 __layer__ = "stores"
@@ -69,8 +73,11 @@ class RealmStore:
         if path.exists():
             raise AlreadyExists(item.id)
         _write_model(path, item)
-        _append_store_event(
-            self.event_log, "realm.created", realm_id=item.id, name=item.name, server_id=item.server_id
+        emit_store_event(
+            self.event_log,
+            "realm.created",
+            {"realm_id": item.id, "name": item.name, "server_id": item.server_id},
+            domain="store",
         )
         return self.get(item.id)
 
@@ -89,7 +96,12 @@ class RealmStore:
         item.updated_at = now()
         _write_model(paths.realm_path(item.id), item)
         if emit_event:
-            _append_store_event(self.event_log, "realm.updated", realm_id=item.id, change="saved")
+            emit_store_event(
+                self.event_log,
+                "realm.updated",
+                {"realm_id": item.id, "change": "saved"},
+                domain="store",
+            )
         return self.get(item.id)
 
     def archive(self, realm_id: str) -> Realm:
@@ -100,11 +112,11 @@ class RealmStore:
             return item
         item.archived = True
         item = self.save(item, emit_event=False)
-        _append_store_event(
+        emit_store_event(
             self.event_log,
             "realm.archived",
-            realm_id=item.id,
-            name=item.name,
+            {"realm_id": item.id, "name": item.name},
+            domain="store",
         )
         return item
 
@@ -112,8 +124,11 @@ class RealmStore:
         item = self.get(realm_id)
         item.server_id = safe_id(server_id)
         item = self.save(item, emit_event=False)
-        _append_store_event(
-            self.event_log, "realm.updated", realm_id=item.id, change="server_bound", server_id=item.server_id
+        emit_store_event(
+            self.event_log,
+            "realm.updated",
+            {"realm_id": item.id, "change": "server_bound", "server_id": item.server_id},
+            domain="store",
         )
         return item
 
@@ -139,8 +154,7 @@ class RealmStore:
         ``dry_run`` runs the full validation and returns the WOULD-BE realm
         (in-memory only) without saving and without emitting the store event.
         """
-        if mode not in {"all", "selected"}:
-            raise ValueError(f"invalid skill_publish_mode: {mode!r}")
+        validate_skill_publish_mode(mode)
         item = self.get(realm_id)
         if mode == "selected":
             item.skill_selection = _normalize_skill_selection(selection)
@@ -148,13 +162,16 @@ class RealmStore:
         if dry_run:
             return item
         item = self.save(item, emit_event=False)
-        _append_store_event(
+        emit_store_event(
             self.event_log,
             "realm.updated",
-            realm_id=item.id,
-            change="skill_selection",
-            mode=mode,
-            selection_count=len(item.skill_selection),
+            {
+                "realm_id": item.id,
+                "change": "skill_selection",
+                "mode": mode,
+                "selection_count": len(item.skill_selection),
+            },
+            domain="store",
         )
         return item
 
@@ -231,17 +248,16 @@ class RealmStore:
         item.skill_selection = [
             value
             for value in (item.skill_selection or [])
-            if not _tombstone_blocks(clean, value)
+            if not skill_tombstone_matches(clean, value)
         ]
         if dry_run:
             return item
         item = self.save(item, emit_event=False)
-        _append_store_event(
+        emit_store_event(
             self.event_log,
             "realm.updated",
-            realm_id=item.id,
-            change="skill_tombstoned",
-            slug=clean,
+            {"realm_id": item.id, "change": "skill_tombstoned", "slug": clean},
+            domain="store",
         )
         return item
 
@@ -282,12 +298,11 @@ class RealmStore:
         if dry_run:
             return item
         item = self.save(item, emit_event=False)
-        _append_store_event(
+        emit_store_event(
             self.event_log,
             "realm.updated",
-            realm_id=item.id,
-            change="skill_tombstone_restored",
-            slug=clean,
+            {"realm_id": item.id, "change": "skill_tombstone_restored", "slug": clean},
+            domain="store",
         )
         return item
 
@@ -309,41 +324,31 @@ class RealmStore:
         if dry_run:
             return item
         item = self.save(item, emit_event=False)
-        _append_store_event(
+        emit_store_event(
             self.event_log,
             "realm.updated",
-            realm_id=item.id,
-            change="agent_selection",
-            mode=mode,
-            selection_count=len(item.agent_selection),
+            {
+                "realm_id": item.id,
+                "change": "agent_selection",
+                "mode": mode,
+                "selection_count": len(item.agent_selection),
+            },
+            domain="store",
         )
         return item
 
     def set_active(self, realm_id: str | None, *, issued_at: str | None = None) -> dict:
         value = safe_id(realm_id)
         name = self.get(value).name if value else None
-        decision, current_value, basis = _resolve_activation_write(
-            paths.active_realm_path(), "realm_id", value, issued_at
-        )
-        if decision != "apply":
-            return {"realm_id": current_value, "applied": False, "reason": decision, "requested_realm_id": value}
-        _write_model(
+        return apply_activation(
             paths.active_realm_path(),
-            {"realm_id": value, "updated_at": now(), "intent_issued_at": basis},
+            "realm_id",
+            value,
+            issued_at,
+            name=name,
+            event_type="realm.activated",
+            event_log=self.event_log,
         )
-        # WS1: the patch FIRST, then the event it pairs with — see the workspace
-        # twin. Both pointers ride every row, so a realm activate that also
-        # re-parks the workspace can never ship half a pair.
-        _emit_active_scope_patch(self.event_log)
-        if value:
-            _append_store_event(self.event_log, "realm.activated", realm_id=value, name=name)
-        else:
-            _append_store_event(self.event_log, "realm.activated", cleared=True)
-        return {"realm_id": value, "applied": True}
 
     def active_id(self) -> str | None:
-        try:
-            raw = _read_json(paths.active_realm_path())
-        except Exception:
-            return None
-        return safe_id(raw.get("realm_id"))
+        return read_pointer(paths.active_realm_path(), "realm_id")
