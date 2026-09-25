@@ -131,7 +131,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 ## Filed on arrival — 2026-09-25 (lane B2)
 
 - [ ] **`test_every_stage42_global_flag_is_honored` is a source walk keyed on the name `args`: a flag read through `self.args` or a renamed parameter reads as unhonoured, so phase objects must read flags in the handler** · `fork / gates` · a source walk certifying a POSITIVE guarantee ("this flag is honoured") by spelling — the fork CLAUDE.md gate rule says ask the runtime or the element model; re-key it on the parser's `set_defaults` targets and the attribute reads they reach · evidence: B2 gateway_commands CHANGE body · filed by lane B2 2026-09-25 **UNCLAIMED**
-- [ ] **Package splits make a monkeypatch on the package attribute a silent no-op for every submodule that bound the name by import (B2 fanned `_emit_peer_event` to 3 modules, `gateway_listen_config` to 2); no gate reports a patch that reaches no reader** · `fork / suite` · third lane to hit it today (R1's stream-fixture generator, 2B-A, B2) — a gate that walks `monkeypatch.setattr(<module>, <name>)` sites and reds when `<name>` is bound by import in another fork module the test's subject reaches · evidence: B2 MOVE commit bodies · filed by lane B2 2026-09-25 **UNCLAIMED** **TAKEN 2026-09-25 lane W3-A**
 
 
 ## Filed on arrival — 2026-09-25 (lane Q-GATES)
