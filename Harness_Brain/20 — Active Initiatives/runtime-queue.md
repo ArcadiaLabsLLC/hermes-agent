@@ -106,6 +106,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 - [ ] **`test_hermetic_env_blanking[HERMES_HEAD_HOME]` is red on main: the witness no longer finds the reader in `profile_home.py`** · `fork / test env` · red in lane R4's touched-test run on `09d722bb30` against files the lane never touched, so either the reader moved out of `agent_runtime/profile_home.py` in a Wave 1/2 MOVE and the witness still greps the old module, or the variable lost its reader — find which and re-point or delete the parameter · evidence: lane R4 report (holding file, 2026-09-25) · filed by lane R4 2026-09-25 **UNCLAIMED**
 
 
+### Filed on arrival — 2026-09-25 (lane R2)
+
+- [ ] **When R1 lands, eight R2 policy-layer modules import `..persona_assignments`, whose `__init__` becomes `stores` — a W0-G6 upward import** · `fork / god-file` · `persona_chat_history/{vocabulary,text,trace_rows,curation,markers}.py` and `prompt_observability/{hoist,safe_views,context_budget}.py` must be retargeted to `persona_assignments.tokens` / `.identity` at the R1 landing, in the same commit; the `_default_session_db` wrapper deletion (dead-code queue) is ready once R1's CHANGE lands, since `persona_assignments/scan.py` is its last reader · evidence: lane R2 report (holding file, 2026-09-25) · filed by orchestrator 2026-09-25 **UNCLAIMED**
+
+
 ## Seams — fork edits inside upstream files (additive only)
 
 ### Filed on arrival — 2026-09-24 (seam lane S2)
