@@ -607,7 +607,7 @@ that is unchanged behaviour, not a regression, and its parent still has the exit
 9. **Adding a receipt to the core-cache lane means adding a ROW to the channel table**, and the
    test drives both directions (`core_cache/__init__.py:84-88`).
 10. **The serve's cwd is a per-turn value**, safe to mutate process-globally only while turns are
-    serialized by `profile_runner._WORKDIR_LOCK` (an `RLock`, `profile_runner.py:1434`) held for
+    serialized by `profile_runner._WORKDIR_LOCK` (an `RLock`, `profile_runner/workdir.py:77`) held for
     the WHOLE run. Nothing else enforces it, and widening turn concurrency starts by failing
     `tests/agent_runtime/test_serve_cwd_serialization_invariant.py`.
 11. **A frozen `snapshot.json` / `read_model.db` mtime says nothing about liveness** — a live

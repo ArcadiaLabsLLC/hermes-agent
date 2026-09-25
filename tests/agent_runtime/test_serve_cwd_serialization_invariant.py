@@ -42,9 +42,9 @@ from __future__ import annotations
 
 import ast
 import threading
-from pathlib import Path
 
 import agent_runtime.profile_runner as profile_runner
+from tests._downstream.split_package_source import package_tree
 
 #: The lock that serializes process-global cwd mutation.
 LOCK_NAME = "_WORKDIR_LOCK"
@@ -53,8 +53,8 @@ RUN_CHOKEPOINT = "ProfileAgentRunner._execute_agent_run"
 
 
 def _module_tree() -> ast.Module:
-    source = Path(profile_runner.__file__).read_text(encoding="utf-8")
-    return ast.parse(source)
+    # The package lane R3 split profile_runner.py into, read as one text.
+    return package_tree(profile_runner)
 
 
 def _parents(tree: ast.Module) -> dict[ast.AST, ast.AST]:
@@ -124,7 +124,7 @@ def test_every_chdir_in_profile_runner_is_guarded_by_the_workdir_lock() -> None:
     )
 
     unguarded = [
-        f"{Path(profile_runner.__file__).name}:{node.lineno} "
+        f"profile_runner/:{node.lineno} (package text) "
         f"in {_enclosing_qualname(node, parents)}"
         for node in chdir_calls
         if not _guarded_by_lock(node, parents)

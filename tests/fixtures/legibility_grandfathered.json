@@ -163,7 +163,7 @@
   {
    "depth": 5,
    "lines": 424,
-   "unit": "agent_runtime/profile_runner.py|ProfileAgentRunner._execute_agent_run"
+   "unit": "agent_runtime/profile_runner/runner.py|ProfileAgentRunner._execute_agent_run"
   },
   {
    "depth": 5,

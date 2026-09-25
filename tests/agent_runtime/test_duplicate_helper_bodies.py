@@ -81,7 +81,7 @@ _MIN_BODY_LINES = 4
 _GRANDFATHERED: dict[tuple[str, ...], str] = {
     (
         "agent_runtime/mcp_admission.py::_positive_int",
-        "agent_runtime/profile_runner.py::_positive_int",
+        "agent_runtime/profile_runner/models.py::_positive_int",
     ): (
         "a genuine duplicate, and foldable onto a serde helper — held back "
         "only to keep the fold commit reviewable. Note the tree ALSO carries "

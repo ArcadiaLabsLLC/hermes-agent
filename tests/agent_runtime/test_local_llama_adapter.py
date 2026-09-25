@@ -324,7 +324,7 @@ def test_generation_parameters_ride_the_factory_and_bust_the_resident_actor():
 
 def test_the_runner_resolves_a_local_persona_through_the_adapter_never_the_cloud(monkeypatch):
     from agent_runtime import profile_runner
-    monkeypatch.setattr(profile_runner, "resolve_runtime_provider", lambda **kw: pytest.fail("reached the cloud resolver"))
+    monkeypatch.setattr(profile_runner.runtime_resolve, "resolve_runtime_provider", lambda **kw: pytest.fail("reached the cloud resolver"))
     calls = []
     monkeypatch.setattr(provider, "resolve", lambda model, *, root=None: calls.append(model) or runtime_row())
     request = profile_runner.AgentRunRequest(profile=None, provider=PROVIDER_ID, model="saved-id")

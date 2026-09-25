@@ -119,7 +119,7 @@ def stub_runtime(monkeypatch):
         }
 
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.resolve_runtime_provider", _resolve
+        "agent_runtime.profile_runner.runtime_resolve.resolve_runtime_provider", _resolve
     )
 
 
@@ -860,6 +860,7 @@ def test_admitted_same_root_skips_before_prepare(stub_runtime, monkeypatch):
     # The running-only control: Stage 5's behaviour is preserved unchanged, and
     # the admitted counter is back to zero so it cannot be what refused.
     assert turn_activity.chat_turns_admitted() == 0
+    monkeypatch.setattr("agent_runtime.profile_runner.workdir.agent_runs_in_flight", lambda: 1)
     monkeypatch.setattr("agent_runtime.profile_runner.agent_runs_in_flight", lambda: 1)
     assert prewarm_chat_actor("chat_root_admitted") == OUTCOME_SKIPPED_TURN_ACTIVE
 

@@ -36,10 +36,13 @@ def _make_runner(monkeypatch, captured: dict):
         hermes_profile = "p"
         summary = ""
 
-    monkeypatch.setattr(pr, "_binding_for_profile", lambda profile: _Binding())
-    monkeypatch.setattr(pr, "_resolve_request_runtime", lambda request: {})
-    monkeypatch.setattr(pr, "persona_profile_context", lambda *a, **k: contextlib.nullcontext())
-    monkeypatch.setattr(pr, "_agent_workdir", lambda *a, **k: contextlib.nullcontext())
+    monkeypatch.setattr(pr.status, "_binding_for_profile", lambda profile: _Binding())
+    monkeypatch.setattr(pr.runner, "_binding_for_profile", lambda profile: _Binding())
+    monkeypatch.setattr(pr.runtime_resolve, "_resolve_request_runtime", lambda request: {})
+    monkeypatch.setattr(pr.runner, "_resolve_request_runtime", lambda request: {})
+    monkeypatch.setattr(pr.runner, "persona_profile_context", lambda *a, **k: contextlib.nullcontext())
+    monkeypatch.setattr(pr.workdir, "_agent_workdir", lambda *a, **k: contextlib.nullcontext())
+    monkeypatch.setattr(pr.runner, "_agent_workdir", lambda *a, **k: contextlib.nullcontext())
     return pr.ProfileAgentRunner(agent_factory=fake_factory)
 
 
