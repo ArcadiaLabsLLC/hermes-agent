@@ -62,8 +62,8 @@
     },
     {
       "id": "stage42-work-list-refuses-cursor",
-      "path": "hermes_cli/harness.py",
-      "symbol": "populate_parser/work_list",
+      "path": "hermes_cli/harness_parts/parser/machine.py",
+      "symbol": "add_work/work_list",
       "operator": "advertise-unread-control",
       "find": "work_list, controls=frozenset({\"limit\", \"sort\"})",
       "replace": "work_list, controls=frozenset({\"cursor\", \"limit\", \"sort\"})",
@@ -633,8 +633,8 @@
     },
     {
       "id": "s8b-b-persona-instance-retire-door-has-no-token",
-      "path": "hermes_cli/harness.py",
-      "symbol": "populate_parser/persona_instance_retire",
+      "path": "hermes_cli/harness_parts/parser/persona.py",
+      "symbol": "_add_persona_instance_lifecycle_verbs/persona_instance_retire",
       "operator": "withhold-flag-from-second-door",
       "find": "    persona_instance_retire.add_argument(\"--correlation-id\", dest=\"correlation_id\", default=None)\n",
       "replace": "",
@@ -1217,7 +1217,7 @@
     },
     {
       "id": "hh1-the-cli-detail-roster-derives-from-the-section-table",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/doctor_commands.py",
       "symbol": "_cmd_doctor",
       "operator": "re-type-the-detail-roster-by-hand",
       "find": "        detail_sources = doctor_detail_sources(hygiene)",
@@ -1313,7 +1313,7 @@
     },
     {
       "id": "hh11-the-cli-prints-no-census-block-for-an-unobserved-census",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/doctor_commands.py",
       "symbol": "_cmd_doctor",
       "operator": "render-the-census-block-unconditionally",
       "find": "        if census.get(\"observed\"):",
@@ -1977,11 +1977,11 @@
     },
     {
       "id": "dcw-h4-the-autopilot-regenerates-rows-that-already-landed",
-      "path": "hermes_cli/harness.py",
-      "symbol": "_characters_auto_plan",
+      "path": "hermes_cli/harness_parts/characters/auto.py",
+      "symbol": "module",
       "operator": "drop-the-pending-rows-skip",
-      "find": "        elif step == \"rows\" and not status[\"pending\"][\"rows\"]:\n            reason = \"every authored row already has an approved strip\"\n",
-      "replace": "",
+      "find": "            done=lambda status: not status[\"pending\"][\"rows\"],\n",
+      "replace": "            done=None,\n",
       "test": [
         "{python}",
         "-m",
@@ -1992,11 +1992,11 @@
     },
     {
       "id": "dcw-h4-the-autopilot-skips-a-turnaround-it-has-not-generated",
-      "path": "hermes_cli/harness.py",
-      "symbol": "_characters_auto_plan",
+      "path": "hermes_cli/harness_parts/characters/auto.py",
+      "symbol": "module",
       "operator": "invert-the-missing-turnaround-test",
-      "find": "        elif step == \"turnaround\" and not status[\"missing\"][\"turnaround\"]:\n",
-      "replace": "        elif step == \"turnaround\" and status[\"missing\"][\"turnaround\"]:\n",
+      "find": "            done=lambda status: not status[\"missing\"][\"turnaround\"],\n",
+      "replace": "            done=lambda status: status[\"missing\"][\"turnaround\"],\n",
       "test": [
         "{python}",
         "-m",
@@ -2007,7 +2007,7 @@
     },
     {
       "id": "dcw-h4-a-stopped-autopilot-never-writes-its-summary",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/auto.py",
       "symbol": "_characters_auto_steps",
       "operator": "return-instead-of-breaking",
       "find": "            stopped_at, error = step, str(exc)\n            break\n",
@@ -2022,7 +2022,7 @@
     },
     {
       "id": "dcw-h4-an-autopilot-with-nothing-to-do-reports-success",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/auto.py",
       "symbol": "_characters_auto_steps",
       "operator": "swallow-the-empty-plan-refusal",
       "find": "        stopped_at, error = \"plan\", message\n",
@@ -2037,7 +2037,7 @@
     },
     {
       "id": "dcw-h4-the-autopilot-receipts-arrive-only-at-exit",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/auto.py",
       "symbol": "_characters_auto_write",
       "operator": "drop-the-flush",
       "find": "    sys.stdout.flush()\n",
@@ -2052,7 +2052,7 @@
     },
     {
       "id": "dcw-h4-the-autopilot-stream-is-framed-in-indented-blocks",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/auto.py",
       "symbol": "_characters_auto_write",
       "operator": "use-the-indenting-encoder",
       "find": "emit_json_line({**data, **_characters_draftsman()})",
@@ -3570,7 +3570,7 @@
     },
     {
       "id": "longrun-busy-refusal-loses-its-typed-code",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/payloads.py",
       "symbol": "_characters_refusal_extra",
       "operator": "drop-the-refusal-code",
       "find": "    extra: dict = {\"code\": code}",
@@ -3585,7 +3585,7 @@
     },
     {
       "id": "longrun-autopilot-runs-without-holding-the-draft",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/auto.py",
       "symbol": "_cmd_characters_auto",
       "operator": "drop-the-plan-wide-lock",
       "find": "        holding.enter_context(draft.generation_lock(\"auto\"))",
@@ -3795,7 +3795,7 @@
     },
     {
       "id": "cli-agent-list-row-loses-the-accepted-spellings",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/agent_commands.py",
       "symbol": "_agent_definition_row",
       "operator": "reprint-the-binding-instead-of-the-spellings",
       "find": "        \"persona_spellings\": accepted_persona_spellings(persona, list(roster or [persona])),",
@@ -3825,7 +3825,7 @@
     },
     {
       "id": "charsheet-sprite-verb-ignores-the-no-sheet-flag",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/commands.py",
       "symbol": "_cmd_characters_sprite",
       "operator": "drop-the-flag-on-the-way-through",
       "find": "            slug, include_sheet=not bool(getattr(args, \"no_sheet\", False))",
@@ -3945,7 +3945,7 @@
     },
     {
       "id": "backfill-skipped-row-loses-its-directory",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/commands.py",
       "symbol": "_cmd_characters_backfill_home",
       "operator": "drop-directory-from-the-skipped-line",
       "find": "    lines += [\n        f\"  skipped {row['id']}  {row['directory']}  already {row['hermesHome']}\"\n        for row in skipped\n    ]",
@@ -4308,7 +4308,7 @@
     },
     {
       "id": "w7-the-migrate-home-skipped-line-prints-the-directory",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/commands.py",
       "symbol": "_cmd_characters_migrate_home",
       "operator": "drop-directory-from-the-skipped-line",
       "find": "        f\"  skipped {row['kind']} {row.get('id') or row.get('slug')}  \"\n        f\"{row['directory']}  {row['reason']}\"\n",
@@ -4430,7 +4430,7 @@
     },
     {
       "id": "ph-payload-hides-the-fake-door",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/payloads.py",
       "symbol": "_characters_emit",
       "operator": "drop-the-draftsman-stamp",
       "find": "    print(emit_json({**data, **_characters_draftsman()}) if getattr(args, \"json\", False) else human)",
@@ -4446,7 +4446,7 @@
     },
     {
       "id": "ph-payload-stamps-the-provider-door-too",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/payloads.py",
       "symbol": "_characters_draftsman",
       "operator": "name-the-real-door-as-well",
       "find": "    name = active_draftsman_name()\n    return {\"draftsman\": name} if name else {}",
@@ -4461,7 +4461,7 @@
     },
     {
       "id": "ph-autopilot-stream-hides-the-fake-door",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/auto.py",
       "symbol": "_characters_auto_write",
       "operator": "drop-the-draftsman-stamp",
       "find": "        (emit_json_line({**data, **_characters_draftsman()}) if getattr(args, \"json\", False) else human) + \"\\n\"",
@@ -5099,12 +5099,12 @@
       ]
     },
     {
-      "id": "w0-g4-every-borrowed-callable-counts-as-read",
+      "id": "w0-g4-a-borrowed-callable-the-harness-reads-is-exempt-again",
       "path": "scripts/god_file_fences.py",
       "symbol": "borrowed_callables",
       "operator": "widen-exemption",
-      "find": "        if name in reads:\n            continue",
-      "replace": "        if True:\n            continue",
+      "find": "        if owner == module.__name__ or not is_repo_module(owner) or name in HARNESS_ALLOWLIST:\n            continue",
+      "replace": "        if owner == module.__name__ or not is_repo_module(owner) or name in HARNESS_ALLOWLIST | {\"populate_parser\"}:\n            continue",
       "test": [
         "{python}",
         "-m",
@@ -5112,7 +5112,7 @@
         "-q",
         "-p",
         "no:cacheprovider",
-        "tests/tooling/test_harness_namespace_is_thin.py::test_the_borrowed_callable_check_reds_a_reexport"
+        "tests/tooling/test_harness_namespace_is_thin.py::test_a_borrowed_callable_the_harness_reads_is_still_refused"
       ]
     },
     {
