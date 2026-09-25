@@ -411,11 +411,6 @@
    "unit": "hermes_cli/harness_parts/serve/commands.py|_cmd_serve_connect"
   },
   {
-   "depth": 0,
-   "lines": 181,
-   "unit": "hermes_cli/harness_parts/serve/gateway_listener.py|_gateway_authenticator"
-  },
-  {
    "depth": 6,
    "lines": 3760,
    "unit": "hermes_cli/harness_parts/serve/loop.py|serve_loop"

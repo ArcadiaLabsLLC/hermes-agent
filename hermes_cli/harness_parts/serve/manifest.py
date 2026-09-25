@@ -18,8 +18,6 @@ from hermes_cli.harness_parts.serve.constants import (
 __layer__ = "policy"
 
 __all__ = [
-    "_CREDENTIAL_FIELDS",
-    "_credential_kind",
     "_is_gateway",
     "_pairing_block",
     "ops_manifest",
@@ -153,45 +151,3 @@ def _is_gateway(connection: Any) -> bool:
         and str(getattr(connection, "transport", "") or "") == GATEWAY_TRANSPORT
     )
 
-
-#: The four credential fields a gateway hello may name, in the order
-#: :func:`_credential_kind` reports them. A TUPLE and not four ``if``s, because
-#: the rule being enforced is "exactly one of these" and a rule about a set is
-#: only checkable against a set — four independent branches is how a fifth field
-#: eventually gets added to three of them.
-_CREDENTIAL_FIELDS: tuple[str, ...] = (
-    "pairing_code",
-    "peer_code",
-    "peer_install_id",
-    "device_id",
-)
-
-
-def _credential_kind(message: dict[str, Any]) -> str | None:
-    """Which ONE credential this hello names, or ``None`` for zero or many.
-
-    The whole of "device-tier and peer-tier credentials are never
-    interchangeable" at the FRAME level, and it is a counting rule rather than a
-    precedence rule on purpose. A precedence — "a code beats an id", "a peer
-    beats a device" — answers a malformed frame by picking a winner, and every
-    such rule is one refactor away from picking the more privileged one.
-    Counting cannot be got wrong in that direction: two credentials is a
-    refusal, and the refusal looks exactly like every other credential failure
-    on this lane.
-
-    The ONE pair that is not two credentials is spelled out rather than hidden:
-    a join frame carries ``peer_code`` AND ``peer_install_id``, where the code
-    is the credential and the id is the name being claimed under it. Writing
-    that as an explicit allowance keeps the counting rule intact for every other
-    combination, including the one an attacker would actually try — a peer id
-    beside a device id, or a device code beside a peer code.
-    """
-
-    named = [
-        field
-        for field in _CREDENTIAL_FIELDS
-        if isinstance(message.get(field), str) and str(message.get(field)).strip()
-    ]
-    if named == ["peer_code", "peer_install_id"]:
-        return "peer_code"
-    return named[0] if len(named) == 1 else None

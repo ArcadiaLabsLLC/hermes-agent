@@ -4,13 +4,11 @@ the hello authenticator it installs.
 
 from __future__ import annotations
 
+from functools import partial
 from typing import Any
 
 from hermes_cli.harness_parts.serve.constants import (
     GATEWAY_TRANSPORT,
-)
-from hermes_cli.harness_parts.serve.manifest import (
-    _credential_kind,
 )
 
 __layer__ = "lanes"
@@ -236,181 +234,16 @@ def start_gateway_listener(
 def _gateway_authenticator(store_root: Any):
     """The gateway lane's credential check, as a ``ServeSocketServer`` seam.
 
-    FOUR hellos reach this function and it is the only place that tells them
-    apart: a device credential, a device pairing code, a peer credential, and a
-    peer join code. The dispatch is on which FIELD the frame names, and the
-    first thing it does is refuse a frame that names more than one — see
-    ``_credential_kind`` below, which is where Stage 6's "device-tier and
-    peer-tier credentials are never interchangeable" is actually enforced.
-
-    A device names itself in the hello (``device_id``) and answers the challenge
-    with an HMAC keyed by its own token's digest, bound to the port it dialled.
-    A peer names itself with ``peer_install_id`` and answers with an HMAC keyed
-    by the shared verifier, over a message with a different prefix, bound to the
-    same port. Every failure of any kind — no id, unknown id, revoked row, wrong
-    proof, wrong code, wrong ceremony — comes back as the SAME ``bad_proof``
-    rejection, so a caller that has proven nothing cannot enumerate which device
-    ids or which paired installs exist by watching the reason change, and cannot
-    even learn which of the two ceremonies it just failed. The runtime's own log
-    keeps the distinction; the wire does not.
-
-    **The other arm is the pairing ceremony's second half**, and it is here
-    rather than in a stage of its own because the alternative is shipping a
-    device tier no device can ever enter. A hello carrying ``pairing_code``
-    instead of ``device_id`` is a phone that has just been shown eight
-    characters on the operator's terminal; the store redeems them under all of
-    ``gateway/pairing.py``'s discipline (TTL, pending cap, lockout, constant-time
-    compare) and the connection is admitted as the device it just created, with
-    the minted token riding the ``hello_ok`` it was going to send anyway.
-
-    Three properties make that safe enough to do in one round trip. The link is
-    already TLS with a fingerprint the operator handed over out of band, so the
-    token is not readable and not deliverable to an impostor. The code is
-    one-shot — redeemed, it is deleted before the token is minted — so a replay
-    finds nothing. And a failed redemption collapses into the same ``bad_proof``
-    as every other credential failure and charges the same limiter, so the code
-    space cannot be ground down any faster than the device-id space can.
-
-    **The peer join (Stage 6) is those same three properties over the same
-    machinery**, plus one the device ceremony has no need of: it is the only arm
-    that WRITES facts the other side asserted — the joining install's name, its
-    endpoints, its certificate fingerprint. They are bounded and cleaned by
-    ``gateway_peers`` before they land, and what makes them safe to keep at all
-    is R5's second operator: the code was minted seconds earlier by a human at
-    THIS machine, which is a stronger provenance than anything the wire could
-    supply.
+    FOUR hellos reach this seam — a device credential, a device pairing code, a
+    peer credential and a peer join code — and the dispatch among them is a
+    TABLE: ``agent_runtime.serve_gateway_credentials.CREDENTIAL_KINDS``, keyed by
+    ``credential_kind``, which refuses a frame that names more than one field.
+    That module carries the reasoning for each arm (why a pairing code is safe in
+    one round trip, why the peer join is the one arm that writes the far side's
+    assertions, why every failure is the same ``bad_proof``); this function only
+    binds the store root the listener was started on.
     """
 
-    from agent_runtime.gateway_peers import (
-        PeerCredential,
-        cache_peer_hello,
-        note_dial_result,
-        note_peer_seen,
-        note_peer_store_read,
-        redeem_peer_code,
-        verify_peer_proof,
-    )
-    from agent_runtime.serve_gateway_auth import (
-        DeviceCredential,
-        note_device_seen,
-        redeem_pairing_code,
-        verify_device_proof,
-    )
-    from agent_runtime.serve_socket import HelloAuthOutcome, REJECT_BAD_PROOF
+    from agent_runtime.serve_gateway_credentials import authenticate_hello
 
-    def _reject():
-        return HelloAuthOutcome(ok=False, reject_reason=REJECT_BAD_PROOF)
-
-    def _authenticate(message: dict[str, Any], nonce: str, port: int):
-        kind = _credential_kind(message)
-        if kind is None:
-            # Zero credentials named, or more than one. A handshake with two
-            # credentials in it is exactly where a downgrade lives, and the
-            # server must not get to pick which one it liked.
-            return _reject()
-
-        if kind == "pairing_code":
-            outcome = redeem_pairing_code(
-                store_root,
-                message.get("pairing_code"),
-                device_name=message.get("client")
-                if isinstance(message.get("client"), str)
-                else None,
-            )
-            if not isinstance(outcome, DeviceCredential):
-                return _reject()
-            return HelloAuthOutcome(
-                ok=True,
-                device_id=outcome.device_id,
-                device_tier=outcome.tier,
-                issued_token=outcome.token,
-            )
-
-        if kind == "peer_code":
-            # The joining install must NAME itself in the same frame: the edge
-            # is symmetric, so a row keyed by nothing would be a peer this
-            # install could never dial back and could never recognise again.
-            outcome = redeem_peer_code(
-                store_root,
-                message.get("peer_code"),
-                peer_install_id=str(message.get("peer_install_id") or ""),
-                display_name=message.get("peer_display_name")
-                or message.get("client"),
-                endpoints=message.get("peer_endpoints"),
-                cert_fingerprint=message.get("peer_cert_fingerprint"),
-            )
-            if not isinstance(outcome, PeerCredential):
-                return _reject()
-            # R-D16, this side of the ceremony. The joining install just
-            # completed a TLS handshake against this listener and proved a code
-            # a human minted here seconds ago — the same evidence the
-            # ``peer_install_id`` arm below turns into ``reachable`` through
-            # ``cache_peer_hello``. Without this the MINTING side's cache stayed
-            # at whatever a past dial left, so an edge both stores had just
-            # written read as unusable on one of them.
-            #
-            # Outside ``redeem_peer_code``'s own lock rather than inside it:
-            # ``_store_lock`` is not reentrant (``locks._file_lock``), so a
-            # cache touch taken within that span would spend its ten-second
-            # budget contending with the write it is describing and then give up
-            # silently.
-            note_dial_result(store_root, outcome.peer_install_id, ok=True)
-            return HelloAuthOutcome(
-                ok=True,
-                peer_install_id=outcome.peer_install_id,
-                issued_peer_secret=outcome.secret,
-                # S2: whatever the mint decided, carried straight through. The
-                # store computed it at redemption; this function neither derives
-                # nor defaults one, so the two ends of the edge hold one value.
-                issued_peer_secret_expires_at=outcome.expires_at,
-            )
-
-        if kind == "peer_install_id":
-            # S2c (R-S2-8). The revision read that makes an EXTERNAL write
-            # visible, taken on a read this lane was making anyway. The serve is
-            # the process that notices because it is the one that reads
-            # repeatedly; a fresh CLI process seeds on its first read and emits
-            # nothing, having no baseline to claim a change against.
-            note_peer_store_read(store_root)
-            peer = verify_peer_proof(
-                store_root,
-                message.get("peer_install_id"),
-                message.get("proof"),
-                nonce,
-                port=port,
-            )
-            if not peer.ok or peer.record is None:
-                return _reject()
-            note_peer_seen(store_root, peer.record.peer_install_id)
-            # …and the three OPTIONAL facts the hello may carry about itself,
-            # after the proof and never before it: these are assertions by a
-            # party that has now authenticated, and writing them for a caller
-            # that had not would let an unpaired stranger grow this file.
-            cache_peer_hello(
-                store_root,
-                peer.record.peer_install_id,
-                display_name=message.get("peer_display_name"),
-                endpoints=message.get("peer_endpoints"),
-                cert_fingerprint=message.get("peer_cert_fingerprint"),
-            )
-            return HelloAuthOutcome(
-                ok=True, peer_install_id=peer.record.peer_install_id
-            )
-
-        auth = verify_device_proof(
-            store_root,
-            message.get("device_id"),
-            message.get("proof"),
-            nonce,
-            port=port,
-        )
-        if not auth.ok or auth.record is None:
-            return _reject()
-        note_device_seen(store_root, auth.record.device_id)
-        return HelloAuthOutcome(
-            ok=True,
-            device_id=auth.record.device_id,
-            device_tier=auth.record.tier,
-        )
-
-    return _authenticate
+    return partial(authenticate_hello, store_root)

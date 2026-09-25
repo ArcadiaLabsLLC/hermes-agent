@@ -430,10 +430,6 @@
    "site": "hermes_cli/harness_parts/runtime_commands.py|_cmd_work_cancel|vocab|cancelled"
   },
   {
-   "arms": 3,
-   "site": "hermes_cli/harness_parts/serve/gateway_listener.py|_gateway_authenticator._authenticate|ladder|kind"
-  },
-  {
    "arms": 10,
    "site": "hermes_cli/harness_parts/serve/loop.py|serve_loop._handle_message|ladder|op"
   },

@@ -69,15 +69,12 @@ from hermes_cli.harness_parts.serve.constants import (
     _SERVICE_PARK_POLL_SECONDS,
 )
 from hermes_cli.harness_parts.serve.manifest import (
-    _CREDENTIAL_FIELDS,
-    _credential_kind,
     _is_gateway,
     _pairing_block,
     ops_manifest,
 )
 from hermes_cli.harness_parts.serve.gateway_listener import (
     GATEWAY_OUTCOME_SOCKET_UNAVAILABLE,
-    _gateway_authenticator,
     gateway_block_when_no_listener,
     gateway_listen_config,
     start_gateway_listener,
@@ -181,13 +178,10 @@ __all__ = [
     "_READ_CACHE_MAX_AGE_SECONDS",
     "_REQUEST_SILENCE_SECONDS",
     "_SERVICE_PARK_POLL_SECONDS",
-    "_CREDENTIAL_FIELDS",
-    "_credential_kind",
     "_is_gateway",
     "_pairing_block",
     "ops_manifest",
     "GATEWAY_OUTCOME_SOCKET_UNAVAILABLE",
-    "_gateway_authenticator",
     "gateway_block_when_no_listener",
     "gateway_listen_config",
     "start_gateway_listener",
