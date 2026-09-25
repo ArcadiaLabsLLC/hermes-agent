@@ -23,6 +23,15 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-09-25 (launcher lane REALM-HISTORY, filed by the orchestrator)
+
+The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its Remote tab renders UNSUPPORTED and restore-to-version records a refused row until H1 and H3 exist. Evidence for all four: `EterniaLauncher/docs/mission_control/planned/realm-history-and-publish-policy-design-sheet.md` §3.
+
+- [ ] **H1 — `hermes harness realm sync history <realm> --json [--limit N]`: git log over the realm subtree, per commit {sha, at, author, changed_paths→{family, container, item_key}}, is_local_head / is_upstream_head; read-only, no fetch** · `agent_runtime/realm_sync.py`, `hermes_cli` realm sync verbs
+- [ ] **H2 — the publish envelope carries `changed_paths` + `changed_count` from `_published_artifacts_differ` (computed and discarded today, `publish.py:439-452`) and `residual_drift` (store_drift.items still present after baselines, reason baseline_refused / baseline_write_failed / not_in_publish_set)** · `agent_runtime/realm_sync/publish.py`
+- [ ] **H3 — `hermes harness realm sync revert <realm> --to <sha> [--item …|--all]`: reconcile the local store against that commit's subtree through the pull arms with the same outcome vocabulary; upstream HEAD unchanged; the launcher already sends `--to` and degrades on "unrecognized arguments"** · `agent_runtime/realm_sync.py`
+- [ ] **H4 — no per-row local edit journal: a local edit shows the row's `updated_at` via H1, else "since last sync" — record the decision, build nothing** · decision row
+
 ### Filed on arrival — 2026-09-25 (lane MERGE, filed by the orchestrator)
 
 - [ ] **`agent_runtime/local_llama_adapter/{engine,setup}.py` import six `hermes_cli.local_runtime.binaries` names upstream `27df3b8847` deleted (`server_binary`, `default_tag`, `resolve_assets`, `installed_tags`, `manifest_verified`, `ensure_runtime_installed`) — four tests red on the merge candidate at `d0a074a395`; the merge cannot land until the adapter is re-seated onto upstream's `binaries.installed_engine` / `ensure_engine`** · `fork / local llama` · re-seat C of the 2026-09-25 merge, same shape as re-seats A/B (`docs/agent-runtime-harness/planned/upstream-merge-2026-09-25-design.md` §2); the design note missed it because it looked for deleted MODULES, not deleted names · evidence: lane MERGE report 2026-09-25, `X:/wt/h-merge2/.lane-logs/` · filed 2026-09-25 **TAKEN 2026-09-25 lane MERGE**
