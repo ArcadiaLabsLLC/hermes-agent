@@ -56,7 +56,7 @@ def resolve_mcp_admission(
     ``register_mcp_servers`` that fails the test if called is part of the suite.
 
     S66 removed the ``task`` / ``stage`` parameters. They rode the whole chain
-    (here → ``_requested_servers`` → ``_effective_required_mcp_servers``) and
+    (here → ``_requested_servers`` → ``effective_required_mcp_servers``) and
     were ignored at the bottom of it; no production caller passed either. They
     were residue of the retired role/work-description policy, and an accepted-
     and-discarded argument is exactly the silent no-op this campaign keeps
@@ -237,7 +237,7 @@ def _requested_servers(persona) -> list[str]:
     Reuses the two existing declaration surfaces rather than writing a third:
     ``profile_readiness.declared_mcp_server_names`` (required ∪ the profile's
     ``mcp_servers`` block, and deliberately NOT the ambient operator config for
-    an unbound persona) unioned with ``_effective_required_mcp_servers``.
+    an unbound persona) unioned with ``effective_required_mcp_servers``.
 
     S64 retired the role policy this docstring used to advertise (``role ==
     "qa"`` + visual proof ⇒ ``launcher_qa``). There is no role lane left here:
@@ -246,12 +246,12 @@ def _requested_servers(persona) -> list[str]:
     they were inert, and no production caller ever passed either.
     """
 
-    from ..profile_readiness import _effective_required_mcp_servers, declared_mcp_server_names
+    from ..profile_readiness import effective_required_mcp_servers, declared_mcp_server_names
 
     names: list[str] = []
     for source in (
         declared_mcp_server_names(persona),
-        _effective_required_mcp_servers(persona),
+        effective_required_mcp_servers(persona),
     ):
         for value in source or []:
             text = str(value or "").strip()
@@ -265,14 +265,14 @@ def _configured_servers_for(persona) -> dict[str, Any]:
 
     from ..parse_cache import cached_yaml_file
     from ..profile_context import resolve_persona_profile
-    from ..profile_readiness import _configured_mcp_servers
+    from ..profile_readiness import configured_mcp_servers
 
     try:
         binding = resolve_persona_profile(persona)
         if binding.profile_home is None:
             return {}
         raw = cached_yaml_file(binding.profile_home / "config.yaml", default={}) or {}
-        return dict(_configured_mcp_servers(raw))
+        return dict(configured_mcp_servers(raw))
     except Exception:  # pragma: no cover - defensive; a config fault must not open the gate
         logger.debug("MCP admission could not read the persona profile config", exc_info=True)
         return {}

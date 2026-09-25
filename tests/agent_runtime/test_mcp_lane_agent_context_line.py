@@ -262,7 +262,7 @@ def test_the_line_never_fails_a_turn(monkeypatch):
 
 
 def test_the_role_policy_is_imported_never_re_implemented():
-    """The design's standing rule: ``_effective_required_mcp_servers`` is THE
+    """The design's standing rule: ``effective_required_mcp_servers`` is THE
     role→server policy. A second copy in ``mcp_lane`` would be a parallel
     authority that drifts the day the first one changes."""
 
@@ -271,7 +271,7 @@ def test_the_role_policy_is_imported_never_re_implemented():
     import agent_runtime.mcp_lane as mcp_lane
 
     source = inspect.getsource(mcp_lane.mission_chat_mcp_lane_line)
-    assert "_effective_required_mcp_servers" in source
+    assert "effective_required_mcp_servers" in source
     assert "launcher_qa" not in source.split('"""')[2]
 
 

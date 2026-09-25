@@ -137,7 +137,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-25 (lane B4, filed by the orchestrator)
 
-- [ ] **`profile_readiness._effective_required_mcp_servers` / `_configured_mcp_servers` are read by private name from `profile_runner/mcp_lane.py` and `mcp_admission/resolve.py`** · `fork / refactor` · make them public in `profile_readiness` and retarget the two readers (mcp_lane is landed now, nothing holds it) · evidence: mcp_admission.md §3, B4 CHANGE `edebf9c26f` · filed by lane B4 2026-09-25 **TAKEN 2026-09-25 lane W3-C**
 - [ ] **running_work's `REGISTRY_EXITED` and `KILL_NOT_FOUND` boundary words have no test pinning their values** · `fork / tests` · a positive control per word: the surface reads the word, a changed spelling reds · evidence: B4 CHANGE `f1635138af` · filed by lane B4 2026-09-25 **TAKEN 2026-09-25 lane W3-C**
 
 
