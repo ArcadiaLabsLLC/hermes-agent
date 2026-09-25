@@ -260,6 +260,32 @@ def test_an_unreadable_archive_on_the_idempotent_arm_is_typed_not_a_crash():
     assert _live_keys() == []
 
 
+def test_an_unreadable_actor_directory_names_the_actor_file_not_the_archive(monkeypatch):
+    """``ActorsUnreadable`` subclasses ``ArchiveUnreadable``, so it reaches the
+    same row — and the row must read the exception's OWN code. The class
+    constant told the operator to repair the archive copy when the file that
+    failed was a live actor file. Positive control: the archive twin above
+    still answers ``archive_unreadable`` through the same row."""
+
+    from agent_runtime import office_store as office_store_module
+    from agent_runtime.errors import ActorsUnreadable
+
+    _seed()
+
+    def _unreadable(self, *_args, **_kwargs):
+        raise ActorsUnreadable("office actors unreadable in ws: 1")
+
+    monkeypatch.setattr(office_store_module.OfficeStore, "remove_actor", _unreadable)
+    reply = _remove("r-actors", {"workspace_id": WORKSPACE, "actor_key": QA_INSTANCE})
+
+    assert reply["error"]["code"] == -32600
+    assert reply["error"]["data"] == {
+        "reason": "actors_unreadable",
+        "workspace_id": WORKSPACE,
+        "actor_key": QA_INSTANCE,
+    }
+
+
 def test_both_lanes_refuse_the_same_unreadable_archive_naming_the_same_fault():
     """Refusal PARITY across the two lanes, on ONE staged archive.
 

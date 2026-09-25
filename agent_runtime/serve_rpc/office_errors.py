@@ -28,6 +28,7 @@ __layer__ = "policy"
 __all__ = [
     "OfficeWriteScope",
     "Translation",
+    "own_code",
     "refusal",
     "translate",
 ]
@@ -46,6 +47,15 @@ class OfficeWriteScope:
 
 #: One row: the caught exception and the verb's scope in, an error frame out.
 Translation = Callable[[BaseException, OfficeWriteScope], dict]
+
+
+def own_code(exc: BaseException) -> str:
+    """The exception's OWN ``code`` as the reason — for a row keyed on a base
+    class whose subclasses name a different fault (``ActorsUnreadable`` under
+    ``ArchiveUnreadable``). The class constant would hand every subclass the
+    base's name and send the operator to repair the wrong file."""
+
+    return exc.code
 
 
 def refusal(

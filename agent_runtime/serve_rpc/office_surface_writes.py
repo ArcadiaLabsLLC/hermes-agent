@@ -40,6 +40,7 @@ from agent_runtime.serve_rpc.office_read import log_office_write
 from agent_runtime.serve_rpc.office_errors import (
     OfficeWriteScope,
     Translation,
+    own_code,
     refusal,
     translate,
 )
@@ -348,9 +349,7 @@ RESOLVE_CONFLICT_ERRORS: Mapping[type[BaseException], Translation] = {
         # with no reason to branch on and nothing an operator could act on. One
         # condition gets one name across all three write verbs, so a client that
         # learned ``archive_unreadable`` from the archive leg reads it here too.
-    ArchiveUnreadable: refusal(
-        ERR_INVALID_REQUEST, ArchiveUnreadable.code, carry=("actor_key",)
-    ),
+    ArchiveUnreadable: refusal(ERR_INVALID_REQUEST, own_code, carry=("actor_key",)),
         # Whatever the store rejected while normalizing ids. ``take`` cannot
         # arrive here — it was validated above — so every remaining case is a
         # malformed identifier, and the client's response to all of them is the
