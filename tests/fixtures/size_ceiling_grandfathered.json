@@ -2,7 +2,6 @@
  "ceiling": 800,
  "counter": "code lines: non-blank, not '#'-led, docstrings count (ruling Q1)",
  "files": {
-  "tests/_downstream/hermes_cli_conftest.py": 893,
-  "tests/_downstream/id_markers.py": 1053
+  "tests/_downstream/hermes_cli_conftest.py": 893
  }
 }
