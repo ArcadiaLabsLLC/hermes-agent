@@ -27,7 +27,7 @@ from agent_runtime.persona_chat_history import (
     persona_chat_trace_summary,
 )
 from agent_runtime.persona_chat_history.history_rows import _safe_recent_messages
-from agent_runtime.persona_chat_history.text import _iso_timestamp
+from agent_runtime.clock import iso_timestamp
 from agent_runtime.states import WorkerSessionState
 
 
@@ -316,9 +316,9 @@ def test_message_timestamps_are_iso_so_they_merge_with_trace_by_ts():
 
     assert rows[0]["timestamp"] == "2026-06-22T21:00:02.500000Z"
     # Same shape the trace channel emits, so DateTime.tryParse orders them together.
-    assert _iso_timestamp(1782162002.5) == rows[0]["timestamp"]
-    assert _iso_timestamp("2026-06-22T21:00:02.500000Z") == "2026-06-22T21:00:02.500000Z"
-    assert _iso_timestamp(None) is None
+    assert iso_timestamp(1782162002.5) == rows[0]["timestamp"]
+    assert iso_timestamp("2026-06-22T21:00:02.500000Z") == "2026-06-22T21:00:02.500000Z"
+    assert iso_timestamp(None) is None
 
 
 def test_history_row_timestamps_are_iso_utc_at_projection_boundary():
@@ -629,8 +629,8 @@ def test_iso_timestamp_normalizes_datetime_values():
     aware = datetime(2026, 6, 22, 21, 0, 2, 500000, tzinfo=timezone.utc)
     naive = datetime(2026, 6, 22, 21, 0, 2, 500000)
 
-    assert _iso_timestamp(aware) == "2026-06-22T21:00:02.500000Z"
-    assert _iso_timestamp(naive) == "2026-06-22T21:00:02.500000Z"
+    assert iso_timestamp(aware) == "2026-06-22T21:00:02.500000Z"
+    assert iso_timestamp(naive) == "2026-06-22T21:00:02.500000Z"
 
 
 def test_synthetic_mission_row_keeps_unknown_timestamp_null():
@@ -2115,27 +2115,27 @@ def test_iso_timestamp_reads_every_input_type_it_accepts():
 
     seconds = 1782162002.5
     expected = "2026-06-22T21:00:02.500000Z"
-    assert _iso_timestamp(seconds) == expected
-    assert _iso_timestamp(int(seconds)) == "2026-06-22T21:00:02.000000Z"
-    assert _iso_timestamp(seconds * 1000) == expected
-    assert _iso_timestamp(int(seconds) * 1000) == "2026-06-22T21:00:02.000000Z"
-    assert _iso_timestamp(str(seconds)) == expected
-    assert _iso_timestamp(" 2026-06-22T21:00:02.5+00:00 ") == expected
-    assert _iso_timestamp("2026-06-22T21:00:02.5") == expected
-    assert _iso_timestamp(True) is None
-    assert _iso_timestamp("") is None
-    assert _iso_timestamp("not a time") is None
-    assert _iso_timestamp(1e300) is None
-    assert _iso_timestamp(object()) is None
+    assert iso_timestamp(seconds) == expected
+    assert iso_timestamp(int(seconds)) == "2026-06-22T21:00:02.000000Z"
+    assert iso_timestamp(seconds * 1000) == expected
+    assert iso_timestamp(int(seconds) * 1000) == "2026-06-22T21:00:02.000000Z"
+    assert iso_timestamp(str(seconds)) == expected
+    assert iso_timestamp(" 2026-06-22T21:00:02.5+00:00 ") == expected
+    assert iso_timestamp("2026-06-22T21:00:02.5") == expected
+    assert iso_timestamp(True) is None
+    assert iso_timestamp("") is None
+    assert iso_timestamp("not a time") is None
+    assert iso_timestamp(1e300) is None
+    assert iso_timestamp(object()) is None
 
 
 def test_every_wire_role_maps_to_its_transcript_role():
     """Positive control for the role ladder the CHANGE turns into a table."""
 
-    from agent_runtime.persona_chat_history.text import _safe_message_role
+    from agent_runtime.persona_chat_history.vocabulary import MessageRole
 
     assert {
-        wire: _safe_message_role(wire)
+        wire: MessageRole.from_wire(wire)
         for wire in ("user", "operator", "assistant", "agent", "system", "tool", "", None)
     } == {
         "user": "operator",

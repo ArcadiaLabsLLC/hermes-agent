@@ -9,14 +9,16 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from ..clock import iso_timestamp
 from ..models import PersonaInstance
 from ..persona_assignments import (
     persona_instance_id_for,
     safe_assignment_text,
     safe_assignment_token,
 )
+from ..serde import positive_int
 from .curation import _safe_curated_messages
-from .text import _INTERNAL_SCAFFOLDING_MARKERS, _iso_timestamp, _safe_display_text, _safe_int
+from .text import _INTERNAL_SCAFFOLDING_MARKERS, _safe_display_text
 from .trace_rows import _bounded_message_tail
 from .vocabulary import (
     CHAT_REDACTION_UNKNOWN,
@@ -126,7 +128,7 @@ def _mission_assignment_for(
     ]
     if not candidates:
         return None
-    return max(candidates, key=lambda item: _iso_timestamp(getattr(item, "created_at", None)) or "")
+    return max(candidates, key=lambda item: iso_timestamp(getattr(item, "created_at", None)) or "")
 
 
 def _history_row(
@@ -219,10 +221,10 @@ def _history_row(
         "title": title,
         "last_message_preview": preview,
         "message_count": lineage_aggregate.get(
-            "message_count", _safe_int(raw.get("message_count"))
+            "message_count", positive_int(raw.get("message_count"), default=0)
         ),
-        "created_at": _iso_timestamp(raw.get("started_at")),
-        "updated_at": _iso_timestamp(
+        "created_at": iso_timestamp(raw.get("started_at")),
+        "updated_at": iso_timestamp(
             lineage_aggregate.get("last_active")
             or raw.get("last_active")
             or raw.get("ended_at")
@@ -286,9 +288,9 @@ def _lineage_aggregate(
         "cache_write_tokens",
         "message_count",
     ):
-        result[key] = sum(_safe_int(row.get(key)) for row in rows)
+        result[key] = sum(positive_int(row.get(key), default=0) for row in rows)
     activity = [
-        _iso_timestamp(
+        iso_timestamp(
             row.get("last_active") or row.get("ended_at") or row.get("started_at")
         )
         for row in rows
@@ -307,7 +309,7 @@ def _lineage_aggregate(
         except Exception:
             native_messages = []
         activity.extend(
-            _iso_timestamp(
+            iso_timestamp(
                 message.get("created_at")
                 or message.get("timestamp")
                 or message.get("time")
@@ -399,14 +401,14 @@ def _persona_chat_candidate_sort_key(
     candidate: tuple[dict[str, Any], PersonaInstance, str, str, str | None]
 ) -> tuple[bool, str, str]:
     raw, _instance, session_id, _kind, _task_id = candidate
-    created_at = _iso_timestamp(raw.get("started_at"))
+    created_at = iso_timestamp(raw.get("started_at"))
     return (created_at is not None, created_at or "", session_id)
 
 
 def _token_usage_fields(raw: dict[str, Any]) -> dict[str, int]:
-    input_tokens = _safe_int(raw.get("input_tokens"))
-    output_tokens = _safe_int(raw.get("output_tokens"))
-    total_tokens = _safe_int(raw.get("total_tokens"))
+    input_tokens = positive_int(raw.get("input_tokens"), default=0)
+    output_tokens = positive_int(raw.get("output_tokens"), default=0)
+    total_tokens = positive_int(raw.get("total_tokens"), default=0)
     if total_tokens == 0 and (input_tokens or output_tokens):
         total_tokens = input_tokens + output_tokens
     # Cache split (Launcher contract): ``input_tokens`` is already the UNCACHED,
@@ -416,8 +418,8 @@ def _token_usage_fields(raw: dict[str, Any]) -> dict[str, int]:
     # warm cache from a stale one that is being re-billed at full rate. The
     # session DB already accumulates these columns per API call — this projection
     # simply stops dropping them at the snapshot boundary.
-    cache_read_tokens = _safe_int(raw.get("cache_read_tokens"))
-    cache_write_tokens = _safe_int(raw.get("cache_write_tokens"))
+    cache_read_tokens = positive_int(raw.get("cache_read_tokens"), default=0)
+    cache_write_tokens = positive_int(raw.get("cache_write_tokens"), default=0)
     return {
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,

@@ -196,6 +196,12 @@ def non_negative_int(value: Any) -> int | None:
     return parsed if parsed is not None and parsed >= 0 else None
 
 
+def strict_int(value: Any) -> int | None:
+    """:func:`safe_int`, but a ``bool`` is not a number here (``True`` is not exit code 1)."""
+
+    return None if isinstance(value, bool) else safe_int(value)
+
+
 def positive_int(value: Any, *, default: int | None = None) -> int | None:
     """``int(value)`` when it coerces and is > 0, else ``default``. Never raises.
 

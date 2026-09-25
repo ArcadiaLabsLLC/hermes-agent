@@ -8,12 +8,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..clock import iso_timestamp
 from ..mission_chat_turns import mission_chat_turn_records
 from ..persona_assignments import safe_assignment_text, safe_assignment_token
 from ..run_budget import ACCOUNTING_KEY as RUN_BUDGET_ACCOUNTING_KEY
 from ..transcript_order import TURN_SEQ_TERMINAL, order_transcript_rows
 from ..turn_visibility import TURN_VISIBILITY_KEY, classify_persisted_turn_row
-from .text import _iso_timestamp
 from .vocabulary import (
     PERSONA_TURN_SILENT_KIND,
     SILENT_TURN_MARKER_TEXTS,
@@ -85,7 +85,7 @@ def _silent_turn_marker_row(
         "role": "system",
         "kind": PERSONA_TURN_SILENT_KIND,
         "text": SILENT_TURN_MARKER_TEXTS[visibility.reason],
-        "timestamp": _iso_timestamp(
+        "timestamp": iso_timestamp(
             raw.get("created_at")
             or raw.get("timestamp")
             or raw.get("time")
@@ -154,7 +154,7 @@ def _terminal_turn_marker_rows(
             # Mission Control tiles) key on this instead of matching text.
             "kind": marker.kind,
             "text": marker.text,
-            "timestamp": _iso_timestamp(record.get("updated_at")),
+            "timestamp": iso_timestamp(record.get("updated_at")),
             "redaction_status": "safe",
             "client_message_id": client_message_id,
             "turn_id": turn_id,

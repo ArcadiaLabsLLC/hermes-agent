@@ -2,21 +2,24 @@
 
 Separate because every other module in the package — and ``operator_channels``,
 ``snapshot`` and ``chat_live_log`` outside it — reads these names, and a
-vocabulary imports nothing that reads it.
+vocabulary imports nothing that reads it. Layer ``policy``, not ``models``: the
+two client-message-id functions here call the assignment token policy.
 """
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any
+from enum import StrEnum, auto
+from types import MappingProxyType
+from typing import Any, Mapping
 
 from ..mission_chat_turns import TERMINAL_TURN_STATES
 from ..persona_assignments import safe_assignment_text, safe_assignment_token
 from ..redaction import TEXT_SECRET_ASSIGNMENT_RE
 from ..turn_visibility import SILENT_REASONS, VisibilityReason
 
-__layer__ = "models"
+__layer__ = "policy"
 __all__ = [
     "PERSONA_PRE_TRACE_ACK_FINISH_REASON",
     "PERSONA_PRE_TRACE_ACK_KIND",
@@ -28,6 +31,9 @@ __all__ = [
     "TERMINAL_TURN_MARKERS",
     "PERSONA_TURN_SILENT_KIND",
     "SILENT_TURN_MARKER_TEXTS",
+    "ChatReadStatus",
+    "MessageRole",
+    "WIRE_ROLES",
     "CHAT_READ_UNAVAILABLE",
     "CHAT_READ_FAILED",
     "CHAT_SCOPE_UNRESOLVED",
@@ -224,10 +230,20 @@ _CHAT_INSTANCE_MODES = {"chat", "free_floating"}
 # this condition (``None, "session_db_unavailable"``), and the shape follows the
 # orphan sweep in ``cron/executions.py``: a typed unknown, never a plausible
 # default.
-CHAT_READ_UNAVAILABLE = "session_db_unavailable"  # no SessionDB to read from
+class ChatReadStatus(StrEnum):
+    """Why a chat read answered with no transcript — the closed ``error_kind``
+    vocabulary of a read that did not happen (program rule 14). The values are
+    the launcher contract and never change spelling."""
+
+    UNAVAILABLE = "session_db_unavailable"  # no SessionDB to read from
+    FAILED = "session_db_read_failed"  # the read itself raised
+    SCOPE_UNRESOLVED = "chat_scope_unresolved"  # ambient rung on a chat read
+    SCOPE_MISMATCH = "chat_scope_mismatch"  # two authorities disagree
+    INVALID_CURSOR = "invalid_history_cursor"  # a ``before`` cursor that does not resolve
 
 
-CHAT_READ_FAILED = "session_db_read_failed"  # the read itself raised
+CHAT_READ_UNAVAILABLE = ChatReadStatus.UNAVAILABLE  # no SessionDB to read from
+CHAT_READ_FAILED = ChatReadStatus.FAILED  # the read itself raised
 
 
 # ── typed chat-scope refusals (2026-08-12 ambient chat-history incident) ─────
@@ -239,16 +255,45 @@ CHAT_READ_FAILED = "session_db_read_failed"  # the read itself raised
 # genuinely empty conversation. That silent-empty class cost a full operator
 # day on 2026-08-12; the read now refuses with a typed reason instead, and the
 # refusal carries the resolved ``chat_scope`` block so the caller learns WHY.
-CHAT_SCOPE_UNRESOLVED = "chat_scope_unresolved"  # ambient rung on a chat read
-
-
-CHAT_SCOPE_MISMATCH = "chat_scope_mismatch"  # two authorities disagree
+CHAT_SCOPE_UNRESOLVED = ChatReadStatus.SCOPE_UNRESOLVED  # ambient rung on a chat read
+CHAT_SCOPE_MISMATCH = ChatReadStatus.SCOPE_MISMATCH  # two authorities disagree
 
 
 # The ``redaction_status`` an unread body reports. Not a redaction verdict —
 # the absence of one. "safe" here is a claim about content nobody loaded.
 CHAT_REDACTION_UNKNOWN = "unknown"
 
+
+# ── the transcript's roles ───────────────────────────────────────────────────
+#
+# SessionDB rows carry the WIRE role (``user`` / ``assistant`` / ``system``, and
+# the fork's own ``operator`` / ``agent`` spellings); the transcript speaks in
+# three roles. ``WIRE_ROLES`` is the one lookup between them, and a wire role it
+# does not name (``tool``, ``function``, empty) has no transcript role at all.
+# Member values come from ``auto()`` (StrEnum: the lower-cased name), so the
+# words stay out of W0-G5's fork-wide vocabulary, where ``"agent"`` and
+# ``"system"`` are compared as unrelated words in more than a dozen other files.
+
+
+class MessageRole(StrEnum):
+    """A transcript row's role; each member IS its string (``"operator"`` …)."""
+
+    OPERATOR = auto()
+    AGENT = auto()
+    SYSTEM = auto()
+
+    @classmethod
+    def from_wire(cls, value: Any) -> "MessageRole | None":
+        return WIRE_ROLES.get(safe_assignment_token(value))
+
+
+WIRE_ROLES: Mapping[str, MessageRole] = MappingProxyType({
+    "user": MessageRole.OPERATOR,
+    "operator": MessageRole.OPERATOR,
+    "assistant": MessageRole.AGENT,
+    "agent": MessageRole.AGENT,
+    "system": MessageRole.SYSTEM,
+})
 
 DEFAULT_PERSONA_CHAT_MESSAGE_TAIL = 40
 

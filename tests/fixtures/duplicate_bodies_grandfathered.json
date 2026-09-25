@@ -10,7 +10,6 @@
   "agent_runtime/mission_chat_turns.py::_lock_fd_exclusive_nonblocking == agent_runtime/persona_chat_continuity.py::_try_lock",
   "agent_runtime/mission_chat_turns.py::_unlock_fd == agent_runtime/persona_chat_continuity.py::_unlock",
   "agent_runtime/paths.py::unlink_quietly == hermes_cli/_bytecode_sweep.py::_release_bytecode_sweep_lock",
-  "agent_runtime/persona_chat_history/trace_rows.py::_safe_trace_int == agent_runtime/profile_runner.py::_safe_exit_code",
   "hermes_cli/harness_parts/level.py::_load_level_bytes == hermes_cli/harness_parts/map.py::_load_map_bytes",
   "scripts/doc_cite_adjacency.py::_tracked == scripts/doc_cite_report.py::_tracked"
  ],

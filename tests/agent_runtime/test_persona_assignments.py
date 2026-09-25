@@ -1914,6 +1914,7 @@ def test_persona_chat_history_summary_projects_builtin_chat_source_when_worker_o
 
 
 def test_snapshot_preserves_open_chat_and_emits_history(monkeypatch, isolate_agent_runtime_root):
+    import agent_runtime.chat_session_scope as chat_session_scope
     import agent_runtime.persona_chat_history as history
     import agent_runtime.snapshot as snapshot_module
 
@@ -1948,7 +1949,7 @@ def test_snapshot_preserves_open_chat_and_emits_history(monkeypatch, isolate_age
         },
     )
     monkeypatch.setattr(history, "_default_session_db", lambda: db)
-    monkeypatch.setattr(history.summary, "_default_session_db", lambda: db)
+    monkeypatch.setattr(chat_session_scope, "open_chat_session_db", lambda scope=None: db)
     monkeypatch.setattr(snapshot_module, "_default_persona_session_db", lambda: db)
     PersonaInstanceStore().open_chat(persona_id="dev", session_id="chat_old_123")
 

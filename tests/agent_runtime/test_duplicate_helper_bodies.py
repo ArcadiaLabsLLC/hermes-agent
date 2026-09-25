@@ -89,13 +89,9 @@ _GRANDFATHERED: dict[tuple[str, ...], str] = {
         "kanban_diagnostics.py, browser_route.py) that take a `default` and "
         "are NOT this function, which is why the name alone never settled it"
     ),
-    (
-        "agent_runtime/persona_chat_history/trace_rows.py::_safe_trace_int",
-        "agent_runtime/profile_runner.py::_safe_exit_code",
-    ): (
-        "same coercion (int-or-None, rejecting bool) under two domain names. "
-        "Foldable, deferred with the pair above"
-    ),
+    # ``persona_chat_history._safe_trace_int == profile_runner._safe_exit_code``
+    # lost its row when lane R2 folded the first into ``serde.strict_int``;
+    # ``profile_runner``'s copy folds in its own lane.
     (
         "agent_runtime/mission_chat_turns.py::_lock_fd_exclusive_nonblocking",
         "agent_runtime/persona_chat_continuity.py::_try_lock",

@@ -156,21 +156,6 @@
    "unit": "agent_runtime/persona_chat_continuity.py|persona_chat_root_lease"
   },
   {
-   "depth": 3,
-   "lines": 251,
-   "unit": "agent_runtime/persona_chat_history/curation.py|_safe_curated_messages"
-  },
-  {
-   "depth": 2,
-   "lines": 155,
-   "unit": "agent_runtime/persona_chat_history/messages.py|persona_chat_session_messages"
-  },
-  {
-   "depth": 4,
-   "lines": 270,
-   "unit": "agent_runtime/persona_chat_history/summary.py|persona_chat_history_summary"
-  },
-  {
    "depth": 4,
    "lines": 265,
    "unit": "agent_runtime/persona_instance_identity.py|reconcile_persona_instances"

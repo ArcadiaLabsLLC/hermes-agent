@@ -60,3 +60,14 @@ def test_non_negative_int_keeps_zero_and_refuses_negatives():
     assert serde.non_negative_int(-1) is None
     assert serde.non_negative_int("x") is None
     assert serde.non_negative_int(None) is None
+
+
+def test_strict_int_refuses_bool():
+    """Lane R2 folded ``persona_chat_history._safe_trace_int`` (a trace's
+    ``exit_code`` / ``duration_ms``: ``True`` is not exit code 1) into this."""
+
+    assert serde.strict_int(True) is None
+    assert serde.strict_int(False) is None
+    assert serde.strict_int("3") == 3
+    assert serde.strict_int(-2) == -2
+    assert serde.strict_int("x") is None

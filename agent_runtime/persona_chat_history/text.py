@@ -15,72 +15,11 @@ from .vocabulary import PERSONA_CHAT_MESSAGE_TEXT_LIMIT, _SECRET_RE
 
 __layer__ = "policy"
 __all__ = [
-    "_iso_timestamp",
     "_INTERNAL_SCAFFOLDING_MARKERS",
     "_curate_chat_message_text",
-    "_safe_message_role",
     "_safe_display_text",
     "_safe_display_body_text",
-    "_safe_int",
 ]
-
-
-def _iso_timestamp(value: Any) -> str | None:
-    """Normalize SessionDB timestamps to the same ISO-8601 ``Z`` form as traces.
-
-    SessionDB stores message timestamps as epoch-seconds floats (``time.time()``),
-    while harness-trace rows carry ISO strings (``Event.ts`` via ``to_jsonable``).
-    The Launcher merges the two channels by parsing each ``ts`` with
-    ``DateTime.tryParse`` and orders them — an epoch float is unparseable there, so
-    without this the curated rows lose their time and the trace block jumps
-    ahead of them. Project message and session timestamps in one comparable UTC
-    format, and never pass raw unparseable values through the snapshot contract.
-    """
-
-    if value is None:
-        return None
-    if isinstance(value, bool):
-        return None
-    from datetime import datetime, timezone
-
-    def _format(moment: datetime) -> str:
-        return moment.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
-
-    if isinstance(value, datetime):
-        moment = value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
-        return _format(moment)
-    if isinstance(value, (int, float)):
-        epoch = float(value)
-        if epoch > 1e12:  # tolerate millisecond clocks
-            epoch /= 1000.0
-        try:
-            return _format(datetime.fromtimestamp(epoch, tz=timezone.utc))
-        except (OverflowError, OSError, ValueError):
-            return None
-    if isinstance(value, str):
-        text = value.strip()
-        if not text:
-            return None
-        try:
-            epoch = float(text)
-        except ValueError:
-            pass
-        else:
-            if epoch > 1e12:  # tolerate millisecond clocks
-                epoch /= 1000.0
-            try:
-                return _format(datetime.fromtimestamp(epoch, tz=timezone.utc))
-            except (OverflowError, OSError, ValueError):
-                return None
-        parse_text = text[:-1] + "+00:00" if text.endswith("Z") else text
-        try:
-            parsed = datetime.fromisoformat(parse_text)
-        except ValueError:
-            return None
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
-        return _format(parsed)
-    return None
 
 
 # Markers that identify the agent's internal scaffolding (never operator-facing).
@@ -144,17 +83,6 @@ def _decision_summary_text(content: Any) -> str | None:
     return "\n\n".join(parts)
 
 
-def _safe_message_role(value: Any) -> str | None:
-    role = safe_assignment_token(value)
-    if role in {"user", "operator"}:
-        return "operator"
-    if role in {"assistant", "agent"}:
-        return "agent"
-    if role == "system":
-        return "system"
-    return None
-
-
 def _safe_display_text(
     value: Any,
     *,
@@ -206,10 +134,3 @@ def _safe_chat_body_text(value: Any, *, limit: int) -> str:
     normalized = re.sub(r"\n{4,}", "\n\n\n", normalized)
     return normalized[:limit].rstrip()
 
-
-def _safe_int(value: Any) -> int:
-    try:
-        parsed = int(value)
-    except Exception:
-        return 0
-    return max(parsed, 0)

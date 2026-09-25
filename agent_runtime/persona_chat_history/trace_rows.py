@@ -9,6 +9,7 @@ import re
 from typing import Any
 
 from ..persona_assignments import safe_assignment_text, safe_assignment_token
+from ..serde import strict_int
 from ..transcript_order import TURN_SEQ_CONTENT
 from .vocabulary import (
     DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
@@ -112,8 +113,8 @@ def _trace_entry(event: Any) -> dict[str, Any] | None:
         # for the mode token below), plus the +/− counts and the grammar used.
         # The diff BODY is not here and is not anywhere on this wire.
         "patch_artifact": _safe_trace_operator_line(payload.get("patch_artifact"), limit=500),
-        "patch_adds": _safe_trace_int(payload.get("patch_adds")),
-        "patch_dels": _safe_trace_int(payload.get("patch_dels")),
+        "patch_adds": strict_int(payload.get("patch_adds")),
+        "patch_dels": strict_int(payload.get("patch_dels")),
         "patch_mode": _safe_trace_text(payload.get("patch_mode"), limit=20),
         "detail": _safe_trace_operator_line(payload.get("detail"), limit=500),
         "output": _safe_trace_operator_block(payload.get("output"), limit=1600),
@@ -127,8 +128,8 @@ def _trace_entry(event: Any) -> dict[str, Any] | None:
         "tool_input": _safe_trace_operator_block(payload.get("tool_input"), limit=1200),
         "tool_result": _safe_trace_operator_block(payload.get("tool_result"), limit=1800),
         "paths": _safe_trace_operator_paths(payload.get("changed_paths")),
-        "duration_ms": _safe_trace_int(payload.get("duration_ms")),
-        "exit_code": _safe_trace_int(payload.get("exit_code")),
+        "duration_ms": strict_int(payload.get("duration_ms")),
+        "exit_code": strict_int(payload.get("exit_code")),
         "skill_id": _safe_trace_text(payload.get("skill_name"), limit=120),
         "assignment_id": _safe_trace_text(payload.get("assignment_id"), limit=160),
         "persona_instance_id": _safe_trace_text(payload.get("persona_instance_id"), limit=160),
@@ -227,15 +228,6 @@ def _safe_trace_operator_paths(value: Any) -> list[str]:
         if len(paths) >= 12:
             break
     return paths
-
-
-def _safe_trace_int(value: Any) -> int | None:
-    if isinstance(value, bool):
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def _safe_trace_file_labels(value: Any) -> list[str]:
