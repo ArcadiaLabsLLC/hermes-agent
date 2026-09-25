@@ -142,7 +142,7 @@ def _collect_running_work(entries: list[FingerprintEntry]) -> bool:
     """
 
     try:
-        from ..running_work import running_work_store_paths
+        from ..running_work.ownership import running_work_store_paths
 
         # PINNED. ``running_work._head_home`` already asks the head authority,
         # and its docstring names this very incident class ("ambient

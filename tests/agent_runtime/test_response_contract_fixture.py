@@ -68,7 +68,7 @@ tripwire for a hand-edited fixture. It is no longer the gate.
 RED-PROOF (run before this file landed):
 
 1. **Real producer drift, the original defect reproduced.** Adding a source row
-   to ``RUNNING_WORK_SOURCES`` in ``agent_runtime/running_work.py`` — the exact
+   to ``RUNNING_WORK_SOURCES`` in ``agent_runtime/running_work/vocabulary.py`` — the exact
    shape of the ``mcp_server`` removal, run in reverse — makes
    :func:`test_every_fixture_is_re_derivable_from_the_producer` fail, naming
    ``stdout.sources`` and the added key. The OLD gate passes unchanged against
