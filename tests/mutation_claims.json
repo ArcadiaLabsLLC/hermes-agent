@@ -882,7 +882,7 @@
       "path": "agent_runtime/office_store/adoption.py",
       "symbol": "adopt_remote_surface",
       "operator": "drop-archived-ledger-union",
-      "find": "                surface.archived_actor_keys = merge_archived_ledgers(\n                    surface.archived_actor_keys,\n                    store.get_surface(wsid).archived_actor_keys,\n                )",
+      "find": "                surface.archived_actor_keys = merge_archived_ledgers(\n                    surface.archived_actor_keys,\n                    store.get_surface(wsid).archived_actor_keys,\n                    cap=ARCHIVED_LEDGER_CAP,\n                )",
       "replace": "                surface.archived_actor_keys = list(surface.archived_actor_keys)",
       "test": [
         "{python}",

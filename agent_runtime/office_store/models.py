@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from typing import Any, Callable, NamedTuple
 
 from agent_runtime.models import OfficeActor
-from agent_runtime.sync_merge import merge_archived_ledgers as _merge_archived_ledgers
 
 __layer__ = "models"
 
@@ -22,7 +21,6 @@ __all__ = [
     "MAX_FOLDERS",
     "MAX_ITEMS_PER_ACTOR",
     "MAX_UNREADABLE_ACTOR_FILE_NAMES",
-    "merge_archived_ledgers",
     "NO_UNREADABLE_ACTOR_FILES",
     "OfficeActorOutcome",
     "OfficePositionPolicy",
@@ -35,19 +33,6 @@ ARCHIVED_LEDGER_CAP = 5000
 MAX_ITEMS_PER_ACTOR = 32
 MAX_FOLDERS = 64
 
-
-def merge_archived_ledgers(peer_keys, local_keys) -> list[str]:
-    """Union two ``archived_actor_keys`` ledgers at THIS family's ledger cap.
-
-    The rule itself is :func:`sync_merge.merge_archived_ledgers`, lifted there
-    on 2026-09-03 when ``BoardStore.adopt_remote_board`` took the same union
-    over ``archived_card_ids`` — read that docstring for why the union exists,
-    why the peer's order leads, and what the ledger means realm-wide. This
-    wrapper exists so the cap that binds an office ledger stays this module's
-    fact and every existing office caller keeps its two-argument spelling.
-    """
-
-    return _merge_archived_ledgers(peer_keys, local_keys, cap=ARCHIVED_LEDGER_CAP)
 
 
 # THE ONE-DESK-PER-PERSONA FENCE IS GONE (retired 2026-09-18, owner ruling).

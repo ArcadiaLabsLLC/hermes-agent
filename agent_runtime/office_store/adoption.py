@@ -13,7 +13,8 @@ from typing import TYPE_CHECKING
 from agent_runtime.locks import office_lock
 from agent_runtime.models import OfficeActor, OfficeSurface
 from agent_runtime.office_store.files import _write_actor, _write_surface
-from agent_runtime.office_store.models import merge_archived_ledgers
+from agent_runtime.office_store.models import ARCHIVED_LEDGER_CAP
+from agent_runtime.sync_merge import merge_archived_ledgers
 from agent_runtime.office_store.normalize import _safe_actor_ref
 from agent_runtime.serde import safe_id
 
@@ -98,6 +99,7 @@ def adopt_remote_surface(
             surface.archived_actor_keys = merge_archived_ledgers(
                 surface.archived_actor_keys,
                 store.get_surface(wsid).archived_actor_keys,
+                cap=ARCHIVED_LEDGER_CAP,
             )
         _write_surface(surface)
         if existed:

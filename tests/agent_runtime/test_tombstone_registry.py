@@ -3562,6 +3562,20 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "reset_unreadable_instance_rows",
         scope=_AR,
     ),
+    *rows(
+        # Lane R1 (god-file program Wave 2, 2026-09-25): sheet
+        # god-file-layout-sheets/office_store.md §4/§5 — the office alias of
+        # sync_merge.merge_archived_ledgers. ATTR, not CODE: the rule itself
+        # lives on in sync_merge under the same name.
+        "s-r1",
+        "HEAD",
+        Form.ATTR,
+        "a twelve-line re-export of sync_merge.merge_archived_ledgers that "
+        "only bound the office cap; its one caller (adopt_remote_surface) "
+        "passes cap=ARCHIVED_LEDGER_CAP to the rule directly",
+        "merge_archived_ledgers",
+        scope=("agent_runtime.office_store", "agent_runtime.office_store.models"),
+    ),
 )
 
 
