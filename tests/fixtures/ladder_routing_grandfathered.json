@@ -191,7 +191,7 @@
   },
   {
    "arms": 4,
-   "site": "agent_runtime/persona_instance_sync.py|_wire_value|isinstance|value"
+   "site": "agent_runtime/persona_instance_sync/projection.py|_wire_value|isinstance|value"
   },
   {
    "arms": 3,

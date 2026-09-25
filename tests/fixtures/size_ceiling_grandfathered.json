@@ -14,7 +14,6 @@
   "agent_runtime/mission_chat_turns.py": 1141,
   "agent_runtime/operator_channels.py": 1394,
   "agent_runtime/persona_chat_continuity.py": 1646,
-  "agent_runtime/persona_instance_sync.py": 975,
   "agent_runtime/running_work.py": 1517,
   "agent_runtime/runtime_hud.py": 1103,
   "agent_runtime/state_patches.py": 1023,

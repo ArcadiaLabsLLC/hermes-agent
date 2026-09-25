@@ -2157,7 +2157,7 @@
     },
     {
       "id": "ir-h1-record-split-loses-a-field",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/contract.py",
       "symbol": "PERSONA_INSTANCE_LOCAL_ONLY_KEYS",
       "operator": "reclassify-a-local-only-field-as-travelling",
       "find": "        \"current_chat_goal\",\n        \"current_task_id\",\n",
@@ -2172,7 +2172,7 @@
     },
     {
       "id": "ir-h1-door-admits-a-canonical-row-from-a-peer",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/projection.py",
       "symbol": "refuse_persona_instance",
       "operator": "drop-the-canonical-channel-refusal",
       "find": "    if instance_id == persona_instance_id_for(persona_id):\n",
@@ -2187,7 +2187,7 @@
     },
     {
       "id": "ir-h1-door-admits-session-and-run-state",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/projection.py",
       "symbol": "refuse_persona_instance",
       "operator": "empty-the-unexpected-key-rule",
       "find": "    unexpected = sorted(str(key) for key in body if str(key) not in PERSONA_INSTANCE_ALLOWED_KEYS)\n",
@@ -2202,7 +2202,7 @@
     },
     {
       "id": "ir-h1-id-safety-stops-asking-the-real-sanitizer",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/projection.py",
       "symbol": "valid_persona_instance_id",
       "operator": "drop-the-safe-path-token-round-trip",
       "find": "    if paths.safe_path_token(text) != text:\n        return False\n",
@@ -2217,7 +2217,7 @@
     },
     {
       "id": "ir-h1-portability-walk-exempts-the-authored-name",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/projection.py",
       "symbol": "refuse_persona_instance",
       "operator": "restore-the-shared-prose-key-default",
       "find": "        prose_keys=frozenset(),\n    )\n    if refusal is not None:\n        return refusal",
@@ -2232,7 +2232,7 @@
     },
     {
       "id": "ir-h1-publish-projects-a-machine-shaped-body",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/projection.py",
       "symbol": "project_persona_instances",
       "operator": "drop-the-publish-side-portability-scan",
       "find": "        offenders = find_nonportable_values(body, prefix=f\"instances.{instance_id}\")\n",
@@ -2277,7 +2277,7 @@
     },
     {
       "id": "ir-h2-publish-baseline-is-never-recorded",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/sidecars.py",
       "symbol": "update_persona_instance_baseline_after_publish",
       "operator": "skip-the-baseline-write",
       "find": "    for instance_id, body_hash in projection.hashes().items():\n        baseline[instance_baseline_key(instance_id)] = body_hash\n",
@@ -2307,7 +2307,7 @@
     },
     {
       "id": "ir-h3-baseline-re-derived-from-the-local-write",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/pull.py",
       "symbol": "apply_persona_instance_pull",
       "operator": "align-the-baseline-to-local-instead-of-remote",
       "find": "        written.append((instance_id, remote_body))\n        # THE baseline-alignment property",
@@ -2322,7 +2322,7 @@
     },
     {
       "id": "ir-h3-a-short-remote-answer-deletes-the-replica",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/pull.py",
       "symbol": "apply_persona_instance_pull",
       "operator": "treat-upstream-absent-as-a-delete",
       "find": "            if local_hash is not None:\n                summary.upstream_absent.append(instance_id)\n            else:\n                baseline.pop(key, None)\n            continue",
@@ -2337,7 +2337,7 @@
     },
     {
       "id": "ir-h3-hold-clobbers-the-locally-edited-replica",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/pull.py",
       "symbol": "apply_persona_instance_pull",
       "operator": "adopt-on-conflict",
       "find": "        if decision.action == PullAction.CONFLICT:\n            summary.held.append(instance_id)\n",
@@ -2397,7 +2397,7 @@
     },
     {
       "id": "ir-h3-steering-collapses-to-a-single-phase",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/pull.py",
       "symbol": "apply_persona_instance_pull",
       "operator": "never-run-phase-two",
       "find": "    for instance_id, remote_body in written:\n        parents = [str(item) for item in (remote_body.get(\"steered_by\") or [])]",
@@ -2427,7 +2427,7 @@
     },
     {
       "id": "ir-h3-an-unreadable-projection-reads-as-absence",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/sidecars.py",
       "symbol": "read_remote_persona_instances",
       "operator": "fold-a-parse-error-into-absence",
       "find": "        return {}, \"unreadable\"",
@@ -2442,7 +2442,7 @@
     },
     {
       "id": "ir-h3-an-unreadable-local-row-is-minted-over",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/pull.py",
       "symbol": "_local_projection_hash",
       "operator": "fold-a-local-parse-error-into-absence",
       "find": "        if path.exists():\n            return None, None, \"local_row_unreadable\"",
@@ -2487,7 +2487,7 @@
     },
     {
       "id": "ir-h4-a-removed-desk-leaves-its-agent-behind",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/pull.py",
       "symbol": "_retire_replicas_for_removed_desks",
       "operator": "never-retire-the-replica",
       "find": "        try:\n            store.retire_replica(actor_key, reason=\"remote_removed\", realm_id=realm_id)",
@@ -2517,7 +2517,7 @@
     },
     {
       "id": "ir-h4-a-failed-archive-comes-back-as-something-to-publish",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/pull.py",
       "symbol": "_retire_replicas_for_removed_desks",
       "operator": "drop-the-baseline-of-a-held-retire",
       "find": "            summary.retire_held.append({\"key\": actor_key, \"code\": str(code)})",
@@ -2532,7 +2532,7 @@
     },
     {
       "id": "ir-h4-the-next-pull-revives-a-deleted-desks-agent",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/pull.py",
       "symbol": "apply_persona_instance_pull",
       "operator": "drop-the-resurrection-guard",
       "find": "    archived_keys = _locally_archived_actor_keys() | set(summary.retired)",
@@ -4005,7 +4005,7 @@
     },
     {
       "id": "ir-heal-a-dropped-edge-never-re-enters-phase-two",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/pull.py",
       "symbol": "apply_persona_instance_pull",
       "operator": "never-heal-a-kept-local-row",
       "find": "            if healable:\n                heal_pending[instance_id] = healable\n                written.append((instance_id, remote_body))",
@@ -4020,7 +4020,7 @@
     },
     {
       "id": "ir-heal-clobbers-an-authored-re-steer",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/pull.py",
       "symbol": "_healable_dropped_parents",
       "operator": "heal-on-the-ledger-alone",
       "find": "    expected = persona_instance_def_hash(_remote_body_without_edges(remote_body, parents))\n    return parents if expected == local_hash else []",
@@ -4035,7 +4035,7 @@
     },
     {
       "id": "ir-heal-ignores-that-the-realm-moved-the-body",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/pull.py",
       "symbol": "_healable_dropped_parents",
       "operator": "drop-the-remote-hash-guard",
       "find": "    if entry.get(\"remote_hash\") != remote_hash:\n        return []\n",
@@ -4050,7 +4050,7 @@
     },
     {
       "id": "ir-heal-records-drops-no-parent-can-repair",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/pull.py",
       "symbol": "apply_persona_instance_pull",
       "operator": "record-every-drop-not-just-parent-absent",
       "find": "            {str(row.get(\"parent\") or \"\") for row in dropped if row.get(\"reason\") == \"parent_absent\"}",
@@ -4065,7 +4065,7 @@
     },
     {
       "id": "ir-heal-ledger-cleared-by-an-older-peer",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/pull.py",
       "symbol": "apply_persona_instance_pull",
       "operator": "clear-the-ledger-on-an-absent-projection",
       "find": "    if source is None:\n        # Not published. Never a removal",
@@ -4080,7 +4080,7 @@
     },
     {
       "id": "ir-heal-reports-a-healed-row-as-still-local",
-      "path": "agent_runtime/persona_instance_sync.py",
+      "path": "agent_runtime/persona_instance_sync/pull.py",
       "symbol": "apply_persona_instance_pull",
       "operator": "account-a-heal-as-kept-local",
       "find": "            # ``adopted`` and not ``converged``: a travelling field DID move\n            # forward onto an existing row, and ``converged`` promises no write.\n            summary.adopted.append(instance_id)",
