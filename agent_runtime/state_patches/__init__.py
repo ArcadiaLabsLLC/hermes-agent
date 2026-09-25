@@ -212,7 +212,6 @@ from agent_runtime.state_patches.payload import (  # noqa: F401 — the package'
     _assemble,
     _is_oversize_marker,
     _oversize_marker,
-    _value_bytes,
     build_state_patch,
     normalize_correlation_id,
     office_actor_patch_id,

@@ -5,11 +5,9 @@ with its inverse (:func:`office_patch_scope`). Pure — no store, no log.
 
 from __future__ import annotations
 
-import json
-from typing import Any
+from typing import Any, Callable, Mapping
 
-from ..events import EVENT_PAYLOAD_LIMIT_BYTES
-from ..serde import to_jsonable
+from ..events import EVENT_PAYLOAD_LIMIT_BYTES, payload_bytes
 from .models import (
     _CORRELATION_ID_RE,
     CORRELATION_ID_KEY,
@@ -49,13 +47,6 @@ def normalize_correlation_id(value: Any) -> str | None:
     if not _CORRELATION_ID_RE.match(token):
         return None
     return token
-
-
-def _value_bytes(value: Any) -> int:
-    """Serialized byte size of ``value`` under the exact encoding
-    :meth:`EventLog.append` measures the payload with."""
-
-    return len(json.dumps(to_jsonable(value), ensure_ascii=False).encode("utf-8"))
 
 
 def _oversize_marker(byte_count: int) -> dict[str, Any]:
@@ -154,11 +145,11 @@ def build_state_patch(
 
     safe_changed: dict[str, Any] = {}
     for field_name, value in changed.items():
-        size = _value_bytes(value)
+        size = payload_bytes(value)
         safe_changed[str(field_name)] = _oversize_marker(size) if size > PATCH_VALUE_BUDGET_BYTES else value
 
     payload = _assemble(entity, entity_id, PATCH_OP_UPSERT, safe_changed, created, correlation_id)
-    while _value_bytes(payload) > EVENT_PAYLOAD_LIMIT_BYTES:
+    while payload_bytes(payload) > EVENT_PAYLOAD_LIMIT_BYTES:
         inline = [(name, val) for name, val in safe_changed.items() if not _is_oversize_marker(val)]
         if not inline:
             # Nothing left to shrink and the payload still overflows — degrade the
@@ -166,8 +157,8 @@ def build_state_patch(
             # actor via checkpoint) rather than ship a marker-only merge it cannot
             # fold with fidelity.
             return _assemble(entity, entity_id, PATCH_OP_REFRESH, None, None, correlation_id)
-        name = max(inline, key=lambda item: (_value_bytes(item[1]), item[0]))[0]
-        safe_changed[name] = _oversize_marker(_value_bytes(safe_changed[name]))
+        name = max(inline, key=lambda item: (payload_bytes(item[1]), item[0]))[0]
+        safe_changed[name] = _oversize_marker(payload_bytes(safe_changed[name]))
         payload = _assemble(entity, entity_id, PATCH_OP_UPSERT, safe_changed, created, correlation_id)
     return payload
 
@@ -242,11 +233,34 @@ def office_patch_scope(patch: Any) -> str | None:
     entity_id = patch.get("id")
     if not isinstance(entity_id, str) or not entity_id:
         return None
-    if entity in (OFFICE_ACTOR_ENTITY, OFFICE_CONFLICT_ENTITY):
-        workspace_id, separator, _actor_key = entity_id.partition("/")
-        if not separator or not workspace_id:
-            return None
-        return workspace_id
-    if entity == OFFICE_SURFACE_ENTITY:
-        return entity_id
-    return None
+    scope_of = _SCOPE_BY_ENTITY.get(entity) if isinstance(entity, str) else None
+    return scope_of(entity_id) if scope_of is not None else None
+
+
+def _workspace_of_prefixed_id(entity_id: str) -> str | None:
+    """``"<workspace_id>/<actor_key>"`` → the workspace: split on the FIRST ``/``
+    exactly as :func:`office_actor_patch_id` joins on it. An id with no separator
+    names no workspace and answers ``None`` rather than guessing."""
+
+    workspace_id, separator, _actor_key = entity_id.partition("/")
+    if not separator or not workspace_id:
+        return None
+    return workspace_id
+
+
+def _workspace_is_the_id(entity_id: str) -> str | None:
+    """An ``office_surface`` row's id IS its workspace (the bare workspace id)."""
+
+    return entity_id
+
+
+#: The scope rule, one row per office entity (rule 12): ``office_actor`` and
+#: ``office_conflict`` share one id shape (one builder, :func:`office_actor_patch_id`);
+#: ``office_surface`` is keyed by the bare workspace id. Every other entity
+#: (``persona_instance``, ``scope``) is absent and answers ``None``. Read by
+#: :func:`office_patch_scope` alone.
+_SCOPE_BY_ENTITY: Mapping[str, Callable[[str], str | None]] = {
+    OFFICE_ACTOR_ENTITY: _workspace_of_prefixed_id,
+    OFFICE_CONFLICT_ENTITY: _workspace_of_prefixed_id,
+    OFFICE_SURFACE_ENTITY: _workspace_is_the_id,
+}

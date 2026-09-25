@@ -158,6 +158,26 @@ def test_build_state_patch_remove_and_refresh_carry_no_changed():
     assert build_state_patch("task", "t", PATCH_OP_UPSERT, {}) == {"entity": "task", "id": "t", "op": "refresh"}
 
 
+def test_the_shrink_ladder_measures_utf8_bytes_exactly_as_the_append_does():
+    """The ladder and the cap share ONE ruler (``events.payload_bytes``).
+
+    A non-ASCII value is the case where two rulers disagree: 1,000 ``é`` are
+    2,002 bytes as UTF-8 but 6,002 once ASCII-escaped. Under the append's
+    encoding the value fits the per-value budget and must ride INLINE; a ladder
+    that measured with ``ensure_ascii=True`` would mark it oversize and ship a
+    marker for a field the cap would have carried."""
+
+    from agent_runtime.events import payload_bytes
+
+    value = "é" * 1000
+    patch = sp.build_state_patch(
+        sp.PERSONA_INSTANCE_ENTITY, "pi_utf8", sp.PATCH_OP_UPSERT, {"display_name": value}
+    )
+    assert patch["op"] == sp.PATCH_OP_UPSERT
+    assert patch["changed"]["display_name"] == value
+    assert payload_bytes(patch) <= EVENT_PAYLOAD_LIMIT_BYTES
+
+
 def test_build_state_patch_oversize_value_becomes_accounted_marker():
     big = "x" * (EVENT_PAYLOAD_LIMIT_BYTES * 2)
     patch = build_state_patch("persona_instance", "p", PATCH_OP_UPSERT, {"blob": big, "spawned_by": "a"})
