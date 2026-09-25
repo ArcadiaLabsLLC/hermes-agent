@@ -65,8 +65,10 @@ Contract
   belt-and-braces, because "the caller already did it" is how a redaction
   boundary rots.
 * **Best effort, counted.** A mirror write must NEVER fail a chat turn. IO
-  failures are swallowed but tallied (:func:`chat_live_log_failures`) and
-  logged ONCE per process, so a silently broken mirror is still discoverable.
+  failures are swallowed but tallied (``files._failures``; no production
+  surface reads the tally, tests read it through
+  ``tests/_downstream/_seams.py``) and logged ONCE per process, so a silently
+  broken mirror is still discoverable.
 * **Bounded.** Per-line text cap :data:`LIVE_LOG_TEXT_LIMIT`; size-capped
   rotation at :data:`LIVE_LOG_ROTATE_BYTES` into a single ``.1`` sibling (one
   generation kept — this is a convenience mirror, not an archive).
@@ -139,7 +141,6 @@ from agent_runtime.chat_live_log.files import (
     CHAT_LIVE_LOG_DIRNAME,
     LIVE_LOG_ROTATE_BYTES,
     capture_chat_live_log_root,
-    chat_live_log_failures,
     chat_live_log_path,
     reset_chat_live_log_state,
 )
@@ -164,7 +165,6 @@ __all__ = [
     "LIVE_LOG_ROTATE_BYTES",
     "LIVE_LOG_TEXT_LIMIT",
     "capture_chat_live_log_root",
-    "chat_live_log_failures",
     "chat_live_log_path",
     "chat_live_log_stats",
     "ensure_chat_live_log",

@@ -24,7 +24,6 @@ Row grammar: `- [ ] **symbol** · file · lines · class · evidence · lane`. C
 - [ ] **`_split_discovery_roots`** · `scripts/run_tests_parallel.py` · 3 · TEST SEAM · 0 callers in the script, 1 test · S2
 - [ ] **`ids_marked`** · `tests/_downstream/id_markers.py` · 6 · TEST SEAM (already under `tests/`; the row is that nothing in the hooks reads it — delete or make a hook read it) · T2
 - [ ] **`_default_session_db`** · `agent_runtime/persona_chat_history/history_rows.py` 91-100 · 10 · DELETE (sheet persona_chat_history.md §5) once `agent_runtime/persona_assignments` (scan.py, R1's CHANGE) stops importing it: lane R2's CHANGE retargeted every package-internal reader to `chat_session_scope.open_chat_session_db`, so R1's lazy import is its last reader · R2
-- [ ] **`chat_live_log_failures`** · `agent_runtime/chat_live_log/files.py` · 5 · DECIDE · 0 production readers, 1 test; the "counted" half of the mirror's best-effort contract (the package docstring) — KEEP as the operator-visible tally (default) or delete with that sentence · evidence: `god-file-layout-sheets/chat_live_log.md` §7 · filed by lane 2B-B 2026-09-25 **TAKEN 2026-09-25 lane Q-DEAD-B**
 
 ## Second instalment — the reach census (W0-D), filed 2026-09-24 by lane W0
 

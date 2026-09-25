@@ -13,7 +13,6 @@ from agent_runtime import chat_live_log
 from agent_runtime.chat_live_log import (
     LIVE_LOG_TEXT_LIMIT,
     capture_chat_live_log_root,
-    chat_live_log_failures,
     chat_live_log_path,
     chat_live_log_stats,
     ensure_chat_live_log,
@@ -21,6 +20,7 @@ from agent_runtime.chat_live_log import (
     record_chat_tool,
     reset_chat_live_log_state,
 )
+from tests._downstream._seams import chat_live_log_failures
 
 
 @pytest.fixture(autouse=True)

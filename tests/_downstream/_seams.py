@@ -9,7 +9,7 @@ production name from growing back.
 
 from __future__ import annotations
 
-__all__ = ["active_workspace_lifts", "reset_unreadable_instance_rows"]
+__all__ = ["active_workspace_lifts", "chat_live_log_failures", "reset_unreadable_instance_rows"]
 
 
 def reset_unreadable_instance_rows() -> None:
@@ -34,3 +34,17 @@ def active_workspace_lifts(realm):
     from agent_runtime.store.ledgers import workspace_lift_is_active
 
     return [lift for lift in (getattr(realm, "workspace_lifts", None) or []) if workspace_lift_is_active(lift)]
+
+
+def chat_live_log_failures() -> int:
+    """How many live-log mirror writes failed in this process (0 when healthy).
+
+    The tally itself stays in production (``chat_live_log.files._failures``,
+    bumped by ``_note_failure`` next to the once-per-process log line); only
+    this reader moved — no production surface ever read it.
+    """
+
+    from agent_runtime.chat_live_log import files
+
+    with files._state_lock:
+        return files._failures

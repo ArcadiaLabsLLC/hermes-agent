@@ -214,13 +214,6 @@ def _backfill_pending(path: Path) -> bool:
     return bool(isinstance(row, dict) and row.get("backfill_pending"))
 
 
-def chat_live_log_failures() -> int:
-    """How many mirror writes failed in this process (0 when healthy)."""
-
-    with _state_lock:
-        return _failures
-
-
 def reset_chat_live_log_state() -> None:
     """Drop the captured root and dedupe caches. TESTS ONLY."""
 

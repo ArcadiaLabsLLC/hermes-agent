@@ -3601,6 +3601,18 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "chat_runtime_tool_contract",
         scope=_AR,
     ),
+    *rows(
+        # Lane Q-DEAD-B (2026-09-25): dead-code queue row
+        # `chat_live_log_failures` (sheet chat_live_log.md §7), TEST SEAM.
+        "s-qdb",
+        "HEAD",
+        Form.CODE,
+        "a tests-only reader of the live-log failure tally with no production "
+        "caller; the tally stays in chat_live_log.files, the reader lives in "
+        "tests/_downstream/_seams.py",
+        "chat_live_log_failures",
+        scope=_AR,
+    ),
 )
 
 
