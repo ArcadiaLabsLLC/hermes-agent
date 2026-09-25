@@ -72,36 +72,25 @@ def envelope_decision(
     permission_mode = str(resolved.permission_mode or "")
     command_class = classify_command(command)
     if command_class is None:
-        return TerminalEnvelopeDecision(
-            outcome=OUTCOME_ALLOW,
-            lane=resolved.lane,
-            role=resolved.role,
-            persona_id=resolved.persona_id,
-            session_id=resolved.session_id,
-            permission_mode=permission_mode,
-        )
+        return _decision(resolved, permission_mode, outcome=OUTCOME_ALLOW)
 
     reason = legacy_reason_for_class(command_class)
     grants = resolve_terminal_envelope_grants(role=resolved.role, lane=resolved.lane, cfg=cfg)
     config_key = grants.config_key
+    gated = {"command_class": command_class, "reason": reason, "grant_issues": grants.issues}
 
     if command_class in grants.classes:
-        return TerminalEnvelopeDecision(
+        return _decision(
+            resolved,
+            permission_mode,
             outcome=OUTCOME_GRANTED,
-            lane=resolved.lane,
-            role=resolved.role,
-            command_class=command_class,
-            reason=reason,
             config_key=config_key,
             summary=(
                 f"'{command_class}' is granted for role '{grants.role}' on the "
                 f"'{resolved.lane}' lane by {config_key}."
             ),
-            persona_id=resolved.persona_id,
-            session_id=resolved.session_id,
-            grant_issues=grants.issues,
-            permission_mode=permission_mode,
             grant_source=GRANT_SOURCE_CONFIG,
+            **gated,
         )
 
     # Permission-mode grant (operator ruling 2026-08-09). An ``unbounded`` run
@@ -118,12 +107,10 @@ def envelope_decision(
     #   ``record_envelope_decision`` seeing it, the ruling's safety argument is
     #   gone, not merely weakened.
     if resolved.unbounded and command_class in GRANTABLE_COMMAND_CLASSES:
-        return TerminalEnvelopeDecision(
+        return _decision(
+            resolved,
+            permission_mode,
             outcome=OUTCOME_GRANTED,
-            lane=resolved.lane,
-            role=resolved.role,
-            command_class=command_class,
-            reason=reason,
             # No config key: this grant did not come from the grants table, and
             # naming one would send an operator to a stanza that is not why the
             # command ran.
@@ -134,20 +121,21 @@ def envelope_decision(
                 f"the '{resolved.lane}' lane; the command is recorded in "
                 f"{ENVELOPE_DECISION_LOG}."
             ),
-            persona_id=resolved.persona_id,
-            session_id=resolved.session_id,
-            grant_issues=grants.issues,
-            permission_mode=permission_mode,
             grant_source=GRANT_SOURCE_PERMISSION_MODE,
+            **gated,
         )
 
+    # The hard floor. Ruling R-2 leaves it EMPTY (GRANTABLE_COMMAND_CLASSES ==
+    # COMMAND_CLASSES), so no command reaches this arm today — it is KEPT, with
+    # the grants table's twin arm, because the floor is one contract with two
+    # halves: test_unbounded_default_posture narrows the grantable set and
+    # proves a mode cannot lift it, and terminal_envelope_explain renders
+    # hard_floor_command_classes (owner question Q20, answered KEEP by evidence).
     if command_class not in GRANTABLE_COMMAND_CLASSES:
-        return TerminalEnvelopeDecision(
+        return _decision(
+            resolved,
+            permission_mode,
             outcome=OUTCOME_REFUSE,
-            lane=resolved.lane,
-            role=resolved.role,
-            command_class=command_class,
-            reason=reason,
             failure_class=ENVELOPE_COMMAND_NOT_GRANTABLE,
             config_key=None,
             summary=(
@@ -160,18 +148,13 @@ def envelope_decision(
                 "Do not retry or reword the command — achieve the goal without it, or ask "
                 "the operator to perform this step themselves."
             ),
-            persona_id=resolved.persona_id,
-            session_id=resolved.session_id,
-            grant_issues=grants.issues,
-            permission_mode=permission_mode,
+            **gated,
         )
 
-    return TerminalEnvelopeDecision(
+    return _decision(
+        resolved,
+        permission_mode,
         outcome=OUTCOME_REFUSE,
-        lane=resolved.lane,
-        role=resolved.role,
-        command_class=command_class,
-        reason=reason,
         failure_class=ENVELOPE_COMMAND_REQUIRES_GRANT,
         config_key=config_key,
         summary=(
@@ -182,10 +165,23 @@ def envelope_decision(
         fix_hint=_grant_fix_hint(
             role=grants.role, lane=resolved.lane, command_class=command_class, grants=grants
         ),
+        **gated,
+    )
+
+
+def _decision(
+    resolved: TerminalEnvelopeScope, permission_mode: str, **fields: Any
+) -> TerminalEnvelopeDecision:
+    """One decision for this run: the scope's lane / role / persona / session
+    and the resolved permission mode on every answer, plus the arm's own fields."""
+
+    return TerminalEnvelopeDecision(
+        lane=resolved.lane,
+        role=resolved.role,
         persona_id=resolved.persona_id,
         session_id=resolved.session_id,
-        grant_issues=grants.issues,
         permission_mode=permission_mode,
+        **fields,
     )
 
 

@@ -127,7 +127,9 @@ RETAINED_BINDINGS = {
     "agent_runtime/persona_runtime.py": {"Callable", "TYPE_CHECKING"},
     "agent_runtime/observability.py": {"datetime"},
     "agent_runtime/parity.py": {"event_rotation"},
-    "agent_runtime/terminal_envelope/records.py": {"dataclass", "Any", "Iterator", "Mapping"},
+    # ``Mapping`` left with ``_ROLE_ALIASES`` (lane 2B-B moved the alias pair to its
+    # owner in ``personas``), so the retained half is three names now.
+    "agent_runtime/terminal_envelope/records.py": {"dataclass", "Any", "Iterator"},
 }
 
 

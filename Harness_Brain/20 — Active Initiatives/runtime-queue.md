@@ -115,7 +115,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-25 (lane S2B)
 
-- [ ] **the alice_supervisor ⇄ neko_supervisor alias: one copy left, `terminal_envelope._ROLE_ALIASES` (one-way)** · `fork / config` · the owner `personas.persona_id_aliases` exists and `config`'s three copies folded onto it (lane 2B-C config CHANGE); `terminal_envelope.canonical_role` folds in lane 2B-B's CHANGE · evidence: `terminal_envelope.md` §3, `config.md` §2 · filed by lane S2B 2026-09-25 **UNCLAIMED** **TAKEN 2026-09-25 lane 2B-B**
+- [ ] **Three declared modules read a lower-declared package's HIGHER layer: `persona_chat_history.curation` and `.markers` (policy) call the turn journal's reads (`mission_chat_turns.reads`, stores), `harness_parts/persona/chat_history_writes` (stores) calls the mirror's hot lane (`chat_live_log`, lanes/wiring)** · `fork / refactor` · invisible until 2026-09-25 because both targets were undeclared flat files; W0-G6's runtime arm still cannot say so (it dies on the missing `acp` import first) · fix: re-declare the two curation modules at `stores` (they do journal I/O) or pass the rows in; route the mirror append through a `stores`-level seam · evidence: lane 2B-B report, `god-file-layout-sheets/{mission_chat_turns,chat_live_log}.md` · filed by lane 2B-B 2026-09-25
 
 ### Filed on arrival — 2026-09-25 (lane S2A)
 
@@ -129,6 +129,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 
 ## Seams — fork edits inside upstream files (additive only)
+
+### Filed on arrival — 2026-09-25 (lane 2B-B)
+
+- [ ] **`tools/terminal_tool.py::_log_harness_blocked_attempt` still re-derives the `blocked_tool_attempts.jsonl` writer (env-only root, silent drop) instead of the one-line delegation to `agent_runtime.terminal_envelope.record_legacy_block`** · `seams / tools` · the diff is in `record_legacy_block`'s own docstring (`terminal_envelope/receipts.py`); an edit inside an upstream file, so a held widening row, never a lane edit · evidence: `god-file-layout-sheets/terminal_envelope.md` §4 · filed by lane 2B-B 2026-09-25
 
 ### Filed on arrival — 2026-09-24 (seam lane S2)
 

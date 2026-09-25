@@ -12,9 +12,10 @@ from __future__ import annotations
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any, Iterator, Mapping
+from typing import Any, Iterator
 
 from agent_runtime.permission_modes import permission_mode_is_unbounded
+from agent_runtime.personas import canonical_persona_id
 
 from agent_runtime.terminal_envelope.classes import GOVERNED_LANES, LANE_MISSION_CHAT
 
@@ -198,49 +199,24 @@ class TerminalEnvelopeDecision:
             return f"permission_mode={self.permission_mode}"
         return self.config_key
 
-    def explain(self) -> dict[str, Any]:
-        return {
-            "outcome": self.outcome,
-            "lane": self.lane,
-            "role": self.role,
-            "persona_id": self.persona_id,
-            "session_id": self.session_id,
-            "command_class": self.command_class,
-            "reason": self.reason,
-            "failure_class": self.failure_class,
-            "config_key": self.config_key,
-            "permission_mode": self.permission_mode,
-            "grant_source": self.grant_source,
-            "granted_by": self.granted_by,
-            "summary": self.summary,
-            "fix_hint": self.fix_hint,
-            "grant_issues": [issue.row() for issue in self.grant_issues],
-        }
 
 
 # ── config (ROOT only) ──────────────────────────────────────────────────────
 
-#: Role aliases accepted in the grant table. EXACTLY the S64-ruled pair:
-#: ``alice_supervisor`` ⇄ ``neko_supervisor``, retained as wire/config
-#: compatibility so persisted role-envelope keys and historical decision-contract
-#: values still decode.
-#:
-#: S66 removed a THIRD entry, bare ``"neko" -> "alice_supervisor"``, which the
-#: S64 ruling never covered. This table feeds a PERMISSION path
-#: (``resolve_terminal_envelope_grants``), so an un-ruled alias here silently
-#: widens who a grant applies to. It was inert — no live persona carries role
-#: ``neko`` (the live roster is ``alice_supervisor`` / ``dev`` / ``profile`` /
-#: ``qa``, and the configured grants are ``dev`` / ``backend_dev``) — which is
-#: exactly why it could sit unnoticed. Do not re-add an alias to a permission
-#: table without a ruling that names it.
-_ROLE_ALIASES: Mapping[str, str] = {
-    "neko_supervisor": "alice_supervisor",
-}
-
-
 def canonical_role(role: str) -> str:
-    text = str(role or "").strip().lower()
-    return _ROLE_ALIASES.get(text, text)
+    """A grant-table role key, lower-cased, with the S64-ruled alias
+    (``neko_supervisor`` -> ``alice_supervisor``) resolved one way through its
+    ONE owner, :func:`agent_runtime.personas.canonical_persona_id`.
+
+    Retained as wire/config compatibility so persisted role-envelope keys and
+    historical decision-contract values still decode. S66 removed a THIRD entry,
+    bare ``"neko" -> "alice_supervisor"``, which the S64 ruling never covered:
+    this feeds a PERMISSION path (``resolve_terminal_envelope_grants``), so an
+    un-ruled alias silently widens who a grant applies to. The owner carries the
+    same warning.
+    """
+
+    return canonical_persona_id(str(role or "").strip().lower())
 
 
 def grant_config_key(*, role: str, lane: str) -> str:
@@ -264,12 +240,9 @@ def scope_for_persona(
 ) -> TerminalEnvelopeScope:
     """Build the run scope from a persona. Never raises on a odd role value."""
 
-    from ..personas import role_from_persona
+    from ..personas import role_or_attr
 
-    try:
-        role = str(role_from_persona(persona))
-    except Exception:  # pragma: no cover - defensive
-        role = str(getattr(persona, "role", "") or "")
+    role = role_or_attr(persona)
     return TerminalEnvelopeScope(
         lane=str(lane or "").strip(),
         role=role,
