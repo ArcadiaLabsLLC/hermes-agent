@@ -44,10 +44,7 @@ def _dial_failure_word(exc: BaseException, host: str) -> str:
     """
 
     try:
-        from hermes_cli.harness_parts.gateway_commands import (
-            DIAL_LOCAL_POLICY,
-            classify_dial_error,
-        )
+        from ..gateway_endpoints import DIAL_LOCAL_POLICY, classify_dial_error
 
         if classify_dial_error(exc, host) == DIAL_LOCAL_POLICY:
             return LOCAL_POLICY
@@ -181,7 +178,7 @@ class Dial:
         except Exception:
             self.self_fingerprint = None
         try:
-            from hermes_cli.harness_parts.gateway_commands import _candidate_endpoints
+            from ..gateway_endpoints import _candidate_endpoints
 
             self.self_endpoints = _candidate_endpoints(self.root)
         except Exception:

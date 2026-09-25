@@ -398,7 +398,7 @@ class BootPhases:
         if self.gateway_block.get("outcome") == "listening" and self.store_root_path is not None:
             try:
                 from agent_runtime.gateway_announce import announce_in_background
-                from hermes_cli.harness_parts.gateway_commands import (
+                from agent_runtime.gateway_endpoints import (
                     _candidate_endpoints,
                 )
 

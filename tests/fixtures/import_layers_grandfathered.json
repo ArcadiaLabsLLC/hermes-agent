@@ -259,7 +259,6 @@
   "agent_runtime/volatile_tail.py",
   "agent_runtime/workspace_scope.py",
   "agent_runtime/workspace_template.py",
-  "hermes_cli/harness_parts/gateway_commands.py",
   "plugins/eternia-harness/__init__.py",
   "plugins/eternia-harness/dashboard/plugin_api.py"
  ]

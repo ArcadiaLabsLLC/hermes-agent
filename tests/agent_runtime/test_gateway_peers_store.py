@@ -1159,7 +1159,6 @@ def test_the_chat_dial_names_a_local_network_permission_rather_than_an_oserror(
 
     from agent_runtime import gateway_peers, serve_socket
     from agent_runtime.gateway_identity import set_display_name
-    from hermes_cli.harness_parts import gateway_commands
 
     set_display_name(tmp_path, "this install")
     record_peer(
@@ -1171,7 +1170,7 @@ def test_the_chat_dial_names_a_local_network_permission_rather_than_an_oserror(
         cert_fingerprint="ab" * 32,
     )
     monkeypatch.setattr(
-        gateway_commands, "_machine_addresses", lambda: ["192.168.1.39"]
+        "agent_runtime.gateway_endpoints.candidates._machine_addresses", lambda: ["192.168.1.39"]
     )
 
     class _Client:
@@ -1206,7 +1205,6 @@ def test_a_chat_dial_that_is_merely_refused_keeps_the_word_it_had(
 
     from agent_runtime import gateway_peers, serve_socket
     from agent_runtime.gateway_identity import set_display_name
-    from hermes_cli.harness_parts import gateway_commands
 
     set_display_name(tmp_path, "this install")
     record_peer(
@@ -1218,7 +1216,7 @@ def test_a_chat_dial_that_is_merely_refused_keeps_the_word_it_had(
         cert_fingerprint="ab" * 32,
     )
     monkeypatch.setattr(
-        gateway_commands, "_machine_addresses", lambda: ["192.168.1.39"]
+        "agent_runtime.gateway_endpoints.candidates._machine_addresses", lambda: ["192.168.1.39"]
     )
 
     class _Client:

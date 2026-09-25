@@ -65,11 +65,9 @@ def enumerated_addresses(monkeypatch):
     measured pair, in R-D2's order.
     """
 
-    from hermes_cli.harness_parts import gateway_commands
 
     monkeypatch.setattr(
-        gateway_commands,
-        "_machine_addresses",
+        "agent_runtime.gateway_endpoints.candidates._machine_addresses",
         lambda: ["192.168.1.203", "10.97.7.100"],
     )
 
@@ -164,11 +162,10 @@ def test_a_wildcard_bind_with_nothing_to_enumerate_refuses_rather_than_minting(
     is one of the three the operator is allowed."""
 
     from agent_runtime.serve_gateway_auth import pairing_store_path
-    from hermes_cli.harness_parts import gateway_commands
     from hermes_cli.harness_parts.gateway_commands import NO_DIAL_HOST_SENTENCE
     from hermes_cli.harness_support import ERROR_EXIT_CODES
 
-    monkeypatch.setattr(gateway_commands, "_machine_addresses", lambda: [])
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates._machine_addresses", lambda: [])
 
     code = _dispatch(["harness", "gateway", "pair", "--json"])
     out = capsys.readouterr()

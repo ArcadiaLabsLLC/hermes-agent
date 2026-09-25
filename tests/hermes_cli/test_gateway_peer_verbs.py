@@ -124,7 +124,6 @@ def test_a_wildcard_bind_in_the_live_sidecar_still_yields_a_dialable_payload(
 
     from agent_runtime.serde import write_json_atomic
     from agent_runtime.serve_socket import socket_owner_path
-    from hermes_cli.harness_parts import gateway_commands
 
     write_json_atomic(
         socket_owner_path(paths.store_root()),
@@ -135,8 +134,7 @@ def test_a_wildcard_bind_in_the_live_sidecar_still_yields_a_dialable_payload(
         },
     )
     monkeypatch.setattr(
-        gateway_commands,
-        "_machine_addresses",
+        "agent_runtime.gateway_endpoints.candidates._machine_addresses",
         lambda: ["192.168.1.203", "10.97.7.100"],
     )
 
@@ -164,13 +162,12 @@ def test_peers_pair_refuses_when_a_wildcard_bind_enumerates_no_address(
 
     from agent_runtime.gateway_peers import list_peers
     from agent_runtime.serve_gateway_auth import pairing_store_path
-    from hermes_cli.harness_parts import gateway_commands
     from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
     from hermes_cli.harness_parts.gateway_commands import NO_DIAL_HOST_SENTENCE
     from hermes_cli.harness_support import ERROR_EXIT_CODES
 
     monkeypatch.setattr(serve_gateway_listener, "gateway_listen_config", lambda: ("::", 8765))
-    monkeypatch.setattr(gateway_commands, "_machine_addresses", lambda: [])
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates._machine_addresses", lambda: [])
 
     code = _dispatch(["harness", "gateway", "peers", "pair", "--json"])
     out = capsys.readouterr()
@@ -1051,10 +1048,9 @@ def _this_machine_is_on(monkeypatch, *addresses: str) -> None:
     """Pin what ``_machine_addresses`` answers, which is the on-link test's
     only input. The Mac's own address was 192.168.1.39/24 on ``en0``."""
 
-    from hermes_cli.harness_parts import gateway_commands
 
     monkeypatch.setattr(
-        gateway_commands, "_machine_addresses", lambda: list(addresses)
+        "agent_runtime.gateway_endpoints.candidates._machine_addresses", lambda: list(addresses)
     )
 
 
@@ -1336,7 +1332,7 @@ def test_the_classifier_asks_this_machine_when_it_is_given_no_address_list(
         asked.append(1)
         return ["192.168.1.39"]
 
-    monkeypatch.setattr(gateway_commands, "_machine_addresses", _addresses)
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates._machine_addresses", _addresses)
 
     assert (
         gateway_commands.classify_dial_error(
@@ -1520,3 +1516,103 @@ def test_the_peers_subtree_sits_beside_devices_rather_than_inside_it():
     )
     with pytest.raises(SystemExit):
         root.parse_args(["harness", "gateway", "peers"])
+
+
+# ── positive controls for the cold refusal arms (god-file sheet §6, Q6) ─────
+#
+# The reach census found these arms with 0 hits (dead-code queue, lane R4). Each
+# control drives the REAL verb to the arm and asserts the arm's own word, so the
+# phase objects the CHANGE introduces move arms a test already reaches.
+
+
+_HELLO_ANSWERS = {
+    "refused": {"event": "refused", "reason": None},
+    "no_peer_secret": {
+        "event": "hello_ok",
+        "install": {"install_id": "inst_far", "display_name": "far"},
+        "peered": {},
+    },
+    "install_id_mismatch": {
+        "event": "hello_ok",
+        "install": {"install_id": "inst_other", "display_name": "other"},
+        "peered": {"peer_secret": "s" * 32, "expires_at": None},
+    },
+}
+
+
+@pytest.mark.parametrize(
+    ("answer", "word"),
+    [
+        ("refused", "refused the join (no hello_ok)"),
+        ("no_peer_secret", '"reason": "no_peer_secret"'),
+        ("install_id_mismatch", '"reason": "install_id_mismatch"'),
+    ],
+)
+def test_each_hello_validation_refuses_with_its_own_word_and_writes_no_row(
+    capsys, fake_dials, monkeypatch, answer, word
+):
+    """The three hello validations of ``peers join``, each reached for real."""
+
+    from agent_runtime.gateway_peers import list_peers
+
+    monkeypatch.setattr(
+        fake_dials, "peer_join_hello", lambda self, **_kw: dict(_HELLO_ANSWERS[answer])
+    )
+    fake_dials.outcomes = {("10.0.0.9", 8765): None}
+
+    code, output = _join(capsys, _successful_payload())
+
+    assert code != 0
+    assert word in output, output
+    assert list_peers(paths.store_root()) == [], "a refused hello records nothing"
+
+
+def test_join_refuses_an_unfit_correlation_before_it_dials(capsys, fake_dials):
+    """The introduce twin's fence, on ``peers join``'s own arm."""
+
+    from hermes_cli.harness_support import ERROR_EXIT_CODES
+
+    fake_dials.outcomes = {("10.0.0.9", 8765): None}
+
+    code, output = _join(capsys, _successful_payload(), "--correlation", "not a token")
+
+    assert code == ERROR_EXIT_CODES["invalid_payload"]
+    assert '"reason": "correlation_id_invalid"' in output
+    assert fake_dials.dialled == [], "the fence runs before any socket"
+
+
+def _broken(state: str):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        ok=False, state=state, install_id=None, display_name=None,
+        path="install.json", cert_path="gateway.crt", fingerprint=None,
+    )
+
+
+@pytest.mark.parametrize(
+    ("verb", "broken", "state"),
+    [
+        (["gateway", "pair"], "certificate", "cert_unreadable"),
+        (["gateway", "peers", "pair"], "identity", "identity_unreadable"),
+        (["gateway", "peers", "pair"], "certificate", "cert_unreadable"),
+    ],
+)
+def test_a_broken_identity_or_certificate_refuses_with_its_state(
+    capsys, monkeypatch, verb, broken, state
+):
+    """``pair``'s certificate arm and both arms of ``_install_and_certificate``."""
+
+    from agent_runtime import gateway_identity, gateway_tls
+    from hermes_cli.harness_support import ERROR_EXIT_CODES
+
+    if broken == "identity":
+        monkeypatch.setattr(gateway_identity, "ensure_install_identity", lambda *_a, **_k: _broken(state))
+    else:
+        monkeypatch.setattr(gateway_tls, "ensure_certificate", lambda *_a, **_k: _broken(state))
+
+    code = _dispatch(["harness", *verb, "--json"])
+    envelope = json.loads(capsys.readouterr().out)
+
+    assert code == ERROR_EXIT_CODES["runtime_unavailable"]
+    assert envelope["error"]["reason"] == state

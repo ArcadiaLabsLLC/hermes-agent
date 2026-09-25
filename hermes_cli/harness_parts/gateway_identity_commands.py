@@ -91,7 +91,7 @@ def _gateway_install_row(identity) -> dict:
     try:
         from agent_runtime import paths
         from agent_runtime.gateway_capabilities import GATEWAY_CAPABILITIES
-        from hermes_cli.harness_parts.gateway_commands import (
+        from agent_runtime.gateway_endpoints import (
             _candidate_endpoints,
             _dial_host,
             _endpoint,

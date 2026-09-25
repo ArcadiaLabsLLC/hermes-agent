@@ -147,15 +147,13 @@ def test_both_nested_payloads_carry_the_candidate_list_and_a_dialable_first_row(
     contract checkable in one assertion.
     """
 
-    from hermes_cli.harness_parts import gateway_commands
     from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
     monkeypatch.setattr(
         serve_gateway_listener, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
     )
     monkeypatch.setattr(
-        gateway_commands,
-        "_machine_addresses",
+        "agent_runtime.gateway_endpoints.candidates._machine_addresses",
         lambda: ["192.168.1.203", "10.97.7.100"],
     )
 
@@ -188,7 +186,6 @@ def test_introduce_refuses_a_wildcard_bind_that_enumerates_no_address(
     sentence here would send an operator to a config key that is already set."""
 
     from agent_runtime.serve_gateway_auth import pairing_store_path
-    from hermes_cli.harness_parts import gateway_commands
     from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
     from hermes_cli.harness_parts.gateway_commands import (
         LISTENER_OFF_SENTENCE,
@@ -199,7 +196,7 @@ def test_introduce_refuses_a_wildcard_bind_that_enumerates_no_address(
     monkeypatch.setattr(
         serve_gateway_listener, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
     )
-    monkeypatch.setattr(gateway_commands, "_machine_addresses", lambda: [])
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates._machine_addresses", lambda: [])
 
     code = _dispatch(
         ["harness", "gateway", "introduce", "--for-install", "install-a", "--json"]
@@ -524,15 +521,13 @@ def test_gateway_id_names_the_dial_host_and_keeps_the_listener_block_on_the_bind
     to the first and never to the second.
     """
 
-    from hermes_cli.harness_parts import gateway_commands
     from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
     monkeypatch.setattr(
         serve_gateway_listener, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
     )
     monkeypatch.setattr(
-        gateway_commands,
-        "_machine_addresses",
+        "agent_runtime.gateway_endpoints.candidates._machine_addresses",
         lambda: ["192.168.1.203", "10.97.7.100"],
     )
 
@@ -551,13 +546,12 @@ def test_gateway_id_says_null_rather_than_a_bind_when_there_is_nothing_to_dial(
     filled the hole with the bind would put ``0.0.0.0`` on a launcher label,
     which is the sentence the operator asked never to see again."""
 
-    from hermes_cli.harness_parts import gateway_commands
     from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
     monkeypatch.setattr(
         serve_gateway_listener, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
     )
-    monkeypatch.setattr(gateway_commands, "_machine_addresses", lambda: [])
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates._machine_addresses", lambda: [])
 
     code, payload = _run(capsys, "id")
 
@@ -582,12 +576,11 @@ def test_a_wildcard_bind_enumerates_interfaces_and_a_concrete_host_is_one_row(
     be a test that fails on a laptop that changed networks.
     """
 
-    from hermes_cli.harness_parts import gateway_commands
     from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
     monkeypatch.setattr(serve_gateway_listener, "gateway_listen_config", lambda: ("0.0.0.0", 8765))
     monkeypatch.setattr(
-        gateway_commands, "_machine_addresses", lambda: ["10.0.0.4", "10.0.0.5"]
+        "agent_runtime.gateway_endpoints.candidates._machine_addresses", lambda: ["10.0.0.4", "10.0.0.5"]
     )
 
     _code, payload = _run(capsys, "id")
@@ -652,7 +645,7 @@ def test_the_enumerator_drops_loopback_link_local_and_wildcards(monkeypatch):
     monkeypatch.setattr(
         socket, "socket", lambda *a, **k: (_ for _ in ()).throw(OSError("no socket"))
     )
-    monkeypatch.setattr(gateway_commands, "_default_route_address", lambda: None)
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates._default_route_address", lambda: None)
 
     assert gateway_commands._machine_addresses() == ["10.0.0.4", "2001:db8::5"]
 
@@ -709,7 +702,7 @@ def test_the_default_route_probe_asks_the_internet_and_its_answer_is_offered_fir
     monkeypatch.setattr(socket, "socket", lambda *a, **k: _Probe())
     # D1b: with the routing table silent this is still exactly D1's answer, so
     # the probe's own contract keeps being asserted on its own terms.
-    monkeypatch.setattr(gateway_commands, "_default_route_address", lambda: None)
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates._default_route_address", lambda: None)
 
     assert gateway_commands._machine_addresses() == [
         "192.168.1.203",
@@ -757,7 +750,7 @@ def test_a_second_address_on_the_default_routes_own_subnet_outranks_other_privat
 
     monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo)
     monkeypatch.setattr(socket, "socket", lambda *a, **k: _Probe())
-    monkeypatch.setattr(gateway_commands, "_default_route_address", lambda: None)
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates._default_route_address", lambda: None)
 
     assert gateway_commands._machine_addresses() == [
         "192.168.1.203",
@@ -802,7 +795,7 @@ def test_the_cap_is_applied_after_the_order_so_the_lan_address_survives_it(
 
     monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo)
     monkeypatch.setattr(socket, "socket", lambda *a, **k: _Probe())
-    monkeypatch.setattr(gateway_commands, "_default_route_address", lambda: None)
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates._default_route_address", lambda: None)
 
     offered = gateway_commands._machine_addresses()
     assert len(offered) == gateway_commands.MAX_CANDIDATE_ENDPOINTS
@@ -1043,7 +1036,7 @@ def test_each_platform_asks_its_own_command_and_stops_as_soon_as_it_can(
         return remaining.pop(0)
 
     monkeypatch.setattr(sys, "platform", platform)
-    monkeypatch.setattr(gateway_commands, "_run_route_command", _fake_run)
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.routes._run_route_command", _fake_run)
 
     assert gateway_commands._default_route_address() == expected
     assert asked == expected_argv
@@ -1063,7 +1056,7 @@ def test_a_command_this_machine_does_not_have_answers_none_rather_than_raising(
     argv = ["hermes-no-such-routing-tool", "--version"]
     assert gateway_commands._run_route_command(argv) is None
 
-    monkeypatch.setattr(gateway_commands, "_run_route_command", lambda argv: None)
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.routes._run_route_command", lambda argv: None)
     assert gateway_commands._default_route_address() is None
 
 
@@ -1124,7 +1117,7 @@ def test_the_table_outranks_the_probe_so_the_lan_address_is_offered_first(
     # above.
     monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.setattr(
-        gateway_commands, "_run_route_command", lambda argv: _WINDOWS_ROUTE_PRINT
+        "agent_runtime.gateway_endpoints.routes._run_route_command", lambda argv: _WINDOWS_ROUTE_PRINT
     )
 
     assert gateway_commands._machine_addresses() == [
@@ -1150,7 +1143,7 @@ def test_a_table_that_declines_to_answer_leaves_d1s_order_exactly_as_it_was(
 
     monkeypatch.setattr(socket, "getaddrinfo", _pia_getaddrinfo(socket))
     monkeypatch.setattr(socket, "socket", lambda *a, **k: _PiaProbe())
-    monkeypatch.setattr(gateway_commands, "_run_route_command", lambda argv: None)
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.routes._run_route_command", lambda argv: None)
 
     assert gateway_commands._machine_addresses() == [
         "10.97.7.100",
@@ -1176,3 +1169,24 @@ def test_the_endpoints_gateway_id_prints_are_the_endpoints_a_join_payload_advert
 
     root = paths.store_root()
     assert payload["endpoints"] == _candidate_endpoints(root) == _self_endpoints(root)
+
+
+def test_a_grant_payload_over_the_ceiling_is_refused_rather_than_posted(
+    capsys, monkeypatch
+):
+    """Positive control for the asserted ceiling (god-file sheet §6, Q6): its own
+    comment calls the arm unreachable at four endpoints, so the ceiling is
+    lowered to 16 bytes to reach it for real."""
+
+    from hermes_cli.harness_parts.gateway_commands import introduce
+    from hermes_cli.harness_support import ERROR_EXIT_CODES
+
+    monkeypatch.setattr(introduce, "GRANT_PAYLOAD_MAX_BYTES", 16)
+
+    code = _dispatch(
+        ["harness", "gateway", "introduce", "--for-install", "install-a", "--json"]
+    )
+    envelope = json.loads(capsys.readouterr().out)
+
+    assert code == ERROR_EXIT_CODES["invalid_payload"]
+    assert envelope["error"]["reason"] == "grant_payload_too_large"

@@ -7,6 +7,10 @@ from __future__ import annotations
 from functools import partial
 from typing import Any
 
+# The listen config moved DOWN to agent_runtime.gateway_endpoints (layout sheet
+# gateway_commands.md §1a); this lane keeps the name by import, and its own two
+# reads below go through this module's binding.
+from agent_runtime.gateway_endpoints.candidates import gateway_listen_config
 from hermes_cli.harness_parts.serve.constants import (
     GATEWAY_TRANSPORT,
 )
@@ -20,45 +24,6 @@ __all__ = [
     "gateway_listen_config",
     "start_gateway_listener",
 ]
-
-
-def gateway_listen_config() -> tuple[str | None, int]:
-    """``(host, port)`` from ``remote_gateway.*``; ``(None, …)`` means off.
-
-    The FIRST reader of the keys Stage 0a declared — and the read that found
-    they had never existed: Stage 0a put them under ``"gateway"``, which is
-    already a top-level key in ``config_defaults``' one big dict literal, so
-    Python kept the later entry and dropped this one at parse time. They are
-    ``remote_gateway.*`` now, guarded by an AST test.
-
-    ``listen`` is a HOST STRING when it is on, and a boolean ``True`` is
-    deliberately refused rather than resolved to a default interface: an
-    operator opening a port onto a LAN should have to say which one, and
-    "guessed an interface for you" is not a sentence this runtime should be able
-    to say about a listener that executes agents with tools. Anything unreadable
-    is off, because the failure direction for a config that cannot be parsed is
-    "do not bind".
-    """
-
-    try:
-        from hermes_cli.config import load_config_readonly
-
-        block = load_config_readonly().get("remote_gateway") or {}
-    except Exception:
-        return None, 0
-    if not isinstance(block, dict):
-        return None, 0
-    listen = block.get("listen")
-    if not isinstance(listen, str):
-        return None, 0
-    host = listen.strip()
-    if not host or host.lower() in {"false", "off", "no", "true"}:
-        return None, 0
-    try:
-        port = int(block.get("port") or 0)
-    except (TypeError, ValueError):
-        port = 0
-    return host, max(0, min(65535, port))
 
 
 #: R-L1's fourth outcome word. The LAN listener is deliberately coupled to the

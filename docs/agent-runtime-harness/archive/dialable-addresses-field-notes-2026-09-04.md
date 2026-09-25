@@ -261,7 +261,7 @@ than falling to the tunnel.
   by stubbing the helper this stage added: every routing command fails and the
   list comes back byte-for-byte D1's.
 * **DEVIATION: `_dial_host` now takes the candidate LIST, not the store root**
-  (`hermes_cli/harness_parts/gateway_commands.py`, and its two callers —
+  (`hermes_cli/harness_parts/gateway_commands/`, and its two callers —
   `_dial_target` and `gateway id` in `hermes_cli/harness.py`). D1's plan item 2
   spells it `_dial_host(store_root)`, which enumerates a second time. That was
   two socket calls before and is a process spawn now — `route print -4` costs
@@ -728,7 +728,7 @@ resolved ARP entry was evidence of.
 ### 12.2 The classifier, and why it lives where it does
 
 `classify_dial_error(exc, host, *, addresses=None) -> "local_policy" |
-"unreachable"` is in `hermes_cli/harness_parts/gateway_commands.py`, beside
+"unreachable"` is in `agent_runtime/gateway_endpoints/`, beside
 `_machine_addresses` and the `ipaddress` helpers D1/D1b already grew. The
 alternative — `agent_runtime/gateway_peers/`, the lower layer — would have
 needed a second interface enumeration to answer the on-link question, and a

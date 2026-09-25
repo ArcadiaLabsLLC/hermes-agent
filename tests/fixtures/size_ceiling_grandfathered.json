@@ -11,7 +11,6 @@
   "agent_runtime/persona_chat_continuity.py": 1646,
   "agent_runtime/running_work.py": 1517,
   "agent_runtime/stream.py": 1385,
-  "hermes_cli/harness_parts/gateway_commands.py": 1645,
   "scripts/changed_line_mutation_check.py": 831,
   "tests/_downstream/hermes_cli_conftest.py": 893,
   "tests/_downstream/id_markers.py": 1053,
