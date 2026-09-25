@@ -25,7 +25,7 @@ loop. The entry point is `_cmd_mission_chat_message` — defined at
 Turn ingress has one path. Asynchronous agent-to-agent delivery
 (`agent_chat_send(wait=false)`) does not inject a message: a serve-hosted drain
 forges a real turn through **the same handler an operator message goes through**
-(`agent_runtime/dispatch_delivery.py:1072`, docstring `:12-19`), which is what
+(`agent_runtime/dispatch_delivery/forge.py::forge_delivery_turn`), which is what
 keeps transcript, live log, turn journal and projection consistent for free.
 Two narrower append seams do exist and are deliberate, turn-less writes — the
 bounded child-summary mirror (`agent_runtime/continuity.py:52-62`, posted by
@@ -36,7 +36,7 @@ contract; neither runs a turn or reaches the provider.
 
 MCP tool admission is data-owned, not role-owned: a persona may admit only the
 servers its backing profile declares, and "role names do not narrow or widen
-that data-owned set" (`mcp_admission.py:26-29`). `R1_ADMISSIBLE_ROLES` returns
+that data-owned set" (`agent_runtime/mcp_admission/__init__.py`). `R1_ADMISSIBLE_ROLES` returns
 zero hits in production source (its only survivors are quotes in the archived
 removal doc).
 
