@@ -4,14 +4,18 @@ Plan: ``docs/agent-runtime-harness/planned/god-file-program-2026-09-24.md`` rule
 12 and §2.4. Three arms, all a NEGATIVE guarantee over the AST (a source walk is
 the right instrument for "this is never written"):
 
-* ``ladder`` — >= 3 arms in one body comparing the SAME subject against string
-  constants, counted across sibling guard ``if``s AND down ``elif`` chains;
+* ``ladder`` — >= 3 arms in one body comparing the SAME subject against a
+  string — a literal, a NAME the file binds to one (own or imported), or an
+  ``Enum`` member (``scripts/god_file_scope.py``) — counted across sibling guard
+  ``if``s AND down ``elif`` chains;
 * ``isinstance`` — >= 3 ``isinstance`` arms on one subject;
 * ``vocab`` — a compare against a member of a vocabulary the fork declares as a
   ``Final`` string collection or a string ``Enum``. The vocabulary is
   ENUMERATED from those declarations by the same walk, never typed here, and a
-  module is held only to the vocabularies in its reach (its own and its
-  imports') — never the fork-wide union.
+  module is held only to the vocabularies in its reach (its own, its imports',
+  and a re-exported name's declaring module) — never the fork-wide union. A
+  name the file binds to an in-reach word itself is the same re-spelling as
+  the literal.
 
 Baseline: ``tests/fixtures/ladder_routing_grandfathered.json`` (one row per
 ``path|function|kind|subject``; arms only shrink).
@@ -116,3 +120,68 @@ def test_a_vocabulary_word_routes_only_where_the_vocabulary_is_in_reach(tmp_path
     assert ("vocabpkg/reasons.py", "own", "vocab", "absent") in rows
     assert ("vocabpkg/importer.py", "reads", "vocab", "absent") in rows
     assert not any(key[0] == "vocabpkg/stranger.py" for key in rows), rows
+
+
+def _git_repo(root, files: dict[str, str]) -> None:
+    import subprocess
+
+    for rel, text in files.items():
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text(text, encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+
+
+def test_a_reexport_and_a_local_alias_are_in_reach(tmp_path):
+    """Lane Q-GATES folds onto the reach: an importer of a RE-EXPORT reaches the
+    declaring module, and a name the file binds to the word itself is the same
+    re-spelling as the literal. Controls, one variable changed: the alias in a
+    file that does not reach the vocabulary, and in the declaring module itself,
+    are not counted."""
+    _git_repo(tmp_path, {
+        "fampkg/__init__.py": "from .families import Family\n",
+        "fampkg/families.py": (
+            "from enum import StrEnum\nclass Family(StrEnum):\n    OFFICE = 'office'\n"
+            "_OFFICE = 'office'\ndef table(s):\n    return s == _OFFICE\n"
+        ),
+        "fampkg/reexport.py": "from fampkg import Family\ndef reads(s):\n    return s == 'office'\n",
+        "fampkg/alias.py": "from fampkg.families import Family\n_OFFICE = 'office'\ndef reads(s):\n    return s == _OFFICE\n",
+        "fampkg/alias_stranger.py": "_OFFICE = 'office'\ndef reads(s):\n    return s == _OFFICE\n",
+    })
+    rows = {key[:2] for key in probe.ladder_census(tmp_path) if key[2] == "vocab"}
+    assert ("fampkg/reexport.py", "reads") in rows
+    assert ("fampkg/alias.py", "reads") in rows
+    assert ("fampkg/alias_stranger.py", "reads") not in rows
+    assert ("fampkg/families.py", "table") not in rows
+
+
+def test_a_ladder_over_named_strings_and_enum_members_is_still_a_ladder(tmp_path):
+    """Positive control: the same two ladders are invisible to the literal-only
+    reading and seen through the file's scope; two plain names are not strings."""
+    from scripts import god_file_scope as scope
+
+    _git_repo(tmp_path, {
+        "lpkg/__init__.py": "",
+        "lpkg/kinds.py": (
+            "from enum import Enum\nclass Action(str, Enum):\n    A = 'a'\n    B = 'b'\n    C = 'c'\n"
+            "DELIVERED = 'delivered'\n"
+        ),
+        "lpkg/names.py": (
+            "from lpkg.kinds import Action, DELIVERED\nfrom lpkg import kinds as k\n"
+            "PENDING = 'pending'\n"
+            "def f(state, d, x, y):\n"
+            "    if state == PENDING:\n        return 1\n"
+            "    if state == DELIVERED:\n        return 2\n"
+            "    if k.DELIVERED != state:\n        return 3\n"
+            "    if d.action == Action.A:\n        return 1\n"
+            "    elif d.action == Action.B.value:\n        return 2\n"
+            "    elif d.action in (k.Action.C,):\n        return 3\n"
+            "    if x == y:\n        return 4\n"
+            "    if x == y:\n        return 5\n"
+            "    if x == y:\n        return 6\n"
+        ),
+    })
+    body = ast.parse((tmp_path / "lpkg/names.py").read_text(encoding="utf-8")).body[-1].body
+    seen = scope.file_scope(tmp_path, "lpkg/names.py")
+    assert set(probe._ladders_in(body, seen.strlike)) == {("ladder", "state", 3), ("ladder", "d.action", 3)}
+    assert set(probe._ladders_in(body)) == set()

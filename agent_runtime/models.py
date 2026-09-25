@@ -702,9 +702,8 @@ class Incident:
     schema_version: int = 1
 
 
-#: ``Realm.agent_publish_mode``'s two values. Named because ``workspace`` is also
-#: a realm-sync family (``realm_sync.families.SyncFamily``), and W0-G5 refuses a
-#: bare literal compare against a declared vocabulary's word.
+#: ``Realm.agent_publish_mode``'s two values; :func:`validate_agent_publish_mode`
+#: is the one reader.
 REALM_AGENT_PUBLISH_MODES = ("workspace", "selected")
 
 

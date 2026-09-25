@@ -726,13 +726,6 @@ def _seed_running_work_owner() -> None:
         conn.execute("UPDATE async_delegations SET owner_started_at=NULL")
 
 
-#: The state-patch entities an agent create emits, in order. Named because both
-#: words are also realm-sync families (``realm_sync.families.SyncFamily``) and
-#: W0-G5 refuses a bare literal compare against a declared vocabulary's word.
-_AGENT_CREATE_PATCH_ENTITIES = ["persona_instance", "office_actor"]
-
-
-
 def _pin_chat_session_mint(persona_assignments: Any, mint: Any) -> list[tuple[Any, Any]]:
     """Point ``persona_chat_session_id_for`` at ``mint`` wherever it is READ.
 
@@ -911,7 +904,7 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
     patched = [
         event.payload for _, event in batch if event.type == STATE_PATCHED_EVENT_TYPE
     ]
-    assert [row["entity"] for row in patched] == _AGENT_CREATE_PATCH_ENTITIES, patched
+    assert [row["entity"] for row in patched] == ["persona_instance", "office_actor"], patched
     assert all(row["op"] == "upsert" for row in patched), patched
     # D3's load-bearing stamp: the launcher's generic persona-instance fold
     # inserts-on-absent ONLY when ``created`` is present, so a create that
@@ -950,7 +943,7 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
         f"answer is no. Frame type: {patch_frame.get('type')!r}. The remedy is "
         "in patch_coverage or the read model, not in this generator."
     )
-    assert [row["entity"] for row in patch_frame["patches"]] == _AGENT_CREATE_PATCH_ENTITIES, patch_frame["patches"]
+    assert [row["entity"] for row in patch_frame["patches"]] == ["persona_instance", "office_actor"], patch_frame["patches"]
     assert all(row.get("created") is True for row in patch_frame["patches"])
     assert patch_frame["base_offset"] == base_offset
 
