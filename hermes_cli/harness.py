@@ -18,8 +18,11 @@ the module that LOOKS IT UP (W0-G4, ``tests/tooling/test_harness_namespace_is_th
   and the H1/H3/H4 parts ``persona/``, ``serve/``, ``runtime_commands`` …);
 * the error envelope and the stage42 printing helpers — ``hermes_cli.harness_support``.
 
-This module binds only what production imports from it: ``build_parser`` and
-``emit_harness_error`` (plan §0.4's allowlist).
+This module defines the plugin door and binds no other module's callable except
+``build_parser`` (the contract dump and the fixture generator import it from
+here) and ``emit_harness_error`` (the entry wrapper's envelope) — W0-G4's
+allowlist. The tree is reached through its MODULE (``harness_tree``), so a test
+patches ``harness_parts.parser``, where the name is looked up.
 """
 
 from __future__ import annotations
@@ -27,7 +30,8 @@ from __future__ import annotations
 import argparse
 import sys
 
-from hermes_cli.harness_parts.parser import build_parser, populate_parser
+from hermes_cli.harness_parts import parser as harness_tree
+from hermes_cli.harness_parts.parser import build_parser
 from hermes_cli.harness_support import emit_harness_error
 
 __all__ = ["build_cli_parser", "build_parser", "emit_harness_error"]
@@ -123,5 +127,5 @@ def build_cli_parser(parser) -> None:
     """The ``harness`` plugin command's parser setup: the tree, every handler behind
     :func:`_harness_entry`. :func:`build_parser` (contract dump, tests) stays unwrapped."""
 
-    populate_parser(parser)
+    harness_tree.populate_parser(parser)
     _install_harness_entries(parser)

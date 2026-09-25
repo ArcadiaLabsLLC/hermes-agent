@@ -8,20 +8,19 @@ globals, so a patch on ``harness.X`` that no harness code reads is a no-op that
 PASSES. This gate closes that door by construction (it landed
 ``xfail(strict=True)`` in Wave 0; H1's CHANGE commit made it a plain test).
 
-Both arms read the RUNTIME module and the compiler's symbol table, never a spelling:
+Both arms read the RUNTIME module, never a spelling:
 
 * no ``_load_command_parts`` attribute, and no ``exec(`` call in any fork file
   under ``hermes_cli/``;
-* every callable ``hermes_cli.harness`` binds is defined there, or is on the
-  §0.4 allowlist, or is read as a global by harness.py's own code. A borrowed
-  callable nothing in harness.py reads is a re-export shim. (The Wave 0 draft
-  also refused every borrowed callable harness.py's own bodies use; that
-  cannot hold while those bodies live there, and it is not the hazard §0.4
-  names. The parser wires the parts through their MODULES —
-  ``persona_commands._cmd_persona_list`` — so no ``func=`` exemption is needed.)
+* every callable ``hermes_cli.harness`` binds is defined there or is on the
+  §0.4 allowlist — READ OR NOT. This is the plan's full form: lane H1 had
+  narrowed it to "or is read as a global by harness.py's own code" while the
+  verb bodies still lived in the file; lane H2 moved them out and restored it.
+  The entry reaches the parser tree through its MODULE, and modules are not
+  callables, so ``func=`` targets need no exemption.
 
 The logic is ``scripts/god_file_fences.py``'s ``borrowed_callables`` /
-``global_reads`` / ``exec_sites``.
+``exec_sites``.
 """
 
 from __future__ import annotations
@@ -34,24 +33,22 @@ from scripts import god_file_probe as probe
 
 
 def test_the_borrowed_callable_check_reds_a_reexport():
-    """Positive control: one borrowed repo callable is caught; allowlisted, local and stdlib are not."""
+    """Positive control: one borrowed repo callable is caught; allowlisted, local, stdlib and modules are not."""
     fake = types.ModuleType(fences.HARNESS_MODULE)
     fake._cmd_persona_list = probe.fork_production_files  # a repo callable defined elsewhere
     fake.build_parser = probe.fork_production_files  # allowlisted
     fake.local = lambda: None
     fake.local.__module__ = fences.HARNESS_MODULE
     fake.Parameter = inspect.Parameter  # stdlib: not a repo module
-    assert fences.borrowed_callables(fake, frozenset()) == ["_cmd_persona_list (from scripts.god_file_probe)"]
+    fake.probe = probe  # a part bound as a MODULE: how the entry reaches the tree
+    assert fences.borrowed_callables(fake) == ["_cmd_persona_list (from scripts.god_file_probe)"]
 
 
-def test_a_borrowed_callable_the_module_reads_is_an_import_not_a_shim():
-    """Positive control for the reads exemption, and the read set is the compiler's."""
+def test_a_borrowed_callable_the_harness_reads_is_still_refused():
+    """The full form: a READ is not an exemption (H1's narrowed form let it through)."""
     fake = types.ModuleType(fences.HARNESS_MODULE)
-    fake.fork_production_files = probe.fork_production_files
-    assert fences.borrowed_callables(fake, frozenset({"fork_production_files"})) == []
-    reads = fences.global_reads("scripts/god_file_fences.py")
-    assert "fork_production_files" in reads  # read inside exec_sites
-    assert "sites" not in reads  # a local, not a global
+    fake.populate_parser = probe.fork_production_files  # read by the entry's own code in H1's head
+    assert fences.borrowed_callables(fake) == ["populate_parser (from scripts.god_file_probe)"]
 
 
 def test_no_part_is_execd_into_the_harness_namespace():
@@ -64,4 +61,4 @@ def test_no_part_is_execd_into_the_harness_namespace():
 def test_the_harness_binds_no_borrowed_callable():
     import hermes_cli.harness as harness
 
-    assert fences.borrowed_callables(harness, fences.global_reads()) == []
+    assert fences.borrowed_callables(harness) == []
