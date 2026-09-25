@@ -1188,6 +1188,20 @@ def test_a_led_build_leaves_the_chat_database_at_rest(isolate_agent_runtime_root
     _seed_workspace("alpha-one")
     converge_persisted_core()
 
+    # The build attaches the store READ-ONLY (lane W3-D), and a ``mode=ro``
+    # connection creates a zero-length ``-wal`` it can never unlink, so the
+    # sibling's presence no longer measures a held handle. It must be
+    # FRAMELESS (the content-free shape ``_wal_without_frames_is_content_free``
+    # keys as absent), and the handle test is a writer probe: opening and
+    # closing one more connection takes the WAL away only when it is the LAST
+    # connection — a build handle still open keeps it on disk.
+    if os.path.exists(wal):
+        assert os.path.getsize(wal) == 0, "the read-only build wrote WAL frames"
+    probe = sqlite3.connect(str(db_path))
+    try:
+        probe.execute("SELECT count(*) FROM sqlite_master").fetchone()
+    finally:
+        probe.close()
     assert not os.path.exists(wal), (
         "a led build left the chat database's -wal sibling on disk, so the build "
         "is still holding the connection it opened. That handle is what kept the "

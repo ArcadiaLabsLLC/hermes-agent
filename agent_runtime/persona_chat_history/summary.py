@@ -86,8 +86,8 @@ def persona_chat_history_summary(
         omitted_session_ids=omitted_session_ids,
     )
     summary.index_instances()
-    # A summary is a read: the fallback never opens a writer (which would
-    # create the store or run upstream's migration from a read path).
+    # A summary is a read: the fallback attaches an existing store read-only
+    # (``open_chat_session_db``'s read door), never a second writer open.
     db = session_db or chat_session_scope.open_chat_session_db(read_only=True)
     if db is None:
         return []
