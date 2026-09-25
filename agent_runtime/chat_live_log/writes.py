@@ -10,12 +10,14 @@ import contextlib
 from pathlib import Path
 from typing import Any, Iterator
 
+from agent_runtime.clock import now_iso
+from agent_runtime.paths import path_exists_safe
+
 from agent_runtime.chat_live_log.backfill import _complete_backfill, _create_log
 from agent_runtime.chat_live_log.files import (
     _already_recorded,
     _append_line,
     _backfill_pending,
-    _exists,
     _mark_recorded,
     _with_claim,
     chat_live_log_path,
@@ -24,7 +26,6 @@ from agent_runtime.chat_live_log.lines import (
     _logical_client_key,
     _mirror_text,
     _normalized_role,
-    _now_iso,
     _relay_sender_fields,
     _safe_session_token,
     _safe_token,
@@ -111,7 +112,7 @@ def record_chat_message(
         return True
 
     payload: dict[str, Any] = {
-        "ts": _now_iso(),
+        "ts": now_iso(),
         "kind": "message",
         "role": normalized_role,
         "text": safe_text,
@@ -159,7 +160,7 @@ def record_chat_tool(
     if path is None:
         return False
     payload: dict[str, Any] = {
-        "ts": _now_iso(),
+        "ts": now_iso(),
         "kind": "tool",
         "tool": tool_name,
         "status": _safe_token(status, limit=60) or "unknown",
@@ -199,7 +200,7 @@ def ensure_chat_live_log(
         return None
     token = _safe_session_token(session_id) or ""
 
-    if _exists(path):
+    if path_exists_safe(path):
         if not materialize or not _backfill_pending(path):
             return path
         completed = _with_claim(
@@ -218,4 +219,4 @@ def ensure_chat_live_log(
     )
     if published is not None:
         return published
-    return path if _exists(path) else None
+    return path if path_exists_safe(path) else None

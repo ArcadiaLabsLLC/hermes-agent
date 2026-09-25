@@ -517,3 +517,48 @@ def test_every_role_alias_lands_as_its_conversation_role(tmp_path, monkeypatch):
         record_chat_message(session_id="persona_chat_roles", role=role, text=f"line {index}")
     rows = _messages(chat_live_log_path("persona_chat_roles"))
     assert [row["role"] for row in rows] == ["operator", "operator", "agent", "agent", "system", "mystery"]
+
+
+def test_a_recorded_line_carries_the_fork_clock_stamp(tmp_path, monkeypatch):
+    """Positive control (layout sheet ``chat_live_log.md`` §6.3, ruling Q22):
+    every ``ts`` is ``clock.now_iso``'s spelling — millisecond, ``Z`` — the one
+    clock spelling the fork writes. The header, a message and a tool line."""
+
+    import re
+
+    monkeypatch.setenv("HERMES_HEAD_HOME", str(tmp_path))
+    record_chat_message(session_id="persona_chat_ts", role="user", text="hi")
+    record_chat_tool(session_id="persona_chat_ts", tool="terminal", status="started")
+    stamps = [row["ts"] for row in _lines(chat_live_log_path("persona_chat_ts"))]
+    assert len(stamps) == 3
+    assert all(re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$", stamp) for stamp in stamps), stamps
+
+
+def test_the_backfill_walk_is_bounded_and_replays_oldest_first(monkeypatch):
+    """The projection walk stops at the row cap and SAYS so (``truncated``),
+    and the pages it read (newest first) land oldest first. Both halves of the
+    ``_backfill_rows`` split — the page walk and the row translation — in one
+    fixture: nothing else pins the bound or the order."""
+
+    from agent_runtime import persona_chat_history
+
+    calls: list[object] = []
+
+    def _pages(*, session_id, limit, before, session_db):
+        calls.append(before)
+        index = len(calls)
+        return {
+            "ok": True,
+            "messages": [{"role": "user", "text": f"page {index}", "client_message_id": f"cm-{index}"}],
+            "has_more": True,
+            "next_before": f"cursor-{index}",
+        }
+
+    monkeypatch.setattr(persona_chat_history, "persona_chat_session_messages", _pages)
+    monkeypatch.setattr(chat_live_log.backfill, "LIVE_LOG_BACKFILL_MESSAGE_CAP", 3)
+    rows, truncated = chat_live_log.backfill._backfill_rows("persona_chat_walk")
+
+    assert truncated is True
+    assert calls == [None, "cursor-1", "cursor-2"]
+    assert [row["text"] for row in rows] == ["page 3", "page 2", "page 1"]
+    assert all(row["backfilled"] and row["role"] == "operator" for row in rows)

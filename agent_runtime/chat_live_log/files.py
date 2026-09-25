@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from agent_runtime.paths import unlink_quietly
+from agent_runtime.paths import path_exists_safe, unlink_quietly
 
 from agent_runtime.chat_live_log.lines import (
     _decode_lines,
@@ -191,12 +191,12 @@ def _wait_for_publication(path: Path, claim: Path) -> Path | None:
 
     deadline = time.monotonic() + _CLAIM_WAIT_SECONDS
     while time.monotonic() < deadline:
-        if _exists(path):
+        if path_exists_safe(path):
             return path
-        if not _exists(claim):
+        if not path_exists_safe(claim):
             break
         time.sleep(0.02)
-    return path if _exists(path) else None
+    return path if path_exists_safe(path) else None
 
 
 def _backfill_pending(path: Path) -> bool:
@@ -266,13 +266,6 @@ def _coerce_dir(value: Any) -> Path | None:
     return candidate if str(candidate) not in {"", "."} else None
 
 
-def _exists(path: Path) -> bool:
-    try:
-        return path.exists()
-    except OSError:  # pragma: no cover - defensive
-        return False
-
-
 def _claim_is_stale(claim: Path) -> bool:
     try:
         age = time.time() - claim.stat().st_mtime
@@ -320,7 +313,7 @@ def _already_recorded(session_id: str, path: Path, key: tuple[str, str]) -> bool
     # file's tail empty; a fresh process would then happily re-append a resend
     # it had already recorded. Seed across the generation boundary.
     rotated = path.with_name(path.name + ".1")
-    if _exists(rotated):
+    if path_exists_safe(rotated):
         seen |= _seed_from_tail(rotated)
     with _state_lock:
         _seen_keys.setdefault(session_id, set()).update(seen)

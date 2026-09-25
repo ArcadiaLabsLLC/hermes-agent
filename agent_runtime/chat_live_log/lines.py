@@ -10,11 +10,10 @@ package reads the line through here.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Mapping
 
-from hermes_time import now
-
-from agent_runtime.redaction import TEXT_SECRET_ASSIGNMENT_RE
+from agent_runtime.clock import now_iso
+from agent_runtime.redaction import mask_secret_lines
 
 __layer__ = "policy"
 
@@ -24,8 +23,6 @@ __layer__ = "policy"
 LIVE_LOG_TEXT_LIMIT = 8000
 
 
-#: Same masking vocabulary the read projection uses.
-_REDACTED_LINE = "[redacted line — contained a secret]"
 
 
 def _decode_lines(blob: bytes) -> list[dict[str, Any]]:
@@ -43,27 +40,28 @@ def _decode_lines(blob: bytes) -> list[dict[str, Any]]:
     return rows
 
 
-def _now_iso() -> str:
-    try:
-        return now().isoformat()
-    except Exception:  # pragma: no cover - a timestamp is not load-bearing
-        return ""
-
-
 def _iso_or_now(value: Any) -> str:
     text = str(value or "").strip()
-    return text or _now_iso()
+    return text or now_iso()
+
+
+#: Five role words to the three the conversation contract speaks (rule 12:
+#: routing is data). Plain literals, not a ``Final`` / ``StrEnum`` vocabulary:
+#: ``operator`` / ``agent`` are the contract's words, spelled across
+#: ``persona_chat_history``, the launcher and every test, and W0-G5 arm (c)
+#: would read each member as a routed word fork-wide (fork-hygiene row, lane R4).
+_ROLE_BY_ALIAS: Mapping[str, str] = {
+    "user": "operator",
+    "operator": "operator",
+    "assistant": "agent",
+    "agent": "agent",
+    "system": "system",
+}
 
 
 def _normalized_role(value: Any) -> str:
     role = str(value or "").strip().lower()
-    if role in {"user", "operator"}:
-        return "operator"
-    if role in {"assistant", "agent"}:
-        return "agent"
-    if role == "system":
-        return "system"
-    return role or "unknown"
+    return _ROLE_BY_ALIAS.get(role, role or "unknown")
 
 
 def _safe_token(value: Any, *, limit: int) -> str:
@@ -85,7 +83,7 @@ def _logical_client_key(value: Any) -> str:
     if not token:
         return ""
     try:
-        from ..persona_chat_history import logical_persona_chat_client_message_id
+        from ..persona_chat_history.vocabulary import logical_persona_chat_client_message_id
 
         return logical_persona_chat_client_message_id(token) or token
     except Exception:  # pragma: no cover - defensive
@@ -101,7 +99,7 @@ def _backfilled_delivery_fields(message: dict[str, Any]) -> dict[str, str]:
     meet. Keyed on the typed kind, never on prose.
     """
 
-    from ..persona_chat_history import PERSONA_HARNESS_DELIVERY_KIND
+    from ..persona_chat_history.vocabulary import PERSONA_HARNESS_DELIVERY_KIND
 
     if _safe_token(message.get("kind"), limit=64) != PERSONA_HARNESS_DELIVERY_KIND:
         return {}
@@ -184,12 +182,8 @@ def _safe_session_token(value: Any) -> str:
 
 def _mirror_text(value: Any) -> str:
     text = str(value or "").replace("\x00", " ")
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
-    lines = [
-        _REDACTED_LINE if TEXT_SECRET_ASSIGNMENT_RE.search(line) else line.rstrip()
-        for line in text.split("\n")
-    ]
-    normalized = "\n".join(lines).strip()
+    text = mask_secret_lines(text.replace("\r\n", "\n").replace("\r", "\n"))
+    normalized = "\n".join(line.rstrip() for line in text.split("\n")).strip()
     if len(normalized) > LIVE_LOG_TEXT_LIMIT:
         # Truncation must be visible, never silent — same posture as the
         # persisted-transcript cap.

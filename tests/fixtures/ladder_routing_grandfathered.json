@@ -2,14 +2,6 @@
  "kinds": "ladder = >=3 arms comparing one subject to strings; isinstance = >=3 isinstance arms on one subject; vocab = compares against a declared Final/Enum vocabulary member (arms = count)",
  "sites": [
   {
-   "arms": 3,
-   "site": "agent_runtime/chat_live_log/lines.py|_normalized_role|ladder|role"
-  },
-  {
-   "arms": 3,
-   "site": "agent_runtime/chat_live_log/backfill.py|chat_live_log_stats|ladder|kind"
-  },
-  {
    "arms": 1,
    "site": "agent_runtime/coordinator_permissions.py|scope_for_persona|vocab|propose_only"
   },

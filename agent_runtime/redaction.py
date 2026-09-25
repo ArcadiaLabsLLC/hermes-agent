@@ -155,3 +155,23 @@ def safe_file_labels(value: Any) -> list[str]:
             continue
         labels.append(label)
     return labels
+
+
+#: The in-band marker a masked line is replaced by. One spelling for the read
+#: projection (``persona_chat_history``) and the live mirror (``chat_live_log``).
+REDACTED_SECRET_LINE = "[redacted line — contained a secret]"
+
+
+def mask_secret_lines(text: str) -> str:
+    """``text`` with every line that carries a secret assignment
+    (:data:`TEXT_SECRET_ASSIGNMENT_RE`) replaced by :data:`REDACTED_SECRET_LINE`.
+
+    The ONE per-line masker: the whole line goes, never a surgical cut, so a
+    value the pattern half-matched cannot survive beside the key. Split and
+    joined on ``\n`` only; callers normalize line endings, strip and bound.
+    """
+
+    return "\n".join(
+        REDACTED_SECRET_LINE if TEXT_SECRET_ASSIGNMENT_RE.search(line) else line
+        for line in text.split("\n")
+    )

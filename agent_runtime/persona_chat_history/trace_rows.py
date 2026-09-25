@@ -9,6 +9,7 @@ import re
 from typing import Any
 
 from ..serde import safe_assignment_text, safe_assignment_token
+from ..redaction import mask_secret_lines
 from ..serde import strict_int
 from ..transcript_order import TURN_SEQ_CONTENT
 from .vocabulary import (
@@ -203,11 +204,7 @@ def _safe_trace_operator_block(value: Any, *, limit: int) -> str | None:
     text = str(value or "").replace("\r\n", "\n").replace("\r", "\n").strip()
     if not text:
         return None
-    lines = [
-        "[redacted line — contained a secret]" if _SECRET_RE.search(line) else line
-        for line in text.split("\n")
-    ]
-    text = "\n".join(lines)
+    text = mask_secret_lines(text)
     if len(text) > limit:
         text = f"…(earlier output truncated)…\n{text[-limit:]}"
     return text
