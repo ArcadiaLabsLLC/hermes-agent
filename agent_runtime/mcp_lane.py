@@ -284,7 +284,7 @@ def mission_chat_mcp_lane_line(persona: Any, *, lane: str | None = None) -> str:
     Deliberately narrower than the operator's rows, in both directions that
     matter:
 
-    * **Declaration source.** Reads ``_effective_required_mcp_servers`` — the
+    * **Declaration source.** Reads ``effective_required_mcp_servers`` — the
       persona's own ``required_mcp_servers`` plus the existing role policy — and
       NOT ``declared_mcp_server_names``, which additionally parses the profile's
       ``config.yaml``. Two reasons, and the cheapness is the lesser one: the
@@ -305,9 +305,9 @@ def mission_chat_mcp_lane_line(persona: Any, *, lane: str | None = None) -> str:
         # module is imported by every visibility resolve. Private-but-canonical
         # is the deliberate trade — a second copy of the role policy is worse
         # than reaching across for the first one.
-        from .profile_readiness import _effective_required_mcp_servers
+        from .profile_readiness import effective_required_mcp_servers
 
-        declared = _effective_required_mcp_servers(persona)
+        declared = effective_required_mcp_servers(persona)
     except Exception:  # pragma: no cover - defensive; a declaration probe is best-effort
         return ""
     if not declared:

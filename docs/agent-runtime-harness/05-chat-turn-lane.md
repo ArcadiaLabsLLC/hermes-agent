@@ -357,7 +357,7 @@ admission. The invariants it holds (`:19-63`):
 1. **The lane blanket never flips.** `discover_mcp_tools()` is never called from here; admission is
    `register_mcp_servers({name: cfg})` over an explicitly resolved subset.
 2. **The profile declaration is the admission authority.** `_requested_servers` =
-   `declared_mcp_server_names` ∪ `_effective_required_mcp_servers` (`:786-812`). **There is no role
+   `declared_mcp_server_names` ∪ `effective_required_mcp_servers` (`:786-812`). **There is no role
    lane.** S64 made declaration the sole authority; S66 removed the residual `task`/`stage`
    parameters and the "role-admitted" wire text (`:130-132`, `:707-712`, `:789-791`). The `role` on
    the decision record (`:352`, `:382`) is REPORTING only.
