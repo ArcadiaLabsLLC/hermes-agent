@@ -528,6 +528,27 @@ def test_a_held_lock_whose_sidecar_names_a_corpse_is_still_refused():
         incumbent.release()
 
 
+def test_a_lock_file_the_os_refuses_is_a_typed_error_outcome(monkeypatch):
+    """Positive control for the lock's OS-error reason (god-file sheet
+    serve_socket.md §2, ruling Q6): the permission-denied arm had no test reaching
+    it, so a fold onto the store's reason vocabulary would have been unobserved.
+
+    The OS refusing the lock file is an ``error:<reason>`` OUTCOME with the
+    store's own word for the condition — not an exception, and not the
+    ``lock_held_by`` a retrying caller would treat as contention.
+    """
+
+    from agent_runtime.serve_socket import owner_lock
+
+    def _refuse(*_args, **_kwargs):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(owner_lock, "open", _refuse, raising=False)
+    result = SocketOwnerLock(_store_root()).acquire()
+    assert result.acquired is False
+    assert result.outcome == "error:permission_denied"
+
+
 def test_an_absent_sidecar_is_an_ordinary_boot_and_says_nothing_at_all():
     root = _store_root()
     lines: list[dict] = []
