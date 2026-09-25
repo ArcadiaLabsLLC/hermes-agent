@@ -12,6 +12,8 @@ from __future__ import annotations
 import os
 import time
 
+__layer__ = "wiring"
+
 _HARNESS_HELP = "Experimental Agent Runtime Harness"
 _POSTINSTALL_HELP = "Bootstrap non-Python deps for pip installs (node, browser, ripgrep, ffmpeg)"
 _POSTINSTALL_DESCRIPTION = (

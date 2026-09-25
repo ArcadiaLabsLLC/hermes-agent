@@ -255,8 +255,6 @@
   "agent_runtime/usage_ledger.py",
   "agent_runtime/volatile_tail.py",
   "agent_runtime/workspace_scope.py",
-  "agent_runtime/workspace_template.py",
-  "plugins/eternia-harness/__init__.py",
-  "plugins/eternia-harness/dashboard/plugin_api.py"
+  "agent_runtime/workspace_template.py"
  ]
 }
