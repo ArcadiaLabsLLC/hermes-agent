@@ -135,6 +135,12 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 - [ ] **The delivery drain's decision seams (`_sender_is_idle`, `_sender_persona`) are module globals the tests override BY NAME, and after the split they are bound in three modules (`forge`, `drain`, `completions`) plus the package** · `fork / runtime` · `DispatchDrain` / `BackgroundDrain` now exist: give them one injected `DrainPolicy(sender_is_idle, sender_persona)` defaulting to the real functions, have the tests pass a policy, and retire `tests/_downstream/delivery_seams.patch_delivery_seam` (which patches every binder, enumerated, as the stop-gap) · evidence: lane B3 dispatch_delivery MOVE body (17 patch sites; one status test would have passed vacuously) · filed by lane B3 2026-09-25 **UNCLAIMED**
 
 
+### Filed on arrival — 2026-09-25 (lane B4, filed by the orchestrator)
+
+- [ ] **`profile_readiness._effective_required_mcp_servers` / `_configured_mcp_servers` are read by private name from `profile_runner/mcp_lane.py` and `mcp_admission/resolve.py`** · `fork / refactor` · make them public in `profile_readiness` and retarget the two readers (mcp_lane is landed now, nothing holds it) · evidence: mcp_admission.md §3, B4 CHANGE `edebf9c26f` · filed by lane B4 2026-09-25 **UNCLAIMED**
+- [ ] **running_work's `REGISTRY_EXITED` and `KILL_NOT_FOUND` boundary words have no test pinning their values** · `fork / tests` · a positive control per word: the surface reads the word, a changed spelling reds · evidence: B4 CHANGE `f1635138af` · filed by lane B4 2026-09-25 **UNCLAIMED**
+
+
 ## Seams — fork edits inside upstream files (additive only)
 
 ### Filed on arrival — 2026-09-25 (lane 2B-B)
