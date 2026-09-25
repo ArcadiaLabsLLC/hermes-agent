@@ -3174,7 +3174,7 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "dead-code audit pass 2 HB-4 — a line-count exception for a file that "
         "has been under the bar for a wave: it cited 3,170 lines against a "
         "snapshot.py of 2,621, and of the four seams it named as the split "
-        "plan only `_parity_envelope` still exists",
+        "plan only `parity_envelope` still exists",
         "agent_runtime/docs/snapshot_line_count_exception.md",
     ),
     # -- S72 stages H-CLI-2 / H-P1 / H-P2 ---------------------------------

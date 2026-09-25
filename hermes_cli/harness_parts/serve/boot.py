@@ -312,7 +312,7 @@ def _prewarm_read_model_snapshot() -> None:
     """
 
     try:
-        from agent_runtime.snapshot import build_snapshot
+        from agent_runtime.snapshot.build import build_snapshot
 
         build_snapshot(build_info={"caller": "prewarm"})
     except Exception:

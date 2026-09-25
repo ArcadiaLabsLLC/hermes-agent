@@ -313,7 +313,7 @@ def _cmd_persona_instance_detail(args) -> int:
     fetches identical bytes on open. A miss is an honest ``not_found``, never a
     fabricated empty payload."""
 
-    from agent_runtime.snapshot import persona_instance_detail_for_id
+    from agent_runtime.snapshot.details import persona_instance_detail_for_id
 
     entity_id = str(getattr(args, "instance_id", "") or "")
     detail = persona_instance_detail_for_id(entity_id)

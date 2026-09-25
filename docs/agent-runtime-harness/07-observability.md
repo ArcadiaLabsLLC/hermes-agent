@@ -708,7 +708,7 @@ drift.
 3. **Every receipt leads with a family token**, then `key=value`. A census greps
    tokens, never the prose after them (`core_cache/__init__.py:46-50`).
 4. **Observability must never be the reason something fails.** Instruments are
-   defensive by construction (`snapshot/receipts.py:236-238`), the boot-timeline
+   defensive by construction (`snapshot/receipts.py:234-236`), the boot-timeline
    annotation is wrapped in a bare `except` (`serve.py:1057-1058`), and
    `log_create_subphases` never raises and never measures
    (`agent_create_phases.py:230`).

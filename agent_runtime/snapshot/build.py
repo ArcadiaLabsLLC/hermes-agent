@@ -7,7 +7,13 @@ from __future__ import annotations
 import copy
 import time
 
-from agent_runtime import core_cache, snapshot_build_ledger
+from agent_runtime import snapshot_build_ledger
+from agent_runtime.core_cache import decision as cache_decision
+from agent_runtime.core_cache import lane as cache_lane
+from agent_runtime.core_cache import persist as cache_persist
+from agent_runtime.core_cache import read as cache_read
+from agent_runtime.core_cache import shadow as cache_shadow
+from agent_runtime.core_cache.vocabulary import CORE_SOURCE_REBUILT
 from agent_runtime.resolution import runtime_resolution_scope
 
 from agent_runtime.snapshot.receipts import (
@@ -27,7 +33,14 @@ from agent_runtime.snapshot.sections import _build_snapshot_in_runtime_scope
 from agent_runtime.snapshot.details import persona_session_db_scope
 from agent_runtime.snapshot.summaries import _maybe_reconcile_profile_personas
 
+__layer__ = "lanes"
+
 __all__ = [
+    "_build_injected",
+    "_join_or_lead",
+    "_lead_build",
+    "_release_coalescer",
+    "_serve_cached",
     "_build_snapshot_uncoalesced",
     "build_snapshot",
 ]
@@ -79,28 +92,7 @@ def build_snapshot(
     caller = _build_caller(build_info)
     custom_stores = any(value is not None for value in (agent_store, event_log))
     if custom_stores or prompt_skills_catalogs is not None:
-        # Injected stores (tests, doctors) must observe exactly their own
-        # fixtures — never a coalesced result built from the default stores.
-        # A detail-fetch catalog capture likewise needs the exact build's
-        # transient bodies; the shared result intentionally contains hashes
-        # only, so it cannot satisfy that internal projection request.
-        injected = _build_snapshot_uncoalesced(
-            agent_store=agent_store,
-            event_log=event_log,
-            prompt_skills_catalogs=prompt_skills_catalogs,
-        )
-        # An injected-store build leads its own by definition (it never touched
-        # the coalescer), so the role is honest — but it has no generation in
-        # the default path's sequence and it emits no receipt line: see
-        # ``_log_snapshot_build_core`` for why a fixture must not print one.
-        _record_build_info(
-            build_info,
-            role=BUILD_ROLE_LED,
-            caller=caller,
-            generation=None,
-            snapshot=injected,
-        )
-        return injected
+        return _build_injected(agent_store, event_log, prompt_skills_catalogs, caller, build_info)
     # Profile discovery is a bounded write-side admission step, not a projection
     # guessed by Launcher. Run it before the persisted-core fingerprint so a
     # newly promoted Persona invalidates that cache in this very request.
@@ -110,27 +102,69 @@ def build_snapshot(
     # fingerprint check is ~50 ms of stat work with no shared state; putting it
     # behind the build lock would serialize the cheap answer behind whatever
     # expensive build happens to be running, which is the opposite of the point.
-    decision = core_cache.consult(caller=caller)
+    decision = cache_decision.consult(caller=caller)
     if decision.core is not None:
-        cached = decision.core
-        _record_build_info(
-            build_info,
-            role=BUILD_ROLE_CACHE,
-            caller=caller,
-            generation=None,
-            snapshot=cached,
-        )
-        # The shadow-validation window (EG-3.1): a cache-hit boot also runs the
-        # full build in the background and compares field-for-field, so an
-        # input-closure gap surfaces as a receipt in the field instead of a
-        # silently stale canvas. At most once per process, on a daemon thread,
-        # and it is marked as a shadow so completing it does not close the lane.
-        core_cache.maybe_start_shadow_validation(
-            cached,
-            caller=caller,
-            build=lambda: _build_snapshot_uncoalesced(),
-        )
-        return cached
+        return _serve_cached(decision.core, caller, build_info)
+    payload, generation = _join_or_lead(accept_inflight, caller, build_info)
+    if payload is not None:
+        return payload
+    return _lead_build(decision, caller, generation, build_info)
+
+
+def _build_injected(agent_store, event_log, prompt_skills_catalogs, caller: str, build_info: dict | None) -> dict:
+    """An injected-store build: its own fixtures, never the coalescer, no receipt line."""
+
+    # Injected stores (tests, doctors) must observe exactly their own
+    # fixtures — never a coalesced result built from the default stores.
+    # A detail-fetch catalog capture likewise needs the exact build's
+    # transient bodies; the shared result intentionally contains hashes
+    # only, so it cannot satisfy that internal projection request.
+    injected = _build_snapshot_uncoalesced(
+        agent_store=agent_store,
+        event_log=event_log,
+        prompt_skills_catalogs=prompt_skills_catalogs,
+    )
+    # An injected-store build leads its own by definition (it never touched
+    # the coalescer), so the role is honest — but it has no generation in
+    # the default path's sequence and it emits no receipt line: see
+    # ``_log_snapshot_build_core`` for why a fixture must not print one.
+    _record_build_info(
+        build_info,
+        role=BUILD_ROLE_LED,
+        caller=caller,
+        generation=None,
+        snapshot=injected,
+    )
+    return injected
+
+
+def _serve_cached(cached: dict, caller: str, build_info: dict | None) -> dict:
+    """A validated persisted core, served — and shadow-validated once per process."""
+
+    _record_build_info(
+        build_info,
+        role=BUILD_ROLE_CACHE,
+        caller=caller,
+        generation=None,
+        snapshot=cached,
+    )
+    # The shadow-validation window (EG-3.1): a cache-hit boot also runs the
+    # full build in the background and compares field-for-field, so an
+    # input-closure gap surfaces as a receipt in the field instead of a
+    # silently stale canvas. At most once per process, on a daemon thread,
+    # and it is marked as a shadow so completing it does not close the lane.
+    cache_shadow.maybe_start_shadow_validation(
+        cached,
+        caller=caller,
+        build=lambda: _build_snapshot_uncoalesced(),
+    )
+    return cached
+
+
+def _join_or_lead(accept_inflight: bool, caller: str, build_info: dict | None) -> tuple[dict | None, int]:
+    """Wait on the coalescer: ``(payload, generation)`` when another build's result
+    satisfies this caller, ``(None, generation)`` when this caller must LEAD."""
+
     state = _build_coalesce_state
     with _BUILD_COALESCE:
         # The first build STARTED at/after arrival is the one that satisfies
@@ -161,15 +195,20 @@ def build_snapshot(
                     generation=target,
                     snapshot=payload,
                 )
-                return payload
+                return payload, target
             if not state["running"]:
                 state["running"] = True
                 state["started"] += 1
-                generation = state["started"]
-                break
+                return None, state["started"]
             state["waiters"] += 1
             _BUILD_COALESCE.wait()
             state["waiters"] -= 1
+
+
+def _lead_build(decision, caller: str, generation: int, build_info: dict | None) -> dict:
+    """The LEADER's build: pre-build key, build, label, receipt, write-back, notify."""
+
+    state = _build_coalesce_state
     result = None
     # Stage 4 attribution (chat-turn latency): the LEADER's span, on the same
     # monotonic clock a chat turn anchors on, so "did a build overlap this
@@ -189,15 +228,15 @@ def build_snapshot(
         # OLDER key can only cost the next process a rebuild). It falls through to
         # a full walk whenever no consult stands — a cold store, a disarmed lane,
         # or a persisted pair that moved since.
-        pre_build_fingerprint = core_cache.pre_build_fingerprint()
+        pre_build_fingerprint = cache_lane.pre_build_fingerprint()
         result = _build_snapshot_uncoalesced()
         if decision.demoted:
             # A persisted core WAS available and was rejected, so this core has a
             # provenance question to answer: it is the rebuild that replaced it.
             # A build with no persisted core to decide between stamps nothing —
             # see ``core_cache.label_core`` for why that keeps the goldens still.
-            core_cache.label_core(
-                result, source=core_cache.CORE_SOURCE_REBUILT, stale=False
+            cache_read.label_core(
+                result, source=CORE_SOURCE_REBUILT, stale=False
             )
         _record_build_info(
             build_info,
@@ -224,10 +263,10 @@ def build_snapshot(
         # Best effort by contract (a failed write logs and changes nothing here),
         # and it happens AFTER the receipt so the build's own line is never
         # delayed behind an I/O stall.
-        core_cache.write_back(result, fingerprint=pre_build_fingerprint)
+        cache_persist.write_back(result, fingerprint=pre_build_fingerprint)
         # The process now owns its own truth: the cache lane closes, and every
         # later build in this process is an ordinary build.
-        core_cache.note_full_build_completed()
+        cache_lane.note_full_build_completed()
         return result
     finally:
         # Recorded even when the build RAISED: it occupied this process for the
@@ -235,20 +274,26 @@ def build_snapshot(
         snapshot_build_ledger.record_build(
             started=build_span_started, ended=time.monotonic()
         )
-        with _BUILD_COALESCE:
-            state["running"] = False
-            if result is not None:
-                state["done"] = generation
-                state["result"] = None
-                if state["waiters"]:
-                    try:
-                        state["result"] = copy.deepcopy(result)
-                    except Exception:
-                        # Uncopyable core: waiters fall back to building
-                        # their own — never raise from finally (it would
-                        # replace the builder's own return value).
-                        state["result"] = None
-            _BUILD_COALESCE.notify_all()
+        _release_coalescer(state, result, generation)
+
+
+def _release_coalescer(state: dict, result: dict | None, generation: int) -> None:
+    """The leader's exit: mark the build done and hand waiters a copy (or nothing)."""
+
+    with _BUILD_COALESCE:
+        state["running"] = False
+        if result is not None:
+            state["done"] = generation
+            state["result"] = None
+            if state["waiters"]:
+                try:
+                    state["result"] = copy.deepcopy(result)
+                except Exception:
+                    # Uncopyable core: waiters fall back to building
+                    # their own — never raise from finally (it would
+                    # replace the builder's own return value).
+                    state["result"] = None
+        _BUILD_COALESCE.notify_all()
 
 
 def _build_snapshot_uncoalesced(

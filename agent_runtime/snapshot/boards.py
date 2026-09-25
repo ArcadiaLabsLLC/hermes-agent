@@ -11,11 +11,13 @@ from agent_runtime.serde import section_rows, to_jsonable
 
 from agent_runtime.snapshot.receipts import _ARCHIVED_CONVERSATION_SECRET_RE
 
+__layer__ = "stores"
+
 __all__ = [
     "BOARD_CARD_DESC_LIMIT",
     "BoardsProjection",
     "MAX_BOARD_CARDS_PROJECTED",
-    "_board_card_row",
+    "board_card_row",
     "_board_conflict_card_ids",
     "_board_parity_warnings",
     "_boards_summary",
@@ -43,7 +45,7 @@ def _mask_board_secrets(text) -> str:
     return _ARCHIVED_CONVERSATION_SECRET_RE.sub(lambda m: f"{m.group(1)}: [redacted]", str(text))
 
 
-def _board_card_row(card, *, unpublished: bool | None = None) -> dict:
+def board_card_row(card, *, unpublished: bool | None = None) -> dict:
     description = card.description or ""
     truncated = len(description) > BOARD_CARD_DESC_LIMIT
     if truncated:
@@ -130,7 +132,7 @@ def board_summary_row(
             for c in board.columns
         ],
         "cards": [
-            _board_card_row(c, unpublished=(card_unpublished(c) if card_unpublished is not None else None))
+            board_card_row(c, unpublished=(card_unpublished(c) if card_unpublished is not None else None))
             for c in projected
         ],
         "active_card_count": len(cards),

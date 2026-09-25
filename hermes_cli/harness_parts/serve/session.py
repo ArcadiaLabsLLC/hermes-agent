@@ -478,7 +478,7 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         self.stdout_proxy = _LineFrameProxy(self.frames, "line")
         self.stderr_proxy = _LineFrameProxy(self.frames, "stderr")
         self.read_cache = _PollResponseCache(self.read_cache_max_age)
-        from agent_runtime.snapshot import SnapshotBuildContext
+        from agent_runtime.snapshot.context import SnapshotBuildContext
 
         self.read_build_context = SnapshotBuildContext()
 

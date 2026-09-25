@@ -16,6 +16,8 @@ from agent_runtime.snapshot.receipts import (
     build_receipt_facts,
 )
 
+__layer__ = "policy"
+
 __all__ = [
     "AGENTS_READINESS_SPLIT_RECEIPT",
     "_build_caller",

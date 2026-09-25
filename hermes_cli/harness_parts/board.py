@@ -84,7 +84,7 @@ def _board_row(store, board, *, full: bool = False) -> dict:
     question — see ``_board_active_card_count``) is not on the builder's row.
     """
 
-    from agent_runtime.snapshot import board_summary_row
+    from agent_runtime.snapshot.boards import board_summary_row
 
     # ``scan_cards``, not ``list_cards``: the CLI row states the same
     # completeness the wire row does, so the two cannot disagree about how much
@@ -111,7 +111,7 @@ def _board_row(store, board, *, full: bool = False) -> dict:
 
 
 def _card_row(card, *, full: bool = False, summary: dict | None = None) -> dict:
-    """One card row — a RE-KEY of the snapshot's own ``_board_card_row``.
+    """One card row — a RE-KEY of the snapshot's own ``board_card_row``.
 
     Card prose is the one genuinely SENSITIVE payload in this tier, and the CLI
     used to print ``card.title`` / ``card.description`` / ``card.checklist``
@@ -128,9 +128,9 @@ def _card_row(card, *, full: bool = False, summary: dict | None = None) -> dict:
     """
 
     if summary is None:
-        from agent_runtime.snapshot import _board_card_row
+        from agent_runtime.snapshot.boards import board_card_row
 
-        summary = _board_card_row(card)
+        summary = board_card_row(card)
     row = {
         "id": summary["card_id"],
         "column_id": summary["column_id"],

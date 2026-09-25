@@ -22,7 +22,7 @@ from .migrations import effective_config_summary
 from .runtime_instances import GoalRuntimeInstanceStore, runtime_instances_summary
 from .states import RunState
 from .store import ACTIVE_RUN_STATES, AgentStore, IncidentStore, RunStore
-from .snapshot import _parity_envelope, persona_session_db_scope
+from .snapshot import parity_envelope, persona_session_db_scope
 from .resolution import runtime_resolution_scope
 
 
@@ -175,7 +175,7 @@ def _build_status_in_runtime_scope(run_store: RunStore | None = None, incident_s
     # and this block was a second projection of a store nothing reads,
     # re-listing every row on every status call. `harness persona assignments
     # --json` is the reader that survives.
-    data["parity"] = _parity_envelope(
+    data["parity"] = parity_envelope(
         data,
         build_started=_build_started,
         last_event=recent_events[-1] if recent_events else None,

@@ -12,6 +12,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 
+__layer__ = "models"
+
 __all__ = [
     "SNAPSHOT_CONTRACT_VERSION",
     "SnapshotBuildContext",
@@ -36,7 +38,7 @@ __all__ = [
 #: Consequently:
 #:
 #: * production reads :data:`SNAPSHOT_CONTRACT_VERSION` (see the parity envelope
-#:   in :func:`_parity_envelope`, whose comment block carries the full
+#:   in :func:`parity_envelope`, whose comment block carries the full
 #:   version-by-version history and the bump/keep rulings behind it);
 #: * tests import it and assert RELATIVE to it (``== SNAPSHOT_CONTRACT_VERSION``,
 #:   ``- 1``, ``+ 1``) so a bump moves them for free;

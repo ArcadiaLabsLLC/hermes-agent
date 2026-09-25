@@ -11,23 +11,24 @@ from agent_runtime.office_models import (
     ORPHANED_OFFICE_WORKSPACE_DELETED,
     ORPHANED_OFFICE_WORKSPACE_NEVER_RECORDED,
 )
+from agent_runtime.office_models import MAX_OFFICE_ACTORS_PROJECTED
 from agent_runtime.serde import section_rows, to_jsonable
+
+__layer__ = "stores"
 
 __all__ = [
     "MAX_OFFICE_ACTORS_PROJECTED",
     "OfficesProjection",
     "_ORPHANED_OFFICE_DETAIL",
-    "_office_actor_summary_row",
+    "office_actor_summary_row",
     "_office_parity_warnings",
     "_offices_summary",
     "office_summary_row",
 ]
 
 
-MAX_OFFICE_ACTORS_PROJECTED = 200
 
-
-def _office_actor_summary_row(actor, *, unpublished: bool | None) -> dict:
+def office_actor_summary_row(actor, *, unpublished: bool | None) -> dict:
     row = {
         "actor_key": actor.actor_key,
         "persona_id": actor.persona_id,
@@ -111,7 +112,7 @@ def office_summary_row(
         "workspace_id": surface.workspace_id,
         "folders": list(surface.folders),
         "actors": [
-            _office_actor_summary_row(a, unpublished=(actor_unpublished(a) if actor_unpublished is not None else None))
+            office_actor_summary_row(a, unpublished=(actor_unpublished(a) if actor_unpublished is not None else None))
             for a in projected
         ],
         "actor_count": len(actors),

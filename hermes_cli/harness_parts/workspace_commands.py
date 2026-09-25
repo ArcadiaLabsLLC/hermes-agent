@@ -50,7 +50,7 @@ __all__ = [
 #: under its old private name so every call site below is unchanged. The reason
 #: is the second door: `runtime.workspace.use` answers with THIS row, and a row
 #: the method lane could only reach by re-deriving would be the S48 twin all
-#: over again. It is a re-key of `agent_runtime.snapshot._workspace_summary`, so
+#: over again. It is a re-key of `agent_runtime.snapshot.workspace_summary`, so
 #: agent_runtime is where it always belonged.
 _workspace_row = _scope_workspace_row
 

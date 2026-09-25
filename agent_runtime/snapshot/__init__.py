@@ -17,14 +17,15 @@ module      layer   owns
 context     models  the contract version, the build context
 receipts    policy  build roles/callers, coalescing state, diagnostics
 build_log   policy  the build's log lines and section timing
-envelope    policy  the parity envelope
-warnings    policy  the parity warnings
 boards      stores  the boards projection
-offices     stores  the offices projection
+offices     stores  the offices projection (the actor cap: office_models)
 summaries   stores  workspace/realm/agent/persona summaries, template memo
+warnings    stores  ``PARITY_WARNINGS``: the frame's parity checks
+envelope    stores  the parity envelope (its contract-version ledger lives in
+                    02-runtime-data-and-shapes.md)
 details     lanes   per-instance detail reads
-sections    lanes   the frame's sections
-build       lanes   ``build_snapshot``
+sections    lanes   ``SnapshotFrameBuild`` and its ``SECTIONS``
+build       lanes   ``build_snapshot``: consult, coalesce, lead, persist
 ==========  ======  ============================================================
 """
 
@@ -75,18 +76,18 @@ from agent_runtime.snapshot.receipts import (
 )
 from agent_runtime.snapshot.build import _build_snapshot_uncoalesced, build_snapshot
 from agent_runtime.snapshot.sections import _build_snapshot_in_runtime_scope
-from agent_runtime.snapshot.envelope import _parity_envelope, _snapshot_payload_size
+from agent_runtime.snapshot.envelope import parity_envelope, _snapshot_payload_size
 from agent_runtime.snapshot.boards import (
     BOARD_CARD_DESC_LIMIT,
     MAX_BOARD_CARDS_PROJECTED,
-    _board_card_row,
+    board_card_row,
     _board_parity_warnings,
     _boards_summary,
     board_summary_row,
 )
 from agent_runtime.snapshot.offices import (
     MAX_OFFICE_ACTORS_PROJECTED,
-    _office_actor_summary_row,
+    office_actor_summary_row,
     _office_parity_warnings,
     _offices_summary,
     office_summary_row,
@@ -102,10 +103,12 @@ from agent_runtime.snapshot.summaries import (
     _available_persona_summary,
     _profile_persona_reconcile_tick,
     _profile_templates_cached,
-    _realm_summary,
-    _workspace_summary,
+    realm_summary,
+    workspace_summary,
 )
 
+
+__layer__ = "wiring"
 
 __all__ = [
     "AgentStore",
@@ -126,7 +129,7 @@ __all__ = [
     "_BUILD_COALESCE",
     "_agent_summary",
     "_available_persona_summary",
-    "_board_card_row",
+    "board_card_row",
     "_board_parity_warnings",
     "_boards_summary",
     "_build_coalesce_state",
@@ -134,18 +137,18 @@ __all__ = [
     "_build_snapshot_uncoalesced",
     "_default_persona_session_db",
     "_keyed",
-    "_office_actor_summary_row",
+    "office_actor_summary_row",
     "_office_parity_warnings",
     "_offices_summary",
-    "_parity_envelope",
+    "parity_envelope",
     "_parity_warnings",
     "_persona_chat_history_frame",
     "_profile_persona_reconcile_tick",
     "_profile_readiness_for_visibility",
     "_profile_templates_cached",
-    "_realm_summary",
+    "realm_summary",
     "_snapshot_payload_size",
-    "_workspace_summary",
+    "workspace_summary",
     "available_profile_templates",
     "board_summary_row",
     "build_receipt_facts",

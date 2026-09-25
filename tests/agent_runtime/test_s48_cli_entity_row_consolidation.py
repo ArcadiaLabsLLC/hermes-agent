@@ -21,7 +21,7 @@ symbol / derivation                        why it is gone
 ========================================= ==================================
 `office.py::_office_item_row`              re-declared, key for key, the
                                            scene-item block
-                                           `_office_actor_summary_row`
+                                           `office_actor_summary_row`
                                            already projects
 `harness.py` binding                       last reader was `_realm_row`'s
 `read_realm_sync_sidecar`                  duplicate sidecar read; the
@@ -222,11 +222,11 @@ RETIRED_DERIVATIONS = {
 #: row projection -> the builder it must call. A removal gate alone would pass
 #: against a row that stopped projecting anything at all.
 REQUIRED_DELEGATIONS = {
-    "_workspace_row": "_workspace_summary",
-    "_realm_row": "_realm_summary",
+    "_workspace_row": "workspace_summary",
+    "_realm_row": "realm_summary",
     "_board_row": "board_summary_row",
-    "_card_row": "_board_card_row",
-    "_office_actor_row": "_office_actor_summary_row",
+    "_card_row": "board_card_row",
+    "_office_actor_row": "office_actor_summary_row",
     "_office_surface_row": "office_summary_row",
 }
 

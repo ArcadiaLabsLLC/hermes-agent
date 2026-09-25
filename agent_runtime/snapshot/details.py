@@ -13,6 +13,8 @@ from agent_runtime.tool_visibility import resolve_tool_visibility
 
 from agent_runtime.snapshot.context import logger
 
+__layer__ = "lanes"
+
 __all__ = [
     "_agent_tool_detail",
     "_default_persona_session_db",

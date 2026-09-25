@@ -635,7 +635,7 @@ _SNAPSHOT_FRAME_SOURCE = "built"
 
 def _cmd_snapshot(args) -> int:
     # Function-local import, like the rest of this file.
-    from agent_runtime.snapshot import build_snapshot
+    from agent_runtime.snapshot.build import build_snapshot
 
     # STAGE 6: this used to go through ``read_model.resolve_snapshot_frame``,
     # which built the full core FIRST and only then decided whether to serve a

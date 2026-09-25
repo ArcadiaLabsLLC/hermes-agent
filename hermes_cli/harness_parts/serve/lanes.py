@@ -137,7 +137,7 @@ class ArgvLanes:
                 request.cancel_event
             ):
                 if state.cache_key is not None:
-                    from agent_runtime.snapshot import snapshot_build_context_scope
+                    from agent_runtime.snapshot.context import snapshot_build_context_scope
 
                     with snapshot_build_context_scope(self.read_build_context):
                         state.code = self.dispatch(list(request.argv))

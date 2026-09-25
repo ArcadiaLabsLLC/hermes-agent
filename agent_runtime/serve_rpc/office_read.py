@@ -133,7 +133,7 @@ def _office_projection(workspace_id: str) -> dict | None:
     from agent_runtime.office_models import office_item_wire_row
     from agent_runtime.office_store import OfficeStore
     from agent_runtime.serde import to_jsonable
-    from agent_runtime.snapshot import MAX_OFFICE_ACTORS_PROJECTED
+    from agent_runtime.office_models import MAX_OFFICE_ACTORS_PROJECTED
 
     store = OfficeStore()
     if not store.surface_exists(workspace_id):

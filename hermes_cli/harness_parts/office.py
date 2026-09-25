@@ -50,7 +50,7 @@ def _office_workspace_for(args) -> str | None:
 
 def _office_actor_row(actor, *, full: bool = False, summary: dict | None = None) -> dict:
     """One office actor row — a RE-KEY of the snapshot's own
-    ``_office_actor_summary_row`` (S48, ledger item 4).
+    ``office_actor_summary_row`` (S48, ledger item 4).
 
     ``_office_item_row`` went with the consolidation: it re-declared, key for
     key, the item block the snapshot builder already projects. Two copies of a
@@ -64,9 +64,9 @@ def _office_actor_row(actor, *, full: bool = False, summary: dict | None = None)
     """
 
     if summary is None:
-        from agent_runtime.snapshot import _office_actor_summary_row
+        from agent_runtime.snapshot.offices import office_actor_summary_row
 
-        summary = _office_actor_summary_row(actor, unpublished=None)
+        summary = office_actor_summary_row(actor, unpublished=None)
     row = {
         "id": summary["actor_key"],
         "workspace_id": actor.workspace_id,
@@ -101,7 +101,7 @@ def _office_surface_row(store, workspace_id: str, *, full: bool = False, surface
     Function-local builder import: see the module header on part namespaces.
     """
 
-    from agent_runtime.snapshot import office_summary_row
+    from agent_runtime.snapshot.offices import office_summary_row
 
     if surface is None:
         surface = store.get_surface(workspace_id)

@@ -779,6 +779,10 @@ def test_a_workspace_over_the_projection_cap_keeps_the_honest_refresh(
         capped.setattr(
             "agent_runtime.snapshot.MAX_OFFICE_ACTORS_PROJECTED", 1, raising=True
         )
+        # The cap's owner since lane R3; the store's patch lane reads it here.
+        capped.setattr(
+            "agent_runtime.office_models.MAX_OFFICE_ACTORS_PROJECTED", 1, raising=True
+        )
 
         before = _log_end()
         seeded_office.upsert_actor(WORKSPACE, _actor_payload("qa", x=4.0, y=4.0))

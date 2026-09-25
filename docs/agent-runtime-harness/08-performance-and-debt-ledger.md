@@ -281,7 +281,7 @@ Executed history stays archived. The duplicate-implementation retirement's rows
   still carries it while asserting nothing in it reaches the instance, so hermes
   dropped the block, `persona_instance_runtime.assignment_store_enabled` and the
   `warnings` lane it fed. The contract-bump claim is also not what the removal rule
-  says — see `snapshot._parity_envelope`'s "54 KEPT (AX2)" entry for the first KEPT
+  says — see `snapshot.parity_envelope`'s "54 KEPT (AX2)" entry for the first KEPT
   ruling over a departure and the reason a bump was the riskier move here (an
   exact-equality launcher pin turns a bump into `mayWrite == false`). The retire's two
   assignment guards went in the same wave (tombstone wave `s76`).

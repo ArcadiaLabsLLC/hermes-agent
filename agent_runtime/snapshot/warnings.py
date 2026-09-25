@@ -4,11 +4,12 @@ redaction observation and the event-summary warnings.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timezone
 
 from agent_runtime.events import event_summary_missing
 from agent_runtime.models import looks_like_persona_instance_id
-from agent_runtime.persona_chat_history import _canonical_persona_id
+from agent_runtime.persona_chat_history.history_rows import _canonical_persona_id
 from agent_runtime.persona_instance_identity import (
     backed_persona_identity,
     classify_orphan_persona_instances,
@@ -19,7 +20,10 @@ from agent_runtime.serde import section_rows
 from agent_runtime.snapshot.boards import _board_parity_warnings
 from agent_runtime.snapshot.offices import _office_parity_warnings
 
+__layer__ = "stores"
+
 __all__ = [
+    "PARITY_WARNINGS",
     "_LIVE_MISSION_RESTAMP_EPSILON_SECONDS",
     "_event_summary_warnings",
     "_parity_warnings",
@@ -45,7 +49,28 @@ def _parity_warnings(data) -> list[dict]:
         )
         return warnings
 
-    instances = section_rows(data.get("persona_instances"))
+    frame = _WarningFrame(data)
+    for _name, check in PARITY_WARNINGS:
+        warnings.extend(check(frame))
+    return warnings
+
+
+class _WarningFrame:
+    """What every parity check reads, derived once: the frame, its
+    persona-instance rows, and its chat-history rows."""
+
+    def __init__(self, data: dict) -> None:
+        self.data = data
+        self.instances = section_rows(data.get("persona_instances"))
+        self.chat_rows = [
+            row for row in data.get("persona_chat_history") or [] if isinstance(row, dict)
+        ]
+
+
+def _duplicate_instance_warnings(frame: _WarningFrame) -> list[dict]:
+    """Live persona-instance rows that alias to one canonical id."""
+
+    instances, warnings = frame.instances, []
     for group in duplicate_persona_instance_groups(instances):
         warnings.append(
             {
@@ -58,7 +83,13 @@ def _parity_warnings(data) -> list[dict]:
                 "instance_ids": group["instance_ids"],
             }
         )
+    return warnings
 
+
+def _orphan_instance_warnings(frame: _WarningFrame) -> list[dict]:
+    """Instances with no backing persona/profile: prunable, or held from prune."""
+
+    data, instances, warnings = frame.data, frame.instances, []
     # Orphan / held persona-instance accounting: rows whose backing persona/profile is
     # absent (or a mothballed role) project as phantom "on level" agents. Surface them
     # the same way duplicate rows are surfaced so nothing is silently dropped — the
@@ -105,6 +136,13 @@ def _parity_warnings(data) -> list[dict]:
                 ),
             }
         )
+    return warnings
+
+
+def _referential_warnings(frame: _WarningFrame) -> list[dict]:
+    """Instance FKs (``spawned_by`` / ``steered_by``) and trace rows that resolve nowhere."""
+
+    data, instances, warnings = frame.data, frame.instances, []
     instance_personas = {
         _canonical_persona_id(inst.get("persona_id")) for inst in instances if isinstance(inst, dict)
     }
@@ -178,10 +216,14 @@ def _parity_warnings(data) -> list[dict]:
                     "detail": "trace row has no matching persona_instance; the launcher may orphan it",
                 }
             )
+    return warnings
 
-    chat_rows = [
-        row for row in data.get("persona_chat_history") or [] if isinstance(row, dict)
-    ]
+
+def _chat_timestamp_warnings(frame: _WarningFrame) -> list[dict]:
+    """Chat-history rows whose timestamps are not ISO-8601."""
+
+    warnings: list[dict] = []
+    chat_rows = frame.chat_rows
     for row in chat_rows:
         for field in ("created_at", "updated_at"):
             value = row.get(field)
@@ -194,7 +236,14 @@ def _parity_warnings(data) -> list[dict]:
                     }
                 )
                 break
+    return warnings
 
+
+def _live_mission_shadow_warnings(frame: _WarningFrame) -> list[dict]:
+    """A mission chat row restamped at build time that shadows every real chat for its persona."""
+
+    data, warnings = frame.data, []
+    chat_rows = frame.chat_rows
     chat_latest_by_persona: dict[str, datetime] = {}
     mission_latest_by_persona: dict[str, tuple[datetime, str | None]] = {}
     for row in chat_rows:
@@ -232,7 +281,13 @@ def _parity_warnings(data) -> list[dict]:
                 "detail": "mission chat-history row tracks snapshot build time and shadows every real chat for the persona",
             }
         )
+    return warnings
 
+
+def _operator_channel_warnings(frame: _WarningFrame) -> list[dict]:
+    """The Agent Console channel projection: missing, malformed, dangling FKs, and its own warnings."""
+
+    data, instances, warnings = frame.data, frame.instances, []
     channels = data.get("operator_channels")
     if channels is None:
         warnings.append(
@@ -312,6 +367,21 @@ def _parity_warnings(data) -> list[dict]:
     # ``tests/agent_runtime/test_parity_warning_catalog.py`` fails if any
     # warning code in this module stops being producible.
     return warnings
+
+
+#: The persona-runtime parity checks, IN ORDER (the order warnings appear in the
+#: frame), one row per check (rule 12). Board and office warnings run first and
+#: unconditionally in :func:`_parity_warnings`; these run only when the persona
+#: instance runtime is enabled. ``tests/agent_runtime/test_parity_warning_catalog.py``
+#: reds when a warning code leaves.
+PARITY_WARNINGS: tuple[tuple[str, Callable[[_WarningFrame], list[dict]]], ...] = (
+    ("duplicate_instances", _duplicate_instance_warnings),
+    ("orphan_instances", _orphan_instance_warnings),
+    ("referential", _referential_warnings),
+    ("chat_timestamps", _chat_timestamp_warnings),
+    ("live_mission_shadow", _live_mission_shadow_warnings),
+    ("operator_channels", _operator_channel_warnings),
+)
 
 
 # A mission row anchored to its assignment's persisted created_at only matches

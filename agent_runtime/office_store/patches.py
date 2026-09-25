@@ -107,7 +107,7 @@ def _emit_actor_patch(
     """
 
     try:
-        from ..snapshot import MAX_OFFICE_ACTORS_PROJECTED
+        from ..office_models import MAX_OFFICE_ACTORS_PROJECTED
         from ..state_patches import emit_office_actor_patch, emit_office_actor_refresh
 
         scan = store.scan_actors(actor.workspace_id)

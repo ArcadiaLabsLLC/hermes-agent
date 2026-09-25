@@ -9,6 +9,8 @@ from typing import Any
 
 from agent_runtime.redaction import TEXT_SECRET_ASSIGNMENT_RE
 
+__layer__ = "policy"
+
 __all__ = [
     "BUILD_CALLER_UNKNOWN",
     "BUILD_ROLE_CACHE",

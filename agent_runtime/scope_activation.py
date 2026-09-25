@@ -100,7 +100,7 @@ def workspace_row(workspace, *, full: bool = False) -> dict:
     The hand-rolled twin this replaces is what shipped the ``tasks`` NameError
     (`a21ab1a2a`): a field the snapshot row had already dropped survived here
     because nothing tied the two together. Every value below now comes from
-    ``_workspace_summary``; the CLI owns only the key SUBSET (skinny vs
+    ``workspace_summary``; the CLI owns only the key SUBSET (skinny vs
     ``--full``).
 
     Deliberate deviations, each with a reason:
@@ -111,21 +111,21 @@ def workspace_row(workspace, *, full: bool = False) -> dict:
     * timestamps stay as ``datetime`` rather than the builder's value, because
       the Stage-42 printer (``emit_json`` -> ``to_jsonable``) is the
       serialization authority for this lane; pre-serializing here would change
-      the ``--output table`` rendering for no reason. ``_workspace_summary``
+      the ``--output table`` rendering for no reason. ``workspace_summary``
       passes ``updated_at`` through unconverted anyway, so this is a no-op for
       workspaces and kept only for symmetry with the board/office rows.
 
     The builder import is FUNCTION-LOCAL on purpose (all six rows do this): a
-    module-level ``from … import _workspace_summary`` binds whichever
+    module-level ``from … import workspace_summary`` binds whichever
     definition existed at CLI import time, which is itself a second reference
     to the authority. Resolving through the module on every call means there is
     exactly one live definition and it is the snapshot module's.
     """
 
     from agent_runtime.persona_assignments import PersonaInstanceStore
-    from agent_runtime.snapshot import _workspace_summary
+    from agent_runtime.snapshot import workspace_summary
 
-    summary = _workspace_summary(workspace, persona_instances=PersonaInstanceStore().list_all())
+    summary = workspace_summary(workspace, persona_instances=PersonaInstanceStore().list_all())
     row = {
         key: summary[key]
         for key in (
@@ -153,15 +153,15 @@ def realm_row(realm, *, full: bool = False) -> dict:
     (S48, ledger item 4).
 
     The hand-rolled twin this replaces is where ``"sync": "in_sync"`` was
-    hardcoded (`a21ab1a2a`) — the exact fake ``_realm_summary`` forbids. The
+    hardcoded (`a21ab1a2a`) — the exact fake ``realm_summary`` forbids. The
     honest sidecar read now happens in ONE place, so the CLI cannot drift from
     the wire again. CLI-only additions (never on the wire, both plain model
     scalars): ``sync_manifest_ref`` and ``created_at``.
     """
 
-    from agent_runtime.snapshot import _realm_summary
+    from agent_runtime.snapshot import realm_summary
 
-    summary = _realm_summary(realm, workspaces=WorkspaceStore().list_all(include_archived=True))
+    summary = realm_summary(realm, workspaces=WorkspaceStore().list_all(include_archived=True))
     row = {
         key: summary[key]
         for key in ("id", "name", "server_id", "default_workspace_id", "default_workspace_version", "workspaces", "sync")

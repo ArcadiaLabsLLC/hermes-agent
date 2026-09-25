@@ -12,8 +12,8 @@ follow-ups for the structural entity_rows consolidation proposal):
    "not checked", never a false all-clear).
 
 S48 (ledger item 4) has since executed the consolidation these two defects
-argued for: both rows are now re-keys of ``_workspace_summary`` /
-``_realm_summary``, so neither field can be answered twice again. These pins
+argued for: both rows are now re-keys of ``workspace_summary`` /
+``realm_summary``, so neither field can be answered twice again. These pins
 are KEPT rather than folded into ``test_entity_row_characterization.py`` —
 they are the historical record of what went wrong, and they must stay true
 through any FUTURE re-shaping of the rows, not only through this one.

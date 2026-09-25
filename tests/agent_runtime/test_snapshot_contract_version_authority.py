@@ -384,7 +384,7 @@ def test_the_contract_version_literal():
     Moving it is a CROSS-REPO change. Before you edit this line:
 
     1. bump ``SNAPSHOT_CONTRACT_VERSION`` in ``agent_runtime/snapshot.py`` and
-       record the ruling in the ``_parity_envelope`` history comment — what
+       record the ruling in the ``parity_envelope`` history comment — what
        left the wire, or what arrived, and why a consumer could not have read
        the frame without the bump;
     2. regenerate BOTH producer-derived fixture families

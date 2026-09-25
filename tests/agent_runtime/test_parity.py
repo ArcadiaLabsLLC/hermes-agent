@@ -338,7 +338,7 @@ def test_the_parity_watermark_does_not_count_events_appended_during_the_build(
     bound on what the core carries.
 
     THE DEFECT THIS NAMES (measured 2026-08-21). The offset used to be stat'd
-    inside ``_parity_envelope``, at the END of a multi-second build whose content
+    inside ``parity_envelope``, at the END of a multi-second build whose content
     was read at the start. An operator who dropped a QA agent onto the office
     canvas while a build was in flight got a core that COUNTED the agent's
     creation events in its offset but did not CARRY the agent in its content. The
@@ -372,7 +372,7 @@ def test_the_parity_watermark_does_not_count_events_appended_during_the_build(
     # rest of the body against the operator's live .hermes (the 2026-08-17 EG-0.1
     # leak the conftest witness now catches).
     with pytest.MonkeyPatch.context() as patched:
-        original = snapshot_mod._parity_envelope
+        original = snapshot_mod.parity_envelope
 
         def _append_then_stamp(data, **kwargs):
             # Mid-build write: the agent the operator just dropped.
@@ -382,9 +382,9 @@ def test_the_parity_watermark_does_not_count_events_appended_during_the_build(
             appended["after"] = events_position()["event_offset"]
             return original(data, **kwargs)
 
-        patched.setattr(snapshot_mod.envelope, "_parity_envelope", _append_then_stamp)
-        patched.setattr(snapshot_mod.sections, "_parity_envelope", _append_then_stamp)
-        patched.setattr(snapshot_mod, "_parity_envelope", _append_then_stamp)
+        patched.setattr(snapshot_mod.envelope, "parity_envelope", _append_then_stamp)
+        patched.setattr(snapshot_mod.sections, "parity_envelope", _append_then_stamp)
+        patched.setattr(snapshot_mod, "parity_envelope", _append_then_stamp)
 
         offset = build_snapshot()["parity"]["watermark"]["event_offset"]
 

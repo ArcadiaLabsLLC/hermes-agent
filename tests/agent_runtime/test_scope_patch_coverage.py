@@ -127,28 +127,31 @@ def _plain(offset: int, event_type: str, **payload):
 #: text is stable under exactly the edits that do not add a reader, and the
 #: failure message below prints the live line numbers so the plan's spelling
 #: stays checkable by hand.
+#: (Lane R3 turned the snapshot's section builder into ``SnapshotFrameBuild``: the
+#: seven readers are the same seven, spelled on ``self`` — the derivability answer
+#: is unchanged.)
 _ACTIVE_ID_READERS: dict[str, str] = {
     "active workspace NAME for the situational HUD": (
-        '(getattr(w, "name", None) for w in workspaces '
-        'if getattr(w, "id", None) == workspace_store.active_id()),'
+        '(getattr(w, "name", None) for w in self.workspaces '
+        'if getattr(w, "id", None) == self.workspace_store.active_id()),'
     ),
     "active realm NAME for the situational HUD": (
-        '(getattr(r, "name", None) for r in realms '
-        'if getattr(r, "id", None) == realm_store.active_id()),'
+        '(getattr(r, "name", None) for r in self.realms '
+        'if getattr(r, "id", None) == self.realm_store.active_id()),'
     ),
     "prompt_observability roster scoping kwarg": (
-        "active_workspace_id=workspace_store.active_id(),"
+        "active_workspace_id=self.workspace_store.active_id(),"
     ),
     "per-row active flag on the workspace summaries": (
-        "active_id=workspace_store.active_id(),"
+        "active_id=self.workspace_store.active_id(),"
     ),
     "per-row active flag on the realm summaries": (
-        "_realm_summary(item, workspaces=workspaces, active_id=realm_store.active_id())"
+        "realm_summary(item, workspaces=self.workspaces, active_id=self.realm_store.active_id())"
     ),
     "top-level active_workspace_id pointer": (
-        '"active_workspace_id": workspace_store.active_id(),'
+        '"active_workspace_id": self.workspace_store.active_id(),'
     ),
-    "top-level active_realm_id pointer": ('"active_realm_id": realm_store.active_id(),'),
+    "top-level active_realm_id pointer": ('"active_realm_id": self.realm_store.active_id(),'),
 }
 
 #: The three readers above whose value does NOT reach the client as a pointer or

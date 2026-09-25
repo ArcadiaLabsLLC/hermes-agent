@@ -13,9 +13,9 @@ from agent_runtime.profile_home import (
 )
 from agent_runtime import paths
 from agent_runtime.persona_assignments import persona_instance_visibility_ref
-from agent_runtime.persona_chat_history import _SECRET_RE
+from agent_runtime.persona_chat_history.vocabulary import _SECRET_RE
 from agent_runtime.personas import effective_toolsets
-from agent_runtime.realm_sync import read_realm_sync_sidecar
+from agent_runtime.realm_sync.sidecar import read_realm_sync_sidecar
 from agent_runtime.repo_context import resolve_affected_repo_workdir
 from agent_runtime.tool_visibility import (
     _profile_readiness_for_visibility,
@@ -24,6 +24,8 @@ from agent_runtime.tool_visibility import (
 from agent_runtime.workspace_scope import exact_scoped_instance_ids
 
 from agent_runtime.snapshot.context import logger
+
+__layer__ = "stores"
 
 __all__ = [
     "_PROFILE_TEMPLATE_TTL_SECONDS",
@@ -35,17 +37,17 @@ __all__ = [
     "_profile_persona_reconcile_tick",
     "_profile_template_memo",
     "_profile_templates_cached",
-    "_realm_summary",
+    "realm_summary",
     "_repo_scope_entry",
     "_repo_scopes_summary",
     "_safe_model_label",
     "_safe_repo_scope_label",
     "_safe_text",
-    "_workspace_summary",
+    "workspace_summary",
 ]
 
 
-def _workspace_summary(
+def workspace_summary(
     workspace,
     *,
     persona_instances=(),
@@ -86,7 +88,7 @@ def _workspace_summary(
     }
 
 
-def _realm_summary(realm, *, workspaces, active_id: str | None = None) -> dict:
+def realm_summary(realm, *, workspaces, active_id: str | None = None) -> dict:
     workspace_ids = [workspace.id for workspace in workspaces if getattr(workspace, "realm_id", None) == realm.id]
     configured_ids = list(getattr(realm, "workspace_ids", []) or [])
     merged_ids = list(dict.fromkeys([*configured_ids, *workspace_ids]))

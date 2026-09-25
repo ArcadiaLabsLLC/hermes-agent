@@ -15,15 +15,15 @@ files moved under S46/S47 and `e887cdf26`):
 ======================= ============================== ========================
 CLI projection          verbs                          builder it now re-keys
 ======================= ============================== ========================
-harness `_workspace_row`  workspace list/show/create/     `_workspace_summary`
+harness `_workspace_row`  workspace list/show/create/     `workspace_summary`
                           rename/bind-realm/set-active/
                           delete --dry-run/archive
-harness `_realm_row`      realm list/show/create/         `_realm_summary`
+harness `_realm_row`      realm list/show/create/         `realm_summary`
                           bind-server/rename/adopt
 board `_board_row`        board list/show/create/update   `board_summary_row`
-board `_card_row`         board card add/edit/move/       `_board_card_row`
+board `_card_row`         board card add/edit/move/       `board_card_row`
                           archive/restore/resolve-conflict
-office `_office_actor_row` office actor upsert/remove/    `_office_actor_summary_row`
+office `_office_actor_row` office actor upsert/remove/    `office_actor_summary_row`
                           restore/resolve-conflict
 ======================= ============================== ========================
 
@@ -509,32 +509,32 @@ def test_workspace_row_delegates_to_the_snapshot_builder(fixture_store, monkeypa
 
     from agent_runtime import snapshot
 
-    real = snapshot._workspace_summary
+    real = snapshot.workspace_summary
 
     def _tagged(workspace, **kwargs):
         row = real(workspace, **kwargs)
         row["name"] = "FROM-BUILDER"
         return row
 
-    monkeypatch.setattr(snapshot.summaries, "_workspace_summary", _tagged)
-    monkeypatch.setattr(snapshot.sections, "_workspace_summary", _tagged)
-    monkeypatch.setattr(snapshot, "_workspace_summary", _tagged)
+    monkeypatch.setattr(snapshot.summaries, "workspace_summary", _tagged)
+    monkeypatch.setattr(snapshot.sections, "workspace_summary", _tagged)
+    monkeypatch.setattr(snapshot, "workspace_summary", _tagged)
     assert workspace_commands._workspace_row(fixture_store["workspace"])["name"] == "FROM-BUILDER"
 
 
 def test_realm_row_delegates_to_the_snapshot_builder(fixture_store, monkeypatch):
     from agent_runtime import snapshot
 
-    real = snapshot._realm_summary
+    real = snapshot.realm_summary
 
     def _tagged(realm, **kwargs):
         row = real(realm, **kwargs)
         row["name"] = "FROM-BUILDER"
         return row
 
-    monkeypatch.setattr(snapshot.summaries, "_realm_summary", _tagged)
-    monkeypatch.setattr(snapshot.sections, "_realm_summary", _tagged)
-    monkeypatch.setattr(snapshot, "_realm_summary", _tagged)
+    monkeypatch.setattr(snapshot.summaries, "realm_summary", _tagged)
+    monkeypatch.setattr(snapshot.sections, "realm_summary", _tagged)
+    monkeypatch.setattr(snapshot, "realm_summary", _tagged)
     assert realm_commands._realm_row(fixture_store["realm"])["name"] == "FROM-BUILDER"
 
 
@@ -542,7 +542,7 @@ def test_board_and_card_rows_delegate_to_the_snapshot_builders(fixture_store, mo
     from agent_runtime import snapshot
 
     real_board = snapshot.board_summary_row
-    real_card = snapshot._board_card_row
+    real_card = snapshot.board_card_row
 
     def _tagged_board(board, cards, **kwargs):
         row = real_board(board, cards, **kwargs)
@@ -556,8 +556,8 @@ def test_board_and_card_rows_delegate_to_the_snapshot_builders(fixture_store, mo
 
     monkeypatch.setattr(snapshot.boards, "board_summary_row", _tagged_board)
     monkeypatch.setattr(snapshot, "board_summary_row", _tagged_board)
-    monkeypatch.setattr(snapshot.boards, "_board_card_row", _tagged_card)
-    monkeypatch.setattr(snapshot, "_board_card_row", _tagged_card)
+    monkeypatch.setattr(snapshot.boards, "board_card_row", _tagged_card)
+    monkeypatch.setattr(snapshot, "board_card_row", _tagged_card)
     boards, board = fixture_store["boards"], fixture_store["board"]
     assert board_commands._board_row(boards, board)["title"] == "FROM-BUILDER"
     assert board_commands._card_row(fixture_store["card"])["priority"] == "FROM-BUILDER"
@@ -567,7 +567,7 @@ def test_office_rows_delegate_to_the_snapshot_builders(fixture_store, monkeypatc
     from agent_runtime import snapshot
 
     real_surface = snapshot.office_summary_row
-    real_actor = snapshot._office_actor_summary_row
+    real_actor = snapshot.office_actor_summary_row
 
     def _tagged_surface(surface, actors, **kwargs):
         row = real_surface(surface, actors, **kwargs)
@@ -581,8 +581,8 @@ def test_office_rows_delegate_to_the_snapshot_builders(fixture_store, monkeypatc
 
     monkeypatch.setattr(snapshot.offices, "office_summary_row", _tagged_surface)
     monkeypatch.setattr(snapshot, "office_summary_row", _tagged_surface)
-    monkeypatch.setattr(snapshot.offices, "_office_actor_summary_row", _tagged_actor)
-    monkeypatch.setattr(snapshot, "_office_actor_summary_row", _tagged_actor)
+    monkeypatch.setattr(snapshot.offices, "office_actor_summary_row", _tagged_actor)
+    monkeypatch.setattr(snapshot, "office_actor_summary_row", _tagged_actor)
     office, workspace = fixture_store["office"], fixture_store["workspace"]
     assert office_commands._office_surface_row(office, workspace.id)["folders"] == ["FROM-BUILDER"]
     assert office_commands._office_actor_row(fixture_store["actor"])["persona_id"] == "FROM-BUILDER"
