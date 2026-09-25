@@ -99,7 +99,7 @@ from agent_runtime.mission_chat_turns.reads import (
     mission_chat_turn_records,
 )
 
-__layer__ = "wiring"
+__layer__ = "stores"
 
 __all__ = [
     "ALL_TURN_STATES",

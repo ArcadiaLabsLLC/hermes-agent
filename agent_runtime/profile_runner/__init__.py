@@ -110,7 +110,7 @@ from agent_runtime.profile_runner.model_input_observability import (
     _system_prompt_section_receipts,
 )
 
-__layer__ = "wiring"
+__layer__ = "lanes"
 
 __all__ = [
     "AgentRunRequest",

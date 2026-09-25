@@ -108,7 +108,7 @@ from agent_runtime.snapshot.summaries import (
 )
 
 
-__layer__ = "wiring"
+__layer__ = "lanes"
 
 __all__ = [
     "AgentStore",

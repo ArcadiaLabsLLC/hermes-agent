@@ -213,7 +213,7 @@ from agent_runtime.terminal_envelope.receipts import (
     record_legacy_block,
 )
 
-__layer__ = "wiring"
+__layer__ = "stores"
 
 __all__ = [
     "AUDIT_ROOT_SOURCE_ENV",

@@ -123,7 +123,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-25 (lane 2B-A)
 
-- [ ] **Layout sheets declare every package `__init__` map `wiring`, which makes each DECLARED importer of the package path an upward edge** · `fork / refactor` · `store/`, `board_store/`, `dispatch_store/` each had to declare their map `stores`/`lanes` (41 upward edges for `store` alone as `wiring`); the rule a sheet should state: a map takes the highest layer it re-exports, capped by its lowest declared importer — or the sheet names the importers it retargets · evidence: lane 2B-A MOVE commit bodies (store, board_store, dispatch_store) · filed by lane 2B-A 2026-09-25 **UNCLAIMED** **TAKEN 2026-09-25 lane W3-A**
 - [ ] **`test_pruning_never_deletes_an_undelivered_answer` passes whether or not its `_MAX_RETAINED_TERMINAL` seam binds** · `fork / suite` · reverting its `setattr` to the package (a no-op) stays green: the negative assertion ("nothing pending was deleted") holds at the real cap of 200 because the fall-through is never reached — its docstring says the fixture is "shaped so the fall-through is REACHED" but nothing checks it; wants a positive control (the delivered rows ARE pruned at cap 1) · evidence: lane 2B-A dispatch_store MOVE body · filed by lane 2B-A 2026-09-25 **UNCLAIMED**
 
 ## Filed on arrival — 2026-09-25 (lane Q-DEAD-A)
@@ -138,7 +137,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 ## Filed on arrival — 2026-09-25 (lane Q-GATES)
 
 - [ ] **The live-system guard's refusal tests spawn the REAL command when the refusal list regresses** · `fork / tests` · dropping `serve` from `_BACKEND_SUBCOMMANDS` (tests/conftest.py) made `test_subprocess_run_hermes_serve_blocked` start a live `hermes serve --port 8090` from the operator runtime; point every blocked-spawn case in `tests/test_live_system_guard_self_test_downstream.py` at an absent `hermes` path (the pattern its pass-through cases now use) so a regression reds with FileNotFoundError instead of booting a backend · evidence: lane Q-GATES commit `test(guard): lookalike and pass-through …` body · filed by lane Q-GATES 2026-09-25
-- [ ] **W0-G6's runtime arm reds on 6 upward imports on main, hidden until now behind the `acp` ModuleNotFoundError** · `fork / gates` · `dispatch_store.db` (stores) -> `tools.agent_chat_dispatch` (wiring, walked since the G6 fork-only-tree extension); `persona_chat_history.curation` ×2 / `.markers` (policy) -> `mission_chat_turns.reads` (stores); `harness_parts.persona.chat_history_writes` (stores) -> `agent_runtime.chat_live_log` (wiring) ×2 — all batch-2 exec files; re-layer or invert each; the arm has no grandfather list, so it stays red until they move · evidence: `pytest tests/tooling/test_fork_import_layers.py -k bound_at_runtime` on lane Q-GATES' tip · filed by lane Q-GATES 2026-09-25 **TAKEN 2026-09-25 lane W3-A**
 ## Filed on arrival — 2026-09-25 (lane S3)
 
 - [ ] **tools_conftest.py's known-defect lane runs the pre-ML-16 classifier (`failed` only, no owner-prefix filter) — a strict xfail in tests/tools would retire its own banner** · `fork / suite` · fold onto `_env_gap_fence.KnownDefectTracker` (lane B5 creates it) with the xfail control · evidence: god-file-layout-sheets/hermes_cli_conftest.md §2 row 3 · filed by lane S3 2026-09-25 **UNCLAIMED**
@@ -146,7 +144,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-25 (lane B1)
 
-- [ ] **Package maps declared `wiring` by default put an upward edge on every reader of the package — `agent_runtime/chat_live_log/__init__.py` still does (read by `hermes_cli/harness_parts/persona/chat_history_writes.py`); `tools/agent_chat_dispatch`'s was corrected by lane B1** · `fork / gates` · the 2B-A row above is the class; this is the one instance left on main — re-declare the map from what it imports (lane W3-A) · evidence: B1 commits 005657f97b, fd0d96b67d · filed by lane B1 2026-09-25 **UNCLAIMED** **TAKEN 2026-09-25 lane W3-A**
 - [ ] **The agent_chat registrations wrap each handler in a lambda, so a missing handler import is a NameError at call time that no registration test sees** · `fork / gates` · the sheet's MOVE mutation stayed green because of it; register the bound callable, or a registration test that calls each registered entry once with a refusing payload · evidence: B1 commit 005657f97b · filed by lane B1 2026-09-25 **UNCLAIMED** **TAKEN 2026-09-25 lane W3-A**
 
 ## Filed on arrival — 2026-09-25 (lane B3)

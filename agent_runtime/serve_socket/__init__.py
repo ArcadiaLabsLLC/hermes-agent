@@ -95,7 +95,7 @@ from agent_runtime.serve_socket.target import (
 )
 from agent_runtime.serve_socket.client import ServeSocketClient
 
-__layer__ = "wiring"
+__layer__ = "lanes"
 
 __all__ = [
     "AUTH_FAILURE_REJECT_REASONS",

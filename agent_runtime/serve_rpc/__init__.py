@@ -100,7 +100,7 @@ from agent_runtime.serve_rpc.peer import (
     PEER_THREAD_UNREADABLE_REASON,
 )
 
-__layer__ = "wiring"
+__layer__ = "lanes"
 
 __all__ = [
     "CORRELATION_ID_INVALID_REASON",

@@ -136,7 +136,7 @@ from .refusals import (  # noqa: F401
     NO_DIAL_HOST_SENTENCE,
 )
 
-__layer__ = "wiring"
+__layer__ = "lanes"
 
 __all__ = [
     "cmd_gateway_introduce",

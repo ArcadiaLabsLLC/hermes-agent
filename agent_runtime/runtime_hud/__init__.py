@@ -128,7 +128,7 @@ from agent_runtime.runtime_hud.ambient import (
     situational_hud_for_instance,
 )
 
-__layer__ = "wiring"
+__layer__ = "lanes"
 
 __all__ = [
     "CAPABILITY_HUD_KEY",

@@ -243,4 +243,4 @@ from agent_runtime.state_patches.office import (  # noqa: F401 — the package's
     project_office_actor_wire_row,
 )
 
-__layer__ = "wiring"
+__layer__ = "stores"
