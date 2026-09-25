@@ -388,3 +388,12 @@ def dedupe_tokens(values: list[str] | None) -> list[str]:
 def safe_assignment_text(value: Any, *, limit: int) -> str:
     """:func:`safe_text`, spelled ``""`` for an empty value (store rows persist ``""``)."""
     return safe_text(value, limit=limit) or ""
+
+
+def is_hex(text: str, length: int) -> bool:
+    """Is ``text`` exactly ``length`` LOWERCASE hex digits? The one spelling.
+
+    Lowercase only, because every caller has already lowered (or must not
+    accept an upper-case spelling of an id it will compare byte-for-byte).
+    """
+    return len(text) == length and all(ch in "0123456789abcdef" for ch in text)

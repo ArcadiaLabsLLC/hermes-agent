@@ -52,7 +52,7 @@ import threading
 from pathlib import Path
 from typing import Any, Callable
 
-from .gateway_peers.cache import _unusable_reason
+from .gateway_peers import unusable_reason
 
 __all__ = [
     "PEER_DIRECTORY_CONTRACT",
@@ -99,7 +99,7 @@ def peer_directory_row(record: Any, cache: Any, *, usable_ref: str | None) -> di
         row["last_seen"] = cache.last_seen
     row["usable"] = usable_ref is not None
     row["ref"] = usable_ref
-    row["unusable_reason"] = None if usable_ref is not None else _unusable_reason(
+    row["unusable_reason"] = None if usable_ref is not None else unusable_reason(
         record, cache
     )
     return row

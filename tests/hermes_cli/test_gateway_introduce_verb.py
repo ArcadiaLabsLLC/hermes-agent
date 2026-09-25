@@ -373,7 +373,7 @@ def test_three_introduces_for_one_requester_leave_one_pending_row_per_half(capsy
     """
 
     from agent_runtime.gateway_pairing_codes import KIND_DEVICE, KIND_PEER
-    from agent_runtime.serve_gateway_auth import _read_pairing
+    from agent_runtime.serve_gateway_auth import read_pairing
 
     for _ in range(3):
         code, payload = _introduce(
@@ -381,7 +381,7 @@ def test_three_introduces_for_one_requester_leave_one_pending_row_per_half(capsy
         )
         assert code == 0, payload
 
-    pending = _read_pairing(paths.store_root())["pending"]
+    pending = read_pairing(paths.store_root())["pending"]
     kinds = sorted(entry["kind"] for entry in pending.values())
     assert kinds == [KIND_DEVICE, KIND_PEER]
     assert {entry.get("for_install_id") for entry in pending.values()} == {

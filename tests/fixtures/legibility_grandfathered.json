@@ -66,11 +66,6 @@
    "unit": "agent_runtime/events.py|_archived_event_slices"
   },
   {
-   "depth": 3,
-   "lines": 172,
-   "unit": "agent_runtime/gateway_peers/dial.py|dial_peer"
-  },
-  {
    "depth": 1,
    "lines": 198,
    "unit": "agent_runtime/mcp_admission.py|admit_mcp_servers"

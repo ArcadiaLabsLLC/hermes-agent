@@ -217,9 +217,12 @@ __all__ = [
     "note_device_seen",
     "pairing_store_path",
     "prune_revoked_devices",
+    "read_pairing",
     "redeem_pairing_code",
     "revoke_device",
+    "store_lock",
     "verify_device_proof",
+    "write_pairing",
 ]
 
 
@@ -632,7 +635,7 @@ def note_device_seen(
         return
     stamp = _iso(now)
     try:
-        with _store_lock(store_root):
+        with store_lock(store_root):
             rows = _read_devices(store_root)
             row = rows.get(device_id)
             if not isinstance(row, dict):
@@ -652,7 +655,7 @@ def revoke_device(
     if not device_id:
         return StoreRefusal("invalid_device_id", "a device id is required")
     try:
-        with _store_lock(store_root):
+        with store_lock(store_root):
             rows = _read_devices(store_root)
             row = rows.get(device_id)
             if not isinstance(row, dict):
@@ -702,7 +705,7 @@ def prune_revoked_devices(
     cutoff = stamp - max(0, int(retention_seconds))
     deleted: list[str] = []
     try:
-        with _store_lock(store_root):
+        with store_lock(store_root):
             rows = _read_devices(store_root)
             for device_id, row in list(rows.items()):
                 if not isinstance(row, dict) or not row.get("revoked"):
@@ -755,8 +758,8 @@ def mint_pairing_code(
     stamp = now if now is not None else time.time()
     requester = _clean_name(for_device_id) or None
     try:
-        with _store_lock(store_root):
-            state = _read_pairing(store_root)
+        with store_lock(store_root):
+            state = read_pairing(store_root)
             expire_pending(state, now=stamp)
             # R-D5, the device half. Same ruling and same ordering as
             # ``gateway_peers.mint_peer_code``: before the cap is counted, so a
@@ -807,7 +810,7 @@ def mint_pairing_code(
                 },
                 now=stamp,
             )
-            _write_pairing(store_root, state)
+            write_pairing(store_root, state)
             return PairingCode(
                 code=code,
                 request_id=request_id,
@@ -844,12 +847,12 @@ def redeem_pairing_code(
     if not candidate:
         return StoreRefusal("invalid_code", "a pairing code is required")
     try:
-        with _store_lock(store_root):
-            state = _read_pairing(store_root)
+        with store_lock(store_root):
+            state = read_pairing(store_root)
             expire_pending(state, now=stamp)
             locked = lockout_remaining(state, now=stamp)
             if locked:
-                _write_pairing(store_root, state)
+                write_pairing(store_root, state)
                 return StoreRefusal(
                     "locked_out",
                     f"too many failed pairing attempts; retry in {locked}s",
@@ -857,7 +860,7 @@ def redeem_pairing_code(
             found = match_pending(state, candidate, kind=KIND_DEVICE)
             if found is None:
                 note_failed_redeem(state, now=stamp)
-                _write_pairing(store_root, state)
+                write_pairing(store_root, state)
                 return StoreRefusal(
                     "invalid_code", "no pending pairing code matches (or it expired)"
                 )
@@ -866,7 +869,7 @@ def redeem_pairing_code(
             del pending_codes(state)[matched_id]
             state["failed_redeems"] = 0
             state["locked_until"] = 0.0
-            _write_pairing(store_root, state)
+            write_pairing(store_root, state)
 
             token = secrets.token_hex(DEVICE_TOKEN_BYTES)
             device_id = f"dev_{secrets.token_hex(8)}"
@@ -1013,7 +1016,7 @@ def _write_devices(store_root: Path | str, rows: dict[str, Any]) -> None:
     )
 
 
-def _read_pairing(store_root: Path | str) -> dict[str, Any]:
+def read_pairing(store_root: Path | str) -> dict[str, Any]:
     payload = _read_json(pairing_store_path(store_root))
     payload.setdefault("pending", {})
     if not isinstance(payload["pending"], dict):
@@ -1021,7 +1024,7 @@ def _read_pairing(store_root: Path | str) -> dict[str, Any]:
     return payload
 
 
-def _write_pairing(store_root: Path | str, state: dict[str, Any]) -> None:
+def write_pairing(store_root: Path | str, state: dict[str, Any]) -> None:
     state["contract"] = DEVICE_STORE_CONTRACT
     _write_secure(pairing_store_path(store_root), state)
 
@@ -1032,11 +1035,13 @@ def _write_pairing(store_root: Path | str, state: dict[str, Any]) -> None:
 # exposure" rationale that used to sit on the ACL helper here. Stage 6's
 # ``gateway_peers`` is the second importer and is why the last four moved: two
 # credential stores in one directory that each restated the same write is the
-# exact group ``test_duplicate_helper_bodies`` would have named next. The
-# conventional private names stay so call sites and tests read unchanged.
+# exact group ``test_duplicate_helper_bodies`` would have named next.
+# ``read_pairing`` / ``write_pairing`` / ``store_lock`` are PUBLIC since the
+# gateway_peers split (layout sheet §3): ``gateway_peers.ceremony`` spends all
+# three, and a private name read from another module is a door nobody owns.
 
 
-def _store_lock(store_root: Path | str, *, timeout_seconds: float = 10.0):
+def store_lock(store_root: Path | str, *, timeout_seconds: float = 10.0):
     """This root's gateway-directory lock. ONE lock file, both ceremonies.
 
     ``devices.lock`` is shared with ``gateway_peers`` rather than split per

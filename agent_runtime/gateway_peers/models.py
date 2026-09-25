@@ -12,13 +12,13 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 from ..gateway_identity import gateway_dir
+from ..serde import is_hex
 from ..store_file_io import stamp_passed as _stamp_passed
 
 __layer__ = "models"
-
 
 
 # ── constants ────────────────────────────────────────────────────────────────
@@ -66,6 +66,19 @@ PEER_AUTH_MALFORMED = "hello_malformed"
 #: spelling of ``peer_revoked``, for :data:`~agent_runtime.serve_gateway_auth.AUTH_EXPIRED`'s
 #: reason: an operator re-runs a ceremony for one and does nothing for the other.
 PEER_AUTH_EXPIRED = "peer_expired"
+#: The six outcomes as one closed vocabulary; ``PeerAuth.outcome`` is one of
+#: them and :func:`verify_peer_proof` is their one writer. Plain constants and
+#: NOT an Enum: ``ok`` and ``unknown``-class words are fork-wide
+#: (``turn_visibility``, ``RpcRefusal``), so an Enum here would make W0-G5
+#: arm (c) count every unrelated ``== "ok"`` in the fork (layout sheet §2).
+PEER_AUTH_REASONS: Final[tuple[str, ...]] = (
+    PEER_AUTH_OK,
+    PEER_AUTH_UNKNOWN,
+    PEER_AUTH_REVOKED,
+    PEER_AUTH_BAD_PROOF,
+    PEER_AUTH_MALFORMED,
+    PEER_AUTH_EXPIRED,
+)
 
 
 # ── typed results ────────────────────────────────────────────────────────────
@@ -112,7 +125,7 @@ class PeerCredential:
     #: ``None`` for never. Returned so the redeeming side can put it on the ONE
     #: ``hello_ok`` that carries the secret: the joining install has no other
     #: way to learn it, and two ends of one edge that expire on different days
-    #: is precisely the divergence :func:`_row` exists to prevent.
+    #: is precisely the divergence :func:`~agent_runtime.gateway_peers.trust_store.peer_row` exists to prevent.
     expires_at: str | None = None
 
     @property
@@ -192,6 +205,7 @@ class PeerAuth:
     a connection with a peer whose proof did not verify.
     """
 
+    #: One of :data:`PEER_AUTH_REASONS`.
     outcome: str
     peer_install_id: str | None = None
     record: PeerRecord | None = None
@@ -263,9 +277,7 @@ def _clean_fingerprint(value: Any) -> str | None:
     """
 
     text = str(value or "").strip().lower()
-    if len(text) != 64 or any(ch not in "0123456789abcdef" for ch in text):
-        return None
-    return text
+    return text if is_hex(text, 64) else None
 
 
 # ── internals ────────────────────────────────────────────────────────────────
@@ -329,6 +341,12 @@ PEER_CACHE_CONTRACT = 1
 REACHABILITY_UNKNOWN = "unknown"
 REACHABILITY_REACHABLE = "reachable"
 REACHABILITY_UNREACHABLE = "unreachable"
+#: The three words as one vocabulary; ``note_dial_result`` is their one writer.
+REACHABILITY_STATES: Final[tuple[str, ...]] = (
+    REACHABILITY_UNKNOWN,
+    REACHABILITY_REACHABLE,
+    REACHABILITY_UNREACHABLE,
+)
 
 #: The cache row's keys, declared for the same reason the trust row's are: a
 #: field added here without being listed fails ``_cache_row``'s partition test,
@@ -362,6 +380,14 @@ PEER_EVENT_REVOKED = "gateway.peer.revoked"
 PEER_EVENT_UPDATED = "gateway.peer.updated"
 PEER_EVENT_ROSTER = "gateway.peer.roster"
 PEER_EVENT_REACHABILITY = "gateway.peer.reachability"
+#: The five types as one vocabulary; the store doors are their only writers.
+PEER_EVENT_TYPES: Final[tuple[str, ...]] = (
+    PEER_EVENT_RECORDED,
+    PEER_EVENT_REVOKED,
+    PEER_EVENT_UPDATED,
+    PEER_EVENT_ROSTER,
+    PEER_EVENT_REACHABILITY,
+)
 
 #: How many roster rows one cached peer keeps. The HUD shows eight; this is the
 #: store's own ceiling so a far install with two hundred agents cannot grow this
@@ -456,3 +482,24 @@ class UsablePeer:
 
 def peer_cache_path(store_root: Path | str) -> Path:
     return gateway_dir(store_root) / PEER_CACHE_FILENAME
+
+
+def _guard_vocabularies() -> None:
+    """Refuse at import a vocabulary that spells one word twice.
+
+    Each tuple above is the one declaration of its words; two members with one
+    spelling would make two outcomes (two events, two reachability states)
+    indistinguishable to every reader downstream — the
+    ``mission_chat_outcome._guard_turn_outcome_vocabulary`` pattern.
+    """
+
+    for name, words in (
+        ("PEER_AUTH_REASONS", PEER_AUTH_REASONS),
+        ("REACHABILITY_STATES", REACHABILITY_STATES),
+        ("PEER_EVENT_TYPES", PEER_EVENT_TYPES),
+    ):
+        if len(set(words)) != len(words):
+            raise RuntimeError(f"{name} spells one word twice: {sorted(words)}")
+
+
+_guard_vocabularies()

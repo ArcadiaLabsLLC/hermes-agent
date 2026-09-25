@@ -313,7 +313,7 @@ def test_revoked_you_makes_the_next_send_refuse_deterministically_before_any_dia
     apply_peer_announce(paired, PEER_A, {"revoked_you": True})
 
     monkeypatch.setattr(
-        serve_socket,
+        serve_socket.client,
         "ServeSocketClient",
         lambda *a, **k: (_ for _ in ()).throw(
             AssertionError("resolution dialled a peer that revoked us")

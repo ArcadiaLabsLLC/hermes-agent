@@ -35,7 +35,7 @@ because the file's own name covers only half of it:
   a wrong answer — provided every reader knows which kind it is holding.
 
 The two sets are declared as :data:`PEER_ROW_TRUST_FIELDS` and
-:data:`PEER_ROW_CACHE_FIELDS` beside :func:`_row`, and a test asserts they
+:data:`PEER_ROW_CACHE_FIELDS` beside :func:`peer_row`, and a test asserts they
 partition its keys exactly — so a new field cannot be added without being
 classified. That is the whole mechanism: a label nothing checks is a comment.
 
@@ -196,7 +196,7 @@ re-exported below, so no importer changes with the package.
 
 from __future__ import annotations
 
-from ..serve_gateway_auth import _store_lock  # noqa: F401
+from ..serve_gateway_auth import store_lock  # noqa: F401
 from .cache import (  # noqa: F401
     _CACHE_WRITE_LOCK,
     _touch_cache,
@@ -205,6 +205,7 @@ from .cache import (  # noqa: F401
     cache_peer_roster,
     note_dial_result,
     read_peer_cache,
+    unusable_reason,
     usable_peers,
 )
 from .ceremony import (  # noqa: F401
@@ -221,6 +222,7 @@ from .models import (  # noqa: F401
     PEER_AUTH_EXPIRED,
     PEER_AUTH_MALFORMED,
     PEER_AUTH_OK,
+    PEER_AUTH_REASONS,
     PEER_AUTH_REVOKED,
     PEER_AUTH_UNKNOWN,
     PEER_CACHE_CONTRACT,
@@ -231,6 +233,7 @@ from .models import (  # noqa: F401
     PEER_EVENT_RECORDED,
     PEER_EVENT_REVOKED,
     PEER_EVENT_ROSTER,
+    PEER_EVENT_TYPES,
     PEER_EVENT_UPDATED,
     PEER_PROOF_ALGORITHM,
     PEER_PROOF_CONTRACT,
@@ -240,6 +243,7 @@ from .models import (  # noqa: F401
     PEER_STORE_CONTRACT,
     PEER_STORE_FILENAME,
     REACHABILITY_REACHABLE,
+    REACHABILITY_STATES,
     REACHABILITY_UNKNOWN,
     REACHABILITY_UNREACHABLE,
     PeerAuth,
@@ -258,13 +262,13 @@ from .trust_store import (  # noqa: F401
     _decode_peer,
     _emit_peer_event,
     _read_peers,
-    _row,
     _write_peers,
     list_peers,
     lookup_peer,
     note_peer_seen,
     note_peer_store_read,
     peer_proof,
+    peer_row,
     peer_secret_verifier,
     peer_store_revision,
     record_peer,
@@ -280,12 +284,14 @@ __all__ = [
     "PEER_CACHE_FILENAME",
     "PEER_CACHE_ROW_FIELDS",
     "PEER_EVENT_REACHABILITY",
+    "PEER_EVENT_TYPES",
     "PEER_EVENT_RECORDED",
     "PEER_EVENT_REVOKED",
     "PEER_EVENT_ROSTER",
     "PEER_EVENT_UPDATED",
     "REACHABILITY_REACHABLE",
     "REACHABILITY_UNKNOWN",
+    "REACHABILITY_STATES",
     "REACHABILITY_UNREACHABLE",
     "PeerCacheRow",
     "UsablePeer",
@@ -297,9 +303,11 @@ __all__ = [
     "peer_cache_path",
     "peer_store_revision",
     "read_peer_cache",
+    "unusable_reason",
     "usable_peers",
     "PEER_AUTH_BAD_PROOF",
     "PEER_AUTH_EXPIRED",
+    "PEER_AUTH_REASONS",
     "PEER_AUTH_MALFORMED",
     "PEER_AUTH_OK",
     "PEER_AUTH_REVOKED",

@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from ..gateway_identity import clean_display_name
-from ..serve_gateway_auth import _store_lock
+from ..serve_gateway_auth import store_lock
 from ..store_file_io import iso_stamp as _iso
 from ..store_file_io import read_json_object as _read_json
 from ..store_file_io import write_secure_json as _write_secure
@@ -39,7 +39,6 @@ from .models import (
 )
 
 __layer__ = "stores"
-
 
 
 def read_peer_cache(store_root: Path | str) -> dict[str, PeerCacheRow]:
@@ -533,7 +532,7 @@ def _touch_cache(
         return
     previous_reachability = None
     try:
-        with _CACHE_WRITE_LOCK, _store_lock(store_root):
+        with _CACHE_WRITE_LOCK, store_lock(store_root):
             rows = _read_cache_rows(store_root)
             existing = rows.get(resolved)
             previous = _decode_cache(resolved, existing)
@@ -576,7 +575,7 @@ def _touch_cache(
     )
 
 
-def _unusable_reason(record: Any, cache: Any) -> str:
+def unusable_reason(record: Any, cache: Any) -> str:
     """The resolver's own vocabulary, so one condition has one word everywhere."""
 
     from ..gateway_targets import (

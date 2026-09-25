@@ -304,7 +304,7 @@ Counts are `git grep "^def NAME(\|^    def NAME("` over the fork's production tr
 | `serde.safe_text` | 9 files (`board_store`, `child_events`, `events`, `parity`, `persona_chat_continuity`, `persona_profile_binding`, `running_work`, `snapshot`, `tool_turn_history`) | R1/R2 |
 | `serde.read_json` | 6 (`board_store`, `mission_chat_steer`, `office_store`, `runtime_instances`, `serve_registry`, `store`) | R1 |
 | `refusals.refusal` | 6 (`flow_graph_sync`, `level_sync`, `map_sync`, `mission_chat_workdir`, `persona_config_sync`, `harness_parts/gateway_commands`) — `tools/agent_chat_tool` is a seventh if T1 runs | R4 creates |
-| `running_work/collect.row` | 5 (`discussions/attempt_store`, `discussions/native`, `gateway_peers`, `realm_sync`, `running_work`) | R2/R4 |
+| `running_work/collect.row` | 4 (`discussions/attempt_store`, `discussions/native`, `realm_sync`, `running_work`); `gateway_peers._row` was a same-NAME different job (a `peers.json` row) and is `gateway_peers.trust_store.peer_row` since B2 | R2/R4 |
 | `store_events.emit_store_event` | 4 `_emit` (`board_store`, `dispatch_store`, `office_store`; `serve.py`'s `_emit` is a frame writer, NOT this — named so nobody folds it) | R1 |
 | **`clock.now_iso`** (new) | 4 `_now_iso` (`chat_live_log` — folded by 2B-B, ruling Q22; `peer_directory`, `serve_registry`, `serve_socket`) | R3 |
 | **`clock.now_iso_micro`** (new, lane 2B-B) | 3 `_utc_now_iso`, the MICROSECOND spelling the turn journal orders by (`mission_chat_turns` and `mission_chat_phases` folded by 2B-B; `persona_chat_continuity`) — never folded onto `now_iso` (milliseconds) | R2 |

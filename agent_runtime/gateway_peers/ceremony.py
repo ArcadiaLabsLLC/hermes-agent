@@ -23,7 +23,7 @@ from ..gateway_pairing_codes import (
     pending_codes,
     supersede_pending,
 )
-from ..serve_gateway_auth import StoreRefusal, _read_pairing, _store_lock, _write_pairing
+from ..serve_gateway_auth import StoreRefusal, read_pairing, store_lock, write_pairing
 from ..store_file_io import HarnessLockUnavailable
 from ..store_file_io import iso_stamp as _iso
 from ..store_file_io import os_error_reason as _os_reason
@@ -36,10 +36,9 @@ from .models import (
     _clean_fingerprint,
     clean_endpoints,
 )
-from .trust_store import _emit_peer_event, _note_write, _read_peers, _row, _write_peers
+from .trust_store import _emit_peer_event, _note_write, _read_peers, _write_peers, peer_row
 
 __layer__ = "lanes"
-
 
 
 def mint_peer_code(
@@ -67,8 +66,8 @@ def mint_peer_code(
     stamp = now if now is not None else time.time()
     requester = str(for_install_id or "").strip()[:128] or None
     try:
-        with _store_lock(store_root):
-            state = _read_pairing(store_root)
+        with store_lock(store_root):
+            state = read_pairing(store_root)
             expire_pending(state, now=stamp)
             # R-D5, and it runs BEFORE the cap is counted rather than after —
             # that ordering IS the ruling. A launcher retrying one stalled edge
@@ -115,7 +114,7 @@ def mint_peer_code(
                 },
                 now=stamp,
             )
-            _write_pairing(store_root, state)
+            write_pairing(store_root, state)
             return PeerPairingCode(
                 code=code, request_id=request_id, note=cleaned, expires_at=expires_at
             )
@@ -163,12 +162,12 @@ def redeem_peer_code(
     if not candidate:
         return StoreRefusal("invalid_code", "a pairing code is required")
     try:
-        with _store_lock(store_root):
-            state = _read_pairing(store_root)
+        with store_lock(store_root):
+            state = read_pairing(store_root)
             expire_pending(state, now=stamp)
             locked = lockout_remaining(state, now=stamp)
             if locked:
-                _write_pairing(store_root, state)
+                write_pairing(store_root, state)
                 return StoreRefusal(
                     "locked_out",
                     f"too many failed pairing attempts; retry in {locked}s",
@@ -176,7 +175,7 @@ def redeem_peer_code(
             found = match_pending(state, candidate, kind=KIND_PEER)
             if found is None:
                 note_failed_redeem(state, now=stamp)
-                _write_pairing(store_root, state)
+                write_pairing(store_root, state)
                 return StoreRefusal(
                     "invalid_code", "no pending peer code matches (or it expired)"
                 )
@@ -199,7 +198,7 @@ def redeem_peer_code(
             wanted_install = str(matched.get("for_install_id") or "").strip()
             if wanted_install and wanted_install != peer_install_id:
                 note_failed_redeem(state, now=stamp)
-                _write_pairing(store_root, state)
+                write_pairing(store_root, state)
                 return StoreRefusal(
                     "invalid_code", "no pending peer code matches (or it expired)"
                 )
@@ -207,7 +206,7 @@ def redeem_peer_code(
             del pending_codes(state)[matched_id]
             state["failed_redeems"] = 0
             state["locked_until"] = 0.0
-            _write_pairing(store_root, state)
+            write_pairing(store_root, state)
 
             ttl = matched.get("credential_ttl_seconds")
             try:
@@ -221,7 +220,7 @@ def redeem_peer_code(
             secret = secrets.token_hex(PEER_SECRET_BYTES)
             name = clean_display_name(display_name) or peer_install_id
             rows = _read_peers(store_root)
-            rows[peer_install_id] = _row(
+            rows[peer_install_id] = peer_row(
                 peer_install_id=peer_install_id,
                 display_name=name,
                 endpoints=clean_endpoints(endpoints),
@@ -260,7 +259,7 @@ def redeem_peer_code(
     # Cleared AFTER the lock closed, which is why the credential is captured
     # above and returned below rather than returned from inside the block.
     # :func:`_clear_revoked_you` writes through :func:`_touch_cache`, which takes
-    # this root's lock for itself, and ``_store_lock`` is not reentrant: called
+    # this root's lock for itself, and ``store_lock`` is not reentrant: called
     # from inside the block it spent the whole ten-second budget contending with
     # the write it was describing, so the re-pair stalled the join handshake for
     # a flag it might then fail to clear. :func:`record_peer` always cleared out

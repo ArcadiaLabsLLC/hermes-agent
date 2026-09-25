@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from ..gateway_identity import clean_display_name
-from ..serve_gateway_auth import StoreRefusal, _store_lock
+from ..serve_gateway_auth import StoreRefusal, store_lock
 from ..store_file_io import HarnessLockUnavailable
 from ..store_file_io import iso_stamp as _iso
 from ..store_file_io import os_error_reason as _os_reason
@@ -45,7 +45,6 @@ from .models import (
 )
 
 __layer__ = "stores"
-
 
 
 # ── the derivation ───────────────────────────────────────────────────────────
@@ -264,7 +263,7 @@ def revoke_peer(
     if not peer_install_id:
         return StoreRefusal("invalid_peer_id", "a peer install id is required")
     try:
-        with _store_lock(store_root):
+        with store_lock(store_root):
             rows = _read_peers(store_root)
             row = rows.get(peer_install_id)
             if not isinstance(row, dict):
@@ -338,9 +337,9 @@ def record_peer(
         )
     stamp = now if now is not None else time.time()
     try:
-        with _store_lock(store_root):
+        with store_lock(store_root):
             rows = _read_peers(store_root)
-            rows[peer_install_id] = _row(
+            rows[peer_install_id] = peer_row(
                 peer_install_id=peer_install_id,
                 display_name=clean_display_name(display_name) or peer_install_id,
                 endpoints=clean_endpoints(endpoints),
@@ -372,7 +371,7 @@ def record_peer(
     return record
 
 
-def _row(
+def peer_row(
     *,
     peer_install_id: str,
     display_name: str,
@@ -423,7 +422,7 @@ def _decode_peer(row: Any) -> PeerRecord | None:
         endpoints=clean_endpoints(row.get("endpoints")),
         cert_fingerprint=_clean_fingerprint(row.get("cert_fingerprint")),
         approved_at=str(row.get("approved_at") or ""),
-        # LEGACY ONLY. S2c moved this fact to ``peers_cache.json``; ``_row`` no
+        # LEGACY ONLY. S2c moved this fact to ``peers_cache.json``; ``peer_row`` no
         # longer writes it and :func:`note_peer_seen` no longer touches this
         # file. A row written by a pre-S2c build still carries a value and it is
         # still shown, because deleting a fact an operator can already see is a

@@ -420,7 +420,7 @@ def test_installs_hud_block_reads_two_files_and_dials_nothing(tmp_path, monkeypa
     apply_peer_announce(tmp_path, "inst_mac", {"display_name": "the mac"})
 
     monkeypatch.setattr(
-        serve_socket,
+        serve_socket.client,
         "ServeSocketClient",
         lambda *a, **k: (_ for _ in ()).throw(AssertionError("the HUD dialled")),
     )
