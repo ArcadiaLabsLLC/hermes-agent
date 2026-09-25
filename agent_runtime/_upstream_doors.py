@@ -25,6 +25,13 @@ __layer__ = "models"
 __all__ = [
     "compression_threshold_for_model",
     "cron_pools_present",
+    "mcp_key_name",
+    "mcp_register_server_tools",
+    "mcp_resolve_server_key",
+    "mcp_sdk_available_flag",
+    "mcp_server_map",
+    "mcp_signal_reconnect",
+    "mcp_wait_for_session",
     "default_hermes_home",
     "pid_exists",
     "sanitize_surrogates",
@@ -113,3 +120,72 @@ def cron_pools_present(scheduler: object) -> bool:
         getattr(scheduler, attr, None) is not None
         for attr in ("_parallel_pool", "_sequential_pool")
     )
+
+
+# ── tools.mcp_* — the MCP admission's warm-transport reads (lane B4) ────────
+#
+# ``agent_runtime.mcp_admission.transport`` reads eight private names across
+# four upstream modules; each is read here, at CALL time, so a stub on the
+# upstream module (``tools.mcp_tool._servers``, ``tools.mcp_tool_loop.
+# _signal_reconnect``, …) still reaches it and a missing seam raises at the call
+# the caller already guards (fail CLOSED). One held widening row per name
+# (ruling Q7, ``upstream-footprint-ledger.md``).
+
+
+def mcp_sdk_available_flag() -> bool:
+    """``tools.mcp_tool._MCP_AVAILABLE`` — is the optional ``mcp`` client importable.
+    Held widening row: publish ``mcp_sdk_available()``."""
+    from tools.mcp_tool import _MCP_AVAILABLE
+
+    return bool(_MCP_AVAILABLE)
+
+
+def mcp_server_map() -> tuple[dict, object]:
+    """``tools.mcp_tool._servers`` and ``._lock`` — the process's server cache and
+    the lock it is read under, as a PAIR: they are only ever read together. Held
+    widening rows: publish ``current_servers()``."""
+    from tools.mcp_tool import _lock, _servers
+
+    return _servers, _lock
+
+
+def mcp_key_name(key: object) -> str:
+    """``tools.mcp_tool_scope._key_name`` — a cache key's server name. Held
+    widening row: publish ``key_name``."""
+    from tools.mcp_tool_scope import _key_name
+
+    return _key_name(key)
+
+
+def mcp_resolve_server_key(name: str) -> object:
+    """``tools.mcp_tool_scope._resolve_server_key`` — the current profile's cache
+    key for a server name. Held widening row: publish ``resolve_server_key``."""
+    from tools.mcp_tool_scope import _resolve_server_key
+
+    return _resolve_server_key(name)
+
+
+def mcp_signal_reconnect(server: object) -> object:
+    """``tools.mcp_tool_loop._signal_reconnect`` — nudge a parked server. Held
+    widening row: publish ``signal_reconnect``."""
+    from tools.mcp_tool_loop import _signal_reconnect
+
+    return _signal_reconnect(server)
+
+
+def mcp_wait_for_session(server: object, timeout: float) -> object:
+    """``tools.mcp_tool_loop._wait_for_server_session_ready`` — wait a bounded
+    moment for a nudged server's session. Held widening row: publish
+    ``wait_for_server_session_ready``."""
+    from tools.mcp_tool_loop import _wait_for_server_session_ready
+
+    return _wait_for_server_session_ready(server, timeout=timeout)
+
+
+def mcp_register_server_tools(name: str, server: object, config: dict) -> object:
+    """``tools.mcp_tool_registration._register_server_tools`` — re-register a
+    connected server's tools under a run's filter (the ``tools/list_changed``
+    nuke-and-repave). Held widening row: publish ``register_server_tools``."""
+    from tools.mcp_tool_registration import _register_server_tools
+
+    return _register_server_tools(name, server, config)

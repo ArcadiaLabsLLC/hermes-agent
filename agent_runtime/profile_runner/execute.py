@@ -141,7 +141,7 @@ def _enabled_toolsets_for_run(
     untouched: narrowing it would change what a default run resolves.
     """
 
-    from ..mcp_admission import scope_toolsets_to_admission
+    from ..mcp_admission.resolve import scope_toolsets_to_admission
 
     if request.enabled_toolsets is None:
         return None
