@@ -1266,3 +1266,36 @@ def test_the_tool_package_never_imports_the_cli_turn_handler():
                 offenders.append(f"{path.name}:{node.lineno}")
     assert len(files) >= 7
     assert offenders == []
+
+
+def test_every_agent_chat_registration_reaches_its_handler():
+    """Each registered ``agent_chat`` entry is CALLED once with a refusing payload.
+
+    The six registrations wrap their handler in a lambda (the args-dict to
+    keyword adapter), so a handler name missing from ``tools/agent_chat_tool``'s
+    imports registers fine and fails only when a model calls the tool — a
+    ``NameError`` no import-time check sees. The entries are enumerated from the
+    live registry (never typed here), the handler is called DIRECTLY (not
+    through ``registry.dispatch``, which turns every exception into an error
+    string), and each payload is empty: no persona, no session, so every
+    handler answers with its own refusal or an empty read and nothing is sent.
+    """
+
+    import ast
+    import inspect
+
+    import tools.agent_chat_tool as entry_module
+
+    names = registry.get_tool_names_for_toolset("agent_chat")
+    registered = sum(
+        1
+        for node in ast.walk(ast.parse(inspect.getsource(entry_module)))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "register"
+    )
+    assert len(names) == registered == 6, (names, registered)
+    for name in names:
+        result = registry.get_entry(name).handler({})
+        payload = json.loads(result) if isinstance(result, str) else result
+        assert isinstance(payload, dict) and "ok" in payload, (name, result)

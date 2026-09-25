@@ -144,7 +144,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-25 (lane B1)
 
-- [ ] **The agent_chat registrations wrap each handler in a lambda, so a missing handler import is a NameError at call time that no registration test sees** · `fork / gates` · the sheet's MOVE mutation stayed green because of it; register the bound callable, or a registration test that calls each registered entry once with a refusing payload · evidence: B1 commit 005657f97b · filed by lane B1 2026-09-25 **UNCLAIMED** **TAKEN 2026-09-25 lane W3-A**
 
 ## Filed on arrival — 2026-09-25 (lane B3)
 
