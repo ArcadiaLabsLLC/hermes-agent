@@ -7,15 +7,15 @@ from types import SimpleNamespace
 
 from agent_runtime.dispatch_session_policy import coerce_optional_flag
 
-from .lane import _canonical_persona_token, _chat_lane_session_ids, _looks_like_instance_handle, _refusal, _scope_off, _session_belongs_to_chat_lane
+from .lane import _canonical_persona_token, _chat_lane_session_ids, _looks_like_instance_handle, refusal_json, scope_off, session_belongs_to_chat_lane
 from .remote import _remote_roster_rows, _remote_thread_read
 
 __layer__ = "lanes"
 
 
 def agent_chat_threads(*, persona_id=None, requested_by_session=None):
-    if _scope_off():
-        return _refusal(
+    if scope_off():
+        return refusal_json(
             "agent_chat is disabled on this runtime (HERMES_AGENT_CHAT_SCOPE=off). "
             "Tell the operator instead of retrying."
         )
@@ -51,7 +51,7 @@ def agent_chat_threads(*, persona_id=None, requested_by_session=None):
         try:
             wanted_persona = _chat_target._resolve_mission_chat_persona_id(filter_token, filter_token)
         except ValueError as exc:
-            return _refusal(safe_assignment_text(str(exc), limit=240), error_kind="unsupported_persona")
+            return refusal_json(safe_assignment_text(str(exc), limit=240), error_kind="unsupported_persona")
         if _looks_like_instance_handle(filter_token):
             wanted_instance_id = canonical_persona_instance_id(filter_token, persona_id=wanted_persona)
 
@@ -138,7 +138,7 @@ def agent_chat_threads(*, persona_id=None, requested_by_session=None):
     return json.dumps({"ok": True, "count": len(threads), "threads": threads}, default=str)
 
 
-def _resolve_chat_lane_target(persona_id, *, requested_by_session=None, verb="agent_chat_open"):
+def resolve_chat_lane_target(persona_id, *, requested_by_session=None, verb="agent_chat_open"):
     """Resolve a teammate address to THIS caller's chat lane with them.
 
     ONE authority for "which thread is *our* thread with this teammate", shared
@@ -165,11 +165,11 @@ def _resolve_chat_lane_target(persona_id, *, requested_by_session=None, verb="ag
 
     target = str(persona_id or "").strip()
     if not target:
-        return None, _refusal(f"{verb} requires a persona_id.")
+        return None, refusal_json(f"{verb} requires a persona_id.")
     try:
         resolved_persona = _chat_target._resolve_mission_chat_persona_id(target, target)
     except ValueError as exc:
-        return None, _refusal(
+        return None, refusal_json(
             safe_assignment_text(str(exc), limit=240), error_kind="unsupported_persona"
         )
     # A personainst_* handle targets THAT specific instance's thread (a persona may
@@ -225,8 +225,8 @@ def _resolve_chat_lane_target(persona_id, *, requested_by_session=None, verb="ag
 
 
 def agent_chat_open(*, persona_id, session_id=None, limit=20, requested_by_session=None):
-    if _scope_off():
-        return _refusal(
+    if scope_off():
+        return refusal_json(
             "agent_chat is disabled on this runtime (HERMES_AGENT_CHAT_SCOPE=off). "
             "Tell the operator instead of retrying."
         )
@@ -277,21 +277,22 @@ def agent_chat_log_path(
     sink), so a caller can tail it mid-task.
 
     Scope: IDENTICAL to ``agent_chat_open`` — the caller's shared threads with
-    that teammate only, via ``_resolve_chat_lane_target`` +
-    ``_session_belongs_to_chat_lane``. Handing over a filesystem path is if
+    that teammate only, via ``resolve_chat_lane_target`` +
+    ``session_belongs_to_chat_lane``. Handing over a filesystem path is if
     anything a stronger capability than reading a tail, so it gets exactly the
     same guard and the same typed ``foreign_session`` refusal.
     """
 
-    if _scope_off():
-        return _refusal(
+    if scope_off():
+        return refusal_json(
             "agent_chat is disabled on this runtime (HERMES_AGENT_CHAT_SCOPE=off). "
             "Tell the operator instead of retrying."
         )
 
-    from agent_runtime.chat_live_log import chat_live_log_stats, ensure_chat_live_log
+    from agent_runtime.chat_live_log.backfill import chat_live_log_stats
+    from agent_runtime.chat_live_log.writes import ensure_chat_live_log
 
-    target, refusal = _resolve_chat_lane_target(
+    target, refusal = resolve_chat_lane_target(
         persona_id, requested_by_session=requested_by_session, verb="agent_chat_log_path"
     )
     if refusal is not None:
@@ -299,10 +300,10 @@ def agent_chat_log_path(
 
     requested_session = (str(session_id).strip() or None) if session_id else None
     if requested_session is not None:
-        if not _session_belongs_to_chat_lane(
+        if not session_belongs_to_chat_lane(
             requested_session, handle=target.handle, default_session=target.default_session
         ):
-            return _refusal(
+            return refusal_json(
                 f"session {requested_session!r} is not part of {target.persona}'s chat lane; "
                 "agent_chat_log_path only hands over logs for your shared threads with the "
                 "target, not arbitrary sessions.",

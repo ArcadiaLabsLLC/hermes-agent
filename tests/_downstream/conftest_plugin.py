@@ -778,3 +778,21 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         "mid-body; undo is narrowed to the body's own patches so the fixtures' hermetic "
         "pins hold (applied by id from tests/_downstream/id_markers.py).",
     )
+
+
+@pytest.fixture(autouse=True)
+def _mission_chat_door_bound():
+    """Every hermes process that runs a turn has the harness plugin registered,
+    and registration binds the mission-chat door (ruling Q10). A test process
+    has no registration, so the door is bound here the same way — to the
+    CLI handler, looked up at call time, so a test's stub on
+    ``chat_turn_message._cmd_mission_chat_message`` still reaches it. A test
+    that needs the door UNBOUND says so with ``bind_mission_chat_turn(None)``
+    under monkeypatch."""
+    from agent_runtime import mission_chat_door
+    from hermes_cli.harness_parts.mission_chat_door_binding import bind_mission_chat_door
+
+    previous = mission_chat_door._turn
+    bind_mission_chat_door()
+    yield
+    mission_chat_door._turn = previous

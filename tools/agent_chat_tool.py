@@ -60,7 +60,7 @@ from tools.agent_chat.detached import (
     _async_delivery_available,
 )
 from tools.agent_chat.lane import (
-    _session_belongs_to_chat_lane,
+    session_belongs_to_chat_lane,
 )
 from tools.agent_chat.remote import (
     agent_chat_installs,
@@ -82,7 +82,7 @@ from tools.agent_chat.threads import (
     agent_chat_log_path,
     agent_chat_open,
     agent_chat_threads,
-    _resolve_chat_lane_target,
+    resolve_chat_lane_target,
 )
 from tools.registry import registry
 
@@ -101,8 +101,8 @@ __all__ = [
     "_MESSAGE_LIMIT",
     "_REPLY_LIMIT",
     "_async_delivery_available",
-    "_resolve_chat_lane_target",
-    "_session_belongs_to_chat_lane",
+    "resolve_chat_lane_target",
+    "session_belongs_to_chat_lane",
     "agent_chat_dispatches",
     "agent_chat_installs",
     "agent_chat_log_path",

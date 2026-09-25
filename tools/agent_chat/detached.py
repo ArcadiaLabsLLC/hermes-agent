@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Callable, Mapping
+from types import MappingProxyType
 
-from .lane import _refusal, _scope_off
+from .lane import refusal_json, scope_off
 
 __layer__ = "lanes"
 
@@ -166,7 +168,7 @@ def _dispatch_detached(
         )
     except Exception as exc:
         logger.exception("agent_chat_send could not record dispatch %s", dispatch_id)
-        return _refusal(
+        return refusal_json(
             f"could not record the dispatch durably ({type(exc).__name__}); nothing was sent. "
             "Send it with wait=true instead.",
             error_kind="dispatch_store_unavailable",
@@ -191,7 +193,7 @@ def _dispatch_detached(
             error=f"the dispatch could not be queued: {type(exc).__name__}",
         )
         logger.exception("agent_chat_send could not queue dispatch %s", dispatch_id)
-        return _refusal(
+        return refusal_json(
             f"could not start the background dispatch ({type(exc).__name__}).",
             error_kind="dispatch_queue_failed",
             target_persona=persona_id,
@@ -227,8 +229,8 @@ def _dispatch_detached(
 def agent_chat_dispatches(*, limit=10, state=None, requested_by_session=None):
     """List the caller's background dispatches. Read-only; creates nothing."""
 
-    if _scope_off():
-        return _refusal(
+    if scope_off():
+        return refusal_json(
             "agent_chat is disabled on this runtime (HERMES_AGENT_CHAT_SCOPE=off). "
             "Tell the operator instead of retrying."
         )
@@ -258,10 +260,9 @@ def agent_chat_dispatches(*, limit=10, state=None, requested_by_session=None):
         bounded = 10
 
     rows = list_dispatches(sender_session_id=scope, limit=bounded)
-    if wanted == "running":
-        rows = [row for row in rows if row.get("state") == STATE_RUNNING]
-    elif wanted == "done":
-        rows = [row for row in rows if row.get("state") != STATE_RUNNING]
+    keep = DISPATCH_FILTERS.get(wanted)
+    if keep is not None:
+        rows = [row for row in rows if keep(row)]
 
     summaries = [summarize_for_caller(row) for row in rows]
     running = sum(1 for row in summaries if row["state"] == STATE_RUNNING)
@@ -281,3 +282,23 @@ def agent_chat_dispatches(*, limit=10, state=None, requested_by_session=None):
         indent=2,
         default=str,
     )
+
+
+def _is_running(row: dict) -> bool:
+    from agent_runtime.dispatch_store import STATE_RUNNING
+
+    return row.get("state") == STATE_RUNNING
+
+
+#: This tool's ``state`` argument — ITS vocabulary, read by name here and in
+#: the schema's enum, not the dispatch store's states (``running`` is spelled
+#: alike and is a different question: a filter over rows, not a row's state).
+FILTER_RUNNING = "running"
+FILTER_DONE = "done"
+
+#: ``state`` filter -> which rows it keeps. An unknown or absent filter keeps
+#: every row, as it always has.
+DISPATCH_FILTERS: Mapping[str, Callable[[dict], bool]] = MappingProxyType({
+    FILTER_RUNNING: _is_running,
+    FILTER_DONE: lambda row: not _is_running(row),
+})

@@ -15,7 +15,8 @@ LAYERED_ROOTS, so the constants are for the reader.
       schemas.py     models   the six AGENT_CHAT_*_SCHEMA tables and the two limits (a TABLE module)
       lane.py        lanes    the helpers every handler shares: the refusal reply, the scope switch,
                               the persona token, chat-lane membership, the limit clamp
-      send.py        lanes    agent_chat_send
+      send.py        lanes    agent_chat_send = Send phases + _REQUEST_REFUSALS; the inline relay goes through
+                              agent_runtime.mission_chat_door (ruling Q10), never the CLI namespace
       detached.py    lanes    the wait=false half and agent_chat_dispatches
       threads.py     lanes    agent_chat_threads, agent_chat_open, agent_chat_log_path, the lane target resolver
       remote.py      lanes    the far-install reads and agent_chat_installs
@@ -33,7 +34,16 @@ from __future__ import annotations
 
 from . import detached, lane, remote, schemas, send, threads
 from .detached import (
+    DISPATCH_FILTERS,
+    FILTER_DONE,
+    FILTER_RUNNING,
     agent_chat_dispatches,
+)
+from .lane import (
+    SCOPE_OFF,
+    refusal_json,
+    scope_off,
+    session_belongs_to_chat_lane,
 )
 from .remote import (
     agent_chat_installs,
@@ -47,12 +57,14 @@ from .schemas import (
     AGENT_CHAT_THREADS_SCHEMA,
 )
 from .send import (
+    Send,
     agent_chat_send,
 )
 from .threads import (
     agent_chat_log_path,
     agent_chat_open,
     agent_chat_threads,
+    resolve_chat_lane_target,
 )
 
 __layer__ = "lanes"

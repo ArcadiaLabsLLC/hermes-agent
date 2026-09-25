@@ -244,11 +244,6 @@
    "depth": 5,
    "lines": 78,
    "unit": "tests/_downstream/hermes_cli_conftest.py|_sys_modules_identity_is_restored"
-  },
-  {
-   "depth": 3,
-   "lines": 422,
-   "unit": "tools/agent_chat/send.py|agent_chat_send"
   }
  ],
  "max_depth": 4,

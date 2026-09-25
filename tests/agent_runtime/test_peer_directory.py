@@ -139,14 +139,14 @@ def test_the_scope_for_a_resident_handle_is_that_instances_own_workspace(monkeyp
 
 def test_thread_read_refuses_an_unknown_target_with_unsupported_persona(monkeypatch):
     """The tool's own refusal ENVELOPE (a JSON string, because
-    ``_resolve_chat_lane_target`` predates this function) is decoded here rather
+    ``resolve_chat_lane_target`` predates this function) is decoded here rather
     than changed there — so the local tool's bytes are unchanged and the peer
     door gets a dict with the same word in it."""
 
     from agent_runtime import peer_directory
 
     monkeypatch.setattr(
-        "tools.agent_chat.threads._resolve_chat_lane_target",
+        "tools.agent_chat.threads.resolve_chat_lane_target",
         lambda persona_id, **kwargs: (
             None,
             json.dumps(
@@ -178,7 +178,7 @@ def test_thread_read_applies_the_same_lane_guard_as_agent_chat_open(monkeypatch)
     from agent_runtime import peer_directory
 
     monkeypatch.setattr(
-        "tools.agent_chat.threads._resolve_chat_lane_target",
+        "tools.agent_chat.threads.resolve_chat_lane_target",
         lambda persona_id, **kwargs: (
             SimpleNamespace(
                 persona="dev",
@@ -209,7 +209,7 @@ def test_thread_read_clamps_limit_to_forty(monkeypatch):
 
     seen: list[int] = []
     monkeypatch.setattr(
-        "tools.agent_chat.threads._resolve_chat_lane_target",
+        "tools.agent_chat.threads.resolve_chat_lane_target",
         lambda persona_id, **kwargs: (
             SimpleNamespace(
                 persona="dev",
@@ -249,7 +249,7 @@ def test_thread_read_surfaces_a_scope_refusal_and_never_sets_the_env(monkeypatch
     from agent_runtime import peer_directory
 
     monkeypatch.setattr(
-        "tools.agent_chat.threads._resolve_chat_lane_target",
+        "tools.agent_chat.threads.resolve_chat_lane_target",
         lambda persona_id, **kwargs: (
             SimpleNamespace(
                 persona="dev",
@@ -285,7 +285,7 @@ def test_a_teammate_with_no_thread_answers_honestly_and_mints_nothing(monkeypatc
     from agent_runtime import peer_directory
 
     monkeypatch.setattr(
-        "tools.agent_chat.threads._resolve_chat_lane_target",
+        "tools.agent_chat.threads.resolve_chat_lane_target",
         lambda persona_id, **kwargs: (
             SimpleNamespace(
                 persona="dev",

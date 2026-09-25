@@ -233,7 +233,7 @@ def read_chat_lane_tail(
 
     Lifted out of ``agent_chat_open`` rather than reimplemented beside it, which
     is the whole reason it is a function: the lane guard
-    (``_session_belongs_to_chat_lane``) is the thing standing between "review
+    (``session_belongs_to_chat_lane``) is the thing standing between "review
     our thread" and "read any transcript on this machine", and a second copy of
     it for the peer door is a second place for that guard to be widened by
     accident. The local tool calls this; so does ``peer.thread.read``.
@@ -252,16 +252,16 @@ def read_chat_lane_tail(
         MAX_PERSONA_CHAT_MESSAGE_TAIL,
         persona_chat_session_messages,
     )
-    from tools.agent_chat.lane import _session_belongs_to_chat_lane
-    from tools.agent_chat.threads import _resolve_chat_lane_target
+    from tools.agent_chat.lane import session_belongs_to_chat_lane
+    from tools.agent_chat.threads import resolve_chat_lane_target
 
-    target, refusal = _resolve_chat_lane_target(
+    target, refusal = resolve_chat_lane_target(
         persona_id, requested_by_session=requested_by_session, verb="agent_chat_open"
     )
     if refusal is not None:
         import json as _json
 
-        # ``_resolve_chat_lane_target`` answers in the tool's own refusal
+        # ``resolve_chat_lane_target`` answers in the tool's own refusal
         # ENVELOPE (a JSON string) because it predates this function. Decoded
         # here rather than changed there, so the local tool's bytes are
         # unchanged and the peer door gets a dict.
@@ -278,7 +278,7 @@ def read_chat_lane_tail(
 
     requested_session = (str(session_id).strip() or None) if session_id else None
     if requested_session is not None:
-        if not _session_belongs_to_chat_lane(
+        if not session_belongs_to_chat_lane(
             requested_session, handle=handle, default_session=default_session
         ):
             return {

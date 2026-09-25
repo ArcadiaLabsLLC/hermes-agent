@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from .lane import _bounded_limit, _refusal, _scope_off
+from .lane import _bounded_limit, refusal_json, scope_off
 
 __layer__ = "lanes"
 
@@ -27,7 +27,7 @@ def _remote_thread_read(persona_id, *, session_id, limit):
     if parsed is None:
         return None
     if isinstance(parsed, TargetRefusal):
-        return _refusal(
+        return refusal_json(
             parsed.message, error_kind=parsed.reason, target_persona=persona_id
         )
 
@@ -38,7 +38,7 @@ def _remote_thread_read(persona_id, *, session_id, limit):
         # established thread with ANYBODY and is almost never the one the caller
         # means. So the thread must be named — and the refusal says where the
         # name came from, because the dispatch delivery already printed it.
-        return _refusal(
+        return refusal_json(
             f"{persona_id} is on another install, and there is no shared default "
             "thread across installs. Name the thread: pass session_id — the "
             "session_id your dispatch delivery reported as 'Their thread'.",
@@ -52,7 +52,7 @@ def _remote_thread_read(persona_id, *, session_id, limit):
         extra = (
             {"candidates": list(resolved.candidates)} if resolved.candidates else {}
         )
-        return _refusal(
+        return refusal_json(
             resolved.message,
             error_kind=resolved.reason,
             target_persona=persona_id,
@@ -79,7 +79,7 @@ def _remote_thread_read(persona_id, *, session_id, limit):
     )
     refusal = outcome.get("refusal")
     if refusal:
-        return _refusal(
+        return refusal_json(
             str(refusal.get("message") or refusal.get("reason")),
             error_kind=str(refusal.get("reason")),
             target_persona=persona_id,
@@ -124,7 +124,7 @@ def _remote_roster_rows(persona_id):
         # and STAYS refused: the verb for "everyone on that machine" is
         # ``agent_chat_installs``, and letting an empty target mean "all" would
         # give one spelling two meanings.
-        return _refusal(
+        return refusal_json(
             parsed.message, error_kind=parsed.reason, target_persona=persona_id
         )
 
@@ -132,7 +132,7 @@ def _remote_roster_rows(persona_id):
     resolved = resolve_install_target(root, parsed)
     if isinstance(resolved, TargetRefusal):
         extra = {"candidates": list(resolved.candidates)} if resolved.candidates else {}
-        return _refusal(
+        return refusal_json(
             resolved.message,
             error_kind=resolved.reason,
             target_persona=persona_id,
@@ -150,7 +150,7 @@ def _remote_roster_rows(persona_id):
     )
     refusal = outcome.get("refusal")
     if refusal:
-        return _refusal(
+        return refusal_json(
             str(refusal.get("message") or refusal.get("reason")),
             error_kind=str(refusal.get("reason")),
             target_persona=persona_id,
@@ -229,8 +229,8 @@ def agent_chat_installs(*, install=None, requested_by_session=None):
     learns to distrust.
     """
 
-    if _scope_off():
-        return _refusal(
+    if scope_off():
+        return refusal_json(
             "agent_chat is disabled on this runtime (HERMES_AGENT_CHAT_SCOPE=off). "
             "Tell the operator instead of retrying."
         )
@@ -247,7 +247,7 @@ def agent_chat_installs(*, install=None, requested_by_session=None):
     try:
         peers = usable_peers(root)
     except Exception as exc:  # pragma: no cover - defensive; an unreadable store
-        return _refusal(
+        return refusal_json(
             f"this install's peer store could not be read ({type(exc).__name__}), "
             "so no other install can be named.",
             error_kind="peer_store_unreadable",
@@ -295,14 +295,14 @@ def _install_roster(root, install_ref: str):
     resolved = resolve_install_ref(root, install_ref)
     if isinstance(resolved, TargetRefusal):
         extra = {"candidates": list(resolved.candidates)} if resolved.candidates else {}
-        return _refusal(resolved.message, error_kind=resolved.reason, **extra)
+        return refusal_json(resolved.message, error_kind=resolved.reason, **extra)
 
     outcome = call_peer_method(
         root, resolved.peer_install_id, "peer.roster.list", {}
     )
     refusal = outcome.get("refusal")
     if refusal:
-        return _refusal(
+        return refusal_json(
             str(refusal.get("message") or refusal.get("reason")),
             error_kind=str(refusal.get("reason")),
         )

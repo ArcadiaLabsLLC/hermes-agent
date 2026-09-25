@@ -262,7 +262,9 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
 
     def _boot_and_serve(self) -> int:
         """Everything between the stdio swap and the unwind, in boot order."""
+        from hermes_cli.harness_parts.mission_chat_door_binding import bind_mission_chat_door
 
+        bind_mission_chat_door()  # ruling Q10: bound before any request can run a turn
         self._boot_store_and_identity()
         exit_code = self._boot_socket_lane()
         if exit_code is not None:

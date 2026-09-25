@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import os
 
+from agent_runtime.serde import is_hex
+
 __layer__ = "lanes"
 
 
-def _refusal(error: str, **extra) -> str:
+def refusal_json(error: str, **extra) -> str:
     return json.dumps({"ok": False, "error": error, **extra})
 
 
@@ -22,8 +24,14 @@ def _looks_like_instance_handle(value) -> bool:
     return safe_assignment_token(value).startswith("personainst_")
 
 
-def _scope_off() -> bool:
-    return (os.environ.get("HERMES_AGENT_CHAT_SCOPE") or "open").strip().lower() == "off"
+#: The ``HERMES_AGENT_CHAT_SCOPE`` value that disables every agent_chat tool.
+SCOPE_OFF = "off"
+
+
+def scope_off() -> bool:
+    """Is the agent-chat lane switched off on this runtime? The ONE reader of
+    ``HERMES_AGENT_CHAT_SCOPE`` — the send lane and the three read tools ask it."""
+    return (os.environ.get("HERMES_AGENT_CHAT_SCOPE") or "open").strip().lower() == SCOPE_OFF
 
 
 def _canonical_persona_token(value) -> str:
@@ -32,7 +40,7 @@ def _canonical_persona_token(value) -> str:
     return safe_assignment_token(value)
 
 
-def _session_belongs_to_chat_lane(session_id: str, *, handle: str, default_session: str | None) -> bool:
+def session_belongs_to_chat_lane(session_id: str, *, handle: str, default_session: str | None) -> bool:
     """True when ``session_id`` is the target instance's chat lane.
 
     Tight by design (this is 'review OUR thread', not a transcript browser): the
@@ -52,7 +60,7 @@ def _session_belongs_to_chat_lane(session_id: str, *, handle: str, default_sessi
     if not session_id.startswith(prefix):
         return False
     tail = session_id[len(prefix):]
-    return len(tail) == 12 and all(ch in "0123456789abcdef" for ch in tail.lower())
+    return is_hex(tail.lower(), 12)
 
 
 def _bounded_limit(value, *, default: int = 20) -> int:
@@ -68,7 +76,7 @@ def _chat_lane_session_ids(target) -> list:
     """Every session in the caller's chat lane with *target*, newest last.
 
     Derived from the SAME history projection ``agent_chat_threads`` reads and
-    filtered through the SAME ``_session_belongs_to_chat_lane`` guard, so
+    filtered through the SAME ``session_belongs_to_chat_lane`` guard, so
     ``all_threads`` can never widen the scope beyond what a single-thread
     request would allow — it only saves the caller from guessing which
     task-scoped thread a dispatch opened.
@@ -85,7 +93,7 @@ def _chat_lane_session_ids(target) -> list:
         candidate = str((row or {}).get("session_id") or "")
         if not candidate or candidate in found:
             continue
-        if _session_belongs_to_chat_lane(
+        if session_belongs_to_chat_lane(
             candidate, handle=target.handle, default_session=target.default_session
         ):
             found.append(candidate)
