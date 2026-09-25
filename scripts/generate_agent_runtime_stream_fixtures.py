@@ -732,6 +732,30 @@ def _seed_running_work_owner() -> None:
 _AGENT_CREATE_PATCH_ENTITIES = ["persona_instance", "office_actor"]
 
 
+
+def _pin_chat_session_mint(persona_assignments: Any, mint: Any) -> list[tuple[Any, Any]]:
+    """Point ``persona_chat_session_id_for`` at ``mint`` wherever it is READ.
+
+    The package re-exports it and the store and its lanes import it, so it is
+    rebound in the package and in every package module that binds the same
+    function — enumerated from the package, never listed. Returns the
+    ``(module, original)`` pairs to restore.
+    """
+
+    original = persona_assignments.persona_chat_session_id_for
+    modules = [persona_assignments] + [
+        module
+        for module in (
+            importlib.import_module(f"{persona_assignments.__name__}.{info.name}")
+            for info in pkgutil.iter_modules(persona_assignments.__path__)
+        )
+        if getattr(module, "persona_chat_session_id_for", None) is original
+    ]
+    for module in modules:
+        module.persona_chat_session_id_for = mint
+    return [(module, original) for module in modules]
+
+
 def _build_agent_create_frames() -> tuple[dict, dict]:
     """S0: ONE ``perform_agent_create``, rendered for two different subscribers.
 
@@ -844,20 +868,7 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
 
     base_offset = events_position()["event_offset"]
 
-    # The mint is looked up in whichever package module binds it (the package
-    # re-exports it; the store and its lanes import it), so pin it in every one,
-    # enumerated from the package rather than listed.
-    minted = persona_assignments.persona_chat_session_id_for
-    pinned_in = [persona_assignments] + [
-        module
-        for module in (
-            importlib.import_module(f"{persona_assignments.__name__}.{info.name}")
-            for info in pkgutil.iter_modules(persona_assignments.__path__)
-        )
-        if getattr(module, "persona_chat_session_id_for", None) is minted
-    ]
-    for module in pinned_in:
-        module.persona_chat_session_id_for = lambda _instance_id: FIXTURE_CREATE_CHAT_SESSION_ID
+    pins = _pin_chat_session_mint(persona_assignments, lambda _: FIXTURE_CREATE_CHAT_SESSION_ID)
     head_home_before = os.environ.get("HERMES_HEAD_HOME")
     os.environ.setdefault(
         "HERMES_HEAD_HOME", os.environ.get("HERMES_HOME") or str(paths.store_root())
@@ -873,8 +884,8 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
             }
         )
     finally:
-        for module in pinned_in:
-            module.persona_chat_session_id_for = minted
+        for module, original in pins:
+            module.persona_chat_session_id_for = original
         if head_home_before is None:
             os.environ.pop("HERMES_HEAD_HOME", None)
         else:

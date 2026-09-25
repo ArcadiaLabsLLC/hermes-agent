@@ -362,7 +362,7 @@
   },
   {
    "depth": 2,
-   "lines": 222,
+   "lines": 220,
    "unit": "scripts/generate_agent_runtime_stream_fixtures.py|_build_agent_create_frames"
   },
   {
