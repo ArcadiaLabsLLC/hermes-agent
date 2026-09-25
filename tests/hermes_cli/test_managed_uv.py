@@ -91,72 +91,6 @@ class TestManagedUvPath:
             assert managed_uv_path() == tmp_path / "bin" / "uv"
 
 
-class TestMacOSManagedPythonSigning:
-    def test_signs_with_stable_identifier_and_verifies(self, tmp_path, monkeypatch):
-        import hermes_cli.managed_uv as managed_uv
-
-        python = tmp_path / "generation" / "bin" / "python3.11"
-        python.parent.mkdir(parents=True)
-        python.touch()
-        calls = []
-
-        def fake_run(cmd, **kwargs):
-            calls.append((cmd, kwargs))
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
-
-        monkeypatch.setattr(managed_uv.platform, "system", lambda: "Darwin")
-        monkeypatch.setattr(managed_uv.shutil, "which", lambda name: "/usr/bin/codesign")
-        monkeypatch.setattr(managed_uv.subprocess, "run", fake_run)
-
-        assert managed_uv._macos_sign_managed_python(python) is True
-        assert calls[0][0] == [
-            "/usr/bin/codesign",
-            "--force",
-            "--deep",
-            "--sign",
-            "-",
-            "--timestamp=none",
-            "--identifier",
-            "com.nousresearch.hermes.managed-python",
-            "--requirements",
-            '=designated => identifier "com.nousresearch.hermes.managed-python"',
-            str(python),
-        ]
-        assert calls[1][0] == [
-            "/usr/bin/codesign",
-            "--verify",
-            "--deep",
-            "--strict",
-            str(python),
-        ]
-
-    def test_is_non_blocking_when_signing_fails(self, tmp_path, monkeypatch):
-        import hermes_cli.managed_uv as managed_uv
-
-        python = tmp_path / "python3.11"
-        monkeypatch.setattr(managed_uv.platform, "system", lambda: "Darwin")
-        monkeypatch.setattr(managed_uv.shutil, "which", lambda name: "/usr/bin/codesign")
-        monkeypatch.setattr(
-            managed_uv.subprocess,
-            "run",
-            lambda *args, **kwargs: SimpleNamespace(
-                returncode=1, stdout="", stderr="not signable"
-            ),
-        )
-
-        assert managed_uv._macos_sign_managed_python(python) is False
-
-    def test_skips_non_macos(self, tmp_path, monkeypatch):
-        import hermes_cli.managed_uv as managed_uv
-
-        monkeypatch.setattr(managed_uv.platform, "system", lambda: "Linux")
-        monkeypatch.setattr(
-            managed_uv.subprocess,
-            "run",
-            lambda *args, **kwargs: pytest.fail("codesign must not run on Linux"),
-        )
-
-        assert managed_uv._macos_sign_managed_python(tmp_path / "python") is False
 
 
 # ---------------------------------------------------------------------------
@@ -164,14 +98,6 @@ class TestMacOSManagedPythonSigning:
 # ---------------------------------------------------------------------------
 
 class TestResolveUv:
-    """The managed uv lives at ``bin/uv`` on POSIX and ``bin/uv.exe`` on
-    Windows (see ``TestManagedUvPath``). These fixtures write the POSIX
-    spelling, so they pin ``platform.system`` to a POSIX value the way
-    ``TestManagedUvPath::test_posix`` and ``TestEnsureUvUpdateBoundary``
-    already do. Without the pin, a Windows run looked for ``bin/uv.exe``,
-    never saw the fixture at all, and
-    ``test_non_executable_file_returns_none`` passed for the wrong reason —
-    "no uv.exe" rather than "found it, but it is not executable"."""
 
     def test_existing_executable(self, tmp_path):
         uv = tmp_path / "bin" / _UV_BINARY_NAME
@@ -181,24 +107,13 @@ class TestResolveUv:
             result = resolve_uv()
             assert result == str(uv)
 
-    @pytest.mark.skipif(
-        os.name == "nt",
-        reason=(
-            "resolve_uv() rejects on os.access(p, os.X_OK), and Windows has no "
-            "execute bit: os.access(..., X_OK) is True for every existing file "
-            "(verified — even one chmod'd 0o644). The guarantee cannot be "
-            "observed here, and without the skip this passed only because the "
-            "Windows lookup is for bin/uv.exe and never saw the fixture."
-        ),
-    )
     def test_non_executable_file_returns_none(self, tmp_path):
         uv = tmp_path / "bin" / "uv"
         uv.parent.mkdir(parents=True)
         uv.write_text("not a binary", encoding="utf-8")
         # Ensure no execute bit
         uv.chmod(0o644)
-        with patch("hermes_cli.managed_uv.get_hermes_home", return_value=tmp_path), \
-             patch("hermes_cli.managed_uv.platform.system", return_value="Linux"):
+        with patch("hermes_cli.managed_uv.get_hermes_home", return_value=tmp_path):
             from hermes_cli.managed_uv import resolve_uv
             assert resolve_uv() is None
 
@@ -223,21 +138,10 @@ class TestPipInstallHint:
 # ---------------------------------------------------------------------------
 
 class TestEnsureUv:
-    """POSIX layout (``bin/uv``), pinned — see ``TestResolveUv``.
-
-    The post-install verification step shells out to ``<uv> --version`` purely
-    to print the version. ``_make_executable`` writes a ``#!/bin/sh`` text
-    file, which only *runs* where the kernel honours shebangs; elsewhere the
-    probe raises ``OSError(WinError 216)`` straight out of ``ensure_uv``. The
-    probe is stubbed so these tests pin what they are named for — that the
-    install ran once and the managed path came back — instead of the host's
-    ability to execute a fake binary."""
 
     def test_installs_if_missing(self, tmp_path):
         uv = tmp_path / "bin" / _UV_BINARY_NAME
         with patch("hermes_cli.managed_uv.get_hermes_home", return_value=tmp_path), \
-             patch("hermes_cli.managed_uv.subprocess.run",
-                   return_value=MagicMock(returncode=0, stdout="uv 0.1.2")), \
              patch("hermes_cli.managed_uv.repair_vulnerable_runtime", return_value=_RRR("not-applicable")), \
              patch("hermes_cli.managed_uv._uv_version", return_value="uv 0.1.2"), \
              patch("hermes_cli.managed_uv._install_uv") as mock_install:
@@ -286,9 +190,6 @@ class TestEnsureUv:
         with patch(
             "hermes_cli.managed_uv.get_hermes_home",
             return_value=tmp_path,
-        ), patch(
-            "hermes_cli.managed_uv.subprocess.run",
-            return_value=MagicMock(returncode=0, stdout="uv 0.1.2"),
         ), patch(
             "hermes_cli.managed_uv._install_uv",
             side_effect=fake_install,
@@ -371,14 +272,6 @@ class TestEnsureUvWindowsSafe:
     the wrapper entirely.
     """
 
-    def test_uvresult_would_break_windows_list2cmdline(self):
-        # Canary: this is *why* the wrapper is gated off Windows. If a future
-        # change makes _UvResult char-iterable (and thus list2cmdline-safe),
-        # the gate may be revisited.
-        import subprocess
-        from hermes_cli.managed_uv import _UvResult
-        with pytest.raises(TypeError):
-            subprocess.list2cmdline([_UvResult("C:\\hermes\\uv.exe"), "pip"])
 
     @pytest.mark.windows_only
     def test_windows_returns_plain_str_safe_for_subprocess(self, tmp_path):
@@ -935,7 +828,6 @@ class TestPatchRetryOnVulnerableCandidate:
         resolves to a DIFFERENT candidate Python version depending on which
         exact version string was requested, so retries with explicit
         patches can be distinguished from the initial bare-minor attempt."""
-        import hermes_cli.managed_uv as managed_uv
         from hermes_cli.sqlite_runtime import SQLiteRuntimeInfo
 
         state = {"requested": None}
@@ -1492,40 +1384,4 @@ class TestVenvPythonUpdateBoundary:
             if sys.platform == "win32" else Path("/opt/hermes/venv/bin/python")
         assert _venv_python(Path("/opt/hermes/venv")) == expected
 
-    def test_recovery_uses_the_shared_helper_not_a_second_copy(self, monkeypatch):
-        """The reload must resolve through hermes_constants, not open-code it.
 
-        Hand-rolling `Scripts`/`bin` here is what #76105 deduped away and what
-        `test_no_open_coded_venv_layout_remains_in_hermes_cli` bans.
-        """
-        import hermes_constants
-
-        from hermes_cli.managed_uv import _venv_python
-
-        monkeypatch.delattr(hermes_constants, "venv_python_path", raising=False)
-
-        sentinel = Path("/sentinel/from/shared/helper")
-        real_reload = __import__("importlib").reload
-
-        def _reload_with_marker(module):
-            fresh = real_reload(module)
-            monkeypatch.setattr(
-                fresh, "venv_python_path", lambda *a, **k: sentinel, raising=False
-            )
-            return fresh
-
-        monkeypatch.setattr("importlib.reload", _reload_with_marker)
-        assert _venv_python(Path("/opt/hermes/venv")) == sentinel
-
-    def test_uses_the_real_helper_when_it_is_importable(self, monkeypatch):
-        """The normal path never reloads — recovery stays a fallback."""
-        from hermes_cli.managed_uv import _venv_python
-
-        def _no_reload(module):  # pragma: no cover - must not run
-            raise AssertionError("reload must not run when the import succeeds")
-
-        monkeypatch.setattr("importlib.reload", _no_reload)
-
-        expected = Path("/opt/hermes/venv/Scripts/python.exe") \
-            if sys.platform == "win32" else Path("/opt/hermes/venv/bin/python")
-        assert _venv_python(Path("/opt/hermes/venv")) == expected

@@ -161,7 +161,7 @@ def impatient(monkeypatch):
     ``_DRAIN_EXIT_DEADLINE_SECONDS`` uses, and for the same reason.
     """
 
-    monkeypatch.setattr(serve_module, "_REQUEST_SILENCE_SECONDS", 0.05)
+    monkeypatch.setattr(serve_module.session, "_REQUEST_SILENCE_SECONDS", 0.05)
 
 
 # ── DEFECT A ────────────────────────────────────────────────────────────────

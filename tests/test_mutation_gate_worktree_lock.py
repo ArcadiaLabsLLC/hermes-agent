@@ -234,3 +234,32 @@ def test_the_budget_refusal_precedes_the_lock(gate):
 
     assert _run(gate, wall_budget_seconds=0) == 2
     assert not gate.LOCK_PATH.exists()
+
+
+def test_a_held_gate_lock_leaves_git_status_clean(tmp_path, monkeypatch):
+    """The lock's directory ignores itself, so the root `.gitignore` needs no
+    fork entry. Positive control: without the directory's ignore file the same
+    lock IS untracked litter."""
+
+    import shutil
+    import subprocess
+
+    if shutil.which("git") is None:
+        pytest.skip("git is not on PATH")
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    monkeypatch.setattr(module, "LOCK_PATH", tmp_path / ".mutation-gate" / "lock")
+
+    def untracked() -> str:
+        return subprocess.run(
+            ["git", "-C", str(tmp_path), "status", "--porcelain", "--untracked-files=all"],
+            capture_output=True, text=True, check=True,
+        ).stdout
+
+    assert module._acquire_gate_lock() is True
+    try:
+        assert module.LOCK_PATH.exists()
+        assert untracked() == ""
+        (module.LOCK_PATH.parent / ".gitignore").unlink()
+        assert ".mutation-gate/lock" in untracked()
+    finally:
+        module.LOCK_PATH.unlink(missing_ok=True)

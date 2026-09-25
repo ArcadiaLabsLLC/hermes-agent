@@ -146,14 +146,13 @@ def _args(requested_by: str):
 def _stamp_reply_media():
     """The producer under test, reached the way ``harness.py`` reaches it.
 
-    ``persona_commands`` is exec'd into the harness module's globals rather than
-    imported as a module with a public surface, so this is the one honest way to
-    get at the function — and it is the same object the five reply sites call.
+    Imported from ``persona.chat_reply_stamps``, the one module every reply
+    site reads it from — the same object the five reply sites call.
     """
 
-    from hermes_cli.harness_parts import persona_commands
+    from hermes_cli.harness_parts.persona import chat_reply_stamps
 
-    return persona_commands._stamp_reply_media
+    return chat_reply_stamps._stamp_reply_media
 
 
 def test_a_peer_executed_reply_carries_the_map_and_a_local_one_carries_nothing(shot):

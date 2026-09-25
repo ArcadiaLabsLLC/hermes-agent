@@ -23,11 +23,11 @@ from agent_runtime.mission_chat_turns import (
     persist_mission_chat_turn,
 )
 from agent_runtime.persona_chat_history import (
-    _iso_timestamp,
-    _safe_recent_messages,
     persona_chat_history_summary,
     persona_chat_trace_summary,
 )
+from agent_runtime.persona_chat_history.history_rows import _safe_recent_messages
+from agent_runtime.clock import iso_timestamp
 from agent_runtime.states import WorkerSessionState
 
 
@@ -316,9 +316,9 @@ def test_message_timestamps_are_iso_so_they_merge_with_trace_by_ts():
 
     assert rows[0]["timestamp"] == "2026-06-22T21:00:02.500000Z"
     # Same shape the trace channel emits, so DateTime.tryParse orders them together.
-    assert _iso_timestamp(1782162002.5) == rows[0]["timestamp"]
-    assert _iso_timestamp("2026-06-22T21:00:02.500000Z") == "2026-06-22T21:00:02.500000Z"
-    assert _iso_timestamp(None) is None
+    assert iso_timestamp(1782162002.5) == rows[0]["timestamp"]
+    assert iso_timestamp("2026-06-22T21:00:02.500000Z") == "2026-06-22T21:00:02.500000Z"
+    assert iso_timestamp(None) is None
 
 
 def test_history_row_timestamps_are_iso_utc_at_projection_boundary():
@@ -629,8 +629,8 @@ def test_iso_timestamp_normalizes_datetime_values():
     aware = datetime(2026, 6, 22, 21, 0, 2, 500000, tzinfo=timezone.utc)
     naive = datetime(2026, 6, 22, 21, 0, 2, 500000)
 
-    assert _iso_timestamp(aware) == "2026-06-22T21:00:02.500000Z"
-    assert _iso_timestamp(naive) == "2026-06-22T21:00:02.500000Z"
+    assert iso_timestamp(aware) == "2026-06-22T21:00:02.500000Z"
+    assert iso_timestamp(naive) == "2026-06-22T21:00:02.500000Z"
 
 
 def test_synthetic_mission_row_keeps_unknown_timestamp_null():
@@ -1990,7 +1990,7 @@ class ExplodingSessionDB:
 
 
 def test_failed_transcript_read_is_typed_unknown_not_a_safe_empty_list():
-    from agent_runtime.persona_chat_history import _safe_curated_messages
+    from agent_runtime.persona_chat_history.curation import _safe_curated_messages
 
     rows, status, unread = _safe_curated_messages(
         ExplodingSessionDB(), session_id="s1"
@@ -2005,7 +2005,7 @@ def test_failed_transcript_read_is_typed_unknown_not_a_safe_empty_list():
 
 
 def test_absent_session_db_is_unavailable_not_an_empty_transcript():
-    from agent_runtime.persona_chat_history import _safe_curated_messages
+    from agent_runtime.persona_chat_history.curation import _safe_curated_messages
 
     rows, status, unread = _safe_curated_messages(None, session_id="s1")
 
@@ -2054,7 +2054,7 @@ def test_history_fetch_reports_a_failed_read_as_not_ok():
 
 
 def test_snapshot_chat_row_marks_an_unread_tail_instead_of_certifying_it_safe():
-    from agent_runtime.persona_chat_history import _history_row
+    from agent_runtime.persona_chat_history.history_rows import _history_row
 
     instance = PersonaInstance(
         id="personainst_dev",
@@ -2080,7 +2080,7 @@ def test_snapshot_chat_row_marks_an_unread_tail_instead_of_certifying_it_safe():
 
 
 def test_snapshot_chat_row_omits_the_marker_when_the_tail_was_read():
-    from agent_runtime.persona_chat_history import _history_row
+    from agent_runtime.persona_chat_history.history_rows import _history_row
 
     instance = PersonaInstance(
         id="personainst_dev",
@@ -2105,3 +2105,45 @@ def test_snapshot_chat_row_omits_the_marker_when_the_tail_was_read():
 
     assert "messages_unavailable" not in row
     assert row["redaction_status"] == "safe"
+
+
+def test_iso_timestamp_reads_every_input_type_it_accepts():
+    """Positive control for the type ladder lane R2's CHANGE turns into a
+    ``singledispatch`` table (ruling Q6): one case per registered type, the
+    epoch-milliseconds tolerance on both numeric arms and the numeric string,
+    and the refusals."""
+
+    seconds = 1782162002.5
+    expected = "2026-06-22T21:00:02.500000Z"
+    assert iso_timestamp(seconds) == expected
+    assert iso_timestamp(int(seconds)) == "2026-06-22T21:00:02.000000Z"
+    assert iso_timestamp(seconds * 1000) == expected
+    assert iso_timestamp(int(seconds) * 1000) == "2026-06-22T21:00:02.000000Z"
+    assert iso_timestamp(str(seconds)) == expected
+    assert iso_timestamp(" 2026-06-22T21:00:02.5+00:00 ") == expected
+    assert iso_timestamp("2026-06-22T21:00:02.5") == expected
+    assert iso_timestamp(True) is None
+    assert iso_timestamp("") is None
+    assert iso_timestamp("not a time") is None
+    assert iso_timestamp(1e300) is None
+    assert iso_timestamp(object()) is None
+
+
+def test_every_wire_role_maps_to_its_transcript_role():
+    """Positive control for the role ladder the CHANGE turns into a table."""
+
+    from agent_runtime.persona_chat_history.vocabulary import MessageRole
+
+    assert {
+        wire: MessageRole.from_wire(wire)
+        for wire in ("user", "operator", "assistant", "agent", "system", "tool", "", None)
+    } == {
+        "user": "operator",
+        "operator": "operator",
+        "assistant": "agent",
+        "agent": "agent",
+        "system": "system",
+        "tool": None,
+        "": None,
+        None: None,
+    }

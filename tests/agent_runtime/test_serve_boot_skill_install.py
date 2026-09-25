@@ -18,7 +18,7 @@ import json
 import os
 from types import SimpleNamespace
 
-from hermes_cli.harness_parts import serve as serve_module
+from hermes_cli.harness_parts.serve import commands as serve_module
 from hermes_cli.harness_parts.serve import install_harness_skills_at_boot, serve_loop
 
 SHUTDOWN = json.dumps({"op": "shutdown"}) + "\n"

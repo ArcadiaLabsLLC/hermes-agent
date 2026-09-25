@@ -1,45 +1,22 @@
 """Harness-local presentation, envelope, and error-taxonomy helpers.
 
-Split out of ``hermes_cli/harness.py`` (P0 step 2). These are the pieces the
-exec'd command parts under ``hermes_cli/harness_parts/`` reach for by free
-name — the Stage-42 envelope builders, the printer, the row sorter, the
-request-JSON loader, and the error taxonomy. Housing them in a real,
-importable module lets each part declare an explicit import header instead of
-inheriting them from whatever harness.py happened to define, which is what
-makes the parts analysable at all (see
-``tests/hermes_cli/test_harness_parts_namespace.py``).
+Split out of ``hermes_cli/harness.py`` (P0 step 2). These are the pieces every
+harness verb family reaches for — the Stage-42 envelope builders, the printer,
+the row sorter, the request-JSON loader, and the error taxonomy — housed in a
+leaf module (it imports no harness module) so harness.py and every
+``hermes_cli/harness_parts/`` module import them from ONE place.
 
-WHY EACH PART CARRIES AN EXPLICIT IMPORT HEADER
------------------------------------------------
-This paragraph lived, verbatim, at the top of all six parts until 2026-08-19.
-It is here once now, and each part points at it.
+Until lane H1 (2026-09-24) the parts were ``exec``'d into harness.py's globals
+and this docstring carried the rationale for their explicit import headers.
+Each part is now a real module: it resolves names in its own globals, ruff's
+F821 holds that it imports everything it reads, and W0-G4
+(``tests/tooling/test_harness_namespace_is_thin.py``) holds that harness.py
+neither execs a part nor re-exports one. A test patches a name on the module
+that looks it up, never on ``hermes_cli.harness``.
 
-The parts are still ``exec``'d into ``harness.py``'s globals by
-``_load_command_parts`` — that mechanism is unchanged — but they are no longer
-DEPENDENT on it. These names used to arrive implicitly from whatever
-``harness.py`` happened to import, so a wrong one surfaced as a ``NameError``
-only when an operator ran the one verb that touched it: a latent break with an
-arbitrarily long fuse, discovered in production by whoever reached for the
-least-used command. Re-importing a name ``harness.py`` also imports rebinds it
-to the identical object, so the explicit header costs nothing at runtime.
-
-Two different gates hold the two halves, and it matters which is which. That
-the header is COMPLETE is ruff's F821 (``pyproject.toml``'s
-``[tool.ruff.lint] select``, with no per-file ignore for ``harness_parts/``):
-ruff reads each part as the standalone file it is not yet, so any name the
-part reads and does not import is an error there. That it rebinds IDENTICALLY,
-and that every free name resolves once all six parts are loaded, is
-``tests/hermes_cli/test_harness_parts_namespace.py``. The namespace test alone
-cannot see an incomplete header — it asks whether the loaded namespace can
-supply the name, and harness.py's own imports always can — which is how 38
-free names accumulated in ``persona_commands`` and ``runtime_commands``
-between 2026-08-01 and 2026-09-05 with that test green the whole way. Read the
-docstring above as the rationale; read the ruff run as the enforcement.
-
-Nothing here knows about argparse wiring or any specific command: harness.py
-keeps its 50 local command bodies and re-imports these names, so
-``hermes_cli.harness.emit_harness_error`` (imported by ``harness_parts/serve.py``
-and ``hermes_cli/main.py``) keeps resolving exactly as before.
+``hermes_cli.harness.emit_harness_error`` keeps resolving because harness.py
+imports it from here and it is on W0-G4's allowlist; ``harness_parts/serve``
+imports it from here directly.
 """
 
 from __future__ import annotations
@@ -92,12 +69,11 @@ __all__ = [
 def harness_repo_root() -> Path:
     """The hermes-agent checkout root, anchored to this file.
 
-    The command parts are exec'd into harness.py's globals, so a part reading
-    ``__file__`` sees *harness.py's* path, not its own — ``parents[1]`` there
-    means the repo root only by accident of harness.py living one level down.
-    Anchoring here removes that coupling: this module's ``__file__`` is
-    ``<repo>/hermes_cli/harness_support.py`` whether it is imported or a caller
-    is exec'd.
+    Until lane H1 the command parts were exec'd into harness.py's globals, so
+    a part reading ``__file__`` saw *harness.py's* path; since lane H3 a part
+    can also sit one package deeper (``harness_parts/persona/``). Anchoring
+    here keeps one answer for every caller: this module's ``__file__`` is
+    ``<repo>/hermes_cli/harness_support.py``.
     """
 
     return Path(__file__).resolve().parents[1]

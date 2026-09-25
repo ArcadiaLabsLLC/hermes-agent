@@ -70,11 +70,10 @@ READ_TERMINAL_SCHEMA = {
 }
 
 
-from tools.downstream_schema import brief_schema
 registry.register(
     name="read_terminal",
     toolset="desktop_ui",
-    schema=brief_schema("read_terminal", READ_TERMINAL_SCHEMA),
+    schema=READ_TERMINAL_SCHEMA,
     handler=lambda args, **kw: read_terminal_tool(
         start_line=args.get("start_line"), count=args.get("count"), callback=kw.get("callback")
     ),

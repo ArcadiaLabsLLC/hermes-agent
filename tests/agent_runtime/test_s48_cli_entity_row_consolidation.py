@@ -21,7 +21,7 @@ symbol / derivation                        why it is gone
 ========================================= ==================================
 `office.py::_office_item_row`              re-declared, key for key, the
                                            scene-item block
-                                           `_office_actor_summary_row`
+                                           `office_actor_summary_row`
                                            already projects
 `harness.py` binding                       last reader was `_realm_row`'s
 `read_realm_sync_sidecar`                  duplicate sidecar read; the
@@ -95,6 +95,7 @@ import inspect
 import textwrap
 
 import pytest
+from hermes_cli.harness_parts import board as board_commands
 
 
 def _code_without_prose(source: str) -> str:
@@ -123,14 +124,35 @@ def _code_without_prose(source: str) -> str:
     return ast.unparse(ast.fix_missing_locations(tree))
 
 
-def _row_source(name: str) -> str:
-    """Code-only source of one row projection, resolved through the post-load
-    harness namespace — the parts are `exec`'d into it, so this is the only
-    place all six are visible at once."""
+def _harness_function(name: str):
+    """One row projection, from harness.py or whichever command part defines it.
+
+    The parts were `exec`'d into harness.py's globals until lane H1
+    (2026-09-24); each is its own module now, so the lookup walks all of them
+    and refuses a name bound to no object, or to two different ones."""
+
+    import importlib
+    from pathlib import Path
 
     import hermes_cli.harness as harness
 
-    return _code_without_prose(inspect.getsource(getattr(harness, name)))
+    parts_dir = Path(harness.__file__).with_name("harness_parts")
+    dotted = (
+        "hermes_cli.harness_parts."
+        + p.relative_to(parts_dir).with_suffix("").as_posix().replace("/", ".").removesuffix(".__init__")
+        for p in sorted(parts_dir.rglob("*.py"))
+        if p.relative_to(parts_dir).as_posix() != "__init__.py"
+    )
+    modules = [harness] + [importlib.import_module(name) for name in dotted]
+    bound = {id(vars(m)[name]): vars(m)[name] for m in modules if name in vars(m)}
+    assert len(bound) == 1, f"{name}: bound to {len(bound)} distinct objects across the harness modules"
+    return next(iter(bound.values()))
+
+
+def _row_source(name: str) -> str:
+    """Code-only source of one row projection."""
+
+    return _code_without_prose(inspect.getsource(_harness_function(name)))
 
 
 def test_the_gate_itself_is_not_vacuous():
@@ -200,11 +222,11 @@ RETIRED_DERIVATIONS = {
 #: row projection -> the builder it must call. A removal gate alone would pass
 #: against a row that stopped projecting anything at all.
 REQUIRED_DELEGATIONS = {
-    "_workspace_row": "_workspace_summary",
-    "_realm_row": "_realm_summary",
+    "_workspace_row": "workspace_summary",
+    "_realm_row": "realm_summary",
     "_board_row": "board_summary_row",
-    "_card_row": "_board_card_row",
-    "_office_actor_row": "_office_actor_summary_row",
+    "_card_row": "board_card_row",
+    "_office_actor_row": "office_actor_summary_row",
     "_office_surface_row": "office_summary_row",
 }
 
@@ -275,11 +297,9 @@ def test_the_cli_only_count_is_deliberately_kept():
     `active_card_count`. Pinned KEPT so the next sweep reads the reason instead
     of re-deriving it (and, worse, "fixing" it)."""
 
-    import hermes_cli.harness as harness
-
-    assert callable(harness._board_active_card_count)
-    assert callable(harness._column_kind)
-    source = _code_without_prose(inspect.getsource(harness._board_active_card_count))
+    assert callable(board_commands._board_active_card_count)
+    assert callable(board_commands._column_kind)
+    source = _code_without_prose(inspect.getsource(board_commands._board_active_card_count))
     assert "done" in source
     # The KEY, not the substring: ``_board_active_card_count`` legitimately
     # contains ``active_card_count`` in its own name, so mask the helper's
@@ -312,13 +332,11 @@ def test_the_cli_only_fields_are_the_declared_set():
             "actor.actor_key",  # routing: re-pair each projected actor row
         },
     }
-    import hermes_cli.harness as harness
-
     for name, fields in expected.items():
         # Parsed from the REAL source, not the token-joined prose-stripped
         # form: docstrings and comments produce no ``Attribute`` nodes, so
         # there is nothing to strip here.
-        tree = ast.parse(textwrap.dedent(inspect.getsource(getattr(harness, name))))
+        tree = ast.parse(textwrap.dedent(inspect.getsource(_harness_function(name))))
         found = {
             f"{node.value.id}.{node.attr}"
             for node in ast.walk(tree)

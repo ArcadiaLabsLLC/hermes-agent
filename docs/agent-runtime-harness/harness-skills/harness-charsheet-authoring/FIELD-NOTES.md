@@ -2088,7 +2088,7 @@ first two correct the plan I was handed rather than confirming it.
   prewarm switches its bind to `persona_profile_scope`", and there is no bind there to
   switch: the module resolves a `PersonaProfileBinding`, puts `profile=binding.hermes_profile`
   on an `AgentRunRequest`, and hands it to `ProfileAgentRunner.prewarm`. The bind happens one
-  layer down, in `_execute_agent_run` (`agent_runtime/profile_runner.py:967`), inside the
+  layer down, in `_execute_agent_run` (`agent_runtime/profile_runner/runner.py:374`), inside the
   `with` stack a REAL TURN uses — same `_WORKDIR_LOCK`, same `persona_profile_context`,
   same everything, deliberately, because that module's whole premise is that an actor built
   under different scopes is a different actor. So there is no prewarm-only knob; the only
@@ -2111,7 +2111,7 @@ first two correct the plan I was handed rather than confirming it.
   admission, and admission spawns. The mirror stays.
 
 - **[READ] The fix therefore belongs at the CONSUMER, and the repo had already litigated
-  this exact class twice.** `core_cache`'s HC-1 note (`agent_runtime/core_cache.py:1268`)
+  this exact class twice.** `core_cache`'s HC-1 note (`agent_runtime/core_cache/home.py:38`)
   argues it at length for the snapshot fingerprint — including the part that matters most
   here, that resolving through `get_hermes_head_home()` is *necessary and not sufficient*,
   because its first authority is a ContextVar and the bleeding thread has none. Its answer
@@ -2582,7 +2582,7 @@ was right about the repair and wrong about the wound.
   width, or require the erased row to span the STRIP rather than the crop. I repaired the
   damage instead of preventing it, because the merge is also the right answer for a genuine
   keyed seam, but the next slice into this file should consider fixing it at the source.
-  (ii) The regression tests live in `tests/agent/test_pet_generate.py`, which is skipped
+  (ii) The regression tests lived in `tests/agent/test_pet_generate.py` (deleted by upstream's 2026-09 test purge; the guard is now UNCOVERED), which was skipped
   unless `HERMES_RUN_SLOW_PET_TESTS=1` — so this bug's guard does NOT run in a default suite.
   That is where atlas coverage already lives and I did not restructure the gate, but it means
   a re-break will be silent. (iii) No ruff: it is not installed in any interpreter on this

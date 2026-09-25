@@ -1,0 +1,33 @@
+{
+ "ceiling": 800,
+ "counter": "code lines: non-blank, not '#'-led, docstrings count (ruling Q1)",
+ "files": {
+  "agent/charsheet/draft.py": 1600,
+  "agent/charsheet/pipeline.py": 1898,
+  "agent_runtime/agent_create.py": 1439,
+  "agent_runtime/board_store.py": 925,
+  "agent_runtime/chat_live_log.py": 849,
+  "agent_runtime/config.py": 902,
+  "agent_runtime/dispatch_delivery.py": 1311,
+  "agent_runtime/dispatch_store.py": 1019,
+  "agent_runtime/gateway_peers.py": 1621,
+  "agent_runtime/harness_doctor.py": 831,
+  "agent_runtime/mcp_admission.py": 1452,
+  "agent_runtime/mission_chat_turns.py": 1141,
+  "agent_runtime/operator_channels.py": 1394,
+  "agent_runtime/persona_chat_continuity.py": 1646,
+  "agent_runtime/persona_instance_sync.py": 975,
+  "agent_runtime/running_work.py": 1517,
+  "agent_runtime/runtime_hud.py": 1103,
+  "agent_runtime/state_patches.py": 1023,
+  "agent_runtime/store.py": 911,
+  "agent_runtime/stream.py": 1385,
+  "agent_runtime/terminal_envelope.py": 963,
+  "hermes_cli/harness_parts/gateway_commands.py": 1645,
+  "scripts/changed_line_mutation_check.py": 831,
+  "tests/_downstream/hermes_cli_conftest.py": 893,
+  "tests/_downstream/id_markers.py": 1053,
+  "tools/agent_chat_dispatch.py": 842,
+  "tools/agent_chat_tool.py": 1429
+ }
+}

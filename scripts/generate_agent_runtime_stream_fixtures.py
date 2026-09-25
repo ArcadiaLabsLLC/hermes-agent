@@ -57,7 +57,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import importlib
 import os
+import pkgutil
 from pathlib import Path
 import sys
 import tempfile
@@ -274,7 +276,7 @@ PINNED_ONLY_FILES = (
     "patch_remove.json",
     # The S7-A OFFICE leg: an ``office_actor`` upsert for one dragged desk. Its
     # ``changed`` is a real capture off the production generator (the actor row
-    # ``snapshot._office_actor_summary_row`` builds, verbatim); only the
+    # ``snapshot.office_actor_summary_row`` builds, verbatim); only the
     # timestamps are normalized to the pinned stamp its siblings carry. Pinned
     # rather than generated for the same reason they are: the seeded isolated
     # root the generator builds holds no office surface.
@@ -724,6 +726,36 @@ def _seed_running_work_owner() -> None:
         conn.execute("UPDATE async_delegations SET owner_started_at=NULL")
 
 
+#: The state-patch entities an agent create emits, in order. Named because both
+#: words are also realm-sync families (``realm_sync.families.SyncFamily``) and
+#: W0-G5 refuses a bare literal compare against a declared vocabulary's word.
+_AGENT_CREATE_PATCH_ENTITIES = ["persona_instance", "office_actor"]
+
+
+
+def _pin_chat_session_mint(persona_assignments: Any, mint: Any) -> list[tuple[Any, Any]]:
+    """Point ``persona_chat_session_id_for`` at ``mint`` wherever it is READ.
+
+    The package re-exports it and the store and its lanes import it, so it is
+    rebound in the package and in every package module that binds the same
+    function — enumerated from the package, never listed. Returns the
+    ``(module, original)`` pairs to restore.
+    """
+
+    original = persona_assignments.persona_chat_session_id_for
+    modules = [persona_assignments] + [
+        module
+        for module in (
+            importlib.import_module(f"{persona_assignments.__name__}.{info.name}")
+            for info in pkgutil.iter_modules(persona_assignments.__path__)
+        )
+        if getattr(module, "persona_chat_session_id_for", None) is original
+    ]
+    for module in modules:
+        module.persona_chat_session_id_for = mint
+    return [(module, original) for module in modules]
+
+
 def _build_agent_create_frames() -> tuple[dict, dict]:
     """S0: ONE ``perform_agent_create``, rendered for two different subscribers.
 
@@ -836,10 +868,7 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
 
     base_offset = events_position()["event_offset"]
 
-    minted = persona_assignments.persona_chat_session_id_for
-    persona_assignments.persona_chat_session_id_for = (
-        lambda _instance_id: FIXTURE_CREATE_CHAT_SESSION_ID
-    )
+    pins = _pin_chat_session_mint(persona_assignments, lambda _: FIXTURE_CREATE_CHAT_SESSION_ID)
     head_home_before = os.environ.get("HERMES_HEAD_HOME")
     os.environ.setdefault(
         "HERMES_HEAD_HOME", os.environ.get("HERMES_HOME") or str(paths.store_root())
@@ -855,7 +884,8 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
             }
         )
     finally:
-        persona_assignments.persona_chat_session_id_for = minted
+        for module, original in pins:
+            module.persona_chat_session_id_for = original
         if head_home_before is None:
             os.environ.pop("HERMES_HEAD_HOME", None)
         else:
@@ -881,10 +911,7 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
     patched = [
         event.payload for _, event in batch if event.type == STATE_PATCHED_EVENT_TYPE
     ]
-    assert [row["entity"] for row in patched] == [
-        "persona_instance",
-        "office_actor",
-    ], patched
+    assert [row["entity"] for row in patched] == _AGENT_CREATE_PATCH_ENTITIES, patched
     assert all(row["op"] == "upsert" for row in patched), patched
     # D3's load-bearing stamp: the launcher's generic persona-instance fold
     # inserts-on-absent ONLY when ``created`` is present, so a create that
@@ -923,10 +950,7 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
         f"answer is no. Frame type: {patch_frame.get('type')!r}. The remedy is "
         "in patch_coverage or the read model, not in this generator."
     )
-    assert [row["entity"] for row in patch_frame["patches"]] == [
-        "persona_instance",
-        "office_actor",
-    ], patch_frame["patches"]
+    assert [row["entity"] for row in patch_frame["patches"]] == _AGENT_CREATE_PATCH_ENTITIES, patch_frame["patches"]
     assert all(row.get("created") is True for row in patch_frame["patches"])
     assert patch_frame["base_offset"] == base_offset
 

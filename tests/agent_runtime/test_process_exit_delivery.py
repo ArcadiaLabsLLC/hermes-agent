@@ -1,28 +1,23 @@
-"""Stage 3b, the JOIN — a ``process notify`` exit becomes a real delivery turn.
+"""A background ``terminal`` exit becomes a real delivery turn in the spawning thread.
 
-The producer half is pinned in ``tests/tools/test_process_exit_notify.py``. This
-file proves the half that matters to the agent: the completion the process
-reaper publishes is consumed by the EXISTING serve delivery drain
-(``drain_background_completions``) and forged into a turn in the requesting
-agent's own thread — the same road a detached ``agent_chat_send`` reply travels
-back (the live specimen the plan names,
-``dispatch-delivery-dispatch-23aa318aa3d4``).
-
-A producer test and a consumer test can both pass while the seam between them
-is broken — that is the lesson ``test_background_completion_attribution`` was
-written from — so the event here is built by the REAL producer
-(``ProcessRegistry._move_to_finished`` after a real ``notify_on_exit``), never
-hand-rolled.
+Owner ruling 2026-09-24: completion is decided ONCE at spawn (upstream's ``notify``
+parameter, defaulted on by the eternia-harness ``tool_request`` middleware); the late
+``process notify`` request and its store are gone. This file pins the join: the event
+the REAL producer (``ProcessRegistry._move_to_finished`` on a ``notify_on_complete``
+session) publishes is consumed by the serve drain (``drain_background_completions``)
+and forged into a turn in the owning thread — or DROPPED, loudly, when the persona
+instance that owned that thread is gone. Never hand-rolled: a producer test and a
+consumer test can both pass while the seam between them is broken.
 """
 
 from __future__ import annotations
 
+import logging
 import time
 
 import pytest
 
 from agent_runtime import dispatch_delivery
-from agent_runtime.persona_chat_continuity import chat_root_session_key_scope
 from tools.process_registry import ProcessRegistry, ProcessSession
 
 ROOT = "persona_chat_personainst_chara_a2_7b31d0e4_a238c5f9c4c2"
@@ -31,101 +26,133 @@ PERSONA = "chara_a2"
 
 
 @pytest.fixture()
-def notify_home(tmp_path, monkeypatch):
-    import agent_runtime.profile_home as profile_home
-    import tools.process_notify_store as store
+def owners(monkeypatch, tmp_path):
+    import agent_runtime.paths as runtime_paths
 
-    home = tmp_path / "background-home"
-    home.mkdir()
-    monkeypatch.setattr(
-        profile_home, "get_hermes_background_work_home", lambda: home
-    )
-    store.reset_cache()
-    return home
+    monkeypatch.setattr(runtime_paths, "store_root", lambda: tmp_path / "runtime")
+    table = {ROOT: (PERSONA, INSTANCE)}
+    monkeypatch.setattr(dispatch_delivery, "_sender_persona", lambda session_id: table.get(session_id))
+    return table
 
 
-@pytest.fixture()
-def owned_root(monkeypatch):
-    import agent_runtime.persona_assignments as assignments
-
-    monkeypatch.setattr(
-        assignments,
-        "chat_session_owner_persona",
-        lambda session_id: (PERSONA, INSTANCE) if session_id == ROOT else None,
-    )
-    monkeypatch.setattr(
-        dispatch_delivery,
-        "_sender_persona",
-        lambda session_id: (PERSONA, INSTANCE) if session_id == ROOT else None,
-    )
-
-
-def _exited_notify_event(registry: ProcessRegistry) -> dict:
+def _exited_spawn_event(registry: ProcessRegistry) -> dict:
     session = ProcessSession(
         id="proc_rows",
         command="hermes harness characters rows --draft d1 --json",
         session_key=ROOT,
         started_at=time.time(),
         output_buffer="row 10/10 ok\n",
+        notify_on_complete=True,
     )
     registry._running[session.id] = session
-    with chat_root_session_key_scope(ROOT):
-        armed = registry.notify_on_exit(session.id)
-    assert armed["status"] == "armed"
     session.exited = True
     session.exit_code = 0
     registry._move_to_finished(session)
     return registry.completion_queue.get_nowait()
 
 
-def test_the_exit_is_forged_into_a_turn_in_the_requesting_thread(
-    notify_home, owned_root, monkeypatch
-):
-    registry = ProcessRegistry()
-    event = _exited_notify_event(registry)
-
+def _drain_with(registry, monkeypatch, event, *, idle=True, forge=None):
     import tools.process_registry as registry_mod
 
     monkeypatch.setattr(registry_mod, "process_registry", registry)
-    monkeypatch.setattr(dispatch_delivery, "_sender_is_idle", lambda root: True)
+    monkeypatch.setattr(dispatch_delivery, "_sender_is_idle", lambda root: idle)
     registry.completion_queue.put(event)
+    return dispatch_delivery.drain_background_completions(forge=forge)
 
+
+def test_the_exit_is_forged_into_a_turn_in_the_spawning_thread(owners, monkeypatch):
+    registry = ProcessRegistry()
     forged: list[dict] = []
 
     def _forge(**kwargs):
         forged.append(kwargs)
         return True, {"ok": True, "reply": "thanks"}
 
-    tally = dispatch_delivery.drain_background_completions(forge=_forge)
+    tally = _drain_with(registry, monkeypatch, _exited_spawn_event(registry), forge=_forge)
 
     assert tally["delivered"] == 1
-    assert len(forged) == 1
-    call = forged[0]
-    assert call["root_session_id"] == ROOT
-    assert call["persona_instance_id"] == INSTANCE
-    assert call["persona_id"] == PERSONA
-    # The delivered message is the receipt, and it says why it arrived.
-    assert "BACKGROUND PROCESS COMPLETE" in call["message"]
-    assert "process notify" in call["message"]
-    assert "rows --draft d1" in call["message"]
+    assert [call["root_session_id"] for call in forged] == [ROOT]
+    assert forged[0]["persona_instance_id"] == INSTANCE
+    assert forged[0]["persona_id"] == PERSONA
+    assert "rows --draft d1" in forged[0]["message"]
 
 
-def test_a_busy_thread_requeues_rather_than_splicing_the_receipt_mid_turn(
-    notify_home, owned_root, monkeypatch
+def test_a_retired_instance_drops_the_completion_loudly_instead_of_requeueing(
+    owners, monkeypatch, caplog
 ):
-    """Inherited invariant: a delivery never lands in a thread mid-turn."""
+    registry = ProcessRegistry()
+    event = _exited_spawn_event(registry)
+    owners.clear()  # the instance that spawned it is gone
+
+    with caplog.at_level(logging.WARNING, logger=dispatch_delivery.logger.name):
+        tally = _drain_with(
+            registry, monkeypatch, event,
+            forge=lambda **kwargs: pytest.fail("an orphaned completion must not be forged"),
+        )
+
+    assert tally["dropped"] == 1
+    assert registry.completion_queue.qsize() == 0
+    assert any("no persona instance owns chat root" in r.getMessage() for r in caplog.records)
+
+
+def test_an_unreadable_owner_lookup_is_not_proof_of_absence(owners, monkeypatch):
+    """Positive control for the drop: same event, the lookup RAISES -> kept on the queue."""
 
     registry = ProcessRegistry()
-    event = _exited_notify_event(registry)
+    event = _exited_spawn_event(registry)
 
-    import tools.process_registry as registry_mod
+    def _raises(session_id):
+        raise OSError("store unreadable")
 
-    monkeypatch.setattr(registry_mod, "process_registry", registry)
-    monkeypatch.setattr(dispatch_delivery, "_sender_is_idle", lambda root: False)
-    registry.completion_queue.put(event)
+    monkeypatch.setattr(dispatch_delivery, "_sender_persona", _raises)
+    tally = _drain_with(
+        registry, monkeypatch, event,
+        forge=lambda **kwargs: pytest.fail("an unproven owner must not be forged"),
+    )
 
-    tally = dispatch_delivery.drain_background_completions(
-        forge=lambda **kwargs: pytest.fail("a busy thread must not be forged into")
+    assert tally["dropped"] == 0
+    assert registry.completion_queue.qsize() == 1
+
+
+class _SteerableAgent:
+    def __init__(self):
+        self.steered: list[str] = []
+
+    def steer(self, text):
+        self.steered.append(text)
+        return True
+
+
+def test_a_completion_mid_turn_is_steered_into_the_running_turn(owners, monkeypatch, tmp_path):
+    """Owner ruling 2026-09-24: busy thread -> STEER (upstream ``AIAgent.steer``), no new turn."""
+    from agent_runtime.mission_chat_steer import start_active_mission_chat_turn
+
+    agent = _SteerableAgent()
+    handle = start_active_mission_chat_turn(
+        runtime_root=tmp_path / "runtime", session_id=ROOT, agent=agent,
+        persona_id=PERSONA, persona_instance_id=INSTANCE, poll_seconds=0.01,
+    )
+    try:
+        registry = ProcessRegistry()
+        tally = _drain_with(
+            registry, monkeypatch, _exited_spawn_event(registry), idle=False,
+            forge=lambda **kwargs: pytest.fail("a steered completion must not forge a second turn"),
+        )
+    finally:
+        handle.close()
+
+    assert tally["steered"] == 1
+    assert tally["requeued"] == 0
+    assert registry.completion_queue.qsize() == 0
+    assert len(agent.steered) == 1 and "rows --draft d1" in agent.steered[0]
+
+
+def test_a_busy_thread_with_no_steerable_turn_requeues_for_its_idle_turn(owners, monkeypatch):
+    """Positive control for the steer: same busy thread, no live turn handle -> re-queued."""
+    registry = ProcessRegistry()
+    tally = _drain_with(
+        registry, monkeypatch, _exited_spawn_event(registry), idle=False,
+        forge=lambda **kwargs: pytest.fail("a busy thread must not be forged into"),
     )
 
     assert tally["delivered"] == 0

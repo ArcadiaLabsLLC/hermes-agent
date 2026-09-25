@@ -172,16 +172,16 @@ def _count_auth_store_reads(monkeypatch) -> dict[str, int]:
     reached a credential at all.
     """
 
-    from hermes_cli import auth as auth_mod
+    from agent_runtime import auth_extensions as auth_ext
 
     counts = {"auth_store": 0}
-    real = auth_mod.codex_auth_store_credentials_present
+    real = auth_ext.codex_auth_store_credentials_present
 
     def counted() -> bool:
         counts["auth_store"] += 1
         return real()
 
-    monkeypatch.setattr(auth_mod, "codex_auth_store_credentials_present", counted)
+    monkeypatch.setattr(auth_ext, "codex_auth_store_credentials_present", counted)
     return counts
 
 

@@ -64,7 +64,10 @@ def test_the_committed_inventory_matches_the_live_registry(emitter):
 def test_every_tool_in_the_json_is_registered_and_none_is_hygiene_blocked(emitter):
     import model_tools  # noqa: F401 - the import IS the registration
     from agent_runtime.personas import REGISTRY_HYGIENE_BLOCKED_TOOLS
+    from hermes_cli.plugins import discover_plugins
     from tools.registry import registry
+
+    discover_plugins()  # plugin tools register per home; this test's home is fresh
 
     inventory = json.loads((REPO_ROOT / emitter.INVENTORY_JSON).read_text(encoding="utf-8"))
     names = {row["name"] for row in inventory["tools"]}

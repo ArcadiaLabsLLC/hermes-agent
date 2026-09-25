@@ -27,6 +27,7 @@ Domain queues — work filed by the SURFACE it serves, never the layer it lives 
 - [[runtime-queue]] — Mission Control, **the hermes half**: rows whose fix lives in this repository (serve, chat turn, snapshot, office and board stores, discussions, realm sync, multi-device, prep cost, the harness CLI). Split inside by the [[Fork Boundary Map]]: fork-owned, seams in upstream files, upstream-owned.
 - `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md` — Mission Control, **the launcher half**: the surface, its Flutter code and tests. A finding that needs both sides is filed on the side that must move first and names the other.
 - [[fork-hygiene-queue]] — the repository as a fork: upstream sync and the boundary, CI, the suite and its gates, the mutation gate, docs gates, the god-file refactor, this vault.
+- [[dead-code-burn-down-queue]] — the god-file program's deletion register (hermes half): every dead-code candidate the census and the layout sheets find, launcher format, one row per symbol; listed apart because a deletion serves no surface and its rows share one gate (the tombstone registry).
 
 ## The order of programs
 

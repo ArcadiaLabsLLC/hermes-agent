@@ -112,12 +112,15 @@ than re-deriving a guard:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import tempfile
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "AMBIENT_CHAT_READS_ENV",
@@ -135,6 +138,7 @@ __all__ = [
     "declared_chat_head_home",
     "is_canonical_session_persistence",
     "open_chat_session_db",
+    "configured_head_home",
     "publish_chat_head_home",
     "recorded_chat_head_home",
     "recorded_instance_chat_head",
@@ -620,9 +624,45 @@ def open_chat_session_db(scope: ChatSessionScope | None = None) -> Any | None:
     try:
         from hermes_state import SessionDB
 
-        return SessionDB(db_path=resolved.db_path)
+        db = SessionDB(db_path=resolved.db_path)
     except Exception:
         return None
+    _purge_retired_scratch_once(db, resolved.db_path)
+    return db
+
+
+# db paths whose retired scratch rows this process already purged.
+_SCRATCH_PURGED: set[str] = set()
+
+
+def _purge_retired_scratch_once(db: Any, db_path: Any) -> None:
+    """The ONE chokepoint that deletes retired-source scratch sessions.
+
+    Runs once per chat DB per process and REPORTS the count on stderr; a
+    purge failure never costs the caller its handle.
+    """
+
+    key = str(db_path)
+    if key in _SCRATCH_PURGED:
+        return
+    _SCRATCH_PURGED.add(key)
+    try:
+        from agent_runtime.session_extensions import (
+            RETIRED_SCRATCH_SOURCE,
+            purge_retired_scratch_sessions,
+        )
+
+        removed = purge_retired_scratch_sessions(db)
+    except Exception as exc:  # noqa: BLE001 — reported, never fatal
+        logger.warning("retired_scratch_purge_failed db=%s error=%s", key, exc)
+        return
+    if removed:
+        logger.warning(
+            "retired_scratch_sessions_purged source=%s count=%d db=%s",
+            RETIRED_SCRATCH_SOURCE,
+            len(removed),
+            key,
+        )
 
 
 def recorded_chat_head_home() -> Path | None:
@@ -710,6 +750,19 @@ def declared_chat_head_home() -> Path | None:
     return candidate
 
 
+def configured_head_home() -> str:
+    """The ``ENV_HEAD_HOME`` rung, raw: the operator-supplied ``HERMES_HEAD_HOME``
+    stripped, or ``""`` when the Launcher named none.
+
+    The ONE reader of that variable. ``agent_runtime.profile_home``'s head
+    resolvers take the value from here rather than asking the environment
+    themselves, so the ladder and the primitive under it cannot disagree about
+    what the environment said.
+    """
+
+    return os.environ.get("HERMES_HEAD_HOME", "").strip()
+
+
 def publish_chat_head_home(scope: ChatSessionScope | None = None) -> Path | None:
     """Record this process's EXPLICIT head home for the shared runtime root.
 
@@ -758,7 +811,7 @@ def _explicit_source(head: Path) -> ChatHeadSource:
     env value is precisely the nesting case ``RELAY_CONTEXT`` exists to name.
     """
 
-    configured = os.environ.get("HERMES_HEAD_HOME", "").strip()
+    configured = configured_head_home()
     if configured and _same_path(Path(configured).expanduser(), head):
         return ChatHeadSource.ENV_HEAD_HOME
     return ChatHeadSource.RELAY_CONTEXT

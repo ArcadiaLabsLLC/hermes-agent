@@ -49,3 +49,63 @@ class TestPluginDiscovery:
         ]
         assert len(completions) == 1, completions
         assert "elapsed_ms=" in completions[0]
+
+
+class TestPluginHooks:
+    """Fork half of upstream's ``TestPluginHooks::test_request_hooks_are_invokeable``.
+
+    The bundled eternia-harness plugin (kind ``backend``, auto-loaded) registers
+    ``post_api_request`` for the usage ledger (seam MOVE-A group 12), so upstream's
+    ``has_hook("post_api_request") is False`` cannot hold with the real bundled
+    tree; the upstream id is a strict xfail in ``tests/_downstream/id_markers.py``.
+    """
+
+    def _request_hook_manager(self, tmp_path, monkeypatch, *, bundled=None):
+        from hermes_cli import plugins as plugins_mod
+
+        plugins_dir = tmp_path / "hermes_test" / "plugins"
+        _make_plugin_dir(
+            plugins_dir, "request_hook",
+            register_body=(
+                'ctx.register_hook("pre_api_request", '
+                'lambda **kw: {"seen": kw.get("api_call_count"), '
+                '"mc": kw.get("message_count"), "tc": kw.get("tool_count")})'
+            ),
+        )
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes_test"))
+        if bundled is not None:
+            monkeypatch.setattr(plugins_mod, "get_bundled_plugins_dir", lambda: bundled)
+        mgr = PluginManager()
+        mgr.discover_and_load()
+        return mgr
+
+    def test_request_hooks_are_invokeable_without_the_bundled_tree(self, tmp_path, monkeypatch):
+        """Upstream's assertions, verbatim, with the bundled plugins out of the sweep."""
+        empty_bundled = tmp_path / "bundled"
+        empty_bundled.mkdir()
+        mgr = self._request_hook_manager(tmp_path, monkeypatch, bundled=empty_bundled)
+
+        assert mgr.has_hook("pre_api_request") is True
+        assert mgr.has_hook("post_api_request") is False
+        results = mgr.invoke_hook(
+            "pre_api_request",
+            session_id="s1",
+            task_id="t1",
+            model="test",
+            api_call_count=2,
+            message_count=5,
+            tool_count=3,
+            approx_input_tokens=100,
+            request_char_count=400,
+            max_tokens=8192,
+        )
+        assert results == [{"seen": 2, "mc": 5, "tc": 3}]
+
+    def test_the_harness_is_the_only_post_api_request_hook_in_the_bundled_tree(
+        self, tmp_path, monkeypatch
+    ):
+        """Positive control: the real bundled tree adds exactly the harness's ledger hook."""
+        mgr = self._request_hook_manager(tmp_path, monkeypatch)
+
+        hooks = mgr._hooks.get("post_api_request", [])
+        assert [hook.__name__ for hook in hooks] == ["record_usage_ledger_row"]

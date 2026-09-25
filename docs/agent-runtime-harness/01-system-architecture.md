@@ -18,9 +18,9 @@ There is one runtime execution surface. `GPTPersonaRuntime`
 (`agent_runtime/persona_runtime.py:51`) exposes exactly **one** public method,
 `mission_chat_reply` (`:72`) — there is no `run_persona`, no tick, no worker
 loop. The entry point is `_cmd_mission_chat_message` — defined at
-`hermes_cli/harness_parts/persona_commands.py:2849`, exec-loaded into
-`harness.py` globals (`hermes_cli/harness.py::_load_command_parts`) and wired to argparse at
-`harness.py:1439`.
+`hermes_cli/harness_parts/persona/chat_turn_message.py::_cmd_mission_chat_message`, a real module
+(lanes H1/H3, 2026-09-24) wired to argparse at
+`hermes_cli/harness_parts/parser/persona.py::add_mission_chat`.
 
 Turn ingress has one path. Asynchronous agent-to-agent delivery
 (`agent_chat_send(wait=false)`) does not inject a message: a serve-hosted drain
@@ -30,7 +30,7 @@ keeps transcript, live log, turn journal and projection consistent for free.
 Two narrower append seams do exist and are deliberate, turn-less writes — the
 bounded child-summary mirror (`agent_runtime/continuity.py:52-62`, posted by
 `return_summary_to_parent_session`) and the explicit-append seam
-(`persona_commands.py:7441`, whose own docstring records the open question of
+(`hermes_cli/harness_parts/persona/chat_history_writes.py::_persist_persona_chat_row`, whose own docstring records the open question of
 declaring the persona-chat write path native-only). Doc 05 §8 owns their
 contract; neither runs a turn or reaches the provider.
 
@@ -98,7 +98,7 @@ for instance-bound actors, else the persona id
 (`office_store._canonical_actor_key`). Actor granularity, not item granularity,
 is the merge unit, so an agent and its coupled desk travel together. (Symbols
 only: the three line cites this paragraph carried — `models.py:179` / `:157` and
-`office_store.py:113` — had all drifted by 2026-08-31, the last of them onto an
+`office_store.py` at line 113 — had all drifted by 2026-08-31, the last of them onto an
 unrelated constant, and a name is the cheapest thing in this repo to re-find.)
 
 **One call creates all of it.** `agent_create.perform_agent_create` writes the
@@ -225,7 +225,7 @@ declarative chokepoint `PersonaInstanceStore.set_parents` (in
 `persona_assignments.py`; an empty set detaches the child).
 `PersonaInstance.spawned_by` is PROVENANCE, not steering: two live writers
 outside the store stamp it with a principal — `agent_create` sets `"operator"`,
-and `_maybe_stamp_spawned_by` (`persona_commands.py`) stamps `coordinator_id or
+and `_maybe_stamp_spawned_by` (`hermes_cli/harness_parts/persona/chat_coordinator.py`) stamps `coordinator_id or
 "operator"`. Steering itself admits only instance-shaped tokens — read-side
 filters apply `models.looks_like_persona_instance_id` (in the `spawned_by` arm
 of `snapshot`'s graph projection and in `runtime_hud`) so a principal such as
@@ -314,7 +314,7 @@ families rather than about the lane, and the transport is in
 defined in [Realms and workspaces](#realms-and-workspaces) above.
 
 **Both of those ledgers are UNIONED on pull, not adopted** (RD-11, 2026-08-31,
-`4a8d398268`). `_UNIONED_REALM_LEDGERS` (`realm_sync.py`) names them and
+`4a8d398268`). `_UNIONED_REALM_LEDGERS` (`realm_sync/ledgers.py`) names them and
 `_pulled_artifact_bytes` merges each by its own rule — set-union for
 `deleted_workspace_ids`, per-slug newest-stamp-wins for `skill_tombstones` — so
 a concurrent publish can no longer drop a delete another member recorded. It is
@@ -357,11 +357,11 @@ with the code it always raised — and attempts no network call on the way there
 (`3e6d8c06f3`). Pull deliberately never clobbers local state, which used to
 leave an operator holding drift they never meant to publish with Publish as the
 only door. `_board_store_drift` / `_office_store_drift` now build per-item rows
-(`StoreDriftItem`: family, container, item_key, kind — `realm_sync.py`) and
+(`StoreDriftItem`: family, container, item_key, kind — `realm_sync/drift.py`) and
 the four existing counts are DERIVED from those rows, so the count shapes the
 launcher parses are byte-identical and `store_drift.items` is additive beside
 them. `hermes harness realm sync revert <realm> [--item FAMILY:CONTAINER:KEY]…
-[--all] [--dry-run]` (`harness.py:624-631`, `agent_runtime/realm_revert.py`)
+[--all] [--dry-run]` (`hermes_cli/harness_parts/parser/scope.py::_add_realm_sync_verbs`, `agent_runtime/realm_revert.py`)
 realigns those exact rows to the last-pulled upstream already on disk:
 `--yes`-gated like publish/resolve because it is destructive of LOCAL state,
 archive-never-delete so it is recoverable, and **local-only** — no git, no
@@ -512,8 +512,8 @@ The lane that closes it is one more family applier, and nothing else:
   arriving parent can repair them. The ack gains one additive list,
   `steering_healed: [{key, parent}]`, and a healed row is counted in `adopted`
   because a travelling field did move forward onto an existing row.
-- **Drift and revert reach these rows.** `DRIFT_FAMILY_PERSONA_INSTANCE`
-  (`realm_sync.py`) with counts `store_drift.persona_instances` additive
+- **Drift and revert reach these rows.** `SyncFamily.PERSONA_INSTANCE`
+  (`realm_sync/families.py`) with counts `store_drift.persona_instances` additive
   beside `boards` / `office`, items keyed `{family, container=workspace_id,
   item_key=instance_id, kind}`, and the revert selector
   `persona_instance:<workspace_id>:<instance_id>`. `classify_revert` needed the
@@ -681,13 +681,13 @@ advisory `board` digest row of `HUD_FIELDS`.
 `docs/agent-runtime-harness/harness-skills/` is **installed source and stays
 live in place**. It is the repo-side origin
 (`skill_install.harness_skill_source_root`, `agent_runtime/skill_install.py:34`);
-`harness install-harness-skills` (`hermes_cli/harness.py:1663`) copies each
+`harness install-harness-skills` (`hermes_cli/harness_parts/init_commands.py::_cmd_install_harness_skills`) copies each
 package to the single shared canonical root, `get_shared_skills_dir()` —
 root-relative, not per-profile, so every persona references one copy and realm
 sync publishes it (`skill_install.py:38-43`). Never edit the installed copy.
 
 The directories present match `agent_runtime.profile_home.CANONICAL_SHARED_SKILL_IDS`
-(`agent_runtime/profile_home.py:27`) exactly — four since 2026-08-28:
+(`agent_runtime/profile_home.py:33`) exactly — four since 2026-08-28:
 `harness-dev-delivery`, `harness-qa-verdict`, `harness-runtime-model` and
 `harness-charsheet-authoring`. `harness-continuity` folded into
 `harness-runtime-model` the same day (lean-preload rule: the digest in
@@ -753,7 +753,7 @@ HOW MANY, and `None` (never `0`) when the skill did not resolve.
 | Trigger | Where | Covers |
 |---|---|---|
 | explicit CLI | `harness install-harness-skills` | manual only |
-| realm-sync pull | `agent_runtime/realm_sync.py:509-511` | realm members, on realm pull |
+| realm-sync pull | `agent_runtime/realm_sync/pull.py` `pull_realm_sync` (`install_results`) | realm members, on realm pull |
 | `git pull` | `.githooks/post-merge` → the verify script | a consumer's merge pull |
 | `harness serve` boot | `harness_parts/serve.py` `install_harness_skills_at_boot` | every boot, every pull shape |
 
@@ -777,7 +777,7 @@ skill dirs so it cannot change a package's content hash.
 machine (Claude Code, Codex), idempotently and non-destructively.
 
 **The third lane (2026-08-28) makes removal travel.** `hermes harness skills
-delete <slug> [--realm …] [--dry-run]` (`hermes_cli/harness.py:2633`) archives
+delete <slug> [--realm …] [--dry-run]` (`hermes_cli/harness_parts/skills_promotion_commands.py::_cmd_skills_delete`) archives
 the local package — never deletes, `.archive/<timestamp>/` beside the shared
 root — writes a `{slug, deleted_at, deleted_hash}` tombstone into every realm
 that currently publishes the name (the R-E default: a mode-`all` realm
@@ -790,7 +790,7 @@ tombstone covers top-level `foo` AND categorized `<cat>/foo`
 receipt's `archived` array is the truth and its scalar fields are only the
 single-package convenience. Enforcement is entirely client-side, because a
 GitHub-App push has no pre-receive hook, and it closes at three points in
-`realm_sync.py`: pull applies the ledger (`_apply_skill_tombstones`,
+the `realm_sync/` package: pull applies the ledger (`_apply_skill_tombstones`,
 archive-never-delete), pull's auto-adopt skips tombstoned slugs, and publish
 filters them out of the artifact set (`_skill_artifacts`). Canonical
 ids refuse with `skill_installer_owned` — every pull reinstalls the canonical
@@ -853,10 +853,10 @@ preload — rides the operator's *user* turn instead (`:496-511`,
 
 Visual identity is a separate live lane: `agent/charsheet/` generates
 directional character sheets behind `hermes harness` verbs
-(`hermes_cli/harness.py:3001+`), and a placement carries its sprite as
+(`hermes_cli/harness_parts/characters/`), and a placement carries its sprite as
 `OfficeItem.pet_slug` (`models.py:174`). Since 2026-08-31 the interactive
 per-verb lane has a one-shot sibling: `harness characters auto`
-(`harness.py:5083`, `_cmd_characters_auto` at `:5083`, shipped `2321a2a9c3`,
+(`hermes_cli/harness_parts/characters/auto.py::_cmd_characters_auto`, shipped `2321a2a9c3`,
 plan stamped a ledger at `8e0617a458`) drives turnaround → approve → generate →
 compose → install in ONE process, printing a receipt line per stage. It is for
 an operator's explicit "drive it all the way" ask and nothing else, because it
@@ -888,7 +888,7 @@ spending money, and the long-run acceptance proof stopped at its own fixture
 gate (`EterniaLauncher/docs/mission_control/planned/local-runtime-ownership-and-retry-safety.md`
 §8.10b). It is also VISIBLE rather than silent: while it is armed, every
 `characters` verb's `--json` result carries `"draftsman": "fake"`
-(`hermes_cli/harness.py::_characters_draftsman`, applied in `_characters_emit`
+(`hermes_cli/harness_parts/characters/payloads.py::_characters_draftsman`, applied in `_characters_emit`
 and `_characters_error`). The key is absent — never `"real"` — on the provider
 door, so an existing reader sees byte-identical output on the path it has always
 taken, a sandbox that forgot to arm the seam reads as a paid run rather than a

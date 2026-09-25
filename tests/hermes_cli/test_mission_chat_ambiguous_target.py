@@ -343,7 +343,7 @@ def test_sender_session_scopes_candidates_to_sender_workspace(tmp_path, monkeypa
     # The sender's chat-root session identifies the sender's workspace: the same
     # seed resolves differently with vs without it. Unit-level so the sender
     # session can be threaded directly (the CLI arg path has no sender session).
-    from hermes_cli.harness import _mission_chat_target_decision
+    from hermes_cli.harness_parts.persona.chat_target import _mission_chat_target_decision
 
     from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
     from agent_runtime.persona_assignments import PersonaInstanceStore
@@ -413,7 +413,7 @@ def test_bare_persona_canonical_plus_one_in_scope_placement_auto_routes(tmp_path
     # Canonical dev + exactly one in-scope placement: the canonical is shadowed,
     # leaving one candidate, so the guard ALLOWS (evaluate_target auto-routes) and
     # the routing helper resolves the bare send onto the PLACEMENT, not canonical.
-    from hermes_cli.harness import (
+    from hermes_cli.harness_parts.persona.chat_target import (
         _mission_chat_bare_persona_target,
         _mission_chat_target_decision,
     )
@@ -439,7 +439,7 @@ def test_bare_persona_canonical_with_no_placement_routes_to_canonical(tmp_path, 
     # No in-scope placement (the only placement is in another workspace): the
     # canonical row stays addressable, the guard allows, and the routing helper
     # returns None so the caller falls back to the canonical channel.
-    from hermes_cli.harness import (
+    from hermes_cli.harness_parts.persona.chat_target import (
         _mission_chat_bare_persona_target,
         _mission_chat_target_decision,
     )

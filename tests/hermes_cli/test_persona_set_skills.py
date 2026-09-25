@@ -35,6 +35,20 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from hermes_cli.harness_parts.persona import (
+    chat_delete,
+    chat_open,
+    chat_target,
+    chat_turn_message,
+    inspect_commands,
+    instance_commands,
+    lifecycle_commands,
+    model_and_skills_commands,
+)
+from hermes_cli.harness_parts import runtime_commands
+from hermes_cli.harness_parts import agent_commands
+from hermes_cli.harness_parts import init_commands
+from hermes_cli.harness_parts import workspace_commands
 
 
 @pytest.fixture(autouse=True)
@@ -188,12 +202,22 @@ def test_a_config_only_persona_is_refused_not_promoted(monkeypatch, capsys):
     """
 
     from agent_runtime.config import AgentRuntimeConfig
-    from hermes_cli import harness
 
     cfg = AgentRuntimeConfig(
         personas={"catalog_only": {"role": "dev", "display_name": "Catalog Only"}}
     )
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(agent_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(init_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(workspace_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(inspect_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(model_and_skills_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(runtime_commands, "load_agent_runtime_config", lambda: cfg)
 
     code = _dispatch(_set_skills("catalog_only", "--skill", "alpha"))
     data = json.loads(capsys.readouterr().out)

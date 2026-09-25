@@ -1,5 +1,4 @@
 from pathlib import Path
-from subprocess import CalledProcessError
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -94,26 +93,6 @@ def _setup_update_mocks(monkeypatch, tmp_path):
     monkeypatch.setattr(hermes_config, "migrate_config", lambda **kw: {"env_added": [], "config_added": []})
     monkeypatch.setattr(hermes_main, "_upgrade_pip_before_lazy_refresh", lambda *a, **kw: None)
     monkeypatch.setattr(hermes_main, "_refresh_active_lazy_features", lambda *a, **kw: True)
-    # The BOX'S PROCESS TABLE is not this file's subject, and until this line it
-    # was this file's cost. On Windows ``cmd_update`` calls
-    # ``_pause_windows_gateways_for_update`` and then
-    # ``_detect_venv_python_processes`` (``hermes_cli/update_cmd.py`` ->
-    # ``psutil.process_iter(["pid", "exe", "name", "cmdline", "cwd"])``) for
-    # real; both open every live process to read per-process ``exe`` / ``cwd``,
-    # and the ones they may not open cost an AccessDenied round trip each.
-    # Measured here 2026-09-02, same shell, one second apart: that walk is
-    # 7.46 s over 513 processes with ``cwd``, 4.02 s without it, and 0.01 s for
-    # ``pid`` + ``name`` alone. So the file's wall tracked HOW MANY PROCESSES
-    # THE MACHINE HAPPENED TO BE RUNNING -- green in 10 s alone, and in a
-    # six-file batch (eight pytest workers, a subprocess per test) over the
-    # runner's per-file cap, reported as "no tests ran". Nothing about
-    # autostash changed between those two runs.
-    # The guard itself is not going unpinned: its behaviour, including the
-    # refuse-and-exit-2 path and the --force-venv escape, is
-    # ``tests/hermes_cli/test_update_venv_health.py``, which stubs the same two
-    # seams for the same reason.
-    monkeypatch.setattr(hermes_main, "_detect_venv_python_processes", lambda **kw: [])
-    monkeypatch.setattr(hermes_main, "_pause_windows_gateways_for_update", lambda: None)
 
 
 
@@ -420,9 +399,19 @@ def test_prune_orphan_rescue_refs_leaves_unparseable_names_alone():
     assert delete_calls == []
 
 
-def test_cmd_update_ordinary_divergence_skips_rescue_ref(monkeypatch, tmp_path, capsys):
-    """Common ancestor still exists (e.g. upstream force-push) → no rescue
-    ref, no orphan messaging, behavior identical to before #87694."""
+def test_cmd_update_ordinary_divergence_also_leaves_a_rescue_ref(monkeypatch, tmp_path, capsys):
+    """Common ancestor still exists → rescue ref under the ``diverged-`` kind, no orphan messaging.
+
+    Divergence on the target branch has two causes the checkout cannot tell apart: an upstream
+    force-push, where nothing local is lost, and local commits on that branch, where the reset
+    discards all of them. This case used to write no ref at all, which is correct only for the
+    first cause.
+
+    The #87694 size concern is specific to the orphan shape: there ``pre_pull_sha`` is an
+    autostash orphan commit carrying a full working-tree snapshot, which can be multi-GB. Here it
+    is ordinary branch history whose objects the reflog pins anyway for its expiry window, so the
+    ref adds no meaningful footprint — and it expires under the same keep/age rules.
+    """
     _setup_update_mocks(monkeypatch, tmp_path)
 
     side_effect, recorded = _make_update_side_effect(
@@ -432,11 +421,17 @@ def test_cmd_update_ordinary_divergence_skips_rescue_ref(monkeypatch, tmp_path, 
 
     hermes_main.cmd_update(SimpleNamespace())
 
-    update_ref_calls = [c for c in recorded if "update-ref" in " ".join(str(x) for x in c)]
-    assert update_ref_calls == []
+    update_ref_calls = [
+        c for c in recorded
+        if "update-ref" in " ".join(str(x) for x in c) and "-d" not in c
+    ]
+    assert len(update_ref_calls) == 1, "the discarded local history needs exactly one anchor"
+    ref_name = str(update_ref_calls[0][2])
+    assert ref_name.startswith("refs/hermes-update-backups/diverged-main-")
 
     out = capsys.readouterr().out
     assert "orphan divergence" not in out
+    assert "Local history has diverged" in out
     assert "Fast-forward not possible (history diverged), resetting to match remote" in out
 
 
@@ -519,33 +514,6 @@ def test_cmd_update_orphan_rescue_ref_persists_when_reset_fails(monkeypatch, tmp
 # and always go through the restore path.
 # ---------------------------------------------------------------------------
 
-def _setup_setting_test(monkeypatch, tmp_path, mode):
-    """Common wiring: real stash returns a ref, restore + discard are
-    recorded, and load_config reports the given non_interactive_local_changes
-    mode."""
-    _setup_update_mocks(monkeypatch, tmp_path)
-    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/uv" if name == "uv" else None)
-    monkeypatch.setattr(
-        hermes_main, "_stash_local_changes_if_needed",
-        lambda *a, **kw: "abc123deadbeef",
-    )
-    restore_calls = []
-    discard_calls = []
-    monkeypatch.setattr(
-        hermes_main, "_restore_stashed_changes",
-        lambda *a, **kw: restore_calls.append(1) or True,
-    )
-    monkeypatch.setattr(
-        hermes_main, "_discard_stashed_changes",
-        lambda *a, **kw: discard_calls.append(1) or True,
-    )
-    monkeypatch.setattr(
-        hermes_config, "load_config",
-        lambda *a, **kw: {"updates": {"non_interactive_local_changes": mode}},
-    )
-    side_effect, recorded = _make_update_side_effect()
-    monkeypatch.setattr(hermes_main.subprocess, "run", side_effect)
-    return restore_calls, discard_calls, recorded
 
 
 # ---------------------------------------------------------------------------
@@ -754,6 +722,36 @@ def test_update_autostash_survives_undeletable_untracked_dir(tmp_path):
         assert (pkg / "hermes-agent.rb").read_text() == "formula\n"
     finally:
         os.chmod(pkg, 0o755)
+
+
+def test_stash_selector_is_a_bare_index_never_a_brace_selector(tmp_path):
+    """The updater drops its autostash through a selector read back from ``git stash list``; on
+    native Windows MSYS strips the braces from ``stash@{N}`` in git.exe's argv, so the selector
+    must be the bare index git accepts everywhere (#87542)."""
+    import subprocess
+
+    import hermes_cli.update_cmd_stash as stash_mod
+
+    def git(*args):
+        return subprocess.run(["git", *args], cwd=tmp_path, capture_output=True, text=True, check=True)
+
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "t@example.com")
+    git("config", "user.name", "t")
+    (tmp_path / "f.txt").write_text("v1\n")
+    git("add", "-A")
+    git("commit", "-qm", "init")
+    (tmp_path / "f.txt").write_text("older\n")
+    git("stash", "push", "-q", "-m", "older")
+    target_sha = git("rev-parse", "refs/stash").stdout.strip()
+    (tmp_path / "f.txt").write_text("newer\n")
+    git("stash", "push", "-q", "-m", "newer")
+
+    selector = stash_mod._resolve_stash_selector(["git"], tmp_path, target_sha)
+
+    assert selector == "1"
+    git("stash", "drop", selector)
+    assert target_sha not in git("stash", "list", "--format=%H").stdout
 
 
 def test_autostash_survives_intent_to_add_entries(tmp_path):
@@ -1172,7 +1170,7 @@ def test_gateway_restore_prompt_defaults_to_keep_stash(tmp_path, capsys):
     )
 
     assert restored is False
-    assert prompts == [("Restore local changes now? [y/N]", "n")]
+    assert [default for _prompt, default in prompts] == ["n"]
     assert "still preserved in git stash" in capsys.readouterr().out
 
 

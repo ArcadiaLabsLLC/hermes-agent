@@ -86,7 +86,7 @@ def build_bodies(monkeypatch):
         calls.append(0.0)
         return real(*args, **kwargs)
 
-    monkeypatch.setattr(snapshot_module, "_build_snapshot_uncoalesced", _counting)
+    monkeypatch.setattr(snapshot_module.build, "_build_snapshot_uncoalesced", _counting)
     return calls
 
 

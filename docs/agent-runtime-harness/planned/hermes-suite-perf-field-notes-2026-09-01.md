@@ -644,7 +644,7 @@ reproduces them:
   on the `hermes_cli` package, and `_build_web_ui.__globals__`. 29 passed / 1
   skipped over `test_update_venv_health.py` + `test_web_ui_build.py`.
 - `test_dashboard_admin_endpoints.py` then
-  `test_doctor.py::TestHonchoDoctorConfigDetection`, one process, that order:
+  `test_doctor.py::TestHonchoDoctorConfigDetection` (class since removed by upstream's 2026-09 test purge), one process, that order:
   **39 passed**. Counterfactual — same command, repair call commented out:
   **1 failed**, and it is the documented failure verbatim, `AttributeError:
   'module' object at plugins.memory.honcho has no attribute 'honcho'`.

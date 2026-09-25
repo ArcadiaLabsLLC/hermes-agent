@@ -103,7 +103,10 @@ AUTHORITY_FILE = "test_snapshot_contract_version_authority.py"
 #: demanding the number exist nowhere. Named as a pair (not a bare filename) so
 #: the exemption cannot widen to some other literal in the same module, and
 #: witnessed by :func:`test_the_definition_site_is_where_it_claims_to_be`.
-DEFINITION_SITE = ("snapshot.py", "SNAPSHOT_CONTRACT_VERSION")
+DEFINITION_SITE = ("context.py", "SNAPSHOT_CONTRACT_VERSION")
+#: Where the definition site LIVES (lane R3 split snapshot.py into a package and
+#: put the contract version in its leaf, ``snapshot/context.py``).
+DEFINITION_HOME = "agent_runtime/snapshot"
 
 #: The authority's own symbol. Derived from :data:`DEFINITION_SITE` so the two
 #: cannot drift, and used below to make it STRUCTURALLY impossible for any
@@ -142,27 +145,29 @@ LANE_CONTRACT_ALLOWLIST = {
         "Upstream plugin platform-action capability contract, independent of "
         "snapshot parity and its version. Versions adapter action dispatch."
     ),
-    ("serve_rpc.py", "RPC_CONTRACT_VERSION"): (
-        "the JSON-RPC METHOD-SURFACE contract, published at serve_rpc.py:178 as "
+    ("protocol.py", "RPC_CONTRACT_VERSION"): (
+        "the JSON-RPC METHOD-SURFACE contract, declared in serve_rpc/protocol.py and "
+        "published by serve_rpc/registry.py::manifest as "
         "`{'contract': RPC_CONTRACT_VERSION, 'methods': method_names()}`. It "
         "versions request/result SHAPES on the method manifest, which argv on "
         "the wire cannot version for itself; adding a method deliberately does "
         "not move it. Nothing on the snapshot frame reads it and it never "
         "reaches `parity.contract_version`."
     ),
-    ("serve.py", "OPS_CONTRACT_VERSION"): (
+    ("constants.py", "OPS_CONTRACT_VERSION"): (
         "the serve dispatcher's OP-SURFACE contract (EG-4.1), published under "
         "`ops` on `ready`/`hello_ok`/`version` beside — never inside — the "
         "method manifest. It versions the shape of the ops advertisement "
         "itself ({contract, transport, ops, subscribe_lanes}); adding an op "
         "deliberately does not move it, and nothing on the snapshot frame "
-        "reads it. Lives in hermes_cli/harness_parts/serve.py, where the "
-        "dispatcher lives."
+        "reads it. Lives in hermes_cli/harness_parts/serve/constants.py, "
+        "beside the op vocabulary the dispatcher reads."
     ),
-    ("serve_socket.py", "HELLO_CONTRACT_VERSION"): (
-        "the socket HELLO HANDSHAKE contract, stamped on every `server_hello` "
-        "(serve_socket.py:913, :1093) and folded into the HMAC proof preimage "
-        "at :527 (`f'v{HELLO_CONTRACT_VERSION}|{port}|{nonce}'`). It gates "
+    ("hello.py", "HELLO_CONTRACT_VERSION"): (
+        "the socket HELLO HANDSHAKE contract, declared in serve_socket/hello.py, "
+        "stamped on every `server_hello` by serve_socket/server.py and folded into "
+        "the HMAC proof preimage by hello_proof "
+        "(`f'v{HELLO_CONTRACT_VERSION}|{port}|{nonce}'`). It gates "
         "whether a client can answer the challenge frame at all — a connection "
         "concern that is settled before any snapshot is ever sent, and one that "
         "must be able to move without restamping contract_hash."
@@ -183,9 +188,9 @@ LANE_CONTRACT_ALLOWLIST = {
 #: exemption it was never reasoned about. Witnessed by the lookalike test.
 LANE_CONTRACT_MODULE_HOMES = {
     "platform_actions.py": "hermes_cli",
-    "serve_rpc.py": "agent_runtime",
-    "serve.py": "hermes_cli/harness_parts",
-    "serve_socket.py": "agent_runtime",
+    "protocol.py": "agent_runtime/serve_rpc",
+    "constants.py": "hermes_cli/harness_parts/serve",
+    "hello.py": "agent_runtime/serve_socket",
     "contract.py": "agent_runtime/discussions",
 }
 
@@ -379,7 +384,7 @@ def test_the_contract_version_literal():
     Moving it is a CROSS-REPO change. Before you edit this line:
 
     1. bump ``SNAPSHOT_CONTRACT_VERSION`` in ``agent_runtime/snapshot.py`` and
-       record the ruling in the ``_parity_envelope`` history comment — what
+       record the ruling in the ``parity_envelope`` history comment — what
        left the wire, or what arrived, and why a consumer could not have read
        the frame without the bump;
     2. regenerate BOTH producer-derived fixture families
@@ -447,7 +452,7 @@ def test_the_definition_site_is_where_it_claims_to_be():
     """
 
     filename, symbol = DEFINITION_SITE
-    module = _repo_root() / "agent_runtime" / filename
+    module = _repo_root() / DEFINITION_HOME / filename
     assert module.is_file(), f"{filename} no longer exists; the exemption is stale"
 
     tree = ast.parse(module.read_text(encoding="utf-8"))
@@ -473,7 +478,7 @@ def test_the_gate_scanned_a_real_tree():
     names = {Path(p).name for p in scanned}
     # Files the gate MUST be looking at, because each one held a stale literal.
     for expected in (
-        "snapshot.py",
+        "context.py",
         "test_stage19_visibility.py",
         "test_office_store.py",
         "test_stream_contract_fixture.py",
@@ -593,7 +598,7 @@ def test_each_lane_contract_is_witnessed_as_an_INDEPENDENT_contract():
     root = _repo_root()
     for (filename, symbol), reason in LANE_CONTRACT_ALLOWLIST.items():
         # An entry's module may live in any scanned root (OPS_CONTRACT_VERSION
-        # lives with the dispatcher in hermes_cli/harness_parts, not in
+        # lives with the dispatcher in hermes_cli/harness_parts/serve, not in
         # agent_runtime), and `restatements` keys on the BARE name — so resolve
         # through the same scan the gate reads, and demand the name is unique
         # across it: a second module with the same basename would let this

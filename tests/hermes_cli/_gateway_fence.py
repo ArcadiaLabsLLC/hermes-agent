@@ -69,6 +69,7 @@ the failure mode this replaces was silent.
 from __future__ import annotations
 
 import os
+import re
 import shlex
 import subprocess
 from pathlib import Path
@@ -148,6 +149,34 @@ def _real_hermes_root() -> Path | None:
 _REAL_ROOT = _real_hermes_root()
 
 
+_PYTHON_BASENAME_RE = re.compile(r"^pythonw?(\d+(\.\d+)*)?(\.exe)?$")
+
+
+def _without_python_c_argv(raw: list[str]) -> list[str]:
+    """*raw* cut after CODE when it is ``python [opts] -c CODE ARGS...``.
+
+    ``python -c CODE ARGS...`` runs CODE; ARGS are only its ``sys.argv``, so a
+    ``-m hermes_cli.main serve`` tail there is inert data (the live venv-holder /
+    desktop-lifecycle E2Es spawn exactly that sleeper for psutil to classify) and
+    never an entry point. Keep CODE (it may itself spawn), drop ARGS.
+    Mirrors ``tests/conftest.py``'s live-system guard helper of the same name.
+    """
+    if not raw or not _PYTHON_BASENAME_RE.match(_basename(raw[0])):
+        return raw
+    index = 1
+    while index < len(raw):
+        token = str(raw[index])
+        if token == "-c":
+            return raw[: index + 2]
+        if token in ("-X", "-W"):
+            index += 2
+            continue
+        if not token.startswith("-") or token == "-m":
+            return raw
+        index += 1
+    return raw
+
+
 def _tokens(cmd) -> list[str]:
     """Flatten a command into tokens without eating Windows backslashes."""
     if isinstance(cmd, (list, tuple)):
@@ -160,6 +189,7 @@ def _tokens(cmd) -> list[str]:
             raw = shlex.split(text)
         except ValueError:
             raw = text.split()
+    raw = _without_python_c_argv(raw)
     # A wrapper's argument is itself a whole command (``bash -c "hermes
     # gateway run"``), so split on whitespace too. shlex would eat the
     # backslashes in a Windows path; a plain split cannot invent an entry
@@ -265,7 +295,8 @@ def classify(cmd, env=None) -> str | None:
     #
     # All three now have one, each the same shape (``None`` on every production
     # call site, so behavior is unchanged):
-    #   * ``doctor.run_doctor(agent_browser_runnable_override=...)``  (2026-09-03)
+    #   * ``doctor`` (2026-09-03; since 2026-09-24 upstream's own
+    #     ``doctor_tools.agent_browser_runnable``, stubbed by the directory conftest)
     #   * ``dep_ensure._browser_available`` / ``dependency_status`` /
     #     ``ensure_dependency``, threaded from
     #     ``main.cmd_postinstall(agent_browser_runnable_override=...)``  (2026-09-04)

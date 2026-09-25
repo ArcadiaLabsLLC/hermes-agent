@@ -27,10 +27,10 @@ from agent_runtime.mission_chat_turns import (
     persist_mission_chat_turn,
 )
 from agent_runtime.operator_channels import _conversation_contract
-from agent_runtime.persona_chat_history import (
+from agent_runtime.persona_chat_history.history_rows import _safe_recent_messages
+from agent_runtime.persona_chat_history.markers import (
     _terminal_turn_marker_rows,
     _ordered_message_rows,
-    _safe_recent_messages,
 )
 from agent_runtime.transcript_order import (
     TURN_SEQ_CONTENT,
@@ -179,7 +179,7 @@ def test_f17_repro_old_wall_clock_merge_reorders_new_key_holds():
 
 
 def test_pre_trace_ack_text_matches_persisted_copy():
-    # The presentation copy moved from persona_commands (exec'd) into this
+    # The presentation copy moved out of the CLI chat lane into this
     # importable module; pin the tool-family variants.
     assert pre_trace_ack_text({"tool_name": "skill_view"}).startswith(
         "I'll load the relevant guidance"

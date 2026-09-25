@@ -825,7 +825,7 @@ def project_office_actor_wire_row(actor: Any) -> dict[str, Any]:
 
     Unlike the persona-instance projection above — which reproduces
     ``persona_instance_summary``'s derived-field logic field-for-field and is
-    held to it by a golden — this one CALLS ``snapshot._office_actor_summary_row``
+    held to it by a golden — this one CALLS ``snapshot.office_actor_summary_row``
     directly. It can, because that builder is already pure (a field copy off an
     ``OfficeActor`` plus the caller-supplied ``unpublished``): there is no
     ``_profile_visibility_persona`` equivalent to seed a store or emit a stray
@@ -845,9 +845,9 @@ def project_office_actor_wire_row(actor: Any) -> dict[str, Any]:
     workspace does not publish" and "this actor is published" are different facts.
     """
 
-    from .snapshot import _office_actor_summary_row
+    from .snapshot import office_actor_summary_row
 
-    return _office_actor_summary_row(actor, unpublished=_office_actor_unpublished(actor))
+    return office_actor_summary_row(actor, unpublished=_office_actor_unpublished(actor))
 
 
 def _office_actor_unpublished(actor: Any) -> bool | None:

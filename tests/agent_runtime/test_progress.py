@@ -809,7 +809,7 @@ def test_the_WHOLE_live_chain_carries_the_marker_from_the_loop_to_the_mark(
 
     from types import SimpleNamespace
 
-    from agent.conversation_loop import _emit_request_assembled_marker
+    from agent_runtime.conversation_observability import _emit_request_assembled_marker
     from agent_runtime.mission_chat_phases import TurnPhaseMarks, mark_from_trace_payload
     from agent_runtime.persona_runtime import _chat_trace_callback
     from agent_runtime.profile_runner import AgentRunRequest, _profile_status_callback

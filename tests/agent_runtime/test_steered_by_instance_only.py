@@ -28,6 +28,7 @@ from agent_runtime.models import AgentPersona, PersonaInstance, looks_like_perso
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.runtime_hud import resolve_situational_hud
 from agent_runtime.states import WorkerSessionState
+from hermes_cli.harness_parts.persona import chat_target, instance_commands, lifecycle_commands
 
 
 def _persona(persona_id: str = "dev") -> AgentPersona:
@@ -234,28 +235,29 @@ def _repair_args(persona_instance_id=None, *, scan_all=False, dry_run=False):
 def test_cli_repair_steering_dry_run_then_real(monkeypatch, capsys):
     import json as _json
 
-    from hermes_cli import harness
-
-    monkeypatch.setattr(harness, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", _assignment_config)
     store = PersonaInstanceStore()
     iid = "personainst_neko_supervisor_agent_2"
     _write_corrupt_row(store, iid, steered_by=["operator"], spawned_by="operator")
 
-    code = harness._cmd_persona_instance_repair_steering(_repair_args(iid, dry_run=True))
+    code = instance_commands._cmd_persona_instance_repair_steering(_repair_args(iid, dry_run=True))
     out = capsys.readouterr().out
     data = _json.loads(out[out.index("{"): out.rindex("}") + 1])
     assert code == 0 and data["dry_run"] is True
     assert store.get(iid).steered_by == ["operator"]  # dry-run mutated nothing
 
-    code = harness._cmd_persona_instance_repair_steering(_repair_args(iid))
+    code = instance_commands._cmd_persona_instance_repair_steering(_repair_args(iid))
     assert code == 0
     assert store.get(iid).steered_by == []
     assert store.get(iid).spawned_by is None
 
 
 def test_cli_repair_steering_requires_a_target_or_all(monkeypatch, capsys):
-    from hermes_cli import harness
 
-    monkeypatch.setattr(harness, "load_agent_runtime_config", _assignment_config)
-    code = harness._cmd_persona_instance_repair_steering(_repair_args(None))
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", _assignment_config)
+    code = instance_commands._cmd_persona_instance_repair_steering(_repair_args(None))
     assert code == 2

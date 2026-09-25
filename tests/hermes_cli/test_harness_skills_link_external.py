@@ -11,6 +11,7 @@ import argparse
 import json
 
 import hermes_cli.harness as harness
+from hermes_cli.harness_parts import skills_commands
 
 
 def _harness_parser() -> argparse.ArgumentParser:
@@ -21,7 +22,7 @@ def _harness_parser() -> argparse.ArgumentParser:
 
 def test_the_verb_parses_and_dispatches_to_the_link_handler():
     args = _harness_parser().parse_args(["harness", "skills", "link-external", "--json"])
-    assert args.func is harness._cmd_skills_link_external
+    assert args.func is skills_commands._cmd_skills_link_external
     assert args.json is True
 
 
@@ -33,12 +34,15 @@ def test_the_handler_prints_the_link_report(monkeypatch, capsys):
     report.add(external_skill_links.Path("/x/.claude/skills"), "demo", "linked")
     monkeypatch.setattr(external_skill_links, "link_shared_skills_into_external_harnesses", lambda: report)
 
-    assert harness._cmd_skills_link_external(argparse.Namespace(json=True)) == 0
+    assert skills_commands._cmd_skills_link_external(argparse.Namespace(json=True)) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True
     assert payload["summary"]["linked"] == 1
+    # The linked shared root is resolved from the runtime root, so the envelope
+    # says which one answered (test_harness_json_root_observability.py).
+    assert payload["resolution"]["store_root"]
 
-    assert harness._cmd_skills_link_external(argparse.Namespace(json=False)) == 0
+    assert skills_commands._cmd_skills_link_external(argparse.Namespace(json=False)) == 0
     assert capsys.readouterr().out.strip() == external_skill_links.format_report(report).strip()
 
 

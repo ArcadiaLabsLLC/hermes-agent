@@ -4,22 +4,15 @@ detect_audio_environment() honors forwarded audio (has_forwarded_audio =
 PULSE_SERVER or PIPEWIRE_REMOTE or a reachable socket) in the SSH and container
 blocks, but the WSL block previously checked only PULSE_SERVER — so a WSL user
 with PipeWire forwarding (PIPEWIRE_REMOTE) was wrongly blocked from voice mode.
-These tests mock /proc/version so they reproduce the WSL path on any host.
+These tests patch the voice module's WSL predicate so they reproduce the WSL path on any host.
 """
-import builtins
-import io
 from unittest.mock import MagicMock
 
-WSL = "Linux version 5.15.0-microsoft-standard-WSL2 (oe-user@oe-host)"
 
+def _force_wsl(monkeypatch):
+    import tools.voice_mode as voice_mode
 
-def _force_wsl(monkeypatch, content=WSL):
-    real_open = builtins.open
-    def fake_open(file, *a, **k):
-        if str(file) == "/proc/version":
-            return io.StringIO(content)
-        return real_open(file, *a, **k)
-    monkeypatch.setattr(builtins, "open", fake_open)
+    monkeypatch.setattr(voice_mode, "is_wsl", lambda: True)
 
 
 def _base(monkeypatch):
@@ -28,12 +21,6 @@ def _base(monkeypatch):
     monkeypatch.delenv("PIPEWIRE_REMOTE", raising=False)
     monkeypatch.setattr("hermes_constants.is_container", lambda: False)
     monkeypatch.setattr("tools.voice_mode._pulse_socket_reachable", lambda: False)
-    # "no forwarding" has to mean no PowerShell TTS fallback either, or the
-    # module docstring's claim ("reproduce the WSL path on any host") is false:
-    # _wsl_powershell_tts_available() shells out to shutil.which, so on a
-    # Windows workstation it finds a real powershell.exe + ffmpeg and the WSL
-    # gate degrades to a notice instead of the hard block under test.
-    monkeypatch.setattr("tools.voice_mode.shutil.which", lambda _name: None)
     sd = MagicMock(); sd.query_devices.return_value = [{"name": "dev"}]
     monkeypatch.setattr("tools.voice_mode._import_audio", lambda: (sd, MagicMock()))
 

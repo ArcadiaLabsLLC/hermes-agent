@@ -23,6 +23,13 @@ import json
 import pytest
 
 from agent_runtime import paths
+from hermes_cli.harness_parts.persona import (
+    chat_delete,
+    chat_open,
+    chat_tickets_commands,
+    chat_turn_message,
+    lifecycle_commands,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -78,10 +85,13 @@ class _RecordingSessionDB:
 
 @pytest.fixture
 def session_db(monkeypatch):
-    from hermes_cli import harness
 
     db = _RecordingSessionDB()
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
     return db
 
 

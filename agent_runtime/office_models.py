@@ -15,6 +15,14 @@ import json
 from .models import OfficeActor, OfficeItem, OfficeSurface
 from .serde import to_jsonable
 
+
+#: The office projection's actor bound: the snapshot's office rows, the RPC
+#: ``runtime.office.get`` projection and the office delta patches all cut at the
+#: same N and account the cut (``actors_truncated``). A leaf constant here (lane
+#: R3) so the store and the RPC lane read it without reaching up into the
+#: snapshot builder.
+MAX_OFFICE_ACTORS_PROJECTED = 200
+
 ITEM_KINDS = ("agent", "desk")
 
 # Operator-authorable character scale — mirrors the launcher's

@@ -123,7 +123,7 @@ TIERS: tuple[str, ...] = (TIER_READ, TIER_CONSOLE)
 #: refusing them would be refusing the operator their own machine.
 CALLER_STDIO_OWNER = "stdio_owner"
 #: A socket peer that presented THIS install's serve token.
-#: ``verify_hello_proof`` fails CLOSED on a missing token (``serve_socket.py``),
+#: ``verify_hello_proof`` fails CLOSED on a missing token (``serve_socket/hello.py``),
 #: so this is proven rather than asserted — but it proves exactly one thing, that
 #: the peer holds the one install-wide credential. There is no device
 #: granularity because there is one token; until Stage A5 mints per-device

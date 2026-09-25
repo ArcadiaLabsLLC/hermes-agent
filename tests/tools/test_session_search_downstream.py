@@ -9,33 +9,39 @@ from tools.session_search_tool import (
 
 
 class TestSchema:
-    # Fork-retained (T6b): the wire description is a brief; the full text lives
-    # in the fork-owned tools.tool_full_descriptions mirror that tool_describe
-    # serves. Upstream pruned these; they guard the fork's trim, so they stay.
-    # (test_sort_enum dropped — upstream's test_schema_params_cover_every_shape
-    # above now asserts the same enum.)
+    # Fork-retained (T6b): the wire description is a brief that the eternia-harness
+    # llm_request middleware swaps in (tools.downstream_schema); the registry keeps
+    # upstream's full text, which tool_describe serves.
     def test_schema_description_teaches_scroll(self):
-        """T6b: the wire brief names the calling shapes compactly; the detailed
-        scroll mechanics are preserved in the full docs (served via
-        tool_describe from the fork-owned mirror)."""
-        desc = SESSION_SEARCH_SCHEMA["description"].lower()
-        assert "scroll" in desc
-        assert "discover" in desc
-        from tools.tool_full_descriptions import full_tool_description
-        full = full_tool_description("session_search")
-        assert "SCROLL" in full and "DISCOVERY" in full and "BROWSE" in full
-        assert "scroll FORWARD" in full or "messages[-1]" in full
+        """T6b: the wire brief names the calling shapes compactly; the scroll
+        mechanics stay in upstream's full text (served via tool_describe)."""
+        from tools.downstream_schema import BRIEF_DESCRIPTIONS
+
+        brief = BRIEF_DESCRIPTIONS["session_search"].lower()
+        assert "scroll" in brief
+        assert "discover" in brief
+        full = SESSION_SEARCH_SCHEMA["description"]
+        assert "scroll" in full and "discovery" in full and "browse" in full
+        assert "around_message_id" in full
 
     def test_schema_description_enforces_source_first_limit(self):
-        """T6b: the SOURCE-FIRST caveat is compressed to one wire clause; the
-        full SOURCE-FIRST LIMIT block is preserved in the full docs."""
-        desc = SESSION_SEARCH_SCHEMA["description"].lower()
-        # Compressed disambiguator survives on the wire.
-        assert "history" in desc
-        assert "live source" in desc or "inspect that first" in desc
-        from tools.tool_full_descriptions import full_tool_description
-        full = full_tool_description("session_search").lower()
-        assert "source-first limit" in full
+        """T6b: the source-first caveat is compressed to one wire clause; upstream's
+        full text keeps it."""
+        from tools.downstream_schema import BRIEF_DESCRIPTIONS
+
+        brief = BRIEF_DESCRIPTIONS["session_search"].lower()
+        assert "history" in brief
+        assert "live source" in brief or "inspect that first" in brief
+        full = SESSION_SEARCH_SCHEMA["description"].lower()
         assert "conversation history only" in full
-        assert "session_search as secondary" in full
+        assert "inspect that first" in full
         assert "not found" in full
+
+
+def test_persona_chat_scratch_rides_an_upstream_hidden_source():
+    """The persona chat's raw scratch lineage must never be recall-reachable; it uses
+    upstream's hidden ``tool`` source rather than a fork entry in the hidden list."""
+    from agent_runtime.persona_runtime import PERSONA_CHAT_SCRATCH_SOURCE
+    from tools.session_search_tool import _HIDDEN_SESSION_SOURCES
+
+    assert PERSONA_CHAT_SCRATCH_SOURCE in _HIDDEN_SESSION_SOURCES

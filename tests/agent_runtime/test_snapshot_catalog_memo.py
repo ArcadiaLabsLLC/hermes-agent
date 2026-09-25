@@ -24,8 +24,8 @@ def test_skill_catalog_memo_collapses_repeat_walks(monkeypatch):
 
     monkeypatch.setattr(skills_tool, "_find_all_skills", fake_walk)
 
-    first = po.available_skills_context()
-    second = po.available_skills_context()
+    first = po.skills_context.available_skills_context()
+    second = po.skills_context.available_skills_context()
 
     assert len(calls) == 1
     assert first == second
@@ -38,12 +38,12 @@ def test_skill_catalog_memo_invalidates_when_walker_is_swapped(monkeypatch):
     monkeypatch.setattr(skills_tool, "_find_all_skills", lambda **_: [
         {"name": "alpha", "description": "", "category": "skills"},
     ])
-    assert [row["name"] for row in po.available_skills_context()] == ["alpha"]
+    assert [row["name"] for row in po.skills_context.available_skills_context()] == ["alpha"]
 
     monkeypatch.setattr(skills_tool, "_find_all_skills", lambda **_: [
         {"name": "beta", "description": "", "category": "skills"},
     ])
-    assert [row["name"] for row in po.available_skills_context()] == ["beta"]
+    assert [row["name"] for row in po.skills_context.available_skills_context()] == ["beta"]
 
 
 def test_skill_catalog_memo_expires_after_ttl(monkeypatch):
@@ -54,10 +54,10 @@ def test_skill_catalog_memo_expires_after_ttl(monkeypatch):
         return []
 
     monkeypatch.setattr(skills_tool, "_find_all_skills", fake_walk)
-    monkeypatch.setattr(po, "_SKILL_CATALOG_TTL_SECONDS", 0.0)
+    monkeypatch.setattr(po.skills_resolver, "_SKILL_CATALOG_TTL_SECONDS", 0.0)
 
-    po.available_skills_context()
-    po.available_skills_context()
+    po.skills_context.available_skills_context()
+    po.skills_context.available_skills_context()
 
     assert len(calls) == 2
 
@@ -73,8 +73,8 @@ def test_skill_catalog_memo_caches_empty_catalog(monkeypatch):
 
     monkeypatch.setattr(skills_tool, "_find_all_skills", fake_walk)
 
-    po.available_skills_context()
-    po.available_skills_context()
+    po.skills_context.available_skills_context()
+    po.skills_context.available_skills_context()
 
     assert len(calls) == 1
 
@@ -93,6 +93,7 @@ def test_skill_observability_resolver_is_linear_across_production_shaped_roster(
     from types import SimpleNamespace
 
     import agent.skill_utils as skill_utils
+    from agent_runtime import skill_resolution
 
     root = tmp_path / "shared"
     names = [f"skill-{index}" for index in range(60)]
@@ -106,8 +107,8 @@ def test_skill_observability_resolver_is_linear_across_production_shaped_roster(
         )
 
     monkeypatch.setattr(skill_utils, "get_all_skills_dirs", lambda: [root])
-    real_resolve_skills = skill_utils.resolve_skills
-    real_content_hash = skill_utils.skill_package_content_hash
+    real_resolve_skills = skill_resolution.resolve_skills
+    real_content_hash = skill_resolution.skill_package_content_hash
     resolve_calls = 0
     hash_calls = 0
 
@@ -121,12 +122,12 @@ def test_skill_observability_resolver_is_linear_across_production_shaped_roster(
         hash_calls += 1
         return real_content_hash(skill_dir, skill_md)
 
-    monkeypatch.setattr(skill_utils, "resolve_skills", counting_resolve)
-    monkeypatch.setattr(skill_utils, "skill_package_content_hash", counting_hash)
+    monkeypatch.setattr(skill_resolution, "resolve_skills", counting_resolve)
+    monkeypatch.setattr(skill_resolution, "skill_package_content_hash", counting_hash)
 
     resolver = po._SkillObservabilityResolver()
     for index in range(8):
-        rows = po._accessible_skills_context(
+        rows = po.skills_resolver._accessible_skills_context(
             SimpleNamespace(
                 id=f"persona-{index}",
                 hermes_profile="base",
@@ -152,7 +153,7 @@ def test_profile_template_memo_collapses_repeat_reads(monkeypatch):
         calls.append(1)
         return [_Template()]
 
-    monkeypatch.setattr(snapshot_mod, "available_profile_templates", fake_templates)
+    monkeypatch.setattr(snapshot_mod.summaries, "available_profile_templates", fake_templates)
 
     first = snapshot_mod._profile_templates_cached()
     second = snapshot_mod._profile_templates_cached()
@@ -169,12 +170,12 @@ def test_profile_template_memo_invalidates_when_fetcher_is_swapped(monkeypatch):
             self.description = ""
 
     monkeypatch.setattr(
-        snapshot_mod, "available_profile_templates", lambda: [_Template("alpha")]
+        snapshot_mod.summaries, "available_profile_templates", lambda: [_Template("alpha")]
     )
     assert [t.name for t in snapshot_mod._profile_templates_cached()] == ["alpha"]
 
     monkeypatch.setattr(
-        snapshot_mod, "available_profile_templates", lambda: [_Template("beta")]
+        snapshot_mod.summaries, "available_profile_templates", lambda: [_Template("beta")]
     )
     assert [t.name for t in snapshot_mod._profile_templates_cached()] == ["beta"]
 
@@ -186,7 +187,7 @@ def test_profile_template_memo_survives_fetch_failure(monkeypatch):
     def broken():
         raise RuntimeError("profile store unavailable")
 
-    monkeypatch.setattr(snapshot_mod, "available_profile_templates", broken)
+    monkeypatch.setattr(snapshot_mod.summaries, "available_profile_templates", broken)
 
     assert snapshot_mod._profile_templates_cached() == []
     assert snapshot_mod._available_persona_summary([]) == []

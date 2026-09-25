@@ -337,10 +337,11 @@ class GPTPersonaRuntime:
 
 # Source label for the agent's own scratch turns during an operator chat reply.
 # The caller persists the redacted canonical transcript under
-# ``agent_runtime_persona_chat``; this scratch lineage is registered as a hidden
-# session source (see tools/session_search_tool.py) so the agent's raw, in-flight
-# copy never becomes recall-reachable while real cross-session recall stays on.
-PERSONA_CHAT_SCRATCH_SOURCE = "agent_runtime_persona_chat_scratch"
+# ``agent_runtime_persona_chat``; this scratch lineage uses upstream's hidden
+# ``"tool"`` session source (``tools/session_search_tool._HIDDEN_SESSION_SOURCES``)
+# so the agent's raw, in-flight copy never becomes recall-reachable while real
+# cross-session recall stays on.
+PERSONA_CHAT_SCRATCH_SOURCE = "tool"
 
 
 def _mission_chat_operative_rules() -> str:

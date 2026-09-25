@@ -6,6 +6,20 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from hermes_cli.harness_parts.persona import (
+    chat_coordinator,
+    chat_delete,
+    chat_events,
+    chat_history_writes,
+    chat_open,
+    chat_session,
+    chat_target,
+    chat_tickets_commands,
+    chat_turn_message,
+    instance_commands,
+    lifecycle_commands,
+)
+from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run, settle as commit_settle
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
@@ -15,7 +29,7 @@ from agent_runtime.config import AgentRuntimeConfig
 from agent_runtime import paths
 from agent_runtime.tool_permissions import default_permission_mode
 from agent_runtime.events import EventLog
-from agent_runtime.models import AgentPersona, AgentRun, PersonaInstance
+from agent_runtime.models import AgentPersona, AgentRun, PersonaAssignment, PersonaInstance
 
 Task = SimpleNamespace
 from agent_runtime.mission_chat_turns import (
@@ -465,7 +479,8 @@ def test_assignment_complete_is_idempotent_for_same_terminal_state(isolate_agent
 def test_status_and_snapshot_expose_persona_instances_unconditionally(monkeypatch, isolate_agent_runtime_root):
     cfg = _assignment_config()
     monkeypatch.setattr("agent_runtime.status.load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr("agent_runtime.snapshot.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.envelope.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.sections.load_agent_runtime_config", lambda: cfg)
     # S56: the worker session that used to make ``dev`` an active-lane agent is
     # gone; a chat instance carrying a live goal/assignment is the surviving way
     # in (``ensure_for_personas`` settles every non-chat instance back to idle).
@@ -530,7 +545,8 @@ def test_status_and_snapshot_expose_persona_instances_unconditionally(monkeypatc
 
 def test_snapshot_exposes_operator_created_idle_persona_instance(monkeypatch, isolate_agent_runtime_root):
     cfg = _assignment_config()
-    monkeypatch.setattr("agent_runtime.snapshot.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.envelope.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.sections.load_agent_runtime_config", lambda: cfg)
     created = mint_free_floating("profile:reviewer")
 
     snapshot = build_snapshot()
@@ -557,12 +573,12 @@ def test_persona_instance_create_without_display_name_refuses_and_mints_nothing(
     refusal pointing at the chat lane — and it must mint NO assignment row and
     NO instance row on the way out."""
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
 
-    code = harness._cmd_persona_instance_create(
+    code = lifecycle_commands._cmd_persona_instance_create(
         Namespace(
             persona_id="dev",
             title="Launcher Dev sandbox",
@@ -627,12 +643,12 @@ def test_persona_instance_message_verb_is_gone_from_the_parser():
 
 def test_coordinator_create_beyond_spawn_scope_returns_confirm_without_creating(monkeypatch, capsys, isolate_agent_runtime_root):
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
 
-    code = harness._cmd_persona_instance_create(
+    code = lifecycle_commands._cmd_persona_instance_create(
         Namespace(
             persona_id="dev",
             title="Spawn Dev",
@@ -663,16 +679,17 @@ def test_coordinator_create_beyond_spawn_scope_returns_confirm_without_creating(
 
 def test_persona_instance_steer_cli_attaches_parent_and_goal(monkeypatch, isolate_agent_runtime_root):
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
 
     store = PersonaInstanceStore()
     store.ensure_for_persona(_persona("neko_supervisor"))
     store.ensure_for_persona(_persona("dev"))
 
-    code = harness._cmd_persona_instance_steer(
+    code = instance_commands._cmd_persona_instance_steer(
         Namespace(
             persona_instance_id="personainst_dev",
             parent_instance_id="personainst_neko_supervisor",
@@ -699,17 +716,18 @@ def test_persona_instance_steer_cli_attaches_parent_and_goal(monkeypatch, isolat
 
 def test_persona_instance_steer_cli_detaches_to_standalone(monkeypatch, isolate_agent_runtime_root):
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
 
     store = PersonaInstanceStore()
     store.ensure_for_persona(_persona("neko_supervisor"))
     store.ensure_for_persona(_persona("dev"))
     store.steer("personainst_dev", parent_instance_id="personainst_neko_supervisor", goal_id="task_77")
 
-    code = harness._cmd_persona_instance_steer(
+    code = instance_commands._cmd_persona_instance_steer(
         Namespace(
             persona_instance_id="personainst_dev",
             parent_instance_id=None,
@@ -736,13 +754,14 @@ def test_persona_instance_steer_cli_detaches_to_standalone(monkeypatch, isolate_
 
 def test_persona_instance_steer_cli_rejects_self_steer(monkeypatch, capsys, isolate_agent_runtime_root):
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     PersonaInstanceStore().ensure_for_persona(_persona("dev"))
 
-    code = harness._cmd_persona_instance_steer(
+    code = instance_commands._cmd_persona_instance_steer(
         Namespace(
             persona_instance_id="personainst_dev",
             parent_instance_id="personainst_dev",
@@ -767,13 +786,14 @@ def test_persona_instance_steer_cli_rejects_self_steer(monkeypatch, capsys, isol
 
 def test_persona_instance_steer_cli_rejects_missing_parent(monkeypatch, capsys, isolate_agent_runtime_root):
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     PersonaInstanceStore().ensure_for_persona(_persona("dev"))
 
-    code = harness._cmd_persona_instance_steer(
+    code = instance_commands._cmd_persona_instance_steer(
         Namespace(
             persona_instance_id="personainst_dev",
             parent_instance_id="personainst_missing",
@@ -831,19 +851,21 @@ def test_persona_instance_open_chat_binds_old_chat_without_ticking(
     isolate_agent_runtime_root,
 ):
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
     session_db = _TranscriptDB()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: session_db)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: session_db)
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: session_db)
     previous = PersonaInstanceStore().create_operator_chat(
         persona_id="dev",
         display_name="dev worker",
         session_id="chat_current_123",
     )
 
-    code = harness._cmd_persona_instance_open_chat(
+    code = chat_open._cmd_persona_instance_open_chat(
         Namespace(
             persona_id="dev",
             session_id="chat_old_123",
@@ -873,7 +895,7 @@ def test_persona_instance_open_chat_binds_old_chat_without_ticking(
         "instance_updated_at": instance.updated_at.isoformat(),
     }
 
-    assert harness._cmd_persona_instance_open_chat(
+    assert chat_open._cmd_persona_instance_open_chat(
         Namespace(
             persona_id="dev",
             session_id="chat_old_123",
@@ -892,12 +914,14 @@ def test_persona_instance_open_chat_new_session_mints_exact_instance_and_replays
     isolate_agent_runtime_root,
 ):
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
     session_db = _TranscriptDB()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: session_db)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: session_db)
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: session_db)
     existing = PersonaInstanceStore().create_operator_chat(
         persona_id="dev",
         display_name="Launcher Dev Agent",
@@ -914,7 +938,7 @@ def test_persona_instance_open_chat_new_session_mints_exact_instance_and_replays
         json=True,
     )
 
-    assert harness._cmd_persona_instance_open_chat(args) == 0
+    assert chat_open._cmd_persona_instance_open_chat(args) == 0
     first = json.loads(capsys.readouterr().out)
     assert first["ok"] is True
     assert first["persona_instance_id"] == existing.id
@@ -925,7 +949,7 @@ def test_persona_instance_open_chat_new_session_mints_exact_instance_and_replays
     assert PersonaInstanceStore().get(existing.id).session_id == first["session_id"]
     assert session_db.get_session(first["session_id"]) is not None
 
-    assert harness._cmd_persona_instance_open_chat(args) == 0
+    assert chat_open._cmd_persona_instance_open_chat(args) == 0
     replay = json.loads(capsys.readouterr().out)
     assert replay["session_id"] == first["session_id"]
     assert replay["idempotent_replay"] is True
@@ -937,7 +961,7 @@ def test_persona_instance_open_chat_new_session_mints_exact_instance_and_replays
             "idempotency_key": "new-chat-dev-2",
         }
     )
-    assert harness._cmd_persona_instance_open_chat(distinct_args) == 0
+    assert chat_open._cmd_persona_instance_open_chat(distinct_args) == 0
     distinct = json.loads(capsys.readouterr().out)
     assert distinct["session_id"] != first["session_id"]
     assert distinct["idempotent_replay"] is False
@@ -950,10 +974,11 @@ def test_persona_instance_open_chat_new_session_retry_recovers_reserved_root(
     isolate_agent_runtime_root,
 ):
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     existing = PersonaInstanceStore().create_operator_chat(
         persona_id="dev",
         display_name="Launcher Dev Agent",
@@ -970,12 +995,17 @@ def test_persona_instance_open_chat_new_session_retry_recovers_reserved_root(
         json=True,
     )
     monkeypatch.setattr(
-        harness,
+        chat_open,
+        "_default_persona_session_db",
+        lambda: _FailingTranscriptDB("session_create"),
+    )
+    monkeypatch.setattr(
+        lifecycle_commands,
         "_default_persona_session_db",
         lambda: _FailingTranscriptDB("session_create"),
     )
 
-    assert harness._cmd_persona_instance_open_chat(args) == 2
+    assert chat_open._cmd_persona_instance_open_chat(args) == 2
     failed = json.loads(capsys.readouterr().out)
     assert failed["error_kind"] == "chat_session_persist_failed"
     assert failed["mint_receipt_state"] == "reserved"
@@ -983,11 +1013,16 @@ def test_persona_instance_open_chat_new_session_retry_recovers_reserved_root(
 
     recovered_db = _TranscriptDB()
     monkeypatch.setattr(
-        harness,
+        chat_open,
         "_default_persona_session_db",
         lambda: recovered_db,
     )
-    assert harness._cmd_persona_instance_open_chat(args) == 0
+    monkeypatch.setattr(
+        lifecycle_commands,
+        "_default_persona_session_db",
+        lambda: recovered_db,
+    )
+    assert chat_open._cmd_persona_instance_open_chat(args) == 0
     recovered = json.loads(capsys.readouterr().out)
     assert recovered["session_id"] == failed["session_id"]
     assert recovered["idempotent_replay"] is True
@@ -1001,12 +1036,14 @@ def test_persona_instance_open_chat_new_session_rejects_idempotency_scope_confli
     isolate_agent_runtime_root,
 ):
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
     session_db = _TranscriptDB()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: session_db)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: session_db)
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: session_db)
     store = PersonaInstanceStore()
     dev = store.create_operator_chat(persona_id="dev", display_name="Dev")
     qa = store.create_operator_chat(persona_id="qa", display_name="QA")
@@ -1023,9 +1060,9 @@ def test_persona_instance_open_chat_new_session_rejects_idempotency_scope_confli
             json=True,
         )
 
-    assert harness._cmd_persona_instance_open_chat(args_for("dev", dev.id)) == 0
+    assert chat_open._cmd_persona_instance_open_chat(args_for("dev", dev.id)) == 0
     capsys.readouterr()
-    assert harness._cmd_persona_instance_open_chat(args_for("qa", qa.id)) == 2
+    assert chat_open._cmd_persona_instance_open_chat(args_for("qa", qa.id)) == 2
     conflict = json.loads(capsys.readouterr().out)
     assert conflict["error_kind"] == "idempotency_conflict"
     assert PersonaInstanceStore().get(qa.id).session_id == qa.session_id
@@ -1033,14 +1070,16 @@ def test_persona_instance_open_chat_new_session_rejects_idempotency_scope_confli
 
 def test_persona_instance_open_chat_can_target_additional_placement(monkeypatch, isolate_agent_runtime_root):
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
     session_db = _TranscriptDB()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: session_db)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: session_db)
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: session_db)
 
-    code = harness._cmd_persona_instance_open_chat(
+    code = chat_open._cmd_persona_instance_open_chat(
         Namespace(
             persona_id="profile:reviewer",
             session_id="chat_old_123",
@@ -1073,17 +1112,23 @@ def test_persona_instance_open_chat_session_persistence_failure_is_typed_and_not
     isolate_agent_runtime_root,
 ):
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(
-        harness,
+        chat_open,
+        "_default_persona_session_db",
+        lambda: _FailingTranscriptDB("session_create"),
+    )
+    monkeypatch.setattr(
+        lifecycle_commands,
         "_default_persona_session_db",
         lambda: _FailingTranscriptDB("session_create"),
     )
 
-    code = harness._cmd_persona_instance_open_chat(
+    code = chat_open._cmd_persona_instance_open_chat(
         Namespace(
             persona_id="dev",
             session_id="chat_persist_failure_123",
@@ -1108,15 +1153,16 @@ def test_open_chat_cli_targets_the_session_owner_not_the_canonical(monkeypatch, 
     # was minted FOR (personainst_qa_agent_2), never overwrite the canonical
     # primary's (personainst_qa) pointer with it.
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
 
     sibling = PersonaInstanceStore().add_instance(
         persona_id="qa", placement_id="qa_agent_2", display_name="QA Agent (2)"
     )
-    code = harness._cmd_persona_instance_open_chat(
+    code = chat_open._cmd_persona_instance_open_chat(
         Namespace(
             persona_id="qa",
             persona_instance_id=sibling.id,
@@ -1286,12 +1332,13 @@ def test_open_chat_cli_add_instance_threads_explicit_display_name(
     # placement instead of dropping it (the exact seam that minted the live
     # "Qa" — add_instance was called with no display_name).
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
 
-    code = harness._cmd_persona_instance_open_chat(
+    code = chat_open._cmd_persona_instance_open_chat(
         Namespace(
             persona_id="qa",
             session_id=None,
@@ -1315,10 +1362,11 @@ def test_open_chat_cli_add_instance_omitted_name_uses_persona_config_not_title_c
     # placement takes the persona's CONFIGURED display name ("QA Agent"), never
     # the store template's title-cased persona id ("Qa").
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     qa_persona = AgentPersona(
         id="qa",
         display_name="QA Agent",
@@ -1330,9 +1378,10 @@ def test_open_chat_cli_add_instance_omitted_name_uses_persona_config_not_title_c
         system_prompt_path="agent_runtime/prompts/qa.md",
         hermes_profile="profile-qa",
     )
-    monkeypatch.setattr(harness, "_persona_by_id", lambda _cfg, _pid: qa_persona)
+    monkeypatch.setattr(chat_open, "_persona_by_id", lambda _cfg, _pid: qa_persona)
+    monkeypatch.setattr(lifecycle_commands, "_persona_by_id", lambda _cfg, _pid: qa_persona)
 
-    code = harness._cmd_persona_instance_open_chat(
+    code = chat_open._cmd_persona_instance_open_chat(
         Namespace(
             persona_id="qa",
             session_id=None,
@@ -1867,11 +1916,13 @@ def test_persona_chat_history_summary_projects_builtin_chat_source_when_worker_o
 
 
 def test_snapshot_preserves_open_chat_and_emits_history(monkeypatch, isolate_agent_runtime_root):
+    import agent_runtime.chat_session_scope as chat_session_scope
     import agent_runtime.persona_chat_history as history
     import agent_runtime.snapshot as snapshot_module
 
     cfg = _assignment_config()
-    monkeypatch.setattr("agent_runtime.snapshot.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.envelope.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.sections.load_agent_runtime_config", lambda: cfg)
     db = _FakeSessionDB(
         [
             {
@@ -1901,7 +1952,8 @@ def test_snapshot_preserves_open_chat_and_emits_history(monkeypatch, isolate_age
         },
     )
     monkeypatch.setattr(history, "_default_session_db", lambda: db)
-    monkeypatch.setattr(snapshot_module, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_session_scope, "open_chat_session_db", lambda scope=None: db)
+    monkeypatch.setattr(snapshot_module.details, "_default_persona_session_db", lambda: db)
     PersonaInstanceStore().open_chat(persona_id="dev", session_id="chat_old_123")
 
     snapshot = build_snapshot()
@@ -2064,7 +2116,6 @@ def test_mission_chat_never_forwards_retired_goal_opt_in(
     capsys,
     isolate_agent_runtime_root,
 ):
-    from hermes_cli import harness
 
     db = _TranscriptDB()
     seen = []
@@ -2083,12 +2134,13 @@ def test_mission_chat_never_forwards_retired_goal_opt_in(
                 raw={},
             )
 
-    monkeypatch.setattr(harness, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)
 
     normal = _mission_chat_test_args("client_chat_only")
-    assert harness._cmd_mission_chat_message(normal) == 0
+    assert chat_turn_message._cmd_mission_chat_message(normal) == 0
     capsys.readouterr()
 
     assert seen == [False]
@@ -2101,7 +2153,6 @@ def test_mission_chat_required_pre_model_transcript_failure_skips_provider(
     capsys,
     isolate_agent_runtime_root,
 ):
-    from hermes_cli import harness
 
     provider_calls = []
 
@@ -2113,15 +2164,16 @@ def test_mission_chat_required_pre_model_transcript_failure_skips_provider(
             provider_calls.append("called")
             raise AssertionError("provider must not run after transcript persistence failure")
 
-    monkeypatch.setattr(harness, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(
-        harness,
+        chat_turn_message,
         "_default_persona_session_db",
         lambda: _FailingTranscriptDB(operation),
     )
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)
 
-    code = harness._cmd_mission_chat_message(
+    code = chat_turn_message._cmd_mission_chat_message(
         _mission_chat_test_args(f"client_pre_model_{operation}")
     )
 
@@ -2139,7 +2191,6 @@ def test_mission_chat_session_db_acquisition_failure_is_typed_and_skips_provider
     isolate_agent_runtime_root,
 ):
     import hermes_state
-    from hermes_cli import harness
 
     provider_calls = []
 
@@ -2150,11 +2201,12 @@ def test_mission_chat_session_db_acquisition_failure_is_typed_and_skips_provider
         def __init__(self, *args, **kwargs):
             provider_calls.append("constructed")
 
-    monkeypatch.setattr(harness, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(hermes_state, "SessionDB", _fail_session_db)
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)
 
-    code = harness._cmd_mission_chat_message(
+    code = chat_turn_message._cmd_mission_chat_message(
         _mission_chat_test_args("client_db_acquire_failure", stream=True)
     )
 
@@ -2172,7 +2224,6 @@ def test_mission_chat_fake_runtime_does_not_use_legacy_assistant_append(
     capsys,
     isolate_agent_runtime_root,
 ):
-    from hermes_cli import harness
 
     db = _FailingTranscriptDB("assistant_append")
     provider_calls = []
@@ -2192,11 +2243,12 @@ def test_mission_chat_fake_runtime_does_not_use_legacy_assistant_append(
                 raw={},
             )
 
-    monkeypatch.setattr(harness, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)
 
-    code = harness._cmd_mission_chat_message(
+    code = chat_turn_message._cmd_mission_chat_message(
         _mission_chat_test_args("client_assistant_db_failure", stream=True)
     )
 
@@ -2218,12 +2270,12 @@ def test_mission_chat_fake_runtime_does_not_use_legacy_assistant_append(
 def test_persona_instance_create_persists_empty_operator_chat_history(
     monkeypatch, capsys, isolate_agent_runtime_root
 ):
-    from hermes_cli import harness
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
 
     def _args(display_name: str):
         return SimpleNamespace(
@@ -2240,11 +2292,11 @@ def test_persona_instance_create_persists_empty_operator_chat_history(
             placement_id=None,
         )
 
-    assert harness._cmd_persona_instance_create(_args("Reviewer One")) == 0
+    assert lifecycle_commands._cmd_persona_instance_create(_args("Reviewer One")) == 0
     first_session_id = PersonaInstanceStore().get(
         persona_instance_id_for("profile:reviewer")
     ).session_id
-    assert harness._cmd_persona_instance_create(_args("Reviewer Two")) == 0
+    assert lifecycle_commands._cmd_persona_instance_create(_args("Reviewer Two")) == 0
     second_session_id = PersonaInstanceStore().get(
         persona_instance_id_for("profile:reviewer")
     ).session_id
@@ -2273,12 +2325,16 @@ def test_persona_instance_create_persists_empty_operator_chat_history(
 def test_persona_chat_delete_removes_session_and_clears_binding(
     monkeypatch, capsys, isolate_agent_runtime_root
 ):
-    from hermes_cli import harness
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
 
     store = PersonaInstanceStore()
     instance = store.create_operator_chat(
@@ -2288,7 +2344,7 @@ def test_persona_chat_delete_removes_session_and_clears_binding(
     db.create_session(instance.session_id, "agent_runtime_persona_chat")
     db.append_message(instance.session_id, "user", "delete this")
 
-    code = harness._cmd_persona_chat_delete(
+    code = chat_delete._cmd_persona_chat_delete(
         SimpleNamespace(
             session_id=instance.session_id,
             persona_id=instance.persona_id,
@@ -2313,17 +2369,21 @@ def test_persona_chat_delete_removes_session_and_clears_binding(
 def test_persona_chat_delete_clears_stale_binding_when_session_already_missing(
     monkeypatch, capsys, isolate_agent_runtime_root
 ):
-    from hermes_cli import harness
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
 
     store = PersonaInstanceStore()
     instance = store.open_chat(persona_id="dev", session_id="deleted_chat_123")
 
-    code = harness._cmd_persona_chat_delete(
+    code = chat_delete._cmd_persona_chat_delete(
         SimpleNamespace(
             session_id="deleted_chat_123",
             persona_id="dev",
@@ -2350,12 +2410,15 @@ def test_persona_chat_delete_unbinds_every_row_pointing_at_the_deleted_session(
     a permanent ``session_not_in_db`` parity drop (live 2026-07-25: 10 of them).
     """
 
-    from hermes_cli import harness
-
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
 
     store = PersonaInstanceStore()
     owner = store.create_operator_chat(persona_id="profile:reviewer", display_name="Reviewer")
@@ -2366,7 +2429,7 @@ def test_persona_chat_delete_unbinds_every_row_pointing_at_the_deleted_session(
     sibling.session_id = owner.session_id
     store.update(sibling)
 
-    code = harness._cmd_persona_chat_delete(
+    code = chat_delete._cmd_persona_chat_delete(
         SimpleNamespace(
             session_id=owner.session_id,
             persona_id=owner.persona_id,
@@ -2402,12 +2465,15 @@ def test_persona_chat_delete_leaves_a_pointer_to_another_session_alone(
     could silently drop an unrelated live pointer.
     """
 
-    from hermes_cli import harness
-
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
 
     store = PersonaInstanceStore()
     instance = store.create_operator_chat(persona_id="profile:reviewer", display_name="Reviewer")
@@ -2416,7 +2482,7 @@ def test_persona_chat_delete_leaves_a_pointer_to_another_session_alone(
     instance.session_id = "persona_chat_other_live"
     store.update(instance)
 
-    code = harness._cmd_persona_chat_delete(
+    code = chat_delete._cmd_persona_chat_delete(
         SimpleNamespace(
             session_id=deleted_session,
             persona_id=instance.persona_id,
@@ -2441,13 +2507,17 @@ def test_persona_chat_delete_leaves_a_pointer_to_another_session_alone(
 def test_persona_chat_delete_reports_missing_without_silent_success(
     monkeypatch, capsys, isolate_agent_runtime_root
 ):
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: _TranscriptDB())
+    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: _TranscriptDB())
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: _TranscriptDB())
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: _TranscriptDB())
 
-    code = harness._cmd_persona_chat_delete(
+    code = chat_delete._cmd_persona_chat_delete(
         SimpleNamespace(
             session_id="missing_chat_123",
             persona_id="dev",
@@ -2467,12 +2537,16 @@ def test_persona_chat_delete_reports_missing_without_silent_success(
 def test_persona_chat_delete_rejects_foreign_instance_before_mutation(
     monkeypatch, capsys, isolate_agent_runtime_root
 ):
-    from hermes_cli import harness
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
 
     store = PersonaInstanceStore()
     owner = store.create_operator_chat(persona_id="dev", display_name="Owner")
@@ -2482,7 +2556,7 @@ def test_persona_chat_delete_rejects_foreign_instance_before_mutation(
     db.create_session(owner.session_id, "agent_runtime_persona_chat")
     db.append_message(owner.session_id, "user", "must survive")
 
-    code = harness._cmd_persona_chat_delete(
+    code = chat_delete._cmd_persona_chat_delete(
         SimpleNamespace(
             session_id=owner.session_id,
             persona_id=foreign.persona_id,
@@ -2502,17 +2576,16 @@ def test_persona_chat_delete_rejects_foreign_instance_before_mutation(
 
 
 def test_persona_chat_transcript_records_operator_and_assistant_turn(isolate_agent_runtime_root):
-    from hermes_cli import harness
 
     db = _TranscriptDB()
     session_id = "persona_chat_personainst_dev"
     db.create_session(session_id, "agent_runtime_persona_chat")
-    harness._append_persona_operator_turn(
+    chat_history_writes._append_persona_operator_turn(
         session_db=db,
         session_id=session_id,
         message="hi",
     )
-    harness._append_persona_assistant_text(
+    chat_history_writes._append_persona_assistant_text(
         session_db=db,
         session_id=session_id,
         text="Hey — what are we working on?\n\n- Scope\n- Proof",
@@ -2532,7 +2605,6 @@ def test_persona_chat_transcript_records_operator_and_assistant_turn(isolate_age
 def test_mission_chat_model_override_is_chat_scoped_and_does_not_mutate_persona(
     monkeypatch, capsys, isolate_agent_runtime_root
 ):
-    from hermes_cli import harness
 
     cfg = _assignment_config()
     cfg.personas["dev"] = {
@@ -2541,10 +2613,11 @@ def test_mission_chat_model_override_is_chat_scoped_and_does_not_mutate_persona(
         "api_mode": "codex_responses",
         "hermes_profile": "profile-dev",
     }
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
     db = _TranscriptDB()
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     # Base-profile foundation: only `base` is seeded into the store now, but this test
     # asserts the chat override does not mutate the *persisted* typed persona, so persist
     # `dev` explicitly (it stays resolvable via the dormant catalog either way).
@@ -2575,9 +2648,9 @@ def test_mission_chat_model_override_is_chat_scoped_and_does_not_mutate_persona(
                 },
             )
 
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
-    code = harness._cmd_mission_chat_message(
+    code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
             persona_instance_id="personainst_dev",
@@ -2629,7 +2702,7 @@ def test_mission_chat_model_override_is_chat_scoped_and_does_not_mutate_persona(
     assert rows[0]["effective_model"] == "anthropic/claude-sonnet-4"
     assert rows[0]["chat_model_is_default"] is False
 
-    code = harness._cmd_mission_chat_message(
+    code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
             persona_instance_id="personainst_dev",
@@ -2663,14 +2736,14 @@ def test_mission_chat_model_override_is_chat_scoped_and_does_not_mutate_persona(
 def test_mission_chat_model_override_rejects_bad_values_before_turn_is_written(
     monkeypatch, capsys, isolate_agent_runtime_root
 ):
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     db = _TranscriptDB()
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
 
-    code = harness._cmd_mission_chat_message(
+    code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
             persona_instance_id="personainst_dev",
@@ -2703,14 +2776,14 @@ def test_mission_chat_model_override_rejects_bad_values_before_turn_is_written(
 def test_mission_chat_queues_skill_for_next_turn_once(
     monkeypatch, capsys, isolate_agent_runtime_root
 ):
-    from hermes_cli import harness
     from agent_runtime.queued_skills import pending_skills_for_next_turn
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
     db = _TranscriptDB()
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
 
     import agent.skill_utils as skill_utils
 
@@ -2720,7 +2793,7 @@ def test_mission_chat_queues_skill_for_next_turn_once(
     manifest.write_text("---\nname: deep-audit\n---\nbody\n", encoding="utf-8")
     monkeypatch.setattr(skill_utils, "get_all_skills_dirs", lambda: [skill_root])
 
-    code = harness._cmd_mission_chat_queue_skill(
+    code = chat_coordinator._cmd_mission_chat_queue_skill(
         SimpleNamespace(
             persona_id="dev",
             persona_instance_id="personainst_dev",
@@ -2767,7 +2840,7 @@ def test_mission_chat_queues_skill_for_next_turn_once(
                 },
             )
 
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
     def _message_args(client_id: str):
         return SimpleNamespace(
@@ -2790,7 +2863,7 @@ def test_mission_chat_queues_skill_for_next_turn_once(
             json=True,
         )
 
-    assert harness._cmd_mission_chat_message(_message_args("client_skill_1")) == 0
+    assert chat_turn_message._cmd_mission_chat_message(_message_args("client_skill_1")) == 0
     payload = json.loads(capsys.readouterr().out)
     # The preload reaches the runtime inside its structural envelope so the
     # transcript projection can strip it from the displayed operator text.
@@ -2814,7 +2887,7 @@ def test_mission_chat_queues_skill_for_next_turn_once(
         session_id="persona_chat_personainst_dev",
     ) == []
 
-    assert harness._cmd_mission_chat_message(_message_args("client_skill_2")) == 0
+    assert chat_turn_message._cmd_mission_chat_message(_message_args("client_skill_2")) == 0
     json.loads(capsys.readouterr().out)
     # No skill queued on the second turn -> no envelope at all.
     assert captured_prompts == [expected_preload, ""]
@@ -2823,14 +2896,13 @@ def test_mission_chat_queues_skill_for_next_turn_once(
 def test_queue_skill_rejects_missing_skill_without_pending_state(
     monkeypatch, capsys, isolate_agent_runtime_root
 ):
-    from hermes_cli import harness
     from agent_runtime.queued_skills import pending_skills_for_next_turn
 
     import tools.skills_tool as skills_tool
 
     monkeypatch.setattr(skills_tool, "_find_all_skills", lambda: [])
 
-    code = harness._cmd_mission_chat_queue_skill(
+    code = chat_coordinator._cmd_mission_chat_queue_skill(
         SimpleNamespace(
             persona_id="dev",
             persona_instance_id="personainst_dev",
@@ -2893,10 +2965,9 @@ def test_prompt_observability_reports_redaction_safe_available_skill_catalog(
 
 
 def test_chat_protocol_v2_emitter_can_suppress_frames_while_accumulating(capsys):
-    from hermes_cli import harness
 
     updates = []
-    emitter = harness._ChatProtocolV2Emitter(
+    emitter = chat_events._ChatProtocolV2Emitter(
         turn_id="turn_1",
         client_message_id="client_1",
         emit_frames=False,
@@ -2935,13 +3006,13 @@ def test_mission_chat_non_stream_persists_completed_turn_and_prints_one_json(
     capsys,
     isolate_agent_runtime_root,
 ):
-    from hermes_cli import harness
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(harness, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
 
     class _FakeRuntime:
         def __init__(self, *args, **kwargs):
@@ -2973,9 +3044,9 @@ def test_mission_chat_non_stream_persists_completed_turn_and_prints_one_json(
                 raw={},
             )
 
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
-    code = harness._cmd_mission_chat_message(
+    code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
             persona_instance_id="personainst_dev",
@@ -3012,12 +3083,12 @@ def test_mission_chat_non_stream_persists_completed_turn_and_prints_one_json(
 
 
 def test_mission_chat_post_boundary_failure_marks_outcome_unknown(monkeypatch, capsys, isolate_agent_runtime_root):
-    from hermes_cli import harness
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
 
     class _FakeRuntime:
         def __init__(self, *args, **kwargs):
@@ -3026,9 +3097,9 @@ def test_mission_chat_post_boundary_failure_marks_outcome_unknown(monkeypatch, c
         def mission_chat_reply(self, persona, message, **kwargs):
             raise RuntimeError("provider unavailable")
 
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
-    code = harness._cmd_mission_chat_message(
+    code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
             persona_instance_id="personainst_dev",
@@ -3063,12 +3134,12 @@ def test_mission_chat_post_boundary_failure_marks_outcome_unknown(monkeypatch, c
 def test_mission_chat_retry_recovers_native_reply_before_outcome_unknown(
     monkeypatch, capsys, isolate_agent_runtime_root
 ):
-    from hermes_cli import harness
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     instance = PersonaInstanceStore().open_chat(
         persona_id="dev", session_id="persona_chat_personainst_dev"
     )
@@ -3103,8 +3174,8 @@ def test_mission_chat_retry_recovers_native_reply_before_outcome_unknown(
         def __init__(self, *args, **kwargs):
             raise AssertionError("provider must not be called during native recovery")
 
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _MustNotRun)
-    code = harness._cmd_mission_chat_message(
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _MustNotRun)
+    code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
             persona_instance_id=instance.id,
@@ -3143,10 +3214,9 @@ def test_mission_chat_retry_recovers_native_reply_before_outcome_unknown(
 def test_mission_chat_turn_resolve_requires_exact_owner_and_records_abandon(
     monkeypatch, capsys, isolate_agent_runtime_root
 ):
-    from hermes_cli import harness
 
     db = _TranscriptDB()
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: db)
     owner = PersonaInstanceStore().open_chat(
         persona_id="dev", session_id="persona_chat_personainst_dev"
     )
@@ -3171,7 +3241,7 @@ def test_mission_chat_turn_resolve_requires_exact_owner_and_records_abandon(
             state=state,
         )
 
-    bad_code = harness._cmd_mission_chat_turn_resolve(
+    bad_code = chat_tickets_commands._cmd_mission_chat_turn_resolve(
         SimpleNamespace(
             session_id=owner.session_id,
             client_message_id="client_ambiguous",
@@ -3189,7 +3259,7 @@ def test_mission_chat_turn_resolve_requires_exact_owner_and_records_abandon(
         session_id=owner.session_id, client_message_id="client_ambiguous"
     )["state"] == "outcome_unknown"
 
-    code = harness._cmd_mission_chat_turn_resolve(
+    code = chat_tickets_commands._cmd_mission_chat_turn_resolve(
         SimpleNamespace(
             session_id=owner.session_id,
             client_message_id="client_ambiguous",
@@ -3216,13 +3286,13 @@ def test_mission_chat_new_turn_interrupts_prior_running_turn(
     capsys,
     isolate_agent_runtime_root,
 ):
-    from hermes_cli import harness
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(harness, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
     persist_mission_chat_turn(
         session_id="persona_chat_personainst_dev",
         client_message_id="client_stale",
@@ -3246,9 +3316,9 @@ def test_mission_chat_new_turn_interrupts_prior_running_turn(
                 raw={},
             )
 
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
-    code = harness._cmd_mission_chat_message(
+    code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
             persona_instance_id="personainst_dev",
@@ -3286,12 +3356,12 @@ def test_mission_chat_post_native_projection_crash_stays_repairable(
     """W4: a crash AFTER the provider replied (transcript/bookkeeping steps)
     must persist a terminal `failed` state — never strand `running` — and the
     stdout contract (exactly one JSON object) must hold."""
-    from hermes_cli import harness
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
 
     # The native lane no longer calls _update_persona_chat_token_counts (the
     # per-call runtime writes are its sole usage authority - see the
@@ -3314,9 +3384,9 @@ def test_mission_chat_post_native_projection_crash_stays_repairable(
                 raw={},
             )
 
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
-    code = harness._cmd_mission_chat_message(
+    code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
             persona_instance_id="personainst_dev",
@@ -3356,22 +3426,22 @@ def test_mission_chat_success_persist_sequence_has_single_terminal_write(
 ):
     """W5: one write-ahead, one on_update per tool event, ONE terminal write.
     finish() must not sneak an extra `running` persist around the terminal."""
-    from hermes_cli import harness
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(harness, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
 
     recorded: list[tuple[str | None, bool]] = []
-    real_persist = harness.persist_mission_chat_turn
+    real_persist = commit_run.persist_mission_chat_turn
 
     def _recording_persist(**kwargs):
         recorded.append((kwargs.get("state"), bool(kwargs.get("write_ahead"))))
         return real_persist(**kwargs)
 
-    monkeypatch.setattr(harness, "persist_mission_chat_turn", _recording_persist)
+    monkeypatch.setattr(commit_run, "persist_mission_chat_turn", _recording_persist)
 
     class _FakeRuntime:
         def __init__(self, *args, **kwargs):
@@ -3394,9 +3464,9 @@ def test_mission_chat_success_persist_sequence_has_single_terminal_write(
                 raw={},
             )
 
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
-    code = harness._cmd_mission_chat_message(
+    code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
             persona_instance_id="personainst_dev",
@@ -3428,20 +3498,20 @@ def test_mission_chat_message_replays_duplicate_client_message_id(
     capsys,
     isolate_agent_runtime_root,
 ):
-    from hermes_cli import harness
 
     cfg = _assignment_config()
     db = _TranscriptDB()
     calls = {"count": 0}
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
 
     def _title(**kwargs):
         kwargs["session_db"].set_session_title(
             kwargs["session_id"], "Mission Chat"
         )
 
-    monkeypatch.setattr(harness, "_maybe_auto_title_persona_chat", _title)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", _title)
 
     class _FakeRuntime:
         def __init__(self, *args, **kwargs):
@@ -3459,7 +3529,7 @@ def test_mission_chat_message_replays_duplicate_client_message_id(
                 raw={},
             )
 
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
     def _args():
         return SimpleNamespace(
@@ -3478,11 +3548,11 @@ def test_mission_chat_message_replays_duplicate_client_message_id(
             json=True,
         )
 
-    assert harness._cmd_mission_chat_message(_args()) == 0
+    assert chat_turn_message._cmd_mission_chat_message(_args()) == 0
     first = json.loads(capsys.readouterr().out)
     assert first.get("idempotent_replay") is not True
 
-    assert harness._cmd_mission_chat_message(_args()) == 0
+    assert chat_turn_message._cmd_mission_chat_message(_args()) == 0
     replay = json.loads(capsys.readouterr().out)
 
     assert calls["count"] == 1
@@ -3519,13 +3589,13 @@ def test_mission_chat_message_generates_client_message_id_when_missing(
     capsys,
     isolate_agent_runtime_root,
 ):
-    from hermes_cli import harness
 
     cfg = _assignment_config()
     db = _TranscriptDB()
     captured = {}
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(
         "agent.title_generator.generate_title",
         lambda user_message, assistant_response, **kwargs: "Mission Chat",
@@ -3547,9 +3617,9 @@ def test_mission_chat_message_generates_client_message_id_when_missing(
                 raw={},
             )
 
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
-    code = harness._cmd_mission_chat_message(
+    code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
             persona_instance_id="personainst_dev",
@@ -3594,14 +3664,14 @@ def test_mission_chat_message_stream_terminal_frame_is_slim(
     The terminal ``chat.final`` frame carries the slim typed observability subset
     and NO ``turn_elements``. Re-adding ``turn_elements`` to the emit path, or
     restoring the full row, turns this red."""
-    from agent_runtime.prompt_observability import CHAT_FINAL_OBSERVABILITY_FIELDS
-    from hermes_cli import harness
+    from agent_runtime.prompt_observability.turn_results import CHAT_FINAL_OBSERVABILITY_FIELDS
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(harness, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
 
     class _FakeRuntime:
         def __init__(self, *args, **kwargs):
@@ -3628,9 +3698,9 @@ def test_mission_chat_message_stream_terminal_frame_is_slim(
                 },
             )
 
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
-    code = harness._cmd_mission_chat_message(
+    code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
             persona_instance_id="personainst_dev",
@@ -3695,14 +3765,14 @@ def test_mission_chat_pre_trace_ack_is_presentation_only(
     marker-suppressed launcher-side; that inject-then-hide seam is retired.)
     """
 
-    from hermes_cli import harness
     from agent_runtime.mission_chat_turns import mission_chat_turn_elements
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(harness, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
 
     class _FakeRuntime:
         def __init__(self, *args, **kwargs):
@@ -3729,9 +3799,9 @@ def test_mission_chat_pre_trace_ack_is_presentation_only(
                 raw={},
             )
 
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _FakeRuntime)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
 
-    code = harness._cmd_mission_chat_message(
+    code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
             persona_instance_id="personainst_dev",
@@ -3781,7 +3851,6 @@ def test_mission_chat_pre_trace_ack_is_presentation_only(
 
 
 def test_persona_chat_auto_title_waits_for_session_title_write(monkeypatch, isolate_agent_runtime_root):
-    from hermes_cli import harness
 
     db = _TranscriptDB()
     session_id = "persona_chat_personainst_dev"
@@ -3794,7 +3863,7 @@ def test_persona_chat_auto_title_waits_for_session_title_write(monkeypatch, isol
 
     monkeypatch.setattr("agent.title_generator.auto_title_session", fake_auto_title_session)
 
-    harness._maybe_auto_title_persona_chat(
+    chat_target._maybe_auto_title_persona_chat(
         session_db=db,
         session_id=session_id,
         user_message="what's your take on shipping fast?",
@@ -3812,7 +3881,6 @@ def test_persona_chat_auto_title_waits_for_session_title_write(monkeypatch, isol
 
 
 def test_persona_chat_context_uses_native_structured_prior_turns(isolate_agent_runtime_root):
-    from hermes_cli import harness
 
     db = _TranscriptDB()
     session_id = "persona_chat_personainst_dev"
@@ -3820,8 +3888,8 @@ def test_persona_chat_context_uses_native_structured_prior_turns(isolate_agent_r
     db.append_message(session_id, "user", "remember the blue button")
     db.append_message(session_id, "assistant", "I will remember the blue button.")
 
-    history = harness.safe_native_history(
-        harness._persona_chat_native_history(db, session_id)
+    history = commit_run.safe_native_history(
+        chat_session._persona_chat_native_history(db, session_id)
     )
 
     assert history == [
@@ -3831,7 +3899,6 @@ def test_persona_chat_context_uses_native_structured_prior_turns(isolate_agent_r
 
 
 def test_profile_persona_resolution_does_not_borrow_role_skills(monkeypatch, isolate_agent_runtime_root):
-    from hermes_cli import harness
 
     cfg = _assignment_config()
     cfg.default_provider = "openai-codex"
@@ -3846,7 +3913,7 @@ def test_profile_persona_resolution_does_not_borrow_role_skills(monkeypatch, iso
         "toolsets": ["terminal", "code_execution", "browser", "mission_goal"],
     }
 
-    persona = harness._persona_by_id(cfg, "profile:alice")
+    persona = chat_target._persona_by_id(cfg, "profile:alice")
 
     assert persona is not None
     assert persona.id == "profile:alice"
@@ -3862,7 +3929,6 @@ def test_profile_persona_resolution_prefers_exact_id_over_profile_owner(
     monkeypatch, isolate_agent_runtime_root
 ):
     from agent_runtime.personas import profile_chat_toolsets
-    from hermes_cli import harness
 
     exact = _persona("profile:shared")
     exact.hermes_profile = "different"
@@ -3870,9 +3936,9 @@ def test_profile_persona_resolution_prefers_exact_id_over_profile_owner(
     owner = _persona("profile_owner")
     owner.hermes_profile = "shared"
     owner.toolsets = ["terminal"]
-    monkeypatch.setattr(harness, "ensure_persisted_personas", lambda _cfg: [owner, exact])
+    monkeypatch.setattr(chat_target, "ensure_persisted_personas", lambda _cfg: [owner, exact])
 
-    assert harness._persona_by_id(_assignment_config(), "profile:shared") is exact
+    assert chat_target._persona_by_id(_assignment_config(), "profile:shared") is exact
     assert profile_chat_toolsets("shared", [owner, exact]) == ["file"]
 
 
@@ -3880,7 +3946,6 @@ def test_ambiguous_profile_owners_do_not_supply_arbitrary_defaults(
     monkeypatch, isolate_agent_runtime_root
 ):
     from agent_runtime.personas import profile_chat_toolsets
-    from hermes_cli import harness
 
     first = _persona("first")
     first.hermes_profile = "shared"
@@ -3888,9 +3953,9 @@ def test_ambiguous_profile_owners_do_not_supply_arbitrary_defaults(
     second = _persona("second")
     second.hermes_profile = "shared"
     second.toolsets = ["terminal"]
-    monkeypatch.setattr(harness, "ensure_persisted_personas", lambda _cfg: [first, second])
+    monkeypatch.setattr(chat_target, "ensure_persisted_personas", lambda _cfg: [first, second])
 
-    resolved = harness._persona_by_id(_assignment_config(), "profile:shared")
+    resolved = chat_target._persona_by_id(_assignment_config(), "profile:shared")
     assert resolved is not None
     assert resolved.id == "profile:shared"
     assert resolved.toolsets == []
@@ -3917,7 +3982,8 @@ def test_profile_prompt_observability_uses_profile_skills_and_chat_title(
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr(prompt_observability, "get_profile_dir", lambda profile: profile_dir)
+    monkeypatch.setattr(prompt_observability.context_budget, "get_profile_dir", lambda profile: profile_dir)
+    monkeypatch.setattr(prompt_observability.context_files, "get_profile_dir", lambda profile: profile_dir)
     db = _TranscriptDB()
     db.create_session("persona_chat_alice", "agent_runtime_persona_chat")
     db.set_session_title("persona_chat_alice", "Alice Agent chat")
@@ -3975,7 +4041,8 @@ def test_prompt_observability_reports_used_skill_from_skill_view_trace(
         json.dumps({"skills": [{"skill_name": "agent-runtime-harness"}]}),
         encoding="utf-8",
     )
-    monkeypatch.setattr(prompt_observability, "get_profile_dir", lambda profile: profile_dir)
+    monkeypatch.setattr(prompt_observability.context_budget, "get_profile_dir", lambda profile: profile_dir)
+    monkeypatch.setattr(prompt_observability.context_files, "get_profile_dir", lambda profile: profile_dir)
 
     context = prompt_observability.mission_chat_prompt_observability(
         persona=AgentPersona(
@@ -4027,7 +4094,8 @@ def test_prompt_observability_refreshes_stale_derived_fields(
         json.dumps({"skills": [{"skill_name": "fresh-profile-skill"}]}),
         encoding="utf-8",
     )
-    monkeypatch.setattr(prompt_observability, "get_profile_dir", lambda profile: profile_dir)
+    monkeypatch.setattr(prompt_observability.context_budget, "get_profile_dir", lambda profile: profile_dir)
+    monkeypatch.setattr(prompt_observability.context_files, "get_profile_dir", lambda profile: profile_dir)
     db = _TranscriptDB()
     db.create_session("persona_chat_alice", "agent_runtime_persona_chat")
     db.set_session_title("persona_chat_alice", "Alice Agent chat")
@@ -4086,7 +4154,7 @@ def test_prompt_observability_refreshes_stale_derived_fields(
         session_db=db,
     )
 
-    merged = prompt_observability._merge_latest_contexts([built])
+    merged = prompt_observability.context_store._merge_latest_contexts([built])
 
     refreshed = merged[0]
     assert refreshed["context_id"] == "ctx_stale"
@@ -4115,7 +4183,8 @@ def test_snapshot_prompt_observability_builds_profile_instance_context(
         json.dumps({"skills": [{"skill_name": "alice-profile-skill"}]}),
         encoding="utf-8",
     )
-    monkeypatch.setattr(prompt_observability, "get_profile_dir", lambda profile: profile_dir)
+    monkeypatch.setattr(prompt_observability.context_budget, "get_profile_dir", lambda profile: profile_dir)
+    monkeypatch.setattr(prompt_observability.context_files, "get_profile_dir", lambda profile: profile_dir)
     db = _TranscriptDB()
     db.create_session("persona_chat_personainst_profile_alice", "agent_runtime_persona_chat")
     db.set_session_title("persona_chat_personainst_profile_alice", "Alice Agent chat")
@@ -4193,17 +4262,18 @@ def test_snapshot_prompt_observability_builds_profile_instance_context(
     )
     expected_accessible = expected_context["accessible_skills"]
     assert "skills_catalogs" not in snapshot
-    assert context["accessible_skills_ref"] == prompt_observability._skills_list_content_hash(
+    assert context["accessible_skills_ref"] == prompt_observability.hoist._skills_list_content_hash(
         expected_accessible
     )
 
 
 def test_persona_instance_close_cli_closes_only_free_floating_assignment(monkeypatch, isolate_agent_runtime_root):
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     # S70: nothing can mint an assignment any more; seed the residual row the
     # close verb exists to settle.
     assignment = _seed_assignment(persona_id="dev")
@@ -4213,7 +4283,7 @@ def test_persona_instance_close_cli_closes_only_free_floating_assignment(monkeyp
     instance.current_assignment_id = assignment.id
     instance_store.update(instance)
 
-    code = harness._cmd_persona_instance_close(
+    code = instance_commands._cmd_persona_instance_close(
         Namespace(
             persona_instance_id=assignment.persona_instance_id,
             reason="operator closed sandbox",
@@ -4233,10 +4303,11 @@ def test_persona_instance_close_cli_closes_only_free_floating_assignment(monkeyp
 
 def test_coordinator_close_own_spawned_instance_with_scope(monkeypatch, isolate_agent_runtime_root):
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     assignment = _seed_assignment(persona_id="dev")
     instance_store = PersonaInstanceStore()
     instance = instance_store.ensure_for_persona(_persona("dev"))
@@ -4245,7 +4316,7 @@ def test_coordinator_close_own_spawned_instance_with_scope(monkeypatch, isolate_
     instance.spawned_by = "neko_supervisor"
     instance_store.update(instance)
 
-    code = harness._cmd_persona_instance_close(
+    code = instance_commands._cmd_persona_instance_close(
         Namespace(
             persona_instance_id=assignment.persona_instance_id,
             reason="coordinator closed own child",
@@ -4266,10 +4337,11 @@ def test_coordinator_close_own_spawned_instance_with_scope(monkeypatch, isolate_
 
 def test_coordinator_close_operator_placed_instance_needs_confirm(monkeypatch, capsys, isolate_agent_runtime_root):
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     assignment = _seed_assignment(persona_id="dev")
     instance_store = PersonaInstanceStore()
     instance = instance_store.ensure_for_persona(_persona("dev"))
@@ -4278,7 +4350,7 @@ def test_coordinator_close_operator_placed_instance_needs_confirm(monkeypatch, c
     instance.spawned_by = "operator"
     instance_store.update(instance)
 
-    code = harness._cmd_persona_instance_close(
+    code = instance_commands._cmd_persona_instance_close(
         Namespace(
             persona_instance_id=assignment.persona_instance_id,
             reason="coordinator tried closing operator placement",
@@ -4742,16 +4814,17 @@ def test_open_chat_cli_reports_a_retired_root_as_retired_not_unknown(
     isolate_agent_runtime_root,
 ):
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     instance = _placement_instance(placement_id="dev_agent_2")
     session_id = instance.session_id
     assert session_id
     PersonaInstanceStore().retire(instance.id, reason="placement deleted")
 
-    code = harness._cmd_persona_instance_open_chat(
+    code = chat_open._cmd_persona_instance_open_chat(
         Namespace(
             persona_id=instance.persona_id,
             session_id=session_id,
@@ -4791,14 +4864,15 @@ def test_open_chat_cli_still_rejects_a_genuinely_unknown_root(
     pre-flight must not swallow it."""
 
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     instance = _placement_instance(placement_id="dev_agent_3")
     assert instance.id in {row.id for row in PersonaInstanceStore().list_all()}
 
-    code = harness._cmd_persona_instance_open_chat(
+    code = chat_open._cmd_persona_instance_open_chat(
         Namespace(
             persona_id=instance.persona_id,
             session_id=f"persona_chat_{instance.id}_abcdef123456",
@@ -4888,7 +4962,8 @@ def test_retire_refuses_missing_instance(isolate_agent_runtime_root):
 
 def test_retire_excludes_instance_from_snapshot_projection(monkeypatch, isolate_agent_runtime_root):
     cfg = _assignment_config()
-    monkeypatch.setattr("agent_runtime.snapshot.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.envelope.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.sections.load_agent_runtime_config", lambda: cfg)
     store = PersonaInstanceStore()
     instance = _placement_instance()
 
@@ -4907,13 +4982,14 @@ def test_retire_excludes_instance_from_snapshot_projection(monkeypatch, isolate_
 def test_retire_cli_happy_path_archives_row(monkeypatch, isolate_agent_runtime_root):
     from argparse import Namespace
     from agent_runtime import paths
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     instance = _placement_instance()
 
-    code = harness._cmd_persona_instance_retire(
+    code = instance_commands._cmd_persona_instance_retire(
         Namespace(
             persona_instance_id=instance.id,
             reason="placement deleted",
@@ -4935,13 +5011,14 @@ def test_retire_cli_happy_path_archives_row(monkeypatch, isolate_agent_runtime_r
 
 def test_retire_cli_canonical_refusal_returns_typed_error(monkeypatch, capsys, isolate_agent_runtime_root):
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     canonical = PersonaInstanceStore().ensure_for_persona(_persona("dev"))
 
-    code = harness._cmd_persona_instance_retire(
+    code = instance_commands._cmd_persona_instance_retire(
         Namespace(
             persona_instance_id=canonical.id,
             reason="placement deleted",
@@ -4964,15 +5041,16 @@ def test_retire_cli_canonical_refusal_returns_typed_error(monkeypatch, capsys, i
 
 def test_retire_cli_coordinator_operator_placed_needs_confirm(monkeypatch, capsys, isolate_agent_runtime_root):
     from argparse import Namespace
-    from hermes_cli import harness
 
     cfg = _assignment_config()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     # A placement dropped by the operator is not owned by a coordinator, so a
     # coordinator cannot end-of-life it (KILL_ACTIONS gate -> operator confirm).
     instance = _placement_instance()
 
-    code = harness._cmd_persona_instance_retire(
+    code = instance_commands._cmd_persona_instance_retire(
         Namespace(
             persona_instance_id=instance.id,
             reason="coordinator tried retiring operator placement",
@@ -5022,14 +5100,15 @@ def _chat_pointer_writers() -> dict[str, set[str]]:
     """
 
     import ast
-    import inspect
 
     from agent_runtime import persona_assignments
 
     pointers = {"default_chat_session_id", "session_id"}
-    tree = ast.parse(inspect.getsource(persona_assignments))
+    # The package's modules, each parsed on its own (the file became a package).
+    package_dir = Path(persona_assignments.__file__).parent
+    trees = [ast.parse(path.read_text(encoding="utf-8")) for path in sorted(package_dir.glob("*.py"))]
     writers: dict[str, set[str]] = {}
-    for node in ast.walk(tree):
+    for node in (node for tree in trees for node in ast.walk(tree)):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         for inner in ast.walk(node):
@@ -5275,14 +5354,17 @@ def test_both_live_clear_callers_reach_a_client_through_the_full_core(
     code path.
     """
 
-    from hermes_cli import harness
-
     from agent_runtime.patch_coverage import batch_is_patch_coverable
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
 
     store = PersonaInstanceStore()
 
@@ -5293,7 +5375,7 @@ def test_both_live_clear_callers_reach_a_client_through_the_full_core(
     db.create_session(deleted.session_id, "agent_runtime_persona_chat")
     base = len(list(EventLog().iter_from_offset(0)))
     assert (
-        harness._cmd_persona_chat_delete(
+        chat_delete._cmd_persona_chat_delete(
             SimpleNamespace(
                 session_id=deleted.session_id,
                 persona_id=deleted.persona_id,
@@ -5331,3 +5413,47 @@ def test_both_live_clear_callers_reach_a_client_through_the_full_core(
     assert not batch_is_patch_coverable(event for _, event in sweep_batch)
     frames = _frames_for(sweep_batch, base_offset=base)
     assert frames and all(isinstance(frame.get("core"), dict) for frame in frames)
+
+
+def test_persona_chat_delete_takes_the_compression_lineage_with_a_real_session_db(
+    monkeypatch, capsys, isolate_agent_runtime_root, tmp_path
+):
+    """A real SessionDB goes through ``session_extensions.delete_compression_lineage``:
+    the root's compression continuation leaves with it, an explicit branch stays."""
+    from hermes_state import SessionDB
+
+    cfg = _assignment_config()
+    db = SessionDB(tmp_path / "state.db")
+    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
+
+    instance = PersonaInstanceStore().create_operator_chat(
+        persona_id="profile:reviewer",
+        display_name="Reviewer",
+    )
+    root = instance.session_id
+    db.create_session(root, "agent_runtime_persona_chat")
+    db.end_session(root, "compression")
+    db.create_session("tip", "agent_runtime_persona_chat", parent_session_id=root)
+    db.create_session("branch", "agent_runtime_persona_chat", parent_session_id=root,
+                      model_config={"_branched_from": root})
+
+    code = chat_delete._cmd_persona_chat_delete(
+        SimpleNamespace(
+            session_id=root,
+            persona_id=instance.persona_id,
+            persona_instance_id=instance.id,
+            requested_by="test",
+            json=True,
+        )
+    )
+
+    assert code == 0, capsys.readouterr()
+    assert db.get_session(root) is None
+    assert db.get_session("tip") is None
+    assert db.get_session("branch")["parent_session_id"] is None

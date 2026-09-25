@@ -382,7 +382,7 @@ def test_the_gate_scanned_a_real_tree():
         "tests/hermes_cli/test_plugins.py",
         "tests/plugins/memory/test_holographic_store.py",
         "tests/plugins/platforms/photon/test_sidecar_paths.py",
-        "tests/tools/test_lazy_deps_venv_barrier.py",
+        "tests/tools/test_process_registry.py",
     ):
         assert expected_path in relative, (
             f"{expected_path} is not in the scanned set — the ML-4 widening to "

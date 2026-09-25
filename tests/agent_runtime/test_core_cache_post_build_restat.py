@@ -53,7 +53,9 @@ def fresh_cache_lane():
 
 @pytest.fixture(autouse=True)
 def measurable_build_stamp(monkeypatch):
-    monkeypatch.setattr(core_cache, "build_stamp_token", lambda: "probe:ic2:clean")
+    monkeypatch.setattr(core_cache.fingerprint, "build_stamp_token", lambda: "probe:ic2:clean")
+    monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: "probe:ic2:clean")
+    monkeypatch.setattr(core_cache.persist, "build_stamp_token", lambda: "probe:ic2:clean")
 
 
 def _core() -> dict:
@@ -374,7 +376,7 @@ def test_an_unresolvable_set_refuses_to_refresh_rather_than_refreshing_nothing(
     _row, workspace = _seed_store(root)
     key = core_cache.build_input_fingerprint()
     assert key is not None
-    monkeypatch.setattr(core_cache, "_self_perturbed_inputs", lambda: None)
+    monkeypatch.setattr(core_cache.restat, "_self_perturbed_inputs", lambda: None)
 
     with caplog.at_level(logging.INFO, logger="agent_runtime.core_cache"):
         assert core_cache.write_back(_core(), fingerprint=key) is True
@@ -407,7 +409,11 @@ def test_a_caller_with_no_pre_build_key_pays_no_second_walk(
         walks.append("walk")
         return real()
 
-    monkeypatch.setattr(core_cache, "build_input_fingerprint", counted)
+    monkeypatch.setattr(core_cache.fingerprint, "build_input_fingerprint", counted)
+    monkeypatch.setattr(core_cache.lane, "build_input_fingerprint", counted)
+    monkeypatch.setattr(core_cache.read, "build_input_fingerprint", counted)
+    monkeypatch.setattr(core_cache.restat, "build_input_fingerprint", counted)
+    monkeypatch.setattr(core_cache.persist, "build_input_fingerprint", counted)
     with caplog.at_level(logging.INFO, logger="agent_runtime.core_cache"):
         assert core_cache.write_back(_core()) is True
 

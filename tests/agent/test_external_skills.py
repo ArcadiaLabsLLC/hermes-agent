@@ -53,21 +53,15 @@ class TestGetExternalSkillsDirs:
 
 
 class TestGetAllSkillsDirs:
-    def test_local_first_then_shared_then_external(self, hermes_home, external_skills_dir):
+    def test_local_always_first(self, hermes_home, external_skills_dir):
         (hermes_home / "config.yaml").write_text(
             f"skills:\n  external_dirs:\n    - {external_skills_dir}\n"
         )
         with patch.dict(os.environ, {"HERMES_HOME": str(hermes_home)}):
             from agent.skill_utils import get_all_skills_dirs
-            from agent_runtime.profile_home import get_shared_skills_dir
             result = get_all_skills_dirs()
-            shared = get_shared_skills_dir()
-        # Index 0 is always the local profile skills dir. The shared canonical
-        # root follows (one physical dir every persona references), then config
-        # external dirs.
         assert result[0] == hermes_home / "skills"
-        assert result[1] == shared
-        assert result[2] == external_skills_dir.resolve()
+        assert result[1] == external_skills_dir.resolve()
 
 
 class TestExternalSkillsInFindAll:

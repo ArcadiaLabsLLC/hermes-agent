@@ -75,10 +75,8 @@ def runtime_root(tmp_path, monkeypatch):
 
 @pytest.fixture
 def deliverable_lane(monkeypatch):
-    from gateway.session_context import (
-        _SESSION_ASYNC_DELIVERY,
-        declare_async_delivery_channel,
-    )
+    from agent_runtime.delivery_capability import declare_async_delivery_channel
+    from gateway.session_context import _SESSION_ASYNC_DELIVERY
 
     token = _SESSION_ASYNC_DELIVERY.set(_SESSION_ASYNC_DELIVERY.get())
     declare_async_delivery_channel()
@@ -323,22 +321,37 @@ def _turn_frames(request_id: str, payload: dict, code: int = 0) -> list[dict]:
 
 
 def test_the_stdout_event_name_is_taken_from_serve_rather_than_guessed():
-    """The fence under the correction above: one grep against the ONE line that
-    decides the name, so a rename in serve reds here instead of silently
-    emptying every remote payload."""
+    """The fence under the correction above: read the event name off every
+    ``_LineFrameProxy(...)`` construction in serve, so a rename in serve reds
+    here instead of silently emptying every remote payload.
 
+    serve is a package since lane H4 (``harness_parts/serve/``); the walk covers
+    every module in it, so a construction that moves between modules stays
+    seen, and the proxy's first argument may be spelled any way."""
+
+    import ast
     from pathlib import Path
 
-    source = (
-        Path(__file__).resolve().parents[2] / "hermes_cli" / "harness_parts" / "serve.py"
-    ).read_text(encoding="utf-8")
+    serve_dir = Path(__file__).resolve().parents[2] / "hermes_cli" / "harness_parts" / "serve"
+    modules = sorted(serve_dir.glob("*.py"))
+    assert modules, serve_dir
 
-    assert (
-        f'_LineFrameProxy(frames, "{agent_chat_dispatch.SERVE_STDOUT_EVENT}")' in source
-    )
+    event_names: list[str] = []
+    for module in modules:
+        for node in ast.walk(ast.parse(module.read_text(encoding="utf-8"))):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "_LineFrameProxy"
+                and len(node.args) == 2
+                and isinstance(node.args[1], ast.Constant)
+            ):
+                event_names.append(node.args[1].value)
+
+    assert agent_chat_dispatch.SERVE_STDOUT_EVENT in event_names
     # …and the error stream really is the one named after itself, which is what
     # makes the out stream's name surprising in the first place.
-    assert '_LineFrameProxy(frames, "stderr")' in source
+    assert "stderr" in event_names
 
 
 @pytest.fixture

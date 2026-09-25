@@ -8,10 +8,10 @@ caller left.
 
 Scope rules used to verify every entry here:
 
-* ``hermes_cli/harness.py`` plus every ``hermes_cli/harness_parts/*.py`` is ONE
-  scope — the parts are ``exec``'d into harness globals, so a part CAN read a
-  name harness.py imported. Each removal below was verified by a whole-scope
-  word search, not a per-file one.
+* ``hermes_cli/harness.py`` plus every ``hermes_cli/harness_parts/*.py`` was ONE
+  scope when these were verified — the parts were ``exec``'d into harness
+  globals until lane H1 (2026-09-24), so each removal was verified by a
+  whole-scope word search, not a per-file one.
 * Every ``agent_runtime`` module here carries ``from __future__ import
   annotations``, so a name appearing ONLY in an annotation is a string at
   runtime. None of these do: each was a single line — the import itself.
@@ -56,9 +56,9 @@ module expose this name". That is the wrong question for the six rows left in
   carries a dead ``import os`` — and a sibling module that legitimately imports
   ``os`` would make a repo-wide row unfixably red. Only a per-file AST walk over
   ``ast.Import`` / ``ast.ImportFrom`` can state the binding fact.
-* ``hermes_cli/harness_parts/persona_commands.py::_relay_time`` is in a part
-  that is ``exec``'d, never imported, so it has no module object to ``hasattr``
-  against.
+* ``_relay_time`` was in the persona command part, which lane H3 split into
+  ``hermes_cli/harness_parts/persona/``; the row is on the module that carries
+  the relay stamp now, and an AST walk states the binding fact per file.
 * ``DecisionType``, ``TaskState`` and
   ``RunState`` are LIVE symbols elsewhere (``decision_schema``,
   ``states``) that harness.py merely stopped binding.
@@ -110,14 +110,20 @@ REMOVED_BINDINGS = {
     # silently vanishing; the module's absence is asserted in
     # ``test_every_source_symbol_the_bindings_pointed_at_is_untouched`` below and
     # owned by tests/agent_runtime/test_s56_worker_session_lane_removal.py (deleted 2026-09-24).
-    "hermes_cli/harness_parts/persona_commands.py": {"_relay_time"},
+    # The ``agent_runtime.states`` line moved with the settle phase (lane H3).
+    "hermes_cli/harness_parts/persona/chat_turn_commit/settle.py": {"_relay_time"},
 }
 
 #: The retained half of an import line that only lost some of its names, and the
 #: source symbols the aliases pointed at. A cut that took these too would be a
 #: behavior change, not a binding removal.
 RETAINED_BINDINGS = {
-    "hermes_cli/harness.py": {"emit_json", "WorkerSessionState"},
+    # harness.py's shared ``agent_runtime.cli_format`` line moved with the verb
+    # bodies that read it (lane H2); the usage verb is its first reader.
+    "hermes_cli/harness_parts/usage/commands.py": {"emit_json"},
+    # Its only reader is the turn commit's settle phase, which imports it itself
+    # (lanes H1, H3 — H3 moved the line out of the package ``__init__``).
+    "hermes_cli/harness_parts/persona/chat_turn_commit/settle.py": {"WorkerSessionState"},
     "agent_runtime/persona_runtime.py": {"Callable", "TYPE_CHECKING"},
     "agent_runtime/observability.py": {"datetime"},
     "agent_runtime/parity.py": {"event_rotation"},
@@ -153,13 +159,22 @@ def test_the_retained_half_of_each_shared_import_line_stays(relative: str):
 
 
 def test_the_harness_namespace_no_longer_exposes_the_removed_names():
-    """The parts are exec'd into these globals, so absence is the real gate."""
+    """Absent from harness.py AND every command part (they shared one namespace until H1)."""
 
-    harness = importlib.import_module("hermes_cli.harness")
+    parts_dir = _repo_root() / "hermes_cli" / "harness_parts"
+    parts = sorted(p for p in parts_dir.rglob("*.py") if p.relative_to(parts_dir).as_posix() != "__init__.py")
+    modules = [importlib.import_module("hermes_cli.harness")] + [
+        importlib.import_module(
+            "hermes_cli.harness_parts."
+            + path.relative_to(parts_dir).with_suffix("").as_posix().replace("/", ".").removesuffix(".__init__")
+        )
+        for path in parts
+    ]
     exposed = {
-        name
+        f"{module.__name__}.{name}"
+        for module in modules
         for name in REMOVED_BINDINGS["hermes_cli/harness.py"]
-        if hasattr(harness, name)
+        if hasattr(module, name)
     }
     assert exposed == set()
 
@@ -219,6 +234,4 @@ def test_every_source_symbol_the_bindings_pointed_at_is_untouched():
 
 def test_every_touched_module_still_imports():
     for relative in sorted(REMOVED_BINDINGS):
-        if relative.endswith("harness_parts/persona_commands.py"):
-            continue  # exec'd into harness globals, not importable on its own
         importlib.import_module(relative[:-3].replace("/", "."))

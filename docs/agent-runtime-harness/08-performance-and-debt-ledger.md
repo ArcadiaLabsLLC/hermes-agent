@@ -81,7 +81,7 @@ Measured before→after, each with the commit that carries the proof in its body
 | **Event-log rotation with sidecar `base_offset`** | `agent_runtime/event_rotation.py` | logical offsets stay monotonic across archive rotation; live slice is 8.6 MB against an 81 MB archive base |
 | **Delta patches on the wire** | `agent_runtime/state_patches.py`, `schema_version: 2` | stops shipping a full core per event |
 | **`parse_cache`** — `(path, mtime_ns, size)` keyed leaf loads | `agent_runtime/parse_cache.py` | archived doc 14's item 1 as applied to YAML/frontmatter leaves (the JSON store models are still uncached — open row 4) |
-| **Serve read-model response cache** — status/snapshot `--json` replayed on a runtime-state fingerprint, 20 s TTL | `hermes_cli/harness_parts/serve.py:397-408,619` | a replayed response stamps `served_from_cache` + `cache_age_ms`; it caches the *payload*, not the parsed models |
+| **Serve read-model response cache** — status/snapshot `--json` replayed on a runtime-state fingerprint, 20 s TTL | `hermes_cli/harness_parts/serve/constants.py:35-40,605-611` | a replayed response stamps `served_from_cache` + `cache_age_ms`; it caches the *payload*, not the parsed models |
 
 ---
 
@@ -112,7 +112,7 @@ on. The named diff paths are runtime-authored: `profiles/base/state.db` and
 `agent_create_reservations/*.json`, `office/<ws>/archive/*.json`,
 `profiles/alice/config.yaml`, and a `persona_instances/*.json` row. The warning's own
 text names the fix direction: *widen the fingerprint's input closure, never trust the
-cache harder* (`agent_runtime/core_cache.py`).
+cache harder* (`agent_runtime/core_cache/`).
 
 **Cost of not fixing it:** a write per build that buys nothing, and every boot pays
 11,980 ms instead of 911 ms.
@@ -281,7 +281,7 @@ Executed history stays archived. The duplicate-implementation retirement's rows
   still carries it while asserting nothing in it reaches the instance, so hermes
   dropped the block, `persona_instance_runtime.assignment_store_enabled` and the
   `warnings` lane it fed. The contract-bump claim is also not what the removal rule
-  says — see `snapshot._parity_envelope`'s "54 KEPT (AX2)" entry for the first KEPT
+  says — see `snapshot.parity_envelope`'s "54 KEPT (AX2)" entry for the first KEPT
   ruling over a departure and the reason a bump was the riskier move here (an
   exact-equality launcher pin turns a bump into `mayWrite == false`). The retire's two
   assignment guards went in the same wave (tombstone wave `s76`).
@@ -317,8 +317,8 @@ Executed history stays archived. The duplicate-implementation retirement's rows
 
 - `head_agent_profile` — inert config field; recommendation *defer*, trigger "next
   contract bump" (2 lines are not worth a cross-stack golden regeneration).
-- `backfill_instance_profile_ids` — land `harness agent set-profile --backfill-instances`
-  or retire 138 + 302 test lines (recommendation: land the verb).
+- `backfill_instance_profile_ids` — RETIRED 2026-09-24 (lane FORK-CODE, per
+  `planned/downstream-god-file-refactor.md` §4.1): the function and its six tests deleted.
 - `set_entry_point_lane` — recommendation *cut*; move its two suites to the env-var
   spelling.
 - `realm bind-server` / `workspace add-agent|remove-agent` — is `server_id`/`agent_ids`
@@ -338,8 +338,8 @@ Executed history stays archived. The duplicate-implementation retirement's rows
   (NEW-2); a launcher test asserts `provider_auth_expired`, a code hermes cannot emit;
   `hermes_cli_contract.json` is stale in both directions.
 - Not swept, so absence of a row is not a clean bill: intra-function dead branches inside
-  live handlers of `harness.py` / `serve.py` / `persona_commands.py`; `core_cache.py` and
-  `realm_sync.py` internals; `serve_socket.py` and `serve_office_subscriptions.py` lock
+  live handlers of `harness.py` / `serve.py` / `harness_parts/persona/`; `core_cache.py` and
+  `realm_sync/` internals; `serve_socket.py` and `serve_office_subscriptions.py` lock
   and lease semantics; several wire-token vocabularies; `tests/` as subjects.
 - Refused with evidence — do not re-derive: the persona-chat append seam (NEW-1, a
   chokepoint between callers, pinned by `tests/hermes_cli/test_persona_chat_append_seam.py`),

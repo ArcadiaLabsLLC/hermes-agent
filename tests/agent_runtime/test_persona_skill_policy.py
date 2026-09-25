@@ -10,6 +10,9 @@ pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 from agent_runtime.models import AgentPersona
 from agent_runtime.personas import effective_toolsets, validate_toolsets
 from tests.agent_runtime.persona_samples import sample_personas
+from hermes_cli.harness_parts import agent_commands
+from hermes_cli.harness_parts import init_commands
+from hermes_cli.harness_parts import workspace_commands
 
 
 def _persona(**overrides) -> AgentPersona:
@@ -749,7 +752,6 @@ def test_harness_install_receipt_hashes_and_installs_the_complete_package(
 
 def test_harness_skill_cli_defaults_to_persona_profiles(monkeypatch, capsys):
     from agent_runtime.skill_install import SkillInstallResult
-    from hermes_cli import harness
 
     calls: list[str] = []
     result = SkillInstallResult(
@@ -763,16 +765,20 @@ def test_harness_skill_cli_defaults_to_persona_profiles(monkeypatch, capsys):
         ok=True,
     )
 
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: object())
-    monkeypatch.setattr(harness, "ensure_persisted_personas", lambda _cfg: ["qa"])
-    monkeypatch.setattr(harness, "install_harness_skills_for_personas", lambda _personas: calls.append("personas") or [result])
-    monkeypatch.setattr(harness, "install_harness_skills", lambda: calls.append("active") or [result])
+    monkeypatch.setattr(agent_commands, "load_agent_runtime_config", lambda: object())
+    monkeypatch.setattr(init_commands, "load_agent_runtime_config", lambda: object())
+    monkeypatch.setattr(workspace_commands, "load_agent_runtime_config", lambda: object())
+    monkeypatch.setattr(agent_commands, "ensure_persisted_personas", lambda _cfg: ["qa"])
+    monkeypatch.setattr(init_commands, "ensure_persisted_personas", lambda _cfg: ["qa"])
+    monkeypatch.setattr(workspace_commands, "ensure_persisted_personas", lambda _cfg: ["qa"])
+    monkeypatch.setattr(init_commands, "install_harness_skills_for_personas", lambda _personas: calls.append("personas") or [result])
+    monkeypatch.setattr(init_commands, "install_harness_skills", lambda: calls.append("active") or [result])
 
-    assert harness._cmd_install_harness_skills(SimpleNamespace(active_profile_only=False, json=True)) == 0
+    assert init_commands._cmd_install_harness_skills(SimpleNamespace(active_profile_only=False, json=True)) == 0
     assert calls == ["personas"]
     assert '"ok": true' in capsys.readouterr().out
 
-    assert harness._cmd_install_harness_skills(SimpleNamespace(active_profile_only=True, json=True)) == 0
+    assert init_commands._cmd_install_harness_skills(SimpleNamespace(active_profile_only=True, json=True)) == 0
     assert calls == ["personas", "active"]
 
 
@@ -793,7 +799,7 @@ def skills_create_fixture(tmp_path, monkeypatch):
     """An isolated shared skills root, a seeded office, and the ``qa`` persona.
 
     ``HERMES_SHARED_SKILLS`` and not a monkeypatched attribute: ``skill_install``
-    and ``agent.skill_utils.skill_source_kind`` resolve the shared root
+    and ``agent_runtime.skill_resolution.skill_source_kind`` resolve the shared root
     independently, and pinning only one leaves the resolver classifying the
     installed copy as ``external`` — which is ``invalid_source`` for a canonical
     id, i.e. a red that has nothing to do with the subject. The assertion below

@@ -228,7 +228,7 @@ gate).
 
 ## Reds that are NOT this lane's
 
-- `tests/test_toolsets.py::TestHarnessCoreToolset::test_harness_core_resolves_the_declared_43_with_the_registry`
+- `tests/tools/test_toolsets_downstream.py::TestHarnessCoreToolset::test_harness_core_resolves_the_declared_43_with_the_registry`
   — `assert 44 == 43`. Proven to predate this lane: reproduced with `tools/registry.py` restored to
   base `dcba382f0a`. A tool joined `harness_core` and the declared count was not moved with it.
 - `tests/test_coverage_claims_resolve.py::test_every_coverage_claim_names_a_test_that_exists` — the

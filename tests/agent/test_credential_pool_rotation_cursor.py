@@ -278,7 +278,7 @@ def test_a_cursor_naming_a_departed_entry_restarts_at_the_top(home, monkeypatch)
     lookup raises ``ValueError`` out of a credential selection.
     """
     from agent.credential_pool import load_pool
-    from hermes_cli.auth import write_pool_rotation_state
+    from agent_runtime.auth_extensions import write_pool_rotation_state
 
     _seed(home, monkeypatch, [_entry(0, MARKER_A), _entry(1, MARKER_B)])
     write_pool_rotation_state(PROVIDER, {"last_selected_id": "cred-removed"})

@@ -119,7 +119,7 @@ def stub_runtime(monkeypatch):
         }
 
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.resolve_runtime_provider", _resolve
+        "agent_runtime.profile_runner.runtime_resolve.resolve_runtime_provider", _resolve
     )
     return calls
 
@@ -210,7 +210,7 @@ def test_a_turn_whose_wire_matched_its_composition_reports_no_bound(stub_runtime
 
 
 def _budget(final_model_input, *, metered):
-    from agent_runtime.prompt_observability import _context_budget
+    from agent_runtime.prompt_observability.context_budget import _context_budget
 
     return _context_budget(
         {"effective_model": "gpt-5.1", "effective_provider": "openai"},
@@ -529,7 +529,16 @@ def test_an_expired_memo_re_resolves(stub_runtime, monkeypatch):
 
     clock = time.monotonic() + RUNTIME_RESOLVE_CACHE_TTL_SECONDS + 1
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.time.monotonic", lambda: clock
+        "agent_runtime.profile_runner.budget.time.monotonic", lambda: clock
+    )
+    monkeypatch.setattr(
+        "agent_runtime.profile_runner.runner.time.monotonic", lambda: clock
+    )
+    monkeypatch.setattr(
+        "agent_runtime.profile_runner.runtime_resolve.time.monotonic", lambda: clock
+    )
+    monkeypatch.setattr(
+        "agent_runtime.profile_runner.status.time.monotonic", lambda: clock
     )
 
     result = runner.run(_request())

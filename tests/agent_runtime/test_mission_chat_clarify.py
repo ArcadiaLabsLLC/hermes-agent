@@ -1,4 +1,5 @@
 from agent_runtime.mission_chat_clarify import MAX_CHOICES, MissionChatClarifyCapture
+from hermes_cli.harness_parts.persona import chat_tickets_commands
 
 
 def test_capture_records_first_question_and_choices():
@@ -64,8 +65,6 @@ def _clarify_tickets(**kwargs):
     import json as _json
     from types import SimpleNamespace
 
-    import hermes_cli.harness as harness
-
     args = SimpleNamespace(
         json=True, output=None, quiet=False, fields=None, sort=None,
         limit=None, cursor=None, session_id=None, state=None,
@@ -77,7 +76,7 @@ def _clarify_tickets(**kwargs):
 
     buffer = io.StringIO()
     with contextlib.redirect_stdout(buffer):
-        assert harness._cmd_mission_chat_clarify_tickets(args) == 0
+        assert chat_tickets_commands._cmd_mission_chat_clarify_tickets(args) == 0
     return _json.loads(buffer.getvalue())
 
 
@@ -230,7 +229,7 @@ def test_the_verb_is_reachable_and_read_only_from_the_cli(isolate_agent_runtime_
     harness.build_parser(parser.add_subparsers(dest="cmd"))
     args = parser.parse_args(["harness", "mission-chat", "clarify-tickets", "--json"])
 
-    assert args.func is harness._cmd_mission_chat_clarify_tickets
+    assert args.func is chat_tickets_commands._cmd_mission_chat_clarify_tickets
     assert not hasattr(args, "dry_run")
     # …and the stage42 listing flags every read verb carries are there.
     assert hasattr(args, "limit") and hasattr(args, "sort") and hasattr(args, "fields")

@@ -29,7 +29,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from agent.conversation_loop import _emit_request_assembled_marker
+from agent_runtime.conversation_observability import _emit_request_assembled_marker
 from agent_runtime import mission_chat_phases
 from agent_runtime.mission_chat_phases import (
     PHASE_ORDER,
@@ -49,6 +49,7 @@ from tests.hermes_cli.test_mission_chat_budget_payload import (  # type: ignore
     _seed,
     isolate_agent_runtime_root,  # noqa: F401  (re-exported fixture)
 )
+from hermes_cli.harness_parts.persona import chat_events, chat_turn_message
 
 
 # --------------------------------------------------------------------------- #
@@ -78,8 +79,8 @@ class _TickClock:
 def scripted_marks(monkeypatch):
     """Give the LIVE handler a scripted anchor.
 
-    ``persona_commands`` is exec'd into ``harness.py`` globals, so its import of
-    ``TurnPhaseMarks`` is function-local and re-executed on every turn — which
+    The turn's front door imports ``TurnPhaseMarks`` function-locally, so the
+    import is re-executed on every turn — which
     means patching the class on its owning module reaches the real handler
     without any seam existing in the handler itself.
     """
@@ -217,7 +218,7 @@ def _record_on_disk(root: Path, client_message_id: str) -> dict:
 
 def _drive(monkeypatch, capsys, provider, *, turn_id, stream=True):
     harness = _seed(monkeypatch, provider)
-    code = harness._cmd_mission_chat_message(_args(turn_id, stream=stream))
+    code = chat_turn_message._cmd_mission_chat_message(_args(turn_id, stream=stream))
     capsys.readouterr()  # stream frames + terminal envelope; the record is the subject
     return code
 
@@ -366,10 +367,8 @@ def test_a_second_mark_never_moves_the_first():
 def test_the_emitter_marks_the_first_byte_once_across_many_deltas(monkeypatch):
     """``delta()`` runs per token; the phase must cost one mark for the turn."""
 
-    from hermes_cli import harness
-
     marks = TurnPhaseMarks(monotonic=_TickClock(), wall_now=lambda: "stamp")
-    emitter = harness._ChatProtocolV2Emitter(
+    emitter = chat_events._ChatProtocolV2Emitter(
         turn_id="turn_x",
         client_message_id="client_x",
         emit_frames=False,
@@ -385,10 +384,8 @@ def test_the_emitter_marks_the_first_byte_once_across_many_deltas(monkeypatch):
 def test_an_empty_delta_is_not_a_first_byte():
     """The emitter returns early on a falsy delta; no byte means no mark."""
 
-    from hermes_cli import harness
-
     marks = TurnPhaseMarks(monotonic=_TickClock(), wall_now=lambda: "stamp")
-    emitter = harness._ChatProtocolV2Emitter(
+    emitter = chat_events._ChatProtocolV2Emitter(
         turn_id="turn_y",
         client_message_id="client_y",
         emit_frames=False,
@@ -450,7 +447,7 @@ def test_the_loop_marker_and_the_mapper_agree_on_the_step():
     because a misspelling fails silently as an absent (never-wrong) mark.
     """
 
-    from agent.conversation_loop import _emit_request_assembled_marker
+    from agent_runtime.conversation_observability import _emit_request_assembled_marker
 
     captured: list[dict] = []
     agent = SimpleNamespace(status_callback=captured.append)
@@ -726,10 +723,19 @@ def test_a_runner_that_reported_no_timing_leaves_only_what_the_HANDLER_measured(
     )
     record = _record_on_disk(isolate_agent_runtime_root, "phases_timing_blind")
     block = record[TURN_PROFILE_TIMING_KEY]
-    assert set(block) == set(_HANDLER_MEASURED_KEYS), (
+    # CP-7's ``visibility_bundle_rebuild_component_<name>`` flags are the
+    # HANDLER's too (``_visibility_bundle_rebuild_components`` in
+    # persona_commands.py), and truthful: this turn is the first in a fresh
+    # home, so plugin discovery registers the home's plugin tools mid-turn and
+    # the registry epoch moves. Admitted by family and shape — never a runner key.
+    rebuild_flags = {
+        key for key in block if key.startswith("visibility_bundle_rebuild_component_")
+    }
+    assert set(block) - rebuild_flags == set(_HANDLER_MEASURED_KEYS), (
         "a blind runner must contribute nothing; only the handler's own "
         "measurements may appear"
     )
+    assert all(block[key] == 1 for key in rebuild_flags)
     assert isinstance(block["session_db_open_ms"], int)
     assert block["session_db_open_ms"] >= 0
 
@@ -1050,9 +1056,7 @@ def test_the_sanitizer_never_invents_the_anchor():
 def test_the_tool_finished_frame_carries_the_patch_artifact_and_counts(capsys):
     import json as _json
 
-    from hermes_cli import harness
-
-    emitter = harness._ChatProtocolV2Emitter(
+    emitter = chat_events._ChatProtocolV2Emitter(
         turn_id="turn_patch",
         client_message_id="client_patch",
     )
@@ -1088,9 +1092,8 @@ def test_the_tool_finished_frame_carries_the_patch_artifact_and_counts(capsys):
 
 
 def test_a_non_patch_tool_frame_grows_no_patch_keys(capsys):
-    from hermes_cli import harness
 
-    emitter = harness._ChatProtocolV2Emitter(
+    emitter = chat_events._ChatProtocolV2Emitter(
         turn_id="turn_terminal",
         client_message_id="client_terminal",
     )

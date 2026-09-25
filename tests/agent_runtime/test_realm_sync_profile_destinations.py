@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import agent_runtime.realm_sync as realm_sync
+import agent_runtime.realm_sync.families as realm_sync
 from agent_runtime.realm_sync import _destination_for_sync_path, _profile_home_for_token
 
 

@@ -69,22 +69,30 @@ from hermes_cli import flag_binding
 
 HARNESS_ROOT = pathlib.Path(__file__).resolve().parents[2] / "hermes_cli"
 HARNESS = HARNESS_ROOT / "harness.py"
+#: The parser tree lives in its own package since lane H2 (every ``add_argument``).
+PARSER = HARNESS_ROOT / "harness_parts" / "parser"
 
 #: Where a handler can legitimately read `args.<dest>`: the parser file, the
-#: shared support module, and the six exec'd command parts.
+#: shared support module, and the command parts — modules and packages alike
+#: (``harness_parts/serve/`` is a package since lane H4).
 _LANE = [
     HARNESS,
     HARNESS_ROOT / "harness_support.py",
-    *sorted((HARNESS_ROOT / "harness_parts").glob("*.py")),
+    *sorted((HARNESS_ROOT / "harness_parts").rglob("*.py")),
 ]
 
 
 def _harness_tree() -> ast.Module:
-    return ast.parse(HARNESS.read_text(encoding="utf-8"))
+    """The parser package read as ONE module: every file under ``harness_parts/parser/``."""
+
+    body: list[ast.stmt] = []
+    for path in sorted(PARSER.rglob("*.py")):
+        body.extend(ast.parse(path.read_text(encoding="utf-8")).body)
+    return ast.Module(body=body, type_ignores=[])
 
 
 def _registrations() -> list[tuple[str, str, int]]:
-    """`(subparser var, dest, lineno)` for every `add_argument` in harness.py."""
+    """`(subparser var, dest, lineno)` for every `add_argument` in the parser package."""
 
     out: list[tuple[str, str, int]] = []
     for node in ast.walk(_harness_tree()):
@@ -191,14 +199,14 @@ def test_every_harness_flag_has_a_reader():
     registrations = _registrations()
     assert len(registrations) > 300, (
         f"only {len(registrations)} argparse registrations found in "
-        f"{HARNESS} — the scan is not seeing the parser, so this gate would "
+        f"{PARSER} — the scan is not seeing the parser, so this gate would "
         "pass on any tree"
     )
     reads, unresolved = _dests_read_on_the_lane()
     assert len(reads) > 500, "the reader scan found almost nothing — vacuous"
 
     unread = sorted(
-        {f"{HARNESS.name}:{line} {owner}.{dest}" for owner, dest, line in registrations if dest not in reads}
+        {f"{PARSER.name}:{line} {owner}.{dest}" for owner, dest, line in registrations if dest not in reads}
     )
     hint = ""
     if unread and unresolved:

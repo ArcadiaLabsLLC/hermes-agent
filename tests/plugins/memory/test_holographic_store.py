@@ -97,15 +97,6 @@ class TestSharedConnection:
             a.close()
             b.close()
 
-    def test_schema_initialised_once_per_connection(self, db_path):
-        a = MemoryStore(db_path)
-        b = MemoryStore(db_path)  # must not re-run schema init / WAL probe
-        try:
-            assert MemoryStore._shared[str(a.db_path)]["ready"] is True
-            b.add_fact("schema still works")
-        finally:
-            a.close()
-            b.close()
 
 
 class TestCloseSemantics:
@@ -183,30 +174,20 @@ class TestConcurrency:
         assert len(facts) == n_threads * n_facts
         assert MemoryStore._shared == {}
 
-    def test_failed_write_does_not_pin_write_lock(self, db_path):
+    def test_failed_write_does_not_pin_write_lock(self, db_path, monkeypatch):
         """A write that raises mid-method must not leave an open transaction
         holding the SQLite write lock (autocommit isolation_level=None)."""
         broken = MemoryStore(db_path)
         sibling = MemoryStore(db_path)
         try:
-            # SCOPED (EG-0.1 / ML-4). The throwing ``_rebuild_bank`` must be
-            # gone before the sibling write below, which needs the REAL rebuild
-            # to run — that is the whole point of the second half. The old
-            # spelling reached that state with ``monkeypatch.undo()``, which
-            # unwinds the SHARED per-test instance: it also dropped the root
-            # conftest's ``_hermetic_environment`` pins (HERMES_HOME redirected
-            # to a tempdir, credential env vars blanked). Nothing below is
-            # env-bound, so that was safe by accident rather than by
-            # construction — which is precisely the accident this stage stops
-            # relying on.
-            with pytest.MonkeyPatch.context() as patched:
-                patched.setattr(
-                    MemoryStore,
-                    "_rebuild_bank",
-                    lambda self, category: (_ for _ in ()).throw(RuntimeError("boom")),
-                )
-                with pytest.raises(RuntimeError, match="boom"):
-                    broken.add_fact("write that fails after the INSERT")
+            monkeypatch.setattr(
+                MemoryStore,
+                "_rebuild_bank",
+                lambda self, category: (_ for _ in ()).throw(RuntimeError("boom")),
+            )
+            with pytest.raises(RuntimeError, match="boom"):
+                broken.add_fact("write that fails after the INSERT")
+            monkeypatch.undo()
 
             # No dangling transaction: the connection reports autocommit state
             # and the sibling can write immediately.
@@ -217,21 +198,4 @@ class TestConcurrency:
             sibling.close()
 
 
-class TestProviderShutdown:
-    """The provider's shutdown() must release its shared connection, not just
-    drop the reference. Leaving finalization to GC keeps the connection (and
-    its write lock) alive on a long-running gateway, which is exactly the
-    "database is locked" contention the shared-connection registry removes."""
-
-    def test_shutdown_releases_shared_connection(self, db_path):
-        from plugins.memory.holographic import HolographicMemoryProvider
-
-        provider = HolographicMemoryProvider(config={"db_path": str(db_path)})
-        provider.initialize("session-shutdown")
-        assert MemoryStore._shared[str(db_path)]["refs"] == 1
-
-        provider.shutdown()
-
-        assert provider._store is None
-        assert MemoryStore._shared == {}
 

@@ -10,6 +10,22 @@ from agent_runtime.config import harness_root_config_path
 from agent_runtime.profile_home import get_hermes_head_home
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _bind_serve_argv_parser():
+    """Bind the harness parser tree into the serve argv lane, as ``_cmd_serve`` does.
+
+    ``hermes_cli.harness`` binds it in production (a harness part may not import
+    the harness module — W0-G6); tests that drive ``dispatch_argv`` or
+    ``serve_loop(dispatch=dispatch_argv)`` directly never pass through
+    ``_cmd_serve``, so the binding is made once here.
+    """
+
+    from hermes_cli.harness import build_parser
+    from hermes_cli.harness_parts.serve.argv_lane import bind_harness_parser
+
+    bind_harness_parser(build_parser)
+
+
 _PRODUCTION_WORKTREE_BASE_DIR = _repo_context._worktree_base_dir
 _PRODUCTION_LEGACY_WORKTREE_BASE_DIR = (
     _repo_context.legacy_harness_worktree_base_dir

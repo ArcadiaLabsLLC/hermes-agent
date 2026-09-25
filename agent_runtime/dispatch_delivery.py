@@ -573,6 +573,8 @@ def _owns_event_with_accounting(evt: dict[str, Any]) -> bool:
     """
 
     root = _chat_root_of_completion(evt)
+    if root is None and _orphaned_persona_root(evt) is not None:
+        return True  # taken off the queue to be DROPPED, loudly, by the drain
     if root is None:
         try:  # A — accounting must never be able to change the answer below
             _telemetry.record_bounce(
@@ -1126,9 +1128,9 @@ def forge_delivery_turn(
         relay_deadline_epoch=None,
         payload_sink=payloads.append,
     )
-    from hermes_cli import harness as _harness
+    from hermes_cli.harness_parts.persona import chat_turn_message as _chat_turn_message
 
-    exit_code = _harness._cmd_mission_chat_message(args)
+    exit_code = _chat_turn_message._cmd_mission_chat_message(args)
     payload = payloads[-1] if payloads else None
     ok = exit_code == 0 and bool((payload or {}).get("ok"))
     return ok, payload
@@ -1316,6 +1318,75 @@ def _chat_root_of_completion(evt: dict[str, Any]) -> str | None:
     return None
 
 
+def _orphaned_persona_root(evt: dict[str, Any]) -> str | None:
+    """The persona chat root a PROCESS completion names when nobody owns it now, else None.
+
+    The persona-instance-gone drop the owner ruling of 2026-09-24 gives this lane (it used
+    to live in ``tools/process_registry.py``'s late-notify block): a ``terminal``
+    completion stamped with a ``persona_chat_`` root whose instance was retired has
+    nowhere to land, and re-queueing it would spin forever. Only a store that ANSWERS
+    "no owner" counts — an unreadable lookup returns None (absence of proof is not
+    proof of absence), and any owned candidate means the event is deliverable.
+    """
+
+    if str(evt.get("type") or "") != "completion":
+        return None
+    orphan = None
+    for key in ("origin_ui_session_id", "parent_session_id", "session_key", "session_id"):
+        candidate = str(evt.get(key) or "").strip()
+        if not candidate.startswith("persona_chat_"):
+            continue
+        try:
+            owner = _sender_persona(candidate)
+        except Exception:
+            logger.debug("owner lookup failed for %s", candidate, exc_info=True)
+            return None
+        if owner is not None:
+            return None
+        orphan = orphan or candidate
+    return orphan
+
+
+#: How long the drain waits for a live turn to acknowledge a completion steer. The turn's
+#: inbox watcher polls every 50 ms; past this the completion is re-queued for its idle turn.
+STEER_ACK_SECONDS = 2.0
+
+
+def _steer_into_busy_turn(
+    evt: dict[str, Any], root: str, owner: tuple[str, str], text: str, key: str
+) -> bool:
+    """Deliver a PROCESS completion into the turn running on ``root``. True when accepted.
+
+    Owner ruling 2026-09-24: a background-process completion that arrives while its
+    thread is mid-turn is a STEER into that turn, not a separate turn queued after it.
+    The path is upstream's steer door, ``AIAgent.steer(text)`` (appended to the next tool
+    result by ``apply_pending_steer_to_tool_results``), reached through the mission-chat
+    steer inbox the live turn already watches (``mission_chat_steer``). A turn with no
+    steer handle, or one that ends before acknowledging, answers "not accepted" and the
+    caller re-queues — the idle turn then carries it, so nothing is lost.
+    """
+
+    if str(evt.get("type") or "") != "completion":
+        return False
+    try:
+        from .mission_chat_steer import submit_mission_chat_steer
+        from .paths import store_root
+
+        result = submit_mission_chat_steer(
+            runtime_root=store_root(),
+            session_id=root,
+            message=text,
+            client_message_id=f"bg-steer-{key}",
+            persona_id=owner[0],
+            persona_instance_id=owner[1],
+            timeout_seconds=STEER_ACK_SECONDS,
+        )
+    except Exception:
+        logger.debug("completion steer into %s failed", root, exc_info=True)
+        return False
+    return bool(result.get("ok")) and result.get("execution_state") == "accepted"
+
+
 def _claim_durable_completion(evt: dict[str, Any]) -> str | None:
     """Claim a queued completion's durable row. ``""`` when it has none.
 
@@ -1459,6 +1530,8 @@ def drain_background_completions(*, forge: Callable | None = None) -> dict[str, 
         "failed": 0,
         "abandoned": 0,
         "unclaimed": 0,
+        "dropped": 0,
+        "steered": 0,
     }
     forge = forge or forge_delivery_turn
     try:
@@ -1495,6 +1568,18 @@ def drain_background_completions(*, forge: Callable | None = None) -> dict[str, 
         # reused by both the forge's client_message_id below and the accounting
         # rows, so the two can never name the same completion differently.
         key = _event_key(evt)
+        orphan = _orphaned_persona_root(evt) if root is None else None
+        if orphan is not None:
+            # The instance that spawned it is gone: DROP, and say so. A silently
+            # abandoned completion is the failure class this lane exists to retire.
+            logger.warning(
+                "process completion %s dropped: no persona instance owns chat root %s",
+                key,
+                orphan,
+            )
+            tally["dropped"] += 1
+            _telemetry.record_bounce(key, "persona_instance_missing", f"root={orphan}", root=orphan)
+            continue
         if root is None or owner is None or not text:
             # Ownership was proven at drain time; if it cannot be re-proven now
             # the event goes BACK on the queue rather than being dropped.
@@ -1514,6 +1599,10 @@ def drain_background_completions(*, forge: Callable | None = None) -> dict[str, 
             _telemetry.record_bounce(key, reason, detail, root=root or "")
             continue
         if not _sender_is_idle(root):
+            if _steer_into_busy_turn(evt, root, owner, text, key):
+                tally["steered"] += 1
+                _telemetry.record_bounce(key, "steered", f"root={root}", root=root)  # A
+                continue
             process_registry.completion_queue.put(evt)
             tally["requeued"] += 1
             _record_sender_busy(key, root)  # A

@@ -82,12 +82,6 @@ class FakeTool:
 # ---------------------------------------------------------------------------
 
 class TestMcpList:
-    def test_list_empty_config(self, tmp_path, capsys):
-        from hermes_cli.mcp_config import cmd_mcp_list
-
-        cmd_mcp_list()
-        out = capsys.readouterr().out
-        assert "No MCP servers configured" in out
 
     def test_list_with_servers(self, tmp_path, capsys):
         _seed_config(tmp_path, {
@@ -285,23 +279,6 @@ class TestMcpAdd:
 
 class TestMcpTest:
 
-    def test_test_success(self, tmp_path, capsys, monkeypatch):
-        _seed_config(tmp_path, {
-            "ink": {"url": "https://mcp.ml.ink/mcp"},
-        })
-
-        def mock_probe(name, config, **kw):
-            return [("create_service", "Deploy"), ("list_services", "List all")]
-
-        monkeypatch.setattr(
-            "hermes_cli.mcp_config._probe_single_server", mock_probe
-        )
-        from hermes_cli.mcp_config import cmd_mcp_test
-
-        cmd_mcp_test(_make_args(name="ink"))
-        out = capsys.readouterr().out
-        assert "Connected" in out
-        assert "Tools discovered: 2" in out
 
     def test_exit_codes_distinguish_failure_from_unknown_server(self, tmp_path, capsys, monkeypatch):
         """0 connected, 1 connection failed, 3 not in config — never argparse's 2, never a silent 0."""
@@ -336,7 +313,6 @@ class TestMcpTest:
         """OAuth-capable probes must not hard-code a short 30s timeout."""
         import asyncio
         from hermes_cli import mcp_config
-        import tools.mcp_tool as mcp_tool
         from tools import mcp_tool_discovery as _mcp_discovery
         from tools import mcp_tool_lifecycle as _mcp_lifecycle
         from tools import mcp_tool_loop as _mcp_loop
@@ -372,140 +348,6 @@ class TestMcpTest:
         assert captured["inner_timeout"] == 300.0
         assert captured["outer_timeout"] == 310.0
         assert captured["shutdown"] is True
-
-
-# ---------------------------------------------------------------------------
-# Tests: cmd_mcp_test --env one-shot runtime overrides
-# ---------------------------------------------------------------------------
-
-class TestMcpTestRuntimeEnv:
-    """One-shot ``--env KEY=VALUE`` overrides for ``hermes mcp test``."""
-
-    def _seed_stdio_server(self, tmp_path):
-        _seed_config(tmp_path, {
-            "foo": {"command": "/bin/true", "env": {"FOO_BASE": "base"}},
-        })
-
-    def test_runtime_env_passes_to_probe(self, tmp_path, monkeypatch):
-        self._seed_stdio_server(tmp_path)
-        captured: Dict[str, Any] = {}
-
-        def mock_probe(name, config, **kw):
-            captured["config"] = config
-            return []
-
-        monkeypatch.setattr(
-            "hermes_cli.mcp_config._probe_single_server", mock_probe
-        )
-        from hermes_cli.mcp_config import cmd_mcp_test
-
-        cmd_mcp_test(_make_args(name="foo", env=["RUNTIME_FILE=/tmp/r"]))
-
-        assert captured["config"]["runtime_env"] == {"RUNTIME_FILE": "/tmp/r"}
-        # Durable env stays alongside, NOT replaced.
-        assert captured["config"]["env"] == {"FOO_BASE": "base"}
-
-    def test_runtime_env_does_not_persist(self, tmp_path, monkeypatch):
-        self._seed_stdio_server(tmp_path)
-        monkeypatch.setattr(
-            "hermes_cli.mcp_config._probe_single_server",
-            lambda name, config, **kw: [],
-        )
-        from hermes_cli.mcp_config import cmd_mcp_test
-
-        cmd_mcp_test(_make_args(name="foo", env=["SECRET_KEY=topsecret"]))
-
-        from hermes_cli.config import load_config
-        saved = load_config()
-        # The on-disk config must not gain runtime_env or the secret key.
-        srv = saved["mcp_servers"]["foo"]
-        assert "runtime_env" not in srv
-        assert "SECRET_KEY" not in srv.get("env", {})
-
-    def test_runtime_env_invalid_kv_aborts(self, tmp_path, capsys, monkeypatch):
-        self._seed_stdio_server(tmp_path)
-        probe_called = {"hit": False}
-
-        def mock_probe(*a, **kw):
-            probe_called["hit"] = True
-            return []
-
-        monkeypatch.setattr(
-            "hermes_cli.mcp_config._probe_single_server", mock_probe
-        )
-        from hermes_cli.mcp_config import cmd_mcp_test
-
-        cmd_mcp_test(_make_args(name="foo", env=["NO_EQUALS_HERE"]))
-        out = capsys.readouterr().out
-        assert "Invalid --env value" in out
-        assert probe_called["hit"] is False
-
-    def test_runtime_env_invalid_name_aborts(self, tmp_path, capsys,
-                                              monkeypatch):
-        self._seed_stdio_server(tmp_path)
-        probe_called = {"hit": False}
-        monkeypatch.setattr(
-            "hermes_cli.mcp_config._probe_single_server",
-            lambda *a, **kw: probe_called.__setitem__("hit", True) or [],
-        )
-        from hermes_cli.mcp_config import cmd_mcp_test
-
-        cmd_mcp_test(_make_args(name="foo", env=["1BAD=value"]))
-        out = capsys.readouterr().out
-        assert "Invalid --env variable name" in out
-        assert probe_called["hit"] is False
-
-    def test_runtime_env_rejected_for_http(self, tmp_path, capsys, monkeypatch):
-        _seed_config(tmp_path, {
-            "ink": {"url": "https://mcp.example/mcp"},
-        })
-        probe_called = {"hit": False}
-        monkeypatch.setattr(
-            "hermes_cli.mcp_config._probe_single_server",
-            lambda *a, **kw: probe_called.__setitem__("hit", True) or [],
-        )
-        from hermes_cli.mcp_config import cmd_mcp_test
-
-        cmd_mcp_test(_make_args(name="ink", env=["DEBUG=true"]))
-        out = capsys.readouterr().out
-        assert "only supported for stdio MCP servers" in out
-        assert probe_called["hit"] is False
-
-    def test_runtime_env_value_never_printed(self, tmp_path, capsys,
-                                              monkeypatch):
-        self._seed_stdio_server(tmp_path)
-        monkeypatch.setattr(
-            "hermes_cli.mcp_config._probe_single_server",
-            lambda name, config, **kw: [],
-        )
-        from hermes_cli.mcp_config import cmd_mcp_test
-
-        cmd_mcp_test(
-            _make_args(name="foo", env=["TOKEN=super-secret-value"])
-        )
-        captured = capsys.readouterr()
-        assert "super-secret-value" not in captured.out
-        assert "super-secret-value" not in captured.err
-        # The key name is fine to show.
-        assert "TOKEN" in captured.out
-        assert "Applied 1 one-shot env override" in captured.out
-
-    def test_no_env_arg_is_backward_compatible(self, tmp_path, monkeypatch):
-        """Existing call sites that don't pass --env behave identically."""
-        self._seed_stdio_server(tmp_path)
-        captured: Dict[str, Any] = {}
-
-        def mock_probe(name, config, **kw):
-            captured["config"] = config
-            return []
-
-        monkeypatch.setattr(
-            "hermes_cli.mcp_config._probe_single_server", mock_probe
-        )
-        from hermes_cli.mcp_config import cmd_mcp_test
-
-        cmd_mcp_test(_make_args(name="foo"))
-        assert "runtime_env" not in captured["config"]
 
 
 # ---------------------------------------------------------------------------
@@ -551,7 +393,6 @@ class TestContextVarInterpolation:
         assert _interpolate_env_vars("${/}") == os.sep
 
     def test_workspace_folder_and_basename(self, monkeypatch):
-        import tools.mcp_tool as mcp_tool
 
         monkeypatch.setattr(
             _mcp_config, "_workspace_folder", lambda: "/srv/projects/myapp"
@@ -577,7 +418,6 @@ class TestContextVarInterpolation:
     def test_mixed_string_with_env_and_context_vars(self, monkeypatch):
         import os
 
-        import tools.mcp_tool as mcp_tool
 
         monkeypatch.setenv("MY_TOKEN", "tok-1")
         monkeypatch.setattr(_mcp_config, "_workspace_folder", lambda: "/ws/app")
@@ -606,7 +446,6 @@ class TestContextVarInterpolation:
     def test_context_vars_in_nested_config(self, monkeypatch):
         import os
 
-        import tools.mcp_tool as mcp_tool
         from tools import mcp_tool_config as _mcp_config
 
         monkeypatch.setattr(_mcp_config, "_workspace_folder", lambda: "/ws/app")

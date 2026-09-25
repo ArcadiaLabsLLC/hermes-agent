@@ -99,7 +99,7 @@ def reset_fake_agent_response():
 
 
 def test_runner_passes_toolsets_and_blocked_tools_to_ai_agent(monkeypatch):
-    monkeypatch.setattr("agent_runtime.profile_runner.resolve_runtime_provider", lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"})
+    monkeypatch.setattr("agent_runtime.profile_runner.runtime_resolve.resolve_runtime_provider", lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"})
     runner = ProfileAgentRunner(agent_factory=FakeAgent)
     progress_events = []
 
@@ -160,7 +160,7 @@ def test_runner_passes_toolsets_and_blocked_tools_to_ai_agent(monkeypatch):
 
 
 def test_runner_binds_and_resets_skill_runtime_surface():
-    from agent.skill_utils import current_skill_runtime_context
+    from agent_runtime.skill_resolution import current_skill_runtime_context
 
     seen = []
 
@@ -294,7 +294,7 @@ def test_persona_chat_runner_applies_one_turn_compression_proof_overrides():
 
 def test_runner_attaches_redaction_safe_model_input(monkeypatch):
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.resolve_runtime_provider",
+        "agent_runtime.profile_runner.runtime_resolve.resolve_runtime_provider",
         lambda requested, target_model: {
             "provider": requested,
             "model": target_model,
@@ -395,7 +395,7 @@ def test_system_prompt_section_receipts_fail_closed_on_cached_prompt_drift(
 
 def test_runner_attaches_agent_owned_final_cache_routing_observability(monkeypatch):
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.resolve_runtime_provider",
+        "agent_runtime.profile_runner.runtime_resolve.resolve_runtime_provider",
         lambda requested, target_model: {
             "provider": requested,
             "model": target_model,
@@ -512,7 +512,7 @@ def test_runner_persists_provider_conversation_timing_from_agent_status_callback
 
 def test_runner_resolves_runtime_credentials_for_explicit_provider(monkeypatch):
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.resolve_runtime_provider",
+        "agent_runtime.profile_runner.runtime_resolve.resolve_runtime_provider",
         lambda requested, target_model: {
             "provider": requested,
             "model": target_model,
@@ -537,9 +537,9 @@ def test_runner_enters_profile_context_and_restores_environment(tmp_path, monkey
     monkeypatch.setenv("HERMES_HOME", "before_home")
     monkeypatch.setenv("HOME", "before_user_home")
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", "before_runtime")
-    monkeypatch.setattr("agent_runtime.profile_runner.profile_exists", lambda name: True)
-    monkeypatch.setattr("agent_runtime.profile_runner.get_profile_dir", lambda name: profile_home)
-    monkeypatch.setattr("agent_runtime.profile_runner.normalize_profile_name", lambda name: name)
+    monkeypatch.setattr("agent_runtime.profile_runner.status.profile_exists", lambda name: True)
+    monkeypatch.setattr("agent_runtime.profile_runner.status.get_profile_dir", lambda name: profile_home)
+    monkeypatch.setattr("agent_runtime.profile_runner.status.normalize_profile_name", lambda name: name)
     seen = {}
 
     class EnvAgent(FakeAgent):
@@ -560,7 +560,7 @@ def test_runner_enters_profile_context_and_restores_environment(tmp_path, monkey
 
 
 def test_runner_reports_missing_profile_before_agent_construction(monkeypatch):
-    monkeypatch.setattr("agent_runtime.profile_runner.profile_exists", lambda name: False)
+    monkeypatch.setattr("agent_runtime.profile_runner.status.profile_exists", lambda name: False)
     constructed = False
 
     class ShouldNotConstruct(FakeAgent):
@@ -578,7 +578,7 @@ def test_runner_reports_missing_profile_before_agent_construction(monkeypatch):
 
 
 def test_runner_raises_failed_agent_results_before_decision_parsing(monkeypatch):
-    monkeypatch.setattr("agent_runtime.profile_runner.resolve_runtime_provider", lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"})
+    monkeypatch.setattr("agent_runtime.profile_runner.runtime_resolve.resolve_runtime_provider", lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"})
     FakeAgent.response = {
         "final_response": None,
         "messages": [],
@@ -1951,7 +1951,7 @@ def test_runner_threads_cache_scope_id_to_agent_factory(monkeypatch):
     kwarg while session_id is left None (persona-chat shape). It must not be
     conflated with session_id — the transcript-load key stays untouched."""
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.resolve_runtime_provider",
+        "agent_runtime.profile_runner.runtime_resolve.resolve_runtime_provider",
         lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"},
     )
     runner = ProfileAgentRunner(agent_factory=FakeAgent)
@@ -1979,7 +1979,7 @@ def test_runner_defaults_cache_scope_id_none_for_worker_lanes(monkeypatch):
     """Lanes that don't set cache_scope_id thread None — the codex transport
     then falls back to session_id, so worker/mission-run behavior is unchanged."""
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.resolve_runtime_provider",
+        "agent_runtime.profile_runner.runtime_resolve.resolve_runtime_provider",
         lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"},
     )
     runner = ProfileAgentRunner(agent_factory=FakeAgent)
@@ -2065,3 +2065,26 @@ def test_tool_result_merely_containing_ok_false_text_is_not_a_failure():
 
     assert not _is_error_result('The fixture body was: {"data": {"ok": false}} etc.')
     assert not _is_error_result(json.dumps({"content": '{"ok": false}', "path": "x.json"}))
+
+
+def test_a_failing_agent_ready_callback_is_a_typed_warning_not_a_failed_run():
+    """Positive control for ``execute._emit_agent_ready_callback_warning`` (dead-code
+    queue: DECIDE, untested live): an ``agent_ready_callback`` that raises on start
+    or on cleanup surfaces as one ``run.progress`` warning naming the phase and the
+    exception class, and never fails the run."""
+
+    from agent_runtime.profile_runner import execute
+
+    seen: list[dict] = []
+    request = AgentRunRequest(
+        profile="default",
+        user_message="hi",
+        progress_callback=seen.append,
+        agent_ready_callback=lambda agent: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    assert execute._notify_agent_ready(request, object()) is None
+    execute._cleanup_agent_ready(lambda: (_ for _ in ()).throw(KeyError("gone")), request)
+    assert [(e["phase"], e["step"], e["severity"], e["summary"]) for e in seen] == [
+        ("agent_ready_callback", "start", "warning", "Agent ready callback start failed: RuntimeError"),
+        ("agent_ready_callback", "cleanup", "warning", "Agent ready callback cleanup failed: KeyError"),
+    ]

@@ -2,6 +2,8 @@
 
 **Status:** PLANNED 2026-09-21 (Fable, read-only against `main` at `f1268bd017`; every number in §0 was taken by the scripts named in the field notes and can be re-taken without this session). Not dispatched. Field notes: [`downstream-god-file-refactor-field-notes-2026-09-21.md`](downstream-god-file-refactor-field-notes-2026-09-21.md). **Owner docs:** [`../01-system-architecture.md`](../01-system-architecture.md) (the harness command surface and the exec-loaded parts), [`../03-transport-and-wire.md`](../03-transport-and-wire.md) (serve), [`../05-chat-turn-lane.md`](../05-chat-turn-lane.md) (the persona chat handlers). **Sibling program:** `EterniaLauncher/docs/mission_control/planned/mission-control-refactor-program.md` — the launcher ran this exact program first (2026-09-18 → 21); its four owner amendments are adopted here verbatim where they apply (§1), and where this plan departs from them it says so.
 
+**Refreshed 2026-09-24:** [`god-file-program-2026-09-24.md`](god-file-program-2026-09-24.md) re-takes the numbers, adds rules 12–17 and gates W0-G5/G6/G7, and wins wherever the two disagree. Wave 0 instruments: `scripts/god_file_probe.py` (the population, every counter and every gate arm; `--check`) and `scripts/refactor_reach_census.py` (W0-D).
+
 **The operator's brief (2026-09-21).** *Same as the launcher: code readability, every file under 800 code lines, enterprise grade. Create a dead-code delete list, collapse duplicate code, keep out of upstream. Big moves, few commits — not multiple paranoid little ones — but safely. Include all 41 files over 800.* And, the day before: *doing this one slowly so I can focus on the launcher* — so the plan is cut into lanes an Opus builder lands alone, in an order where nothing waits on the operator except the two field proofs §7 names.
 
 **The headline, before the tables.** The 41 files are ALL fork-owned (none exists in `upstream/main`), so "keep out of upstream" is a fence to prove, not a constraint to design around. The by-name dead-code census over the 41 finds **zero** unreferenced top-level names — the 2026-08 dead-code audit and the tombstone waves already burned that layer — so the delete list (§4) is made of the three things a name census cannot see: production functions only tests call, the argv fallback lanes the R-W0/R-C4 rulings already marked for delete, and branches no test reaches (an instrument, W0-D, produces that half). The three biggest files are not three problems: files 1 and 2 are one 11,376-line namespace (persona_commands is `exec`'d into harness.py's globals) and file 3 is one 3,760-line function. §2 is built around those two facts.
@@ -313,6 +315,15 @@ W0-D lists every function/method ≥ 10 lines and branch arm ≥ 10 lines in the
 ### 4.4 Kept with a named reason
 
 Filled by the lanes. Every row: file, symbol, reason, and the thing that would have to change for it to become a deletion.
+
+**H1's §4.2 census (2026-09-24): zero deletions.** Every argv verb with a method twin is still declared as an argv capability by the launcher, whose method lanes answer `null` = "let argv carry it" (`EterniaLauncher` `lib/features/mission_control/data/bridge/mission_action_method_lanes.dart`). Kept, each until the launcher row that retires its argv lowering lands:
+
+| file | symbol | method twin | launcher argv caller |
+|---|---|---|---|
+| `hermes_cli/harness_parts/persona_commands.py` | `_cmd_mission_chat_message` | `runtime.chat.message` | `harness_persona_capabilities.dart` `['harness','mission-chat','message']` |
+| `hermes_cli/harness_parts/persona_commands.py` | `_cmd_mission_chat_steer` | `runtime.chat.steer` | same file, `['harness','mission-chat','steer']` |
+| `hermes_cli/harness_parts/office.py` | `_cmd_office_actor_upsert` / `_cmd_office_actor_remove` / `_cmd_office_set_folders` / `_cmd_office_resolve_conflict` | `runtime.office.{upsert,remove,surface.update,resolve_conflict}` | `harness_office_capabilities.dart` |
+| `hermes_cli/harness_parts/persona_commands.py` | `_cmd_persona_instance_open_chat` | `runtime.persona.instance.open_chat` | `mission_open_chat_lowering.dart` (argv fall-through) |
 
 ---
 

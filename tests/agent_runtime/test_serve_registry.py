@@ -322,6 +322,30 @@ def test_a_live_row_says_nothing_at_all(tmp_path):
     assert events == []
 
 
+def test_the_pruning_boots_own_row_is_never_refused_whatever_its_command_line(tmp_path):
+    """A boot prunes with its own row already registered. That row is live by
+    construction, but its command line is only a hint: under pytest, or in a
+    checkout whose path lacks ``hermes``, it reads ``cmdline_not_serve_like``
+    and classifies ``unknown``. A ``refused`` line for it landed before
+    ``ready`` and reddened nine serve tests depending on the checkout's path.
+
+    *Positive control:* the same row pruned by a DIFFERENT boot is refused.
+    *Killing mutation:* drop ``own_row`` from the refusal guard and the first
+    assertion goes red with one ``refused`` event.
+    """
+
+    _register(tmp_path, pid=808, probe=_probe(start_time=8), boot_id="bootself")
+    not_serve = _probe(start_time=8, cmdline="python -m pytest tests/x.py")
+    events: list[dict] = []
+
+    prune_stale_serve_instances(tmp_path, probe=not_serve, emit=events.append, boot_id="bootself")
+    assert events == []
+
+    prune_stale_serve_instances(tmp_path, probe=not_serve, emit=events.append, boot_id="bootother")
+    assert [(e["action"], e["classification_reason"]) for e in events] == [("refused", "cmdline_not_serve_like")]
+    assert serve_instance_path(tmp_path, 808).exists()
+
+
 def test_an_unreadable_row_is_refused_under_the_classifiers_own_reason(tmp_path):
     """``unknown`` is the fail-safe direction, and it is REPORTED, not silent."""
 
@@ -426,6 +450,31 @@ def test_a_record_without_a_usable_pid_is_unknown(tmp_path, pid):
 
     assert classification == CLASSIFICATION_UNKNOWN
     assert reason == "pid_missing"
+
+
+def test_this_process_own_row_is_live_whatever_its_command_line():
+    """A matching start time on OUR pid is identity; argv is never consulted.
+
+    Under pytest the command line is the test path, which need not contain
+    ``hermes`` — the boot must not refuse its own row over that.
+    """
+
+    from agent_runtime.serve_registry import classify_serve_instance
+
+    odd_argv = _probe(cmdline="python -m pytest tests/agent_runtime/test_x.py")
+    own = classify_serve_instance(
+        {"pid": os.getpid(), "started_at_ticks": 1000}, probe=odd_argv
+    )
+    assert own == (CLASSIFICATION_LIVE, "")
+    # Positive control: a FOREIGN row with the same facts still falls back to argv.
+    foreign = classify_serve_instance(
+        {"pid": os.getpid() + 1, "started_at_ticks": 1000}, probe=odd_argv
+    )
+    assert foreign == (CLASSIFICATION_UNKNOWN, "cmdline_not_serve_like")
+    # And our own pid with a MISMATCHED start time is still recycled.
+    assert classify_serve_instance(
+        {"pid": os.getpid(), "started_at_ticks": 999}, probe=odd_argv
+    ) == (CLASSIFICATION_STALE_RECYCLED_PID, "start_time_mismatch")
 
 
 # ── the socket lane's additive fields (slice 3) ─────────────────────────────

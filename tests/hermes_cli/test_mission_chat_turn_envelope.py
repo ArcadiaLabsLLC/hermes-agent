@@ -44,6 +44,16 @@ from tests.hermes_cli.test_mission_chat_budget_payload import (  # type: ignore
     _TranscriptDB,
     isolate_agent_runtime_root,  # noqa: F401  (re-exported fixture)
 )
+from hermes_cli.harness_parts.persona import (
+    chat_admission,
+    chat_delete,
+    chat_events,
+    chat_tickets_commands,
+    chat_turn_commit,
+    chat_turn_message,
+)
+from hermes_cli.harness_parts.persona.chat_turn_commit import admit as commit_admit, run as commit_run, settle as commit_settle
+from tests._downstream.persona_source import package_source, turn_body
 
 
 class _ReplyProvider:
@@ -65,17 +75,14 @@ class _ReplyProvider:
 
 
 def _persona_commands_tree() -> ast.Module:
-    import hermes_cli.harness as harness
-
-    path = Path(harness.__file__).with_name("harness_parts") / "persona_commands.py"
-    return ast.parse(path.read_text(encoding="utf-8"))
+    return ast.parse(package_source())
 
 
 def _func(name: str) -> ast.FunctionDef:
-    for node in _persona_commands_tree().body:
-        if isinstance(node, ast.FunctionDef) and node.name == name:
-            return node
-    raise AssertionError(f"{name} not found in persona_commands")
+    node = turn_body(_persona_commands_tree(), name)
+    if node is not None:
+        return node
+    raise AssertionError(f"{name} not found in the persona package")
 
 
 # --------------------------------------------------------------------------- #
@@ -141,13 +148,12 @@ def lease_witness(monkeypatch, isolate_agent_runtime_root):  # noqa: F811
     """Record, for each durable write, whether the chat-root lease was held."""
 
     from agent_runtime.persona_assignments import PersonaInstanceStore
-    from hermes_cli import harness
 
     harness_module = _seed(monkeypatch, _ReplyProvider)
     depth: list[int] = []
     seen: dict[str, bool] = {}
 
-    real_lease = harness.persona_chat_root_lease
+    real_lease = chat_delete.persona_chat_root_lease
 
     @contextmanager
     def _tracking_lease(session_id, **kwargs):
@@ -158,7 +164,9 @@ def lease_witness(monkeypatch, isolate_agent_runtime_root):  # noqa: F811
         finally:
             depth.pop()
 
-    monkeypatch.setattr(harness, "persona_chat_root_lease", _tracking_lease)
+    monkeypatch.setattr(chat_delete, "persona_chat_root_lease", _tracking_lease)
+    monkeypatch.setattr(chat_tickets_commands, "persona_chat_root_lease", _tracking_lease)
+    monkeypatch.setattr(chat_turn_message, "persona_chat_root_lease", _tracking_lease)
 
     def _witness(name, target, attr):
         original = getattr(target, attr)
@@ -171,8 +179,8 @@ def lease_witness(monkeypatch, isolate_agent_runtime_root):  # noqa: F811
 
     _witness("ensure_for_personas", PersonaInstanceStore, "ensure_for_personas")
     _witness("open_chat", PersonaInstanceStore, "open_chat")
-    _witness("ensure_chat_session", harness, "_ensure_persona_chat_session")
-    _witness("model_override", harness, "_resolve_chat_model_override")
+    _witness("ensure_chat_session", commit_admit, "_ensure_persona_chat_session")
+    _witness("model_override", commit_admit, "_resolve_chat_model_override")
     return harness_module, seen
 
 
@@ -182,7 +190,7 @@ def test_the_writes_that_can_be_leased_are(lease_witness, capsys):
     and then again inside it, after the re-entry."""
 
     harness, seen = lease_witness
-    assert harness._cmd_mission_chat_message(_args("lease_turn")) == 0
+    assert chat_turn_message._cmd_mission_chat_message(_args("lease_turn")) == 0
     capsys.readouterr()
 
     assert seen.get("open_chat") is True
@@ -205,7 +213,7 @@ def test_the_two_writes_that_cannot_be_leased_are_named_not_hidden(
     """
 
     harness, seen = lease_witness
-    assert harness._cmd_mission_chat_message(_args("lease_turn")) == 0
+    assert chat_turn_message._cmd_mission_chat_message(_args("lease_turn")) == 0
     capsys.readouterr()
 
     assert seen.get("ensure_for_personas") is False
@@ -217,7 +225,6 @@ def test_each_leasable_write_happens_exactly_once_per_turn(
     """The re-entry ran them twice. Count them."""
 
     from agent_runtime.persona_assignments import PersonaInstanceStore
-    from hermes_cli import harness
 
     harness_module = _seed(monkeypatch, _ReplyProvider)
     calls: dict[str, int] = {}
@@ -232,10 +239,10 @@ def test_each_leasable_write_happens_exactly_once_per_turn(
         monkeypatch.setattr(target, attr, _wrapped)
 
     _count("open_chat", PersonaInstanceStore, "open_chat")
-    _count("ensure_chat_session", harness, "_ensure_persona_chat_session")
-    _count("model_override", harness, "_resolve_chat_model_override")
+    _count("ensure_chat_session", commit_admit, "_ensure_persona_chat_session")
+    _count("model_override", commit_admit, "_resolve_chat_model_override")
 
-    assert harness_module._cmd_mission_chat_message(_args("once_turn")) == 0
+    assert chat_turn_message._cmd_mission_chat_message(_args("once_turn")) == 0
     capsys.readouterr()
 
     assert calls == {"open_chat": 1, "ensure_chat_session": 1, "model_override": 1}
@@ -251,7 +258,7 @@ def test_a_clean_turn_carries_no_finalization_warnings(
     and its absence keeps the wire byte-identical for every healthy send."""
 
     harness = _seed(monkeypatch, _ReplyProvider)
-    assert harness._cmd_mission_chat_message(_args("clean_turn")) == 0
+    assert chat_turn_message._cmd_mission_chat_message(_args("clean_turn")) == 0
     payload = json.loads(capsys.readouterr().out)
     assert "finalization_warnings" not in payload
 
@@ -291,7 +298,7 @@ def test_a_failed_instance_state_commit_is_reported_not_swallowed(
 
     monkeypatch.setattr(PersonaInstanceStore, "update", _update)
 
-    assert harness._cmd_mission_chat_message(_args("swallow_turn")) == 0
+    assert chat_turn_message._cmd_mission_chat_message(_args("swallow_turn")) == 0
     payload = json.loads(capsys.readouterr().out)
 
     assert payload["ok"] is True, "a bookkeeping failure must not fail the turn"
@@ -313,20 +320,22 @@ def test_a_non_clean_turn_journal_write_is_accounted_for(
     """
 
     from agent_runtime.mission_chat_turns import MissionChatTurnPersistOutcome
-    from hermes_cli import harness as harness_module
 
     harness = _seed(monkeypatch, _ReplyProvider)
-    real = harness_module.transition_mission_chat_turn
+    real = chat_events.transition_mission_chat_turn
 
     def _flaky(*args, **kwargs):
         outcome = real(*args, **kwargs)
-        if kwargs.get("state") == harness_module.TURN_STATE_NATIVE_COMMITTED:
+        if kwargs.get("state") == chat_admission.TURN_STATE_NATIVE_COMMITTED:
             return MissionChatTurnPersistOutcome.SKIPPED_LOCK_TIMEOUT
         return outcome
 
-    monkeypatch.setattr(harness_module, "transition_mission_chat_turn", _flaky)
+    monkeypatch.setattr(chat_events, "transition_mission_chat_turn", _flaky)
+    monkeypatch.setattr(commit_admit, "transition_mission_chat_turn", _flaky)
+    monkeypatch.setattr(commit_run, "transition_mission_chat_turn", _flaky)
+    monkeypatch.setattr(commit_settle, "transition_mission_chat_turn", _flaky)
 
-    assert harness._cmd_mission_chat_message(_args("journal_turn")) == 0
+    assert chat_turn_message._cmd_mission_chat_message(_args("journal_turn")) == 0
     payload = json.loads(capsys.readouterr().out)
 
     warnings = payload["finalization_warnings"]
@@ -358,11 +367,7 @@ def test_every_discarded_turn_journal_write_is_routed():
 def test_every_finalization_warning_kind_is_producible(kind):
     """The enum is not a wishlist: each kind has a real producer."""
 
-    import hermes_cli.harness as harness
-
-    source = (
-        Path(harness.__file__).with_name("harness_parts") / "persona_commands.py"
-    ).read_text(encoding="utf-8")
+    source = package_source()
     assert f"FinalizationWarningKind.{kind.name}" in source, (
         f"{kind.name} has no producer in the CLI lane"
     )

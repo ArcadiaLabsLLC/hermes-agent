@@ -604,7 +604,7 @@ def test_heartbeat_frame_carries_no_core():
 
 def test_workspace_use_verb_emits_exactly_one_activation(capsys):
     """No double emission: the verb no longer appends on top of the store."""
-    from hermes_cli.harness import _cmd_workspace_use
+    from hermes_cli.harness_parts.workspace_commands import _cmd_workspace_use
     from agent_runtime.store import WorkspaceStore
 
     workspace = WorkspaceStore().create(name="Verb WS")

@@ -25,7 +25,7 @@ from pathlib import Path
 
 import pytest
 
-from agent.skill_utils import _content_hash_cache_clear
+from agent_runtime.skill_resolution import _content_hash_cache_clear
 from agent_runtime import paths
 from agent_runtime.store import RealmStore, active_skill_tombstones
 from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS, get_shared_skills_dir
@@ -208,7 +208,7 @@ def test_delete_one_named_realm_archives_the_package_and_writes_the_ledger(capsy
 
 
 def test_delete_records_the_content_hash_of_what_it_deleted(capsys):
-    from agent.skill_utils import skill_package_content_hash
+    from agent_runtime.skill_resolution import skill_package_content_hash
 
     realm = _realm("Hash Realm")
     pkg = _seed_canonical("doomed")

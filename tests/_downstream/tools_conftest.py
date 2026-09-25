@@ -1,9 +1,10 @@
 """Fork-owned half of ``tests/tools/conftest.py`` (seam Stage 5).
 
-Every name here was fork-added to that conftest; it is star-imported back by
-the one line the upstream conftest carries, so pytest discovers the fixtures
-and hooks on the conftest module exactly as before (same directory scope).
-``__all__`` lists the ``_``-prefixed names, which ``import *`` would skip.
+Every name here was fork-added to that conftest. The root ``conftest.py``
+registers this module when pytest registers ``tests/tools/conftest.py``, under a
+``tests/tools/_downstream_conftest.py`` name, so its fixtures keep that
+directory's scope and its hooks run; the upstream conftest carries no fork line
+(lane CARRY3).
 """
 
 from __future__ import annotations
@@ -119,8 +120,9 @@ import pathlib
 import os
 import socket
 import stat
-import subprocess
 import tempfile
+
+import pytest
 
 from tests._env_gap_fence import (
     EnvGapRegistry,
@@ -195,26 +197,6 @@ def _no_unwritable_dir_via_chmod() -> bool:
         finally:
             os.chmod(target, 0o755)
         return True
-
-
-@_cached
-def _no_shebang_exec() -> bool:
-    """True where the OS cannot execute a ``#!`` script as a program image.
-
-    CreateProcess requires a PE image and rejects a shebang script with
-    WinError 193 ("not a valid Win32 application"); execve honours the
-    interpreter line. Measured by actually spawning one.
-    """
-    with tempfile.TemporaryDirectory() as tmp:
-        script = os.path.join(tmp, "shebang_probe")
-        with open(script, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write("#!/bin/sh\nexit 0\n")
-        os.chmod(script, 0o755)
-        try:
-            subprocess.run([script], capture_output=True, timeout=30)
-        except OSError:
-            return True
-        return False
 
 
 def _no_af_unix() -> bool:
@@ -295,23 +277,6 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             'there is no error to assert on',
             {
                 'TestAbiStamp::test_readonly_target_reports_error',
-            },
-        ),
-    ],
-    # ── the OS cannot run a shebang script as a program image ──────────────
-    'test_execution_flag_detection.py': [
-        (
-            _no_shebang_exec,
-            'the payload these cases try to get executed is a `#!`-shebang '
-            'script, which CreateProcess rejects (WinError 193) because it is '
-            'not a PE image — so the marker file the assertion reads is never '
-            'written, whatever the option-ownership logic decided. The sibling '
-            'parametrisations that do NOT depend on executing a shebang were '
-            'registered here too and now pass',
-            {
-                'test_real_binaries_execute_leading_dash_program_payload[rg-args0-None-False]',
-                'test_real_binaries_execute_leading_dash_program_payload[rg-args1-None-False]',
-                'test_real_binaries_execute_leading_dash_program_payload[sort-args2-{bulk}-False]',
             },
         ),
     ],
@@ -416,12 +381,32 @@ def pytest_terminal_summary(terminalreporter):  # noqa: D401 — pytest hook
     _STALE.report(terminalreporter)
 
 
+_TIRITH_CONFIG_MARK = "tirith_config_value_under_test"
+
+
+@pytest.fixture(autouse=True)
+def _tirith_config_value_under_test(request, _hermetic_environment, monkeypatch):
+    """Let a test that pins tirith's CONFIG value see it.
+
+    The fork resolves ``tirith_enabled`` / ``tirith_fail_open`` through
+    ``hermes_cli.tirith_config``, where the environment wins over config.yaml;
+    upstream's ``_hermetic_environment`` sets ``TIRITH_ENABLED=false`` for every
+    test, so a test about the config value would read the env instead. Applied
+    by test id from ``tests/_downstream/id_markers.py``, so the upstream test
+    file carries no edit.
+    """
+    if request.node.get_closest_marker(_TIRITH_CONFIG_MARK) is None:
+        return
+    monkeypatch.delenv("TIRITH_ENABLED", raising=False)
+    monkeypatch.delenv("TIRITH_FAIL_OPEN", raising=False)
+
+
 __all__ = [
+    "_tirith_config_value_under_test",
     "_cached",
     "_no_posix_file_modes",
     "_no_posix_exec_bit",
     "_no_unwritable_dir_via_chmod",
-    "_no_shebang_exec",
     "_no_af_unix",
     "_no_process_groups",
     "_ENV_GAPS",

@@ -372,63 +372,59 @@ def test_the_import_guards_reject_every_way_the_table_can_rot(monkeypatch, mutat
 
 
 def test_the_cli_chat_lane_reads_the_vocabulary_instead_of_spelling_it():
-    """``harness_parts/persona_commands.py`` runs in ``harness.py``'s globals.
+    """Every persona-package module binds the turn-state vocabulary it uses.
 
-    Every vocabulary name its body uses must therefore be RESOLVABLE there — an
-    unresolvable one is a ``NameError`` on a live chat turn, not an import error
-    a test run would notice. Two bindings satisfy that, and both are checked:
-
-    * ``harness.py`` imports the name at module level (the free-name lane), or
-    * the using function imports it ITSELF (``from
-      agent_runtime.mission_chat_turns import ...`` inside the body). This is
-      the stronger of the two — it needs no cooperation from ``harness.py`` at
-      all — and is the established idiom in this file for names harness.py does
-      not re-export.
+    Since lane H3 (2026-09-24) the CLI chat lane is the
+    ``hermes_cli/harness_parts/persona/`` package, and each module resolves
+    names in its OWN globals. A vocabulary name a module uses but does not bind
+    is a ``NameError`` on a live chat turn, not an import error a test run
+    would notice. Two bindings satisfy that, and both are checked per module:
+    the module imports the name at module level (read from the RUNTIME module,
+    not its spelling), or the using function imports it itself.
 
     Guard the seam that makes reading the table cheaper than re-spelling it.
     """
 
     import ast
-    from pathlib import Path
+    import importlib
 
-    import hermes_cli.harness as harness
+    from tests._downstream.persona_source import PACKAGE, package_files
 
     def _is_vocabulary(name: str) -> bool:
         return name.startswith("TURN_STATE_") or name.endswith("_TURN_STATES")
 
-    source = Path(harness.__file__).parent / "harness_parts" / "persona_commands.py"
-    tree = ast.parse(source.read_text(encoding="utf-8"))
-
-    # vocabulary name -> the top-level functions whose body USES it.
-    used: dict[str, set[str]] = {}
-    # top-level function -> the vocabulary names it imports for itself.
-    locally_imported: dict[str, set[str]] = {}
-    for function in (node for node in tree.body if isinstance(node, ast.FunctionDef)):
-        for node in ast.walk(function):
+    unresolvable: list[str] = []
+    used_anywhere = False
+    for path in package_files():
+        relative = path.relative_to(PACKAGE.parent).with_suffix("").as_posix().replace("/", ".")
+        dotted = "hermes_cli.harness_parts." + relative.removesuffix(".__init__")
+        module = importlib.import_module(dotted)
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        # vocabulary name -> the top-level functions whose body USES it.
+        used: dict[str, set[str]] = {}
+        # top-level function -> the vocabulary names it imports for itself.
+        locally_imported: dict[str, set[str]] = {}
+        for function in (node for node in tree.body if isinstance(node, ast.FunctionDef)):
+            for node in ast.walk(function):
+                if isinstance(node, ast.Name) and _is_vocabulary(node.id):
+                    used.setdefault(node.id, set()).add(function.name)
+                if isinstance(node, ast.ImportFrom):
+                    for alias in node.names:
+                        bound = alias.asname or alias.name
+                        if _is_vocabulary(bound):
+                            locally_imported.setdefault(function.name, set()).add(bound)
+        # A use outside every function can only ever be a free name.
+        for node in ast.walk(tree):
             if isinstance(node, ast.Name) and _is_vocabulary(node.id):
-                used.setdefault(node.id, set()).add(function.name)
-            if isinstance(node, ast.ImportFrom):
-                for alias in node.names:
-                    bound = alias.asname or alias.name
-                    if _is_vocabulary(bound):
-                        locally_imported.setdefault(function.name, set()).add(bound)
-    # A use outside every function can only ever be a free name.
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Name) and _is_vocabulary(node.id):
-            used.setdefault(node.id, set())
-    for name, functions in used.items():
-        if not functions:
-            functions.add("<module>")
+                used.setdefault(node.id, set())
+        for name, functions in used.items():
+            used_anywhere = True
+            for function in functions or {"<module>"}:
+                if not hasattr(module, name) and name not in locally_imported.get(function, ()):
+                    unresolvable.append(f"{dotted}: {name} (in {function})")
 
-    assert used, "the chat lane stopped reading the turn-state vocabulary entirely"
-    unresolvable = sorted(
-        f"{name} (in {function})"
-        for name, functions in used.items()
-        for function in functions
-        if not hasattr(harness, name)
-        and name not in locally_imported.get(function, ())
-    )
+    assert used_anywhere, "the chat lane stopped reading the turn-state vocabulary entirely"
     assert not unresolvable, (
-        "persona_commands.py uses vocabulary names that resolve neither through "
-        f"a harness.py import nor a function-local one: {unresolvable}"
+        "persona modules use vocabulary names that resolve neither through "
+        f"their own module globals nor a function-local import: {sorted(unresolvable)}"
     )

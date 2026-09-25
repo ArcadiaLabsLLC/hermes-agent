@@ -141,6 +141,8 @@ REMOVED = {
         "load_final_model_input_for_context",
         "_mission_chat_template_prompt_chars",
     ),
+    "agent_runtime.prompt_observability.context_files": ("_mission_chat_template_prompt_chars",),
+    "agent_runtime.prompt_observability.context_store": ("load_final_model_input_for_context",),
     "agent_runtime.resolution": ("assert_pinned", "_normalized_path"),
     "agent_runtime.skill_promotion": ("promotion_provenance",),
     "agent_runtime.state_patches": ("emit_task_refresh",),

@@ -461,3 +461,37 @@ def test_an_unavailable_claim_does_not_release_a_concurrent_winners_lock(
 
     assert purge.calls == 1
     assert lock_path.exists(), "a process holding no claim released somebody's lock"
+
+
+def _untracked(root: Path) -> str:
+    import subprocess
+
+    return subprocess.run(
+        ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=all"],
+        capture_output=True, text=True, check=True,
+    ).stdout
+
+
+def test_a_held_sweep_lock_leaves_git_status_clean(monkeypatch, tmp_path):
+    """The lock's directory ignores itself, so the root `.gitignore` needs no
+    fork entry. *Probed field:* `git status` of a real repository holding the
+    lock; the positive control deletes the directory's ignore file and the same
+    lock IS untracked litter."""
+
+    import shutil
+    import subprocess
+
+    if shutil.which("git") is None:
+        pytest.skip("git is not on PATH")
+    root = tmp_path / "checkout"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    monkeypatch.setattr(hermes_main, "PROJECT_ROOT", root)
+
+    lock_path = sweep._bytecode_sweep_lock_path()
+    assert sweep._claim_bytecode_sweep_lock(lock_path) == sweep._SWEEP_CLAIM_CLAIMED
+    assert lock_path.exists()
+    assert _untracked(root) == ""
+
+    (lock_path.parent / ".gitignore").unlink()
+    assert ".bytecode-sweep/lock" in _untracked(root)

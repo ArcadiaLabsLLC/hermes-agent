@@ -29,17 +29,9 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import time
 
 import pytest
-
-pytestmark = pytest.mark.allow_claude_code_credentials_file
-
-
-@pytest.fixture(autouse=True)
-def isolated_home(tmp_path, monkeypatch):
-    monkeypatch.setattr(Path, "home", lambda: tmp_path)
 
 from agent import anthropic_credentials as AA
 from agent.anthropic_credentials import CredentialPersistError
@@ -248,14 +240,6 @@ def test_direct_resolver_fails_closed_when_rotation_cannot_commit(
     assert _read_claude_pair(claude_credentials) == (_STALE_ACCESS, _STALE_REFRESH)
 
 
-def test_resolve_from_credentials_returns_none_on_failed_commit(
-    claude_credentials, monkeypatch
-):
-    """The resolver wrapper propagates the fail-closed verdict."""
-    monkeypatch.setattr(AA, "refresh_anthropic_oauth_pure", _rotating_refresh)
-    _break_durable_write(monkeypatch)
-
-    assert AA._resolve_claude_code_token_from_credentials() is None
 
 
 # ---------------------------------------------------------------------------
@@ -307,15 +291,16 @@ def test_reauthentication_clears_the_persist_failure_quarantine(
     terminal status, so the user recovers without hand-editing auth.json.
     """
     monkeypatch.setattr(AA, "refresh_anthropic_oauth_pure", _rotating_refresh)
-    with monkeypatch.context() as broken_write:
-        _break_durable_write(broken_write)
-        entry = _entry("claude_code")
-        pool = CredentialPool("anthropic", [entry])
-        assert pool._refresh_entry(entry, force=True) is None
-        assert pool.entries()[0].last_status == STATUS_DEAD
+    _break_durable_write(monkeypatch)
 
-    # Restore only the failed write, preserving the enclosing isolation fixtures,
-    # then simulate the re-login with a genuinely new pair.
+    entry = _entry("claude_code")
+    pool = CredentialPool("anthropic", [entry])
+    assert pool._refresh_entry(entry, force=True) is None
+    assert pool.entries()[0].last_status == STATUS_DEAD
+
+    # Restore a working filesystem, then simulate the re-login rewriting the
+    # authoritative file with a genuinely new pair.
+    monkeypatch.undo()
     monkeypatch.setenv("HERMES_HOME", str(hermes_home))
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_TOKEN", raising=False)

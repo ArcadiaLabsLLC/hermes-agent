@@ -586,7 +586,7 @@ def test_cli_env_credential_fallback(isolate_agent_runtime_root, tmp_path, monke
 
 
 def test_git_extra_config_threads_and_never_leaks(isolate_agent_runtime_root, tmp_path, monkeypatch):
-    import agent_runtime.realm_sync as realm_sync_module
+    import agent_runtime.git_cmd as realm_sync_module
 
     repo = tmp_path / "unit-repo"
     subprocess.run(["git", "init", str(repo)], check=True, capture_output=True, text=True)
@@ -615,7 +615,7 @@ def test_git_extra_config_threads_and_never_leaks(isolate_agent_runtime_root, tm
 
 
 def test_git_clone_renders_extra_config(tmp_path, monkeypatch):
-    import agent_runtime.realm_sync as realm_sync_module
+    import agent_runtime.git_cmd as realm_sync_module
 
     calls: list[list[str]] = []
 
@@ -640,7 +640,7 @@ def test_git_clone_renders_extra_config(tmp_path, monkeypatch):
 
 
 def test_pull_threads_credential_header_per_invocation_only(isolate_agent_runtime_root, tmp_path, monkeypatch):
-    import agent_runtime.realm_sync as realm_sync_module
+    import agent_runtime.git_cmd as realm_sync_module
 
     realm, repo = _realm_with_remote(tmp_path)
     credential = _test_credential(realm.id)
@@ -701,10 +701,21 @@ def test_snapshot_reads_sidecar_and_never_calls_git(isolate_agent_runtime_root, 
     def _forbidden(*args, **kwargs):
         raise AssertionError("build_snapshot must not touch realm sync git/artifact paths (Decision 7)")
 
-    monkeypatch.setattr(realm_sync_module, "_git", _forbidden)
-    monkeypatch.setattr(realm_sync_module, "_git_clone", _forbidden)
-    monkeypatch.setattr(realm_sync_module, "_git_state", _forbidden)
-    monkeypatch.setattr(realm_sync_module, "resolve_realm_sync_artifacts", _forbidden)
+    # Every module of the package that binds one of these names, so the fence
+    # covers the whole of realm sync exactly as it did when it was one module.
+    import importlib
+    import pkgutil
+
+    for module in (
+        realm_sync_module,
+        *(
+            importlib.import_module(f"agent_runtime.realm_sync.{info.name}")
+            for info in pkgutil.iter_modules(realm_sync_module.__path__)
+        ),
+    ):
+        for name in ("_git", "_git_clone", "_git_state", "resolve_realm_sync_artifacts"):
+            if hasattr(module, name):
+                monkeypatch.setattr(module, name, _forbidden)
 
     snap = build_snapshot()
 
@@ -713,6 +724,76 @@ def test_snapshot_reads_sidecar_and_never_calls_git(isolate_agent_runtime_root, 
     assert synced_row["sync"]["checked_at"]
     unsynced_row = next(item for item in snap["realms"] if item["id"] == no_sidecar_realm.id)
     assert unsynced_row["sync"] is None
+
+
+def test_workspace_add_agent_names_the_agents_realm_sync_artifacts(isolate_agent_runtime_root, tmp_path):
+    """Positive control for ``sync_artifacts_for_workspace_agent`` through its one
+    production caller, ``workspace add-agent`` (dead-code queue row 58: live, and
+    reached by no test until this one).
+
+    A realm-bound workspace answers with a ``realm_sync_set_updated`` warning that
+    names exactly the artifacts carrying the agent's token — the ``dev`` skill
+    package, never the unrelated one — and a workspace bound to no realm answers
+    with none.
+    """
+
+    _make_shared_skill("dev")
+    _make_shared_skill("other-kit")
+    realm, _repo = _realm_with_repo(tmp_path)
+    bound = WorkspaceStore().create(name="Bound", realm_id=realm.id)
+    loose = WorkspaceStore().create(name="Loose")
+
+    bound_payload = json.loads(_run_harness("workspace", "add-agent", bound.id, "dev", "--json").stdout)
+    loose_payload = json.loads(_run_harness("workspace", "add-agent", loose.id, "dev", "--json").stdout)
+
+    (warning,) = bound_payload["warnings"]
+    assert warning["code"] == "realm_sync_set_updated"
+    named = {row["path"] for row in warning["artifacts"]}
+    assert "skills/dev/SKILL.md" in named
+    assert not any("other-kit" in path for path in named)
+    assert warning["artifact_count"] == len(warning["artifacts"])
+    assert "warnings" not in loose_payload
+
+
+def test_workspace_agent_artifacts_prefer_explicit_attribution_over_the_path(
+    isolate_agent_runtime_root, tmp_path, monkeypatch
+):
+    """The explicit-attribution arm: a profile file publishes at a
+    destination-shaped path where the persona token never appears, so only its
+    ``persona_id`` can name it. Another persona's attributed file stays out."""
+
+    from agent_runtime.realm_sync import (
+        RealmSyncArtifact,
+        artifacts as realm_sync_artifacts,
+        sync_artifacts_for_workspace_agent,
+    )
+
+    realm, _repo = _realm_with_repo(tmp_path)
+    workspace = WorkspaceStore().create(name="Bound", realm_id=realm.id)
+    source = tmp_path / "MEMORY.md"
+    source.write_text("memories\n", encoding="utf-8")
+
+    def _artifact(path: str, persona_id: str | None) -> RealmSyncArtifact:
+        return RealmSyncArtifact(
+            kind="profile_memory", source=source, relative_path=path, destination=source, persona_id=persona_id
+        )
+
+    monkeypatch.setattr(
+        realm_sync_artifacts,
+        "resolve_realm_sync_artifacts",
+        lambda realm_id: [
+            _artifact("store/profile_files/p1/memories/MEMORY.md", "dev"),
+            _artifact("store/profile_files/p2/memories/MEMORY.md", "qa"),
+            _artifact("skills/dev/SKILL.md", None),
+        ],
+    )
+
+    rows = sync_artifacts_for_workspace_agent(workspace.id, "dev")
+
+    assert [row["path"] for row in rows] == [
+        "store/profile_files/p1/memories/MEMORY.md",
+        "skills/dev/SKILL.md",
+    ]
 
 
 def test_publish_notify_failure_is_warning_not_error(isolate_agent_runtime_root, tmp_path, monkeypatch):
@@ -1408,7 +1489,7 @@ def test_held_profile_file_is_listed_and_resolvable_and_honors_dry_run(
 
     from agent_runtime.profile_artifact_sync import entity_key
     from agent_runtime.paths import safe_path_token
-    from agent_runtime.realm_sync import active_profile_name
+    from agent_runtime.profile_context import active_profile_name
 
     realm, repo = _realm_with_repo(tmp_path)
     profile = safe_path_token(active_profile_name())

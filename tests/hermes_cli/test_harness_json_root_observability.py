@@ -62,7 +62,7 @@ _BACKLOG_REASON = (
 LEDGER: dict[str, str] = {
     name: _BACKLOG_REASON
     for name in (
-        # harness.py
+        # harness_parts/ verb families (lane H2 split harness.py)
         "_cmd_roots_list", "_cmd_roots_set", "_cmd_roots_unset", "_cmd_roots_migrate",
         "_cmd_persona_instance_detail",
         "_cmd_skills_catalog", "_cmd_skills_publishable", "_cmd_skills_inbox",
@@ -94,7 +94,7 @@ LEDGER: dict[str, str] = {
         "_cmd_office_show", "_cmd_office_actor_upsert", "_cmd_office_actor_remove",
         "_cmd_office_actor_restore", "_cmd_office_set_folders",
         "_cmd_office_resolve_conflict",
-        # harness_parts/persona_commands.py
+        # harness_parts/persona/ (lane H3 split persona_commands.py)
         "_cmd_persona_list", "_cmd_persona_show", "_cmd_persona_tool_diff",
         "_cmd_persona_permission_set", "_cmd_persona_assignments",
         "_cmd_persona_assignment_task_id_migration",
@@ -133,7 +133,7 @@ LEDGER.update(
 
 
 def _scan_files() -> list[Path]:
-    return [_HARNESS_PY, *sorted(_PARTS_DIR.glob("*.py"))]
+    return [_HARNESS_PY, *sorted(_PARTS_DIR.rglob("*.py"))]
 
 
 def _call_name(node: ast.Call) -> str | None:
@@ -289,11 +289,11 @@ def test_snapshot_frame_already_carries_parity_resolution():
     """The ``_cmd_snapshot`` ledger reason is a claim about the producer; pin
     it at the producer so the exemption cannot outlive the block."""
 
-    snapshot_source = (
-        Path(harness_module.__file__).parent.parent
-        / "agent_runtime"
-        / "snapshot.py"
-    ).read_text(encoding="utf-8")
+    # The snapshot builder is a package since lane R3; its modules read as one text.
+    import agent_runtime.snapshot as snapshot_package
+    from tests._downstream.split_package_source import package_source
+
+    snapshot_source = package_source(snapshot_package)
     tree = ast.parse(snapshot_source)
     stamped = any(
         isinstance(node, ast.Dict)

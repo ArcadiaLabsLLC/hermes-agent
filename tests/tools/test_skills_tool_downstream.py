@@ -22,7 +22,7 @@ class TestSkillView:
     # no upstream counterpart. Re-homed here after upstream rewrote the
     # resolve-by-dir-name case above.
     def test_view_rejects_root_node_only_skill_in_mission_chat(self, tmp_path):
-        from agent.skill_utils import skill_runtime_scope
+        from agent_runtime.skill_resolution import skill_runtime_scope
 
         with patch("tools.skills_tool.SKILLS_DIR", tmp_path):
             _make_skill(
@@ -41,7 +41,7 @@ class TestSkillView:
         assert result["reason"] == "surface_not_supported"
 
     def test_mission_chat_cannot_list_root_node_only_skill(self, tmp_path):
-        from agent.skill_utils import skill_runtime_scope
+        from agent_runtime.skill_resolution import skill_runtime_scope
 
         with patch("tools.skills_tool.SKILLS_DIR", tmp_path):
             _make_skill(

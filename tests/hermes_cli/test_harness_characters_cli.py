@@ -38,6 +38,7 @@ from agent_runtime.profile_home import get_shared_characters_dir
 pytest.importorskip("PIL")
 
 from PIL import Image, ImageDraw  # noqa: E402
+from hermes_cli.harness_parts.characters import auto as characters_auto
 
 SPEC = SheetSpec(
     states=(StateSpec("idle", 2, True), StateSpec("walk", 2, True)),
@@ -2529,7 +2530,6 @@ def test_the_autopilot_has_no_door_for_overriding_a_handedness_refusal():
     that nudges an operator toward waiving the mirrored-art gate unseen is the
     reason the stage was gated in the first place.
     """
-    from hermes_cli import harness
 
     with pytest.raises(SystemExit):
         parser().parse_args(
@@ -2537,7 +2537,7 @@ def test_the_autopilot_has_no_door_for_overriding_a_handedness_refusal():
              "--accept-handedness", "idle-ne:rotation+states"]
         )
 
-    assert harness._characters_auto_next("compose", object()) is None
+    assert characters_auto._characters_auto_next("compose", object()) is None
 
 
 # ──────────────────── the colour table on the list row ────────────────────

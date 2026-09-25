@@ -85,7 +85,7 @@ def harness_required_skills_for_persona(persona) -> list[str]:
 def install_harness_skill(skill: str, *, hermes_home: Path | None = None) -> SkillInstallResult:
     if skill not in HARNESS_SKILLS:
         raise ValueError(f"not a Harness skill: {skill}")
-    from agent.skill_utils import skill_package_content_hash
+    from agent_runtime.skill_resolution import skill_package_content_hash
 
     source_dir = harness_skill_source_package(skill)
     source = source_dir / "SKILL.md"
@@ -396,7 +396,7 @@ def harness_skill_hash_states(
     function's subject and never were.
     """
 
-    from agent.skill_utils import skill_package_content_hash
+    from agent_runtime.skill_resolution import skill_package_content_hash
 
     states: list[HarnessSkillHashState] = []
     for name in skill_names:
@@ -433,7 +433,7 @@ def installed_harness_skill_hash(skill: str, *, hermes_home: Path | None = None)
     names, answered positively rather than guessed.
     """
 
-    from agent.skill_utils import skill_package_content_hash
+    from agent_runtime.skill_resolution import skill_package_content_hash
 
     if skill not in HARNESS_SKILLS:
         return None

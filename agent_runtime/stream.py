@@ -1298,7 +1298,7 @@ def stream_frames(
     ``office_patch_sink`` discards every row that is not an ``office_actor``.
     Measured 2026-08-18: two boots in three handed the stale paint to that sink
     and the launcher watched an empty canvas for the length of a full build.
-    ``serve.py::_room_wants_stale_first`` derives the hub's answer from its two
+    ``serve/subscriptions.py::_room_wants_stale_first`` derives the hub's answer from its two
     subscriber tables at producer-build time; ``_cmd_stream`` states ``True``
     because the argv lane exists to feed a painting consumer. The default is
     ``False`` — the SAFE direction, and deliberately so: a caller that has not
@@ -1340,7 +1340,7 @@ def stream_frames(
         not per frame.
 
         It also makes a LEAVE re-widen for free, which the old comment on
-        ``serve.py::_accepted_fold_entities`` had to decline because re-widening
+        ``serve/subscriptions.py::_accepted_fold_entities`` had to decline because re-widening
         meant restarting the producer and charging every remaining subscriber a
         fresh core.
 

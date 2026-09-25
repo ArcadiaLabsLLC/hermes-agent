@@ -62,6 +62,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_runtime.build_identity import CodeTree, code_tree_for, code_tree_rule
+from agent_runtime.git_cmd import run_git
 
 __all__ = [
     "GIT_TIMEOUT_SECONDS",
@@ -330,18 +331,16 @@ def _git(root: Path, args: list[str], *, allow_empty: bool = False) -> tuple[str
     """
 
     try:
-        completed = subprocess.run(
-            ["git", *args],
+        completed = run_git(
+            args,
             cwd=str(root),
-            capture_output=True,
-            text=True,
             encoding="utf-8",
             errors="replace",
             timeout=GIT_TIMEOUT_SECONDS,
             # stdin pinned to the null device: serve's handlers already learned
             # this the hard way — a child inheriting serve's stdin pipe blocks
             # forever against the Launcher's open pipe (see
-            # ``_claim_protocol_pipes`` in harness_parts/serve.py).
+            # ``_claim_protocol_pipes`` in harness_parts/serve/commands.py).
             stdin=subprocess.DEVNULL,
             env={**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"},
         )

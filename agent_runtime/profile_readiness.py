@@ -4,7 +4,8 @@ from typing import Any
 
 from hermes_cli.auth import AuthError
 from hermes_cli.runtime_environment import missing_runtime_packages_for
-from hermes_cli.runtime_provider import probe_runtime_provider, resolve_runtime_provider
+from agent_runtime.provider_probes import probe_runtime_provider
+from hermes_cli.runtime_provider import resolve_runtime_provider
 
 from .machine_roots import (
     contains_path_tokens,
@@ -74,7 +75,7 @@ def _skill_hash_split(skills: list[str], *, hermes_home=None) -> tuple[list[str]
 #
 # What an HONEST key would therefore cost: the resolver walk to learn which
 # packages are selected, then the per-package stat set over each. That is
-# precisely the key ``agent.skill_utils.skill_package_content_hash`` already
+# precisely the key ``agent_runtime.skill_resolution.skill_package_content_hash`` already
 # computes and already caches for the process (``_CONTENT_HASH_CACHE``, keyed on
 # every package file's mtime_ns+size), one layer below this function — so the
 # memo's key would duplicate, at this layer, the majority of the work it was
@@ -307,12 +308,12 @@ def _provider_issue_cache_clear() -> None:
 def _provider_issue(persona) -> tuple[str, str] | None:
     provider = getattr(persona, "provider", None)
     model = getattr(persona, "model", None)
-    from .local_llama import PROVIDER_ID
+    from .local_llama_adapter import PROVIDER_ID
     if provider == PROVIDER_ID:
         # Saved local identity is not an API-key credential. Live readiness is
         # checked at the model lease boundary; do not hide the configurable agent
         # merely because its local server is off or this probe is out of process.
-        from .local_llama.provider import catalog_visibility
+        from .local_llama_adapter.provider import catalog_visibility
         if any(row["model_id"] == model and row["selectable"] for row in catalog_visibility()["models"]):
             return None
         return (READINESS_CONFIG_ERROR, "Configure the selected local llama model on this installation")
@@ -389,7 +390,7 @@ def _codex_provider_issue() -> tuple[str, str] | None:
     succeeded.
 
     The order and both sources now live beside the run path they mirror, in
-    ``hermes_cli.runtime_provider.codex_credentials_resolvable_read_only``; the
+    ``agent_runtime.provider_probes.codex_credentials_resolvable_read_only``; the
     reason they cannot be answered by simply calling the resolver is written
     there and at ``codex_auth_store_credentials_present``. What has NOT changed
     is why this branch exists at all (MCF-16): readiness refreshes no token,
@@ -399,7 +400,7 @@ def _codex_provider_issue() -> tuple[str, str] | None:
     """
 
     try:
-        from hermes_cli.runtime_provider import (
+        from agent_runtime.provider_probes import (
             codex_credentials_resolvable_read_only,
         )
 
@@ -509,7 +510,7 @@ def _persona_path_token_issues(persona) -> list[dict[str, Any]]:
 def _resolve_skill_names(
     skill_names: list[str], *, skill_resolver=None
 ) -> list[dict[str, Any]]:
-    from agent.skill_utils import (
+    from agent_runtime.skill_resolution import (
         resolve_skills,
         skill_package_content_hash,
         skill_runtime_compatibility,

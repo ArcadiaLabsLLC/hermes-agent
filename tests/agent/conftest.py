@@ -21,7 +21,6 @@ monkeypatch ``run_agent.time.sleep`` locally (see
 from __future__ import annotations
 
 import pytest
-from tests._downstream.agent_conftest import *  # noqa: F401,F403
 
 
 @pytest.fixture(autouse=True)

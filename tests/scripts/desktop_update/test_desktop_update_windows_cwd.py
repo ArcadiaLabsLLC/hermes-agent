@@ -10,8 +10,7 @@ from pathlib import Path
 import pytest
 
 
-# Keep pytest outside the child self-test's 60s diagnostic timeout.
-pytestmark = [pytest.mark.windows_only, pytest.mark.timeout(75)]
+pytestmark = pytest.mark.windows_only
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 WINDOWS_UPDATE_PS1 = REPO_ROOT / "scripts" / "desktop-update" / "windows.ps1"

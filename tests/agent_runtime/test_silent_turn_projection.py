@@ -15,10 +15,10 @@ put a blank bubble under every tool call. The defect was that nothing on the row
 separated the two, so the 5 real silences went out with the scaffolding.
 """
 
-from agent_runtime.persona_chat_history import (
+from agent_runtime.persona_chat_history.curation import _safe_curated_messages
+from agent_runtime.persona_chat_history.vocabulary import (
     PERSONA_TURN_SILENT_KIND,
     SILENT_TURN_MARKER_TEXTS,
-    _safe_curated_messages,
 )
 from agent_runtime.turn_visibility import (
     SILENT_REASONS,

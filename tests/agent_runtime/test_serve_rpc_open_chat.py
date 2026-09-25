@@ -57,6 +57,7 @@ from agent_runtime.serve_rpc import (
     RpcContext,
 )
 from tests.agent_runtime.office_seed import seed_workspace_record
+from hermes_cli.harness_parts.persona import chat_open
 
 WORKSPACE = "ws_open_chat_test"
 PERSONA = "qa"
@@ -421,15 +422,14 @@ def test_requested_by_defaults_to_the_calling_devices_id(placed_agent, monkeypat
     not echo the field."""
 
     seen: list = []
-    from hermes_cli import harness
 
-    original = harness._cmd_persona_instance_open_chat
+    original = chat_open._cmd_persona_instance_open_chat
 
     def _record(args):
         seen.append(args.requested_by)
         return original(args)
 
-    monkeypatch.setattr(harness, "_cmd_persona_instance_open_chat", _record)
+    monkeypatch.setattr(chat_open, "_cmd_persona_instance_open_chat", _record)
 
     _call(
         {"persona_id": PERSONA, "new_session": True, "idempotency_key": "who-1"},

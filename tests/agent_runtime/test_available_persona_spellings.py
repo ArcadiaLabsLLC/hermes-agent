@@ -30,7 +30,7 @@ class _Agent:
 
 def _rows(monkeypatch, templates, agents):
     monkeypatch.setattr(
-        snapshot_mod, "available_profile_templates", lambda: list(templates)
+        snapshot_mod.summaries, "available_profile_templates", lambda: list(templates)
     )
     return {row["persona_id"]: row for row in snapshot_mod._available_persona_summary(agents)}
 

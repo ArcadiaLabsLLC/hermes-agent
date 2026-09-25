@@ -32,7 +32,7 @@ written hermes-side by the settle verbs), and the whole
 not.
 
 The contract version does NOT move for this cut. The ruling and its argument are
-written at ``snapshot._parity_envelope``'s version history under "54 KEPT
+written at ``snapshot.parity_envelope``'s version history under "54 KEPT
 (AX2)"; ``test_snapshot_contract_version_authority`` is the file that owns the
 number, and this one deliberately states no literal.
 """

@@ -182,10 +182,13 @@ def test_lanes_stay_a_flat_list_with_no_foreground_election(isolate_agent_runtim
 
 
 def test_stage42_goal_list_and_error_envelopes(isolate_agent_runtime_root):
+    # `goal` is gone from `hermes harness`; the parser's unknown-subcommand
+    # refusal (hermes_cli/_parser.py::HermesArgumentParser) names the word.
+    refusal = "'goal' is not a `hermes harness` command."
     ok = _run_harness("goal", "list", "--json")
-    assert ok.returncode != 0
-    assert "invalid choice" in ok.stderr
+    assert ok.returncode == 2
+    assert refusal in ok.stderr
 
     missing = _run_harness("goal", "show", "missing_goal", "--json")
-    assert missing.returncode != 0
-    assert "invalid choice" in missing.stderr
+    assert missing.returncode == 2
+    assert refusal in missing.stderr

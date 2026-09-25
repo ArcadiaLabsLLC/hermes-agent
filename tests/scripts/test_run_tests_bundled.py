@@ -7,6 +7,10 @@ spawning pytest — the bundle and solo launchers are injected:
 * every discovered file runs exactly once, in a bundle or alone;
 * a failing bundle re-runs its unclean members ONE FILE PER PROCESS, and a
   member red in the bundle but green alone is reported as an isolation leak;
+  a bundle whose process DIED runs the file it died in alone and re-bundles
+  the members that never started;
+* ``--scope fork`` runs the fork-only files plus the inherited files the
+  change reaches, and leaves an untouched inherited file to ``--scope full``;
 * a file named in ``scripts/test_bundles_unbundled.txt`` never enters a bundle.
 """
 
@@ -273,21 +277,28 @@ def test_the_bundle_timeout_scales_with_its_members(tmp_path):
     assert bundled.bundle_timeout(files, tmp_path, 300.0, {}) == pytest.approx(300.0)
 
 
-def test_members_of_a_bundle_that_died_are_unreached_not_leaks(tmp_path):
-    rels = [f"tests/alpha/test_{i}.py" for i in range(4)]
+def test_a_dead_bundles_unreached_members_are_rebundled_and_only_the_file_it_died_in_runs_alone(tmp_path):
+    rels = [f"tests/alpha/test_{i}.py" for i in range(5)]
     files = _tree(tmp_path, rels)
+    bundle_calls: list[list[str]] = []
+    solo_calls: list[str] = []
 
     def _dies_in_member_1(first, args, repo_root, timeout):
+        members = [_rels(tmp_path, [first])[0]] + [_rels(tmp_path, [Path(a)])[0] for a in args if a.endswith(".py")]
+        bundle_calls.append(members)
         events_path = Path(next(a for a in args if a.startswith("--hermes-bundle-events=")).split("=", 1)[1])
-        records = [{"k": "start", "t": 0.0}] + [{"k": "collect", "f": r, "d": 0.0, "err": False} for r in rels]
-        records += [
-            {"k": "test", "f": rels[0], "c": "passed", "d": 0.0},
-            {"k": "test", "f": rels[1], "c": "passed", "d": 0.0},
-        ]  # ...and no "end": pytest-timeout's thread method killed the process
+        records = [{"k": "start", "t": 0.0}] + [{"k": "collect", "f": r, "d": 0.0, "err": False} for r in members]
+        for rel in members:
+            records.append({"k": "test", "f": rel, "c": "passed", "d": 0.0})
+            if rel == rels[1]:
+                break  # ...and no "end": pytest-timeout's thread method killed the process
+        else:
+            records.append({"k": "end", "t": 1.0, "rc": 0})
         events_path.write_text("\n".join(json.dumps(r) for r in records), encoding="utf-8")
-        return first, 1, "Timeout", {}, 1.0
+        return first, 0 if rels[1] not in members else 1, "Timeout", {}, 1.0
 
     def _solo(path, args, repo_root, timeout, retries):
+        solo_calls.append(_rels(tmp_path, [path])[0])
         return path, 0, "ok", {"passed": 1}, 0.5
 
     result = bundled.run(
@@ -295,5 +306,118 @@ def test_members_of_a_bundle_that_died_are_unreached_not_leaks(tmp_path):
         durations={}, bundle_runner=_dies_in_member_1, solo_runner=_solo,
     )
 
-    assert sorted(leak.kind for leak in result.leaks) == ["unreached"] * 3
-    assert {leak.stopped_in for leak in result.leaks} == {rels[1]}
+    assert solo_calls == [rels[1]]
+    assert bundle_calls == [rels, rels[2:]]
+    assert result.rebundles == 1 and result.reruns == 1
+    assert [(d.bundle_index, d.stopped_in, d.unreached) for d in result.deaths] == [(0, rels[1], rels[2:])]
+    by_file = {_rels(tmp_path, [o.file])[0]: o.via for o in result.outcomes}
+    assert by_file == {rels[0]: "bundle", rels[1]: "rerun", rels[2]: "bundle", rels[3]: "bundle", rels[4]: "bundle"}
+    assert [(leak.kind, leak.stopped_in) for leak in result.leaks] == [("unreached", rels[1])]
+
+
+def test_a_single_unreached_member_runs_alone_rather_than_as_a_bundle_of_one(tmp_path):
+    rels = [f"tests/alpha/test_{i}.py" for i in range(3)]
+    files = _tree(tmp_path, rels)
+    solo_calls: list[str] = []
+
+    def _dies_in_member_1(first, args, repo_root, timeout):
+        events_path = Path(next(a for a in args if a.startswith("--hermes-bundle-events=")).split("=", 1)[1])
+        records = [{"k": "start", "t": 0.0}] + [{"k": "test", "f": r, "c": "passed", "d": 0.0} for r in rels[:2]]
+        events_path.write_text("\n".join(json.dumps(r) for r in records), encoding="utf-8")
+        return first, 1, "Timeout", {}, 1.0
+
+    def _solo(path, args, repo_root, timeout, retries):
+        solo_calls.append(_rels(tmp_path, [path])[0])
+        return path, 0, "ok", {"passed": 1}, 0.5
+
+    result = bundled.run(
+        files, [], tmp_path, jobs=1, bundle_size=20, flat_timeout=300.0, retries=0,
+        durations={}, bundle_runner=_dies_in_member_1, solo_runner=_solo,
+    )
+
+    assert sorted(solo_calls) == [rels[1], rels[2]]
+    assert result.rebundles == 0
+
+
+# ── scope: fork-only plus the inherited files the change reaches ────────────
+
+
+def _scope_tree(root: Path) -> tuple[list[Path], set[str]]:
+    files = _tree(
+        root,
+        [
+            "tests/pkg/test_forkonly.py",
+            "tests/pkg/test_untouched.py",
+            "tests/pkg/test_widget.py",
+            "tests/pkg/test_uses_helper.py",
+            "tests/pkg/test_relative.py",
+            "tests/other/test_below_conftest.py",
+        ],
+    )
+    (root / "tests/pkg/test_uses_helper.py").write_text(
+        "from pkg.helper import thing\n\ndef test_ok():\n    assert thing\n", encoding="utf-8"
+    )
+    (root / "tests/pkg/test_relative.py").write_text(
+        "from ._support import x\n\ndef test_ok():\n    assert x\n", encoding="utf-8"
+    )
+    inherited = {_rels(root, [f])[0] for f in files} - {"tests/pkg/test_forkonly.py"}
+    return files, inherited
+
+
+def _selected(root: Path, sel) -> dict[str, list[str]]:
+    return {
+        reason: sorted(_rels(root, getattr(sel, reason)))
+        for reason in ("fork_only", "touched", "source", "importer", "conftest", "named", "excluded")
+    }
+
+
+def test_fork_scope_takes_fork_only_files_and_leaves_untouched_inherited_ones(tmp_path):
+    files, inherited = _scope_tree(tmp_path)
+
+    sel = bundled.select_scope(files, tmp_path, inherited, changed=set())
+
+    got = _selected(tmp_path, sel)
+    assert got["fork_only"] == ["tests/pkg/test_forkonly.py"]
+    assert "tests/pkg/test_untouched.py" in got["excluded"]
+    assert _rels(tmp_path, sel.selected) == ["tests/pkg/test_forkonly.py"]
+
+
+def test_fork_scope_takes_an_inherited_file_whose_source_the_change_touched(tmp_path):
+    files, inherited = _scope_tree(tmp_path)
+    changed = {"pkg/widget.py", "pkg/helper.py", "tests/other/conftest.py", "tests/pkg/_support.py"}
+
+    got = _selected(tmp_path, bundled.select_scope(files, tmp_path, inherited, changed))
+
+    assert got["source"] == ["tests/pkg/test_widget.py"]
+    assert got["importer"] == ["tests/pkg/test_relative.py", "tests/pkg/test_uses_helper.py"]
+    assert got["conftest"] == ["tests/other/test_below_conftest.py"]
+    assert got["excluded"] == ["tests/pkg/test_untouched.py"]
+
+
+def test_fork_scope_takes_a_changed_or_named_inherited_test_file(tmp_path):
+    files, inherited = _scope_tree(tmp_path)
+    named = [tmp_path / "tests/pkg/test_widget.py"]
+
+    got = _selected(
+        tmp_path,
+        bundled.select_scope(files, tmp_path, inherited, {"tests/pkg/test_untouched.py"}, named=named),
+    )
+
+    assert got["touched"] == ["tests/pkg/test_untouched.py"]
+    assert got["named"] == ["tests/pkg/test_widget.py"]
+
+
+def test_the_convention_maps_a_test_file_to_its_module_under_test():
+    assert bundled.convention_sources("tests/hermes_cli/test_gateway.py") == [
+        "hermes_cli/gateway.py",
+        "hermes_cli/gateway/__init__.py",
+    ]
+    assert bundled.convention_sources("tests/test_run_agent.py") == ["run_agent.py", "run_agent/__init__.py"]
+    assert bundled.convention_sources("tests/pkg/helpers.py") == []
+
+
+def test_the_manifest_is_read_without_its_comment_lines(tmp_path):
+    manifest = tmp_path / "m.txt"
+    manifest.write_text("# base abc\ntests/a/test_x.py\n\n", encoding="utf-8")
+
+    assert bundled.load_manifest(manifest) == {"tests/a/test_x.py"}

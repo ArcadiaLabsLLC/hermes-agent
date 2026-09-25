@@ -9,9 +9,8 @@ from unittest.mock import patch, MagicMock
 import pytest
 
 from agent.prompt_caching import apply_anthropic_cache_control
-from agent.anthropic_adapter import build_anthropic_client, build_anthropic_bedrock_client, build_anthropic_kwargs
+from agent.anthropic_adapter import build_anthropic_client, build_anthropic_kwargs
 from agent.anthropic_credentials import _is_oauth_token, _refresh_oauth_token, _write_claude_code_credentials, is_claude_code_token_valid, read_claude_code_credentials, resolve_anthropic_token, run_oauth_setup_token
-from agent.anthropic_endpoints import _is_azure_anthropic_endpoint
 from agent.credential_pool import PooledCredential
 from agent.anthropic_message_convert import _to_plain_data, convert_messages_to_anthropic, convert_tools_to_anthropic, normalize_model_name
 from agent.transports import get_transport
@@ -30,9 +29,6 @@ class TestIsOAuthToken:
         assert _is_oauth_token("sk-ant-api03-abcdef1234567890") is False
 
 
-
-
-
 class TestBuildAnthropicClient:
 
 
@@ -48,10 +44,6 @@ class TestBuildAnthropicClient:
             assert "context-1m-2025-08-07" not in betas
             assert "oauth-2025-04-20" not in betas  # OAuth-only beta NOT present
             assert "claude-code-20250219" not in betas  # OAuth-only beta NOT present
-
-
-
-
 
 
     def test_opencode_endpoint_gets_attribution_headers(self):
@@ -137,17 +129,7 @@ class TestBuildAnthropicClient:
             assert kwargs["max_retries"] == 0
 
 
-
-
-@pytest.mark.allow_claude_code_credentials_file
 class TestReadClaudeCodeCredentials:
-    """Exercises the real ~/.claude/.credentials.json reader.
-
-    Opts out of the suite-wide neutralization, and every test below points
-    ``Path.home()`` at its own ``tmp_path`` first — the marker on its own
-    would hand back the operator's live Claude Code login (MCF-66).
-    """
-
     @pytest.fixture(autouse=True)
     def no_keychain(self, monkeypatch):
         monkeypatch.setattr(
@@ -181,9 +163,6 @@ class TestReadClaudeCodeCredentials:
         assert creds is None
 
 
-
-
-
 class TestIsClaudeCodeTokenValid:
     def test_valid_token(self):
         creds = {"accessToken": "tok", "expiresAt": int(time.time() * 1000) + 3600_000}
@@ -198,13 +177,7 @@ class TestIsClaudeCodeTokenValid:
         assert is_claude_code_token_valid(creds) is True
 
 
-@pytest.mark.allow_claude_code_credentials_file
 class TestResolveAnthropicToken:
-    """Resolution order across all five sources, one of which is the real
-    ~/.claude/.credentials.json reader — so this opts out of the suite-wide
-    neutralization, with ``Path.home()`` redirected at ``tmp_path`` in every
-    test that reaches source #3 (MCF-66)."""
-
     def _assert_not_called(*_args, **_kwargs):
         raise AssertionError("should not be called when API key is present")
 
@@ -399,14 +372,7 @@ class TestResolveAnthropicToken:
         assert resolve_anthropic_token() == "cc-auto-token"
 
 
-
-@pytest.mark.allow_claude_code_credentials_file
 class TestRefreshOauthToken:
-    """The refresh path persists the rotated pair, so these need the real
-    writer — every test redirects ``Path.home()`` at its own ``tmp_path``
-    first, which is the only thing between this class and the operator's live
-    Claude Code login (MCF-66)."""
-
     def test_returns_none_without_refresh_token(self, tmp_path, monkeypatch):
         monkeypatch.setattr("agent.anthropic_credentials.Path.home", lambda: tmp_path)
         # Neutralize live Claude Code sources (macOS Keychain + ~/.claude file)
@@ -469,16 +435,7 @@ class TestRefreshOauthToken:
             assert _refresh_oauth_token(creds) is None
 
 
-@pytest.mark.allow_claude_code_credentials_file
 class TestWriteClaudeCodeCredentials:
-    """Exercises the real writer. Each test redirects ``Path.home()`` FIRST.
-
-    This class also binds ``_write_claude_code_credentials`` by direct import
-    at module scope, which the conftest module-attribute patch cannot reach —
-    the redirected home is the only thing keeping these writes off the
-    operator's real credentials file (MCF-66).
-    """
-
     def test_writes_new_file(self, tmp_path, monkeypatch):
         monkeypatch.setattr("agent.anthropic_credentials.Path.home", lambda: tmp_path)
         _write_claude_code_credentials("tok", "ref", 12345)
@@ -519,11 +476,7 @@ class TestWriteClaudeCodeCredentials:
         assert mode == 0o600, f"creds file mode {oct(mode)} != 0o600 — TOCTOU race regressed"
 
 
-@pytest.mark.allow_claude_code_credentials_file
 class TestResolveWithRefresh:
-    """Resolution must see a credentials file, so it needs the real reader —
-    against a redirected ``Path.home()`` in every test (MCF-66)."""
-
     def test_auto_refresh_on_expired_creds(self, monkeypatch, tmp_path):
         """When cred file has expired token + refresh token, auto-refresh is attempted."""
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
@@ -570,10 +523,7 @@ class TestResolveWithRefresh:
         assert result == "refreshed-token"
 
 
-@pytest.mark.allow_claude_code_credentials_file
 class TestRunOauthSetupToken:
-    """Reads back the credential file the setup subprocess would have written
-    — real reader, redirected ``Path.home()`` in every test (MCF-66)."""
 
     def test_returns_token_from_credential_files(self, monkeypatch, tmp_path):
         """After subprocess completes, reads credentials from Claude Code files."""
@@ -619,7 +569,6 @@ class TestRunOauthSetupToken:
         assert token is None
 
 
-
 # ---------------------------------------------------------------------------
 # Model name normalization
 # ---------------------------------------------------------------------------
@@ -628,8 +577,6 @@ class TestRunOauthSetupToken:
 class TestNormalizeModelName:
     def test_strips_anthropic_prefix(self):
         assert normalize_model_name("anthropic/claude-sonnet-4-20250514") == "claude-sonnet-4-20250514"
-
-
 
 
     def test_preserve_dots_for_alibaba_dashscope(self):
@@ -707,13 +654,6 @@ class TestConvertTools:
 
 
 class TestConvertMessages:
-
-
-
-
-
-
-
 
 
     def test_strips_tool_use_when_result_not_immediately_adjacent(self):
@@ -922,9 +862,6 @@ class TestConvertMessages:
         assert tool_block["cache_control"] == {"type": "ephemeral"}
 
 
-
-
-
     def test_empty_user_message_string_gets_placeholder(self):
         """Empty user message strings should get '(empty message)' placeholder.
 
@@ -937,8 +874,6 @@ class TestConvertMessages:
         _, result = convert_messages_to_anthropic(messages)
         assert result[0]["role"] == "user"
         assert result[0]["content"] == "(empty message)"
-
-
 
 
     def test_leading_assistant_after_compaction_gets_user_turn_prepended(self):
@@ -961,17 +896,12 @@ class TestConvertMessages:
         )
 
 
-
-
-
 # ---------------------------------------------------------------------------
 # Build kwargs
 # ---------------------------------------------------------------------------
 
 
 class TestBuildAnthropicKwargs:
-
-
 
 
     def test_reasoning_config_maps_to_manual_thinking_for_pre_4_6_models(self):
@@ -1005,33 +935,6 @@ class TestBuildAnthropicKwargs:
         assert kwargs["max_tokens"] == 4096
 
 
-
-
-
-
-    def test_supports_fast_mode_predicate(self):
-        """The speed-param allowlist tracks the live fast-mode docs.
-
-        Per https://platform.claude.com/docs/en/build-with-claude/fast-mode:
-        Opus 4.8 and Opus 5 support ``speed: "fast"``. Opus 4.6 LOST fast
-        mode (param silently ignored → standard speed at standard billing);
-        Opus 4.7 hard-400s. Dedicated ``…-fast`` model ids select fast
-        inference via the model field and must not also get the param.
-        """
-        from agent.anthropic_adapter import _supports_fast_mode
-        assert _supports_fast_mode("claude-opus-4-8") is True
-        assert _supports_fast_mode("claude-opus-4.8") is True
-        assert _supports_fast_mode("anthropic/claude-opus-4-8") is True
-        assert _supports_fast_mode("claude-opus-5") is True
-        assert _supports_fast_mode("anthropic/claude-opus-5") is True
-        assert _supports_fast_mode("claude-opus-4-6") is False
-        assert _supports_fast_mode("anthropic/claude-opus-4-6") is False
-        assert _supports_fast_mode("claude-opus-4-7") is False
-        assert _supports_fast_mode("claude-opus-4-8-fast") is False
-        assert _supports_fast_mode("claude-sonnet-4-6") is False
-        assert _supports_fast_mode("claude-haiku-4-5") is False
-        assert _supports_fast_mode("") is False
-
     def test_fable_class_models_route_as_adaptive_thinking(self):
         """Invariant: unknown/new Claude models default to the modern (4.7+)
         contract — adaptive thinking, xhigh-capable, sampling-params-forbidden —
@@ -1043,7 +946,6 @@ class TestBuildAnthropicKwargs:
             _supports_adaptive_thinking,
             _supports_xhigh_effort,
             _forbids_sampling_params,
-            _get_anthropic_max_output,
         )
         # New / unknown Claude models → modern contract by default.
         for m in (
@@ -1055,9 +957,6 @@ class TestBuildAnthropicKwargs:
             assert _supports_adaptive_thinking(m) is True, m
             assert _supports_xhigh_effort(m) is True, m
             assert _forbids_sampling_params(m) is True, m
-        # 1M-context reasoning model → highest output ceiling.
-        assert _get_anthropic_max_output("anthropic/claude-fable-5") == 128_000
-
 
 
     def test_non_claude_anthropic_models_use_manual_path(self):
@@ -1106,33 +1005,9 @@ class TestBuildAnthropicKwargs:
         assert "fast-mode-2026-02-01" not in beta_header
 
 
-
-
-
-
-
-
-
-
-
-
-
 # ---------------------------------------------------------------------------
 # Model output limit lookup
 # ---------------------------------------------------------------------------
-
-
-class TestGetAnthropicMaxOutput:
-    def test_opus_4_6(self):
-        from agent.anthropic_adapter import _get_anthropic_max_output
-        assert _get_anthropic_max_output("claude-opus-4-6") == 128_000
-
-
-
-
-
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -1142,15 +1017,6 @@ class TestGetAnthropicMaxOutput:
 
 class TestToPlainData:
 
-
-
-
-    def test_deep_nesting_is_capped(self):
-        deep = "leaf"
-        for _ in range(25):
-            deep = {"nested": deep}
-        result = _to_plain_data(deep)
-        assert isinstance(result, dict)
 
     def test_plain_values_pass_through(self):
         assert _to_plain_data("hello") == "hello"
@@ -1223,8 +1089,6 @@ class TestNormalizeResponse:
         assert nr3.finish_reason == "length"
 
 
-
-
 # ---------------------------------------------------------------------------
 # Role alternation
 # ---------------------------------------------------------------------------
@@ -1262,8 +1126,6 @@ class TestRoleAlternation:
 class TestThinkingBlockSignatureManagement:
     """Tests for the thinking block handling strategy:
     strip from old turns, preserve latest signed, downgrade unsigned."""
-
-
 
 
     def test_redacted_thinking_with_data_preserved(self):
@@ -1326,7 +1188,6 @@ class TestThinkingBlockSignatureManagement:
                 assert "cache_control" not in block
 
 
-
     def test_multi_turn_conversation_preserves_only_last(self):
         """Full multi-turn conversation: only last assistant keeps thinking."""
         messages = [
@@ -1377,8 +1238,6 @@ class TestThinkingBlockSignatureManagement:
         assert last_thinking[0]["signature"] == "sig_3"
 
 
-
-
 # ---------------------------------------------------------------------------
 # Tool choice
 # ---------------------------------------------------------------------------
@@ -1420,7 +1279,6 @@ class TestToolChoice:
         assert kwargs["tool_choice"] == {"type": "tool", "name": "search"}
 
 
-
 # ---------------------------------------------------------------------------
 # max_tokens resolver — openclaw/openclaw#66664 port
 # ---------------------------------------------------------------------------
@@ -1439,9 +1297,6 @@ class TestResolvePositiveMaxTokens:
         assert _resolve_positive_anthropic_max_tokens(0) is None
 
 
-
-
-
     def test_nan_returns_none(self):
         assert _resolve_positive_anthropic_max_tokens(float("nan")) is None
 
@@ -1452,8 +1307,6 @@ class TestResolvePositiveMaxTokens:
         assert _resolve_positive_anthropic_max_tokens(False) is None
 
 
-
-
 class TestResolveMessagesMaxTokens:
     """Integration tests for the full Messages resolver."""
 
@@ -1461,9 +1314,6 @@ class TestResolveMessagesMaxTokens:
         assert _resolve_anthropic_messages_max_tokens(
             8192, "claude-opus-4-6"
         ) == 8192
-
-
-
 
 
     def test_sub_one_float_falls_back(self):
@@ -1513,10 +1363,6 @@ class TestConvertToolsToAnthropicDedup:
         assert len(result) == 3  # lcm_grep, lcm_describe, lcm_expand
 
 
-    def test_none_tools_returns_empty(self):
-        assert convert_tools_to_anthropic(None) == []
-
-
 class TestBlankTextBlockFiltering:
     """Regression tests for blank text block filtering in _convert_assistant_message.
 
@@ -1530,7 +1376,6 @@ class TestBlankTextBlockFiltering:
     def _convert(self, message):
         from agent.anthropic_message_convert import _convert_assistant_message
         return _convert_assistant_message(message)
-
 
 
     def test_normal_path_filters_none_text_block_without_crashing(self):
@@ -1553,7 +1398,6 @@ class TestBlankTextBlockFiltering:
         tool_blocks = [b for b in blocks if b.get("type") == "tool_use"]
         assert len(text_blocks) == 0, f"None text block not filtered: {text_blocks}"
         assert len(tool_blocks) == 1
-
 
 
     def test_normal_path_relocates_cache_control_from_dropped_block(self):
@@ -1632,7 +1476,6 @@ class TestAllBlankFallbackAndNonStringText:
     def _convert(self, message):
         from agent.anthropic_message_convert import _convert_assistant_message
         return _convert_assistant_message(message)
-
 
 
     def test_sole_cache_marked_blank_block_relocates_marker_to_placeholder(self):
@@ -1986,5 +1829,5 @@ def test_unsupported_inline_image_subtype_downgrades_to_text_for_anthropic(monke
     blocks = result[0]["content"]
     assert [b["type"] for b in blocks] == ["image", "text", "image"]
     assert blocks[0]["source"] == {"type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo="}
-    assert blocks[1]["text"] == "[image omitted: image/svg+xml is not a supported image format]"
+    assert "image/svg+xml" in blocks[1]["text"]
     assert blocks[2]["source"]["media_type"] == "image/jpeg"

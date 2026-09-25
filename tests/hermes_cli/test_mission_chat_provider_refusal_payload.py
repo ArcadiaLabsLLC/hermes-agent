@@ -2,8 +2,7 @@
 
 Sibling of ``test_mission_chat_budget_payload`` and written the same way —
 driving the real ``_cmd_mission_chat_message`` and reading the emitted envelope
-plus the persisted journal record, never the source text of a file that is
-``exec``'d and cannot be imported.
+plus the persisted journal record, never the source text of the handler.
 
 The 2026-09-11 incident: the operator's OpenAI Codex plan ran out, the provider
 answered ``HTTP 429`` with ``error.type = usage_limit_reached``, and Mission
@@ -24,6 +23,8 @@ import json
 import time
 
 import pytest
+
+from hermes_cli.harness_parts.persona import chat_turn_message
 
 from agent_runtime.mission_chat_outcome import ChatErrorKind, ExecutionState
 
@@ -77,7 +78,7 @@ def refusal_envelope(monkeypatch, capsys, isolate_agent_runtime_root):
     """Drive one real provider refusal and hand back its emitted envelope."""
 
     harness = _seed(monkeypatch, _refusing_provider(**_quota_error()))
-    code = harness._cmd_mission_chat_message(_args("refused_turn"))
+    code = chat_turn_message._cmd_mission_chat_message(_args("refused_turn"))
     return code, json.loads(capsys.readouterr().out)
 
 
@@ -86,9 +87,9 @@ def refused_spent_envelope(monkeypatch, capsys, isolate_agent_runtime_root):
     """...then RESEND that same id, which finds the settled record."""
 
     harness = _seed(monkeypatch, _refusing_provider(**_quota_error()))
-    assert harness._cmd_mission_chat_message(_args("refused_turn")) == 2
+    assert chat_turn_message._cmd_mission_chat_message(_args("refused_turn")) == 2
     capsys.readouterr()
-    code = harness._cmd_mission_chat_message(_args("refused_turn"))
+    code = chat_turn_message._cmd_mission_chat_message(_args("refused_turn"))
     return code, json.loads(capsys.readouterr().out)
 
 
@@ -204,7 +205,7 @@ def test_a_server_error_after_the_boundary_stays_genuinely_ambiguous(
     harness = _seed(
         monkeypatch, _refusing_provider(status_code=503, reason="overloaded")
     )
-    code = harness._cmd_mission_chat_message(_args("overloaded_turn"))
+    code = chat_turn_message._cmd_mission_chat_message(_args("overloaded_turn"))
     payload = json.loads(capsys.readouterr().out)
 
     assert code == 2
@@ -228,7 +229,7 @@ def test_a_failure_carrying_no_typed_block_stays_ambiguous(
     from agent_runtime.mission_chat_turns import mission_chat_turn_record
 
     harness = _seed(monkeypatch, _refusing_provider())
-    code = harness._cmd_mission_chat_message(_args("untyped_turn"))
+    code = chat_turn_message._cmd_mission_chat_message(_args("untyped_turn"))
     payload = json.loads(capsys.readouterr().out)
 
     assert code == 2

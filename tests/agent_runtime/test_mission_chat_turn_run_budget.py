@@ -47,10 +47,8 @@ from agent_runtime.mission_chat_turns import (
     persist_mission_chat_turn,
     transition_mission_chat_turn,
 )
-from agent_runtime.persona_chat_history import (
-    _safe_recent_messages,
-    _terminal_turn_marker_rows,
-)
+from agent_runtime.persona_chat_history.history_rows import _safe_recent_messages
+from agent_runtime.persona_chat_history.markers import _terminal_turn_marker_rows
 from agent_runtime.profile_runner import (
     AgentRunRequest,
     ProfileAgentRunner,
@@ -61,6 +59,7 @@ from agent_runtime.run_budget import (
     safe_accounting_block,
     turn_run_budget_metadata,
 )
+from tests._downstream.persona_source import package_source, turn_body
 
 
 # ── driving a real bounded turn ─────────────────────────────────────────────
@@ -485,7 +484,7 @@ def test_the_projection_never_writes_the_journal_it_reads(isolate_agent_runtime_
     assert after == before
 
 
-# ── the exec'd settle point, which no test can import ───────────────────────
+# ── the settle point, pinned over the turn commit's source ──────────────────
 
 
 # Split on 2026-07-31: the plan phase stayed in ``_cmd_mission_chat_message``
@@ -499,17 +498,14 @@ def _mission_chat_message_func() -> ast.FunctionDef:
     """``harness_parts/persona_commands.py`` is ``exec``'d into harness.py's
     globals, never imported, so its body is only reachable as source text."""
 
-    import hermes_cli.harness as harness
-
-    path = Path(harness.__file__).with_name("harness_parts") / "persona_commands.py"
-    tree = ast.parse(path.read_text(encoding="utf-8"))
+    tree = ast.parse(package_source())
     for name in _TURN_BODY_FUNCTIONS:
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == name:
-                return node
+        node = turn_body(tree, name)
+        if node is not None:
+            return node
     raise AssertionError(
         "the mission-chat turn body "
-        f"({' / '.join(_TURN_BODY_FUNCTIONS)}) is not in persona_commands"
+        f"({' / '.join(_TURN_BODY_FUNCTIONS)}) is not in the persona package"
     )
 
 
@@ -578,19 +574,16 @@ def test_the_completed_settle_point_is_not_gated_on_a_budget_tripping():
     ), "the accounting block became conditional on the wall checkpoint engaging"
 
 
-def test_the_adapter_is_imported_where_the_exec_can_see_it():
-    """The trap this file's lane keeps re-learning: a name used in an exec'd
-    command part resolves against harness.py's globals. A function-local import
-    is the cheap, self-contained answer — and it has to actually be there."""
+def test_the_turn_commit_binds_the_adapter_it_calls():
+    """The trap this file's lane kept re-learning was an exec'd part resolving
+    names against harness.py's globals. The turn commit is a real module now
+    (lanes H1/H3), so the guarantee is read from the RUNTIME: every phase module
+    that calls the adapter binds the one ``agent_runtime.run_budget`` owns."""
 
-    func = _mission_chat_message_func()
-    local_imports = {
-        alias.name
-        for node in ast.walk(func)
-        if isinstance(node, ast.ImportFrom) and node.module == "agent_runtime.run_budget"
-        for alias in node.names
-    }
-    assert "turn_run_budget_metadata" in local_imports
+    from agent_runtime import run_budget
+    from hermes_cli.harness_parts.persona.chat_turn_commit import settle
+
+    assert settle.turn_run_budget_metadata is run_budget.turn_run_budget_metadata
 
 
 def test_the_checkpoint_reserve_seam_is_still_a_function(monkeypatch):

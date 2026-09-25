@@ -868,7 +868,7 @@ class GatewayBusySessionMixin:
     _COMMAND_HANDLER_ALIASES = {"bg": "_handle_background_command", "sethome": "_handle_set_home_command"}
     # Ordinary slash handlers shared by idle and busy dispatch.
     _PLAIN_COMMANDS = (
-        "status", "context", "queue-status", "restart", "approve", "deny", "pause", "agents", "bg", "btw",
+        "status", "context", "restart", "approve", "deny", "pause", "agents", "bg", "btw",
         "kanban", "subgoal", "heartbeat", "busy", "yolo", "verbose", "footer", "help",
         "commands", "profile", "login", "update", "version",
     )
@@ -940,7 +940,8 @@ class GatewayBusySessionMixin:
         if policy in ("dispatch", "interrupt_then_dispatch"):
             plain = self._gateway_plain_command_handlers().get(name)
             if plain is not None:
-                return await plain(event)
+                async with self._async_profile_scope_for_source(source):
+                    return await plain(event)
             logger.warning(
                 "busy_policy=%s for /%s has no mid-run handler — "
                 "falling back to busy-reject", policy, name,

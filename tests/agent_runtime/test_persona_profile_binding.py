@@ -482,7 +482,7 @@ def test_projected_delta_drops_an_artifact_the_new_profile_cannot_back(profiles)
 # 9. the surfaces
 # --------------------------------------------------------------------------- #
 def test_agent_list_row_reports_the_agents_own_binding_not_the_active_profile(profiles):
-    from hermes_cli.harness import _agent_definition_row
+    from hermes_cli.harness_parts.agent_commands import _agent_definition_row
 
     persona = _persona(hermes_profile="beta")
     index = {
@@ -507,7 +507,7 @@ def test_agent_list_row_reports_the_agents_own_binding_not_the_active_profile(pr
 
 
 def test_agent_list_row_without_a_binding_index_still_reports_the_binding(profiles):
-    from hermes_cli.harness import _agent_definition_row
+    from hermes_cli.harness_parts.agent_commands import _agent_definition_row
 
     row = _agent_definition_row(_persona(hermes_profile="beta"), source_profile="operator-active")
 
@@ -526,7 +526,7 @@ def test_agent_list_row_names_both_spellings_agent_create_accepts(profiles):
     computed by the same function the refusal's choice list spends.
     """
 
-    from hermes_cli.harness import _agent_definition_row
+    from hermes_cli.harness_parts.agent_commands import _agent_definition_row
 
     sole = _persona(id="widget", hermes_profile="beta", skills=["harness-qa-verdict"])
     row = _agent_definition_row(sole, source_profile="operator-active", roster=[sole])

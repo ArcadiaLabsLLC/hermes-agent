@@ -36,7 +36,9 @@ Three specified paths were incorrect and not discovered; the follow-up below
 ran their actual locations, so no coverage is claimed from the nonexistent paths.
 
 One file was **FLAKY**, failed on attempt one and passed automatic retry:
-`test_local_llama_manager.py::test_busy_and_stale_guards_are_server_enforced`.
+the fork manager's busy-and-stale guard test (retired 2026-09-24 with the fork
+package; its successor `tests/agent_runtime/test_local_llama_adapter.py::test_a_stale_revision_and_a_busy_manager_are_refused`
+waits for the start to reach the engine before taking its guards, so the busy arm is proven).
 Expected `operation_busy`, got `stale_revision`. The queued start can transition
 after status returns and before stop admission, advancing the revision. Both are
 refusals; this result does not prove the busy arm. Preserve that distinction and

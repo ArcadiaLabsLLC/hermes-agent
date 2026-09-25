@@ -36,6 +36,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from tests._downstream.split_package_source import package_source
 from agent_runtime.models import Event
 from agent_runtime.patch_coverage import (
     COVERED_DOMAIN_EVENT_TYPES,
@@ -126,28 +127,31 @@ def _plain(offset: int, event_type: str, **payload):
 #: text is stable under exactly the edits that do not add a reader, and the
 #: failure message below prints the live line numbers so the plan's spelling
 #: stays checkable by hand.
+#: (Lane R3 turned the snapshot's section builder into ``SnapshotFrameBuild``: the
+#: seven readers are the same seven, spelled on ``self`` — the derivability answer
+#: is unchanged.)
 _ACTIVE_ID_READERS: dict[str, str] = {
     "active workspace NAME for the situational HUD": (
-        '(getattr(w, "name", None) for w in workspaces '
-        'if getattr(w, "id", None) == workspace_store.active_id()),'
+        '(getattr(w, "name", None) for w in self.workspaces '
+        'if getattr(w, "id", None) == self.workspace_store.active_id()),'
     ),
     "active realm NAME for the situational HUD": (
-        '(getattr(r, "name", None) for r in realms '
-        'if getattr(r, "id", None) == realm_store.active_id()),'
+        '(getattr(r, "name", None) for r in self.realms '
+        'if getattr(r, "id", None) == self.realm_store.active_id()),'
     ),
     "prompt_observability roster scoping kwarg": (
-        "active_workspace_id=workspace_store.active_id(),"
+        "active_workspace_id=self.workspace_store.active_id(),"
     ),
     "per-row active flag on the workspace summaries": (
-        "active_id=workspace_store.active_id(),"
+        "active_id=self.workspace_store.active_id(),"
     ),
     "per-row active flag on the realm summaries": (
-        "_realm_summary(item, workspaces=workspaces, active_id=realm_store.active_id())"
+        "realm_summary(item, workspaces=self.workspaces, active_id=self.realm_store.active_id())"
     ),
     "top-level active_workspace_id pointer": (
-        '"active_workspace_id": workspace_store.active_id(),'
+        '"active_workspace_id": self.workspace_store.active_id(),'
     ),
-    "top-level active_realm_id pointer": ('"active_realm_id": realm_store.active_id(),'),
+    "top-level active_realm_id pointer": ('"active_realm_id": self.realm_store.active_id(),'),
 }
 
 #: The three readers above whose value does NOT reach the client as a pointer or
@@ -181,7 +185,8 @@ def test_the_snapshot_reads_the_pointers_in_exactly_seven_places():
 
     import agent_runtime.snapshot as snapshot_module
 
-    source = Path(snapshot_module.__file__).read_text(encoding="utf-8")
+    # The package lane R3 split snapshot.py into, read as one text.
+    source = package_source(snapshot_module)
     lines = source.splitlines()
     found: dict[str, list[int]] = {}
     for number, raw in enumerate(lines, 1):
@@ -658,7 +663,8 @@ def test_the_module_docstring_grep_is_not_the_only_census():
 
     import agent_runtime.snapshot as snapshot_module
 
-    source = Path(snapshot_module.__file__).read_text(encoding="utf-8")
+    # The package lane R3 split snapshot.py into, read as one text.
+    source = package_source(snapshot_module)
     assert len(re.findall(r"active_id\(\)", source)) == 7
     # The file really is the module the snapshot builder lives in.
     tree = ast.parse(source)

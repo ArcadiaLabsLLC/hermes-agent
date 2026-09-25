@@ -15,15 +15,15 @@ files moved under S46/S47 and `e887cdf26`):
 ======================= ============================== ========================
 CLI projection          verbs                          builder it now re-keys
 ======================= ============================== ========================
-harness `_workspace_row`  workspace list/show/create/     `_workspace_summary`
+harness `_workspace_row`  workspace list/show/create/     `workspace_summary`
                           rename/bind-realm/set-active/
                           delete --dry-run/archive
-harness `_realm_row`      realm list/show/create/         `_realm_summary`
+harness `_realm_row`      realm list/show/create/         `realm_summary`
                           bind-server/rename/adopt
 board `_board_row`        board list/show/create/update   `board_summary_row`
-board `_card_row`         board card add/edit/move/       `_board_card_row`
+board `_card_row`         board card add/edit/move/       `board_card_row`
                           archive/restore/resolve-conflict
-office `_office_actor_row` office actor upsert/remove/    `_office_actor_summary_row`
+office `_office_actor_row` office actor upsert/remove/    `office_actor_summary_row`
                           restore/resolve-conflict
 ======================= ============================== ========================
 
@@ -57,10 +57,13 @@ from __future__ import annotations
 
 import pytest
 
-import hermes_cli.harness as harness
 from agent_runtime.board_store import BoardStore
 from agent_runtime.office_store import OfficeStore
 from agent_runtime.store import RealmStore, WorkspaceStore
+from hermes_cli.harness_parts import board as board_commands
+from hermes_cli.harness_parts import office as office_commands
+from hermes_cli.harness_parts import realm_commands
+from hermes_cli.harness_parts import workspace_commands
 
 
 #: A secret assignment embedded in ordinary prose. The masked rendering must
@@ -134,7 +137,7 @@ def fixture_store():
 
 
 def test_card_title_is_masked_in_place_not_blanked(fixture_store):
-    row = harness._card_row(fixture_store["card"])
+    row = board_commands._card_row(fixture_store["card"])
     assert row["title"] == MASKED_TITLE
     assert row["title"].startswith("Rotate api_key: ")
     assert row["title"].endswith(" before Friday")
@@ -142,7 +145,7 @@ def test_card_title_is_masked_in_place_not_blanked(fixture_store):
 
 
 def test_card_description_is_masked_in_place_not_blanked(fixture_store):
-    row = harness._card_row(fixture_store["card"], full=True)
+    row = board_commands._card_row(fixture_store["card"], full=True)
     assert row["description"].startswith(MASKED_DESC_HEAD)
     assert "hunter2hunter2hunter2" not in row["description"]
     # The prose AFTER the secret survives — the tail is still there, capped.
@@ -150,7 +153,7 @@ def test_card_description_is_masked_in_place_not_blanked(fixture_store):
 
 
 def test_card_checklist_text_is_masked_in_place_not_blanked(fixture_store):
-    row = harness._card_row(fixture_store["card"], full=True)
+    row = board_commands._card_row(fixture_store["card"], full=True)
     assert row["checklist"] == [{"text": MASKED_CHECKLIST_TEXT, "done": False}]
 
 
@@ -169,7 +172,7 @@ def test_two_secrets_in_one_field_are_both_masked_and_the_prose_survives(fixture
         title="check api_key: one and secret: two, then ship",
         description="plain prose",
     )
-    row = harness._card_row(card)
+    row = board_commands._card_row(card)
     assert row["title"] == "check api_key: [redacted] and secret: [redacted] then ship"
 
 
@@ -181,7 +184,7 @@ def test_a_card_with_no_secret_renders_byte_identically(fixture_store):
         title="Ship the release notes",
         description="No credentials here, just prose. 100% readable.",
     )
-    row = harness._card_row(clean, full=True)
+    row = board_commands._card_row(clean, full=True)
     assert row["title"] == "Ship the release notes"
     assert row["description"] == "No credentials here, just prose. 100% readable."
     assert row["description_truncated"] is False
@@ -191,7 +194,7 @@ def test_the_board_row_cards_are_masked_too(fixture_store):
     """`board show --full` reached cards through its own projection; the leak
     was not confined to the card verbs."""
 
-    row = harness._board_row(fixture_store["boards"], fixture_store["board"], full=True)
+    row = board_commands._board_row(fixture_store["boards"], fixture_store["board"], full=True)
     assert [card["title"] for card in row["cards"]] == [MASKED_TITLE]
 
 
@@ -201,7 +204,7 @@ def test_the_board_row_cards_are_masked_too(fixture_store):
 def test_description_cap_is_marked(fixture_store):
     from agent_runtime.snapshot import BOARD_CARD_DESC_LIMIT
 
-    row = harness._card_row(fixture_store["card"], full=True)
+    row = board_commands._card_row(fixture_store["card"], full=True)
     assert row["description_truncated"] is True
     assert len(row["description"]) <= BOARD_CARD_DESC_LIMIT
 
@@ -211,12 +214,12 @@ def test_board_full_row_accounts_its_card_bound(fixture_store, monkeypatch):
 
     from agent_runtime import snapshot
 
-    monkeypatch.setattr(snapshot, "MAX_BOARD_CARDS_PROJECTED", 1)
+    monkeypatch.setattr(snapshot.boards, "MAX_BOARD_CARDS_PROJECTED", 1)
     boards, board = fixture_store["boards"], fixture_store["board"]
     for i in range(3):
         boards.add_card(board_id=board.board_id, title=f"filler {i}")
 
-    row = harness._board_row(boards, boards.get(board.board_id), full=True)
+    row = board_commands._board_row(boards, boards.get(board.board_id), full=True)
     assert len(row["cards"]) == 1
     assert row["cards_truncated"] == 3
     # The count operators read is the WHOLE column population, not the
@@ -227,6 +230,7 @@ def test_board_full_row_accounts_its_card_bound(fixture_store, monkeypatch):
 def test_office_full_row_accounts_its_actor_bound(fixture_store, monkeypatch):
     from agent_runtime import snapshot
 
+    monkeypatch.setattr(snapshot.offices, "MAX_OFFICE_ACTORS_PROJECTED", 1)
     monkeypatch.setattr(snapshot, "MAX_OFFICE_ACTORS_PROJECTED", 1)
     office, workspace = fixture_store["office"], fixture_store["workspace"]
     for name in ("bob", "carol"):
@@ -235,7 +239,7 @@ def test_office_full_row_accounts_its_actor_bound(fixture_store, monkeypatch):
             {"persona_id": name, "items": [{"item_id": f"it_{name}", "kind": "agent", "position": [0, 0]}]},
         )
 
-    row = harness._office_surface_row(office, workspace.id, full=True)
+    row = office_commands._office_surface_row(office, workspace.id, full=True)
     assert len(row["actor_defs"]) == 1
     assert row["actors_truncated"] == 2
     assert row["actors"] == 3
@@ -245,8 +249,8 @@ def test_uncapped_rows_still_carry_the_accounting_key(fixture_store):
     """The marker is always present, so "no cut" is stated rather than assumed
     from a missing key (the wire's own posture)."""
 
-    board_row = harness._board_row(fixture_store["boards"], fixture_store["board"], full=True)
-    office_row = harness._office_surface_row(fixture_store["office"], fixture_store["workspace"].id, full=True)
+    board_row = board_commands._board_row(fixture_store["boards"], fixture_store["board"], full=True)
+    office_row = office_commands._office_surface_row(fixture_store["office"], fixture_store["workspace"].id, full=True)
     assert board_row["cards_truncated"] == 0
     assert office_row["actors_truncated"] == 0
 
@@ -256,8 +260,8 @@ def test_uncapped_rows_still_carry_the_accounting_key(fixture_store):
 
 def test_board_row_key_sets_are_unchanged(fixture_store):
     boards, board = fixture_store["boards"], fixture_store["board"]
-    skinny = harness._board_row(boards, board)
-    full = harness._board_row(boards, board, full=True)
+    skinny = board_commands._board_row(boards, board)
+    full = board_commands._board_row(boards, board, full=True)
     assert sorted(skinny) == ["active_cards", "columns", "id", "revision", "title", "updated_at", "workspace_id"]
     assert sorted(full) == [
         "active_cards",
@@ -277,7 +281,7 @@ def test_board_row_key_sets_are_unchanged(fixture_store):
 
 def test_board_row_non_secret_values_are_unchanged(fixture_store):
     boards, board = fixture_store["boards"], fixture_store["board"]
-    row = harness._board_row(boards, board, full=True)
+    row = board_commands._board_row(boards, board, full=True)
     assert row["id"] == board.board_id
     assert row["workspace_id"] == fixture_store["workspace"].id
     assert row["title"] == "S48 Board"  # board titles were never masked
@@ -294,8 +298,8 @@ def test_board_row_non_secret_values_are_unchanged(fixture_store):
 
 def test_card_row_key_sets_are_unchanged(fixture_store):
     card = fixture_store["card"]
-    skinny = harness._card_row(card)
-    full = harness._card_row(card, full=True)
+    skinny = board_commands._card_row(card)
+    full = board_commands._card_row(card, full=True)
     assert sorted(skinny) == ["column_id", "id", "priority", "state", "title", "updated_at"]
     assert sorted(full) == [
         "assignee",
@@ -320,7 +324,7 @@ def test_card_row_key_sets_are_unchanged(fixture_store):
 
 def test_card_row_non_secret_values_are_unchanged(fixture_store):
     card = fixture_store["card"]
-    row = harness._card_row(card, full=True)
+    row = board_commands._card_row(card, full=True)
     assert row["id"] == card.card_id
     assert row["board_id"] == card.board_id
     assert row["column_id"] == "col_queued"
@@ -342,7 +346,7 @@ def test_workspace_row_is_value_identical_to_before(fixture_store):
     Pinned literally so a future "while we're here" edit is a red test."""
 
     workspace = fixture_store["workspace"]
-    skinny = harness._workspace_row(workspace)
+    skinny = workspace_commands._workspace_row(workspace)
     assert skinny == {
         "id": workspace.id,
         "name": "s48-ws",
@@ -356,7 +360,7 @@ def test_workspace_row_is_value_identical_to_before(fixture_store):
         "isolation": workspace.isolation,
         "updated_at": workspace.updated_at,
     }
-    full = harness._workspace_row(workspace, full=True)
+    full = workspace_commands._workspace_row(workspace, full=True)
     assert full == {
         **skinny,
         "kind": "workspace",
@@ -370,7 +374,7 @@ def test_workspace_row_is_value_identical_to_before(fixture_store):
 
 def test_realm_row_is_value_identical_to_before(fixture_store):
     realm = fixture_store["realm"]
-    skinny = harness._realm_row(realm)
+    skinny = realm_commands._realm_row(realm)
     assert skinny == {
         "id": realm.id,
         "name": "s48-realm",
@@ -381,7 +385,7 @@ def test_realm_row_is_value_identical_to_before(fixture_store):
         "sync": None,
         "updated_at": realm.updated_at,
     }
-    full = harness._realm_row(realm, full=True)
+    full = realm_commands._realm_row(realm, full=True)
     assert full == {
         **skinny,
         "kind": "realm",
@@ -396,7 +400,7 @@ def test_realm_row_is_value_identical_to_before(fixture_store):
 
 def test_office_actor_row_is_value_identical_to_before(fixture_store):
     actor = fixture_store["actor"]
-    skinny = harness._office_actor_row(actor)
+    skinny = office_commands._office_actor_row(actor)
     assert skinny == {
         "id": actor.actor_key,
         "workspace_id": fixture_store["workspace"].id,
@@ -407,7 +411,7 @@ def test_office_actor_row_is_value_identical_to_before(fixture_store):
         "revision": actor.revision,
         "updated_at": actor.updated_at,
     }
-    full = harness._office_actor_row(actor, full=True)
+    full = office_commands._office_actor_row(actor, full=True)
     assert full == {
         **skinny,
         "backing_profile": "alice",
@@ -430,8 +434,8 @@ def test_office_actor_row_is_value_identical_to_before(fixture_store):
 
 def test_office_surface_row_key_sets_are_unchanged(fixture_store):
     office, workspace = fixture_store["office"], fixture_store["workspace"]
-    skinny = harness._office_surface_row(office, workspace.id)
-    full = harness._office_surface_row(office, workspace.id, full=True)
+    skinny = office_commands._office_surface_row(office, workspace.id)
+    full = office_commands._office_surface_row(office, workspace.id, full=True)
     assert sorted(skinny) == ["actors", "conflicts", "folders", "revision", "updated_at", "workspace_id"]
     assert sorted(full) == [
         "actor_defs",
@@ -485,8 +489,8 @@ def test_office_surface_row_marks_which_conflict_keys_are_filename_guesses(fixtu
     )
 
     office = fixture_store["office"]
-    skinny = harness._office_surface_row(office, workspace.id)
-    full = harness._office_surface_row(office, workspace.id, full=True)
+    skinny = office_commands._office_surface_row(office, workspace.id)
+    full = office_commands._office_surface_row(office, workspace.id, full=True)
 
     # The skinny row is a COUNT and no tokens, so it cannot mislead — and it
     # counts both, because both are conflicts.
@@ -505,36 +509,40 @@ def test_workspace_row_delegates_to_the_snapshot_builder(fixture_store, monkeypa
 
     from agent_runtime import snapshot
 
-    real = snapshot._workspace_summary
+    real = snapshot.workspace_summary
 
     def _tagged(workspace, **kwargs):
         row = real(workspace, **kwargs)
         row["name"] = "FROM-BUILDER"
         return row
 
-    monkeypatch.setattr(snapshot, "_workspace_summary", _tagged)
-    assert harness._workspace_row(fixture_store["workspace"])["name"] == "FROM-BUILDER"
+    monkeypatch.setattr(snapshot.summaries, "workspace_summary", _tagged)
+    monkeypatch.setattr(snapshot.sections, "workspace_summary", _tagged)
+    monkeypatch.setattr(snapshot, "workspace_summary", _tagged)
+    assert workspace_commands._workspace_row(fixture_store["workspace"])["name"] == "FROM-BUILDER"
 
 
 def test_realm_row_delegates_to_the_snapshot_builder(fixture_store, monkeypatch):
     from agent_runtime import snapshot
 
-    real = snapshot._realm_summary
+    real = snapshot.realm_summary
 
     def _tagged(realm, **kwargs):
         row = real(realm, **kwargs)
         row["name"] = "FROM-BUILDER"
         return row
 
-    monkeypatch.setattr(snapshot, "_realm_summary", _tagged)
-    assert harness._realm_row(fixture_store["realm"])["name"] == "FROM-BUILDER"
+    monkeypatch.setattr(snapshot.summaries, "realm_summary", _tagged)
+    monkeypatch.setattr(snapshot.sections, "realm_summary", _tagged)
+    monkeypatch.setattr(snapshot, "realm_summary", _tagged)
+    assert realm_commands._realm_row(fixture_store["realm"])["name"] == "FROM-BUILDER"
 
 
 def test_board_and_card_rows_delegate_to_the_snapshot_builders(fixture_store, monkeypatch):
     from agent_runtime import snapshot
 
     real_board = snapshot.board_summary_row
-    real_card = snapshot._board_card_row
+    real_card = snapshot.board_card_row
 
     def _tagged_board(board, cards, **kwargs):
         row = real_board(board, cards, **kwargs)
@@ -546,18 +554,20 @@ def test_board_and_card_rows_delegate_to_the_snapshot_builders(fixture_store, mo
         row["priority"] = "FROM-BUILDER"
         return row
 
+    monkeypatch.setattr(snapshot.boards, "board_summary_row", _tagged_board)
     monkeypatch.setattr(snapshot, "board_summary_row", _tagged_board)
-    monkeypatch.setattr(snapshot, "_board_card_row", _tagged_card)
+    monkeypatch.setattr(snapshot.boards, "board_card_row", _tagged_card)
+    monkeypatch.setattr(snapshot, "board_card_row", _tagged_card)
     boards, board = fixture_store["boards"], fixture_store["board"]
-    assert harness._board_row(boards, board)["title"] == "FROM-BUILDER"
-    assert harness._card_row(fixture_store["card"])["priority"] == "FROM-BUILDER"
+    assert board_commands._board_row(boards, board)["title"] == "FROM-BUILDER"
+    assert board_commands._card_row(fixture_store["card"])["priority"] == "FROM-BUILDER"
 
 
 def test_office_rows_delegate_to_the_snapshot_builders(fixture_store, monkeypatch):
     from agent_runtime import snapshot
 
     real_surface = snapshot.office_summary_row
-    real_actor = snapshot._office_actor_summary_row
+    real_actor = snapshot.office_actor_summary_row
 
     def _tagged_surface(surface, actors, **kwargs):
         row = real_surface(surface, actors, **kwargs)
@@ -569,8 +579,10 @@ def test_office_rows_delegate_to_the_snapshot_builders(fixture_store, monkeypatc
         row["persona_id"] = "FROM-BUILDER"
         return row
 
+    monkeypatch.setattr(snapshot.offices, "office_summary_row", _tagged_surface)
     monkeypatch.setattr(snapshot, "office_summary_row", _tagged_surface)
-    monkeypatch.setattr(snapshot, "_office_actor_summary_row", _tagged_actor)
+    monkeypatch.setattr(snapshot.offices, "office_actor_summary_row", _tagged_actor)
+    monkeypatch.setattr(snapshot, "office_actor_summary_row", _tagged_actor)
     office, workspace = fixture_store["office"], fixture_store["workspace"]
-    assert harness._office_surface_row(office, workspace.id)["folders"] == ["FROM-BUILDER"]
-    assert harness._office_actor_row(fixture_store["actor"])["persona_id"] == "FROM-BUILDER"
+    assert office_commands._office_surface_row(office, workspace.id)["folders"] == ["FROM-BUILDER"]
+    assert office_commands._office_actor_row(fixture_store["actor"])["persona_id"] == "FROM-BUILDER"

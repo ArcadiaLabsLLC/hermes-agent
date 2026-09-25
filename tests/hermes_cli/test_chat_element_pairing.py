@@ -8,7 +8,7 @@ elements came out CROSSED. Element `[0]`'s `summary` named one skill while its
 `read_file` pairs in the same turn. A trace an operator debugs from was
 attributing each call's input to its neighbour.
 
-The emitter is an exec'd command part, so these drive it exactly the way the
+These drive the emitter (`persona/chat_events.py`) exactly the way the
 mission-chat handler does: construct it with frames suppressed and feed it the
 runner's `run.tool.started` / `run.tool.finished` progress payloads.
 """
@@ -16,12 +16,12 @@ runner's `run.tool.started` / `run.tool.finished` progress payloads.
 from __future__ import annotations
 
 import pytest
+from hermes_cli.harness_parts.persona import chat_events
 
 
 def emitter(**kwargs):
-    from hermes_cli import harness
 
-    return harness._ChatProtocolV2Emitter(
+    return chat_events._ChatProtocolV2Emitter(
         turn_id="turn_1",
         client_message_id="client_1",
         emit_frames=False,

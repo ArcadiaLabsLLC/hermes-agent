@@ -39,12 +39,12 @@ from agent_runtime.mcp_admission import (
     teardown_mcp_admission,
 )
 from agent_runtime.profile_runner import _apply_chat_compaction_threshold
-from agent_runtime.prompt_observability import (
+from agent_runtime.prompt_observability.context_budget import (
     COMPACTION_BASIS_LIVE_COMPRESSOR,
     COMPACTION_BASIS_MODEL_RATIO,
     _context_budget,
-    _safe_final_model_input,
 )
+from agent_runtime.prompt_observability.safe_views import _safe_final_model_input
 from agent_runtime.runtime_config import MissionChatConfig
 
 

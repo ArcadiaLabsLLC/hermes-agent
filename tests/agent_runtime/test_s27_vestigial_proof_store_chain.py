@@ -20,13 +20,23 @@ from __future__ import annotations
 
 import inspect
 
+import pkgutil
+
 from agent_runtime import prompt_observability, runtime_hud, snapshot
+from agent_runtime.prompt_observability import snapshot_frame
+
+#: ``prompt_observability`` is a package since lane R2's MOVE: the absence scan
+#: reads every module in it, not the ``__init__`` that only re-exports.
+PROMPT_OBSERVABILITY_MODULES = tuple(
+    __import__(f"{prompt_observability.__name__}.{info.name}", fromlist=["_"])
+    for info in pkgutil.iter_modules(prompt_observability.__path__)
+)
 
 
 PROOF_STORE_FREE_SIGNATURES = (
     (snapshot, "build_snapshot"),
     (snapshot, "_build_snapshot_uncoalesced"),
-    (prompt_observability, "snapshot_prompt_observability"),
+    (snapshot_frame, "snapshot_prompt_observability"),
     (runtime_hud, "resolve_situational_hud"),
     (runtime_hud, "situational_hud_for_instance"),
 )
@@ -47,7 +57,7 @@ def test_no_module_in_the_chain_still_mentions_proof_store():
 
     offenders = [
         module.__name__
-        for module in (snapshot, prompt_observability, runtime_hud)
+        for module in (snapshot, prompt_observability, *PROMPT_OBSERVABILITY_MODULES, runtime_hud)
         if "proof_store" in inspect.getsource(module)
     ]
     assert offenders == []

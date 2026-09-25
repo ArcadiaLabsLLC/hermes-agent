@@ -347,7 +347,7 @@ class _Sink:
 
 
 def _proxy(mirror=None):
-    from hermes_cli.harness_parts.serve import _LineFrameProxy
+    from hermes_cli.harness_parts.serve.frames import _LineFrameProxy
 
     sink = _Sink()
     proxy = _LineFrameProxy(sink, "stderr")

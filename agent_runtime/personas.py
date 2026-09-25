@@ -467,7 +467,7 @@ def all_registered_toolsets() -> list[str]:
 # S1). It only lived under ``blueprints/`` by accident of filing: promoting a raw
 # Hermes profile into a persisted persona is a persona-lifecycle operation, not
 # stage routing, and its live callers are the blueprint slot resolver *and* the
-# upstream ``POST /api/profiles/{name}/promote`` endpoint, which has nothing to do
+# ``POST /api/plugins/eternia-harness/profiles/{name}/promote`` endpoint, which has nothing to do
 # with stage graphs. It has to outlive the blueprint package.
 #
 def promote_profile_to_persona(
@@ -543,7 +543,7 @@ def promote_profile_to_persona(
             # S66 BUGFIX: this called ``profile_chat_toolsets(profile_name)``
             # with no persona list, so ``declared`` was always ``[]`` and the
             # promoted persona was ALWAYS minted with zero toolsets — reachable
-            # live through ``POST /api/profiles/{name}/promote``. The declared
+            # live through ``POST /api/plugins/eternia-harness/profiles/{name}/promote``. The declared
             # set is right here: ``known`` is the merged persona map this
             # function already built two branches up to look for a template.
             toolsets=profile_chat_toolsets(profile_name, list(known.values())),

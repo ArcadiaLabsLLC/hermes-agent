@@ -53,6 +53,7 @@ from agent_runtime.serve_socket import (
     SocketOwnerLock,
 )
 from hermes_cli.harness_parts import serve as serve_module
+from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 from hermes_cli.harness_parts.serve import serve_loop
 
 WAIT = 20.0
@@ -177,7 +178,7 @@ def gateway_on(monkeypatch):
     """
 
     monkeypatch.setattr(
-        serve_module, "gateway_listen_config", lambda: ("127.0.0.1", 0)
+        serve_gateway_listener, "gateway_listen_config", lambda: ("127.0.0.1", 0)
     )
 
 
@@ -417,7 +418,7 @@ def test_the_no_listener_block_is_pure_and_answers_without_a_runtime(monkeypatch
     boot four runtimes."""
 
     monkeypatch.setattr(
-        serve_module, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
+        serve_gateway_listener, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
     )
     build = serve_module.gateway_block_when_no_listener
 
@@ -453,7 +454,7 @@ def test_the_no_listener_block_is_pure_and_answers_without_a_runtime(monkeypatch
     # complete answer — an explanation with a hole in it is not an explanation.
     assert build({}, root_resolved=True)["reason"] == "unknown"
 
-    monkeypatch.setattr(serve_module, "gateway_listen_config", lambda: (None, 0))
+    monkeypatch.setattr(serve_gateway_listener, "gateway_listen_config", lambda: (None, 0))
     assert build({"outcome": "lock_held_by"}, root_resolved=True) == {
         "outcome": "disabled"
     }
@@ -519,7 +520,7 @@ def test_the_loopback_lane_is_byte_identical_with_the_gateway_lane_up(
             )
 
     monkeypatch.setattr(
-        serve_module, "gateway_listen_config", lambda: ("127.0.0.1", 0)
+        serve_gateway_listener, "gateway_listen_config", lambda: ("127.0.0.1", 0)
     )
     with running_serve() as both:
         assert both.ready["gateway"]["outcome"] == "listening"

@@ -16,10 +16,11 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
 from hermes_state_common import _BOUNDARY_END_REASONS
+from hermes_time import safe_strftime
 
 # Hidden from browsing/searching — integrations (HERMES_SESSION_SOURCE=tool), delegate
 # subagent runs, kanban workers are not the user's history.
-_HIDDEN_SESSION_SOURCES = ("kanban", "subagent", "tool", "agent_runtime_persona_chat_scratch")
+_HIDDEN_SESSION_SOURCES = ("kanban", "subagent", "tool")
 # Searchable but DEMOTED below interactive sessions: cron vocabulary dominates bare
 # BM25 and starves out the user's own sessions ("recall blindness").
 # Automation sources that are kept searchable but DEMOTED below interactive sessions in discover ranking.
@@ -80,7 +81,7 @@ def _format_timestamp(ts: Union[int, float, str, None]) -> str:
         return "unknown"
     if isinstance(ts, str) and not ts.replace(".", "").replace("-", "").isdigit():
         return ts
-    return _quiet(lambda: datetime.fromtimestamp(float(ts)).strftime("%B %d, %Y at %I:%M %p"), str(ts),
+    return _quiet(lambda: safe_strftime(datetime.fromtimestamp(float(ts)), "%B %d, %Y at %I:%M %p"), str(ts),
                   "Failed to format timestamp %s: %s", ts, with_exc=True)
 
 
@@ -650,7 +651,19 @@ def check_session_search_requirements() -> bool:
 SESSION_SEARCH_SCHEMA = {
     "name": "session_search",
     "description": (
-        "Search conversation history (FTS5): query to discover; session_id + around_message_id to scroll; session_id to read; no args for recent. Paste returned link verbatim when citing a session. If given a live source (URL/file/account), inspect that first. Call tool_describe for shapes and search syntax."
+        "Recall past conversations: search or read old Hermes sessions (FTS5), or "
+        "scroll inside one. Four shapes, picked by args: `query` = discovery "
+        "(top-N matching sessions, top result fully hydrated); `session_id` + "
+        "`around_message_id` = scroll (window of messages around an anchor); "
+        "`session_id` alone = read a whole session — how you resolve an "
+        "`@session:<profile>/<id>` link (split on '/' into profile + id); no "
+        "args = browse recent sessions. Results are actual DB messages, no LLM. "
+        "Searches conversation history ONLY — when the user gave a direct "
+        "source (URL, file, contact, live system), inspect that first; never "
+        "conclude 'not found' from history alone. Use for questions about past "
+        "conversations: 'what did we do about X', 'where did we leave Y'. When "
+        "referring the user to a session, write its `link` value verbatim "
+        "inline (it renders as a titled link)."
     ),
     "parameters": {
         "type": "object",
@@ -781,21 +794,3 @@ registry.register(
                                     "after", "before", "exclude_session_ids")}),
     check_fn=check_session_search_requirements,
     emoji="🔍")
-
-FULL_SESSION_SEARCH_DESCRIPTION = (
-"Recall past conversations: search or read old Hermes sessions (FTS5), or "
-        "scroll inside one. Four shapes, picked by args: `query` = DISCOVERY "
-        "(top-N matching sessions, top result fully hydrated); `session_id` + "
-        "`around_message_id` = SCROLL (window of messages around an anchor); "
-        "`session_id` alone = read a whole session — how you resolve an "
-        "`@session:<profile>/<id>` link (split on '/' into profile + id); no "
-        "args = BROWSE recent sessions. To scroll FORWARD, use messages[-1]['id'] "
-        "as around_message_id; backward, use the first message's id. "
-        "Results are actual DB messages, no LLM. SOURCE-FIRST LIMIT: "
-        "Searches conversation history ONLY — when the user gave a direct "
-        "source (URL, file, contact, live system), inspect that first and use session_search as secondary; never "
-        "conclude 'not found' from history alone. Use for questions about past "
-        "conversations: 'what did we do about X', 'where did we leave Y'. When "
-        "referring the user to a session, write its `link` value verbatim "
-        "inline (it renders as a titled link)."
-)

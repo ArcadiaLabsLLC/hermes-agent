@@ -61,7 +61,7 @@ another install.
   `serve_instances/<pid>.json` with `boot_id`, `build`, `service` and
   `starter_pid`; ends with `<pid>.ended.json` naming why; under `--service`
   keeps `<pid>.stderr.log` (02 § serve_instances, 04 § Shutdown). A machine
-  has ONE owner per root — `agent_runtime/serve_socket.py`'s OS lock decides
+  has ONE owner per root — `agent_runtime/serve_socket/`'s OS lock decides
   it and a dead owner yields (R-L2).
 - **Paired device** — `gateway/devices.json`, one row per credential a
   LAUNCHER holds: `{device_id, name, tier, verifier, …, account_device_id}`

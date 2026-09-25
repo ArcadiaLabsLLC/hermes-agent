@@ -672,9 +672,10 @@ DEFAULT_CONFIG = {
         # guards. Example: 1800 = 30 min.
         "idle_compact_after_seconds": 0,
     },
-    # Anthropic prompt caching (Claude via OpenRouter or native API). cache_ttl: "5m" | "1h"; other
-    # non-falsy values are ignored; falsy (false, null, "off", "disabled", "no", "none") disables
-    # caching.
+    # Anthropic prompt caching (Claude via OpenRouter or native API). cache_ttl: "5m" | "1h" | "auto"
+    # (auto = 1h for human-paced sessions — cli/tui/desktop/messaging — and 5m for subagent, cron,
+    # oneshot, webhook, kanban, api, tool, batch); other non-falsy values are ignored; falsy (false, null, "off",
+    # "disabled", "no", "none") disables caching.
     "prompt_caching": {"cache_ttl": "5m"},
     # OpenRouter settings. response_cache: X-OpenRouter-Cache header — identical requests return
     # cached responses at zero billing; independent of Anthropic prompt caching. response_cache_ttl:
@@ -805,11 +806,8 @@ DEFAULT_CONFIG = {
         # calls: ...]` lines; False shows them inline.
         "resume_skip_tool_only": True,
         "busy_input_mode": "interrupt",  # interrupt | queue | steer
-        "busy_text_mode": "interrupt",   # interrupt | queue (normal text follow-ups while busy)
-        "background_process_agent_turns": False,  # legacy notify_on_complete full agent turn
-        # When busy_input_mode="steer", suppress only the visible
-        # "Steered into current run" confirmation bubble by setting this false.
-        # The mid-turn steering itself still happens.
+        # steer mode: false hides only the "Steered into current run" bubble; steering itself still
+        # happens.
         "busy_steer_ack_enabled": True,
         # Classic CLI multiline beyond Alt+Enter: Ctrl+J newline, trailing backslash+Enter
         # continues, Shift+Enter reported distinctly. False restores the c-j submit fallback for
@@ -840,7 +838,7 @@ DEFAULT_CONFIG = {
         # Gateway notices when a terminal(background=true) process finishes: "concise" (one line;
         # failures append an output tail) | "all" (running updates + final raw output) | "result"
         # (final raw only) | "error" (raw only on non-zero exit) | "off".
-        "background_process_notifications": "result",
+        "background_process_notifications": "concise",
         "streaming": False,
         "timestamps": False,      # message timestamps (CLI labels, TUI rows, desktop transcript)
         "timestamp_format": "%H:%M",  # strftime format, e.g. "%b-%d %H:%M"
@@ -974,52 +972,6 @@ DEFAULT_CONFIG = {
         },
     },
 
-    # Web dashboard settings
-    # ── Remote gateway (agent-runtime serve socket lane) ──────────────────────
-    #
-    # Stage 1 of the remote-gateway plan
-    # (docs/agent-runtime-harness/archive/remote-gateway.md) reads these, and
-    # they are what bind the second listener. Off by default, forever.
-    #
-    # **The key is `remote_gateway`, and Stage 0a's `gateway` was a defect
-    # rather than a rename.** Stage 0a declared this block under `"gateway"`
-    # and its receipts say the keys were "declared, read by nothing". The first
-    # half was not true: `"gateway"` is ALREADY a top-level key in this same
-    # dict literal (the messaging gateway's, further down), and a duplicate key
-    # in a Python dict literal does not merge or warn — the later one wins and
-    # the earlier one is discarded at parse time. So `gateway.listen` never
-    # existed to be read, and "read by nothing" hid that: a key nobody reads and
-    # a key that is not there look identical from every angle except a reader's.
-    # Found by becoming the first reader, which is the only thing that could
-    # have found it. `test_config_defaults_has_no_duplicate_keys` now walks the
-    # source AST so the next one is a test failure instead of a silent drop.
-    #
-    # The rename is also the honest spelling. Stage 0a's own comment said the
-    # word `gateway` is overloaded in this codebase and that the two lanes must
-    # not be conflated — `hermes gateway start/stop/restart`, the `gateway_*`
-    # keys under `agent:`, and `platforms.api_server` are the chat-platform
-    # gateway and are unrelated to this block. Two lanes cannot share one key
-    # and stay unconflated; that was the contradiction the duplicate made
-    # visible.
-    "remote_gateway": {
-        # Off by default, and that is a security posture rather than a
-        # convenience default: the runtime executes agents with tools, so a
-        # listener beyond loopback is opt-in per install, forever.
-        #
-        # A STRING when it is on: the interface to bind. `0.0.0.0` is every
-        # interface; a specific address pins it to one network. Boolean `false`
-        # is off, and a boolean `true` is deliberately NOT accepted as "guess an
-        # interface for me" — an operator opening a port onto a LAN should have
-        # to say which one.
-        "listen": False,
-        # 0 = ephemeral, matching the loopback socket lane's behaviour (the real
-        # port is advertised on `ready` and in
-        # `<store_root>/serve_instances/<pid>.json`). A FIXED port is the usual
-        # answer here rather than the exotic one: an operator has to write a
-        # firewall rule for it and a paired phone has to find it again after a
-        # restart.
-        "port": 0,
-    },
     "dashboard": {
         # Visual theme: "default" | "midnight" | "ember" | "mono" | "cyberpunk" | "rose"
         "theme": "default",
@@ -1100,6 +1052,10 @@ DEFAULT_CONFIG = {
         # "edge" (free) | "elevenlabs" (premium) | "openai" | "xai" | "minimax" | "mistral" |
         # "gemini" | "deepinfra" | "neutts" (local) | "kittentts" (local) | "piper" (local)
         "provider": "edge",
+        # Seconds a local engine (Piper, KittenTTS) stays loaded after the last speech toggle
+        # turns off, so a quick re-activation (wake word, voice-chat restart) skips the reload.
+        # 0 unloads immediately.
+        "keep_warm_seconds": 60,
         "streaming": {
             # Shortest first sentence (chars) spoken on its own by streaming TTS; shorter openers
             # ride with the next sentence. 20 suits English; CJK voice setups use ~6.
@@ -1342,7 +1298,7 @@ DEFAULT_CONFIG = {
         # Periodic built-in memory review; 0 when an external provider auto-extracts.
         "nudge_interval": 10,
         # External memory provider plugin (empty = built-in only); only ONE at a time: "openviking",
-        # "mem0", "hindsight", "holographic", "retaindb", "byterover".
+        # "mem0", "holographic", "retaindb", "byterover", or a catalog-installed one ("hindsight").
         "provider": "",
     },
     # Subagent delegation — override the provider:model used by delegate_task so children run on a
@@ -1506,6 +1462,10 @@ DEFAULT_CONFIG = {
         # curator ledger` / `rollback <entry-id>`. Never a gate — failures can't block.
         # See #79686.
         "ledger": True,
+        # Size cap for that ledger: once the file grows past this, the next append rewrites it
+        # through the unchanged-file dedup and, if still over, drops the oldest entries (0 = keep
+        # the ledger append-only forever, the previous behaviour).
+        "ledger_max_bytes": 5 * 1024 * 1024,
     },
 
     # Curator — background maintenance of AGENT-CREATED skills (never hub-installed): marks
@@ -1728,9 +1688,16 @@ DEFAULT_CONFIG = {
     # Plugin system. `enabled`/`disabled` lists are written by `hermes plugins enable|disable` and
     # deliberately omitted here so an empty default never clobbers a user allow-list.
     "plugins": {
+        # Deadline (seconds) for one plugin Git clone, fetch or checkout. Slow repositories may
+        # need more time; each network operation is capped at one hour.
+        "clone_timeout_seconds": 300,
         # Wall-clock cap (seconds) for one in-process Python plugin hook callback; shell hooks keep
         # their own per-entry `timeout`. 0 = no cap (sync call on agent thread). Max 600.
         "hook_callback_timeout": 30,
+        # Deadline (seconds) for one plugin's import + register() at load. A plugin that overruns it is
+        # skipped with the reason "load timed out" and the rest keep loading; the stuck worker thread is
+        # abandoned. 0 = no deadline (load inline). Max 600.
+        "load_timeout_seconds": 10,
         # Keep loading external plugins that still import pre-decomposition module paths after the
         # 2026-09-14 removal date (see COMPAT_MANIFEST.md, `hermes plugins compat`). Stopgap only: the
         # old paths raise ImportError once the compat layer is actually removed.
@@ -1900,16 +1867,8 @@ DEFAULT_CONFIG = {
         "review_dispatch": True,
         # Seconds between dispatcher ticks. Lower = snappier pickup; higher = less SQL pressure.
         "dispatch_interval_seconds": 60,
-        # Seconds before a running task claim is considered stale if the
-        # worker does not heartbeat. Long supervisor-style cards can spend
-        # >15 minutes inside one external agent/tool call before they can
-        # emit `kanban_heartbeat`, so keep the default comfortably above the
-        # old 15m hardcoded TTL while still allowing genuinely dead workers
-        # to recover automatically.
-        "claim_ttl_seconds": 45 * 60,
-        # Auto-block after this many consecutive non-success attempts for the
-        # same task/profile (spawn_failed, timed_out, or crashed). Reassignment
-        # resets the streak for the new profile.
+        # Auto-block after this many consecutive non-success attempts (spawn_failed, timed_out,
+        # crashed) for the same task/profile. Reassignment resets the streak.
         "failure_limit": 2,
         # Worker stdout/stderr log rotation at spawn time (2 MiB + one backup). Raise to keep more
         # early failure evidence from long-running workers.
@@ -2510,6 +2469,25 @@ DEFAULT_CONFIG = {
     "paste_collapse_threshold_fallback": 5,
     "paste_collapse_char_threshold": 2000,
 
+    # Bot Desktop: a headless Xfce screen per profile on the gateway host (Linux), streamed to Hermes
+    # Desktop where a human can watch, take over (logins, 2FA, CAPTCHAs) and hand back. `hermes computer-use screen`.
+    "bot_desktop": {
+        "geometry": "1440x900",
+        # Opt-in: start the screen automatically the first time computer_use needs a display on a headless
+        # host. Off by default so installing TigerVNC for other reasons never yields a screen nobody asked
+        # for; Hermes Desktop's Screen pane offers Start and this toggle.
+        "auto_start": False,
+        # Refuse to start below this much free memory (MB), measured on the host or its container cgroup,
+        # whichever is tighter. Xvnc + Xfce idle at ~220 MB and a takeover's browser adds 0.5-1 GB, so a
+        # screen with one page runs past 1 GB; the kernel OOM killer picks its victim by score, so on a
+        # small instance the loser is the dashboard or the gateway rather than the desktop. 0 disables the
+        # check.
+        "min_free_memory_mb": 1536,
+        # Stop a screen nobody has used (no computer_use action, browser spawn, viewer or takeover) for this
+        # long; it restarts on the next use. Idle Xvnc + Xfce hold ~220 MB, an abandoned browser far more.
+        # 0 keeps screens up until stopped.
+        "idle_stop_minutes": 30,
+    },
     "computer_use": {
         # cua-driver's upstream PostHog telemetry defaults ON; Hermes sets
         # CUA_DRIVER_RS_TELEMETRY_ENABLED=0 in every child env unless this is true.
@@ -2521,6 +2499,17 @@ DEFAULT_CONFIG = {
         # capture_after mode: som = screenshot + overlays; ax = elements only, no PNG (faster);
         # vision = pixels only.
         "capture_after_mode": "som",
+        # Bound cua-driver's accessibility-tree WALK on every capture (get_window_state max_elements).
+        # _DEFAULT_MAX_ELEMENTS in tools/computer_use/tool.py caps the SURFACED element list at 100 and
+        # spills the rest to a cache file, so an unbounded walk pays for nodes the model never sees:
+        # measured on macOS (cua-driver 0.28.2, M-series) a 1,444-node Chrome window went 540 ms -> 83 ms
+        # and a 456-node Finder window 6.9 s -> 0.6 s at 200, with the returned elements a prefix of the
+        # unbounded walk. 0 = driver default (2,000 elements / depth 25) — the pre-fix behaviour.
+        # ~400 keeps the full first 100 visible elements on a pathological tree, at ~1.4 s on Finder;
+        # the walk's cost grows with the bound, so keep it in the low hundreds. This caps the nodes
+        # COLLECTED, not the walk's wall clock: a target whose AX surface exceeds the driver's own 20 s
+        # walk timeout still fails at every bound (measured; a depth bound does not help there either).
+        "ax_max_elements": 200,
         # Disable cua-driver's cursor overlay, which can peg a core when idle (macOS redraw loop;
         # Linux/WSL2 idle spin). None = auto (off on macOS + headless/ WSL2 Linux, on elsewhere);
         # True = always disable; False = always enable.
@@ -2645,22 +2634,6 @@ DEFAULT_CONFIG = {
         # e.g. "us-central1" only if your models are region-pinned.
         "region": "global",
     },
-
-    # Character-sheet authoring (agent/charsheet/). Behavioural knobs only —
-    # WHICH image backend generates a sheet is `image_gen`'s business, not this
-    # section's.
-    "charsheet": {
-        # Ceiling on ONE image-provider call, in seconds; 0 disables the bound.
-        # The pipeline had none, and `imagegen.generate` takes no timeout
-        # parameter to pass one through, so a wedged backend held a serve pool
-        # worker for as long as its OWN client allowed — 600s x retries on the
-        # bare `openai.OpenAI()` path. 300 is the largest ceiling any shipped
-        # backend sets for itself, so raising this is only ever needed for a
-        # provider slower than all of them. Authority and full reasoning:
-        # `agent/charsheet/pipeline.py::PROVIDER_TIMEOUT_SECONDS`.
-        "provider_timeout_seconds": 300,
-    },
-
     # Managed llama.cpp runtime (docs: user-guide/local-models): official binaries, one supervised
     # llama-server in router mode. No context/VRAM knobs by design.
     "local_runtime": {
@@ -2676,7 +2649,7 @@ DEFAULT_CONFIG = {
         # Extra ports detection probes for an external llama-server (besides 8080).
         "detect_ports": [],
     },
-    "_config_version": 45,  # Config schema version - bump this when adding new required fields
+    "_config_version": 46,  # Config schema version - bump this when adding new required fields
 }
 
 

@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 
 import pytest
+from hermes_cli.harness_parts.persona import instance_commands
 
 
 def _harness_commands() -> dict:
@@ -103,7 +104,6 @@ def test_return_summary_keeps_the_ref_flags_that_render_into_the_parent_message(
 
 
 def test_return_summary_handler_forwards_no_mission_record_keys(monkeypatch, capsys):
-    from hermes_cli import harness
 
     captured: dict = {}
 
@@ -117,14 +117,14 @@ def test_return_summary_handler_forwards_no_mission_record_keys(monkeypatch, cap
             "parent_session_id": kwargs["parent_session_id"],
         }
 
-    monkeypatch.setattr(harness, "return_summary_to_parent_session", _fake_return)
+    monkeypatch.setattr(instance_commands, "return_summary_to_parent_session", _fake_return)
 
     parser = _persona_instance_commands()["return-summary"]
     args = parser.parse_args(
         _return_summary_argv("--proof-id", "stagec_proof_s22", "--json")
     )
 
-    assert harness._cmd_persona_instance_return_summary(args) == 0
+    assert instance_commands._cmd_persona_instance_return_summary(args) == 0
     capsys.readouterr()
 
     assert "task_id" not in captured

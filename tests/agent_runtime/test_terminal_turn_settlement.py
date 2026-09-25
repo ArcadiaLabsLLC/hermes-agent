@@ -31,10 +31,10 @@ from agent_runtime.operator_channels import (
 from agent_runtime.persona_chat_history import (
     PERSONA_TURN_BUDGET_EXHAUSTED_KIND,
     PERSONA_TURN_INTERRUPTED_KIND,
-    TERMINAL_TURN_MARKERS,
-    _safe_recent_messages,
-    _terminal_turn_marker_rows,
 )
+from agent_runtime.persona_chat_history.history_rows import _safe_recent_messages
+from agent_runtime.persona_chat_history.markers import _terminal_turn_marker_rows
+from agent_runtime.persona_chat_history.vocabulary import TERMINAL_TURN_MARKERS
 from agent_runtime.states import WorkerSessionState
 from agent_runtime.transcript_order import TURN_SEQ_TERMINAL
 

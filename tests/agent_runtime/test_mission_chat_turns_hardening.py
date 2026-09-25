@@ -26,6 +26,7 @@ from agent_runtime.mission_chat_turns import (
     next_turn_state,
     persist_mission_chat_turn,
 )
+from hermes_cli.harness_parts.persona import chat_events
 
 _SEGMENT = {
     "kind": "segment",
@@ -539,13 +540,11 @@ def test_chat_emitter_carries_explicit_empty_todo_state_on_both_lanes():
     # explicit empty list, and it must ride BOTH the turn-store element and the
     # live tool.finished frame so the launcher can clear its panel. A non-todo
     # tool still gains no key on either lane.
-    # The emitter is exec'd into the `harness` namespace (harness_parts pattern),
-    # so it resolves as `harness._ChatProtocolV2Emitter`, not a standalone import.
-    from hermes_cli import harness
+    # The emitter lives in `harness_parts/persona/chat_events.py` (lane H3).
 
     def _drive(payload):
         frames: list[dict] = []
-        emitter = harness._ChatProtocolV2Emitter(
+        emitter = chat_events._ChatProtocolV2Emitter(
             turn_id="turn_todo", client_message_id="m1", emit_frames=False
         )
         emitter._emit_chat_frame = lambda frame: frames.append(frame)  # capture frames

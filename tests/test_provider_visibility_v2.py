@@ -8,18 +8,18 @@ from __future__ import annotations
 
 import pytest
 
-import hermes_cli.harness as harness
+from hermes_cli.harness_parts import provider_visibility
 
 
 def test_v2_schema_and_credential_payload_intact(monkeypatch):
-    payload = harness.build_provider_visibility()
+    payload = provider_visibility.build_provider_visibility()
     assert payload["schema"] == "hermes.provider_visibility/v2"
     # The v1 contract the launcher's model switcher consumes is untouched.
     assert isinstance(payload["providers"], list)
 
 
 def test_v2_environment_block_carries_model_and_provider():
-    payload = harness.build_provider_visibility()
+    payload = provider_visibility.build_provider_visibility()
     environment = payload.get("environment")
     assert isinstance(environment, dict)
     assert "model" in environment
@@ -27,13 +27,14 @@ def test_v2_environment_block_carries_model_and_provider():
 
 
 def test_v2_api_keys_mirror_the_status_box_registry():
-    from hermes_cli.status import STATUS_API_KEYS
+    from hermes_cli.status_auth import _API_KEYS
 
-    payload = harness.build_provider_visibility()
+    payload = provider_visibility.build_provider_visibility()
     api_keys = payload.get("api_keys")
     assert isinstance(api_keys, list)
-    names = {row["name"] for row in api_keys}
-    assert names == set(STATUS_API_KEYS.keys()), (
+    names = [row["name"] for row in api_keys]
+    # The box renders upstream's registry, then Anthropic through its dedicated lookup.
+    assert names == [*_API_KEYS, "Anthropic"], (
         "the typed contract reports the SAME registry the status box renders "
         "— hoisted, not copied, so drift is structurally impossible"
     )
@@ -42,7 +43,7 @@ def test_v2_api_keys_mirror_the_status_box_registry():
 
 
 def test_v2_auth_logins_report_the_oauth_lanes():
-    payload = harness.build_provider_visibility()
+    payload = provider_visibility.build_provider_visibility()
     logins = payload.get("auth_logins")
     assert isinstance(logins, list)
     names = {row["name"] for row in logins}
@@ -59,9 +60,9 @@ def test_v2_blocks_are_failure_isolated(monkeypatch):
     def _boom() -> dict:
         raise RuntimeError("status probe broken")
 
-    monkeypatch.setattr(harness, "_provider_visibility_environment", _boom)
-    monkeypatch.setattr(harness, "_provider_visibility_api_keys", _boom)
-    payload = harness.build_provider_visibility()
+    monkeypatch.setattr(provider_visibility, "_provider_visibility_environment", _boom)
+    monkeypatch.setattr(provider_visibility, "_provider_visibility_api_keys", _boom)
+    payload = provider_visibility.build_provider_visibility()
     assert payload["schema"] == "hermes.provider_visibility/v2"
     assert "environment" not in payload
     assert "api_keys" not in payload
@@ -120,7 +121,7 @@ def _plant_credential(monkeypatch, provider: str, entry) -> None:
 
 
 def _catalog_rows() -> dict:
-    payload = harness.build_provider_visibility()
+    payload = provider_visibility.build_provider_visibility()
     catalog = payload.get("catalog")
     assert isinstance(catalog, list), "the catalog block must be present"
     return {row["id"]: row for row in catalog}
@@ -146,7 +147,7 @@ def test_catalog_lists_a_provider_with_no_credentials(monkeypatch):
     """
     _plant_credential(monkeypatch, "openrouter", _Entry("OPENROUTER_API_KEY", "x" * 20))
 
-    payload = harness.build_provider_visibility()
+    payload = provider_visibility.build_provider_visibility()
     credentialed = {row["id"] for row in payload["providers"]}
     catalog = {row["id"] for row in payload["catalog"]}
 
@@ -196,8 +197,8 @@ def test_catalog_failure_is_isolated(monkeypatch):
     def _boom() -> list:
         raise RuntimeError("catalog builder broken")
 
-    monkeypatch.setattr(harness, "_provider_visibility_catalog", _boom)
-    payload = harness.build_provider_visibility()
+    monkeypatch.setattr(provider_visibility, "_provider_visibility_catalog", _boom)
+    payload = provider_visibility.build_provider_visibility()
     assert "catalog" not in payload
     assert isinstance(payload["providers"], list)
     assert isinstance(payload.get("environment"), dict)
@@ -218,7 +219,7 @@ def test_v2_consumers_see_an_unchanged_payload_minus_catalog(monkeypatch):
     """
     _plant_credential(monkeypatch, "openrouter", _Entry("OPENROUTER_API_KEY", "x" * 20))
 
-    payload = harness.build_provider_visibility()
+    payload = provider_visibility.build_provider_visibility()
     assert payload["schema"] == "hermes.provider_visibility/v2"
     assert set(payload) - {"catalog", "local_llama"} == {
         "schema",
@@ -263,7 +264,7 @@ def test_no_credential_value_appears_in_the_payload(monkeypatch):
     sentinel = "SENTINEL-DO-NOT-EMIT-abcdefghijklmnop"
     _plant_credential(monkeypatch, "openrouter", _Entry("SENTINEL_KEY", sentinel))
 
-    payload = harness.build_provider_visibility()
+    payload = provider_visibility.build_provider_visibility()
     rendered = _json.dumps(payload)
 
     # The sentinel credential really was walked.
@@ -303,14 +304,14 @@ def test_token_preview_refuses_short_and_non_string_values():
         called["n"] += 1
         return "minted-token"
 
-    assert harness._credential_token_preview(SimpleNamespace(access_token="abc")) is None
+    assert provider_visibility._credential_token_preview(SimpleNamespace(access_token="abc")) is None
     assert (
-        harness._credential_token_preview(SimpleNamespace(access_token="abcdefgh"))
+        provider_visibility._credential_token_preview(SimpleNamespace(access_token="abcdefgh"))
         == "…efgh"
     )
-    assert harness._credential_token_preview(SimpleNamespace(access_token=_bearer)) is None
+    assert provider_visibility._credential_token_preview(SimpleNamespace(access_token=_bearer)) is None
     assert called["n"] == 0
-    assert harness._credential_token_preview(SimpleNamespace()) is None
+    assert provider_visibility._credential_token_preview(SimpleNamespace()) is None
 
 
 # --- EG-6.1: an absent block stops meaning two things ------------------------
@@ -356,8 +357,8 @@ def test_a_thrown_catalog_builder_is_named_and_the_block_absent(
     def _boom() -> list:
         raise error_class("Bearer sk-LEAKME from https://example.invalid/catalog")
 
-    monkeypatch.setattr(harness, "_provider_visibility_catalog", _boom)
-    payload = harness.build_provider_visibility()
+    monkeypatch.setattr(provider_visibility, "_provider_visibility_catalog", _boom)
+    payload = provider_visibility.build_provider_visibility()
 
     assert "catalog" not in payload
     assert payload["block_errors"]["catalog"] == error_class.__name__
@@ -382,7 +383,7 @@ def test_a_healthy_build_has_no_block_errors_entry():
     Anti-vacuity: the four blocks are asserted PRESENT first, so this cannot
     pass because the build produced nothing to name.
     """
-    payload = harness.build_provider_visibility()
+    payload = provider_visibility.build_provider_visibility()
     assert isinstance(payload.get("environment"), dict)
     assert isinstance(payload.get("api_keys"), list)
     assert isinstance(payload.get("auth_logins"), list)
@@ -406,9 +407,9 @@ def test_block_errors_is_keyed_per_block_not_one_flag(monkeypatch):
     def _boom_catalog() -> list:
         raise _CatalogProbeTimedOut("catalog probe broken")
 
-    monkeypatch.setattr(harness, "_provider_visibility_environment", _boom_environment)
-    monkeypatch.setattr(harness, "_provider_visibility_catalog", _boom_catalog)
-    payload = harness.build_provider_visibility()
+    monkeypatch.setattr(provider_visibility, "_provider_visibility_environment", _boom_environment)
+    monkeypatch.setattr(provider_visibility, "_provider_visibility_catalog", _boom_catalog)
+    payload = provider_visibility.build_provider_visibility()
 
     assert payload["block_errors"] == {
         "environment": "_CatalogProbeExploded",

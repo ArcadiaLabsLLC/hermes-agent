@@ -69,7 +69,9 @@ def fresh_cache_lane():
 def measurable_build_stamp(monkeypatch):
     """A stamp the write lane can record without asking git about this checkout."""
 
-    monkeypatch.setattr(core_cache, "build_stamp_token", lambda: "probe:mc3:clean")
+    monkeypatch.setattr(core_cache.fingerprint, "build_stamp_token", lambda: "probe:mc3:clean")
+    monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: "probe:mc3:clean")
+    monkeypatch.setattr(core_cache.persist, "build_stamp_token", lambda: "probe:mc3:clean")
 
 
 def _key(entries: list[tuple[str, int, int]]) -> core_cache.CoreFingerprint:
@@ -521,7 +523,8 @@ def test_a_matched_consult_reads_no_entries_at_all(
         touches.append("entries")
         return real_entries_path()
 
-    monkeypatch.setattr(core_cache, "entries_path", counted_entries_path)
+    monkeypatch.setattr(core_cache.generations, "entries_path", counted_entries_path)
+    monkeypatch.setattr(core_cache.read, "entries_path", counted_entries_path)
 
     for handed_in in (key, None):
         core_cache.reset_process_state()

@@ -592,7 +592,19 @@ def test_the_rpc_resolve_writes_only_through_the_stores_fenced_chokepoint(monkey
     monkeypatch.setattr(
         office_store_module.OfficeStore, "resolve_conflict", _tracked_resolve
     )
-    monkeypatch.setattr(office_store_module, "_write_actor", _guarded_write)
+    # Every module of the package that binds the actor writer, enumerated from
+    # the package itself — a lane that grows its own import of ``_write_actor``
+    # is covered the moment it exists.
+    import importlib
+    import pkgutil
+
+    writers = 0
+    for info in pkgutil.iter_modules(office_store_module.__path__):
+        module = importlib.import_module(f"{office_store_module.__name__}.{info.name}")
+        if getattr(module, "_write_actor", None) is real_write:
+            monkeypatch.setattr(module, "_write_actor", _guarded_write)
+            writers += 1
+    assert writers, "no module of agent_runtime.office_store binds _write_actor"
     for name in SIBLING_WRITERS:
         assert hasattr(office_store_module.OfficeStore, name), name
         monkeypatch.setattr(office_store_module.OfficeStore, name, _poison(name))

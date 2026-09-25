@@ -4,16 +4,26 @@ Same names, same bodies; the upstream file keeps only upstream's tests.
 """
 
 import os
+import shlex
 import tempfile
 from pathlib import Path
 from unittest.mock import patch as mock_patch
 import pytest
-from tools.approval_detection import _is_verification_artifact_cleanup
+from tools import path_identity
+from tools.approval_detection import _is_verification_artifact_cleanup, _windows_spelling_of_msys_path
 from tools.approval import detect_dangerous_command
 
-from tests.tools.test_approval import (  # noqa: F401 — upstream names the moved tests use
-    _rm_f,
-)
+
+
+def _rm_f(path) -> str:
+    """Spell ``rm -f <path>`` the way a shell argument is actually spelled.
+
+    The exemption tokenizes with ``shlex.split(posix=True)``, which eats a
+    bare Windows separator (``C:\\Temp\\x`` -> ``C:Tempx``). Quoting is how a
+    caller passes such a path through a POSIX-tokenized command line, and it
+    keeps this fixture identical on POSIX (no metacharacters -> unquoted).
+    """
+    return f"rm -f {shlex.quote(str(path))}"
 
 
 _WINDOWS_ONLY = pytest.mark.skipif(
@@ -185,3 +195,26 @@ class TestDetectDangerousRm:
             assert _is_verification_artifact_cleanup(
                 _rm_f(f"{msys_temp}/hermes-verify-example.py")
             ) is False
+
+    def test_msys_translation_is_windows_only_and_narrow(self):
+        """``/c/...`` is a real POSIX path; only Windows may reinterpret it.
+
+        The platform gate moved with the function into ``tools.path_identity``
+        (approval re-exports it), so the patch target is the authority's global.
+        The imported ``_windows_spelling_of_msys_path`` name below is the same
+        object — pinning it here keeps the guarantee attached to the guard that
+        depends on it, not only to the module that implements it.
+        """
+        with mock_patch.object(path_identity, "_IS_WINDOWS", True):
+            assert _windows_spelling_of_msys_path("/c/Users/x/hermes-verify-a.py") == (
+                r"C:\Users\x\hermes-verify-a.py"
+            )
+            # Not an MSYS drive path: a multi-character first component.
+            assert _windows_spelling_of_msys_path("/tmp/hermes-verify-a.py") is None
+            # Relative and bare-root spellings name no file to remove.
+            assert _windows_spelling_of_msys_path("c/Users/x") is None
+            assert _windows_spelling_of_msys_path("/c/") is None
+            # Already carries a native separator -- not a clean MSYS spelling.
+            assert _windows_spelling_of_msys_path("/c/Users\\x") is None
+        with mock_patch.object(path_identity, "_IS_WINDOWS", False):
+            assert _windows_spelling_of_msys_path("/c/Users/x/hermes-verify-a.py") is None

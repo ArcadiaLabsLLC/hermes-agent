@@ -14,6 +14,8 @@ from hermes_cli.harness import build_parser
 from agent_runtime import paths
 from agent_runtime.models import AgentRun, Incident
 from types import SimpleNamespace
+from hermes_cli.harness_parts.persona import chat_target, chat_turn_message, inspect_commands
+from hermes_cli.harness_parts import runtime_commands
 
 Task = SimpleNamespace
 from agent_runtime.states import RunState, TaskState
@@ -24,6 +26,10 @@ from agent_runtime.store import (
     TaskStore,
     WorkspaceStore,
 )
+from hermes_cli.harness_parts import agent_commands
+from hermes_cli.harness_parts import doctor_commands
+from hermes_cli.harness_parts import init_commands
+from hermes_cli.harness_parts import workspace_commands
 
 
 def parser():
@@ -335,11 +341,16 @@ def test_harness_init_human_branch_states_when_no_personas_are_provisioned(monke
     nothing after the colon.
     """
 
-    import hermes_cli.harness as harness_mod
 
-    monkeypatch.setattr(harness_mod, "ensure_persisted_personas", lambda cfg: [])
+    monkeypatch.setattr(agent_commands, "ensure_persisted_personas", lambda cfg: [])
+    monkeypatch.setattr(init_commands, "ensure_persisted_personas", lambda cfg: [])
+    monkeypatch.setattr(workspace_commands, "ensure_persisted_personas", lambda cfg: [])
+    monkeypatch.setattr(chat_target, "ensure_persisted_personas", lambda cfg: [])
+    monkeypatch.setattr(chat_turn_message, "ensure_persisted_personas", lambda cfg: [])
+    monkeypatch.setattr(inspect_commands, "ensure_persisted_personas", lambda cfg: [])
+    monkeypatch.setattr(runtime_commands, "ensure_persisted_personas", lambda cfg: [])
     monkeypatch.setattr(
-        harness_mod,
+        init_commands,
         "ensure_default_scope",
         lambda agent_ids: SimpleNamespace(
             realm=SimpleNamespace(id="realm_default", name="Default"),
@@ -362,14 +373,13 @@ def test_harness_doctor_human_branch_renders_the_surviving_findings(tmp_path, mo
     report ships two, so every plain ``harness doctor`` died with KeyError.
     """
 
-    import hermes_cli.harness as harness_mod
 
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "agent-runtime"))
     # This is a renderer test. Keep it hermetic instead of scanning every real
     # harness worktree (and running git diff in each) merely to obtain the two
     # finding keys whose formatting is under test.
     monkeypatch.setattr(
-        harness_mod,
+        doctor_commands,
         "run_harness_doctor",
         lambda **_kwargs: {
             "summary": {
@@ -412,7 +422,6 @@ def test_the_doctor_detail_line_derives_from_the_section_table(tmp_path, monkeyp
     ``doctor_detail_sources``.
     """
 
-    import hermes_cli.harness as harness_mod
     from agent_runtime import harness_doctor
 
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "agent-runtime"))
@@ -428,7 +437,7 @@ def test_the_doctor_detail_line_derives_from_the_section_table(tmp_path, monkeyp
         (*harness_doctor.DOCTOR_SECTIONS, synthetic),
     )
     monkeypatch.setattr(
-        harness_mod,
+        doctor_commands,
         "run_harness_doctor",
         lambda **_kwargs: {
             "ok": False,
@@ -475,11 +484,10 @@ def test_harness_doctor_human_branch_renders_the_placement_census(
     argument — so the assertions are on the rows, not on a count.
     """
 
-    import hermes_cli.harness as harness_mod
 
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "agent-runtime"))
     monkeypatch.setattr(
-        harness_mod,
+        doctor_commands,
         "run_harness_doctor",
         lambda **_kwargs: {
             "ok": False,
@@ -556,11 +564,10 @@ def test_harness_doctor_human_branch_says_nothing_about_an_unexamined_census(
     they were observations — the false all-clear in its rendered form.
     """
 
-    import hermes_cli.harness as harness_mod
 
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "agent-runtime"))
     monkeypatch.setattr(
-        harness_mod,
+        doctor_commands,
         "run_harness_doctor",
         lambda **_kwargs: {
             "ok": False,
@@ -818,33 +825,20 @@ def _stage42_lane_sources():
     root = Path(__file__).resolve().parents[2]
     yield root / "hermes_cli" / "harness.py"
     parts = root / "hermes_cli" / "harness_parts"
-    for filename in (
-        "persona_commands.py",
-        "runtime_commands.py",
-        "board.py",
-        "office.py",
-        "level.py",
-        "map.py",
-        "flow_commands.py",
-        "checkpoint_commands.py",
-        # A REAL module rather than one of the exec'd parts above (it is
-        # imported, the way `serve.py` is), and it is on this list because its
-        # three `harness gateway` verbs are stage42 verbs whose handlers do not
-        # live in `harness.py`. Without it the gate reported all fourteen of
-        # their presentation flags unhonored — the analysis simply could not see
-        # `_print_stage42` at the other end of the wrapper. That is the failure
-        # mode this list exists to have: a new home for a handler is a line
-        # here, and the alternative (scan all of `hermes_cli/`) is what the
-        # docstring above rejects.
-        "gateway_commands.py",
-    ):
-        yield parts / filename
+    # Every command part, from the directory itself (never a copy of its
+    # listing) — `gateway_commands.py` included: its `harness gateway` verbs are
+    # stage42 verbs whose handlers do not live in `harness.py`. `serve.py` is
+    # the serve loop, not a verb family.
+    yield from sorted(path for path in parts.rglob("*.py") if path.name != "serve.py")
 
 
 def _stage42_source_module(path: Path) -> str:
-    # These files are compiled into hermes_cli.harness globals in this exact
-    # order by _load_command_parts; they are not independent Python modules.
-    if path.parent.name == "harness_parts" or path.name == "harness.py":
+    # The harness, its parts and harness_support are analysed as ONE name
+    # space: no name is bound by two of them, so a bare-name call resolves to
+    # the same function either way, and a part's handler is wired by its bare
+    # name through its module (`inspect_commands._cmd_persona_list`, in the
+    # `harness_parts/persona/` package).
+    if "harness_parts" in path.parts or path.name == "harness.py":
         return "hermes_cli.harness"
     return ".".join(path.with_suffix("").parts[-2:])
 
@@ -877,14 +871,34 @@ def _literal_string_set(node: ast.AST | None) -> set[str]:
     return set()
 
 
+def _stage42_parser_tree() -> ast.Module:
+    """The harness parser tree's source, every module of ``harness_parts/parser/`` read as ONE.
+
+    The tree was one ``populate_parser`` body until lane H2 cut it into
+    ``PARSER_FAMILIES``; its subparser variable names come from that one scope,
+    so walking the package whole reads exactly what walking the body did.
+    """
+
+    root = Path(__file__).resolve().parents[2] / "hermes_cli" / "harness_parts" / "parser"
+    body: list[ast.stmt] = []
+    for path in sorted(root.glob("*.py")):
+        body.extend(ast.parse(path.read_text(encoding="utf-8")).body)
+    return ast.Module(body=body, type_ignores=[])
+
+
 def _stage42_parser_ownership(
-    source: str,
+    build: ast.AST | str,
     common_dests: set[str],
 ):
-    """Return each Stage 42 handler's flags and per-verb destination collisions."""
+    """Return each Stage 42 handler's flags and per-verb destination collisions.
 
-    tree = ast.parse(source)
-    build = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "build_parser")
+    ``build`` is the parser tree (:func:`_stage42_parser_tree`), or — for the
+    positive controls below — source holding one ``build_parser`` function.
+    """
+
+    if isinstance(build, str):
+        tree = ast.parse(build)
+        build = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "build_parser")
     registrations: dict[str, set[str]] = {}
     local_dests: dict[str, set[str]] = {}
     equivalent_local_overrides: dict[str, set[str]] = {}
@@ -916,6 +930,8 @@ def _stage42_parser_ownership(
             func = next((kw.value for kw in node.keywords if kw.arg == "func"), None)
             if isinstance(func, ast.Name):
                 handlers[parser_name] = func.id
+            elif isinstance(func, ast.Attribute):
+                handlers[parser_name] = func.attr
     for node in ast.walk(build):
         if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name) or node.func.id != "_add_stage42_global_args":
             continue
@@ -1123,7 +1139,6 @@ def test_every_stage42_global_flag_is_honored():
     """Every flag advertised by a real verb reaches a real reader."""
 
     paths = list(_stage42_lane_sources())
-    harness_source = paths[0].read_text(encoding="utf-8")
     sources = [
         (_stage42_source_module(path), path.read_text(encoding="utf-8"))
         for path in paths
@@ -1132,9 +1147,12 @@ def test_every_stage42_global_flag_is_honored():
     sources.append(("hermes_cli.harness", support.read_text(encoding="utf-8")))
     reads, calls = _stage42_function_facts(sources)
     registrations = _stage42_parser_ownership(
-        harness_source,
+        _stage42_parser_tree(),
         _STAGE42_PRESENTATION_DESTS,
     )
+    # Anti-vacuity: from the plugin seam (Stage 1) until lane H2 this walked a
+    # two-line `build_parser` that registers nothing, and passed on an empty list.
+    assert len(registrations) > 50, f"only {len(registrations)} stage42 registrations found"
     # The root parser registration supplies options before the chosen verb;
     # its `harness_command` default is replaced by every real subparser. The
     # per-verb registrations below are the semantic ownership boundary.
@@ -1430,9 +1448,7 @@ def test_run_verify_command_survives_non_cp1252_bytes_in_child_output(tmp_path):
     locale codepage: byte 0x90 is undefined in cp1252, and without a pinned
     encoding it crashed subprocess's reader thread on Windows, silently
     dropping the captured output from the verification payload."""
-    # runtime_commands.py is exec'd into hermes_cli.harness globals by
-    # _load_command_parts(); it is not importable as a standalone module.
-    from hermes_cli.harness import _run_verify_command
+    from hermes_cli.harness_parts.runtime_commands import _run_verify_command
 
     child = (
         "import sys;"

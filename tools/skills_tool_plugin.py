@@ -139,7 +139,7 @@ def _serve_plugin_skill(
     if not _st.skill_matches_platform(parsed_frontmatter):
         return _fail(f"Skill '{qualified_name}' is not supported on this platform.",
                      readiness_status=SkillReadinessStatus.UNSUPPORTED.value)
-    from agent.skill_utils import current_skill_runtime_context, skill_frontmatter_runtime_compatibility
+    from agent_runtime.skill_resolution import current_skill_runtime_context, skill_frontmatter_runtime_compatibility
     active_surface, root_node_mode = current_skill_runtime_context()
     if active_surface:
         compatibility = skill_frontmatter_runtime_compatibility(

@@ -439,7 +439,7 @@ def test_the_snapshot_office_lane_carries_the_same_binding_field():
 
     The launcher reads the office twice — this method and the office section of
     the ~842 KB snapshot. The snapshot row has carried ``persona_instance_id``
-    since it was written (``snapshot.py``'s ``_office_actor_summary_row``); this
+    since it was written (``snapshot.py``'s ``office_actor_summary_row``); this
     pins that the two lanes agree on the field NAME and on the value for the
     same actor, so neither lane can quietly drop it alone.
     """
@@ -474,7 +474,7 @@ def test_the_snapshot_office_item_row_is_pinned_byte_for_byte_and_its_gap_to_the
     RPC lane already flattens through.
 
     Written for §AX1 ("one office-actor wire projection"), which proposes that
-    ``snapshot._office_actor_summary_row`` stop re-spelling the item dict inline
+    ``snapshot.office_actor_summary_row`` stop re-spelling the item dict inline
     and call the shared function instead. The unification is BEHAVIOUR-PRESERVING
     only if the two shapes already agree, and they do not: this test states the
     disagreement in the two forms a refactor can break it in, so the change can
@@ -500,13 +500,13 @@ def test_the_snapshot_office_item_row_is_pinned_byte_for_byte_and_its_gap_to_the
     """
 
     from agent_runtime.office_models import office_item_wire_row
-    from agent_runtime.snapshot import _office_actor_summary_row
+    from agent_runtime.snapshot import office_actor_summary_row
 
     store = _seed_office()
     actors = {a.actor_key: a for a in store.scan_actors(WORKSPACE).actors}
     actor = actors["personainst_qa_agent_9c8a382f"]
 
-    row = _office_actor_summary_row(actor, unpublished=None)
+    row = office_actor_summary_row(actor, unpublished=None)
 
     assert json.dumps(row["items"]) == (
         '[{"item_id": "personainst_qa_agent_9c8a382f", "persona_id": "qa", "kind": "agent", '

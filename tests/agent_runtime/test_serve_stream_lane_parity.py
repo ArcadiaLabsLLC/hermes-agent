@@ -55,7 +55,6 @@ from __future__ import annotations
 import importlib.util
 import inspect
 import json
-import re
 import threading
 import time
 from contextlib import contextmanager
@@ -91,7 +90,13 @@ from tests.agent_runtime.test_stream_contract_fixture import FIXTURES, _shape_dr
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GENERATOR = REPO_ROOT / "scripts" / "generate_agent_runtime_stream_fixtures.py"
-SERVE_SOURCE = Path(serve_module.__file__)
+SERVE_PACKAGE = Path(serve_module.__file__).parent
+
+
+def _serve_source() -> str:
+    """Every module of the serve package, concatenated: the claims below are about the package."""
+
+    return "".join(p.read_text(encoding="utf-8") for p in sorted(SERVE_PACKAGE.glob("*.py")))
 
 #: The declaration BOTH lanes make in this file. It is the launcher's own
 #: shipped set (``kMissionFoldDeclaredEntities``'s first two entries) written the
@@ -430,9 +435,9 @@ def test_no_op_the_dispatcher_answers_is_left_off_the_advertisement():
     An op that exists and is NOT advertised is invisible: no client sends it, so
     no test that drives the wire can find it, and the advertisement quietly
     becomes a subset of the truth — which is how a client ends up probing again
-    for the one op that was forgotten. So the dispatcher's own source is the
-    witness: every ``op == "…"`` branch in ``serve.py`` must be advertised on at
-    least one transport.
+    for the one op that was forgotten. So the dispatcher's own op table is the
+    witness, read at RUNTIME: every key of ``handle_message.OP_HANDLERS`` must
+    be advertised on at least one transport.
 
     ``hello`` is the one deliberate exclusion. It is the socket's FIRST line,
     consumed by ``serve_socket`` before this dispatcher exists; a hello that
@@ -440,9 +445,10 @@ def test_no_op_the_dispatcher_answers_is_left_off_the_advertisement():
     Its contract is advertised as ``hello_contract`` on ``server_hello``.
     """
 
-    source = SERVE_SOURCE.read_text(encoding="utf-8")
-    dispatched = set(re.findall(r'\bop == "([a-z_]+)"', source))
-    # Anti-vacuity: the scrape found the real branch table, not zero of it.
+    from hermes_cli.harness_parts.serve.handle_message import OP_HANDLERS
+
+    dispatched = set(OP_HANDLERS)
+    # Anti-vacuity: the table is the real one, not an empty stand-in.
     assert {"ping", "subscribe", "version", "shutdown"} <= dispatched
 
     advertised = set(serve_module.ops_manifest(transport="stdio")["ops"]) | set(
@@ -1185,8 +1191,8 @@ def test_the_serve_producer_still_takes_the_hubs_stop_event():
     scrape above is one: this is a claim about a closure no test can reach.
     """
 
-    source = SERVE_SOURCE.read_text(encoding="utf-8")
-    assert "def _stream_source(stop" in source, (
+    source = _serve_source()
+    assert "def _stream_source(self, stop" in source, (
         "`_stream_source` no longer accepts the hub's per-generation stop event. "
         "The hub probes BY SIGNATURE and silently falls back to a no-argument "
         "call, so nothing raises — the producer just goes back to being "

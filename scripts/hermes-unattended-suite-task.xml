@@ -37,7 +37,7 @@
 -->
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
-    <Description>Runs hermes' validated test suite (tests/agent_runtime tests/hermes_cli tests/cli tests/state) plus the mutation-claim inventory (--list --base origin/main), and writes a dated Markdown report under qa-artifacts/. Report-only; does not block anything. See AGENTS.md §Testing, "Unattended reporting".</Description>
+    <Description>Runs hermes' validated test suite (tests/agent_runtime tests/hermes_cli tests/hermes_state) plus the mutation-claim inventory (--list --base origin/main), and writes a dated Markdown report under qa-artifacts/. Report-only; does not block anything. See AGENTS.md §Testing, "Unattended reporting".</Description>
     <URI>\Hermes Unattended Suite</URI>
   </RegistrationInfo>
   <Triggers>

@@ -79,23 +79,12 @@ _MIN_BODY_LINES = 4
 #: NOT folded, each with the reason. Keyed by the sorted ``file::name`` tuple
 #: so a row names exactly which pair it excuses.
 _GRANDFATHERED: dict[tuple[str, ...], str] = {
-    (
-        "agent_runtime/mcp_admission.py::_positive_int",
-        "agent_runtime/profile_runner.py::_positive_int",
-    ): (
-        "a genuine duplicate, and foldable onto a serde helper — held back "
-        "only to keep the fold commit reviewable. Note the tree ALSO carries "
-        "four unrelated `_positive_int`s (config.py, kanban_db.py, "
-        "kanban_diagnostics.py, browser_route.py) that take a `default` and "
-        "are NOT this function, which is why the name alone never settled it"
-    ),
-    (
-        "agent_runtime/persona_chat_history.py::_safe_trace_int",
-        "agent_runtime/profile_runner.py::_safe_exit_code",
-    ): (
-        "same coercion (int-or-None, rejecting bool) under two domain names. "
-        "Foldable, deferred with the pair above"
-    ),
+    # ``mcp_admission._positive_int == profile_runner._positive_int`` lost its row
+    # when lane R3 folded the second onto ``serde.positive_int``;
+    # ``mcp_admission``'s copy folds in its own lane.
+    # ``persona_chat_history._safe_trace_int == profile_runner._safe_exit_code``
+    # lost its row when lane R2 folded the first into ``serde.strict_int``;
+    # ``profile_runner``'s copy folds in its own lane.
     (
         "agent_runtime/mission_chat_turns.py::_lock_fd_exclusive_nonblocking",
         "agent_runtime/persona_chat_continuity.py::_try_lock",
@@ -255,3 +244,58 @@ def test_the_grandfathered_baseline_still_describes_the_code():
         "rows in the same commit that folded them:\n"
         + "\n".join("  " + " == ".join(group) for group in stale)
     )
+
+
+# ── W0-G3: the fork-wide widening ───────────────────────────────────────────
+#
+# The two tests above hold agent_runtime's module-level functions to the
+# reasoned rows in ``_GRANDFATHERED``. Wave 0 of the god-file program
+# (``docs/agent-runtime-harness/planned/downstream-god-file-refactor.md`` §2,
+# ``god-file-program-2026-09-24.md`` rule 15) widens the net without loosening
+# it: EVERY fork production ``.py`` (``scripts/god_file_probe.py``'s
+# population), methods and nested functions too, locals AND parameters
+# alpha-renamed so a renamed-variable clone collides — plus a NAME arm: a
+# private module-level helper (>= 4 body lines) defined in two modules is one
+# helper with two owners. The baseline is enumerated by the probe into
+# ``tests/fixtures/duplicate_bodies_grandfathered.json`` and only shrinks.
+
+from scripts import god_file_probe as _probe  # noqa: E402
+
+
+def _fork_wide_drift() -> tuple[_probe.Drift, _probe.Drift]:
+    bodies, names = _probe.duplicate_live()
+    fixture_bodies, fixture_names = _probe.duplicate_fixture()
+    return (
+        _probe.compare_sets("W0-G3 duplicate bodies", bodies, fixture_bodies),
+        _probe.compare_sets("W0-G3 helper names", names, fixture_names),
+    )
+
+
+def test_alpha_renaming_collides_a_renamed_clone():
+    """Positive control: same body, every local and parameter renamed -> same hash."""
+    one = ast.parse(
+        "def a(raw, limit=3):\n    total = 0\n    for item in raw:\n"
+        "        total += item\n    if total > limit:\n        return limit\n    return total\n"
+    ).body[0]
+    two = ast.parse(
+        "def b(values, limit=3):\n    acc = 0\n    for v in values:\n"
+        "        acc += v\n    if acc > limit:\n        return limit\n    return acc\n"
+    ).body[0]
+    other = ast.parse(
+        "def c(values, limit=4):\n    acc = 0\n    for v in values:\n"
+        "        acc += v\n    if acc > limit:\n        return limit\n    return acc\n"
+    ).body[0]
+    assert _probe.normalized_body_hash(one) == _probe.normalized_body_hash(two)
+    assert _probe.normalized_body_hash(one) != _probe.normalized_body_hash(other), "a default is behaviour"
+
+
+def test_no_new_duplicate_anywhere_in_the_fork():
+    bodies, names = _fork_wide_drift()
+    assert not bodies.new, "fold these onto ONE authority (rule 15):\n" + bodies.render()
+    assert not names.new, "one private helper name, two owners — fold or rename:\n" + names.render()
+
+
+def test_the_fork_wide_baseline_still_describes_the_code():
+    bodies, names = _fork_wide_drift()
+    assert not bodies.stale, "delete these groups — they no longer duplicate:\n" + bodies.render()
+    assert not names.stale, "delete these name rows — the collision is gone:\n" + names.render()

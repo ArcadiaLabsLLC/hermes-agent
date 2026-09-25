@@ -2,7 +2,7 @@
   "claims": [
     {
       "id": "rdh6-cli-roster-read-unwrapped",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
       "symbol": "_cli_create_persona",
       "operator": "remove-typed-fault-wrap",
       "find": "    try:\n        return _persona_by_id(load_agent_runtime_config(), persona_id)\n    except Exception as exc:  # noqa: BLE001 — re-raised as the typed fault\n        raise PersonaRosterUnavailable(str(exc)) from exc",
@@ -17,7 +17,7 @@
     },
     {
       "id": "rdh6-cli-roster-fault-degrades-to-no-persona",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
       "symbol": "_cli_create_persona",
       "operator": "degrade-fault-to-absence",
       "find": "    except Exception as exc:  # noqa: BLE001 — re-raised as the typed fault\n        raise PersonaRosterUnavailable(str(exc)) from exc",
@@ -47,7 +47,7 @@
     },
     {
       "id": "rdh6-rpc-create-hands-over-a-synthesised-persona",
-      "path": "agent_runtime/serve_rpc.py",
+      "path": "agent_runtime/serve_rpc/agent.py",
       "symbol": "_runtime_agent_create",
       "operator": "bypass-roster-check-with-object",
       "find": "    outcome = perform_agent_create(\n        params, caller=context.caller if context is not None else None\n    )",
@@ -62,8 +62,8 @@
     },
     {
       "id": "stage42-work-list-refuses-cursor",
-      "path": "hermes_cli/harness.py",
-      "symbol": "populate_parser/work_list",
+      "path": "hermes_cli/harness_parts/parser/machine.py",
+      "symbol": "add_work/work_list",
       "operator": "advertise-unread-control",
       "find": "work_list, controls=frozenset({\"limit\", \"sort\"})",
       "replace": "work_list, controls=frozenset({\"cursor\", \"limit\", \"sort\"})",
@@ -318,8 +318,8 @@
     },
     {
       "id": "inherit-skills-is-just-another-clear",
-      "path": "agent_runtime/persona_assignments.py",
-      "symbol": "PersonaInstanceStore.update_profile",
+      "path": "agent_runtime/persona_assignments/profile_writes.py",
+      "symbol": "_apply_skills_lane",
       "operator": "collapse-the-tri-state-third-value",
       "find": "            value = None if inherit_skills else ([] if clear_skills else _safe_skill_overrides(skills or []))",
       "replace": "            value = [] if (clear_skills or inherit_skills) else _safe_skill_overrides(skills or [])",
@@ -333,7 +333,7 @@
     },
     {
       "id": "the-patch-snapshot-collapses-none-onto-empty",
-      "path": "agent_runtime/persona_assignments.py",
+      "path": "agent_runtime/persona_assignments/store.py",
       "symbol": "PersonaInstanceStore._profile_patch_snapshot",
       "operator": "collapse-the-tri-state-third-value",
       "find": "            \"skill_overrides\": (\n                list(instance.skill_overrides) if instance.skill_overrides is not None else None\n            ),",
@@ -348,7 +348,7 @@
     },
     {
       "id": "s4-an-omitted-skill-flag-clears-every-instance-override",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/instance_commands.py",
       "symbol": "_cmd_persona_instance_update_profile",
       "operator": "collapse-absent-flag-to-empty-list",
       "find": "            skills=requested_skills,",
@@ -363,7 +363,7 @@
     },
     {
       "id": "s4-the-cli-create-door-drops-its-skill-flag",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
       "symbol": "_cmd_agent_create",
       "operator": "drop-argv-param-passthrough",
       "find": "    requested_skills = list_flag_or_absent(args, \"skills\")\n    if requested_skills is not None:\n        params[\"skills\"] = requested_skills",
@@ -423,10 +423,10 @@
     },
     {
       "id": "s5-retire-drops-the-office-half",
-      "path": "agent_runtime/persona_assignments.py",
-      "symbol": "PersonaInstanceStore.retire",
+      "path": "agent_runtime/persona_assignments/retire.py",
+      "symbol": "retire",
       "operator": "drop-the-office-half",
-      "find": "        office = self._archive_office_placements(\n            instance, correlation_id=correlation_id\n        )",
+      "find": "        office = store._archive_office_placements(\n            instance, correlation_id=correlation_id\n        )",
       "replace": "        office = {\"archived\": 0, \"failed\": 0, \"archived_actor_keys\": [], \"failures\": []}",
       "test": [
         "{python}",
@@ -438,8 +438,8 @@
     },
     {
       "id": "s5-prune-archives-without-naming-what-left",
-      "path": "agent_runtime/office_store.py",
-      "symbol": "OfficeStore.archive_actors_for_instance",
+      "path": "agent_runtime/office_store/archive.py",
+      "symbol": "archive_actors_for_instance",
       "operator": "drop-the-identity-keep-the-count",
       "find": "                outcomes.append(OfficeActorOutcome.archived(wsid, actor.actor_key))",
       "replace": "                pass",
@@ -453,8 +453,8 @@
     },
     {
       "id": "s5-office-prune-swallows-its-failures",
-      "path": "agent_runtime/office_store.py",
-      "symbol": "OfficeStore.archive_actors_for_instance",
+      "path": "agent_runtime/office_store/archive.py",
+      "symbol": "archive_actors_for_instance",
       "operator": "restore-the-swallow",
       "find": "            \"failures\": failures,",
       "replace": "            \"failures\": [],",
@@ -483,8 +483,8 @@
     },
     {
       "id": "s5-replay-reconstructs-no-actor-keys",
-      "path": "agent_runtime/office_store.py",
-      "symbol": "OfficeStore.archived_actor_keys_for_instance",
+      "path": "agent_runtime/office_store/archive.py",
+      "symbol": "archived_actor_keys_for_instance",
       "operator": "empty-the-archive-read",
       "find": "            keys.append(actor.actor_key)",
       "replace": "            pass",
@@ -573,11 +573,11 @@
     },
     {
       "id": "s8b-retire-office-removal-loses-the-gesture-token",
-      "path": "agent_runtime/office_store.py",
-      "symbol": "OfficeStore.archive_actors_for_instance",
+      "path": "agent_runtime/office_store/archive.py",
+      "symbol": "archive_actors_for_instance",
       "operator": "drop-correlation-thread",
-      "find": "                    self.remove_actor(\n                        wsid,\n                        actor.actor_key,\n                        reason=reason,\n                        updated_by=\"harness\",\n                        correlation_id=correlation_id,\n                    )",
-      "replace": "                    self.remove_actor(\n                        wsid,\n                        actor.actor_key,\n                        reason=reason,\n                        updated_by=\"harness\",\n                    )",
+      "find": "                    store.remove_actor(\n                        wsid,\n                        actor.actor_key,\n                        reason=reason,\n                        updated_by=\"harness\",\n                        correlation_id=correlation_id,\n                    )",
+      "replace": "                    store.remove_actor(\n                        wsid,\n                        actor.actor_key,\n                        reason=reason,\n                        updated_by=\"harness\",\n                    )",
       "test": [
         "{python}",
         "-m",
@@ -588,11 +588,11 @@
     },
     {
       "id": "s8b-retire-store-drops-the-token-before-the-office-half",
-      "path": "agent_runtime/persona_assignments.py",
-      "symbol": "PersonaInstanceStore.retire",
+      "path": "agent_runtime/persona_assignments/retire.py",
+      "symbol": "retire",
       "operator": "drop-correlation-thread",
-      "find": "        office = self._archive_office_placements(\n            instance, correlation_id=correlation_id\n        )",
-      "replace": "        office = self._archive_office_placements(instance)",
+      "find": "        office = store._archive_office_placements(\n            instance, correlation_id=correlation_id\n        )",
+      "replace": "        office = store._archive_office_placements(instance)",
       "test": [
         "{python}",
         "-m",
@@ -618,7 +618,7 @@
     },
     {
       "id": "s8b-retire-cli-flag-parses-and-goes-nowhere",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
       "symbol": "_agent_retire_outcome",
       "operator": "drop-param-from-service-call",
       "find": "            \"correlation_id\": getattr(args, \"correlation_id\", None),\n",
@@ -633,8 +633,8 @@
     },
     {
       "id": "s8b-b-persona-instance-retire-door-has-no-token",
-      "path": "hermes_cli/harness.py",
-      "symbol": "populate_parser/persona_instance_retire",
+      "path": "hermes_cli/harness_parts/parser/persona.py",
+      "symbol": "_add_persona_instance_lifecycle_verbs/persona_instance_retire",
       "operator": "withhold-flag-from-second-door",
       "find": "    persona_instance_retire.add_argument(\"--correlation-id\", dest=\"correlation_id\", default=None)\n",
       "replace": "",
@@ -648,7 +648,7 @@
     },
     {
       "id": "pts-s1-absent-becomes-clear",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/model_and_skills_commands.py",
       "symbol": "_validated_set_skills_request",
       "operator": "collapse-absent-into-clear",
       "find": "    if raw_skills is None and not clear:\n        raise _SetModelRequestError(\n            \"nothing_to_write\",\n            \"pass --skill (repeatable) to replace the persona's default skill set, or --clear-skills to empty it\",\n        )",
@@ -665,7 +665,7 @@
     },
     {
       "id": "pts-s1-store-write-dropped",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/model_and_skills_commands.py",
       "symbol": "_cmd_persona_set_skills",
       "operator": "drop-store-persist",
       "find": "            target.skills_override_issued_at = issued_at or datetime.now(timezone.utc)\n            store.save(target)",
@@ -682,7 +682,7 @@
     },
     {
       "id": "pts-s1-stale-write-applies",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/model_and_skills_commands.py",
       "symbol": "_cmd_persona_set_skills",
       "operator": "invert-supersede-comparison",
       "find": "        applied_at = target.skills_override_issued_at\n        applied_at = applied_at if applied_at.tzinfo is not None else applied_at.replace(tzinfo=timezone.utc)\n        if issued <= applied_at:",
@@ -744,7 +744,7 @@
     },
     {
       "id": "r1-persona-instance-doors-stop-refusing",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
       "symbol": "_placement_discriminability_refusal",
       "operator": "collapse-refusal-to-accept",
       "find": "    if looks_like_deliberate_placement(placement_id):\n        return None",
@@ -759,7 +759,7 @@
     },
     {
       "id": "d1-tombstone-fence-never-fires",
-      "path": "agent_runtime/office_store.py",
+      "path": "agent_runtime/office_store/guards.py",
       "symbol": "_guard_archived_actor",
       "operator": "remove-guard",
       "find": "        if not archived_path.exists() and actor_key not in archived_keys:\n            return",
@@ -774,7 +774,7 @@
     },
     {
       "id": "d1-tombstone-fence-forgets-the-ledger-witness",
-      "path": "agent_runtime/office_store.py",
+      "path": "agent_runtime/office_store/guards.py",
       "symbol": "_guard_archived_actor",
       "operator": "drop-evidence-source",
       "find": "        if not archived_path.exists() and actor_key not in archived_keys:",
@@ -789,11 +789,11 @@
     },
     {
       "id": "d1-tombstone-fence-refuses-live-rows-too",
-      "path": "agent_runtime/office_store.py",
+      "path": "agent_runtime/office_store/actor_writes.py",
       "symbol": "upsert_actor",
       "operator": "widen-guard-condition",
-      "find": "            if existing is None:\n                self._guard_archived_actor(",
-      "replace": "            if True:\n                self._guard_archived_actor(",
+      "find": "        if existing is None:\n            store._guard_archived_actor(",
+      "replace": "        if True:\n            store._guard_archived_actor(",
       "test": [
         "{python}",
         "-m",
@@ -819,11 +819,11 @@
     },
     {
       "id": "d1-wire-refusal-loses-its-pinned-reason",
-      "path": "agent_runtime/serve_rpc.py",
-      "symbol": "_runtime_office_upsert",
+      "path": "agent_runtime/serve_rpc/office_actor_writes.py",
+      "symbol": "_upsert_actor_archived",
       "operator": "collapse-refusal-reason",
-      "find": "                \"reason\": \"actor_archived\",\n                \"workspace_id\": workspace_id,\n                \"actor_key\": details[\"actor_key\"],",
-      "replace": "                \"reason\": \"class_key_collision\",\n                \"workspace_id\": workspace_id,\n                \"actor_key\": details[\"actor_key\"],",
+      "find": "            \"reason\": \"actor_archived\",\n            \"workspace_id\": scope.workspace_id,\n            \"actor_key\": details[\"actor_key\"],",
+      "replace": "            \"reason\": \"class_key_collision\",\n            \"workspace_id\": scope.workspace_id,\n            \"actor_key\": details[\"actor_key\"],",
       "test": [
         "{python}",
         "-m",
@@ -879,10 +879,10 @@
     },
     {
       "id": "c1-pull-adopts-the-peer-ledger-wholesale",
-      "path": "agent_runtime/office_store.py",
-      "symbol": "OfficeStore.adopt_remote_surface",
+      "path": "agent_runtime/office_store/adoption.py",
+      "symbol": "adopt_remote_surface",
       "operator": "drop-archived-ledger-union",
-      "find": "                surface.archived_actor_keys = merge_archived_ledgers(\n                    surface.archived_actor_keys,\n                    self.get_surface(wsid).archived_actor_keys,\n                )",
+      "find": "                surface.archived_actor_keys = merge_archived_ledgers(\n                    surface.archived_actor_keys,\n                    store.get_surface(wsid).archived_actor_keys,\n                    cap=ARCHIVED_LEDGER_CAP,\n                )",
       "replace": "                surface.archived_actor_keys = list(surface.archived_actor_keys)",
       "test": [
         "{python}",
@@ -969,7 +969,7 @@
     },
     {
       "id": "c3-publish-re-walks-the-directory-instead-of-the-scan",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/publish_scans.py",
       "symbol": "_office_publish_scan",
       "operator": "restore-second-authority-glob",
       "find": "            actor_path = paths.office_actor_path(workspace_token, actor.actor_key)",
@@ -984,11 +984,11 @@
     },
     {
       "id": "c4-prune-swallows-its-directory-shortfall",
-      "path": "agent_runtime/office_store.py",
-      "symbol": "OfficeStore.archive_actors_for_instance",
+      "path": "agent_runtime/office_store/archive.py",
+      "symbol": "archive_actors_for_instance",
       "operator": "drop-scan-shortfall-row",
-      "find": "            scan = self.scan_actors(wsid)\n            if scan.unreadable:\n                outcomes.append(OfficeActorOutcome.scan_unreadable(wsid, scan))",
-      "replace": "            scan = self.scan_actors(wsid)",
+      "find": "            scan = store.scan_actors(wsid)\n            if scan.unreadable:\n                outcomes.append(OfficeActorOutcome.scan_unreadable(wsid, scan))",
+      "replace": "            scan = store.scan_actors(wsid)",
       "test": [
         "{python}",
         "-m",
@@ -999,8 +999,8 @@
     },
     {
       "id": "c4-replay-evidence-answers-over-a-short-world",
-      "path": "agent_runtime/office_store.py",
-      "symbol": "OfficeStore.archived_actor_keys_for_instance",
+      "path": "agent_runtime/office_store/archive.py",
+      "symbol": "archived_actor_keys_for_instance",
       "operator": "drop-completeness-refusal",
       "find": "            if scan.unreadable:\n                raise ActorsUnreadable(\n                    f\"office actors unreadable in {wsid}: {scan.unreadable}\"\n                )",
       "replace": "            pass",
@@ -1139,7 +1139,7 @@
     },
     {
       "id": "ax7-a-diagnostic-repair-mints-a-realm-wide-tombstone",
-      "path": "agent_runtime/office_store.py",
+      "path": "agent_runtime/office_store/archive.py",
       "symbol": "_archive_actor_locked",
       "operator": "ignore-the-eviction-mode",
       "find": "        if record_tombstone and actor.actor_key not in surface.archived_actor_keys:",
@@ -1217,7 +1217,7 @@
     },
     {
       "id": "hh1-the-cli-detail-roster-derives-from-the-section-table",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/doctor_commands.py",
       "symbol": "_cmd_doctor",
       "operator": "re-type-the-detail-roster-by-hand",
       "find": "        detail_sources = doctor_detail_sources(hygiene)",
@@ -1313,7 +1313,7 @@
     },
     {
       "id": "hh11-the-cli-prints-no-census-block-for-an-unobserved-census",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/doctor_commands.py",
       "symbol": "_cmd_doctor",
       "operator": "render-the-census-block-unconditionally",
       "find": "        if census.get(\"observed\"):",
@@ -1344,8 +1344,8 @@
     },
     {
       "id": "hh5-the-retire-receipt-is-never-written",
-      "path": "agent_runtime/persona_assignments.py",
-      "symbol": "PersonaInstanceStore._write_retire_receipt",
+      "path": "agent_runtime/persona_assignments/retire.py",
+      "symbol": "_write_retire_receipt",
       "operator": "skip-receipt-write",
       "find": "        path = retire_receipt_path(archive_dir, result[\"persona_instance_id\"])\n        try:",
       "replace": "        path = retire_receipt_path(archive_dir, result[\"persona_instance_id\"])\n        return {\"retire_receipt_path\": None}\n        try:",
@@ -1359,8 +1359,8 @@
     },
     {
       "id": "hh5-a-missing-receipt-is-read-as-an-empty-one",
-      "path": "agent_runtime/persona_assignments.py",
-      "symbol": "PersonaInstanceStore.read_retire_receipt",
+      "path": "agent_runtime/persona_assignments/retire.py",
+      "symbol": "read_retire_receipt",
       "operator": "degrade-absence-to-empty",
       "find": "        except Exception:  # noqa: BLE001 - absent, unreadable, or not JSON\n            return None",
       "replace": "        except Exception:  # noqa: BLE001 - absent, unreadable, or not JSON\n            return {}",
@@ -1374,7 +1374,7 @@
     },
     {
       "id": "hh5-the-receipt-lands-where-tombstones-are-counted",
-      "path": "agent_runtime/persona_assignments.py",
+      "path": "agent_runtime/persona_assignments/retire.py",
       "symbol": "retire_receipt_path",
       "operator": "flatten-receipt-into-the-batch",
       "find": "    return archive_dir / RETIRE_RECEIPTS_DIRNAME / f\"{persona_instance_id}.json\"",
@@ -1404,7 +1404,7 @@
     },
     {
       "id": "hh12-the-minted-kind-echoes-the-write-instead-of-sticking",
-      "path": "agent_runtime/office_store.py",
+      "path": "agent_runtime/office_store/normalize.py",
       "symbol": "_stamp_minted_kinds",
       "operator": "echo-current-kind",
       "find": "        replace(item, minted_kind=on_record.get(item.item_id) or item.kind)",
@@ -1419,7 +1419,7 @@
     },
     {
       "id": "hh13-the-dispatcher-stops-handing-over-the-proven-caller",
-      "path": "agent_runtime/serve_rpc.py",
+      "path": "agent_runtime/serve_rpc/agent.py",
       "symbol": "_runtime_agent_retire",
       "operator": "drop-caller-from-service-call",
       "find": "    outcome = perform_agent_retire(\n        params, caller=context.caller if context is not None else None\n    )",
@@ -1527,7 +1527,7 @@
     },
     {
       "id": "hh10-a-positionless-item-defaults-to-the-origin",
-      "path": "agent_runtime/office_store.py",
+      "path": "agent_runtime/office_store/normalize.py",
       "symbol": "_item_point",
       "operator": "default-missing-point-to-origin",
       "find": "    if not isinstance(value, (list, tuple)) or len(value) < 2:\n        raise ValueError(\"invalid_request: item position must be [x, y]\")",
@@ -1542,11 +1542,11 @@
     },
     {
       "id": "hh10-the-policys-answer-is-discarded",
-      "path": "agent_runtime/office_store.py",
-      "symbol": "upsert_actor",
+      "path": "agent_runtime/office_store/actor_writes.py",
+      "symbol": "_place_unaimed",
       "operator": "discard-resolved-slot",
-      "find": "                        position=position_policy(self.scan_actors(wsid)),",
-      "replace": "                        position=(position_policy(self.scan_actors(wsid)) and (0.0, 0.0)),",
+      "find": "            position=position_policy(store.scan_actors(wsid)),",
+      "replace": "            position=(position_policy(store.scan_actors(wsid)) and (0.0, 0.0)),",
       "test": [
         "{python}",
         "-m",
@@ -1557,11 +1557,11 @@
     },
     {
       "id": "hh10-the-policy-is-handed-a-bare-list",
-      "path": "agent_runtime/office_store.py",
-      "symbol": "upsert_actor",
+      "path": "agent_runtime/office_store/actor_writes.py",
+      "symbol": "_place_unaimed",
       "operator": "unwrap-scan-at-the-seam",
-      "find": "position=position_policy(self.scan_actors(wsid)),",
-      "replace": "position=position_policy(self.scan_actors(wsid).actors),",
+      "find": "position=position_policy(store.scan_actors(wsid)),",
+      "replace": "position=position_policy(store.scan_actors(wsid).actors),",
       "test": [
         "{python}",
         "-m",
@@ -1572,8 +1572,8 @@
     },
     {
       "id": "hh10-a-multi-item-payload-is-guessed-at",
-      "path": "agent_runtime/office_store.py",
-      "symbol": "upsert_actor",
+      "path": "agent_runtime/office_store/actor_writes.py",
+      "symbol": "ActorUpsert.parse",
       "operator": "drop-multi-item-refusal",
       "find": "            if len(raw_items) != 1:\n                raise ValueError(\n                    \"invalid_request: position_policy resolves ONE item's slot; \"\n                    f\"payload carries {len(raw_items)}\"\n                )\n",
       "replace": "",
@@ -1587,11 +1587,11 @@
     },
     {
       "id": "hh10-the-placement-read-leaves-the-lock-again",
-      "path": "agent_runtime/office_store.py",
+      "path": "agent_runtime/office_store/actor_writes.py",
       "symbol": "upsert_actor",
       "operator": "resolve-slot-outside-office-lock",
-      "find": "            items = []\n\n        if not dry_run:",
-      "replace": "            items = [\n                _normalize_item(\n                    raw_items[0],\n                    persona_id=persona_id,\n                    position=position_policy(self.scan_actors(wsid)),\n                )\n            ]\n            position_policy = None\n\n        if not dry_run:",
+      "find": "    items = request.items\n    if not dry_run:",
+      "replace": "    items = _place_unaimed(store, wsid, request, position_policy) if position_policy else request.items\n    position_policy = None\n    if not dry_run:",
       "test": [
         "{python}",
         "-m",
@@ -1602,7 +1602,7 @@
     },
     {
       "id": "hh3-an-unreadable-conflict-sidecar-passes-for-a-read-key",
-      "path": "agent_runtime/office_store.py",
+      "path": "agent_runtime/office_store/conflicts.py",
       "symbol": "scan_conflicts",
       "operator": "mint-read-outcome-in-the-except-arm",
       "find": "                outcomes.append(\n                    OfficeActorOutcome.conflict_key_from_filename(\n                        workspace_id, path.stem, exc\n                    )\n                )\n                keys.append(path.stem)",
@@ -1617,7 +1617,7 @@
     },
     {
       "id": "hh3-a-sidecar-with-no-actor-key-passes-for-a-read-key",
-      "path": "agent_runtime/office_store.py",
+      "path": "agent_runtime/office_store/conflicts.py",
       "symbol": "scan_conflicts",
       "operator": "drop-the-empty-key-guess-arm",
       "find": "            if not key:\n                outcomes.append(\n                    OfficeActorOutcome.conflict_key_from_filename(\n                        workspace_id, path.stem, ValueError(\"actor_key missing\")\n                    )\n                )\n                keys.append(path.stem)\n                continue\n",
@@ -1632,7 +1632,7 @@
     },
     {
       "id": "hh3-a-resolved-sidecar-reads-as-a-live-conflict",
-      "path": "agent_runtime/office_store.py",
+      "path": "agent_runtime/office_store/conflicts.py",
       "symbol": "scan_conflicts",
       "operator": "drop-resolved-sidecar-skip",
       "find": "            if path.name.endswith(\".resolved.json\"):\n                continue\n",
@@ -1647,7 +1647,7 @@
     },
     {
       "id": "hh3-the-prune-ack-keeps-its-own-tally-again",
-      "path": "agent_runtime/office_store.py",
+      "path": "agent_runtime/office_store/archive.py",
       "symbol": "archive_actors_for_instance",
       "operator": "hand-keep-the-archived-count",
       "find": "            \"archived\": len(archived_keys),",
@@ -1662,7 +1662,7 @@
     },
     {
       "id": "hh9-a-blank-folder-is-persisted-as-blank-again",
-      "path": "agent_runtime/office_store.py",
+      "path": "agent_runtime/office_store/normalize.py",
       "symbol": "_normalize_item",
       "operator": "drop-the-kind-default-fallback",
       "find": "    folder = _safe_folder(raw.get(\"folder\")) or office_layout_policy.folder_for_kind(kind)",
@@ -1677,7 +1677,7 @@
     },
     {
       "id": "hh9-an-explicit-folder-is-refiled-under-the-default",
-      "path": "agent_runtime/office_store.py",
+      "path": "agent_runtime/office_store/normalize.py",
       "symbol": "_normalize_item",
       "operator": "fill-the-folder-unconditionally",
       "find": "    folder = _safe_folder(raw.get(\"folder\")) or office_layout_policy.folder_for_kind(kind)",
@@ -1692,7 +1692,7 @@
     },
     {
       "id": "hh9-the-filled-folder-stops-asking-the-items-kind",
-      "path": "agent_runtime/office_store.py",
+      "path": "agent_runtime/office_store/normalize.py",
       "symbol": "_normalize_item",
       "operator": "ignore-the-kind-when-filling",
       "find": "    folder = _safe_folder(raw.get(\"folder\")) or office_layout_policy.folder_for_kind(kind)",
@@ -1707,7 +1707,7 @@
     },
     {
       "id": "ax5-the-projection-guard-goes-blind-to-a-short-read",
-      "path": "agent_runtime/office_store.py",
+      "path": "agent_runtime/office_store/patches.py",
       "symbol": "_emit_actor_patch",
       "operator": "demote-only-on-truncation",
       "find": "            if scan.unreadable or len(scan.actors) > MAX_OFFICE_ACTORS_PROJECTED:",
@@ -1752,7 +1752,7 @@
     },
     {
       "id": "dcw-h1-the-conflict-scan-calls-every-key-a-guess",
-      "path": "agent_runtime/office_store.py",
+      "path": "agent_runtime/office_store/models.py",
       "symbol": "ConflictScan.guessed_keys",
       "operator": "return-the-whole-key-list",
       "find": "        return [key for key, outcome in zip(self.keys, self.outcomes) if not outcome.succeeded]",
@@ -1767,7 +1767,7 @@
     },
     {
       "id": "dcw-h1-the-snapshot-drops-the-conflict-provenance-again",
-      "path": "agent_runtime/snapshot.py",
+      "path": "agent_runtime/snapshot/offices.py",
       "symbol": "_offices_summary",
       "operator": "pass-an-empty-guess-list",
       "find": "                conflict_guessed_keys=conflicts.guessed_keys,",
@@ -1782,7 +1782,7 @@
     },
     {
       "id": "dcw-h1-the-conflict-warning-goes-blind-to-the-guess-list",
-      "path": "agent_runtime/snapshot.py",
+      "path": "agent_runtime/snapshot/offices.py",
       "symbol": "_office_parity_warnings",
       "operator": "never-read-the-rows-guess-list",
       "find": "        guessed = set(office.get(\"conflict_guessed_keys\") or ())",
@@ -1797,7 +1797,7 @@
     },
     {
       "id": "dcw-h1-an-older-office-row-takes-the-parity-section-down",
-      "path": "agent_runtime/snapshot.py",
+      "path": "agent_runtime/snapshot/offices.py",
       "symbol": "_office_parity_warnings",
       "operator": "index-the-additive-key",
       "find": "        guessed = set(office.get(\"conflict_guessed_keys\") or ())",
@@ -1812,7 +1812,7 @@
     },
     {
       "id": "dcw-h1-the-row-builder-defaults-the-guess-list",
-      "path": "agent_runtime/snapshot.py",
+      "path": "agent_runtime/snapshot/offices.py",
       "symbol": "office_summary_row",
       "operator": "default-the-required-keyword",
       "find": "    conflict_guessed_keys,\n",
@@ -1872,8 +1872,8 @@
     },
     {
       "id": "s4-the-tombstone-union-keeps-the-local-only-entry",
-      "path": "agent_runtime/realm_sync.py",
-      "symbol": "merge_skill_tombstone_ledgers",
+      "path": "agent_runtime/realm_sync/ledgers.py",
+      "symbol": "_merge_state_register",
       "operator": "adopt-incoming-instead-of-union",
       "find": "    for rows in (local, incoming):\n",
       "replace": "    for rows in (incoming,):\n",
@@ -1887,7 +1887,7 @@
     },
     {
       "id": "s4-the-merge-ranks-by-the-later-of-the-two-stamps",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/ledgers.py",
       "symbol": "_tombstone_transition_at",
       "operator": "rank-by-the-delete-stamp-only",
       "find": "        for stamp in (_ledger_time(row.get(\"restored_at\")), _ledger_time(row.get(\"deleted_at\")))\n",
@@ -1902,7 +1902,7 @@
     },
     {
       "id": "s4-an-equal-stamp-tie-resolves-to-the-delete",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/ledgers.py",
       "symbol": "_newer_tombstone_row",
       "operator": "resolve-the-tie-to-the-local-side",
       "find": "    if candidate_blocks and not held_blocks:\n        return candidate\n    return held",
@@ -1917,7 +1917,7 @@
     },
     {
       "id": "s4-the-workspace-ledger-is-unioned-not-adopted",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/ledgers.py",
       "symbol": "merge_deleted_workspace_ledgers",
       "operator": "adopt-incoming-instead-of-union",
       "find": "    for rows in (local, incoming):\n",
@@ -1932,11 +1932,11 @@
     },
     {
       "id": "s4-the-ledger-union-is-not-gated-on-server-id",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/pull.py",
       "symbol": "_pulled_artifact_bytes",
       "operator": "re-gate-the-union-behind-a-server-binding",
-      "find": "    if artifact.kind != \"realm\" or not artifact.destination.exists():\n",
-      "replace": "    if artifact.kind != \"realm\" or not realm.server_id or not artifact.destination.exists():\n",
+      "find": "    if artifact.kind != SyncFamily.REALM or not artifact.destination.exists():\n",
+      "replace": "    if artifact.kind != SyncFamily.REALM or not realm.server_id or not artifact.destination.exists():\n",
       "test": [
         "{python}",
         "-m",
@@ -1977,11 +1977,11 @@
     },
     {
       "id": "dcw-h4-the-autopilot-regenerates-rows-that-already-landed",
-      "path": "hermes_cli/harness.py",
-      "symbol": "_characters_auto_plan",
+      "path": "hermes_cli/harness_parts/characters/auto.py",
+      "symbol": "module",
       "operator": "drop-the-pending-rows-skip",
-      "find": "        elif step == \"rows\" and not status[\"pending\"][\"rows\"]:\n            reason = \"every authored row already has an approved strip\"\n",
-      "replace": "",
+      "find": "            done=lambda status: not status[\"pending\"][\"rows\"],\n",
+      "replace": "            done=None,\n",
       "test": [
         "{python}",
         "-m",
@@ -1992,11 +1992,11 @@
     },
     {
       "id": "dcw-h4-the-autopilot-skips-a-turnaround-it-has-not-generated",
-      "path": "hermes_cli/harness.py",
-      "symbol": "_characters_auto_plan",
+      "path": "hermes_cli/harness_parts/characters/auto.py",
+      "symbol": "module",
       "operator": "invert-the-missing-turnaround-test",
-      "find": "        elif step == \"turnaround\" and not status[\"missing\"][\"turnaround\"]:\n",
-      "replace": "        elif step == \"turnaround\" and status[\"missing\"][\"turnaround\"]:\n",
+      "find": "            done=lambda status: not status[\"missing\"][\"turnaround\"],\n",
+      "replace": "            done=lambda status: status[\"missing\"][\"turnaround\"],\n",
       "test": [
         "{python}",
         "-m",
@@ -2007,7 +2007,7 @@
     },
     {
       "id": "dcw-h4-a-stopped-autopilot-never-writes-its-summary",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/auto.py",
       "symbol": "_characters_auto_steps",
       "operator": "return-instead-of-breaking",
       "find": "            stopped_at, error = step, str(exc)\n            break\n",
@@ -2022,7 +2022,7 @@
     },
     {
       "id": "dcw-h4-an-autopilot-with-nothing-to-do-reports-success",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/auto.py",
       "symbol": "_characters_auto_steps",
       "operator": "swallow-the-empty-plan-refusal",
       "find": "        stopped_at, error = \"plan\", message\n",
@@ -2037,7 +2037,7 @@
     },
     {
       "id": "dcw-h4-the-autopilot-receipts-arrive-only-at-exit",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/auto.py",
       "symbol": "_characters_auto_write",
       "operator": "drop-the-flush",
       "find": "    sys.stdout.flush()\n",
@@ -2052,7 +2052,7 @@
     },
     {
       "id": "dcw-h4-the-autopilot-stream-is-framed-in-indented-blocks",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/auto.py",
       "symbol": "_characters_auto_write",
       "operator": "use-the-indenting-encoder",
       "find": "emit_json_line({**data, **_characters_draftsman()})",
@@ -2067,7 +2067,7 @@
     },
     {
       "id": "dcw-h4-concurrent-tool-elements-pair-by-arrival-again",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/chat_events.py",
       "symbol": "_ChatProtocolV2Emitter._match_started_tool",
       "operator": "drop-the-identity-match",
       "find": "        for field, value in identities:\n            if not value:\n                continue\n            for index, candidate in enumerate(pending):\n                if candidate.get(field) == value:\n                    return pending.pop(index)\n",
@@ -2082,7 +2082,7 @@
     },
     {
       "id": "dcw-h4-an-identity-free-finish-settles-the-newest-start",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/chat_events.py",
       "symbol": "_ChatProtocolV2Emitter._match_started_tool",
       "operator": "restore-the-lifo-fallback",
       "find": "        return pending.pop(0)\n",
@@ -2097,7 +2097,7 @@
     },
     {
       "id": "dcw-h4-a-matched-start-stays-pending-and-can-be-settled-twice",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/chat_events.py",
       "symbol": "_ChatProtocolV2Emitter._match_started_tool",
       "operator": "read-the-match-without-removing-it",
       "find": "                    return pending.pop(index)\n",
@@ -2112,7 +2112,7 @@
     },
     {
       "id": "dcw-h4-a-terminal-finish-has-no-identity-to-match-on",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/chat_events.py",
       "symbol": "_ChatProtocolV2Emitter._match_started_tool",
       "operator": "drop-the-command-identity",
       "find": "            (\"command\", finished_command),\n",
@@ -2247,7 +2247,7 @@
     },
     {
       "id": "ir-h2-instance-ids-re-walk-the-directory-instead-of-the-scan",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/publish_scans.py",
       "symbol": "_office_publish_scan",
       "operator": "restore-second-authority-glob-for-instances",
       "find": "            if actor.persona_instance_id and actor.persona_instance_id not in instance_ids:\n                instance_ids.append(actor.persona_instance_id)\n",
@@ -2262,7 +2262,7 @@
     },
     {
       "id": "ir-h2-projection-stops-pruning-to-the-referenced-set",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/artifacts.py",
       "symbol": "_resolve_artifacts_with_projection",
       "operator": "publish-every-local-instance",
       "find": "    instance_projection, instance_rows_unreadable = _persona_instance_projection(\n        office_scan.instance_ids\n    )\n",
@@ -2292,7 +2292,7 @@
     },
     {
       "id": "ir-h2-publish-row-swallows-the-store-shortfall",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/artifacts.py",
       "symbol": "_persona_instance_projection",
       "operator": "zero-the-unreadable-row-count",
       "find": "        unreadable = scan.unreadable\n",
@@ -2352,8 +2352,8 @@
     },
     {
       "id": "ir-h3-a-replication-mint-poses-as-an-authored-create",
-      "path": "agent_runtime/persona_assignments.py",
-      "symbol": "PersonaInstanceStore.replicate_instance",
+      "path": "agent_runtime/persona_assignments/replicate.py",
+      "symbol": "replicate_instance",
       "operator": "reuse-the-authored-create-event",
       "find": "            \"persona_instance.replicated\",\n            instance,\n            {\n                \"source\": \"realm_sync\",",
       "replace": "            \"persona_instance.created\",\n            instance,\n            {\n                \"source\": \"realm_sync\",",
@@ -2367,11 +2367,11 @@
     },
     {
       "id": "ir-h3-the-mint-reaches-no-live-consumer",
-      "path": "agent_runtime/persona_assignments.py",
-      "symbol": "PersonaInstanceStore.replicate_instance",
+      "path": "agent_runtime/persona_assignments/replicate.py",
+      "symbol": "replicate_instance",
       "operator": "drop-the-delta-patch",
-      "find": "        if created:\n            emit_persona_instance_create(self.event_log, instance)\n        else:\n            emit_persona_instance_patch(",
-      "replace": "        if False:\n            emit_persona_instance_create(self.event_log, instance)\n        elif False:\n            emit_persona_instance_patch(",
+      "find": "        if created:\n            emit_persona_instance_create(store.event_log, instance)\n        else:\n            emit_persona_instance_patch(",
+      "replace": "        if False:\n            emit_persona_instance_create(store.event_log, instance)\n        elif False:\n            emit_persona_instance_patch(",
       "test": [
         "{python}",
         "-m",
@@ -2382,8 +2382,8 @@
     },
     {
       "id": "ir-h3-the-store-door-writes-the-whole-remote-body",
-      "path": "agent_runtime/persona_assignments.py",
-      "symbol": "PersonaInstanceStore.replicate_instance",
+      "path": "agent_runtime/persona_assignments/replicate.py",
+      "symbol": "replicate_instance",
       "operator": "ignore-the-travel-allowlist",
       "find": "        for name in sorted(PERSONA_INSTANCE_ALLOWED_KEYS - {\"id\", \"persona_id\", \"steered_by\"}):",
       "replace": "        for name in sorted(set(body) - {\"id\", \"persona_id\", \"steered_by\"}):",
@@ -2412,10 +2412,10 @@
     },
     {
       "id": "ir-h3-a-remote-graph-installs-a-cycle",
-      "path": "agent_runtime/persona_assignments.py",
-      "symbol": "PersonaInstanceStore.apply_replicated_steering",
+      "path": "agent_runtime/persona_assignments/replicate.py",
+      "symbol": "apply_replicated_steering",
       "operator": "skip-the-cycle-validator",
-      "find": "                self._validate_no_steering_cycle(persona_instance_id, parent)\n",
+      "find": "                store._validate_no_steering_cycle(persona_instance_id, parent)\n",
       "replace": "                pass\n",
       "test": [
         "{python}",
@@ -2457,7 +2457,7 @@
     },
     {
       "id": "ir-h4-canonical-rows-enter-the-drift-walk",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/drift.py",
       "symbol": "_persona_instance_store_drift_items",
       "operator": "stop-excluding-canonical-channels",
       "find": "        if is_canonical_persona_channel(instance):\n            continue",
@@ -2472,7 +2472,7 @@
     },
     {
       "id": "ir-h4-a-short-instance-read-reports-removals",
-      "path": "agent_runtime/realm_sync.py",
+      "path": "agent_runtime/realm_sync/drift.py",
       "symbol": "_persona_instance_store_drift_items",
       "operator": "spend-only-the-rows",
       "find": "    if scan.unreadable:\n        return []\n\n    workspace_ids",
@@ -2502,10 +2502,10 @@
     },
     {
       "id": "ir-h4-a-working-agent-is-archived",
-      "path": "agent_runtime/persona_assignments.py",
-      "symbol": "PersonaInstanceStore.retire_replica",
+      "path": "agent_runtime/persona_assignments/replicate.py",
+      "symbol": "retire_replica",
       "operator": "drop-the-live-binding-guard",
-      "find": "        if self._has_live_binding(instance):\n            raise PersonaInstanceRetireError(\n                \"instance_active\",",
+      "find": "        if store._has_live_binding(instance):\n            raise PersonaInstanceRetireError(\n                \"instance_active\",",
       "replace": "        if False:\n            raise PersonaInstanceRetireError(\n                \"instance_active\",",
       "test": [
         "{python}",
@@ -2547,11 +2547,11 @@
     },
     {
       "id": "ir-h4-the-replica-retire-mints-a-realm-visible-ledger-entry",
-      "path": "agent_runtime/persona_assignments.py",
-      "symbol": "PersonaInstanceStore.retire_replica",
+      "path": "agent_runtime/persona_assignments/replicate.py",
+      "symbol": "retire_replica",
       "operator": "run-the-office-half",
-      "find": "        self._event(\"persona_instance.retired\", instance, payload)\n        emit_persona_instance_remove(self.event_log, instance)\n        return {\n            \"persona_instance_id\": instance.id,\n            \"persona_id\": instance.persona_id,\n            \"archive_path\": str(archived_path),",
-      "replace": "        self._event(\"persona_instance.retired\", instance, payload)\n        emit_persona_instance_remove(self.event_log, instance)\n        self._archive_office_placements(instance)\n        return {\n            \"persona_instance_id\": instance.id,\n            \"persona_id\": instance.persona_id,\n            \"archive_path\": str(archived_path),",
+      "find": "        store._event(\"persona_instance.retired\", instance, payload)\n        emit_persona_instance_remove(store.event_log, instance)\n        return {\n            \"persona_instance_id\": instance.id,\n            \"persona_id\": instance.persona_id,\n            \"archive_path\": str(archived_path),",
+      "replace": "        store._event(\"persona_instance.retired\", instance, payload)\n        emit_persona_instance_remove(store.event_log, instance)\n        store._archive_office_placements(instance)\n        return {\n            \"persona_instance_id\": instance.id,\n            \"persona_id\": instance.persona_id,\n            \"archive_path\": str(archived_path),",
       "test": [
         "{python}",
         "-m",
@@ -2954,7 +2954,7 @@
     },
     {
       "id": "ctp4-plan-drops-the-session-db-measurement",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/chat_turn_message.py",
       "symbol": "_cmd_mission_chat_message",
       "operator": "drop-plan-field",
       "find": "        session_db_open_ms=_session_db_open_ms,\n",
@@ -2969,8 +2969,8 @@
     },
     {
       "id": "ctp4-unmeasured-session-db-open-becomes-a-zero",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
-      "symbol": "_mission_chat_commit_turn",
+      "path": "hermes_cli/harness_parts/persona/chat_turn_commit/run.py",
+      "symbol": "_RunPhases._fold_profile_timing",
       "operator": "fabricate-zero-for-absent",
       "find": "        if isinstance(_session_db_open_ms, int) and not isinstance(\n            _session_db_open_ms, bool\n        ):\n            _profile_timing[\"session_db_open_ms\"] = _session_db_open_ms",
       "replace": "        _profile_timing[\"session_db_open_ms\"] = int(_session_db_open_ms or 0)",
@@ -2984,7 +2984,7 @@
     },
     {
       "id": "ctp4-the-session-db-open-is-never-timed",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/chat_turn_message.py",
       "symbol": "_cmd_mission_chat_message",
       "operator": "drop-measurement",
       "find": "    _session_db_open_ms = max(\n        0, int((time.monotonic() - _session_db_open_started) * 1000)\n    )\n    instance_store = PersonaInstanceStore()",
@@ -3075,7 +3075,7 @@
     },
     {
       "id": "p4-reply-media-mint-loses-its-peer-gate",
-      "path": "hermes_cli/harness_parts/persona_commands.py",
+      "path": "hermes_cli/harness_parts/persona/chat_reply_stamps.py",
       "symbol": "_stamp_reply_media",
       "operator": "drop-origin-gate",
       "find": "        if not requested_by.startswith(PEER_REQUESTED_BY_PREFIX):\n            return data\n",
@@ -3225,7 +3225,7 @@
     },
     {
       "id": "p4-peer-keyhole-would-proxy-a-third-install",
-      "path": "agent_runtime/serve_rpc.py",
+      "path": "agent_runtime/serve_rpc/peer.py",
       "symbol": "_peer_media_get",
       "operator": "widen-resolution-scope",
       "find": "    scope = media_handles.build_media_scope(remote_completions=())\n",
@@ -3240,7 +3240,7 @@
     },
     {
       "id": "p4-media-get-never-reaches-the-proxy-arm",
-      "path": "agent_runtime/serve_rpc.py",
+      "path": "agent_runtime/serve_rpc/media.py",
       "symbol": "_runtime_media_get",
       "operator": "drop-branch",
       "find": "    if isinstance(resolved, media_handles.RemoteMediaArtifact):\n",
@@ -3255,7 +3255,7 @@
     },
     {
       "id": "p4-peer-keyhole-answers-a-caller-that-proved-nothing",
-      "path": "agent_runtime/serve_rpc.py",
+      "path": "agent_runtime/serve_rpc/peer.py",
       "symbol": "_peer_media_get",
       "operator": "drop-provenance-guard",
       "find": "    if not peer_install_id:\n",
@@ -3270,11 +3270,11 @@
     },
     {
       "id": "uaf-surface-authored-before-the-fences-again",
-      "path": "agent_runtime/office_store.py",
-      "symbol": "OfficeStore.upsert_actor",
+      "path": "agent_runtime/office_store/actor_writes.py",
+      "symbol": "upsert_actor",
       "operator": "restore-ensure-surface-above-the-lock",
-      "find": "            self._refuse_unresolvable_workspace(wsid)\n        with office_lock(wsid):",
-      "replace": "            self.ensure_surface(wsid, created_by=updated_by)\n        with office_lock(wsid):",
+      "find": "        store._refuse_unresolvable_workspace(wsid)\n    with office_lock(wsid):",
+      "replace": "        store.ensure_surface(wsid, created_by=updated_by)\n    with office_lock(wsid):",
       "test": [
         "{python}",
         "-m",
@@ -3285,11 +3285,11 @@
     },
     {
       "id": "uaf-fence-refusal-still-authors-the-office",
-      "path": "agent_runtime/office_store.py",
-      "symbol": "OfficeStore.upsert_actor",
+      "path": "agent_runtime/office_store/actor_writes.py",
+      "symbol": "upsert_actor",
       "operator": "restore-ensure-surface-above-the-lock",
-      "find": "            self._refuse_unresolvable_workspace(wsid)\n        with office_lock(wsid):",
-      "replace": "            self.ensure_surface(wsid, created_by=updated_by)\n        with office_lock(wsid):",
+      "find": "        store._refuse_unresolvable_workspace(wsid)\n    with office_lock(wsid):",
+      "replace": "        store.ensure_surface(wsid, created_by=updated_by)\n    with office_lock(wsid):",
       "test": [
         "{python}",
         "-m",
@@ -3300,7 +3300,7 @@
     },
     {
       "id": "uaf-scan-drops-the-names-it-is-standing-on",
-      "path": "agent_runtime/office_store.py",
+      "path": "agent_runtime/office_store/files.py",
       "symbol": "read_actor_dir",
       "operator": "degrade-named-shortfall-to-a-count",
       "find": "    unreadable = UnreadableActorFiles.of(unreadable_names)",
@@ -3315,7 +3315,7 @@
     },
     {
       "id": "uaf-unreadable-name-list-loses-its-bound",
-      "path": "agent_runtime/office_store.py",
+      "path": "agent_runtime/office_store/models.py",
       "symbol": "UnreadableActorFiles.of",
       "operator": "unbound-the-name-list",
       "find": "        return cls(names=ordered[:MAX_UNREADABLE_ACTOR_FILE_NAMES], total=len(ordered))",
@@ -3525,11 +3525,11 @@
     },
     {
       "id": "longrun-drain-terminates-over-a-live-generation",
-      "path": "hermes_cli/harness_parts/serve.py",
-      "symbol": "serve_loop._drain_monitor/terminal",
+      "path": "hermes_cli/harness_parts/serve/drain.py",
+      "symbol": "DrainLane._drain_monitor/terminal",
       "operator": "hold-only-for-chat-turns",
-      "find": "                        \"terminal\": not (chat_turn_ids or long_run_ids),",
-      "replace": "                        \"terminal\": not chat_turn_ids,",
+      "find": "                    \"terminal\": not (chat_turn_ids or long_run_ids),",
+      "replace": "                    \"terminal\": not chat_turn_ids,",
       "test": [
         "{python}",
         "-m",
@@ -3540,10 +3540,10 @@
     },
     {
       "id": "longrun-busy-frame-drops-the-long-run-count",
-      "path": "hermes_cli/harness_parts/serve.py",
-      "symbol": "_busy_frame",
+      "path": "hermes_cli/harness_parts/serve/session.py",
+      "symbol": "ServeSession._busy_frame",
       "operator": "zero-the-long-run-count",
-      "find": "            long_runs = sum(1 for item in inflight.values() if item.is_long_run)",
+      "find": "            long_runs = sum(1 for item in self.inflight.values() if item.is_long_run)",
       "replace": "            long_runs = 0",
       "test": [
         "{python}",
@@ -3570,7 +3570,7 @@
     },
     {
       "id": "longrun-busy-refusal-loses-its-typed-code",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/payloads.py",
       "symbol": "_characters_refusal_extra",
       "operator": "drop-the-refusal-code",
       "find": "    extra: dict = {\"code\": code}",
@@ -3585,7 +3585,7 @@
     },
     {
       "id": "longrun-autopilot-runs-without-holding-the-draft",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/auto.py",
       "symbol": "_cmd_characters_auto",
       "operator": "drop-the-plan-wide-lock",
       "find": "        holding.enter_context(draft.generation_lock(\"auto\"))",
@@ -3600,8 +3600,8 @@
     },
     {
       "id": "sh-status-swallows-the-denial-it-degraded-on",
-      "path": "agent_runtime/realm_sync.py",
-      "symbol": "realm_sync_status",
+      "path": "agent_runtime/realm_sync/status.py",
+      "symbol": "_status_repo",
       "operator": "report-the-degraded-read-as-a-verified-one",
       "find": "        remote_check = {\"checked\": False, \"error\": auth_error.code}",
       "replace": "        remote_check = {\"checked\": True, \"error\": None}",
@@ -3615,8 +3615,8 @@
     },
     {
       "id": "sh-status-degrades-with-no-local-repo-to-degrade-to",
-      "path": "agent_runtime/realm_sync.py",
-      "symbol": "realm_sync_status",
+      "path": "agent_runtime/realm_sync/status.py",
+      "symbol": "_status_repo",
       "operator": "drop-the-floor-of-the-degrade",
       "find": "        if not (repo / \".git\").exists():\n            raise auth_error",
       "replace": "        if False:\n            raise auth_error",
@@ -3630,10 +3630,10 @@
     },
     {
       "id": "sh-resolve-adopt-arm-writes-past-the-patch-lane",
-      "path": "agent_runtime/office_store.py",
-      "symbol": "OfficeStore.resolve_conflict",
+      "path": "agent_runtime/office_store/conflicts.py",
+      "symbol": "resolve_conflict",
       "operator": "drop-the-adopted-rows-patch",
-      "find": "                        self._emit_actor_patch(\n                            actor, created=created, correlation_id=correlation_id\n                        )",
+      "find": "                        store._emit_actor_patch(\n                            actor, created=created, correlation_id=correlation_id\n                        )",
       "replace": "                        pass",
       "test": [
         "{python}",
@@ -3795,7 +3795,7 @@
     },
     {
       "id": "cli-agent-list-row-loses-the-accepted-spellings",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/agent_commands.py",
       "symbol": "_agent_definition_row",
       "operator": "reprint-the-binding-instead-of-the-spellings",
       "find": "        \"persona_spellings\": accepted_persona_spellings(persona, list(roster or [persona])),",
@@ -3825,7 +3825,7 @@
     },
     {
       "id": "charsheet-sprite-verb-ignores-the-no-sheet-flag",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/commands.py",
       "symbol": "_cmd_characters_sprite",
       "operator": "drop-the-flag-on-the-way-through",
       "find": "            slug, include_sheet=not bool(getattr(args, \"no_sheet\", False))",
@@ -3945,7 +3945,7 @@
     },
     {
       "id": "backfill-skipped-row-loses-its-directory",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/commands.py",
       "symbol": "_cmd_characters_backfill_home",
       "operator": "drop-directory-from-the-skipped-line",
       "find": "    lines += [\n        f\"  skipped {row['id']}  {row['directory']}  already {row['hermesHome']}\"\n        for row in skipped\n    ]",
@@ -3990,7 +3990,7 @@
     },
     {
       "id": "w2-the-turn-receipt-stops-saying-what-the-preload-cost",
-      "path": "agent_runtime/prompt_observability.py",
+      "path": "agent_runtime/prompt_observability/skills_context.py",
       "symbol": "_skill_md_bytes",
       "operator": "answer-absent-for-a-resolved-skill",
       "find": "        return int(Path(candidate.skill_md).stat().st_size)",
@@ -4155,7 +4155,7 @@
     },
     {
       "id": "w5-media-get-dials-on-the-reader-again",
-      "path": "agent_runtime/serve_rpc.py",
+      "path": "agent_runtime/serve_rpc/media.py",
       "symbol": "_runtime_media_get",
       "operator": "drop-deferral",
       "find": "        if spawn is not None and spawn(\n",
@@ -4170,11 +4170,11 @@
     },
     {
       "id": "w5-the-reply-seam-is-not-wired-to-the-pool",
-      "path": "hermes_cli/harness_parts/serve.py",
-      "symbol": "serve_loop/_handle_message spawn_reply wiring",
+      "path": "hermes_cli/harness_parts/serve/handle_message.py",
+      "symbol": "MessageHandling._dispatch_rpc/spawn_reply wiring",
       "operator": "unwire-seam",
-      "find": "                        spawn_reply=_spawn_reply,\n",
-      "replace": "                        spawn_reply=None,\n",
+      "find": "                spawn_reply=partial(self._spawn_reply, sink),\n",
+      "replace": "                spawn_reply=None,\n",
       "test": [
         "{python}",
         "-m",
@@ -4185,7 +4185,7 @@
     },
     {
       "id": "w5-the-deferred-sentinel-is-written-to-the-wire",
-      "path": "agent_runtime/serve_rpc.py",
+      "path": "agent_runtime/serve_rpc/protocol.py",
       "symbol": "is_deferred",
       "operator": "break-identity-check",
       "find": "    return frame is DEFERRED\n",
@@ -4200,7 +4200,7 @@
     },
     {
       "id": "w5-a-deferred-fault-escapes-instead-of-answering",
-      "path": "agent_runtime/serve_rpc.py",
+      "path": "agent_runtime/serve_rpc/protocol.py",
       "symbol": "deferred_reply",
       "operator": "drop-worker-boundary",
       "find": "            return err(\n                rid,\n                ERR_HANDLER_FAILED,\n                f\"handler error: {exc}\",\n                {\"reason\": \"handler_failed\", \"method\": method_name},\n            )\n",
@@ -4308,7 +4308,7 @@
     },
     {
       "id": "w7-the-migrate-home-skipped-line-prints-the-directory",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/commands.py",
       "symbol": "_cmd_characters_migrate_home",
       "operator": "drop-directory-from-the-skipped-line",
       "find": "        f\"  skipped {row['kind']} {row.get('id') or row.get('slug')}  \"\n        f\"{row['directory']}  {row['reason']}\"\n",
@@ -4430,7 +4430,7 @@
     },
     {
       "id": "ph-payload-hides-the-fake-door",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/payloads.py",
       "symbol": "_characters_emit",
       "operator": "drop-the-draftsman-stamp",
       "find": "    print(emit_json({**data, **_characters_draftsman()}) if getattr(args, \"json\", False) else human)",
@@ -4446,7 +4446,7 @@
     },
     {
       "id": "ph-payload-stamps-the-provider-door-too",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/payloads.py",
       "symbol": "_characters_draftsman",
       "operator": "name-the-real-door-as-well",
       "find": "    name = active_draftsman_name()\n    return {\"draftsman\": name} if name else {}",
@@ -4461,7 +4461,7 @@
     },
     {
       "id": "ph-autopilot-stream-hides-the-fake-door",
-      "path": "hermes_cli/harness.py",
+      "path": "hermes_cli/harness_parts/characters/auto.py",
       "symbol": "_characters_auto_write",
       "operator": "drop-the-draftsman-stamp",
       "find": "        (emit_json_line({**data, **_characters_draftsman()}) if getattr(args, \"json\", False) else human) + \"\\n\"",
@@ -4539,7 +4539,7 @@
       "path": "agent_runtime/profile_readiness.py",
       "symbol": "_codex_provider_issue",
       "operator": "narrow-authority-to-one-source",
-      "find": "        from hermes_cli.runtime_provider import (\n            codex_credentials_resolvable_read_only,\n        )\n\n        resolvable = codex_credentials_resolvable_read_only()",
+      "find": "        from agent_runtime.provider_probes import (\n            codex_credentials_resolvable_read_only,\n        )\n\n        resolvable = codex_credentials_resolvable_read_only()",
       "replace": "        from agent.credential_pool import load_pool\n\n        _entry = load_pool(\"openai-codex\").peek()\n        resolvable = bool(\n            _entry is not None\n            and (\n                getattr(_entry, \"runtime_api_key\", None)\n                or getattr(_entry, \"access_token\", None)\n            )\n        )",
       "test": [
         "{python}",
@@ -4570,14 +4570,600 @@
       "path": "agent_runtime/provider_probes.py",
       "symbol": "codex_credentials_resolvable_read_only",
       "operator": "invert-source-order",
-      "find": "    entry = _load_pool(\"openai-codex\").peek()\n    if entry is not None and (\n        getattr(entry, \"runtime_api_key\", None)\n        or getattr(entry, \"access_token\", None)\n    ):\n        return True\n    return auth_mod.codex_auth_store_credentials_present()",
-      "replace": "    if auth_mod.codex_auth_store_credentials_present():\n        return True\n    entry = _load_pool(\"openai-codex\").peek()\n    return bool(\n        entry is not None\n        and (\n            getattr(entry, \"runtime_api_key\", None)\n            or getattr(entry, \"access_token\", None)\n        )\n    )",
+      "find": "    entry = _load_pool(\"openai-codex\").peek()\n    if entry is not None and (\n        getattr(entry, \"runtime_api_key\", None)\n        or getattr(entry, \"access_token\", None)\n    ):\n        return True\n    return auth_ext.codex_auth_store_credentials_present()",
+      "replace": "    if auth_ext.codex_auth_store_credentials_present():\n        return True\n    entry = _load_pool(\"openai-codex\").peek()\n    return bool(\n        entry is not None\n        and (\n            getattr(entry, \"runtime_api_key\", None)\n            or getattr(entry, \"access_token\", None)\n        )\n    )",
       "test": [
         "{python}",
         "-m",
         "pytest",
         "-q",
         "tests/agent_runtime/test_codex_readiness_matches_run_path.py::test_a_servable_pool_entry_answers_alone"
+      ]
+    },
+    {
+      "id": "llama-h-receipts-idempotent",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.submit",
+      "operator": "remove-guard",
+      "find": "if request_id in self.receipts:",
+      "replace": "if False:",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_duplicate_request_id_has_one_effect_and_a_changed_payload_is_refused"
+      ]
+    },
+    {
+      "id": "llama-h-epoch-guard",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.guard",
+      "operator": "remove-guard",
+      "find": "if normalized.get(\"expect_epoch\") != self.epoch:",
+      "replace": "if False:",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_new_epoch_refuses_the_old_one_and_replays_the_old_receipt"
+      ]
+    },
+    {
+      "id": "llama-h-revision-guard",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.guard",
+      "operator": "remove-guard",
+      "find": "if normalized[name] != actual:",
+      "replace": "if False:",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_stale_revision_and_a_busy_manager_are_refused"
+      ]
+    },
+    {
+      "id": "llama-h-interrupted-on-restart",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.__init__",
+      "operator": "remove-guard",
+      "find": "if row[\"operation\"][\"state\"] in _ACTIVE:",
+      "replace": "if False:",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_receipt_running_at_restart_reads_interrupted"
+      ]
+    },
+    {
+      "id": "llama-h-lease-refuses-unload-stop",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.submit",
+      "operator": "remove-guard",
+      "find": "if self.leases and kind in (\"start\", \"stop\", \"load\", \"unload\"):",
+      "replace": "if False:",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_the_turn_lease_refuses_unload_and_stop_and_releases_on_failure"
+      ]
+    },
+    {
+      "id": "llama-h-storage-failure-starts-nothing",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.submit",
+      "operator": "weaken-storage",
+      "find": "            except OSError as exc:\n                self.receipts.pop",
+      "replace": "            except ZeroDivisionError as exc:\n                self.receipts.pop",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_storage_failure_starts_no_unrecorded_process"
+      ]
+    },
+    {
+      "id": "llama-h-shutdown-refuses-new-ops",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.close",
+      "operator": "weaken-shutdown",
+      "find": "            self.closed = True\n            if self.operation",
+      "replace": "            if self.operation",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_shutdown_interrupts_the_pending_operation_and_refuses_new_ones"
+      ]
+    },
+    {
+      "id": "llama-h-failed-replacement-keeps-loaded",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager._load",
+      "operator": "weaken-failed",
+      "find": "        info = validate_model(Path(model[\"gguf_path\"]))",
+      "replace": "        if self.loaded:\n            self._unload(self.loaded)\n        info = validate_model(Path(model[\"gguf_path\"]))",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_failed_replacement_keeps_the_loaded_model"
+      ]
+    },
+    {
+      "id": "llama-h-status-carries-no-paths",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.status",
+      "operator": "weaken-status",
+      "find": "\"configured\": bool(self.config.get(\"executable_path\")),",
+      "replace": "\"configured\": self.config.get(\"executable_path\"),",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_status_and_config_never_carry_host_paths_or_the_engine_credential"
+      ]
+    },
+    {
+      "id": "llama-h-knobs-applied",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager._load",
+      "operator": "weaken-knobs",
+      "find": "model.update(load=params[\"load\"], generation=params[\"generation\"])",
+      "replace": "model.update(generation=params[\"generation\"])",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_load_applies_the_requested_knobs_to_the_router_preset"
+      ]
+    },
+    {
+      "id": "llama-h-route-is-upstream-llamacpp",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.runtime",
+      "operator": "weaken-route",
+      "find": "resolve_runtime_provider(requested=\"llamacpp\")",
+      "replace": "resolve_runtime_provider(requested=\"custom\")",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_the_turn_route_is_upstreams_llamacpp_resolution_pinned_to_this_engine"
+      ]
+    },
+    {
+      "id": "llama-h-foreign-endpoint-refused",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.runtime",
+      "operator": "remove-guard",
+      "find": "if resolved.get(\"base_url\") != base_url:",
+      "replace": "if False:",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_foreign_server_on_the_managed_endpoint_gets_no_turn"
+      ]
+    },
+    {
+      "id": "llama-h-projection-pins-window",
+      "path": "agent_runtime/local_llama_adapter/provider.py",
+      "symbol": "project_config",
+      "operator": "weaken-projection",
+      "find": "base_url=runtime[\"base_url\"],\n                 context_length=parameters[\"effective_context_size\"])",
+      "replace": "base_url=runtime[\"base_url\"])",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_the_read_projection_pins_the_window_and_routes_aux_without_credentials"
+      ]
+    },
+    {
+      "id": "llama-h-actor-signature-tracks-params",
+      "path": "agent_runtime/local_llama_adapter/provider.py",
+      "symbol": "actor_signature",
+      "operator": "weaken-actor",
+      "find": "json.dumps({\"parameters\": runtime[\"local_parameters\"],",
+      "replace": "json.dumps({\"parameters\": None,",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_generation_parameters_ride_the_factory_and_bust_the_resident_actor"
+      ]
+    },
+    {
+      "id": "llama-h-runner-bypasses-cloud",
+      "path": "agent_runtime/profile_runner/runtime_resolve.py",
+      "symbol": "_resolve_request_runtime",
+      "operator": "weaken-runner",
+      "find": "    if request.provider == PROVIDER_ID:\n        from ..local_llama_adapter.provider import resolve",
+      "replace": "    if False:\n        from ..local_llama_adapter.provider import resolve",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_the_runner_resolves_a_local_persona_through_the_adapter_never_the_cloud"
+      ]
+    },
+    {
+      "id": "llama-h-provider-profile-keyless-chat",
+      "path": "agent_runtime/local_llama_adapter/provider.py",
+      "symbol": "provider_profile",
+      "operator": "weaken-provider",
+      "find": "display_name=DISPLAY_NAME, api_mode=\"chat_completions\")",
+      "replace": "display_name=DISPLAY_NAME, api_mode=\"codex_responses\")",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_the_local_provider_profile_needs_no_api_key"
+      ]
+    },
+    {
+      "id": "llama-h-log-cursor-forward",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.logs_get",
+      "operator": "weaken-log",
+      "find": "rows = candidates[-limit:] if after is None else candidates[:limit]",
+      "replace": "rows = candidates[-limit:]",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_the_log_cursor_pages_forward_without_repeats"
+      ]
+    },
+    {
+      "id": "llama-h-log-credential-redacted",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager._tail_engine_log",
+      "operator": "weaken-log",
+      "find": "line = line.replace(secret, \"[redacted]\")",
+      "replace": "line = line",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_the_server_log_tail_reaches_the_cursor_with_the_credential_redacted"
+      ]
+    },
+    {
+      "id": "llama-h-rescan-adds-once",
+      "path": "agent_runtime/local_llama_adapter/engine.py",
+      "symbol": "scan",
+      "operator": "weaken-rescan",
+      "find": "        if os.path.normcase(str(path)) in existing:\n            continue",
+      "replace": "        if False:\n            continue",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_rescan_adds_each_complete_model_once_and_skips_projectors"
+      ]
+    },
+    {
+      "id": "llama-h-shards-must-match",
+      "path": "agent_runtime/local_llama_adapter/engine.py",
+      "symbol": "validate_model",
+      "operator": "weaken-shards",
+      "find": "if any(part.get(k) != info.get(k) for k in (\"general.name\", \"general.architecture\", \"split.count\")) or part.get(\"split.no\") != index:",
+      "replace": "if part.get(\"split.no\") != index:",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_split_model_needs_every_matching_shard"
+      ]
+    },
+    {
+      "id": "llama-h-engine-restart-reload-primary",
+      "path": "agent_runtime/local_llama_adapter/engine.py",
+      "symbol": "Engine.load",
+      "operator": "weaken-engine",
+      "find": "        supervisor.primary_model = alias",
+      "replace": "        supervisor.primary_model = None",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_the_engine_serves_one_resident_model_under_upstreams_supervisor"
+      ]
+    },
+    {
+      "id": "llama-h-every-verb-registered",
+      "path": "agent_runtime/local_llama_adapter/rpc.py",
+      "symbol": "register",
+      "operator": "weaken-every",
+      "find": "_setup) for suffix in SETUP_FIELDS]",
+      "replace": "_setup) for suffix in ()]",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_real_dispatch_serves_every_verb_with_typed_errors"
+      ]
+    },
+    {
+      "id": "llama-h-console-tier-enforced",
+      "path": "agent_runtime/local_llama_adapter/rpc.py",
+      "symbol": "register",
+      "operator": "weaken-console",
+      "find": "TIER_READ if suffix == \"setup.capabilities\" else TIER_CONSOLE",
+      "replace": "TIER_READ",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_an_unknown_caller_or_a_peer_reaches_no_console_verb"
+      ]
+    },
+    {
+      "id": "llama-h-install-lands-in-inventory",
+      "path": "agent_runtime/local_llama_adapter/setup.py",
+      "symbol": "SetupManager.inventory",
+      "operator": "weaken-install",
+      "find": "        return rows + [r for r in installed_runtimes() if r[\"executable_path\"] not in known]",
+      "replace": "        return rows",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_an_install_runs_upstreams_installer_and_stays_inactive_until_activated"
+      ]
+    },
+    {
+      "id": "llama-h-setup-epoch-guard",
+      "path": "agent_runtime/local_llama_adapter/setup.py",
+      "symbol": "SetupManager.submit",
+      "operator": "delete-guard",
+      "find": "            m.guard({key: params.get(key) for key in (\"expect_epoch\", \"expect_revision\", \"expect_config_revision\")})\n",
+      "replace": "",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_setup_mutations_pass_the_same_epoch_guard"
+      ]
+    },
+    {
+      "id": "llama-h-serve-binds-the-adapter",
+      "path": "hermes_cli/harness_parts/serve/boot_phases.py",
+      "symbol": "BootPhases._open_socket_lane",
+      "operator": "weaken-serve",
+      "find": "        bind_local_llama(self.store_root_path, harness_root_config_path())\n",
+      "replace": "        pass\n",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter_gateway.py::test_console_device_can_configure_only_the_served_host"
+      ]
+    },
+    {
+      "id": "llama-h-busy-guard",
+      "path": "agent_runtime/local_llama_adapter/manager.py",
+      "symbol": "LocalLlamaManager.submit",
+      "operator": "delete-guard",
+      "find": "            if self.busy():\n                raise LocalLlamaError(\"operation_busy\", \"A local llama operation is already running\", code=4090)\n",
+      "replace": "",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_stale_revision_and_a_busy_manager_are_refused"
+      ]
+    },
+    {
+      "id": "llama-h-quantized-v-needs-flash-attention",
+      "path": "agent_runtime/local_llama_adapter/config.py",
+      "symbol": "validate_parameters",
+      "operator": "remove-guard",
+      "find": "if load[\"cache_type_v\"] != \"f16\" and load[\"flash_attention\"] != \"on\":",
+      "replace": "if False:",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_a_quantized_v_cache_needs_flash_attention_on"
+      ]
+    },
+    {
+      "id": "llama-h-journal-finishes-publication",
+      "path": "agent_runtime/local_llama_adapter/config.py",
+      "symbol": "recover_journal",
+      "operator": "weaken-journal",
+      "find": "        revision = row[\"revision\"]\n    elif",
+      "replace": "        revision = row[\"revision\"] - 1\n    elif",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_an_interrupted_config_publication_is_finished_on_restart"
+      ]
+    },
+    {
+      "id": "llama-h-router-alias-spelling",
+      "path": "agent_runtime/local_llama_adapter/__init__.py",
+      "symbol": "module",
+      "operator": "weaken-router",
+      "find": "MODEL_ALIAS_PREFIX = \"hermes-local-\"",
+      "replace": "MODEL_ALIAS_PREFIX = \"local-\"",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_local_llama_adapter.py::test_the_turn_route_is_upstreams_llamacpp_resolution_pinned_to_this_engine"
+      ]
+    },
+    {
+      "id": "w0-g1-the-counter-counts-comments-again",
+      "path": "scripts/god_file_probe.py",
+      "symbol": "code_lines",
+      "operator": "widen-counter",
+      "find": "line.strip() and not line.strip().startswith(\"#\"))",
+      "replace": "line.strip())",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/tooling/test_downstream_size_ceiling.py::test_the_counter_counts_code_lines_not_raw_lines"
+      ]
+    },
+    {
+      "id": "w0-g2-the-fence-stops-intersecting-upstream",
+      "path": "scripts/god_file_fences.py",
+      "symbol": "fence_violations",
+      "operator": "empty-intersection",
+      "find": "for path in sorted(set(touched) & upstream)]",
+      "replace": "for path in sorted(set(touched) & set())]",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/tooling/test_refactor_stays_downstream.py::test_the_fence_reds_a_refactor_commit_on_an_upstream_file"
+      ]
+    },
+    {
+      "id": "w0-g3-locals-stop-being-alpha-renamed",
+      "path": "scripts/god_file_probe.py",
+      "symbol": "_bound_names",
+      "operator": "drop-local-renaming",
+      "find": "            yield child.id",
+      "replace": "            pass",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/agent_runtime/test_duplicate_helper_bodies.py::test_alpha_renaming_collides_a_renamed_clone"
+      ]
+    },
+    {
+      "id": "w0-g4-a-borrowed-callable-goes-unreported",
+      "path": "scripts/god_file_fences.py",
+      "symbol": "borrowed_callables",
+      "operator": "drop-finding",
+      "find": "        out.append(f\"{name} (from {owner})\")",
+      "replace": "        pass",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/tooling/test_harness_namespace_is_thin.py::test_the_borrowed_callable_check_reds_a_reexport"
+      ]
+    },
+    {
+      "id": "w0-g4-a-borrowed-callable-the-harness-reads-is-exempt-again",
+      "path": "scripts/god_file_fences.py",
+      "symbol": "borrowed_callables",
+      "operator": "widen-exemption",
+      "find": "        if owner == module.__name__ or not is_repo_module(owner) or name in HARNESS_ALLOWLIST:\n            continue",
+      "replace": "        if owner == module.__name__ or not is_repo_module(owner) or name in HARNESS_ALLOWLIST | {\"populate_parser\"}:\n            continue",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/tooling/test_harness_namespace_is_thin.py::test_a_borrowed_callable_the_harness_reads_is_still_refused"
+      ]
+    },
+    {
+      "id": "w0-g5-a-three-arm-ladder-stops-counting",
+      "path": "scripts/god_file_probe.py",
+      "symbol": "_ladders_in",
+      "operator": "raise-threshold",
+      "find": "        if arms >= 3:\n            yield kind, name, arms",
+      "replace": "        if arms >= 4:\n            yield kind, name, arms",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/tooling/test_no_ladder_routing.py::test_the_detector_sees_both_spellings_of_a_ladder"
+      ]
+    },
+    {
+      "id": "w0-g6-an-upward-import-reads-as-downward",
+      "path": "scripts/god_file_probe.py",
+      "symbol": "layer_violations",
+      "operator": "flip-comparison",
+      "find": "rank[layers[hit]] > rank[layer]",
+      "replace": "rank[layers[hit]] < rank[layer]",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/tooling/test_fork_import_layers.py::test_the_layer_check_reds_an_upward_import_read_at_runtime"
+      ]
+    },
+    {
+      "id": "w0-g7-elif-counts-as-nesting",
+      "path": "scripts/god_file_probe.py",
+      "symbol": "nesting_depth",
+      "operator": "nest-elif",
+      "find": "                    deepest = max(deepest, depth(stmt.orelse, level))",
+      "replace": "                    deepest = max(deepest, depth(stmt.orelse, inner))",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/tooling/test_function_legibility_floor.py::test_depth_counts_blocks_and_not_elif"
       ]
     }
   ]

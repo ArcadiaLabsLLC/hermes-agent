@@ -129,7 +129,7 @@ Root as INPUT
 
 Every function takes ``store_root``. This module never resolves a root and
 never reads ``HERMES_HOME`` — the same rule ``serve_auth.py``,
-``gateway_identity.py`` and ``serve_socket.py`` all state, for the same reason:
+``gateway_identity.py`` and ``serve_socket/`` all state, for the same reason:
 several roots coexist on this machine, and a credential store free to re-derive
 its own root could pair a device against one install and answer for another.
 

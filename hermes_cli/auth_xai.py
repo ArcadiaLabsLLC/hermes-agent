@@ -552,7 +552,8 @@ def _xai_oauth_poll_device_token(
     )
 
 
-def _xai_oauth_device_code_login(*, timeout_seconds: float = 20.0, open_browser: bool = True) -> Dict[str, Any]:
+def _xai_oauth_device_code_login(*, timeout_seconds: float = 20.0, open_browser: bool = True,
+                               on_verification=None) -> Dict[str, Any]:
     from hermes_cli.auth import _can_open_graphical_browser, _is_remote_session, _print_device_code_instructions, _utc_now_z, _xai_oauth_discovery, _xai_oauth_poll_device_token
     discovery = _xai_oauth_discovery(timeout_seconds)
     timeout = httpx.Timeout(max(20.0, timeout_seconds))
@@ -566,6 +567,10 @@ def _xai_oauth_device_code_login(*, timeout_seconds: float = 20.0, open_browser:
             swallow_open_errors=True,
         )
         print(f"Waiting for approval (polling every {max(1, interval)}s)...")
+        if on_verification is not None:
+            on_verification(
+                str(device_data.get("verification_uri_complete") or device_data["verification_uri"]),
+                str(device_data["user_code"]))
         payload = _xai_oauth_poll_device_token(
             client, token_endpoint=discovery["token_endpoint"],
             device_code=str(device_data["device_code"]), expires_in=int(device_data["expires_in"]),
@@ -580,3 +585,10 @@ def _xai_oauth_device_code_login(*, timeout_seconds: float = 20.0, open_browser:
         "discovery": discovery, "redirect_uri": "", "base_url": _xai_oauth_inference_base_url(),
         "last_refresh": _utc_now_z(), "source": "oauth-device-code",
     }
+
+
+def login_xai_account(on_verification) -> None:
+    """A fresh grant belongs to this profile, never the account it previously borrowed."""
+    from hermes_cli.auth import persist_provider_login
+    state = _xai_oauth_device_code_login(open_browser=False, on_verification=on_verification)
+    persist_provider_login("xai-oauth", {**state, "auth_mode": "oauth_device_code"})

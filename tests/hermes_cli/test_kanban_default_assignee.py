@@ -7,37 +7,20 @@ the task is skipped (existing behavior preserved).
 from __future__ import annotations
 
 import json
-import os
-import sys
-import tempfile
+from pathlib import Path
 
 import pytest
 
 
 @pytest.fixture()
-def isolated_kanban_home(monkeypatch):
-    """Spin up a fresh HERMES_HOME with a clean kanban DB."""
-    test_home = tempfile.mkdtemp(prefix="kanban_default_assignee_test_")
-    monkeypatch.setenv("HERMES_HOME", test_home)
-    # Force-reimport so the fresh HERMES_HOME is picked up.
-    saved_modules = {
-        name: module
-        for name, module in sys.modules.items()
-        if name.startswith("hermes_cli")
-        or name.startswith("hermes_state")
-        or name == "hermes_constants"
-    }
-    for mod in list(sys.modules.keys()):
-        if mod.startswith("hermes_cli") or mod.startswith("hermes_state") or mod == "hermes_constants":
-            del sys.modules[mod]
-    try:
-        from hermes_cli import kanban_db
-        yield kanban_db, test_home
-    finally:
-        for mod in list(sys.modules.keys()):
-            if mod.startswith("hermes_cli") or mod.startswith("hermes_state") or mod == "hermes_constants":
-                del sys.modules[mod]
-        sys.modules.update(saved_modules)
+def isolated_kanban_home(tmp_path, monkeypatch):
+    """Fresh HERMES_HOME with a clean kanban DB."""
+    test_home = tmp_path / ".hermes"
+    test_home.mkdir()
+    monkeypatch.setenv("HERMES_HOME", str(test_home))
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    from hermes_cli import kanban_db
+    yield kanban_db, test_home
 
 
 def _fake_spawn(*args, **kwargs):

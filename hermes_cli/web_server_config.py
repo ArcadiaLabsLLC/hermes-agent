@@ -170,13 +170,20 @@ _SCHEMA_OVERRIDES: Dict[str, Dict[str, Any]] = {
             "subagent_stop are never moved onto a timeout worker."
         ),
     },
+    "plugins.load_timeout_seconds": {
+        "type": "number",
+        "description": (
+            "Deadline (seconds) for one plugin's import + register() at load. A plugin that "
+            "overruns it is skipped with the reason 'load timed out' and the rest keep loading. "
+            "0 disables the deadline; values above 600 are clamped."
+        ),
+    },
 }
 
 # Small categories fold into a bigger tab to avoid one-field orphan tabs. Several sources
 # (models_dev, onboarding, mcp, computer_use, telemetry, plugins, doctor, runtime, session,
 # nous, telegram) currently surface a single schema field each.
 _CATEGORY_MERGE: Dict[str, str] = {
-    "charsheet": "agent",
     "privacy": "security",
     "context": "agent",
     "skills": "agent",

@@ -14,12 +14,26 @@ contract, by calling its helpers rather than re-spelling them:
   plugin (``scripts/_bundle_plugin/hermes_bundle_report.py``) that writes one
   JSON line per collected module and per test report;
 * per-bundle timeout scaled from the members' cached durations;
+* a bundle whose process DIED before its session ended (pytest-timeout's
+  thread method — the only one on Windows, which has no SIGALRM — kills the
+  whole process) runs the member it died in alone and sends the members
+  that never started back out as ONE new bundle (``Death``);
 * retry-on-fail, with isolation added: a bundle that exits non-zero re-runs
-  every member that did not record a clean pass ONE FILE PER PROCESS
+  every other member that did not record a clean pass ONE FILE PER PROCESS
   (``_run_one_file``, with the per-file runner's own flake retry). A member
   red in its bundle and green alone is reported as an ISOLATION LEAK, with the
   members that ran before it — that is the observed diff an entry in
   ``scripts/test_bundles_unbundled.txt`` must carry.
+
+Scope (``--scope``) decides which discovered files run at all. ``fork``, the
+default and the fork's landing gate, runs every file absent from
+``tests/fixtures/upstream_manifest.txt`` plus each inherited file the change
+reaches (``select_scope``): the file itself changed, its convention-mapped
+source (``tests/<pkg>/test_<mod>.py`` → ``<pkg>/<mod>.py``) changed, it imports
+a changed module, or a ``conftest.py`` above it changed. The change is
+``git diff --name-only <--since>...HEAD`` (default ``origin/main``) plus
+working-tree edits. ``full`` runs everything discovered — the weekly upstream
+merge lane, where the inherited set is the thing under test.
 
 Membership is mechanical: files are grouped by their top-level test directory
 (``tests/<dir>``), sorted by path, and cut into consecutive chunks. Files named
@@ -31,8 +45,9 @@ The runner's core (``assign_bundles``, ``tally_events``, ``members_to_rerun``,
 ``run_tests_parallel.py`` as a ``--bundle-size`` flag.
 
 Usage:
-    python scripts/run_tests_bundled.py [--bundle-size N] [-j N] [PATH ...] [pytest args]
-    scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli   # hermetic env
+    python scripts/run_tests_bundled.py [--scope fork|full] [--since REF] [--bundle-size N] [-j N] [PATH ...] [pytest args]
+    scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli tests/hermes_state  # landing gate (fork scope)
+    scripts/run_tests_bundled.sh --scope full tests/agent_runtime tests/hermes_cli tests/hermes_state  # weekly merge lane
 
 Exit code: 0 if every file passed (alone or in its bundle); 1 otherwise.
 """
@@ -157,6 +172,162 @@ def bundle_timeout(
     rule (``_effective_file_timeout``) applied to the bundle's total."""
 
     return max(flat_timeout, 3.0 * sum(_estimate(f, repo_root, durations) for f in bundle))
+
+
+# ── Scope: which discovered files a run executes ────────────────────────────
+
+SCOPE_FORK = "fork"
+SCOPE_FULL = "full"
+_DEFAULT_MANIFEST = Path("tests") / "fixtures" / "upstream_manifest.txt"
+_DEFAULT_SINCE = "origin/main"
+
+
+def load_manifest(path: Path) -> set[str]:
+    """Repo-relative POSIX paths the inherited-files manifest lists (``#``
+    lines are comments). A missing manifest raises: without it every file
+    would read as fork-only and the scope would silently be the full set."""
+
+    out: set[str] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        entry = line.strip()
+        if entry and not entry.startswith("#"):
+            out.add(Path(entry).as_posix())
+    return out
+
+
+def changed_paths(repo_root: Path, since: str) -> set[str]:
+    """Paths the work under test changed: ``git diff --name-only <since>...HEAD``
+    plus the tracked working-tree edits (``git diff --name-only HEAD``). Raises
+    ``RuntimeError`` when git cannot answer, so an unknown diff is never read
+    as an empty one."""
+
+    import subprocess
+
+    out: set[str] = set()
+    for spec in ([f"{since}...HEAD"], ["HEAD"]):
+        proc = subprocess.run(
+            ["git", "-C", str(repo_root), "diff", "--name-only", *spec],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"git diff --name-only {' '.join(spec)} failed: {proc.stderr.strip()}")
+        out.update(Path(line.strip()).as_posix() for line in proc.stdout.splitlines() if line.strip())
+    return out
+
+
+def module_of(rel: str) -> Optional[str]:
+    """``a/b/c.py`` → ``a.b.c``; ``a/b/__init__.py`` → ``a.b``; else None."""
+
+    if not rel.endswith(".py"):
+        return None
+    parts = rel[: -len(".py")].split("/")
+    if parts[-1] == "__init__":
+        parts = parts[:-1]
+    return ".".join(parts) if parts and all(p.isidentifier() for p in parts) else None
+
+
+def convention_sources(test_rel: str) -> List[str]:
+    """Upstream's layout: ``tests/<pkg…>/test_<mod>.py`` tests ``<pkg…>/<mod>.py``
+    (or the package ``<pkg…>/<mod>/__init__.py``)."""
+
+    parts = test_rel.split("/")
+    if len(parts) < 2 or parts[0] != "tests" or not parts[-1].startswith("test_"):
+        return []
+    stem = parts[-1][len("test_") :]
+    base = "/".join(parts[1:-1] + [stem[: -len(".py")]]) if stem.endswith(".py") else ""
+    return [f"{base}.py", f"{base}/__init__.py"] if base else []
+
+
+def imported_modules(path: Path, rel: str) -> set[str]:
+    """Every module name ``path`` imports, relative imports resolved against
+    its package. ``from a import b`` yields both ``a`` and ``a.b``. A file that
+    does not parse yields nothing (its own run will say why)."""
+
+    import ast
+    import warnings
+
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # a test's own SyntaxWarning is its run's to report
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel)
+    except (OSError, SyntaxError, UnicodeDecodeError, ValueError):
+        return set()
+    package = rel.split("/")[:-1]
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            out.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            if node.level:
+                base = package[: len(package) - (node.level - 1)] if node.level > 1 else list(package)
+                head = ".".join(base + ([node.module] if node.module else []))
+            else:
+                head = node.module or ""
+            if head:
+                out.add(head)
+            out.update(f"{head}.{alias.name}" if head else alias.name for alias in node.names)
+    return out
+
+
+@dataclass
+class ScopeSelection:
+    """Why each selected file is in scope, and what was left out."""
+
+    fork_only: List[Path] = field(default_factory=list)
+    #: inherited files, by the reason that selected them
+    touched: List[Path] = field(default_factory=list)  # the test file itself changed
+    source: List[Path] = field(default_factory=list)  # its convention-mapped source changed
+    importer: List[Path] = field(default_factory=list)  # it imports a changed module
+    conftest: List[Path] = field(default_factory=list)  # a conftest.py above it changed
+    named: List[Path] = field(default_factory=list)  # named explicitly on the command line
+    excluded: List[Path] = field(default_factory=list)
+
+    @property
+    def selected(self) -> List[Path]:
+        return sorted(
+            self.fork_only + self.touched + self.source + self.importer + self.conftest + self.named,
+            key=lambda p: str(p),
+        )
+
+
+def select_scope(
+    files: Sequence[Path],
+    repo_root: Path,
+    inherited: set[str],
+    changed: set[str],
+    named: Iterable[Path] = (),
+) -> ScopeSelection:
+    """The ``fork`` scope: every file NOT in ``inherited`` (the upstream
+    manifest), plus each inherited file the change could reach — the file
+    itself changed, the source its name maps to changed, it imports a changed
+    module, or a ``conftest.py`` in one of its directories changed. Files named
+    explicitly (not found by walking a directory) always run."""
+
+    named_real = {Path(p).resolve() for p in named}
+    changed_modules = {m for m in (module_of(rel) for rel in changed) if m}
+    changed_conftest_dirs = {rel.rsplit("/", 1)[0] for rel in changed if rel.endswith("/conftest.py")}
+    sel = ScopeSelection()
+    for path in files:
+        rel = _rel(path, repo_root)
+        if rel not in inherited:
+            sel.fork_only.append(path)
+        elif path.resolve() in named_real:
+            sel.named.append(path)
+        elif rel in changed:
+            sel.touched.append(path)
+        elif any(src in changed for src in convention_sources(rel)):
+            sel.source.append(path)
+        elif any(rel.startswith(d + "/") for d in changed_conftest_dirs):
+            sel.conftest.append(path)
+        elif changed_modules and any(
+            imp == mod or imp.startswith(mod + ".")
+            for imp in imported_modules(path, rel)
+            for mod in changed_modules
+        ):
+            sel.importer.append(path)
+        else:
+            sel.excluded.append(path)
+    return sel
 
 
 # ── Per-file results out of one bundle process ──────────────────────────────
@@ -293,6 +464,19 @@ class RunResult:
     bundles: List[List[Path]]
     solos: List[Path]
     reruns: int
+    deaths: List["Death"] = field(default_factory=list)
+    rebundles: int = 0
+
+
+@dataclass
+class Death:
+    """A bundle process that died before its session ended: the member it
+    died in (run alone next) and the members behind it that never started
+    (re-bundled together)."""
+
+    bundle_index: int
+    stopped_in: str
+    unreached: List[str]
 
 
 BundleRunner = Callable[[Path, List[str], Path, float], Tuple[Path, int, str, Dict[str, int], float]]
@@ -327,6 +511,8 @@ def run(
     outcomes: List[FileOutcome] = []
     leaks: List[Leak] = []
     bundle_walls: List[Tuple[int, float, int]] = []
+    deaths: List[Death] = []
+    first_pass_bundles = len(bundles)
     futures: List[Future] = []
     reruns = 0
     scratch = Path(tempfile.mkdtemp(prefix="bundles-", dir=rtp._runner_scratch_root()))
@@ -369,15 +555,21 @@ def run(
             startup_share = max(0.0, events.session_start - started) / len(members)
         rerun = set(members_to_rerun(rels, events, rc))
         stopped_in = None
+        unreached: List[Path] = []
         if rc != 0 and events.session_end is None:
             ran = [rel for rel in rels if rel in events.files and events.files[rel].counts]
             stopped_in = ran[-1] if ran else rels[0]
+            unreached = [m for m, rel in zip(members, rels) if rels.index(rel) > rels.index(stopped_in)]
+            with lock:
+                deaths.append(Death(index, stopped_in, [_rel(m, repo_root) for m in unreached]))
         for position, (member, rel) in enumerate(zip(members, rels)):
             tally = events.files.get(rel, FileTally())
             if rel not in rerun:
                 seconds = startup_share + tally.collect_seconds + tally.test_seconds
                 _record(FileOutcome(member, 0, "", tally.summary(), seconds, "bundle", index))
                 continue
+            if member in unreached:
+                continue  # never started: re-bundled below, not run alone
             leak = Leak(
                 member,
                 index,
@@ -390,6 +582,19 @@ def run(
             with lock:
                 reruns += 1
                 futures.append(executor.submit(_solo, member, "rerun", index, leak))
+        # The process died in ``stopped_in`` (which goes solo above); the members
+        # queued behind it never started, so nothing about them needs a process
+        # of its own — they go back out as one bundle. Each re-bundle is shorter
+        # by at least the file it died in, so this terminates.
+        if len(unreached) >= 2:
+            with lock:
+                new_index = len(bundles)
+                bundles.append(unreached)
+                futures.append(executor.submit(_bundle, new_index, unreached, executor))
+        elif unreached:
+            with lock:
+                reruns += 1
+                futures.append(executor.submit(_solo, unreached[0], "rerun", index, None))
 
     with ThreadPoolExecutor(max_workers=max(1, jobs)) as executor:
         order = sorted(
@@ -427,14 +632,16 @@ def run(
         if on_outcome is not None:
             on_outcome(outcomes[position])
 
-    return RunResult(outcomes, leaks, bundle_walls, bundles, solos, reruns)
+    return RunResult(
+        outcomes, leaks, bundle_walls, bundles, solos, reruns, deaths, len(bundles) - first_pass_bundles
+    )
 
 
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 _OUR_FLAGS = {
     "-h", "--help", "-j", "--jobs", "--bundle-size", "--file-timeout",
-    "--file-retries", "--unbundled-list",
+    "--file-retries", "--unbundled-list", "--scope", "--since", "--manifest",
 }
 _PYTEST_VALUE_FLAGS = {"-k", "-m", "-p", "-o", "-c", "-r", "-W"}
 
@@ -473,7 +680,8 @@ def _print_summary(result: RunResult, files: Sequence[Path], repo_root: Path, el
     crashed = sum(1 for o in result.outcomes if o.summary.get("crashed"))
     print()
     print(
-        f"=== Summary: {len(files)} files ({len(result.bundles)} bundles, {len(result.solos)} solo, "
+        f"=== Summary: {len(files)} files ({len(result.bundles) - result.rebundles} bundles + "
+        f"{result.rebundles} re-bundled, {len(result.solos)} solo, "
         f"{result.reruns} re-run alone), {totals['passed']} tests passed, {totals['failed']} failed, "
         f"{totals['errors']} errors, {totals['skipped']} skipped in {elapsed:.1f}s ({jobs} workers) ==="
     )
@@ -500,17 +708,19 @@ def _print_summary(result: RunResult, files: Sequence[Path], repo_root: Path, el
                 print(f"      red in bundle: {nodeid}")
             if leak.earlier:
                 print(f"      earlier members: {', '.join(leak.earlier)}")
-    if unreached:
-        died: Dict[Tuple[int, str], List[str]] = {}
-        for leak in unreached:
-            died.setdefault((leak.bundle_index, leak.stopped_in or "?"), []).append(_rel(leak.file, repo_root))
+    if result.deaths:
+        passed_alone = {_rel(leak.file, repo_root) for leak in unreached}
         print()
         print(
-            f"=== {len(unreached)} member(s) never finished because {len(died)} bundle process(es) died; "
-            "each passed alone. The file a bundle died in is the unbundled-list candidate ==="
+            f"=== {len(result.deaths)} bundle process(es) died before their session ended. The file each died in "
+            "ran alone; the members behind it were re-bundled. The file is the unbundled-list candidate ==="
         )
-        for (index, stopped_in), members in sorted(died.items()):
-            print(f"  {stopped_in}  # observed: bundle #{index} died in this file; {len(members)} later member(s) unreached")
+        for death in sorted(result.deaths, key=lambda d: d.bundle_index):
+            alone = "passed alone" if death.stopped_in in passed_alone else "red alone too"
+            print(
+                f"  {death.stopped_in}  # observed: bundle #{death.bundle_index} died in this file ({alone}); "
+                f"{len(death.unreached)} later member(s) re-bundled"
+            )
     if rtp._FLAKY_RESULTS:
         print()
         print(f"=== ⚠ {len(rtp._FLAKY_RESULTS)} FLAKY file(s) (failed once alone, passed on retry) ===")
@@ -552,6 +762,16 @@ def main(argv: Optional[List[str]] = None) -> int:
         default=int(os.environ.get("HERMES_TEST_FILE_RETRIES", rtp._DEFAULT_FILE_RETRIES)),
     )
     parser.add_argument("--unbundled-list", type=Path, default=_DEFAULT_UNBUNDLED)
+    parser.add_argument(
+        "--scope", choices=(SCOPE_FORK, SCOPE_FULL), default=SCOPE_FORK,
+        help="fork (default, the landing gate): files absent from the upstream manifest plus the "
+        "inherited files the change reaches; full: every discovered file (the weekly merge lane)",
+    )
+    parser.add_argument(
+        "--since", default=_DEFAULT_SINCE, metavar="REF",
+        help=f"--scope fork: the change is `git diff <REF>...HEAD` plus working-tree edits (default {_DEFAULT_SINCE})",
+    )
+    parser.add_argument("--manifest", type=Path, default=None, help="upstream manifest (default tests/fixtures/upstream_manifest.txt)")
     parser.add_argument("paths", nargs="*", metavar="PATH")
     args = parser.parse_args(ours)
 
@@ -567,6 +787,31 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not files:
         print("No test files to run", file=sys.stderr)
         return 1
+    if args.scope == SCOPE_FORK:
+        manifest = args.manifest or repo_root / _DEFAULT_MANIFEST
+        try:
+            inherited = load_manifest(manifest)
+            changed = changed_paths(repo_root, args.since)
+        except (OSError, RuntimeError) as exc:
+            print(
+                f"error: --scope fork cannot tell fork from inherited files: {exc}\n"
+                "       fix the cause, or run --scope full",
+                file=sys.stderr,
+            )
+            return 2
+        sel = select_scope(files, repo_root, inherited, changed, named=[r for r in roots if r.is_file()])
+        print(
+            f"Scope fork (since {args.since}, {len(changed)} changed path(s)): {len(sel.fork_only)} fork-only + "
+            f"{len(sel.selected) - len(sel.fork_only)} inherited reached by the change "
+            f"(touched {len(sel.touched)}, source {len(sel.source)}, importer {len(sel.importer)}, "
+            f"conftest {len(sel.conftest)}, named {len(sel.named)}); "
+            f"{len(sel.excluded)} inherited left to --scope full",
+            flush=True,
+        )
+        files = sel.selected
+        if not files:
+            print("No test files in scope", file=sys.stderr)
+            return 1
 
     # Constant for the whole run, so setting it before any worker starts is
     # race-free: every bundle child can then load the plugin by name.

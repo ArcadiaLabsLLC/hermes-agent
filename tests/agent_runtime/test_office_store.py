@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from agent_runtime import office_models, paths
+from agent_runtime import office_models, paths, sync_merge
 from agent_runtime.errors import (
     ActorsUnreadable,
     ArchiveUnreadable,
@@ -22,7 +22,6 @@ from agent_runtime.events import EventLog
 from agent_runtime.office_store import (
     ARCHIVED_LEDGER_CAP,
     OfficeStore,
-    merge_archived_ledgers,
 )
 from agent_runtime.snapshot import SNAPSHOT_CONTRACT_VERSION, build_snapshot
 from agent_runtime.store import WorkspaceStore
@@ -1132,6 +1131,11 @@ def test_the_refusal_reaches_the_operator_typed_and_not_as_an_internal_error():
     assert not paths.office_dir("ws_typo_here").exists(), (
         "the CLI write authored the office it was refusing"
     )
+
+
+def merge_archived_ledgers(peer_keys, local_keys):
+    """The union adopt_remote_surface spends: sync_merge's rule at the office cap."""
+    return sync_merge.merge_archived_ledgers(peer_keys, local_keys, cap=ARCHIVED_LEDGER_CAP)
 
 
 # ── C1: the archived-ledger union (M4) ─────────────────────────────────────

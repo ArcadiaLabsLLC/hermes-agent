@@ -59,10 +59,10 @@ the create receipt (`agent_create_phases.py:23-24`) then inherited verbatim.
    passes `first_chunk_at=None` rather than a zero when no first chunk was seen
    (the fork's `ttfb=` log token that said the same was retired 2026-09-24 as a
    duplicate of it); `_log_agents_readiness_split`
-   (`snapshot.py:437-454`) prints nothing when the section never ran, and two
+   (`snapshot/build_log.py:97-114`) prints nothing when the section never ran, and two
    honest zeros when it ran and cost nothing. **Absent-as-zero is the canonical
    lie of this codebase** — it is how a census once MEASURED A FALSE ZERO
-   (`core_cache.py:169-172`).
+   (`core_cache/__init__.py:59-62`).
 2. **Monotonic only.** `time.monotonic` / `time.perf_counter` by construction,
    never a wall-clock delta: `BootTimeline` (`boot_timeline.py:16-17`),
    `TurnPhaseMarks` (`mission_chat_phases.py:29-32`), `ProviderDispatchTiming`
@@ -78,7 +78,7 @@ the create receipt (`agent_create_phases.py:23-24`) then inherited verbatim.
    aids behind a flag: the phases block rides persists the turn already performs
    (`:37-39`), the snapshot receipts ride the ordinary `Logger` family so
    `hermes serve` lands them in `agent.log` with no extra flag
-   (`snapshot.py:397-398`, `stream.py:181-182`), and the launcher's lines reach
+   (`snapshot/build_log.py:57-58`, `stream.py:181-182`), and the launcher's lines reach
    the diag tee in release too.
 5. **Never subtract wall stamps across processes.** `anchored_at` is the single
    wall stamp on a turn record, and exists only for eyeballing the turn against
@@ -104,7 +104,7 @@ the create receipt (`agent_create_phases.py:23-24`) then inherited verbatim.
    request_assembled` is hermes, `request_assembled → provider_first_byte` is
    the client plus the wire.
 8. **One authority per span.** A second measurement is a second authority, and
-   the two will drift. `build_receipt_facts` (`snapshot.py:324-336`) READS
+   the two will drift. `build_receipt_facts` (`snapshot/receipts.py:227-239`) READS
    `build_ms` off the envelope the build stamped rather than re-timing it;
    `snapshot_build`'s deprecated `elapsed_ms=` carries the identical value as
    `waited_ms=` (`stream.py:197-200`); `agent_create_phases` repeats
@@ -174,7 +174,7 @@ goldens AND by the launcher's mirror of them — so two extra keys there is a
 cross-stack fixture landing. Not theory: the `agents_readiness` split was first
 written as two `sections_ms` keys and had to be pulled back out (`0e4567f5fd`,
 2026-08-21), leaving hermes green and the launcher's producer-contract
-byte-compare red on every push in between. Argument at `snapshot.py:824-837`;
+byte-compare red on every push in between. Argument at `snapshot/sections.py:140-153`;
 `agent_create_phases.py:14-21` cites it as why the create's spans are a log line
 instead. The exception that proves the rule: `phases` on the create's RPC result
 and on the turn record are client-visible, but both are additive keys on
@@ -185,33 +185,33 @@ what the fixture mirror below enforces.
 
 | receipt (grep this) | emitter | consumer |
 |---|---|---|
-| `snapshot_build_core role=… caller=… generation=… build_ms=… offset=… sections_top=… pid=…` | `agent_runtime/snapshot.py:398-408` (fn `:369`, call site `:683`) | operator grep (`role=led` is the build count); `tests/agent_runtime/test_snapshot_build_logging.py:758` pins the prefix |
+| `snapshot_build_core role=… caller=… generation=… build_ms=… offset=… sections_top=… pid=…` | `agent_runtime/snapshot/build_log.py:58-68` (fn `:369`, call site `:683`) | operator grep (`role=led` is the build count); `tests/agent_runtime/test_snapshot_build_logging.py:758` pins the prefix |
 | `snapshot_build reason=… waited_ms=… elapsed_ms=… build_ms=… role=… caller=… generation=… offset=… events=…` (+`sections_top=`, +`core_source=`, then `pid=` last) | `agent_runtime/stream.py:336-339` (fn `_log_snapshot_build` `:268`) | operator grep; a launcher in the field still parses `elapsed_ms` (`stream.py:301-302`); `tests/agent_runtime/test_stream_build_timing_log.py` |
-| `snapshot_agents_readiness walk_ms=… tool_visibility_ms=… pid=…` | const `snapshot.py:432-434`, emitted `:449-454` | joins `snapshot_build_core` on `pid`; pinned by regex at `tests/agent_runtime/test_agents_readiness_attribution.py:51` |
+| `snapshot_agents_readiness walk_ms=… tool_visibility_ms=… pid=…` | const `snapshot/build_log.py:88-90`, emitted in `_log_agents_readiness_split` (`:93`) | joins `snapshot_build_core` on `pid`; pinned by regex at `tests/agent_runtime/test_agents_readiness_attribution.py:51` |
 | `stream_attach op=… purpose=… … pid=…` | `agent_runtime/stream.py:284-290` | boot-investigation join (third `pid=`-bearing family) |
 | `stream_denied lane=… reason=… connection=… client=… transport=… tier=… pid=…` | `agent_runtime/stream.py:424-469`, emitted from `serve.py::_deny_subscribe`  | the other half of `stream_attach`: WHICH of the six subscribe refusals closed a lane, and on which connection. Added because a cockpit's stream to a second machine died 7 ms after its subscribe on 2026-09-04 and neither machine held the reason (R-D26); `tests/agent_runtime/test_serve_socket_lane.py` |
-| `snapshot_core_cache …` / `snapshot_core_cache_write …` / `snapshot_core_shadow …` / `snapshot_core_cache_lane_closed …` | `agent_runtime/core_cache.py` — see the channel table below | `agent_runtime/core_cache_census.py` via `scripts/core_cache_demote_census.py` |
+| `snapshot_core_cache …` / `snapshot_core_cache_write …` / `snapshot_core_shadow …` / `snapshot_core_cache_lane_closed …` | `agent_runtime/core_cache/` — see the channel table below | `agent_runtime/core_cache_census.py` via `scripts/core_cache_demote_census.py` |
 | `persona_prewarm done persona=… elapsed_ms=…` | const `PREWARM_DONE_RECEIPT` (`persona_prewarm.py:171`), emitted by `_worker` | pacing census; pinned at `tests/agent_runtime/test_persona_prewarm.py:481` |
 | `persona_chat_actor_prewarm root=… outcome=… elapsed_ms=…` | const `persona_chat_actor_prewarm.py` (`CHAT_ACTOR_PREWARM_DONE_RECEIPT`), emitted in `_drain` | did the chat's actor get built before its first message; format pinned at `tests/agent_runtime/test_persona_chat_actor_prewarm.py` |
 | `persona_chat_actor_prewarm pass candidates=… queued=… skipped=… elapsed_ms=…` | const `persona_chat_actor_prewarm.py` (`CHAT_ACTOR_PREWARM_PASS_RECEIPT`), emitted in `prewarm_chat_actors_on_boot` | one line per boot pass; the `candidates`/`queued` gap is `max_hot_sessions` doing its job |
 | `resident_signature_diff root=… components=…` | const `persona_chat_continuity.py` (`RESIDENT_SIGNATURE_DIFF_RECEIPT`), emitted in `PersonaChatRuntimeRegistry.acquire` | why a resident actor was NOT reused: the signature component NAMES that moved (never digests, never values — the components include prompt- and policy-adjacent material). Twin of the turn record's `resident_rebuild_component_<name>` flags; format pinned at `tests/agent_runtime/test_persona_chat_continuity.py` |
 | `agent_create_phases persona=… instance_ms=… phases=… pid=…` | const `agent_create_phases.py:88-90`, emitted `:232-237` | drop-latency attribution; pinned at `tests/agent_runtime/test_agent_create_subphases.py:152` |
-| `harness serve boot timeline: <k=v …>` | `hermes_cli/harness_parts/serve.py:4018-4020`, line built by `BootTimeline.log_line` (`boot_timeline.py:173-178`) | operator grep; the same block also rides the `ready` frame (`serve.py:3928`) |
+| `harness serve boot timeline: <k=v …>` | `hermes_cli/harness_parts/serve/boot_phases.py:827-831`, line built by `BootTimeline.log_line` (`boot_timeline.py:173-178`) | operator grep; the same block also rides the `ready` frame (hermes_cli/harness_parts/serve/boot_phases.py:742-753) |
 | `API call #N: model=… provider=… in=… out=… total=… latency=…s[ cache=…][ ttfb=…s]` | `agent/conversation_loop.py:3473-3479` | provider-vs-hermes attribution; `tests/run_agent/test_api_call_ttfb.py` |
 | turn-record `phases` block (schema v3) | `agent_runtime/mission_chat_phases.py`; the key lands via `_safe_journal_metadata` (`mission_chat_turns.py::_safe_journal_metadata`) → `mission_chat_phases.py::safe_turn_phases` | `tool/mission_chat_latency_audit.dart` |
 | `[MissionChatTiming]` / `[MissionChatOutcome]` / `[MissionDropTiming]` | launcher — see the launcher section below | `tool/mission_chat_latency_audit.dart`; drop line read by eye |
 | `[MissionAgentCreate] lane=… gesture=… correlation=… …` and `[MissionOfficeWrite] <ws> retire lane: …` | launcher — see the launcher section below | the placement verb's two lanes, read by eye; the ADOPT line is also read by `mission_office_placement_instance_key_test.dart` |
-| `prompt_observability` rows + `trace_events` | `agent_runtime/prompt_observability.py:198`, persisted `:1421-1464` | `harness prompt-context show --context-id` (`hermes_cli/harness.py:892-903`) and the slimmed `chat.final` echo |
+| `prompt_observability` rows + `trace_events` | `agent_runtime/prompt_observability/mission_chat.py:62`, persisted by `persist_prompt_observability_context` (`agent_runtime/prompt_observability/context_store.py:77`) | `harness prompt-context show --context-id` (`prompt_context_commands.py::_cmd_prompt_context_show`) and the slimmed `chat.final` echo |
 
 ### The snapshot build family
 
 `snapshot_build_core` is ONE line per ACTUAL build, emitted by the caller that
 ran it, on the thread that paid for it, before its waiters are notified
-(`snapshot.py:682-689`). Every other line about a build is a WAIT
+(`snapshot/build.py:208-215`). Every other line about a build is a WAIT
 (`stream.py`'s `snapshot_build`). Until the two were separated, the 2026-08-17
 boot's "three concurrent builds" were one build plus two riders logging their
 waits, and the most expensive build of that boot — the serve prewarm — logged
-nothing at all (`snapshot.py:374-381`). A build that raised logs nothing: "the
+nothing at all (`snapshot/build_log.py:34-41`). A build that raised logs nothing: "the
 exception is the receipt" (`:685-686`). An injected-store (fixture) build emits
 no receipt (`:570-573`). `sections_top` rides every `snapshot_build_core`, and a
 WAIT line only when the build under it crossed `BUILD_SECTIONS_WAIT_THRESHOLD_MS`
@@ -222,7 +222,7 @@ emits and break every grep anchored on a neighbour (`stream.py:173-179`).
 
 ### The core-cache family and its census
 
-`agent_runtime/core_cache.py:152-195` is **the authority** — a per-receipt
+`agent_runtime/core_cache/__init__.py:42-85` is **the authority** — a per-receipt
 channel table naming, for every line, its family token, whether a second channel
 (the `parity` envelope) carries the same fact, and the census rules a counter
 must honour. Not duplicated here; amend it there.
@@ -322,7 +322,7 @@ definition — the anchor, and the only always-present key), `context_built`,
 and the counters `registry_probe_rounds` / `builds_overlapped` /
 `visibility_bundle_builds` / `prewarm_overlapped`, all five absent when the fact
 could not be established honestly — the thread-cumulative pair baselined at the
-handler anchor in `hermes_cli/harness_parts/persona_commands.py` and
+handler anchor in `hermes_cli/harness_parts/persona/chat_turn_message.py` and
 delta-counted at the ready callback, the flag and the two overlap counts set
 after `stream_done`, the overlaps themselves counted by
 `agent_runtime/snapshot_build_ledger.py` and (chat-turn-prep Stage 6)
@@ -434,24 +434,24 @@ relative to `lib/features/mission_control/`.
 ### prompt_observability rows and trace_events
 
 Per-turn prompt provenance, not timing: what the model was actually shown. Built
-by `mission_chat_prompt_observability` (`prompt_observability.py:198`), turn
-results attached at `:664`, persisted through **one** chokepoint —
-`persist_prompt_observability_context` (`:1421-1464`) — which ref-transforms the
+by `mission_chat_prompt_observability` (`agent_runtime/prompt_observability/mission_chat.py:62`), turn
+results attached at `:649`, persisted through **one** chokepoint —
+`persist_prompt_observability_context` (`agent_runtime/prompt_observability/context_store.py:77`) — which ref-transforms the
 skills catalogs, writes compactly, updates the latest-pointer index and applies
 retention. Layout: `<store>/prompt_observability/<context_id>.json`,
 `prompt_observability_catalogs/<hash>.json`, `prompt_observability_archive/`,
 `prompt_observability_index.json` (`agent_runtime/paths.py:512-534`). Retention
 keeps the newest 2 rows per `(persona_instance_id, session_id)` lane and ARCHIVES
-the rest, never deletes (`PROMPT_OBSERVABILITY_RETAIN_PER_LANE`, `:1287-1289`);
-an absent catalog is honest absence, never a fake empty list (`:1319-1321`).
+the rest, never deletes (`PROMPT_OBSERVABILITY_RETAIN_PER_LANE`, `:1314-1316`);
+an absent catalog is honest absence, never a fake empty list (`:1346-1348`).
 Two consumers: the live `chat.final`
 echo carries a slimmed projection (`slim_chat_final_observability`,
-`agent_runtime/prompt_observability.py::slim_chat_final_observability`); evicted rows are
+`agent_runtime/prompt_observability/turn_results.py:107`); evicted rows are
 fetched by `harness prompt-context show --context-id <id> [--json]`
-(`hermes_cli/harness.py:892-903`, handler `hermes_cli/harness.py::_cmd_prompt_context_show`) — read-only, honest
+(`hermes_cli/harness_parts/parser/surfaces.py::add_prompt_context`, handler `hermes_cli/harness_parts/prompt_context_commands.py::_cmd_prompt_context_show`) — read-only, honest
 `not_found` on absence. `trace_events` are the turn's tool-call trace, passed at
-`persona_commands.py:3600` and read by `used_skills_context`
-(`prompt_observability.py:2946-2981`) to report which skills were actually
+`_mission_chat_commit_turn` and read by `used_skills_context`
+(`agent_runtime/prompt_observability/skills_context.py:277`) to report which skills were actually
 loaded — `skill_view` entries only, redaction-safe.
 
 **The frame projection evicts the two heaviest fields, not the row.** The
@@ -677,17 +677,17 @@ not by trusting the audit's own status.**
 
 | finding | then | now |
 |---|---|---|
-| `serve_rpc.py` baseline `or 0` — an unreadable event log became watermark 0, killing the sink's baseline gate and re-opening the resync↔restart loop | `baseline_offset = int(...) or 0` | typed absence: `baseline_offset = event_offset_of(watermark)` then an explicit `is None` arm — `agent_runtime/serve_rpc.py:1074-1075` |
+| `serve_rpc.py` baseline `or 0` — an unreadable event log became watermark 0, killing the sink's baseline gate and re-opening the resync↔restart loop | `baseline_offset = int(...) or 0` | typed absence: `baseline_offset = event_offset_of(watermark)` then an explicit `is None` arm — `agent_runtime/serve_rpc/office_read.py:270-271` |
 | empty `patches` shipped as a `patch` frame — the client advanced its watermark having folded nothing | coverable ⇒ promoted | promotion now also requires `batch_carries_patch_rows(batch)`; the honest answer for a pair-less batch is the full core — `agent_runtime/stream.py:927-938`, argued at `:673-700` |
 | `office_surface` could never satisfy the office scope gate, so every folder-only patch frame was dropped with no patch and no resync | `entity == OFFICE_ACTOR_ENTITY` and a slash-prefixed id | one predicate: `office_patch_scope(patch) == workspace_id` — `agent_runtime/serve_office_subscriptions.py:486` |
-| `_usage_lane_detected` — a credential fault DELETED the lane from the Limits panel, and an empty envelope rendered as a positive claim that no provider is signed in | `except Exception: return False` | three outcomes, not two: true / false / **raise**, with the raise caught per provider and the lane emitted `unavailable` naming the exception class — `hermes_cli/harness.py::_usage_lane_detected`, `hermes_cli/harness.py::build_account_usage` |
+| `_usage_lane_detected` — a credential fault DELETED the lane from the Limits panel, and an empty envelope rendered as a positive claim that no provider is signed in | `except Exception: return False` | three outcomes, not two: true / false / **raise**, with the raise caught per provider and the lane emitted `unavailable` naming the exception class — `hermes_cli/harness_parts/usage/detect.py::_usage_lane_detected`, `hermes_cli/harness_parts/usage/commands.py::build_account_usage` |
 
 The highest-value read-side swallow also closed: the actor-directory read
 skipped undecodable files and returned a shorter list that described itself as
 complete, so `actors_truncated` computed 0 over it. It now returns a typed
 `ActorScan(actors, unreadable)` so the two facts travel together
-(`agent_runtime/office_store.py` — `ActorScan` at `:219`, `read_actor_dir` at
-`:432`, `OfficeStore.scan_actors` at `:1224`). Since AX5 that scan is the ONLY
+(`agent_runtime/office_store/` — `ActorScan` in `models.py`, `read_actor_dir` in
+`files.py`, `OfficeStore.scan_actors` in `store.py`). Since AX5 that scan is the ONLY
 actor read: the `list_actors` thin view that returned `.actors` and dropped
 `.unreadable` is deleted, so dropping the count is now something a call site
 WROTE rather than a default it inherited. Since AX6 the reader is module-level
@@ -706,9 +706,9 @@ drift.
    and `_lane_closed`'s free-form detail span go last because nothing can be
    field-parsed after them (paths may contain spaces).
 3. **Every receipt leads with a family token**, then `key=value`. A census greps
-   tokens, never the prose after them (`core_cache.py:156-160`).
+   tokens, never the prose after them (`core_cache/__init__.py:46-50`).
 4. **Observability must never be the reason something fails.** Instruments are
-   defensive by construction (`snapshot.py:333-335`), the boot-timeline
+   defensive by construction (`snapshot/receipts.py:234-236`), the boot-timeline
    annotation is wrapped in a bare `except` (`serve.py:1057-1058`), and
    `log_create_subphases` never raises and never measures
    (`agent_create_phases.py:230`).
@@ -727,7 +727,7 @@ drift.
   → `planned/observability-consumer-runner.md`
 * **Residual split, named rather than fixed:** the cache line says `stale=true`
   while the payload says `parity.core_stale` / `parity.freshness.state` — a
-  consumer contract predating the lane (`core_cache.py:184`). A census reads both.
+  consumer contract predating the lane (`core_cache/__init__.py:74`). A census reads both.
 * **`reason=absent` has no receipt by design**, so demote counts are lower
   bounds; nothing lifts that without a line per build, per process.
 * **The new-chat first-send rejection is still open.** `[MissionChatOutcome]`
@@ -751,7 +751,7 @@ All others under `archive/2026-08-22-pre-consolidation/`:
 * `MISSION_BOOT_WINDOW_PLAN_2026-08-17.md`, `EG0_2_RECEIPTS_2026-08-17.md` — the
   receipts they specified are censused above at their live formats.
 * `14-snapshot-core-build-performance.md` — build/cache receipts moved here;
-  `core_cache.py:152-195` holds the channel table.
+  `core_cache/__init__.py:42-85` holds the channel table.
 * `MC_DROPS_SNAPSHOT_CACHE_INVESTIGATION_2026-08-18.md` — origin of MCF-53 and
   MCF-54(ii); both are now encoded rules (`generation_residue` exists, the
   zero-scan exits exist).
@@ -773,5 +773,5 @@ verified above; the numbers cannot be re-derived from the tree. First two from
   effort=medium): see the canonical note on doc 08's luna row.
 * **First-build cost, 5 runtime personas, 2026-08-22**: 4,001 ms (3,054 tool
   visibility / 947 readiness walk); later builds in the same process 183 ms
-  (36 / 146). A code comment at `agent_runtime/snapshot.py:422-424` — verified
+  (36 / 146). A code comment at `agent_runtime/snapshot/build_log.py:82-84` — verified
   as written there, not re-measured here.

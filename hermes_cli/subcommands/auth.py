@@ -62,6 +62,8 @@ def build_auth_parser(subparsers, *, cmd_auth: Callable) -> None:
         help="Non-interactive provider login as an NDJSON event stream",
     )
     auth_login.add_argument("provider", help="Provider id")
+    auth_login.add_argument("--flow", choices=["browser", "device_code"],
+                            help="A browser login method advertised by the provider catalog")
     auth_login.add_argument(
         "--json",
         action="store_true",

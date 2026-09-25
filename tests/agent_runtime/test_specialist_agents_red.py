@@ -68,7 +68,7 @@ def test_specialist_agents_snapshot_is_collection_based_redaction_safe_and_repo_
     # _profile_readiness_for_visibility seam (one compute per agent per build),
     # so stub that rather than the raw profile_readiness_for_persona.
     monkeypatch.setattr(
-        "agent_runtime.snapshot._profile_readiness_for_visibility",
+        "agent_runtime.snapshot.summaries._profile_readiness_for_visibility",
         lambda persona: {
             "readiness": "ready",
             "summary": "ready",

@@ -210,6 +210,28 @@ def skill_matches_environment(frontmatter: Dict[str, Any]) -> bool:
     return any(_detect_environment(tag) for tag in tags if tag)
 
 
+def skill_matches_apps(frontmatter: Dict[str, Any]) -> bool:
+    """True when every app named in ``requires_apps:`` has a registered declaration this host satisfies.
+
+    Names resolve through ``hermes_platform.declaration`` (registered by whoever owns the server,
+    e.g. the plugin loader); the check is the same ``availability()`` the MCP check_fn uses. An
+    unknown name hides the skill (fail closed). Offer-time filter, like ``environments:``.
+    """
+    names = frontmatter.get("requires_apps")
+    if not names:
+        return True
+    from hermes_platform import declaration
+    from hermes_platform.resolver.availability import availability
+
+    for name in names if isinstance(names, list) else [names]:
+        decl = declaration.lookup(str(name).strip())
+        if decl is None or decl.app is None:
+            return False
+        if not availability(decl).offerable:
+            return False
+    return True
+
+
 _RAW_CONFIG_CACHE: Dict[Tuple[str, int, int, int, int], Dict[str, Any]] = {}
 
 
@@ -814,35 +836,3 @@ def get_scan_ordered_skills_dirs() -> List[Path]:
     dirs.extend(get_all_skills_dirs())
     return dirs
 # ---- END PLUGIN-COMPAT ----
-
-# Downstream ownership and policy; aliases preserve existing consumers.
-from agent_runtime.skill_resolution import (
-    _SKILL_RUNTIME_SURFACE,
-    _SKILL_RUNTIME_ROOT_NODE_MODE,
-    skill_runtime_scope,
-    current_skill_runtime_context,
-    SkillResolutionCandidate,
-    SkillResolution,
-    _SkillRootRegistry,
-    _SKILL_ROOT_REGISTRY_CACHE,
-    _SKILL_ROOT_REGISTRY_LOCK,
-    _walk_state,
-    skill_root_walks_this_thread,
-    reset_skill_root_walks_for_tests,
-    _note_skill_root_walk,
-    _skill_root_registry_cache_clear,
-    _skill_root_registry,
-    _resolved_path,
-    skill_source_kind,
-    resolve_skill,
-    resolve_skills,
-    _skill_resolution_status,
-    _CONTENT_HASH_CACHE,
-    _CONTENT_HASH_CACHE_MAX,
-    _content_hash_cache_clear,
-    skill_package_content_hash,
-    skill_frontmatter_runtime_compatibility,
-    _cached_skill_frontmatter,
-    skill_runtime_compatibility,
-    required_preload_skill_ids,
-)

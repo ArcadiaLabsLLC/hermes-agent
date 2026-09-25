@@ -54,7 +54,7 @@ X:/
 
 - `docs/agent-runtime-harness/` owns runtime architecture, data shapes, wire, boot, chat turn, office/board, observability, performance ledger, multi-device. Nine domain docs; `planned/` = designed, not shipped; `archive/` = history, not truth. Always cite there, never restate.
 - `docs/downstream-development.md` owns the fork's working contract: profile-safe code, the test runner and its validated scope, the contract dumps, the unattended report, worktree discipline.
-- `AGENTS.md` is upstream's development guide (the fork appends one "Downstream development contract" section). `CLAUDE.md` is fork-owned and carries session rules (subagent briefs, repo facts).
+- `AGENTS.md` is upstream's development guide (the fork appends one pointer line to `docs/downstream-development.md` and `CLAUDE.md`). `CLAUDE.md` is fork-owned and carries session rules (subagent briefs, repo facts).
 - **This brain** owns: navigation, the fork boundary as a MAP, decision rationale (ADRs), cross-brain coordination, in-flight snapshots, handoff primers, operational gotchas.
 - **The entry point for "what is left?" is [[TODO]]** — pointers only. Mission Control's queue is split by repository: the hermes half is [[runtime-queue]], the launcher half is the launcher's `mission-control-queue.md` (rule: [[0012 — The hermes half of Mission Control is queued here, split by ownership]], amending [[0011 — One brain per repo, one Mission Control queue in the launcher]]).
 - Session memory (`~/.claude/projects/X--Eternia-hermes-agent/memory/`) is per-machine, per-operator scratch. Anything durable graduates from there into this brain or the canon.

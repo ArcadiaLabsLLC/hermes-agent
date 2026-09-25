@@ -33,7 +33,7 @@ from pathlib import Path
 
 import pytest
 
-from agent.skill_utils import (
+from agent_runtime.skill_resolution import (
     _content_hash_cache_clear,
     resolve_skills,
     skill_package_content_hash,

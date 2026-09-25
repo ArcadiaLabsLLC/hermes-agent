@@ -99,7 +99,8 @@ def test_runs_incidents_boards_are_keyed_maps(isolate_agent_runtime_root):
 
 
 def test_persona_instances_and_operator_channels_are_keyed_maps(monkeypatch, isolate_agent_runtime_root):
-    monkeypatch.setattr(snapshot_mod, "load_agent_runtime_config", _runtime_cfg)
+    monkeypatch.setattr(snapshot_mod.envelope, "load_agent_runtime_config", _runtime_cfg)
+    monkeypatch.setattr(snapshot_mod.sections, "load_agent_runtime_config", _runtime_cfg)
     snap = build_snapshot()
 
     assert isinstance(snap["persona_instances"], dict)

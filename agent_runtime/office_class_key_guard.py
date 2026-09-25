@@ -113,12 +113,12 @@ def class_key_collision(store: Any, workspace_id: str, payload: dict) -> dict | 
 
     # The store owns id normalization; re-deriving it here is exactly the drift
     # the office plan's "one derivation authority" rule exists to prevent.
-    from .office_store import _normalize_persona_id
+    from .office_store.normalize import _normalize_actor_persona_ref
     from .serde import safe_id
 
     if not is_class_keyed_payload(payload):
         return None
-    persona_id = _normalize_persona_id(payload.get("persona_id"))
+    persona_id = _normalize_actor_persona_ref(payload.get("persona_id"))
     if not persona_id:
         # An unusable persona id is the store's ValueError to raise, not ours.
         return None
@@ -160,7 +160,7 @@ def class_key_collision(store: Any, workspace_id: str, payload: dict) -> dict | 
         for actor in scan.actors:
             if actor.actor_key == persona_id:
                 continue  # the class-keyed actor's own idempotent re-save
-            if _normalize_persona_id(actor.persona_id) != persona_id:
+            if _normalize_actor_persona_ref(actor.persona_id) != persona_id:
                 continue
             if incoming_items.isdisjoint(item.item_id for item in actor.items):
                 continue

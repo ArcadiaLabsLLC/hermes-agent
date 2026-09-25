@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import inspect
+import pathlib
 
 import pytest
 
@@ -41,6 +42,7 @@ from tests.agent_runtime.namespace_reads import (
     namespace_reads,
     unresolved_reader_calls,
 )
+from hermes_cli.harness_parts.persona import inspect_commands
 
 
 def _persona_commands() -> dict:
@@ -92,10 +94,9 @@ def test_the_handler_no_longer_reads_the_retired_namespace_attributes():
     gate there had the SAME hole spelled the other way round.
     """
 
-    # persona_commands.py is exec'd into harness.py's globals, not imported.
-    from hermes_cli import harness
+    # The handler lives in harness_parts/persona/inspect_commands.py (lane H3).
 
-    source = inspect.getsource(harness._cmd_persona_tool_diff)
+    source = inspect.getsource(inspect_commands._cmd_persona_tool_diff)
     assert namespace_reads(source).isdisjoint({"task_id", "goal_id"})
     assert unresolved_reader_calls(source) == []
 
@@ -141,7 +142,10 @@ def test_the_live_task_goal_threading_is_kept():
     assert {"task_id", "goal_id"} <= fields
 
     # The live producer: both are read off the persona-instance row.
-    source = inspect.getsource(persona_assignments)
+    source = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(pathlib.Path(persona_assignments.__file__).parent.glob("*.py"))
+    )
     assert "task_id=instance.current_task_id" in source
     assert "goal_id=instance.goal_id" in source
 

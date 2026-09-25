@@ -269,7 +269,7 @@ def test_harness_status_ignores_the_sidecar(
     for pid in (11, 22, 33):
         _sidecar(isolate_agent_runtime_root, pid)
     monkeypatch.setattr(
-        "hermes_cli.harness.build_status",
+        "hermes_cli.harness_parts.runtime_commands.build_status",
         lambda: {
             "open_incidents": 0,
             "dirty_summary": "runtime=clean",
@@ -343,7 +343,7 @@ def test_every_word_the_runtime_can_write_is_in_the_ruled_vocabulary() -> None:
 
 
 def _recorder(root: Path, pid: int = 4242):
-    from hermes_cli.harness_parts.serve import _ServeEndReason
+    from hermes_cli.harness_parts.serve.end_reason import _ServeEndReason
 
     return _ServeEndReason(root, boot_id="deadbeef", pid=pid)
 
@@ -430,7 +430,7 @@ def test_the_console_handler_installs_with_no_console(tmp_path: Path) -> None:
     reports it — the real no-console proof is the ``DETACHED_PROCESS`` arm of
     the child e2e."""
 
-    from hermes_cli.harness_parts.serve import _install_console_ctrl_reason_handler
+    from hermes_cli.harness_parts.serve.end_reason import _install_console_ctrl_reason_handler
 
     handle = _install_console_ctrl_reason_handler(_recorder(tmp_path))
     assert handle is not None
@@ -447,7 +447,7 @@ def test_the_console_handler_writes_the_word_and_declines_to_handle(
     silently stops working.
     """
 
-    from hermes_cli.harness_parts.serve import _console_ctrl_reason_callback
+    from hermes_cli.harness_parts.serve.end_reason import _console_ctrl_reason_callback
 
     recorder = _recorder(tmp_path)
     callback = _console_ctrl_reason_callback(recorder)
@@ -458,7 +458,7 @@ def test_the_console_handler_writes_the_word_and_declines_to_handle(
 def test_the_console_handler_ignores_an_event_it_has_no_word_for(
     tmp_path: Path,
 ) -> None:
-    from hermes_cli.harness_parts.serve import _console_ctrl_reason_callback
+    from hermes_cli.harness_parts.serve.end_reason import _console_ctrl_reason_callback
 
     recorder = _recorder(tmp_path)
     assert _console_ctrl_reason_callback(recorder)(99) == 0
@@ -481,9 +481,9 @@ def test_the_serve_entry_point_turns_the_recorder_on(tmp_path: Path) -> None:
     import ast
     import inspect
 
-    from hermes_cli.harness_parts import serve as serve_module
+    from hermes_cli.harness_parts.serve import commands as serve_commands
 
-    tree = ast.parse(inspect.getsource(serve_module))
+    tree = ast.parse(inspect.getsource(serve_commands))
     body = next(
         node
         for node in ast.walk(tree)
@@ -508,7 +508,7 @@ def test_the_boot_fault_seam_is_inert_without_its_environment_variable(
     """The seam that lets the e2e produce a real ``uncaught:`` and a real
     ``os._exit``. Inert is the contract: no variable, no behaviour."""
 
-    from hermes_cli.harness_parts.serve import _maybe_inject_boot_fault
+    from hermes_cli.harness_parts.serve.boot import _maybe_inject_boot_fault
 
     monkeypatch.delenv("HERMES_SERVE_BOOT_FAULT", raising=False)
     assert _maybe_inject_boot_fault() is None

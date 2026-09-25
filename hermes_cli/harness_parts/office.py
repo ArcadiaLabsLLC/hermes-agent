@@ -1,7 +1,6 @@
 # Mission Office CLI tier: `hermes harness office …`.
 #
-# This module is exec'd into hermes_cli/harness.py's globals (see
-# _load_command_parts) and shares the Stage-42 envelope/printer/error helpers
+# This module shares the Stage-42 envelope/printer/error helpers
 # with every other tier — imported from hermes_cli.harness_support below, not
 # inherited. All writes go through the OfficeStore chokepoint — the same one
 # the launcher capability lane uses.
@@ -11,17 +10,9 @@
 # are minted store-side (canonical_persona_instance_id at the boundary); the
 # CLI passes the identity triple through verbatim.
 
-# Explicit import header — its rationale lives ONCE, in
-# ``hermes_cli/harness_support.py``'s module docstring, which also names the
-# two gates that hold it: ruff's F821 for the header being complete, and
-# tests/hermes_cli/test_harness_parts_namespace.py for the load-order namespace.
-#
-# Snapshot row builders (``office_summary_row`` /
-# ``_office_actor_summary_row``) are imported FUNCTION-LOCALLY rather than
-# here on purpose: a module-level import in an exec'd part binds the name into
-# harness.py's shared globals for every other tier, which is the shadowing
-# surface the namespace guard exists to police. Same convention
-# ``_office_store`` already follows.
+# A real module (lane H1, 2026-09-24): it imports everything it reads, and a
+# test patches a name HERE, where this module looks it up — never on
+# ``hermes_cli.harness`` (W0-G4, tests/tooling/test_harness_namespace_is_thin.py).
 
 from __future__ import annotations
 
@@ -33,6 +24,18 @@ from hermes_cli.harness_support import (
     _print_stage42,
     emit_harness_error,
 )
+
+__layer__ = "lanes"
+__all__ = [
+    "_cmd_office_actor_remove",
+    "_cmd_office_actor_restore",
+    "_cmd_office_actor_upsert",
+    "_cmd_office_archive_surface",
+    "_cmd_office_resolve_conflict",
+    "_cmd_office_set_folders",
+    "_cmd_office_show",
+]
+
 
 
 def _office_store():
@@ -47,7 +50,7 @@ def _office_workspace_for(args) -> str | None:
 
 def _office_actor_row(actor, *, full: bool = False, summary: dict | None = None) -> dict:
     """One office actor row — a RE-KEY of the snapshot's own
-    ``_office_actor_summary_row`` (S48, ledger item 4).
+    ``office_actor_summary_row`` (S48, ledger item 4).
 
     ``_office_item_row`` went with the consolidation: it re-declared, key for
     key, the item block the snapshot builder already projects. Two copies of a
@@ -61,9 +64,9 @@ def _office_actor_row(actor, *, full: bool = False, summary: dict | None = None)
     """
 
     if summary is None:
-        from agent_runtime.snapshot import _office_actor_summary_row
+        from agent_runtime.snapshot.offices import office_actor_summary_row
 
-        summary = _office_actor_summary_row(actor, unpublished=None)
+        summary = office_actor_summary_row(actor, unpublished=None)
     row = {
         "id": summary["actor_key"],
         "workspace_id": actor.workspace_id,
@@ -98,7 +101,7 @@ def _office_surface_row(store, workspace_id: str, *, full: bool = False, surface
     Function-local builder import: see the module header on part namespaces.
     """
 
-    from agent_runtime.snapshot import office_summary_row
+    from agent_runtime.snapshot.offices import office_summary_row
 
     if surface is None:
         surface = store.get_surface(workspace_id)

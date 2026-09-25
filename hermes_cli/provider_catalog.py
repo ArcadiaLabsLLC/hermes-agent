@@ -242,6 +242,7 @@ def provider_login_catalog() -> list[dict]:
     CAN be connected, never what is stored.
     """
     from hermes_cli.model_picker_policy import model_picker_policy_for
+    from hermes_cli.provider_browser_login import supports_browser_login, browser_login_methods
 
     overrides = {row["id"]: row for row in OAUTH_FLOW_OVERRIDES}
     rows: list[dict] = []
@@ -271,6 +272,8 @@ def provider_login_catalog() -> list[dict]:
                 "docs_url": (override or {}).get("docs_url") or docs_url or None,
                 "disconnect_command": disconnect_command_for(slug, flow),
                 "model_picker": model_picker_policy_for(slug),
+            "browser_login": supports_browser_login(slug),
+            "browser_login_methods": browser_login_methods(slug),
             }
         )
 

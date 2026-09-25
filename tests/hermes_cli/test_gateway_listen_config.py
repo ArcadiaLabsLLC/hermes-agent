@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import pytest
 
-from hermes_cli.harness_parts import serve as serve_module
-from hermes_cli.harness_parts.serve import gateway_listen_config
+from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
+from hermes_cli.harness_parts.serve.gateway_listener import gateway_listen_config
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ def config(monkeypatch):
     def _install(block):
         state["block"] = block
         monkeypatch.setattr(
-            serve_module,
+            serve_gateway_listener,
             "load_config_readonly",
             lambda: {"remote_gateway": block},
             raising=False,
@@ -51,9 +51,11 @@ def config(monkeypatch):
 
 
 def test_the_shipped_default_is_off(config):
+    """No ``remote_gateway`` block at all (the harness key has no upstream default) is off."""
     from hermes_cli.config_defaults import DEFAULT_CONFIG
 
-    config(DEFAULT_CONFIG["remote_gateway"])
+    assert "remote_gateway" not in DEFAULT_CONFIG
+    config(None)
 
     assert gateway_listen_config() == (None, 0)
 

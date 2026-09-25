@@ -58,6 +58,7 @@ from agent_runtime.serve_gateway_auth import (
 )
 from agent_runtime.serve_socket import ServeSocketClient
 from hermes_cli.harness_parts import serve as serve_module
+from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 from hermes_cli.harness_parts.serve import serve_loop
 
 WAIT = 20.0
@@ -169,7 +170,7 @@ def running_serve(**kwargs):
 @pytest.fixture(autouse=True)
 def gateway_on(monkeypatch):
     monkeypatch.setattr(
-        serve_module, "gateway_listen_config", lambda: ("127.0.0.1", 0)
+        serve_gateway_listener, "gateway_listen_config", lambda: ("127.0.0.1", 0)
     )
 
 

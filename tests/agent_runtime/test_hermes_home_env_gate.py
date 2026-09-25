@@ -91,7 +91,7 @@ ALLOWED: dict[str, str] = {
         "rebinds HERMES_HOME process-globally when a profile is entered, and "
         "captures the prior value to restore it on exit."
     ),
-    "agent_runtime/snapshot.py": (
+    "agent_runtime/snapshot/receipts.py": (
         "Diagnostic. Reports the raw env under `env_HERMES_HOME` so an "
         "operator can see the environment DISAGREEING with the resolved root — "
         "which is the whole tell, and is lost if it reports the resolved value."

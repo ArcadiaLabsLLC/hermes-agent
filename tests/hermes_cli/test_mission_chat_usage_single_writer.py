@@ -22,20 +22,19 @@ exactly one usage authority exists —
   row) → the function MUST NOT call ``_update_persona_chat_token_counts``;
   stacking the turn totals on top double-counts.
 
-persona_commands.py is an exec'd command part (harness._load_command_parts),
-not an importable module, so — like the record-at-injection guards — this
-parses the exact source text that gets exec'd.
+Like the record-at-injection guards, this parses the persona package's source
+(`tests/_downstream/persona_source.py`).
 """
 
 import ast
 from pathlib import Path
+from tests._downstream.persona_source import package_source
 
 
 def _persona_commands_tree() -> ast.Module:
     import hermes_cli.harness as harness
 
-    path = Path(harness.__file__).with_name("harness_parts") / "persona_commands.py"
-    return ast.parse(path.read_text(encoding="utf-8"))
+    return ast.parse(package_source())
 
 
 def _calls_in(func: ast.FunctionDef, name: str) -> list[ast.Call]:
@@ -68,7 +67,7 @@ def _session_id_is_none(call: ast.Call) -> bool:
 
 def test_mission_chat_reply_lanes_exist():
     lanes = _mission_chat_reply_lanes()
-    assert lanes, "no mission_chat_reply call sites found in persona_commands"
+    assert lanes, "no mission_chat_reply call sites found in the persona package"
 
 
 def test_every_lane_has_exactly_one_usage_authority():

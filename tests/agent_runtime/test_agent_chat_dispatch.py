@@ -16,6 +16,7 @@ import subprocess
 import sys
 
 import pytest
+from hermes_cli.harness_parts.persona import chat_turn_message
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
@@ -60,7 +61,8 @@ def deliverable_lane(monkeypatch):
     forge a turn back into.
     """
 
-    from gateway.session_context import _SESSION_ASYNC_DELIVERY, declare_async_delivery_channel
+    from agent_runtime.delivery_capability import declare_async_delivery_channel
+    from gateway.session_context import _SESSION_ASYNC_DELIVERY
 
     # The REAL contextvar, not a stub of the getter: the lane now requires a
     # POSITIVE declaration, so a test that stubbed only the value would pass
@@ -150,9 +152,7 @@ def test_wait_true_is_unchanged_and_never_touches_the_store(store_home, monkeypa
         args.payload_sink({"ok": True, "reply": "ack", "session_id": "s1"})
         return 0
 
-    import hermes_cli.harness as harness
-
-    monkeypatch.setattr(harness, "_cmd_mission_chat_message", fake_handler)
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
     result = json.loads(agent_chat_send(persona_id="dev", message="hi"))
 
     assert result["ok"] is True
@@ -216,7 +216,7 @@ def test_a_sender_root_the_drain_cannot_resolve_is_refused_before_running(
     could not deliver never runs.
     """
 
-    from gateway.session_context import declare_async_delivery_channel
+    from agent_runtime.delivery_capability import declare_async_delivery_channel
 
     declare_async_delivery_channel()
     monkeypatch.setattr(dispatch_delivery, "_sender_persona", lambda root: None)

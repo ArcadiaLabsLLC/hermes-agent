@@ -273,7 +273,7 @@ def test_the_verb_prints_the_document(capsys):
 
 def test_the_human_line_counts_the_keys(capsys):
     """A bare call is for a person, and says how big the contract is."""
-    from hermes_cli.harness import _cmd_characters_payload_contract
+    from hermes_cli.harness_parts.characters.commands import _cmd_characters_payload_contract
 
     assert _cmd_characters_payload_contract(argparse.Namespace(json=False)) == 0
     line = capsys.readouterr().out.strip()

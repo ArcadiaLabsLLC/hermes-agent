@@ -528,6 +528,27 @@ def test_a_held_lock_whose_sidecar_names_a_corpse_is_still_refused():
         incumbent.release()
 
 
+def test_a_lock_file_the_os_refuses_is_a_typed_error_outcome(monkeypatch):
+    """Positive control for the lock's OS-error reason (god-file sheet
+    serve_socket.md §2, ruling Q6): the permission-denied arm had no test reaching
+    it, so a fold onto the store's reason vocabulary would have been unobserved.
+
+    The OS refusing the lock file is an ``error:<reason>`` OUTCOME with the
+    store's own word for the condition — not an exception, and not the
+    ``lock_held_by`` a retrying caller would treat as contention.
+    """
+
+    from agent_runtime.serve_socket import owner_lock
+
+    def _refuse(*_args, **_kwargs):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(owner_lock, "open", _refuse, raising=False)
+    result = SocketOwnerLock(_store_root()).acquire()
+    assert result.acquired is False
+    assert result.outcome == "error:permission_denied"
+
+
 def test_an_absent_sidecar_is_an_ordinary_boot_and_says_nothing_at_all():
     root = _store_root()
     lines: list[dict] = []
@@ -1570,10 +1591,8 @@ def test_the_connect_verb_refuses_a_target_that_is_not_live_and_names_why():
     import io
     from contextlib import redirect_stdout
 
-    from hermes_cli.harness_parts.serve import (
-        SERVE_CONNECT_NO_SERVICE_EXIT_CODE,
-        _cmd_serve_connect,
-    )
+    from hermes_cli.harness_parts.serve import SERVE_CONNECT_NO_SERVICE_EXIT_CODE
+    from hermes_cli.harness_parts.serve.commands import _cmd_serve_connect
 
     dead = _dead_pid()
     _write_registry_row(pid=dead, port=61999)
@@ -2723,7 +2742,7 @@ def test_two_connections_asking_to_drain_at_once_start_exactly_one_drain():
     second state of its own.
     """
 
-    original_init = serve_module._DrainState.__init__
+    original_init = serve_module.drain._DrainState.__init__
 
     def _slow_init(self, deadline_seconds):
         time.sleep(0.25)
@@ -2737,7 +2756,7 @@ def test_two_connections_asking_to_drain_at_once_start_exactly_one_drain():
         release.wait(WAIT)
         return 0
 
-    serve_module._DrainState.__init__ = _slow_init
+    serve_module.drain._DrainState.__init__ = _slow_init
     try:
         with running_serve(dispatch=_dispatch, drain_poll_interval_seconds=0.01) as handle:
             with client(handle, name="first") as (first, _r1), client(handle, name="second") as (second, _r2):
@@ -2824,7 +2843,7 @@ def test_two_connections_asking_to_drain_at_once_start_exactly_one_drain():
                 assert completions[0]["requests_completed"] == 1
     finally:
         release.set()
-        serve_module._DrainState.__init__ = original_init
+        serve_module.drain._DrainState.__init__ = original_init
 
 
 class _StallingSink(_Sink):
@@ -2927,7 +2946,7 @@ def test_the_socket_files_move_no_freshness_fingerprint():
     root = _store_root()
     root.mkdir(parents=True, exist_ok=True)
     before = (
-        serve_module._runtime_state_fingerprint(),
+        serve_module.boot._runtime_state_fingerprint(),
         stream_module._scope_fingerprint(),
     )
     lock = SocketOwnerLock(root)
@@ -2937,7 +2956,7 @@ def test_the_socket_files_move_no_freshness_fingerprint():
         assert socket_lock_path(root).exists()
         assert socket_owner_path(root).exists()
         after = (
-            serve_module._runtime_state_fingerprint(),
+            serve_module.boot._runtime_state_fingerprint(),
             stream_module._scope_fingerprint(),
         )
         assert after == before
@@ -3012,12 +3031,12 @@ def test_a_handshake_that_RAISES_still_rejects_charges_and_is_counted():
         port,
         _logs,
     ):
-        original = serve_socket.verify_hello_proof
+        original = serve_socket.handshake.verify_hello_proof
 
         def _explode(*args, **kwargs):
             raise RuntimeError("boom from inside the handshake")
 
-        serve_socket.verify_hello_proof = _explode
+        serve_socket.handshake.verify_hello_proof = _explode
         try:
             for _ in range(2):
                 _g, reply = raw_handshake(port, token="the-shared-secret")
@@ -3026,7 +3045,7 @@ def test_a_handshake_that_RAISES_still_rejects_charges_and_is_counted():
                     "reason": REJECT_HELLO_MALFORMED,
                 }
         finally:
-            serve_socket.verify_hello_proof = original
+            serve_socket.handshake.verify_hello_proof = original
 
         payload = server.connections_payload()
         assert payload["handshake_errors"] == 2
@@ -3165,7 +3184,7 @@ def test_drain_progress_reaches_the_SOCKET_client_and_not_only_stdio(monkeypatch
     saw, and that it carries the in-flight request it is reporting about.
     """
 
-    monkeypatch.setattr(serve_module, "_DRAIN_PROGRESS_INTERVAL_SECONDS", 0.05)
+    monkeypatch.setattr(serve_module.drain, "_DRAIN_PROGRESS_INTERVAL_SECONDS", 0.05)
 
     started = threading.Event()
     release = threading.Event()
@@ -3204,3 +3223,28 @@ def test_drain_progress_reaches_the_SOCKET_client_and_not_only_stdio(monkeypatch
 
             release.set()
             assert _read_until(connection, "exit")["id"] == "slow-1"
+
+
+def test_set_timeout_rearms_the_read_budget_on_a_live_connection():
+    """Positive control for ``ServeSocketClient.set_timeout`` (god-file sheet
+    serve_socket.md §5): live in ``media_proxy`` and ``tools.agent_chat_dispatch``,
+    reached by no test before. A peer that accepts and never speaks must time the
+    READ out on the re-armed budget, not on the dial's.
+    """
+
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    try:
+        silent = ServeSocketClient("127.0.0.1", listener.getsockname()[1], timeout_seconds=30.0)
+        silent.connect()
+        try:
+            silent.set_timeout(0.2)
+            started = time.monotonic()
+            with pytest.raises(socket.timeout):  # noqa: UP041 - alias differs across versions
+                silent.read_frame()
+            assert time.monotonic() - started < 5.0
+        finally:
+            silent.close()
+    finally:
+        listener.close()

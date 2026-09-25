@@ -42,7 +42,6 @@ class _DispatcherSettings:
     reconcile_orphans: bool
     default_assignee: Optional[str]
     max_in_progress_per_profile: Optional[int]
-    ttl_seconds: int = 900
 
 
 def _resolve_dispatcher_settings(kanban_cfg: dict, kb: Any) -> _DispatcherSettings:
@@ -103,16 +102,7 @@ def _resolve_dispatcher_settings(kanban_cfg: dict, kb: Any) -> _DispatcherSettin
         logger.info("kanban dispatcher: default_assignee=%r (unassigned ready tasks "
                     "will route to this profile)", default_assignee)
 
-    raw_ttl = kanban_cfg.get("claim_ttl_seconds", kb.DEFAULT_CLAIM_TTL_SECONDS)
-    try:
-        claim_ttl = int(raw_ttl)
-    except (TypeError, ValueError):
-        claim_ttl = 0
-    if claim_ttl < 60:
-        logger.warning("kanban dispatcher: invalid claim_ttl_seconds=%r; using default %d", raw_ttl, kb.DEFAULT_CLAIM_TTL_SECONDS)
-        claim_ttl = kb.DEFAULT_CLAIM_TTL_SECONDS
     return _DispatcherSettings(
-        ttl_seconds=claim_ttl,
         interval=interval,
         max_spawn=max_spawn,
         max_in_progress=effective_max_in_progress,
@@ -319,7 +309,8 @@ def _default_profile_secret_scope():
     if not is_multiplex_active():
         yield
         return
-    token = set_secret_scope(build_profile_secret_scope(Path(get_hermes_home())))
+    token = set_secret_scope(
+        build_profile_secret_scope(Path(get_hermes_home())), profile_home=str(get_hermes_home()))
     try:
         yield
     finally:

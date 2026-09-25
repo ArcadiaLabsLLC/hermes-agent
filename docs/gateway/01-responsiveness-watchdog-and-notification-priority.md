@@ -72,7 +72,7 @@ Verification commands:
 
 ```bash
 cd C:/Users/beast/AppData/Local/hermes/hermes-agent
-venv/Scripts/python.exe -m pytest -o addopts='' -p no:timeout tests/gateway/test_background_process_notifications.py tests/gateway/test_gateway_inactivity_timeout.py tests/e2e/test_platform_commands.py tests/test_tui_gateway_server.py::test_notification_poller_delivers_status_only_by_default tests/test_tui_gateway_server.py::test_notification_poller_legacy_agent_turn_env_opt_in tests/test_tui_gateway_server.py::test_tui_background_agent_turns_can_be_enabled_by_config tests/test_tui_gateway_server.py::test_notification_poller_status_only_when_busy_by_default tests/test_tui_gateway_server.py::test_notification_poller_skips_consumed -q
+venv/Scripts/python.exe -m pytest -o addopts='' -p no:timeout tests/gateway/test_background_process_notifications.py tests/gateway/test_gateway_inactivity_timeout.py tests/e2e/test_platform_commands.py tests/test_tui_gateway_server_downstream.py::test_notification_poller_delivers_status_only_by_default tests/test_tui_gateway_server_downstream.py::test_notification_poller_legacy_agent_turn_env_opt_in tests/test_tui_gateway_server_downstream.py::test_tui_background_agent_turns_can_be_enabled_by_config tests/test_tui_gateway_server_downstream.py::test_notification_poller_status_only_when_busy_by_default tests/test_tui_gateway_server.py::test_notification_poller_skips_consumed -q
 venv/Scripts/python.exe -m compileall -q gateway/run.py tui_gateway/server.py hermes_cli/config.py tools/process_registry.py tools/terminal_tool.py tests/gateway/test_background_process_notifications.py tests/test_tui_gateway_server.py
 git diff --check
 ```
@@ -81,9 +81,7 @@ Status: implemented locally. Targeted tests, compile, and diff hygiene passed.
 
 Implementation proof points:
 
-- Gateway watcher `notify_on_complete=True` compact direct-sends by default.
-- Legacy completion-as-agent-turn behavior requires `HERMES_BACKGROUND_AGENT_TURNS=true` or `display.background_process_agent_turns: true`.
-- TUI notification poller emits process status only by default and supports the same legacy opt-in.
+- SUPERSEDED 2026-09-24 (owner ruling, lane DOORS-A): the compact direct-send default, `HERMES_BACKGROUND_AGENT_TURNS` / `display.background_process_agent_turns` and the TUI status-only default are deleted; `notify_on_complete` runs upstream's agent turn.
 - Background notification defaults and examples now prefer `result` over noisy `all`.
 - Process notification command/output text is ANSI-stripped, bounded, and redacted before UI/status delivery.
 - Long-running heartbeat text now includes `/stop` guidance.

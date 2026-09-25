@@ -454,12 +454,12 @@ def test_a_handler_that_exits_is_handler_exit_and_not_a_parse_failure(
 ):
     """The effect happened. The frame must not invite a second one."""
 
-    from hermes_cli.harness_parts import serve as serve_module
+    from hermes_cli.harness_parts.serve import argv_lane as serve_argv_lane
 
     marker = tmp_path / "handler-effect.txt"
     writes: list[str] = []
     monkeypatch.setattr(
-        serve_module,
+        serve_argv_lane,
         "_build_harness_parser",
         lambda: _exiting_handler_parser(writes),
     )
@@ -491,16 +491,16 @@ def test_a_non_harness_root_is_refused_before_any_parser_is_built(
     named refusal rather than an argparse rejection that reads like a stale
     child and gets replayed on a fresh CLI forever."""
 
-    from hermes_cli.harness_parts import serve as serve_module
+    from hermes_cli.harness_parts.serve import argv_lane as serve_argv_lane
 
     built: list[int] = []
-    real = serve_module._build_harness_parser
+    real = serve_argv_lane._build_harness_parser
 
     def _counting_parser():
         built.append(1)
         return real()
 
-    monkeypatch.setattr(serve_module, "_build_harness_parser", _counting_parser)
+    monkeypatch.setattr(serve_argv_lane, "_build_harness_parser", _counting_parser)
 
     frames = _run(
         [_request("p", ["profile", "delete", "persona_x", "--yes"]), SHUTDOWN],
@@ -923,7 +923,8 @@ def test_the_serve_entry_point_wires_the_real_prewarm_and_timeline(monkeypatch):
     """The default is OFF in the loop, so the production wiring is what makes
     the prewarm real — pin it, or the whole item ships dead."""
 
-    from hermes_cli.harness_parts import serve as serve_mod
+    from hermes_cli.harness_parts.serve import boot as serve_boot
+    from hermes_cli.harness_parts.serve import commands as serve_mod
 
     read_fd, write_fd = os.pipe()
     monkeypatch.setattr(serve_mod, "_claim_protocol_pipes", lambda: (read_fd, write_fd))
@@ -941,13 +942,13 @@ def test_the_serve_entry_point_wires_the_real_prewarm_and_timeline(monkeypatch):
         pool_size = 4
 
     assert serve_mod._cmd_serve(_Args()) == 0
-    assert captured["snapshot_prewarm"] is serve_mod._prewarm_read_model_snapshot
+    assert captured["snapshot_prewarm"] is serve_boot._prewarm_read_model_snapshot
     # EG-3.2's injectable-parameter contract (HC-H3): the provider warmup is
     # policy the entry point supplies, exactly like the read-model one. Pinned
     # here because the loop's default is OFF — a wiring that forgot it would ship
     # a serve whose first chat turn pays the whole SDK import inline, with every
     # loop test still green.
-    assert captured["provider_prewarm"] is serve_mod._prewarm_provider_runtime
+    assert captured["provider_prewarm"] is serve_boot._prewarm_provider_runtime
     assert captured["boot_timeline"] is not None
     # Started at the command's first instruction: everything before it is
     # interpreter + import tax, which is what the term is supposed to mean.
@@ -1078,12 +1079,13 @@ def test_a_failed_build_still_warms_the_providers():
 
 
 def test_a_failing_prewarm_never_takes_the_runtime_down(monkeypatch):
-    from hermes_cli.harness_parts import serve as serve_mod
+    from hermes_cli.harness_parts.serve import boot as serve_mod
     from agent_runtime import snapshot as snapshot_mod
 
     def boom(**_kwargs):
         raise RuntimeError("store torn mid-read")
 
+    monkeypatch.setattr(snapshot_mod.build, "build_snapshot", boom)
     monkeypatch.setattr(snapshot_mod, "build_snapshot", boom)
 
     # Best effort by contract: it swallows, logs, and the serve keeps serving.

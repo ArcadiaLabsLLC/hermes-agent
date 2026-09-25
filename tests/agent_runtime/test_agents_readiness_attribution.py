@@ -116,7 +116,19 @@ def test_a_slow_readiness_walk_lands_on_the_walk_number(one_runtime_persona):
         return real(persona, **kwargs)
 
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(snapshot_module, "time", SimpleNamespace(
+        mp.setattr(snapshot_module.build, "time", SimpleNamespace(
+            **{**vars(time), "perf_counter": lambda: clock[0]}
+        ))
+        mp.setattr(snapshot_module.build_log, "time", SimpleNamespace(
+            **{**vars(time), "perf_counter": lambda: clock[0]}
+        ))
+        mp.setattr(snapshot_module.envelope, "time", SimpleNamespace(
+            **{**vars(time), "perf_counter": lambda: clock[0]}
+        ))
+        mp.setattr(snapshot_module.sections, "time", SimpleNamespace(
+            **{**vars(time), "perf_counter": lambda: clock[0]}
+        ))
+        mp.setattr(snapshot_module.summaries, "time", SimpleNamespace(
             **{**vars(time), "perf_counter": lambda: clock[0]}
         ))
         mp.setattr(
@@ -140,10 +152,23 @@ def test_a_slow_summary_lands_on_the_tool_visibility_number(one_runtime_persona)
         return real(agent, **kwargs)
 
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(snapshot_module, "time", SimpleNamespace(
+        mp.setattr(snapshot_module.build, "time", SimpleNamespace(
             **{**vars(time), "perf_counter": lambda: clock[0]}
         ))
-        mp.setattr(snapshot_module, "_agent_summary", slow)
+        mp.setattr(snapshot_module.build_log, "time", SimpleNamespace(
+            **{**vars(time), "perf_counter": lambda: clock[0]}
+        ))
+        mp.setattr(snapshot_module.envelope, "time", SimpleNamespace(
+            **{**vars(time), "perf_counter": lambda: clock[0]}
+        ))
+        mp.setattr(snapshot_module.sections, "time", SimpleNamespace(
+            **{**vars(time), "perf_counter": lambda: clock[0]}
+        ))
+        mp.setattr(snapshot_module.summaries, "time", SimpleNamespace(
+            **{**vars(time), "perf_counter": lambda: clock[0]}
+        ))
+        mp.setattr(snapshot_module.summaries, "_agent_summary", slow)
+        mp.setattr(snapshot_module.sections, "_agent_summary", slow)
         with caplog_at_info() as caplog:
             build_snapshot()
 

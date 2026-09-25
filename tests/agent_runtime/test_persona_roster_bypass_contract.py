@@ -86,19 +86,19 @@ PERSONA_ARGUMENT_CONTRACT = {
     ("agent_runtime/agent_create.py", "normalize_agent_create", "param:persona"),
     ("agent_runtime/agent_create.py", "perform_agent_create", "param:persona"),
     ("agent_runtime/agent_create.py", "require_known_persona", "param:persona"),
-    ("agent_runtime/serve_rpc.py", "_runtime_agent_create", "absent"),
+    ("agent_runtime/serve_rpc/agent.py", "_runtime_agent_create", "absent"),
     (
-        "hermes_cli/harness_parts/persona_commands.py",
+        "hermes_cli/harness_parts/persona/lifecycle_commands.py",
         "_cmd_agent_create",
         "_cli_create_persona(persona_id)",
     ),
     (
-        "hermes_cli/harness_parts/persona_commands.py",
+        "hermes_cli/harness_parts/persona/lifecycle_commands.py",
         "_cmd_persona_instance_create",
         "_persona_by_id(cfg, persona_id)",
     ),
     (
-        "hermes_cli/harness_parts/persona_commands.py",
+        "hermes_cli/harness_parts/persona/chat_open.py",
         "_cmd_persona_instance_open_chat",
         "_persona_by_id(cfg, persona_id)",
     ),

@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from agent.skill_utils import _content_hash_cache_clear
+from agent_runtime.skill_resolution import _content_hash_cache_clear
 from agent_runtime import paths
 from agent_runtime.skill_promotion import realm_inbox_dir
 from agent_runtime.profile_home import get_shared_skills_dir

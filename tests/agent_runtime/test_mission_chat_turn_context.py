@@ -1,8 +1,8 @@
 """The mission-chat per-turn context, asserted on its OUTPUT rather than its shape.
 
 ``_cmd_mission_chat_message`` lives in ``hermes_cli/harness_parts/persona_commands.py``,
-a command part ``exec``-loaded into ``harness.py``'s globals rather than
-imported. Everything assembled inside it could therefore only ever be guarded by
+a command part that was ``exec``-loaded into ``harness.py``'s globals until lane
+H1. Everything assembled inside it could therefore only ever be guarded by
 AST source-shape assertions — "this function calls ``render_capability_block``
 and puts the result in a list literal named ``volatile_lines``". Those guards pin
 the SHAPE of the code and say nothing about the BYTES the agent receives: a
@@ -114,7 +114,7 @@ def _resolvers(**overrides) -> MissionChatTurnResolvers:
     """Every impure seam faked, so the builder runs with no runtime root.
 
     That this is POSSIBLE is the point of the extraction: the same assembly
-    inside the exec'd CLI body needed a live store, a skill catalog and a
+    inside the CLI body needed a live store, a skill catalog and a
     profile home before a single assertion could be made about it.
     """
 
@@ -1296,7 +1296,7 @@ def _prompt_observability_walk_gate(monkeypatch, walked_home):
     """Park a REAL ``snapshot_prompt_observability`` build inside its binding.
 
     The sibling of ``_readiness_walk_gate``, one snapshot section over. The gate
-    is ``prompt_observability._installed_skill_catalog``, the first call the
+    is ``prompt_observability.skills_resolver._installed_skill_catalog``, the first call the
     per-persona body makes INSIDE ``skill_profile_context`` on a cache miss (a
     fresh ``_SkillObservabilityResolver`` guarantees the miss).
 
@@ -1314,7 +1314,7 @@ def _prompt_observability_walk_gate(monkeypatch, walked_home):
     entered = threading.Event()
     release = threading.Event()
     observed: list[str] = []
-    real = prompt_observability._installed_skill_catalog
+    real = prompt_observability.skills_resolver._installed_skill_catalog
 
     def _gated():
         observed.append(str(get_hermes_home()))
@@ -1322,9 +1322,14 @@ def _prompt_observability_walk_gate(monkeypatch, walked_home):
         release.wait(10)
         return real()
 
-    monkeypatch.setattr(prompt_observability, "_installed_skill_catalog", _gated)
+    monkeypatch.setattr(prompt_observability.mission_chat, "_installed_skill_catalog", _gated)
+    monkeypatch.setattr(prompt_observability.skills_context, "_installed_skill_catalog", _gated)
+    monkeypatch.setattr(prompt_observability.skills_resolver, "_installed_skill_catalog", _gated)
     monkeypatch.setattr(
-        prompt_observability, "load_latest_prompt_observability_contexts", lambda: []
+        prompt_observability.catalog_lookup, "load_latest_prompt_observability_contexts", lambda: []
+    )
+    monkeypatch.setattr(
+        prompt_observability.context_store, "load_latest_prompt_observability_contexts", lambda: []
     )
     monkeypatch.setattr(profile_context, "profile_exists", lambda name: name == "qa")
     monkeypatch.setattr(profile_context, "get_profile_dir", lambda name: walked_home)

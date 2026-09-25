@@ -13,7 +13,7 @@ harness truth, **start with the parity envelope — do not code-spelunk**:
 Two version numbers, measured live **2026-08-28** — read them, do not quote them:
 
 - `.parity.contract_version` = **54** (`SNAPSHOT_CONTRACT_VERSION`,
-  `agent_runtime/snapshot.py:95`). It is a cross-repo lockstep with the Launcher's
+  `agent_runtime/snapshot/context.py:49`). It is a cross-repo lockstep with the Launcher's
   `kSupportedMissionContractVersion`, stated in exactly one test
   (`test_snapshot_contract_version_authority.py`) with an AST gate failing any other test
   that states it — so it moves only by deliberate review, and it moves.
@@ -24,7 +24,7 @@ Two version numbers, measured live **2026-08-28** — read them, do not quote th
   `<store_root>/serve_read_model/` instead. If a note, a consumer, or your own memory
   talks about rebuilding or reading a projection, it is describing a retired lane.
 
-Primitives: `agent_runtime/parity.py` + `agent_runtime/snapshot.py`.
+Primitives: `agent_runtime/parity.py` + `agent_runtime/snapshot/`.
 
 **Sections that no longer exist:** `goals`, `stage_verification`, `runs`, `proofs`,
 `incidents`, `mission_plan`, `agent_topology`, and `agent_instances.task_id` were removed
@@ -91,7 +91,7 @@ runtime proof:
   verb (alias of `retire`, 2026-08-27) does not change it.
 - **An agent that keeps coming back after a delete is a client bug, not a store bug.**
   The serve refuses an `office actor-upsert` against a deleted key with JSON-RPC `4090`
-  / `data.reason = "actor_archived"` (`agent_runtime/serve_rpc.py` ~1401), which is
+  / `data.reason = "actor_archived"` (`agent_runtime/serve_rpc/office_actor_writes.py:341`), which is
   terminal: the client must DROP its local row, and re-placing is a new create with a new
   id. A client that treats it as retryable re-pushes forever — the live incident was a
   launcher re-pushing archived actors nineteen seconds after boot. Conversely a desk still

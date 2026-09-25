@@ -254,7 +254,8 @@ def test_reconcile_never_folds_task_bound_or_cross_persona_rows():
 
 def test_snapshot_emits_identity_map_and_duplicate_warning(monkeypatch):
     cfg = _runtime_config()
-    monkeypatch.setattr("agent_runtime.snapshot.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.envelope.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.sections.load_agent_runtime_config", lambda: cfg)
     _seed_row(
         "personainst_neko_supervisor",
         persona_id="neko_supervisor",
@@ -301,7 +302,11 @@ def test_snapshot_emits_identity_map_and_duplicate_warning(monkeypatch):
 
 def test_snapshot_reports_shape_valid_missing_steering_foreign_keys(monkeypatch):
     monkeypatch.setattr(
-        "agent_runtime.snapshot.load_agent_runtime_config",
+        "agent_runtime.snapshot.envelope.load_agent_runtime_config",
+        lambda: _runtime_config(),
+    )
+    monkeypatch.setattr(
+        "agent_runtime.snapshot.sections.load_agent_runtime_config",
         lambda: _runtime_config(),
     )
     missing = "personainst_neko_supervisor_agent_gone"
@@ -553,11 +558,12 @@ class _FakeTemplate:
 
 def test_snapshot_emits_orphan_and_no_warning_for_real_agent(monkeypatch):
     cfg = _runtime_config()
-    monkeypatch.setattr("agent_runtime.snapshot.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.envelope.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.sections.load_agent_runtime_config", lambda: cfg)
     # Provide an authoritative (non-empty) profile catalog so the profile:* orphan lane
     # engages; ``codex_create_probe`` is absent from it and must be flagged.
     monkeypatch.setattr(
-        "agent_runtime.snapshot.available_profile_templates",
+        "agent_runtime.snapshot.summaries.available_profile_templates",
         lambda: [_FakeTemplate("alice"), _FakeTemplate("base")],
     )
     # The reconcile prune lane reads the catalog through _profile_template_names; keep it
@@ -777,13 +783,13 @@ def test_repair_skips_when_head_home_is_not_authoritative(monkeypatch):
     operator chat as absent — the live 2026-07-25 reconcile cleared 10 live
     bindings exactly this way. Fail closed with a typed skip instead."""
 
-    from agent_runtime import persona_chat_history
+    from agent_runtime import chat_session_scope
 
     _bind("personainst_gone", persona_id="dev", session_id="persona_chat_gone")
     monkeypatch.delenv("HERMES_HEAD_HOME", raising=False)
     monkeypatch.setattr(
-        persona_chat_history,
-        "_default_session_db",
+        chat_session_scope,
+        "open_chat_session_db",
         lambda: (_ for _ in ()).throw(AssertionError("guard must refuse before resolving the DB")),
     )
 
@@ -798,15 +804,15 @@ def test_repair_skips_when_head_home_is_not_authoritative(monkeypatch):
 def test_reconcile_repairs_stale_chat_bindings_and_dry_run_is_inert(monkeypatch):
     import os
 
-    from agent_runtime import persona_chat_history
+    from agent_runtime import chat_session_scope
 
     _bind("personainst_gone", persona_id="dev", session_id="persona_chat_gone")
     # The presence probe fails closed without an explicit head authority; the
     # repair path under test assumes correctly-routed maintenance.
     monkeypatch.setenv("HERMES_HEAD_HOME", os.environ.get("HERMES_HOME", ""))
     monkeypatch.setattr(
-        persona_chat_history,
-        "_default_session_db",
+        chat_session_scope,
+        "open_chat_session_db",
         lambda: _FakeSessionDB(["persona_chat_live"]),
     )
 

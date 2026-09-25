@@ -46,10 +46,10 @@ def hermetic_runtime_root(tmp_path, monkeypatch):
 def gateway_configured(monkeypatch):
     """An operator who has turned the lane on, so the endpoint is answerable."""
 
-    from hermes_cli.harness_parts import serve as serve_module
+    from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
     monkeypatch.setattr(
-        serve_module, "gateway_listen_config", lambda: ("10.0.0.4", 8765)
+        serve_gateway_listener, "gateway_listen_config", lambda: ("10.0.0.4", 8765)
     )
 
 
@@ -147,10 +147,11 @@ def test_both_nested_payloads_carry_the_candidate_list_and_a_dialable_first_row(
     contract checkable in one assertion.
     """
 
-    from hermes_cli.harness_parts import gateway_commands, serve as serve_module
+    from hermes_cli.harness_parts import gateway_commands
+    from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
     monkeypatch.setattr(
-        serve_module, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
+        serve_gateway_listener, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
     )
     monkeypatch.setattr(
         gateway_commands,
@@ -187,7 +188,8 @@ def test_introduce_refuses_a_wildcard_bind_that_enumerates_no_address(
     sentence here would send an operator to a config key that is already set."""
 
     from agent_runtime.serve_gateway_auth import pairing_store_path
-    from hermes_cli.harness_parts import gateway_commands, serve as serve_module
+    from hermes_cli.harness_parts import gateway_commands
+    from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
     from hermes_cli.harness_parts.gateway_commands import (
         LISTENER_OFF_SENTENCE,
         NO_DIAL_HOST_SENTENCE,
@@ -195,7 +197,7 @@ def test_introduce_refuses_a_wildcard_bind_that_enumerates_no_address(
     from hermes_cli.harness_support import ERROR_EXIT_CODES
 
     monkeypatch.setattr(
-        serve_module, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
+        serve_gateway_listener, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
     )
     monkeypatch.setattr(gateway_commands, "_machine_addresses", lambda: [])
 
@@ -291,11 +293,11 @@ def test_introduce_refuses_when_the_listener_is_off_with_peers_pairs_sentence(
     a door nobody opened. Family 7, because the identical command succeeds after
     a restart."""
 
-    from hermes_cli.harness_parts import serve as serve_module
+    from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
     from hermes_cli.harness_parts.gateway_commands import LISTENER_OFF_SENTENCE
     from hermes_cli.harness_support import ERROR_EXIT_CODES
 
-    monkeypatch.setattr(serve_module, "gateway_listen_config", lambda: (None, 0))
+    monkeypatch.setattr(serve_gateway_listener, "gateway_listen_config", lambda: (None, 0))
 
     code = _dispatch(
         ["harness", "gateway", "introduce", "--for-install", "install-a", "--json"]
@@ -522,10 +524,11 @@ def test_gateway_id_names_the_dial_host_and_keeps_the_listener_block_on_the_bind
     to the first and never to the second.
     """
 
-    from hermes_cli.harness_parts import gateway_commands, serve as serve_module
+    from hermes_cli.harness_parts import gateway_commands
+    from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
     monkeypatch.setattr(
-        serve_module, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
+        serve_gateway_listener, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
     )
     monkeypatch.setattr(
         gateway_commands,
@@ -548,10 +551,11 @@ def test_gateway_id_says_null_rather_than_a_bind_when_there_is_nothing_to_dial(
     filled the hole with the bind would put ``0.0.0.0`` on a launcher label,
     which is the sentence the operator asked never to see again."""
 
-    from hermes_cli.harness_parts import gateway_commands, serve as serve_module
+    from hermes_cli.harness_parts import gateway_commands
+    from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
     monkeypatch.setattr(
-        serve_module, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
+        serve_gateway_listener, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
     )
     monkeypatch.setattr(gateway_commands, "_machine_addresses", lambda: [])
 
@@ -578,9 +582,10 @@ def test_a_wildcard_bind_enumerates_interfaces_and_a_concrete_host_is_one_row(
     be a test that fails on a laptop that changed networks.
     """
 
-    from hermes_cli.harness_parts import gateway_commands, serve as serve_module
+    from hermes_cli.harness_parts import gateway_commands
+    from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
-    monkeypatch.setattr(serve_module, "gateway_listen_config", lambda: ("0.0.0.0", 8765))
+    monkeypatch.setattr(serve_gateway_listener, "gateway_listen_config", lambda: ("0.0.0.0", 8765))
     monkeypatch.setattr(
         gateway_commands, "_machine_addresses", lambda: ["10.0.0.4", "10.0.0.5"]
     )
@@ -591,7 +596,7 @@ def test_a_wildcard_bind_enumerates_interfaces_and_a_concrete_host_is_one_row(
         {"host": "10.0.0.5", "port": 8765},
     ]
 
-    monkeypatch.setattr(serve_module, "gateway_listen_config", lambda: ("10.0.0.9", 8765))
+    monkeypatch.setattr(serve_gateway_listener, "gateway_listen_config", lambda: ("10.0.0.9", 8765))
     _code, payload = _run(capsys, "id")
     assert payload["endpoints"] == [{"host": "10.0.0.9", "port": 8765}]
 
@@ -603,9 +608,9 @@ def test_no_listener_means_an_empty_endpoint_list_not_an_error(
     it against roots it does not own. "Nowhere to dial" is a real state and an
     empty list is how it is said."""
 
-    from hermes_cli.harness_parts import serve as serve_module
+    from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
-    monkeypatch.setattr(serve_module, "gateway_listen_config", lambda: (None, 0))
+    monkeypatch.setattr(serve_gateway_listener, "gateway_listen_config", lambda: (None, 0))
 
     code, payload = _run(capsys, "id")
 

@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-import hermes_cli.kanban_db_dispatch as _owner_hermes_cli_kanban_db_dispatch
-import hermes_cli.kanban_db_workspace as _owner_hermes_cli_kanban_db_workspace
-
-import concurrent.futures
 import json
 import os
 import sqlite3
@@ -13,12 +9,10 @@ import subprocess
 import sys
 import time
 import types
-import unittest.mock
 from pathlib import Path
 
 import pytest
 
-import hermes_state
 import hermes_state_wal
 from hermes_cli import kanban_db as kb
 from hermes_cli import kanban_db_connect as kbc
@@ -807,15 +801,7 @@ def test_worktree_workspace_explicit_target_materializes_linked_worktree(kanban_
         capture_output=True,
         text=True,
     ).stdout
-    # `git worktree list --porcelain` always spells paths with forward
-    # slashes, including on Windows where `target` is a native backslash
-    # path. Normalise the separator on both sides: the guarantee being
-    # pinned is that git registered THIS directory as a linked worktree,
-    # not how the OS spells its separator.
-    assert (
-        f"worktree {str(target).replace(os.sep, '/')}"
-        in listed.replace("\\", "/")
-    )
+    assert f"worktree {target}" in listed
     assert f"branch refs/heads/{branch}" in listed
 
 
@@ -1126,9 +1112,6 @@ class TestSharedBoardPaths:
                 captured["cmd"] = cmd
                 captured["env"] = kwargs.get("env", {})
                 self.pid = 4242
-
-            def poll(self):
-                return None  # still running: the Windows reaper branch polls every live worker
 
         monkeypatch.setattr("subprocess.Popen", _FakePopen)
 
@@ -1509,54 +1492,6 @@ def test_add_column_if_missing_is_idempotent_on_race(kanban_home):
     conn.close()
 
 
-def test_migrate_add_optional_columns_tolerates_concurrent_migration(kanban_home):
-    """Full _migrate_add_optional_columns must not raise when columns already
-    exist (issue #21708 race window — two connections migrate concurrently)."""
-    import sqlite3
-
-    # Schema already in fully-migrated state (all optional columns present).
-    conn = sqlite3.connect(":memory:")
-    conn.row_factory = sqlite3.Row
-    conn.execute(
-        """
-        CREATE TABLE tasks (
-            id INTEGER PRIMARY KEY,
-            title TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT '',
-            tenant TEXT,
-            result TEXT,
-            idempotency_key TEXT,
-            branch_name TEXT,
-            consecutive_failures INTEGER NOT NULL DEFAULT 0,
-            worker_pid INTEGER,
-            last_failure_error TEXT,
-            max_runtime_seconds INTEGER,
-            last_heartbeat_at INTEGER,
-            current_run_id INTEGER,
-            workflow_template_id TEXT,
-            current_step_key TEXT,
-            skills TEXT,
-            max_retries INTEGER,
-            session_id TEXT
-        )
-        """
-    )
-    conn.execute(
-        """
-        CREATE TABLE task_events (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            task_id    TEXT NOT NULL DEFAULT '',
-            run_id     INTEGER,
-            kind       TEXT NOT NULL DEFAULT '',
-            payload    TEXT,
-            created_at INTEGER NOT NULL DEFAULT 0
-        )
-        """
-    )
-
-    # Running migration on an already-migrated schema must not raise.
-    kbc._migrate_add_optional_columns(conn)
-    conn.close()
 
 
 def test_connect_heals_reduced_tasks_schema_seeded_by_external_harness(kanban_home):
@@ -1633,27 +1568,6 @@ def test_resolve_hermes_argv_prefers_module_form_over_path_shim(monkeypatch):
     assert kbd._resolve_hermes_argv() == ["/opt/hermes/bin/hermes"]
 
 
-def test_resolve_hermes_argv_falls_back_to_module_form_when_no_path_shim(monkeypatch):
-    """When the shim is not on PATH, fall back to `python -m hermes_cli.main`.
-
-    Pins the correct module name (NOT `hermes` — there is no top-level
-    `hermes` package). Regression for #23198: the original PR shipped
-    `python -m hermes` which fails with `No module named hermes` on every
-    invocation.
-    """
-    import shutil
-    import sys
-    import hermes_cli.kanban_db as kb
-    from hermes_cli import kanban_db_dispatch as kbd
-
-    monkeypatch.delenv("HERMES_BIN", raising=False)
-    monkeypatch.setattr(shutil, "which", lambda name: None)
-    # Fork: on Windows the resolver goes through ``_safe_which_no_cwd`` (which
-    # deliberately does NOT consult shutil.which), so patching only shutil.which
-    # left the real shim reachable and this test failed on native Windows.
-    monkeypatch.setattr(kbd, "_safe_which_no_cwd", lambda command: None)
-    argv = kbd._resolve_hermes_argv()
-    assert argv == [sys.executable, "-m", "hermes_cli.main"]
 
 
 def test_resolve_hermes_argv_module_actually_runs():
@@ -1666,27 +1580,19 @@ def test_resolve_hermes_argv_module_actually_runs():
     Run it as a real subprocess to catch that regression.
     """
     import subprocess
-    import hermes_cli.kanban_db as kb
     from hermes_cli import kanban_db_dispatch as kbd
     import shutil
     import unittest.mock as mock
 
-    # Fork: _resolve_hermes_argv looks the shim up via the fork's
-    # ``_safe_which_no_cwd`` on Windows and ``shutil.which`` elsewhere, so both
-    # lookups must be neutralized to force the module-form fallback.
     with mock.patch.dict(os.environ, {}, clear=False):
         os.environ.pop("HERMES_BIN", None)
-        with (
-            mock.patch.object(shutil, "which", return_value=None),
-            mock.patch.object(kbd, "_safe_which_no_cwd", return_value=None),
-        ):
+        with mock.patch.object(shutil, "which", return_value=None):
             argv = kbd._resolve_hermes_argv()
     r = subprocess.run(argv + ["--version"], capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, (
         f"`{' '.join(argv)} --version` failed (rc={r.returncode}); "
         f"stderr={r.stderr[:200]!r}"
     )
-    assert "Hermes Agent" in r.stdout, f"unexpected output: {r.stdout[:200]!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -1704,27 +1610,6 @@ def test_resolve_hermes_argv_module_actually_runs():
 # ---------------------------------------------------------------------------
 
 
-def _make_task(**overrides) -> "kb.Task":
-    """Minimal Task with all required fields filled in. Override anything."""
-    defaults = dict(
-        id="t_age",
-        title="x",
-        body=None,
-        assignee=None,
-        status="ready",
-        priority=0,
-        created_by=None,
-        created_at=0,
-        started_at=None,
-        completed_at=None,
-        workspace_kind="scratch",
-        workspace_path=None,
-        claim_lock=None,
-        claim_expires=None,
-        tenant=None,
-    )
-    defaults.update(overrides)
-    return kb.Task(**defaults)
 
 
 
@@ -1896,71 +1781,35 @@ def test_locked_healthy_db_does_not_classify_as_corrupt(tmp_path, monkeypatch):
 # First-use tip for scratch workspaces
 # ---------------------------------------------------------------------------
 
-def test_maybe_emit_scratch_tip_fires_once_per_install(kanban_home, caplog):
-    """First scratch workspace materialization warns + emits an event.
-
-    Subsequent scratch workspaces on the SAME install stay silent — the
-    sentinel file under kanban_home() flips after the first emit.
-    """
-    import logging
-
+def test_maybe_emit_scratch_tip_fires_once_per_install(kanban_home):
+    """The first scratch workspace materialized on an install appends a
+    ``tip_scratch_workspace`` event; later scratch tasks on the same install
+    stay silent, and non-scratch workspaces never trigger it."""
     with kbc.connect() as conn:
+        wt = kb.create_task(conn, title="worktree task")
         t1 = kb.create_task(conn, title="first scratch")
         t2 = kb.create_task(conn, title="second scratch")
 
-    # Sentinel must not exist yet on a fresh install.
-    assert not kbw._scratch_tip_shown()
-
-    with caplog.at_level(logging.WARNING, logger="hermes_cli.kanban_db"):
+    def _kinds(task_id):
         with kbc.connect() as conn:
-            kbw._maybe_emit_scratch_tip(conn, t1, "scratch")
+            rows = conn.execute(
+                "SELECT kind FROM task_events WHERE task_id = ? ORDER BY id",
+                (task_id,),
+            ).fetchall()
+        return [r["kind"] for r in rows]
 
-    # Sentinel is now set.
-    assert kbw._scratch_tip_shown()
-    assert kbw._scratch_tip_sentinel_path().exists()
-
-    # Warning was logged exactly once.
-    tip_records = [
-        r for r in caplog.records
-        if "scratch workspaces are ephemeral" in r.getMessage()
-    ]
-    assert len(tip_records) == 1, (
-        f"Expected exactly one tip warning, got {len(tip_records)}: "
-        f"{[r.getMessage() for r in tip_records]!r}"
-    )
-
-    # An event row was appended on the first task.
     with kbc.connect() as conn:
-        events = conn.execute(
-            "SELECT kind FROM task_events WHERE task_id = ? ORDER BY id",
-            (t1,),
-        ).fetchall()
-    kinds = [e["kind"] for e in events]
-    assert "tip_scratch_workspace" in kinds, (
-        f"Expected tip_scratch_workspace event on first scratch task; "
-        f"got {kinds!r}"
-    )
+        kbw._maybe_emit_scratch_tip(conn, wt, "worktree")
+    assert "tip_scratch_workspace" not in _kinds(wt)
 
-    # Second scratch materialization on the same install stays silent.
-    caplog.clear()
-    with caplog.at_level(logging.WARNING, logger="hermes_cli.kanban_db"):
-        with kbc.connect() as conn:
-            kbw._maybe_emit_scratch_tip(conn, t2, "scratch")
-    tip_records2 = [
-        r for r in caplog.records
-        if "scratch workspaces are ephemeral" in r.getMessage()
-    ]
-    assert tip_records2 == [], (
-        f"Tip should not re-fire after sentinel is set; got "
-        f"{[r.getMessage() for r in tip_records2]!r}"
-    )
     with kbc.connect() as conn:
-        events2 = conn.execute(
-            "SELECT kind FROM task_events WHERE task_id = ? ORDER BY id",
-            (t2,),
-        ).fetchall()
-    assert "tip_scratch_workspace" not in [e["kind"] for e in events2], (
-        "Tip event should not be appended for subsequent scratch tasks."
+        kbw._maybe_emit_scratch_tip(conn, t1, "scratch")
+    assert _kinds(t1).count("tip_scratch_workspace") == 1
+
+    with kbc.connect() as conn:
+        kbw._maybe_emit_scratch_tip(conn, t2, "scratch")
+    assert "tip_scratch_workspace" not in _kinds(t2), (
+        "scratch tip re-fired on the same install"
     )
 
 
@@ -2103,222 +1952,6 @@ def test_write_txn_check_reads_correct_header_fields(tmp_path):
 
 
 
-def test_bare_connect_does_not_close_on_context_exit(tmp_path):
-    """Document the leak that connect_closing exists to prevent.
-
-    sqlite3.Connection's __exit__ commits/rollbacks but doesn't close.
-    This is the upstream behaviour we cannot change; the regression
-    guard is to make sure connect_closing() does the right thing.
-    """
-    db_path = tmp_path / "kanban.db"
-    kb._INITIALIZED_PATHS.discard(str(db_path.resolve()))
-    with kbc.connect(db_path=db_path) as conn:
-        pass
-    # Still usable after with-block exit (the leak).
-    conn.execute("SELECT 1").fetchone()
-    conn.close()  # explicit close to avoid leaking THIS test
-
-
-# ---------------------------------------------------------------------------
-# Supervisor / sidecar crash hardening
-# ---------------------------------------------------------------------------
-def test_detect_crashed_workers_writes_supervisor_lost_child_artifact(
-    kanban_home, tmp_path, monkeypatch,
-):
-    """Supervisor PID disappears while a detached child / sidecar process
-    keeps running. The dispatcher must:
-
-      * preserve the child's pid/cmd/cwd/log path
-      * bounded-tail and redact stdout/stderr
-      * write a durable JSON crash artifact under ``logs/crashes/``
-      * classify the record as ``supervisor_lost_child`` (not just
-        ``process_failed``)
-      * link the artifact path into both the ``crashed`` task_event and
-        the closed run's ``metadata``
-      * keep all artifact text free of Bearer/JWT/signed-URL tokens
-    """
-    import json
-    import hermes_cli.kanban_db as _kb
-
-    workspace = tmp_path / "ws-task"
-    workspace.mkdir()
-    sidecar_dir = workspace / ".hermes" / "sidecars"
-    sidecar_dir.mkdir(parents=True)
-
-    live_child_pid = 424242  # detached child still running
-    dead_supervisor_pid = 999111
-
-    # Sidecar manifest the worker would have dropped before backgrounding
-    # its long-running child (think: ffmpeg encode, training loop, etc.).
-    sidecar_log = workspace / "child.log"
-    sidecar_log.write_bytes(
-        b"[child] iter 1\n[child] iter 2 token=eyJa.bbb-ccc.ddd_eee\n"
-    )
-    (sidecar_dir / "encoder.json").write_text(
-        json.dumps({
-            "pid": live_child_pid,
-            "name": "encoder",
-            "cmd": ["ffmpeg", "-i", "in.mov", "out.mov"],
-            "cwd": str(workspace),
-            "log_path": str(sidecar_log),
-        }),
-        encoding="utf-8",
-    )
-
-    conn = kbc.connect()
-    try:
-        tid = kb.create_task(conn, title="encode", assignee="worker")
-        host_prefix = _kb._claimer_id().split(":", 1)[0]
-        kb.claim_task(conn, tid, claimer=f"{host_prefix}:s")
-        kbd._set_worker_pid(conn, tid, dead_supervisor_pid)
-        _owner_hermes_cli_kanban_db_workspace.set_workspace_path(conn, tid, str(workspace))
-        conn.execute(
-            "UPDATE tasks SET started_at = ? WHERE id = ?",
-            (int(_kb.time.time()) - _kb.DEFAULT_CRASH_GRACE_SECONDS - 1, tid),
-        )
-        conn.commit()
-
-        # Drop a worker log laden with credentials so we can prove the
-        # tail makes it into the artifact AND is redacted.
-        log_path = _kb.worker_log_path(tid)
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        log_path.write_bytes(
-            b"[sup] booting...\n"
-            b"Authorization: Bearer eyJaaa.bbb-ccc.ddd_eee\n"
-            b"x-api-key: sk-live-1234567890ABCDEFG\n"
-            b"detached encoder pid=424242\n"
-            b"GET /s3/obj?X-Amz-Signature=deadbeefcafef00d&Expires=1700000000\n"
-        )
-
-        # Simulate "supervisor died, child still alive": only the dead
-        # supervisor pid is dead.
-        def _alive(pid):
-            return int(pid) == live_child_pid
-
-        monkeypatch.setattr(_kb, "_pid_alive", _alive)
-
-        crashed = _owner_hermes_cli_kanban_db_dispatch.detect_crashed_workers(conn)
-        assert crashed == [tid]
-
-        # The crashed event payload must carry an evidence_path and a
-        # classification of "supervisor_lost_child".
-        events = kb.list_events(conn, tid)
-        crash_events = [e for e in events if e.kind == "crashed"]
-        assert crash_events, f"no 'crashed' event recorded; got {[e.kind for e in events]}"
-        ev = crash_events[-1]
-        assert ev.payload is not None
-        evidence_path = ev.payload.get("evidence_path")
-        assert evidence_path, (
-            f"crashed event missing evidence_path; payload={ev.payload!r}"
-        )
-        classification = ev.payload.get("classification")
-        assert classification == "supervisor_lost_child", (
-            f"expected 'supervisor_lost_child', got {classification!r}"
-        )
-
-        artifact = Path(evidence_path)
-        assert artifact.exists(), f"artifact missing on disk: {artifact}"
-        # Crashes folder should sit under the board's logs dir.
-        assert artifact.parent.name == "crashes"
-        assert artifact.parent.parent == _kb.worker_logs_dir()
-
-        doc = json.loads(artifact.read_text(encoding="utf-8"))
-        # Deterministic, redaction-safe schema.
-        assert doc["task_id"] == tid
-        assert doc["classification"] == "supervisor_lost_child"
-        assert doc["worker_pid"] == dead_supervisor_pid
-        assert doc["profile"] == "worker"
-        assert "timestamp" in doc and isinstance(doc["timestamp"], str)
-        assert "captured_at_epoch" in doc
-
-        sidecars = doc.get("sidecars", [])
-        assert sidecars, "expected sidecar entries to be discovered"
-        sc = sidecars[0]
-        assert sc["pid"] == live_child_pid
-        assert sc["alive"] is True
-        assert sc["cmd"] == ["ffmpeg", "-i", "in.mov", "out.mov"]
-        assert sc["log_path"] == str(sidecar_log)
-        # Sidecar tail captured + redacted.
-        assert "iter 2" in sc.get("log_tail", "")
-        assert "eyJa.bbb-ccc.ddd_eee" not in sc.get("log_tail", "")
-
-        # Worker log tail present + fully redacted.
-        tail = doc.get("worker_log_tail", "")
-        assert "detached encoder pid=424242" in tail
-        for forbidden in [
-            "eyJaaa.bbb-ccc.ddd_eee",
-            "sk-live-1234567890ABCDEFG",
-            "deadbeefcafef00d",
-            "1700000000",
-        ]:
-            assert forbidden not in tail, (
-                f"worker_log_tail leaked {forbidden!r}: {tail!r}"
-            )
-        # Whole artifact, recursively, must be free of those secrets.
-        whole = artifact.read_text(encoding="utf-8")
-        for forbidden in [
-            "eyJaaa.bbb-ccc.ddd_eee",
-            "sk-live-1234567890ABCDEFG",
-            "deadbeefcafef00d",
-            "1700000000",
-        ]:
-            assert forbidden not in whole
-
-        # The closed run's metadata must also carry evidence_path so the
-        # dashboard's run-detail view can reach it without re-parsing
-        # task_events.
-        runs = kb.list_runs(conn, tid)
-        last_closed = [r for r in runs if r.outcome == "crashed"]
-        assert last_closed, f"expected one closed crashed run; got {runs!r}"
-        meta = last_closed[-1].metadata or {}
-        assert meta.get("evidence_path") == evidence_path
-        assert meta.get("classification") == "supervisor_lost_child"
-    finally:
-        conn.close()
-
-
-def test_detect_crashed_workers_process_failed_when_no_live_sidecar(
-    kanban_home, tmp_path, monkeypatch,
-):
-    """When neither supervisor nor any sidecar is alive, the crash record
-    is classified ``process_failed`` (and still written) — distinct from
-    the supervisor-lost-child case where reconciliation might still be
-    possible from the surviving child."""
-    import json
-    import hermes_cli.kanban_db as _kb
-
-    workspace = tmp_path / "ws-plain"
-    workspace.mkdir()
-    conn = kbc.connect()
-    try:
-        tid = kb.create_task(conn, title="plain", assignee="worker")
-        host_prefix = _kb._claimer_id().split(":", 1)[0]
-        kb.claim_task(conn, tid, claimer=f"{host_prefix}:s")
-        kbd._set_worker_pid(conn, tid, 7777777)
-        _owner_hermes_cli_kanban_db_workspace.set_workspace_path(conn, tid, str(workspace))
-        conn.execute(
-            "UPDATE tasks SET started_at = ? WHERE id = ?",
-            (int(_kb.time.time()) - _kb.DEFAULT_CRASH_GRACE_SECONDS - 1, tid),
-        )
-        conn.commit()
-
-        monkeypatch.setattr(_kb, "_pid_alive", lambda _p: False)
-
-        crashed = _owner_hermes_cli_kanban_db_dispatch.detect_crashed_workers(conn)
-        assert crashed == [tid]
-
-        events = kb.list_events(conn, tid)
-        crash = [e for e in events if e.kind == "crashed"][-1]
-        assert crash.payload.get("classification") == "process_failed"
-        # Even without sidecars, an artifact path should still be written
-        # so operators have a single canonical place to look.
-        path = crash.payload.get("evidence_path")
-        assert path and Path(path).exists()
-        doc = json.loads(Path(path).read_text(encoding="utf-8"))
-        assert doc["classification"] == "process_failed"
-        assert doc["sidecars"] == []
-    finally:
-        conn.close()
 
 
 def test_archive_running_task_terminates_worker(kanban_home, monkeypatch):

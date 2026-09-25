@@ -53,7 +53,7 @@ def test_concurrent_storm_costs_at_most_two_builds(monkeypatch):
             assert release_first_build.wait(5)
         return {"n": n}
 
-    monkeypatch.setattr(snapshot_mod, "_build_snapshot_uncoalesced", fake_build)
+    monkeypatch.setattr(snapshot_mod.build, "_build_snapshot_uncoalesced", fake_build)
 
     results: list[dict] = []
     results_lock = threading.Lock()
@@ -100,7 +100,7 @@ def test_arrival_during_build_never_gets_the_inflight_result(monkeypatch):
         assert release[generation].wait(5)
         return {"generation": generation}
 
-    monkeypatch.setattr(snapshot_mod, "_build_snapshot_uncoalesced", fake_build)
+    monkeypatch.setattr(snapshot_mod.build, "_build_snapshot_uncoalesced", fake_build)
 
     results: dict[str, dict] = {}
     first = threading.Thread(
@@ -148,7 +148,7 @@ def test_shared_results_are_independent_copies(monkeypatch):
             "generated": datetime.now(timezone.utc),
         }
 
-    monkeypatch.setattr(snapshot_mod, "_build_snapshot_uncoalesced", fake_build)
+    monkeypatch.setattr(snapshot_mod.build, "_build_snapshot_uncoalesced", fake_build)
 
     results: list[dict] = []
     lock = threading.Lock()
@@ -185,7 +185,7 @@ def test_custom_stores_bypass_coalescing(monkeypatch):
         seen.append(kwargs)
         return {"custom": True}
 
-    monkeypatch.setattr(snapshot_mod, "_build_snapshot_uncoalesced", fake_build)
+    monkeypatch.setattr(snapshot_mod.build, "_build_snapshot_uncoalesced", fake_build)
 
     sentinel = object()
     snapshot_mod.build_snapshot(agent_store=sentinel)
@@ -204,7 +204,7 @@ def test_builder_exception_propagates_and_releases_the_gate(monkeypatch):
             raise RuntimeError("store torn mid-read")
         return {"ok": True}
 
-    monkeypatch.setattr(snapshot_mod, "_build_snapshot_uncoalesced", flaky_build)
+    monkeypatch.setattr(snapshot_mod.build, "_build_snapshot_uncoalesced", flaky_build)
 
     with pytest.raises(RuntimeError):
         snapshot_mod.build_snapshot()
@@ -234,7 +234,7 @@ def test_accept_inflight_shares_the_running_build(monkeypatch):
         assert release_build.wait(5)
         return {"generation": generation}
 
-    monkeypatch.setattr(snapshot_mod, "_build_snapshot_uncoalesced", fake_build)
+    monkeypatch.setattr(snapshot_mod.build, "_build_snapshot_uncoalesced", fake_build)
 
     results: dict[str, dict] = {}
     leader = threading.Thread(
@@ -271,7 +271,7 @@ def test_accept_inflight_leads_its_own_build_when_nothing_is_running(monkeypatch
         calls.append(1)
         return {"generation": len(calls)}
 
-    monkeypatch.setattr(snapshot_mod, "_build_snapshot_uncoalesced", fake_build)
+    monkeypatch.setattr(snapshot_mod.build, "_build_snapshot_uncoalesced", fake_build)
 
     first = snapshot_mod.build_snapshot(accept_inflight=True)
     second = snapshot_mod.build_snapshot(accept_inflight=True)
@@ -302,7 +302,7 @@ def test_the_stream_hydrate_joins_the_running_build(monkeypatch):
             "generated_at": "2026-08-09T00:00:00Z",
         }
 
-    monkeypatch.setattr(snapshot_mod, "_build_snapshot_uncoalesced", fake_build)
+    monkeypatch.setattr(snapshot_mod.build, "_build_snapshot_uncoalesced", fake_build)
     monkeypatch.setattr(stream_mod, "_identity_map", lambda _snap: {})
 
     leader = threading.Thread(target=snapshot_mod.build_snapshot)

@@ -37,6 +37,22 @@ from tests.agent_runtime.test_dispatch_delivery import (  # noqa: F401
     resolvable_sender,
     store_home,
 )
+from hermes_cli.harness_parts.persona import (
+    chat_delete,
+    chat_open,
+    chat_target,
+    chat_tickets_commands,
+    chat_turn_message,
+    inspect_commands,
+    instance_commands,
+    lifecycle_commands,
+    model_and_skills_commands,
+)
+from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run
+from hermes_cli.harness_parts import runtime_commands
+from hermes_cli.harness_parts import agent_commands
+from hermes_cli.harness_parts import init_commands
+from hermes_cli.harness_parts import workspace_commands
 
 
 @pytest.fixture(autouse=True)
@@ -307,10 +323,13 @@ def test_an_event_upstream_rejects_is_still_named(store_home, monkeypatch):
     registry = _drain_the_queue()
     evt = {
         "type": "completion",
-        "session_id": "proc_ghost",
-        # Routing metadata upstream demands positive proof for — and which
-        # resolves to no live persona chat root in this runtime.
-        "session_key": "persona_chat_ghostinstance_0123456789ab",
+        "session_id": "proc_foreign",
+        # Routing metadata upstream demands positive proof for — a gateway
+        # session, which is never a persona chat root, so it is left queued for
+        # its own consumer (the #64484 rule). A ``persona_chat_`` key naming no
+        # live instance is NOT this case since 23967867e5: that is an orphan,
+        # taken off the queue and dropped (see the contrast below).
+        "session_key": "agent:main:telegram:dm:4242",
         "command": "sleep 20",
         "exit_code": 0,
     }
@@ -321,7 +340,16 @@ def test_an_event_upstream_rejects_is_still_named(store_home, monkeypatch):
     assert tally["considered"] == 0  # upstream never handed it over
     assert registry.completion_queue.qsize() == 1  # …and put it straight back
     assert "not_owned" in _reasons()
-    assert "persona_chat_ghostinstance" in _row("not_owned")["detail"]
+    assert "agent:main:telegram:dm:4242" in _row("not_owned")["detail"]
+    _drain_the_queue()
+
+    # Contrast: the same event with a ghost persona root IS handed over — to be
+    # dropped loudly, never bounced as not_owned.
+    ghost = dict(evt, session_id="proc_ghost", session_key="persona_chat_ghostinstance_0123456789ab")
+    registry.completion_queue.put(ghost)
+    tally = dispatch_delivery.drain_background_completions(forge=_Forge())
+    assert (tally["considered"], tally["dropped"]) == (1, 1)
+    assert registry.completion_queue.qsize() == 0
     _drain_the_queue()
 
 
@@ -559,11 +587,11 @@ def test_the_mirror_is_in_no_freshness_fingerprint(store_home):
     from hermes_cli.harness_parts import serve
 
     name = dispatch_delivery.DRAIN_STATE_FILENAME
-    assert name not in serve._FINGERPRINT_ROOT_FILES
-    assert name not in serve._FINGERPRINT_STORE_DIRS
+    assert name not in serve.constants._FINGERPRINT_ROOT_FILES
+    assert name not in serve.constants._FINGERPRINT_STORE_DIRS
     assert all(name not in str(path) for path in running_work_store_paths())
     assert name not in inspect.getsource(stream._scope_fingerprint)
-    assert name not in inspect.getsource(serve._runtime_state_fingerprint)
+    assert name not in inspect.getsource(serve.boot._runtime_state_fingerprint)
 
 
 # ---------------------------------------------------------------------------
@@ -593,7 +621,6 @@ def test_a_bound_spawn_becomes_a_delivered_turn_in_the_senders_own_thread(
         persona_chat_session_id_for,
     )
     from agent_runtime.store import AgentStore
-    from hermes_cli import harness
     from tests.agent_runtime.test_persona_assignments import (
         _assignment_config,
         _TranscriptDB,
@@ -655,9 +682,24 @@ def test_a_bound_spawn_becomes_a_delivered_turn_in_the_senders_own_thread(
                 raw={},
             )
 
-    monkeypatch.setattr(harness, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(agent_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(init_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(workspace_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(inspect_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(model_and_skills_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(runtime_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)
 
     # Real `_chat_root_of_completion`, real `_sender_persona`, real
     # `_sender_is_idle`, real `forge_delivery_turn`.

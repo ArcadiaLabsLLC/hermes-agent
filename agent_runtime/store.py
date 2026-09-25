@@ -25,6 +25,7 @@ from .models import (
     SkillTombstone,
     Workspace,
     WorkspaceLift,
+    validate_agent_publish_mode,
 )
 from .serde import from_jsonable, safe_id, to_jsonable
 from .states import RunState
@@ -1049,8 +1050,7 @@ class RealmStore:
         ``selected`` publishes the explicit set plus those required references.
         Unknown persona ids are preserved and reported by the CLI envelope.
         """
-        if mode not in {"workspace", "selected"}:
-            raise ValueError(f"invalid agent_publish_mode: {mode!r}")
+        validate_agent_publish_mode(mode)
         item = self.get(realm_id)
         if mode == "selected":
             item.agent_selection = _normalize_agent_selection(selection)

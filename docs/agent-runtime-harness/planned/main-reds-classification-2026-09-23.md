@@ -58,3 +58,13 @@ running its own claim test, and restoring the bytes (restored run green):
 | `ctp4-plan-drops-the-session-db-measurement` | KILLED | `test_the_handlers_session_db_open_reaches_the_durable_record`: `'session_db_open_ms'` absent from the durable phases |
 
 They were not re-anchored; they needed nothing.
+
+## Retired 2026-09-24 (lane POLISH, `fork/suite-polish-2026-09-24`)
+
+On `6e25c6753c` plus the lane, the class-(b) rows above run green; lanes in
+between moved them. The class-(c) rows (`test_harness_serve.py` ×7 and
+`test_serve_boot_skill_install.py` ×2) are fixed at the source: the boot's
+prune no longer refuses its own row, matched by `boot_id`. It had been
+classifying that row by command line. `tests/agent_runtime/test_serve_registry.py::test_the_pruning_boots_own_row_is_never_refused_whatever_its_command_line`
+pins the fix whatever the checkout's path. The class-(d) row was also green on
+this tree. Method and commits: `suite-cost-centres-2026-09-24.md` §11.

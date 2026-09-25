@@ -197,7 +197,7 @@ def test_the_new_keys_lower_in_one_stable_order_beside_the_old_ones():
         "--intent-hint",
         "plan",
     ]
-    from hermes_cli.harness_parts.serve import _ArgvRequest
+    from hermes_cli.harness_parts.serve.argv_lane import _ArgvRequest
 
     assert _ArgvRequest("r1", argv).is_chat_turn is True
 

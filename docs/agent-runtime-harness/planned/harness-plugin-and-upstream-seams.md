@@ -60,7 +60,7 @@ After Stage 1 and the profile-bootstrap PR: ≤ 3 additive one-liners remain in 
 | `tools/skills_tool.py` | +137 / −70 | skill resolution and search delegating to `agent_runtime.skill_resolution` / `skill_search` | **hook** — the plugin's own tool via `register_tool(override=…)`, or **carry** |
 | `scripts/run_tests_parallel.py`, `scripts/run_tests.sh` | +183 / −42, +193 / −5 | the fork's hermetic runner | **upstream** the runner improvements (they ship `run_tests_parallel.py` themselves); **carry** the hermetic-env rows |
 | the four `conftest.py` | +2,400 | hermetic-home fixtures, env-gap fence | **fork-only** pytest plugin, loaded by one line (Stage 5) |
-| `apps/desktop/src/app/skills/*` (32 desktop files) | edits to core pages | **hook** via the desktop plugin SDK (`HermesPlugin`, `$HERMES_HOME/desktop-plugins/`) where the SDK reaches; **carry** the rest (Stage 6) |
+| `apps/desktop/*` (4 files / 92 lines left, down from 32 files) | the uninstall git-history warning + its test, the slash-registry dump, one fork-only store test | **DONE as a stage (owner, 2026-09-24):** every remaining line is in a held bucket (the uninstall PR candidate, the `register_command` widening); no census, no plugin work — the fork does not edit upstream's electron app (Stage 6) |
 
 ---
 
@@ -72,10 +72,10 @@ After Stage 1 and the profile-bootstrap PR: ≤ 3 additive one-liners remain in 
 4. **Proprietary stays proprietary; open review is fine.** The plugin's home is the fork (public) until Stage 7 moves it to its own repo — private if the operator says so. Nothing proprietary is offered upstream. The three dispositions apply to the fork's edits in upstream files only; the plugin's own code has no disposition because it lives in no upstream file.
 5. **Each stage lands with a measurement, not a belief.** Stage 1's is the boot cost; Stage 3's is the PR merged (or declined, with the fallback applied); Stages 4–6 are the ratchet line before/after.
 6. **Detach is a measurement.** `[up-fp] files=0` (or only `carry` rows the operator has ruled permanent) means the harness plugin runs on stock upstream and the fork is optional. Stage 7 executes only when that line is read.
-7. The god-file refactor's rules (flat ceiling, MOVE/CHANGE separation, bulk mode, terse briefs, the upstream fence) apply to every lane here. Sibling plan §1 and §6.
-
-
-No duplicate authority (owner 2026-09-23): every stage inventory buckets each fork name as already-upstream (adopt theirs, delete ours), generic (PR) or ours; an unavoidable parallel is a ledger row naming the upstream symbol it shadows, why, and what retires it. Each weekly merge gets a supersession pass.
+7. **Permanent carry is the exception, ruled per file (owner, 2026-09-24).** Only a file with no override point — the README licence line, the AGENTS.md pointer, root `.gitignore`/`.gitattributes` litter lines, `uv.lock` — may be `carry-permanent`. Nothing under `agent/`, `tools/`, `gateway/`, `hermes_cli/` is permanent: it moves to a fork-only file, hooks through a widening, or is adopted from upstream.
+8. The god-file refactor's rules (flat ceiling, MOVE/CHANGE separation, bulk mode, terse briefs, the upstream fence) apply to every lane here. Sibling plan §1 and §6.
+9. **No duplicate authority versus upstream (owner, 2026-09-23).** Pulling the fork out of upstream files follows upstream's functional progress; it never builds a parallel implementation beside it. Every stage inventory buckets each fork name as **already-upstream** (adopt upstream's, delete ours), **generic** (an upstream PR) or **ours** (plugin or carry); before a lane adds a fork-side helper it checks `upstream/main` for the equivalent and uses it. A parallel that cannot be avoided is a RECORDED ledger row: the upstream symbol it shadows, why it cannot be adopted, and the condition that retires it — an unrecorded parallel is a defect. Each weekly merge runs a supersession pass (`Harness_Brain/10 — Programs/Upstream Sync.md` § Each merge) that files adopt rows for upstream additions in areas the fork carries.
+10. **A second door is a duplicate authority (owner, 2026-09-24).** A fork mechanism built beside a door upstream already has — its own request, store or routing where upstream's first door plus a plugin-set default does the job — is the rule-9 defect in its commonest shape (the 2026-09-24 `tools/process_registry.py` ruling: a late `process notify` request beside spawn-time `notify_on_complete`). Before adding a fork mechanism, check upstream's doors in this order: the plugin hook surface (`VALID_HOOKS`, the four middleware kinds), config keys and env reads, the parameters of the existing call, manifest fields; use the first that carries the behaviour, and name the one small widening PR only when none does. The per-row audit of the 46 `hook` rows against those doors is [`second-doors-2026-09-24.md`](second-doors-2026-09-24.md).
 
 ---
 
@@ -119,7 +119,7 @@ Harness error formatting (`emit_harness_error` on an exception escaping a handle
 
 **Gates.** `scripts/dump_cli_contract.py --check` byte-identical (the harness surface is unchanged); `hermes harness serve` boots under the launcher with the timeline line's keys unchanged; `tests/hermes_cli/test_harness_*` green; the god-file refactor's W0-G4 (thin harness namespace) unaffected — `register()` imports `hermes_cli.harness` lazily and only its public `build_parser`; `[up-fp] files` −3 (or −3 +2 with the carried fallback).
 
-**Owed by the operator:** one launcher boot on the Stage 1 build (the boot is the measurement's field half).
+**Owed by the operator:** none — the Stage 1 boot measurement was waived 2026-09-24 (cost waived 2026-09-23; the fork-scope gate exercises the parser path).
 
 **CORRECTED 2026-09-23 (Fable, read against `main` @ `bcf8012e6a`, merge base `d337b736aa`) — three of the mechanics above were assumed on 2026-09-21 and are wrong against the code. Stage 1 is BUILT on seam/s1-proof af093265e1, cost waived by owner 2026-09-23, see note §4 ([`seam-s1-proof-2026-09-23.md`](seam-s1-proof-2026-09-23.md)).**
 
@@ -162,10 +162,13 @@ Each merged PR: the ledger row flips to `upstream`, the next merge brings the co
 
 - `tests/hermes_cli/conftest.py` (+1,266), `tests/conftest.py`, `tests/tools/conftest.py`, `tests/agent/conftest.py`: the fork's fixtures become `tests/_downstream/conftest_plugin.py` (a pytest plugin) loaded by ONE `pytest_plugins = [...]` line per upstream conftest — one additive line each.
 - The one-line-per-conftest shape is rejected by pytest 9.0.3 for the three non-root conftests (`pytest_plugins` outside the top-level conftest is refused), so they take a star import instead; see `docs/agent-runtime-harness/planned/seam-s4-s5-s6-inventory-2026-09-23.md` §1.5.
+- Superseded 2026-09-24 (lane CARRY3): the three directory conftests are upstream's bytes again and `tests/conftest.py` has lost its `pytest_plugins` line (its three in-place hunks are PR candidates). The fork-only root `conftest.py` imports the root plugin and registers each directory module under a `<dir>/_downstream_conftest.py` name when pytest registers the matching upstream conftest (directory scope kept); `tests/*/test_downstream_conftest_loader_downstream.py` pin it.
 - The 242 other upstream test files with fork test cases: each fork test moves to a fork-only sibling (`tests/<dir>/test_<name>_downstream.py`), source-pin census first (refactor rule 1.6). Mechanical; one lane per top-level test dir; MOVE-only commits.
 - Gate: the validated suite selects the same test ids (a `--collect-only` diff before/after is empty modulo file names); `[up-fp] files` −242.
 
-### Stage 6 — desktop
+### Stage 6 — desktop — **DONE (owner ruling 2026-09-24; landed `b9812befc9`)**
+
+> [!note] Closed as a stage, 2026-09-24. Only 4 files / 92 lines remain under `apps/desktop` (`settings/uninstall-section.tsx` +6 and its test +43/−1, `lib/desktop-slash-registry.json` +2, `store/session-dot-state-downstream.test.ts` +41), all in held buckets: the uninstall warning is an upstream PR candidate (PRs paused) and the slash-registry lines wait on the `register_command` widening PR. No census, no desktop-plugin work: the fork does not edit upstream's electron app. The paragraph below is the original plan, kept for the record.
 
 `apps/desktop/src/app/skills/*` and the other 32 desktop edits: what the desktop plugin SDK reaches (`HermesPlugin` default export, the inventory/enable contract, `$HERMES_HOME/desktop-plugins/`) moves into `plugins/eternia-harness/desktop/`; the rest is carried with a reason (the SDK forbids reaching into app stores — a needed capability is an SDK hook PR). Gate: the desktop `vitest` + `eslint` run; `[up-fp]` down.
 
@@ -189,7 +192,7 @@ Hard orderings: S0 before all; S1 before S2; P1 before S4 (S4 diffs against the 
 
 ## 4. What the operator owes
 
-1. One launcher boot on the Stage 1 build (the boot-cost measurement's field half).
+1. ~~One launcher boot on the Stage 1 build (the boot-cost measurement's field half).~~ None — waived 2026-09-24 (cost waived 2026-09-23; the fork-scope gate exercises the parser path).
 2. The private/public ruling for the plugin's Stage 7 home (not before Stage 7).
 3. Per PR in Stage 3: nothing — the fallback is pre-decided; the lane reports merged/declined.
 
@@ -207,5 +210,5 @@ Hard orderings: S0 before all; S1 before S2; P1 before S4 (S4 diffs against the 
 | S3 | planned | 5 PRs | −1 per merge | P1 first |
 | S4 | landed on `main` via `seam/s45-landing` (branch tip `9fa433d74a`) | 8 fork + 2 `up/*` (P6 `up/profiles-delete-guard` @ `9b1d5506aa`, P7 `up/profile-home-generic` @ `1f4923c350`, both cherry-pick clean, no PR) | `[up-fp] files=448 deleted_lines=2800 heavy=12` after the S4+S5 landing (S4 alone: 459 / 2818 / 22) | ran before P1 on the owner's order. Adopted upstream: the root memo, `list_profile_names()` (dual-roster fixed). Moved: 14 names from `hermes_constants.py` + 3 from `profiles.py` → `agent_runtime/profile_home.py`, and `CONVERSATION_REQUEST_ASSEMBLED_STEP` → `agent_runtime/conversation_observability.py`. `hermes_constants.py` is +17/−1 (P7 only) and `profiles.py` +204/−29 (P6 + one carried orphan-mark call). Frozen-home ledger unchanged |
 | S5 | landed on `main` via `seam/s45-landing` (branch tip `489b3ce373`, MOVE tip `aae22df30c`) | 1 conftest + 8 MOVE + 1 landing | `[up-fp] files=448 deleted_lines=2800 heavy=12` after the S4+S5 landing (S5 alone: 446 / 2816 / 13; the +2 files are S1's `hook-pending` carries S5 was cut before) | 189 fork tests + 1 fixture moved to `*_downstream.py` siblings out of 45 upstream files; conftests → `tests/_downstream/` (3 of 4 now upstream + 1 line); tests pinned by an upstream autouse/module fixture stay with a ledger reason; the 177 in-place-edit files are the owner's upstream-PR verdict (runtime queue) |
-| S6 | planned | 1 | ↓ | SDK reach decides |
+| S6 | DONE as a stage (owner ruling 2026-09-24) | 0 | `apps/desktop`: 4 files / 92 lines, all held (uninstall PR candidate, `register_command` widening) | no census, no plugin work; the fork does not edit upstream's electron app |
 | S7 | on the read | 1 + installer | 0 | private on the operator's word |

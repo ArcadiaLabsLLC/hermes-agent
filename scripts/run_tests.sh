@@ -119,12 +119,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 #
 #   <live venv>/Scripts/python.exe -m pip freeze  # minus the -e editable line
 #   python -m venv <shared>; <shared>/Scripts/python.exe -m pip install \
-#       -r <those pins> pytest pytest-asyncio pytest-timeout setuptools coverage
-#
-# ``coverage`` joined that list on 2026-09-04 and is measurement only — nothing
-# the product ships imports it, so the LIVE install is right not to carry it
-# and ``scripts/check_test_env_drift.py`` lists it as test-only. Its consumer is
-# ``scripts/unreachable_branch_report.py``; the pin is in pyproject's [dev].
+#       -r <those pins> pytest pytest-asyncio setuptools
+# (coverage + pytest-timeout come from scripts/ensure_fork_dev_deps.py below.)
 #
 # The editable ``-e ...#egg=hermes_agent`` line is dropped ON PURPOSE: it
 # resolves to ONE checkout, and a shared venv that imports the primary
@@ -196,6 +192,9 @@ else
   exit 1
 fi
 
+# Fork-only test deps (requirements-fork-dev.txt): the one place they install.
+"$PYTHON" "$REPO_ROOT/scripts/ensure_fork_dev_deps.py" || exit 1
+
 
 # ── Live-gateway plugin (computed before we drop env) ───────────────────────
 EXTRA_PYTHONPATH=""
@@ -220,6 +219,7 @@ for _win_var in USERPROFILE HOMEDRIVE HOMEPATH LOCALAPPDATA APPDATA SYSTEMROOT T
     WIN_ENV+=("$_win_var=${!_win_var}")
   fi
 done
+if [ -n "${PATHEXT:-}" ]; then WIN_ENV+=("PATHEXT=$PATHEXT"); fi  # fork (PR candidate): without it pwsh resolves no bare `git`
 
 # ── Test-runner knobs (computed before we drop env) ────────────────────────
 # The runner's own documented environment knobs must survive the hermetic
@@ -234,15 +234,20 @@ done
 #     subprocess rebuild the 5GB image from a cold builder cache instead
 #     (~4 min per worker per run, and the rebuilt image lacked the
 #     HERMES_GIT_SHA build-arg the workflow bakes in).
+#   * HERMES_E2E_REQUIRE_TUI turns a missing Ink TUI build into a failure in
+#     tests/e2e/core/terminal instead of a skip (set by the e2e CI job).
+#   * CI / GITHUB_ACTIONS tell suites they run on a disposable runner (e.g.
+#     tests/e2e/core/upgrade runs the real updater unsandboxed only there).
 #
 # These are test-infrastructure knobs, not credentials — same class as the
-# HERMES_RUN_SLOW_PET_TESTS / HERMES_E2E_BROWSER opt-ins already forwarded.
+# HERMES_RUN_SLOW_PET_TESTS / HERMES_E2E_BROWSER / HERMES_RUN_E2E opt-ins
+# forwarded below.
 # Keep this an explicit allowlist (no HERMES_TEST_* glob) so the "no
 # credential can leak" property stays auditable at a glance.
 TEST_ENV=()
 for _test_var in HERMES_TEST_IMAGE HERMES_TEST_WORKERS HERMES_TEST_PATHS \
   HERMES_TEST_FILE_TIMEOUT HERMES_TEST_FILE_RETRIES HERMES_TEST_SLICE \
-  HERMES_GATEWAY_LOCK_DIR; do
+  HERMES_GATEWAY_LOCK_DIR HERMES_E2E_REQUIRE_TUI CI GITHUB_ACTIONS; do
   if [ -n "${!_test_var:-}" ]; then
     TEST_ENV+=("$_test_var=${!_test_var}")
   fi
@@ -367,6 +372,7 @@ exec env -i \
   ${HERMES_TEST_TMP_ROOT:+HERMES_TEST_TMP_ROOT="$HERMES_TEST_TMP_ROOT"} \
   ${HERMES_TEST_COVERAGE_RC:+HERMES_TEST_COVERAGE_RC="$HERMES_TEST_COVERAGE_RC"} \
   ${REAL_HERMES_ROOT:+HERMES_TEST_REAL_ROOT="$REAL_HERMES_ROOT"} \
+  ${HERMES_RUN_E2E:+HERMES_RUN_E2E="$HERMES_RUN_E2E"} \
   ${EXTRA_PYTHONPATH:+PYTHONPATH="$EXTRA_PYTHONPATH"} \
   ${EXTRA_PYTEST_PLUGINS:+PYTEST_PLUGINS="$EXTRA_PYTEST_PLUGINS"} \
   "$PYTHON" "$RUNNER_PATH" "$@"

@@ -787,9 +787,9 @@ def test_cmd_serve_injects_the_real_publisher():
     import ast
     from pathlib import Path
 
-    import hermes_cli.harness_parts.serve as serve_module
+    from hermes_cli.harness_parts.serve import commands as serve_commands
 
-    tree = ast.parse(Path(serve_module.__file__).read_text(encoding="utf-8"))
+    tree = ast.parse(Path(serve_commands.__file__).read_text(encoding="utf-8"))
     wired = False
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == "_cmd_serve":

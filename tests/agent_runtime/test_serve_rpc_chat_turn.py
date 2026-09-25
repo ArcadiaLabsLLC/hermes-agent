@@ -193,7 +193,7 @@ def test_the_rpc_door_lowers_to_the_argv_a_local_send_would_have_used():
     # lane and the drain ledger. Asserted here rather than trusted, because the
     # ledger's key is a PREFIX MATCH on argv shapes and a re-ordering of the
     # flags above would silently break it.
-    from hermes_cli.harness_parts.serve import _ArgvRequest
+    from hermes_cli.harness_parts.serve.argv_lane import _ArgvRequest
 
     assert _ArgvRequest("r1", request.argv).is_chat_turn is True
 
@@ -244,7 +244,7 @@ def test_the_steer_door_lowers_to_the_steer_verb():
         "--persona",
         "neko",
     ]
-    from hermes_cli.harness_parts.serve import _ArgvRequest
+    from hermes_cli.harness_parts.serve.argv_lane import _ArgvRequest
 
     assert _ArgvRequest("r1", request.argv).is_chat_turn is True
 

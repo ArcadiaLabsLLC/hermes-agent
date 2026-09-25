@@ -11,7 +11,7 @@ short-circuits on the sys.modules row it finds. Every later
 own path resolver with ``'module' object at plugins.memory.honcho has no
 attribute 'honcho'`` -- a message that names neither the loader nor the test that
 ran it. Measured 2026-08-31: ``test_dashboard_admin_endpoints.py`` alone reds
-``test_doctor.py::TestHonchoDoctorConfigDetection``.
+``test_doctor.py::TestHonchoDoctorConfigDetection`` (class since removed by upstream's 2026-09 test purge).
 
 This module owns the repair. It used to be an inline loop in ``conftest.py``
 that ran, per test, over every entry in ``sys.modules`` and asked

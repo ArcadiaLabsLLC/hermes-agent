@@ -178,8 +178,6 @@ def record_response_usage(
     agent.session_cache_read_tokens += canonical_usage.cache_read_tokens
     agent.session_cache_write_tokens += canonical_usage.cache_write_tokens
     agent.session_reasoning_tokens += canonical_usage.reasoning_tokens
-    from agent.usage_pricing import record_api_call_usage
-    record_api_call_usage(agent, canonical_usage)
     # Rolling history for status-bar averages (last 10).
     with suppress(Exception):
         hist = getattr(agent, "_api_latency_history", None)

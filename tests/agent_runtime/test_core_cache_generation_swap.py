@@ -68,7 +68,9 @@ def fresh_cache_lane():
 def measurable_build_stamp(monkeypatch):
     """A stamp the write lane can record without asking git about this checkout."""
 
-    monkeypatch.setattr(core_cache, "build_stamp_token", lambda: "probe:mcf21:clean")
+    monkeypatch.setattr(core_cache.fingerprint, "build_stamp_token", lambda: "probe:mcf21:clean")
+    monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: "probe:mcf21:clean")
+    monkeypatch.setattr(core_cache.persist, "build_stamp_token", lambda: "probe:mcf21:clean")
 
 
 def _key(entries: list[tuple[str, int, int]]) -> core_cache.CoreFingerprint:
@@ -115,7 +117,7 @@ def _refuse_writes_named(filename: str, monkeypatch):
             raise OSError(f"the disk refused exactly {filename}")
         return real_write(path, payload, **kwargs)
 
-    monkeypatch.setattr(core_cache, "atomic_json_write", refuse)
+    monkeypatch.setattr(core_cache.persist, "atomic_json_write", refuse)
 
 
 def _publish_first_generation(root) -> core_cache.CoreFingerprint:
@@ -310,7 +312,7 @@ def test_a_fully_staged_generation_serves_nobody_until_the_pointer_moves(
         )["generation"]
         raise OSError("the pointer never moved")
 
-    monkeypatch.setattr(core_cache, "atomic_json_write", observe_then_refuse)
+    monkeypatch.setattr(core_cache.persist, "atomic_json_write", observe_then_refuse)
     assert core_cache.write_back(_core(1), fingerprint=second) is False
 
     # The window was a COMPLETE unpublished generation. Without this the case

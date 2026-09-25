@@ -179,10 +179,13 @@ def test_equivalent_prompt_contexts_reuse_skill_rows(monkeypatch):
         calls["available"] += 1
         return [{"name": "shared-skill", "status": "assigned_not_loaded"}]
 
-    monkeypatch.setattr(po, "_installed_skill_catalog", lambda: [])
-    monkeypatch.setattr(po, "_accessible_skills_context", accessible)
-    monkeypatch.setattr(po, "available_skills_context", available)
-    monkeypatch.setattr(po, "_persona_skill_assignment_removals", lambda persona: [])
+    monkeypatch.setattr(po.mission_chat, "_installed_skill_catalog", lambda: [])
+    monkeypatch.setattr(po.skills_context, "_installed_skill_catalog", lambda: [])
+    monkeypatch.setattr(po.skills_resolver, "_installed_skill_catalog", lambda: [])
+    monkeypatch.setattr(po.mission_chat, "_accessible_skills_context", accessible)
+    monkeypatch.setattr(po.context_store, "available_skills_context", available)
+    monkeypatch.setattr(po.mission_chat, "available_skills_context", available)
+    monkeypatch.setattr(po.mission_chat, "_persona_skill_assignment_removals", lambda persona: [])
     resolver = po._SkillObservabilityResolver()
     monkeypatch.setattr(resolver, "resolve", lambda identifiers: {})
     persona = SimpleNamespace(

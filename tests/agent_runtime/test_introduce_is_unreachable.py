@@ -84,8 +84,9 @@ def test_the_argv_lane_is_refused_to_a_gateway_connection():
     import ast
     import pathlib
 
-    source = pathlib.Path("hermes_cli/harness_parts/serve.py").read_text(
-        encoding="utf-8", errors="replace"
+    source = "".join(
+        _p.read_text(encoding="utf-8", errors="replace")
+        for _p in sorted(pathlib.Path("hermes_cli/harness_parts/serve").glob("*.py"))
     )
     assert "argv_lane_unavailable" in source
 

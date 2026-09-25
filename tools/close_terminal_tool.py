@@ -43,11 +43,10 @@ CLOSE_TERMINAL_SCHEMA = {
 }
 
 
-from tools.downstream_schema import brief_schema
 registry.register(
     name="close_terminal",
     toolset="desktop_ui",
-    schema=brief_schema("close_terminal", CLOSE_TERMINAL_SCHEMA),
+    schema=CLOSE_TERMINAL_SCHEMA,
     handler=lambda args, **kw: close_terminal_tool(process_id=args.get("process_id", "")),
     emoji="🖥️",
 )

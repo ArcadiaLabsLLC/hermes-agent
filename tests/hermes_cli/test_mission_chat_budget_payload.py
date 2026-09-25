@@ -9,7 +9,7 @@ cannot quietly reintroduce the resolve instruction or drop the typed fields.
 
 **Executable, not source-shaped (2026-07-31).** Six guards here used to
 ``ast.parse`` the command part and assert on dict-literal STRINGS, because
-``persona_commands.py`` is an ``exec``'d command part rather than an importable
+``persona_commands.py`` was an ``exec``'d command part (until lane H1) rather than an importable
 module. That was a workaround for a missing seam, and it carried the usual cost
 of one: it pinned the SPELLING of a literal, not the BEHAVIOUR, so it passed
 just as happily against a lane that never reached the payload at all. Now that
@@ -33,6 +33,20 @@ from types import SimpleNamespace
 import pytest
 
 from agent_runtime.mission_chat_outcome import ChatErrorKind, ExecutionState
+from hermes_cli.harness_parts.persona import (
+    chat_delete,
+    chat_open,
+    chat_target,
+    chat_tickets_commands,
+    chat_turn_commit,
+    chat_turn_message,
+    inspect_commands,
+    instance_commands,
+    lifecycle_commands,
+    model_and_skills_commands,
+)
+from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run
+from tests._downstream.persona_source import package_source, turn_body
 
 # Imperative resolve language — the copy that sent the 2026-07-26 operator to
 # `turn-resolve --action abandon`. A budget-ended turn must never carry any of
@@ -175,9 +189,20 @@ def _seed(monkeypatch, provider):
     # S56: this used to flip `enterprise_worker_sessions` on so the persona
     # roster would project. The roster is unconditional now and the block is
     # gone, so a bare config is the same fixture.
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: _TranscriptDB())
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", provider)
+    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
+    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
+    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
+    monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
+    monkeypatch.setattr(inspect_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
+    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
+    monkeypatch.setattr(model_and_skills_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
+    monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: _TranscriptDB())
+    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: _TranscriptDB())
+    monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: _TranscriptDB())
+    monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: _TranscriptDB())
+    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: _TranscriptDB())
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", provider)
     return harness
 
 
@@ -208,7 +233,7 @@ def budget_envelope(monkeypatch, capsys, isolate_agent_runtime_root):
     """Drive one real wall-budget death and hand back its emitted envelope."""
 
     harness = _seed(monkeypatch, _wall_budget_provider(_WALL_BUDGET))
-    code = harness._cmd_mission_chat_message(_args("budget_turn"))
+    code = chat_turn_message._cmd_mission_chat_message(_args("budget_turn"))
     return code, json.loads(capsys.readouterr().out)
 
 
@@ -217,9 +242,9 @@ def spent_envelope(monkeypatch, capsys, isolate_agent_runtime_root):
     """...then RESEND that same id, which finds the settled record."""
 
     harness = _seed(monkeypatch, _wall_budget_provider(_WALL_BUDGET))
-    assert harness._cmd_mission_chat_message(_args("budget_turn")) == 2
+    assert chat_turn_message._cmd_mission_chat_message(_args("budget_turn")) == 2
     capsys.readouterr()
-    code = harness._cmd_mission_chat_message(_args("budget_turn"))
+    code = chat_turn_message._cmd_mission_chat_message(_args("budget_turn"))
     return code, json.loads(capsys.readouterr().out)
 
 
@@ -305,7 +330,7 @@ def test_a_non_wall_budget_trip_stays_genuinely_ambiguous(
     from agent_runtime.mission_chat_turns import mission_chat_turn_record
 
     harness = _seed(monkeypatch, _wall_budget_provider(None))
-    code = harness._cmd_mission_chat_message(_args("api_budget_turn"))
+    code = chat_turn_message._cmd_mission_chat_message(_args("api_budget_turn"))
     payload = json.loads(capsys.readouterr().out)
 
     assert code == 2
@@ -330,11 +355,11 @@ def test_a_pre_boundary_failure_is_retryable_on_the_same_id(
 
     harness = _seed(monkeypatch, _wall_budget_provider(_WALL_BUDGET))
     monkeypatch.setattr(
-        harness,
+        commit_run,
         "mark_stale_inflight_turns_interrupted",
         lambda **kwargs: (_ for _ in ()).throw(RuntimeError("sweep exploded")),
     )
-    code = harness._cmd_mission_chat_message(_args("pre_boundary_turn"))
+    code = chat_turn_message._cmd_mission_chat_message(_args("pre_boundary_turn"))
     payload = json.loads(capsys.readouterr().out)
 
     assert code == 2
@@ -365,17 +390,14 @@ _TURN_BODY_FUNCTIONS = ("_mission_chat_commit_turn", "_cmd_mission_chat_message"
 
 
 def _mission_chat_message_func() -> ast.FunctionDef:
-    import hermes_cli.harness as harness
-
-    path = Path(harness.__file__).with_name("harness_parts") / "persona_commands.py"
-    tree = ast.parse(path.read_text(encoding="utf-8"))
+    tree = ast.parse(package_source())
     for name in _TURN_BODY_FUNCTIONS:
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == name:
-                return node
+        node = turn_body(tree, name)
+        if node is not None:
+            return node
     raise AssertionError(
         "the mission-chat turn body "
-        f"({' / '.join(_TURN_BODY_FUNCTIONS)}) is not in persona_commands"
+        f"({' / '.join(_TURN_BODY_FUNCTIONS)}) is not in the persona package"
     )
 
 

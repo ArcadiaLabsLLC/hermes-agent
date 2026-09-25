@@ -5,9 +5,8 @@ call. It writes SessionDB-only state that NOTHING in the terminal frame depends
 on, so it must run AFTER the terminal frame is emitted — not between the last
 streamed delta and `chat.final`, where the operator's console visibly hangs.
 
-`persona_commands.py` is an exec'd command part (harness._load_command_parts),
-not an importable module for its full turn handlers, so the ORDERING is pinned
-with an AST guard over the exact source text that gets exec'd (the same pattern
+The ORDERING is pinned with an AST guard over the persona package's source
+(`tests/_downstream/persona_source.py`; the same pattern
 `test_mission_chat_records_injection.py` uses). The SWALLOW contract the
 post-emit placement relies on — a title failure can never propagate and corrupt
 the one-JSON-object stdout / flip the exit code — is pinned behaviorally through
@@ -41,6 +40,8 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from hermes_cli.harness_parts.persona import chat_target
+from tests._downstream.persona_source import package_source, turn_body
 
 TITLE = "_maybe_auto_title_persona_chat"
 # WP-H2 routed every mission-chat terminal payload through ONE seam
@@ -53,19 +54,17 @@ EMIT_SEAM = "_mission_chat_emit"
 
 
 def _persona_commands_tree() -> ast.Module:
-    # Parse the exact bytes harness._load_command_parts() exec's — the handlers
-    # are not importable functions, so structural ordering is asserted on source.
+    # Structural ordering is asserted on the persona package's source.
     import hermes_cli.harness as harness
 
-    path = Path(harness.__file__).with_name("harness_parts") / "persona_commands.py"
-    return ast.parse(path.read_text(encoding="utf-8"))
+    return ast.parse(package_source())
 
 
 def _func(tree: ast.AST, name: str) -> ast.FunctionDef:
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == name:
-            return node
-    raise AssertionError(f"{name} not found in persona_commands.py")
+    node = turn_body(tree, name)
+    if node is not None:
+        return node
+    raise AssertionError(f"{name} not found in the persona package")
 
 
 # The mission-chat turn body was split on 2026-07-31: the PLAN phase kept the
@@ -101,25 +100,20 @@ DEFERRED_THUNK = "_deferred_auto_title"
 LEASE = "persona_chat_root_lease"
 
 
+def _method(tree: ast.AST, name: str) -> ast.FunctionDef:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == name:
+            return node
+    raise AssertionError(f"TurnCommit.{name} not found — the success tail moved; re-verify F4/R0")
+
+
 def test_main_handler_emits_terminal_frame_before_packaging_the_title():
-    func = _func(_persona_commands_tree(), _TURN_BODY_FUNCTIONS[0])
-    # The success turn tail is one try-body that both emits the terminal frame
-    # AND (now) packages the title. Find that try and assert emit precedes it.
-    outer = None
-    for node in ast.walk(func):
-        if not isinstance(node, ast.Try):
-            continue
-        if any(_stmt_has_call(s, EMIT_SEAM) for s in node.body) and any(
-            _stmt_has_call(s, TITLE) for s in node.body
-        ):
-            outer = node
-            break
-    assert outer is not None, (
-        "no single try-body both emits the terminal payload AND carries the title — the "
-        "success turn tail structure changed; re-verify the F4/R0 ordering guards"
-    )
-    emit_idx = next(i for i, s in enumerate(outer.body) if _stmt_has_call(s, EMIT_SEAM))
-    title_idx = next(i for i, s in enumerate(outer.body) if _stmt_has_call(s, TITLE))
+    tree = _func(_persona_commands_tree(), _TURN_BODY_FUNCTIONS[0])
+    # The success tail is ``TurnCommit._project``: it emits the terminal frame
+    # and then (and only then) packages the title.
+    project = _method(tree, "_project")
+    emit_idx = next(i for i, s in enumerate(project.body) if _stmt_has_call(s, EMIT_SEAM))
+    title_idx = next(i for i, s in enumerate(project.body) if _stmt_has_call(s, "_defer_auto_title"))
     assert emit_idx < title_idx, (
         "auto-title must come AFTER the terminal chat.final/print emit — not "
         "between the last streamed delta and the terminal frame (F4)"
@@ -127,12 +121,14 @@ def test_main_handler_emits_terminal_frame_before_packaging_the_title():
     # R0: and it must be a DEFINITION, not a call. The commit phase runs under
     # the chat-root lease; anything it executes here holds the root against the
     # operator's next send for as long as it takes.
-    assert isinstance(outer.body[title_idx], ast.FunctionDef), (
+    packager = _method(tree, "_defer_auto_title")
+    thunks = [s for s in packager.body if isinstance(s, ast.FunctionDef)]
+    assert [t.name for t in thunks] == [DEFERRED_THUNK], (
         "the commit phase must PACKAGE the title as a nested thunk, not run it: "
         "it executes under the chat-root lease, and an auxiliary-LLM round trip "
         "there refuses the operator's next send for its whole duration (R0)"
     )
-    assert outer.body[title_idx].name == DEFERRED_THUNK
+    assert not [s for s in packager.body if not isinstance(s, ast.FunctionDef) and _stmt_has_call(s, TITLE)]
 
 
 def test_the_commit_phase_never_titles_outside_the_deferred_thunk():
@@ -200,7 +196,6 @@ def test_the_caller_runs_the_deferred_tail_only_after_the_lease_block_exits():
 
 def test_maybe_auto_title_swallows_a_raising_title_generator(monkeypatch):
     import agent.title_generator as tg
-    import hermes_cli.harness as harness
 
     def _boom(*args, **kwargs):
         raise RuntimeError("title provider exhausted the fallback chain")
@@ -210,7 +205,7 @@ def test_maybe_auto_title_swallows_a_raising_title_generator(monkeypatch):
     # rely on this so a first-turn title failure cannot corrupt the emitted JSON
     # or flip the exit code after the terminal frame is already on stdout.
     assert (
-        harness._maybe_auto_title_persona_chat(
+        chat_target._maybe_auto_title_persona_chat(
             session_db=object(),
             session_id="s1",
             user_message="hello",
@@ -222,11 +217,10 @@ def test_maybe_auto_title_swallows_a_raising_title_generator(monkeypatch):
 
 def test_maybe_auto_title_still_titles_on_success(monkeypatch):
     import agent.title_generator as tg
-    import hermes_cli.harness as harness
 
     seen = []
     monkeypatch.setattr(tg, "auto_title_session", lambda *a, **k: seen.append((a, k)))
-    harness._maybe_auto_title_persona_chat(
+    chat_target._maybe_auto_title_persona_chat(
         session_db=object(),
         session_id="s1",
         user_message="hello",

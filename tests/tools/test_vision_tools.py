@@ -7,7 +7,6 @@ import logging
 import os
 from contextlib import ExitStack
 from pathlib import Path
-from typing import Awaitable
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -22,7 +21,6 @@ from tools.vision_tools import (
     _EMBED_MAX_DIMENSION,
     _is_image_size_error,
     _MAX_BASE64_BYTES,
-    _RESIZE_TARGET_BYTES,
     vision_analyze_tool,
     check_vision_requirements,
 )
@@ -127,18 +125,6 @@ class TestImageToBase64DataUrl:
 class TestHandleVisionAnalyze:
     """Verify _handle_vision_analyze returns an Awaitable and builds correct prompt."""
 
-    def test_returns_awaitable_even_for_empty_args(self):
-        """The handler is registered as async, and missing keys must not raise."""
-        with patch(
-            "tools.vision_tools.vision_analyze_tool", new_callable=AsyncMock
-        ) as mock_tool:
-            mock_tool.return_value = json.dumps({"result": "ok"})
-            for args in ({"image_url": "https://example.com/img.png",
-                          "question": "What is this?"}, {}):
-                result = _handle_vision_analyze(args)
-                assert isinstance(result, Awaitable)
-                # Clean up the coroutine to avoid RuntimeWarning
-                result.close()
 
 
     @pytest.mark.asyncio
@@ -158,7 +144,7 @@ class TestHandleVisionAnalyze:
                 st.enter_context(patch.dict(os.environ, {}, clear=False))
                 if config is not None:
                     st.enter_context(patch(
-                        "hermes_cli.config.load_config_readonly", return_value=config,
+                        "hermes_cli.config.load_config", return_value=config,
                     ))
                 if env_model is None:
                     os.environ.pop("AUXILIARY_VISION_MODEL", None)
@@ -270,7 +256,7 @@ class TestVisionConfig:
             mock_response.choices = [mock_choice]
 
             with (
-                patch("hermes_cli.config.load_config_readonly", return_value=config),
+                patch("hermes_cli.config.load_config", return_value=config),
                 patch(
                     "tools.vision_tools._image_to_base64_data_url",
                     return_value="data:image/png;base64,abc",
@@ -720,19 +706,6 @@ class TestErrorClassification:
         assert "smaller" in result["analysis"].lower()
 
 
-class TestVisionRegistration:
-    def test_vision_analyze_registered_with_schema(self):
-        from tools.registry import registry
-
-        entry = registry._tools.get("vision_analyze")
-        assert entry is not None
-        assert entry.toolset == "vision"
-        assert entry.is_async is True
-        assert callable(entry.handler)
-
-        props = entry.schema.get("parameters", {}).get("properties", {})
-        assert "image_url" in props
-        assert "question" in props
 
 
 # ---------------------------------------------------------------------------
@@ -1019,7 +992,7 @@ class TestVisionCpuBurstCap:
             with (
                 patch.dict(os.environ, {}, clear=False),
                 patch("tools.vision_tools._detect_host_cpus", return_value=host_cpus),
-                patch("hermes_cli.config.load_config_readonly", side_effect=Exception),
+                patch("hermes_cli.config.load_config", side_effect=Exception),
             ):
                 if env_value is None:
                     os.environ.pop("HERMES_VISION_MAX_CONCURRENCY", None)

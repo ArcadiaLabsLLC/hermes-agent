@@ -42,6 +42,18 @@ def _reason(help: str):
     return _arg("--reason", help=help)
 
 
+def _nonnegative_int(value: str) -> int:
+    """argparse type for retention days: a negative window builds a future cutoff
+    that matches every row, so reject it at the CLI boundary before any sweep."""
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be an integer") from exc
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("retention days must be >= 0 (0 disables that sweep)")
+    return parsed
+
+
 def _run_state_args(type_help: str):
     return (
         _arg("--state-type", choices=("status", "outcome"), help=f"With --state-name: {type_help}"),
@@ -349,7 +361,6 @@ _SPECS = [
     ], help="Archive one or more tasks"),
     _cmd("tail", [_TASK_ID, _arg("--interval", type=float, default=1.0)], help="Follow a task's event stream"),
     _cmd("dispatch", [
-        _arg("--claim-ttl", type=int, default=kb.DEFAULT_CLAIM_TTL_SECONDS, help="Claim lifetime in seconds"),
         _arg("--dry-run", action="store_true", help="Don't actually spawn processes; just print what would happen"),
         _arg("--max", type=int, help="Cap number of spawns this pass"),
         _arg("--failure-limit", type=int, default=kbd.DEFAULT_FAILURE_LIMIT,
@@ -358,7 +369,6 @@ _SPECS = [
         _json_flag(),
     ], help="One dispatcher pass: reclaim stale, promote ready, spawn workers"),
     _cmd("daemon", [
-        _arg("--claim-ttl", type=int, default=kb.DEFAULT_CLAIM_TTL_SECONDS),
         _arg("--interval", type=float, default=60.0, help="Seconds between dispatch ticks (default: 60)"),
         _arg("--max", type=int, help="Cap number of spawns per tick"),
         _arg("--failure-limit", type=int, default=kbd.DEFAULT_FAILURE_LIMIT),
@@ -425,9 +435,10 @@ _SPECS = [
               "to specify-style single-task promotion when the task "
               "doesn't benefit from fan-out. Uses auxiliary.kanban_decomposer."),
     _cmd("gc", [
-        _arg("--event-retention-days", type=int, default=30,
-             help="Delete task_events older than N days for terminal tasks (default: 30)"),
-        _arg("--log-retention-days", type=int, default=30, help="Delete worker log files older than N days (default: 30)"),
+        _arg("--event-retention-days", type=_nonnegative_int, default=30,
+             help="Delete task_events older than N days for terminal tasks (default: 30; 0 disables)"),
+        _arg("--log-retention-days", type=_nonnegative_int, default=30,
+             help="Delete worker log files older than N days (default: 30; 0 disables)"),
     ], help="Garbage-collect archived-task workspaces, old events, and old logs"),
     _cmd("repair", [_json_flag(help="Emit the repair report as JSON")],
          help="Check kanban.db integrity and auto-repair index-only corruption",

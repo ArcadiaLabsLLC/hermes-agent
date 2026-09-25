@@ -119,7 +119,7 @@ def test_realm_use_late_lander_cannot_clobber_newer_selection(capsys):
     fallback). The realm pointer must stay on B and the late lander's
     reconcile must not move the workspace either."""
     from agent_runtime.store import RealmStore, WorkspaceStore
-    from hermes_cli.harness import _cmd_realm_use
+    from hermes_cli.harness_parts.realm_commands import _cmd_realm_use
 
     realm_a = RealmStore().create(name="Realm A")
     realm_b = RealmStore().create(name="Realm B")
@@ -162,7 +162,8 @@ def test_a_late_realm_use_loses_the_whole_scope_to_a_newer_workspace_choice(caps
     and never reaches its reconcile at all.
     """
     from agent_runtime.store import RealmStore, WorkspaceStore
-    from hermes_cli.harness import _cmd_realm_use, _cmd_workspace_use
+    from hermes_cli.harness_parts.realm_commands import _cmd_realm_use
+    from hermes_cli.harness_parts.workspace_commands import _cmd_workspace_use
 
     realm_a = RealmStore().create(name="Realm A")
     realm_b = RealmStore().create(name="Realm B")
@@ -186,7 +187,7 @@ def test_workspace_use_duplicate_reports_applied_false_duplicate(capsys):
     execution is the DESIGNED retry path — it must read as a clean no-op
     (reason: duplicate), never as an error and never as a second event."""
     from agent_runtime.store import WorkspaceStore
-    from hermes_cli.harness import _cmd_workspace_use
+    from hermes_cli.harness_parts.workspace_commands import _cmd_workspace_use
 
     workspace = WorkspaceStore().create(name="Retry WS")
     assert _cmd_workspace_use(_args(workspace_id=workspace.id, issued_at="2026-07-09T12:00:10Z")) == 0

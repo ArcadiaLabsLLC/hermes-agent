@@ -11,6 +11,7 @@ from typing import Any, Callable, Iterator, TypeVar
 
 from . import paths
 from .persona_assignments import safe_assignment_text, safe_assignment_token
+from .serde import non_negative_int, safe_block
 from .mission_chat_phases import (
     TURN_PHASES_KEY,
     TURN_RECORD_SCHEMA_VERSION,
@@ -1498,8 +1499,8 @@ def _safe_elements(value: Any) -> list[dict[str, Any]]:
                 {
                     "seg_type": safe_assignment_token(raw.get("seg_type")) or "answer",
                     "text": safe_assignment_text(raw.get("text"), limit=_MAX_TEXT) or "",
-                    "ttft_ms": _safe_int(raw.get("ttft_ms")),
-                    "duration_ms": _safe_int(raw.get("duration_ms")),
+                    "ttft_ms": non_negative_int(raw.get("ttft_ms")),
+                    "duration_ms": non_negative_int(raw.get("duration_ms")),
                     "redacted": bool(raw.get("redacted")),
                 }
             )
@@ -1516,15 +1517,15 @@ def _safe_elements(value: Any) -> list[dict[str, Any]]:
                     "detail": safe_assignment_text(raw.get("detail"), limit=1200),
                     "output": safe_assignment_text(raw.get("output"), limit=_MAX_TEXT),
                     "exit_code": _safe_exit_code(raw.get("exit_code")),
-                    "duration_ms": _safe_int(raw.get("duration_ms")),
+                    "duration_ms": non_negative_int(raw.get("duration_ms")),
                     "files": [item for item in safe_files if item],
                     "redacted": bool(raw.get("redacted")),
                     # Generic tool input/result record — block-preserving bound
                     # (safe_assignment_text would fold the key-per-line contract
                     # the console dropdown renders into one line). Scrubbed and
                     # bounded upstream at the progress sink.
-                    "tool_input": _safe_block_text(raw.get("tool_input"), limit=1200),
-                    "tool_result": _safe_block_text(raw.get("tool_result"), limit=1800),
+                    "tool_input": safe_block(raw.get("tool_input"), limit=1200),
+                    "tool_result": safe_block(raw.get("tool_result"), limit=1800),
                 }
             )
             # T7: preserve the todo tool's structured checklist (id/content/status)
@@ -1549,7 +1550,7 @@ def _safe_elements(value: Any) -> list[dict[str, Any]]:
             if patch_mode:
                 base["patch_mode"] = patch_mode
             for count_key in ("patch_adds", "patch_dels"):
-                count = _safe_int(raw.get(count_key))
+                count = non_negative_int(raw.get(count_key))
                 if count is not None:
                     base[count_key] = count
         elements.append(base)
@@ -1562,19 +1563,6 @@ def _safe_elements(value: Any) -> list[dict[str, Any]]:
 _TODO_STATE_MAX_ITEMS = 64
 _TODO_STATE_MAX_CONTENT = 240
 _TODO_STATE_VALID_STATUS = {"pending", "in_progress", "completed", "cancelled"}
-
-
-def _safe_block_text(value: Any, *, limit: int) -> str | None:
-    """Newline-preserving bounded text for the tool input/result record (the
-    whitespace-collapsing ``safe_assignment_text`` would destroy the
-    key-per-line structure the console dropdown renders)."""
-
-    text = str(value or "").replace("\x00", " ").replace("\r\n", "\n").replace("\r", "\n").strip()
-    if not text:
-        return None
-    if len(text) > limit:
-        text = f"{text[:limit]}\n…(rest truncated)…"
-    return text
 
 
 def _safe_todo_state(value: Any) -> list[dict[str, str]] | None:
@@ -1605,16 +1593,8 @@ def _safe_todo_state(value: Any) -> list[dict[str, str]] | None:
     return items
 
 
-def _safe_int(value: Any) -> int | None:
-    try:
-        parsed = int(value)
-    except Exception:
-        return None
-    return parsed if parsed >= 0 else None
-
-
 def _safe_exit_code(value: Any) -> int | None:
-    # Exit codes can be negative (signal terminations), so unlike _safe_int we
+    # Exit codes can be negative (signal terminations), so unlike non_negative_int we
     # keep the sign; just bound it to a sane range.
     try:
         parsed = int(value)

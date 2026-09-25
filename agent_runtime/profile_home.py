@@ -8,7 +8,8 @@ home is the Mission Control operator home across persona relay hops, the auth
 home is the harness's one shared operator auth, and the shared skills /
 characters roots are the realm's install-wide libraries.
 
-Stdlib + ``hermes_constants`` only, so it stays importable from anywhere
+Stdlib + ``hermes_constants`` + ``agent_runtime.chat_session_scope`` (itself
+stdlib-only at import) only, so it stays importable from anywhere
 ``hermes_constants`` is. Upstream helpers are read through the module
 (``_hc.get_hermes_home()``) at call time, so a test that patches them on
 ``hermes_constants`` still reaches these functions.
@@ -20,9 +21,12 @@ import os
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import hermes_constants as _hc
+# The ENV_HEAD_HOME rung is read by the resolution authority, never here
+# (tests/agent_runtime/test_hermes_home_env_gate.py). Stdlib-only at import.
+from agent_runtime.chat_session_scope import configured_head_home
 
 _UNSET = object()
 
@@ -103,7 +107,7 @@ def get_hermes_head_home() -> Path:
     head = _HERMES_HEAD_HOME.get()
     if head is not _UNSET and head:
         return Path(head)
-    configured = os.environ.get("HERMES_HEAD_HOME", "").strip()
+    configured = configured_head_home()
     if configured:
         return Path(configured).expanduser()
     return _hc.get_hermes_home()
@@ -126,7 +130,7 @@ def hermes_head_home_is_authoritative() -> bool:
     head = _HERMES_HEAD_HOME.get()
     if head is not _UNSET and head:
         return True
-    return bool(os.environ.get("HERMES_HEAD_HOME", "").strip())
+    return bool(configured_head_home())
 
 
 def get_hermes_background_work_home() -> Path:
@@ -283,25 +287,26 @@ def available_profile_template_summaries() -> List[ProfileTemplateInfo]:
     return profiles
 
 
-def mark_profile_personas_orphaned(profile_name: str) -> None:
-    """Mark every harness persona bound to a just-deleted profile as orphaned.
+def profile_is_tombstoned(profile_name: Any) -> bool:
+    """Whether upstream's delete tombstone marks this named profile as deleted.
 
-    Called by ``hermes_cli.profiles.delete_profile`` (one carried call line until
-    upstream has an ``on_profile_deleted`` hook the harness plugin can consume).
+    Owner ruling 2026-09-24 (3): profile delete adopts upstream's tombstone
+    (``hermes_constants.mark_named_profile_deleted``, written by ``delete_profile``). The
+    harness DERIVES "this persona's profile is gone" from that one fact at read time —
+    it no longer writes a second one (``mark_profile_personas_orphaned``, called from
+    ``delete_profile``, deleted by lane DOORS-A). ``default`` / empty is never tombstoned;
+    an unreadable check answers False (absence of proof keeps the persona backed).
+    Caveat the owner accepted: re-creating the profile clears the tombstone, and
+    same-name personas are backed again.
     """
+
+    name = str(profile_name or "").strip()
+    if not name or name == "default":
+        return False
     try:
-        from agent_runtime.store import AgentStore
+        from hermes_cli.profiles import get_profile_dir
+        from hermes_constants import named_profile_is_deleted
+
+        return bool(named_profile_is_deleted(get_profile_dir(name)))
     except Exception:
-        return
-    store = AgentStore()
-    try:
-        personas = store.list_all()
-    except Exception:
-        return
-    for persona in personas:
-        if str(getattr(persona, "hermes_profile", "") or "") != profile_name:
-            continue
-        readiness = dict(getattr(persona, "readiness", {}) or {})
-        readiness.update({"orphaned": True, "orphaned_profile": profile_name})
-        persona.readiness = readiness
-        store.save(persona)
+        return False

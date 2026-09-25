@@ -88,6 +88,7 @@ def shadow_requests(monkeypatch):
         requests.append(caller)
         return True
 
+    monkeypatch.setattr(core_cache.shadow, "maybe_start_shadow_validation", record)
     monkeypatch.setattr(core_cache, "maybe_start_shadow_validation", record)
     return requests
 
@@ -213,8 +214,9 @@ class _CountingStores:
         monkeypatch.setattr(office_mod.OfficeStore, "scan_actors", counted_scan)
         monkeypatch.setattr(events_mod.CachedEventLog, "tail", counted_tail)
         # The snapshot module holds its own bindings for two of the three.
-        monkeypatch.setattr(snapshot_mod, "AgentStore", store_mod.AgentStore)
-        monkeypatch.setattr(snapshot_mod, "OfficeStore", office_mod.OfficeStore)
+        monkeypatch.setattr(snapshot_mod.details, "AgentStore", store_mod.AgentStore)
+        monkeypatch.setattr(snapshot_mod.sections, "AgentStore", store_mod.AgentStore)
+        monkeypatch.setattr(snapshot_mod.sections, "OfficeStore", office_mod.OfficeStore)
 
 
 # --------------------------------------------------------------------------- #
@@ -1229,7 +1231,7 @@ def test_a_mismatch_serves_labeled_stale_first_then_authoritative(
         assert gate.wait(20), "the gated build was never released"
         return real_build(*args, **kwargs)
 
-    monkeypatch.setattr(snapshot_mod, "_build_snapshot_uncoalesced", gated_build)
+    monkeypatch.setattr(snapshot_mod.build, "_build_snapshot_uncoalesced", gated_build)
 
     frames: list[dict] = []
     failure: list[BaseException] = []
@@ -1631,7 +1633,9 @@ def test_a_build_stamp_mismatch_demotes(
     is which code is running — so a cache hit would be a pure code-version lie.
     """
 
-    monkeypatch.setattr(core_cache, "build_stamp_token", lambda: "git:deadbeef:clean")
+    monkeypatch.setattr(core_cache.fingerprint, "build_stamp_token", lambda: "git:deadbeef:clean")
+    monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: "git:deadbeef:clean")
+    monkeypatch.setattr(core_cache.persist, "build_stamp_token", lambda: "git:deadbeef:clean")
     _new_context()
     with caplog.at_level(logging.INFO, logger="agent_runtime.core_cache"):
         core = build_snapshot(build_info={"caller": "probe"})
@@ -1654,7 +1658,9 @@ def test_an_unmeasurable_build_stamp_refuses_the_cache(
     "unknown" and the cache crosses between them silently.
     """
 
-    monkeypatch.setattr(core_cache, "build_stamp_token", lambda: None)
+    monkeypatch.setattr(core_cache.fingerprint, "build_stamp_token", lambda: None)
+    monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: None)
+    monkeypatch.setattr(core_cache.persist, "build_stamp_token", lambda: None)
     _new_context()
     core = build_snapshot(build_info={"caller": "probe"})
     assert core["parity"]["core_source"] == core_cache.CORE_SOURCE_REBUILT
@@ -1690,7 +1696,7 @@ def test_a_failed_cache_write_leaves_the_build_path_byte_identical(
 
     core_cache.core_path().unlink(missing_ok=True)
     core_cache.sidecar_path().unlink(missing_ok=True)
-    monkeypatch.setattr(core_cache, "atomic_json_write", boom)
+    monkeypatch.setattr(core_cache.persist, "atomic_json_write", boom)
     _new_context()
     with caplog.at_level(logging.INFO):
         info: dict = {"caller": "probe"}
@@ -2077,7 +2083,8 @@ def test_an_entry_bound_refusal_is_receipted_not_just_warned(
     receipt exists that carries the driven one.
     """
 
-    monkeypatch.setattr(core_cache, "MAX_FINGERPRINT_ENTRIES", 3)
+    monkeypatch.setattr(core_cache.vocabulary, "MAX_FINGERPRINT_ENTRIES", 3)
+    monkeypatch.setattr(core_cache.fingerprint, "MAX_FINGERPRINT_ENTRIES", 3)
     receipts: list[str] = []
     for name in ("root-alpha", "root-beta"):
         root = tmp_path / name / "agent-runtime"
@@ -2129,7 +2136,8 @@ def test_a_skill_root_bound_refusal_names_the_SKILL_root(
     for index in range(6):
         (skill_root / f"pack_{index}.md").write_text("x", encoding="utf-8")
     monkeypatch.setattr(skill_utils, "get_all_skills_dirs", lambda: [skill_root])
-    monkeypatch.setattr(core_cache, "MAX_SKILL_ENTRIES_PER_ROOT", 3)
+    monkeypatch.setattr(core_cache.vocabulary, "MAX_SKILL_ENTRIES_PER_ROOT", 3)
+    monkeypatch.setattr(core_cache.fingerprint, "MAX_SKILL_ENTRIES_PER_ROOT", 3)
 
     with caplog.at_level(logging.WARNING, logger="agent_runtime.core_cache"):
         assert core_cache.build_input_fingerprint() is None
@@ -2174,7 +2182,9 @@ def test_an_input_that_oscillates_every_build_is_named(
     per-build count below pins the exact build the receipt appears on.
     """
 
-    monkeypatch.setattr(core_cache, "build_stamp_token", lambda: "probe:ml10:clean")
+    monkeypatch.setattr(core_cache.fingerprint, "build_stamp_token", lambda: "probe:ml10:clean")
+    monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: "probe:ml10:clean")
+    monkeypatch.setattr(core_cache.persist, "build_stamp_token", lambda: "probe:ml10:clean")
     root = isolate_agent_runtime_root
     moving = str(root / oscillating_name)
     stable = [
@@ -2220,7 +2230,9 @@ def test_a_settling_store_emits_no_never_converged_receipt(
     wolf on every fresh install.
     """
 
-    monkeypatch.setattr(core_cache, "build_stamp_token", lambda: "probe:ml10:clean")
+    monkeypatch.setattr(core_cache.fingerprint, "build_stamp_token", lambda: "probe:ml10:clean")
+    monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: "probe:ml10:clean")
+    monkeypatch.setattr(core_cache.persist, "build_stamp_token", lambda: "probe:ml10:clean")
     root = isolate_agent_runtime_root
     cold = _fake_key([(str(root / "workspaces" / "ws_stable.json"), 11, 12)])
     settled = _fake_key(
@@ -2284,7 +2296,9 @@ def test_a_never_converged_receipt_that_cannot_diff_says_so_in_its_own_words(
     exactly like "we looked and nothing moved". It is typed instead.
     """
 
-    monkeypatch.setattr(core_cache, "build_stamp_token", lambda: "probe:ml10:clean")
+    monkeypatch.setattr(core_cache.fingerprint, "build_stamp_token", lambda: "probe:ml10:clean")
+    monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: "probe:ml10:clean")
+    monkeypatch.setattr(core_cache.persist, "build_stamp_token", lambda: "probe:ml10:clean")
     core = {"parity": {"watermark": {"event_offset": 0}}}
 
     with caplog.at_level(logging.WARNING, logger="agent_runtime.core_cache"):
@@ -2354,7 +2368,9 @@ def test_a_store_that_never_converges_across_boots_reaches_the_receipt(
     disagree with, every streak is zero, and the receipt never appears.
     """
 
-    monkeypatch.setattr(core_cache, "build_stamp_token", lambda: "probe:mc3:clean")
+    monkeypatch.setattr(core_cache.fingerprint, "build_stamp_token", lambda: "probe:mc3:clean")
+    monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: "probe:mc3:clean")
+    monkeypatch.setattr(core_cache.persist, "build_stamp_token", lambda: "probe:mc3:clean")
     keys, _moving, _stable = _boot_keys(isolate_agent_runtime_root, passes=4)
 
     counts: list[int] = []
@@ -2393,7 +2409,9 @@ def test_the_cross_boot_receipt_counts_the_streak_and_names_the_moving_input(
     naming nothing.
     """
 
-    monkeypatch.setattr(core_cache, "build_stamp_token", lambda: "probe:mc3:clean")
+    monkeypatch.setattr(core_cache.fingerprint, "build_stamp_token", lambda: "probe:mc3:clean")
+    monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: "probe:mc3:clean")
+    monkeypatch.setattr(core_cache.persist, "build_stamp_token", lambda: "probe:mc3:clean")
     keys, moving, stable = _boot_keys(isolate_agent_runtime_root, passes=4)
 
     with caplog.at_level(logging.WARNING, logger="agent_runtime.core_cache"):
@@ -2439,7 +2457,9 @@ def test_a_legitimate_non_agreement_does_not_seed_the_streak(
     """
 
     stamp = {"value": "probe:mc3:v0"}
-    monkeypatch.setattr(core_cache, "build_stamp_token", lambda: stamp["value"])
+    monkeypatch.setattr(core_cache.fingerprint, "build_stamp_token", lambda: stamp["value"])
+    monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: stamp["value"])
+    monkeypatch.setattr(core_cache.persist, "build_stamp_token", lambda: stamp["value"])
     keys, _moving, _stable = _boot_keys(isolate_agent_runtime_root, passes=4)
 
     with caplog.at_level(logging.WARNING, logger="agent_runtime.core_cache"):
@@ -2490,7 +2510,9 @@ def test_a_settled_lane_says_nothing_and_holds_no_stat_set(
     *Kill:* retain the entries unconditionally through the agreement branch.
     """
 
-    monkeypatch.setattr(core_cache, "build_stamp_token", lambda: "probe:mc3:clean")
+    monkeypatch.setattr(core_cache.fingerprint, "build_stamp_token", lambda: "probe:mc3:clean")
+    monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: "probe:mc3:clean")
+    monkeypatch.setattr(core_cache.persist, "build_stamp_token", lambda: "probe:mc3:clean")
     keys, _moving, _stable = _boot_keys(isolate_agent_runtime_root, passes=2)
 
     _reboot()
@@ -2501,14 +2523,14 @@ def test_a_settled_lane_says_nothing_and_holds_no_stat_set(
         # Disagrees with the previous boot: the streak is live and the stat set
         # is being held.
         assert core_cache.write_back(_BOOT_CORE, fingerprint=keys[1]) is True
-        assert core_cache._streak_entries, (
+        assert core_cache.convergence._streak_entries, (
             "the fixture never reached a live streak, so the drop below would be "
             "true of a module that had nothing to drop"
         )
         # ...and now it settles.
         assert core_cache.write_back(_BOOT_CORE, fingerprint=keys[1]) is True
 
-    assert core_cache._streak_entries == (), (
+    assert core_cache.convergence._streak_entries == (), (
         "a settled lane is still holding the stat set of a streak that ended, so "
         "every healthy process now carries a second copy of the fingerprint for "
         "a diagnostic that is not going to fire"
@@ -2543,8 +2565,13 @@ def _count_lane_work(monkeypatch) -> tuple[list[str], list[str]]:
         reads.append("read")
         return real_read()
 
-    monkeypatch.setattr(core_cache, "build_input_fingerprint", counted_walk)
-    monkeypatch.setattr(core_cache, "_read_pair", counted_read)
+    monkeypatch.setattr(core_cache.fingerprint, "build_input_fingerprint", counted_walk)
+    monkeypatch.setattr(core_cache.lane, "build_input_fingerprint", counted_walk)
+    monkeypatch.setattr(core_cache.read, "build_input_fingerprint", counted_walk)
+    monkeypatch.setattr(core_cache.restat, "build_input_fingerprint", counted_walk)
+    monkeypatch.setattr(core_cache.persist, "build_input_fingerprint", counted_walk)
+    monkeypatch.setattr(core_cache.read, "_read_pair", counted_read)
+    monkeypatch.setattr(core_cache.lane, "_read_pair", counted_read)
     return walks, reads
 
 
@@ -2565,7 +2592,8 @@ def _count_post_build_restats(monkeypatch) -> list[str]:
         restats.append("restat")
         return real_restat(key)
 
-    monkeypatch.setattr(core_cache, "_restat_on_post_build_reality", counted_restat)
+    monkeypatch.setattr(core_cache.restat, "_restat_on_post_build_reality", counted_restat)
+    monkeypatch.setattr(core_cache.persist, "_restat_on_post_build_reality", counted_restat)
     return restats
 
 
@@ -2748,4 +2776,24 @@ def test_a_disarmed_lane_takes_its_own_key(
     assert len(walks) == 1, (
         "a build after the lane disarmed answered from the boot's memo instead "
         "of stat'ing the store it is about to describe"
+    )
+
+
+def test_the_different_question_checks_name_the_first_dimension_that_differs(monkeypatch):
+    """``read.DIFFERENT_QUESTION_CHECKS`` is walked IN ORDER (lane R3's table for
+    the old conjunction), so a pair that differs in BOTH the build stamp and the
+    contract versions is demoted for the stamp: an upgrade explains a contract
+    change, not the other way round. Positive control for the table's order.
+    """
+
+    monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: "stamp:now")
+    sidecar = {"build_stamp": "stamp:before", "contract_versions": {"snapshot_contract": -1}}
+    assert (
+        core_cache.read._sidecar_answers_a_different_question(sidecar)
+        == core_cache.DEMOTE_BUILD_STAMP_MISMATCH
+    )
+    sidecar["build_stamp"] = "stamp:now"
+    assert (
+        core_cache.read._sidecar_answers_a_different_question(sidecar)
+        == core_cache.DEMOTE_CONTRACT_MISMATCH
     )

@@ -1,7 +1,3 @@
-# Exec'd command part (see harness._load_command_parts), with its own explicit
-# import header — exactly as in flow_commands.py / persona_commands.py /
-# runtime_commands.py.
-#
 # The checkpoint lane (Stage S5, 2026-07-16): the read model's recovery/hydrate
 # substrate. Operator ruling — "entity classes, persisted per-actor, like
 # Unreal: the store IS the checkpoint; wire bundles are transport envelopes,
@@ -10,14 +6,20 @@
 # (keyed by entity class → actor id), reading every row verbatim. Nothing is
 # written anywhere.
 
-# Explicit import header — its rationale lives ONCE, in
-# ``hermes_cli/harness_support.py``'s module docstring, which also names the
-# two gates that hold it: ruff's F821 for the header being complete, and
-# tests/hermes_cli/test_harness_parts_namespace.py for the load-order namespace.
+# A real module (lane H1, 2026-09-24): it imports everything it reads, and a
+# test patches a name HERE, where this module looks it up — never on
+# ``hermes_cli.harness`` (W0-G4, tests/tooling/test_harness_namespace_is_thin.py).
 
 from __future__ import annotations
 
 from agent_runtime.cli_format import emit_json
+
+__layer__ = "lanes"
+__all__ = [
+    "_cmd_checkpoint_classes",
+    "_cmd_checkpoint_fetch",
+]
+
 
 
 def _checkpoint_split_classes(value):

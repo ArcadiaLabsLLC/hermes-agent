@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-09-24",
-  "base": "d337b736aa",
-  "files": 404,
-  "deleted_lines": 2602,
-  "heavy": 10,
+  "base": "749220ef00",
+  "files": 195,
+  "deleted_lines": 990,
+  "heavy": 4,
   "reasons": [
+    {
+      "change": "ACP named-provider identity correction (owner requested 2026-09-24)",
+      "files": "214 -> 216: acp_adapter/session.py and server.py",
+      "deleted_lines": "1027 -> 1032; heavy unchanged at 4",
+      "reason": "Temporary generic correctness carry: preserve the resolver's existing requested_provider across ACP model readback, unqualified switch, fork and persistence. No plugin hook controls these ACP projection/restore sites; replacing five call-site lines avoids a duplicate runtime or Launcher alias bridge. Retire when upstream carries the equivalent invariant. Reproduced on unchanged main; two route-contract tests and isolated real ACP apply/reply/restart smoke."
+    },
     {
       "change": "seam Stage 1 (seam/s1-proof)",
       "files": "+2 (459 -> 461)",
@@ -28,6 +34,194 @@
       "files": "408 -> 404: hermes_cli/skills_hub.py and hermes_cli/subcommands/skills.py (link-external rehomed as `hermes harness skills link-external`), tests/agent/test_system_prompt.py and tests/tools/test_terminal_tool.py byte-identical to d337b736aa again",
       "deleted_lines": "2612 -> 2602 (the four restored files' 8, prompt_builder 11 -> 10, skills_tool 70 -> 69)",
       "reason": "seam Stage 2: the T6b guidance and the skill-confirm sentence ride the eternia-harness plugin's system-prompt section; skill_search is a plugin register_tool; link-external is a harness verb; prompt_builder and skills_tool adopt upstream's skill_matches_environment; heavy 11 -> 10 (tools/skills_tool.py 207 -> 136)"
+    },
+    {
+      "change": "weekly merge upstream/main f24a1d7f92 (seam/upstream-merge-2026-09-24)",
+      "files": "404 at base d337b736aa (after lane S2, merged in) -> 373 at base f24a1d7f92: the base moved, rows left the ledger (upstream deleted 9 fork-edited tests in its purge lanes, 5 gpt-6 superseded prod rows, adopted-upstream test carries), 1 row joined (uninstall-section.test.tsx, add/add), the two relocated tests stay (gateway fence), 5 re-check carries stay",
+      "deleted_lines": "2602 -> 2404 (model_metadata 17, the purged tests, the adopted test carries); 509 of the 2404 are the two tests/gateway relocations, unchanged since before the merge",
+      "reason": "history-preserving merge of 1,663 upstream commits and the supersession pass, then origin/main (lane S2) merged in; no number rose against the pre-merge line; heavy 10 -> 10"
+    },
+    {
+      "change": "lane CARRY (seam/test-carries-out-2026-09-24)",
+      "files": "373 -> 355",
+      "deleted_lines": "2404 -> 2309",
+      "reason": "upstream test files restored to upstream's bytes; the fork's marks ride tests/_downstream/id_markers.py by test id, fork tests ride *_downstream.py siblings with upstream fixtures imported by name. Class 1 host-OS fakes dropped (3 files); class 2 shared-fixture carries moved (8 files leave, test_nous_inference_url_validation leaves; prompt_builder, kanban_db, file_operations, tui_gateway_server keep only the in-place hunks that replace upstream behaviour, named in their ledger rows); class 3 shared-process carries leave (dashboard_auth_gate: subsumed by _web_server_app_is_pristine; file_tools_cwd_resolution: Windows spelling, id-table xfails); class 4 fork-prod carries: test_approval and test_doctor_command_install leave, background_process_notifications / test_doctor / tool_search_multiquery keep only the replacing hunks; class 5 marker carries leave (test_anthropic_adapter, test_commands, test_update_concurrent_quarantine) plus test_gateway_service's dead merge-residue helper"
+    },
+    {
+      "change": "lane ADOPT group 3 (seam/carry-adopt-2026-09-24)",
+      "files": "355 -> 351",
+      "deleted_lines": "2309 -> 2305",
+      "reason": "scripts/desktop-update/{posix.sh,retry-policy.ps1,windows.ps1} and tests/scripts/desktop_update/test_desktop_update_windows_retry_policy.py back to merge-base bytes: the fork history guard (hermes_cli/update_history.py, fork-owned) exits 2, which upstream's updaters already treat as a non-retryable refusal; the test's timeout(45) rides tests/_downstream/id_markers.py"
+    },
+    {
+      "change": "lane ADOPT group 5 (seam/carry-adopt-2026-09-24)",
+      "files": "351 -> 350",
+      "deleted_lines": "2305 -> 2304",
+      "reason": "gateway/run_turn.py back to merge-base bytes: upstream's inline heartbeat text replaces the fork's _format_long_running_heartbeat (deleted from gateway/downstream_extensions.py with its fork test); the /stop hint is dropped by owner ruling"
+    },
+    {
+      "change": "lane ADOPT group 15 (seam/carry-adopt-2026-09-24)",
+      "files": "350 -> 349",
+      "deleted_lines": "2304 -> 2225",
+      "reason": "hermes_cli/main_desktop.py back to merge-base bytes (upstream _stop_desktop_processes_locking_build; hermes_cli/_desktop_processes.py deleted); hermes_cli/profiles.py 14/20 -> 2/0 (upstream psutil loop, agent_runtime/profile_processes.py deleted; the orphan hook stays); tests/hermes_cli/test_profiles.py 308/1 -> 58/0; the hermetic fence patches psutil.process_iter; heavy 9 -> 8"
+    },
+    {
+      "change": "lane ADOPT group 16 (seam/carry-adopt-2026-09-24)",
+      "files": "349 -> 348",
+      "deleted_lines": "2225 -> 2222",
+      "reason": "hermes_cli/doctor_tools.py back to merge-base bytes (upstream agent_browser_runnable call); browser_probe_scope/browser_runnable deleted from agent_runtime/doctor_extensions.py and the agent_browser_runnable_override kwarg from run_doctor; tests/hermes_cli/test_doctor.py 43/5 -> 3/3"
+    },
+    {
+      "change": "lane META (seam/carry-meta-2026-09-24)",
+      "files": "348 (after lane ADOPT) -> 346",
+      "deleted_lines": "2222 -> 2131",
+      "reason": "groups 1+2 of the carry census: .gitignore back to stock (every fork entry's producer now writes a self-ignoring dir; /profiles/ was upstream's own line; .claude/ is the up/gitignore-claude-dir PR); .gitattributes keeps only the root eol rule, ruled carry-permanent; uv.lock back to stock (coverage/pytest-timeout -> requirements-fork-dev.txt, installed by scripts/ensure_fork_dev_deps.py from run_tests.sh), pyproject markers + timeout addopts -> tests/_downstream/conftest_plugin.py, pyproject ruled carry-permanent (agent_runtime include, Stage 7); heavy -1 (uv.lock); AGENTS.md trimmed to a one-line fork pointer (landing-gate bullet -> docs/downstream-development.md), ruled carry-permanent; README.md ruled carry-permanent (licence notice)",
+      "heavy": "8 -> 7"
+    },
+    {
+      "change": "lane CARRY2A (seam/test-carries-cli-2026-09-24)",
+      "files": "346 -> 313",
+      "deleted_lines": "2131 -> 1918",
+      "reason": "tests/hermes_cli carries restored to upstream's bytes (the fork's marks ride tests/_downstream/id_markers.py, fork tests ride *_downstream.py siblings). Class A1: 11 files whose fork hunks were dead on this runner — comments, reload removals and sys.modules restores already done by the directory's _sys_modules_identity_is_restored, the AWS scrub tests/conftest.py already does, doctor HERMES_HOME re-spellings the fork's PEP 562 _LIVE_HOME_NAMES already answers, a call re-routed to _bytecode_sweep that main still re-exports. Class A2: 9 files whose hardening upstream's bytes no longer need on this host — hang-bound widenings (active_sessions, relay_shared_metrics), host-OS fakes (managed_uv, update_stale_dashboard, owner 2026-09-24: drop the fakes), stubs for walks that fit the cap (update_autostash, update_fleet_restart_pending, local_quickstart), a Git-on-PATH respelling (kanban_reclaim_claim_lock_guard), and worktree_selfheal's pre-2.32-git hedge plus a second-pass test upstream's TestRepackStampede now owns. Class B/C: 13 files — marks, timeouts and platform treatments by test id (codex_cli_model_picker, lazy_command_exports, gateway_job_teardown_live, relaunch, kanban_boards), a marker-gated conftest fixture (background_agent_turns for the two notification-display witnesses; profiles' psutil-lister tests need nothing since lane ADOPT's fence patches psutil.process_iter), and rule-4 strict xfails naming the fork symbol with the opposite assertion in a sibling (config_read_guard, dashboard_tui_backcompat, dashboard_unified_launch, gateway_windows); mcp_config and profiles' fork tests moved to siblings importing the upstream fixture"
+    },
+    {
+      "change": "lane MOVE-A group 9 (seam/carry-move-a-2026-09-24)",
+      "files": "313 -> 304",
+      "deleted_lines": "1918 -> 1882",
+      "reason": "tool wire briefs: the eternia-harness plugin registers llm_request middleware (tools/downstream_schema.brief_request_tools) that swaps tools[].description by name for the chat/Responses/Anthropic shapes; the registry keeps upstream's text, so the FULL_* copies and dead mirror rows are deleted; tools/{browser,clarify,close_terminal,code_execution,read_terminal,session_search,todo,web}_tool(s).py and tests/tools/test_execute_helper_contract.py are byte-identical to f24a1d7f92; persona scratch sessions adopt upstream's hidden 'tool' source"
+    },
+    {
+      "change": "lane MOVE-A group 12 (seam/carry-move-a-2026-09-24)",
+      "files": "304 -> 300",
+      "deleted_lines": "1882 -> 1881",
+      "reason": "usage ledger: agent_runtime/usage_ledger.py (ContextVar list bound by the persona runner around run_conversation) fed by the eternia-harness post_api_request hook; the Codex app-server path, which never fires that hook, calls record_usage itself; the session_usage_ledger seeds and the turn-result key are gone; agent/usage_pricing.py, turn_usage.py, turn_finalizer.py, auxiliary_client.py byte-identical to f24a1d7f92 (the construction counter moved into its only consumer, the test; agent_runtime/auxiliary_probe.py deleted)"
+    },
+    {
+      "change": "lane MOVE-A group 16 (seam/carry-move-a-2026-09-24)",
+      "files": "300 -> 296",
+      "deleted_lines": "1881 -> 1876",
+      "reason": "harness keys remote_gateway/charsheet/display.busy_text_mode leave DEFAULT_CONFIG (readers default in code) and the comment rewraps revert; hermes_cli/web_server_config.py, status.py, status_auth.py, hermes_state.py byte-identical to f24a1d7f92: the provider report in hermes_cli/harness.py reads status_auth._API_KEYS / status._first_env_value directly and appends its own Anthropic row; RuntimeSessionMixin becomes agent_runtime.session_extensions.delete_compression_lineage(db, ...), called from persona_commands.py"
+    },
+    {
+      "change": "lane MOVE-A group 4 (seam/carry-move-a-2026-09-24)",
+      "files": "296 -> 295",
+      "deleted_lines": "1876 -> 1876",
+      "reason": "the two async-delivery readers moved to agent_runtime/delivery_capability.py, which imports upstream's module-private _SESSION_ASYNC_DELIVERY/_UNSET (recorded in the ledger's private-name table with the two-function PR that retires it); gateway/session_context.py byte-identical to f24a1d7f92; gateway/run_config_loaders.py stays - no profile config seed exists to carry background_process_notifications: result"
+    },
+    {
+      "change": "lane CARRY2B (seam/test-carries-rest-2026-09-24)",
+      "files": "295 -> 230",
+      "deleted_lines": "1876 -> 1635",
+      "reason": "upstream test files outside tests/hermes_cli restored to the merge base's bytes: tests/tools (20 files). Fork tests ride *_downstream.py siblings with upstream fixtures imported by name; POSIX-only reds are id-table skips reading 'POSIX-only; upstream fix = @pytest.mark.linux_only'; fork behaviour that makes an upstream assertion false is a strict xfail row naming the fork symbol; readers the fork moved to load_config_readonly get a by-id read-through to upstream's patched load_config; tests/gateway (11 files + conftest) and tui_gateway's kanban poller: the agent-turn lane is opted in by id (background_agent_turns, now one root fixture for the whole tree), mid-test monkeypatch.undo() tests are skip rows with scoped-context siblings, conftest env-gap skips are id rows; the rest (agent 10, hermes_state 3, plugins 4, providers, cron, e2e conftest, scripts 5, tui_gateway 2, tests/*.py 2) and tests/tools' two remaining rule-4 carries plus test_code_execution_modes (whose T6b tests went red when lane MOVE-A moved the brief to middleware): file-level id rows carry the pytest-timeout budgets and the MCF-66 opt-in with claude_home_is_tmp_path (the credentials gate treats that mark as the redirect); rule-4 carries become strict xfail rows with the fork half in the sibling; heavy 7 -> 6"
+    },
+    {
+      "change": "lane CARRY3 tests/ (seam/carry-pass-2026-09-24)",
+      "files": "230 -> 219",
+      "deleted_lines": "1635 -> 1072",
+      "reason": "tests/{agent,tools,hermes_cli}/conftest.py byte-identical: the fork-only root conftest.py registers each tests/_downstream/<dir>_conftest module under a <dir>/_downstream_conftest.py name when pytest registers that directory's conftest (directory-scoped fixtures, as the star-import gave), and imports tests._downstream.conftest_plugin after tests/conftest.py (its pytest_plugins line leaves); four monkeypatch.undo() carries (kanban_worker_pid_fingerprint, macos_tcc_anchor, plugins, update_zip_two_phase) run upstream's bytes under the scoped_monkeypatch_undo id mark (undo narrowed to the body's own patches); test_cross_profile_kill_refusal and test_stderr_timestamp back at upstream's path (the tests/hermes_cli gateway fence honours spawns_gateway_lookalike; the tests/gateway relocations deleted, -509); kanban_core_functionality and kanban_db byte-identical (the hermes_cli conftest empties kanban_db_dispatch._live_worker_procs after each test); heavy 6 -> 4",
+      "heavy": "6 -> 4"
+    },
+    {
+      "change": "lane CARRY3 tools/ (seam/carry-pass-2026-09-24)",
+      "files": "flat (219)",
+      "deleted_lines": "1072 -> 1058",
+      "reason": "tools/process_registry.py 67/50 -> 55/36: the process_manage wire brief rides tools/downstream_schema.BRIEF_DESCRIPTIONS (llm_request middleware), FULL_PROCESS_DESCRIPTION and its tool_full_descriptions mirror are deleted (the registry keeps upstream's text plus one notify line), the #17327 comment block is upstream's again. The five tools/ carry rows are recorded parallels flipped to hook (HOME-PR, G13 widening, on_process_exit + wait-ceiling, G19)"
+    },
+    {
+      "change": "lane CARRY3 hermes_cli/ (seam/carry-pass-2026-09-24)",
+      "files": "219 -> 216",
+      "deleted_lines": "1058 -> 1044",
+      "reason": "hermes_cli/runtime_provider.py and runtime_provider_custom.py byte-identical: the non-persisting selection scope moved into agent_runtime.pool_rotation (a ContextVar PoolRotationMixin._select_with_rotation reads, select_without_persisting_rotation = select under pool_rotation_scope(False)), so the ladder calls upstream's pool.select(); probe_runtime_provider opens the scope around resolve_runtime_provider instead of a persist_pool_rotation kwarg (agent/credential_pool.py 10/18 -> 9/18: _select_unlocked's persist_rotation parameter is gone). hermes_cli/web_routers/profiles.py byte-identical: the promote route is the eternia-harness dashboard plugin API route /api/plugins/eternia-harness/profiles/{name}/promote (no caller outside the fork's own test). hermes_cli/auth.py 23/2 -> 13/1: the auth_extensions tail re-export (callers import it), the duplicate hermes_cli.config top import and the hermes_constants re-wrap leave"
+    },
+    {
+      "change": "lane REDS3 t6b briefs (fork/main-reds-2026-09-24)",
+      "files": "flat (216)",
+      "deleted_lines": "1044 -> 1043",
+      "reason": "tools/vision_tools.py registers upstream's VISION_ANALYZE_SCHEMA again: upstream's own diet (#97339) made its text shorter than the fork brief, so the brief and its brief_schema wrap leave; read_file's brief joins BRIEF_DESCRIPTIONS (llm_request middleware) and its stale tool_full_descriptions mirror row is deleted"
+    },
+    {
+      "change": "lane CLOSE (seam/close-2026-09-24)",
+      "files": "216 -> 215",
+      "deleted_lines": "1043 -> 1036",
+      "reason": "owner ruling 2026-09-24: adopt upstream's `concise` background_process_notifications default. gateway/run_config_loaders.py byte-identical to f24a1d7f92 (-4); cli-config.yaml.example and hermes_cli/config_defaults.py lose the concise->result line (-2, -1); only the BG-PR background_process_agent_turns lines remain in them"
+    },
+    {
+      "change": "lane LEDGER-DOCS follow-down (fork/ledger-rows-2026-09-24)",
+      "files": "215 -> 214",
+      "deleted_lines": "1036 -> 1027",
+      "reason": "lane REDS3 (594b94e750) restored tests/hermes_cli/test_completion.py to f24a1d7f92's bytes (16/9 -> 0; its Windows reds ride tests/_downstream/id_markers.py) without lowering this fixture, so main's ratchet read FELL; the ledger row leaves and tests/conftest.py's added count is re-measured (130 -> 158)"
+    },
+    {
+      "change": "lane TESTS (fork/test-rows-2026-09-24)",
+      "files": "216 -> 215: tests/gateway/test_runtime_footer.py back to f24a1d7f92 bytes (its fork edit lives in test_runtime_footer_downstream.py)",
+      "deleted_lines": "1032 -> 1023 (that file's edits)",
+      "reason": "row-11 comment stripping lives in tests/_downstream/live_guard_classify.py (conftest hunk +2/-1); the run_tests.sh PATHEXT carry is one additive line, so heavy stays 4"
+    },
+    {
+      "change": "lane DOORS-A process notify (seam/doors-a-2026-09-24)",
+      "files": "flat (215)",
+      "deleted_lines": "1023 -> 1000",
+      "reason": "owner ruling 2026-09-24: the late process-notify second door is deleted. tools/process_registry.py returns _move_to_finished, the drain-skip clause and the notify action/enum/schema line to upstream bytes (-23); tools/process_registry_notifications.py loses the notify_requested receipt (-14 added). The ledger's 1036 -> 1027 drift from earlier landings is folded in: the fixture follows the measurement"
+    },
+    {
+      "change": "lane DOORS-A BG ruling (seam/doors-a-2026-09-24)",
+      "files": "215 -> 212",
+      "deleted_lines": "flat (1000)",
+      "reason": "owner ruling 2026-09-24 (2): BG on means notify on by default AND an agent turn on completion. The BG-PR gate is deleted: tui_gateway/session_notifications.py, evals/completion_backlog_probe.py and cli-config.yaml.example at f24a1d7f92 bytes; gateway/run_notifications.py loses the compact-send branch (only the reply_to watcher line is left); hermes_cli/config_defaults.py loses display.background_process_agent_turns"
+    },
+    {
+      "change": "lane DOORS-A claim TTL (seam/doors-a-2026-09-24)",
+      "files": "212 -> 208",
+      "deleted_lines": "flat (1000)",
+      "reason": "G9 onto upstream's door: kanban_db._resolve_claim_ttl_seconds reads HERMES_KANBAN_CLAIM_TTL_SECONDS for every claim and the heartbeat extension; the eternia-harness plugin os.environ.setdefault()s it to 2700 at register(). gateway/kanban_watchers_dispatcher.py, hermes_cli/kanban_ops.py, hermes_cli/kanban_parser.py and hermes_cli/config_defaults.py at f24a1d7f92 bytes; kanban_db_dispatch.py loses run_daemon's ttl_seconds half"
+    },
+    {
+      "change": "lane DOORS-A PM watcher (seam/doors-a-2026-09-24)",
+      "files": "208 -> 207",
+      "deleted_lines": "1000 -> 999",
+      "reason": "the Kanban blocked-card PM router moves onto upstream's on_kanban_dispatch_tick (agent_runtime/kanban_blocked_pm_tick.py, registered by the eternia-harness plugin); gateway/run_startup.py at f24a1d7f92 bytes and the 5 s watcher leaves the gateway mixin"
+    },
+    {
+      "change": "lane DOORS-A queue-status (seam/doors-a-2026-09-24)",
+      "files": "207 -> 203",
+      "deleted_lines": "999 -> 998",
+      "reason": "/queue-status (/qstatus) answers through upstream's pre_gateway_dispatch (agent_runtime/gateway_queue_status.py, registered by the eternia-harness plugin), before auth and the busy intercept. hermes_cli/commands.py, gateway/run_busy.py, apps/desktop/src/lib/desktop-slash-registry.json and website/docs/reference/slash-commands.md at f24a1d7f92 bytes; DownstreamGatewayMixin is empty and leaves GatewayRunner's bases"
+    },
+    {
+      "change": "lane DOORS-A dispatch timing (seam/doors-a-2026-09-24)",
+      "files": "203 -> 202",
+      "deleted_lines": "998 -> 997",
+      "reason": "the request_assembled mark and provider_dispatch span move onto upstream's llm_execution middleware (agent_runtime.conversation_observability.time_provider_dispatch, registered by the eternia-harness plugin; sink = a ContextVar profile_runner binds around run_conversation). agent/turn_api_call.py at f24a1d7f92 bytes"
+    },
+    {
+      "change": "lane DOORS-A lazy installs (seam/doors-a-2026-09-24)",
+      "files": "202 -> 199",
+      "deleted_lines": "997 -> 994",
+      "reason": "owner ruling 2026-09-24 (1): lazy installs go through upstream's door. The eternia-harness plugin setdefault()s HERMES_DISABLE_LAZY_INSTALLS=1 (upstream _allow_lazy_installs; a durable HERMES_LAZY_INSTALL_TARGET still redirects); installs outside a turn are not kept. tools/lazy_deps.py, hermes_cli/tools_config_cua.py and agent/anthropic_adapter.py at f24a1d7f92 bytes; agent/conversation_loop.py loses the run_conversation barrier wrapper and rename"
+    },
+    {
+      "change": "lane DOORS-A persona cache routing (seam/doors-a-2026-09-24)",
+      "files": "199 -> 197",
+      "deleted_lines": "994 -> 992",
+      "reason": "the persona prompt-cache key, the Codex scope headers and the cache-routing observability move onto upstream's llm_request middleware (agent_runtime.cache_routing.route_persona_cache, composed into the eternia-harness callback after the wire briefs; the persona agent comes from a ContextVar profile_runner binds). agent/transports/codex.py and agent/chat_completion_helpers.py at f24a1d7f92 bytes"
+    },
+    {
+      "change": "lane DOORS-A required-skill note (seam/doors-a-2026-09-24)",
+      "files": "197 -> 196",
+      "deleted_lines": "992 -> 990",
+      "reason": "the required-on-this-surface skill emphasis moves off upstream's build_preloaded_skills_prompt parameter onto the fork's mission-chat preload resolver, one line over upstream's own preload note. agent/skill_commands.py at f24a1d7f92 bytes"
+    },
+    {
+      "change": "lane DOORS-A profile tombstone (seam/doors-a-2026-09-24)",
+      "files": "196 -> 195",
+      "deleted_lines": "flat (990)",
+      "reason": "owner ruling 2026-09-24 (3): profile delete adopts upstream's tombstone. hermes_cli/profiles.py at f24a1d7f92 bytes; the harness derives 'this persona's profile is gone' from named_profile_is_deleted at read time (backed_persona_identity), so the reconcile/snapshot lanes clear its placements as orphan-no-profile"
+    },
+    {
+      "change": "weekly merge upstream/main 749220ef00 (merge/upstream-2026-09-24)",
+      "files": "flat (195): base f24a1d7f92 -> 749220ef00, 417 upstream commits, no conflicts; the manifest is re-cut (base tree UNION upstream/main 26b5494667)",
+      "deleted_lines": "flat (990)",
+      "reason": "history-preserving merge and the supersession pass: 1 hunk retired (tests/hermes_cli/test_doctor_journal_modes.py's win32 skip on test_partial_holder_scan_is_never_an_all_clear, 14 -> 7 added: upstream now scans holders on Windows); no ledger row left, all 19 open upstream PRs still open; heavy flat at 4"
     }
   ]
 }

@@ -88,7 +88,7 @@ def test_skills_catalog_by_hash_resolves_persisted_list(isolate_agent_runtime_ro
             "available_skills": catalog,
         }
     )
-    content_hash = po._skills_list_content_hash(catalog)
+    content_hash = po.hoist._skills_list_content_hash(catalog)
     resolved = po.skills_catalog_by_hash(content_hash)
     assert resolved == catalog, "the walk reproduces the evicted skill list byte-for-byte"
     tampered = content_hash[:-1] + ("0" if content_hash[-1] != "0" else "1")
@@ -174,3 +174,39 @@ def test_snapshot_size_budget_holds_after_deep_slim(isolate_agent_runtime_root):
         },
     )
     assert violations == [], violations
+
+
+def test_a_persona_id_detail_rebuilds_the_evicted_tool_payloads(monkeypatch):
+    """Positive control for ``snapshot.details._agent_tool_detail`` (dead-code
+    queue: DECIDE, untested live): the persona-id fallback of
+    ``persona_instance_detail_for_id`` rebuilds exactly the four evicted
+    tool-detail payloads from ONE visibility resolution."""
+
+    from types import SimpleNamespace
+
+    from agent_runtime import tool_visibility
+    from agent_runtime.snapshot import details
+
+    resolution = {"blocked_tools": ["terminal"], "marker": "one-resolution"}
+    seen: list[object] = []
+    monkeypatch.setattr(details, "resolve_tool_visibility", lambda agent: resolution)
+    monkeypatch.setattr(
+        tool_visibility,
+        "turn_tool_context_for_persona",
+        lambda agent, *, visibility: seen.append(visibility) or {"ctx": True},
+    )
+    monkeypatch.setattr(
+        tool_visibility,
+        "permission_state_for_persona",
+        lambda agent, *, visibility: seen.append(visibility) or {"perm": True},
+    )
+    agent = SimpleNamespace(id="persona_x", display_name="X")
+    assert details._agent_tool_detail(agent) == {
+        "persona_id": "persona_x",
+        "display_name": "X",
+        "tool_resolution": resolution,
+        "turn_tool_context": {"ctx": True},
+        "permission_state": {"perm": True},
+        "blocked_tools": ["terminal"],
+    }
+    assert seen == [resolution, resolution]

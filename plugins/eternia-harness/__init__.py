@@ -9,6 +9,7 @@ a prompt is being rendered. ``plugin.yaml`` declares both commands under
 
 from __future__ import annotations
 
+import os
 import time
 
 _HARNESS_HELP = "Experimental Agent Runtime Harness"
@@ -136,8 +137,100 @@ def _check_skill_search() -> bool:
     return check_skills_requirements()
 
 
+def brief_tool_descriptions(request=None, **_context):
+    """``llm_request`` middleware: the fork's short tool descriptions on the wire, then the
+    persona prompt-cache routing (``agent_runtime.cache_routing.route_persona_cache``).
+
+    The registry keeps upstream's full text (``tool_describe`` serves it); this swaps
+    ``description`` by tool name in the final provider kwargs, for the chat, Responses
+    and Anthropic payload shapes. Parameters are never touched.
+    """
+    from agent_runtime.cache_routing import route_persona_cache
+    from tools.downstream_schema import brief_request_tools
+
+    # ONE callback, both rewrites: upstream feeds every llm_request callback the same
+    # original request and keeps the LAST result, so two callbacks would drop the first.
+    # Briefs first, so the persona cache key hashes the briefed wire tools.
+    briefed = brief_request_tools(request)
+    routed = route_persona_cache(briefed if briefed is not None else request, **_context)
+    rewritten = routed if routed is not None else briefed
+    if rewritten is None:
+        return None
+    reasons = [r for r, done in (("tool wire briefs", briefed is not None), ("persona cache routing", routed is not None)) if done]
+    return {"request": rewritten, "source": "eternia-harness", "reason": " + ".join(reasons)}
+
+
+def default_background_notify(tool_name=None, args=None, **_context):
+    """``tool_request`` middleware: a background ``terminal`` spawn notifies on exit by default.
+
+    Owner ruling 2026-09-24 — completion is decided once, at spawn, through upstream's own
+    ``notify`` parameter; an explicit ``notify`` (``false`` included) is left alone.
+    """
+    from agent_runtime.background_completion import default_background_notify as _default
+
+    rewritten = _default(tool_name, args)
+    if rewritten is None:
+        return None
+    return {"args": rewritten, "source": "eternia-harness", "reason": "background notify default"}
+
+
+def time_provider_dispatch(**kwargs):
+    """``llm_execution`` middleware: request-assembled mark + provider-dispatch span."""
+    from agent_runtime.conversation_observability import time_provider_dispatch as _time
+
+    return _time(**kwargs)
+
+
+def record_usage_ledger_row(**kwargs):
+    """``post_api_request`` hook: one per-call usage row for a bound persona-turn ledger."""
+    from agent_runtime.usage_ledger import on_post_api_request
+
+    on_post_api_request(**kwargs)
+
+
+async def answer_queue_status(**kwargs):
+    """``pre_gateway_dispatch`` hook: answer ``/queue-status`` (``/qstatus``), busy path included."""
+    from agent_runtime.gateway_queue_status import answer_queue_status as _answer
+
+    return await _answer(**kwargs)
+
+
+def route_blocked_kanban_cards(**kwargs):
+    """``on_kanban_dispatch_tick`` hook: route the ticking board's new ``blocked`` cards to PM."""
+    from agent_runtime.kanban_blocked_pm_tick import on_kanban_dispatch_tick
+
+    on_kanban_dispatch_tick(**kwargs)
+
+
+#: The harness's kanban claim lifetime. Long supervisor-style cards can spend more than
+#: upstream's 15 minutes inside one external call before they can `kanban_heartbeat`.
+KANBAN_CLAIM_TTL_SECONDS = 45 * 60
+
+
+def default_kanban_claim_ttl() -> None:
+    """Upstream reads ``HERMES_KANBAN_CLAIM_TTL_SECONDS`` for every claim AND the heartbeat
+    extension; a default here, with the operator's own env as the opt-out."""
+    os.environ.setdefault("HERMES_KANBAN_CLAIM_TTL_SECONDS", str(KANBAN_CLAIM_TTL_SECONDS))
+
+
+def default_no_venv_lazy_installs() -> None:
+    """Owner ruling 2026-09-24 (1): lazy installs go through upstream's door. With
+    ``HERMES_DISABLE_LAZY_INSTALLS=1`` ``tools.lazy_deps`` refuses to mutate the running venv,
+    or redirects into ``HERMES_LAZY_INSTALL_TARGET`` when the operator set one; setting the
+    env yourself (``0``) is the opt-out."""
+    os.environ.setdefault("HERMES_DISABLE_LAZY_INSTALLS", "1")
+
+
 def register(ctx) -> None:
+    default_kanban_claim_ttl()
+    default_no_venv_lazy_installs()
     ctx.register_system_prompt_section("eternia-harness.tool-guidance", render_tool_guidance)
+    ctx.register_middleware("llm_request", brief_tool_descriptions)
+    ctx.register_middleware("tool_request", default_background_notify)
+    ctx.register_middleware("llm_execution", time_provider_dispatch)
+    ctx.register_hook("post_api_request", record_usage_ledger_row)
+    ctx.register_hook("on_kanban_dispatch_tick", route_blocked_kanban_cards)
+    ctx.register_hook("pre_gateway_dispatch", answer_queue_status)
     # Joins the built-in `skills` toolset by registry membership; the platform bundles
     # still name it in toolsets.py until a register-toolset PR lets a plugin join them.
     ctx.register_tool(

@@ -1,13 +1,10 @@
 function Test-HermesUpdateShouldRetry {
     param(
         [int]$ExitCode,
-        [string]$InstallRoot,
-        [string]$Output = ""
+        [string]$InstallRoot
     )
 
     if ($ExitCode -eq 0) { return $false }
-    # History review is deterministic. A fresh process cannot resolve a fold.
-    if ($Output -match "(?m)^HERMES_UPDATE_HISTORY_REVIEW_REQUIRED\r?$") { return $false }
     if ($ExitCode -ne 2) { return $true }
 
     # Exit 2 is shared by non-retryable safety refusals and the self-lock

@@ -1,11 +1,10 @@
 """The source-grep test class stops growing here.
 
-Operator ruling (2026-09-15): 66 unchanged assertions from pinned upstream
-110baa095bc7135a0624557a9cc35df0f98ece0f are held separately in
-upstream_source_assertions.json. Their entire enclosing AST functions are
-hash-pinned; new, changed, and stale entries fail. The original two closed
-registers receive no new assertions. This preserves upstream tests without
-claiming source presence proves runtime behavior.
+Scope (owner ruling 2026-09-24): this is a FORK style rule, so it applies to
+fork-authored lines only (``tests/_fork_scope.is_fork_authored``). Upstream's
+own tests are out of scope; the fork keeps no register of them (the
+2026-09-15 pinned-upstream register is retired). The two closed fork registers
+below receive no new assertions.
 
 A test that reads a function's TEXT and asserts a substring appears in it
 proves only that the characters exist. It never proves the branch runs, and it
@@ -14,7 +13,7 @@ both directions, and both directions were observed on this tree:
 
 * **False RED.** Three gates fired on pure renames/code-moves on 2026-08-09 —
   the ``test_s56_config_block_removal`` roster gate and two in
-  ``tests/agent/test_nous_oauth_401_guidance.py``. Nothing behavioural changed;
+  ``tests/agent/test_nous_oauth_401_guidance.py`` (since deleted upstream). Nothing behavioural changed;
   the text had merely moved to a neighbouring function. The gate was measuring
   which function a line of prose sits in.
 * **False GREEN.** Replaying a real collector removal left an old positive gate
@@ -84,22 +83,18 @@ own pass, with its own ruling.
 from __future__ import annotations
 
 import ast
-import hashlib
-import json
 from collections import Counter
 from pathlib import Path
 
 import pytest
+
+from tests._fork_scope import is_fork_authored
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TESTS_ROOT = REPO_ROOT / "tests"
 LEDGER_PATH = TESTS_ROOT / "source_grep_debt.txt"
 RULED_EXEMPTIONS_PATH = TESTS_ROOT / "source_grep_ruled_exemptions.txt"
-UPSTREAM_ASSERTIONS_PATH = TESTS_ROOT / "upstream_source_assertions.json"
-PINNED_UPSTREAM = "110baa095bc7135a0624557a9cc35df0f98ece0f"
-PINNED_UPSTREAM_COUNT = 66
-PINNED_HASH_FORMAT = "sha256-ast-dump-no-empty-type-params-v1"
 
 
 #: What separates a ruled exemption's KEY from its one-line reason. Split at the
@@ -497,6 +492,9 @@ def _scan() -> tuple[list[str], int, dict[str, list[int]]]:
         relpath = path.relative_to(REPO_ROOT).as_posix()
         qualnames = _qualname_index(tree)
         for lineno, rendered in _SourceTextAnalyzer(tree).violations():
+            if not is_fork_authored(relpath, lineno):
+                # Upstream wrote this line: upstream's to police (scope, not exemption).
+                continue
             key = _entry(relpath, qualnames.get(lineno, "<module>"), rendered)
             entries.append(key)
             locations.setdefault(key, []).append(lineno)
@@ -571,62 +569,6 @@ _REMEDY = (
 )
 
 
-def _function_hashes(source: str) -> dict[str, list[str]]:
-    tree = ast.parse(source)
-    # Python 3.12 added empty type_params fields to existing function/class ASTs.
-    # Omit only that empty field so 3.11 and 3.12+ hash the same source identically.
-    # Nonempty type parameters remain part of the semantic fingerprint.
-    for node in ast.walk(tree):
-        if getattr(node, "type_params", None) == []:
-            del node.type_params
-    names = _qualname_index(tree)
-    hashes: dict[str, list[str]] = {}
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            digest = hashlib.sha256(ast.dump(node, include_attributes=False).encode("utf-8")).hexdigest()
-            hashes.setdefault(names[node.lineno], []).append(digest)
-    return hashes
-
-
-def _pinned_upstream_errors(data: dict, found: list[str], root: Path) -> list[str]:
-    """Validate the approved import without importing or running its test modules."""
-    errors = []
-    entries = data.get("entries", [])
-    if data.get("hash_format") != PINNED_HASH_FORMAT:
-        errors.append("upstream fingerprint format changed")
-    if data.get("upstream") != PINNED_UPSTREAM:
-        errors.append("upstream baseline changed without a new review")
-    if data.get("approved_count") != len(entries) or len(entries) > PINNED_UPSTREAM_COUNT:
-        errors.append("upstream register count changed or exceeds the approved bound")
-    keys = [entry["key"] for entry in entries]
-    if len(keys) != len(set(keys)):
-        errors.append("duplicate upstream assertion keys")
-    stale = Counter(keys) - Counter(found)
-    errors.extend(f"stale upstream assertion: {key}" for key in stale)
-    modules = {}
-    for entry in entries:
-        path, qualname, _comparison = entry["key"].split("::", 2)
-        relative = Path(path)
-        if relative.is_absolute() or ".." in relative.parts or not path.startswith("tests/"):
-            errors.append(f"invalid upstream test path: {path}")
-            continue
-        if path not in modules:
-            try:
-                modules[path] = _function_hashes((root / path).read_text(encoding="utf-8"))
-            except (OSError, SyntaxError):
-                modules[path] = {}
-        if modules[path].get(qualname) != [entry["function_sha256"]]:
-            errors.append(f"changed or missing upstream function: {path}::{qualname}")
-    return errors
-
-
-def _read_pinned_upstream(found: list[str]) -> list[str]:
-    data = json.loads(UPSTREAM_ASSERTIONS_PATH.read_text(encoding="utf-8"))
-    errors = _pinned_upstream_errors(data, found, REPO_ROOT)
-    assert not errors, "Pinned upstream source assertions need review:\n" + "\n".join(errors)
-    return [entry["key"] for entry in data["entries"]]
-
-
 @pytest.fixture(scope="module")
 def scan() -> tuple[list[str], int, dict[str, list[int]]]:
     return _scan()
@@ -641,10 +583,7 @@ def test_no_new_positive_source_grep_assertion(scan) -> None:
     )
     ledgered, _declared = _read_ledger()
     exempt, _exempt_declared, _reasonless = _read_ruled_exemptions()
-    # The operator-approved upstream import is separate from the original two
-    # closed registers. Its enclosing function hashes must still match exactly.
-    pinned = _read_pinned_upstream(found)
-    new = sorted((Counter(found) - Counter(ledgered) - Counter(exempt) - Counter(pinned)).elements())
+    new = sorted((Counter(found) - Counter(ledgered) - Counter(exempt)).elements())
 
     def located(key: str) -> str:
         path, _, rest = key.partition("::")
@@ -878,41 +817,7 @@ def test_detector_leaves_the_allowed_form_alone(label: str) -> None:
     assert _violations_of(ALLOWED_FORMS[label]) == [], f"{label} was wrongly flagged"
 
 
-@pytest.mark.parametrize("change", ["function", "stale", "duplicate", "baseline", "count", "format"])
-def test_pinned_upstream_register_rejects_drift(tmp_path, change):
-    path = tmp_path / "tests" / "example.py"
-    path.parent.mkdir()
-    source = "def test_example():\n    assert 1 == 1\n"
-    path.write_text(source, encoding="utf-8")
-    key = "tests/example.py::test_example::example assertion"
-    row = {"key": key, "function_sha256": _function_hashes(source)["test_example"][0]}
-    data = {"upstream": PINNED_UPSTREAM, "hash_format": PINNED_HASH_FORMAT, "approved_count": 1, "entries": [row]}
-    found = [key]
-    assert _pinned_upstream_errors(data, found, tmp_path) == []
-    if change == "function":
-        path.write_text(source.replace("1 == 1", "1 == 2"), encoding="utf-8")
-    elif change == "stale":
-        found.clear()
-    elif change == "duplicate":
-        data["entries"].append(row)
-        data["approved_count"] = 2
-    elif change == "baseline":
-        data["upstream"] = "another baseline"
-    elif change == "format":
-        data["hash_format"] = "unreviewed"
-    else:
-        data["approved_count"] = 2
-    assert _pinned_upstream_errors(data, found, tmp_path)
-
-
-def test_pinned_function_identity_ignores_formatting_but_not_behavior():
-    compact = "def example():\n return 1\n"
-    formatted = "# unrelated heading\ndef example():\n    return 1  # formatting only\n"
-    assert _function_hashes(compact) == _function_hashes(formatted)
-    assert _function_hashes(compact) != _function_hashes(compact.replace("return 1", "return 2"))
-
-
-def test_new_assertion_is_not_admitted_by_pinned_register(scan):
+def test_an_unledgered_assertion_is_flagged(scan):
     found, scanned, locations = scan
     new_key = "tests/unregistered.py::test_new::'new' in source"
     with pytest.raises(AssertionError, match="New positive source-grep"):

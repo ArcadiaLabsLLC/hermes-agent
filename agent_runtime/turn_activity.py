@@ -57,7 +57,7 @@ def chat_turns_admitted() -> int:
     ``0`` is a measurement: no turn is admitted. There is no "unknown" here —
     the counter is this module's own and always answerable. Callers that reach
     it across an import boundary they cannot assume (``agent_runtime.stream``,
-    the command parts exec'd into ``harness.py``) turn an unreachable module
+    the harness command parts) turn an unreachable module
     into ``None`` at THEIR seam, so an absence stays distinguishable from a
     zero on the record.
     """

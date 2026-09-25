@@ -8,8 +8,8 @@ tags: [handoff, program/downstream-refactor, program/agent-runtime-harness]
 
 For any change under `hermes_cli/harness.py` or `hermes_cli/harness_parts/`. Reach for this before adding a verb, moving a handler, or repointing a test patch.
 
-> [!important] The seven parts are not modules yet — they are text exec'd into harness.py's globals
-> `_load_command_parts` in `harness.py` reads `persona_commands`, `runtime_commands`, `board`, `office`, `level`, `flow_commands`, `checkpoint_commands` and runs each with `exec(..., globals())`. Every name in every part resolves through harness.py's dict. 263 test patches on `harness.<name>` work only because of that (67 own, 155 imported, 41 part-defined). If you turn a part into a real module, code inside it resolves names in ITS globals and a patch on `harness.X` becomes a no-op that passes. `monkeypatch.setattr` raises on a MISSING attribute, not on a present-but-unused one. The refactor plan's H1 lane and gate W0-G4 (harness binds no callable defined elsewhere, allowlist: `build_parser`, `emit_harness_error`, `_cmd_characters_*`) are the fix; do not half-do it.
+> [!important] The parts are real modules (lane H1, 2026-09-24)
+> harness.py wires each handler through its part module (`inspect_commands._cmd_persona_list`, from `harness_parts/persona/`) and execs nothing. A name resolves in the globals of the module whose code reads it, so a test patches it THERE: `monkeypatch.setattr(inspect_commands, "load_agent_runtime_config", …)`, not `harness.`. W0-G4 (`tests/tooling/test_harness_namespace_is_thin.py`) reds a re-export shim on harness.py. A name several persona modules read is patched in each module that reads it.
 
 ## Read order
 
@@ -20,7 +20,7 @@ For any change under `hermes_cli/harness.py` or `hermes_cli/harness_parts/`. Rea
 ## Hard rules
 
 - `serve.py` is a real module (it owns the stdout swap and tests import it by path) — the pattern the others follow.
-- A part never imports `hermes_cli.harness` (cycle); shared helpers go to `harness_parts/_common.py` (a leaf).
+- A part never imports `hermes_cli.harness` (cycle); shared helpers live in `hermes_cli/harness_support.py` (a leaf).
 - Any argparse change: `python scripts/dump_cli_contract.py --check`, and READ the diff before `--write`. A removed command or flag is a launcher button that exits 2; re-vendor the launcher's `tool/hermes_cli_contract/` in the same wave.
 - New write verbs are RPC methods, not argv ([[0003 — RPC route first]]).
 - `hermes harness` handlers resolve `HERMES_HOME` at call time ([[Architecture Invariants]] rule 1); `_apply_profile_override()` has run before any handler in a CLI process, and has NOT under pytest.
@@ -28,5 +28,5 @@ For any change under `hermes_cli/harness.py` or `hermes_cli/harness_parts/`. Rea
 ## Surface map
 
 - Families in `build_parser` (1,712 lines today): roots, gateway, skills, workspace, realm, persona, chat, characters, doctor, serve, office/board/level/flow/checkpoint.
-- Handlers: `_cmd_<family>_<verb>`; chat turn = `_cmd_mission_chat_message` → `_mission_chat_commit_turn` (persona_commands); serve = `harness_parts/serve.py::_cmd_serve` → `serve_loop`.
-- Tests: `tests/hermes_cli/test_harness_*.py`, `tests/agent_runtime/` (patch `harness.<name>` today; part modules after H1).
+- Handlers: `_cmd_<family>_<verb>`; chat turn = `persona/chat_turn_message.py::_cmd_mission_chat_message` → `persona/chat_turn_commit::_mission_chat_commit_turn`; serve = `harness_parts/serve.py::_cmd_serve` → `serve_loop`.
+- Tests: `tests/hermes_cli/test_harness_*.py`, `tests/agent_runtime/` (patch the part module that reads the name).

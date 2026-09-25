@@ -70,6 +70,7 @@ class _StaleFirstSpy:
 
             return copy.deepcopy(self.core)
 
+        monkeypatch.setattr(core_cache.lane, "take_stale_first_core", _fake)
         monkeypatch.setattr(core_cache, "take_stale_first_core", _fake)
 
     @property
@@ -259,7 +260,7 @@ def test_a_two_frame_budget_has_room_for_the_stale_core(
 #: could be present in a comment or a docstring.
 _PRODUCTION_CALL_SITES = (
     ("hermes_cli/harness_parts/runtime_commands.py", "_cmd_stream"),
-    ("hermes_cli/harness_parts/serve.py", "_stream_source"),
+    ("hermes_cli/harness_parts/serve/subscriptions.py", "_stream_source"),
 )
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -372,6 +373,11 @@ def _stream_frames_caller_files() -> set[str]:
             continue
         path = _REPO_ROOT / relative
         try:
+            # A file whose text never spells the name cannot call it. Parsing
+            # every production file instead ran this test past its 30 s cap and
+            # killed its whole bundle (scripts/test_bundles_unbundled.txt).
+            if "stream_frames" not in _tree_index.text(str(path)):
+                continue
             tree = _tree_index.parsed(str(path))
         except (SyntaxError, UnicodeDecodeError, OSError):
             # A file this repo owns that will not parse is not this gate's

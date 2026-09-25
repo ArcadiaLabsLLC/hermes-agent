@@ -140,6 +140,7 @@ from pathlib import Path
 import pytest
 
 from agent_runtime.events import ALLOWED_EVENT_TYPES
+from tests import _fork_scope
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
 
@@ -155,6 +156,68 @@ HERMES_ROOT = Path(__file__).resolve().parents[2]
 #: ``tests`` is excluded on purpose (S55's rule: a symbol kept alive only by the
 #: test written to exercise it is a closed loop, not coverage) and so is this
 #: file, which names every banned symbol by definition.
+#: The harness verbs' name space: harness.py plus the command parts it used to
+#: exec into its globals. Since lane H1 (2026-09-24) each part is its own
+#: module, so a harness-scoped absence row checks every one of them — the
+#: coverage the shared exec'd namespace gave it for free. Lane H2 moved
+#: harness.py's own verb families into ``harness_parts`` too; they are listed.
+HARNESS_NAMESPACE = (
+    "hermes_cli.harness",
+    "hermes_cli.harness_parts.board",
+    "hermes_cli.harness_parts.checkpoint_commands",
+    "hermes_cli.harness_parts.flow_commands",
+    "hermes_cli.harness_parts.level",
+    "hermes_cli.harness_parts.map",
+    "hermes_cli.harness_parts.office",
+    "hermes_cli.harness_parts.persona.chat_admission",
+    "hermes_cli.harness_parts.persona.chat_coordinator",
+    "hermes_cli.harness_parts.persona.chat_delete",
+    "hermes_cli.harness_parts.persona.chat_events",
+    "hermes_cli.harness_parts.persona.chat_history_writes",
+    "hermes_cli.harness_parts.persona.chat_open",
+    "hermes_cli.harness_parts.persona.chat_reply_stamps",
+    "hermes_cli.harness_parts.persona.chat_request",
+    "hermes_cli.harness_parts.persona.chat_session",
+    "hermes_cli.harness_parts.persona.chat_target",
+    "hermes_cli.harness_parts.persona.chat_tickets_commands",
+    "hermes_cli.harness_parts.persona.chat_turn_commit",
+    "hermes_cli.harness_parts.persona.chat_turn_message",
+    "hermes_cli.harness_parts.persona.inspect_commands",
+    "hermes_cli.harness_parts.persona.instance_commands",
+    "hermes_cli.harness_parts.persona.lifecycle_commands",
+    "hermes_cli.harness_parts.persona.model_and_skills_commands",
+    "hermes_cli.harness_parts.runtime_commands",
+    # The verb families lane H2 moved out of harness.py (2026-09-24).
+    "hermes_cli.harness_parts.agent_commands",
+    "hermes_cli.harness_parts.characters.auto",
+    "hermes_cli.harness_parts.characters.commands",
+    "hermes_cli.harness_parts.characters.payloads",
+    "hermes_cli.harness_parts.characters.steps",
+    "hermes_cli.harness_parts.doctor_commands",
+    "hermes_cli.harness_parts.gateway_identity_commands",
+    "hermes_cli.harness_parts.init_commands",
+    "hermes_cli.harness_parts.parser",
+    "hermes_cli.harness_parts.parser.characters",
+    "hermes_cli.harness_parts.parser.common_args",
+    "hermes_cli.harness_parts.parser.machine",
+    "hermes_cli.harness_parts.parser.persona",
+    "hermes_cli.harness_parts.parser.scope",
+    "hermes_cli.harness_parts.parser.surfaces",
+    "hermes_cli.harness_parts.pets_commands",
+    "hermes_cli.harness_parts.prompt_context_commands",
+    "hermes_cli.harness_parts.provider_visibility",
+    "hermes_cli.harness_parts.realm_commands",
+    "hermes_cli.harness_parts.roots_commands",
+    "hermes_cli.harness_parts.skills_commands",
+    "hermes_cli.harness_parts.skills_promotion_commands",
+    "hermes_cli.harness_parts.usage.commands",
+    "hermes_cli.harness_parts.usage.detect",
+    "hermes_cli.harness_parts.usage.lanes",
+    "hermes_cli.harness_parts.usage.providers",
+    "hermes_cli.harness_parts.usage.serialize",
+    "hermes_cli.harness_parts.workspace_commands",
+)
+
 PRODUCTION_PACKAGES = (
     "agent_runtime",
     "hermes_cli",
@@ -1114,7 +1177,7 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "OPERATOR_RESOLVABLE_TURN_STATES",
         "find_discovery_task",
         "worker_session_summary",
-        scope=("hermes_cli.harness",),
+        scope=HARNESS_NAMESPACE,
     ),
     *rows(
         "s41",
@@ -1164,7 +1227,7 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "_incident_history_row",
         "_incident_cursor_ts",
         "_archived_task_summary",
-        scope=("hermes_cli.harness",),
+        scope=HARNESS_NAMESPACE,
     ),
     # -- S43 — individual dead symbols ------------------------------------
     *rows(
@@ -1530,7 +1593,7 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "_office_item_row",
         "read_realm_sync_sidecar",
         "exact_scoped_instance_ids",
-        scope=("hermes_cli.harness",),
+        scope=HARNESS_NAMESPACE,
     ),
     # -- S49 — operator_control + production_envelope -----------------------
     *rows(
@@ -1823,7 +1886,11 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "zero references and the verb was never wired",
         "load_final_model_input_for_context",
         "_mission_chat_template_prompt_chars",
-        scope=("agent_runtime.prompt_observability",),
+        scope=(
+            "agent_runtime.prompt_observability",
+            "agent_runtime.prompt_observability.context_files",
+            "agent_runtime.prompt_observability.context_store",
+        ),
     ),
     *rows(
         "s54",
@@ -2208,7 +2275,7 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         Form.ATTR,
         "the payload formatter was reachable only from dead ChatBusyError catches",
         "_chat_busy_payload",
-        scope=("hermes_cli.harness",),
+        scope=HARNESS_NAMESPACE,
     ),
     *rows(
         "s59",
@@ -2219,7 +2286,9 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         scope=(
             "hermes_cli/harness.py",
             "hermes_cli/harness_support.py",
-            "hermes_cli/harness_parts/persona_commands.py",
+            "hermes_cli/harness_parts/persona/chat_delete.py",
+            "hermes_cli/harness_parts/persona/chat_turn_commit/__init__.py",
+            "hermes_cli/harness_parts/persona/chat_turn_message.py",
         ),
     ),
     *rows(
@@ -2904,7 +2973,7 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "_USAGE_LANE_PROVIDERS raises UnknownUsageLaneError instead of "
         "degrading into 'no usage data'",
         "fetch_account_usage",
-        scope=("hermes_cli.harness",),
+        scope=HARNESS_NAMESPACE,
     ),
     # -- S72 = dead-code audit pass 2 (2026-08-19), stage HB-1. -----------
     # `agent_runtime/risk_flags.py` was an ISLAND BEHIND A FOLDED PREDICATE.
@@ -3105,7 +3174,7 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "dead-code audit pass 2 HB-4 — a line-count exception for a file that "
         "has been under the bar for a wave: it cited 3,170 lines against a "
         "snapshot.py of 2,621, and of the four seams it named as the split "
-        "plan only `_parity_envelope` still exists",
+        "plan only `parity_envelope` still exists",
         "agent_runtime/docs/snapshot_line_count_exception.md",
     ),
     # -- S72 stages H-CLI-2 / H-P1 / H-P2 ---------------------------------
@@ -3459,6 +3528,53 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "DUPLICATE_PLACEMENT_REASONS",
         "_is_relative_to",
         scope=_AR,
+    ),
+    *rows(
+        # Lane H2 (god-file program, 2026-09-24): dead-code queue row "the eight
+        # `_cmd_gateway_*` trampolines", sheet god-file-layout-sheets/harness.md §5.
+        "s-h2",
+        "HEAD",
+        Form.ATTR,
+        "four-line trampolines onto gateway_commands.cmd_*, read only by the "
+        "parser's set_defaults(func=...); the parser binds gateway_commands.cmd_* "
+        "directly. Their lazy import saved one light module load (gateway_commands "
+        "imports only stdlib and harness_support at module scope; 12 ms cold)",
+        "_cmd_gateway_pair",
+        "_cmd_gateway_introduce",
+        "_cmd_gateway_devices_list",
+        "_cmd_gateway_devices_revoke",
+        "_cmd_gateway_peers_pair",
+        "_cmd_gateway_peers_join",
+        "_cmd_gateway_peers_list",
+        "_cmd_gateway_peers_revoke",
+        scope=HARNESS_NAMESPACE,
+    ),
+    *rows(
+        # Lane R1 (god-file program Wave 2, 2026-09-25): dead-code queue row
+        # `reset_unreadable_instance_rows`, sheet
+        # god-file-layout-sheets/persona_assignments.md §5 (TEST SEAM).
+        "s-r1",
+        "HEAD",
+        Form.CODE,
+        "a tests-only reset of the process-wide unreadable-row ledger with no "
+        "production caller; it lives in tests/_downstream/_seams.py and reaches "
+        "into persona_assignments.scan the same way",
+        "reset_unreadable_instance_rows",
+        scope=_AR,
+    ),
+    *rows(
+        # Lane R1 (god-file program Wave 2, 2026-09-25): sheet
+        # god-file-layout-sheets/office_store.md §4/§5 — the office alias of
+        # sync_merge.merge_archived_ledgers. ATTR, not CODE: the rule itself
+        # lives on in sync_merge under the same name.
+        "s-r1",
+        "HEAD",
+        Form.ATTR,
+        "a twelve-line re-export of sync_merge.merge_archived_ledgers that "
+        "only bound the office cap; its one caller (adopt_remote_surface) "
+        "passes cap=ARCHIVED_LEDGER_CAP to the rule directly",
+        "merge_archived_ledgers",
+        scope=("agent_runtime.office_store", "agent_runtime.office_store.models"),
     ),
 )
 
@@ -4297,6 +4413,66 @@ def _historical_test_sources(root: Path, base: str) -> dict[str, str]:
     return sources
 
 
+def _subject_definition_line(subject: tuple[str, str]) -> int | None:
+    """1-based line of ``subject``'s top-level definition, or ``None``."""
+
+    module_name, symbol = subject
+    source_path = HERMES_ROOT / f"{module_name.replace('.', '/')}.py"
+    tree = _parsed(source_path.read_text(encoding="utf-8", errors="replace"))
+    for node in tree.body if tree else ():
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.name == symbol:
+            return node.lineno
+    return None
+
+
+def _top_level_test_names(lines: list[str] | None) -> frozenset[str] | None:
+    tree = _parsed("\n".join(lines)) if lines is not None else None
+    if tree is None:
+        return None
+    return frozenset(
+        node.name for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    )
+
+
+@functools.lru_cache(maxsize=None)
+def _upstream_side_test_names(relative: str) -> tuple[frozenset[str] | None, frozenset[str] | None]:
+    """``relative``'s top-level test names at the upstream point the base had
+    merged, and at ``upstream/main`` — ``None`` where that side lacks the file."""
+
+    root = _fork_scope.repo_root()
+    merged = _fork_scope._git(
+        ["merge-base", _ROUND4_COVERAGE_BASE, _fork_scope.UPSTREAM_REF], cwd=root
+    )
+    if merged is None:
+        return None, None
+    then = _fork_scope._git(["cat-file", "blob", f"{merged.decode().strip()}:{relative}"], cwd=root)
+    then_lines = then.decode("utf-8", errors="replace").splitlines() if then is not None else None
+    return _top_level_test_names(then_lines), _top_level_test_names(_fork_scope._upstream_text(relative))
+
+
+def _upstream_retired_its_own_coverage(relative: str, test_name: str, subject: tuple[str, str]) -> bool:
+    """Is this lost reference UPSTREAM's loss rather than the fork's?
+
+    True only when all three hold: upstream wrote the subject's definition
+    (``_fork_scope.is_fork_authored`` on its ``def`` line), upstream carried
+    the deleted test at the point the base had merged, and ``upstream/main`` no
+    longer does — upstream retired its own test of its own code, and a merge
+    brought the deletion in. The fork's gates police the fork's lines; the fork
+    may not re-add an upstream test it would then owe at every merge. Anything
+    unresolvable answers False, so the finding stays counted (fail closed).
+    """
+
+    if _fork_scope.upstream_blobs() is None:
+        return False
+    line = _subject_definition_line(subject)
+    source = f"{subject[0].replace('.', '/')}.py"
+    if line is None or _fork_scope.is_fork_authored(source, line):
+        return False
+    then, now = _upstream_side_test_names(relative)
+    return then is not None and test_name in then and (now is None or test_name not in now)
+
+
 @functools.lru_cache(maxsize=1)
 def _round4_uncovered_subjects() -> tuple[str, ...]:
     """Live production symbols whose last direct test reference a deletion took.
@@ -4347,7 +4523,11 @@ def _round4_uncovered_subjects() -> tuple[str, ...]:
                 module_imports | local_imports,
             )
             for subject in subjects:
-                if _live_production_symbol(subject) and subject not in covered:
+                if (
+                    _live_production_symbol(subject)
+                    and subject not in covered
+                    and not _upstream_retired_its_own_coverage(relative, old_test.name, subject)
+                ):
                     uncovered.append(
                         f"{relative}::{old_test.name} deleted the last direct test "
                         f"reference to {subject[0]}.{subject[1]}"
@@ -4371,6 +4551,45 @@ def test_round4_deleted_tests_left_no_live_production_subject_uncovered():
 
     uncovered = _round4_uncovered_subjects()
     assert uncovered == (), "\n".join(uncovered)
+
+
+def test_upstreams_own_retired_test_of_its_own_code_is_upstreams_loss():
+    """The scope filter removes a real merge-borne deletion (negative arm).
+
+    ``tests/gateway/test_version_command.py`` was upstream's file, upstream
+    deleted it, and its subject ``hermes_cli.banner.format_banner_version_label``
+    is upstream's definition; the 2026-09-24 merge brought that deletion in.
+    """
+
+    if _fork_scope.upstream_blobs() is None:
+        pytest.skip("no upstream/main ref: the filter fails closed and counts everything")
+    assert _upstream_retired_its_own_coverage(
+        "tests/gateway/test_version_command.py",
+        "test_gateway_version_command_returns_release_line",
+        ("hermes_cli.banner", "format_banner_version_label"),
+    )
+
+
+def test_a_fork_authored_subject_is_never_upstreams_loss():
+    """Positive control: the same upstream-retired test, but a subject the fork
+    wrote, stays COUNTED — the filter keys on the subject's author."""
+
+    assert not _upstream_retired_its_own_coverage(
+        "tests/gateway/test_version_command.py",
+        "test_gateway_version_command_returns_release_line",
+        ("agent_runtime.chat_session_scope", "configured_head_home"),
+    )
+
+
+def test_a_test_upstream_still_carries_is_the_forks_loss():
+    """Positive control: an upstream subject whose test upstream still ships
+    was deleted by the FORK, so it stays counted."""
+
+    assert not _upstream_retired_its_own_coverage(
+        "tests/hermes_cli/test_curator_status.py",
+        "test_this_name_is_no_test_upstream_ever_carried",
+        ("hermes_cli.curator", "register_cli"),
+    )
 
 
 def test_the_round4_git_walk_is_also_paid_at_import():

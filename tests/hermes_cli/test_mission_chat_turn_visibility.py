@@ -24,6 +24,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from hermes_cli.harness_parts.persona import chat_turn_message
+
 from agent_runtime.turn_visibility import TURN_VISIBILITY_KEY
 
 from tests.hermes_cli.test_mission_chat_budget_payload import (  # noqa: F401
@@ -62,7 +64,7 @@ def _provider(final_response: str, messages=None, raw=None):
 
 def _drive(monkeypatch, capsys, *, final_response, messages=None, raw=None, cmid="vis_turn"):
     harness = _seed(monkeypatch, _provider(final_response, messages, raw))
-    code = harness._cmd_mission_chat_message(_args(cmid))
+    code = chat_turn_message._cmd_mission_chat_message(_args(cmid))
     return code, json.loads(capsys.readouterr().out)
 
 
@@ -128,10 +130,10 @@ def test_an_idempotent_replay_carries_the_block_too(
     """
 
     harness = _seed(monkeypatch, _provider(""))
-    assert harness._cmd_mission_chat_message(_args("replayed_turn")) == 0
+    assert chat_turn_message._cmd_mission_chat_message(_args("replayed_turn")) == 0
     capsys.readouterr()
 
-    code = harness._cmd_mission_chat_message(_args("replayed_turn"))
+    code = chat_turn_message._cmd_mission_chat_message(_args("replayed_turn"))
     payload = json.loads(capsys.readouterr().out)
 
     assert code == 0, payload
@@ -157,7 +159,7 @@ def test_a_failing_provider_still_emits_a_payload_this_does_not_break(
             raise RuntimeError("provider exploded")
 
     harness = _seed(monkeypatch, _Boom)
-    code = harness._cmd_mission_chat_message(_args("boom_turn"))
+    code = chat_turn_message._cmd_mission_chat_message(_args("boom_turn"))
     payload = json.loads(capsys.readouterr().out)
 
     assert code != 0

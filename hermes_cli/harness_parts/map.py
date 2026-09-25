@@ -1,7 +1,6 @@
 # Map CATALOGUE CLI tier: `hermes harness map …`.
 #
-# This module is exec'd into hermes_cli/harness.py's globals (see
-# _load_command_parts) and shares the Stage-42 envelope/printer/error helpers
+# This module shares the Stage-42 envelope/printer/error helpers
 # with every other tier — imported from hermes_cli.harness_support below, not
 # inherited. Every write goes through the MapStore chokepoint, the same door
 # realm sync's pull applier uses.
@@ -18,10 +17,9 @@
 # `unnamed · yours` on the Mac because the catalogue naming it was machine-local
 # SharedPreferences. Sibling of harness_parts/level.py in every other respect.
 
-# Explicit import header — its rationale lives ONCE, in
-# ``hermes_cli/harness_support.py``'s module docstring, which also names the
-# two gates that hold it: ruff's F821 for the header being complete, and
-# tests/hermes_cli/test_harness_parts_namespace.py for the load-order namespace.
+# A real module (lane H1, 2026-09-24): it imports everything it reads, and a
+# test patches a name HERE, where this module looks it up — never on
+# ``hermes_cli.harness`` (W0-G4, tests/tooling/test_harness_namespace_is_thin.py).
 
 from __future__ import annotations
 
@@ -33,6 +31,15 @@ from hermes_cli.harness_support import (
     _print_stage42,
     emit_harness_error,
 )
+
+__layer__ = "lanes"
+__all__ = [
+    "_cmd_map_clear",
+    "_cmd_map_list",
+    "_cmd_map_set",
+    "_cmd_map_show",
+]
+
 
 
 def _map_store():

@@ -8,14 +8,14 @@ exception-wrapped and never directly asserted, so a regression would fail silent
 
 import pytest
 
-from hermes_cli.harness import (
+from hermes_cli.harness_parts.persona.chat_history_writes import (
     _append_persona_assistant_text,
     _append_persona_operator_turn,
-    _ensure_persona_chat_session,
-    _persona_chat_session_owner,
     _redact_persona_chat_text,
     _update_persona_chat_token_counts,
 )
+from hermes_cli.harness_parts.persona.chat_open import _ensure_persona_chat_session
+from hermes_cli.harness_parts.persona.chat_session import _persona_chat_session_owner
 from agent_runtime.persona_chat_continuity import safe_native_history
 
 

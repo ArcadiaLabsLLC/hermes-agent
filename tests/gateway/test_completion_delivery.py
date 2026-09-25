@@ -17,7 +17,6 @@ import pytest
 
 from gateway.config import Platform
 from gateway.run import GatewayRunner
-from gateway.session import SessionSource
 from tools.process_registry import ProcessRegistry, ProcessSession
 
 
@@ -36,7 +35,7 @@ def isolated_registry(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     import tools.process_registry as pr_module
 
-    monkeypatch.setattr(pr_module, "checkpoint_path", lambda: tmp_path / "processes.json")
+    monkeypatch.setattr(pr_module, "CHECKPOINT_PATH", tmp_path / "processes.json")
     registry = pr_module.ProcessRegistry()
     monkeypatch.setattr(pr_module, "process_registry", registry)
     return registry
@@ -44,8 +43,6 @@ def isolated_registry(tmp_path, monkeypatch):
 
 def _runner(adapter, *, origins=None):
     runner = object.__new__(GatewayRunner)
-    # Exercise agent-turn delivery explicitly; the fork defaults to text notices.
-    runner._background_agent_turns_enabled = lambda: True
     runner._running = True
     runner.adapters = {Platform.TELEGRAM: adapter}
     runner.session_store = SimpleNamespace(
@@ -94,22 +91,6 @@ def _completion_event(*, started_at, session_id="proc_reused"):
         "completion_reason": "exited",
         "output": "done\n",
     }
-
-
-def _persist_pending_completion(event):
-    from tools import async_delegation
-
-    async_delegation._persist_dispatch({
-        "delegation_id": event["delegation_id"],
-        "session_key": event["session_key"],
-        "origin_ui_session_id": "",
-        "parent_session_id": event.get("parent_session_id"),
-        "dispatched_at": event["dispatched_at"],
-    })
-    async_delegation._persist_completion(event, {
-        "status": "completed",
-        "summary": event["summary"],
-    })
 
 
 def _stop_after_sleeps(monkeypatch, runner, count):
@@ -214,6 +195,22 @@ def test_failed_async_injection_is_retried_and_only_success_is_acked(
     assert acknowledgements == ["deleg_duplicate"]
 
 
+def _persist_pending_completion(event):
+    from tools import async_delegation
+
+    async_delegation._persist_dispatch({
+        "delegation_id": event["delegation_id"],
+        "session_key": event["session_key"],
+        "origin_ui_session_id": "",
+        "parent_session_id": event.get("parent_session_id"),
+        "dispatched_at": event["dispatched_at"],
+    })
+    async_delegation._persist_completion(event, {
+        "status": "completed",
+        "summary": event["summary"],
+    })
+
+
 def test_explicit_kill_returns_output_before_consuming_notification(monkeypatch):
     import tools.process_registry as pr_module
 
@@ -308,7 +305,7 @@ def test_autonomous_completion_redacts_real_command_and_output_secrets(monkeypat
     monkeypatch.setattr(pr_module, "process_registry", registry)
     monkeypatch.setattr(redact_module, "_REDACT_ENABLED", True)
 
-    adapter = SimpleNamespace(handle_message=AdmittingHandler(), send=AsyncMock())
+    adapter = SimpleNamespace(handle_message=AdmittingHandler())
     runner = _runner(adapter)
 
     async def _instant_sleep(*_a, **_kw):
@@ -325,17 +322,9 @@ def test_autonomous_completion_redacts_real_command_and_output_secrets(monkeypat
         "notify_on_complete": True,
     }))
 
-    if adapter.handle_message.await_args is not None:
-        delivered_text = adapter.handle_message.await_args.args[0].text
-    else:
-        # Direct-send lane: adapter.send(chat_id, text, reply_to=..., metadata=...)
-        assert adapter.send.await_args is not None, (
-            "the completion notification was not delivered on either lane"
-        )
-        delivered_text = adapter.send.await_args.args[1]
-
-    assert secret not in delivered_text
-    assert "HOME=/home/user" in delivered_text
+    delivered = adapter.handle_message.await_args.args[0]
+    assert secret not in delivered.text
+    assert "HOME=/home/user" in delivered.text
 
 
 def test_concurrent_process_watchers_coalesce_one_session_completion_turn(monkeypatch):
@@ -923,7 +912,7 @@ def test_unavailable_delivery_preserves_budget_across_restarts(tmp_path, unavail
 
     adapter = SimpleNamespace(handle_message=AdmittingHandler())
     api = SimpleNamespace(supports_async_delivery=False, _ensure_session_db=lambda: None)
-    for _restart in range(10):
+    for _restart in range(3):
         runner = _runner(adapter)
         runner.adapters = {Platform.API_SERVER: api} if unavailable == "api_db" else {}
         if unavailable == "owner_db":

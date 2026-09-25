@@ -36,7 +36,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 BOOT_TIMEOUT_SECONDS = 180.0
 CLI_TIMEOUT_SECONDS = 180.0
 
-#: The suite's global cap is 30s (``pyproject.toml`` addopts), which is right
+#: The suite's global cap is 30s (``tests/_downstream/conftest_plugin.py``), which is right
 #: for a Python-level hang and wrong for these two: each boots a REAL serve
 #: child and then spawns the CLI verb two or three more times, and a cold
 #: interpreter start on Windows is seconds each. Measured at ~25s on the

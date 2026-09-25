@@ -35,7 +35,7 @@ from hermes_cli.config import get_hermes_home
 from tools.process_registry_notifications import format_process_notification
 from tools.process_registry_checkpoint import ProcessCheckpointMixin
 from agent_runtime.process_notifications import (
-    ProcessNotificationMixin, checkpoint_path, wait_ceiling_seconds, MISSION_CHAT_WAIT_MAX_SECONDS,
+    ProcessNotificationMixin, checkpoint_path, wait_ceiling_seconds,
 )
 from tools.process_registry_results import load_completed_results, save_completed_result
 
@@ -77,6 +77,14 @@ WATCH_STRIKE_LIMIT = 3
 # delivered this many matches over its whole life we disable it and fall back to notify_on_complete, same as
 # the strike-limit path.
 WATCH_LIFETIME_MAX_HITS = 8
+# Heartbeat: an opt-in periodic "still running, here is the output since last time" event for
+# long bounded jobs (merge trains, full test suites, deploys). Unlike watch patterns it is
+# time-driven, so it is bounded by construction (≤ 3600/HEARTBEAT_MIN_SECONDS events per hour
+# per process) and needs no strike/lifetime breaker. The floor exists so a model cannot turn
+# it into a 5-second poll; the output slice is capped like a completion notice.
+HEARTBEAT_MIN_SECONDS = 60
+HEARTBEAT_OUTPUT_CHARS = 2000
+HEARTBEAT_TICK_SECONDS = 5
 # Global circuit breaker across all sessions so concurrent siblings can't collectively
 # flood the user even when each is under its own cap.
 WATCH_GLOBAL_MAX_PER_WINDOW = 15
@@ -539,6 +547,11 @@ class ProcessSession:
     notify_on_complete: bool = False            # Queue agent notification on exit
     completion_output_chars: int = 0            # Output chars the completion carries; 0 = COMPLETION_OUTPUT_CHARS
     watch_patterns: List[str] = field(default_factory=list)
+    heartbeat_seconds: int = 0                  # 0 = off; else a "heartbeat" event every N s while running
+    total_output_chars: int = 0                 # Chars ever ingested (the buffer is a rolling tail)
+    _heartbeat_last: float = field(default=0.0, repr=False)          # time of the last heartbeat (or spawn)
+    _heartbeat_total_at_last: int = field(default=0, repr=False)     # total_output_chars at that moment
+    _heartbeat_seq: int = field(default=0, repr=False)
     _watch_hits: int = field(default=0, repr=False)          # total matches delivered
     _watch_suppressed: int = field(default=0, repr=False)    # matches dropped by rate limit
     _watch_disabled: bool = field(default=False, repr=False) # permanently killed after strike limit
@@ -551,10 +564,17 @@ class ProcessSession:
     _reader_thread: Optional[threading.Thread] = field(default=None, repr=False)
     _pty: Any = field(default=None, repr=False)  # ptyprocess handle (use_pty=True)
 
+    def __post_init__(self):
+        # A session built without an explicit owner is owned by its own task, so ownership checks compare
+        # ``owner_task_id`` alone instead of repeating an ``or task_id`` fallback at every call site.
+        if not self.owner_task_id:
+            self.owner_task_id = self.task_id
+
     def append_output(self, text: str) -> None:
         """Append to the rolling output buffer under the session lock, keeping the tail."""
         with self._lock:
             self.output_buffer += text
+            self.total_output_chars += len(text)
             if len(self.output_buffer) > self.max_output_chars:
                 self.output_buffer = self.output_buffer[-self.max_output_chars:]
 
@@ -577,7 +597,8 @@ _CHECKPOINT_FIELDS = (
     "command", "pid", "pid_scope", "host_start_time", "systemd_unit", "cwd",
     "started_at", "task_id", "owner_task_id", "session_key",
     *(f"watcher_{k}" for k in _WATCHER_ROUTE_KEYS), "watcher_interval",
-    "parent_session_id", "notify_on_complete", "completion_output_chars", "watch_patterns")
+    "parent_session_id", "notify_on_complete", "completion_output_chars", "watch_patterns",
+    "heartbeat_seconds")
 _CHECKPOINT_DEFAULTS = {
     f.name: ([] if f.name == "watch_patterns" else f.default)
     for f in ProcessSession.__dataclass_fields__.values()
@@ -625,6 +646,60 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
         # a read-only terminal tab without killing the process.
         self.on_output = None
         self.on_close = None
+        self._heartbeat_thread: Optional[threading.Thread] = None
+
+    # ── heartbeat ───────────────────────────────────────────────────────────
+    def arm_heartbeat(self, session: ProcessSession, seconds: int) -> int:
+        """Enable periodic heartbeat events for ``session``; returns the effective interval."""
+        seconds = max(int(seconds), HEARTBEAT_MIN_SECONDS)
+        session.heartbeat_seconds = seconds
+        session._heartbeat_last = time.time()
+        session._heartbeat_total_at_last = session.total_output_chars
+        self._ensure_heartbeat_thread()
+        return seconds
+
+    def _ensure_heartbeat_thread(self) -> None:
+        with self._lock:
+            if self._heartbeat_thread is not None and self._heartbeat_thread.is_alive():
+                return
+            self._heartbeat_thread = threading.Thread(
+                target=self._heartbeat_loop, name="process-heartbeat", daemon=True)
+            self._heartbeat_thread.start()
+
+    def _heartbeat_loop(self) -> None:
+        """One daemon thread for every heartbeat session: reader threads block on the pipe and
+        cannot keep time, and a per-process timer would leak one thread per job."""
+        while True:
+            time.sleep(HEARTBEAT_TICK_SECONDS)
+            now = time.time()
+            with self._lock:
+                due = [s for s in self._running.values()
+                       if s.heartbeat_seconds > 0 and not s.exited
+                       and now - s._heartbeat_last >= s.heartbeat_seconds]
+            for session in due:
+                self._emit_heartbeat(session, now)
+
+    def _emit_heartbeat(self, session: ProcessSession, now: float) -> None:
+        with session._lock:
+            delta = session.total_output_chars - session._heartbeat_total_at_last
+            output = session.output_buffer[-delta:] if delta > 0 else ""
+            session._heartbeat_total_at_last = session.total_output_chars
+        if len(output) > HEARTBEAT_OUTPUT_CHARS:
+            cut = len(output) - HEARTBEAT_OUTPUT_CHARS
+            output = f"...({cut} earlier characters omitted)\n" + output[-HEARTBEAT_OUTPUT_CHARS:]
+        session._heartbeat_last = now
+        session._heartbeat_seq += 1
+        notification = {
+            **self._watch_event_base(session),
+            "type": "heartbeat",
+            "seq": session._heartbeat_seq,
+            "interval": session.heartbeat_seconds,
+            "elapsed": int(now - session.started_at) if session.started_at else 0,
+            "output": output,
+            "started_at": session.started_at,
+        }
+        _redact_process_result(notification)
+        self.completion_queue.put(notification)
 
     @staticmethod
     def _clean_shell_noise(text: str) -> str:
@@ -735,7 +810,7 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
             "session_id": session.id,
             "session_key": session.session_key,
             "task_id": session.task_id,
-            "owner_task_id": session.owner_task_id or session.task_id,
+            "owner_task_id": session.owner_task_id,
             "command": session.command,
             **{key: getattr(session, f"watcher_{key}") for key in _WATCHER_ROUTE_KEYS},
         }
@@ -952,6 +1027,14 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
         if grace <= 0:
             return
         _wait_for_exit(targets)
+        # A parent that ignored SIGTERM (the interactive ``bash -lic`` wrapper does) keeps
+        # running its script through both grace windows and can spawn children the first
+        # snapshot never saw. Re-snapshot while it is still alive: once it is SIGKILLed
+        # they reparent to init and nothing can find them again.
+        with suppress(gone):
+            if cls._proc_alive(parent):
+                known = {proc.pid for proc in targets}
+                targets.extend(p for p in parent.children(recursive=True) if p.pid not in known)
         for proc in targets:
             with suppress(gone):
                 if cls._proc_alive(proc):
@@ -1026,7 +1109,7 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
 
         return ProcessSession(
             id=f"proc_{uuid.uuid4().hex[:12]}", command=command, task_id=task_id,
-            owner_task_id=owner_task_id or task_id, session_key=session_key, cwd=cwd,
+            owner_task_id=owner_task_id, session_key=session_key, cwd=cwd,
             parent_session_id=get_session_env("HERMES_SESSION_ID", ""),
             started_at=time.time(), **extra)
 
@@ -1258,7 +1341,10 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
         Windows pipes don't support select(); the blocking path is kept there and the lazy reconcile in
         poll()/wait() remains the safety net. See #68915, #8340.
         """
-        first_chunk = True
+        # ``bash -lic`` without a tty writes its startup warnings one write() per line, so the
+        # reader can wake between them; strip leading noise from every chunk until the
+        # process has produced real output, not just from the first read.
+        head_noise = True
         # A split multibyte UTF-8 char would become U+FFFD with stateless decoding; the
         # incremental decoder holds the partial sequence until the rest arrives.
         decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
@@ -1269,10 +1355,10 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
         # same treatment the foreground path already has in
         # ``tools/environments/base.py::_wait_for_process``. (Ported from openclaw/openclaw#112325.)
         def _append_chunk(chunk: str):
-            nonlocal first_chunk
-            if first_chunk:
+            nonlocal head_noise
+            if head_noise:
                 chunk = self._clean_shell_noise(chunk)
-                first_chunk = False
+                head_noise = not chunk.strip()
             self._ingest_output(session, chunk)
         try:
             proc = session.process
@@ -1522,47 +1608,26 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
         # buffered ``output_buffer``, never from the pipe.
         self._release_finished_handles(session)
         self._write_checkpoint()
-        # Only enqueue completion notification on the FIRST move.  Without
-        # this guard, kill_process() and the reader thread can both call
-        # _move_to_finished(), producing duplicate [IMPORTANT: ...] messages.
-        # The same fact is the return value: only the first move persisted.
-        if not was_running:
-            return False
-        # A ``process notify`` request is the SECOND reason a completion is
-        # owed — the first being a spawn-time notify_on_complete. Both produce
-        # ONE event: a session that is armed twice over must not deliver twice.
-        try:
-            notify_row = self._notify_request_row(session.id)
-            if not session.notify_on_complete and notify_row is None:
-                return True
-            if notify_row is not None and not self._notify_target_is_live(notify_row):
-                # The persona instance that asked is gone. DROP it — the delivery
-                # lane's positive-ownership rule (#64484) says absence of the
-                # instance means "do not deliver", never "deliver anyway" — and say
-                # so out loud, because a silently abandoned completion is the exact
-                # failure class this lane exists to retire.
-                logger.warning(
-                    "process-exit notify for %s dropped: persona instance %s no longer"
-                    " owns chat root %s",
-                    session.id,
-                    notify_row.get("persona_instance_id") or "?",
-                    notify_row.get("chat_session_id") or "?",
-                )
-                self._settle_notify_request(
-                    session.id, fired=False, detail="persona_instance_missing"
-                )
-                notify_row = None
-                if not session.notify_on_complete:
-                    return True
-            event = self._completion_event_payload(session)
-            if notify_row is not None:
-                self._stamp_notify_routing(event, notify_row)
-                self._settle_notify_request(session.id, fired=True)
-            self.completion_queue.put(event)
-        finally:
-            # A finite owner must not wake before the completion is queued.
-            session._completion_event.set()
-        return True
+        if was_running and session.notify_on_complete:
+            notification = {
+                "type": "completion",
+                "session_id": session.id,
+                "session_key": session.session_key,
+                "task_id": session.task_id,
+                "owner_task_id": session.owner_task_id,
+                "command": session.command,
+                **({"handoff_note": session.handoff_note} if session.handoff_note else {}),
+                **self._exit_fields(session),
+                # A consumer that relays the output (a bot DM's reply) must know it is not whole.
+                **_completion_output(session),
+                # Stable producer identity across checkpoint recovery (unlike a
+                # consumer-observed completion timestamp).
+                "started_at": session.started_at,
+            }
+            _redact_process_result(notification)
+            self.completion_queue.put(notification)
+        session._completion_event.set()
+        return was_running
 
     @staticmethod
     def _exit_fields(session: ProcessSession) -> dict:
@@ -1642,7 +1707,8 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
             # window would otherwise see nothing pending, drain nothing and exit without the follow-up turn.
             pending = [
                 s for store in (self._running, self._finished) for s in store.values()
-                if s.notify_on_complete and not s._completion_event.is_set() and (task_id is None or s.task_id == task_id)
+                if s.notify_on_complete and not s._completion_event.is_set()
+                and (task_id is None or s.owner_task_id == task_id)
             ]
         if not pending or timeout <= 0:
             return result
@@ -1669,8 +1735,14 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
                         break
                     # Reconcile first so orphaned-pipe and detached exits fire the event.
                     with suppress(Exception):
-                        # A descendant can retain the pipe after the direct child exits
-                        # (#17327); reconcile real child state before waiting again.
+                        # Reconcile first: catches direct-child exits whose reader is blocked on a pipe held
+                        # open by a descendant (#17327) and detached/env sessions, so the event actually
+                        # fires.
+                        # Reconcile against real child state before reading session.exited. Guards against
+                        # orphaned-pipe reader hangs (issue #17327).
+                        # Reconcile against real child state — guards against orphaned- pipe reader hangs
+                        # where the reader is blocked but the direct child has already exited (issue
+                        # #17327).
                         self._reconcile_local_exit(session)
                         self._refresh_detached_session(session)
                     if session._completion_event.is_set():
@@ -1758,7 +1830,7 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
             # Routing happened first so a foreign session cannot drop the owner's
             # event via its own consumed/observed state.
             _evt_sid = evt.get("session_id", "")
-            if evt.get("type") == "completion" and not evt.get("notify_requested") and self._drain_should_skip(
+            if evt.get("type") == "completion" and self._drain_should_skip(
                 _evt_sid, skip_poll_observed=skip_poll_observed):
                 continue
             # Subagent-owned process notifications are suppressed by default — the
@@ -2206,10 +2278,10 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
         cross-task entries sharing the gateway session (a forgotten preview server
         blocking session reset) are flagged ``"session_scoped": true``.
 
-        When ``task_id`` is given, processes for that task are included. When ``session_key`` is also given,
-        session-scoped background processes (``background: true``) registered under that gateway session are
-        surfaced too, even if they belong to a different task — so the agent can discover a forgotten
-        preview server that is blocking session reset (#29177).
+        When ``task_id`` is given, processes that task spawned (its ``owner_task_id``) are included. When
+        ``session_key`` is also given, session-scoped background processes (``background: true``) registered
+        under that gateway session are surfaced too, even if they belong to a different task — so the agent
+        can discover a forgotten preview server that is blocking session reset (#29177).
         """
         # Only an explicit tool query reads historical receipts. Status bars and
         # gateway liveness scans call this frequently and need the live registry.
@@ -2221,7 +2293,8 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
         if task_id or session_key:
             all_sessions = [
                 s for s in all_sessions
-                if (task_id and s.task_id == task_id) or (session_key and s.session_key == session_key)
+                if (task_id and s.owner_task_id == task_id)
+                or (session_key and s.session_key == session_key)
             ]
         result = []
         for s in all_sessions:
@@ -2233,7 +2306,7 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
                 "command": s.command[:200],
                 "cwd": s.cwd,
                 "pid": s.pid,
-                "owner_task_id": s.owner_task_id or s.task_id,
+                "owner_task_id": s.owner_task_id,
                 "started_at": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(s.started_at)),
                 "uptime_seconds": int(time.time() - s.started_at),
                 "status": "exited" if s.exited else "running",
@@ -2241,7 +2314,7 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
             }
             # Flag processes surfaced only because they share the gateway session (not the current task) —
             # these are the long-lived background processes a user may have forgotten about (#29177).
-            if task_id and session_key and s.task_id != task_id and s.session_key == session_key:
+            if task_id and session_key and s.owner_task_id != task_id and s.session_key == session_key:
                 entry["session_scoped"] = True
             # Trigger metadata for goal-loop judges (a watcher may never exit).
             if s.watch_patterns and not s._watch_disabled:
@@ -2320,9 +2393,10 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
     def snapshot_running_ids(self, task_id: str) -> frozenset[str]:
         """Running IDs owned by ``task_id`` — a turn-boundary marker: on timeout
         only processes absent from the starting snapshot belong to the abandoned
-        turn; older ones intentionally span turns and must survive."""
-        with self._lock:
-            return frozenset(s.id for s in self._running.values() if s.task_id == task_id and not s.exited)
+        turn; older ones intentionally span turns and must survive. Ownership is
+        ``owner_task_id``: ``task_id`` is the container key (``session:<key>``,
+        ``default``), shared across turns and sessions, not the turn's id."""
+        return frozenset(s.id for s in self.running_owned_by(task_id))
 
     def kill_started_since(self, task_id: str, baseline_ids, *, source: str) -> int:
         """Kill ``task_id`` processes created after ``baseline_ids``. Output is
@@ -2333,11 +2407,13 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
     def kill_all(
         self, task_id: Optional[str] = None, *, exclude_ids: frozenset = frozenset(),
         source: str = "kill_all", consume_output: bool = False) -> int:
-        """Kill all running processes, optionally filtered by task_id. Returns count killed."""
+        """Kill all running processes, optionally only those ``task_id`` spawned (its ``owner_task_id``).
+        Returns count killed."""
         with self._lock:
             targets = [
                 s for s in self._running.values()
-                if (task_id is None or s.task_id == task_id) and s.id not in exclude_ids and not s.exited
+                if (task_id is None or s.owner_task_id == task_id)
+                and s.id not in exclude_ids and not s.exited
             ]
         return sum(
             self.kill_process(s.id, source=source, consume_output=consume_output).get("status")
@@ -2377,7 +2453,12 @@ process_registry = ProcessRegistry()
 # --- the "process_manage" tool schema + handler -----------------------------------
 from tools.registry import registry, tool_error
 
-FULL_PROCESS_DESCRIPTION = (
+PROCESS_SCHEMA = {
+    "name": "process_manage",
+    # The enum names the verbs; the description keeps only non-obvious semantics
+    # (write-vs-submit is the one real trap: a lone \n on a Windows PTY is not Enter).
+    # See #95681.
+    "description": (
         "Poll, wait on, or kill background terminal processes (from "
         "terminal(background=true)). "
         "Completed results remain retrievable by session_id when resuming their owning conversation "
@@ -2386,26 +2467,16 @@ FULL_PROCESS_DESCRIPTION = (
         "until exit or timeout (partial output on timeout). write vs "
         "submit: submit appends Enter — use it to answer prompts; write "
         "sends raw bytes, no newline. close: EOF stdin. kill: terminate. "
-        "notify: request a completion receipt in a new persona chat turn, then end this turn. "
         "handoff (subagents only): transfer a running process you started to your parent agent, which then "
         "receives its completion; `data` = one sentence on its purpose. Subagent-owned processes are otherwise "
         "killed when the subagent finishes and their notifications never reach the parent."
-    )
-
-PROCESS_SCHEMA = {
-    "name": "process_manage",
-    "description": (
-        "Background processes: wait returns partial output on timeout. "
-        "submit appends Enter to answer prompts; write sends raw bytes, no newline. "
-        "notify requests a receipt in a new persona turn: end this turn. Subagents must handoff surviving "
-        "processes. Call tool_describe for ownership and retention details."
     ),
     "parameters": {
         "type": "object",
         "properties": {
             "action": {
                 "type": "string",
-                "enum": ["list", "poll", "log", "wait", "kill", "write", "submit", "close", "handoff", "notify"]
+                "enum": ["list", "poll", "log", "wait", "kill", "write", "submit", "close", "handoff"]
             },
             "session_id": {
                 "type": "string",
@@ -2435,11 +2506,22 @@ PROCESS_SCHEMA = {
 }
 
 
+def transform_process_output(output: str, *, command: str, returncode: Optional[int], task_id: str = "") -> str:
+    """``transform_terminal_output`` seam for background-process output — the poll/wait/log/kill
+    results and the completion/heartbeat/watch notifications — so a plugin that rewrites terminal
+    output sees the same command output whether it ran in the foreground or not (#70760).
+    Same helper as the foreground path; callers redact AFTER it, never before, so a replacement
+    the plugin returns is still masked. ``returncode`` is None while the process is running and
+    ``env_type`` is not recorded per process, so it is passed empty."""
+    from tools.terminal_tool_result import _apply_output_transform_hook
+    return _apply_output_transform_hook(command, output, returncode, task_id or "", "")
+
+
 def _redact_process_result(result: dict) -> dict:
-    """Redact secrets from background-process output before it reaches the model,
-    session.db and CLI, mirroring the foreground ``terminal`` redaction so the two
-    surfaces can't diverge. Respects ``security.redact_secrets``; ``redact_terminal_output``
-    picks ``code_file`` from the recorded command. The command itself is redacted too.
+    """Transform, then redact secrets from background-process output before it reaches the
+    model, session.db and CLI, mirroring the foreground ``terminal`` pipeline (hook first,
+    redaction after) so the two surfaces can't diverge. Respects ``security.redact_secrets``;
+    ``redact_terminal_output`` picks ``code_file`` from the recorded command.
 
     The command string itself is also redacted in case it carried an inline credential. See #43025.
     """
@@ -2448,8 +2530,13 @@ def _redact_process_result(result: dict) -> dict:
     from agent.redact import redact_sensitive_text, redact_terminal_output
 
     command = result.get("command") or ""
+    # The hook's task_id is the process OWNER's (poll/log/wait results carry only session_id).
+    task_id = str(result.get("task_id") or "")
+    if not task_id and (session := process_registry.get(str(result.get("session_id") or ""))) is not None:
+        task_id = str(getattr(session, "task_id", "") or "")
     for key in ("output", "output_preview"):
         if isinstance(value := result.get(key), str) and value:
+            value = transform_process_output(value, command=command, returncode=result.get("exit_code"), task_id=task_id)
             result[key] = redact_terminal_output(value, command)
     if isinstance(command, str) and command:
         result["command"] = redact_sensitive_text(command, code_file=True)
@@ -2473,7 +2560,6 @@ def _list_processes(task_id) -> dict:
 # action -> (handler(session_id, args) -> dict, redact output?). Output-bearing
 # actions are redacted; stdin actions return only status.
 _SESSION_ACTIONS = {
-    "notify": (lambda sid, a: process_registry.notify_on_exit(sid), True),
     "poll": (lambda sid, a: process_registry.poll(sid), True),
     "log": (lambda sid, a: process_registry.read_log(sid, offset=a.get("offset"), limit=a.get("limit", 200)), True),
     "wait": (lambda sid, a: process_registry.wait(sid, timeout=a.get("timeout")), True),
@@ -2541,7 +2627,7 @@ def _handle_process(args, **kw):
         handler, redact = _SESSION_ACTIONS[action]
         result = handler(session_id, args)
         return json.dumps(_redact_process_result(result) if redact else result, ensure_ascii=False)
-    return tool_error(f"Unknown process action: {action}. Use: list, poll, log, wait, kill, write, submit, close, handoff, notify")
+    return tool_error(f"Unknown process action: {action}. Use: list, poll, log, wait, kill, write, submit, close, handoff")
 
 
 registry.register(

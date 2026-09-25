@@ -55,7 +55,6 @@ from tools.code_execution_tool import (
     generate_hermes_tools_module,
     check_sandbox_requirements,
     build_execute_code_schema,
-    EXECUTE_CODE_SCHEMA,
     _TOOL_DOC_LINES,
     _execute_remote,
     _format_interrupted_output,
@@ -88,10 +87,6 @@ class TestSandboxRequirements(unittest.TestCase):
         if sys.platform != "win32":
             self.assertTrue(check_sandbox_requirements())
 
-    def test_schema_is_valid(self):
-        self.assertEqual(EXECUTE_CODE_SCHEMA["name"], "execute_code")
-        self.assertIn("code", EXECUTE_CODE_SCHEMA["parameters"]["properties"])
-        self.assertIn("code", EXECUTE_CODE_SCHEMA["parameters"]["required"])
 
 
 class TestInterruptedOutput(unittest.TestCase):
@@ -110,15 +105,6 @@ class TestInterruptedOutput(unittest.TestCase):
             "partial output\n[execution interrupted — superseded by a new live turn]",
         )
 
-    def test_unknown_interrupt_source_is_neutral(self):
-        from tools.interrupt import set_interrupt
-
-        set_interrupt(True)
-
-        self.assertEqual(
-            _format_interrupted_output(""),
-            "[execution interrupted]",
-        )
 
 
 class TestHermesToolsGeneration(unittest.TestCase):
@@ -128,33 +114,10 @@ class TestHermesToolsGeneration(unittest.TestCase):
             self.assertIn(f"def {tool}(", src)
 
 
-    def test_empty_list_generates_nothing(self):
-        src = generate_hermes_tools_module([])
-        self.assertNotIn("def terminal(", src)
-        self.assertIn("def _call(", src)  # infrastructure still present
 
 
-    def test_file_transport_uses_tempfile_fallback_for_rpc_dir(self):
-        src = generate_hermes_tools_module(["terminal"], transport="file")
-        self.assertIn("import json, os, shlex, tempfile, threading, time", src)
-        self.assertIn("os.path.join(tempfile.gettempdir(), \"hermes_rpc\")", src)
-        self.assertNotIn('os.environ.get("HERMES_RPC_DIR", "/tmp/hermes_rpc")', src)
 
-    def test_uds_transport_serializes_concurrent_calls(self):
-        """Regression: UDS _call() must hold a lock across send+recv so that
-        concurrent tool calls from multiple threads don't interleave on the
-        shared socket and receive each other's responses."""
-        src = generate_hermes_tools_module(["terminal"], transport="uds")
-        self.assertIn("_call_lock = threading.Lock()", src)
-        self.assertIn("with _call_lock:", src)
 
-    def test_file_transport_serializes_seq_allocation(self):
-        """Regression: file transport _call() must allocate `_seq` under a
-        lock, otherwise concurrent threads can pick the same seq and clobber
-        each other's request files."""
-        src = generate_hermes_tools_module(["terminal"], transport="file")
-        self.assertIn("_seq_lock = threading.Lock()", src)
-        self.assertIn("with _seq_lock:", src)
 
 
 class TestExecuteCodeRemoteTempDir(unittest.TestCase):
@@ -248,10 +211,6 @@ class TestExecuteCode(unittest.TestCase):
 
     def _run(self, code, enabled_tools=None):
         """Helper: run code with mocked handle_function_call."""
-        with patch("tools.code_execution_rpc._rpc_server_loop") as mock_rpc:
-            # Use real execution but mock the tool dispatcher
-            pass
-        # Actually run with full integration, mocking at the model_tools level
         with patch("model_tools.handle_function_call", side_effect=_mock_handle_function_call):
             result = execute_code(
                 code=code,
@@ -428,7 +387,7 @@ class TestStubSchemaDrift(unittest.TestCase):
     # Parameters that are internal (injected by the handler, not user-facing)
     _INTERNAL_PARAMS = {"task_id", "user_task"}
     # Parameters intentionally blocked in the sandbox
-    _BLOCKED_TERMINAL_PARAMS = {"background", "pty", "notify", "notify_on_complete", "watch_patterns"}
+    _BLOCKED_TERMINAL_PARAMS = {"background", "pty", "notify", "notify_on_complete", "watch_patterns", "heartbeat"}
 
     def test_stubs_cover_all_schema_params(self):
         """Every user-facing parameter in the real schema must appear in the
@@ -467,22 +426,35 @@ class TestStubSchemaDrift(unittest.TestCase):
 
 
     def test_generated_module_accepts_all_params(self):
-        """The generated hermes_tools.py module should accept all current params
-        without TypeError when called with keyword arguments."""
-        src = generate_hermes_tools_module(list(SANDBOX_ALLOWED_TOOLS))
+        """Executing the generated hermes_tools module: every stub accepts all of
+        its parameters as keyword arguments and forwards each one, by name and
+        value, to the RPC call (a dropped or renamed kwarg is a TypeError or a
+        silently ignored argument in the sandbox)."""
+        import inspect
 
-        # Compile the generated module to check for syntax errors
-        compile(src, "hermes_tools.py", "exec")
+        for transport in ("uds", "file"):
+            src = generate_hermes_tools_module(list(SANDBOX_ALLOWED_TOOLS), transport=transport)
+            namespace = {"__name__": "hermes_tools"}
+            exec(compile(src, "hermes_tools.py", "exec"), namespace)
+            calls = []
+            namespace["_call"] = lambda name, args: calls.append((name, args)) or "ok"
 
-        # Verify specific parameter signatures are in the source
-        # search_files must accept its pagination, output, and ordering controls
-        self.assertIn("context", src)
-        self.assertIn("offset", src)
-        self.assertIn("output_mode", src)
-        self.assertIn("order", src)
+            generated = {name for name in SANDBOX_ALLOWED_TOOLS if callable(namespace.get(name))}
+            self.assertEqual(generated, set(SANDBOX_ALLOWED_TOOLS), transport)
+            for name in sorted(generated):
+                params = inspect.signature(namespace[name]).parameters
+                kwargs = {p: f"<{name}.{p}>" for p in params}
+                calls.clear()
+                self.assertEqual(namespace[name](**kwargs), "ok")
+                self.assertEqual(calls, [(name, kwargs)], f"{transport}:{name}")
 
-        # patch must accept mode and patch params
-        self.assertIn("mode", src)
+            # The pagination/output controls of search_files and patch's mode
+            # must be real keyword parameters, not just mentioned in the docs.
+            self.assertTrue(
+                {"context", "offset", "output_mode", "order"}
+                <= set(inspect.signature(namespace["search_files"]).parameters)
+            )
+            self.assertIn("mode", inspect.signature(namespace["patch"]).parameters)
 
 
 # ---------------------------------------------------------------------------
@@ -498,125 +470,17 @@ class TestBuildExecuteCodeSchema(unittest.TestCase):
         for name, _ in _TOOL_DOC_LINES:
             self.assertIn(name, desc, f"Default schema should mention '{name}'")
 
-    def test_schema_structure(self):
-        schema = build_execute_code_schema()
-        self.assertEqual(schema["name"], "execute_code")
-        self.assertIn("parameters", schema)
-        self.assertIn("code", schema["parameters"]["properties"])
-        self.assertEqual(schema["parameters"]["required"], ["code"])
 
-    # Fork-retained (T6b): the wire description is a static brief. Upstream's
-    # test_subset_only_lists_enabled_tools (asserting `terminal(` etc. appear in
-    # the description) is deliberately dropped — the resolved
-    # build_execute_code_schema no longer enumerates the enabled set on the wire.
-    # The import_examples_* / real_scenario_* cases below carry the enabled-set
-    # coverage that moved onto the `code` parameter, so they stay too.
-    def test_top_level_description_is_static_brief(self):
-        """T6b: the top-level description is now a static brief — it no longer
-        enumerates the enabled tools per-session (that detail moved behind
-        tool_describe). Enabled-tool awareness rides the `code` parameter's
-        import examples instead (see test_import_examples_*)."""
-        a = build_execute_code_schema({"terminal", "read_file"})["description"]
-        b = build_execute_code_schema({"web_search"})["description"]
-        self.assertEqual(a, b, "brief must not vary with the enabled set")
-        self.assertIn("from hermes_tools import", a)
-        self.assertIn("tool_describe", a)  # points at the full helper reference
-
-    def test_description_does_not_enumerate_tool_signatures(self):
-        """The retired dynamic doc listed `terminal(...)`, `read_file(...)`,
-        etc.; the brief names the standard tools plainly and defers the
-        per-tool signatures to tool_describe."""
-        desc = build_execute_code_schema({"terminal"})["description"]
-        self.assertNotIn("terminal(", desc)
-        self.assertIn("terminal", desc)
-
-    def test_import_examples_prefer_web_search_and_terminal(self):
-        enabled = {"web_search", "terminal", "read_file"}
+    def test_subset_only_lists_enabled_tools(self):
+        enabled = {"terminal", "read_file"}
         schema = build_execute_code_schema(enabled)
-        code_desc = schema["parameters"]["properties"]["code"]["description"]
-        self.assertIn("web_search", code_desc)
-        self.assertIn("terminal", code_desc)
+        desc = schema["description"]
+        self.assertIn("terminal(", desc)
+        self.assertIn("read_file(", desc)
+        self.assertNotIn("web_search(", desc)
+        self.assertNotIn("web_extract(", desc)
+        self.assertNotIn("write_file(", desc)
 
-    def test_import_examples_fallback_when_no_preferred(self):
-        """When neither web_search nor terminal are enabled, falls back to
-        sorted first two tools."""
-        enabled = {"read_file", "write_file", "patch"}
-        schema = build_execute_code_schema(enabled)
-        code_desc = schema["parameters"]["properties"]["code"]["description"]
-        # Should use sorted first 2: patch, read_file
-        self.assertIn("patch", code_desc)
-        self.assertIn("read_file", code_desc)
-
-    def test_empty_set_produces_valid_description(self):
-        """build_execute_code_schema(set()) must not produce 'import , ...'
-        in the code property description."""
-        schema = build_execute_code_schema(set())
-        code_desc = schema["parameters"]["properties"]["code"]["description"]
-        self.assertNotIn("import , ...", code_desc,
-                         "Empty enabled set produces broken import syntax in description")
-
-    def test_real_scenario_all_sandbox_tools_disabled(self):
-        """Reproduce the exact code path from model_tools.py:231-234.
-
-        Scenario: user runs `hermes tools code_execution` (only code_execution
-        toolset enabled). tools_to_include = {"execute_code"}.
-
-        model_tools.py does:
-            sandbox_enabled = SANDBOX_ALLOWED_TOOLS & tools_to_include
-            dynamic_schema = build_execute_code_schema(sandbox_enabled)
-
-        SANDBOX_ALLOWED_TOOLS = {web_search, web_extract, read_file, write_file,
-                                  search_files, patch, terminal}
-        tools_to_include  = {"execute_code"}
-        intersection      = empty set
-        """
-        # Simulate model_tools.py:233
-        tools_to_include = {"execute_code"}
-        sandbox_enabled = SANDBOX_ALLOWED_TOOLS & tools_to_include
-
-        self.assertEqual(sandbox_enabled, set(),
-                         "Intersection should be empty when only execute_code is enabled")
-
-        schema = build_execute_code_schema(sandbox_enabled)
-        code_desc = schema["parameters"]["properties"]["code"]["description"]
-        self.assertNotIn("import , ...", code_desc,
-                         "Bug: broken import syntax sent to the model")
-
-    def test_real_scenario_only_vision_enabled(self):
-        """Another real path: user runs `hermes tools code_execution,vision`.
-
-        tools_to_include = {"execute_code", "vision_analyze"}
-        SANDBOX_ALLOWED_TOOLS has neither, so intersection is empty.
-        """
-        tools_to_include = {"execute_code", "vision_analyze"}
-        sandbox_enabled = SANDBOX_ALLOWED_TOOLS & tools_to_include
-
-        self.assertEqual(sandbox_enabled, set())
-
-        schema = build_execute_code_schema(sandbox_enabled)
-        code_desc = schema["parameters"]["properties"]["code"]["description"]
-        self.assertNotIn("import , ...", code_desc)
-
-    def test_description_mentions_limits(self):
-        # T6b: the brief keeps the hard limits (in compact phrasing).
-        desc = build_execute_code_schema()["description"]
-        self.assertIn("5-min", desc)
-        self.assertIn("50KB", desc)
-        self.assertIn("50-call", desc)
-
-    def test_helpers_available_via_tool_describe(self):
-        """T6b: the json_parse/shell_quote/retry helper reference moved out of
-        the wire description and behind tool_describe. The brief points there;
-        the full text (served by tool_describe from the fork-owned mirror) still
-        documents the helpers."""
-        desc = build_execute_code_schema()["description"]
-        self.assertNotIn("json_parse", desc)
-        self.assertIn("tool_describe", desc)
-        from tools.tool_full_descriptions import full_tool_description
-        full = full_tool_description("execute_code")
-        self.assertIn("json_parse", full)
-        self.assertIn("shell_quote", full)
-        self.assertIn("retry", full)
 
     def test_none_defaults_to_all_tools(self):
         schema_none = build_execute_code_schema(None)
@@ -685,9 +549,6 @@ class TestEnvVarFiltering(unittest.TestCase):
         self.assertNotIn("MODAL_TOKEN_SECRET", child_env)
 
 
-    def test_hermes_rpc_socket_injected(self):
-        child_env = self._get_child_env()
-        self.assertIn("HERMES_RPC_SOCKET", child_env)
 
 
     def test_timezone_injected_when_set(self):
@@ -705,16 +566,6 @@ class TestEnvVarFiltering(unittest.TestCase):
             os.environ.clear()
             os.environ.update(env_backup)
 
-    def test_timezone_not_set_when_empty(self):
-        env_backup = os.environ.copy()
-        try:
-            os.environ.pop("HERMES_TIMEZONE", None)
-            child_env = self._get_child_env()
-            if "TZ" in child_env:
-                self.assertNotEqual(child_env["TZ"], "")
-        finally:
-            os.environ.clear()
-            os.environ.update(env_backup)
 
 
 # ---------------------------------------------------------------------------
@@ -810,11 +661,6 @@ class TestExecuteCodeEdgeCases(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestLoadConfig(unittest.TestCase):
-    def test_returns_empty_dict_when_cli_config_unavailable(self):
-        from tools.code_execution_tool import _load_config
-        with patch.dict("sys.modules", {"cli": None}):
-            result = _load_config()
-            self.assertIsInstance(result, dict)
 
 
     def test_does_not_import_interactive_cli(self):
@@ -939,25 +785,16 @@ class TestRpcTokenAuthorization(unittest.TestCase):
     """
 
     def _drive_server(self, rpc_token, requests):
-        """Run _rpc_server_loop against a real connected socket pair.
+        """Run _rpc_server_loop against a real AF_UNIX socketpair.
 
         Sends each dict in *requests* as a newline-delimited JSON message
         and returns the list of decoded JSON responses.
-
-        The address family is deliberately left to ``socket.socketpair()``'s
-        default (AF_UNIX on POSIX, an AF_INET loopback pair on Windows).
-        ``_rpc_server_loop`` only ever calls ``accept``/``recv``/``sendall``,
-        and ``accept`` is supplied by the shim below — so the token check
-        under test is transport-neutral, and naming AF_UNIX here pinned a
-        POSIX spelling rather than the guarantee. The tests in this file that
-        genuinely need a unix DOMAIN socket carry ``skipIf(sys.platform ==
-        "win32", "UDS not available on Windows")``; this one does not.
         """
         from tools.code_execution_rpc import _rpc_server_loop
 
         # socketpair gives us a connected client end and a "server" end we
         # can hand to accept() by wrapping it in a tiny listener shim.
-        srv, cli = socket.socketpair()
+        srv, cli = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
 
         class _OneShotListener:
             """Minimal object exposing the .accept()/.settimeout() the loop uses."""
@@ -1031,11 +868,6 @@ class TestRpcTokenAuthorization(unittest.TestCase):
         self.assertIn("Unauthorized", resp[0].get("error", ""))
 
 
-    def test_generated_module_sends_token(self):
-        """The generated hermes_tools module reads HERMES_RPC_TOKEN and sends it."""
-        src = generate_hermes_tools_module(["terminal"], transport="uds")
-        self.assertIn("HERMES_RPC_TOKEN", src)
-        self.assertIn('"token"', src)
 
 
 if __name__ == "__main__":

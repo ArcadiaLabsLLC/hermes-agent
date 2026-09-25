@@ -166,12 +166,13 @@ def test_the_shipped_default_sits_inside_the_launchers_long_run_ceiling():
     assert pipeline.PROVIDER_TIMEOUT_SECONDS < launcher_long_run_ceiling_seconds
 
 
-def test_the_config_default_and_the_module_default_are_one_number():
-    """Two places state the ceiling; a reader must not have to pick one."""
+def test_the_module_default_is_the_only_default(monkeypatch):
+    """One place states the ceiling: ``charsheet`` is a harness key, not an upstream
+    ``DEFAULT_CONFIG`` entry (lane MOVE-A), so an unset key reads the module default."""
 
+    import hermes_cli.config as config_module
     from hermes_cli.config_defaults import DEFAULT_CONFIG
 
-    assert (
-        float(DEFAULT_CONFIG["charsheet"]["provider_timeout_seconds"])
-        == pipeline.PROVIDER_TIMEOUT_SECONDS
-    )
+    assert "charsheet" not in DEFAULT_CONFIG
+    monkeypatch.setattr(config_module, "load_config_readonly", lambda: {})
+    assert pipeline.provider_timeout_seconds() == pipeline.PROVIDER_TIMEOUT_SECONDS

@@ -67,39 +67,50 @@ def _emit_request_assembled_marker(agent: Any, **extra: Any) -> None:
     except Exception:
         logger.debug("request-assembled marker callback failed", exc_info=True)
 
-class ProviderDispatchTiming:
-    """The ``request_assembled`` instant and the ``provider_dispatch`` span of one attempt.
+def _dispatch_streams(agent: Any) -> bool:
+    try:
+        from agent.turn_api_call import _should_stream
 
-    Wraps the dispatch callable handed to the LLM middleware instead of
-    re-indenting upstream's ``_perform_api_call`` body. ``mark()`` runs inside
-    that body right after the transport preflight (so a Codex token refresh is
-    charged to hermes, not the provider); the wrapper times from that mark to
-    the provider's return. Provider first-byte time is upstream's
-    ``agent._last_api_first_chunk_at``, carried by ``post_api_request`` as
-    ``first_chunk_at`` (e17276c7b4) — this class keeps no second copy of it.
+        return bool(_should_stream(agent))
+    except Exception:
+        return False
+
+
+def time_provider_dispatch(
+    request: Any = None,
+    next_call: Any = None,
+    *,
+    api_call_count: Any = None,
+    api_mode: Any = None,
+    provider: Any = None,
+    model: Any = None,
+    **_context: Any,
+) -> Any:
+    """``llm_execution`` middleware: the ``request_assembled`` instant and the
+    ``provider_dispatch`` span of one physical attempt.
+
+    Wraps exactly the callable upstream hands the chain (``_perform_api_call``), so the
+    span runs from here to the provider's return. One loss against the old in-body mark:
+    the instant lands BEFORE the Codex transport preflight, so a Codex token refresh is
+    charged to the provider side. Provider first-byte time stays upstream's
+    ``post_api_request`` ``first_chunk_at`` — no second copy here. Unbound (no persona
+    turn) -> a pass-through.
     """
 
-    def __init__(self, agent: Any, **meta: Any) -> None:
-        self.agent = agent
-        self.meta = meta
-        self.started: Optional[float] = None
+    from agent_runtime.persona_turn_binding import current_persona_turn_agent
 
-    def mark(self) -> None:
-        _emit_request_assembled_marker(self.agent, **self.meta)
-        self.started = time.perf_counter()
-
-    def wrap(self, perform: Any, *, streaming: bool) -> Any:
-        def _timed(next_api_kwargs: Any) -> Any:
-            self.started = None
-            status = "failed"
-            try:
-                result = perform(next_api_kwargs)
-                status = "completed"
-                return result
-            finally:
-                if self.started is not None:
-                    _emit_conversation_timing(
-                        self.agent, "provider_dispatch", self.started,
-                        status=status, streaming=streaming, **self.meta)
-
-        return _timed
+    agent = current_persona_turn_agent()
+    if agent is None:
+        return next_call()
+    meta = {"api_call_count": api_call_count, "api_mode": api_mode, "provider": provider, "model": model}
+    streaming = _dispatch_streams(agent)
+    _emit_request_assembled_marker(agent, **meta)
+    started = time.perf_counter()
+    status = "failed"
+    try:
+        result = next_call()
+        status = "completed"
+        return result
+    finally:
+        _emit_conversation_timing(
+            agent, "provider_dispatch", started, status=status, streaming=streaming, **meta)

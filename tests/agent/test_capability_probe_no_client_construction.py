@@ -20,6 +20,44 @@ import pytest
 from agent import auxiliary_client as ac
 
 
+@pytest.fixture
+def client_constructions(monkeypatch):
+    """Count real provider-client constructions at the three auxiliary seams.
+
+    Every module-level ``OpenAI(...)`` resolves through ``_OpenAIProxy``; the async
+    client is ``openai.AsyncOpenAI``; the Anthropic client comes from
+    ``agent.anthropic_adapter.build_anthropic_client``. Each is wrapped here, so the
+    count is a property of this test module and no production counter exists.
+    """
+
+    import openai
+
+    from agent import anthropic_adapter
+
+    count = [0]
+    proxy_call = ac._OpenAIProxy.__call__
+    build_anthropic = anthropic_adapter.build_anthropic_client
+    real_async = openai.AsyncOpenAI
+
+    def counted_proxy_call(self, *args, **kwargs):
+        count[0] += 1
+        return proxy_call(self, *args, **kwargs)
+
+    def counted_build_anthropic(*args, **kwargs):
+        count[0] += 1
+        return build_anthropic(*args, **kwargs)
+
+    class CountedAsyncOpenAI(real_async):
+        def __init__(self, *args, **kwargs):
+            count[0] += 1
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(ac._OpenAIProxy, "__call__", counted_proxy_call)
+    monkeypatch.setattr(anthropic_adapter, "build_anthropic_client", counted_build_anthropic)
+    monkeypatch.setattr(openai, "AsyncOpenAI", CountedAsyncOpenAI)
+    return lambda: count[0]
+
+
 def _is_probe_stub(client) -> bool:
     """Upstream's ``_AuxProbeClientStub``, bare or as a wrapper's ``_real_client``."""
 
@@ -60,38 +98,38 @@ def codex_vision_route(monkeypatch):
     yield
 
 
-def test_the_fixture_route_really_would_construct_a_client(codex_vision_route):
+def test_the_fixture_route_really_would_construct_a_client(codex_vision_route, client_constructions):
     """Guard on the guard: prove this route constructs when NOT probing, so a
     zero-construction assertion below is evidence rather than a tautology."""
 
-    before = ac.client_construction_count()
+    before = client_constructions()
     provider, client, _model = ac.resolve_vision_provider_client()
 
     assert provider == "openai-codex"
     assert client is not None
-    assert ac.client_construction_count() == before + 1
+    assert client_constructions() == before + 1
 
 
-def test_vision_capability_check_constructs_no_client(codex_vision_route):
+def test_vision_capability_check_constructs_no_client(codex_vision_route, client_constructions):
     from tools.vision_tools import check_vision_requirements
 
-    before = ac.client_construction_count()
+    before = client_constructions()
     available = check_vision_requirements()
 
     # The ANSWER is unchanged — this is the half that makes the optimisation
     # honest. A check that skipped the work by reporting "unavailable" would
     # silently drop the vision tool from every persona's toolset (#31179).
     assert available is True
-    assert ac.client_construction_count() == before
+    assert client_constructions() == before
 
 
-def test_the_probe_answer_matches_the_real_resolution(codex_vision_route):
+def test_the_probe_answer_matches_the_real_resolution(codex_vision_route, client_constructions):
     """Same resolver, same fallback chain, same verdict — the probe replaces
     only the terminal construction."""
 
     _provider, real_client, _model = ac.resolve_vision_provider_client()
     assert not _is_probe_stub(real_client)
-    after_real = ac.client_construction_count()
+    after_real = client_constructions()
 
     with ac.aux_probe_mode():
         _provider, probe_client, _model = ac.resolve_vision_provider_client()
@@ -100,7 +138,7 @@ def test_the_probe_answer_matches_the_real_resolution(codex_vision_route):
     # Once a real client is memoized the probe reuses it — an availability
     # answer from the client the runtime will actually use, and still zero
     # construction. That is the same guarantee by a different route.
-    assert ac.client_construction_count() == after_real
+    assert client_constructions() == after_real
 
 
 def test_a_probe_with_a_cold_cache_answers_from_a_stand_in(codex_vision_route):

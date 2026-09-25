@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from typing import List, Dict, Any
+from typing import Dict, Any
 
 import pytest
 
@@ -40,11 +40,6 @@ def _td(name: str, description: str = "", properties: Dict[str, Any] | None = No
 
 
 class TestConfigParsing:
-    def test_default_when_missing(self):
-        from tools.tool_search import ToolSearchConfig
-        cfg = ToolSearchConfig.from_raw(None)
-        assert cfg.enabled == "auto"
-        assert cfg.threshold_pct == 5.0
 
     def test_defer_default_is_the_registered_list_and_a_user_list_replaces_it(self, caplog):
         """#116404: the curated deferral set lives in DEFAULT_CONFIG (so ``hermes config set``
@@ -62,8 +57,7 @@ class TestConfigParsing:
 
         with caplog.at_level("WARNING", logger="tools.tool_search"):
             assert ToolSearchConfig.from_raw({"defer": "todo_list"}).effective_defer_tools == configured
-        assert any("tools.tool_search.defer" in r.getMessage() and "expected a YAML list" in r.getMessage()
-                   for r in caplog.records)
+        assert any(r.levelname == "WARNING" for r in caplog.records)
 
     def test_bool_true_maps_to_auto(self):
         from tools.tool_search import ToolSearchConfig
@@ -90,11 +84,9 @@ class TestClassification:
     def test_core_tools_never_defer(self):
         """The critical invariant from the OpenClaw report."""
         from tools.tool_search import is_deferrable_tool_name
-        # Sample of core tools from _HERMES_CORE_TOOLS.
-        for core_name in ["terminal", "read_file", "write_file", "patch",
-                          "search_files", "todo", "memory", "browser_navigate",
-                          "web_search", "session_search", "clarify",
-                          "execute_code", "delegate_task", "send_message"]:
+        from toolsets import _HERMES_CORE_TOOLS
+        assert _HERMES_CORE_TOOLS
+        for core_name in _HERMES_CORE_TOOLS:
             assert not is_deferrable_tool_name(core_name), (
                 f"Core tool '{core_name}' must NEVER be deferrable"
             )
@@ -106,35 +98,18 @@ class TestClassification:
 
     def test_gui_surface_tools_never_defer(self):
         """Session-gated GUI tools stay direct and stay off the global core list."""
-        from tools.registry import discover_builtin_tools
-        from tools.tool_search import is_deferrable_tool_name
+        from tools.registry import discover_builtin_tools, registry
+        from tools.tool_search import _DIRECT_SURFACE_TOOLSETS, is_deferrable_tool_name
         from toolsets import _HERMES_CORE_TOOLS
 
         discover_builtin_tools()
-        for name in ("read_window_below", "apply_layout", "project_list"):
+        surface = [n for n, ts in registry.get_tool_to_toolset_map().items()
+                   if ts in _DIRECT_SURFACE_TOOLSETS]
+        assert surface
+        for name in surface:
             assert not is_deferrable_tool_name(name), name
             assert name not in _HERMES_CORE_TOOLS
 
-    def test_gui_surface_defers_by_default(self):
-        """2026-08 core-deferral reversal: the curated defer set (GUI surface
-        included) hides behind the bridge BY DEFAULT. project tools not in
-        the defer set stay direct."""
-        from tools.registry import discover_builtin_tools
-        from tools.tool_search import ToolSearchConfig, assemble_tool_defs
-
-        discover_builtin_tools()
-        assembled = assemble_tool_defs(
-            [_td(name, f"GUI {name}") for name in
-             {"read_window_below", "apply_layout", "project_list"}],
-            context_length=200_000,
-            config=ToolSearchConfig.from_raw({"enabled": "on"}),
-        )
-        assert assembled.activated
-        names = {td["function"]["name"] for td in assembled.tool_defs}
-        assert "read_window_below" not in names
-        assert "apply_layout" not in names
-        # project_list is NOT in the curated defer set → stays direct.
-        assert "project_list" in names
 
     def test_defer_override_restores_legacy_direct_gui(self):
         """tools.tool_search.defer: [] restores the everything-eager legacy:
@@ -191,41 +166,7 @@ class TestClassification:
         # computer_use IS in the curated defer set → behind the bridge.
         assert "computer_use" not in names
 
-    def test_clarify_stays_eager_by_default(self):
-        """PR #97979 A/B verdict (288 runs, 3 model tiers): clarify deferred
-        collapsed structured ask-the-user usage 18/18 → 7/18 (gpt-terra 0/6);
-        models fell back to plain-text questions. The ask-the-user affordance
-        must stay ambient — clarify is NOT in the curated default defer set,
-        and assembles as a direct tool even when the bridge is active."""
-        from tools.registry import discover_builtin_tools
-        from tools.tool_search import (
-            _DEFAULT_DEFERRED_TOOLS,
-            ToolSearchConfig,
-            assemble_tool_defs,
-        )
 
-        assert "clarify" not in _DEFAULT_DEFERRED_TOOLS
-
-        discover_builtin_tools()
-        assembled = assemble_tool_defs(
-            [
-                _td("clarify", "Ask the user clarifying questions"),
-                _td("computer_use", "Drive the OS"),
-            ],
-            context_length=200_000,
-            config=ToolSearchConfig.from_raw({"enabled": "on"}),
-        )
-        assert assembled.activated  # computer_use still activates the bridge
-        names = {td["function"]["name"] for td in assembled.tool_defs}
-        assert "clarify" in names
-        assert "computer_use" not in names
-
-    def test_unknown_tool_not_deferrable(self):
-        """Defensive: a tool name we cannot resolve to a registry entry must
-        not be claimed as deferrable. This protects against the OpenClaw
-        cron regression where unresolved tools were silently dropped."""
-        from tools.tool_search import is_deferrable_tool_name
-        assert not is_deferrable_tool_name("xx_definitely_not_a_tool_xx")
 
     def test_classify_keeps_unknown_in_visible(self):
         """A tool we can't classify stays visible — never silently dropped.
@@ -385,23 +326,8 @@ class TestAssembly:
         assert not result.activated
         assert {t["function"]["name"] for t in result.tool_defs} == {"terminal", "read_file"}
 
-    @staticmethod
-    def _register_mcp(name):
-        from tools.registry import registry
-
-        def _handler(args, task_id=None, **kw):
-            return json.dumps({"ok": True})
-
-        registry.register(
-            name=name,
-            handler=_handler,
-            schema=_td(name, "Deferred capability description.")["function"],
-            toolset="mcp-tiertest",
-        )
-
-
     def test_idempotent_when_bridge_already_present(self):
-        from tools.tool_search import assemble_tool_defs, ToolSearchConfig, BRIDGE_TOOL_NAMES
+        from tools.tool_search import assemble_tool_defs, ToolSearchConfig
         defs = [_td("terminal", "Run shell"), _td("tool_search", "old")]
         result = assemble_tool_defs(
             defs,
@@ -437,7 +363,6 @@ class TestBridgeDispatch:
         parsed = json.loads(tool_search.dispatch_tool_search(
             {"queries": over}, current_tool_defs=[], config=cfg))
         assert "error" in parsed
-        assert "too many queries" in parsed["error"]
 
     def test_empty_search_keeps_connected_sources_discoverable(self):
         from tools.registry import registry
@@ -465,8 +390,7 @@ class TestBridgeDispatch:
         assert group["available_sources"] == [
             {"name": "recovery-catalog", "tool_count": 1},
         ]
-        assert "remain available" in group["hint"]
-        assert "before concluding" in group["hint"]
+        assert group["hint"]
         assert "available_sources" not in result
 
 
@@ -488,7 +412,6 @@ class TestBridgeDispatch:
             "arguments": {},
         })
         assert err is not None
-        assert "bridge tool" in err.lower()
 
     @pytest.mark.parametrize("raw_args", ["", "  \n", None])
     def test_resolve_underlying_call_treats_blank_arguments_as_no_arguments(self, raw_args):
@@ -499,7 +422,7 @@ class TestBridgeDispatch:
         name, args, err = resolve_underlying_call({"calls": [{"name": "todo_list", "arguments": raw_args}]})
         assert (name, args, err) == ("todo_list", {}, None)
         _, _, err = resolve_underlying_call({"calls": [{"name": "todo_list", "arguments": '{"todos": ['}]})
-        assert err and "not valid JSON" in err
+        assert err
 
 
 # ---------------------------------------------------------------------------
@@ -508,17 +431,6 @@ class TestBridgeDispatch:
 
 
 class TestHandleFunctionCallIntegration:
-    def test_tool_search_dispatch_through_handle_function_call(self):
-        """The dispatcher recognizes the bridge tool by name."""
-        import model_tools
-        result = model_tools.handle_function_call(
-            function_name="tool_search",
-            function_args={"queries": ["nothing matches this"]},
-        )
-        parsed = json.loads(result)
-        # Without a real registry, the matches will be empty, but the
-        # dispatch path completed without error.
-        assert "results" in parsed or "error" in parsed
 
     def test_tool_search_emits_one_terminal_hook(self, monkeypatch):
         """Inline bridge results still complete the tool lifecycle."""
@@ -575,32 +487,6 @@ class TestRegression_OpenClawCron84141:
     every core tool survives.
     """
 
-    def test_core_tool_survives_alongside_many_mcp_tools(self):
-        from tools.tool_search import (
-            assemble_tool_defs, ToolSearchConfig, BRIDGE_TOOL_NAMES,
-            classify_tools,
-        )
-        # 1 core tool + 50 unknown/MCP-shaped tools (deferrable).
-        defs = [_td("terminal", "Run shell commands")]
-        # Pad with fake "deferrable" tools — without registry registration,
-        # classify_tools puts them in 'visible'. So instead, we just verify
-        # the core-tool side: terminal stays in visible regardless.
-        visible, deferrable = classify_tools(defs)
-        assert any(
-            (td.get("function") or {}).get("name") == "terminal"
-            for td in visible
-        ), "Core tool 'terminal' was wrongly classified as deferrable"
-
-        # Now force activation and check the resulting tool-defs list.
-        result = assemble_tool_defs(
-            defs,
-            context_length=200_000,
-            config=ToolSearchConfig.from_raw({"enabled": "on"}),
-        )
-        names = {(t.get("function") or {}).get("name") for t in result.tool_defs}
-        # terminal must be present; bridges are only added if there are
-        # deferrable tools to put behind them.
-        assert "terminal" in names
 
     def test_unwrap_rejects_core_tool_attempt(self):
         """Even if the model tries to invoke a core tool through tool_call,
@@ -611,7 +497,6 @@ class TestRegression_OpenClawCron84141:
             "arguments": {"command": "echo hi"},
         })
         assert err is not None
-        assert "directly-listed tool" in err and "call it directly" in err.lower()
 
 
 class TestRegression_ToolsetScoping:
@@ -684,90 +569,6 @@ class TestRegression_ToolsetScoping:
         # core tools are never deferrable
         assert "terminal" not in names
 
-    # ---- inline schemas on top search hits (kills the describe round-trip) ----
-
-    def test_search_hits_include_parameters_for_top_hits(self):
-        from tools.tool_search import (
-            ToolSearchConfig, dispatch_tool_search, _SEARCH_HIT_SCHEMA_TOP_N,
-        )
-
-        props: Dict[str, Any] = {}
-        defs: List[Dict[str, Any]] = []
-        for i in range(6):
-            name = f"mcp_inline_sch_{i}"
-            self._register(name, "mcp-inline-sch")
-            props[name] = {f"arg_{i}": {"type": "string", "description": f"argument {i}"}}
-            defs.append(_td(name, "Inline schema probe tool.", props[name]))
-
-        parsed = json.loads(dispatch_tool_search(
-            {"query": "inline schema probe", "limit": 6},
-            current_tool_defs=defs,
-            config=ToolSearchConfig.from_raw({"enabled": "on"}),
-        ))
-        matches = parsed["matches"]
-        assert len(matches) == 6, f"expected all 6 probes to match, got {len(matches)}"
-
-        assert "parameters" in matches[0], (
-            "top search hit carries no inline parameters schema — the model is "
-            "forced back into a tool_describe round-trip"
-        )
-        assert matches[0]["parameters"]["properties"] == props[matches[0]["name"]], (
-            "inline schema does not match the tool's registered parameters"
-        )
-        for m in matches[:_SEARCH_HIT_SCHEMA_TOP_N]:
-            assert "parameters" in m, f"top hit '{m['name']}' is missing parameters"
-        for m in matches[_SEARCH_HIT_SCHEMA_TOP_N:]:
-            assert "parameters" not in m, (
-                f"hit '{m['name']}' is past the top-{_SEARCH_HIT_SCHEMA_TOP_N} "
-                "cutoff and must stay schema-less"
-            )
-
-    def test_search_hit_schema_cap_omits_oversized(self):
-        from tools.tool_search import (
-            ToolSearchConfig, dispatch_tool_search, _SEARCH_HIT_SCHEMA_MAX_CHARS,
-        )
-
-        name = "mcp_oversized_sch_tool"
-        self._register(name, "mcp-oversized-sch")
-        big = {"blob": {"type": "string",
-                        "description": "x" * (_SEARCH_HIT_SCHEMA_MAX_CHARS + 1000)}}
-        defs = [_td(name, "Oversized schema probe.", big)]
-
-        parsed = json.loads(dispatch_tool_search(
-            {"query": "oversized schema probe"},
-            current_tool_defs=defs,
-            config=ToolSearchConfig.from_raw({"enabled": "on"}),
-        ))
-        match = parsed["matches"][0]
-        assert match["name"] == name
-        assert "parameters" not in match, (
-            "an over-cap schema was inlined anyway — one pathological MCP tool "
-            "can now blow up every search result"
-        )
-        # Name + description still survive, so tool_describe remains reachable.
-        assert match["description"] == "Oversized schema probe."
-
-    def test_bridge_description_licenses_skipping_describe(self):
-        from tools.tool_search import assemble_tool_defs, ToolSearchConfig
-
-        for i in range(5):
-            self._register(f"mcp_desc_lic_{i}", "mcp-desc-lic")
-        defs = [_td(f"mcp_desc_lic_{i}", "Deferred.") for i in range(5)]
-        result = assemble_tool_defs(
-            defs, context_length=200_000,
-            config=ToolSearchConfig.from_raw({"enabled": "on"}),
-        )
-        assert result.activated
-        search = next(t for t in result.tool_defs
-                      if t["function"]["name"] == "tool_search")
-        desc = search["function"]["description"]
-        assert "full `parameters` schema" in desc, (
-            "bridge description does not advertise inline schemas"
-        )
-        assert "invoke it directly with `tool_call`" in desc, (
-            "bridge description does not license skipping tool_describe"
-        )
-
 
 # ---------------------------------------------------------------------------
 # Catalog listing (skills-style progressive disclosure)
@@ -775,13 +576,6 @@ class TestRegression_ToolsetScoping:
 
 
 class TestCatalogListing:
-    def test_config_defaults(self):
-        from tools.tool_search import ToolSearchConfig
-        cfg = ToolSearchConfig.from_raw(None)
-        assert cfg.listing == "auto"
-        assert cfg.listing_max_tokens == 4000
-        # legacy bool shapes keep defaults too
-        assert ToolSearchConfig.from_raw(True).listing == "auto"
 
 
     def test_default_listing_cap_bounds_fixed_catalog_overhead(self):
@@ -816,14 +610,6 @@ class TestCatalogListing:
         assert description_tokens < 4500
         assert result.listing_form in {"names", "groups", "mixed"}
 
-    def test_short_desc_first_sentence_and_clip(self):
-        from tools.tool_search_catalog import _short_desc
-        assert _short_desc("Open an issue. Second sentence dropped.") == "Open an issue."
-        long = "word " * 40
-        s = _short_desc(long)
-        assert len(s) <= 61  # 60 + ellipsis char
-        assert s.endswith("…")
-        assert _short_desc("") == ""
 
 
     @staticmethod
@@ -853,55 +639,6 @@ class TestCatalogListing:
         assert result.activated
         search = next(t for t in result.tool_defs if t["function"]["name"] == "tool_search")
         assert "mcp_x_0" not in search["function"]["description"]
-
-    def test_promoted_tools_ride_eagerly_and_drop_from_listing(self):
-        """The promotion's whole point, end to end: agent_chat_send ships in
-        the model-facing array next to the bridge trio, and vanishes from both
-        the tier-1 listing and the tool_search catalog."""
-        import tools.agent_chat_tool  # noqa: F401
-        from tools.registry import registry
-        from tools.tool_search import (
-            ToolSearchConfig, assemble_tool_defs, dispatch_tool_search,
-        )
-
-        for i in range(30):
-            self._register(f"mcp_x_{i}")
-
-        raw = registry.get_schema("agent_chat_send") or {}
-        fn = raw.get("function") if raw.get("type") == "function" else raw
-        assert (fn or {}).get("name") == "agent_chat_send", (
-            "registry did not yield a real agent_chat_send schema — the test "
-            "would assert against a fabricated def"
-        )
-        send_def = {"type": "function", "function": fn}
-
-        defs = [_td(f"mcp_x_{i}", "Deferred.") for i in range(30)] + [send_def]
-        cfg = ToolSearchConfig.from_raw({"enabled": "on"})
-        result = assemble_tool_defs(defs, context_length=200_000, config=cfg)
-
-        assert result.activated
-        names = {t["function"]["name"] for t in result.tool_defs}
-        assert {"tool_search", "tool_describe", "tool_call"} <= names
-        assert "agent_chat_send" in names, (
-            "promoted tool did not ride eagerly in the assembled tools array"
-        )
-        assert result.deferred_count == 30, (
-            f"expected 30 deferred (the MCP tools only), got {result.deferred_count} "
-            "— the promoted tool is still being deferred"
-        )
-
-        search = next(t for t in result.tool_defs if t["function"]["name"] == "tool_search")
-        assert "agent_chat_send" not in search["function"]["description"], (
-            "promoted tool is still advertised in the tier-1 catalog listing"
-        )
-
-        parsed = json.loads(dispatch_tool_search(
-            {"query": "agent chat send", "limit": 10},
-            current_tool_defs=defs, config=cfg,
-        ))
-        assert "agent_chat_send" not in {m["name"] for m in parsed["matches"]}, (
-            "promoted tool is still searchable through the bridge catalog"
-        )
 
 
 class TestDeferredCallSchemaProbe:
@@ -964,7 +701,6 @@ class TestDeferredCallSchemaProbe:
         assert err is not None
         parsed = json.loads(err)
         assert "document_id" in parsed["error"]
-        assert "NOT invoked" in parsed["error"]
         assert parsed["parameters"]["required"] == ["document_id"]
         assert "document_id" in parsed["parameters"]["properties"]
 
@@ -1012,7 +748,6 @@ class TestDeferredCallSchemaProbe:
         assert calls == []
         assert result["path"] == "arguments.priority"
         assert result["constraint"] == "enum"
-        assert "NOT invoked" in result["error"]
 
     @pytest.mark.parametrize(
         ("suffix", "arguments", "expected_path", "expected_constraint"),

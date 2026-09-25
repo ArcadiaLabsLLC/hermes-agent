@@ -26,6 +26,8 @@ import json
 
 import pytest
 
+from hermes_cli.harness_parts.persona import chat_turn_message
+
 from agent_runtime import snapshot_build_ledger
 from agent_runtime.mission_chat_phases import (
     TURN_PHASES_KEY,
@@ -82,7 +84,7 @@ def _drive_capturing(monkeypatch, capsys, provider, *, turn_id, stream=True):
     """
 
     harness = _seed(monkeypatch, provider)
-    code = harness._cmd_mission_chat_message(_args(turn_id, stream=stream))
+    code = chat_turn_message._cmd_mission_chat_message(_args(turn_id, stream=stream))
     captured = capsys.readouterr().out
     payload = None
     if stream:

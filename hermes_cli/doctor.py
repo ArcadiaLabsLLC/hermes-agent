@@ -268,8 +268,6 @@ def __getattr__(name):  # PEP 562 — live home names first, then the plugin-com
     return _plugin_compat_getattr(name)
 
 
-def run_doctor(args, *, agent_browser_runnable_override=None):
-    """Resolve the selected home when invoked and scope optional test probes to this call."""
-    from agent_runtime.doctor_extensions import browser_probe_scope
-    with browser_probe_scope(agent_browser_runnable_override):
-        return _run_doctor(args)
+def run_doctor(args):
+    """Resolve the selected home when invoked."""
+    return _run_doctor(args)

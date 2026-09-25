@@ -16,6 +16,10 @@ import pytest
 
 from agent.account_usage import AccountUsageSnapshot, AccountUsageWindow
 from hermes_cli import harness
+from hermes_cli.harness_parts.usage import commands as usage_commands
+from hermes_cli.harness_parts.usage import detect as usage_detect
+from hermes_cli.harness_parts.usage import lanes as usage_lanes
+from hermes_cli.harness_parts.usage import providers as usage_providers
 
 
 def _snapshot(provider="openai-codex"):
@@ -41,13 +45,13 @@ def _snapshot(provider="openai-codex"):
 
 
 def test_usage_codex_logged_in_active(monkeypatch):
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: "openai-codex")
-    monkeypatch.setattr(harness, "_usage_lane_detected", lambda p: p == "openai-codex")
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: "openai-codex")
+    monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: p == "openai-codex")
     monkeypatch.setattr(
-        harness, "_fetch_usage_lane", lambda p: _snapshot() if p == "openai-codex" else None
+        usage_lanes, "_fetch_usage_lane", lambda p: _snapshot() if p == "openai-codex" else None
     )
 
-    payload = harness.build_account_usage(timeout=5.0)
+    payload = usage_commands.build_account_usage(timeout=5.0)
 
     assert payload["schema"] == "hermes.account_usage/v1"
     # generated_at is ISO-8601 UTC and parses cleanly.
@@ -77,9 +81,9 @@ def test_usage_codex_logged_in_active(monkeypatch):
 def test_usage_lane_fetch_raising_is_isolated(monkeypatch):
     """A raising fetch degrades ONLY its own lane, with a class-name-only reason
     that never leaks the exception message (which could carry a token / URL)."""
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: None)
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
     monkeypatch.setattr(
-        harness, "_usage_lane_detected", lambda p: p in {"openai-codex", "anthropic"}
+        usage_detect, "_usage_lane_detected", lambda p: p in {"openai-codex", "anthropic"}
     )
 
     def fake_fetch(provider_id):
@@ -92,9 +96,9 @@ def test_usage_lane_fetch_raising_is_isolated(monkeypatch):
             windows=(AccountUsageWindow(label="Session", used_percent=5.0),),
         )
 
-    monkeypatch.setattr(harness, "_fetch_usage_lane", fake_fetch)
+    monkeypatch.setattr(usage_lanes, "_fetch_usage_lane", fake_fetch)
 
-    payload = harness.build_account_usage(timeout=5.0)
+    payload = usage_commands.build_account_usage(timeout=5.0)
     lanes = {lane["provider"]: lane for lane in payload["lanes"]}
     assert set(lanes) == {"openai-codex", "anthropic"}
 
@@ -115,11 +119,11 @@ def test_usage_lane_fetch_raising_is_isolated(monkeypatch):
 
 
 def test_usage_none_snapshot_on_detected_lane_is_no_usage_data(monkeypatch):
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: None)
-    monkeypatch.setattr(harness, "_usage_lane_detected", lambda p: p == "openrouter")
-    monkeypatch.setattr(harness, "_fetch_usage_lane", lambda p: None)
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
+    monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: p == "openrouter")
+    monkeypatch.setattr(usage_lanes, "_fetch_usage_lane", lambda p: None)
 
-    payload = harness.build_account_usage(timeout=5.0)
+    payload = usage_commands.build_account_usage(timeout=5.0)
     assert len(payload["lanes"]) == 1
     lane = payload["lanes"][0]
     assert lane["provider"] == "openrouter"
@@ -128,10 +132,10 @@ def test_usage_none_snapshot_on_detected_lane_is_no_usage_data(monkeypatch):
 
 
 def test_usage_no_logins_emits_empty_lanes(monkeypatch):
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: None)
-    monkeypatch.setattr(harness, "_usage_lane_detected", lambda p: False)
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
+    monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: False)
 
-    payload = harness.build_account_usage(timeout=5.0)
+    payload = usage_commands.build_account_usage(timeout=5.0)
     assert payload["schema"] == "hermes.account_usage/v1"
     assert payload["active_provider"] is None
     assert payload["lanes"] == []
@@ -139,10 +143,10 @@ def test_usage_no_logins_emits_empty_lanes(monkeypatch):
 
 def test_usage_provider_filter_restricts_to_one_lane(monkeypatch):
     # All providers "detected", but the filter narrows to codex only.
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: "openai-codex")
-    monkeypatch.setattr(harness, "_usage_lane_detected", lambda p: True)
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: "openai-codex")
+    monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: True)
     monkeypatch.setattr(
-        harness,
+        usage_lanes,
         "_fetch_usage_lane",
         lambda p: AccountUsageSnapshot(
             provider=p,
@@ -152,26 +156,26 @@ def test_usage_provider_filter_restricts_to_one_lane(monkeypatch):
         ),
     )
 
-    payload = harness.build_account_usage(only_provider="openai-codex", timeout=5.0)
+    payload = usage_commands.build_account_usage(only_provider="openai-codex", timeout=5.0)
     assert [lane["provider"] for lane in payload["lanes"]] == ["openai-codex"]
     assert payload["lanes"][0]["active"] is True
 
 
 def test_usage_provider_filter_unknown_provider_yields_empty(monkeypatch):
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: None)
-    monkeypatch.setattr(harness, "_usage_lane_detected", lambda p: True)
-    monkeypatch.setattr(harness, "_fetch_usage_lane", lambda p: _snapshot(p))
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
+    monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: True)
+    monkeypatch.setattr(usage_lanes, "_fetch_usage_lane", lambda p: _snapshot(p))
 
-    payload = harness.build_account_usage(only_provider="not-a-provider", timeout=5.0)
+    payload = usage_commands.build_account_usage(only_provider="not-a-provider", timeout=5.0)
     assert payload["lanes"] == []
 
 
 def test_cmd_usage_json_emits_schema_exit_zero(monkeypatch, capsys):
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: None)
-    monkeypatch.setattr(harness, "_usage_lane_detected", lambda p: False)
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
+    monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: False)
 
     args = SimpleNamespace(json=True, provider=None, timeout=5.0)
-    rc = harness._cmd_usage(args)
+    rc = usage_commands._cmd_usage(args)
 
     assert rc == 0
     data = json.loads(capsys.readouterr().out)
@@ -180,14 +184,14 @@ def test_cmd_usage_json_emits_schema_exit_zero(monkeypatch, capsys):
 
 
 def test_cmd_usage_human_mode_exit_zero(monkeypatch, capsys):
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: "openai-codex")
-    monkeypatch.setattr(harness, "_usage_lane_detected", lambda p: p == "openai-codex")
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: "openai-codex")
+    monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: p == "openai-codex")
     monkeypatch.setattr(
-        harness, "_fetch_usage_lane", lambda p: _snapshot() if p == "openai-codex" else None
+        usage_lanes, "_fetch_usage_lane", lambda p: _snapshot() if p == "openai-codex" else None
     )
 
     args = SimpleNamespace(json=False, provider=None, timeout=5.0)
-    rc = harness._cmd_usage(args)
+    rc = usage_commands._cmd_usage(args)
 
     assert rc == 0
     out = capsys.readouterr().out
@@ -207,10 +211,10 @@ def test_serialize_window_drops_non_finite_percent_and_json_is_strict(monkeypatc
     that sinks the whole envelope on the Launcher's strict parser. The non-finite
     window is dropped; the finite window survives; the full output is strict JSON.
     """
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: "openai-codex")
-    monkeypatch.setattr(harness, "_usage_lane_detected", lambda p: p == "openai-codex")
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: "openai-codex")
+    monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: p == "openai-codex")
     monkeypatch.setattr(
-        harness,
+        usage_lanes,
         "_fetch_usage_lane",
         lambda p: AccountUsageSnapshot(
             provider="openai-codex",
@@ -224,7 +228,7 @@ def test_serialize_window_drops_non_finite_percent_and_json_is_strict(monkeypatc
         ),
     )
 
-    payload = harness.build_account_usage(timeout=5.0)
+    payload = usage_commands.build_account_usage(timeout=5.0)
     lane = payload["lanes"][0]
     # Only the finite window survives; the lane stays available (honest data).
     assert [w["label"] for w in lane["windows"]] == ["Weekly"]
@@ -233,7 +237,7 @@ def test_serialize_window_drops_non_finite_percent_and_json_is_strict(monkeypatc
 
     # The FULL envelope must be strict JSON — parse_constant fires on any
     # NaN/Infinity/-Infinity token and would fail the test if one leaked.
-    rendered = harness.emit_json(payload)
+    rendered = usage_commands.emit_json(payload)
     parsed = json.loads(rendered, parse_constant=_reject_non_finite_json_token)
     assert parsed["lanes"][0]["windows"][0]["label"] == "Weekly"
 
@@ -241,8 +245,8 @@ def test_serialize_window_drops_non_finite_percent_and_json_is_strict(monkeypatc
 def test_cmd_usage_json_branch_isolates_serialization_failure(monkeypatch, capsys):
     """If emit_json raises inside the --json branch, the verb still prints a
     minimal valid empty-lanes envelope and exits 0 (never propagates)."""
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: None)
-    monkeypatch.setattr(harness, "_usage_lane_detected", lambda p: False)
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
+    monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: False)
 
     calls = {"n": 0}
 
@@ -250,10 +254,10 @@ def test_cmd_usage_json_branch_isolates_serialization_failure(monkeypatch, capsy
         calls["n"] += 1
         raise RuntimeError("serialization exploded")
 
-    monkeypatch.setattr(harness, "emit_json", boom)
+    monkeypatch.setattr(usage_commands, "emit_json", boom)
 
     args = SimpleNamespace(json=True, provider=None, timeout=5.0)
-    rc = harness._cmd_usage(args)
+    rc = usage_commands._cmd_usage(args)
 
     assert rc == 0
     assert calls["n"] >= 1  # emit_json was attempted and failed
@@ -264,7 +268,7 @@ def test_cmd_usage_json_branch_isolates_serialization_failure(monkeypatch, capsy
 
 # --- S1: a failed usage fetch says WHAT failed --------------------------------
 #
-# These tests deliberately do NOT monkeypatch `harness._fetch_usage_lane`. The
+# These tests deliberately do NOT monkeypatch `usage_lanes._fetch_usage_lane`. The
 # whole defect lived inside it (routing through `fetch_account_usage`, whose
 # blanket `except Exception: return None` erased the class), so a test that
 # stubs that seam out cannot see the bug. They patch the UPSTREAM per-provider
@@ -302,15 +306,15 @@ def test_usage_codex_401_reports_http_status_not_no_usage_data(monkeypatch):
     """
     import agent.account_usage as account_usage
 
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: "openai-codex")
-    monkeypatch.setattr(harness, "_usage_lane_detected", lambda p: p == "openai-codex")
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: "openai-codex")
+    monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: p == "openai-codex")
 
     def raising(*_args, **_kwargs):
         raise _http_status_error(401)
 
     monkeypatch.setattr(account_usage, "_fetch_codex_account_usage", raising)
 
-    payload = harness.build_account_usage(timeout=5.0)
+    payload = usage_commands.build_account_usage(timeout=5.0)
     assert len(payload["lanes"]) == 1
     lane = payload["lanes"][0]
     assert lane["provider"] == "openai-codex"
@@ -335,15 +339,15 @@ def test_usage_codex_500_reports_status_without_reauth_hint(monkeypatch):
     """
     import agent.account_usage as account_usage
 
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: None)
-    monkeypatch.setattr(harness, "_usage_lane_detected", lambda p: p == "openai-codex")
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
+    monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: p == "openai-codex")
 
     def raising(*_args, **_kwargs):
         raise _http_status_error(500)
 
     monkeypatch.setattr(account_usage, "_fetch_codex_account_usage", raising)
 
-    lane = harness.build_account_usage(timeout=5.0)["lanes"][0]
+    lane = usage_commands.build_account_usage(timeout=5.0)["lanes"][0]
     assert lane["unavailable_reason"] == "usage fetch failed (HTTP 500)"
     assert "re-auth" not in lane["unavailable_reason"]
 
@@ -357,15 +361,15 @@ def test_usage_non_http_exception_keeps_class_name_only(monkeypatch):
     """
     import agent.account_usage as account_usage
 
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: None)
-    monkeypatch.setattr(harness, "_usage_lane_detected", lambda p: p == "anthropic")
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
+    monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: p == "anthropic")
 
     def raising(*_args, **_kwargs):
         raise ValueError("Bearer sk-secret https://host/path?key=leak")
 
     monkeypatch.setattr(account_usage, "_fetch_anthropic_account_usage", raising)
 
-    lane = harness.build_account_usage(timeout=5.0)["lanes"][0]
+    lane = usage_commands.build_account_usage(timeout=5.0)["lanes"][0]
     assert lane["unavailable_reason"] == "usage fetch failed (ValueError)"
     assert "secret" not in lane["unavailable_reason"]
     assert "leak" not in lane["unavailable_reason"]
@@ -380,9 +384,9 @@ def test_usage_raising_anthropic_does_not_sink_the_codex_lane(monkeypatch):
     """
     import agent.account_usage as account_usage
 
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: None)
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
     monkeypatch.setattr(
-        harness, "_usage_lane_detected", lambda p: p in {"openai-codex", "anthropic"}
+        usage_detect, "_usage_lane_detected", lambda p: p in {"openai-codex", "anthropic"}
     )
 
     def raising(*_args, **_kwargs):
@@ -402,7 +406,7 @@ def test_usage_raising_anthropic_does_not_sink_the_codex_lane(monkeypatch):
 
     lanes = {
         lane["provider"]: lane
-        for lane in harness.build_account_usage(timeout=5.0)["lanes"]
+        for lane in usage_commands.build_account_usage(timeout=5.0)["lanes"]
     }
     assert lanes["openai-codex"]["available"] is True
     assert lanes["openai-codex"]["windows"][0]["label"] == "Session"
@@ -421,13 +425,13 @@ def test_usage_declining_fetcher_still_reads_no_usage_data(monkeypatch):
     """
     import agent.account_usage as account_usage
 
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: None)
-    monkeypatch.setattr(harness, "_usage_lane_detected", lambda p: p == "openrouter")
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
+    monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: p == "openrouter")
     monkeypatch.setattr(
         account_usage, "_fetch_openrouter_account_usage", lambda *_a, **_k: None
     )
 
-    lane = harness.build_account_usage(timeout=5.0)["lanes"][0]
+    lane = usage_commands.build_account_usage(timeout=5.0)["lanes"][0]
     assert lane["provider"] == "openrouter"
     assert lane["unavailable_reason"] == "no usage data"
 
@@ -442,7 +446,7 @@ def test_usage_argparse_wires_json_provider_timeout(monkeypatch):
     args = parser.parse_args(
         ["harness", "usage", "--json", "--provider", "openai-codex", "--timeout", "5"]
     )
-    assert args.func is harness._cmd_usage
+    assert args.func is usage_commands._cmd_usage
     assert args.json is True
     assert args.provider == "openai-codex"
     assert args.timeout == 5.0
@@ -452,9 +456,9 @@ def test_usage_lane_slower_than_deadline_times_out_bounded(monkeypatch):
     """A lane fetch that sleeps past the wall-clock deadline degrades to an
     unavailable lane (TimeoutError reason) without blocking the fast lanes or the
     overall command."""
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: None)
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
     monkeypatch.setattr(
-        harness, "_usage_lane_detected", lambda p: p in {"openai-codex", "anthropic"}
+        usage_detect, "_usage_lane_detected", lambda p: p in {"openai-codex", "anthropic"}
     )
 
     def fake_fetch(provider_id):
@@ -473,10 +477,10 @@ def test_usage_lane_slower_than_deadline_times_out_bounded(monkeypatch):
             windows=(AccountUsageWindow(label="Session", used_percent=5.0),),
         )
 
-    monkeypatch.setattr(harness, "_fetch_usage_lane", fake_fetch)
+    monkeypatch.setattr(usage_lanes, "_fetch_usage_lane", fake_fetch)
 
     started = time.monotonic()
-    payload = harness.build_account_usage(timeout=0.15)
+    payload = usage_commands.build_account_usage(timeout=0.15)
     elapsed = time.monotonic() - started
 
     lanes = {lane["provider"]: lane for lane in payload["lanes"]}
@@ -535,11 +539,11 @@ def test_usage_lane_with_no_fetcher_raises_typed_failure_naming_the_provider():
     both halves go red. The probed field is written by the mutated path too — it
     just writes a provably different string.
     """
-    with pytest.raises(harness.UnknownUsageLaneError) as excinfo:
-        harness._fetch_usage_lane("nous-v2")
+    with pytest.raises(usage_detect.UnknownUsageLaneError) as excinfo:
+        usage_lanes._fetch_usage_lane("nous-v2")
     assert excinfo.value.provider_id == "nous-v2"
 
-    lanes = harness._fetch_usage_lanes(
+    lanes = usage_lanes._fetch_usage_lanes(
         ["nous-v2"], active_provider=None, timeout=5.0
     )
     assert len(lanes) == 1
@@ -609,10 +613,10 @@ def test_no_usage_lane_routes_through_fetch_account_usage(monkeypatch):
         lambda *_a, **_k: {"credits": 1},
     )
 
-    candidates = list(harness._USAGE_LANE_PROVIDERS)
+    candidates = list(usage_detect._USAGE_LANE_PROVIDERS)
     assert candidates == ["openai-codex", "anthropic", "openrouter", "nous"]
 
-    lanes = harness._fetch_usage_lanes(
+    lanes = usage_lanes._fetch_usage_lanes(
         candidates, active_provider=None, timeout=5.0
     )
 
@@ -675,11 +679,11 @@ def test_a_raising_detector_emits_the_lane_with_its_class(monkeypatch, error_cla
             raise error_class("Bearer sk-LEAKME via https://example.invalid/whoami")
         return provider_id == "openai-codex"
 
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: "openai-codex")
-    monkeypatch.setattr(harness, "_usage_lane_detected", fake_detect)
-    monkeypatch.setattr(harness, "_fetch_usage_lane", lambda p: _snapshot(p))
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: "openai-codex")
+    monkeypatch.setattr(usage_detect, "_usage_lane_detected", fake_detect)
+    monkeypatch.setattr(usage_lanes, "_fetch_usage_lane", lambda p: _snapshot(p))
 
-    payload = harness.build_account_usage(timeout=5.0)
+    payload = usage_commands.build_account_usage(timeout=5.0)
     lanes = {lane["provider"]: lane for lane in payload["lanes"]}
 
     assert set(lanes) == {"openai-codex", "anthropic"}
@@ -727,7 +731,7 @@ def test_a_raising_REAL_detector_emits_the_lane_not_nothing(
     """The witness that watches the lane that RUNS.
 
     Written second, and deliberately: the sibling tests above stub
-    `harness._usage_lane_detected`, and the mutation campaign proved that a
+    `usage_detect._usage_lane_detected`, and the mutation campaign proved that a
     restored `except Exception: return False` INSIDE that function survives all
     of them — the RD-L2 lesson, reproduced live. A test that replaces the seam
     holding the defect cannot see the defect.
@@ -753,10 +757,10 @@ def test_a_raising_REAL_detector_emits_the_lane_not_nothing(
     def boom(*_a, **_k):
         raise error_class("Bearer sk-LEAKME probing https://example.invalid")
 
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: None)
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
     monkeypatch.setattr(module, probe, boom)
 
-    payload = harness.build_account_usage(only_provider=provider, timeout=5.0)
+    payload = usage_commands.build_account_usage(only_provider=provider, timeout=5.0)
 
     assert [lane["provider"] for lane in payload["lanes"]] == [provider], (
         "a detector that RAISED deleted its own lane — the pre-EG-6.1 defect, "
@@ -784,13 +788,13 @@ def test_absent_credentials_still_omit_the_lane(monkeypatch):
     discriminator on the detector's RAISE-vs-False, and neither blanket mutant
     passes both.
     """
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: "openai-codex")
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: "openai-codex")
     monkeypatch.setattr(
-        harness, "_usage_lane_detected", lambda p: p == "openai-codex"
+        usage_detect, "_usage_lane_detected", lambda p: p == "openai-codex"
     )
-    monkeypatch.setattr(harness, "_fetch_usage_lane", lambda p: _snapshot(p))
+    monkeypatch.setattr(usage_lanes, "_fetch_usage_lane", lambda p: _snapshot(p))
 
-    payload = harness.build_account_usage(timeout=5.0)
+    payload = usage_commands.build_account_usage(timeout=5.0)
 
     assert [lane["provider"] for lane in payload["lanes"]] == ["openai-codex"]
     assert "degraded" not in payload
@@ -808,18 +812,18 @@ def test_a_detector_fault_does_not_suppress_the_no_providers_claim(monkeypatch):
     def fake_detect(provider_id):
         raise _DetectorExploded("every detector is broken")
 
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: None)
-    monkeypatch.setattr(harness, "_usage_lane_detected", fake_detect)
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
+    monkeypatch.setattr(usage_detect, "_usage_lane_detected", fake_detect)
 
-    payload = harness.build_account_usage(timeout=5.0)
+    payload = usage_commands.build_account_usage(timeout=5.0)
     assert [lane["provider"] for lane in payload["lanes"]] == list(
-        harness._USAGE_LANE_PROVIDERS
+        usage_detect._USAGE_LANE_PROVIDERS
     )
     assert {lane["unavailable_reason"] for lane in payload["lanes"]} == {
         "usage detection failed (_DetectorExploded)"
     }
 
-    harness._render_account_usage_human(payload)
+    usage_commands._render_account_usage_human(payload)
 
 
 @pytest.mark.parametrize("error_class", [_DetectorExploded, _DetectorTimedOut])
@@ -844,14 +848,14 @@ def test_a_degraded_envelope_never_prints_the_no_providers_claim(
     def fake_detect(_only_provider):
         raise error_class("Bearer sk-LEAKME scanning https://example.invalid")
 
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: "openai-codex")
-    monkeypatch.setattr(harness, "_detect_usage_candidates", fake_detect)
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: "openai-codex")
+    monkeypatch.setattr(usage_commands, "_detect_usage_candidates", fake_detect)
 
-    payload = harness.build_account_usage(timeout=5.0)
+    payload = usage_commands.build_account_usage(timeout=5.0)
     assert payload["lanes"] == []
     assert payload["degraded"] == {"detect": error_class.__name__}
 
-    harness._render_account_usage_human(payload)
+    usage_commands._render_account_usage_human(payload)
     out = capsys.readouterr().out
     assert "no signed-in providers detected" not in out
     assert f"usage lanes unavailable ({error_class.__name__})" in out
@@ -872,14 +876,14 @@ def test_a_genuinely_empty_scan_still_prints_the_no_providers_claim(
     Anti-vacuity: `degraded` is asserted ABSENT, so this fixture is provably the
     honest-empty case and not a second copy of (a).
     """
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: None)
-    monkeypatch.setattr(harness, "_usage_lane_detected", lambda p: False)
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
+    monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: False)
 
-    payload = harness.build_account_usage(timeout=5.0)
+    payload = usage_commands.build_account_usage(timeout=5.0)
     assert payload["lanes"] == []
     assert "degraded" not in payload
 
-    harness._render_account_usage_human(payload)
+    usage_commands._render_account_usage_human(payload)
     out = capsys.readouterr().out
     assert "no signed-in providers detected" in out
     assert "usage lanes unavailable" not in out
@@ -896,17 +900,17 @@ def test_a_failed_fetch_scan_degrades_and_states_it(monkeypatch, capsys):
     def boom(*_a, **_k):
         raise _DetectorTimedOut("the whole fetch pool broke")
 
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: None)
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
     monkeypatch.setattr(
-        harness, "_usage_lane_detected", lambda p: p in {"openai-codex", "anthropic"}
+        usage_detect, "_usage_lane_detected", lambda p: p in {"openai-codex", "anthropic"}
     )
-    monkeypatch.setattr(harness, "_fetch_usage_lanes", boom)
+    monkeypatch.setattr(usage_commands, "_fetch_usage_lanes", boom)
 
-    payload = harness.build_account_usage(timeout=5.0)
+    payload = usage_commands.build_account_usage(timeout=5.0)
     assert payload["lanes"] == []
     assert payload["degraded"] == {"fetch": "_DetectorTimedOut"}
 
-    harness._render_account_usage_human(payload)
+    usage_commands._render_account_usage_human(payload)
     out = capsys.readouterr().out
     assert "no signed-in providers detected" not in out
     assert "usage lanes unavailable (_DetectorTimedOut)" in out
@@ -931,15 +935,15 @@ def test_a_failed_active_provider_resolve_is_named_and_does_not_eat_the_claim(
     def boom():
         raise _DetectorExploded("provider resolution broke")
 
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", boom)
-    monkeypatch.setattr(harness, "_usage_lane_detected", lambda p: False)
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", boom)
+    monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: False)
 
-    payload = harness.build_account_usage(timeout=5.0)
+    payload = usage_commands.build_account_usage(timeout=5.0)
     assert payload["active_provider"] is None
     assert payload["degraded"] == {"active_provider": "_DetectorExploded"}
     assert payload["lanes"] == []
 
-    harness._render_account_usage_human(payload)
+    usage_commands._render_account_usage_human(payload)
     out = capsys.readouterr().out
     # Detection ran and found none, so the claim is TRUE and must still print.
     assert "no signed-in providers detected" in out
@@ -961,15 +965,15 @@ def test_the_serialization_fallback_envelope_names_the_failure(monkeypatch, caps
     The sibling pin `test_cmd_usage_json_branch_isolates_serialization_failure`
     is byte-unchanged and keeps the exit-0 / valid-JSON contract.
     """
-    monkeypatch.setattr(harness, "_resolve_active_provider_id", lambda: None)
-    monkeypatch.setattr(harness, "_usage_lane_detected", lambda p: False)
+    monkeypatch.setattr(usage_commands, "_resolve_active_provider_id", lambda: None)
+    monkeypatch.setattr(usage_detect, "_usage_lane_detected", lambda p: False)
 
     def boom(_payload):
         raise _DetectorExploded("Bearer sk-LEAKME could not be serialized")
 
-    monkeypatch.setattr(harness, "emit_json", boom)
+    monkeypatch.setattr(usage_commands, "emit_json", boom)
 
-    rc = harness._cmd_usage(SimpleNamespace(json=True, provider=None, timeout=5.0))
+    rc = usage_commands._cmd_usage(SimpleNamespace(json=True, provider=None, timeout=5.0))
     assert rc == 0
     out = capsys.readouterr().out
     data = json.loads(out)
@@ -991,9 +995,9 @@ def test_the_build_fallback_envelope_names_the_failure(monkeypatch, capsys):
     def boom(**_kwargs):
         raise _DetectorTimedOut("build broke")
 
-    monkeypatch.setattr(harness, "build_account_usage", boom)
+    monkeypatch.setattr(usage_commands, "build_account_usage", boom)
 
-    rc = harness._cmd_usage(SimpleNamespace(json=True, provider=None, timeout=5.0))
+    rc = usage_commands._cmd_usage(SimpleNamespace(json=True, provider=None, timeout=5.0))
     assert rc == 0
     data = json.loads(capsys.readouterr().out)
     assert data["lanes"] == []
@@ -1027,11 +1031,11 @@ def test_the_detector_feeders_raise_instead_of_answering_not_signed_in(monkeypat
 
     monkeypatch.setattr(auth, "get_codex_auth_status", status_boom)
     monkeypatch.setattr(credential_pool, "load_pool", lambda _p: _pool(["entry"]))
-    assert harness._codex_usage_login_detected() is True
+    assert usage_providers._codex_usage_login_detected() is True
 
     monkeypatch.setattr(credential_pool, "load_pool", lambda _p: _pool([]))
     with pytest.raises(_DetectorExploded):
-        harness._codex_usage_login_detected()
+        usage_providers._codex_usage_login_detected()
 
     # --- openrouter: pool read raises ---------------------------------------
     def pool_boom(_provider):
@@ -1041,10 +1045,10 @@ def test_the_detector_feeders_raise_instead_of_answering_not_signed_in(monkeypat
     monkeypatch.setattr(
         runtime_provider, "resolve_runtime_provider", lambda **_k: {"api_key": "k" * 8}
     )
-    assert harness._openrouter_usage_login_detected() is True
+    assert usage_providers._openrouter_usage_login_detected() is True
 
     monkeypatch.setattr(
         runtime_provider, "resolve_runtime_provider", lambda **_k: {"api_key": ""}
     )
     with pytest.raises(_DetectorTimedOut):
-        harness._openrouter_usage_login_detected()
+        usage_providers._openrouter_usage_login_detected()

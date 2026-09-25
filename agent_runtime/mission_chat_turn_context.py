@@ -10,9 +10,9 @@ HUD and its snapshot/unchanged delivery, and the volatile tail the agent reads
 every single turn.
 
 All of that lived inside ``_cmd_mission_chat_message`` in
-``hermes_cli/harness_parts/persona_commands.py`` — a command part that is
-``exec``-loaded into ``harness.py``'s globals (``harness._load_command_parts``)
-rather than imported. That has a specific, expensive consequence: the assembly
+``hermes_cli/harness_parts/persona_commands.py`` — a command part that was
+``exec``-loaded into ``harness.py``'s globals until lane H1 (lane H3 split it
+into ``harness_parts/persona/``). That had a specific, expensive consequence: the assembly
 was not reachable by a unit test. Everything guarding it had to be an AST
 source-shape assertion ("this function calls ``render_capability_block`` and
 puts the result in a list named ``volatile_lines``"), which pins the SHAPE of the
@@ -198,7 +198,7 @@ def _default_consume_queued_skills(*, persona_id: str, session_id: str) -> list[
 def _default_required_preload_skills(
     skills: Sequence[Any], *, root_registries: dict[str, Any] | None = None
 ) -> list[str]:
-    from agent.skill_utils import required_preload_skill_ids
+    from agent_runtime.skill_resolution import required_preload_skill_ids
 
     return list(
         required_preload_skill_ids(
@@ -215,11 +215,20 @@ def _default_build_preloaded_skills_prompt(
 ) -> tuple[str, list[str], list[str]]:
     from agent.skill_commands import build_preloaded_skills_prompt
 
-    kwargs = {"required_skill_names": required_skill_names} if required_skill_names else {}
-    prompt, loaded, missing = build_preloaded_skills_prompt(
-        list(names), task_id=task_id, **kwargs
-    )
-    return str(prompt or ""), list(loaded or []), list(missing or [])
+    prompt, loaded, missing = build_preloaded_skills_prompt(list(names), task_id=task_id)
+    prompt = str(prompt or "")
+    loaded = list(loaded or [])
+    required = [name for name in loaded if name in (required_skill_names or ())]
+    if prompt and required:
+        # Upstream's per-skill preload note already marks each skill active for the
+        # session; the "required on this surface" emphasis is one fork line on top of
+        # it (lane DOORS-A 2026-09-24 — it used to be a parameter threaded into
+        # upstream's ``build_preloaded_skills_prompt``).
+        quoted = ", ".join(f'"{name}"' for name in required)
+        prompt = (f"[IMPORTANT: Runtime policy requires the {quoted} skill"
+                  f"{'s' if len(required) > 1 else ''} on this surface. Their instructions "
+                  "are active for this turn.]\n\n" + prompt)
+    return prompt, loaded, list(missing or [])
 
 
 def _default_admitted_operating_skills(persona: Any, *, session_id: str | None) -> list[str]:

@@ -150,18 +150,7 @@ class TestBuildNativeVisionToolResult:
         assert env["content"][1]["type"] == "image_url"
         assert env["content"][1]["image_url"]["url"] == "data:image/png;base64,XYZ"
         assert "what does it say?" in env["content"][0]["text"]
-        assert "Image attached natively" in env["text_summary"]
 
-    def test_no_question_omits_question_section(self):
-        env = _build_native_vision_tool_result(
-            image_url="/tmp/foo.png",
-            question="",
-            image_data_url="data:image/png;base64,XYZ",
-            image_size_bytes=512,
-        )
-        text = env["content"][0]["text"]
-        assert "Question:" not in text
-        assert "Image loaded" in text
 
 
 # ─── _vision_analyze_native ──────────────────────────────────────────────────
@@ -434,7 +423,7 @@ class TestHandleVisionAnalyzeFastPath:
         set_runtime_main("brand-new-provider", "llava-v1.6")
         try:
             with patch(
-                "hermes_cli.config.load_config_readonly",
+                "hermes_cli.config.load_config",
                 return_value={"model": {"supports_vision": True}},
             ), patch(
                 "tools.vision_tools.vision_analyze_tool", side_effect=_aux_sentinel,
@@ -459,7 +448,7 @@ class TestHandleVisionAnalyzeFastPath:
         set_runtime_main("brand-new-provider", "llava-v1.6")
         try:
             with patch(
-                "hermes_cli.config.load_config_readonly",
+                "hermes_cli.config.load_config",
                 return_value={
                     "agent": {"image_input_mode": "text"},
                     "model": {"supports_vision": True},

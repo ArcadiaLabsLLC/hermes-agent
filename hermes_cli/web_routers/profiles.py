@@ -26,7 +26,6 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
 
 from hermes_cli.web_deps import late
 from hermes_cli.config import get_process_hermes_home
@@ -40,23 +39,13 @@ from hermes_cli.web_server_profiles import (
     _fallback_profile_dicts, _hub_action_name, _write_profile_mcp_servers,
 )
 from hermes_cli.web_server_sessions import _open_session_db_at_path
+from hermes_state_health import STORAGE_CORRUPT, note_storage_error, storage_state
 from starlette.concurrency import run_in_threadpool
 from hermes_cli.web_models import (
     ProfileCreate, ProfileActiveUpdate, ProfileExport, ProfileImport, ProfileRename,
     ProfileSoulUpdate, ProfileDescriptionUpdate, ProfileModelUpdate, ProfileDescribeAuto,
     SessionPrScanBody)
 from hermes_cli.web_server_profiles import _config_profile_scope, _hermes_home_scope
-
-
-class ProfilePromoteRequest(BaseModel):
-    """Body for ``POST /api/profiles/{name}/promote`` (fork-owned route).
-
-    Declared here rather than in :mod:`hermes_cli.web_models` because the
-    promote route is fork-only: keeping the model next to its single consumer
-    means the shared model module stays a pure mirror of the upstream surface.
-    """
-
-    slot_role: str = "builder"
 
 # Same logger the handlers used before extraction (identical logger object).
 _log = logging.getLogger("hermes_cli.web_server")
@@ -104,7 +93,7 @@ def _profile_to_dict(info) -> Dict[str, Any]:
         "distribution_name": attr("distribution_name", None),
         "distribution_version": attr("distribution_version", None),
         "distribution_source": attr("distribution_source", None),
-        "has_alias": attr("alias_path", None) is not None}
+        "has_alias": attr("alias_path", None) is not None, "role": attr("role", None)}
 
 
 def _profile_setup_command(name: str) -> str:
@@ -226,7 +215,7 @@ def _profile_targets(log_label: str) -> List[Tuple[str, Path]]:
     fan-out that only needs name/path (#114041)."""
     from hermes_cli import profiles as profiles_mod
     try:
-        targets = list(profiles_mod.profiles_to_serve(multiplex=True))
+        targets = list(profiles_mod.profiles_to_serve(multiplex=True, include_standalone=True, include_parked=True))
     except Exception:
         _log.exception("%s: profile enumeration failed", log_label)
         targets = []
@@ -280,6 +269,8 @@ def _read_profile_db(name: str, home, errors: Optional[List[Dict[str, str]]],
         db = _open_session_db_at_path(db_path, read_only=True)
         return fn(db)
     except Exception as exc:
+        # An open that dies on a damaged file never reaches SessionDB's read helpers.
+        note_storage_error(db_path, exc)
         _warn_profile_read_error(name, exc)
         if errors is not None:
             errors.append({"profile": name, "error": str(exc)})
@@ -287,6 +278,14 @@ def _read_profile_db(name: str, home, errors: Optional[List[Dict[str, str]]],
     finally:
         if db is not None:
             db.close()
+
+
+def _corrupt_profile_stores(targets) -> Dict[str, str]:
+    """``{profile: "corrupt"}`` for every scanned profile whose state.db this process has latched
+    as structurally corrupt (``hermes_state_health``). Lets Desktop tell an empty or partial list
+    from a damaged store, including when some reads still succeed (#72046)."""
+    return {name: STORAGE_CORRUPT for name, home in targets
+            if storage_state(Path(home) / "state.db") == STORAGE_CORRUPT}
 
 
 # Sidebar scan cache TTL: short enough that the UI never shows meaningfully stale data, long
@@ -459,7 +458,8 @@ def get_profiles_sessions(
     if not full:
         _strip_session_list_rows(window)
     return {"sessions": window, "total": sum(totals.values()), "profile_totals": totals,
-            "limit": limit, "offset": offset, "errors": errors}
+            "limit": limit, "offset": offset, "errors": errors,
+            "storage": _corrupt_profile_stores(targets)}
 
 
 @sessions_router.get("/api/profiles/sessions/sidebar")
@@ -511,9 +511,11 @@ def get_profiles_sessions_sidebar(
         _sidebar_profile_cache_put(cache_key, slices)
         return slices
 
+    scanned = []
     for name, home in targets:
         if recents_scope != "all" and name != recents_scope:
             continue
+        scanned.append((name, home))
         db_path = Path(home) / "state.db"
         if not db_path.exists():
             continue
@@ -546,7 +548,7 @@ def get_profiles_sessions_sidebar(
                     "profiles_usage": profile_totals},
         "cron": {"sessions": _window("cron")},
         "messaging": {"sessions": _window("messaging"), "total": len(rows["messaging"])},
-        "errors": errors}
+        "errors": errors, "storage": _corrupt_profile_stores(scanned)}
 
 
 def _merge_by_id(into: Dict[str, Dict[str, Any]], entries: List[Dict[str, Any]], child_key: str) -> None:
@@ -770,51 +772,6 @@ async def create_profile_endpoint(body: ProfileCreate):
     return {"ok": True, "name": body.name, "path": str(path), "model_set": model_set, "model_error": model_error,
             "mcp_written": mcp_written, "skills_disabled": skills_disabled,
             "hub_installs": hub_installs}
-
-
-@router.post("/api/profiles/{name}/promote")
-async def promote_profile_endpoint(name: str, body: ProfilePromoteRequest):
-    """Mint (and persist) an agent-runtime persona backed by a raw profile.
-
-    Fork-owned route, ported into this router when upstream extracted the
-    profile endpoints out of ``web_server.py``. Registered here — between the
-    ``POST /api/profiles`` and ``GET /api/profiles/active`` handlers — so the
-    global route-registration order matches the pre-extraction file exactly.
-
-    Promotion resolves through the permanent
-    :mod:`agent_runtime.blueprints.resolve` shim, which re-exports
-    ``promote_profile_to_persona`` from :mod:`agent_runtime.personas`. Behavior
-    (mission-lane removal, S11): an explicit matching persona template is
-    cloned; otherwise a profile-backed persona is minted from the agent-runtime
-    defaults while the supplied ``slot_role`` is retained as data.
-    """
-    from hermes_cli import profiles as profiles_mod
-
-    try:
-        profile_name = profiles_mod.normalize_profile_name(name)
-        if not profiles_mod.profile_exists(profile_name):
-            raise HTTPException(status_code=404, detail=f"Profile '{profile_name}' does not exist")
-        from agent_runtime.blueprints.resolve import promote_profile_to_persona
-
-        persona = promote_profile_to_persona(profile_name, slot_role=body.slot_role)
-        return {
-            "ok": True,
-            "profile": profile_name,
-            "persona_id": persona.id,
-            "persona": {
-                "id": persona.id,
-                "display_name": persona.display_name,
-                "role": persona.role,
-                "hermes_profile": persona.hermes_profile,
-            },
-        }
-    except HTTPException:
-        raise
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    except Exception as exc:
-        _log.exception("POST /api/profiles/%s/promote failed", name)
-        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.get("/api/profiles/active")

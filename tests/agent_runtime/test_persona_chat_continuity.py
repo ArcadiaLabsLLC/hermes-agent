@@ -31,6 +31,7 @@ from agent_runtime.persona_chat_continuity import (
 from agent_runtime.states import WorkerSessionState
 from agent_runtime.profile_runner import _finish_resident_persona_chat_agent
 from hermes_state import SessionDB
+from hermes_cli.harness_parts.persona import chat_history_writes
 
 
 def _instance(**overrides) -> PersonaInstance:
@@ -184,7 +185,6 @@ def test_12_native_committed_can_repair_projection(isolate_agent_runtime_root):
 
 
 def test_13_executing_can_become_outcome_unknown(isolate_agent_runtime_root, monkeypatch):
-    from hermes_cli import harness
 
     transition_mission_chat_turn(session_id="root", client_message_id="client", turn_id="turn", state="pending")
     transition_mission_chat_turn(session_id="root", client_message_id="client", turn_id="turn", state="executing")
@@ -192,7 +192,7 @@ def test_13_executing_can_become_outcome_unknown(isolate_agent_runtime_root, mon
     assert mission_chat_turn_record(session_id="root", client_message_id="client")["state"] == "outcome_unknown"
     monkeypatch.setenv("HERMES_PERSONA_CHAT_FAULT_INJECTION", "after_provider_boundary")
     with pytest.raises(RuntimeError, match="after_provider_boundary"):
-        harness._persona_chat_fault_injection("after_provider_boundary")
+        chat_history_writes._persona_chat_fault_injection("after_provider_boundary")
 
 
 def test_14_exact_unknown_turn_can_be_abandoned(isolate_agent_runtime_root):
@@ -302,7 +302,9 @@ def test_26_delete_root_removes_compression_lineage_but_preserves_branch(tmp_pat
     db.end_session("root", "compression")
     db.create_session("tip", "agent_runtime_persona_chat", parent_session_id="root")
     db.create_session("branch", "agent_runtime_persona_chat", parent_session_id="root", model_config={"_branched_from": "root"})
-    assert db.delete_compression_lineage("root") == ["root", "tip"]
+    from agent_runtime.session_extensions import delete_compression_lineage
+
+    assert delete_compression_lineage(db, "root") == ["root", "tip"]
     assert db.get_session("branch")["parent_session_id"] is None
 
 
@@ -1188,7 +1190,7 @@ def test_a_flaky_tombstone_probe_cannot_escape_the_mint_lane_untyped(
         raise OSError("the store root went away mid-probe")
 
     monkeypatch.setattr(
-        persona_assignments, "_retired_persona_instance_archive_path", _flaky
+        persona_assignments.retire, "_retired_persona_instance_archive_path", _flaky
     )
 
     with caplog.at_level(logging.WARNING, logger=persona_assignments.__name__):

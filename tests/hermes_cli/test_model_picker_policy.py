@@ -85,3 +85,22 @@ def test_live_result_never_synthesizes_spark_or_astra(monkeypatch):
     url, headers = sent[0]
     assert url.endswith("client_version=99.0.0")
     assert headers["ChatGPT-Account-ID"] == "account-a"
+
+
+def test_picker_cache_follows_the_profile_home_override(tmp_path, monkeypatch):
+    """The cache lives under ``get_hermes_home()``, so a profile override moves it."""
+
+    from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+
+    ambient = tmp_path / "ambient"
+    profile = tmp_path / "profiles" / "alice"
+    monkeypatch.setenv("HERMES_HOME", str(ambient))
+    # Positive control: with no override the ambient home answers.
+    assert model_picker_policy._picker_cache_path().parent.parent == ambient
+    token = set_hermes_home_override(profile)
+    try:
+        assert model_picker_policy._picker_cache_path() == (
+            profile / "cache" / "codex-model-picker.json"
+        )
+    finally:
+        reset_hermes_home_override(token)

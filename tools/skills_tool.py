@@ -29,11 +29,11 @@ from tools.skills_tool_dedup import (  # noqa: F401
     _check_skill_view_dedup, _record_skill_view, reset_skill_view_dedup)
 from tools.skill_provenance import is_background_review
 
-from agent.skill_utils import (
-    current_skill_runtime_context, get_all_skills_dirs, resolve_skill,
-    skill_package_content_hash, skill_frontmatter_runtime_compatibility,
+from agent.skill_utils import get_all_skills_dirs
+from agent_runtime.skill_resolution import (
+    current_skill_runtime_context, resolve_skill, skill_package_content_hash,
+    skill_frontmatter_runtime_compatibility, skill_source_kind,
 )
-from agent_runtime.skill_resolution import skill_source_kind
 
 logger = logging.getLogger(__name__)
 
@@ -120,12 +120,46 @@ def _skill_utils_delegate(attr: str):
 skill_matches_platform = _skill_utils_delegate("skill_matches_platform")
 # Offer-time relevance gate (kanban/docker/s6), NOT hard compatibility; explicit loads bypass it.
 skill_matches_environment = _skill_utils_delegate("skill_matches_environment")
+skill_matches_apps = _skill_utils_delegate("skill_matches_apps")
 _parse_frontmatter = _skill_utils_delegate("parse_frontmatter")
 _get_disabled_skill_names = _skill_utils_delegate("get_disabled_skill_names")
 
 
 def check_skills_requirements() -> bool:
     return True  # always available: the directory is created on first use
+
+
+def skill_inspection_reader():
+    """Bind human inspection to the same discovery and collision/trust gates as tools."""
+    from agent_runtime.skill_inspection import SkillInspection
+    return SkillInspection(_inspection_entries, _inspection_location, _get_disabled_skill_names)
+
+
+def _inspection_entries():
+    from hermes_cli.plugins import get_plugin_manager
+    rows = _find_all_skills(skip_disabled=True)
+    # Only already-registered plugins: opening a browser never activates one.
+    for row in get_plugin_manager().list_plugin_skill_metadata():
+        if skill_matches_platform(row.get("frontmatter", {})):
+            rows.append(dict(row))
+    return _sort_skills(rows)
+
+
+def _inspection_location(identifier):
+    from agent_runtime.skill_inspection import SkillInspectionError, SkillInspectionReason
+    from hermes_cli.plugins import get_plugin_manager
+    if _skill_lookup_path_error(identifier):
+        raise SkillInspectionError(SkillInspectionReason.UNAVAILABLE)
+    plugin = get_plugin_manager().find_plugin_skill(identifier) if ":" in identifier else None
+    if plugin is not None:
+        return plugin, "plugin"
+    project, roots, _active = _skill_search_dirs()
+    error, _directory, document = _locate_skill(identifier, None, project, roots)
+    if error is not None:
+        raise SkillInspectionError(SkillInspectionReason.UNAVAILABLE)
+    source = next((skill_source_kind(root) for root in roots
+                   if document.is_relative_to(root)), "external")
+    return document, source
 
 
 def _get_category_from_path(skill_path: Path) -> Optional[str]:
@@ -218,7 +252,7 @@ def _find_all_skills(*, skip_disabled: bool = False) -> List[Dict[str, Any]]:
                 continue
             try:
                 frontmatter, body = _parse_frontmatter(_read_skill_text(skill_md)[:4000])
-                if not skill_matches_platform(frontmatter) or not skill_matches_environment(frontmatter):
+                if not skill_matches_platform(frontmatter) or not skill_matches_environment(frontmatter) or not skill_matches_apps(frontmatter):
                     continue
                 if active_surface and not skill_frontmatter_runtime_compatibility(
                     frontmatter, surface=active_surface, root_node_mode=root_node_mode).get("compatible"):

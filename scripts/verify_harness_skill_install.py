@@ -29,7 +29,7 @@ from ``.githooks/pre-push``. That is the moment the PRODUCER publishes, and it
 repaired the machine whose repo copy was already the newest thing in the realm.
 The drift is acquired by a CONSUMER, so the callers are now the two moments a
 consumer acquires it: ``.githooks/post-merge`` (this script, after a pull) and
-``harness serve`` boot (``hermes_cli/harness_parts/serve.py``
+``harness serve`` boot (``hermes_cli/harness_parts/serve/boot.py``
 ``install_harness_skills_at_boot``, which runs the installers directly rather
 than shelling out to this file — a boot has an explicitly pinned home and needs
 none of the resolution ladder below). Neither can block, and neither has to:
@@ -199,7 +199,7 @@ def _canonical_ids() -> list[str]:
 
 def _report(skills: list[str]) -> list[str]:
     """One line per canonical skill: repo size/hash vs installed size/hash."""
-    from agent.skill_utils import skill_package_content_hash
+    from agent_runtime.skill_resolution import skill_package_content_hash
     from agent_runtime.skill_install import (
         SKILL_SIZE_CEILINGS,
         harness_skill_destination,

@@ -277,9 +277,8 @@ TODO_SCHEMA = {
 
 from tools.registry import registry, tool_error
 
-from tools.downstream_schema import brief_schema
 registry.register(
-    name="todo_list", toolset="todo", schema=brief_schema("todo_list", TODO_SCHEMA), check_fn=check_todo_requirements,
+    name="todo_list", toolset="todo", schema=TODO_SCHEMA, check_fn=check_todo_requirements,
     handler=lambda args, **kw: todo_tool(
         todos=args.get("todos"), merge=args.get("merge", False), store=kw.get("store")),
     emoji="📋")

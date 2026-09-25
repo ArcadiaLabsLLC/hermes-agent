@@ -64,8 +64,10 @@ DEFAULT_EXEMPTIONS = REPO_ROOT / "tool" / "test_quality" / "mutation_exemptions.
 #: Held for the duration of a MUTATING run — see :func:`_acquire_gate_lock`.
 #: Worktree-local by construction (``REPO_ROOT`` is this checkout's root), which
 #: is the right scope: the hazard is a shared TREE, and two worktrees of one
-#: clone have two trees.
-LOCK_PATH = REPO_ROOT / ".mutation_gate.lock"
+#: clone have two trees. The lock's directory ignores itself (a ``.gitignore``
+#: holding ``*``, written by :func:`_acquire_gate_lock`), so the checkout's root
+#: ``.gitignore`` stays upstream's.
+LOCK_PATH = REPO_ROOT / ".mutation-gate" / "lock"
 HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
 #: The default WALL-CLOCK bound on a run, in seconds. 900 = fifteen minutes,
@@ -832,6 +834,10 @@ def _acquire_gate_lock() -> bool:
     dead one.
     """
 
+    LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    marker = LOCK_PATH.parent / ".gitignore"
+    if not marker.exists():
+        marker.write_text("*\n", encoding="utf-8", newline="\n")
     try:
         with open(LOCK_PATH, "x", encoding="utf-8") as stream:
             stream.write(

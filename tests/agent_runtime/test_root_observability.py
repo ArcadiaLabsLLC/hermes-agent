@@ -15,6 +15,7 @@ from types import SimpleNamespace
 import pytest
 
 from agent_runtime.root_observability import attach_root_observability
+from hermes_cli.harness_parts import runtime_commands
 
 
 pytestmark = pytest.mark.usefixtures("isolate_agent_runtime_root")
@@ -100,15 +101,13 @@ def test_empty_chat_history_envelope_now_carries_its_frame_of_reference(
     never render as "no messages". The envelope still carries the same frame
     of reference, now on the refusal."""
 
-    import hermes_cli.harness as harness
-
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HERMES_HOME", str(home))
     monkeypatch.delenv("HERMES_HEAD_HOME", raising=False)
     monkeypatch.delenv("HERMES_ALLOW_AMBIENT_CHAT_READS", raising=False)
     args = SimpleNamespace(session_id="sess_not_here", json=True, limit=40, before=None)
-    assert harness._cmd_persona_chat_history(args) == 2
+    assert runtime_commands._cmd_persona_chat_history(args) == 2
     envelopes = _decode_stdout_envelopes(capsys.readouterr().out)
     assert len(envelopes) == 1, "expected exactly one --json envelope on stdout"
     envelope = envelopes[0]
@@ -124,10 +123,9 @@ def test_empty_chat_history_envelope_now_carries_its_frame_of_reference(
 
 
 def test_status_envelope_carries_resolution(capsys):
-    import hermes_cli.harness as harness
 
     args = SimpleNamespace(json=True)
-    assert harness._cmd_status(args) == 0
+    assert runtime_commands._cmd_status(args) == 0
     envelopes = _decode_stdout_envelopes(capsys.readouterr().out)
     assert len(envelopes) == 1
     assert envelopes[0]["resolution"]["layer"] == "env"

@@ -16,21 +16,22 @@ from pathlib import Path
 
 import pytest
 
-from agent.usage_pricing import (
+from agent.usage_pricing import CanonicalUsage
+from agent_runtime.usage_ledger import (
     USAGE_LEDGER_MAX_ROWS,
-    CanonicalUsage,
-    record_api_call_usage,
+    bind_usage_ledger,
+    on_post_api_request,
+    record_usage,
 )
-from agent_runtime.prompt_observability import (
+from agent_runtime.prompt_observability import turn_usage_from_result
+from agent_runtime.prompt_observability.context_budget import (
     BUDGET_BASIS_ESTIMATE_MESSAGES_ONLY,
     BUDGET_BASIS_ESTIMATE_WITH_TOOLS,
     BUDGET_BASIS_METERED_FIRST_CALL,
     _context_budget,
     _context_budget_needs_refresh,
-    _safe_final_model_input,
-    _safe_turn_usage,
-    turn_usage_from_result,
 )
+from agent_runtime.prompt_observability.safe_views import _safe_final_model_input, _safe_turn_usage
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -46,67 +47,103 @@ FINAL_INPUT_WITH_TOOLS = {
 FINAL_INPUT_NO_TOOLS = {"messages": [{"bytes": 40_000}, {"bytes": 100}]}
 
 
-class _Agent:
-    """Minimal stand-in for the accrual sites' `agent` object."""
-
-
 # --------------------------------------------------------------------------
-# H1 — per-call usage ledger
+# H1 — per-call usage ledger (agent_runtime.usage_ledger, fed by post_api_request)
 # --------------------------------------------------------------------------
 
 
 def test_ledger_records_one_row_per_call_with_canonical_prompt_tokens():
-    agent = _Agent()
-    agent.session_usage_ledger = []
+    with bind_usage_ledger() as ledger:
+        record_usage(CanonicalUsage(input_tokens=100, cache_read_tokens=900, output_tokens=5))
+        record_usage(CanonicalUsage(input_tokens=50, cache_read_tokens=2_000, output_tokens=7))
 
-    record_api_call_usage(agent, CanonicalUsage(input_tokens=100, cache_read_tokens=900, output_tokens=5))
-    record_api_call_usage(agent, CanonicalUsage(input_tokens=50, cache_read_tokens=2_000, output_tokens=7))
-
-    assert [row["call_index"] for row in agent.session_usage_ledger] == [1, 2]
+    assert [row["call_index"] for row in ledger] == [1, 2]
     # prompt = input + cache_read + cache_write (CanonicalUsage's definition).
-    assert agent.session_usage_ledger[0]["prompt_tokens"] == 1_000
-    assert agent.session_usage_ledger[1]["prompt_tokens"] == 2_050
-    assert agent.session_usage_ledger[0]["cache_read_tokens"] == 900
+    assert ledger[0]["prompt_tokens"] == 1_000
+    assert ledger[1]["prompt_tokens"] == 2_050
+    assert ledger[0]["cache_read_tokens"] == 900
 
 
-def test_ledger_self_heals_when_agent_predates_the_field():
-    agent = _Agent()  # no session_usage_ledger attribute
+def test_post_api_request_usage_summary_becomes_a_row():
+    """The hook payload's ``usage`` is upstream's normalized bucket summary."""
+    with bind_usage_ledger() as ledger:
+        on_post_api_request(usage={"prompt_tokens": 42_733, "input_tokens": 733, "output_tokens": 9,
+                                   "cache_read_tokens": 42_000}, turn_id="t", session_id="s")
+        on_post_api_request(usage=None, turn_id="t")  # a response without usage adds no row
 
-    record_api_call_usage(agent, CanonicalUsage(input_tokens=1))
+    assert ledger == [{"call_index": 1, "prompt_tokens": 42_733, "input_tokens": 733, "output_tokens": 9,
+                       "cache_read_tokens": 42_000, "cache_write_tokens": 0, "reasoning_tokens": 0}]
 
-    assert len(agent.session_usage_ledger) == 1
+
+def test_no_bound_ledger_records_nothing():
+    record_usage(CanonicalUsage(input_tokens=1))
+    with bind_usage_ledger() as ledger:
+        pass
+    assert ledger == []
 
 
 def test_ledger_is_bounded():
-    agent = _Agent()
-    agent.session_usage_ledger = []
+    with bind_usage_ledger() as ledger:
+        for _ in range(USAGE_LEDGER_MAX_ROWS + 20):
+            record_usage(CanonicalUsage(input_tokens=1))
 
-    for _ in range(USAGE_LEDGER_MAX_ROWS + 20):
-        record_api_call_usage(agent, CanonicalUsage(input_tokens=1))
-
-    assert len(agent.session_usage_ledger) == USAGE_LEDGER_MAX_ROWS
+    assert len(ledger) == USAGE_LEDGER_MAX_ROWS
 
 
-def test_every_usage_accrual_site_also_records_the_ledger():
+def test_every_usage_accrual_site_is_covered_by_the_ledger():
     """Guard: a new accrual site must not silently skip the ledger.
 
-    There are exactly two sites that advance the session_* token counters. If a
-    third appears (or one is refactored) without record_api_call_usage, the
-    ledger goes quietly incomplete and the context budget silently reverts to
-    estimates — the very failure this work retired.
+    Exactly two sites advance the session_* token counters. ``turn_usage.py`` is
+    upstream's, and the call it accrues for fires ``post_api_request`` (the
+    plugin's ledger hook); the Codex app-server path never fires that hook, so
+    ``codex_runtime.py`` records the row itself. A third site reds here.
     """
-    accrual = re.compile(r"session_(?:prompt|input)_tokens\s*\+=")
-    offenders = []
-    for path in (REPO_ROOT / "agent").rglob("*.py"):
-        text = path.read_text(encoding="utf-8", errors="replace")
-        if accrual.search(text) and "record_api_call_usage" not in text:
-            offenders.append(path.relative_to(REPO_ROOT).as_posix())
-
-    assert offenders == [], (
-        f"usage-accrual sites missing record_api_call_usage(): {offenders}. "
-        "Every site that advances the session token counters must append a "
-        "per-call ledger row."
+    # The direct form, and the Codex path's ``setattr(agent, f"session_{key}", ... + value)`` loop.
+    accrual = re.compile(r"session_(?:prompt|input)_tokens\s*\+=|setattr\(agent, f\"session_\{key\}\"")
+    sites = sorted(
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in (REPO_ROOT / "agent").rglob("*.py")
+        if accrual.search(path.read_text(encoding="utf-8", errors="replace"))
     )
+    assert sites == ["agent/codex_runtime.py", "agent/turn_usage.py"]
+    codex = (REPO_ROOT / "agent" / "codex_runtime.py").read_text(encoding="utf-8")
+    assert "record_usage(canonical_usage)" in codex
+
+
+def test_the_plugin_feeds_the_ledger_from_post_api_request():
+    import importlib.util
+
+    path = REPO_ROOT / "plugins" / "eternia-harness" / "__init__.py"
+    spec = importlib.util.spec_from_file_location("_eternia_harness_ledger_under_test", path)
+    plugin = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(plugin)
+    hooks = {}
+
+    class _Ctx:
+        def __getattr__(self, name):
+            return lambda *a, **k: None
+
+        def register_hook(self, name, callback):
+            hooks[name] = callback
+
+    plugin.register(_Ctx())
+    with bind_usage_ledger() as ledger:
+        hooks["post_api_request"](usage={"prompt_tokens": 7}, turn_id="t", api_call_count=1)
+    assert [row["prompt_tokens"] for row in ledger] == [7]
+
+
+def test_the_persona_runner_binds_the_ledger_around_the_turn():
+    from agent_runtime.profile_runner import _run_conversation_with_usage_ledger
+
+    class _Agent:
+        def run_conversation(self, **kwargs):
+            on_post_api_request(usage={"prompt_tokens": 11})
+            on_post_api_request(usage={"prompt_tokens": 13})
+            return {"final_response": "ok", **kwargs}
+
+    result = _run_conversation_with_usage_ledger(_Agent(), {"user_message": "hi"})
+    assert [row["prompt_tokens"] for row in result["usage_ledger"]] == [11, 13]
+    assert result["user_message"] == "hi"
 
 
 # --------------------------------------------------------------------------
@@ -340,18 +377,14 @@ def test_turn_usage_from_result_is_none_for_a_turn_that_never_ran():
     assert turn_usage_from_result(None) is None
 
 
-def test_harness_globals_expose_turn_usage_from_result():
-    """`persona_commands.py` is exec'd into harness globals, not imported.
+def test_the_turn_run_phase_binds_turn_usage_from_result():
+    """The mission-chat turn resolves ``turn_usage_from_result`` in its OWN module.
 
-    Nothing it references is resolved at import time, so a helper it calls must
-    be imported by `hermes_cli/harness.py` or the mission-chat turn dies with a
-    NameError only at runtime. (The same wiring is why that file's own helpers
-    are not unit-testable — hence this contract lives in prompt_observability.)
+    The turn's run phase (``persona/chat_turn_commit/run.py``, lanes H1/H3) is a
+    real module, so the name must be bound there — read from the runtime
+    module, not its spelling — and be the one ``prompt_observability`` owns.
     """
-    harness_src = (REPO_ROOT / "hermes_cli" / "harness.py").read_text(encoding="utf-8")
-    part_src = (REPO_ROOT / "hermes_cli" / "harness_parts" / "persona_commands.py").read_text(encoding="utf-8")
+    from agent_runtime import prompt_observability
+    from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run
 
-    assert "turn_usage_from_result" in part_src, "mission chat should shape turn_usage"
-    assert re.search(
-        r"from agent_runtime\.prompt_observability import [^\n]*turn_usage_from_result", harness_src
-    ), "harness.py must import turn_usage_from_result into the globals the part executes in"
+    assert commit_run.turn_usage_from_result is prompt_observability.turn_usage_from_result

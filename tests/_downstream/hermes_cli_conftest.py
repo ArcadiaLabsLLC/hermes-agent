@@ -1,9 +1,10 @@
 """Fork-owned half of ``tests/hermes_cli/conftest.py`` (seam Stage 5).
 
-Every name here was fork-added to that conftest; it is star-imported back by
-the one line the upstream conftest carries, so pytest discovers the fixtures
-and hooks on the conftest module exactly as before (same directory scope).
-``__all__`` lists the ``_``-prefixed names, which ``import *`` would skip.
+Every name here was fork-added to that conftest. The root ``conftest.py``
+registers this module when pytest registers ``tests/hermes_cli/conftest.py``, under a
+``tests/hermes_cli/_downstream_conftest.py`` name, so its fixtures keep that
+directory's scope and its hooks run; the upstream conftest carries no fork line
+(lane CARRY3).
 """
 
 from __future__ import annotations
@@ -16,6 +17,14 @@ import pathlib
 import sys
 
 import pytest
+
+# The REAL python-dotenv, loaded before any tests/hermes_cli module is imported.
+# Upstream's test_gmi_provider / test_fireworks_provider / test_upstage_provider
+# install a fake `dotenv` (no `dotenv.main`) at import when none is loaded yet,
+# and a bundle imports every member before it runs any, so the fake reached
+# every co-member (lane REDS2's two observed pairs). With the real module in
+# sys.modules their own guard is a no-op; upstream bytes untouched.
+import dotenv  # noqa: F401
 
 from tests._env_gap_fence import EnvGapSkipRegistry, apply_skips, is_owned
 from tests.hermes_cli import _gateway_fence, _module_identity
@@ -40,7 +49,7 @@ _OWNER_NODEID_PREFIX = "tests/hermes_cli/"
 
 
 @pytest.fixture(autouse=True)
-def _gateway_fence_is_armed_for_this_test():
+def _gateway_fence_is_armed_for_this_test(request):
     """Arm the gateway fence for the duration of THIS directory's tests.
 
     Conftest import is process-wide, and in a combined run
@@ -70,12 +79,39 @@ def _gateway_fence_is_armed_for_this_test():
     The atexit window is not covered here (a spawn from a handler happens long
     after this teardown) and does not need to be — ``pytest_sessionfinish``
     latches the refusal on permanently, before any atexit handler runs.
+
+    A test marked ``spawns_gateway_lookalike`` runs unfenced here, the same
+    exemption the root live-system guard grants it (a test-owned gateway
+    stand-in; ``serve``/``dashboard`` stay refused there). Upstream's
+    ``test_cross_profile_kill_refusal.py`` and ``test_stderr_timestamp.py``
+    carry that mark and stay at upstream's path because of it.
     """
+    if request.node.get_closest_marker("spawns_gateway_lookalike") is not None:
+        yield
+        return
     _gateway_fence.arm()
     try:
         yield
     finally:
         _gateway_fence.disarm()
+
+
+@pytest.fixture(autouse=True)
+def _kanban_live_worker_registry_is_per_test():
+    """Empty ``kanban_db_dispatch._live_worker_procs`` after every test here.
+
+    On win32 ``reap_worker_zombies`` polls every handle ``_default_spawn``
+    parked in that module-level dict. A test that spawns through a fake
+    ``Popen`` leaves the fake parked, and upstream's fakes (``FakeProc``,
+    ``_FakePopen``) have no ``poll()``, so the NEXT test's reaper raises
+    (``test_gateway_dispatcher_disables_corrupt_board_without_traceback`` x2
+    reds on upstream's bytes). Only a module already imported is touched.
+    """
+    yield
+    dispatch = sys.modules.get("hermes_cli.kanban_db_dispatch")
+    registry = getattr(dispatch, "_live_worker_procs", None)
+    if isinstance(registry, dict):
+        registry.clear()
 
 
 #: Every module that binds :func:`hermes_constants.agent_browser_runnable` by
@@ -252,7 +288,7 @@ def _sys_modules_identity_is_restored():
     """A test may IMPORT modules; it may not REPLACE or DROP one.
 
     The largest cross-test pollution class in this directory, measured
-    2026-08-31. ``test_skills_subparser.py`` deletes ``hermes_cli.main`` from
+    2026-08-31. ``test_skills_subparser.py`` (since deleted by upstream's 2026-09 test purge) deleted ``hermes_cli.main`` from
     ``sys.modules`` and re-imports it to prove the parser still builds -- and
     never puts the original back. Python then holds TWO ``hermes_cli.main``
     module objects with two separate namespaces:
@@ -368,29 +404,9 @@ def _no_windows_gateway_pause_token(request, monkeypatch):
         raising=False,
     )
 
-class _EmptyProcessTable:
-    """A process-table lister that reports a machine running nothing.
-
-    The hermetic default for this directory. It answers the same shape the
-    production lister answers, so the code under test takes its normal path
-    and simply finds no candidates — as opposed to ``None``, which is the
-    typed "no inspector available at all" arm and would exercise a different
-    branch.
-    """
-
-    def __init__(self) -> None:
-        self.reads = 0
-
-    def read(self):
-        from hermes_cli import profiles
-
-        self.reads += 1
-        return profiles._ProcessTable(
-            self_pid=os.getpid(),
-            ancestor_pids=frozenset(),
-            current_username=None,
-            processes=(),
-        )
+def _empty_process_iter(*_args, **_kwargs):
+    """``psutil.process_iter`` for a machine running nothing."""
+    return iter(())
 
 
 @pytest.fixture(autouse=True)
@@ -398,42 +414,30 @@ def _no_live_process_table(monkeypatch):
     """No test in this directory reads this machine's real process table.
 
     ``hermes profile delete`` scans for backends bound to the profile being
-    deleted, and the production lister walks every process on the box (and,
-    for candidates, reads their environment). Measured on this workstation
-    2026-08-18: 448 processes, ~4.2s per scan, three scans in
-    ``test_profiles.py`` alone — which is what made ``tests/hermes_cli`` time
-    out as a directory (ledger row F1). The live table is also not a fact any
-    test can drive: what it holds depends on what the developer happens to be
-    running, so a test that reads it is asking a question with no defined
-    answer.
+    deleted, and the scan walks every process on the box (and, for candidates,
+    reads their environment). Measured on this workstation 2026-08-18: 448
+    processes, ~4.2s per scan, three scans in ``test_profiles.py`` alone —
+    which is what made ``tests/hermes_cli`` time out as a directory (ledger
+    row F1). The live table is also not a fact any test can drive: what it
+    holds depends on what the developer happens to be running.
 
-    The desktop build-lock sweep (``hermes_cli._desktop_processes._DESKTOP_PROCESS_LISTER``,
-    reached from ``cmd_gui``) is the SECOND consumer of the same seam and is
-    defaulted here too rather than in a fixture of its own — one place that
-    answers "does any test in this directory touch the live process table",
-    because two places is how one of them silently stops covering a call site
-    (measured: ``test_gui_command.py`` walked the real table once per run,
-    ledger row B20(vi)).
+    Both consumers — ``profiles._profile_bound_backend_pids`` and the desktop
+    build-lock sweep ``main_desktop._stop_desktop_processes_locking_build``
+    (reached from ``cmd_gui``, ledger row B20(vi)) — are upstream's inline
+    ``psutil`` loops since lane ADOPT (2026-09-24) retired the fork's
+    process-table seam, so the default is set where they read it:
+    ``psutil.process_iter``. Tests that are ABOUT a scan replace ``psutil``
+    themselves (``monkeypatch.setitem(sys.modules, "psutil", fake)`` or
+    ``monkeypatch.setattr(psutil, "process_iter", ...)``) and drive the rows.
 
-    Tests that are ABOUT a scan install their own lister on top of this one
-    (``monkeypatch.setattr(profiles, "_PROCESS_LISTER", ...)``) and drive the
-    rows they mean to filter.
-
-    ``raising`` is left at its default of True deliberately: if either seam is
-    ever renamed, this fixture must fail loudly rather than silently stop
-    guarding — a guard that can quietly become a no-op is how the hole
-    reopens.
+    ``raising`` stays True: if ``psutil`` ever loses ``process_iter`` this
+    fixture must fail loudly rather than silently stop guarding.
     """
     try:
-        from hermes_cli import profiles
+        import psutil  # type: ignore
     except Exception:
         return
-    monkeypatch.setattr(profiles, "_PROCESS_LISTER", _EmptyProcessTable())
-    try:
-        from hermes_cli import _desktop_processes
-    except Exception:
-        return
-    monkeypatch.setattr(_desktop_processes, "_DESKTOP_PROCESS_LISTER", _EmptyProcessTable())
+    monkeypatch.setattr(psutil, "process_iter", _empty_process_iter)
 
 
 # ── Pre-existing environment-gap fence (2026-07-30) ─────────────────────────
@@ -749,7 +753,6 @@ def _local_model_probe_reason() -> str | None:
 _ENV_GAPS: dict[str, list[tuple[str, str, set[str]]]] = {}
 
 _POSIX_MODE_BITS_PROBE = None
-_GIT_EOL_PROBE = None
 
 
 def _no_module(name: str):
@@ -830,34 +833,6 @@ def _posix_only_branch() -> bool:
     return sys.platform == "win32"
 
 
-def _git_name_only_ignores_cr_at_eol() -> bool:
-    """True where `git diff --name-only --ignore-cr-at-eol` is not honoured.
-
-    _normalize_managed_eol() derives its EOL-only set as
-    ``dirty - dirty(--ignore-cr-at-eol)``. Below git 2.32 the --name-only
-    output is decided before the content-level ignore rules run, so that set is
-    always empty and the function pins core.autocrlf without restoring
-    anything. A toolchain version, not a platform.
-    """
-    global _GIT_EOL_PROBE
-    if _GIT_EOL_PROBE is None:
-        import re as _re
-        import subprocess as _sp
-
-        try:
-            raw = _sp.run(
-                ["git", "--version"], capture_output=True, text=True, timeout=15
-            ).stdout
-            match = _re.search(r"(\d+)\.(\d+)", raw or "")
-            _GIT_EOL_PROBE = (
-                True if match is None
-                else (int(match.group(1)), int(match.group(2))) < (2, 32)
-            )
-        except Exception:
-            _GIT_EOL_PROBE = True
-    return _GIT_EOL_PROBE
-
-
 _SHEBANG_EXEC_PROBE = None
 
 
@@ -891,6 +866,39 @@ def _no_shebang_script_execution() -> bool:
             else:
                 _SHEBANG_EXEC_PROBE = False
     return _SHEBANG_EXEC_PROBE
+
+
+def _test_python_outside_project_venv() -> bool:
+    """True where ``sys.executable`` is not under this checkout.
+
+    ``update_cmd_windows._detect_venv_python_processes`` reports only processes
+    whose exe lives under the project venv (or the checkout root), and the live
+    venv-holder E2Es spawn their sleepers from ``sys.executable``. A shared test
+    venv outside the checkout makes every sleeper invisible to the scan.
+    """
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    try:
+        Path(sys.executable).resolve().relative_to(root)
+    except ValueError:
+        return True
+    return False
+
+
+def _unelevated_windows_shell() -> bool:
+    """True on a Windows shell without administrator rights (schtasks /Create refuses)."""
+    import sys
+
+    if sys.platform != "win32":
+        return False
+    import ctypes
+
+    try:
+        return not ctypes.windll.shell32.IsUserAnAdmin()
+    except Exception:
+        return False
 
 
 _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
@@ -927,7 +935,6 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
                 'test_profiles_default_subdir_is_skipped_with_warning',
                 'test_register_service_overwrites_existing_slot',
                 'test_registered_profile_has_finish_script',
-                'test_running_profile_is_registered_and_autostarted',
             },
         ),
     ],
@@ -939,8 +946,6 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             'same guard the sibling TestSecureDirChown in this file already '
             'carries',
             {
-                'TestChownToHermesUid::test_attributeerror_swallowed_for_windows_compat',
-                'TestChownToHermesUid::test_calls_os_chown_when_both_set',
                 'TestChownToHermesUid::test_eperm_is_silently_swallowed',
                 'TestResolveHermesUidGid::test_returns_parsed_values_when_both_set',
             },
@@ -1051,23 +1056,6 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             },
         ),
     ],
-    # ── toolchain version ──────────────────────────────────────────────────
-    'test_update_eol_churn.py': [
-        (
-            _git_name_only_ignores_cr_at_eol,
-            'git toolchain floor: below 2.32 `git diff --name-only '
-            '--ignore-cr-at-eol` still lists a file whose full '
-            '--ignore-cr-at-eol diff is empty, so _normalize_managed_eol() '
-            'derives an always-empty EOL-only set and pins core.autocrlf '
-            'without restoring anything',
-            {
-                'test_churn_across_more_files_than_fit_in_one_argv',
-                'test_churn_invisible_under_autocrlf_true_is_still_found',
-                'test_churn_is_cleared_and_the_pin_is_persisted',
-                'test_real_edits_survive_even_when_line_endings_also_flipped',
-            },
-        ),
-    ],
     # ── the production code itself branches on sys.platform ────────────────
     'test_cmd_update.py': [
         (
@@ -1079,6 +1067,34 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             'the checkout — treat it as side-effecting',
             {
                 'TestCmdUpdateBranchFallback::test_update_on_fork_checks_upstream_when_origin_up_to_date',
+            },
+        ),
+    ],
+    # ── Lane REDS3: live Windows E2Es whose premise is this box, not the code ──
+    'test_venv_holder_windows_live.py': [
+        (
+            _test_python_outside_project_venv,
+            'the sleepers are spawned from sys.executable, a shared test venv '
+            'outside this checkout, and the holder scan reports only processes '
+            'running from the project venv or checkout; run the file from an '
+            'in-checkout .venv',
+            {
+                'TestDetection::test_detects_hermes_argv_process',
+                'TestDetection::test_long_runtime_path_gateway_detected_with_full_argv',
+                'TestClassification::test_pausable_exemption_sees_long_path_gateway',
+                'TestClassification::test_serve_backend_not_classified_pausable',
+                'TestHolderMessage::test_dashboard_not_labeled_desktop_backend',
+                'TestHolderMessage::test_substring_subcommand_not_mislabeled',
+            },
+        ),
+    ],
+    'test_legacy_launchers_windows_live.py': [
+        (
+            _unelevated_windows_shell,
+            'schtasks /Create answers "Access is denied" in an unelevated shell '
+            '(class d-P); the test registers a real scheduled task',
+            {
+                'test_status_warns_and_uninstall_removes_pre_suffix_launchers',
             },
         ),
     ],
@@ -1166,18 +1182,10 @@ _STALE_ENV_GAP_ENTRIES: list[str] = []
 # file have a different, independent cause and are registered in
 # _ENV_GAP_SKIPS above with a live probe.
 #: The one-line reason the ``xfail`` mark on ``test_telegram_parity`` carries.
-#: The mark IMPORTS this name (``tests/hermes_cli/test_commands.py``) rather
-#: than restating it, so the fence and the report cannot drift apart into two
+#: The mark (applied by id from ``tests/_downstream/id_markers.py``, which
+#: owns the text) and this banner share ONE string rather than restating it, so the fence and the report cannot drift apart into two
 #: accounts of one defect — the register-rot shape C25 is about.
-TELEGRAM_PARITY_DEFECT_REASON = (
-    "KNOWN DEFECT (owner call, not an environment gap): Slack's 50-slash app "
-    "cap drops '/platform', a canonical gateway command with no native Slack "
-    "slot, so Telegram/Slack parity cannot hold until an owner either pins it "
-    "a slot (something else loses one) or declares it _SLACK_VIA_HERMES_ONLY. "
-    "strict=True: the day parity holds, this XPASSes and reds — delete the "
-    "mark and this row. Full account: _KNOWN_DEFECTS in "
-    "tests/hermes_cli/conftest.py."
-)
+from tests._downstream.id_markers import TELEGRAM_PARITY_DEFECT_REASON  # noqa: E402 — single source, the table applies the mark
 
 _KNOWN_DEFECTS: dict[str, str] = {
     "test_commands.py": (
@@ -1303,8 +1311,9 @@ __all__ = [
     "_pairing_dir_follows_the_test_home",
     "_sys_modules_identity_is_restored",
     "_no_windows_gateway_pause_token",
-    "_EmptyProcessTable",
+    "_empty_process_iter",
     "_no_live_process_table",
+    "_kanban_live_worker_registry_is_per_test",
     "_WINDOWS",
     "_HOST",
     "_WEB_BUILD_PREREQ_FILES",
@@ -1317,14 +1326,12 @@ __all__ = [
     "_local_model_probe_reason",
     "_ENV_GAPS",
     "_POSIX_MODE_BITS_PROBE",
-    "_GIT_EOL_PROBE",
     "_no_module",
     "_no_posix_mode_bits",
     "_no_os_chown",
     "_no_posix_wait_status",
     "_no_posix_privilege_api",
     "_posix_only_branch",
-    "_git_name_only_ignores_cr_at_eol",
     "_SHEBANG_EXEC_PROBE",
     "_no_shebang_script_execution",
     "_ENV_GAP_SKIPS",

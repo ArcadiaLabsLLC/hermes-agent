@@ -419,7 +419,8 @@ the real-binary H0/Q1 lane supplies actual model proof.
 
 ### H2 — provider inventory, routing, admission
 
-Implement section 7. New `tests/agent_runtime/test_local_llama_provider.py` covers
+Implement section 7. `tests/agent_runtime/test_local_llama_adapter.py` covers (since 2026-09-24,
+when the fork package's provider tests retired with it; lane LLAMA-H)
 off/unloaded selection, typed refusal before agent construction, inference alias,
 parameters/context propagation, profile isolation, cache invalidation, local-only
 auxiliary routing, and lease release on every terminal path. Extend

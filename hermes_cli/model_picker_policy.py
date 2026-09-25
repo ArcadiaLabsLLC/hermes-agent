@@ -70,8 +70,9 @@ _picker_lock = threading.Lock()
 
 
 def _picker_cache_path() -> Path:
-    root = Path(os.getenv("HERMES_HOME", "").strip() or str(Path.home() / ".hermes"))
-    return root / "cache" / "codex-model-picker.json"
+    from hermes_constants import get_hermes_home
+
+    return get_hermes_home() / "cache" / "codex-model-picker.json"
 
 
 def get_verified_codex_model_ids(access_token: str) -> Optional[List[str]]:

@@ -147,6 +147,91 @@ def optional_text(value: Any) -> str | None:
     return text or None
 
 
+def safe_text(value: Any, *, limit: int) -> str | None:
+    """``value`` as ONE bounded line: NULs dropped, whitespace collapsed, cut to
+    ``limit``; ``None`` when nothing is left.
+
+    The one owner of the rule (program rule 15). :func:`safe_assignment_text`
+    is its empty-string spelling for the store rows that persist ``""``; the
+    mission-chat stream reads this one.
+    """
+
+    return " ".join(str(value or "").replace("\x00", " ").split())[:limit] or None
+
+
+def safe_block(value: Any, *, limit: int) -> str | None:
+    """Newline-PRESERVING bounded text; ``None`` when nothing is left.
+
+    Where :func:`safe_text` whitespace-collapses, this keeps line structure
+    (a key-per-line tool-input block stays readable): NULs become spaces, line
+    endings normalise to LF, and text past ``limit`` is cut with a visible
+    ``…(rest truncated)…`` marker rather than silently.
+    """
+
+    text = str(value or "").replace("\x00", " ").replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not text:
+        return None
+    if len(text) > limit:
+        text = f"{text[:limit]}\n…(rest truncated)…"
+    return text
+
+
+def safe_int(value: Any) -> int | None:
+    """``int(value)``, or ``None`` when it does not coerce. Never raises."""
+
+    try:
+        return int(value)
+    except Exception:  # noqa: BLE001 — a coercion answers None, it does not raise
+        return None
+
+
+def non_negative_int(value: Any) -> int | None:
+    """``int(value)`` when it coerces and is >= 0, else ``None``. Never raises.
+
+    The count/size reading of a foreign field: a negative or unreadable value is
+    no measurement, and ``0`` is a real one (unlike :func:`positive_int`).
+    """
+
+    parsed = safe_int(value)
+    return parsed if parsed is not None and parsed >= 0 else None
+
+
+def strict_int(value: Any) -> int | None:
+    """:func:`safe_int`, but a ``bool`` is not a number here (``True`` is not exit code 1)."""
+
+    return None if isinstance(value, bool) else safe_int(value)
+
+
+def positive_int(value: Any, *, default: int | None = None) -> int | None:
+    """``int(value)`` when it coerces and is > 0, else ``default``. Never raises.
+
+    ``positive_int(x, default=0)`` is the non-negative count a token or call
+    tally wants: a negative or unreadable value counts as none. A ``bool`` is not
+    a count (``True`` is not 1): lane R3 folded ``profile_runner._positive_int``,
+    whose budgets refused it, onto this owner.
+    """
+
+    parsed = strict_int(value)
+    return parsed if parsed is not None and parsed > 0 else default
+
+
+def positive_float(value: Any) -> float | None:
+    """A positive, finite ``float(value)``, or ``None``. Never raises; a ``bool`` is
+    not a number here. The run-budget seconds owner (lane R3 folded
+    ``profile_runner._positive_float``; ``mcp_admission``'s copy folds in its lane).
+    """
+
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number <= 0 or number != number or number == float("inf"):
+        return None
+    return number
+
+
 def safe_id(value: Any) -> str | None:
     """Sanitize a wire id into one safe to use as a filename or map key.
 
@@ -198,3 +283,48 @@ def write_json_atomic(path: Path, record: dict[str, Any]) -> None:
         except OSError:
             pass
         raise
+
+
+def read_json(path: Path) -> Any:
+    """``path``'s JSON, read as UTF-8; raises on a missing or undecodable file.
+
+    The one plain reader (program rule 15); callers that must survive a bad
+    file catch around it. ``store_file_io.read_json_object`` is the stricter,
+    secure-path form and stays separate.
+    """
+
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def safe_assignment_token(value: Any) -> str:
+    """``value`` as an id-safe token (alnum plus ``_ - .``, trimmed, at most 120
+    characters); ``""`` when nothing survives. The persona-assignment rows'
+    spelling — unlike :func:`safe_id` it keeps no ``:`` and never returns ``None``."""
+    text = "".join(ch if ch.isalnum() or ch in {"_", "-", "."} else "_" for ch in str(value or "").strip())
+    return text.strip("._-")[:120]
+
+
+def safe_optional_token(value: Any) -> str | None:
+    token = safe_assignment_token(value)
+    return token or None
+
+
+def dedupe_tokens(values: list[str] | None) -> list[str]:
+    """Normalize + de-duplicate a parent-id list, preserving first-seen order.
+
+    The first surviving token is treated as the PRIMARY parent everywhere
+    (the ``spawned_by`` mirror, the projection's home owner), so order matters.
+    """
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values or []:
+        token = safe_optional_token(value)
+        if token and token not in seen:
+            seen.add(token)
+            result.append(token)
+    return result
+
+
+def safe_assignment_text(value: Any, *, limit: int) -> str:
+    """:func:`safe_text`, spelled ``""`` for an empty value (store rows persist ``""``)."""
+    return safe_text(value, limit=limit) or ""

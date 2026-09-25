@@ -606,7 +606,9 @@ def test_the_persisted_entries_shrink_with_the_closure(
     (root / "workspaces" / "ws_alpha.json").write_text("{}", encoding="utf-8")
     _graveyard_batch(root)
 
-    monkeypatch.setattr(core_cache, "build_stamp_token", lambda: "probe:mc8:clean")
+    monkeypatch.setattr(core_cache.fingerprint, "build_stamp_token", lambda: "probe:mc8:clean")
+    monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: "probe:mc8:clean")
+    monkeypatch.setattr(core_cache.persist, "build_stamp_token", lambda: "probe:mc8:clean")
     core_cache.reset_process_state()
     try:
         key = core_cache.build_input_fingerprint()

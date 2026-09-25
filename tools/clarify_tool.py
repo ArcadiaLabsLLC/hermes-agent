@@ -241,7 +241,9 @@ def check_clarify_requirements() -> bool:
     return True
 
 
-FULL_CLARIFY_DESCRIPTION = (
+CLARIFY_SCHEMA = {
+    "name": "clarify",
+    "description": (
         "Ask the user one or more questions when you need a decision, "
         "clarification, or feedback before proceeding. Pass every question "
         f"in `questions` (1-{MAX_QUESTIONS} entries) — a single question is a "
@@ -259,12 +261,6 @@ FULL_CLARIFY_DESCRIPTION = (
         "part-way or the prompt could not be delivered). Prefer deciding "
         "low-stakes questions yourself; don't use this for dangerous-command "
         "confirmation (the terminal tool handles that)."
-)
-
-CLARIFY_SCHEMA = {
-    "name": "clarify",
-    "description": (
-        f"Ask 1-{MAX_QUESTIONS} independent questions in one call. Put options only in choices, recommended first; omit for free text. Responses preserve order. Decide low-stakes matters yourself; terminal owns dangerous-command confirmation."
     ),
     "parameters": {
         "type": "object",

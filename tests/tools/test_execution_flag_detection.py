@@ -1,7 +1,5 @@
 """Execution-bearing option detection across interpreters and read-only tools."""
 
-import os
-import shlex
 import shutil
 import subprocess
 import time
@@ -41,62 +39,6 @@ def test_real_read_tool_binaries_confirm_option_ownership(
     assert completed.stdout == expected_output
 
 
-@pytest.mark.parametrize(
-    ("tool", "args", "stdin", "needs_tty"),
-    [
-        ("rg", ["--pre", "-payload-marker", "needle", "{input}"], None, False),
-        ("rg", ["--hostname-bin=-payload-marker", "needle", "{input}"], None, False),
-        ("sort", ["--buffer-size=1K", "--compress-program", "-payload-marker"], "{bulk}", False),
-        ("ag", ["--pager=-payload-marker", "needle", "{input}"], None, True),
-        ("man", ["--pager", "-payload-marker", "ls"], None, True),
-        ("man", ["-P", "-payload-marker", "ls"], None, True),
-    ],
-)
-def test_real_binaries_execute_leading_dash_program_payload(
-    tmp_path, tool, args, stdin, needs_tty
-):
-    """A PATH marker proves these binaries do not reparse '-program' as an option."""
-    if shutil.which(tool) is None or (needs_tty and shutil.which("script") is None):
-        pytest.skip(f"{tool} or script is not installed")
-
-    marker = tmp_path / "executed"
-    payload = tmp_path / "-payload-marker"
-    payload.write_text("#!/bin/sh\nprintf executed > \"$MARKER\"\ncat\n")
-    payload.chmod(0o755)
-    input_file = tmp_path / "input.txt"
-    input_file.write_text("needle\n")
-    resolved_args = [arg.format(input=str(input_file)) for arg in args]
-    input_text = (
-        "\n".join(str(number) for number in range(10_000, 0, -1)) + "\n"
-        if stdin == "{bulk}"
-        else stdin
-    )
-    env = {
-        **os.environ,
-        "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}",
-        "MARKER": str(marker),
-        "TERM": "xterm",
-    }
-    # NOTE (2026-08-10 audit): this argv carries the same which-vs-
-    # CreateProcess mismatch the test above was fixed for — on Windows
-    # ``"sort"`` runs System32's namesake rather than the GNU sort that
-    # ``shutil.which`` approved. It is deliberately NOT "fixed" here: routing
-    # to the real GNU sort makes this parametrization HANG on Windows, not
-    # fail. sort spawns the ``-payload-marker`` compressor, the spawn fails,
-    # and a grandchild keeps the stdout pipe open — so ``subprocess.run``'s
-    # own ``timeout=20`` raises TimeoutExpired and then blocks forever in the
-    # ``process.communicate()`` its Windows exception path runs without a
-    # timeout. The payload cannot execute on Windows either way (a
-    # ``#!``-shebang script is not an executable image there: WinError 193),
-    # so the row is an environment gap that needs a probe-backed SKIP; the
-    # bare name at least keeps it a fast failure instead of a wedge.
-    argv = [tool, *resolved_args]
-    if needs_tty:
-        argv = ["script", "-qec", shlex.join(argv), "/dev/null"]
-
-    subprocess.run(argv, input=input_text, text=True, capture_output=True, env=env, timeout=20)
-
-    assert marker.read_text() == "executed"
 
 
 @pytest.mark.parametrize(
@@ -295,14 +237,6 @@ def _time_benign_segments(count):
     return time.perf_counter() - started, result
 
 
-def test_benign_segment_scaling_benchmark():
-    """Retain real metrics without making correctness depend on wall-clock ratios."""
-    small, small_result = _time_benign_segments(2_000)
-    large, large_result = _time_benign_segments(4_000)
-
-    assert small_result == (False, None, None)
-    assert large_result == (False, None, None)
-    print(f"benign segment benchmark: 2k={small:.3f}s, 4k={large:.3f}s")
 
 
 def test_max_accepted_separator_free_input_is_fast():

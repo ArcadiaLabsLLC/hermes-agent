@@ -139,8 +139,8 @@ def test_every_manifest_sha256_is_itself_byte_pinned():
 
     assert unpinned == [], (
         "these `MANIFEST.sha256` files carry a sha256 claim about bytes with no "
-        "`-text` rule to keep the bytes still. Add a `<dir>/** -text` rule to "
-        ".gitattributes with the reason:\n  " + "\n  ".join(unpinned)
+        "`-text` rule to keep the bytes still. Add a `<dir>/.gitattributes` holding "
+        "`* -text`, with the reason:\n  " + "\n  ".join(unpinned)
     )
 
 

@@ -17,10 +17,10 @@ and appears nowhere on this surface.
 ## The write verbs — the level's mutations, one RPC lane
 
 Every office mutation is one of these verbs, and all of them are registered
-JSON-RPC methods on the serve child today (`agent_runtime/serve_rpc.py`,
+JSON-RPC methods on the serve child today (`agent_runtime/serve_rpc/`,
 `@method(...)`):
 
-| Gesture | Method | Handler (all in `agent_runtime/serve_rpc.py`) | Ack |
+| Gesture | Method | Handler (all in `agent_runtime/serve_rpc/`) | Ack |
 |---|---|---|---|
 | place / move | `runtime.office.upsert` | `_runtime_office_upsert` | `{actor_key, revision}` |
 | delete | `runtime.office.remove` | `_runtime_office_remove` | `{actor_key, revision, state}` |
@@ -30,8 +30,8 @@ JSON-RPC methods on the serve child today (`agent_runtime/serve_rpc.py`,
 | retire an agent (row + every actor bound to it) | `runtime.agent.retire` | `_runtime_agent_retire` | `{persona_instance_id, archive_path, archived_actor_keys, office_archive_failures, already_retired, correlation_id?, retire_receipt_path? \| first_attempt?, …}` |
 
 **Handlers are named, never `file:line`, and the reason is this table's own
-history.** The retire row carried `serve_rpc.py:2055` from the day S5 landed it,
-and by the time S10 read it back the function was at `:2079` — four days, one
+history.** The retire row carried a `serve_rpc.py` line number (2055) from the day S5 landed it,
+and by the time S10 read it back the function was at line 2079 — four days, one
 intervening slice, and the citation went on reading as verified (invariant 13).
 S8b had already had to strip that one number by hand; this change strips the
 other five for the same reason rather than waiting for each to rot in turn.
@@ -987,7 +987,7 @@ resubscribe ladder — boundary-validated (≤64 chars, `[a-z0-9_:.-]`, refused
 receipt, with absence printed as `-`. The docstring states the rule out loud: *a
 cause the client chose is evidence, never authority* — a server that branched on
 it would be taking dispatch orders from an untrusted string
-(`serve_rpc.py:725-740`).
+(`serve_rpc/office_read.py:75-90`).
 
 ## Optimistic rendering vs snapshot truth
 
@@ -1096,7 +1096,7 @@ reads one file, and the two stop being free to drift.
 **Two ways an actor list can be short, and the row says both.**
 `actors_truncated` is the cut WE chose; `actors_unreadable` is files the platform
 would not open. Both are REQUIRED keyword arguments of `office_summary_row`
-(`snapshot.py:1718+`), so a caller holding a bare list has to say `0` out loud
+(`snapshot/offices.py:59+`), so a caller holding a bare list has to say `0` out loud
 rather than get it by default.
 
 **`conflict_guessed_keys` rides the row beside `conflict_actor_keys`** and names
@@ -1134,7 +1134,7 @@ third was an observability artifact over a real 24 s window.
 - **`projection drops N`** counted the residue of the operator's own first-class
   retires as anomalies. Fixed at the emission site: a session whose binding
   resolves in the persona-instance archive now drops as `instance_retired` with
-  `by_design=True` (`persona_chat_history.py:420`), so the count means *lost*
+  `by_design=True` (`agent_runtime/persona_chat_history/summary.py:43`), so the count means *lost*
   data. The chip also gained the disclosure the other two had —
   `anomalousDropSummaries` (`data/mission_control_snapshot.dart`, parsed and
   passed to the alert from that same file).
@@ -1149,10 +1149,10 @@ third was an observability artifact over a real 24 s window.
   leaked surface without hand surgery.
 - **`snapshot build Nms`** was ONE build wearing three log lines: the line is
   emitted per *hydrate caller* and measures that caller's WAIT. The vocabulary
-  now says so — `led` / `rode` / `shared_next` (`snapshot.py:283-285`) plus a
+  now says so — `led` / `rode` / `shared_next` (`snapshot/receipts.py:183-185`) plus a
   fourth, `cache`, added when the persisted-core fingerprint hit — printed on
   `snapshot_build_core role=… caller=… generation=… build_ms=… offset=…`
-  (`snapshot.py:403`). **A boot's build count is the count of `led` lines, never
+  (`snapshot/build_log.py:63`). **A boot's build count is the count of `led` lines, never
   the count of lines.** The provider prewarm was moved behind the read-model
   build on one thread (`serve.py:3353-3363`, injected rather than hardcoded) so
   its SDK import stops contending with the boot-critical build.
@@ -1175,7 +1175,7 @@ lane reasons (`agent_chat/mission_agent_model_switcher_view_model.dart`);
 `probedHomeCaption` puts the probed home on screen
 (`agent_model_menu.dart`); and the swallowed 401 became a stated status —
 `usage {phase} failed (HTTP {status} — re-auth may be required)`
-(`hermes_cli/harness.py:3840-3843`), with class-name-only discipline preserved for
+(`hermes_cli/harness_parts/usage/detect.py::_usage_failure_reason`), with class-name-only discipline preserved for
 everything that is not an HTTP status, because a bare status code leaks nothing.
 
 ## The board — still capability-only

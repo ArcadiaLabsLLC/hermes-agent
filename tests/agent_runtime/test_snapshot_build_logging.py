@@ -181,7 +181,7 @@ def test_one_led_receipt_per_build_while_two_callers_ride_it(monkeypatch, build_
         assert release.wait(5)
         return _core(build_ms=4321)
 
-    monkeypatch.setattr(snapshot_mod, "_build_snapshot_uncoalesced", fake_build)
+    monkeypatch.setattr(snapshot_mod.build, "_build_snapshot_uncoalesced", fake_build)
 
     leader_info: dict = {"caller": "prewarm"}
     rider_info: dict = {"caller": "hub"}
@@ -232,7 +232,7 @@ def test_the_receipt_reads_its_cost_off_the_envelope_the_build_built(
     def fake_build(**_kwargs):
         return cores.pop(0)
 
-    monkeypatch.setattr(snapshot_mod, "_build_snapshot_uncoalesced", fake_build)
+    monkeypatch.setattr(snapshot_mod.build, "_build_snapshot_uncoalesced", fake_build)
 
     snapshot_mod.build_snapshot(build_info={"caller": "cli"})
     snapshot_mod.build_snapshot(build_info={"caller": "hub"})
@@ -256,7 +256,7 @@ def test_an_injected_store_build_is_attributed_but_prints_no_receipt(
     boot's own lines in the log this stage exists to make readable."""
 
     monkeypatch.setattr(
-        snapshot_mod,
+        snapshot_mod.build,
         "_build_snapshot_uncoalesced",
         lambda **_kwargs: _core(build_ms=11),
     )
@@ -302,7 +302,7 @@ def test_the_role_matrix_names_the_leader_the_rider_and_the_sharer(
         assert release[generation].wait(5)
         return _core(build_ms=1000 + generation)
 
-    monkeypatch.setattr(snapshot_mod, "_build_snapshot_uncoalesced", fake_build)
+    monkeypatch.setattr(snapshot_mod.build, "_build_snapshot_uncoalesced", fake_build)
 
     infos = {name: {"caller": name} for name in ("a", "b", "c", "d")}
 
@@ -375,12 +375,12 @@ def test_the_prewarm_names_itself_on_the_line_it_used_to_never_emit(
     from hermes_cli.harness_parts import serve as serve_mod
 
     monkeypatch.setattr(
-        snapshot_mod,
+        snapshot_mod.build,
         "_build_snapshot_uncoalesced",
         lambda **_kwargs: _core(build_ms=21400),
     )
 
-    serve_mod._prewarm_read_model_snapshot()
+    serve_mod.boot._prewarm_read_model_snapshot()
 
     receipts = _lines(build_log, _CORE_PREFIX)
     assert len(receipts) == 1
@@ -411,7 +411,7 @@ def test_a_riders_wait_line_names_the_role_and_the_build_it_did_not_run(
         assert release.wait(5)
         return _core(build_ms=6543, offset=555)
 
-    monkeypatch.setattr(snapshot_mod, "_build_snapshot_uncoalesced", fake_build)
+    monkeypatch.setattr(snapshot_mod.build, "_build_snapshot_uncoalesced", fake_build)
 
     leader = threading.Thread(
         target=lambda: snapshot_mod.build_snapshot(build_info={"caller": "prewarm"})
@@ -454,7 +454,7 @@ def test_the_wait_line_ships_both_the_new_key_and_the_deprecated_one(
     """
 
     monkeypatch.setattr(
-        snapshot_mod,
+        snapshot_mod.build,
         "_build_snapshot_uncoalesced",
         lambda **_kwargs: _core(build_ms=120, offset=7),
     )
@@ -485,7 +485,7 @@ def test_sections_ride_a_wait_line_only_when_the_build_was_slow(
     the threshold — a constant matches at most one."""
 
     monkeypatch.setattr(
-        snapshot_mod,
+        snapshot_mod.build,
         "_build_snapshot_uncoalesced",
         lambda **_kwargs: _core(build_ms=build_ms, sections={"agents_readiness": build_ms}),
     )
@@ -695,7 +695,7 @@ def test_both_build_families_carry_this_process_pid(monkeypatch, build_log, buil
     """
 
     monkeypatch.setattr(
-        snapshot_mod,
+        snapshot_mod.build,
         "_build_snapshot_uncoalesced",
         lambda **_kwargs: _core(
             build_ms=build_ms, offset=99, sections={"agents_readiness": build_ms}
@@ -741,7 +741,7 @@ def test_the_pid_field_did_not_displace_the_fields_already_grepped(
     """
 
     monkeypatch.setattr(
-        snapshot_mod,
+        snapshot_mod.build,
         "_build_snapshot_uncoalesced",
         lambda **_kwargs: _core(build_ms=120, offset=7),
     )

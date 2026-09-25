@@ -441,6 +441,13 @@ def format_process_notification(evt: dict) -> "str | None":
     if evt.get("handoff_note"):
         _attribution = f"Handed off to you by a subagent before it finished. Purpose: {evt['handoff_note']}"
     attribution = f"{_attribution}\n" if _attribution else ""
+    if evt_type == "heartbeat":
+        _out = evt.get("output") or "(no new output since the last heartbeat)"
+        return (
+            f"[Background process {_sid} heartbeat #{evt.get('seq', '?')} — still running after "
+            f"{_format_age(float(evt.get('elapsed') or 0))} (next in {evt.get('interval', '?')}s; "
+            f"you will also be told when it exits).\n"
+            f"{attribution}Command: {_cmd}\nOutput since last heartbeat:\n{_out}]")
     if evt_type == "watch_match":
         _sup = evt.get("suppressed", 0)
         return (
@@ -461,20 +468,6 @@ def format_process_notification(evt: dict) -> "str | None":
         # Say so where the output is the payload (a teammate's reply): a silent tail reads as whole.
         _out = (f"...(first {evt['output_cut']} characters cut — process(action=\"log\", "
                 f"session_id=\"{_sid}\") has the full output)\n{_out}")
-    if evt.get("notify_requested"):
-        # Self-contained, for the same reason ``dispatch_delivery.
-        # format_dispatch_delivery`` is: by the time this re-enters the
-        # conversation the agent's turn has ENDED and a new one is reading it
-        # cold. It must say why this arrived without being asked.
-        return (
-            f"[BACKGROUND PROCESS COMPLETE — {_sid} {_completion_status(evt)} "
-            f"(exit code {_exit}{_signal}).\n"
-            "You asked to be told when this finished (process notify) and ended "
-            "your turn. This is that receipt — you may have moved on since, so "
-            "check it against what you were doing.\n"
-            f"Command: {_cmd}\n"
-            f"Output:\n{_out}]"
-        )
     return (
         f"[IMPORTANT: Background process {_sid} {_completion_status(evt)} (exit code {_exit}{_signal}).\n"
         f"{attribution}Command: {_cmd}\nOutput:\n{_out}]")

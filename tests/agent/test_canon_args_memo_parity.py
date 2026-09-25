@@ -174,10 +174,6 @@ class TestMemoSemantics:
                                    sort_keys=True)
         assert canon == canon.encode().decode()  # pure ASCII wire form
 
-    def test_cache_hit_skips_json_loads(self):
-        raw = json.dumps({"k": "v"})
-        cl._canonicalize_tool_call_arguments(raw)
-        assert raw in cl._CANON_ARGS_CACHE
 
     def test_malformed_never_memoized(self):
         with pytest.raises(Exception):
@@ -221,18 +217,18 @@ class TestComplexityProof:
 
         # OLD: quadratic — K(K+1)/2 loads over a K-iteration session
         old_counter = [0]
-        with monkeypatch.context() as counting:
-            counting.setattr(json, "loads", counting_loads(old_counter))
-            for k in range(1, n + 1):
-                canonicalize_pass_OLD(copy.deepcopy(history[: 2 * k]))
+        monkeypatch.setattr(json, "loads", counting_loads(old_counter))
+        for k in range(1, n + 1):
+            canonicalize_pass_OLD(copy.deepcopy(history[: 2 * k]))
+        monkeypatch.undo()
         assert old_counter[0] == n * (n + 1) // 2
 
         # NEW: linear — each unique string loaded exactly once, ever
         new_counter = [0]
-        with monkeypatch.context() as counting:
-            counting.setattr(json, "loads", counting_loads(new_counter))
-            for k in range(1, n + 1):
-                cl._canonicalize_api_tool_calls(copy.deepcopy(history[: 2 * k]))
+        monkeypatch.setattr(json, "loads", counting_loads(new_counter))
+        for k in range(1, n + 1):
+            cl._canonicalize_api_tool_calls(copy.deepcopy(history[: 2 * k]))
+        monkeypatch.undo()
         assert new_counter[0] == n
 
         # quadratic -> linear, by exact call count

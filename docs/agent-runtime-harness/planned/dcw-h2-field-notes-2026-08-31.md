@@ -108,7 +108,7 @@ in this record.
 
 ### A — two `hermes_cli.main` module objects (16 reds)
 
-`test_skills_subparser.py` does `del sys.modules['hermes_cli.main']` then
+`test_skills_subparser.py` (since deleted by upstream's 2026-09 test purge) did `del sys.modules['hermes_cli.main']` then
 `import hermes_cli.main`, to prove the parser still builds, and never puts the
 original back. The process then holds TWO `hermes_cli.main` namespaces:
 

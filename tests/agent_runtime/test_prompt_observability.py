@@ -1,21 +1,23 @@
 from types import SimpleNamespace
 
 from agent_runtime.prompt_observability import (
-    MAX_WORKSPACE_AGENTS_BYTES,
+    attach_prompt_observability_turn_results,
+    load_workspace_agents_context,
+    mission_chat_prompt_observability,
+    snapshot_prompt_observability,
+)
+from agent_runtime.prompt_observability.context_files import (
     _attach_context_file_prompt_contributions,
     _attach_skills_prompt_contribution,
-    _backfill_derived_fields,
     _context_file_summary,
     _layer_text_size,
     _mission_chat_identity_prompt_chars,
     _mission_chat_operative_rules_chars,
     _set_row_prompt_contribution,
     _workspace_agents_prompt_chars,
-    attach_prompt_observability_turn_results,
-    load_workspace_agents_context,
-    mission_chat_prompt_observability,
-    snapshot_prompt_observability,
 )
+from agent_runtime.prompt_observability.context_store import _backfill_derived_fields
+from agent_runtime.prompt_observability.workspace_agents import MAX_WORKSPACE_AGENTS_BYTES
 
 
 def test_prompt_observability_preserves_profile_persona_identity():
@@ -80,7 +82,7 @@ def test_prompt_observability_reports_typed_persona_envelope_and_memory_flag():
 
 
 def test_safe_final_model_input_preserves_prompt_lines_and_section_receipts():
-    from agent_runtime.prompt_observability import _safe_final_model_input
+    from agent_runtime.prompt_observability.safe_views import _safe_final_model_input
 
     safe = _safe_final_model_input(
         {
@@ -361,7 +363,7 @@ def test_accessible_skills_hash_check_uses_persona_profile_home(monkeypatch, tmp
 
     monkeypatch.setattr(skill_install, "harness_skill_hash_mismatches", fake_mismatches)
 
-    po._accessible_skills_context(
+    po.skills_resolver._accessible_skills_context(
         SimpleNamespace(id="base", hermes_profile="base", skills=["harness-runtime-model"]),
         "base",
     )
@@ -407,7 +409,7 @@ def test_accessible_skill_receipt_preserves_instance_policy_and_load_state(
     monkeypatch.setattr(skill_utils, "get_shared_skills_dir", lambda: shared)
     monkeypatch.setattr(skill_utils, "get_all_skills_dirs", lambda: [shared])
 
-    rows = po._accessible_skills_context(
+    rows = po.skills_resolver._accessible_skills_context(
         SimpleNamespace(id="dev", hermes_profile="dev", skills=["instance-skill"]),
         "dev",
         loaded_skill_names={"instance-skill"},
@@ -421,7 +423,7 @@ def test_accessible_skill_receipt_preserves_instance_policy_and_load_state(
 
 
 def test_unresolved_used_skill_never_claims_hash_tracking():
-    from agent_runtime.prompt_observability import _resolved_skill_receipt
+    from agent_runtime.prompt_observability.skills_context import _resolved_skill_receipt
 
     receipt = _resolved_skill_receipt("definitely-not-installed-skill")
     assert receipt["hash_tracked"] is False
@@ -440,7 +442,7 @@ def test_a_used_skill_receipt_reports_what_its_preload_cost(monkeypatch, tmp_pat
     rewrite with every gate green. One ``stat`` on a path the hash already read.
     """
     import agent.skill_utils as skill_utils
-    from agent_runtime.prompt_observability import _resolved_skill_receipt
+    from agent_runtime.prompt_observability.skills_context import _resolved_skill_receipt
 
     shared = tmp_path / "shared"
     manifest = shared / "sized-skill" / "SKILL.md"
@@ -466,7 +468,8 @@ def test_snapshot_omits_mission_hud_even_for_a_bound_task(monkeypatch):
 
     from agent_runtime import prompt_observability as po
 
-    monkeypatch.setattr(po, "load_latest_prompt_observability_contexts", lambda: [])
+    monkeypatch.setattr(po.catalog_lookup, "load_latest_prompt_observability_contexts", lambda: [])
+    monkeypatch.setattr(po.context_store, "load_latest_prompt_observability_contexts", lambda: [])
     persona = SimpleNamespace(id="dev", hermes_profile="dev", display_name="Dev", role="dev")
     instance = SimpleNamespace(
         id="personainst_dev",
@@ -488,7 +491,8 @@ def test_snapshot_omits_mission_hud_even_for_a_bound_task(monkeypatch):
 def test_snapshot_omits_mission_hud_for_unbound_instance(monkeypatch):
     from agent_runtime import prompt_observability as po
 
-    monkeypatch.setattr(po, "load_latest_prompt_observability_contexts", lambda: [])
+    monkeypatch.setattr(po.catalog_lookup, "load_latest_prompt_observability_contexts", lambda: [])
+    monkeypatch.setattr(po.context_store, "load_latest_prompt_observability_contexts", lambda: [])
     persona = SimpleNamespace(id="dev", hermes_profile="dev", display_name="Dev", role="dev")
     instance = SimpleNamespace(id="personainst_dev", persona_id="dev", session_id="s")
     snapshot = snapshot_prompt_observability(
@@ -501,7 +505,8 @@ def test_snapshot_omits_mission_hud_for_unbound_instance(monkeypatch):
 def test_snapshot_empty_roster_omits_compiled_flow_and_persona_context(monkeypatch):
     from agent_runtime import prompt_observability as po
 
-    monkeypatch.setattr(po, "load_latest_prompt_observability_contexts", lambda: [])
+    monkeypatch.setattr(po.catalog_lookup, "load_latest_prompt_observability_contexts", lambda: [])
+    monkeypatch.setattr(po.context_store, "load_latest_prompt_observability_contexts", lambda: [])
     snapshot = snapshot_prompt_observability(
         personas=[
             SimpleNamespace(
@@ -521,7 +526,8 @@ def test_snapshot_empty_roster_omits_compiled_flow_and_persona_context(monkeypat
 def test_snapshot_includes_situational_hud_for_instance(monkeypatch):
     from agent_runtime import prompt_observability as po
 
-    monkeypatch.setattr(po, "load_latest_prompt_observability_contexts", lambda: [])
+    monkeypatch.setattr(po.catalog_lookup, "load_latest_prompt_observability_contexts", lambda: [])
+    monkeypatch.setattr(po.context_store, "load_latest_prompt_observability_contexts", lambda: [])
     persona = SimpleNamespace(
         id="neko_supervisor", hermes_profile="neko", display_name="Neko Mission Lead", role="supervisor"
     )
@@ -551,7 +557,8 @@ def test_snapshot_includes_situational_hud_for_instance(monkeypatch):
 def test_snapshot_situational_hud_without_daemon_scope_still_carries_lane(monkeypatch):
     from agent_runtime import prompt_observability as po
 
-    monkeypatch.setattr(po, "load_latest_prompt_observability_contexts", lambda: [])
+    monkeypatch.setattr(po.catalog_lookup, "load_latest_prompt_observability_contexts", lambda: [])
+    monkeypatch.setattr(po.context_store, "load_latest_prompt_observability_contexts", lambda: [])
     persona = SimpleNamespace(id="dev", hermes_profile="dev", display_name="Dev", role="dev")
     instance = SimpleNamespace(
         id="personainst_dev",
@@ -819,3 +826,45 @@ def test_attach_turn_results_patches_skills_row_end_to_end():
         f for f in context["context_files"] if f["name"] == ".skills_prompt_snapshot.json"
     )
     assert skills["prompt_token_estimate"] == 2250
+
+
+# Positive controls for the two routing sites lane R2's CHANGE turns into tables
+# (program ruling Q6: a control lands BEFORE a table replaces an untested site).
+_CONTEXT_FILE_KINDS = {
+    "SOUL.md": ("soul", "body"),
+    "MEMORY.md": ("memory", "body"),
+    "USER.md": ("user_memory", "body"),
+    "AGENTS.md": ("project_context", "body"),
+    ".skills_prompt_snapshot.json": (
+        "skills",
+        "Skills prompt snapshot present; body withheld from observability preview.",
+    ),
+    "config.yaml": (
+        "profile_config",
+        "Profile config present; raw values withheld from observability preview.",
+    ),
+    "NOTES.md": ("context_file", None),
+}
+
+
+def test_every_context_file_name_reports_its_own_kind_and_preview(tmp_path):
+    for name, (kind, preview) in _CONTEXT_FILE_KINDS.items():
+        path = tmp_path / name
+        path.write_text(f"text of {name}", encoding="utf-8")
+        summary = _context_file_summary(path, included=True)
+        assert summary["kind"] == kind, name
+        expected = f"text of {name}" if preview == "body" else preview
+        assert summary.get("preview") == expected, name
+
+
+def test_a_skill_view_trace_event_counts_as_used_only_when_it_finished_cleanly():
+    from agent_runtime.prompt_observability.skills_context import _skill_trace_event_counts_as_used
+
+    counted = {
+        (status, step): _skill_trace_event_counts_as_used({"status": status, "step": step})
+        for status in ("passed", "failed", "error", "errored", "blocked", "")
+        for step in ("tool_finished", "completed", "finished", "tool_started", "")
+    }
+    clean = {("passed", s) for s in ("tool_finished", "completed", "finished", "")}
+    clean |= {("", s) for s in ("tool_finished", "completed", "finished", "")}
+    assert {key for key, used in counted.items() if used} == clean

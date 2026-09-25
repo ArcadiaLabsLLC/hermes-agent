@@ -4,6 +4,7 @@ Same names, same bodies; the upstream file keeps only upstream's tests.
 """
 
 import logging
+from pathlib import Path
 from types import SimpleNamespace
 from tests._downstream import hermes_cli_conftest as package_conftest
 import hermes_cli.commands_platforms as commands_module
@@ -91,17 +92,32 @@ class TestKnownDefectFence:
     """
 
     def test_the_parity_defect_is_fenced_strict(self):
-        marks = [
-            mark
-            for mark in _upstream_test_commands.TestSlackNativeSlashes.test_telegram_parity.pytestmark
-            if mark.name == "xfail"
-        ]
+        """Asked of the hook that applies it, not of a decorator: the upstream
+        file carries no mark since lane CARRY, the id table does."""
+        from tests._downstream import id_markers
+
+        node = (
+            "tests/hermes_cli/test_commands.py"
+            "::TestSlackNativeSlashes::test_telegram_parity"
+        )
+        applied: list = []
+        item = SimpleNamespace(nodeid=node, add_marker=applied.append)
+        config = SimpleNamespace(args=[node], rootpath=Path.cwd())
+        id_markers.pytest_collection_modifyitems(config, [item])
+
+        marks = [mark for mark in applied if mark.name == "xfail"]
         assert len(marks) == 1
         assert marks[0].kwargs["strict"] is True
         # Single-sourced, not restated: the mark carries the conftest's text.
         assert (
             marks[0].kwargs["reason"]
             is package_conftest.TELEGRAM_PARITY_DEFECT_REASON
+        )
+        # The upstream test itself stays byte-identical to upstream's.
+        assert not getattr(
+            _upstream_test_commands.TestSlackNativeSlashes.test_telegram_parity,
+            "pytestmark",
+            [],
         )
 
     def test_an_xfailed_known_defect_still_reaches_the_banner(self, monkeypatch):

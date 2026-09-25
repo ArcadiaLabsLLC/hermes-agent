@@ -28,7 +28,10 @@ Unreal tree, not beside this checkout):
 Brain-routing rules:
 
 - Runtime and fork truth belongs in `docs/`; the brain cites it and records the WHY.
-- Mission Control is the runtime's only product surface, and its queue is split by
+- Mission Control and Intelligence consume the same runtime authorities through
+  typed ports; Intelligence is Launcher's AI umbrella, with Chat one route.
+  Provider catalog, authentication, credentials and health remain Hermes-owned.
+  Runtime work is split by
   REPOSITORY: a row lives where its fix lives. The hermes half is
   `Harness_Brain/20 — Active Initiatives/runtime-queue.md`, grouped by the Fork Boundary
   Map's three kinds of file (fork-owned / seams / upstream-owned) so the heading says what
@@ -97,7 +100,7 @@ execution and landing on Opus; nothing on Sonnet. Every lane reports its tool-ca
 ```bash
 hermes harness serve                                            # the runtime the launcher spawns
 python -m pytest -q -p no:cacheprovider <file>                  # ONE file, debugging only
-scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/cli tests/state   # THE suite (validated scope, ≥25 min)
+scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/hermes_state   # THE suite (validated scope, ≥25 min)
 scripts/run_tests.sh tests/test_coverage_claims_resolve.py tests/scripts          # the two scopes outside it
 python scripts/dump_cli_contract.py --check                     # after any argparse change
 python scripts/dump_payload_contract.py --check                 # after any character payload change
@@ -128,7 +131,7 @@ five habits cost about 390 minutes a day. The same habits apply here verbatim.
 `git branch -f main origin/main`: it detached 11 unpushed commits from the primary checkout
 on 2026-08-01. The runner isolates each file in a hermetic subprocess, finds the shared test
 venv on its own, and runs 8 workers — the ruled default (12 measured slower and load-flaked;
-do not raise `HERMES_TEST_WORKERS`). Its validated scope is exactly the four directories
+do not raise `HERMES_TEST_WORKERS`). Its validated scope is exactly the three directories
 above; the whole tree is a DIFFERENT scope that reads ~142 environmental reds on a green
 `main` (provider-network hangs, WSL bash shadowing Git Bash, `acp`/`ripgrep` holes).
 
@@ -188,6 +191,46 @@ launcher's copy in the same wave.
   worktree, never a rebase, never per-file copies (`Harness_Brain/30 — Decisions/0006`).
 - The history was reconstructed on 2026-09-15 (`ed9ac406be`); a SHA from before it is not
   in `main` and is not a `git show` target.
+
+## Weakness escalation, per domain (owner ruling 2026-09-24, mirrored from the launcher's CLAUDE.md)
+
+Whenever work in an area — a fix, a feature, a review, a lane report — reveals architecture that
+is weak by the fork's bar (`docs/agent-runtime-harness/planned/god-file-program-2026-09-24.md`
+§2: routing as tables, one write path per state, typed reasons, one owner per helper, a module
+map, the legibility floor), do NOT just patch the symptom and move on: **fix the immediate defect
+narrowly, then RECORD the structural weakness as a row in the domain queue, in the same commit
+as the work that revealed it.** A finding that lives only in a report, a chat message or a
+session's head is one context window from being lost; the report is EVIDENCE, never a backlog.
+
+- **Signals:** a ladder of `if x == "…"` on an op, kind, mode or step; a `str` reason where an
+  Enum should be; the same state written from two sites; a helper with the same name in two
+  modules; a closure reading more than three enclosing locals; a function over 150 lines; a fork
+  module importing a `_private` upstream name; a gate that only proves a spelling.
+- **The row is one line and a pointer** (`**what** · domain · evidence · lane`); the measurement
+  and the argument live in the note the row points at. Where a row and its evidence disagree,
+  the evidence wins.
+- **Recurrence is itself the finding.** The third instance of one class files the CLASS, with the
+  structural answer, not a third row that reads like the first two.
+- **A gate proves a POSITIVE guarantee at runtime or through the AST/import graph** (build the
+  thing and read it; walk resolved imports); **a source walk proves only a NEGATIVE** ("this is
+  never written"), where over-approximation is the safe direction. A gate lands with its killing
+  mutation NAMED and its red RECORDED in the commit body — an unrecorded red is a belief.
+- **If you cannot write the queue** (you stand in another repo, or a worktree that should not
+  fight a shared checkout for a docs file), put the row you would have written in your report
+  VERBATIM and name the queue; the parent files it.
+
+**The domains are the fork's queues** (`Harness_Brain/TODO.md` is the pointer list; it holds no rows):
+
+| the weakness is in | queue | section |
+|---|---|---|
+| fork-owned runtime code (`agent_runtime/`, `hermes_cli/harness*`, `plugins/eternia-harness/`) | `Harness_Brain/20 — Active Initiatives/runtime-queue.md` | § Fork-owned |
+| a fork edit inside an upstream file, or a reach into upstream internals that wants a door | `runtime-queue.md` | § Seams (additive only; a widening is a held PR row in `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md`) |
+| upstream code the fork does not touch | `runtime-queue.md` | § Upstream-owned (a marker, a caller-side memo, or an upstream issue — never an edit) |
+| the repository as a fork: sync, CI, the suite and its gates, the mutation gate, docs gates, the refactor's lanes, this vault | `Harness_Brain/20 — Active Initiatives/fork-hygiene-queue.md` | the dated "Filed on arrival" heading for your lane |
+| a symbol nothing calls, a test-only production function, a kept-with-reason verdict | `Harness_Brain/20 — Active Initiatives/dead-code-burn-down-queue.md` | the current instalment; deletions land under its "Working a slice" |
+
+The launcher half of a Mission Control finding goes to the launcher's `mission-control-queue.md`;
+a finding that needs both sides is filed on the side that must move first and names the other.
 
 ## Repo facts a session must not re-learn
 

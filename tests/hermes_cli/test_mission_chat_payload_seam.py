@@ -19,7 +19,9 @@ from types import SimpleNamespace
 
 import pytest
 
-import hermes_cli.harness as harness
+from agent_runtime.cli_format import emit_json
+from hermes_cli.harness_parts.persona import chat_admission, chat_delete, chat_events
+from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run
 
 PAYLOAD = {"ok": False, "error": "boom", "error_kind": "unsupported_persona"}
 
@@ -29,14 +31,14 @@ def _emit(args, *rest, **kwargs) -> str:
 
     buffer = io.StringIO()
     with redirect_stdout(buffer):
-        harness._mission_chat_emit(args, *rest, **kwargs)
+        chat_events._mission_chat_emit(args, *rest, **kwargs)
     return buffer.getvalue()
 
 
 def test_the_cli_json_lane_prints_exactly_emit_json():
     args = SimpleNamespace(json=True, stream=False)
 
-    assert _emit(args, PAYLOAD) == harness.emit_json(PAYLOAD) + "\n"
+    assert _emit(args, PAYLOAD) == emit_json(PAYLOAD) + "\n"
 
 
 def test_the_cli_text_lane_prints_the_error_by_default():
@@ -98,7 +100,7 @@ def test_a_non_callable_sink_falls_back_to_printing():
 
     args = SimpleNamespace(json=True, stream=False, payload_sink=None)
 
-    assert _emit(args, PAYLOAD) == harness.emit_json(PAYLOAD) + "\n"
+    assert _emit(args, PAYLOAD) == emit_json(PAYLOAD) + "\n"
 
 
 # --------------------------------------------------------------------------
@@ -128,7 +130,7 @@ def test_a_serve_hosted_turn_with_a_live_drain_can_take_a_late_completion(
         "agent_runtime.dispatch_delivery.delivery_drain_is_live", lambda: True
     )
 
-    assert harness._bind_mission_chat_delivery_capability() is True
+    assert chat_admission._bind_mission_chat_delivery_capability() is True
     assert async_delivery_supported() is True
 
 
@@ -149,12 +151,13 @@ def test_a_serve_with_hot_sessions_disabled_still_delivers(
 
     from gateway.session_context import async_delivery_supported
 
-    monkeypatch.setattr(harness, "persona_chat_runtime_registry", lambda: None)
+    monkeypatch.setattr(chat_delete, "persona_chat_runtime_registry", lambda: None)
+    monkeypatch.setattr(commit_run, "persona_chat_runtime_registry", lambda: None)
     monkeypatch.setattr(
         "agent_runtime.dispatch_delivery.delivery_drain_is_live", lambda: True
     )
 
-    assert harness._bind_mission_chat_delivery_capability() is True
+    assert chat_admission._bind_mission_chat_delivery_capability() is True
     assert async_delivery_supported() is True
 
 
@@ -173,7 +176,7 @@ def test_a_serve_whose_drain_never_started_promises_nothing(monkeypatch, unbound
         "agent_runtime.dispatch_delivery.delivery_drain_is_live", lambda: False
     )
 
-    assert harness._bind_mission_chat_delivery_capability() is False
+    assert chat_admission._bind_mission_chat_delivery_capability() is False
     assert async_delivery_supported() is False
 
 
@@ -193,7 +196,7 @@ def test_a_cold_cli_turn_refuses_the_promise(monkeypatch, unbound_capability):
         "agent_runtime.dispatch_delivery.delivery_drain_is_live", lambda: False
     )
 
-    assert harness._bind_mission_chat_delivery_capability() is False
+    assert chat_admission._bind_mission_chat_delivery_capability() is False
     assert async_delivery_supported() is False
 
 
@@ -220,12 +223,13 @@ def test_a_serve_hosted_turn_is_observed_as_serve_with_hot_sessions_disabled(
 
     from hermes_cli.harness_parts import serve as serve_module
 
-    monkeypatch.setattr(harness, "persona_chat_runtime_registry", lambda: None)
-    token = serve_module._request_id.set("req-42")
+    monkeypatch.setattr(chat_delete, "persona_chat_runtime_registry", lambda: None)
+    monkeypatch.setattr(commit_run, "persona_chat_runtime_registry", lambda: None)
+    token = serve_module.frames._request_id.set("req-42")
     try:
-        assert harness._mission_chat_lease_provenance() == ("req-42", "serve")
+        assert chat_admission._mission_chat_lease_provenance() == ("req-42", "serve")
     finally:
-        serve_module._request_id.reset(token)
+        serve_module.frames._request_id.reset(token)
 
 
 def test_a_cli_turn_is_observed_as_cli_even_with_the_cache_enabled(monkeypatch):
@@ -233,9 +237,10 @@ def test_a_cli_turn_is_observed_as_cli_even_with_the_cache_enabled(monkeypatch):
 
     from hermes_cli.harness_parts import serve as serve_module
 
-    monkeypatch.setattr(harness, "persona_chat_runtime_registry", lambda: object())
-    assert serve_module._request_id.get() is None
-    assert harness._mission_chat_lease_provenance() == (None, "cli")
+    monkeypatch.setattr(chat_delete, "persona_chat_runtime_registry", lambda: object())
+    monkeypatch.setattr(commit_run, "persona_chat_runtime_registry", lambda: object())
+    assert serve_module.frames._request_id.get() is None
+    assert chat_admission._mission_chat_lease_provenance() == (None, "cli")
 
 
 def test_the_deferred_thread_policy_flag_restores_the_unset_tri_state(monkeypatch):
@@ -248,10 +253,10 @@ def test_the_deferred_thread_policy_flag_restores_the_unset_tri_state(monkeypatc
     """
 
     args = SimpleNamespace(defer_thread_policy=True, new_session=False)
-    harness._normalize_deferred_thread_policy(args)
+    chat_admission._normalize_deferred_thread_policy(args)
     assert args.new_session is None
 
     # Absent flag ⇒ untouched: the bare CLI keeps its historical threading.
     untouched = SimpleNamespace(defer_thread_policy=False, new_session=False)
-    harness._normalize_deferred_thread_policy(untouched)
+    chat_admission._normalize_deferred_thread_policy(untouched)
     assert untouched.new_session is False

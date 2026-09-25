@@ -576,12 +576,9 @@ def agent_chat_send(
     payloads: list[dict] = []
     args.payload_sink = payloads.append
     try:
-        # persona_commands.py is exec'd into hermes_cli.harness globals by
-        # _load_command_parts(); the handler is NOT importable from the part
-        # module itself.
-        from hermes_cli import harness as _harness
+        from hermes_cli.harness_parts.persona import chat_turn_message as _chat_turn_message
 
-        exit_code = _harness._cmd_mission_chat_message(args)
+        exit_code = _chat_turn_message._cmd_mission_chat_message(args)
     except Exception as exc:  # pragma: no cover - defensive; surfaced to the model
         logger.exception("agent_chat_send relay failed")
         return _refusal(f"{type(exc).__name__}: {exc}", target_persona=persona_id)
@@ -650,10 +647,8 @@ def _async_delivery_available() -> bool:
     """
 
     try:
-        from gateway.session_context import (
-            async_delivery_declared,
-            async_delivery_supported,
-        )
+        from agent_runtime.delivery_capability import async_delivery_declared
+        from gateway.session_context import async_delivery_supported
 
         # A POSITIVE declaration is required, not merely a non-False answer.
         # `async_delivery_supported()` returns True for an unbound session, and
@@ -1082,7 +1077,7 @@ def agent_chat_threads(*, persona_id=None, requested_by_session=None):
         sender_scope_workspace_id,
     )
     from agent_runtime.persona_chat_history import persona_chat_history_summary
-    from hermes_cli import harness as _harness
+    from hermes_cli.harness_parts.persona import chat_target as _chat_target
 
     # Optional filter → the canonical persona the caller means (accepts a handle).
     # A bare persona id lists ALL of that persona's instances; a personainst_*
@@ -1092,7 +1087,7 @@ def agent_chat_threads(*, persona_id=None, requested_by_session=None):
     filter_token = str(persona_id or "").strip()
     if filter_token:
         try:
-            wanted_persona = _harness._resolve_mission_chat_persona_id(filter_token, filter_token)
+            wanted_persona = _chat_target._resolve_mission_chat_persona_id(filter_token, filter_token)
         except ValueError as exc:
             return _refusal(safe_assignment_text(str(exc), limit=240), error_kind="unsupported_persona")
         if _looks_like_instance_handle(filter_token):
@@ -1147,7 +1142,7 @@ def agent_chat_threads(*, persona_id=None, requested_by_session=None):
         # Only real, reachable teammates: the address must resolve as an
         # agent_chat_send target (skips mothballed/unroutable rows honestly).
         try:
-            reachable_persona = _harness._resolve_mission_chat_persona_id(instance_persona, instance_persona)
+            reachable_persona = _chat_target._resolve_mission_chat_persona_id(instance_persona, instance_persona)
         except ValueError:
             continue
         if wanted_persona is not None and _canonical_persona_token(reachable_persona) != _canonical_persona_token(wanted_persona):
@@ -1227,13 +1222,13 @@ def _resolve_chat_lane_target(persona_id, *, requested_by_session=None, verb="ag
         safe_assignment_text,
         sender_scope_workspace_id,
     )
-    from hermes_cli import harness as _harness
+    from hermes_cli.harness_parts.persona import chat_target as _chat_target
 
     target = str(persona_id or "").strip()
     if not target:
         return None, _refusal(f"{verb} requires a persona_id.")
     try:
-        resolved_persona = _harness._resolve_mission_chat_persona_id(target, target)
+        resolved_persona = _chat_target._resolve_mission_chat_persona_id(target, target)
     except ValueError as exc:
         return None, _refusal(
             safe_assignment_text(str(exc), limit=240), error_kind="unsupported_persona"

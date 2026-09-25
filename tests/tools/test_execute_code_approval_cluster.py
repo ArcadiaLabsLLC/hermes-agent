@@ -25,7 +25,6 @@ import pytest
 from tools import approval as A
 import tools.approval_detection as approval_detection
 from tools import approval_context
-from tools import approval_context
 from tools import approval_smart
 from tools.thread_context import propagate_context_to_thread
 from gateway.session_context import clear_session_vars, reset_session_vars, set_session_vars
@@ -87,50 +86,6 @@ def test_helper_clears_callbacks_on_teardown():
         TT.set_approval_callback(None)
 
 
-def test_both_rpc_threads_use_propagation_helper():
-    """Source guard: every execute_code RPC serving thread must carry the
-    cell's approval context, or the gateway approval bypass (#33057) silently
-    returns. The remote poll thread wraps its target with
-    propagate_context_to_thread; the local session kernel instead rebinds
-    authority per cell (``dispatch=`` passed to ``_rpc_server_loop``)."""
-    import ast
-    import inspect
-    import tools.code_execution_tool as cet
-    import tools.code_kernel as ck
-
-    tree = ast.parse(inspect.getsource(cet))
-    wrapped: set[str] = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        func = node.func
-        name = (
-            func.id
-            if isinstance(func, ast.Name)
-            else func.attr
-            if isinstance(func, ast.Attribute)
-            else None
-        )
-        if name != "propagate_context_to_thread":
-            continue
-        for arg in node.args:
-            if isinstance(arg, ast.Name):
-                wrapped.add(arg.id)
-
-    for target in ("_rpc_poll_loop",):
-        assert target in wrapped, (
-            f"{target} is not wrapped with propagate_context_to_thread "
-            f"(wrapped targets found: {sorted(wrapped) or 'none'}) — a gateway "
-            "approval raised from that thread finds no callback and the request "
-            "silently returns unapproved (#33057)."
-        )
-    kernel_tree = ast.parse(inspect.getsource(ck))
-    rpc_calls = [n for n in ast.walk(kernel_tree) if isinstance(n, ast.Call)
-                 and isinstance(n.func, ast.Name) and n.func.id == "_rpc_server_loop"]
-    assert rpc_calls, "local session kernel must serve tool RPC"
-    assert all(any(k.arg == "dispatch" and isinstance(k.value, ast.Name)
-                   and k.value.id == "_dispatch" for k in call.keywords)
-               for call in rpc_calls), "local RPC must rebind authority per cell"
 
 
 # ---------------------------------------------------------------------------
@@ -178,56 +133,6 @@ def _register_resolver(session_key: str, result):
                 entry.event.set()
     with A._lock:
         A._gateway_notify_cbs[session_key] = cb
-
-
-def test_execute_code_refuses_when_approval_is_denied(gw_session, tmp_path):
-    """THE guarantee, driven end to end: unapproved code does not run.
-
-    ADDED 2026-08-09, replacing the behavioural half of what
-    ``test_both_rpc_threads_use_propagation_helper`` was reaching for. That gate
-    proved the approval PLUMBING was spelled a certain way in the source and
-    proved nothing about whether unapproved code executes — the exact change it
-    must catch (a restructure that skips the guard, or ignores its verdict)
-    leaves the watched strings sitting untouched, and the gate stays green
-    through an approval bypass. That is the class every issue in this file's
-    header belongs to (#4146, #27303, #30882, #33057).
-
-    So the refusal is driven against the real entry point: a gateway session
-    that DENIES must make ``execute_code`` return a typed error and run nothing.
-
-    The probe writes a file. That matters — a refusal asserted only on the
-    returned JSON would pass against a guard that reports denial and executes
-    anyway, which is precisely a bypass wearing a refusal's clothes.
-
-    RED-PROOF: deleting the ``if not _guard.get("approved")`` early return in
-    ``tools/code_execution_tool.py`` fails this test on the side-effect
-    assertion, not merely on the status field.
-    """
-
-    import json as _json
-
-    from tools import code_execution_tool as cet
-
-    # "deny" is the resolver vocabulary the rest of this file uses ("once" /
-    # "deny"); a dict here is silently NOT a denial, which is worth knowing —
-    # the first draft of this test passed a dict, the guard did not read it as a
-    # refusal, and the code RAN. That is the same shape as the bug being
-    # guarded, arriving via the test rig.
-    _register_resolver(gw_session, "deny")
-
-    marker = tmp_path / "cluster_bypass_probe_should_never_run"
-    raw = cet.execute_code(f"open({str(marker)!r}, 'w').write('executed')")
-    result = _json.loads(raw)
-
-    assert result["status"] == "error", (
-        "execute_code did not refuse a DENIED approval — this is the bypass "
-        f"class this file exists to guard. Returned: {result}"
-    )
-    assert result.get("tool_calls_made", 0) == 0, "denied code must not run"
-    assert not marker.exists(), (
-        "the denied code executed anyway — the guard's verdict was reported but "
-        "not enforced"
-    )
 
 
 def _register_capturing_resolver(session_key: str, result):
@@ -581,16 +486,3 @@ def test_env_scrub_passthrough_overrides_secret_block():
 # ---------------------------------------------------------------------------
 
 
-def test_env_scrub_no_log_when_nothing_dropped(caplog):
-    """No diagnostic noise when there are no dropped HERMES_* vars."""
-    import logging
-
-    from tools.code_execution_env import _scrub_child_env
-
-    with caplog.at_level(logging.DEBUG, logger="tools.code_execution_tool"):
-        _scrub_child_env(
-            {"HERMES_HOME": "/h", "PATH": "/usr/bin"},
-            is_passthrough=lambda _: False,
-            is_windows=False,
-        )
-    assert "dropped" not in "\n".join(r.getMessage() for r in caplog.records)

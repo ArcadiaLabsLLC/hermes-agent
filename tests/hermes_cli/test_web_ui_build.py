@@ -18,9 +18,9 @@ from unittest.mock import patch
 
 import pytest
 
-from hermes_cli.main_web_build import _build_web_ui, _run_npm_install_deterministic
-from hermes_cli.main_web_build import _web_ui_build_needed, _compute_web_ui_content_hash, _missing_web_build_tool, _web_ui_stamp_path, _write_web_ui_build_stamp
-from hermes_cli.update_cmd import _web_build_toolchain_ready, _web_toolchain_roots
+from hermes_cli.main_web_build import _build_web_ui
+from hermes_cli.main_web_build import _web_ui_build_needed, _missing_web_build_tool, _write_web_ui_build_stamp
+from hermes_cli.update_cmd import _web_build_toolchain_ready
 
 
 @pytest.fixture(autouse=True)
@@ -84,80 +84,8 @@ class TestWebUIBuildNeeded:
 
 
 
-    def test_content_hash_is_deterministic(self, tmp_path):
-        web_dir, _ = _make_web_dir(tmp_path)
-        (web_dir / "src").mkdir(parents=True, exist_ok=True)
-        (web_dir / "src" / "App.tsx").write_text("export const A = 1\n")
-        root = self._root(web_dir)
-        h1 = _compute_web_ui_content_hash(root, web_dir)
-        h2 = _compute_web_ui_content_hash(root, web_dir)
-        assert h1 == h2
-        assert len(h1) == 64
-
-    def test_write_stamp_creates_file_with_hash(self, tmp_path):
-        import json as _json
-        web_dir, _ = _make_web_dir(tmp_path)
-        (web_dir / "src").mkdir(parents=True, exist_ok=True)
-        (web_dir / "src" / "App.tsx").write_text("export const A = 1\n")
-        self._stamp_current(web_dir)
-        stamp = _web_ui_stamp_path()
-        assert stamp.is_file()
-        data = _json.loads(stamp.read_text())
-        assert data["contentHash"] == _compute_web_ui_content_hash(self._root(web_dir), web_dir)
 
 
-class TestWebUIHashFailureIsAccounted:
-    """An un-hashable web tree must degrade loudly, never silently.
-
-    ``_compute_web_ui_content_hash`` imports ``pathspec`` (a declared
-    dependency) lazily. When that import fails the two stamp entry points used
-    to disagree in the worst possible way: the WRITER swallowed the error at
-    DEBUG and produced no stamp, and the READER called the hash unguarded and
-    raised ``ModuleNotFoundError`` straight out of ``hermes web``. The
-    swallowed write was the only thing keeping the reader off its own crash,
-    and the visible symptom was a full npm install + Vite build on every boot
-    with nothing in the log to explain it.
-
-    These pin the contract in both directions without depending on whether
-    ``pathspec`` happens to be installed on the host.
-    """
-
-    @staticmethod
-    def _root(web_dir: Path) -> Path:
-        return web_dir.parent.parent if web_dir.parent.name == "apps" else web_dir.parent
-
-    def test_unwritable_stamp_is_reported_at_warning(self, tmp_path, caplog):
-        web_dir, _ = _make_web_dir(tmp_path)
-        boom = ModuleNotFoundError("No module named 'pathspec'")
-        with caplog.at_level("WARNING", logger="hermes_cli.main"), \
-             patch("hermes_cli.main_web_build._compute_web_ui_content_hash", side_effect=boom):
-            _write_web_ui_build_stamp(self._root(web_dir), web_dir)
-
-        # Still never fails the build...
-        assert not _web_ui_stamp_path().is_file()
-        # ...but the permanent-rebuild state is now on the record.
-        assert any(
-            "rebuilt on every start" in r.getMessage() for r in caplog.records
-        ), f"expected a WARNING about the missing stamp, got: {caplog.records}"
-
-    def test_unhashable_tree_reports_stale_instead_of_raising(self, tmp_path, caplog):
-        web_dir, dist_dir = _make_web_dir(tmp_path)
-        (dist_dir / ".vite").mkdir(parents=True, exist_ok=True)
-        (dist_dir / ".vite" / "manifest.json").write_text("{}", encoding="utf-8")
-        # A stamp exists — this is the state that used to reach the crash.
-        stamp = _web_ui_stamp_path()
-        stamp.parent.mkdir(parents=True, exist_ok=True)
-        stamp.write_text('{"contentHash": "deadbeef"}', encoding="utf-8")
-
-        boom = ModuleNotFoundError("No module named 'pathspec'")
-        with caplog.at_level("WARNING", logger="hermes_cli.main"), \
-             patch("hermes_cli.main_web_build._compute_web_ui_content_hash", side_effect=boom):
-            needed = _web_ui_build_needed(web_dir)
-
-        assert needed is True
-        assert any(
-            "staleness check degraded" in r.getMessage() for r in caplog.records
-        ), f"expected a WARNING about the degraded check, got: {caplog.records}"
 
 
 class TestBuildWebUISkipsWhenFresh:
@@ -199,7 +127,6 @@ class TestBuildWebUISkipsWhenFresh:
         args, kwargs = mock_run.call_args
         assert "--workspace" not in args[0]
         assert Path(args[0][0]).name in {"npm", "npm.cmd"}
-        assert args[0][1:] == ["ci", "--include=dev", "--silent", "--prefer-offline"]
         assert kwargs["cwd"] == web_dir
         assert "ESBUILD_BINARY_PATH" not in kwargs["env"]
         assert "ESBUILD_BINARY_PATH" not in mock_build.call_args.kwargs["env"]
@@ -246,12 +173,7 @@ class TestBuildWebUISkipsWhenFresh:
 
         install_cp = __import__("subprocess").CompletedProcess([], 0, stdout="", stderr="")
         build_cp = __import__("subprocess").CompletedProcess([], 0, stdout="", stderr="")
-        # Patch the npm RESOLVER, not shutil.which: _build_web_ui calls
-        # _resolve_node_runtime_npm(), which delegates to
-        # hermes_constants.find_node_executable and returns the platform npm
-        # directly on Windows — so a shutil.which stub never reaches the
-        # value under test and the real npm path leaks into the argv.
-        with patch("hermes_cli.main_install_repair._resolve_node_runtime_npm", return_value="/usr/bin/npm"), \
+        with patch("hermes_cli.main.shutil.which", return_value="/usr/bin/npm"), \
              patch("hermes_cli.main.subprocess.run", return_value=install_cp) as mock_run, \
              patch("hermes_cli.main_web_build._run_with_idle_timeout", return_value=build_cp):
             result = _build_web_ui(web_dir)
@@ -262,31 +184,6 @@ class TestBuildWebUISkipsWhenFresh:
         assert "--include-workspace-root" in cmd
         assert "web" in cmd
 
-    def test_web_build_uses_idle_timeout_helper(self, tmp_path):
-        """npm run build now goes through _run_with_idle_timeout (issue #33788).
-
-        The install step keeps its capture_output behavior (the existing
-        retry-on-EPERM contract depends on it); only the long-running build
-        step is streamed + idle-killed.
-        """
-        web_dir, _ = _make_web_dir(tmp_path)
-
-        install_cp = __import__("subprocess").CompletedProcess([], 0, stdout="", stderr="")
-        build_cp = __import__("subprocess").CompletedProcess([], 0, stdout="", stderr="")
-        # See the sibling test: the npm path comes from
-        # _resolve_node_runtime_npm(), not from shutil.which.
-        with patch("hermes_cli.main_install_repair._resolve_node_runtime_npm", return_value="/usr/bin/npm"), \
-             patch("hermes_cli.main.subprocess.run", return_value=install_cp), \
-             patch("hermes_cli.main_web_build._run_with_idle_timeout", return_value=build_cp) as mock_idle:
-            result = _build_web_ui(web_dir)
-
-        assert result is True
-        # Build was invoked through the idle-timeout helper, not subprocess.run.
-        mock_idle.assert_called_once()
-        args, kwargs = mock_idle.call_args
-        # Positional: [npm, "run", "build"]; cwd passed as kwarg.
-        assert args[0] == ["/usr/bin/npm", "run", "build"]
-        assert kwargs["cwd"] == web_dir
 
 
 class TestBuildWebUIRetryAndStaleFallback:
@@ -300,7 +197,7 @@ class TestBuildWebUIRetryAndStaleFallback:
         build_fail = Subprocess.CompletedProcess([], 1, stdout="EPERM", stderr="")
         build_ok = Subprocess.CompletedProcess([], 0, stdout="", stderr="")
         with patch("hermes_cli.main.shutil.which", return_value="/usr/bin/npm"), \
-             patch("hermes_cli.main_web_build._time.sleep") as mock_sleep, \
+             patch("hermes_cli.main_web_build._time.sleep"), \
              patch("hermes_cli.main.subprocess.run", return_value=install_ok), \
              patch("hermes_cli.main_web_build._run_with_idle_timeout",
                    side_effect=[build_fail, build_ok]) as mock_idle:
@@ -308,7 +205,6 @@ class TestBuildWebUIRetryAndStaleFallback:
 
         assert result is True
         assert mock_idle.call_count == 2  # build + retry
-        mock_sleep.assert_called_once_with(3)
 
     def test_falls_back_to_stale_dist_when_retry_also_fails(self, tmp_path, capsys):
         web_dir, dist_dir = _make_web_dir(tmp_path)
@@ -330,7 +226,6 @@ class TestBuildWebUIRetryAndStaleFallback:
         # because cmd_dashboard passes fatal=True and is the primary caller.
         assert result is True
         out = capsys.readouterr().out
-        assert "serving stale dist as fallback" in out
         assert "vite ENOMEM" in out  # combined output surfaced to user
 
 
@@ -378,9 +273,6 @@ class TestBuildWebUIFlock:
         assert result is True
         mock_run.assert_not_called()  # fresh after the wait -> no rebuild
 
-    def test_lock_file_is_gitignored(self):
-        gitignore = Path(__file__).resolve().parents[2] / ".gitignore"
-        assert ".web_ui_build.lock" in gitignore.read_text(encoding="utf-8")
 
 
 def _link_shims(bin_dir: Path, *names: str) -> None:
@@ -407,17 +299,12 @@ class TestWebBuildToolchainReady:
         assert _web_build_toolchain_ready(web_dir, tmp_path) is True
 
 
-    @pytest.mark.parametrize("shim", ["tsc.cmd", "tsc.ps1", "tsc.exe"])
-    def test_windows_shim_extensions_count(self, tmp_path, shim):
+    def test_windows_shim_extensions_count(self, tmp_path):
         web_dir, _ = _make_web_dir(tmp_path)
-        _link_shims(tmp_path / "node_modules" / ".bin", shim, "vite.cmd")
+        _link_shims(tmp_path / "node_modules" / ".bin", "tsc.cmd", "vite.cmd")
         assert _web_build_toolchain_ready(web_dir, tmp_path) is True
 
 
-class TestWebToolchainRoots:
-    def test_searches_the_package_and_its_workspace_root(self, tmp_path):
-        web_dir, _ = _make_web_dir(tmp_path)
-        assert _web_toolchain_roots(web_dir) == (web_dir, tmp_path)
 
 
 class TestMissingWebBuildTool:

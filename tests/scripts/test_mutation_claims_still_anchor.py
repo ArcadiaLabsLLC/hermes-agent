@@ -61,7 +61,7 @@ class _ParseMemo:
     ``_symbol_span`` re-parses the claim's whole file per claim, and the
     registry points 298 claims at 60 files — five parses of every file, several
     of which are multi-thousand-line modules. That is ~18 s, against this
-    repo's 30 s per-test cap (``pyproject.toml`` addopts): a gate that close to
+    repo's 30 s per-test cap (``tests/_downstream/conftest_plugin.py``): a gate that close to
     its own ceiling reds on a loaded machine and teaches its reader to rerun.
     Parsing once per distinct source takes the walk to ~2 s.
 

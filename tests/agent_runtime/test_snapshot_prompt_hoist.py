@@ -56,11 +56,11 @@ def test_hoist_replaces_inline_lists_with_refs():
     rows = [_row("ctx_a", available=catalog, accessible=accessible)]
     catalogs: dict = {}
 
-    po._hoist_skills_catalogs(rows, catalogs)
+    po.hoist._hoist_skills_catalogs(rows, catalogs)
 
     row = rows[0]
     # The four inline fields leave the row entirely.
-    for field in po.HOISTED_SKILL_LIST_FIELDS:
+    for field in po.hoist.HOISTED_SKILL_LIST_FIELDS:
         assert field not in row
     # Two refs replace them; each resolves through the table.
     assert row["available_skills_ref"] in catalogs
@@ -78,7 +78,7 @@ def test_skills_stored_once_across_rows():
     rows = [_row(f"ctx_{i}", available=catalog, accessible=accessible) for i in range(3)]
     catalogs: dict = {}
 
-    po._hoist_skills_catalogs(rows, catalogs)
+    po.hoist._hoist_skills_catalogs(rows, catalogs)
 
     assert len(catalogs) == 2, "identical catalog + accessible set collapse to two entries"
     refs = {row["available_skills_ref"] for row in rows}
@@ -96,7 +96,7 @@ def test_distinct_accessible_sets_get_distinct_refs():
     ]
     catalogs: dict = {}
 
-    po._hoist_skills_catalogs(rows, catalogs)
+    po.hoist._hoist_skills_catalogs(rows, catalogs)
 
     assert rows[0]["accessible_skills_ref"] != rows[1]["accessible_skills_ref"]
     # available catalog shared; two distinct accessible sets → 3 entries.
@@ -106,7 +106,7 @@ def test_distinct_accessible_sets_get_distinct_refs():
 def test_hoist_missing_list_carries_no_fake_ref():
     row = {"context_id": "ctx_x"}  # no skill lists at all
     catalogs: dict = {}
-    po._hoist_skills_catalogs([row], catalogs)
+    po.hoist._hoist_skills_catalogs([row], catalogs)
     assert "available_skills_ref" not in row
     assert "accessible_skills_ref" not in row
     assert catalogs == {}
@@ -156,7 +156,7 @@ def test_final_model_input_evicted_to_typed_stub():
     }
     rows = [_row("ctx_a", available=[], accessible=[], fmi=fmi)]
 
-    po._evict_final_model_input(rows)
+    po.hoist._evict_final_model_input(rows)
 
     stub = rows[0]["final_model_input"]
     assert stub["evicted"] is True
@@ -188,7 +188,7 @@ def test_final_model_input_stub_omits_absent_tool_schema():
     }
     rows = [_row("ctx_b", available=[], accessible=[], fmi=fmi)]
 
-    po._evict_final_model_input(rows)
+    po.hoist._evict_final_model_input(rows)
 
     stub = rows[0]["final_model_input"]
     assert stub["evicted"] is True
@@ -200,7 +200,7 @@ def test_evict_is_idempotent_and_skips_absent():
         {"context_id": "ctx_none", "final_model_input": None},
         {"context_id": "ctx_stub", "final_model_input": {"evicted": True, "bytes": 10}},
     ]
-    po._evict_final_model_input(rows)
+    po.hoist._evict_final_model_input(rows)
     assert rows[0]["final_model_input"] is None  # nothing to evict
     assert rows[1]["final_model_input"] == {"evicted": True, "bytes": 10}  # already a stub
 
@@ -272,7 +272,7 @@ def test_evict_prompt_layer_content_replaces_body_with_accounting_stub():
         }
     ]
 
-    po._evict_prompt_layer_content(rows)
+    po.hoist._evict_prompt_layer_content(rows)
 
     evicted, descriptor_only = rows[0]["prompt_layers"]
     # The body is GONE from the frame, not re-typed in place.
@@ -304,9 +304,9 @@ def test_evict_prompt_layer_content_is_idempotent_and_keeps_a_real_empty():
         {"context_id": "ctx_bad_layers", "prompt_layers": "not-a-list"},
     ]
 
-    po._evict_prompt_layer_content(rows)
+    po.hoist._evict_prompt_layer_content(rows)
     first_pass = copy.deepcopy(rows)
-    po._evict_prompt_layer_content(rows)
+    po.hoist._evict_prompt_layer_content(rows)
 
     # A present-but-empty body is a REAL zero and is still accounted, distinct
     # from a layer that carries no body at all.
@@ -363,9 +363,9 @@ def test_layer_body_eviction_is_the_frame_shrink_it_claims():
         for i in range(2)
     ]
     before = json.dumps(rows, ensure_ascii=False, separators=(",", ":"))
-    po._evict_prompt_layer_content(copy.deepcopy(rows))
+    po.hoist._evict_prompt_layer_content(copy.deepcopy(rows))
     evicted = copy.deepcopy(rows)
-    po._evict_prompt_layer_content(evicted)
+    po.hoist._evict_prompt_layer_content(evicted)
     after = json.dumps(evicted, ensure_ascii=False, separators=(",", ":"))
 
     assert len(after) < len(before) // 2
@@ -429,7 +429,7 @@ def test_snapshot_prompt_observability_hoists_by_default(isolate_agent_runtime_r
     # Hoisted: no inline lists, two refs. S8: the ``skills_catalogs`` TABLE
     # leaves the frame entirely — rows keep only the ``*_ref`` hashes and the
     # bodies resolve on demand (content-addressed, cached forever launcher-side).
-    for field in po.HOISTED_SKILL_LIST_FIELDS:
+    for field in po.hoist.HOISTED_SKILL_LIST_FIELDS:
         assert field not in row
     assert "skills_catalogs" not in section
     assert section["skills_catalogs_ref"]["evicted"] is True
@@ -466,12 +466,12 @@ def test_the_builders_own_sub_spans_never_reach_the_FRAME():
         "not a row",
     ]
 
-    po._evict_builder_timings(rows)
+    po.hoist._evict_builder_timings(rows)
 
     assert po.PROMPT_OBSERVABILITY_TIMINGS_KEY not in rows[0]
     assert rows[0]["context_id"] == "ctx_a"
     # Idempotent, and blind to a row that never carried one.
-    po._evict_builder_timings(rows)
+    po.hoist._evict_builder_timings(rows)
     assert rows[1] == {"context_id": "ctx_b"}
 
 
@@ -531,7 +531,7 @@ def test_fresh_live_context_advertises_only_collectable_catalog_refs(
     advertised = set(section["skills_catalogs_ref"]["hashes"])
     assert advertised
     assert advertised <= set(catalogs)
-    assert all(po.load_skills_catalog_from_store(ref) is None for ref in advertised)
+    assert all(po.catalog_store.load_skills_catalog_from_store(ref) is None for ref in advertised)
 
 
 def test_hoisted_refs_resolve_to_the_persisted_lists(isolate_agent_runtime_root):
@@ -578,7 +578,7 @@ def _bulky_section(*, hoisted: bool) -> dict:
     rows = [_row(f"ctx_{i}", available=catalog, accessible=accessible) for i in range(24)]
     catalogs: dict = {}
     if hoisted:
-        po._hoist_skills_catalogs(rows, catalogs)
+        po.hoist._hoist_skills_catalogs(rows, catalogs)
     return {"schema_version": 1, "chat_contexts": rows, "skills_catalogs": catalogs}
 
 

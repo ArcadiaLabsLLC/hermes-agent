@@ -121,7 +121,7 @@ def _codes(data: dict) -> set[str]:
 
 @pytest.mark.parametrize("code", sorted(PRODUCIBLE))
 def test_every_declared_warning_code_is_producible(code, monkeypatch):
-    monkeypatch.setattr(snapshot_mod, "suspect_default_root", lambda *_a, **_k: False)
+    monkeypatch.setattr(snapshot_mod.envelope, "suspect_default_root", lambda *_a, **_k: False)
     produced = _codes(PRODUCIBLE[code])
     if code.endswith("."):
         assert any(item.startswith(code) for item in produced), (code, produced)
@@ -134,7 +134,7 @@ def test_orphan_persona_instance_codes_are_producible(monkeypatch):
     stubbing the classification rather than by hand-shaping identity inputs."""
 
     monkeypatch.setattr(
-        snapshot_mod,
+        snapshot_mod.warnings,
         "classify_orphan_persona_instances",
         lambda *_a, **_k: {
             "prunable": [{"persona_instance_id": "pi_x_0001", "reason": "profile_missing"}],
