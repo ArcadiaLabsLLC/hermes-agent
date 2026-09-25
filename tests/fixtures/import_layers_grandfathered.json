@@ -179,7 +179,6 @@
   "agent_runtime/office_class_key_guard.py",
   "agent_runtime/office_layout_policy.py",
   "agent_runtime/office_models.py",
-  "agent_runtime/office_store.py",
   "agent_runtime/office_sync.py",
   "agent_runtime/operator_channels.py",
   "agent_runtime/parity.py",

@@ -686,8 +686,8 @@ The highest-value read-side swallow also closed: the actor-directory read
 skipped undecodable files and returned a shorter list that described itself as
 complete, so `actors_truncated` computed 0 over it. It now returns a typed
 `ActorScan(actors, unreadable)` so the two facts travel together
-(`agent_runtime/office_store.py` — `ActorScan` at `:219`, `read_actor_dir` at
-`:432`, `OfficeStore.scan_actors` at `:1224`). Since AX5 that scan is the ONLY
+(`agent_runtime/office_store/` — `ActorScan` in `models.py`, `read_actor_dir` in
+`files.py`, `OfficeStore.scan_actors` in `store.py`). Since AX5 that scan is the ONLY
 actor read: the `list_actors` thin view that returned `.actors` and dropped
 `.unreadable` is deleted, so dropping the count is now something a call site
 WROTE rather than a default it inherited. Since AX6 the reader is module-level

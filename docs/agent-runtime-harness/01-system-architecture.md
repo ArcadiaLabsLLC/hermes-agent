@@ -98,7 +98,7 @@ for instance-bound actors, else the persona id
 (`office_store._canonical_actor_key`). Actor granularity, not item granularity,
 is the merge unit, so an agent and its coupled desk travel together. (Symbols
 only: the three line cites this paragraph carried — `models.py:179` / `:157` and
-`office_store.py:113` — had all drifted by 2026-08-31, the last of them onto an
+`office_store.py` at line 113 — had all drifted by 2026-08-31, the last of them onto an
 unrelated constant, and a name is the cheapest thing in this repo to re-find.)
 
 **One call creates all of it.** `agent_create.perform_agent_create` writes the
