@@ -1,10 +1,12 @@
 """The setup verbs (``hermes.local_llama.setup/v1``) over upstream's installer.
 
-Row 3 ADOPT: an install is upstream ``binaries.ensure_runtime_installed`` at the pinned
-``default_tag()`` into ``runtimes_root()`` (download, SHA record, extract, ``--version`` check,
-verified manifest). ``releases.list`` therefore offers one release — the pinned tag — with one
-variant per backend ``resolve_assets`` can build for this host, and ``installation.plan``'s
-``directory`` is the upstream install directory. Row 5 ADOPT: ``hardware.get`` reads
+Row 3 ADOPT: an install is upstream ``binaries.ensure_engine(backend)`` — PM installs the
+backend's pinned ``llamacpp-*`` package into its store, verifies every archive and hands back the
+exact binary (re-seated at the 2026-09-25 merge from the retired ``ensure_runtime_installed`` /
+``default_tag`` / ``resolve_assets`` / ``installed_tags`` / ``manifest_verified`` /
+``server_binary``). ``releases.list`` offers one release per PM pin (``pinned_tag``) with one
+variant per backend ``unavailable_reason`` clears for this host; inventory is
+``installed_engine`` per backend; ``installation.plan``'s ``directory`` is PM's store root. Row 5 ADOPT: ``hardware.get`` reads
 ``probe_budget``. GAP-PR-1 fallback: ``installations.detect/validate/activate`` still accept a
 user-supplied ``llama-server``; activation of either kind writes ``executable_path``.
 """
@@ -69,13 +71,11 @@ def _digest(path):
 
 def probe(executable):
     """Validate a llama-server the supervisor can drive: router flags present, it runs."""
-    from hermes_cli.local_runtime.binaries import BinaryResolutionError, server_binary
     from hermes_cli.local_runtime.processes import server_child_env
     executable = host_path(str(executable))
-    try:
-        if not executable.is_file() or server_binary(executable.parent).resolve() != executable:
-            raise BinaryResolutionError(str(executable))
-    except BinaryResolutionError:
+    # Upstream hands the supervisor the exact binary and never scans a directory for one, so
+    # the check is the file itself plus the router-flag probe below.
+    if not executable.is_file():
         fail("unsupported_binary", "Choose a llama-server executable")
     outputs = []
     for flag in ("--version", "--help"):
@@ -100,37 +100,50 @@ def _host_label():
     return f"{platform.system().lower()}-{platform.machine().lower()}"
 
 
-def _variants(tag):
-    from hermes_cli.local_runtime.binaries import BinaryResolutionError, resolve_assets
+_PM_READ_ERRORS = (RuntimeError, KeyError, OSError, ValueError)
+
+
+def _pinned_backends():
+    """``{backend: pinned tag}`` for every backend PM can install on this host."""
+    from hermes_cli.local_runtime.binaries import BACKEND_PACKAGES, pinned_tag, unavailable_reason
     backends = ("metal",) if platform.system() == "Darwin" else _BACKENDS
-    rows = []
+    pinned = {}
     for backend in backends:
-        try:
-            plan = resolve_assets(tag, backend)
-        except BinaryResolutionError:
+        if backend not in BACKEND_PACKAGES:
             continue
-        rows.append({"variant_id": _host_label() + "-" + backend, "backend": backend, "download_bytes": 0,
-                     "artifacts": [{"asset_id": name, "name": name, "size_bytes": 0, "sha256": ""} for name in plan.assets]})
-    return rows
+        try:
+            if unavailable_reason(backend) is None:
+                pinned[backend] = pinned_tag(backend)
+        except _PM_READ_ERRORS:
+            continue
+    return pinned
+
+
+def _variants(tag):
+    from hermes_cli.local_runtime.binaries import BACKEND_PACKAGES
+    return [{"variant_id": _host_label() + "-" + backend, "backend": backend, "download_bytes": 0,
+             "artifacts": [{"asset_id": BACKEND_PACKAGES[backend], "name": BACKEND_PACKAGES[backend],
+                            "size_bytes": 0, "sha256": ""}]}
+            for backend, pinned in _pinned_backends().items() if pinned == tag]
 
 
 def installed_runtimes():
-    """Upstream's verified installs, as inventory rows (derived live, never stored)."""
-    from hermes_cli.local_runtime.binaries import (BinaryResolutionError, installed_tags, manifest_verified,
-                                                   runtimes_root, server_binary)
-    rows = []
-    for tag in installed_tags():
-        for manifest in sorted((runtimes_root() / tag).glob("*/manifest.json")):
-            if not manifest_verified(manifest):
-                continue
-            try:
-                executable = server_binary(manifest.parent)
-            except BinaryResolutionError:
-                continue
-            rows.append({"installation_id": str(uuid.uuid5(uuid.NAMESPACE_URL, manifest.parent.resolve().as_uri())),
-                         "executable_path": str(executable.resolve()), "version": read_json_object(manifest).get("verified_version", ""),
-                         "compatibility": "compatible", "tag": tag, "variant_id": _host_label() + "-" + manifest.parent.name,
-                         "directory": str(manifest.parent)})
+    """PM's installed engines, as inventory rows (derived live, never stored)."""
+    from hermes_cli.local_runtime.binaries import BACKEND_PACKAGES, installed_engine
+    rows, seen = [], set()
+    for backend in BACKEND_PACKAGES:
+        try:
+            engine = installed_engine(backend)
+        except _PM_READ_ERRORS:
+            continue
+        if engine is None or engine.binary in seen:
+            continue
+        seen.add(engine.binary)
+        directory = engine.binary.parent
+        rows.append({"installation_id": str(uuid.uuid5(uuid.NAMESPACE_URL, directory.resolve().as_uri())),
+                     "executable_path": str(engine.binary.resolve()), "version": engine.tag,
+                     "compatibility": "compatible", "tag": engine.tag, "variant_id": _host_label() + "-" + engine.backend,
+                     "directory": str(directory)})
     return rows
 
 
@@ -175,8 +188,7 @@ class SetupManager:
         return rows + [r for r in installed_runtimes() if r["executable_path"] not in known]
 
     def capabilities(self):
-        from hermes_cli.local_runtime.binaries import default_tag
-        automatic = bool(_variants(default_tag()))
+        automatic = bool(_pinned_backends())
         return self.envelope(features={"detect": True, "path_validate": True, "hardware": True,
             "releases": automatic, "install": automatic, "cancel": automatic, "activate": True,
             "offline_import": False, "host_browser": False}, automatic_platforms=[_host_label()] if automatic else [],
@@ -255,23 +267,21 @@ class SetupManager:
                              writable=os.access(target, os.W_OK), free_bytes=shutil.disk_usage(target).free)
 
     def releases(self):
-        from hermes_cli.local_runtime.binaries import default_tag
-        tag = default_tag()
-        variants = _variants(tag)
+        tags = sorted(set(_pinned_backends().values()))
         return self.envelope(releases=[{"release_id": tag, "tag": tag, "stable_alias": None,
-                                        "prerelease": False, "variants": variants}] if variants else [])
+                                        "prerelease": False, "variants": _variants(tag)} for tag in tags])
 
     def plan(self, params):
-        from hermes_cli.local_runtime.binaries import default_tag, resolve_assets
+        from pm.paths import store_root
         if not self.capabilities()["features"]["install"]:
             fail("unsupported_platform", "Use an existing executable on this host")
         tag, release_id, variant_id = (params.get(k) for k in ("tag", "release_id", "variant_id"))
-        # The destination is validated for the operator's benefit; upstream installs under runtimes_root().
+        # The destination is validated for the operator's benefit; PM installs into its own store.
         parent = host_path(params.get("destination_parent"), directory=True)
-        variant = next((v for v in _variants(tag) if v["variant_id"] == variant_id), None) if tag == default_tag() and release_id == tag else None
+        variant = next((v for v in _variants(tag) if v["variant_id"] == variant_id), None) if release_id == tag else None
         if variant is None:
             fail("release_unavailable", "This release has no asset bundle for that variant")
-        target = resolve_assets(tag, variant["backend"]).install_dir
+        target = store_root()
         existing = target
         while not existing.exists():
             existing = existing.parent
@@ -391,10 +401,13 @@ class SetupManager:
             self.manager.revision += 1
 
     def _install(self, op, payload):
-        from hermes_cli.local_runtime.binaries import ensure_runtime_installed
-        install_dir = ensure_runtime_installed(
-            payload["tag"], payload["variant"]["backend"],
+        from hermes_cli.local_runtime.binaries import ensure_engine
+        if _pinned_backends().get(payload["variant"]["backend"]) != payload["tag"]:
+            fail("plan_changed", "The pinned llama.cpp release changed; review the installation again")
+        engine = ensure_engine(
+            payload["variant"]["backend"],
             progress=lambda stage, done, total, _label: self._tick(op, _PHASES.get(stage, stage), done, total))
+        install_dir = engine.binary.parent
         self._tick(op, "publishing")
         with self.manager.lock:
             op["can_cancel"] = False

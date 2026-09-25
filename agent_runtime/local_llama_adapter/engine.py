@@ -75,14 +75,12 @@ class Engine:
         return self.directory / "llama-server.log"
 
     def start(self, config) -> None:
-        from hermes_cli.local_runtime.binaries import BinaryResolutionError, server_binary
         from hermes_cli.local_runtime.supervisor import LlamaServerSupervisor
         executable = Path(config["executable_path"])
-        try:
-            if server_binary(executable.parent).resolve() != executable.resolve():
-                raise BinaryResolutionError(str(executable))
-        except (BinaryResolutionError, OSError):
-            raise _fail("unsupported_binary", "Choose a llama-server executable") from None
+        # Upstream's supervisor takes the exact binary (it never scans a directory for one); the
+        # activation probe already proved this file is a router-capable llama-server.
+        if not executable.is_file():
+            raise _fail("unsupported_binary", "Choose a llama-server executable")
         with socket.socket() as check:
             try:
                 check.bind(("127.0.0.1", config["port"]))
@@ -92,7 +90,7 @@ class Engine:
         with self._lock:
             if self._closed:
                 raise _fail("interrupted", "Hermes is stopping")
-            supervisor = LlamaServerSupervisor(executable.parent, self.directory / "models", models_max=1,
+            supervisor = LlamaServerSupervisor(executable, self.directory / "models", models_max=1,
                                                port=config["port"], log_path=self.log_path,
                                                preset_path=self.preset_path)
             self.supervisor = supervisor
