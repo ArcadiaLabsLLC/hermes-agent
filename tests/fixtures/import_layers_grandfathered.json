@@ -102,6 +102,7 @@
   "agent_runtime/mission_chat_turn_context.py",
   "agent_runtime/mission_chat_workdir.py",
   "agent_runtime/office_sync.py",
+  "agent_runtime/parity.py",
   "agent_runtime/patch_coverage.py",
   "agent_runtime/persona_chat_actor_prewarm.py",
   "agent_runtime/persona_chat_durability.py",

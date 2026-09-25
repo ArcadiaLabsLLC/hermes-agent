@@ -20,6 +20,7 @@ from hermes_cli.harness_parts.persona import chat_turn_message
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
+from tests._downstream.split_package_source import patch_where_bound
 from agent_runtime import dispatch_delivery, subprocess_pumps
 from agent_runtime.dispatch_store import (
     DELIVERY_PENDING,
@@ -69,7 +70,7 @@ def deliverable_lane(monkeypatch):
     # while the mechanism it is about went unexercised.
     token = _SESSION_ASYNC_DELIVERY.set(_SESSION_ASYNC_DELIVERY.get())
     declare_async_delivery_channel()
-    monkeypatch.setattr(dispatch_delivery, "_sender_persona",
+    patch_where_bound(monkeypatch, dispatch_delivery, "_sender_persona",
         lambda root: ("neko_supervisor", "personainst_neko") if root == SENDER_ROOT else None,
     )
     yield
@@ -188,7 +189,7 @@ def test_a_cold_cli_lane_refuses_instead_of_orphaning_the_work(store_home, monke
 
     token = _SESSION_ASYNC_DELIVERY.set(_SESSION_ASYNC_DELIVERY.get())
     declare_stateless_channel()
-    monkeypatch.setattr(dispatch_delivery, "_sender_persona", lambda root: ("neko_supervisor", "personainst_neko")
+    patch_where_bound(monkeypatch, dispatch_delivery, "_sender_persona", lambda root: ("neko_supervisor", "personainst_neko")
     )
     try:
         result = _send()
@@ -216,7 +217,7 @@ def test_a_sender_root_the_drain_cannot_resolve_is_refused_before_running(
     from agent_runtime.delivery_capability import declare_async_delivery_channel
 
     declare_async_delivery_channel()
-    monkeypatch.setattr(dispatch_delivery, "_sender_persona", lambda root: None)
+    patch_where_bound(monkeypatch, dispatch_delivery, "_sender_persona", lambda root: None)
 
     result = _send()
 
@@ -632,7 +633,7 @@ def test_dispatches_lists_only_the_callers_own_work(
     store_home, deliverable_lane, queued, monkeypatch
 ):
     mine = _send()["dispatch_id"]
-    monkeypatch.setattr(dispatch_delivery, "_sender_persona", lambda root: ("qa", "personainst_qa"))
+    patch_where_bound(monkeypatch, dispatch_delivery, "_sender_persona", lambda root: ("qa", "personainst_qa"))
     _send(requested_by_session="persona_chat_personainst_qa_bbbbbbbbbbbb")
 
     listed = json.loads(agent_chat_dispatches(requested_by_session=SENDER_ROOT))

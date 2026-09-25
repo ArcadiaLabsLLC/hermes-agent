@@ -31,6 +31,7 @@ import pytest
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
+from tests._downstream.split_package_source import patch_where_bound
 from agent_runtime import dispatch_delivery, dispatch_store
 from agent_runtime.dispatch_store import (
     MAX_DELIVERY_ATTEMPTS,
@@ -80,7 +81,7 @@ def deliverable_lane(monkeypatch):
 
     token = _SESSION_ASYNC_DELIVERY.set(_SESSION_ASYNC_DELIVERY.get())
     declare_async_delivery_channel()
-    monkeypatch.setattr(dispatch_delivery, "_sender_persona",
+    patch_where_bound(monkeypatch, dispatch_delivery, "_sender_persona",
         lambda root: ("neko_supervisor", "personainst_neko") if root == SENDER_ROOT else None,
     )
     yield
