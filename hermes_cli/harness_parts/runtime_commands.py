@@ -1,10 +1,8 @@
-# Loaded by hermes_cli.harness via _load_command_parts(); executed in harness.py globals.
 # Runtime/task/lane/worker/stream command bodies live here to keep harness.py focused on CLI wiring.
 
-# Explicit import header — its rationale lives ONCE, in
-# ``hermes_cli/harness_support.py``'s module docstring, which also names the
-# two gates that hold it: ruff's F821 for the header being complete, and
-# tests/hermes_cli/test_harness_parts_namespace.py for the load-order namespace.
+# A real module (lane H1, 2026-09-24): it imports everything it reads, and a
+# test patches a name HERE, where this module looks it up — never on
+# ``hermes_cli.harness`` (W0-G4, tests/tooling/test_harness_namespace_is_thin.py).
 
 from __future__ import annotations
 
@@ -38,6 +36,27 @@ from hermes_cli.harness_support import (
     _sort_rows,
     harness_repo_root,
 )
+
+__layer__ = "lanes"
+__all__ = [
+    "_cmd_config",
+    "_cmd_contracts_dump",
+    "_cmd_health",
+    "_cmd_migrate",
+    "_cmd_observe",
+    "_cmd_persona_chat_history",
+    "_cmd_persona_instance_chat_bindings",
+    "_cmd_persona_instance_reconcile",
+    "_cmd_snapshot",
+    "_cmd_status",
+    "_cmd_stream",
+    "_cmd_verify",
+    "_cmd_work_cancel",
+    "_cmd_work_list",
+    "_cmd_work_peek",
+    "_cmd_worktree_reap",
+]
+
 
 
 def _cmd_worktree_reap(args) -> int:
@@ -343,8 +362,7 @@ def _attach_runtime_service_blocks(data: dict, *, prune_stale: bool) -> None:
 
     Additive and fail-open: each block degrades to a typed error marker rather
     than raising, because a diagnostic that can fail the verb it instruments is
-    worse than no diagnostic. Function-local imports — this file is exec'd into
-    harness.py's globals.
+    worse than no diagnostic. Function-local imports, like the rest of this file.
     """
 
     try:
@@ -400,10 +418,8 @@ def _cmd_migrate(args) -> int:
 def _cmd_verify(args) -> int:
     cfg = load_agent_runtime_config()
     started = datetime.now(timezone.utc)
-    # Not ``Path(__file__)``: this file is exec'd into harness.py's globals, so
-    # ``__file__`` reads as *harness.py's* path and ``parents[1]`` lands on the
-    # repo root only by accident of harness.py sitting one level down. Anchor
-    # to the support module instead, so the answer is the same either way.
+    # Anchored to the support module rather than ``Path(__file__)`` (which,
+    # before lane H1 exec'd this file into harness.py, read as harness.py's path).
     repo_root = harness_repo_root()
     packet = {
         "schema_version": 1,
@@ -618,8 +634,7 @@ _SNAPSHOT_FRAME_SOURCE = "built"
 
 
 def _cmd_snapshot(args) -> int:
-    # This module is exec'd into harness.py's globals — every new name is a
-    # function-local import.
+    # Function-local import, like the rest of this file.
     from agent_runtime.snapshot import build_snapshot
 
     # STAGE 6: this used to go through ``read_model.resolve_snapshot_frame``,
@@ -706,12 +721,8 @@ def _cmd_stream(args) -> int:
 
 # --- `harness work` — running background work -------------------------------
 #
-# Every import below is function-local ON PURPOSE. These bodies are exec'd into
-# hermes_cli/harness.py's globals rather than imported as a module, so a
-# module-level import here binds into a namespace shared with five other part
-# files; the failure mode is a NameError that fires only when an operator runs
-# this one verb, mid-turn (the `persona_commands.py:1435` precedent, pinned by
-# tests/hermes_cli/test_harness_parts_namespace.py).
+# Every import below is function-local — the convention from before lane H1,
+# when these bodies were exec'd into hermes_cli/harness.py's globals.
 
 
 def _work_target_details(row: dict) -> dict:

@@ -33,7 +33,7 @@ def cheap_status(monkeypatch):
     """The service blocks are the subject; the rest of the envelope is not."""
 
     monkeypatch.setattr(
-        "hermes_cli.harness.build_status",
+        "hermes_cli.harness_parts.runtime_commands.build_status",
         lambda: {
             "open_incidents": 0,
             "dirty_summary": "runtime=clean",

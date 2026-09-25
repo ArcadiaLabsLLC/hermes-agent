@@ -70,26 +70,36 @@ def is_repo_module(name: str | None, root: Path = ROOT) -> bool:
     return stem.with_suffix(".py").is_file() or (stem / "__init__.py").is_file()
 
 
-def parser_func_targets(parser) -> list[object]:
-    """Every ``func`` default in an argparse tree, walked through its subparsers."""
-    import argparse
+def global_reads(path: str = "hermes_cli/harness.py", root: Path = ROOT) -> frozenset[str]:
+    """Every name the module's code reads as a GLOBAL, from the compiler's symbol table.
 
-    found: list[object] = []
-    stack = [parser]
-    while stack:
-        current = stack.pop()
-        target = current.get_default("func")
-        if target is not None:
-            found.append(target)
-        for action in current._actions:
-            if isinstance(action, argparse._SubParsersAction):
-                stack.extend(action.choices.values())
-    return found
+    Not a spelling walk: ``symtable`` is the compiler's own scope resolution, so a
+    name read inside a function, a class body or a comprehension counts, and a
+    name a local shadows does not.
+    """
+    import symtable
+
+    reads: set[str] = set()
+
+    def walk(table) -> None:
+        for sym in table.get_symbols():
+            if sym.is_referenced() and (table.get_type() == "module" or sym.is_global()):
+                reads.add(sym.get_name())
+        for child in table.get_children():
+            walk(child)
+
+    walk(symtable.symtable((root / path).read_text(encoding="utf-8"), path, "exec"))
+    return frozenset(reads)
 
 
-def borrowed_callables(module, func_targets: list[object]) -> list[str]:
-    """Callables ``module`` binds that ANOTHER repo module defines, minus the allowlist
-    and the ``func=`` targets that live in a ``hermes_cli.harness_parts`` module."""
+def borrowed_callables(module, reads: frozenset[str] | set[str]) -> list[str]:
+    """Callables ``module`` binds that ANOTHER repo module defines and its own code never reads.
+
+    That is a re-export shim: a patch on ``module.NAME`` lands on a binding no
+    code looks up, so it is a no-op that passes (§0.4). A borrowed name the
+    module's own code reads is an ordinary import — patching it there works.
+    The §0.4 allowlist is what production imports FROM the harness.
+    """
     import types
 
     out = []
@@ -99,7 +109,7 @@ def borrowed_callables(module, func_targets: list[object]) -> list[str]:
         owner = getattr(value, "__module__", None)
         if owner == module.__name__ or not is_repo_module(owner) or name in HARNESS_ALLOWLIST:
             continue
-        if any(value is t for t in func_targets) and str(owner).startswith("hermes_cli.harness_parts."):
+        if name in reads:
             continue
         out.append(f"{name} (from {owner})")
     return out

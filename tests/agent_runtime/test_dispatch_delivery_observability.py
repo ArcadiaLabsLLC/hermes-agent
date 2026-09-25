@@ -37,6 +37,8 @@ from tests.agent_runtime.test_dispatch_delivery import (  # noqa: F401
     resolvable_sender,
     store_home,
 )
+from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts import runtime_commands
 
 
 @pytest.fixture(autouse=True)
@@ -656,8 +658,10 @@ def test_a_bound_spawn_becomes_a_delivered_turn_in_the_senders_own_thread(
             )
 
     monkeypatch.setattr(harness, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(persona_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(runtime_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(persona_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(persona_commands, "GPTPersonaRuntime", _ProviderSpy)
 
     # Real `_chat_root_of_completion`, real `_sender_persona`, real
     # `_sender_is_idle`, real `forge_delivery_turn`.

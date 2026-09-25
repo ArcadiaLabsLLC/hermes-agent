@@ -1,7 +1,6 @@
 # Mission Board CLI tier: `hermes harness board …`.
 #
-# This module is exec'd into hermes_cli/harness.py's globals (see
-# _load_command_parts) and shares the Stage-42 envelope/printer/error helpers
+# This module shares the Stage-42 envelope/printer/error helpers
 # with every other tier — imported from hermes_cli.harness_support below, not
 # inherited. Skinny rows by default (≤7 keys); --full drills into card bodies.
 # All writes go through the BoardStore chokepoint — the same one the launcher
@@ -11,16 +10,9 @@
 # the active workspace's default board. A card verb resolves the owning board
 # from the card id itself.
 
-# Explicit import header — its rationale lives ONCE, in
-# ``hermes_cli/harness_support.py``'s module docstring, which also names the
-# two gates that hold it: ruff's F821 for the header being complete, and
-# tests/hermes_cli/test_harness_parts_namespace.py for the load-order namespace.
-#
-# Snapshot row builders (``board_summary_row`` / ``_board_card_row``) are
-# imported FUNCTION-LOCALLY rather than here on purpose: a module-level import
-# in an exec'd part binds the name into harness.py's shared globals for every
-# other tier, which is the shadowing surface the namespace guard exists to
-# police. Same convention ``_board_store`` already follows.
+# A real module (lane H1, 2026-09-24): it imports everything it reads, and a
+# test patches a name HERE, where this module looks it up — never on
+# ``hermes_cli.harness`` (W0-G4, tests/tooling/test_harness_namespace_is_thin.py).
 
 from __future__ import annotations
 
@@ -34,6 +26,21 @@ from hermes_cli.harness_support import (
     emit_harness_error,
 )
 from hermes_time import now
+
+__layer__ = "lanes"
+__all__ = [
+    "_cmd_board_card_add",
+    "_cmd_board_card_archive",
+    "_cmd_board_card_edit",
+    "_cmd_board_card_move",
+    "_cmd_board_card_restore",
+    "_cmd_board_create",
+    "_cmd_board_list",
+    "_cmd_board_resolve_conflict",
+    "_cmd_board_show",
+    "_cmd_board_update",
+]
+
 
 
 def _board_store():
@@ -71,9 +78,8 @@ def _board_row(store, board, *, full: bool = False) -> dict:
     cap is now the builder's and is ACCOUNTED, never silent: ``cards_truncated``
     rides the full row whenever cards were cut.
 
-    Imported inside the function: this module is exec'd into ``harness.py``'s
-    globals, and a module-level import here would bind the builder into that
-    shared namespace for every other tier. ``store``/``board`` stay in the
+    Imported inside the function (a convention from before lane H1, when this
+    module was exec'd into ``harness.py``'s globals). ``store``/``board`` stay in the
     signature because the CLI's own ``active_cards`` column (a different
     question — see ``_board_active_card_count``) is not on the builder's row.
     """

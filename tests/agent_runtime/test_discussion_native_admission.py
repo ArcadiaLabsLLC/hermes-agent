@@ -12,6 +12,7 @@ from agent_runtime.mission_chat_turns import mission_chat_turn_record
 from tests.agent_runtime.test_persona_assignments import (
     _assignment_config, _TranscriptDB, _mission_chat_test_args, _persona,
 )
+from hermes_cli.harness_parts import persona_commands
 
 pytestmark = [pytest.mark.usefixtures("persisted_persona_samples"), pytest.mark.timeout(90)]
 ROOM = "persona_chat_personainst_dev_a01234567890"
@@ -22,7 +23,6 @@ ROOM = "persona_chat_personainst_dev_a01234567890"
 def test_native_room_turn_preserves_operator_pointer_and_concurrent_row_fields(
     monkeypatch, capsys, isolate_agent_runtime_root, outcome, operator_changes_thread,
 ):
-    from hermes_cli import harness
     db = _TranscriptDB()
     db.create_session(ROOM, "persona_chat", model_config=json.dumps({
         "persona_id": "dev", "persona_instance_id": "personainst_dev",
@@ -54,14 +54,14 @@ def test_native_room_turn_preserves_operator_pointer_and_concurrent_row_fields(
             return SimpleNamespace(final_response="Pick a branch" if raw else "Room answer", raw=raw,
                 input_tokens=1, output_tokens=1, total_tokens=2)
 
-    monkeypatch.setattr(harness, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", Provider)
-    monkeypatch.setattr(harness, "_maybe_auto_title_persona_chat", lambda **kwargs: None)
+    monkeypatch.setattr(persona_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(persona_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(persona_commands, "GPTPersonaRuntime", Provider)
+    monkeypatch.setattr(persona_commands, "_maybe_auto_title_persona_chat", lambda **kwargs: None)
     args = _mission_chat_test_args("aux-" + outcome)
     args.session_id = ROOM
     with auxiliary_chat(instance.id, ROOM):
-        code = harness._cmd_mission_chat_message(args)
+        code = persona_commands._cmd_mission_chat_message(args)
     assert calls == [args.message]
     assert not is_auxiliary_chat(instance.id, ROOM)
     after = store.get(instance.id)

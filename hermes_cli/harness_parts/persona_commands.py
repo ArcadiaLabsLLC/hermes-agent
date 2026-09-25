@@ -1,10 +1,8 @@
-# Loaded by hermes_cli.harness via _load_command_parts(); executed in harness.py globals.
 # Keep command bodies here so parser registration stays separate from persona/chat behavior.
 
-# Explicit import header — its rationale lives ONCE, in
-# ``hermes_cli/harness_support.py``'s module docstring, which also names the
-# two gates that hold it: ruff's F821 for the header being complete, and
-# tests/hermes_cli/test_harness_parts_namespace.py for the load-order namespace.
+# A real module (lane H1, 2026-09-24): it imports everything it reads, and a
+# test patches a name HERE, where this module looks it up — never on
+# ``hermes_cli.harness`` (W0-G4, tests/tooling/test_harness_namespace_is_thin.py).
 
 from __future__ import annotations
 
@@ -151,6 +149,40 @@ from hermes_cli.harness_support import (
 )
 from hermes_constants import get_hermes_home
 from hermes_time import now
+
+__layer__ = "lanes"
+__all__ = [
+    "_cmd_agent_create",
+    "_cmd_agent_retire",
+    "_cmd_mission_chat_clarify_tickets",
+    "_cmd_mission_chat_dispatch_redeliver",
+    "_cmd_mission_chat_message",
+    "_cmd_mission_chat_queue_skill",
+    "_cmd_mission_chat_steer",
+    "_cmd_mission_chat_turn_resolve",
+    "_cmd_persona_assignment_task_id_migration",
+    "_cmd_persona_assignments",
+    "_cmd_persona_chat_delete",
+    "_cmd_persona_instance_archive",
+    "_cmd_persona_instance_close",
+    "_cmd_persona_instance_create",
+    "_cmd_persona_instance_open_chat",
+    "_cmd_persona_instance_open_new_chat",
+    "_cmd_persona_instance_repair_steering",
+    "_cmd_persona_instance_retire",
+    "_cmd_persona_instance_return_summary",
+    "_cmd_persona_instance_set_model",
+    "_cmd_persona_instance_steer",
+    "_cmd_persona_instance_update_profile",
+    "_cmd_persona_list",
+    "_cmd_persona_permission_set",
+    "_cmd_persona_set_model",
+    "_cmd_persona_set_skills",
+    "_cmd_persona_show",
+    "_cmd_persona_tool_diff",
+    "_resolve_mission_chat_persona_id",
+]
+
 
 
 def _persona_chat_fault_injection(boundary: str) -> None:
@@ -833,9 +865,8 @@ def _placement_discriminability_refusal(placement_id: str) -> dict | None:
 
 
 def _cmd_persona_instance_create(args) -> int:
-    # Function-local: this file is exec'd into harness.py's globals, so a
-    # module-level import here would need a matching harness.py import or it
-    # is a NameError on a LIVE turn. The turn-outcome vocabulary is owned by
+    # Function-local: the convention from before lane H1, when this file was
+    # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.
     from agent_runtime.agent_create import require_known_persona
     from agent_runtime.mission_chat_outcome import ChatErrorKind
@@ -991,9 +1022,8 @@ def _cmd_persona_instance_create(args) -> int:
 
 
 def _cmd_persona_instance_open_chat(args) -> int:
-    # Function-local: this file is exec'd into harness.py's globals, so a
-    # module-level import here would need a matching harness.py import or it
-    # is a NameError on a LIVE turn. The turn-outcome vocabulary is owned by
+    # Function-local: the convention from before lane H1, when this file was
+    # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.
     from agent_runtime.mission_chat_outcome import ChatErrorKind
     cfg = load_agent_runtime_config()
@@ -1067,8 +1097,8 @@ def _cmd_persona_instance_open_chat(args) -> int:
                 _emit_persona_open_chat_payload(args, placement_refusal)
                 return 2
             try:
-                # Local import: this file is exec'd into harness.py globals, and
-                # this name is NOT among them — as a free name it raised NameError
+                # Local import. Before lane H1 this file was exec'd into
+                # harness.py's globals, and as a free name this raised NameError
                 # on every --add-instance and the except below swallowed it,
                 # silently disabling the named-placement preservation described in
                 # the comment that follows (found by the 2026-07-31 audit).
@@ -1327,9 +1357,8 @@ def _persona_instance_updated_at(instance) -> str | None:
 
 def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_scope) -> int:
     """Mint one exact-instance chat root with durable retry semantics."""
-    # Function-local: this file is exec'd into harness.py's globals, so a
-    # module-level import here would need a matching harness.py import or it
-    # is a NameError on a LIVE turn. The turn-outcome vocabulary is owned by
+    # Function-local: the convention from before lane H1, when this file was
+    # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.
     from agent_runtime.mission_chat_outcome import ChatErrorKind
     if bool(getattr(args, "add_instance", False)):
@@ -1567,9 +1596,8 @@ def _emit_persona_open_chat_error(
 
 
 def _cmd_persona_chat_delete(args) -> int:
-    # Function-local: this file is exec'd into harness.py's globals, so a
-    # module-level import here would need a matching harness.py import or it
-    # is a NameError on a LIVE turn. The turn-outcome vocabulary is owned by
+    # Function-local: the convention from before lane H1, when this file was
+    # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.
     from agent_runtime.mission_chat_outcome import ChatErrorKind
     cfg = load_agent_runtime_config()
@@ -1826,10 +1854,10 @@ def _retired_persona_instance_refusal(
     archive_path: object,
     # The ONE ``error_kind`` in this file still spelled as a literal, and it is
     # structural rather than an oversight: a default argument is evaluated when
-    # the ``def`` executes, and this file is EXEC'd into harness.py's globals —
-    # so ``ChatErrorKind`` cannot be bound yet without a module-level import
-    # here, which is exactly the namespace collision the exec'd-part discipline
-    # forbids. The value is pinned to ``ChatErrorKind.RETIRED_PERSONA_INSTANCE``
+    # the ``def`` executes, and until lane H1 this file was EXEC'd into
+    # harness.py's globals, where a module-level import was the namespace
+    # collision the exec'd-part discipline forbade (hoisting is H3's call).
+    # The value is pinned to ``ChatErrorKind.RETIRED_PERSONA_INSTANCE``
     # by tests/agent_runtime/test_mission_chat_outcome.py, so it cannot drift.
     error_kind: str = "retired_persona_instance",
 ) -> dict[str, object]:
@@ -1839,9 +1867,8 @@ def _retired_persona_instance_refusal(
     but the caller must not be able to tell the difference: same ``error_kind``,
     same fields, same ``next_expected``. Two spellings of this payload would be
     two contracts."""
-    # Function-local: this file is exec'd into harness.py's globals, so a
-    # module-level import here would need a matching harness.py import or it
-    # is a NameError on a LIVE turn. The turn-outcome vocabulary is owned by
+    # Function-local: the convention from before lane H1, when this file was
+    # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.
     from agent_runtime.mission_chat_outcome import ExecutionState
 
@@ -1923,9 +1950,8 @@ def _maybe_stamp_spawned_by(instance, *, coordinator_id: str | None, operator_so
 
 
 def _cmd_mission_chat_steer(args) -> int:
-    # Function-local: this file is exec'd into harness.py's globals, so a
-    # module-level import here would need a matching harness.py import or it
-    # is a NameError on a LIVE turn. The turn-outcome vocabulary is owned by
+    # Function-local: the convention from before lane H1, when this file was
+    # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.
     from agent_runtime.mission_chat_outcome import (
         ChatErrorKind,
@@ -2206,9 +2232,8 @@ def _mission_chat_busy_outcome(
     degraded answer, never a wrong one.
     """
 
-    # Function-local: this file is exec'd into harness.py's globals, so the
-    # turn-outcome vocabulary is imported where it is used (same convention as
-    # every other handler in this file).
+    # Function-local: the turn-outcome vocabulary is imported where it is used
+    # (same convention as every other handler in this file).
     from agent_runtime.mission_chat_outcome import ChatErrorKind, ExecutionState
 
     journal = (
@@ -2478,8 +2503,7 @@ def _mission_chat_lease_provenance() -> tuple[str | None, str]:
     fields now read the one authority: :func:`current_serve_request_id`.
     """
 
-    # serve is a real module (not an exec'd part) — see harness._cmd_serve —
-    # so this import is safe from part-module code, and lazy to keep the CLI
+    # serve is a real module; this import is lazy to keep the CLI
     # path from paying serve's import weight before it needs it.
     from hermes_cli.harness_parts.serve import current_serve_request_id
 
@@ -2528,8 +2552,7 @@ def _stamp_turn_visibility(data: dict, reply_text, *, chat_result=None) -> dict:
     replace a real failure with this one and corrupt the one-JSON-object stdout
     contract on the way.
 
-    Function-local import for the reason given in `_cmd_mission_chat_message`:
-    this file is exec'd into harness.py's globals.
+    Function-local import, like the rest of this file.
     """
 
     from agent_runtime.turn_visibility import (
@@ -2610,8 +2633,8 @@ def _registry_probe_rounds():
     """This thread's cumulative tool-registry probe rounds, or ``None``.
 
     ``None`` is the honest answer when the registry cannot be consulted at all
-    (an import shape this file cannot assume — it is exec'd into ``harness.py``
-    globals, so every import here is function-local by contract). The caller
+    (an import shape this file cannot assume — every import here is
+    function-local by convention). The caller
     turns an unknown END or an unknown BASELINE into an ABSENT
     ``registry_probe_rounds`` rather than a zero, because "the registry probed
     nothing" is a finding and "I could not ask" is not.
@@ -2668,7 +2691,7 @@ def _within_admitted_turn(handler):
 
     @functools.wraps(handler)
     def _admitted(args) -> int:
-        # Function-local, like every other import in this exec'd file.
+        # Function-local, like every other import in this file.
         from agent_runtime.turn_activity import admitted_turn
 
         with admitted_turn():
@@ -2848,9 +2871,8 @@ def _snapshot_builds_overlapped(marks, *, until_ms):
 
 @_within_admitted_turn
 def _cmd_mission_chat_message(args) -> int:
-    # Function-local: this file is exec'd into harness.py's globals, so a
-    # module-level import here would need a matching harness.py import or it
-    # is a NameError on a LIVE turn. The turn-outcome vocabulary is owned by
+    # Function-local: the convention from before lane H1, when this file was
+    # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.
     from agent_runtime.mission_chat_outcome import (
         ChatErrorKind,
@@ -3567,8 +3589,7 @@ def _mission_chat_commit_turn(plan, deferred, presence) -> int:
     fourteen terminal transitions and no single exit.
     """
 
-    # Function-local: this file is exec'd into harness.py's globals (see the
-    # note in _cmd_mission_chat_message). ``relay_policy`` is here rather than
+    # Function-local, like the rest of this file. ``relay_policy`` is here rather than
     # inherited, because the plan phase's own local import does NOT reach across
     # the split — a free name here would be a NameError on a LIVE turn and
     # nothing but a live turn would find it.
@@ -4083,19 +4104,14 @@ def _mission_chat_commit_turn(plan, deferred, presence) -> int:
     )
     from agent_runtime import turn_budget as _turn_budget
     from agent_runtime.mission_chat_turn_context import build_mission_chat_turn_context
-    # Function-local on purpose: this file is exec'd into harness.py's globals,
-    # so a module-level name here would need a matching harness.py import or it
-    # is a NameError on a LIVE turn (nothing a test run would notice). A local
-    # import binds in this function's scope and needs no harness cooperation.
+    # Function-local, like the rest of this file.
     from agent_runtime.run_budget import turn_run_budget_metadata
 
     # The WHOLE per-turn context — wall budget, capability account, situational
     # HUD + delivery, skill preload envelope, workspace AGENTS.md, runtime
     # signature, volatile tail — is assembled by one unit-testable builder
-    # (`agent_runtime.mission_chat_turn_context`). This command part is exec'd
-    # into harness.py's globals rather than imported, so anything assembled HERE
-    # can only ever be guarded by AST source-shape assertions; assembled there it
-    # is guarded by tests that assert the composed bytes. What remains here is
+    # (`agent_runtime.mission_chat_turn_context`). Assembled there, it is
+    # guarded by tests that assert the composed bytes. What remains here is
     # composition: gather the turn's inputs, call the builder, send.
     #
     # G10: an explicit --max-seconds ALWAYS wins; only its absence (None) falls
@@ -5271,9 +5287,7 @@ def _cmd_mission_chat_dispatch_redeliver(args) -> int:
     the text belongs.
     """
 
-    # Function-local, per the exec'd-part discipline: this file is exec'd into
-    # harness.py's globals, so a module-level import here would need a matching
-    # one there or it is a NameError on a LIVE turn. Neither vocabulary is
+    # Function-local, like the rest of this file. Neither vocabulary is
     # re-spelled — the admission kind is the enum member, and the queue's own
     # refusals are read off ``dispatch_store``, which owns them.
     from agent_runtime import dispatch_store
@@ -5449,9 +5463,8 @@ def _cmd_mission_chat_clarify_tickets(args) -> int:
 
 
 def _cmd_mission_chat_turn_resolve(args) -> int:
-    # Function-local: this file is exec'd into harness.py's globals, so a
-    # module-level import here would need a matching harness.py import or it
-    # is a NameError on a LIVE turn. The turn-outcome vocabulary is owned by
+    # Function-local: the convention from before lane H1, when this file was
+    # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.
     from agent_runtime.mission_chat_outcome import ChatErrorKind
     from agent_runtime.mission_chat_turns import OPERATOR_RESOLVABLE_TURN_STATES
@@ -6980,9 +6993,8 @@ def _invalid_chat_model_override_payload(
     from TWO points of one turn — the pre-mint gate (no session exists yet, so
     the session fields are honestly null) and the post-``open_chat`` resolve —
     and one envelope with two spellings is how ``error_kind`` drifts."""
-    # Function-local: this file is exec'd into harness.py's globals, so a
-    # module-level import here would need a matching harness.py import or it
-    # is a NameError on a LIVE turn. The turn-outcome vocabulary is owned by
+    # Function-local: the convention from before lane H1, when this file was
+    # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.
     from agent_runtime.mission_chat_outcome import ChatErrorKind
 
@@ -7805,8 +7817,7 @@ def _mirror_persona_chat_message(
     down a chat turn whose transcript is already durable. Failures are counted
     inside the mirror module rather than swallowed anonymously.
 
-    Function-local import: this file is exec'd into ``harness.py``'s globals, so
-    a module-level import here would NameError on a live turn.
+    Function-local import, like the rest of this file.
     """
 
     try:
@@ -7966,8 +7977,7 @@ def _maybe_auto_title_persona_chat(*, session_db, session_id: str, user_message:
 
 
 def _close_free_floating_assignments(persona_instance_id: str, *, reason: str, json_output: bool, terminal_state: str) -> int:
-    # Function-local: this file is exec'd into harness.py's globals (see the
-    # note in _cmd_mission_chat_message).
+    # Function-local, like the rest of this file.
     from agent_runtime.mission_chat_outcome import (
         FinalizationWarning,
         FinalizationWarningKind,

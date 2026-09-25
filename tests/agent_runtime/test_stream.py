@@ -9,6 +9,7 @@ from agent_runtime.events import EventLog
 from agent_runtime.models import Event
 from agent_runtime.stream import delta_frame, hydrate_frame, stream_frames
 from tests.agent_runtime.stream_liveness_helpers import drain_boot_liveness
+from hermes_cli.harness_parts import runtime_commands
 
 
 def test_hydrate_frame_carries_snapshot_contract(isolate_agent_runtime_root):
@@ -81,10 +82,9 @@ def test_delta_frame_masks_secret_assignments():
 
 
 def test_harness_stream_command_outputs_ndjson(isolate_agent_runtime_root, capsys):
-    import hermes_cli.harness as harness
 
     assert (
-        harness._cmd_stream(
+        runtime_commands._cmd_stream(
             Namespace(poll_interval=0.01, heartbeat_interval=0.01, max_frames=1)
         )
         == 0

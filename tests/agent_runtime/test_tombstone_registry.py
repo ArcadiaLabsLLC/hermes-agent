@@ -156,6 +156,22 @@ HERMES_ROOT = Path(__file__).resolve().parents[2]
 #: ``tests`` is excluded on purpose (S55's rule: a symbol kept alive only by the
 #: test written to exercise it is a closed loop, not coverage) and so is this
 #: file, which names every banned symbol by definition.
+#: The harness verbs' name space: harness.py plus the command parts it used to
+#: exec into its globals. Since lane H1 (2026-09-24) each part is its own
+#: module, so a harness-scoped absence row checks every one of them — the
+#: coverage the shared exec'd namespace gave it for free.
+HARNESS_NAMESPACE = (
+    "hermes_cli.harness",
+    "hermes_cli.harness_parts.board",
+    "hermes_cli.harness_parts.checkpoint_commands",
+    "hermes_cli.harness_parts.flow_commands",
+    "hermes_cli.harness_parts.level",
+    "hermes_cli.harness_parts.map",
+    "hermes_cli.harness_parts.office",
+    "hermes_cli.harness_parts.persona_commands",
+    "hermes_cli.harness_parts.runtime_commands",
+)
+
 PRODUCTION_PACKAGES = (
     "agent_runtime",
     "hermes_cli",
@@ -1115,7 +1131,7 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "OPERATOR_RESOLVABLE_TURN_STATES",
         "find_discovery_task",
         "worker_session_summary",
-        scope=("hermes_cli.harness",),
+        scope=HARNESS_NAMESPACE,
     ),
     *rows(
         "s41",
@@ -1165,7 +1181,7 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "_incident_history_row",
         "_incident_cursor_ts",
         "_archived_task_summary",
-        scope=("hermes_cli.harness",),
+        scope=HARNESS_NAMESPACE,
     ),
     # -- S43 — individual dead symbols ------------------------------------
     *rows(
@@ -1531,7 +1547,7 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "_office_item_row",
         "read_realm_sync_sidecar",
         "exact_scoped_instance_ids",
-        scope=("hermes_cli.harness",),
+        scope=HARNESS_NAMESPACE,
     ),
     # -- S49 — operator_control + production_envelope -----------------------
     *rows(
@@ -2209,7 +2225,7 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         Form.ATTR,
         "the payload formatter was reachable only from dead ChatBusyError catches",
         "_chat_busy_payload",
-        scope=("hermes_cli.harness",),
+        scope=HARNESS_NAMESPACE,
     ),
     *rows(
         "s59",
@@ -2905,7 +2921,7 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "_USAGE_LANE_PROVIDERS raises UnknownUsageLaneError instead of "
         "degrading into 'no usage data'",
         "fetch_account_usage",
-        scope=("hermes_cli.harness",),
+        scope=HARNESS_NAMESPACE,
     ),
     # -- S72 = dead-code audit pass 2 (2026-08-19), stage HB-1. -----------
     # `agent_runtime/risk_flags.py` was an ISLAND BEHIND A FOLDED PREDICATE.

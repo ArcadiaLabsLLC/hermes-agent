@@ -17,6 +17,7 @@ from argparse import Namespace
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from hermes_cli.harness_parts import persona_commands
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
@@ -320,7 +321,6 @@ def test_persona_instance_summary_reports_override_and_effective_tiers():
 
 
 def test_chat_effective_model_payload_cascade_tiers():
-    from hermes_cli import harness
 
     persona = _persona()
     store = PersonaInstanceStore()
@@ -330,7 +330,7 @@ def test_chat_effective_model_payload_cascade_tiers():
     cfg = _cfg()
 
     # instance tier beats persona/default when no chat override
-    selection = harness._chat_effective_model_payload(persona=persona, config=cfg, override=None, instance=instance)
+    selection = persona_commands._chat_effective_model_payload(persona=persona, config=cfg, override=None, instance=instance)
     assert selection["effective_model"] == "claude-x"
     assert selection["effective_provider"] == "anthropic"
     assert selection["instance_model"] == "claude-x"
@@ -341,16 +341,16 @@ def test_chat_effective_model_payload_cascade_tiers():
 
     # chat-session override still wins over the instance tier
     override = {"provider": "openrouter", "model": "session-model"}
-    selection = harness._chat_effective_model_payload(persona=persona, config=cfg, override=override, instance=instance)
+    selection = persona_commands._chat_effective_model_payload(persona=persona, config=cfg, override=override, instance=instance)
     assert selection["effective_model"] == "session-model"
     assert selection["effective_provider"] == "openrouter"
     assert selection["model_is_default"] is False
 
     # no instance / no override falls through to persona then cfg
-    selection = harness._chat_effective_model_payload(persona=persona, config=cfg, override=None, instance=None)
+    selection = persona_commands._chat_effective_model_payload(persona=persona, config=cfg, override=None, instance=None)
     assert selection["effective_model"] == "gpt-test"
     bare = _persona(model=None, provider=None)
-    selection = harness._chat_effective_model_payload(persona=bare, config=cfg, override=None, instance=None)
+    selection = persona_commands._chat_effective_model_payload(persona=bare, config=cfg, override=None, instance=None)
     assert selection["effective_model"] == "cfg-default-model"
 
 
@@ -365,7 +365,7 @@ def test_chat_effective_model_payload_cascade_tiers():
 def _patched_harness(monkeypatch):
     from hermes_cli import harness
 
-    monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: _cfg())
+    monkeypatch.setattr(persona_commands, "load_agent_runtime_config", lambda: _cfg())
     return harness
 
 
@@ -375,7 +375,7 @@ def test_cli_instance_set_model_happy_path_derives_api_mode(monkeypatch, capsys)
     store = PersonaInstanceStore()
     _, b = _two_instances(store, persona)
 
-    code = harness._cmd_persona_instance_set_model(_instance_args(b.id, provider="anthropic", model="claude-x"))
+    code = persona_commands._cmd_persona_instance_set_model(_instance_args(b.id, provider="anthropic", model="claude-x"))
     assert code == 0
     data = json.loads(capsys.readouterr().out)
     assert data["ok"] is True
@@ -396,7 +396,7 @@ def test_cli_instance_can_select_local_model_while_server_is_off(monkeypatch, ca
     store = PersonaInstanceStore()
     first, second = _two_instances(store, _persona())
     model = str(uuid.uuid4())
-    code = harness._cmd_persona_instance_set_model(
+    code = persona_commands._cmd_persona_instance_set_model(
         _instance_args(second.id, provider="local-llama-hermes", model=model))
     assert code == 0
     data = json.loads(capsys.readouterr().out)
@@ -419,7 +419,7 @@ def test_cli_instance_set_model_provider_alias_canonicalized(monkeypatch, capsys
     store = PersonaInstanceStore()
     _, b = _two_instances(store, persona)
 
-    code = harness._cmd_persona_instance_set_model(_instance_args(b.id, provider=aliases[0], model="claude-x"))
+    code = persona_commands._cmd_persona_instance_set_model(_instance_args(b.id, provider=aliases[0], model="claude-x"))
     assert code == 0
     data = json.loads(capsys.readouterr().out)
     assert data["provider"] == str(profile.name)
@@ -431,7 +431,7 @@ def test_cli_instance_set_model_unknown_provider_rejected(monkeypatch, capsys):
     store = PersonaInstanceStore()
     _, b = _two_instances(store, persona)
 
-    code = harness._cmd_persona_instance_set_model(_instance_args(b.id, provider="definitely-not-a-provider", model="x"))
+    code = persona_commands._cmd_persona_instance_set_model(_instance_args(b.id, provider="definitely-not-a-provider", model="x"))
     assert code == 2
     data = json.loads(capsys.readouterr().out)
     assert data["ok"] is False
@@ -446,14 +446,14 @@ def test_cli_instance_set_model_conflicting_args_rejected(monkeypatch, capsys):
     store = PersonaInstanceStore()
     _, b = _two_instances(store, persona)
 
-    code = harness._cmd_persona_instance_set_model(
+    code = persona_commands._cmd_persona_instance_set_model(
         _instance_args(b.id, model="x", use_profile_default=True)
     )
     assert code == 2
     data = json.loads(capsys.readouterr().out)
     assert data["error_code"] == "conflicting_args"
 
-    code = harness._cmd_persona_instance_set_model(_instance_args(b.id))
+    code = persona_commands._cmd_persona_instance_set_model(_instance_args(b.id))
     assert code == 2
     data = json.loads(capsys.readouterr().out)
     assert data["error_code"] == "missing_args"
@@ -465,7 +465,7 @@ def test_cli_instance_set_model_bad_shape_rejected(monkeypatch, capsys):
     store = PersonaInstanceStore()
     _, b = _two_instances(store, persona)
 
-    code = harness._cmd_persona_instance_set_model(_instance_args(b.id, model="bad model with spaces"))
+    code = persona_commands._cmd_persona_instance_set_model(_instance_args(b.id, model="bad model with spaces"))
     assert code == 2
     data = json.loads(capsys.readouterr().out)
     assert data["error_code"] == "invalid_value"
@@ -473,7 +473,7 @@ def test_cli_instance_set_model_bad_shape_rejected(monkeypatch, capsys):
 
 def test_cli_instance_set_model_unknown_instance(monkeypatch, capsys):
     harness = _patched_harness(monkeypatch)
-    code = harness._cmd_persona_instance_set_model(_instance_args("personainst_ghost", model="x"))
+    code = persona_commands._cmd_persona_instance_set_model(_instance_args("personainst_ghost", model="x"))
     assert code == 2
     data = json.loads(capsys.readouterr().out)
     assert data["error_code"] == "persona_not_found"
@@ -486,7 +486,7 @@ def test_cli_instance_set_model_use_profile_default_clears(monkeypatch, capsys):
     _, b = _two_instances(store, persona)
     store.update_profile(b.id, provider="anthropic", model="claude-x", api_mode="anthropic_messages")
 
-    code = harness._cmd_persona_instance_set_model(_instance_args(b.id, use_profile_default=True))
+    code = persona_commands._cmd_persona_instance_set_model(_instance_args(b.id, use_profile_default=True))
     assert code == 0
     data = json.loads(capsys.readouterr().out)
     assert data["cleared"] is True
@@ -503,13 +503,13 @@ def test_cli_instance_set_model_stale_write_superseded(monkeypatch, capsys):
     newer = datetime.now(timezone.utc)
     older = newer - timedelta(seconds=45)
 
-    code = harness._cmd_persona_instance_set_model(
+    code = persona_commands._cmd_persona_instance_set_model(
         _instance_args(b.id, model="model-new", issued_at=newer.isoformat())
     )
     assert code == 0
     capsys.readouterr()
 
-    code = harness._cmd_persona_instance_set_model(
+    code = persona_commands._cmd_persona_instance_set_model(
         _instance_args(b.id, model="model-old", issued_at=older.isoformat())
     )
     assert code == 0, "supersede is concurrency resolution, not an error"
@@ -528,7 +528,7 @@ def test_cli_persona_set_model_happy_path_emits_persona_updated(monkeypatch, cap
     ensure_persisted_personas(_cfg())
     before = len(_events("persona.updated"))
 
-    code = harness._cmd_persona_set_model(_persona_args("base", provider="anthropic", model="claude-x"))
+    code = persona_commands._cmd_persona_set_model(_persona_args("base", provider="anthropic", model="claude-x"))
     assert code == 0
     data = json.loads(capsys.readouterr().out)
     assert data["ok"] is True
@@ -547,7 +547,7 @@ def test_cli_persona_set_model_profile_id_targets_backing_store_persona(monkeypa
     harness = _patched_harness(monkeypatch)
     ensure_persisted_personas(_cfg())
 
-    code = harness._cmd_persona_set_model(_persona_args("profile:base", model="claude-x"))
+    code = persona_commands._cmd_persona_set_model(_persona_args("profile:base", model="claude-x"))
     assert code == 0
     data = json.loads(capsys.readouterr().out)
     assert data["applied_to_persona_id"] == "base"
@@ -558,7 +558,7 @@ def test_cli_persona_set_model_profile_without_backing_record_rejected(monkeypat
     harness = _patched_harness(monkeypatch)
     ensure_persisted_personas(_cfg())
 
-    code = harness._cmd_persona_set_model(_persona_args("profile:nonexistent", model="claude-x"))
+    code = persona_commands._cmd_persona_set_model(_persona_args("profile:nonexistent", model="claude-x"))
     assert code == 2
     data = json.loads(capsys.readouterr().out)
     assert data["error_code"] == "persona_not_persisted"
@@ -571,7 +571,7 @@ def test_cli_persona_set_model_ambiguous_profile_rejected(monkeypatch, capsys):
     twin.hermes_profile = "base"
     AgentStore().save(twin)
 
-    code = harness._cmd_persona_set_model(_persona_args("profile:base", model="claude-x"))
+    code = persona_commands._cmd_persona_set_model(_persona_args("profile:base", model="claude-x"))
     assert code == 2
     data = json.loads(capsys.readouterr().out)
     assert data["error_code"] == "ambiguous_profile_persona"
@@ -582,7 +582,7 @@ def test_cli_persona_set_model_dormant_catalog_persona_rejected(monkeypatch, cap
     harness = _patched_harness(monkeypatch)
     ensure_persisted_personas(_cfg())
 
-    code = harness._cmd_persona_set_model(_persona_args("dev", model="claude-x"))
+    code = persona_commands._cmd_persona_set_model(_persona_args("dev", model="claude-x"))
     assert code == 0
     data = json.loads(capsys.readouterr().out)
     assert data["applied"] is True
@@ -591,7 +591,7 @@ def test_cli_persona_set_model_dormant_catalog_persona_rejected(monkeypatch, cap
 
 def test_cli_persona_set_model_unknown_persona(monkeypatch, capsys):
     harness = _patched_harness(monkeypatch)
-    code = harness._cmd_persona_set_model(_persona_args("definitely_not_a_persona_xyz", model="x"))
+    code = persona_commands._cmd_persona_set_model(_persona_args("definitely_not_a_persona_xyz", model="x"))
     assert code == 2
     data = json.loads(capsys.readouterr().out)
     assert data["error_code"] == "persona_not_found"
@@ -603,9 +603,9 @@ def test_cli_persona_set_model_stale_write_superseded(monkeypatch, capsys):
     newer = datetime.now(timezone.utc)
     older = newer - timedelta(seconds=45)
 
-    assert harness._cmd_persona_set_model(_persona_args("base", model="model-new", issued_at=newer.isoformat())) == 0
+    assert persona_commands._cmd_persona_set_model(_persona_args("base", model="model-new", issued_at=newer.isoformat())) == 0
     capsys.readouterr()
-    code = harness._cmd_persona_set_model(_persona_args("base", model="model-old", issued_at=older.isoformat()))
+    code = persona_commands._cmd_persona_set_model(_persona_args("base", model="model-old", issued_at=older.isoformat()))
     assert code == 0
     data = json.loads(capsys.readouterr().out)
     assert data["status"] == "superseded"
@@ -621,7 +621,7 @@ def test_cli_persona_set_model_credentials_warning_is_nonblocking(monkeypatch, c
     for name in tuple(getattr(profile, "env_vars", ()) or ()):
         monkeypatch.delenv(name, raising=False)
 
-    code = harness._cmd_persona_set_model(_persona_args("base", provider="anthropic", model="claude-x"))
+    code = persona_commands._cmd_persona_set_model(_persona_args("base", provider="anthropic", model="claude-x"))
     assert code == 0
     data = json.loads(capsys.readouterr().out)
     assert data["ok"] is True
@@ -706,7 +706,7 @@ def test_cli_instance_set_model_reasoning_only_applies(monkeypatch, capsys):
     store = PersonaInstanceStore()
     _, b = _two_instances(store, persona)
 
-    code = harness._cmd_persona_instance_set_model(_instance_args(b.id, reasoning_effort="xhigh"))
+    code = persona_commands._cmd_persona_instance_set_model(_instance_args(b.id, reasoning_effort="xhigh"))
     assert code == 0
     data = json.loads(capsys.readouterr().out)
     assert data["ok"] is True
@@ -733,7 +733,7 @@ def test_cli_instance_set_model_invalid_reasoning_rejected(monkeypatch, capsys):
     invalid_effort = "turbo"
     assert invalid_effort not in VALID_REASONING_EFFORTS
 
-    code = harness._cmd_persona_instance_set_model(
+    code = persona_commands._cmd_persona_instance_set_model(
         _instance_args(b.id, reasoning_effort=invalid_effort)
     )
     assert code == 2
@@ -749,7 +749,7 @@ def test_cli_instance_set_model_use_profile_default_clears_reasoning(monkeypatch
     _, b = _two_instances(store, persona)
     store.update_profile(b.id, reasoning_effort="high")
 
-    code = harness._cmd_persona_instance_set_model(_instance_args(b.id, use_profile_default=True))
+    code = persona_commands._cmd_persona_instance_set_model(_instance_args(b.id, use_profile_default=True))
     assert code == 0
     assert store.get(b.id).reasoning_effort is None
 
@@ -757,7 +757,7 @@ def test_cli_instance_set_model_use_profile_default_clears_reasoning(monkeypatch
 def test_cli_persona_set_model_rejects_reasoning_effort(monkeypatch, capsys):
     harness = _patched_harness(monkeypatch)
     ensure_persisted_personas(_cfg())
-    code = harness._cmd_persona_set_model(_persona_args("base", reasoning_effort="high"))
+    code = persona_commands._cmd_persona_set_model(_persona_args("base", reasoning_effort="high"))
     assert code == 2
     data = json.loads(capsys.readouterr().out)
     assert data["error_code"] == "unsupported_scope"
@@ -768,7 +768,7 @@ def test_store_persisted_model_survives_config_persona_override(monkeypatch, cap
     store-persisted verb write on reload (config.py merge: {**catalog, **stored})."""
     harness = _patched_harness(monkeypatch)
     ensure_persisted_personas(_cfg())
-    assert harness._cmd_persona_set_model(_persona_args("base", provider="anthropic", model="claude-x")) == 0
+    assert persona_commands._cmd_persona_set_model(_persona_args("base", provider="anthropic", model="claude-x")) == 0
     capsys.readouterr()
 
     cfg_with_override = _cfg()

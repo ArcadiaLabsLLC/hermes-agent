@@ -14,6 +14,8 @@ from hermes_cli.harness import build_parser
 from agent_runtime import paths
 from agent_runtime.models import AgentRun, Incident
 from types import SimpleNamespace
+from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts import runtime_commands
 
 Task = SimpleNamespace
 from agent_runtime.states import RunState, TaskState
@@ -338,6 +340,8 @@ def test_harness_init_human_branch_states_when_no_personas_are_provisioned(monke
     import hermes_cli.harness as harness_mod
 
     monkeypatch.setattr(harness_mod, "ensure_persisted_personas", lambda cfg: [])
+    monkeypatch.setattr(persona_commands, "ensure_persisted_personas", lambda cfg: [])
+    monkeypatch.setattr(runtime_commands, "ensure_persisted_personas", lambda cfg: [])
     monkeypatch.setattr(
         harness_mod,
         "ensure_default_scope",
@@ -818,21 +822,18 @@ def _stage42_lane_sources():
     root = Path(__file__).resolve().parents[2]
     yield root / "hermes_cli" / "harness.py"
     parts = root / "hermes_cli" / "harness_parts"
-    from hermes_cli.harness import command_part_paths
-
-    # Every exec'd part, from the loader's own enumeration (never a copy).
-    yield from command_part_paths()
-    # A REAL module rather than one of the exec'd parts (it is imported, the
-    # way `serve.py` is), and it is here because its `harness gateway` verbs
-    # are stage42 verbs whose handlers do not live in `harness.py`. Without it
-    # the gate reported all their presentation flags unhonored — the analysis
-    # could not see `_print_stage42` at the other end of the wrapper.
-    yield parts / "gateway_commands.py"
+    # Every command part, from the directory itself (never a copy of its
+    # listing) — `gateway_commands.py` included: its `harness gateway` verbs are
+    # stage42 verbs whose handlers do not live in `harness.py`. `serve.py` is
+    # the serve loop, not a verb family.
+    yield from sorted(path for path in parts.glob("*.py") if path.name != "serve.py")
 
 
 def _stage42_source_module(path: Path) -> str:
-    # These files are compiled into hermes_cli.harness globals in this exact
-    # order by _load_command_parts; they are not independent Python modules.
+    # The harness, its parts and harness_support are analysed as ONE name
+    # space: no name is bound by two of them, so a bare-name call resolves to
+    # the same function either way, and a part's handler is wired by its bare
+    # name through its module (`persona_commands._cmd_persona_list`).
     if path.parent.name == "harness_parts" or path.name == "harness.py":
         return "hermes_cli.harness"
     return ".".join(path.with_suffix("").parts[-2:])
@@ -905,6 +906,8 @@ def _stage42_parser_ownership(
             func = next((kw.value for kw in node.keywords if kw.arg == "func"), None)
             if isinstance(func, ast.Name):
                 handlers[parser_name] = func.id
+            elif isinstance(func, ast.Attribute):
+                handlers[parser_name] = func.attr
     for node in ast.walk(build):
         if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name) or node.func.id != "_add_stage42_global_args":
             continue
@@ -1419,9 +1422,7 @@ def test_run_verify_command_survives_non_cp1252_bytes_in_child_output(tmp_path):
     locale codepage: byte 0x90 is undefined in cp1252, and without a pinned
     encoding it crashed subprocess's reader thread on Windows, silently
     dropping the captured output from the verification payload."""
-    # runtime_commands.py is exec'd into hermes_cli.harness globals by
-    # _load_command_parts(); it is not importable as a standalone module.
-    from hermes_cli.harness import _run_verify_command
+    from hermes_cli.harness_parts.runtime_commands import _run_verify_command
 
     child = (
         "import sys;"

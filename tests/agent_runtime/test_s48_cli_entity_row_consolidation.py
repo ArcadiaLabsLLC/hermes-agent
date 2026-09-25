@@ -95,6 +95,7 @@ import inspect
 import textwrap
 
 import pytest
+from hermes_cli.harness_parts import board as board_commands
 
 
 def _code_without_prose(source: str) -> str:
@@ -123,14 +124,29 @@ def _code_without_prose(source: str) -> str:
     return ast.unparse(ast.fix_missing_locations(tree))
 
 
-def _row_source(name: str) -> str:
-    """Code-only source of one row projection, resolved through the post-load
-    harness namespace — the parts are `exec`'d into it, so this is the only
-    place all six are visible at once."""
+def _harness_function(name: str):
+    """One row projection, from harness.py or whichever command part defines it.
+
+    The parts were `exec`'d into harness.py's globals until lane H1
+    (2026-09-24); each is its own module now, so the lookup walks all of them
+    and refuses a name bound to no object, or to two different ones."""
+
+    import importlib
+    from pathlib import Path
 
     import hermes_cli.harness as harness
 
-    return _code_without_prose(inspect.getsource(getattr(harness, name)))
+    parts = Path(harness.__file__).with_name("harness_parts").glob("*.py")
+    modules = [harness] + [importlib.import_module(f"hermes_cli.harness_parts.{p.stem}") for p in sorted(parts)]
+    bound = {id(vars(m)[name]): vars(m)[name] for m in modules if name in vars(m)}
+    assert len(bound) == 1, f"{name}: bound to {len(bound)} distinct objects across the harness modules"
+    return next(iter(bound.values()))
+
+
+def _row_source(name: str) -> str:
+    """Code-only source of one row projection."""
+
+    return _code_without_prose(inspect.getsource(_harness_function(name)))
 
 
 def test_the_gate_itself_is_not_vacuous():
@@ -275,11 +291,9 @@ def test_the_cli_only_count_is_deliberately_kept():
     `active_card_count`. Pinned KEPT so the next sweep reads the reason instead
     of re-deriving it (and, worse, "fixing" it)."""
 
-    import hermes_cli.harness as harness
-
-    assert callable(harness._board_active_card_count)
-    assert callable(harness._column_kind)
-    source = _code_without_prose(inspect.getsource(harness._board_active_card_count))
+    assert callable(board_commands._board_active_card_count)
+    assert callable(board_commands._column_kind)
+    source = _code_without_prose(inspect.getsource(board_commands._board_active_card_count))
     assert "done" in source
     # The KEY, not the substring: ``_board_active_card_count`` legitimately
     # contains ``active_card_count`` in its own name, so mask the helper's
@@ -312,13 +326,11 @@ def test_the_cli_only_fields_are_the_declared_set():
             "actor.actor_key",  # routing: re-pair each projected actor row
         },
     }
-    import hermes_cli.harness as harness
-
     for name, fields in expected.items():
         # Parsed from the REAL source, not the token-joined prose-stripped
         # form: docstrings and comments produce no ``Attribute`` nodes, so
         # there is nothing to strip here.
-        tree = ast.parse(textwrap.dedent(inspect.getsource(getattr(harness, name))))
+        tree = ast.parse(textwrap.dedent(inspect.getsource(_harness_function(name))))
         found = {
             f"{node.value.id}.{node.attr}"
             for node in ast.walk(tree)

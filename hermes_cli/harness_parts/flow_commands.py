@@ -1,6 +1,3 @@
-# Exec'd command part (see harness._load_command_parts), with its own explicit
-# import header — exactly as in persona_commands.py / runtime_commands.py.
-#
 # The flow lane (2026-07-16): the Launcher's authored agent map travels as ONE
 # JSON document. `flow set` stores it and reconciles steering for the EXISTING
 # instances it references, in-process — one spawn for the whole chart instead
@@ -10,16 +7,23 @@
 # owner instance, and the map asserts only that owner's `owner -> child` edges;
 # non-owner edges are reported (ignored_non_owner_edges), never applied.
 
-# Explicit import header — its rationale lives ONCE, in
-# ``hermes_cli/harness_support.py``'s module docstring, which also names the
-# two gates that hold it: ruff's F821 for the header being complete, and
-# tests/hermes_cli/test_harness_parts_namespace.py for the load-order namespace.
+# A real module (lane H1, 2026-09-24): it imports everything it reads, and a
+# test patches a name HERE, where this module looks it up — never on
+# ``hermes_cli.harness`` (W0-G4, tests/tooling/test_harness_namespace_is_thin.py).
 
 from __future__ import annotations
 
 from pathlib import Path
 
 from agent_runtime.cli_format import emit_json
+
+__layer__ = "lanes"
+__all__ = [
+    "_cmd_flow_list",
+    "_cmd_flow_set",
+    "_cmd_flow_show",
+]
+
 
 
 def _cmd_flow_set(args) -> int:

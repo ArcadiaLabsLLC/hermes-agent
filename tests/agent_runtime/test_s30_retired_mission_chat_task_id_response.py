@@ -29,14 +29,14 @@ What this contract deliberately does NOT touch:
 from __future__ import annotations
 
 import inspect
+from hermes_cli.harness_parts import persona_commands
 
 
 def _mission_chat_message_source() -> str:
     """Source of the mission-chat send handler, BOTH halves.
 
-    persona_commands.py is not an importable module: harness.py loads it via
-    _load_command_parts() and execs it in its OWN globals, so the command
-    bodies are attributes of hermes_cli.harness. Same access path as S26.
+    Both live in ``hermes_cli.harness_parts.persona_commands`` (a real module
+    since lane H1, 2026-09-24).
 
     The handler was split on 2026-07-31 into a plan phase
     (``_cmd_mission_chat_message``) and the sole writer
@@ -46,10 +46,8 @@ def _mission_chat_message_source() -> str:
     is precisely the regression S30 exists to prevent.
     """
 
-    from hermes_cli import harness
-
     return "\n".join(
-        inspect.getsource(getattr(harness, name))
+        inspect.getsource(getattr(persona_commands, name))
         for name in ("_cmd_mission_chat_message", "_mission_chat_commit_turn")
     )
 
@@ -105,6 +103,4 @@ def test_mission_chat_message_still_emits_every_key_the_launcher_reads():
 def test_mission_chat_message_verb_is_still_alive():
     """Sanity: the handler this contract edits still exists and is a command."""
 
-    from hermes_cli import harness
-
-    assert callable(harness._cmd_mission_chat_message)
+    assert callable(persona_commands._cmd_mission_chat_message)

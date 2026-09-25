@@ -269,7 +269,7 @@ def test_harness_status_ignores_the_sidecar(
     for pid in (11, 22, 33):
         _sidecar(isolate_agent_runtime_root, pid)
     monkeypatch.setattr(
-        "hermes_cli.harness.build_status",
+        "hermes_cli.harness_parts.runtime_commands.build_status",
         lambda: {
             "open_incidents": 0,
             "dirty_summary": "runtime=clean",

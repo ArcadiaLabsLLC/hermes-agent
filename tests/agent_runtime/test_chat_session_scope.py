@@ -377,7 +377,7 @@ def _mint_on_the_cli_lane(session_id: str) -> None:
     without the harness globals it is written against.
     """
 
-    from hermes_cli.harness import _default_persona_session_db
+    from hermes_cli.harness_parts.persona_commands import _default_persona_session_db
 
     db = _default_persona_session_db()
     db.ensure_session(session_id, source=PERSONA_CHAT_SESSION_SOURCE)

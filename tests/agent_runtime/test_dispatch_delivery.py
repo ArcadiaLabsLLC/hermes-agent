@@ -29,6 +29,8 @@ from agent_runtime.dispatch_store import (
     record_completion,
     record_dispatch,
 )
+from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts import runtime_commands
 
 SENDER_ROOT = "persona_chat_personainst_neko_aaaaaaaaaaaa"
 
@@ -579,8 +581,10 @@ def test_forge_delivery_turn_lands_a_real_turn_and_dedupes_a_retry(
             )
 
     monkeypatch.setattr(harness, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(persona_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(runtime_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(persona_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(persona_commands, "GPTPersonaRuntime", _ProviderSpy)
 
     dispatch_id = "dispatch-realforge01"
     message = format_dispatch_delivery(

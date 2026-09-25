@@ -2,39 +2,24 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import hashlib
 import json
 import math
-import os
 import re
-import subprocess
 import sys
 import time
 import uuid
 from collections.abc import Sequence
 from dataclasses import asdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from hermes_time import now
-from hermes_constants import get_hermes_home
 from hermes_cli.profiles import list_profiles
 from hermes_cli.flag_binding import list_flag_or_empty
 
 from agent_runtime.cli_format import emit_json, emit_json_line
-from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config, mission_chat_clarify_token_binding, persona_skill_sources, resolve_mission_chat_max_seconds
-from agent_runtime.continuity import return_summary_to_parent_session
-from agent_runtime.dispatch_session_policy import (
-    derive_dispatch_title,
-    resolve_dispatch_session_decision,
-    session_established_payload,
-)
-from agent_runtime.coordinator_permissions import (
-    CoordinatorPermissionScope,
-    review_coordinator_budget,
-    scope_for_persona,
-)
+from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config, persona_skill_sources
 from agent_runtime.default_scope import (
     ensure_default_scope,
     preview_default_scope_migration,
@@ -45,38 +30,10 @@ from agent_runtime.errors import (
     NotFound,
     WorkspaceDeleteBlocked,
 )
-from agent_runtime.events import EventLog
 from agent_runtime.harness_doctor import (
     DEFAULT_WORKTREE_MIN_AGE_SECONDS,
     doctor_detail_sources,
     run_harness_doctor,
-)
-from agent_runtime.models import AgentPersona, Event, apply_instance_model_overrides
-from agent_runtime import paths
-from agent_runtime.persona_assignments import (
-    CHAT_BINDING_CLEARED_REASON_DELETED,
-    PERSONA_INSTANCE_ID_PREFIX,
-    PersonaInstanceRetireError,
-    RetiredPersonaInstanceError,
-    StaleModelOverrideWrite,
-    PersonaAssignmentStore,
-    PersonaInstanceStore,
-    canonical_chat_instance_id,
-    canonical_persona_instance_id,
-    chat_session_owner_instance_id,
-    migrate_retired_persona_assignment_task_ids,
-    persona_assignment_summary,
-    persona_chat_session_id_for,
-    persona_instance_summary,
-    persona_instance_id_for,
-    resolve_default_chat_session_id_for_instance,
-    safe_assignment_token,
-    safe_assignment_text,
-    safe_optional_token,
-)
-from agent_runtime.persona_chat_mints import (
-    PersonaChatMintError,
-    reserve_persona_chat_mint,
 )
 from agent_runtime.profile_context import active_profile_name
 from agent_runtime.root_observability import attach_root_observability
@@ -97,57 +54,8 @@ from agent_runtime.scope_activation import (
     reconcile_active_workspace_to_realm as _scope_reconcile_active_workspace_to_realm,
     workspace_row as _scope_workspace_row,
 )
-from agent_runtime.migrations import effective_config_summary, migration_status
-from agent_runtime.mission_chat_turns import (
-    MissionChatTurnPersistOutcome,
-    REPLY_RECOVERABLE_TURN_STATES,
-    RESEND_BLOCKING_TURN_STATES,
-    SETTLING_TURN_STATES,
-    TURN_STATE_ABANDONED,
-    TURN_STATE_BUDGET_EXHAUSTED,
-    TURN_STATE_COMPLETED,
-    TURN_STATE_EXECUTING,
-    TURN_STATE_FAILED,
-    TURN_STATE_NATIVE_COMMITTED,
-    TURN_STATE_OUTCOME_UNKNOWN,
-    TURN_STATE_PENDING,
-    TURN_STATE_PROJECTED,
-    TURN_STATE_RUNNING,
-    abandon_mission_chat_turn,
-    mark_stale_inflight_turns_interrupted,
-    mission_chat_turn_record,
-    mission_chat_turn_records,
-    persist_mission_chat_turn,
-    transition_mission_chat_turn,
-)
-from agent_runtime.persona_chat_continuity import (
-    CLARIFY_TICKET_TTL_SECONDS,
-    PersonaChatBusyError,
-    PersonaChatClarifyTicketStore,
-    PersonaChatMintReceiptStore,
-    native_history_revision,
-    persona_chat_root_lease,
-    persona_chat_runtime_registry,
-    safe_native_history,
-)
-from agent_runtime.chat_session_scope import is_canonical_session_persistence
-from agent_runtime.mcp_admission import LANE_MISSION_CHAT, resolve_mcp_admission
-from agent_runtime.mcp_lane import HARNESS_LANE
-from agent_runtime.mission_chat_steer import start_active_mission_chat_turn, submit_mission_chat_steer
-from agent_runtime.mission_chat_workdir import mission_chat_workdir_for_persona
-from agent_runtime.observability import build_observability
-from agent_runtime.persona_runtime import GPTPersonaRuntime, chat_lane_capability_drops
-from agent_runtime.personas import profile_chat_toolsets
-from agent_runtime.prompt_observability import attach_prompt_observability_turn_results, mission_chat_prompt_observability, persist_prompt_observability_context, slim_chat_final_observability, turn_usage_from_result
-from agent_runtime.provider_health import provider_health_for_personas
 from agent_runtime.skill_install import install_harness_skills, install_harness_skills_for_personas
-from agent_runtime.states import WorkerSessionState
-from agent_runtime.status import build_status
-from agent_runtime.store import AgentStore
 from agent_runtime.store import RealmStore, WorkspaceStore
-from agent_runtime.tool_visibility import ToolVisibilityOptions, resolve_tool_visibility
-from agent_runtime.tool_permissions import ChatToolPermissionStore, permission_state_for_chat
-from agent_runtime.tool_turn_history import persist_tool_turn_actual
 
 # Pure stdlib, and deliberately at module scope while `agent.charsheet.draft`
 # stays a lazy import inside the character verbs: `draft` pulls the pixel
@@ -155,10 +63,21 @@ from agent_runtime.tool_turn_history import persist_tool_turn_actual
 # whereas `agent.charsheet.errors` costs one import of `agent.charsheet.spec`.
 from agent.charsheet.errors import CharsheetRefusal, DraftBusy
 
+if TYPE_CHECKING:  # annotation-only: a runtime binding would be a re-export (W0-G4)
+    from agent_runtime.models import AgentPersona
+
+from hermes_cli.harness_parts import (
+    board as board_commands,
+    checkpoint_commands,
+    flow_commands,
+    level as level_commands,
+    map as map_commands,
+    office as office_commands,
+    persona_commands,
+    runtime_commands,
+)
 from hermes_cli.harness_support import (
     ERROR_EXIT_CODES,
-    PERSONA_CHAT_SESSION_SOURCE,
-    STAGE42_SCHEMA_VERSION,
     _error_envelope,
     _list_envelope,
     _object_envelope,
@@ -166,7 +85,6 @@ from hermes_cli.harness_support import (
     _require_yes,
     _sort_rows,
     emit_harness_error,
-    harness_repo_root,
 )
 
 # --- `hermes harness usage` (account-usage lanes) contract ---------------------
@@ -762,14 +680,14 @@ def populate_parser(parser) -> None:
     flow_set.add_argument("--graph-file", default=None, help="Path to a file holding the flow-graph JSON document")
     flow_set.add_argument("--requested-by", default="operator")
     flow_set.add_argument("--json", action="store_true")
-    flow_set.set_defaults(func=_cmd_flow_set)
+    flow_set.set_defaults(func=flow_commands._cmd_flow_set)
     flow_show = flow_subs.add_parser("show", help="Show the runtime's stored copy of one flow-graph doc")
     flow_show.add_argument("graph_id")
     flow_show.add_argument("--json", action="store_true")
-    flow_show.set_defaults(func=_cmd_flow_show)
+    flow_show.set_defaults(func=flow_commands._cmd_flow_show)
     flow_list = flow_subs.add_parser("list", help="List stored flow-graph doc ids")
     flow_list.add_argument("--json", action="store_true")
-    flow_list.set_defaults(func=_cmd_flow_list)
+    flow_list.set_defaults(func=flow_commands._cmd_flow_list)
 
     checkpoint = subs.add_parser(
         "checkpoint",
@@ -792,13 +710,13 @@ def populate_parser(parser) -> None:
         help="Optional per-class row cap; truncation is accounted ({truncated,total,returned}), never silent",
     )
     checkpoint_fetch.add_argument("--json", action="store_true")
-    checkpoint_fetch.set_defaults(func=_cmd_checkpoint_fetch)
+    checkpoint_fetch.set_defaults(func=checkpoint_commands._cmd_checkpoint_fetch)
     checkpoint_classes = checkpoint_subs.add_parser(
         "classes",
         help="List discovered entity classes with per-class actor counts and byte sizes (stat only; contents not read)",
     )
     checkpoint_classes.add_argument("--json", action="store_true")
-    checkpoint_classes.set_defaults(func=_cmd_checkpoint_classes)
+    checkpoint_classes.set_defaults(func=checkpoint_commands._cmd_checkpoint_classes)
 
     skills = subs.add_parser("skills", help="Inspect the shared skills substrate the Launcher's Skills console consumes")
     skills_subs = skills.add_subparsers(dest="skills_command", required=True)
@@ -907,24 +825,24 @@ def populate_parser(parser) -> None:
     board_list = board_subs.add_parser("list", help="List boards")
     board_list.add_argument("--workspace", "--workspace-id", default=None)
     _add_stage42_global_args(board_list, controls=frozenset({"sort"}))
-    board_list.set_defaults(func=_cmd_board_list)
+    board_list.set_defaults(func=board_commands._cmd_board_list)
     board_show = board_subs.add_parser("show", help="Show one board")
     board_show.add_argument("board_id")
     board_show.add_argument("--full", action="store_true", help="Include card bodies")
     _add_stage42_global_args(board_show)
-    board_show.set_defaults(func=_cmd_board_show)
+    board_show.set_defaults(func=board_commands._cmd_board_show)
     board_create = board_subs.add_parser("create", help="Create a board")
     board_create.add_argument("--workspace", "--workspace-id", required=True)
     board_create.add_argument("--title", default=None)
     _add_stage42_global_args(board_create, controls=frozenset({"dry_run"}))
-    board_create.set_defaults(func=_cmd_board_create)
+    board_create.set_defaults(func=board_commands._cmd_board_create)
     board_update = board_subs.add_parser("update", help="Update a board title/columns")
     board_update.add_argument("board_id")
     board_update.add_argument("--title", default=None)
     board_update.add_argument("--columns-json", dest="columns_json", default=None, help="JSON array of {column_id,title,kind,wip_limit}")
     board_update.add_argument("--expect-revision", dest="expect_revision", type=int, default=None)
     _add_stage42_global_args(board_update)
-    board_update.set_defaults(func=_cmd_board_update)
+    board_update.set_defaults(func=board_commands._cmd_board_update)
 
     board_card = board_subs.add_parser("card", help="Manage board cards")
     board_card_subs = board_card.add_subparsers(dest="board_card_command", required=True)
@@ -941,7 +859,7 @@ def populate_parser(parser) -> None:
     _add_stage42_global_args(
         card_add, controls=frozenset({"dry_run", "idempotency_key"})
     )
-    card_add.set_defaults(func=_cmd_board_card_add)
+    card_add.set_defaults(func=board_commands._cmd_board_card_add)
     card_edit = board_card_subs.add_parser("edit", help="Edit a card")
     card_edit.add_argument("card_id")
     card_edit.add_argument("--title", default=None)
@@ -954,7 +872,7 @@ def populate_parser(parser) -> None:
     _add_stage42_global_args(
         card_edit, controls=frozenset({"idempotency_key"})
     )
-    card_edit.set_defaults(func=_cmd_board_card_edit)
+    card_edit.set_defaults(func=board_commands._cmd_board_card_edit)
     card_move = board_card_subs.add_parser("move", help="Move a card to a column / position")
     card_move.add_argument("card_id")
     card_move.add_argument("--column", required=True, help="Target column id or kind")
@@ -964,21 +882,21 @@ def populate_parser(parser) -> None:
     _add_stage42_global_args(
         card_move, controls=frozenset({"idempotency_key"})
     )
-    card_move.set_defaults(func=_cmd_board_card_move)
+    card_move.set_defaults(func=board_commands._cmd_board_card_move)
     card_archive = board_card_subs.add_parser("archive", help="Archive a card (archive-never-delete)")
     card_archive.add_argument("card_id")
     _add_stage42_global_args(card_archive)
-    card_archive.set_defaults(func=_cmd_board_card_archive)
+    card_archive.set_defaults(func=board_commands._cmd_board_card_archive)
     card_restore = board_card_subs.add_parser("restore", help="Restore an archived card")
     card_restore.add_argument("card_id")
     _add_stage42_global_args(card_restore)
-    card_restore.set_defaults(func=_cmd_board_card_restore)
+    card_restore.set_defaults(func=board_commands._cmd_board_card_restore)
 
     board_resolve = board_subs.add_parser("resolve-conflict", help="Resolve a realm-sync conflict on a card")
     board_resolve.add_argument("card_id")
     board_resolve.add_argument("--take", required=True, choices=["local", "remote"])
     _add_stage42_global_args(board_resolve)
-    board_resolve.set_defaults(func=_cmd_board_resolve_conflict)
+    board_resolve.set_defaults(func=board_commands._cmd_board_resolve_conflict)
 
     office = subs.add_parser("office", help="Manage the Mission Office layout (one file per actor placement; realm-synced like boards)")
     office_subs = office.add_subparsers(dest="office_command", required=True)
@@ -986,7 +904,7 @@ def populate_parser(parser) -> None:
     office_show.add_argument("--workspace", "--workspace-id", default=None)
     office_show.add_argument("--full", action="store_true", help="Include actor item bodies")
     _add_stage42_global_args(office_show)
-    office_show.set_defaults(func=_cmd_office_show)
+    office_show.set_defaults(func=office_commands._cmd_office_show)
     office_actor_upsert = office_subs.add_parser("actor-upsert", help="Create or update one actor placement (keys are minted store-side)")
     office_actor_upsert.add_argument("--workspace", "--workspace-id", default=None)
     office_actor_upsert.add_argument("--actor-json", dest="actor_json", required=True, help="Actor object (path or inline JSON): {persona_id, persona_instance_id?, backing_profile?, items:[...]}")
@@ -1004,7 +922,7 @@ def populate_parser(parser) -> None:
     _add_stage42_global_args(
         office_actor_upsert, controls=frozenset({"dry_run"})
     )
-    office_actor_upsert.set_defaults(func=_cmd_office_actor_upsert)
+    office_actor_upsert.set_defaults(func=office_commands._cmd_office_actor_upsert)
     office_actor_remove = office_subs.add_parser("actor-remove", help="Archive an actor placement (archive-never-delete); tombstones and propagates realm-wide unless --local-only")
     office_actor_remove.add_argument("--workspace", "--workspace-id", default=None)
     office_actor_remove.add_argument("--actor", required=True, help="Actor key")
@@ -1020,14 +938,14 @@ def populate_parser(parser) -> None:
     _add_stage42_global_args(
         office_actor_remove, controls=frozenset({"dry_run"})
     )
-    office_actor_remove.set_defaults(func=_cmd_office_actor_remove)
+    office_actor_remove.set_defaults(func=office_commands._cmd_office_actor_remove)
     office_actor_restore = office_subs.add_parser("actor-restore", help="Restore an archived actor placement")
     office_actor_restore.add_argument("--workspace", "--workspace-id", default=None)
     office_actor_restore.add_argument("--actor", required=True, help="Actor key")
     _add_stage42_global_args(
         office_actor_restore, controls=frozenset({"dry_run"})
     )
-    office_actor_restore.set_defaults(func=_cmd_office_actor_restore)
+    office_actor_restore.set_defaults(func=office_commands._cmd_office_actor_restore)
     office_set_folders = office_subs.add_parser("set-folders", help="Replace the surface's shared folder taxonomy")
     office_set_folders.add_argument("--workspace", "--workspace-id", default=None)
     office_set_folders.add_argument("--folders", required=True, help="Comma-separated folder names (structural defaults always kept)")
@@ -1035,7 +953,7 @@ def populate_parser(parser) -> None:
     _add_stage42_global_args(
         office_set_folders, controls=frozenset({"dry_run"})
     )
-    office_set_folders.set_defaults(func=_cmd_office_set_folders)
+    office_set_folders.set_defaults(func=office_commands._cmd_office_set_folders)
     office_resolve = office_subs.add_parser("resolve-conflict", help="Resolve a realm-sync conflict on an actor placement")
     office_resolve.add_argument("--workspace", "--workspace-id", default=None)
     office_resolve.add_argument("--actor", required=True, help="Actor key")
@@ -1044,7 +962,7 @@ def populate_parser(parser) -> None:
     _add_stage42_global_args(
         office_resolve, controls=frozenset({"dry_run"})
     )
-    office_resolve.set_defaults(func=_cmd_office_resolve_conflict)
+    office_resolve.set_defaults(func=office_commands._cmd_office_resolve_conflict)
     office_archive_surface = office_subs.add_parser(
         "archive-surface",
         help="Archive an ORPHANED office surface (a surface whose workspace no longer resolves); clears its orphaned_office parity warning",
@@ -1053,7 +971,7 @@ def populate_parser(parser) -> None:
     _add_stage42_global_args(
         office_archive_surface, controls=frozenset({"dry_run"})
     )
-    office_archive_surface.set_defaults(func=_cmd_office_archive_surface)
+    office_archive_surface.set_defaults(func=office_commands._cmd_office_archive_surface)
 
     level = subs.add_parser(
         "level",
@@ -1064,7 +982,7 @@ def populate_parser(parser) -> None:
     level_show.add_argument("--workspace", "--workspace-id", default=None)
     level_show.add_argument("--full", action="store_true", help="Include the level document itself, byte for byte as stored")
     _add_stage42_global_args(level_show)
-    level_show.set_defaults(func=_cmd_level_show)
+    level_show.set_defaults(func=level_commands._cmd_level_show)
     level_set = level_subs.add_parser("set", help="Store a workspace's level document VERBATIM (hermes validates that it is JSON with a version and reformats nothing)")
     level_set.add_argument("--workspace", "--workspace-id", default=None)
     level_set.add_argument(
@@ -1078,7 +996,7 @@ def populate_parser(parser) -> None:
         help="Compare-and-set: the sha256 of the stored bytes this write is based on, or 'none' if the workspace must have no level yet",
     )
     _add_stage42_global_args(level_set, controls=frozenset({"dry_run"}))
-    level_set.set_defaults(func=_cmd_level_set)
+    level_set.set_defaults(func=level_commands._cmd_level_set)
     level_clear = level_subs.add_parser("clear", help="Remove a workspace's level (local only — a level the realm still publishes returns on the next pull)")
     level_clear.add_argument("--workspace", "--workspace-id", default=None)
     level_clear.add_argument(
@@ -1087,7 +1005,7 @@ def populate_parser(parser) -> None:
         help="Compare-and-set: the sha256 of the stored bytes this clear is based on, or 'none' if the workspace must have no level",
     )
     _add_stage42_global_args(level_clear, controls=frozenset({"dry_run"}))
-    level_clear.set_defaults(func=_cmd_level_clear)
+    level_clear.set_defaults(func=level_commands._cmd_level_clear)
     map_parser = subs.add_parser(
         "map",
         help="Map CATALOGUE: the named scenes this install knows about, carried by the realm",
@@ -1095,12 +1013,12 @@ def populate_parser(parser) -> None:
     map_subs = map_parser.add_subparsers(dest="map_command", required=True)
     map_list = map_subs.add_parser("list", help="List the catalogue (names and hashes; never the documents)")
     _add_stage42_global_args(map_list)
-    map_list.set_defaults(func=_cmd_map_list)
+    map_list.set_defaults(func=map_commands._cmd_map_list)
     map_show = map_subs.add_parser("show", help="Show one catalogue map (metadata; --full carries the document)")
     map_show.add_argument("--map", "--map-id", default=None)
     map_show.add_argument("--full", action="store_true", help="Include the map document itself, byte for byte as stored")
     _add_stage42_global_args(map_show)
-    map_show.set_defaults(func=_cmd_map_show)
+    map_show.set_defaults(func=map_commands._cmd_map_show)
     map_set = map_subs.add_parser("set", help="Store a catalogue map VERBATIM (hermes validates that it is JSON with a version and a name, and reformats nothing)")
     map_set.add_argument("--map", "--map-id", default=None)
     map_set.add_argument(
@@ -1114,7 +1032,7 @@ def populate_parser(parser) -> None:
         help="Compare-and-set: the sha256 of the stored bytes this write is based on, or 'none' if the catalogue must not hold this map yet",
     )
     _add_stage42_global_args(map_set, controls=frozenset({"dry_run"}))
-    map_set.set_defaults(func=_cmd_map_set)
+    map_set.set_defaults(func=map_commands._cmd_map_set)
     map_clear = map_subs.add_parser("clear", help="Remove a catalogue map (local only — a map the realm still publishes returns on the next pull)")
     map_clear.add_argument("--map", "--map-id", default=None)
     map_clear.add_argument(
@@ -1123,17 +1041,17 @@ def populate_parser(parser) -> None:
         help="Compare-and-set: the sha256 of the stored bytes this clear is based on, or 'none' if the catalogue must not hold this map",
     )
     _add_stage42_global_args(map_clear, controls=frozenset({"dry_run"}))
-    map_clear.set_defaults(func=_cmd_map_clear)
+    map_clear.set_defaults(func=map_commands._cmd_map_clear)
 
     persona = subs.add_parser("persona", help="Run bounded live-token diagnostics for one persona")
     persona_subs = persona.add_subparsers(dest="persona_command")
     persona_list = persona_subs.add_parser("list", help="List durable persona instances")
     persona_list.add_argument("--json", action="store_true")
-    persona_list.set_defaults(func=_cmd_persona_list)
+    persona_list.set_defaults(func=persona_commands._cmd_persona_list)
     persona_show = persona_subs.add_parser("show", help="Show one durable persona instance")
     persona_show.add_argument("persona_id_or_instance_id")
     persona_show.add_argument("--json", action="store_true")
-    persona_show.set_defaults(func=_cmd_persona_show)
+    persona_show.set_defaults(func=persona_commands._cmd_persona_show)
     persona_tool_diff = persona_subs.add_parser("tool-diff", help="Show resolved model tools and blocked tools for one persona")
     persona_tool_diff.add_argument("persona_id", help="Persona id")
     persona_tool_diff.add_argument("--session-id", default=None)
@@ -1172,7 +1090,7 @@ def populate_parser(parser) -> None:
         ),
     )
     persona_tool_diff.add_argument("--json", action="store_true")
-    persona_tool_diff.set_defaults(func=_cmd_persona_tool_diff)
+    persona_tool_diff.set_defaults(func=persona_commands._cmd_persona_tool_diff)
     persona_permission = persona_subs.add_parser(
         "permission",
         help=(
@@ -1214,11 +1132,11 @@ def populate_parser(parser) -> None:
     persona_permission_set.add_argument("--ttl-seconds", type=int, default=None)
     persona_permission_set.add_argument("--expires-at", default=None)
     persona_permission_set.add_argument("--json", action="store_true")
-    persona_permission_set.set_defaults(func=_cmd_persona_permission_set)
+    persona_permission_set.set_defaults(func=persona_commands._cmd_persona_permission_set)
     persona_assignments = persona_subs.add_parser("assignments", help="List persona assignments")
     persona_assignments.add_argument("--persona", dest="persona_id", default=None)
     persona_assignments.add_argument("--json", action="store_true")
-    persona_assignments.set_defaults(func=_cmd_persona_assignments)
+    persona_assignments.set_defaults(func=persona_commands._cmd_persona_assignments)
     persona_assignment_task_id_migration = persona_subs.add_parser(
         "migrate-assignment-task-ids",
         help="Archive pre-retirement persona assignments whose task_id is non-null",
@@ -1226,7 +1144,7 @@ def populate_parser(parser) -> None:
     persona_assignment_task_id_migration.add_argument("--dry-run", action="store_true")
     persona_assignment_task_id_migration.add_argument("--json", action="store_true")
     persona_assignment_task_id_migration.set_defaults(
-        func=_cmd_persona_assignment_task_id_migration
+        func=persona_commands._cmd_persona_assignment_task_id_migration
     )
     persona_chat = persona_subs.add_parser("chat", help="Manage durable persona chat sessions")
     persona_chat_subs = persona_chat.add_subparsers(dest="persona_chat_command")
@@ -1236,13 +1154,13 @@ def populate_parser(parser) -> None:
     persona_chat_delete.add_argument("--persona-instance-id", default=None)
     persona_chat_delete.add_argument("--requested-by", default="cli")
     persona_chat_delete.add_argument("--json", action="store_true")
-    persona_chat_delete.set_defaults(func=_cmd_persona_chat_delete)
+    persona_chat_delete.set_defaults(func=persona_commands._cmd_persona_chat_delete)
     persona_chat_history = persona_chat_subs.add_parser("history", help="Page a persona chat session's complete redaction-safe transcript")
     persona_chat_history.add_argument("--session-id", dest="session_id", required=True)
     persona_chat_history.add_argument("--limit", type=int, default=40, help="Page size (clamped 1..40)")
     persona_chat_history.add_argument("--before", default=None, help="Opaque cursor returned by the previous page")
     persona_chat_history.add_argument("--json", action="store_true")
-    persona_chat_history.set_defaults(func=_cmd_persona_chat_history)
+    persona_chat_history.set_defaults(func=runtime_commands._cmd_persona_chat_history)
 
     persona_set_model = persona_subs.add_parser("set-model", help="Persist a persona's default provider/model (profile-default lane; future instances inherit it)")
     persona_set_model.add_argument("persona_id", help="Persona id or profile:<name>")
@@ -1252,7 +1170,7 @@ def populate_parser(parser) -> None:
     persona_set_model.add_argument("--issued-at", default=None, help="ISO-8601 issue timestamp; stale writes are superseded instead of applied")
     persona_set_model.add_argument("--requested-by", default="operator")
     persona_set_model.add_argument("--json", action="store_true")
-    persona_set_model.set_defaults(func=_cmd_persona_set_model)
+    persona_set_model.set_defaults(func=persona_commands._cmd_persona_set_model)
     persona_set_skills = persona_subs.add_parser("set-skills", help="Persist a persona's default skill set (profile-default lane; future instances inherit it)")
     persona_set_skills.add_argument("persona_id", help="Persona id or profile:<name>")
     # `--skill` keeps the tree's ONE spelling — `action="append", default=None`
@@ -1269,7 +1187,7 @@ def populate_parser(parser) -> None:
     persona_set_skills.add_argument("--issued-at", default=None, help="ISO-8601 issue timestamp; stale writes are superseded instead of applied")
     persona_set_skills.add_argument("--requested-by", default="operator")
     persona_set_skills.add_argument("--json", action="store_true")
-    persona_set_skills.set_defaults(func=_cmd_persona_set_skills)
+    persona_set_skills.set_defaults(func=persona_commands._cmd_persona_set_skills)
     persona_instance = persona_subs.add_parser("instance", help="Create, open, steer, retire, and maintain persona instances (chat is the only messaging lane)")
     persona_instance_subs = persona_instance.add_subparsers(dest="persona_instance_command")
     persona_instance_create = persona_instance_subs.add_parser("create", help="Create an Agent Profile (operator chat channel) or an additional placement-backed instance (--add-instance); requires --display-name")
@@ -1291,7 +1209,7 @@ def populate_parser(parser) -> None:
     # instead of silently ignoring them). `--title` is NOT one of them — it is
     # the live display-name fallback above.
     persona_instance_create.add_argument("--json", action="store_true")
-    persona_instance_create.set_defaults(func=_cmd_persona_instance_create)
+    persona_instance_create.set_defaults(func=persona_commands._cmd_persona_instance_create)
     persona_instance_open = persona_instance_subs.add_parser("open-chat", help="Bind a persona instance to a durable chat session without ticking")
     persona_instance_open.add_argument("--persona", dest="persona_id", required=True)
     persona_instance_open.add_argument("--persona-instance-id", default=None, help="Exact existing persona instance to bind when minting a new chat")
@@ -1307,7 +1225,7 @@ def populate_parser(parser) -> None:
     persona_instance_open.add_argument("--requested-by", default="cli")
     _add_coordinator_permission_args(persona_instance_open)
     persona_instance_open.add_argument("--json", action="store_true")
-    persona_instance_open.set_defaults(func=_cmd_persona_instance_open_chat)
+    persona_instance_open.set_defaults(func=persona_commands._cmd_persona_instance_open_chat)
     # `persona instance resolve-chat-turn` lived here until 2026-08-19: a
     # second parser binding the SAME handler as `mission-chat turn-resolve`,
     # with the same four required flags and the instance id positional instead
@@ -1326,13 +1244,13 @@ def populate_parser(parser) -> None:
     persona_instance_close.add_argument("--requested-by", default="cli")
     _add_coordinator_permission_args(persona_instance_close)
     persona_instance_close.add_argument("--json", action="store_true")
-    persona_instance_close.set_defaults(func=_cmd_persona_instance_close)
+    persona_instance_close.set_defaults(func=persona_commands._cmd_persona_instance_close)
     persona_instance_archive = persona_instance_subs.add_parser("archive", help="Complete residual free-floating assignment rows for one persona instance (maintenance; the lane that minted them is retired)")
     persona_instance_archive.add_argument("persona_instance_id")
     persona_instance_archive.add_argument("--reason", default="archived residual free-floating assignment row")
     persona_instance_archive.add_argument("--requested-by", default="cli")
     persona_instance_archive.add_argument("--json", action="store_true")
-    persona_instance_archive.set_defaults(func=_cmd_persona_instance_archive)
+    persona_instance_archive.set_defaults(func=persona_commands._cmd_persona_instance_archive)
     # D4. `delete` is an argparse ALIAS, not a second parser: one parser object,
     # so the two spellings cannot drift in flags, help, or handler — which is
     # the failure mode a copied `add_parser` would have had, and the operator
@@ -1361,7 +1279,7 @@ def populate_parser(parser) -> None:
     persona_instance_retire.add_argument("--correlation-id", dest="correlation_id", default=None)
     _add_coordinator_permission_args(persona_instance_retire)
     persona_instance_retire.add_argument("--json", action="store_true")
-    persona_instance_retire.set_defaults(func=_cmd_persona_instance_retire)
+    persona_instance_retire.set_defaults(func=persona_commands._cmd_persona_instance_retire)
     # No `sweep-orphans`: S65 retired the owning-task release inference the
     # janitor decided on (and de-registered the `persona_instance.reaped` event
     # it emitted), leaving only this registration and a handler that raised
@@ -1378,7 +1296,7 @@ def populate_parser(parser) -> None:
     persona_instance_steer.add_argument("--requested-by", default="operator")
     _add_coordinator_permission_args(persona_instance_steer)
     persona_instance_steer.add_argument("--json", action="store_true")
-    persona_instance_steer.set_defaults(func=_cmd_persona_instance_steer)
+    persona_instance_steer.set_defaults(func=persona_commands._cmd_persona_instance_steer)
     persona_instance_repair = persona_instance_subs.add_parser(
         "repair-steering",
         help="Strip non-instance principals (e.g. the operator) out of a persona instance's steering fields; --dry-run previews without writing or emitting",
@@ -1390,7 +1308,7 @@ def populate_parser(parser) -> None:
         controls=frozenset({"dry_run"}),
         omit=frozenset({"--output", "--quiet", "--fields"}),
     )
-    persona_instance_repair.set_defaults(func=_cmd_persona_instance_repair_steering)
+    persona_instance_repair.set_defaults(func=persona_commands._cmd_persona_instance_repair_steering)
     persona_instance_return = persona_instance_subs.add_parser("return-summary", help="Post a bounded child summary back into a parent chat session")
     persona_instance_return.add_argument("persona_instance_id")
     persona_instance_return.add_argument("--parent-session-id", required=True)
@@ -1398,7 +1316,7 @@ def populate_parser(parser) -> None:
     persona_instance_return.add_argument("--proof-id", dest="proof_ids", action="append", default=[])
     persona_instance_return.add_argument("--artifact-ref", dest="artifact_refs", action="append", default=[])
     persona_instance_return.add_argument("--json", action="store_true")
-    persona_instance_return.set_defaults(func=_cmd_persona_instance_return_summary)
+    persona_instance_return.set_defaults(func=persona_commands._cmd_persona_instance_return_summary)
     persona_instance_update = persona_instance_subs.add_parser("update-profile", help="Update runtime persona-instance profile overrides without editing the backing Hermes profile")
     persona_instance_update.add_argument("persona_instance_id")
     persona_instance_update.add_argument("--display-name", default=None)
@@ -1410,7 +1328,7 @@ def populate_parser(parser) -> None:
     persona_instance_update.add_argument("--requested-by", default="operator")
     _add_coordinator_permission_args(persona_instance_update)
     persona_instance_update.add_argument("--json", action="store_true")
-    persona_instance_update.set_defaults(func=_cmd_persona_instance_update_profile)
+    persona_instance_update.set_defaults(func=persona_commands._cmd_persona_instance_update_profile)
     persona_instance_set_model = persona_instance_subs.add_parser("set-model", help="Persist an instance-level provider/model override (this agent only; duplicates keep theirs)")
     persona_instance_set_model.add_argument("persona_instance_id")
     persona_instance_set_model.add_argument("--provider", default=None, help="Provider lane (canonical name or alias; api_mode is derived from it)")
@@ -1421,7 +1339,7 @@ def populate_parser(parser) -> None:
     persona_instance_set_model.add_argument("--requested-by", default="operator")
     _add_coordinator_permission_args(persona_instance_set_model)
     persona_instance_set_model.add_argument("--json", action="store_true")
-    persona_instance_set_model.set_defaults(func=_cmd_persona_instance_set_model)
+    persona_instance_set_model.set_defaults(func=persona_commands._cmd_persona_instance_set_model)
 
     mission_chat = subs.add_parser("mission-chat", help="Canonical Mission Control chat path")
     mission_chat_subs = mission_chat.add_subparsers(dest="mission_chat_command")
@@ -1496,7 +1414,7 @@ def populate_parser(parser) -> None:
     # process reproduces the in-process lane's threading exactly.
     mission_chat_message.add_argument("--defer-thread-policy", dest="defer_thread_policy", action="store_true", help="State NO opinion about the thread: let agent_runtime.mission_chat.dispatch_session_policy decide (the tri-state 'unset' the in-process dispatch lane forwards). Overrides --new-session")
     mission_chat_message.add_argument("--json", action="store_true")
-    mission_chat_message.set_defaults(func=_cmd_mission_chat_message)
+    mission_chat_message.set_defaults(func=persona_commands._cmd_mission_chat_message)
     mission_chat_queue_skill = mission_chat_subs.add_parser("queue-skill", help="Load a skill on the next Mission Control chat turn")
     mission_chat_queue_skill.add_argument("--persona", dest="persona_id", required=True)
     mission_chat_queue_skill.add_argument("--persona-instance-id", default=None)
@@ -1504,7 +1422,7 @@ def populate_parser(parser) -> None:
     mission_chat_queue_skill.add_argument("--skill", action="append", default=[])
     mission_chat_queue_skill.add_argument("--skills", nargs="+", default=[])
     mission_chat_queue_skill.add_argument("--json", action="store_true")
-    mission_chat_queue_skill.set_defaults(func=_cmd_mission_chat_queue_skill)
+    mission_chat_queue_skill.set_defaults(func=persona_commands._cmd_mission_chat_queue_skill)
     mission_chat_steer = mission_chat_subs.add_parser("steer", help="Steer an active streamed Mission Control chat turn")
     mission_chat_steer.add_argument("--session-id", required=True)
     mission_chat_steer.add_argument("--message", required=True)
@@ -1512,7 +1430,7 @@ def populate_parser(parser) -> None:
     mission_chat_steer.add_argument("--persona", dest="persona_id", default=None)
     mission_chat_steer.add_argument("--persona-instance-id", default=None)
     mission_chat_steer.add_argument("--json", action="store_true")
-    mission_chat_steer.set_defaults(func=_cmd_mission_chat_steer)
+    mission_chat_steer.set_defaults(func=persona_commands._cmd_mission_chat_steer)
     mission_chat_resolve = mission_chat_subs.add_parser(
         "turn-resolve", help="Resolve one outcome_unknown chat turn"
     )
@@ -1522,7 +1440,7 @@ def populate_parser(parser) -> None:
     mission_chat_resolve.add_argument("--persona-instance-id", default=None)
     mission_chat_resolve.add_argument("--action", choices=["abandon"], required=True)
     mission_chat_resolve.add_argument("--json", action="store_true")
-    mission_chat_resolve.set_defaults(func=_cmd_mission_chat_turn_resolve)
+    mission_chat_resolve.set_defaults(func=persona_commands._cmd_mission_chat_turn_resolve)
     # Read-only adoption readout for the clarify-token binding. Registered with
     # the NON-mutating stage42 args on purpose: it never mints, settles, or
     # sweeps, so it has no --dry-run to honor and nothing to confirm. Whether
@@ -1537,7 +1455,7 @@ def populate_parser(parser) -> None:
     )
     mission_chat_clarify_tickets.add_argument("--session-id", default=None, help="Only list tickets bound to this chat root (counts still cover the whole store)")
     mission_chat_clarify_tickets.add_argument("--state", default=None, choices=["open", "answered", "rebound"], help="Only list tickets in this lifecycle state (counts still cover the whole store)")
-    mission_chat_clarify_tickets.set_defaults(func=_cmd_mission_chat_clarify_tickets)
+    mission_chat_clarify_tickets.set_defaults(func=persona_commands._cmd_mission_chat_clarify_tickets)
     # The agent-to-agent delivery QUEUE, as opposed to the chat turns it forges
     # into. Repair verbs only: the drain owns the normal path, and this group
     # exists for the rows it gave up on.
@@ -1559,7 +1477,7 @@ def populate_parser(parser) -> None:
     )
     mission_chat_dispatch_redeliver.add_argument("--json", action="store_true")
     mission_chat_dispatch_redeliver.set_defaults(
-        func=_cmd_mission_chat_dispatch_redeliver
+        func=persona_commands._cmd_mission_chat_dispatch_redeliver
     )
 
     status = subs.add_parser("status", help="Show harness status")
@@ -1572,7 +1490,7 @@ def populate_parser(parser) -> None:
             "exactly which (recycled-PID and unclassifiable entries are always kept)"
         ),
     )
-    status.set_defaults(func=_cmd_status)
+    status.set_defaults(func=runtime_commands._cmd_status)
 
     providers = subs.add_parser(
         "providers",
@@ -1612,34 +1530,34 @@ def populate_parser(parser) -> None:
 
     health = subs.add_parser("health", help="Check Harness runtime/provider dependencies are reachable and configured")
     health.add_argument("--json", action="store_true")
-    health.set_defaults(func=_cmd_health)
+    health.set_defaults(func=runtime_commands._cmd_health)
 
     verify = subs.add_parser("verify", help="Run runtime smoke verification: read-only harness CLI commands plus the focused store/snapshot/status test modules")
     verify.add_argument("--json", action="store_true")
     verify.add_argument("--mode", choices=["live-tony", "ci", "temp-root"], default="ci")
     verify.add_argument("--skip-tests", action="store_true")
-    verify.set_defaults(func=_cmd_verify)
+    verify.set_defaults(func=runtime_commands._cmd_verify)
 
     config = subs.add_parser("config", help="Inspect Harness runtime config")
     config_subs = config.add_subparsers(dest="config_command")
     config_show = config_subs.add_parser("show", help="Show effective Harness runtime config")
     config_show.add_argument("--json", action="store_true")
-    config_show.set_defaults(func=_cmd_config)
+    config_show.set_defaults(func=runtime_commands._cmd_config)
 
     migrate = subs.add_parser("migrate", help="Inspect Harness runtime migrations")
     migrate.add_argument("--check", action="store_true", help="Report pending migrations without modifying data")
     migrate.add_argument("--json", action="store_true")
-    migrate.set_defaults(func=_cmd_migrate)
+    migrate.set_defaults(func=runtime_commands._cmd_migrate)
 
     observe = subs.add_parser("observe", help="Show redaction-safe Mission Control observability")
     observe.add_argument("--json", action="store_true")
-    observe.set_defaults(func=_cmd_observe)
+    observe.set_defaults(func=runtime_commands._cmd_observe)
 
     contracts = subs.add_parser("contracts", help="Inspect canonical Mission Control event contracts")
     contracts_subs = contracts.add_subparsers(dest="contracts_command")
     contracts_dump = contracts_subs.add_parser("dump", help="Dump redaction-safe contract registry")
     contracts_dump.add_argument("--json", action="store_true")
-    contracts_dump.set_defaults(func=_cmd_contracts_dump)
+    contracts_dump.set_defaults(func=runtime_commands._cmd_contracts_dump)
 
     worktree = subs.add_parser("worktree", help="Manage harness-managed git worktrees")
     worktree_subs = worktree.add_subparsers(dest="worktree_command", required=True)
@@ -1659,7 +1577,7 @@ def populate_parser(parser) -> None:
         help="Also inventory the canonical legacy system-temp hermes-agent-wt base",
     )
     worktree_reap.add_argument("--json", action="store_true")
-    worktree_reap.set_defaults(func=_cmd_worktree_reap)
+    worktree_reap.set_defaults(func=runtime_commands._cmd_worktree_reap)
 
     persona_instance = subs.add_parser(
         "persona-instance", help="Manage durable persona-instance store rows"
@@ -1686,7 +1604,7 @@ def populate_parser(parser) -> None:
         ),
     )
     persona_instance_reconcile.add_argument("--json", action="store_true")
-    persona_instance_reconcile.set_defaults(func=_cmd_persona_instance_reconcile)
+    persona_instance_reconcile.set_defaults(func=runtime_commands._cmd_persona_instance_reconcile)
 
     # H4 (plan realm-pull-live-projection). `reconcile` DEFAULTS TO APPLY and
     # runs five phases; asking it "which instance is the amber chip" means
@@ -1703,7 +1621,7 @@ def populate_parser(parser) -> None:
         ),
     )
     persona_instance_chat_bindings.add_argument("--json", action="store_true")
-    persona_instance_chat_bindings.set_defaults(func=_cmd_persona_instance_chat_bindings)
+    persona_instance_chat_bindings.set_defaults(func=runtime_commands._cmd_persona_instance_chat_bindings)
 
     persona_instance_detail = persona_instance_subs.add_parser(
         "detail",
@@ -1760,7 +1678,7 @@ def populate_parser(parser) -> None:
     agent_create.add_argument("--idempotency-key", dest="idempotency_key", default=None, help="Stable retry key; omitted mints a fresh cli-<uuid4> so a re-run is a new gesture")
     agent_create.add_argument("--correlation-id", dest="correlation_id", default=None)
     agent_create.add_argument("--json", action="store_true")
-    agent_create.set_defaults(func=_cmd_agent_create)
+    agent_create.set_defaults(func=persona_commands._cmd_agent_create)
 
     # S5: the INVERSE of the create above, and the door that never existed. The
     # store method has always archived BOTH halves (roster row + every office
@@ -1781,7 +1699,7 @@ def populate_parser(parser) -> None:
     # level-mutating verb except this one.
     agent_retire.add_argument("--correlation-id", dest="correlation_id", default=None)
     agent_retire.add_argument("--json", action="store_true")
-    agent_retire.set_defaults(func=_cmd_agent_retire)
+    agent_retire.set_defaults(func=persona_commands._cmd_agent_retire)
 
     agent_set_profile = agent_subs.add_parser(
         "set-profile",
@@ -1806,7 +1724,7 @@ def populate_parser(parser) -> None:
     # was no cache-lane flag to retire with the lane.
     snap = subs.add_parser("snapshot", help="Build and print a redaction-safe runtime snapshot frame")
     snap.add_argument("--json", action="store_true")
-    snap.set_defaults(func=_cmd_snapshot)
+    snap.set_defaults(func=runtime_commands._cmd_snapshot)
     stream = subs.add_parser("stream", help="Emit Mission Control hydrate/delta frames as NDJSON")
     stream.add_argument("--poll-interval", type=float, default=0.25)
     stream.add_argument("--heartbeat-interval", type=float, default=5.0)
@@ -1834,7 +1752,7 @@ def populate_parser(parser) -> None:
             "that you fold nothing."
         ),
     )
-    stream.set_defaults(func=_cmd_stream)
+    stream.set_defaults(func=runtime_commands._cmd_stream)
     serve = subs.add_parser("serve", help="Persistent NDJSON bridge: dispatch harness argv requests in one warm process (Mission Control serve lane), on stdio and on the per-root localhost socket")
     serve.add_argument("--ndjson", action="store_true", help="NDJSON frame transport over stdio (the only v1 transport)")
     serve.add_argument("--pool-size", type=int, default=4, help=argparse.SUPPRESS)
@@ -1895,12 +1813,12 @@ def populate_parser(parser) -> None:
     _add_stage42_global_args(
         work_list, controls=frozenset({"limit", "sort"})
     )
-    work_list.set_defaults(func=_cmd_work_list)
+    work_list.set_defaults(func=runtime_commands._cmd_work_list)
     work_peek = work_subs.add_parser("peek", help="Bounded read-only look at one item's recent output/progress")
     work_peek.add_argument("work_id", help="Work id from `harness work list`, e.g. terminal:sess-1")
     # Peek answers about ONE row, so nothing to sort, page or bound.
     _add_stage42_global_args(work_peek)
-    work_peek.set_defaults(func=_cmd_work_peek)
+    work_peek.set_defaults(func=runtime_commands._cmd_work_peek)
     work_cancel = work_subs.add_parser("cancel", help="Interrupt one piece of running work through its owning subsystem")
     work_cancel.add_argument("work_id", help="Work id from `harness work list`")
     work_cancel.add_argument("--reason", default="operator_cancel", help="Recorded interrupt reason")
@@ -1912,7 +1830,7 @@ def populate_parser(parser) -> None:
     _add_stage42_global_args(
         work_cancel, controls=frozenset({"dry_run", "yes"})
     )
-    work_cancel.set_defaults(func=_cmd_work_cancel)
+    work_cancel.set_defaults(func=runtime_commands._cmd_work_cancel)
 
     pets = subs.add_parser("pets", help="Mission Control Petdex bridge")
     pets_subs = pets.add_subparsers(dest="pets_command", required=True)
@@ -3023,7 +2941,7 @@ def _cmd_skills_delete(args) -> int:
     from agent_runtime.skill_resolution import skill_package_content_hash
     from agent_runtime.errors import SkillTombstoneRefused
     from agent_runtime.skill_promotion import _archive_package, validate_skill_slug
-    from agent_runtime.store import active_skill_tombstones, skill_tombstoned
+    from agent_runtime.store import active_skill_tombstones
     from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS
 
     slug = str(getattr(args, "skill", "") or "").strip()
@@ -6714,8 +6632,8 @@ def _cmd_doctor(args) -> int:
 
 
 def _cmd_serve(args) -> int:
-    # serve is a real module (not an exec'd part): it is the process's main
-    # loop, owns sys.stdout/sys.stderr swaps, and is imported by tests.
+    # Lazy: serve is the process's main loop, owns the sys.stdout/sys.stderr
+    # swaps, and every other verb would pay its import weight.
     from hermes_cli.harness_parts.serve import _cmd_serve as _run_serve
 
     return _run_serve(args)
@@ -6725,31 +6643,3 @@ def _cmd_serve_connect(args) -> int:
     from hermes_cli.harness_parts.serve import _cmd_serve_connect as _run_connect
 
     return _run_connect(args)
-
-
-# The modules under ``harness_parts/`` that are IMPORTED as real modules rather
-# than exec'd into these globals. Every other ``*.py`` there IS an exec'd part:
-# the directory listing is the enumeration, so a new part cannot be skipped by a
-# list that forgot it (lane HM's ``map.py``).
-IMPORTED_HARNESS_PART_MODULES = frozenset({"gateway_commands.py", "serve.py"})
-
-
-def command_part_paths() -> tuple[Path, ...]:
-    """The exec'd command parts, in load order (sorted by filename)."""
-
-    parts_dir = Path(__file__).with_name("harness_parts")
-    return tuple(
-        sorted(
-            path
-            for path in parts_dir.glob("*.py")
-            if path.name not in IMPORTED_HARNESS_PART_MODULES
-        )
-    )
-
-
-def _load_command_parts() -> None:
-    for path in command_part_paths():
-        exec(compile(path.read_text(encoding="utf-8"), str(path), "exec"), globals())
-
-
-_load_command_parts()

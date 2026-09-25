@@ -24,6 +24,7 @@ from agent_runtime.relay_policy import (
     parse_harness_delivery_marker,
     parse_relay_sender_marker,
 )
+from hermes_cli.harness_parts import persona_commands
 
 
 # ---------------------------------------------------------------------------
@@ -138,13 +139,12 @@ def test_every_other_provenance_is_left_alone():
 
 
 def _marker_for(requested_by):
-    from hermes_cli import harness
 
     class _Store:
         def list_all(self):
             return []
 
-    return harness._resolve_relay_sender_marker(
+    return persona_commands._resolve_relay_sender_marker(
         requested_by, instance_store=_Store(), relay_chain_in=()
     )
 

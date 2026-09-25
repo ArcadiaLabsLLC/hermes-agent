@@ -7,8 +7,8 @@ absence directions of the board digest live in
 ``tests/agent_runtime/test_board_agent_tools.py``. What was NOT pinned is the
 hop that puts that body in front of an agent.
 
-``persona_commands.py`` is an ``exec``'d command part (``harness._load_command_parts``),
-not an importable module, so every guard over the turn body was reduced to AST
+``persona_commands.py`` was an ``exec``'d command part until lane H1, not an
+importable module, so every guard over the turn body was reduced to AST
 source-shape assertions: "``runtime_context_envelope`` is called on
 ``turn_context``", "no second assembly is resolved here". Those pin the SPELLING
 of the composition and say nothing about the BYTES a turn feeds — they pass just
@@ -16,7 +16,7 @@ as happily against a lane where the rendered envelope is built and then dropped
 on the floor before the provider call.
 
 So this file drives the real lane. It stands up a workspace with real board
-cards, runs ``harness._cmd_mission_chat_message`` through the exec'd body, and
+cards, runs ``persona_commands._cmd_mission_chat_message``, and
 reads the ``situational_hud_content`` the provider was ACTUALLY handed. An
 import of ``render_situational_hud_block`` would prove nothing here: the runtime
 never binds this code that way, and a mock-shaped pin on a lane the runtime does
@@ -40,6 +40,7 @@ from tests.hermes_cli.test_mission_chat_budget_payload import (  # type: ignore
     _seed,
     isolate_agent_runtime_root,  # noqa: F401  (re-exported fixture)
 )
+from hermes_cli.harness_parts import persona_commands
 
 
 class _CapturingProvider:
@@ -86,7 +87,7 @@ def _workspace(name: str = "Board Lane") -> str:
 def _run_turn(harness, client_message_id: str) -> str:
     """Drive one real turn and return the envelope the provider was fed."""
 
-    harness._cmd_mission_chat_message(_args(client_message_id))
+    persona_commands._cmd_mission_chat_message(_args(client_message_id))
     assert "situational_hud_content" in _CapturingProvider.seen, (
         "the turn never reached the provider with a situational_hud_content "
         "kwarg: the rendered envelope no longer reaches the model call"
@@ -197,24 +198,25 @@ def test_a_live_turn_with_no_open_cards_feeds_the_body_without_a_board_line(
 
 
 # --------------------------------------------------------------------------- #
-# 4. The lane driven above is the exec'd one                                   #
+# 4. The lane driven above is the one the parser runs                         #
 # --------------------------------------------------------------------------- #
-def test_the_turn_body_driven_here_is_the_execd_command_part():
+def test_the_turn_body_driven_here_is_the_one_the_parser_runs():
     """Stated as an assertion so this file cannot quietly decay into a unit test.
 
-    ``persona_commands.py`` is ``exec``'d into ``hermes_cli.harness``'s module
-    globals, which is exactly why an ``import`` of the turn body would pin a
-    binding the runtime never uses. The observable consequence of the ``exec``
-    is that the function's ``__globals__`` IS the harness module's namespace —
-    so if that stops being true, the rows above are no longer driving the lane
-    they claim to and should be reconsidered rather than left asserting.
+    Since lane H1 (2026-09-24) ``persona_commands`` is a real module: the turn
+    body looks its names up in ITS globals, which is where ``_seed`` patches
+    them. If the parser stopped wiring this very function, the rows above would
+    no longer drive the lane they claim to and should be reconsidered.
     """
+
+    import argparse
 
     from hermes_cli import harness
 
-    turn = getattr(harness, "_cmd_mission_chat_message", None)
-    assert turn is not None, "the mission-chat turn body is not in harness globals"
-    assert turn.__globals__ is vars(harness), (
-        "_cmd_mission_chat_message no longer shares hermes_cli.harness's "
-        "globals: it is not being exec'd into them any more"
-    )
+    turn = getattr(persona_commands, "_cmd_mission_chat_message", None)
+    assert turn is not None, "the mission-chat turn body left persona_commands"
+    assert turn.__globals__ is vars(persona_commands)
+    parser = argparse.ArgumentParser(prog="harness")
+    harness.populate_parser(parser)
+    args = parser.parse_args(["mission-chat", "message", "--persona", "dev", "--message", "hi"])
+    assert args.func is turn, "the parser no longer runs the turn body this file drives"

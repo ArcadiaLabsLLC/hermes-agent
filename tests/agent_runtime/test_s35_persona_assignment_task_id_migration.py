@@ -22,6 +22,7 @@ import json
 
 from agent_runtime import paths, persona_assignments
 from utils import atomic_json_write
+from hermes_cli.harness_parts import persona_commands
 
 
 def test_retired_task_id_migration_is_dry_run_safe_archival_and_idempotent(
@@ -69,10 +70,9 @@ def test_retired_task_id_migration_is_dry_run_safe_archival_and_idempotent(
 
 
 def test_free_floating_cli_discriminators_use_evidence_kind_alone():
-    from hermes_cli import harness
 
-    delete_source = inspect.getsource(harness._cmd_persona_chat_delete)
-    close_source = inspect.getsource(harness._close_free_floating_assignments)
+    delete_source = inspect.getsource(persona_commands._cmd_persona_chat_delete)
+    close_source = inspect.getsource(persona_commands._close_free_floating_assignments)
 
     assert ".task_id is None" not in delete_source
     assert ".task_id is None" not in close_source

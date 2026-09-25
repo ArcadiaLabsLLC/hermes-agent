@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from hermes_cli.harness_parts import persona_commands
 
 TITLE = "_maybe_auto_title_persona_chat"
 # WP-H2 routed every mission-chat terminal payload through ONE seam
@@ -200,7 +201,6 @@ def test_the_caller_runs_the_deferred_tail_only_after_the_lease_block_exits():
 
 def test_maybe_auto_title_swallows_a_raising_title_generator(monkeypatch):
     import agent.title_generator as tg
-    import hermes_cli.harness as harness
 
     def _boom(*args, **kwargs):
         raise RuntimeError("title provider exhausted the fallback chain")
@@ -210,7 +210,7 @@ def test_maybe_auto_title_swallows_a_raising_title_generator(monkeypatch):
     # rely on this so a first-turn title failure cannot corrupt the emitted JSON
     # or flip the exit code after the terminal frame is already on stdout.
     assert (
-        harness._maybe_auto_title_persona_chat(
+        persona_commands._maybe_auto_title_persona_chat(
             session_db=object(),
             session_id="s1",
             user_message="hello",
@@ -222,11 +222,10 @@ def test_maybe_auto_title_swallows_a_raising_title_generator(monkeypatch):
 
 def test_maybe_auto_title_still_titles_on_success(monkeypatch):
     import agent.title_generator as tg
-    import hermes_cli.harness as harness
 
     seen = []
     monkeypatch.setattr(tg, "auto_title_session", lambda *a, **k: seen.append((a, k)))
-    harness._maybe_auto_title_persona_chat(
+    persona_commands._maybe_auto_title_persona_chat(
         session_db=object(),
         session_id="s1",
         user_message="hello",

@@ -392,6 +392,7 @@ def test_the_cli_chat_lane_reads_the_vocabulary_instead_of_spelling_it():
     from pathlib import Path
 
     import hermes_cli.harness as harness
+    from hermes_cli.harness_parts import persona_commands
 
     def _is_vocabulary(name: str) -> bool:
         return name.startswith("TURN_STATE_") or name.endswith("_TURN_STATES")
@@ -425,10 +426,10 @@ def test_the_cli_chat_lane_reads_the_vocabulary_instead_of_spelling_it():
         f"{name} (in {function})"
         for name, functions in used.items()
         for function in functions
-        if not hasattr(harness, name)
+        if not hasattr(persona_commands, name)
         and name not in locally_imported.get(function, ())
     )
     assert not unresolvable, (
         "persona_commands.py uses vocabulary names that resolve neither through "
-        f"a harness.py import nor a function-local one: {unresolvable}"
+        f"its own module globals nor a function-local import: {unresolvable}"
     )

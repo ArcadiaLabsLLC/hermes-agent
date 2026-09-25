@@ -41,6 +41,8 @@ from agent_runtime.persona_assignments import (
     PersonaInstanceStore,
     personas_equal,
 )
+from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts import runtime_commands
 
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
@@ -139,8 +141,10 @@ def _chat_lane(monkeypatch, db):
             )
 
     monkeypatch.setattr(harness, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(persona_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(runtime_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(persona_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(persona_commands, "GPTPersonaRuntime", _ProviderSpy)
     return harness
 
 
@@ -218,7 +222,7 @@ def test_the_forge_inputs_are_accepted_regression_dispatch_2540634d5cf3(
     owner = _owned_root(db)
     assert owner.persona_id == "profile:alice"
 
-    code = harness._cmd_mission_chat_message(
+    code = persona_commands._cmd_mission_chat_message(
         _send_args(
             persona_id="profile:alice",  # colon form, straight off the instance record
             persona_instance_id=owner.id,  # the forge ALWAYS supplies the pin
@@ -252,7 +256,7 @@ def test_a_plain_persona_id_is_still_accepted(
     owner = _owned_root(db, persona_id="dev", display_name="Dev")
     assert owner.persona_id == "dev"
 
-    code = harness._cmd_mission_chat_message(
+    code = persona_commands._cmd_mission_chat_message(
         _send_args(
             persona_id="dev",
             persona_instance_id=owner.id,
@@ -275,7 +279,7 @@ def test_a_genuinely_foreign_persona_without_a_pin_is_still_rejected(
     harness = _chat_lane(monkeypatch, db)
     owner = _owned_root(db)
 
-    code = harness._cmd_mission_chat_message(
+    code = persona_commands._cmd_mission_chat_message(
         _send_args(
             persona_id="profile:bob",
             persona_instance_id=None,
@@ -322,7 +326,7 @@ def test_a_matching_pin_does_not_launder_a_different_persona(
     harness = _chat_lane(monkeypatch, db)
     owner = _owned_root(db)
 
-    code = harness._cmd_mission_chat_message(
+    code = persona_commands._cmd_mission_chat_message(
         _send_args(
             persona_id="profile:bob",  # a genuinely different persona…
             persona_instance_id=owner.id,  # …with a pin that DOES own the root
@@ -364,7 +368,7 @@ def test_a_matching_pin_carries_a_root_whose_owner_persona_is_unreadable(
 
     monkeypatch.setattr(PersonaInstanceStore, "get", _personaless_get)
 
-    code = harness._cmd_mission_chat_message(
+    code = persona_commands._cmd_mission_chat_message(
         _send_args(
             persona_id="profile:alice",
             persona_instance_id=owner.id,
@@ -394,7 +398,7 @@ def test_open_chat_accepts_the_colon_token_cross(
     harness = _chat_lane(monkeypatch, db)
     owner = _owned_root(db)
 
-    code = harness._cmd_persona_instance_open_chat(
+    code = persona_commands._cmd_persona_instance_open_chat(
         SimpleNamespace(
             persona_id="profile:alice",  # colon form vs the stored token fold
             persona_instance_id=owner.id,
@@ -420,7 +424,7 @@ def test_open_chat_still_refuses_a_foreign_root(
     owner = _owned_root(db)
     _owned_root(db, persona_id="profile:bob", display_name="Bob")
 
-    code = harness._cmd_persona_instance_open_chat(
+    code = persona_commands._cmd_persona_instance_open_chat(
         SimpleNamespace(
             persona_id="profile:bob",
             persona_instance_id=None,
@@ -449,7 +453,7 @@ def test_open_new_chat_instance_mismatch_accepts_the_colon_token_cross(
     harness = _chat_lane(monkeypatch, db)
     owner = _owned_root(db)
 
-    harness._cmd_persona_instance_open_new_chat(
+    persona_commands._cmd_persona_instance_open_new_chat(
         SimpleNamespace(
             persona_instance_id=owner.id,
             session_id=None,
@@ -475,7 +479,7 @@ def test_open_new_chat_still_refuses_a_genuinely_foreign_instance(
     harness = _chat_lane(monkeypatch, db)
     foreign = _owned_root(db, persona_id="profile:bob", display_name="Bob")
 
-    code = harness._cmd_persona_instance_open_new_chat(
+    code = persona_commands._cmd_persona_instance_open_new_chat(
         SimpleNamespace(
             persona_instance_id=foreign.id,
             session_id=None,
@@ -501,7 +505,7 @@ def test_chat_delete_accepts_the_colon_token_cross(
     owner = _owned_root(db)
     db.append_message(owner.session_id, "user", "hello")
 
-    code = harness._cmd_persona_chat_delete(
+    code = persona_commands._cmd_persona_chat_delete(
         SimpleNamespace(
             session_id=owner.session_id,
             persona_id="profile_alice",  # token form vs the stored colon form
@@ -527,7 +531,7 @@ def test_chat_delete_still_refuses_a_foreign_instance(
     foreign = _owned_root(db, persona_id="profile:bob", display_name="Bob")
     db.append_message(owner.session_id, "user", "must survive")
 
-    code = harness._cmd_persona_chat_delete(
+    code = persona_commands._cmd_persona_chat_delete(
         SimpleNamespace(
             session_id=owner.session_id,
             persona_id="profile:bob",
@@ -642,7 +646,7 @@ def test_an_unclassified_forge_failure_still_walks_the_cap(
 
 
 def _redeliver(harness, dispatch_id, capsys):
-    code = harness._cmd_mission_chat_dispatch_redeliver(
+    code = persona_commands._cmd_mission_chat_dispatch_redeliver(
         SimpleNamespace(dispatch_id=dispatch_id, json=True)
     )
     return code, _envelopes(capsys)[-1]
@@ -727,5 +731,5 @@ def test_redeliver_is_reachable_from_the_cli(isolate_agent_runtime_root):
         ["harness", "mission-chat", "dispatch", "redeliver", "dispatch-2540634d5cf3", "--json"]
     )
 
-    assert args.func is harness._cmd_mission_chat_dispatch_redeliver
+    assert args.func is persona_commands._cmd_mission_chat_dispatch_redeliver
     assert args.dispatch_id == "dispatch-2540634d5cf3"

@@ -27,6 +27,7 @@ import pytest
 
 from agent_runtime.events import EventLog
 from agent_runtime.persona_assignments import PersonaInstanceStore
+from hermes_cli.harness_parts import persona_commands
 
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
@@ -65,9 +66,9 @@ def _chat_lane(monkeypatch, db):
                 raw={},
             )
 
-    monkeypatch.setattr(harness, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(persona_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(persona_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(persona_commands, "GPTPersonaRuntime", _ProviderSpy)
     return harness
 
 
@@ -139,7 +140,7 @@ def test_unknown_chat_session_send_refusal_is_durably_recorded(
     db = _canonical_db()
     harness = _chat_lane(monkeypatch, db)
 
-    code = harness._cmd_mission_chat_message(
+    code = persona_commands._cmd_mission_chat_message(
         _send_args(
             persona_id="dev",
             persona_instance_id=None,
@@ -170,7 +171,7 @@ def test_foreign_chat_session_send_refusal_is_durably_recorded(
     harness = _chat_lane(monkeypatch, db)
     owner = _owned_root(db, persona_id="dev", display_name="Dev")
 
-    code = harness._cmd_mission_chat_message(
+    code = persona_commands._cmd_mission_chat_message(
         _send_args(
             persona_id="qa",
             persona_instance_id=None,
@@ -221,7 +222,7 @@ def test_retired_persona_instance_send_refusal_is_durably_recorded(
     store.retire(instance.id, reason="placement deleted")
     assert instance.id not in {row.id for row in store.list_all()}
 
-    code = harness._cmd_mission_chat_message(
+    code = persona_commands._cmd_mission_chat_message(
         _send_args(
             persona_id="dev",
             persona_instance_id=instance.id,
@@ -257,7 +258,7 @@ def test_all_three_guard_refusals_satisfy_the_registered_event_contract(
     db = _canonical_db()
     harness = _chat_lane(monkeypatch, db)
 
-    harness._cmd_mission_chat_message(
+    persona_commands._cmd_mission_chat_message(
         _send_args(
             persona_id="dev",
             persona_instance_id=None,

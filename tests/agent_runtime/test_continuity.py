@@ -6,6 +6,7 @@ from agent_runtime.continuity import REF_LIMIT, REF_TEXT_LIMIT, SUMMARY_LIMIT, r
 from agent_runtime.events import EventLog
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from tests.agent_runtime.persona_samples import sample_personas
+from hermes_cli.harness_parts import persona_commands
 
 
 def _persona(persona_id: str):
@@ -85,9 +86,7 @@ def test_return_summary_cli_uses_first_class_primitive(tmp_path, monkeypatch, ca
     monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes-home"))
     child = PersonaInstanceStore().ensure_for_persona(_persona("dev"))
 
-    from hermes_cli import harness
-
-    code = harness._cmd_persona_instance_return_summary(
+    code = persona_commands._cmd_persona_instance_return_summary(
         SimpleNamespace(
             persona_instance_id=child.id,
             parent_session_id="parent_session_cli",

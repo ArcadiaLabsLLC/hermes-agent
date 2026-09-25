@@ -22,6 +22,7 @@ import pytest
 
 from agent_runtime import paths
 from tests.agent_runtime.office_seed import seed_workspace_record
+from hermes_cli.harness_parts import persona_commands
 
 WORKSPACE = "ws_agent_retire_verb"
 
@@ -244,13 +245,12 @@ def test_both_retire_doors_carry_the_SAME_console_identity(
     # resolves is harness's. A patch on the source module would go green while
     # the shipped path ran unpatched — the vacuous-test shape this repo has been
     # bitten by before.
-    from hermes_cli import harness
 
     first = _place(capsys, placement_id="qa_verb_retire_auth_1_agent_2")
     second = _place(capsys, placement_id="qa_verb_retire_auth_2_agent_2")
 
     monkeypatch.setattr(
-        harness,
+        persona_commands,
         "_console_denial",
         lambda action: {
             "code": -32000,

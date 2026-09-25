@@ -33,6 +33,7 @@ from tests.agent_runtime.namespace_reads import (
     namespace_reads,
     unresolved_reader_calls,
 )
+from hermes_cli.harness_parts import persona_commands
 
 
 def _harness_commands() -> dict:
@@ -159,9 +160,8 @@ def test_mission_chat_message_handler_never_writes_the_retired_task_bound_mode()
     # persona_commands.py is not an importable module: harness.py loads it via
     # _load_command_parts() and execs it in its OWN globals, so the command
     # bodies are attributes of hermes_cli.harness.
-    from hermes_cli import harness
 
-    source = inspect.getsource(harness._cmd_mission_chat_message)
+    source = inspect.getsource(persona_commands._cmd_mission_chat_message)
 
     assert 'instance.mode = "task_bound"' not in source
     assert "instance.current_task_id =" not in source

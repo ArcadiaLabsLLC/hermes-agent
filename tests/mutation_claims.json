@@ -5099,6 +5099,23 @@
       ]
     },
     {
+      "id": "w0-g4-every-borrowed-callable-counts-as-read",
+      "path": "scripts/god_file_fences.py",
+      "symbol": "borrowed_callables",
+      "operator": "widen-exemption",
+      "find": "        if name in reads:\n            continue",
+      "replace": "        if True:\n            continue",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/tooling/test_harness_namespace_is_thin.py::test_the_borrowed_callable_check_reds_a_reexport"
+      ]
+    },
+    {
       "id": "w0-g5-a-three-arm-ladder-stops-counting",
       "path": "scripts/god_file_probe.py",
       "symbol": "_ladders_in",

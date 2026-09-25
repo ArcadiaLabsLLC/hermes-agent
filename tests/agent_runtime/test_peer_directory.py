@@ -82,7 +82,7 @@ def test_the_roster_is_capped_and_says_truncated(monkeypatch):
         lambda instances, **kwargs: [_Instance(i) for i in range(ROSTER_ROW_CAP + 5)],
     )
     monkeypatch.setattr(
-        "hermes_cli.harness._resolve_mission_chat_persona_id",
+        "hermes_cli.harness_parts.persona_commands._resolve_mission_chat_persona_id",
         lambda a, b: "dev",
     )
 

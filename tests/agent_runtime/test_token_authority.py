@@ -378,18 +378,14 @@ def test_turn_usage_from_result_is_none_for_a_turn_that_never_ran():
     assert turn_usage_from_result(None) is None
 
 
-def test_harness_globals_expose_turn_usage_from_result():
-    """`persona_commands.py` is exec'd into harness globals, not imported.
+def test_persona_commands_binds_turn_usage_from_result():
+    """The mission-chat turn resolves ``turn_usage_from_result`` in its OWN module.
 
-    Nothing it references is resolved at import time, so a helper it calls must
-    be imported by `hermes_cli/harness.py` or the mission-chat turn dies with a
-    NameError only at runtime. (The same wiring is why that file's own helpers
-    are not unit-testable — hence this contract lives in prompt_observability.)
+    ``persona_commands`` is a real module since lane H1 (2026-09-24), so the
+    name must be bound there — read from the runtime module, not its spelling —
+    and be the one ``prompt_observability`` owns.
     """
-    harness_src = (REPO_ROOT / "hermes_cli" / "harness.py").read_text(encoding="utf-8")
-    part_src = (REPO_ROOT / "hermes_cli" / "harness_parts" / "persona_commands.py").read_text(encoding="utf-8")
+    from agent_runtime import prompt_observability
+    from hermes_cli.harness_parts import persona_commands
 
-    assert "turn_usage_from_result" in part_src, "mission chat should shape turn_usage"
-    assert re.search(
-        r"from agent_runtime\.prompt_observability import [^\n]*turn_usage_from_result", harness_src
-    ), "harness.py must import turn_usage_from_result into the globals the part executes in"
+    assert persona_commands.turn_usage_from_result is prompt_observability.turn_usage_from_result

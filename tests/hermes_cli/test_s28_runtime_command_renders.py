@@ -46,7 +46,7 @@ def test_status_human_line_reports_only_measurable_fields(monkeypatch, tmp_path,
     # the exact-equality pin becomes a prefix + suffix pin. S28's rule is
     # unchanged and still what is under test: no constant dressed as a count.
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "agent-runtime"))
-    monkeypatch.setattr("hermes_cli.harness.build_status", _status_payload)
+    monkeypatch.setattr("hermes_cli.harness_parts.runtime_commands.build_status", _status_payload)
     args = _parser().parse_args(["harness", "status"])
 
     assert args.func(args) == 0
@@ -73,7 +73,7 @@ def test_status_says_unavailable_when_the_serve_registry_could_not_be_read(
     """
 
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "agent-runtime"))
-    monkeypatch.setattr("hermes_cli.harness.build_status", _status_payload)
+    monkeypatch.setattr("hermes_cli.harness_parts.runtime_commands.build_status", _status_payload)
 
     def exploding_list(*args, **kwargs):
         raise PermissionError("registry unreadable")
@@ -97,7 +97,7 @@ def test_observe_passes_no_literal_fed_parameters(monkeypatch, capsys):
         observed.update(kwargs)
         return {"health": {"status": "healthy"}, "interventions": []}
 
-    monkeypatch.setattr("hermes_cli.harness.build_observability", fake_build_observability)
+    monkeypatch.setattr("hermes_cli.harness_parts.runtime_commands.build_observability", fake_build_observability)
     args = _parser().parse_args(["harness", "observe"])
 
     assert args.func(args) == 0

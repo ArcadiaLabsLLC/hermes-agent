@@ -35,6 +35,8 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from hermes_cli.harness_parts import persona_commands
+from hermes_cli.harness_parts import runtime_commands
 
 
 @pytest.fixture(autouse=True)
@@ -194,6 +196,8 @@ def test_a_config_only_persona_is_refused_not_promoted(monkeypatch, capsys):
         personas={"catalog_only": {"role": "dev", "display_name": "Catalog Only"}}
     )
     monkeypatch.setattr(harness, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(persona_commands, "load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(runtime_commands, "load_agent_runtime_config", lambda: cfg)
 
     code = _dispatch(_set_skills("catalog_only", "--skill", "alpha"))
     data = json.loads(capsys.readouterr().out)

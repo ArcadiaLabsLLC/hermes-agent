@@ -8,7 +8,7 @@ exception-wrapped and never directly asserted, so a regression would fail silent
 
 import pytest
 
-from hermes_cli.harness import (
+from hermes_cli.harness_parts.persona_commands import (
     _append_persona_assistant_text,
     _append_persona_operator_turn,
     _ensure_persona_chat_session,

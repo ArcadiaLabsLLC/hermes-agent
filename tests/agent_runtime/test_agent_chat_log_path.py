@@ -9,6 +9,7 @@ runtime root at all.
 import json
 
 import pytest
+from hermes_cli.harness_parts import persona_commands
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
@@ -86,7 +87,7 @@ def test_the_file_keeps_growing_after_the_path_is_handed_out(isolate_agent_runti
 
     from pathlib import Path
 
-    from hermes_cli.harness import _append_persona_assistant_text
+    from hermes_cli.harness_parts.persona_commands import _append_persona_assistant_text
     from hermes_state import SessionDB
     from tests.agent_runtime.test_agent_chat_tool import _seed_persona_chat
 
@@ -198,7 +199,6 @@ def test_mission_chat_turn_mirrors_the_order_and_the_recorded_reply(
 ):
     from types import SimpleNamespace
 
-    from hermes_cli import harness
     from tests.agent_runtime.test_persona_assignments import (
         _TranscriptDB,
         _assignment_config,
@@ -221,11 +221,11 @@ def test_mission_chat_turn_mirrors_the_order_and_the_recorded_reply(
                 raw={},
             )
 
-    monkeypatch.setattr(harness, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: _TranscriptDB())
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(persona_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(persona_commands, "_default_persona_session_db", lambda: _TranscriptDB())
+    monkeypatch.setattr(persona_commands, "GPTPersonaRuntime", _ProviderSpy)
 
-    assert harness._cmd_mission_chat_message(_mission_chat_test_args("cm-live-1")) == 0
+    assert persona_commands._cmd_mission_chat_message(_mission_chat_test_args("cm-live-1")) == 0
     capsys.readouterr()
 
     rows = [row for row in _mirror_rows("persona_chat_personainst_dev") if row.get("kind") == "message"]
@@ -246,7 +246,6 @@ def test_mission_chat_resend_does_not_double_the_mirrored_order(
 
     from types import SimpleNamespace
 
-    from hermes_cli import harness
     from tests.agent_runtime.test_persona_assignments import (
         _TranscriptDB,
         _assignment_config,
@@ -270,12 +269,12 @@ def test_mission_chat_resend_does_not_double_the_mirrored_order(
                 raw={},
             )
 
-    monkeypatch.setattr(harness, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(persona_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(persona_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(persona_commands, "GPTPersonaRuntime", _ProviderSpy)
 
-    assert harness._cmd_mission_chat_message(_mission_chat_test_args("cm-resend")) == 0
-    harness._cmd_mission_chat_message(_mission_chat_test_args("cm-resend"))
+    assert persona_commands._cmd_mission_chat_message(_mission_chat_test_args("cm-resend")) == 0
+    persona_commands._cmd_mission_chat_message(_mission_chat_test_args("cm-resend"))
     capsys.readouterr()
 
     rows = [row for row in _mirror_rows("persona_chat_personainst_dev") if row.get("kind") == "message"]
@@ -288,7 +287,6 @@ def test_mirror_failure_never_fails_the_mission_chat_turn(
     from types import SimpleNamespace
 
     from agent_runtime import chat_live_log
-    from hermes_cli import harness
     from tests.agent_runtime.test_persona_assignments import (
         _TranscriptDB,
         _assignment_config,
@@ -316,10 +314,10 @@ def test_mirror_failure_never_fails_the_mission_chat_turn(
                 raw={},
             )
 
-    monkeypatch.setattr(harness, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(harness, "_default_persona_session_db", lambda: _TranscriptDB())
-    monkeypatch.setattr(harness, "GPTPersonaRuntime", _ProviderSpy)
+    monkeypatch.setattr(persona_commands, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(persona_commands, "_default_persona_session_db", lambda: _TranscriptDB())
+    monkeypatch.setattr(persona_commands, "GPTPersonaRuntime", _ProviderSpy)
 
-    assert harness._cmd_mission_chat_message(_mission_chat_test_args("cm-broken")) == 0
+    assert persona_commands._cmd_mission_chat_message(_mission_chat_test_args("cm-broken")) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True and payload["reply"] == "still answered"

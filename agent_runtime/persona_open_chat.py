@@ -264,9 +264,9 @@ def perform_persona_instance_open_chat(
         payload_sink=payloads.append,
     )
 
-    from hermes_cli import harness as _harness
+    from hermes_cli.harness_parts import persona_commands as _persona_commands
 
-    exit_code = _harness._cmd_persona_instance_open_chat(args)
+    exit_code = _persona_commands._cmd_persona_instance_open_chat(args)
     row = payloads[-1] if payloads else None
     if not isinstance(row, dict):
         # Unreachable while every arm goes through the seam, and asserted rather

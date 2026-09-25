@@ -14,6 +14,7 @@ from agent_runtime.models import AgentPersona, PersonaInstance
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.serde import from_jsonable, to_jsonable
 from agent_runtime.states import WorkerSessionState
+from hermes_cli.harness_parts import persona_commands
 
 
 def _persona(persona_id: str = "dev") -> AgentPersona:
@@ -268,7 +269,7 @@ def _steer_args(persona_instance_id: str, **overrides):
 
 
 def _run_steer(harness, capsys, args):
-    code = harness._cmd_persona_instance_steer(args)
+    code = persona_commands._cmd_persona_instance_steer(args)
     raw = capsys.readouterr().out
     # emit_json pretty-prints across lines; take the whole JSON object (tolerating
     # any provider log lines around it).
@@ -278,7 +279,7 @@ def _run_steer(harness, capsys, args):
 def test_cli_steer_verbs_and_json_shape(monkeypatch, capsys):
     from hermes_cli import harness
 
-    monkeypatch.setattr(harness, "load_agent_runtime_config", _assignment_config)
+    monkeypatch.setattr(persona_commands, "load_agent_runtime_config", _assignment_config)
     store = PersonaInstanceStore()
     store.ensure_for_persona(_persona("qa"))
     store.ensure_for_persona(_persona("dev"))
