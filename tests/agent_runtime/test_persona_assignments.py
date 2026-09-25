@@ -5096,14 +5096,15 @@ def _chat_pointer_writers() -> dict[str, set[str]]:
     """
 
     import ast
-    import inspect
 
     from agent_runtime import persona_assignments
 
     pointers = {"default_chat_session_id", "session_id"}
-    tree = ast.parse(inspect.getsource(persona_assignments))
+    # The package's modules, each parsed on its own (the file became a package).
+    package_dir = Path(persona_assignments.__file__).parent
+    trees = [ast.parse(path.read_text(encoding="utf-8")) for path in sorted(package_dir.glob("*.py"))]
     writers: dict[str, set[str]] = {}
-    for node in ast.walk(tree):
+    for node in (node for tree in trees for node in ast.walk(tree)):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         for inner in ast.walk(node):

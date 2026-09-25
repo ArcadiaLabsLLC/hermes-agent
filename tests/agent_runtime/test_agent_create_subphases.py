@@ -339,7 +339,7 @@ def rounds_per_projection_read(monkeypatch):
         return _wrapper
 
     monkeypatch.setattr(
-        persona_assignments,
+        persona_assignments.summary,
         "permission_options_for_chat",
         _billing("permission_options", tool_permissions.permission_options_for_chat),
     )

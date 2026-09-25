@@ -1194,7 +1194,10 @@ def test_the_send_path_seam_never_queues_a_prewarm():
 
     import agent_runtime.persona_assignments as assignments
 
-    source = pathlib.Path(assignments.__file__).read_text(encoding="utf-8")
+    source = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(pathlib.Path(assignments.__file__).parent.glob("*.py"))
+    )
     assert "actor_prewarm" not in source
     assert "_cmd_mission_chat_message" not in _prewarm_call_sites()
 

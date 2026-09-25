@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+import pathlib
 
 import pytest
 
@@ -125,9 +126,11 @@ def test_persona_instance_remove_takes_no_reason_and_no_caller_passes_one():
     # AST, not a source grep: the question is whether any CALL passes a
     # `reason` keyword, and a text scan cannot tell a call from the comment
     # explaining why the kwarg went.
-    tree = ast.parse(inspect.getsource(persona_assignments))
+    package_dir = pathlib.Path(persona_assignments.__file__).parent
+    trees = [ast.parse(path.read_text(encoding="utf-8")) for path in sorted(package_dir.glob("*.py"))]
     calls = [
         node
+        for tree in trees
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
         and (getattr(node.func, "id", None) or getattr(node.func, "attr", None))

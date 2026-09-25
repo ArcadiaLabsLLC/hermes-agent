@@ -1190,7 +1190,7 @@ def test_a_flaky_tombstone_probe_cannot_escape_the_mint_lane_untyped(
         raise OSError("the store root went away mid-probe")
 
     monkeypatch.setattr(
-        persona_assignments, "_retired_persona_instance_archive_path", _flaky
+        persona_assignments.store, "_retired_persona_instance_archive_path", _flaky
     )
 
     with caplog.at_level(logging.WARNING, logger=persona_assignments.__name__):

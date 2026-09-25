@@ -189,7 +189,6 @@
   "agent_runtime/paths.py",
   "agent_runtime/peer_directory.py",
   "agent_runtime/permission_modes.py",
-  "agent_runtime/persona_assignments.py",
   "agent_runtime/persona_chat_actor_prewarm.py",
   "agent_runtime/persona_chat_continuity.py",
   "agent_runtime/persona_chat_durability.py",

@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import inspect
+import pathlib
 
 import pytest
 
@@ -141,7 +142,10 @@ def test_the_live_task_goal_threading_is_kept():
     assert {"task_id", "goal_id"} <= fields
 
     # The live producer: both are read off the persona-instance row.
-    source = inspect.getsource(persona_assignments)
+    source = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(pathlib.Path(persona_assignments.__file__).parent.glob("*.py"))
+    )
     assert "task_id=instance.current_task_id" in source
     assert "goal_id=instance.goal_id" in source
 

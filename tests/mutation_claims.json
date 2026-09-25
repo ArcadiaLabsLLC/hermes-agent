@@ -318,7 +318,7 @@
     },
     {
       "id": "inherit-skills-is-just-another-clear",
-      "path": "agent_runtime/persona_assignments.py",
+      "path": "agent_runtime/persona_assignments/store.py",
       "symbol": "PersonaInstanceStore.update_profile",
       "operator": "collapse-the-tri-state-third-value",
       "find": "            value = None if inherit_skills else ([] if clear_skills else _safe_skill_overrides(skills or []))",
@@ -333,7 +333,7 @@
     },
     {
       "id": "the-patch-snapshot-collapses-none-onto-empty",
-      "path": "agent_runtime/persona_assignments.py",
+      "path": "agent_runtime/persona_assignments/store.py",
       "symbol": "PersonaInstanceStore._profile_patch_snapshot",
       "operator": "collapse-the-tri-state-third-value",
       "find": "            \"skill_overrides\": (\n                list(instance.skill_overrides) if instance.skill_overrides is not None else None\n            ),",
@@ -423,7 +423,7 @@
     },
     {
       "id": "s5-retire-drops-the-office-half",
-      "path": "agent_runtime/persona_assignments.py",
+      "path": "agent_runtime/persona_assignments/store.py",
       "symbol": "PersonaInstanceStore.retire",
       "operator": "drop-the-office-half",
       "find": "        office = self._archive_office_placements(\n            instance, correlation_id=correlation_id\n        )",
@@ -588,7 +588,7 @@
     },
     {
       "id": "s8b-retire-store-drops-the-token-before-the-office-half",
-      "path": "agent_runtime/persona_assignments.py",
+      "path": "agent_runtime/persona_assignments/store.py",
       "symbol": "PersonaInstanceStore.retire",
       "operator": "drop-correlation-thread",
       "find": "        office = self._archive_office_placements(\n            instance, correlation_id=correlation_id\n        )",
@@ -1344,7 +1344,7 @@
     },
     {
       "id": "hh5-the-retire-receipt-is-never-written",
-      "path": "agent_runtime/persona_assignments.py",
+      "path": "agent_runtime/persona_assignments/store.py",
       "symbol": "PersonaInstanceStore._write_retire_receipt",
       "operator": "skip-receipt-write",
       "find": "        path = retire_receipt_path(archive_dir, result[\"persona_instance_id\"])\n        try:",
@@ -1359,7 +1359,7 @@
     },
     {
       "id": "hh5-a-missing-receipt-is-read-as-an-empty-one",
-      "path": "agent_runtime/persona_assignments.py",
+      "path": "agent_runtime/persona_assignments/store.py",
       "symbol": "PersonaInstanceStore.read_retire_receipt",
       "operator": "degrade-absence-to-empty",
       "find": "        except Exception:  # noqa: BLE001 - absent, unreadable, or not JSON\n            return None",
@@ -1374,7 +1374,7 @@
     },
     {
       "id": "hh5-the-receipt-lands-where-tombstones-are-counted",
-      "path": "agent_runtime/persona_assignments.py",
+      "path": "agent_runtime/persona_assignments/retire.py",
       "symbol": "retire_receipt_path",
       "operator": "flatten-receipt-into-the-batch",
       "find": "    return archive_dir / RETIRE_RECEIPTS_DIRNAME / f\"{persona_instance_id}.json\"",
@@ -2352,7 +2352,7 @@
     },
     {
       "id": "ir-h3-a-replication-mint-poses-as-an-authored-create",
-      "path": "agent_runtime/persona_assignments.py",
+      "path": "agent_runtime/persona_assignments/store.py",
       "symbol": "PersonaInstanceStore.replicate_instance",
       "operator": "reuse-the-authored-create-event",
       "find": "            \"persona_instance.replicated\",\n            instance,\n            {\n                \"source\": \"realm_sync\",",
@@ -2367,7 +2367,7 @@
     },
     {
       "id": "ir-h3-the-mint-reaches-no-live-consumer",
-      "path": "agent_runtime/persona_assignments.py",
+      "path": "agent_runtime/persona_assignments/store.py",
       "symbol": "PersonaInstanceStore.replicate_instance",
       "operator": "drop-the-delta-patch",
       "find": "        if created:\n            emit_persona_instance_create(self.event_log, instance)\n        else:\n            emit_persona_instance_patch(",
@@ -2382,7 +2382,7 @@
     },
     {
       "id": "ir-h3-the-store-door-writes-the-whole-remote-body",
-      "path": "agent_runtime/persona_assignments.py",
+      "path": "agent_runtime/persona_assignments/store.py",
       "symbol": "PersonaInstanceStore.replicate_instance",
       "operator": "ignore-the-travel-allowlist",
       "find": "        for name in sorted(PERSONA_INSTANCE_ALLOWED_KEYS - {\"id\", \"persona_id\", \"steered_by\"}):",
@@ -2412,7 +2412,7 @@
     },
     {
       "id": "ir-h3-a-remote-graph-installs-a-cycle",
-      "path": "agent_runtime/persona_assignments.py",
+      "path": "agent_runtime/persona_assignments/store.py",
       "symbol": "PersonaInstanceStore.apply_replicated_steering",
       "operator": "skip-the-cycle-validator",
       "find": "                self._validate_no_steering_cycle(persona_instance_id, parent)\n",
@@ -2502,7 +2502,7 @@
     },
     {
       "id": "ir-h4-a-working-agent-is-archived",
-      "path": "agent_runtime/persona_assignments.py",
+      "path": "agent_runtime/persona_assignments/store.py",
       "symbol": "PersonaInstanceStore.retire_replica",
       "operator": "drop-the-live-binding-guard",
       "find": "        if self._has_live_binding(instance):\n            raise PersonaInstanceRetireError(\n                \"instance_active\",",
@@ -2547,7 +2547,7 @@
     },
     {
       "id": "ir-h4-the-replica-retire-mints-a-realm-visible-ledger-entry",
-      "path": "agent_runtime/persona_assignments.py",
+      "path": "agent_runtime/persona_assignments/store.py",
       "symbol": "PersonaInstanceStore.retire_replica",
       "operator": "run-the-office-half",
       "find": "        self._event(\"persona_instance.retired\", instance, payload)\n        emit_persona_instance_remove(self.event_log, instance)\n        return {\n            \"persona_instance_id\": instance.id,\n            \"persona_id\": instance.persona_id,\n            \"archive_path\": str(archived_path),",

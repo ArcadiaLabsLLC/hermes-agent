@@ -126,19 +126,19 @@
    "unit": "agent_runtime/operator_channels.py|_conversation_history_message"
   },
   {
+   "depth": 5,
+   "lines": 36,
+   "unit": "agent_runtime/persona_assignments/retire.py|retired_persona_instance_ids"
+  },
+  {
    "depth": 2,
    "lines": 203,
-   "unit": "agent_runtime/persona_assignments.py|PersonaInstanceStore.open_chat"
+   "unit": "agent_runtime/persona_assignments/store.py|PersonaInstanceStore.open_chat"
   },
   {
    "depth": 4,
    "lines": 174,
-   "unit": "agent_runtime/persona_assignments.py|PersonaInstanceStore.update_profile"
-  },
-  {
-   "depth": 5,
-   "lines": 36,
-   "unit": "agent_runtime/persona_assignments.py|retired_persona_instance_ids"
+   "unit": "agent_runtime/persona_assignments/store.py|PersonaInstanceStore.update_profile"
   },
   {
    "depth": 1,

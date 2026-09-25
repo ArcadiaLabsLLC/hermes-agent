@@ -183,31 +183,31 @@
   },
   {
    "arms": 1,
-   "site": "agent_runtime/persona_assignments.py|_persona_instance_is_active_lane|vocab|assigned"
+   "site": "agent_runtime/persona_assignments/summary.py|_persona_instance_is_active_lane|vocab|assigned"
   },
   {
    "arms": 1,
-   "site": "agent_runtime/persona_assignments.py|_persona_instance_is_active_lane|vocab|possessed"
+   "site": "agent_runtime/persona_assignments/summary.py|_persona_instance_is_active_lane|vocab|possessed"
   },
   {
    "arms": 1,
-   "site": "agent_runtime/persona_assignments.py|_persona_instance_is_active_lane|vocab|running"
+   "site": "agent_runtime/persona_assignments/summary.py|_persona_instance_is_active_lane|vocab|running"
   },
   {
    "arms": 1,
-   "site": "agent_runtime/persona_assignments.py|_persona_instance_is_active_lane|vocab|self_healing"
+   "site": "agent_runtime/persona_assignments/summary.py|_persona_instance_is_active_lane|vocab|self_healing"
   },
   {
    "arms": 1,
-   "site": "agent_runtime/persona_assignments.py|_persona_instance_is_active_lane|vocab|waiting_on_human"
+   "site": "agent_runtime/persona_assignments/summary.py|_persona_instance_is_active_lane|vocab|waiting_on_human"
   },
   {
    "arms": 1,
-   "site": "agent_runtime/persona_assignments.py|_persona_instance_is_active_lane|vocab|waiting_on_proof"
+   "site": "agent_runtime/persona_assignments/summary.py|_persona_instance_is_active_lane|vocab|waiting_on_proof"
   },
   {
    "arms": 1,
-   "site": "agent_runtime/persona_assignments.py|_persona_instance_is_active_lane|vocab|waiting_on_tool"
+   "site": "agent_runtime/persona_assignments/summary.py|_persona_instance_is_active_lane|vocab|waiting_on_tool"
   },
   {
    "arms": 2,
