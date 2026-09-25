@@ -44,19 +44,11 @@ DEFAULT_WALL_BUDGET_SECONDS = 900.0
 #: inside it. Module-scope claims are legitimate (an import, a constant, a
 #: decorator argument) and there is no AST node to scope them to.
 #:
-#: A FOURTH legitimate case, and the honest answer to the queue row that asked
-#: for one: a definition inside a module-level platform fork.
-#: ``agent_runtime/locks.py`` defines ``_try_acquire``/``_prepare``/
-#: ``_release`` twice, once per arm of ``if os.name == "nt"``.
-#: ``_qualified_definitions`` now descends into blocks (2026-09-02), so both
-#: copies ARE reachable — and that does not help, exactly as this note predicted
-#: before the descent existed: the two collide under one name and an ambiguous
-#: symbol is refused by design. There IS no unambiguous node, so
-#: ``hh6-posix-file-lock-ignores-its-deadline`` anchors at ``module`` and says
-#: which arm it means in its label (``module/_try_acquire (POSIX arm)``). Its
-#: selection is therefore line-based, which is what has been selecting and
-#: killing it on `ubuntu-latest` all along; ``platforms`` is what keeps it from
-#: reporting SURVIVED off POSIX.
+#: A FOURTH legitimate case: a definition inside a module-level platform fork,
+#: where the two arms collide under one name and an ambiguous symbol is refused
+#: by design — the claim anchors at ``module`` and names its arm in the label
+#: (``module/_try_acquire (POSIX arm)``); ``platforms`` scopes it. The measured
+#: instance is in the package map's history (``__init__.py``).
 WHOLE_MODULE_SYMBOLS = frozenset({"module", "module scope", "module-scope"})
 
 #: Statements whose bodies the definition walk descends WITHOUT adding a name:
@@ -97,16 +89,15 @@ MAX_REINDENT_COLUMNS = 16
 #:
 #: What it is for. ``find`` is a source SPELLING inside the anchored symbol. The
 #: loud failure — a spelling that stopped occurring — is a configuration error
-#: and impossible to miss (S8b and the S5 landing both paid it). The quiet one
-#: is the reason this field exists: a needle that STILL resolves after a
-#: semantic edit runs a mutation nobody re-derived, and the run goes green on a
-#: guarantee that may no longer be the guarantee.
+#: and impossible to miss. The quiet one is the reason this field exists: a
+#: needle that STILL resolves after a semantic edit runs a mutation nobody
+#: re-derived, and the run goes green on a guarantee that may no longer be the
+#: guarantee.
 #:
 #: Ruled 2026-09-04: ONE optional field carrying the commit, NO backfill, and a
 #: stale marker is a WARNING in the report and never a failure. All three halves
 #: are load-bearing. No backfill, so ABSENCE means "written before this schema"
-#: and says nothing about the claim's health — the 289 rows here at the ruling
-#: are not silently asserted to be fresh. And a warning rather than a refusal,
+#: and says nothing about the claim's health. And a warning rather than a refusal,
 #: because staleness is a suspicion, not a defect: a claim whose file moved
 #: underneath it is usually still correct, and a gate that refuses on suspicion
 #: is a gate that gets its budget raised until it says nothing.
@@ -124,6 +115,18 @@ ANCHOR_KEY = "_anchor"
 #: widening, and a widening nobody can see in the output is indistinguishable
 #: from the gate having gone vague.
 SELECTION_KEY = "_selected_by"
+#: The two words :data:`SELECTION_KEY` holds. Written in ``selection``, read in
+#: ``run`` — named once so the report's `` (selected by symbol)`` suffix and the
+#: writer cannot drift apart. A word, not an Enum: it rides a line CI and humans read.
+SELECTED_BY_LINES = "lines"
+SELECTED_BY_SYMBOL = "symbol"
+
+#: The gate's two non-zero exits: a claim's mutant SURVIVED (the guarantee is
+#: not held), or the run REFUSED to judge (configuration error, a failed
+#: baseline, a held lock, an exhausted budget). The tests pin the literals on
+#: purpose; these are the spelling the code reads.
+EXIT_SURVIVED = 1
+EXIT_REFUSED = 2
 
 
 

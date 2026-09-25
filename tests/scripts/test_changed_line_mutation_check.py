@@ -571,3 +571,43 @@ def test_the_inventory_lane_never_spends_the_budget(
 
     assert code == 0
     assert "  a:" in out
+
+
+def test_a_budget_spent_between_claims_stops_at_the_claim_boundary(
+    tmp_path, claim_files, touched, monkeypatch, capsys
+):
+    """The SECOND budget check (lane B5): honoured between claims, never inside one.
+
+    The first check (above) refuses before the lock; this one is the reason a
+    run that outgrows its budget mid-way stops with what it did and what
+    remains, instead of being killed with a spliced file on disk. Driven by the
+    budget answer itself: fresh before the lock, fresh for claim 0, spent for
+    claim 1 — so exactly one mutant ran and both files are back at their bytes.
+    """
+
+    answers = iter([False, False, True])
+    monkeypatch.setattr(run_lane, "_over_budget", lambda started, budget: next(answers))
+    claims = _claims_file(
+        tmp_path,
+        [
+            _claim("a", claim_files["first"], "alpha = 1", "alpha = 99"),
+            _claim("b", claim_files["second"], "delta = 4", "delta = 99"),
+        ],
+    )
+    touched({claim_files["first"]: {1}, claim_files["second"]: {1}})
+    ran: list[list[str]] = []
+    monkeypatch.setattr(run_lane, "_run_command", lambda command: ran.append(list(command)) or 0)
+
+    code = gate.run(
+        "BASE", claims, _exemptions_file(tmp_path), wall_budget_seconds=900, list_only=False
+    )
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "MUTATE: a" in captured.out
+    assert "MUTATE: b" not in captured.out
+    assert "after 1 of 2 claim(s)" in captured.err
+    assert len(ran) == 2, "one baseline (both claims share a command) and one mutant"
+    assert claim_files["first"].read_text(encoding="utf-8") == FIRST
+    assert claim_files["second"].read_text(encoding="utf-8") == SECOND
+    assert not run_lane.LOCK_PATH.exists()

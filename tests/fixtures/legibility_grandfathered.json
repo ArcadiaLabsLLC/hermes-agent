@@ -166,11 +166,6 @@
    "unit": "mobile_core/src/hermes_mobile_core/turn_runner.py|TurnRunner._attempt_responses"
   },
   {
-   "depth": 4,
-   "lines": 173,
-   "unit": "scripts/mutation_check/run.py|run"
-  },
-  {
    "depth": 5,
    "lines": 84,
    "unit": "scripts/doc_cite_report.py|run"

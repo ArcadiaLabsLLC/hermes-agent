@@ -247,10 +247,6 @@
   },
   {
    "arms": 4,
-   "site": "scripts/mutation_check/anchor.py|_qualified_definitions.walk|isinstance|child"
-  },
-  {
-   "arms": 4,
    "site": "scripts/doc_cite_adjacency.py|_judge_one|ladder|outcome"
   },
   {

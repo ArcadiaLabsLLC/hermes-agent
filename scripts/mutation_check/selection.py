@@ -23,6 +23,8 @@ from .schema import (
     NON_PRODUCTION_PREFIXES,
     PLATFORMS,
     REPO_ROOT,
+    SELECTED_BY_LINES,
+    SELECTED_BY_SYMBOL,
     SELECTION_KEY,
 )
 
@@ -39,6 +41,25 @@ def _load_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def _git(*args: str) -> subprocess.CompletedProcess[str]:
+    """One ``git`` call in this checkout, text out, never raising on a non-zero exit.
+
+    Package-local on purpose: ``scripts.god_file_probe._git`` is the same shape,
+    but the probe is a SUBJECT of this gate and this package imports nothing it
+    judges. ``subprocess.run`` is read through the module attribute, so a test
+    that patches ``selection.subprocess.run`` still lands.
+    """
+
+    return subprocess.run(
+        ["git", *args],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+
 def _changed_sources(base: str) -> list[str]:
     """The production ``.py`` files this diff touched, sorted.
 
@@ -47,14 +68,7 @@ def _changed_sources(base: str) -> list[str]:
     can write.
     """
 
-    completed = subprocess.run(
-        ["git", "diff", "--name-only", "--diff-filter=d", base, "--", "*.py"],
-        cwd=REPO_ROOT,
-        check=False,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    )
+    completed = _git("diff", "--name-only", "--diff-filter=d", base, "--", "*.py")
     if completed.returncode != 0:
         raise RuntimeError(f"git diff --name-only failed: {completed.stderr.strip()}")
     return sorted(
@@ -65,14 +79,7 @@ def _changed_sources(base: str) -> list[str]:
 
 
 def _changed_lines(base: str, relative_path: str) -> set[int]:
-    completed = subprocess.run(
-        ["git", "diff", "--unified=0", base, "--", relative_path],
-        cwd=REPO_ROOT,
-        check=False,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    )
+    completed = _git("diff", "--unified=0", base, "--", relative_path)
     if completed.returncode != 0:
         raise RuntimeError(f"git diff failed for {relative_path}: {completed.stderr.strip()}")
     changed: set[int] = set()
@@ -84,11 +91,9 @@ def _changed_lines(base: str, relative_path: str) -> set[int]:
         count = int(match.group(2) or "1")
         if count == 0:
             # A DELETION-ONLY hunk (`@@ -32 +31,0 @@`): nothing was added, so
-            # `range(31, 31)` is empty and this hunk used to contribute no
-            # changed line at all. Every retirement wave therefore reported
-            # `candidates: 0` and shipped with zero mutation coverage BY
-            # CONSTRUCTION — measured on the Z1 landing (`4bf4387760`), filed
-            # the same day.
+            # `range(31, 31)` is empty and would contribute no changed line at
+            # all — a retirement wave would select nothing BY CONSTRUCTION (the
+            # measured instance is in the package map's history).
             #
             # The two new-file lines the removed text sat between are what is
             # left of it, and they are what a claim anchored beside the
@@ -159,17 +164,12 @@ def _partition_claims(
     an error and must not be run — but it is also not nothing: it is a
     registered guarantee that this run did not exercise, and a reader who sees
     only the selected list cannot tell it apart from a claim that was never
-    written. Measured on the S4 landing, where
-    ``s4-a-pre-plan-done-receipt-re-enters-the-skills-phase`` anchors a line the
-    slice did not change and therefore never appeared in any output at all.
+    written.
 
-    Selection is by SYMBOL, not by the anchor's own two lines. The measured
-    miss (H-H2, `0ecb921b9d`): that landing rewrote 82 lines of
-    ``agent_create.py``, 41 of them inside ``_reply``, and rendered the exact
-    two lines ``hh2-the-one-reply-builder-stops-observing-the-revision``
-    anchors on (1170-1171) as unchanged CONTEXT. The claim registered FOR that
-    slice was not selected by its own landing diff, and the gate said so with a
-    green run. A guarantee is about a symbol's behaviour, so a diff that
+    Selection is by SYMBOL, not by the anchor's own two lines: a landing can
+    rewrite a function around a needle whose two lines survive verbatim as
+    diff CONTEXT (the measured H-H2 miss is in the package map's history).
+    A guarantee is about a symbol's behaviour, so a diff that
     rewrote the symbol has to put it on the hook whether or not the two lines
     carrying the needle happened to survive the rewrite verbatim.
 
@@ -204,10 +204,10 @@ def _partition_claims(
         claim[ANCHOR_KEY] = anchor
         changed = _changed_lines(base, str(claim["path"]))
         if anchor.lines & changed:
-            claim[SELECTION_KEY] = "lines"
+            claim[SELECTION_KEY] = SELECTED_BY_LINES
             selected.append(claim)
         elif anchor.symbol_lines & changed:
-            claim[SELECTION_KEY] = "symbol"
+            claim[SELECTION_KEY] = SELECTED_BY_SYMBOL
             selected.append(claim)
         else:
             unselected.append(claim)
@@ -234,14 +234,7 @@ def _commits_since_derivation(claim: dict[str, Any]) -> int | None:
     if not derived_at:
         return None
     try:
-        result = subprocess.run(
-            ["git", "log", "--oneline", f"{derived_at}..HEAD", "--", str(claim["path"])],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            check=False,
-        )
+        result = _git("log", "--oneline", f"{derived_at}..HEAD", "--", str(claim["path"]))
     except OSError:
         return None
     if result.returncode != 0:

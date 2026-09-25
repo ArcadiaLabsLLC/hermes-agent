@@ -559,7 +559,7 @@
     {
       "id": "s4b-the-inventory-drops-the-claims-it-did-not-select",
       "path": "scripts/mutation_check/run.py",
-      "symbol": "run",
+      "symbol": "_print_report",
       "operator": "empty-the-unselected-report",
       "find": "        for claim in unselected:",
       "replace": "        for claim in []:",
@@ -1125,7 +1125,7 @@
     {
       "id": "hh14-the-mutant-is-spliced-at-the-first-occurrence-again",
       "path": "scripts/mutation_check/run.py",
-      "symbol": "run",
+      "symbol": "_mutate",
       "operator": "splice-by-first-occurrence",
       "find": "        mutated = text[: anchor.offset] + anchor.replace + text[anchor.offset + len(anchor.find) :]",
       "replace": "        mutated = text.replace(anchor.find, anchor.replace, 1)",
@@ -4262,10 +4262,10 @@
     {
       "id": "w7-the-definition-walk-stops-descending-into-blocks",
       "path": "scripts/mutation_check/anchor.py",
-      "symbol": "_qualified_definitions",
+      "symbol": "_WALK",
       "operator": "skip-block-bodies",
-      "find": "            elif isinstance(child, BLOCK_STATEMENTS):",
-      "replace": "            elif isinstance(child, ()):",
+      "find": "    **{block: _descend for block in BLOCK_STATEMENTS},",
+      "replace": "    **{block: _descend for block in ()},",
       "test": [
         "{python}",
         "-m",

@@ -26,6 +26,7 @@ from scripts.mutation_check.schema import (  # noqa: E402
     DEFAULT_EXEMPTIONS,
     DEFAULT_WALL_BUDGET_SECONDS,
     DERIVED_AT_KEY,
+    EXIT_REFUSED,
     HUNK,
     LOCK_PATH,
     REPO_ROOT,
@@ -116,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
             return _claims_for(args.claims.resolve(), args.claims_for)
         except RuntimeError as error:
             print(f"mutation-check configuration error: {error}", file=sys.stderr)
-            return 2
+            return EXIT_REFUSED
     if args.base is None:
         parser.error("--base is required unless --claims-for is given")
     try:
@@ -129,7 +130,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     except RuntimeError as error:
         print(f"mutation-check configuration error: {error}", file=sys.stderr)
-        return 2
+        return EXIT_REFUSED
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Mapping
 
 from .schema import (
     BLOCK_STATEMENTS,
@@ -55,26 +55,56 @@ def _qualified_definitions(tree: ast.Module) -> dict[str, list[ast.AST]]:
 
     def walk(node: ast.AST, prefix: str) -> None:
         for child in ast.iter_child_nodes(node):
-            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                qualified = prefix + child.name
-                record(qualified, child)
-                walk(child, qualified + ".")
-                continue
-            # Module- and class-level bindings are anchorable too: ``r1-
-            # discriminator-weakened-to-a-bare-marker`` anchors on the
-            # ``DELIBERATE_PLACEMENT_SUFFIX`` constant, which has no def line.
-            if isinstance(child, ast.Assign):
-                for target in child.targets:
-                    if isinstance(target, ast.Name):
-                        record(prefix + target.id, child)
-            elif isinstance(child, ast.AnnAssign) and isinstance(child.target, ast.Name):
-                record(prefix + child.target.id, child)
-            elif isinstance(child, BLOCK_STATEMENTS):
-                # Same prefix: the block adds nesting, not a name.
-                walk(child, prefix)
+            step = _WALK.get(type(child))
+            if step is not None:
+                step(child, prefix, record, walk)
 
     walk(tree, "")
     return found
+
+
+Recorder = Callable[[str, ast.AST], None]
+Walker = Callable[[ast.AST, str], None]
+
+
+def _definition(child: ast.AST, prefix: str, record: Recorder, walk: Walker) -> None:
+    qualified = prefix + child.name
+    record(qualified, child)
+    walk(child, qualified + ".")
+
+
+def _assign(child: ast.AST, prefix: str, record: Recorder, walk: Walker) -> None:
+    # Module- and class-level bindings are anchorable too: ``r1-
+    # discriminator-weakened-to-a-bare-marker`` anchors on the
+    # ``DELIBERATE_PLACEMENT_SUFFIX`` constant, which has no def line.
+    for target in child.targets:
+        if isinstance(target, ast.Name):
+            record(prefix + target.id, child)
+
+
+def _ann_assign(child: ast.AST, prefix: str, record: Recorder, walk: Walker) -> None:
+    if isinstance(child.target, ast.Name):
+        record(prefix + child.target.id, child)
+
+
+def _descend(child: ast.AST, prefix: str, record: Recorder, walk: Walker) -> None:
+    # Same prefix: the block adds nesting, not a name.
+    walk(child, prefix)
+
+
+#: What the definition walk does with each child node KIND. Looked up on
+#: ``type(child)`` — a parsed tree never holds a subclass of a node class, so
+#: that equals ``isinstance`` here; a kind with no row is walked past, as
+#: before. ``BLOCK_STATEMENTS`` (``schema``) stays the vocabulary of block
+#: kinds, and this table is its only reader.
+_WALK: Mapping[type[ast.AST], Callable[[ast.AST, str, Recorder, Walker], None]] = {
+    ast.FunctionDef: _definition,
+    ast.AsyncFunctionDef: _definition,
+    ast.ClassDef: _definition,
+    ast.Assign: _assign,
+    ast.AnnAssign: _ann_assign,
+    **{block: _descend for block in BLOCK_STATEMENTS},
+}
 
 
 def _line_offsets(text: str) -> list[int]:

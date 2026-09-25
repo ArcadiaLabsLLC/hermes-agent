@@ -18,7 +18,16 @@ import time
 from typing import Any
 
 from .anchor import _anchor_or_raise, _read_source
-from .schema import ANCHOR_KEY, DERIVED_AT_KEY, LOCK_PATH, REPO_ROOT, SELECTION_KEY
+from .schema import (
+    ANCHOR_KEY,
+    DERIVED_AT_KEY,
+    EXIT_REFUSED,
+    EXIT_SURVIVED,
+    LOCK_PATH,
+    REPO_ROOT,
+    SELECTED_BY_SYMBOL,
+    SELECTION_KEY,
+)
 from .selection import (
     _changed_sources,
     _commits_since_derivation,
@@ -141,7 +150,7 @@ def _refuse_because_locked() -> int:
         "\n```\n" + held + "\n```",
         file=sys.stderr,
     )
-    return 2
+    return EXIT_REFUSED
 
 
 def _over_budget(started: float, wall_budget_seconds: float) -> bool:
@@ -170,30 +179,31 @@ def _refuse_over_budget(
         "passes its own, e.g. --wall-budget-seconds 1800), or split the diff",
         file=sys.stderr,
     )
-    return 2
+    return EXIT_REFUSED
 
 
-def run(
+def _print_report(
+    claims: list[dict[str, Any]],
+    unselected: list[dict[str, Any]],
     base: str,
-    claims_path: Path,
-    exemptions_path: Path,
     wall_budget_seconds: float,
     list_only: bool,
-) -> int:
-    started = time.monotonic()
-    _validate_exemptions(exemptions_path)
-    claims, unselected = _partition_claims(base, claims_path)
-    # REPORTED, never asserted (ruled 2026-09-04). The trailing parenthetical is
-    # load-bearing in a way the number is not: CI's selector greps
-    # `^mutation candidates: 0 ` — with the trailing space — to decide whether to
-    # install the test environment at all, so this line keeps a token after the
-    # count whatever the bound is called.
+) -> None:
+    """Print the report every lane reads, in its contract ORDER.
+
+    The candidates line is LINE 1 and stays it: CI's selector greps
+    ``^mutation candidates: 0 `` — with the trailing space — to decide whether
+    to install the test environment at all, so the line keeps a token after the
+    count whatever the bound is called, and every other line here is additive
+    and comes after it. The count is REPORTED, never asserted.
+    """
+
     print(
         f"mutation candidates: {len(claims)} "
         f"(reported, not capped; wall budget {wall_budget_seconds:.0f}s)"
     )
     for claim in claims:
-        via = " (selected by symbol)" if claim.get(SELECTION_KEY) == "symbol" else ""
+        via = " (selected by symbol)" if claim.get(SELECTION_KEY) == SELECTED_BY_SYMBOL else ""
         print(
             f"  {claim['id']}: {claim['path']}::{claim['symbol']} "
             f"[{claim['operator']}]{via}"
@@ -201,15 +211,10 @@ def run(
     # The census that makes a ZERO attributable. A registration-gated gate is
     # silent in two completely different situations — "this diff touched no
     # production source" and "this diff touched seven and nobody registered a
-    # claim for any of them" — and until this line they printed the same
-    # `mutation candidates: 0` and CI skipped identically. Measured on S5, which
-    # landed with zero executable claims (`--base 748687daa3^ --list` -> 0) and
-    # looked exactly like a slice that needed nothing.
-    #
-    # Reported, never enforced: whether a changed source MUST carry a claim is a
-    # policy question with a real answer for some files and no answer for
-    # others, and a gate that guesses it would be turned off inside a week. This
-    # only refuses to let the two zeros look alike.
+    # claim for any of them" — and this line refuses to let the two zeros look
+    # alike. Reported, never enforced: whether a changed source MUST carry a
+    # claim is a policy question with a real answer for some files and no
+    # answer for others, and a gate that guesses it would be turned off.
     changed_sources = _changed_sources(base)
     registered_paths = {
         str(claim["path"]).replace("\\", "/") for claim in (*claims, *unselected)
@@ -232,15 +237,11 @@ def run(
                 f"RE-ANCHORED: {claim['id']} ({claim['path']}::{claim['symbol']} "
                 f"re-indented {anchor.shift:+d} columns)"
             )
-    # The QUIET failure, made visible. A needle that stopped occurring is a
-    # configuration error nobody can miss; a needle that still resolves after a
-    # semantic edit runs a mutation nobody re-derived, and until this line the
-    # run said nothing at all about that. Only for the SELECTED claims: this is
-    # a prompt about work this run is actually doing.
-    #
-    # A WARNING and never a failure (ruled 2026-09-04), and printed on stdout
-    # beside the rest of the report rather than on stderr, because it is not an
-    # error channel — it is a line a reader of a GREEN run is meant to read.
+    # The QUIET failure, made visible: a needle that still resolves after a
+    # semantic edit runs a mutation nobody re-derived. Only for the SELECTED
+    # claims — a prompt about work this run is actually doing — and a WARNING
+    # on stdout, never a failure: it is a line a reader of a GREEN run is meant
+    # to read, not an error channel.
     for claim in claims:
         moved = _commits_since_derivation(claim)
         if moved:
@@ -254,19 +255,18 @@ def run(
         # Only under ``--list``, which is the inventory lane. A real run prints
         # what it is about to mutate and nothing else; this is for the reader
         # asking "and what did this diff NOT put on the hook".
-        #
-        # AFTER the candidate line and never instead of it: CI branches on
-        # ``^mutation candidates: 0 `` to decide whether to install the test
-        # environment at all, so these rows are additive and that line keeps
-        # its meaning.
         for claim in unselected:
             print(f"UNSELECTED (0 changed lines): {claim['id']}")
-    # Reported for BOTH lanes and always by name, because the whole point is
-    # that this claim is accounted for on a host that cannot run it. The
-    # alternative is what the queue row measured: a hand-run on this host is
-    # permanently one known SURVIVED away from green, which is exactly the
-    # "silence looks like success" state the gate exists to prevent — except
-    # here the noise looks like failure and gets learned as background.
+
+
+def _runnable(claims: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The selected claims this host can run; the rest are reported BY NAME.
+
+    Reported for both lanes because the whole point is that the claim is
+    accounted for on a host that cannot run it — a hand-run here must not be
+    permanently one known SURVIVED away from green.
+    """
+
     here = _current_platform()
     runnable: list[dict[str, Any]] = []
     for claim in claims:
@@ -278,71 +278,93 @@ def run(
             )
         else:
             runnable.append(claim)
+    return runnable
+
+
+def _mutate(
+    runnable: list[dict[str, Any]], started: float, wall_budget_seconds: float
+) -> tuple[int | None, list[str]]:
+    """Baselines, then one spliced mutant per claim; runs UNDER the lock.
+
+    Returns ``(refusal, survivors)``: a refusal exit code when a baseline failed
+    or the budget ran out between claims, else ``None`` and the ids whose
+    mutant left their test green. Every file it rewrites is restored in a
+    ``finally`` before the next claim.
+    """
+
+    commands: dict[tuple[str, ...], list[str]] = {}
+    for claim in runnable:
+        command = _command(claim)
+        commands.setdefault(tuple(command), command)
+    for command in commands.values():
+        print(f"BASELINE: {' '.join(command)}")
+        if _run_command(command) != 0:
+            print("baseline failed; mutation result would be meaningless", file=sys.stderr)
+            return EXIT_REFUSED, []
+
+    survivors: list[str] = []
+    for done, claim in enumerate(runnable):
+        # Checked between claims and never inside one: a run that stopped
+        # mid-mutation would be a run that left a spliced file on disk,
+        # which is the one thing this gate may never do.
+        if _over_budget(started, wall_budget_seconds):
+            return _refuse_over_budget(started, wall_budget_seconds, done, len(runnable)), []
+        target = REPO_ROOT / str(claim["path"])
+        original, text = _read_source(target)
+        anchor = claim[ANCHOR_KEY]
+        if text[anchor.offset : anchor.offset + len(anchor.find)] != anchor.find:
+            # The baseline run moved the file under us. Refusing beats splicing
+            # at an offset that now points somewhere else.
+            raise RuntimeError(f"{claim['id']}: {claim['path']} changed after the anchor resolved")
+        # Spliced at the anchor's offset, never ``str.replace``: uniqueness is a
+        # property of the SYMBOL now, so an identical line earlier in the file
+        # is legal — and would be the one a first-occurrence replace rewrote.
+        mutated = text[: anchor.offset] + anchor.replace + text[anchor.offset + len(anchor.find) :]
+        try:
+            target.write_text(mutated, encoding="utf-8", newline="")
+            print(f"MUTATE: {claim['id']}")
+            if _run_command(_command(claim)) == 0:
+                survivors.append(str(claim["id"]))
+            else:
+                print(f"KILLED: {claim['id']}")
+        finally:
+            target.write_bytes(original)
+    return None, survivors
+
+
+def run(
+    base: str,
+    claims_path: Path,
+    exemptions_path: Path,
+    wall_budget_seconds: float,
+    list_only: bool,
+) -> int:
+    started = time.monotonic()
+    _validate_exemptions(exemptions_path)
+    claims, unselected = _partition_claims(base, claims_path)
+    _print_report(claims, unselected, base, wall_budget_seconds, list_only)
+    runnable = _runnable(claims)
     if list_only or not runnable:
         return 0
-    # The budget is checked HERE, before the lock, for the reason the cap was:
-    # a refused run must hold nothing, or a run that stops for being too big
-    # leaves a lock behind for the split-up runs that follow it. It is checked
-    # after the ``--list`` return because the inventory lane runs no tests and
-    # so has nothing to bound — under the cap, a big diff could not even ask
-    # what it had selected, which is the one thing it needed to know.
+    # The budget is checked HERE, before the lock: a refused run must hold
+    # nothing. After the ``--list`` return, because the inventory lane runs no
+    # tests and so has nothing to bound.
     if _over_budget(started, wall_budget_seconds):
         return _refuse_over_budget(started, wall_budget_seconds, 0, len(runnable))
-
-    # Everything past here READS OR WRITES the tree, so everything past here is
-    # inside the lock — the baseline runs included. They do not mutate, but they
-    # are part of the same run and a second run's mutants would corrupt them
-    # exactly as they corrupt the mutation runs.
+    # Everything past here READS OR WRITES the tree — the baselines included —
+    # so everything past here is inside the lock.
     if not _acquire_gate_lock():
         return _refuse_because_locked()
     try:
-        commands: dict[tuple[str, ...], list[str]] = {}
-        for claim in runnable:
-            command = _command(claim)
-            commands.setdefault(tuple(command), command)
-        for command in commands.values():
-            print(f"BASELINE: {' '.join(command)}")
-            if _run_command(command) != 0:
-                print("baseline failed; mutation result would be meaningless", file=sys.stderr)
-                return 2
-
-        survivors: list[str] = []
-        for done, claim in enumerate(runnable):
-            # Checked between claims and never inside one: a run that stopped
-            # mid-mutation would be a run that left a spliced file on disk,
-            # which is the one thing this gate may never do. So the bound is
-            # honoured at the only safe boundary, and the overrun a single very
-            # slow claim can cause is bounded by that claim, not by the budget.
-            if _over_budget(started, wall_budget_seconds):
-                return _refuse_over_budget(
-                    started, wall_budget_seconds, done, len(runnable)
-                )
-            target = REPO_ROOT / str(claim["path"])
-            original, text = _read_source(target)
-            anchor = claim[ANCHOR_KEY]
-            if text[anchor.offset : anchor.offset + len(anchor.find)] != anchor.find:
-                # The baseline run moved the file under us. Refusing beats splicing
-                # at an offset that now points somewhere else.
-                raise RuntimeError(f"{claim['id']}: {claim['path']} changed after the anchor resolved")
-            # Spliced at the anchor's offset, never ``str.replace``: uniqueness is a
-            # property of the SYMBOL now, so an identical line earlier in the file
-            # is legal — and would be the one a first-occurrence replace rewrote.
-            mutated = text[: anchor.offset] + anchor.replace + text[anchor.offset + len(anchor.find) :]
-            try:
-                target.write_text(mutated, encoding="utf-8", newline="")
-                print(f"MUTATE: {claim['id']}")
-                if _run_command(_command(claim)) == 0:
-                    survivors.append(str(claim["id"]))
-                else:
-                    print(f"KILLED: {claim['id']}")
-            finally:
-                target.write_bytes(original)
+        refusal, survivors = _mutate(runnable, started, wall_budget_seconds)
     finally:
-        # Released on EVERY exit — including the RuntimeError above and a
+        # Released on EVERY exit — including a RuntimeError and a
         # KeyboardInterrupt — because a lock that outlives its run turns the
         # guard into the obstruction it exists to prevent.
         LOCK_PATH.unlink(missing_ok=True)
+    if refusal is not None:
+        return refusal
     if survivors:
         print(f"SURVIVED: {', '.join(survivors)}", file=sys.stderr)
-        return 1
+        return EXIT_SURVIVED
     return 0
