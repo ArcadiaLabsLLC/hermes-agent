@@ -1605,6 +1605,126 @@ def test_cancel_routes_terminal_work_through_the_registry_kill_seam(home, monkey
     assert seen["consume_output"] is False
 
 
+def _live_registry_session(status: str) -> list[dict]:
+    """One registry row for ``sess-live``, shaped as ``list_sessions`` emits it."""
+    return [
+        {
+            "session_id": "sess-live",
+            "command": "npm run dev",
+            "pid": os.getpid(),
+            "started_at": "2026-08-03T10:00:00",
+            "uptime_seconds": 30,
+            "status": status,
+            "output_preview": "",
+        }
+    ]
+
+
+@pytest.mark.parametrize("live_status", ["running", "exited"])
+def test_the_registry_exited_word_is_the_one_the_live_registry_writes(
+    home, monkeypatch, live_status
+):
+    """``REGISTRY_EXITED`` pinned by what the surface DOES with the registry's word.
+
+    ``tools.process_registry.ProcessRegistry.list_sessions`` writes the literal
+    ``"exited" if s.exited else "running"``; the test feeds that literal, not the
+    constant, so a re-spelt constant stops matching the registry. POSITIVE
+    CONTROL: the same durable row with the registry saying ``running`` survives.
+    KILLING MUTATION: ``REGISTRY_EXITED = "finished"`` — the exited arm keeps the
+    row and records no drop.
+    """
+
+    _write_checkpoint(
+        home,
+        [
+            {
+                "session_id": "sess-live",
+                "command": "npm run dev",
+                "pid": os.getpid(),
+                "pid_scope": "host",
+                "host_start_time": _self_start_time(),
+                "started_at": 1_800_000_000.0,
+            }
+        ],
+    )
+
+    class _Registry:
+        def list_sessions(self):
+            return _live_registry_session(live_status)
+
+    class _Module:
+        process_registry = _Registry()
+
+    real_module = running_work._module
+    _patch_bound(
+        monkeypatch,
+        "_module",
+        lambda name: _Module() if name == "tools.process_registry" else real_module(name),
+    )
+    accountant = ProjectionAccountant("running_work")
+
+    rows = _rows_of_kind(build_running_work(accountant), KIND_TERMINAL)
+
+    if live_status == "running":
+        assert [row["work_id"] for row in rows] == ["terminal:sess-live"]
+        assert "process_exited" not in accountant.summary()["reasons"]
+    else:
+        assert rows == []
+        assert accountant.summary()["reasons"]["process_exited"] == 1
+
+
+def test_the_kill_not_found_word_is_the_one_the_kill_seam_answers(home, monkeypatch):
+    """``KILL_NOT_FOUND`` pinned against the kill seam's OWN answer.
+
+    The registry below answers with ``tools.process_registry._not_found`` — the
+    function ``kill_process`` returns for a session it does not hold — so the
+    word is the upstream's, not a copy. POSITIVE CONTROL: the sibling
+    ``test_cancel_routes_terminal_work_through_the_registry_kill_seam`` answers
+    ``killed`` through the same fixture and reports ``cancelled``. KILLING
+    MUTATION: ``KILL_NOT_FOUND = "missing"`` — a not-found kill reports
+    ``cancelled``.
+    """
+
+    from tools.process_registry import _not_found
+
+    _write_checkpoint(
+        home,
+        [
+            {
+                "session_id": "sess-kill",
+                "command": "long build",
+                "pid": os.getpid(),
+                "pid_scope": "host",
+                "host_start_time": _self_start_time(),
+                "started_at": 1_800_000_000.0,
+            }
+        ],
+    )
+
+    class _Registry:
+        def get(self, session_id):
+            return object() if session_id == "sess-kill" else None
+
+        def kill_process(self, session_id, *, source, consume_output):
+            return _not_found(session_id)
+
+    class _Module:
+        process_registry = _Registry()
+
+    real_module = running_work._module
+    _patch_bound(
+        monkeypatch,
+        "_module",
+        lambda name: _Module() if name == "tools.process_registry" else real_module(name),
+    )
+
+    result = cancel_work("terminal:sess-kill")
+
+    assert result["status"] == "error"
+    assert result["code"] == "not_found"
+    assert result["result"] == "not_found"
+
+
 def test_cancelling_work_owned_by_another_process_says_so(home, monkeypatch):
     """A durable-visible row this process cannot kill is `cancel_unavailable`.
 
