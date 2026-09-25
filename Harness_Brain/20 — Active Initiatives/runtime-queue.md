@@ -109,6 +109,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 - [ ] **W0-G5's vocabulary arm reads every `StrEnum`/`Final` string member fork-wide as a routed word, so rule 14's typed reasons cannot be adopted for any vocabulary containing a common word** · `fork / gates` · measured by lane R3: `DemoteReason` (core_cache, "absent"/"unreadable") and `DiffScope` ("none") made 12 unrelated compares in `sync_merge`, `persona_assignments`, `realm_revert`, `harness_parts/level`/`map`/… NEW sites, and `OwnerState` (serve_socket, "absent"/"self") 5; the lanes kept the strings as constants. Fix the arm (scope arm (c) to compares against the enum's own members/type, or to the declaring module's readers) before asking the next lanes for enums · evidence: lane R3 commit messages `refactor(core_cache): INPUT_CLASSES…` and `refactor(serve_socket): RejectReason/LockOutcome…` (tree-over-sheet notes) · filed by lane R3 2026-09-25 **UNCLAIMED**
 - [ ] **`runtime.office.remove` and `runtime.office.resolve_conflict` translate `ArchiveUnreadable` with the CLASS code, so an `ActorsUnreadable` refusal names the archive copy instead of the file that failed** · `fork / runtime` · the upsert row reads `exc.code` and its comment states why a hard-coded constant misdirects the operator; the remove/resolve rows (`agent_runtime/serve_rpc/office_actor_writes.py::REMOVE_ERRORS`, `office_surface_writes.py::RESOLVE_CONFLICT_ERRORS`) kept `ArchiveUnreadable.code` byte-for-byte from the old cascades. One-token fix per row plus a test raising `ActorsUnreadable` through each verb · evidence: lane R3 serve_rpc CHANGE (the tables made the asymmetry visible side by side) · filed by lane R3 2026-09-25 **UNCLAIMED**
 
+### Filed on arrival — 2026-09-25 (lane S2B)
+
+- [ ] **the alice_supervisor ⇄ neko_supervisor alias is spelled four times with two directions** · `fork / config` · `terminal_envelope._ROLE_ALIASES`, `config._RUNTIME_DEFAULT_PERSONA_ALIASES`, inline in `chat_lane_restore_toolsets` and `mission_chat_workdir` → one `personas.persona_id_aliases` owner · evidence: `terminal_envelope.md` §3, `config.md` §2 · filed by lane S2B 2026-09-25 **UNCLAIMED**
+
+
 ## Seams — fork edits inside upstream files (additive only)
 
 ### Filed on arrival — 2026-09-24 (seam lane S2)
