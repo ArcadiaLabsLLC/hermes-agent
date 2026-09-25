@@ -10,6 +10,7 @@ from agent_runtime.skill_activity import skill_load_history
 from agent_runtime.skill_inspection import SkillInspectionError, SkillInspectionReason
 
 SKILLS_CAPABILITY = {"version": 1, "list": True, "detail": True, "loadActivity": True}
+__layer__ = "wiring"
 
 
 @contextmanager

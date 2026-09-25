@@ -11,6 +11,10 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Release validation — 2026-09-23
 
+- [ ] **Qualify the baseline gateway TLS/real-socket failure cluster.** · `fork / suite` · All skills-candidate failures reproduce on unchanged `120a7f5a36`; determine runtime versus fixture cause before changing either. Evidence: `docs/downstream/session-skills-verification.md`.
+- [ ] **Repair stale refactor fixtures and restore verified historical gate inputs.** · `fork / suite` · Scope-use serve and S41 references, absent `upstream/main`/tombstone base; no assertion weakening. Evidence: `docs/downstream/session-skills-verification.md`.
+- [ ] **Resolve the remaining import-time home witnesses in gateway mirror and TUI gateway.** · `fork / boundary` · Frozen-home gate fails identically on unchanged `120a7f5a36`. Evidence: `docs/downstream/session-skills-verification.md`.
+
 - [ ] **Sidebar cache concurrency and serve socket disconnect tests are flaky** · `fork / suite` · `test_projects_tree_coalesces_concurrent_scans_and_returns_copies` and `test_a_disconnect_unsubscribes_and_does_nothing_else` fail then pass bounded retries on the exact release merge; do not count retry success as stable proof · evidence: [[upstream-release-2026-09-23]] **UNCLAIMED** **TAKEN 2026-09-24 TESTS** · VERDICT 2026-09-24 (lane TESTS): sidebar half REFUTED — the test was purged in `4b67380698`. Disconnect half is DESIGN: the recorded red (`subscribers` 1 == 0 after `count` == 1) is NOT at the socket seam — a 0.5 s sleep before `_on_connection_closed`'s `_release_subscription`, and deleting that call outright, both stayed green (first poll already `count 1, subscribers 0`), so the hub drops the subscriber on another path; find that path, then poll for both halves before asserting (a both-halves wait was drafted and withdrawn because no mutation could red it)
 
 ## Filed on the move — 2026-09-22 (fork rows the launcher queue had carried since 2026-09-02)

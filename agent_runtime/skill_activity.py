@@ -1,6 +1,8 @@
 """Evidence of skill loads, never a claim about the model's ongoing reasoning."""
 import json
 
+__layer__ = "policy"
+
 
 def object_value(value) -> dict:
     if isinstance(value, dict):
