@@ -32,10 +32,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - [ ] **H3 — `hermes harness realm sync revert <realm> --to <sha> [--item …|--all]`: reconcile the local store against that commit's subtree through the pull arms with the same outcome vocabulary; upstream HEAD unchanged; the launcher already sends `--to` and degrades on "unrecognized arguments"** · `agent_runtime/realm_sync.py`
 - [ ] **H4 — no per-row local edit journal: a local edit shows the row's `updated_at` via H1, else "since last sync" — record the decision, build nothing** · decision row
 
-### Filed on arrival — 2026-09-25 (lane MERGE, filed by the orchestrator)
-
-- [ ] **`agent_runtime/local_llama_adapter/{engine,setup}.py` import six `hermes_cli.local_runtime.binaries` names upstream `27df3b8847` deleted (`server_binary`, `default_tag`, `resolve_assets`, `installed_tags`, `manifest_verified`, `ensure_runtime_installed`) — four tests red on the merge candidate at `d0a074a395`; the merge cannot land until the adapter is re-seated onto upstream's `binaries.installed_engine` / `ensure_engine`** · `fork / local llama` · re-seat C of the 2026-09-25 merge, same shape as re-seats A/B (`docs/agent-runtime-harness/planned/upstream-merge-2026-09-25-design.md` §2); the design note missed it because it looked for deleted MODULES, not deleted names · evidence: lane MERGE report 2026-09-25, `X:/wt/h-merge2/.lane-logs/` · filed 2026-09-25 **TAKEN 2026-09-25 lane MERGE**
-
 ### Filed on arrival — 2026-09-25 (program-end suite, filed by the orchestrator)
 
 - [ ] **`agent_runtime/kanban_blocked_pm_tick.py` imports `hermes_cli.kanban_blocked_pm` (two deferred imports), so `tests/agent_runtime/test_no_kanban_dependency.py::test_agent_runtime_imports_no_kanban_modules` is red on `main` since `7d28e958ad` (2026-09-24, the blocked-card PM router riding upstream's dispatch tick)** · `fork / runtime` · either the tick module moves out of `agent_runtime` to the kanban lane that owns it, or the gate's rule changes with a recorded reason — not a third option · evidence: `X:/wt/_holds/gates-0925/rerun.log` · filed 2026-09-25 **UNCLAIMED**
