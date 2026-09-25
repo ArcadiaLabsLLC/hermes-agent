@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 from types import SimpleNamespace
 from tests._downstream import hermes_cli_conftest as package_conftest
+from tests._downstream.hermes_cli_conftest import hooks as conftest_hooks
 import hermes_cli.commands_platforms as commands_module
 from hermes_cli.commands_platforms import _SLACK_RESERVED_COMMANDS, _SLACK_VIA_HERMES_ONLY, slack_native_slashes
 from hermes_cli.commands_platforms import slack_clamped_slashes
@@ -128,7 +129,7 @@ class TestKnownDefectFence:
         fenced AND unexplained.
         """
         recorded: list[str] = []
-        monkeypatch.setattr(package_conftest, "_KNOWN_DEFECT_FAILURES", recorded)
+        monkeypatch.setattr(conftest_hooks, "_KNOWN_DEFECT_FAILURES", recorded)
         node = (
             "tests/hermes_cli/test_commands.py"
             "::TestSlackNativeSlashes::test_telegram_parity"

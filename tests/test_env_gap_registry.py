@@ -60,9 +60,19 @@ def _registry_module_path(directory: str) -> Path:
     root ``conftest.py``); a directory without one still reads its own
     conftest. Reading only the upstream conftest after that move made every
     check here SKIP — green by blindness (fork-hygiene 2026-09-24).
+
+    A fence may also be a PACKAGE (``tests/_downstream/<directory>_conftest/``,
+    lane B5): its ``__init__.py`` is the object the root conftest registers and
+    binds the registry, so it is the file to exec. Without this arm a packaged
+    fence fell back to the upstream conftest and went blind the same way.
     """
     downstream = TESTS_ROOT / "_downstream" / f"{directory}_conftest.py"
-    return downstream if downstream.is_file() else TESTS_ROOT / directory / "conftest.py"
+    if downstream.is_file():
+        return downstream
+    package = TESTS_ROOT / "_downstream" / f"{directory}_conftest" / "__init__.py"
+    if package.is_file():
+        return package
+    return TESTS_ROOT / directory / "conftest.py"
 
 
 def _exec_registry_module(directory: str, prefix: str):
@@ -104,6 +114,23 @@ def _this_host_carries_the_gaps() -> bool:
         if loaded is not None and firing_skip_rows(loaded[0]):
             return True
     return False
+
+
+@pytest.mark.parametrize("directory", _FENCED_DIRS)
+def test_every_fenced_directory_is_found(directory: str) -> None:
+    """POSITIVE CONTROL for the two checks below: a directory with a fork fence
+    — a flat ``<dir>_conftest.py`` or a ``<dir>_conftest/`` package — is READ
+    from it, and one that carries a registry yields it. A ``skip`` in the checks
+    below is otherwise indistinguishable from a fence nobody looked at."""
+
+    flat = TESTS_ROOT / "_downstream" / f"{directory}_conftest.py"
+    package = TESTS_ROOT / "_downstream" / f"{directory}_conftest" / "__init__.py"
+    if not (flat.is_file() or package.is_file()):
+        pytest.skip(f"tests/{directory} has no fork fence")
+    assert _registry_module_path(directory) in {flat, package}
+    if directory == "hermes_cli":
+        # The one fence that carries a probe-backed registry today.
+        assert _load_registry(directory) is not None
 
 
 @pytest.mark.parametrize("directory", _FENCED_DIRS)

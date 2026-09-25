@@ -1,7 +1,5 @@
 {
  "ceiling": 800,
  "counter": "code lines: non-blank, not '#'-led, docstrings count (ruling Q1)",
- "files": {
-  "tests/_downstream/hermes_cli_conftest.py": 893
- }
+ "files": {}
 }
