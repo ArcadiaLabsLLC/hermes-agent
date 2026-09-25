@@ -700,3 +700,17 @@ class Incident:
     closed_at: datetime | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     schema_version: int = 1
+
+
+#: ``Realm.agent_publish_mode``'s two values. Named because ``workspace`` is also
+#: a realm-sync family (``realm_sync.families.SyncFamily``), and W0-G5 refuses a
+#: bare literal compare against a declared vocabulary's word.
+REALM_AGENT_PUBLISH_MODES = ("workspace", "selected")
+
+
+def validate_agent_publish_mode(mode: str) -> None:
+    """Refuse a mode ``Realm.agent_publish_mode`` does not know (the store's
+    selection chokepoint asks this before it writes)."""
+
+    if mode not in REALM_AGENT_PUBLISH_MODES:
+        raise ValueError(f"invalid agent_publish_mode: {mode!r}")

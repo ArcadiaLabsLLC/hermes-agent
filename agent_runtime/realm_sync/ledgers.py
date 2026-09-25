@@ -7,6 +7,7 @@ lifts; plus the ledger's receipt rows for the status envelope.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
@@ -28,6 +29,7 @@ __layer__ = "policy"
 __all__ = [
     "_REALM_AUTHORITY_FIELDS",
     "_UNIONED_REALM_LEDGERS",
+    "_merge_state_register",
     "_newer_tombstone_row",
     "_skill_tombstone_rows",
     "_tombstone_transition_at",
@@ -157,28 +159,44 @@ def merge_skill_tombstone_ledgers(
     keeps) and bounded by the shared settled-first rule.
     """
 
+
+    return _merge_state_register(
+        local,
+        incoming,
+        key="slug",
+        cap=SKILL_TOMBSTONE_LEDGER_CAP,
+        settled=lambda row: _ledger_time(row.get("restored_at")) is not None,
+    )
+
+
+def _merge_state_register(
+    local: Any, incoming: Any, *, key: str, cap: int, settled: Callable[[dict[str, Any]], bool]
+) -> list[dict[str, Any]]:
+    """The ONE body behind both per-key state-register ledgers (skill tombstones,
+    workspace lifts): newest-transition-wins per ``row[key]``, rows that are not
+    dicts or carry no usable key dropped, output oldest-transition-first and
+    bounded by the shared settled-first rule. The two ledgers differ only in the
+    key, the cap and what "settled" means, so those are the parameters — and the
+    tie rule cannot drift between them."""
+
     merged: dict[str, dict[str, Any]] = {}
     for rows in (local, incoming):
         for row in rows if isinstance(rows, list) else []:
             if not isinstance(row, dict):
                 continue
-            slug = str(row.get("slug") or "").strip()
-            if not slug:
+            ident = str(row.get(key) or "").strip()
+            if not ident:
                 continue
-            held = merged.get(slug)
-            merged[slug] = dict(row) if held is None else _newer_tombstone_row(held, dict(row))
+            held = merged.get(ident)
+            merged[ident] = dict(row) if held is None else _newer_tombstone_row(held, dict(row))
     ordered = sorted(
         merged.values(),
         key=lambda row: (
             _tombstone_transition_at(row) or datetime.min.replace(tzinfo=timezone.utc),
-            str(row.get("slug") or ""),
+            str(row.get(key) or ""),
         ),
     )
-    return prune_settled_ledger(
-        ordered,
-        cap=SKILL_TOMBSTONE_LEDGER_CAP,
-        settled=lambda row: _ledger_time(row.get("restored_at")) is not None,
-    )
+    return prune_settled_ledger(ordered, cap=cap, settled=settled)
 
 
 def merge_workspace_lift_ledgers(local: Any, incoming: Any) -> list[dict[str, Any]]:
@@ -201,27 +219,11 @@ def merge_workspace_lift_ledgers(local: Any, incoming: Any) -> list[dict[str, An
     a live workspace.
     """
 
-    merged: dict[str, dict[str, Any]] = {}
-    for rows in (local, incoming):
-        for row in rows if isinstance(rows, list) else []:
-            if not isinstance(row, dict):
-                continue
-            workspace_id = str(row.get("workspace_id") or "").strip()
-            if not workspace_id:
-                continue
-            held = merged.get(workspace_id)
-            merged[workspace_id] = (
-                dict(row) if held is None else _newer_tombstone_row(held, dict(row))
-            )
-    ordered = sorted(
-        merged.values(),
-        key=lambda row: (
-            _tombstone_transition_at(row) or datetime.min.replace(tzinfo=timezone.utc),
-            str(row.get("workspace_id") or ""),
-        ),
-    )
-    return prune_settled_ledger(
-        ordered,
+
+    return _merge_state_register(
+        local,
+        incoming,
+        key="workspace_id",
         cap=DELETED_WORKSPACE_LEDGER_CAP,
         settled=lambda row: not workspace_lift_is_active(row),
     )

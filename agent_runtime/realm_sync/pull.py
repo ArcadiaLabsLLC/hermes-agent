@@ -6,8 +6,10 @@ Also the secret scan both verbs run and the realm-JSON ledger reconciliation.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final, NamedTuple
 
 from agent_runtime.profile_home import get_shared_skills_dir
 
@@ -26,7 +28,7 @@ from .models import (
     RealmSyncError,
     _canonicalize_text_bytes,
 )
-from .families import _is_hard_excluded_path, _is_secretish_path
+from .families import SyncFamily, _is_hard_excluded_path, _is_secretish_path
 from .ledgers import (
     _REALM_AUTHORITY_FIELDS,
     _UNIONED_REALM_LEDGERS,
@@ -50,11 +52,27 @@ from .skill_inbox import apply_skill_inbox_pull
 
 __layer__ = "lanes"
 __all__ = [
+    "PULL_APPLIERS",
+    "PullApplier",
+    "_PullRun",
     "_apply_skill_tombstones",
     "_apply_workspace_tombstones",
     "_artifact_contains_secret_assignment",
     "_assert_no_secret_artifacts",
     "_file_contains_secret_assignment",
+    "_overwrite_generic_families",
+    "_pull_accounting",
+    "_pull_boards",
+    "_pull_flow_graphs",
+    "_pull_level",
+    "_pull_map",
+    "_pull_office",
+    "_pull_persona_config",
+    "_pull_persona_instances",
+    "_pull_profile_files",
+    "_pull_skill_inbox",
+    "_pull_skill_tombstones",
+    "_pull_workspace_tombstones",
     "_pulled_artifact_bytes",
     "pull_realm_sync",
 ]
@@ -67,6 +85,9 @@ def pull_realm_sync(
     membership: RealmMembershipProvider | None = None,
     credential: "RealmSyncCredential | None" = None,
 ) -> dict[str, Any]:
+    """Pull this realm: the generic overwrite loop, then every applier in
+    ``PULL_APPLIERS`` order, then the skill reconcile and the report."""
+
     realm = RealmStore().get(realm_id)
     _authorize(realm, "pull", membership, credential)
     repo = _ensure_sync_repo(realm, credential=credential)
@@ -80,6 +101,39 @@ def pull_realm_sync(
     _assert_no_secret_artifacts(artifacts)
     if dry_run:
         return _sync_result(realm, "pull", "dry_run", artifacts, repo=repo, git=_git_state(repo), changed=False)
+    run = _PullRun(realm=realm, subtree=subtree, changed=_overwrite_generic_families(artifacts, realm=realm))
+    for applier in PULL_APPLIERS:
+        if applier.apply(run):
+            run.changed = True
+    install_results = [
+        *install_harness_skills(skills=sorted(HARNESS_SKILLS)),
+        *install_harness_skills_for_personas(ensure_persisted_personas(load_agent_runtime_config())),
+    ]
+    _write_timestamp(repo, "last_pull.txt")
+    git_after = _git_state(repo)
+    result = _sync_result(run.realm, "pull", "pulled", artifacts, repo=repo, git=git_after, changed=run.changed)
+    result.update(_pull_accounting(run, install_results))
+    _write_sync_sidecar(
+        run.realm,
+        repo=repo,
+        git=git_after,
+        skills_drift=run.skill.held,
+        artifacts=artifacts,
+        profile_artifacts_held=sorted(set(run.profile_files.held)),
+    )
+    _append_realm_sync_event(
+        "realm.sync.pulled",
+        run.realm,
+        changed=run.changed,
+        artifacts=len(artifacts),
+    )
+    return result
+
+
+def _overwrite_generic_families(artifacts: list[RealmSyncArtifact], *, realm: Realm) -> bool:
+    """The generic overwrite loop: every artifact with a destination (only the
+    store-record families have one — ``families.SYNC_PATH_FAMILIES``)."""
+
     changed = False
     for artifact in artifacts:
         artifact.destination.parent.mkdir(parents=True, exist_ok=True)
@@ -91,21 +145,59 @@ def pull_realm_sync(
         if before is None or _canonicalize_text_bytes(before) != _canonicalize_text_bytes(data):
             artifact.destination.write_bytes(data)
             changed = True
+    return changed
+
+
+@dataclass
+class _PullRun:
+    """One pull's working state, handed to every applier in turn: the realm
+    record the appliers decide against (re-read by the skill lane, see
+    ``_pull_skill_inbox``), the pulled subtree, and each applier's summary."""
+
+    realm: Realm
+    subtree: Path
+    changed: bool = False
+    board: Any = None
+    office: Any = None
+    level: Any = None
+    map: Any = None
+    skill: Any = None
+    skill_tombstones: dict[str, list] | None = None
+    persona: Any = None
+    profile_files: Any = None
+    instance: Any = None
+    flow_graph: Any = None
+    workspace_tombstones: dict[str, list] | None = None
+
+
+class PullApplier(NamedTuple):
+    """One family's pull: ``apply`` records its summary on the run and answers
+    whether it changed anything."""
+
+    name: str
+    apply: Callable[[_PullRun], bool]
+
+
+def _pull_boards(run: _PullRun) -> bool:
     # Mission Board: board card files are excluded from the generic overwrite
-    # loop above (_destination_for_sync_path returns None for store/boards/*);
-    # apply the per-card LWW decision table + baseline + conflict sidecars here.
+    # loop (_destination_for_sync_path returns None for store/boards/*); apply
+    # the per-card LWW decision table + baseline + conflict sidecars here.
     from ..board_sync import apply_board_pull
 
-    board_summary = apply_board_pull(realm.id, subtree)
-    if board_summary.adopted or board_summary.converged or board_summary.archived:
-        changed = True
+    run.board = apply_board_pull(run.realm.id, run.subtree)
+    return bool(run.board.adopted or run.board.converged or run.board.archived)
+
+
+def _pull_office(run: _PullRun) -> bool:
     # Mission Office: same exclusion (store/office/*), same shape — the
     # per-actor 3-way baseline merge owns the office pull (plan §5).
     from ..office_sync import apply_office_pull
 
-    office_summary = apply_office_pull(realm.id, subtree)
-    if office_summary.adopted or office_summary.converged or office_summary.archived:
-        changed = True
+    run.office = apply_office_pull(run.realm.id, run.subtree)
+    return bool(run.office.adopted or run.office.converged or run.office.archived)
+
+
+def _pull_level(run: _PullRun) -> bool:
     # The workspace LEVEL: same exclusion (store/levels/* ->
     # _destination_for_sync_path None), same whole-document 3-way shape as the
     # canvas. It stands HERE — after the generic loop that materialized
@@ -117,9 +209,11 @@ def pull_realm_sync(
     # above: a level is addressed BY a workspace.
     from ..level_sync import apply_level_pull
 
-    level_summary = apply_level_pull(realm.id, subtree)
-    if level_summary.changed:
-        changed = True
+    run.level = apply_level_pull(run.realm.id, run.subtree)
+    return bool(run.level.changed)
+
+
+def _pull_map(run: _PullRun) -> bool:
     # The MAP CATALOGUE: same exclusion (store/maps/* ->
     # _destination_for_sync_path None), same whole-document 3-way shape. It has
     # no ordering argument against the workspace records — a map is addressed by
@@ -129,9 +223,11 @@ def pull_realm_sync(
     # both families have landed.
     from ..map_sync import apply_map_pull
 
-    map_summary = apply_map_pull(realm.id, subtree)
-    if map_summary.changed:
-        changed = True
+    run.map = apply_map_pull(run.realm.id, run.subtree)
+    return bool(run.map.changed)
+
+
+def _pull_skill_inbox(run: _PullRun) -> bool:
     # Realm skills: excluded from the generic loop too (skills/* →
     # _destination_for_sync_path None). Mirror them into the resolver-invisible
     # per-realm inbox and admit them to the canonical root only through the one
@@ -139,24 +235,23 @@ def pull_realm_sync(
     # Re-read first: the overwrite loop above may have replaced the realm record
     # with the publisher's snapshot, so the skill lane must decide against the
     # ledger that just ARRIVED, not the one this pull started with (the same
-    # reason ``_apply_workspace_tombstones`` re-reads). Every use of ``realm``
-    # below — sidecar, result, event — wants the pulled record too.
-    realm = RealmStore().get(realm.id)
-    skill_summary = apply_skill_inbox_pull(realm, subtree)
-    if (
-        skill_summary.adopted
-        or skill_summary.updated
-        or skill_summary.removed
-        or skill_summary.tombstoned
-    ):
-        changed = True
+    # reason ``_apply_workspace_tombstones`` re-reads). Every use of the realm
+    # after this — sidecar, result, event — wants the pulled record too.
+    run.realm = RealmStore().get(run.realm.id)
+    run.skill = apply_skill_inbox_pull(run.realm, run.subtree)
+    return bool(run.skill.adopted or run.skill.updated or run.skill.removed or run.skill.tombstoned)
+
+
+def _pull_skill_tombstones(run: _PullRun) -> bool:
     # Skill deletions: archive the local canonical copy of anything the pulled
     # ledger blocks. AFTER the inbox applier (the archive must not race the
     # promotion loop's occupancy guard) and BEFORE install_harness_skills (a
     # no-op for tombstonable slugs, but the order is the argument).
-    skill_tombstone_summary = _apply_skill_tombstones(realm)
-    if skill_tombstone_summary["archived"]:
-        changed = True
+    run.skill_tombstones = _apply_skill_tombstones(run.realm)
+    return bool(run.skill_tombstones["archived"])
+
+
+def _pull_persona_config(run: _PullRun) -> bool:
     # Persona definitions: excluded from the generic loop too
     # (profiles/<name>/config.yaml → _destination_for_sync_path None). The member's
     # config is merged key-wise against a never-synced baseline — the realm owns
@@ -164,9 +259,11 @@ def pull_realm_sync(
     # authored, and divergent definitions are HELD, never clobbered.
     from ..persona_config_sync import apply_persona_config_pull
 
-    persona_summary = apply_persona_config_pull(realm.id, subtree)
-    if persona_summary.changed:
-        changed = True
+    run.persona = apply_persona_config_pull(run.realm.id, run.subtree)
+    return bool(run.persona.changed)
+
+
+def _pull_profile_files(run: _PullRun) -> bool:
     # Profile FILES (MEMORY.md, core context, persona prompts): excluded from the
     # generic loop too (``profiles/*`` and ``store/profile_files/*`` →
     # ``_destination_for_sync_path`` None). These were the last four kinds still
@@ -176,22 +273,17 @@ def pull_realm_sync(
     # whenever their content diverged, and never delete.
     from ..profile_artifact_sync import apply_profile_artifact_pull
 
-    profile_files_summary = apply_profile_artifact_pull(realm.id, subtree)
-    if profile_files_summary.changed:
-        changed = True
+    run.profile_files = apply_profile_artifact_pull(run.realm.id, run.subtree)
+    return bool(run.profile_files.changed)
+
+
+def _pull_persona_instances(run: _PullRun) -> bool:
     # Persona INSTANCES — THE mint door. A pulled desk whose agent does not exist
     # on this machine gets one (the operator's 2026-08-31 ruling; the
     # instance-replication plan §3.1). Excluded from the generic loop like every
     # other family here (``store/persona_instances.yaml`` →
     # ``_destination_for_sync_path`` None), because the write is a STORE door —
     # a raw file write would produce a replica no live consumer ever hears about.
-    #
-    # The position in this sequence is the argument, not a preference. AFTER the
-    # persona-definition and profile-file lanes, because the mint reads the
-    # definition to derive ``role``/``profile_id`` and a mint from a definition
-    # that has not landed yet builds the wrong agent. BEFORE the workspace
-    # tombstone lane directly below, so a replica is never minted into a
-    # workspace this same pull is about to archive.
     from ..persona_instance_sync import apply_persona_instance_pull
 
     # §5.2 retire-follows-the-DESK: the actor keys the OFFICE lane archived in
@@ -203,14 +295,16 @@ def pull_realm_sync(
     # mistake available in this lane.
     desks_removed = [
         row["actor_key"]
-        for row in (office_summary.archive_outcomes or [])
+        for row in (run.office.archive_outcomes or [])
         if row.get("outcome") == "archived" and row.get("actor_key")
     ]
-    instance_summary = apply_persona_instance_pull(
-        realm.id, subtree, desks_removed=desks_removed
+    run.instance = apply_persona_instance_pull(
+        run.realm.id, run.subtree, desks_removed=desks_removed
     )
-    if instance_summary.changed:
-        changed = True
+    return bool(run.instance.changed)
+
+
+def _pull_flow_graphs(run: _PullRun) -> bool:
     # The CANVAS, immediately AFTER the mint door and never before it. Owner
     # liveness is what decides whether a stored canvas is an operator's drawing
     # or an orphan addressed to an agent that no longer exists, so a canvas that
@@ -219,84 +313,95 @@ def pull_realm_sync(
     # this same pass was about to satisfy. The ordering is pinned by a test.
     from ..flow_graph_sync import apply_flow_graph_pull
 
-    flow_graph_summary = apply_flow_graph_pull(realm.id, subtree)
-    if flow_graph_summary.changed:
-        changed = True
+    run.flow_graph = apply_flow_graph_pull(run.realm.id, run.subtree)
+    return bool(run.flow_graph.changed)
+
+
+def _pull_workspace_tombstones(run: _PullRun) -> bool:
     # Workspace deletions: honor the pulled realm's deleted_workspace_ids
     # resurrection-guard ledger so a member's surviving local copy neither
     # lingers nor republishes a workspace another member deleted.
-    tombstone_summary = _apply_workspace_tombstones(realm.id)
-    if tombstone_summary["deleted"] or tombstone_summary["archived"]:
-        changed = True
-    install_results = [
-        *install_harness_skills(skills=sorted(HARNESS_SKILLS)),
-        *install_harness_skills_for_personas(ensure_persisted_personas(load_agent_runtime_config())),
-    ]
-    _write_timestamp(repo, "last_pull.txt")
-    git_after = _git_state(repo)
-    result = _sync_result(realm, "pull", "pulled", artifacts, repo=repo, git=git_after, changed=changed)
-    result["board_sync"] = board_summary.as_dict()
-    result["office_sync"] = office_summary.as_dict()
-    result["skill_sync"] = skill_summary.as_dict()
-    # Emitted UNCONDITIONALLY for the reason the two rows below are: an omitted
-    # key cannot tell "this realm publishes no level" apart from "this ack came
-    # from a hermes with no level family", and the launcher's version-skew rule
-    # (L1/L2) has to tell those two apart. ``source: null`` inside it is the
-    # first of those.
-    result["level_sync"] = level_summary.as_dict()
-    # Unconditional for the key above it's reason, and the launcher's adapter
-    # reads it the same way: ``source: null`` says "this peer runs a hermes with
-    # no map family", which is the one case where a missing catalogue entry is
-    # expected rather than a defect.
-    result["map_sync"] = map_summary.as_dict()
-    result["profile_artifact_sync"] = profile_files_summary.as_dict()
-    # THE contract seam with the launcher (plan §6). Emitted UNCONDITIONALLY,
-    # carrying ``source: null`` when the peer published no projection, because
-    # the launcher's version-skew rule (L1/L2) has to tell "this peer runs an
-    # older hermes" apart from "this ack came from an older hermes" — and an
-    # omitted key cannot say the first one.
-    result["persona_instance_sync"] = instance_summary.as_dict()
-    # Emitted UNCONDITIONALLY for the same reason as the row above: an omitted
-    # key cannot tell "this peer publishes no canvas" apart from "this ack came
-    # from a hermes that has no canvas family", and the launcher's skew rule
-    # needs both.
-    result["flow_graph_sync"] = flow_graph_summary.as_dict()
-    if tombstone_summary["deleted"] or tombstone_summary["archived"] or tombstone_summary["warnings"]:
-        result["workspace_tombstones"] = tombstone_summary
-    if any(skill_tombstone_summary.values()):
-        result["skill_tombstones"] = skill_tombstone_summary
+    run.workspace_tombstones = _apply_workspace_tombstones(run.realm.id)
+    return bool(run.workspace_tombstones["deleted"] or run.workspace_tombstones["archived"])
+
+
+#: Every applier a pull runs after the generic overwrite loop, IN ORDER — and the
+#: order is the argument, not a preference. The persona-definition and
+#: profile-file lanes run before the instance mint, because the mint reads the
+#: definition to derive ``role``/``profile_id`` and a mint from a definition that
+#: has not landed yet builds the wrong agent. The mint runs before the canvas
+#: (owner liveness decides what a canvas is) and before the workspace tombstone
+#: lane, so a replica is never minted into a workspace this same pull is about
+#: to archive. ``pull_realm_sync`` iterates this and nothing else.
+PULL_APPLIERS: Final[tuple[PullApplier, ...]] = (
+    PullApplier("board_sync", _pull_boards),
+    PullApplier("office_sync", _pull_office),
+    PullApplier("level_sync", _pull_level),
+    PullApplier("map_sync", _pull_map),
+    PullApplier("skill_sync", _pull_skill_inbox),
+    PullApplier("skill_tombstones", _pull_skill_tombstones),
+    PullApplier("persona_config_sync", _pull_persona_config),
+    PullApplier("profile_artifact_sync", _pull_profile_files),
+    PullApplier("persona_instance_sync", _pull_persona_instances),
+    PullApplier("flow_graph_sync", _pull_flow_graphs),
+    PullApplier("workspace_tombstones", _pull_workspace_tombstones),
+)
+
+
+def _pull_accounting(run: _PullRun, install_results: list[Any]) -> dict[str, Any]:
+    """The pull envelope's family rows, in the order the launcher has always read them."""
+
+    rows: dict[str, Any] = {
+        "board_sync": run.board.as_dict(),
+        "office_sync": run.office.as_dict(),
+        "skill_sync": run.skill.as_dict(),
+        # Emitted UNCONDITIONALLY for the reason the two rows below are: an
+        # omitted key cannot tell "this realm publishes no level" apart from
+        # "this ack came from a hermes with no level family", and the launcher's
+        # version-skew rule (L1/L2) has to tell those two apart. ``source: null``
+        # inside it is the first of those.
+        "level_sync": run.level.as_dict(),
+        # Unconditional for the key above it's reason, and the launcher's adapter
+        # reads it the same way: ``source: null`` says "this peer runs a hermes
+        # with no map family", which is the one case where a missing catalogue
+        # entry is expected rather than a defect.
+        "map_sync": run.map.as_dict(),
+        "profile_artifact_sync": run.profile_files.as_dict(),
+        # THE contract seam with the launcher (plan §6). Emitted UNCONDITIONALLY,
+        # carrying ``source: null`` when the peer published no projection,
+        # because the launcher's version-skew rule (L1/L2) has to tell "this peer
+        # runs an older hermes" apart from "this ack came from an older hermes"
+        # — and an omitted key cannot say the first one.
+        "persona_instance_sync": run.instance.as_dict(),
+        # Emitted UNCONDITIONALLY for the same reason as the row above: an
+        # omitted key cannot tell "this peer publishes no canvas" apart from
+        # "this ack came from a hermes that has no canvas family", and the
+        # launcher's skew rule needs both.
+        "flow_graph_sync": run.flow_graph.as_dict(),
+    }
+    tombstones = run.workspace_tombstones
+    if tombstones["deleted"] or tombstones["archived"] or tombstones["warnings"]:
+        rows["workspace_tombstones"] = tombstones
+    if any(run.skill_tombstones.values()):
+        rows["skill_tombstones"] = run.skill_tombstones
     # ``profile_sync`` carries the W-H4 rows (which profile homes this pull
     # touched/materialized) PLUS the persona-definition merge accounting PLUS the
     # profile-FILE merge accounting. Emitted whenever any half has something to
     # say — a realm that publishes persona definitions but no per-profile files
     # must still report its merge, and vice versa.
-    if profile_files_summary.source is not None or persona_summary.source is not None:
-        result["profile_sync"] = {
-            "profiles": sorted(set(profile_files_summary.profiles)),
-            "created": sorted(set(profile_files_summary.created_profiles)),
-            "personas": persona_summary.as_dict(),
-            "files": profile_files_summary.as_dict(),
+    if run.profile_files.source is not None or run.persona.source is not None:
+        rows["profile_sync"] = {
+            "profiles": sorted(set(run.profile_files.profiles)),
+            "created": sorted(set(run.profile_files.created_profiles)),
+            "personas": run.persona.as_dict(),
+            "files": run.profile_files.as_dict(),
         }
-    result["skill_reconcile"] = {
+    rows["skill_reconcile"] = {
         "installed": [item.skill for item in install_results],
         "changed": [item.skill for item in install_results if item.changed],
         "ok": all(item.ok for item in install_results),
     }
-    _write_sync_sidecar(
-        realm,
-        repo=repo,
-        git=git_after,
-        skills_drift=skill_summary.held,
-        artifacts=artifacts,
-        profile_artifacts_held=sorted(set(profile_files_summary.held)),
-    )
-    _append_realm_sync_event(
-        "realm.sync.pulled",
-        realm,
-        changed=changed,
-        artifacts=len(artifacts),
-    )
-    return result
+    return rows
 
 
 def _apply_workspace_tombstones(realm_id: str) -> dict[str, list]:
@@ -437,7 +542,7 @@ def _pulled_artifact_bytes(artifact: RealmSyncArtifact, *, realm: Realm) -> byte
     re-serialization alone.
     """
     data = artifact.source.read_bytes()
-    if artifact.kind != "realm" or not artifact.destination.exists():
+    if artifact.kind != SyncFamily.REALM or not artifact.destination.exists():
         return data
     try:
         incoming = json.loads(data.decode("utf-8"))

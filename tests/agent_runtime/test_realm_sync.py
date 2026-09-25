@@ -586,7 +586,7 @@ def test_cli_env_credential_fallback(isolate_agent_runtime_root, tmp_path, monke
 
 
 def test_git_extra_config_threads_and_never_leaks(isolate_agent_runtime_root, tmp_path, monkeypatch):
-    import agent_runtime.realm_sync.git as realm_sync_module
+    import agent_runtime.git_cmd as realm_sync_module
 
     repo = tmp_path / "unit-repo"
     subprocess.run(["git", "init", str(repo)], check=True, capture_output=True, text=True)
@@ -615,7 +615,7 @@ def test_git_extra_config_threads_and_never_leaks(isolate_agent_runtime_root, tm
 
 
 def test_git_clone_renders_extra_config(tmp_path, monkeypatch):
-    import agent_runtime.realm_sync.git as realm_sync_module
+    import agent_runtime.git_cmd as realm_sync_module
 
     calls: list[list[str]] = []
 
@@ -640,7 +640,7 @@ def test_git_clone_renders_extra_config(tmp_path, monkeypatch):
 
 
 def test_pull_threads_credential_header_per_invocation_only(isolate_agent_runtime_root, tmp_path, monkeypatch):
-    import agent_runtime.realm_sync.git as realm_sync_module
+    import agent_runtime.git_cmd as realm_sync_module
 
     realm, repo = _realm_with_remote(tmp_path)
     credential = _test_credential(realm.id)

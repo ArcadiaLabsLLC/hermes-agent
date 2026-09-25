@@ -10,7 +10,11 @@ imports no applier.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
+from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
+from typing import Final
 
 from hermes_constants import get_hermes_home
 
@@ -20,101 +24,225 @@ from .models import HARD_EXCLUDED_PATH_PARTS, SECRET_PATH_MARKERS
 
 __layer__ = "policy"
 __all__ = [
+    "GENERIC_PULL",
+    "SYNC_PATH_FAMILIES",
+    "SyncFamily",
+    "SyncPathFamily",
+    "_LEGACY_PROFILE_FILE_KINDS",
+    "_contains",
     "_destination_for_sync_path",
+    "_exactly",
     "_is_hard_excluded_path",
     "_is_secretish_path",
     "_kind_for_sync_path",
+    "_prefix",
+    "_profile_file_kind",
     "_profile_home_for_token",
+    "_store_record",
 ]
 
 
+class SyncFamily(StrEnum):
+    """ONE vocabulary for realm sync's families: every artifact kind a published
+    path resolves to, and every store-drift family a revert row addresses.
+
+    The values ARE wire contracts — artifact rows, publish notification counts,
+    ``store_drift.items[].family`` and ``realm sync revert --item`` specs all
+    carry them — so no value may change. That is why the office surface has two
+    members: its artifact kind has always been ``office`` and its drift family
+    ``office_surface``, and both spellings are on the wire. One enum holds both
+    so neither is a free string any more.
+    """
+
+    SKILL = "skill"
+    REALM = "realm"
+    WORKSPACE = "workspace"
+    BOARD = "board"
+    BOARD_CARD = "board_card"
+    OFFICE = "office"
+    OFFICE_SURFACE = "office_surface"
+    OFFICE_ACTOR = "office_actor"
+    PERSONA_CONFIG = "persona_config"
+    PERSONA_INSTANCE_CONFIG = "persona_instance_config"
+    PERSONA_INSTANCE = "persona_instance"
+    FLOW_GRAPH_CONFIG = "flow_graph_config"
+    FLOW_GRAPH = "flow_graph"
+    LEVEL = "level"
+    MAP = "map"
+    PROFILE_FILE = "profile_file"
+    ARTIFACT = "artifact"
+
+
+#: The loop in ``pull.pull_realm_sync`` that overwrites a destination wholesale.
+#: Only the two store-record families still ride it; every other family's pull
+#: is owned by an applier that merges against a never-synced baseline.
+GENERIC_PULL = "pull.pull_realm_sync (generic overwrite loop)"
+
+
+@dataclass(frozen=True, slots=True)
+class SyncPathFamily:
+    """One family's claim on a published path.
+
+    ``match`` answers "is this path mine"; the FIRST matching row names the
+    path's kind (``derive_kind`` when the kind is read off the path, else
+    ``kind``, else the family itself). ``destination`` is where the generic pull
+    loop may write the path — ``None`` for every family an applier owns, and
+    ``owner`` names that applier, which is what the ``None`` means.
+    """
+
+    family: SyncFamily
+    match: Callable[[str], bool]
+    owner: str
+    kind: str | None = None
+    derive_kind: Callable[[str], str] | None = None
+    destination: Callable[[tuple[str, ...]], Path | None] | None = None
+
+    def kind_of(self, rel: str) -> str:
+        if self.derive_kind is not None:
+            return self.derive_kind(rel)
+        return self.kind or self.family
+
+
+def _prefix(prefix: str) -> Callable[[str], bool]:
+    return lambda rel: rel.startswith(prefix)
+
+
+def _exactly(path: str) -> Callable[[str], bool]:
+    return lambda rel: rel == path
+
+
+def _contains(needle: str) -> Callable[[str], bool]:
+    return lambda rel: needle in rel
+
+
+def _store_record(directory: Callable[[], Path], name: str) -> Callable[[tuple[str, ...]], Path | None]:
+    """``store/<name>/<file>`` -> ``<directory>/<file>``: the one generic destination shape."""
+
+    def destination(parts: tuple[str, ...]) -> Path | None:
+        if len(parts) == 3 and parts[0] == "store" and parts[1] == name:
+            return directory() / parts[2]
+        return None
+
+    return destination
+
+
+def _profile_file_kind(rel: str) -> str:
+    """Kind is derived from the DESTINATION the published tail names — the
+    same authority the pull applier uses, never a second spelling."""
+
+    from ..profile_artifact_sync import classify_destination
+
+    tail = rel.split("/", 3)
+    return (classify_destination(tail[3]) if len(tail) > 3 else None) or SyncFamily.ARTIFACT
+
+
+#: The pre-2026-07-25 ``profiles/<profile>/…`` layout's per-file kinds, matched
+#: by path segment in this order. These are profile-FILE kinds, not families:
+#: the family is ``PROFILE_FILE`` and its applier owns every one of them.
+_LEGACY_PROFILE_FILE_KINDS = (
+    ("/memories/", "profile_memory"),
+    ("/context/", "core_context"),
+    ("/system_prompt/", "system_prompt"),
+    ("/soul_overlay/", "soul_overlay"),
+)
+
+#: Every published path's family, in match order. Rule 12's table for the two
+#: ladders that used to answer this (``_destination_for_sync_path``,
+#: ``_kind_for_sync_path``): the ownership comments those ladders carried are
+#: the ``owner`` column now, and the only generic destinations are the two rows
+#: that have one.
+SYNC_PATH_FAMILIES: Final[tuple[SyncPathFamily, ...]] = (
+    # Skills never overwrite the canonical shared root through the generic loop:
+    # they mirror into the resolver-invisible per-realm inbox and reach the
+    # canonical root only through the one guarded promotion door (C3), so a
+    # realm pull cannot silently clobber a local canonical skill of the same id.
+    SyncPathFamily(SyncFamily.SKILL, _prefix("skills/"), owner="skill_inbox.apply_skill_inbox_pull"),
+    SyncPathFamily(
+        SyncFamily.WORKSPACE,
+        _prefix("store/workspaces/"),
+        owner=GENERIC_PULL,
+        destination=_store_record(paths.workspaces_dir, "workspaces"),
+    ),
+    SyncPathFamily(
+        SyncFamily.REALM,
+        _prefix("store/realms/"),
+        owner=GENERIC_PULL,
+        destination=_store_record(paths.realms_dir, "realms"),
+    ),
+    # store/office/* and store/boards/* are 3-way baseline merges; the generic
+    # loop never touches them. (Boards have no kind row: a board path's kind was
+    # never asked for, because nothing but the applier reads it.)
+    SyncPathFamily(
+        SyncFamily.OFFICE_ACTOR,
+        lambda rel: rel.startswith("store/office/") and "/actors/" in rel,
+        owner="office_sync.apply_office_pull",
+    ),
+    SyncPathFamily(SyncFamily.OFFICE, _prefix("store/office/"), owner="office_sync.apply_office_pull"),
+    # The portable persona-definition projection: a key-wise merge against a
+    # never-synced baseline.
+    SyncPathFamily(
+        SyncFamily.PERSONA_CONFIG,
+        _exactly("store/personas.yaml"),
+        owner="persona_config_sync.apply_persona_config_pull",
+    ),
+    # The persona-INSTANCE projection: the mint door plus the 3-way merge. A raw
+    # write would produce replicas no live consumer ever heard about.
+    SyncPathFamily(
+        SyncFamily.PERSONA_INSTANCE_CONFIG,
+        _exactly("store/persona_instances.yaml"),
+        owner="persona_instance_sync.apply_persona_instance_pull",
+    ),
+    # The CANVAS projection: adopt-or-hold per document. A raw write would put a
+    # multi-graph YAML where the store expects one JSON per graph id, bypassing
+    # ``parse_flow_graph_doc``.
+    SyncPathFamily(
+        SyncFamily.FLOW_GRAPH_CONFIG,
+        _exactly("store/flow_graphs.yaml"),
+        owner="flow_graph_sync.apply_flow_graph_pull",
+    ),
+    # The workspace LEVEL and the MAP CATALOGUE: whole-document adopt-or-hold. A
+    # raw write would land a peer's document without its store door's validation,
+    # last-write-wins over one this operator may have authored or renamed.
+    SyncPathFamily(SyncFamily.LEVEL, _prefix("store/levels/"), owner="level_sync.apply_level_pull"),
+    SyncPathFamily(SyncFamily.MAP, _prefix("store/maps/"), owner="map_sync.apply_map_pull"),
+    SyncPathFamily(
+        SyncFamily.PROFILE_FILE,
+        _prefix("store/profile_files/"),
+        owner="profile_artifact_sync.apply_profile_artifact_pull",
+        derive_kind=_profile_file_kind,
+    ),
+    # EVERY legacy ``profiles/…`` artifact is owned by an applier. Before
+    # 2026-07-25 the generic loop wrote them wholesale, which DESTROYED a member's
+    # accumulated ``MEMORY.md`` on every pull and keyed prompts by filename only
+    # (two personas on one profile clobbered each other — Office plan §5.1).
+    SyncPathFamily(
+        SyncFamily.PERSONA_CONFIG,
+        lambda rel: rel.endswith("config.yaml"),
+        owner="persona_config_sync.apply_persona_config_pull",
+    ),
+    *(
+        SyncPathFamily(
+            SyncFamily.PROFILE_FILE,
+            _contains(needle),
+            owner="profile_artifact_sync.apply_profile_artifact_pull",
+            kind=kind,
+        )
+        for needle, kind in _LEGACY_PROFILE_FILE_KINDS
+    ),
+)
+
+
 def _destination_for_sync_path(rel: str) -> Path | None:
+    """Where the generic pull loop may write ``rel``: the one destination-bearing
+    row that claims it, else ``None`` — which always means an applier owns the
+    family (``SyncPathFamily.owner`` names it)."""
+
     parts = Path(rel).parts
-    if parts and parts[0] == "skills":
-        # Skills no longer overwrite the canonical shared root through the generic
-        # pull loop. ``apply_skill_inbox_pull`` mirrors them into the
-        # resolver-invisible per-realm inbox and admits them to the canonical root
-        # only through the one guarded promotion door (C3) — same board/office
-        # exclusion precedent (store/boards/*, store/office/* → None). Returning
-        # None here keeps a realm pull from silently clobbering a local canonical
-        # skill of the same id.
-        return None
-    if len(parts) == 3 and parts[0] == "store" and parts[1] == "workspaces":
-        return paths.workspaces_dir() / parts[2]
-    if len(parts) == 3 and parts[0] == "store" and parts[1] == "realms":
-        return paths.realms_dir() / parts[2]
-    # store/boards/* and store/office/* deliberately fall through to None: the
-    # generic overwrite loop never touches them — board_sync.apply_board_pull /
-    # office_sync.apply_office_pull own those pulls (3-way baseline merge).
-    if parts and parts[0] == "store" and len(parts) == 2 and parts[1] == "personas.yaml":
-        # The portable persona-definition projection. Owned by
-        # ``persona_config_sync.apply_persona_config_pull`` (key-wise merge
-        # against a never-synced baseline), never the generic overwrite loop —
-        # same exclusion precedent as store/boards/*, store/office/*, skills/*.
-        return None
-    if parts and parts[0] == "store" and len(parts) == 2 and parts[1] == "persona_instances.yaml":
-        # The portable persona-INSTANCE projection. Owned by
-        # ``apply_persona_instance_pull`` (the mint door + the 3-way baseline
-        # merge), never the generic overwrite loop: a raw write of this document
-        # would put a persona-instance YAML somewhere no reader expects it, and
-        # would produce replicas no live consumer ever heard about.
-        #
-        # It ALREADY resolved to None through the final fallthrough before this
-        # branch existed (pinned by a test at the base sha), so this line changes
-        # no behaviour — it records the OWNERSHIP, the way the personas.yaml
-        # branch directly above does.
-        return None
-    if parts and parts[0] == "store" and len(parts) == 2 and parts[1] == "flow_graphs.yaml":
-        # The portable CANVAS projection. Owned by ``apply_flow_graph_pull``
-        # (adopt-or-hold at whole-document granularity against the 3-way
-        # baseline), never the generic overwrite loop: a raw write would put a
-        # multi-graph YAML where the store expects one JSON file per graph id,
-        # and would bypass ``parse_flow_graph_doc`` — the validation every
-        # stored canvas has passed through since the family existed.
-        #
-        # Like the branch above, this already resolved to None through the final
-        # fallthrough; the line records the OWNERSHIP.
-        return None
-    if len(parts) == 3 and parts[0] == "store" and parts[1] == "levels":
-        # The workspace LEVEL family. Owned by ``level_sync.apply_level_pull``
-        # (adopt-or-hold at whole-document granularity against the 3-way
-        # baseline), never the generic overwrite loop: a raw write would put a
-        # peer's environment on this disk without passing the store door that
-        # validates it, and it would do so on a LAST-WRITE-WINS basis over a
-        # level this operator may have authored — the exact clobber the baseline
-        # exists to refuse.
-        #
-        # Like the two branches above it this ALREADY resolved to None through
-        # the final fallthrough (which is what made the launcher unable to do
-        # this from its side at all); the line records the OWNERSHIP.
-        return None
-    if len(parts) == 3 and parts[0] == "store" and parts[1] == "maps":
-        # The MAP CATALOGUE family. Owned by ``map_sync.apply_map_pull``
-        # (adopt-or-hold at whole-document granularity against the 3-way
-        # baseline), never the generic overwrite loop: a raw write would put a
-        # peer's catalogue entry on this disk without passing the store door
-        # that validates it — including the ``name`` check, which is the one
-        # fact the whole family exists for — and it would do so LAST-WRITE-WINS
-        # over an entry this operator may have renamed.
-        #
-        # Like the branch above it this ALREADY resolved to None through the
-        # final fallthrough; the line records the OWNERSHIP.
-        return None
-    if len(parts) > 2 and parts[0] == "store" and parts[1] == "profile_files":
-        # The per-profile FILE family (MEMORY.md, core context, persona prompts).
-        # Owned by ``profile_artifact_sync.apply_profile_artifact_pull``.
-        return None
-    if parts and parts[0] == "profiles" and len(parts) > 1:
-        # EVERY legacy ``profiles/…`` artifact is now owned by an applier, none
-        # by the generic overwrite loop:
-        #   - ``config.yaml``            → persona_config_sync (allowlisted merge)
-        #   - memories / context / prompts → profile_artifact_sync (baseline merge)
-        # Before 2026-07-25 the last four were written wholesale here, which
-        # DESTROYED a member's accumulated ``MEMORY.md`` on every pull and keyed
-        # prompt destinations by filename only (two personas on one profile
-        # clobbered each other — Office plan §5.1). Same exclusion precedent as
-        # store/boards/*, store/office/*, skills/*, store/personas.yaml.
-        return None
+    for family in SYNC_PATH_FAMILIES:
+        if family.destination is not None:
+            target = family.destination(parts)
+            if target is not None:
+                return target
     return None
 
 
@@ -146,42 +274,12 @@ def _profile_home_for_token(token: str) -> Path | None:
 
 
 def _kind_for_sync_path(rel: str) -> str:
-    if rel.startswith("skills/"):
-        return "skill"
-    if rel.startswith("store/workspaces/"):
-        return "workspace"
-    if rel.startswith("store/realms/"):
-        return "realm"
-    if rel.startswith("store/office/"):
-        return "office_actor" if "/actors/" in rel else "office"
-    if rel == "store/personas.yaml":
-        return "persona_config"
-    if rel == "store/persona_instances.yaml":
-        return "persona_instance_config"
-    if rel == "store/flow_graphs.yaml":
-        return "flow_graph_config"
-    if rel.startswith("store/levels/"):
-        return "level"
-    if rel.startswith("store/maps/"):
-        return "map"
-    if rel.startswith("store/profile_files/"):
-        # Kind is derived from the DESTINATION the published tail names — the
-        # same authority the pull applier uses, never a second spelling.
-        from ..profile_artifact_sync import classify_destination
+    """The kind of the first family whose ``match`` claims ``rel``, else ``artifact``."""
 
-        tail = rel.split("/", 3)
-        return (classify_destination(tail[3]) if len(tail) > 3 else None) or "artifact"
-    if rel.endswith("config.yaml"):
-        return "persona_config"
-    if "/memories/" in rel:
-        return "profile_memory"
-    if "/context/" in rel:
-        return "core_context"
-    if "/system_prompt/" in rel:
-        return "system_prompt"
-    if "/soul_overlay/" in rel:
-        return "soul_overlay"
-    return "artifact"
+    for family in SYNC_PATH_FAMILIES:
+        if family.match(rel):
+            return family.kind_of(rel)
+    return SyncFamily.ARTIFACT
 
 
 def _is_secretish_path(rel: str) -> bool:

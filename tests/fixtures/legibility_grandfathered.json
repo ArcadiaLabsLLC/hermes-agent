@@ -236,26 +236,6 @@
    "unit": "agent_runtime/realm_revert.py|revert_realm_sync"
   },
   {
-   "depth": 4,
-   "lines": 193,
-   "unit": "agent_runtime/realm_sync/skill_inbox.py|apply_skill_inbox_pull"
-  },
-  {
-   "depth": 3,
-   "lines": 242,
-   "unit": "agent_runtime/realm_sync/publish.py|publish_realm_sync"
-  },
-  {
-   "depth": 2,
-   "lines": 237,
-   "unit": "agent_runtime/realm_sync/pull.py|pull_realm_sync"
-  },
-  {
-   "depth": 2,
-   "lines": 167,
-   "unit": "agent_runtime/realm_sync/status.py|realm_sync_status"
-  },
-  {
    "depth": 5,
    "lines": 38,
    "unit": "agent_runtime/repo_context.py|_sever_worktree_reparse_points"

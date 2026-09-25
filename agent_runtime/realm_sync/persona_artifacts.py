@@ -18,7 +18,7 @@ from .. import paths
 from ..models import AgentPersona, Workspace
 from ..profile_context import active_profile_name, resolve_persona_profile
 from .models import BASE_PROFILE_NAME, RealmSyncArtifact, RealmSyncError
-from .families import _destination_for_sync_path, _kind_for_sync_path
+from .families import SyncFamily, _destination_for_sync_path, _kind_for_sync_path
 from .git import _redact_text
 from .publish_scans import _office_publish_scan
 
@@ -261,7 +261,7 @@ def _persona_config_artifact(projection) -> RealmSyncArtifact:
 
     config = get_config_path()
     return RealmSyncArtifact(
-        kind="persona_config",
+        kind=SyncFamily.PERSONA_CONFIG,
         source=config,
         relative_path=PROJECTION_RELATIVE_PATH,
         destination=config,
@@ -288,7 +288,7 @@ def _persona_instance_artifact(projection) -> RealmSyncArtifact:
 
     root = paths.persona_instances_dir()
     return RealmSyncArtifact(
-        kind="persona_instance_config",
+        kind=SyncFamily.PERSONA_INSTANCE_CONFIG,
         source=root,
         relative_path=PROJECTION_RELATIVE_PATH,
         destination=root,
@@ -327,7 +327,7 @@ def _flow_graph_artifact(projection) -> RealmSyncArtifact:
 
     root = paths.store_root() / "flow_graphs"
     return RealmSyncArtifact(
-        kind="flow_graph_config",
+        kind=SyncFamily.FLOW_GRAPH_CONFIG,
         source=root,
         relative_path=FLOW_GRAPH_PROJECTION_RELATIVE_PATH,
         destination=root,
@@ -443,7 +443,7 @@ def _assert_portable_artifacts(artifacts: list[RealmSyncArtifact]) -> None:
 
     offenders: list[dict[str, str]] = []
     for artifact in artifacts:
-        if artifact.kind != "persona_config":
+        if artifact.kind != SyncFamily.PERSONA_CONFIG:
             continue
         try:
             data = yaml.safe_load(artifact.read_bytes().decode("utf-8"))

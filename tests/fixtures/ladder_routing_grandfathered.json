@@ -290,18 +290,6 @@
    "site": "agent_runtime/realm_revert.py|_install_skill_from_inbox|vocab|noop"
   },
   {
-   "arms": 10,
-   "site": "agent_runtime/realm_sync/families.py|_destination_for_sync_path|ladder|parts[0]"
-  },
-  {
-   "arms": 8,
-   "site": "agent_runtime/realm_sync/families.py|_destination_for_sync_path|ladder|parts[1]"
-  },
-  {
-   "arms": 3,
-   "site": "agent_runtime/realm_sync/families.py|_kind_for_sync_path|ladder|rel"
-  },
-  {
    "arms": 1,
    "site": "agent_runtime/running_work.py|_collect_chat_turns|vocab|running"
   },

@@ -12,6 +12,7 @@ from typing import Any, NamedTuple
 from .. import paths
 from ..models import Workspace
 from .models import RealmSyncArtifact
+from .families import SyncFamily
 
 __layer__ = "stores"
 __all__ = [
@@ -86,7 +87,7 @@ def _board_publish_scan(workspaces: list[Workspace]) -> BoardPublishScan:
         if def_path.exists():
             artifacts.append(
                 RealmSyncArtifact(
-                    kind="board",
+                    kind=SyncFamily.BOARD,
                     source=def_path,
                     relative_path=f"store/boards/{board_token}/board.json",
                     destination=def_path,
@@ -97,7 +98,7 @@ def _board_publish_scan(workspaces: list[Workspace]) -> BoardPublishScan:
             for card_path in sorted(cards_dir.glob("*.json")):
                 artifacts.append(
                     RealmSyncArtifact(
-                        kind="board_card",
+                        kind=SyncFamily.BOARD_CARD,
                         source=card_path,
                         relative_path=f"store/boards/{board_token}/cards/{card_path.name}",
                         destination=card_path,
@@ -188,7 +189,7 @@ def _office_publish_scan(workspaces: list[Workspace]) -> OfficePublishScan:
         if surface_path.exists():
             artifacts.append(
                 RealmSyncArtifact(
-                    kind="office",
+                    kind=SyncFamily.OFFICE,
                     source=surface_path,
                     relative_path=f"store/office/{ws_token}/office.json",
                     destination=surface_path,
@@ -205,7 +206,7 @@ def _office_publish_scan(workspaces: list[Workspace]) -> OfficePublishScan:
             actor_path = paths.office_actor_path(workspace_token, actor.actor_key)
             artifacts.append(
                 RealmSyncArtifact(
-                    kind="office_actor",
+                    kind=SyncFamily.OFFICE_ACTOR,
                     source=actor_path,
                     relative_path=f"store/office/{ws_token}/actors/{actor_path.name}",
                     destination=actor_path,
@@ -294,7 +295,7 @@ def _level_publish_scan(workspaces: list[Workspace]) -> LevelPublishScan:
         source = paths.level_path(token)
         artifacts.append(
             RealmSyncArtifact(
-                kind="level",
+                kind=SyncFamily.LEVEL,
                 source=source,
                 relative_path=published_relative_path(token),
                 destination=source,
@@ -363,7 +364,7 @@ def _map_publish_scan() -> MapPublishScan:
         source = paths.map_path(token)
         artifacts.append(
             RealmSyncArtifact(
-                kind="map",
+                kind=SyncFamily.MAP,
                 source=source,
                 relative_path=published_relative_path(token),
                 destination=source,

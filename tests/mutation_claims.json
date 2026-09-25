@@ -1873,7 +1873,7 @@
     {
       "id": "s4-the-tombstone-union-keeps-the-local-only-entry",
       "path": "agent_runtime/realm_sync/ledgers.py",
-      "symbol": "merge_skill_tombstone_ledgers",
+      "symbol": "_merge_state_register",
       "operator": "adopt-incoming-instead-of-union",
       "find": "    for rows in (local, incoming):\n",
       "replace": "    for rows in (incoming,):\n",
@@ -1935,8 +1935,8 @@
       "path": "agent_runtime/realm_sync/pull.py",
       "symbol": "_pulled_artifact_bytes",
       "operator": "re-gate-the-union-behind-a-server-binding",
-      "find": "    if artifact.kind != \"realm\" or not artifact.destination.exists():\n",
-      "replace": "    if artifact.kind != \"realm\" or not realm.server_id or not artifact.destination.exists():\n",
+      "find": "    if artifact.kind != SyncFamily.REALM or not artifact.destination.exists():\n",
+      "replace": "    if artifact.kind != SyncFamily.REALM or not realm.server_id or not artifact.destination.exists():\n",
       "test": [
         "{python}",
         "-m",
@@ -3601,7 +3601,7 @@
     {
       "id": "sh-status-swallows-the-denial-it-degraded-on",
       "path": "agent_runtime/realm_sync/status.py",
-      "symbol": "realm_sync_status",
+      "symbol": "_status_repo",
       "operator": "report-the-degraded-read-as-a-verified-one",
       "find": "        remote_check = {\"checked\": False, \"error\": auth_error.code}",
       "replace": "        remote_check = {\"checked\": True, \"error\": None}",
@@ -3616,7 +3616,7 @@
     {
       "id": "sh-status-degrades-with-no-local-repo-to-degrade-to",
       "path": "agent_runtime/realm_sync/status.py",
-      "symbol": "realm_sync_status",
+      "symbol": "_status_repo",
       "operator": "drop-the-floor-of-the-degrade",
       "find": "        if not (repo / \".git\").exists():\n            raise auth_error",
       "replace": "        if False:\n            raise auth_error",

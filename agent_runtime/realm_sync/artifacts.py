@@ -19,7 +19,7 @@ from ..config import ensure_persisted_personas, load_agent_runtime_config
 from ..models import Realm, Workspace
 from ..store import RealmStore, WorkspaceStore, skill_tombstoned
 from .models import RealmSyncArtifact, RealmSyncError
-from .families import _is_hard_excluded_path
+from .families import SyncFamily, _is_hard_excluded_path
 from .publish_scans import (
     _board_publish_scan,
     _level_publish_scan,
@@ -535,7 +535,7 @@ def _append_skill_package_artifacts(
         rel_within = "/".join(rel_parts)
         artifacts.append(
             RealmSyncArtifact(
-                kind="skill",
+                kind=SyncFamily.SKILL,
                 source=source,
                 relative_path=f"skills/{prefix}/{rel_within}",
                 destination=dest_root / Path(*rel_parts),
@@ -546,7 +546,7 @@ def _append_skill_package_artifacts(
 def _workspace_realm_artifacts(realm: Realm, workspaces: list[Workspace]) -> list[RealmSyncArtifact]:
     artifacts = [
         RealmSyncArtifact(
-            kind="realm",
+            kind=SyncFamily.REALM,
             source=paths.realm_path(realm.id),
             relative_path=f"store/realms/{paths.safe_path_token(realm.id)}.json",
             destination=paths.realm_path(realm.id),
@@ -555,7 +555,7 @@ def _workspace_realm_artifacts(realm: Realm, workspaces: list[Workspace]) -> lis
     for workspace in workspaces:
         artifacts.append(
             RealmSyncArtifact(
-                kind="workspace",
+                kind=SyncFamily.WORKSPACE,
                 source=paths.workspace_path(workspace.id),
                 relative_path=f"store/workspaces/{paths.safe_path_token(workspace.id)}.json",
                 destination=paths.workspace_path(workspace.id),
@@ -569,7 +569,7 @@ def _distinct_skill_package_count(artifacts: list[RealmSyncArtifact]) -> int:
     resolved artifacts — not the file count. A multi-file skill counts once."""
     packages: set[str] = set()
     for artifact in artifacts:
-        if artifact.kind != "skill":
+        if artifact.kind != SyncFamily.SKILL:
             continue
         parts = Path(artifact.relative_path).parts
         if len(parts) >= 2:

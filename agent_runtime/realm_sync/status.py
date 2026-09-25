@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..realm_membership import RealmSyncCredential
 
 from .. import paths
-from ..models import Workspace
+from ..models import Realm, Workspace
 from ..store import RealmStore
 from .models import RealmMembershipProvider, RealmSyncError, _safe_display_path
 from .ledgers import _skill_tombstone_rows
@@ -52,6 +53,8 @@ __all__ = [
     "_flow_graph_status_row",
     "_level_status_row",
     "_map_status_row",
+    "_status_repo",
+    "_status_store_drift",
     "realm_sync_status",
 ]
 
@@ -62,50 +65,11 @@ def realm_sync_status(
     membership: RealmMembershipProvider | None = None,
     credential: "RealmSyncCredential | None" = None,
 ) -> dict[str, Any]:
+    """The diagnostic read: the repo (remote-refreshed when allowed), the local
+    drift, the holds, the envelope. See ``_status_repo`` for the degrade."""
+
     realm = RealmStore().get(realm_id)
-    # The authorization gates the REMOTE half of this verb — the fetch, the
-    # clone, and therefore the freshness of ahead/behind — and nothing else.
-    # Everything below it (store drift, held skill packages, held profile
-    # artifacts, workspace publication statuses, the git state already on this
-    # disk) is a LOCAL read that needs no credential, and refusing the whole
-    # verb over the remote half deleted the diagnostic exactly when it was most
-    # wanted: a member whose credential expired got no drift, no held-artifact
-    # list and no workspace rows, only ``sync_auth_failed``. A diagnostic read
-    # DEGRADES; it does not vanish.
-    #
-    # The degrade rides the SAME honesty pair an unreachable remote already
-    # rides (``remote_checked`` / ``remote_check_error``) rather than a new key:
-    # from the launcher's side "hermes could not reach the realm remote" and
-    # "hermes was not allowed to" are the same fact — the state below is the
-    # last known local picture — and it already has a renderer for it
-    # (``_RemoteUncheckedNote``).
-    auth_error: RealmSyncError | None = None
-    try:
-        _authorize(realm, "status", membership, credential)
-    except RealmSyncError as exc:
-        auth_error = exc
-    if auth_error is None:
-        repo = _ensure_sync_repo(realm, credential=credential)
-        # Refresh the remote-tracking ref FIRST: ahead/behind below are computed
-        # against ``@{u}``, and without a fetch that ref is whatever the last
-        # pull/publish left behind — a member editing (or deleting) files upstream
-        # stayed invisible to "Check now" forever, so the update-policy banner
-        # never fired. Best-effort: an offline check still answers from the local
-        # state, and says so via ``remote_checked``.
-        remote_check = _refresh_remote_tracking(repo, credential=credential)
-    else:
-        # THE FLOOR of the degrade, and it is deliberate: a degraded read
-        # answers from local facts, so where there are none it still refuses
-        # with the code it refused with before. ``_ensure_sync_repo`` is not
-        # called at all here — its remote branch CLONES, which is the very
-        # operation just denied, and an ``init`` in its place would leave an
-        # empty repo that the next ``_ensure_sync_repo`` mistakes for a
-        # completed clone and never re-clones.
-        repo = _sync_repo_path(realm)
-        if not (repo / ".git").exists():
-            raise auth_error
-        _ensure_repo_gitattributes(repo)
-        remote_check = {"checked": False, "error": auth_error.code}
+    repo, remote_check = _status_repo(realm, membership, credential)
     git = _git_state(repo)
     artifacts = resolve_realm_sync_artifacts(realm_id)
     agent_state = realm_agent_selection_state(realm_id)
@@ -121,40 +85,7 @@ def realm_sync_status(
     record_converged_skill_baselines(realm.id, _realm_inbox_dir(realm.id))
     skills_drift = _held_skill_packages_for_realm(realm)
     state = _sync_state(git)
-    # Local store drift vs the never-synced baseline sidecar: the git state above
-    # only knows the checked-out realm repo, so a local board card add or an
-    # archived office actor — neither of which touches the repo until publish —
-    # leaves git ``in_sync`` while real unpublished changes sit in the store.
-    # This surfaces that honestly (pure hash/baseline compare — no extra
-    # git/network on the status path).
-    # ONE walk per family, and the counts derived from its rows. ``items`` is
-    # ADDITIVE (absent-tolerant on the launcher side): the counts keep their
-    # exact shape, and the rows are what makes a per-item revert addressable at
-    # all — a count nothing can name is a change with no exit but Publish.
-    drift_items = store_drift_items(realm.id, workspaces)
-    store_drift = {
-        "boards": _drift_counts(drift_items, _BOARD_DRIFT_COUNTS),
-        "office": _drift_counts(drift_items, _OFFICE_DRIFT_COUNTS),
-        # Additive third family (instance-replication H4). ``_any_store_drift``
-        # sums every family it finds, so a locally-authored agent nobody has
-        # published now lights "unpublished changes" — which is the honest
-        # answer, and exactly the reason the office family was added on 2026-08-29
-        # ("the sheet kept saying In sync while the local store had drifted").
-        "persona_instances": _drift_counts(drift_items, _PERSONA_INSTANCE_DRIFT_COUNTS),
-        # Additive fourth family (canvas-replication w13/h2, revert arm w17/hb).
-        # It arrives WITH its revert arm, which is why it was not here before:
-        # a drift row the revert lane cannot address is an exit that does not
-        # exist. ``_any_store_drift`` sums it like the rest, so an unpublished
-        # drawing now lights "unpublished changes" instead of being visible only
-        # as a count on the ``flow_graphs`` row below.
-        "flow_graphs": _drift_counts(drift_items, _FLOW_GRAPH_DRIFT_COUNTS),
-        # Additive fifth family (held-skill-publish-direction §4.5). It arrives
-        # WITH its revert arm and its resolve verb, for the canvas family's
-        # reason: a drift row the operator cannot address is an exit that does
-        # not exist.
-        "skills": _drift_counts(drift_items, _SKILL_DRIFT_COUNTS),
-        "items": [item.as_dict() for item in drift_items],
-    }
+    store_drift = _status_store_drift(realm.id, workspaces)
     profile_artifacts_held = _held_profile_artifacts(realm, repo)
     _write_sync_sidecar(
         realm,
@@ -177,8 +108,8 @@ def realm_sync_status(
         # When False, ``remote_check_error`` carries the typed code (or None for
         # a repo with no remote at all). It also carries the AUTHORIZATION code
         # (``sync_auth_failed`` / ``role_insufficient`` / …) when the remote half
-        # was denied and this verb degraded to local facts — see the top of this
-        # function for why a denial answers here rather than raising.
+        # was denied and this verb degraded to local facts — see
+        # ``_status_repo`` for why a denial answers here rather than raising.
         "remote_checked": remote_check["checked"],
         "remote_check_error": remote_check["error"],
         "skills_drift": skills_drift,
@@ -222,6 +153,100 @@ def realm_sync_status(
         # argument: a map id is not addressed by a workspace, so the scan has no
         # realm filter to take.
         "maps": _map_status_row(realm.id),
+    }
+
+
+def _status_repo(
+    realm: Realm,
+    membership: RealmMembershipProvider | None,
+    credential: "RealmSyncCredential | None",
+) -> tuple[Path, dict[str, Any]]:
+    """``(repo, remote_check)`` for the status read.
+
+    The authorization gates the REMOTE half of this verb — the fetch, the
+    clone, and therefore the freshness of ahead/behind — and nothing else.
+    Everything the status reads after this (store drift, held skill packages,
+    held profile artifacts, workspace publication statuses, the git state
+    already on this disk) is a LOCAL read that needs no credential, and refusing
+    the whole verb over the remote half deleted the diagnostic exactly when it
+    was most wanted: a member whose credential expired got no drift, no
+    held-artifact list and no workspace rows, only ``sync_auth_failed``. A
+    diagnostic read DEGRADES; it does not vanish.
+
+    The degrade rides the SAME honesty pair an unreachable remote already rides
+    (``remote_checked`` / ``remote_check_error``) rather than a new key: from
+    the launcher's side "hermes could not reach the realm remote" and "hermes
+    was not allowed to" are the same fact — the state is the last known local
+    picture — and it already has a renderer for it (``_RemoteUncheckedNote``).
+    """
+
+    auth_error: RealmSyncError | None = None
+    try:
+        _authorize(realm, "status", membership, credential)
+    except RealmSyncError as exc:
+        auth_error = exc
+    if auth_error is None:
+        repo = _ensure_sync_repo(realm, credential=credential)
+        # Refresh the remote-tracking ref FIRST: ahead/behind below are computed
+        # against ``@{u}``, and without a fetch that ref is whatever the last
+        # pull/publish left behind — a member editing (or deleting) files upstream
+        # stayed invisible to "Check now" forever, so the update-policy banner
+        # never fired. Best-effort: an offline check still answers from the local
+        # state, and says so via ``remote_checked``.
+        remote_check = _refresh_remote_tracking(repo, credential=credential)
+    else:
+        # THE FLOOR of the degrade, and it is deliberate: a degraded read
+        # answers from local facts, so where there are none it still refuses
+        # with the code it refused with before. ``_ensure_sync_repo`` is not
+        # called at all here — its remote branch CLONES, which is the very
+        # operation just denied, and an ``init`` in its place would leave an
+        # empty repo that the next ``_ensure_sync_repo`` mistakes for a
+        # completed clone and never re-clones.
+        repo = _sync_repo_path(realm)
+        if not (repo / ".git").exists():
+            raise auth_error
+        _ensure_repo_gitattributes(repo)
+        remote_check = {"checked": False, "error": auth_error.code}
+    return repo, remote_check
+
+
+def _status_store_drift(realm_id: str, workspaces: list[Workspace]) -> dict[str, Any]:
+    """Local store drift vs the never-synced baseline sidecars.
+
+    The git state only knows the checked-out realm repo, so a local board card
+    add or an archived office actor — neither of which touches the repo until
+    publish — leaves git ``in_sync`` while real unpublished changes sit in the
+    store. This surfaces that honestly (pure hash/baseline compare — no extra
+    git/network on the status path). ONE walk per family, and the counts derived
+    from its rows. ``items`` is ADDITIVE (absent-tolerant on the launcher side):
+    the counts keep their exact shape, and the rows are what makes a per-item
+    revert addressable at all — a count nothing can name is a change with no
+    exit but Publish.
+    """
+
+    drift_items = store_drift_items(realm_id, workspaces)
+    return {
+        "boards": _drift_counts(drift_items, _BOARD_DRIFT_COUNTS),
+        "office": _drift_counts(drift_items, _OFFICE_DRIFT_COUNTS),
+        # Additive third family (instance-replication H4). ``_any_store_drift``
+        # sums every family it finds, so a locally-authored agent nobody has
+        # published now lights "unpublished changes" — which is the honest
+        # answer, and exactly the reason the office family was added on 2026-08-29
+        # ("the sheet kept saying In sync while the local store had drifted").
+        "persona_instances": _drift_counts(drift_items, _PERSONA_INSTANCE_DRIFT_COUNTS),
+        # Additive fourth family (canvas-replication w13/h2, revert arm w17/hb).
+        # It arrives WITH its revert arm, which is why it was not here before:
+        # a drift row the revert lane cannot address is an exit that does not
+        # exist. ``_any_store_drift`` sums it like the rest, so an unpublished
+        # drawing now lights "unpublished changes" instead of being visible only
+        # as a count on the ``flow_graphs`` row below.
+        "flow_graphs": _drift_counts(drift_items, _FLOW_GRAPH_DRIFT_COUNTS),
+        # Additive fifth family (held-skill-publish-direction §4.5). It arrives
+        # WITH its revert arm and its resolve verb, for the canvas family's
+        # reason: a drift row the operator cannot address is an exit that does
+        # not exist.
+        "skills": _drift_counts(drift_items, _SKILL_DRIFT_COUNTS),
+        "items": [item.as_dict() for item in drift_items],
     }
 
 

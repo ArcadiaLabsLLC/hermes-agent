@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 __layer__ = "lanes"
 __all__ = [
     "SkillSyncSummary",
+    "_INBOX_VERDICTS",
+    "_admit_inbox_package",
     "_held_skill_packages_for_realm",
     "_mirror_realm_skill_inbox",
     "_prune_empty_dirs",
@@ -131,24 +133,9 @@ def apply_skill_inbox_pull(realm: Realm, subtree: Path) -> SkillSyncSummary:
     so the mirror — itself a mutation — is skipped when ``dry_run=True``.
     """
 
-    from ..skill_promotion import (
-        _iter_packages,
-        classify_promotion,
-        execute_promotion,
-        realm_inbox_dir,
-    )
-    from ..skill_sync import (
-        BASELINE_ADVANCING_BUCKETS,
-        BUCKET_ADOPTED,
-        BUCKET_CONVERGED,
-        BUCKET_KEPT_LOCAL,
-        BUCKET_UPDATED,
-        classify_inbox_package,
-        read_skill_baseline,
-        record_converged_skill_baselines,
-        skill_baseline_key,
-        write_skill_baseline,
-    )
+
+    from ..skill_promotion import _iter_packages, realm_inbox_dir
+    from ..skill_sync import read_skill_baseline, record_converged_skill_baselines, skill_baseline_key, write_skill_baseline
 
     inbox = realm_inbox_dir(realm.id)
     # Installs that predate the sidecar (2026-09-12): where the canonical copy and
@@ -163,14 +150,11 @@ def apply_skill_inbox_pull(realm: Realm, subtree: Path) -> SkillSyncSummary:
         tombstoned=lambda slug: skill_tombstoned(realm, slug) is not None,
     )
 
-    adopted: list[str] = []
-    converged: list[str] = []
-    updated: list[str] = []
-    kept_local: list[str] = []
-    held: list[str] = []
-    # Packages the mirror skipped (a reserved device-name component would crash a
-    # Windows write) start the refused set; each is already NOT on disk.
-    refused: list[str] = list(reserved_refused)
+    # One slug list per verdict. Packages the mirror skipped (a reserved
+    # device-name component would crash a Windows write) start the refused set;
+    # each is already NOT on disk.
+    verdicts: dict[str, list[str]] = {name: [] for name in _INBOX_VERDICTS}
+    verdicts["refused"].extend(reserved_refused)
     # ONE baseline read for the whole loop, ONE write at the end. Read per
     # package it would be the same bytes N times; written per package, a raise
     # mid-loop would leave a sidecar agreeing with neither the inbox nor the
@@ -188,97 +172,110 @@ def apply_skill_inbox_pull(realm: Realm, subtree: Path) -> SkillSyncSummary:
     # a package that refuses OR raises (a malformed source, a TOCTOU-occupied
     # canonical slot, an unexpected I/O error) must never abort the whole pull —
     # it is recorded as ``refused`` and reconciliation continues (F1c).
-    from ..sync_admission import refuse_package
-
     for slug, source_dir in _iter_packages(inbox):
         try:
-            # Admission scan (defect (b), 2026-07-25): the generic pull loop's
-            # ``_assert_no_secret_artifacts`` only covers artifacts it MAPS, and
-            # ``skills/…`` maps to None — so a pulled package was never scanned
-            # on the way in. Per-package isolation: one hostile package is
-            # refused, the rest of the pull continues. Portability is
-            # deliberately NOT scanned here — a skill's documentation
-            # legitimately names absolute paths (see ``sync_admission``).
-            refusal = refuse_package(slug, source_dir)
-            if refusal is not None:
-                logger.warning("skill package refused at the realm door: %s (%s)", slug, refusal.code)
-                refused.append(slug)
-                continue
-            # The promotion door's STRUCTURAL verdict first — it owns the
-            # refusals the three-way model has no opinion about (an invalid slug,
-            # a canonical slot occupied by a non-package, a categorized child
-            # under a bare skill) — then the DIRECTION, from the shared
-            # classifier. Two different questions: the write door dispatches on
-            # the first, the operator reads the second.
-            plan = classify_promotion(slug, source_dir)
-            if plan.action == "refuse_invalid":
-                refused.append(slug)
-                continue
-            verdict = classify_inbox_package(
-                realm.id, slug, source_dir, plan=plan, baseline=baseline
-            )
-            bucket = verdict.bucket
-            if bucket == BUCKET_ADOPTED:
-                result = execute_promotion(
-                    plan,
-                    source={"kind": "realm", "realm_id": realm.id},
-                    move_source=False,
-                )
-            elif bucket == BUCKET_UPDATED:
-                # The fast-forward. ``adopt_divergent=True`` is what makes the
-                # door archive my previous canonical before installing the
-                # realm's, so the copy being replaced is recoverable from
-                # ``.archive/<ts>/`` exactly as an explicit adopt's is.
-                result = execute_promotion(
-                    plan,
-                    source={"kind": "realm", "realm_id": realm.id},
-                    adopt_divergent=True,
-                    move_source=False,
-                )
-            else:
-                result = None
-            if result is not None:
-                if result.action == "promoted":
-                    (adopted if bucket == BUCKET_ADOPTED else updated).append(slug)
-                elif result.action == "held":
-                    held.append(slug)
-                    bucket = None  # never advance a baseline over a write that did not land
-                else:  # 'refused' / anything non-terminal — never became canonical
-                    refused.append(slug)
-                    bucket = None
-            elif bucket == BUCKET_CONVERGED:
-                converged.append(slug)
-            elif bucket == BUCKET_KEPT_LOCAL:
-                kept_local.append(slug)
-            else:  # held, or a defensively-mapped unreachable reason
-                held.append(slug)
-            if bucket in BASELINE_ADVANCING_BUCKETS and verdict.remote_hash is not None:
-                key = skill_baseline_key(slug)
-                if baseline.get(key) != verdict.remote_hash:
-                    baseline[key] = verdict.remote_hash
-                    baseline_dirty = True
+            verdict, remote_hash = _admit_inbox_package(realm, slug, source_dir, baseline=baseline)
         except Exception:  # noqa: BLE001 — one bad package must not abort the pull
             logger.exception(
                 "skill inbox reconcile raised for %r (realm %s); refusing package",
                 slug,
                 realm.id,
             )
-            refused.append(slug)
+            verdict, remote_hash = "refused", None
+        verdicts[verdict].append(slug)
+        if remote_hash is not None and baseline.get(skill_baseline_key(slug)) != remote_hash:
+            baseline[skill_baseline_key(slug)] = remote_hash
+            baseline_dirty = True
     if baseline_dirty:
         try:
             write_skill_baseline(realm.id, baseline)
         except Exception:  # noqa: BLE001 — a baseline is a receipt; it never fails a pull
             logger.exception("skill baseline write failed for realm %s", realm.id)
     return SkillSyncSummary(
-        adopted=sorted(set(adopted)),
-        converged=sorted(set(converged)),
-        held=sorted(set(held)),
+        adopted=sorted(set(verdicts["adopted"])),
+        converged=sorted(set(verdicts["converged"])),
+        held=sorted(set(verdicts["held"])),
         removed=sorted(set(removed)),
-        refused=sorted(set(refused)),
+        refused=sorted(set(verdicts["refused"])),
         tombstoned=sorted(set(tombstoned)),
-        updated=sorted(set(updated)),
-        kept_local=sorted(set(kept_local)),
+        updated=sorted(set(verdicts["updated"])),
+        kept_local=sorted(set(verdicts["kept_local"])),
     )
+
+
+#: The per-package verdict lists ``apply_skill_inbox_pull`` fills, one per
+#: ``SkillSyncSummary`` field a package can land in (``removed`` and
+#: ``tombstoned`` come from the mirror, never from a package verdict).
+_INBOX_VERDICTS = ("adopted", "converged", "updated", "kept_local", "held", "refused")
+
+
+def _admit_inbox_package(
+    realm: Realm, slug: str, source_dir: Path, *, baseline: dict[str, str]
+) -> tuple[str, str | None]:
+    """ONE mirrored package through the realm door: ``(verdict, baseline hash)``.
+
+    ``verdict`` names the ``_INBOX_VERDICTS`` list the slug lands in; the hash is
+    the realm copy's, to record as the new baseline, or ``None`` when this
+    verdict must not advance it (``kept_local``, ``held``, a refusal, a write
+    that did not land).
+    """
+
+    from ..skill_promotion import classify_promotion, execute_promotion
+    from ..skill_sync import (
+        BASELINE_ADVANCING_BUCKETS,
+        BUCKET_ADOPTED,
+        BUCKET_CONVERGED,
+        BUCKET_KEPT_LOCAL,
+        BUCKET_UPDATED,
+        classify_inbox_package,
+    )
+    from ..sync_admission import refuse_package
+
+    # Admission scan (defect (b), 2026-07-25): the generic pull loop's
+    # ``_assert_no_secret_artifacts`` only covers artifacts it MAPS, and
+    # ``skills/…`` maps to None — so a pulled package was never scanned
+    # on the way in. Per-package isolation: one hostile package is
+    # refused, the rest of the pull continues. Portability is
+    # deliberately NOT scanned here — a skill's documentation
+    # legitimately names absolute paths (see ``sync_admission``).
+    refusal = refuse_package(slug, source_dir)
+    if refusal is not None:
+        logger.warning("skill package refused at the realm door: %s (%s)", slug, refusal.code)
+        return "refused", None
+    # The promotion door's STRUCTURAL verdict first — it owns the
+    # refusals the three-way model has no opinion about (an invalid slug,
+    # a canonical slot occupied by a non-package, a categorized child
+    # under a bare skill) — then the DIRECTION, from the shared
+    # classifier. Two different questions: the write door dispatches on
+    # the first, the operator reads the second.
+    plan = classify_promotion(slug, source_dir)
+    if plan.action == "refuse_invalid":
+        return "refused", None
+    verdict = classify_inbox_package(realm.id, slug, source_dir, plan=plan, baseline=baseline)
+    bucket = verdict.bucket
+    advances = bucket in BASELINE_ADVANCING_BUCKETS and verdict.remote_hash is not None
+    remote_hash = verdict.remote_hash if advances else None
+    if bucket == BUCKET_CONVERGED:
+        return "converged", remote_hash
+    if bucket == BUCKET_KEPT_LOCAL:
+        return "kept_local", remote_hash
+    if bucket not in (BUCKET_ADOPTED, BUCKET_UPDATED):
+        return "held", remote_hash  # held, or a defensively-mapped unreachable reason
+    # ``adopt_divergent=True`` on the fast-forward (UPDATED) is what makes the
+    # door archive my previous canonical before installing the realm's, so the
+    # copy being replaced is recoverable from ``.archive/<ts>/`` exactly as an
+    # explicit adopt's is.
+    result = execute_promotion(
+        plan,
+        source={"kind": "realm", "realm_id": realm.id},
+        move_source=False,
+        **({"adopt_divergent": True} if bucket == BUCKET_UPDATED else {}),
+    )
+    if result.action == "promoted":
+        return ("adopted" if bucket == BUCKET_ADOPTED else "updated"), remote_hash
+    if result.action == "held":
+        return "held", None  # never advance a baseline over a write that did not land
+    return "refused", None  # 'refused' / anything non-terminal — never became canonical
 
 
 def _subtree_package_slug(source_skills: Path, rel_parts: tuple[str, ...]) -> str | None:

@@ -18,20 +18,25 @@ module             layer   owns
 =================  ======  =====================================================
 models             models  ``RealmSyncError``, ``RealmSyncArtifact``, membership
                            boundary, secret/state path sets, the LF pin
-families           policy  path -> family: destination, kind, profile home,
-                           secret / hard-excluded predicates
+families           policy  ``SyncFamily`` (the ONE family vocabulary) and
+                           ``SYNC_PATH_FAMILIES`` (path -> family, kind,
+                           generic destination, owning applier); profile
+                           homes; secret / hard-excluded predicates
 ledgers            policy  the RD-11 ledger unions and the tombstone receipt rows
-git                stores  authorization, the sync repo, ``_git``, redaction
+git                stores  authorization, the sync repo, ``_git`` (over
+                           ``agent_runtime.git_cmd.run_git``), redaction
 publish_scans      stores  the board / office / level / map one-pass scans
 persona_artifacts  stores  profile files, the three synthesized projections,
                            the base-seed and portability guards
 artifacts          stores  ``_resolve_artifacts_with_projection`` — the ONE
                            "what does this realm publish" pass; skill packages
-drift              stores  ``store_drift_items`` and the counts derived from it
+drift              stores  ``DRIFT_WALKS`` -> ``store_drift_items`` and the
+                           counts derived from its rows
 sidecar            stores  status sidecar, manifest, timestamps, sync events
 skill_inbox        lanes   the pull's skill lane: mirror, then admit each package
-pull               lanes   ``pull_realm_sync`` and the secret scan both verbs run
-publish            lanes   ``publish_realm_sync`` and its baseline records
+pull               lanes   ``pull_realm_sync`` over ``PULL_APPLIERS`` (ORDER is
+                           the argument); the secret scan both verbs run
+publish            lanes   ``publish_realm_sync`` and ``BASELINE_FAMILIES``
 status             lanes   ``realm_sync_status``
 =================  ======  =====================================================
 
@@ -61,6 +66,10 @@ from agent_runtime.realm_sync.models import (
     _safe_display_path,
 )
 from agent_runtime.realm_sync.families import (
+    GENERIC_PULL,
+    SYNC_PATH_FAMILIES,
+    SyncFamily,
+    SyncPathFamily,
     _destination_for_sync_path,
     _is_hard_excluded_path,
     _is_secretish_path,
@@ -116,6 +125,7 @@ from agent_runtime.realm_sync.drift import (
     DRIFT_KIND_ADDED,
     DRIFT_KIND_CHANGED,
     DRIFT_KIND_REMOVED,
+    DRIFT_WALKS,
     StoreDriftItem,
     _PERSONA_INSTANCE_DRIFT_COUNTS,
     _any_store_drift,
@@ -137,11 +147,14 @@ from agent_runtime.realm_sync.skill_inbox import (
     apply_skill_inbox_pull,
 )
 from agent_runtime.realm_sync.pull import (
+    PULL_APPLIERS,
+    PullApplier,
     _apply_workspace_tombstones,
     _assert_no_secret_artifacts,
     pull_realm_sync,
 )
 from agent_runtime.realm_sync.publish import (
+    BASELINE_FAMILIES,
     publish_realm_sync,
 )
 from agent_runtime.realm_sync.status import (
@@ -151,6 +164,7 @@ from agent_runtime.realm_sync.status import (
 
 __layer__ = "lanes"
 __all__ = [
+    "BASELINE_FAMILIES",
     "BASE_PROFILE_NAME",
     "BoardPublishScan",
     "DRIFT_FAMILY_BOARD",
@@ -165,17 +179,24 @@ __all__ = [
     "DRIFT_KIND_ADDED",
     "DRIFT_KIND_CHANGED",
     "DRIFT_KIND_REMOVED",
+    "DRIFT_WALKS",
+    "GENERIC_PULL",
     "HARD_EXCLUDED_PATH_PARTS",
     "LevelPublishScan",
     "MapPublishScan",
     "MembershipDecision",
     "OfficePublishScan",
+    "PULL_APPLIERS",
+    "PullApplier",
     "RealmMembershipProvider",
     "RealmSyncArtifact",
     "RealmSyncError",
     "SECRET_PATH_MARKERS",
+    "SYNC_PATH_FAMILIES",
     "SkillSyncSummary",
     "StoreDriftItem",
+    "SyncFamily",
+    "SyncPathFamily",
     "_PERSONA_INSTANCE_DRIFT_COUNTS",
     "_any_store_drift",
     "_append_realm_sync_event",

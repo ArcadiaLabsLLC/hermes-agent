@@ -6,14 +6,16 @@ DERIVED from its rows, so a counted change is a change the revert lane can addre
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Final
 
 from agent_runtime.profile_home import get_shared_skills_dir
 
 from .. import paths
 from ..models import Workspace
 from ..store import RealmStore, skill_tombstoned
+from .families import SyncFamily
 from .publish_scans import _office_publish_scan
 from .artifacts import (
     _flow_graph_projection,
@@ -35,46 +37,59 @@ __all__ = [
     "DRIFT_KIND_ADDED",
     "DRIFT_KIND_CHANGED",
     "DRIFT_KIND_REMOVED",
+    "DRIFT_WALKS",
     "StoreDriftItem",
+    "_BASELINE_KEY_OF",
     "_BOARD_DRIFT_COUNTS",
     "_FLOW_GRAPH_DRIFT_COUNTS",
     "_OFFICE_DRIFT_COUNTS",
     "_PERSONA_INSTANCE_DRIFT_COUNTS",
     "_SKILL_DRIFT_COUNTS",
     "_any_store_drift",
+    "_board_baseline_key",
+    "_board_card_baseline_key",
     "_board_store_drift",
     "_board_store_drift_items",
     "_drift_counts",
+    "_flow_graph_drift_key",
     "_flow_graph_store_drift_items",
+    "_office_actor_baseline_key",
     "_office_store_drift",
     "_office_store_drift_items",
+    "_office_surface_baseline_key",
+    "_persona_instance_drift_key",
     "_persona_instance_store_drift_items",
+    "_skill_drift_key",
+    "_skill_drift_walk",
     "_skill_store_drift_items",
     "store_drift_items",
 ]
 
 
-#: The itemizable store-drift families. A family is the pair (store, row
-#: granularity) — never the layer — because it is what a per-item revert has to
-#: address: ``board``/``office_surface`` are the CONTAINER definitions,
+#: The itemizable store-drift families — members of the ONE sync vocabulary,
+#: ``families.SyncFamily``; these names are import-compatibility aliases for
+#: ``realm_revert`` and its tests (each IS the member), and nothing in this
+#: package reads them. A family is the pair (store, row granularity) — never the
+#: layer — because it is what a per-item revert has to address:
+#: ``board``/``office_surface`` are the CONTAINER definitions,
 #: ``board_card``/``office_actor`` the rows inside them.
-DRIFT_FAMILY_BOARD = "board"
-DRIFT_FAMILY_BOARD_CARD = "board_card"
-DRIFT_FAMILY_OFFICE_SURFACE = "office_surface"
-DRIFT_FAMILY_OFFICE_ACTOR = "office_actor"
+DRIFT_FAMILY_BOARD = SyncFamily.BOARD
+DRIFT_FAMILY_BOARD_CARD = SyncFamily.BOARD_CARD
+DRIFT_FAMILY_OFFICE_SURFACE = SyncFamily.OFFICE_SURFACE
+DRIFT_FAMILY_OFFICE_ACTOR = SyncFamily.OFFICE_ACTOR
 #: The replicated persona-INSTANCE family (instance-replication plan H4). Rows
 #: here are the AGENTS behind the desks, not the desks: an actor and its
 #: instance drift independently (an operator can rename an agent without moving
 #: its desk), so folding the two into one family would let one row's publish
 #: silently speak for the other's.
-DRIFT_FAMILY_PERSONA_INSTANCE = "persona_instance"
+DRIFT_FAMILY_PERSONA_INSTANCE = SyncFamily.PERSONA_INSTANCE
 #: The replicated CANVAS family (canvas-replication plan w13/h2). Joined the
 #: drift set on 2026-09-05, in the same change as its revert arm — w14/h2
 #: deliberately shipped the counts as a top-level ``flow_graphs`` key first,
 #: because ``realm_revert`` subscripts ``_PROCESS_ORDER[row.family]`` and a
 #: drift row with no revert arm offers the operator an exit that does not exist.
 #: The arm exists now, so the rows do.
-DRIFT_FAMILY_FLOW_GRAPH = "flow_graph"
+DRIFT_FAMILY_FLOW_GRAPH = SyncFamily.FLOW_GRAPH
 #: The SKILL PACKAGE family (2026-09-12, held-skill-publish-direction §4.5). The
 #: LAST synced family to get drift rows, and the reason is the reason it had no
 #: baseline: with no never-synced baseline there was nothing to compare a local
@@ -85,7 +100,7 @@ DRIFT_FAMILY_FLOW_GRAPH = "flow_graph"
 #: root, which is one per machine and not a realm-scoped container, so the row's
 #: own spec is ``skill::<slug>`` (``parse_item_spec`` accepts a blank container —
 #: see its docstring).
-DRIFT_FAMILY_SKILL = "skill"
+DRIFT_FAMILY_SKILL = SyncFamily.SKILL
 
 DRIFT_KIND_ADDED = "added"
 DRIFT_KIND_CHANGED = "changed"
@@ -139,65 +154,98 @@ class StoreDriftItem:
         key is free to disagree with the first.
         """
 
-        from ..board_sync import _board_key, _card_key
-        from ..office_sync import _actor_key, _surface_key
+        return _BASELINE_KEY_OF.get(self.family, _office_actor_baseline_key)(self)
 
-        if self.family == DRIFT_FAMILY_BOARD:
-            return _board_key(self.container)
-        if self.family == DRIFT_FAMILY_BOARD_CARD:
-            return _card_key(self.container, self.item_key)
-        if self.family == DRIFT_FAMILY_OFFICE_SURFACE:
-            return _surface_key(self.container)
-        if self.family == DRIFT_FAMILY_PERSONA_INSTANCE:
-            from ..persona_instance_sync import instance_baseline_key
 
-            # Keyed on the id ALONE, with no container in it, and that is the
-            # Option A ruling showing through: one shared instance id realm-wide
-            # means the id is already unique across every workspace, so a
-            # workspace-qualified key would be a second spelling of an identity
-            # that has only one.
-            return instance_baseline_key(self.item_key)
-        if self.family == DRIFT_FAMILY_SKILL:
-            from ..skill_sync import skill_baseline_key
 
-            # The slug alone, for the flow-graph family's reason one step
-            # further: a skill slug is unique in the ONE shared skills root, so
-            # there is no container to qualify it with.
-            return skill_baseline_key(self.item_key)
-        if self.family == DRIFT_FAMILY_FLOW_GRAPH:
-            from ..flow_graph_sync import flow_graph_baseline_key
+def _board_baseline_key(item: StoreDriftItem) -> str:
+    from ..board_sync import _board_key
 
-            # Same reasoning as the instance family's, one step further along:
-            # graph identity IS the owner instance's id (``runtime:<id>``), so
-            # the key is already realm-unique and the container is display and
-            # scoping only.
-            return flow_graph_baseline_key(self.item_key)
-        return _actor_key(self.container, self.item_key)
+    return _board_key(item.container)
 
+
+def _board_card_baseline_key(item: StoreDriftItem) -> str:
+    from ..board_sync import _card_key
+
+    return _card_key(item.container, item.item_key)
+
+
+def _office_surface_baseline_key(item: StoreDriftItem) -> str:
+    from ..office_sync import _surface_key
+
+    return _surface_key(item.container)
+
+
+def _office_actor_baseline_key(item: StoreDriftItem) -> str:
+    from ..office_sync import _actor_key
+
+    return _actor_key(item.container, item.item_key)
+
+
+def _persona_instance_drift_key(item: StoreDriftItem) -> str:
+    from ..persona_instance_sync import instance_baseline_key
+
+    # Keyed on the id ALONE, with no container in it, and that is the Option A
+    # ruling showing through: one shared instance id realm-wide means the id is
+    # already unique across every workspace, so a workspace-qualified key would
+    # be a second spelling of an identity that has only one.
+    return instance_baseline_key(item.item_key)
+
+
+def _skill_drift_key(item: StoreDriftItem) -> str:
+    from ..skill_sync import skill_baseline_key
+
+    # The slug alone, for the flow-graph family's reason one step further: a
+    # skill slug is unique in the ONE shared skills root, so there is no
+    # container to qualify it with.
+    return skill_baseline_key(item.item_key)
+
+
+def _flow_graph_drift_key(item: StoreDriftItem) -> str:
+    from ..flow_graph_sync import flow_graph_baseline_key
+
+    # Same reasoning as the instance family's, one step further along: graph
+    # identity IS the owner instance's id (``runtime:<id>``), so the key is
+    # already realm-unique and the container is display and scoping only.
+    return flow_graph_baseline_key(item.item_key)
+
+
+#: Which baseline-sidecar key a drift row realigns, per family (rule 12's table
+#: for the ladder ``baseline_key`` used to be). A family missing here is keyed
+#: as an office actor, which is what the ladder's last arm did.
+_BASELINE_KEY_OF: Final[Mapping[str, Callable[[StoreDriftItem], str]]] = {
+    SyncFamily.BOARD: _board_baseline_key,
+    SyncFamily.BOARD_CARD: _board_card_baseline_key,
+    SyncFamily.OFFICE_SURFACE: _office_surface_baseline_key,
+    SyncFamily.OFFICE_ACTOR: _office_actor_baseline_key,
+    SyncFamily.PERSONA_INSTANCE: _persona_instance_drift_key,
+    SyncFamily.SKILL: _skill_drift_key,
+    SyncFamily.FLOW_GRAPH: _flow_graph_drift_key,
+}
 
 #: (count name, family, kind or None for "every row of this family"). The
 #: existing four-key count shapes are DERIVED through these tables — the
 #: launcher parses them today, so they are additive-only contracts.
 _BOARD_DRIFT_COUNTS = (
-    ("boards_changed", DRIFT_FAMILY_BOARD, None),
-    ("cards_changed", DRIFT_FAMILY_BOARD_CARD, DRIFT_KIND_CHANGED),
-    ("cards_added", DRIFT_FAMILY_BOARD_CARD, DRIFT_KIND_ADDED),
-    ("cards_removed", DRIFT_FAMILY_BOARD_CARD, DRIFT_KIND_REMOVED),
+    ("boards_changed", SyncFamily.BOARD, None),
+    ("cards_changed", SyncFamily.BOARD_CARD, DRIFT_KIND_CHANGED),
+    ("cards_added", SyncFamily.BOARD_CARD, DRIFT_KIND_ADDED),
+    ("cards_removed", SyncFamily.BOARD_CARD, DRIFT_KIND_REMOVED),
 )
 _OFFICE_DRIFT_COUNTS = (
-    ("offices_changed", DRIFT_FAMILY_OFFICE_SURFACE, None),
-    ("actors_changed", DRIFT_FAMILY_OFFICE_ACTOR, DRIFT_KIND_CHANGED),
-    ("actors_added", DRIFT_FAMILY_OFFICE_ACTOR, DRIFT_KIND_ADDED),
-    ("actors_removed", DRIFT_FAMILY_OFFICE_ACTOR, DRIFT_KIND_REMOVED),
+    ("offices_changed", SyncFamily.OFFICE_SURFACE, None),
+    ("actors_changed", SyncFamily.OFFICE_ACTOR, DRIFT_KIND_CHANGED),
+    ("actors_added", SyncFamily.OFFICE_ACTOR, DRIFT_KIND_ADDED),
+    ("actors_removed", SyncFamily.OFFICE_ACTOR, DRIFT_KIND_REMOVED),
 )
 #: The instance family's counts. A NEW key group under ``store_drift``, additive
 #: like the ``items`` list beside it: a launcher that does not read it is
 #: unaffected, and one that does can finally say WHICH agent is unpublished
 #: rather than only that a desk is.
 _PERSONA_INSTANCE_DRIFT_COUNTS = (
-    ("instances_changed", DRIFT_FAMILY_PERSONA_INSTANCE, DRIFT_KIND_CHANGED),
-    ("instances_added", DRIFT_FAMILY_PERSONA_INSTANCE, DRIFT_KIND_ADDED),
-    ("instances_removed", DRIFT_FAMILY_PERSONA_INSTANCE, DRIFT_KIND_REMOVED),
+    ("instances_changed", SyncFamily.PERSONA_INSTANCE, DRIFT_KIND_CHANGED),
+    ("instances_added", SyncFamily.PERSONA_INSTANCE, DRIFT_KIND_ADDED),
+    ("instances_removed", SyncFamily.PERSONA_INSTANCE, DRIFT_KIND_REMOVED),
 )
 #: The canvas family's counts, additive beside the instance family's and shaped
 #: identically. The top-level ``flow_graphs`` row keeps its own ``unpublished``
@@ -207,9 +255,9 @@ _PERSONA_INSTANCE_DRIFT_COUNTS = (
 #: ``canvases_removed`` — a graph that was reaped here still has a baseline
 #: entry and nothing left to publish. One walk, two questions.
 _FLOW_GRAPH_DRIFT_COUNTS = (
-    ("canvases_changed", DRIFT_FAMILY_FLOW_GRAPH, DRIFT_KIND_CHANGED),
-    ("canvases_added", DRIFT_FAMILY_FLOW_GRAPH, DRIFT_KIND_ADDED),
-    ("canvases_removed", DRIFT_FAMILY_FLOW_GRAPH, DRIFT_KIND_REMOVED),
+    ("canvases_changed", SyncFamily.FLOW_GRAPH, DRIFT_KIND_CHANGED),
+    ("canvases_added", SyncFamily.FLOW_GRAPH, DRIFT_KIND_ADDED),
+    ("canvases_removed", SyncFamily.FLOW_GRAPH, DRIFT_KIND_REMOVED),
 )
 #: The skill family's counts, shaped like every family above it. ``_any_store_drift``
 #: sums every count dict it finds under ``store_drift``, so adding this group is
@@ -217,9 +265,9 @@ _FLOW_GRAPH_DRIFT_COUNTS = (
 #: "I have changes I can push" — instead of the sheet reading "In sync" over a
 #: canonical package that differs from the realm's.
 _SKILL_DRIFT_COUNTS = (
-    ("skills_changed", DRIFT_FAMILY_SKILL, DRIFT_KIND_CHANGED),
-    ("skills_added", DRIFT_FAMILY_SKILL, DRIFT_KIND_ADDED),
-    ("skills_removed", DRIFT_FAMILY_SKILL, DRIFT_KIND_REMOVED),
+    ("skills_changed", SyncFamily.SKILL, DRIFT_KIND_CHANGED),
+    ("skills_added", SyncFamily.SKILL, DRIFT_KIND_ADDED),
+    ("skills_removed", SyncFamily.SKILL, DRIFT_KIND_REMOVED),
 )
 
 
@@ -243,13 +291,7 @@ def _drift_counts(
 def store_drift_items(realm_id: str, workspaces: list[Workspace]) -> list[StoreDriftItem]:
     """Every drifted store row for this realm, board families first."""
 
-    return [
-        *_board_store_drift_items(realm_id, workspaces),
-        *_office_store_drift_items(realm_id, workspaces),
-        *_persona_instance_store_drift_items(realm_id, workspaces),
-        *_flow_graph_store_drift_items(realm_id, workspaces),
-        *_skill_store_drift_items(realm_id),
-    ]
+    return [item for walk in DRIFT_WALKS for item in walk(realm_id, workspaces)]
 
 
 def _skill_store_drift_items(realm_id: str) -> list[StoreDriftItem]:
@@ -311,7 +353,7 @@ def _skill_store_drift_items(realm_id: str) -> list[StoreDriftItem]:
 
     def _row(slug: str, kind: str) -> StoreDriftItem:
         return StoreDriftItem(
-            family=DRIFT_FAMILY_SKILL, container="", item_key=slug, kind=kind
+            family=SyncFamily.SKILL, container="", item_key=slug, kind=kind
         )
 
     items: list[StoreDriftItem] = []
@@ -382,7 +424,7 @@ def _flow_graph_store_drift_items(
 
     def _row(graph_id: str, kind: str) -> StoreDriftItem:
         return StoreDriftItem(
-            family=DRIFT_FAMILY_FLOW_GRAPH,
+            family=SyncFamily.FLOW_GRAPH,
             container=owner_instance_id_of(graph_id),
             item_key=graph_id,
             kind=kind,
@@ -464,7 +506,7 @@ def _persona_instance_store_drift_items(
             continue
         items.append(
             StoreDriftItem(
-                family=DRIFT_FAMILY_PERSONA_INSTANCE,
+                family=SyncFamily.PERSONA_INSTANCE,
                 container=str(instance.workspace_id or ""),
                 item_key=instance.id,
                 kind=kind,
@@ -481,7 +523,7 @@ def _persona_instance_store_drift_items(
         record = by_id.get(instance_id)
         items.append(
             StoreDriftItem(
-                family=DRIFT_FAMILY_PERSONA_INSTANCE,
+                family=SyncFamily.PERSONA_INSTANCE,
                 container=str(getattr(record, "workspace_id", "") or ""),
                 item_key=instance_id,
                 kind=DRIFT_KIND_REMOVED,
@@ -509,7 +551,7 @@ def _board_store_drift_items(realm_id: str, workspaces: list[Workspace]) -> list
         if board_base != board_models.board_content_hash(board):
             items.append(
                 StoreDriftItem(
-                    family=DRIFT_FAMILY_BOARD,
+                    family=SyncFamily.BOARD,
                     container=board.board_id,
                     item_key=DRIFT_KEY_BOARD_DEF,
                     kind=DRIFT_KIND_CHANGED if board_base is not None else DRIFT_KIND_ADDED,
@@ -529,7 +571,7 @@ def _board_store_drift_items(realm_id: str, workspaces: list[Workspace]) -> list
                 continue
             items.append(
                 StoreDriftItem(
-                    family=DRIFT_FAMILY_BOARD_CARD,
+                    family=SyncFamily.BOARD_CARD,
                     container=board.board_id,
                     item_key=card.card_id,
                     kind=kind,
@@ -538,7 +580,7 @@ def _board_store_drift_items(realm_id: str, workspaces: list[Workspace]) -> list
         for card_id in sorted(baseline_card_ids - current_card_ids):
             items.append(
                 StoreDriftItem(
-                    family=DRIFT_FAMILY_BOARD_CARD,
+                    family=SyncFamily.BOARD_CARD,
                     container=board.board_id,
                     item_key=card_id,
                     kind=DRIFT_KIND_REMOVED,
@@ -598,7 +640,7 @@ def _office_store_drift_items(realm_id: str, workspaces: list[Workspace]) -> lis
             if surface_base != office_models.office_content_hash(surface):
                 items.append(
                     StoreDriftItem(
-                        family=DRIFT_FAMILY_OFFICE_SURFACE,
+                        family=SyncFamily.OFFICE_SURFACE,
                         container=workspace_id,
                         item_key=DRIFT_KEY_OFFICE_SURFACE,
                         kind=DRIFT_KIND_CHANGED if surface_base is not None else DRIFT_KIND_ADDED,
@@ -624,7 +666,7 @@ def _office_store_drift_items(realm_id: str, workspaces: list[Workspace]) -> lis
                 continue
             items.append(
                 StoreDriftItem(
-                    family=DRIFT_FAMILY_OFFICE_ACTOR,
+                    family=SyncFamily.OFFICE_ACTOR,
                     container=workspace_id,
                     item_key=actor.actor_key,
                     kind=kind,
@@ -633,7 +675,7 @@ def _office_store_drift_items(realm_id: str, workspaces: list[Workspace]) -> lis
         for actor_key in sorted(baseline_actor_keys - current_actor_keys):
             items.append(
                 StoreDriftItem(
-                    family=DRIFT_FAMILY_OFFICE_ACTOR,
+                    family=SyncFamily.OFFICE_ACTOR,
                     container=workspace_id,
                     item_key=actor_key,
                     kind=DRIFT_KIND_REMOVED,
@@ -704,3 +746,22 @@ def _any_store_drift(store_drift: dict[str, Any]) -> bool:
         if isinstance(family, dict)
         for count in family.values()
     )
+
+
+def _skill_drift_walk(realm_id: str, _workspaces: list[Workspace]) -> list[StoreDriftItem]:
+    """The skill walk in the table's shape: a skill package belongs to the ONE
+    shared skills root, not to a workspace, so the workspaces are not asked."""
+
+    return _skill_store_drift_items(realm_id)
+
+
+#: The drift walk, one family group per entry, in the order the rows are
+#: reported (board families first). ``store_drift_items`` iterates this and
+#: nothing else, so a family is in the walk if and only if it is listed here.
+DRIFT_WALKS: Final[tuple[Callable[[str, list[Workspace]], list[StoreDriftItem]], ...]] = (
+    _board_store_drift_items,
+    _office_store_drift_items,
+    _persona_instance_store_drift_items,
+    _flow_graph_store_drift_items,
+    _skill_drift_walk,
+)

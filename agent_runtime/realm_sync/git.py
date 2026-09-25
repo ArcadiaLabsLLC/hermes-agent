@@ -6,7 +6,6 @@ the credential's ``-c`` config never leaves this module unscrubbed.
 
 from __future__ import annotations
 
-import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -17,6 +16,7 @@ if TYPE_CHECKING:
     from ..realm_membership import RealmSyncCredential
 
 from .. import paths
+from ..git_cmd import run_git
 from ..models import Realm
 from ..redaction import SECRET_ASSIGNMENT_RE
 from .models import (
@@ -41,7 +41,6 @@ __all__ = [
     "_realm_subtree",
     "_redact_text",
     "_refresh_remote_tracking",
-    "_render_git_config",
     "_scrub_config_values",
     "_sync_repo_path",
     "_sync_state",
@@ -184,7 +183,7 @@ def _refresh_remote_tracking(repo: Path, *, credential: "RealmSyncCredential | N
 
 
 def _git(repo: Path, *args: str, check: bool = True, extra_config: Sequence[str] | None = None) -> str:
-    proc = subprocess.run(["git", *_render_git_config(extra_config), "-C", str(repo), *args], capture_output=True, text=True)
+    proc = run_git(args, repo=repo, config=extra_config)
     if check and proc.returncode != 0:
         code = "sync_auth_failed" if "authentication" in (proc.stderr or "").lower() else "sync_remote_unreachable"
         # safe_details carries the plain subcommand args only — the -c config
@@ -200,7 +199,7 @@ def _git(repo: Path, *args: str, check: bool = True, extra_config: Sequence[str]
 
 
 def _git_clone(ref: str, repo: Path, *, extra_config: Sequence[str] | None = None) -> None:
-    proc = subprocess.run(["git", *_render_git_config(extra_config), "clone", ref, str(repo)], capture_output=True, text=True)
+    proc = run_git(["clone", ref, str(repo)], config=extra_config)
     if proc.returncode != 0:
         code = "sync_auth_failed" if "authentication" in (proc.stderr or "").lower() else "sync_remote_unreachable"
         raise RealmSyncError(
@@ -209,13 +208,6 @@ def _git_clone(ref: str, repo: Path, *, extra_config: Sequence[str] | None = Non
             retryable=True,
             safe_details={"stderr": _redact_text(_scrub_config_values(proc.stderr, extra_config))},
         )
-
-
-def _render_git_config(extra_config: Sequence[str] | None) -> list[str]:
-    rendered: list[str] = []
-    for pair in extra_config or []:
-        rendered.extend(["-c", str(pair)])
-    return rendered
 
 
 def _scrub_config_values(text: str, extra_config: Sequence[str] | None) -> str:

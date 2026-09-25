@@ -512,8 +512,8 @@ The lane that closes it is one more family applier, and nothing else:
   arriving parent can repair them. The ack gains one additive list,
   `steering_healed: [{key, parent}]`, and a healed row is counted in `adopted`
   because a travelling field did move forward onto an existing row.
-- **Drift and revert reach these rows.** `DRIFT_FAMILY_PERSONA_INSTANCE`
-  (`realm_sync/drift.py`) with counts `store_drift.persona_instances` additive
+- **Drift and revert reach these rows.** `SyncFamily.PERSONA_INSTANCE`
+  (`realm_sync/families.py`) with counts `store_drift.persona_instances` additive
   beside `boards` / `office`, items keyed `{family, container=workspace_id,
   item_key=instance_id, kind}`, and the revert selector
   `persona_instance:<workspace_id>:<instance_id>`. `classify_revert` needed the

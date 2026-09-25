@@ -35,10 +35,15 @@ from __future__ import annotations
 
 from typing import Any
 
-COPY_SCOPES = ("office", "board", "agents", "settings")
+#: The two content scopes, named because ``office`` and ``board`` are also
+#: realm-sync families (``realm_sync.families.SyncFamily``) and W0-G5 refuses a
+#: bare literal compare against a declared vocabulary's word.
+COPY_SCOPE_OFFICE = "office"
+COPY_SCOPE_BOARD = "board"
+COPY_SCOPES = (COPY_SCOPE_OFFICE, COPY_SCOPE_BOARD, "agents", "settings")
 # Scopes materialized AFTER the workspace exists (content stores). The
 # ``agents`` / ``settings`` scopes are consumed by the create verb itself.
-CONTENT_COPY_SCOPES = ("office", "board")
+CONTENT_COPY_SCOPES = (COPY_SCOPE_OFFICE, COPY_SCOPE_BOARD)
 
 
 def normalize_copy_scopes(raw: list[str] | tuple[str, ...] | None) -> tuple[str, ...]:
@@ -64,9 +69,9 @@ def copy_workspace_content(
     """
     copied = {"office_actors": 0, "office_folders": 0, "board_cards": 0}
     warnings: list[dict[str, Any]] = []
-    if "office" in scopes:
+    if COPY_SCOPE_OFFICE in scopes:
         _copy_office(source_workspace_id, dest_workspace_id, updated_by=updated_by, copied=copied, warnings=warnings)
-    if "board" in scopes:
+    if COPY_SCOPE_BOARD in scopes:
         _copy_default_board(source_workspace_id, dest_workspace_id, updated_by=updated_by, copied=copied, warnings=warnings)
     return {"copied": copied, "warnings": warnings}
 
