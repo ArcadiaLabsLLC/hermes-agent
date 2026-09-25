@@ -62,7 +62,7 @@ the create receipt (`agent_create_phases.py:23-24`) then inherited verbatim.
    (`snapshot.py:437-454`) prints nothing when the section never ran, and two
    honest zeros when it ran and cost nothing. **Absent-as-zero is the canonical
    lie of this codebase** — it is how a census once MEASURED A FALSE ZERO
-   (`core_cache.py:169-172`).
+   (`core_cache/__init__.py:57-60`).
 2. **Monotonic only.** `time.monotonic` / `time.perf_counter` by construction,
    never a wall-clock delta: `BootTimeline` (`boot_timeline.py:16-17`),
    `TurnPhaseMarks` (`mission_chat_phases.py:29-32`), `ProviderDispatchTiming`
@@ -190,7 +190,7 @@ what the fixture mirror below enforces.
 | `snapshot_agents_readiness walk_ms=… tool_visibility_ms=… pid=…` | const `snapshot.py:432-434`, emitted `:449-454` | joins `snapshot_build_core` on `pid`; pinned by regex at `tests/agent_runtime/test_agents_readiness_attribution.py:51` |
 | `stream_attach op=… purpose=… … pid=…` | `agent_runtime/stream.py:284-290` | boot-investigation join (third `pid=`-bearing family) |
 | `stream_denied lane=… reason=… connection=… client=… transport=… tier=… pid=…` | `agent_runtime/stream.py:424-469`, emitted from `serve.py::_deny_subscribe`  | the other half of `stream_attach`: WHICH of the six subscribe refusals closed a lane, and on which connection. Added because a cockpit's stream to a second machine died 7 ms after its subscribe on 2026-09-04 and neither machine held the reason (R-D26); `tests/agent_runtime/test_serve_socket_lane.py` |
-| `snapshot_core_cache …` / `snapshot_core_cache_write …` / `snapshot_core_shadow …` / `snapshot_core_cache_lane_closed …` | `agent_runtime/core_cache.py` — see the channel table below | `agent_runtime/core_cache_census.py` via `scripts/core_cache_demote_census.py` |
+| `snapshot_core_cache …` / `snapshot_core_cache_write …` / `snapshot_core_shadow …` / `snapshot_core_cache_lane_closed …` | `agent_runtime/core_cache/` — see the channel table below | `agent_runtime/core_cache_census.py` via `scripts/core_cache_demote_census.py` |
 | `persona_prewarm done persona=… elapsed_ms=…` | const `PREWARM_DONE_RECEIPT` (`persona_prewarm.py:171`), emitted by `_worker` | pacing census; pinned at `tests/agent_runtime/test_persona_prewarm.py:481` |
 | `persona_chat_actor_prewarm root=… outcome=… elapsed_ms=…` | const `persona_chat_actor_prewarm.py` (`CHAT_ACTOR_PREWARM_DONE_RECEIPT`), emitted in `_drain` | did the chat's actor get built before its first message; format pinned at `tests/agent_runtime/test_persona_chat_actor_prewarm.py` |
 | `persona_chat_actor_prewarm pass candidates=… queued=… skipped=… elapsed_ms=…` | const `persona_chat_actor_prewarm.py` (`CHAT_ACTOR_PREWARM_PASS_RECEIPT`), emitted in `prewarm_chat_actors_on_boot` | one line per boot pass; the `candidates`/`queued` gap is `max_hot_sessions` doing its job |
@@ -222,7 +222,7 @@ emits and break every grep anchored on a neighbour (`stream.py:173-179`).
 
 ### The core-cache family and its census
 
-`agent_runtime/core_cache.py:152-195` is **the authority** — a per-receipt
+`agent_runtime/core_cache/__init__.py:40-83` is **the authority** — a per-receipt
 channel table naming, for every line, its family token, whether a second channel
 (the `parity` envelope) carries the same fact, and the census rules a counter
 must honour. Not duplicated here; amend it there.
@@ -706,7 +706,7 @@ drift.
    and `_lane_closed`'s free-form detail span go last because nothing can be
    field-parsed after them (paths may contain spaces).
 3. **Every receipt leads with a family token**, then `key=value`. A census greps
-   tokens, never the prose after them (`core_cache.py:156-160`).
+   tokens, never the prose after them (`core_cache/__init__.py:44-48`).
 4. **Observability must never be the reason something fails.** Instruments are
    defensive by construction (`snapshot.py:333-335`), the boot-timeline
    annotation is wrapped in a bare `except` (`serve.py:1057-1058`), and
@@ -727,7 +727,7 @@ drift.
   → `planned/observability-consumer-runner.md`
 * **Residual split, named rather than fixed:** the cache line says `stale=true`
   while the payload says `parity.core_stale` / `parity.freshness.state` — a
-  consumer contract predating the lane (`core_cache.py:184`). A census reads both.
+  consumer contract predating the lane (`core_cache/__init__.py:72`). A census reads both.
 * **`reason=absent` has no receipt by design**, so demote counts are lower
   bounds; nothing lifts that without a line per build, per process.
 * **The new-chat first-send rejection is still open.** `[MissionChatOutcome]`
@@ -751,7 +751,7 @@ All others under `archive/2026-08-22-pre-consolidation/`:
 * `MISSION_BOOT_WINDOW_PLAN_2026-08-17.md`, `EG0_2_RECEIPTS_2026-08-17.md` — the
   receipts they specified are censused above at their live formats.
 * `14-snapshot-core-build-performance.md` — build/cache receipts moved here;
-  `core_cache.py:152-195` holds the channel table.
+  `core_cache/__init__.py:40-83` holds the channel table.
 * `MC_DROPS_SNAPSHOT_CACHE_INVESTIGATION_2026-08-18.md` — origin of MCF-53 and
   MCF-54(ii); both are now encoded rules (`generation_residue` exists, the
   zero-scan exits exist).

@@ -51,7 +51,9 @@ def fresh_cache_lane():
 
 @pytest.fixture(autouse=True)
 def measurable_build_stamp(monkeypatch):
-    monkeypatch.setattr(core_cache, "build_stamp_token", lambda: "probe:mcf54:clean")
+    monkeypatch.setattr(core_cache.fingerprint, "build_stamp_token", lambda: "probe:mcf54:clean")
+    monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: "probe:mcf54:clean")
+    monkeypatch.setattr(core_cache.persist, "build_stamp_token", lambda: "probe:mcf54:clean")
 
 
 def _key(path: str) -> core_cache.CoreFingerprint:

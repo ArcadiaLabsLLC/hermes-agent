@@ -257,7 +257,7 @@ def _runtime_state_fingerprint() -> tuple | None:
         # also stops the poll loop from opening — and potentially creating — a
         # database just to read its own filename.
         from agent_runtime.chat_session_scope import chat_session_db_path
-        from agent_runtime.core_cache import sqlite_fingerprint_triples
+        from agent_runtime.core_cache.walk import sqlite_fingerprint_triples
 
         # Keyed through the SHARED SQLite authority, not a raw stat of the three
         # siblings, since 2026-08-21. SQLite deletes the WAL on a clean

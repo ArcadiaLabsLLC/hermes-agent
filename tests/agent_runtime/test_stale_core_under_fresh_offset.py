@@ -112,6 +112,7 @@ def shadow_requests(monkeypatch):
         )
         return True
 
+    monkeypatch.setattr(core_cache.shadow, "maybe_start_shadow_validation", record)
     monkeypatch.setattr(core_cache, "maybe_start_shadow_validation", record)
     return requests
 
@@ -278,7 +279,7 @@ def test_a_demoting_batch_never_ships_a_core_that_predates_its_offset(
 
     with pytest.MonkeyPatch.context() as pre_r1_memo:
         pre_r1_memo.setattr(
-            core_cache, "events_position", lambda: {"event_offset": boot_position}
+            core_cache.lane, "events_position", lambda: {"event_offset": boot_position}
         )
         with caplog.at_level(logging.WARNING, logger="agent_runtime.core_cache"):
             delta = next(frames)
@@ -469,7 +470,8 @@ def test_the_memo_still_answers_a_boot_where_nothing_moved(
         reads.append(1)
         return real_read_pair()
 
-    monkeypatch.setattr(core_cache, "_read_pair", counted_read_pair)
+    monkeypatch.setattr(core_cache.read, "_read_pair", counted_read_pair)
+    monkeypatch.setattr(core_cache.lane, "_read_pair", counted_read_pair)
 
     riders = ["prewarm", "hydrate", "hub", "cli"]
     for rider in riders:
@@ -498,7 +500,7 @@ def test_the_memo_is_dropped_the_moment_the_window_closes(
     *Kill:* close the lane without dropping the memo.
     """
 
-    assert core_cache._consult_memo is not None, (
+    assert core_cache.lane._consult_memo is not None, (
         "the boot never filled the shared consult, so there is nothing here to "
         "prove is dropped"
     )
@@ -506,7 +508,7 @@ def test_the_memo_is_dropped_the_moment_the_window_closes(
     core_cache.shadow_validate(
         request["cached"], caller=request["caller"], build=request["build"]
     )
-    assert core_cache._consult_memo is None
+    assert core_cache.lane._consult_memo is None
 
 
 # --------------------------------------------------------------------------- #
@@ -547,7 +549,8 @@ def test_an_append_inside_the_armed_window_drops_the_boot_consult_memo(
         reads.append(1)
         return real_read_pair()
 
-    monkeypatch.setattr(core_cache, "_read_pair", counted_read_pair)
+    monkeypatch.setattr(core_cache.read, "_read_pair", counted_read_pair)
+    monkeypatch.setattr(core_cache.lane, "_read_pair", counted_read_pair)
 
     first = core_cache.consult(caller="hydrate")
     assert first.core is not None, (
@@ -605,7 +608,8 @@ def test_the_reconsult_after_an_append_is_a_fresh_look_not_a_forced_rebuild(
         reads.append(1)
         return real_read_pair()
 
-    monkeypatch.setattr(core_cache, "_read_pair", counted_read_pair)
+    monkeypatch.setattr(core_cache.read, "_read_pair", counted_read_pair)
+    monkeypatch.setattr(core_cache.lane, "_read_pair", counted_read_pair)
 
     assert core_cache.consult(caller="hydrate").core is not None
     assert len(reads) == 1, reads
@@ -616,7 +620,7 @@ def test_the_reconsult_after_an_append_is_a_fresh_look_not_a_forced_rebuild(
     moved = int(core_cache._store_position() or 0) + 4096
     with pytest.MonkeyPatch.context() as position:
         position.setattr(
-            core_cache, "events_position", lambda: {"event_offset": moved}
+            core_cache.lane, "events_position", lambda: {"event_offset": moved}
         )
         again = core_cache.consult(caller="hub")
 

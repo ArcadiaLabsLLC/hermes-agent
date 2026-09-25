@@ -70,6 +70,7 @@ class _StaleFirstSpy:
 
             return copy.deepcopy(self.core)
 
+        monkeypatch.setattr(core_cache.lane, "take_stale_first_core", _fake)
         monkeypatch.setattr(core_cache, "take_stale_first_core", _fake)
 
     @property

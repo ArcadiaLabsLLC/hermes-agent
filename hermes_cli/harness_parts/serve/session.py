@@ -345,7 +345,7 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         # The declaration is a SEPARATE call on purpose — see
         # ``core_cache.declare_fingerprint_home_boot_site``. It is what makes a boot
         # that stops capturing SAY so, instead of silently going back to lazy.
-        from agent_runtime import core_cache as _core_cache
+        from agent_runtime.core_cache import home as _core_cache
 
         _core_cache.declare_fingerprint_home_boot_site(FINGERPRINT_HOME_BOOT_SITE)
         _core_cache.capture_fingerprint_home()

@@ -112,7 +112,7 @@ on. The named diff paths are runtime-authored: `profiles/base/state.db` and
 `agent_create_reservations/*.json`, `office/<ws>/archive/*.json`,
 `profiles/alice/config.yaml`, and a `persona_instances/*.json` row. The warning's own
 text names the fix direction: *widen the fingerprint's input closure, never trust the
-cache harder* (`agent_runtime/core_cache.py`).
+cache harder* (`agent_runtime/core_cache/`).
 
 **Cost of not fixing it:** a write per build that buys nothing, and every boot pays
 11,980 ms instead of 911 ms.

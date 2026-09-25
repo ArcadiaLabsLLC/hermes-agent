@@ -83,7 +83,7 @@ def test_a_diff_naming_a_runtime_authored_path_is_flagged_by_name(caplog):
     perturbing = f"C:/hermes/store/{DRAIN_STATE_FILENAME}"
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(
-            core_cache,
+            core_cache.decision,
             "_demote_diff_detail",
             lambda key, sidecar: core_cache._diff_detail(
                 core_cache.DIFF_SCOPE_LAST_PAIR,
@@ -128,7 +128,7 @@ def test_a_diff_of_only_store_paths_is_not_a_defect(caplog):
 
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(
-            core_cache,
+            core_cache.decision,
             "_demote_diff_detail",
             lambda key, sidecar: core_cache._diff_detail(
                 core_cache.DIFF_SCOPE_LAST_PAIR,

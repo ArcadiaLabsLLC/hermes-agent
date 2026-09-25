@@ -415,7 +415,9 @@ def test_a_capture_taken_during_a_persona_scope_pins_that_scopes_home(two_profil
 # 4. The sidecar carries the home the closure resolved through
 # --------------------------------------------------------------------------- #
 def _write_back_sidecar(monkeypatch) -> dict:
-    monkeypatch.setattr(core_cache, "build_stamp_token", lambda: "probe:stamp:clean")
+    monkeypatch.setattr(core_cache.fingerprint, "build_stamp_token", lambda: "probe:stamp:clean")
+    monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: "probe:stamp:clean")
+    monkeypatch.setattr(core_cache.persist, "build_stamp_token", lambda: "probe:stamp:clean")
     key = core_cache.build_input_fingerprint()
     assert key is not None
     assert core_cache.write_back({}, fingerprint=key) is True
@@ -474,7 +476,9 @@ def _persist_pair(monkeypatch, **overrides):
     about.
     """
 
-    monkeypatch.setattr(core_cache, "build_stamp_token", lambda: "probe:stamp:clean")
+    monkeypatch.setattr(core_cache.fingerprint, "build_stamp_token", lambda: "probe:stamp:clean")
+    monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: "probe:stamp:clean")
+    monkeypatch.setattr(core_cache.persist, "build_stamp_token", lambda: "probe:stamp:clean")
     key = core_cache.build_input_fingerprint()
     assert key is not None
     assert core_cache.write_back({}, fingerprint=key) is True

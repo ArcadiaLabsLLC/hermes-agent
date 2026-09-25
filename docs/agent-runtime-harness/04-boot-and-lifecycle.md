@@ -301,7 +301,7 @@ stops turns rebinding the process for each other as well.
 
 ## Stage 8 — the boot core cache: consult → fingerprint → serve or demote
 
-`agent_runtime/core_cache.py`. The claim it rests on: the first build is not bandwidth
+`agent_runtime/core_cache/`. The claim it rests on: the first build is not bandwidth
 (serializing the core is ~5 ms) — **it IS validation, done by reconstruction.** The module wrote
 that claim against a ~20 s first build; that is the design-era figure, and the live cold build is
 11,235 ms (Stage 7's receipt). So validation is
@@ -312,12 +312,12 @@ inputs again. The read path, in order:
 1. `build_snapshot` calls `core_cache.consult(caller=...)` **before the coalescer**
    (`snapshot.py:586`) — a ~50 ms stat check with no shared state, which behind the build
    lock would serialize the cheap answer behind an expensive build.
-2. `consult` returns immediately unless `lane_armed()` (`core_cache.py:3587`). The riders
+2. `consult` returns immediately unless `lane_armed()` (`core_cache/lane.py:296-298`). The riders
    of one boot share ONE judgement and each still emits its own receipt.
 3. Match → `label_core(source="cache")` and
    `snapshot_core_cache core_source=cache caller=… inputs=… fingerprint=… offset=…`. It
    deliberately does NOT emit `snapshot_build_core role=led`: there was no build.
-4. Miss → `_log_demote` with a reason from the `DEMOTE_*` vocabulary (`core_cache.py:3704`).
+4. Miss → `_log_demote` with a reason from the `DEMOTE_*` vocabulary (`core_cache/decision.py:75`).
    `absent` is the one reason NOT logged — the ordinary cold start would print a line on every
    build in every process — so **a census must not read "no demote line" as "no demote."**
 5. A cache hit ALSO starts `maybe_start_shadow_validation` (`snapshot.py:602`): the full build
@@ -330,14 +330,14 @@ inputs again. The read path, in order:
 **Validity is the stat fingerprint, full stop.** `event_offset` is recorded in the sidecar as a
 diagnostic and never read as an input to the match. The offset-keyed design stays refused — but
 on one leg, not two. The module's first argument, "the events section is 3 ms of a 5,485 ms
-build" (`core_cache.py:27`), is a design-era measurement: Stage 7's live receipt reads
+build" (`planned/core-cache-input-closure.md` (the relocated module docstring)), is a design-era measurement: Stage 7's live receipt reads
 `events:842`, the third most expensive section of that boot, so "an offset key buys almost
 nothing" no longer holds on its own. The refusal rests on the second argument, which the numbers
 cannot touch: two shipped incidents came from writers that mutate durable state with no EventLog
 event at all, and an offset key cannot see them at any price.
 
 A mismatch does not mean a blank canvas: `take_stale_first_core` serves the last persisted core
-**labeled stale** while the build runs (`core_cache.py:3817`, `stream.py:1393`). The one-shot
+**labeled stale** while the build runs (`core_cache/lane.py:383`, `stream.py:1393`). The one-shot
 belongs to the SUBSCRIBER, not the process — derived at producer-build time by
 `serve.py::_room_wants_stale_first`  — because a boot starts two `stream_frames`
 generators and the module-global version handed the allowance to whichever raced first. A
@@ -362,7 +362,7 @@ points at it, and lands by replacing ONE small pointer file (`live.json`). Atomi
 single replace; a crash at any earlier point leaves a directory the pointer never named,
 invisible to every reader and reaped by the next write-back.
 
-Receipts are indexed, not merely emitted: the channel table at `core_cache.py:178-193` lists every
+Receipts are indexed, not merely emitted: the channel table at `core_cache/__init__.py:66-81` lists every
 token, its second channel and its census rule; `test_core_cache_channel_table.py` drives BOTH
 directions (a token no row names, a row naming a token no writer emits); and
 `core_cache_census.py` executes those rules as code (`scripts/core_cache_demote_census.py`).
@@ -600,12 +600,12 @@ that is unchanged behaviour, not a regression, and its parent still has the exit
 5. **`_boot_clock` imports stdlib only** — anything else is measured by what it delays.
 6. **The store decides; the projection serves.** A cached or stale-labeled core never deletes,
    never refuses a write, never wins a conflict; a stale core is `parity.freshness.state =
-   "stale"` and therefore never `live` (`core_cache.py:104-116`).
+   "stale"` and therefore never `live` (`planned/core-cache-input-closure.md` (the relocated module docstring)).
 7. **If a shadow receipt shows divergence, the fix is WIDENING the stat set — never trusting the
-   cache harder** (`core_cache.py:90-91`).
+   cache harder** (`planned/core-cache-input-closure.md` (the relocated module docstring)).
 8. **The fingerprint decides cache validity, full stop.** No event-tail replay, ever.
 9. **Adding a receipt to the core-cache lane means adding a ROW to the channel table**, and the
-   test drives both directions (`core_cache.py:194-198`).
+   test drives both directions (`core_cache/__init__.py:82-86`).
 10. **The serve's cwd is a per-turn value**, safe to mutate process-globally only while turns are
     serialized by `profile_runner._WORKDIR_LOCK` (an `RLock`, `profile_runner.py:1434`) held for
     the WHOLE run. Nothing else enforces it, and widening turn concurrency starts by failing

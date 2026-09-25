@@ -2111,7 +2111,7 @@ first two correct the plan I was handed rather than confirming it.
   admission, and admission spawns. The mirror stays.
 
 - **[READ] The fix therefore belongs at the CONSUMER, and the repo had already litigated
-  this exact class twice.** `core_cache`'s HC-1 note (`agent_runtime/core_cache.py:1268`)
+  this exact class twice.** `core_cache`'s HC-1 note (`agent_runtime/core_cache/home.py:38`)
   argues it at length for the snapshot fingerprint — including the part that matters most
   here, that resolving through `get_hermes_head_home()` is *necessary and not sufficient*,
   because its first authority is a ContextVar and the bleeding thread has none. Its answer

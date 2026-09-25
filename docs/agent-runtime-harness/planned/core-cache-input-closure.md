@@ -248,3 +248,160 @@ Cold boot currently costs 11,235 ms of re-projection
 2026-08-22 15:46). The cache exists to replace that reconstruction with
 validation. While it never converges, every boot pays the full build *and* a
 write-back.
+
+## The module docstring, as core_cache.py carried it
+
+Relocated verbatim by lane R3's MOVE (the single-file module became the `agent_runtime/core_cache/` package; ruling Q3: prose relocates, it is never a reason to split). The package map is `agent_runtime/core_cache/__init__.py`. Its last section, THE RECEIPT CHANNEL TABLE, is not history: `tests/agent_runtime/test_core_cache_channel_table.py` executes it, so it stays in the package docstring and is not copied here.
+
+```text
+The persisted read-model core, validated by a stat fingerprint (Plan EG-3.1).
+
+=============================================================================
+WHY THIS EXISTS
+=============================================================================
+
+A serve child's first read-model core costs ~20 s of filesystem metadata work,
+on EVERY boot — the build is per-process, so a warm machine pays it too
+(measured 24.2 s warm, 2026-08-17). Doc 14's own numbers say the cost is not
+bandwidth: serializing the core is ~5 ms. The 20 s IS validation, done by
+reconstruction.
+
+So make validation cost what validation costs. The core is persisted after
+every successful default-store build, together with a sidecar carrying the
+**fingerprint of every input the build read**. The next process stats those
+inputs again: match → load the core and serve it authoritative in ~2 s;
+mismatch → serve the persisted core immediately, LABELED STALE, while the full
+build runs, then replace it and write back.
+
+=============================================================================
+WHY A STAT FINGERPRINT AND NOT AN EVENT OFFSET
+=============================================================================
+
+The refused design (Plan G BW-H1) keyed validity on the event log's offset plus
+a tail replay. It stays refused, for cause:
+
+* the events section is 3 ms of a 5,485 ms build — an offset-keyed cache buys
+  almost nothing and can only go stale undetectably;
+* two shipped incidents came from writers that mutate durable state with NO
+  EventLog event (``running_work.py``'s checkpoint, ``board_sync``'s
+  materialization), so an offset key cannot see them at all;
+* a tail replay would be a SECOND validity authority beside the key, and the
+  two would drift. Property 6 (one lane per question), applied to the cache
+  itself.
+
+**The fingerprint decides validity, full stop.** There is no event-tail replay
+here and there must never be one. ``event_offset`` IS recorded in the sidecar —
+as a diagnostic, so a divergence receipt can name the log position the core was
+built at — and it is never read as an input to the match decision.
+
+=============================================================================
+THE SOUNDNESS GROUND
+=============================================================================
+
+A (path, mtime_ns, size) triple is only a change signal if every writer moves
+mtime. In this runtime every durable write goes through
+:func:`utils.atomic_json_write`, which stages a temp file and ``os.replace``s
+it into position — a rename ALWAYS moves the target's mtime, including for a
+rewrite that produces byte-identical content. That is what makes the cheap
+signal sound here specifically, and it is why the enumeration is
+DIRECTORY-LEVEL rather than a list of names: a file that did not exist at the
+last build has no previous triple to compare, so the walk has to find it.
+
+Two mtime-blind cases are covered explicitly rather than assumed:
+
+* **SQLite.** A WAL commit that has not checkpointed leaves ``state.db``'s
+  mtime untouched, so the ``-wal`` and ``-journal`` siblings are fingerprinted
+  beside it — the WAL under a mask that stops READING the database from looking
+  like writing it. See :data:`_DB_SIBLINGS` for the mask, its ground, and what
+  it deliberately does not cover.
+* **In-place rewrites inside a directory.** Replacing an existing entry does
+  not move the CONTAINING directory's mtime on NTFS, which is why every file
+  is stat'd individually instead of trusting its parent (the same reasoning as
+  the boards-tree per-card stat pattern in ``harness_parts/serve/boot.py``).
+
+=============================================================================
+THE INPUT CLOSURE — THE ONE THING THIS STAGE CAN GET WRONG
+=============================================================================
+
+Plan EG §6.1 names this the plan's single biggest bet: a MISSED input serves
+unlabeled stale as authoritative, which is the failure class the plan exists to
+end, inverted. Three mitigations are load-bearing, not decorative:
+
+1. **The closure is derived from the build's own readers** — every class below
+   resolves through the SAME path authority the projection reads through
+   (``paths.store_root``, ``running_work_store_paths``,
+   ``chat_session_db_path``, ``_get_profiles_root``, ``get_all_skills_dirs``).
+   No second list free to drift. Those authorities are asked under a home this
+   process resolved ONCE (:func:`resolved_fingerprint_home`) rather than under
+   the ambient ``HERMES_HOME`` the build itself exports per persona — see that
+   constant for why "one resolution" and not merely "the head home" is what
+   makes the closure a function of the store.
+2. **The equivalence golden** (``test_core_fingerprint_cache.py`` test 7) reds
+   a gap inside the fixture matrix: for one fingerprint the cache-served core
+   must equal the rebuilt core field-for-field.
+3. **The shadow-validation window** reds it in the field: a cache-hit boot ALSO
+   runs the full build in the background and compares; a divergence is a loud
+   receipt naming the section AND the rebuilt core is adopted.
+
+If a shadow receipt ever shows divergence, the fix is WIDENING the stat set —
+never trusting the cache harder.
+
+Two more receipts (ML-10) cover the ways this lane can fail QUIETLY rather than
+wrongly, both on the same channel and countable by the same census:
+
+* ``fingerprint_refused`` — a walk hit its entry bound, so the fingerprint is
+  refused and the cache is off for this install. Unchanged as a decision; it was
+  previously a WARNING sentence that did not even name the tree.
+* ``never_converged`` — this process's consecutive write-backs never agreed, so
+  no later process can be served the cache at all. It names the oscillating
+  input paths, because the sanctioned response is again to widen the closure
+  over a NAMED input.
+
+=============================================================================
+ONE AUTHORITY
+=============================================================================
+
+The store decides; the projection serves. A cached or stale-labeled core never
+deletes, never refuses a write, and never wins a conflict on its own say-so —
+the 2026-08-15 mass archive was a projection that had acquired store powers. A
+stale-labeled core is marked ``parity.freshness.state = "stale"``, which is the
+signal the launcher's existing stale-banner lane already reads
+(``mission_control_snapshot.dart``: ``freshnessState == 'stale'`` →
+``MissionSnapshotHealth.stale``), so a stale frame is never ``live`` and
+therefore never authoritative. No write-lane predicate is reachable from
+either field.
+
+=============================================================================
+A WRITE-BACK IS ONE UNIT (MCF-21)
+=============================================================================
+
+The cache is three files — the core, the sidecar that binds to its bytes, and
+the stat set that makes a later miss diffable. They landed through three
+independent ``os.replace`` calls: each atomic alone, the TRIO not. The property
+"these three describe one build" was held up by two ad-hoc binding guards
+(``core_sha256`` between core and sidecar, ``entries.fingerprint`` between
+entries and sidecar) rather than by one rule, and a fourth file would have made
+a third guard.
+
+So the unit is now the GENERATION. Every write-back mints ``gen-<stamp>/`` under
+:data:`CORE_CACHE_DIRNAME`, writes all three files into it while nothing points
+at it, and lands by replacing ONE small pointer file naming it. Atomicity rides
+that single replace. A crash or a disk failure at any earlier point leaves a
+directory the pointer never named — invisible to every reader, reaped by the
+next successful write-back.
+
+Two consequences are worth stating where they can be read rather than derived:
+
+* **The recorded target shape was not implementable and this is not it.** MC-3
+  said "``os.replace`` the directory"; ``os.replace`` cannot replace a non-empty
+  directory anywhere, and on Windows cannot replace a directory at all. The full
+  argument, including why rename-away-then-rename-in is REFUSED, is at
+  :func:`_live_generation_dir`.
+* **The guards were re-aimed, not deleted.** A swap makes a TORN trio
+  impossible. It does nothing about a tampered or hand-restored file inside a
+  generation that is already published, which is what ``core_sha256`` convicts
+  and what ``entries_unbound`` now convicts. Both stay, documented to their new
+  reason. What DID retire is the partial-landing arm: a published pair with no
+  entries file, and its ``entries=false reason=entries_io`` receipt, are
+  unrepresentable and are gone from the table below.
+```

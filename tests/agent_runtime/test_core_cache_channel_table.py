@@ -36,11 +36,11 @@ from __future__ import annotations
 import ast
 import logging
 import re
-from pathlib import Path
 
 import pytest
 
 from agent_runtime import core_cache
+from tests._downstream.split_package_source import package_source
 
 
 #: The prefixes that name this lane's receipt vocabulary. Anything a writer can
@@ -100,7 +100,8 @@ def _named_token(span: str) -> str | None:
 # What the code can emit
 # --------------------------------------------------------------------------- #
 def _module_source() -> str:
-    return Path(core_cache.__file__).read_text(encoding="utf-8")
+    # The package lane R3 split core_cache.py into, read as one text.
+    return package_source(core_cache)
 
 
 def _log_format_strings() -> list[str]:
@@ -420,8 +421,14 @@ def test_the_two_events_that_share_a_reason_are_told_apart_by_their_family(
 
     # The write lane, driven to its fingerprint refusal without touching the
     # filesystem: a stamp exists, the fingerprint does not.
-    monkeypatch.setattr(core_cache, "build_stamp_token", lambda: "stamp")
-    monkeypatch.setattr(core_cache, "build_input_fingerprint", lambda: None)
+    monkeypatch.setattr(core_cache.fingerprint, "build_stamp_token", lambda: "stamp")
+    monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: "stamp")
+    monkeypatch.setattr(core_cache.persist, "build_stamp_token", lambda: "stamp")
+    monkeypatch.setattr(core_cache.fingerprint, "build_input_fingerprint", lambda: None)
+    monkeypatch.setattr(core_cache.lane, "build_input_fingerprint", lambda: None)
+    monkeypatch.setattr(core_cache.read, "build_input_fingerprint", lambda: None)
+    monkeypatch.setattr(core_cache.restat, "build_input_fingerprint", lambda: None)
+    monkeypatch.setattr(core_cache.persist, "build_input_fingerprint", lambda: None)
 
     with caplog.at_level(logging.INFO, logger="agent_runtime.core_cache"):
         assert core_cache.write_back({}, fingerprint=None) is False

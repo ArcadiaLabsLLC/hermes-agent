@@ -109,7 +109,6 @@
   "agent_runtime/continuity.py",
   "agent_runtime/conversation_observability.py",
   "agent_runtime/coordinator_permissions.py",
-  "agent_runtime/core_cache.py",
   "agent_runtime/core_cache_census.py",
   "agent_runtime/decision_contract_registry.py",
   "agent_runtime/default_scope.py",
