@@ -17,7 +17,7 @@ from hermes_cli.harness_parts.serve.boot import (
     _prewarm_read_model_snapshot,
     install_harness_skills_at_boot,
 )
-from hermes_cli.harness_parts.serve.loop import (
+from hermes_cli.harness_parts.serve.session import (
     serve_loop,
 )
 
