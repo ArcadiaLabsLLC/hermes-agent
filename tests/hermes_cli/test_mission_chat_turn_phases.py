@@ -723,19 +723,14 @@ def test_a_runner_that_reported_no_timing_leaves_only_what_the_HANDLER_measured(
     )
     record = _record_on_disk(isolate_agent_runtime_root, "phases_timing_blind")
     block = record[TURN_PROFILE_TIMING_KEY]
-    # CP-7's ``visibility_bundle_rebuild_component_<name>`` flags are the
-    # HANDLER's too (``_visibility_bundle_rebuild_components`` in
-    # persona_commands.py), and truthful: this turn is the first in a fresh
-    # home, so plugin discovery registers the home's plugin tools mid-turn and
-    # the registry epoch moves. Admitted by family and shape — never a runner key.
-    rebuild_flags = {
-        key for key in block if key.startswith("visibility_bundle_rebuild_component_")
-    }
-    assert set(block) - rebuild_flags == set(_HANDLER_MEASURED_KEYS), (
+    # This turn is the first in a fresh home. Plugin discovery runs at turn
+    # setup, before CP-7's cursor is sampled (ruled 2026-09-25), so the epoch
+    # its own registration moves is not reported as a rebuild: no
+    # ``visibility_bundle_rebuild_component_<name>`` flag rides in here.
+    assert set(block) == set(_HANDLER_MEASURED_KEYS), (
         "a blind runner must contribute nothing; only the handler's own "
-        "measurements may appear"
+        "measurements may appear, and first-turn discovery is not a rebuild"
     )
-    assert all(block[key] == 1 for key in rebuild_flags)
     assert isinstance(block["session_db_open_ms"], int)
     assert block["session_db_open_ms"] >= 0
 

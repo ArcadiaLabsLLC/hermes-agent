@@ -43,6 +43,7 @@ __all__ = [
     "_turn_skill_resolver",
     "_visibility_bundle_builds",
     "_visibility_bundle_diff_cursor",
+    "_discover_plugin_tools_before_the_bundle",
     "_visibility_bundle_rebuild_components",
     "_within_admitted_turn",
 ]
@@ -512,6 +513,31 @@ def _within_admitted_turn(handler):
             return handler(args)
 
     return _admitted
+
+
+def _discover_plugin_tools_before_the_bundle() -> None:
+    """Run plugin discovery at turn setup, BEFORE CP-7's cursor is sampled.
+
+    Plugin tools register into the tool registry on a home's first discovery,
+    and that registration moves the registry epoch the chat-lane bundle keys
+    on. Left to happen mid-turn (the visibility resolve reaches
+    ``tool_visibility._ensure_plugin_tools_registered`` a few steps later), the
+    first turn in a home rebuilt its bundle and reported
+    ``visibility_bundle_rebuild_component_registry_epoch`` for a move nobody
+    caused. Ruled 2026-09-25 (owner): discover first. The call is the same
+    idempotent function the visibility resolve uses, so the later call is a
+    no-op and the cost moves rather than doubles.
+
+    Never raises: a failed scan is not cached as discovered, so the in-turn
+    call retries it and surfaces the failure where it always did.
+    """
+
+    try:
+        from agent_runtime.tool_visibility import _ensure_plugin_tools_registered
+
+        _ensure_plugin_tools_registered()
+    except Exception:
+        return None
 
 
 def _visibility_bundle_diff_cursor():
