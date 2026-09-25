@@ -22,12 +22,17 @@ sheets are under `docs/agent-runtime-harness/planned/god-file-layout-sheets/`.
   three modules; a lane is sized by RAW LINES (~5–7k), never file count; gates
   run ONCE per landed batch, not per landing; lanes commit one MOVE + one
   CHANGE per file, no fix-ups.
-- **The last lane, W3-D**, is on `wave3/followups-2026-09-25` at
-  `876bbc7e88` (worktree `X:/wt/h-w3d`, local): the stream-watchdog fix (the
-  read-model opens the chat SessionDB read-only), the persona-id hoist's last
-  two readers, the `mcp_lane` except-narrowing, `patch_where_bound` widened to
-  fork readers outside the package, and the doc-cite gate back to green. If it
-  is not on `main` when you arrive, land it with the protocol below.
+- **The last lane, W3-D, LANDED** on `main` at `105b3bbfba` (2026-09-25, after this
+  note was first written): the read-model opens the chat SessionDB read-only
+  (`snapshot/details.py::_default_persona_session_db`, upstream's own
+  `SessionDB(read_only=True)`), the spurious `state.reconciled` is gone and its
+  xfail marker deleted; the persona-id hoist's last two readers; the
+  `mcp_lane` line logs a WARNING naming the exception instead of answering
+  `""` silently; `patch_where_bound` reaches fork readers outside the package
+  and the silent-patch gate walks its sites; the doc-cite gate is green.
+  Two rows it filed: `open_chat_session_db` callers do not declare read vs
+  write (runtime-queue); a fingerprint-cache test names a kill that does not
+  kill (fork-hygiene-queue). **No lane is running. Step 1 below is done.**
 
 ## Landing protocol (what every landing did)
 
@@ -76,7 +81,7 @@ sheets are under `docs/agent-runtime-harness/planned/god-file-layout-sheets/`.
 
 ## What is left to do, in order
 
-1. Land W3-D (above). Run the gate set once after it.
+1. ~~Land W3-D~~ — done (`105b3bbfba`). Run the gate set once on `main` before step 2.
 2. **Program-end gate on the owner's word:** the full fork suite once
    (`scripts/run_tests_bundled.sh --scope fork --since 627f5ea4fa` or the
    validated-suite command in `50 — Agent Handoffs/Running the suite.md`),
