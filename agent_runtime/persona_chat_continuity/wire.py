@@ -22,6 +22,16 @@ logger = logging.getLogger(__name__)
 #: search for "who decided what the model sees on this lane" lands in one place.
 WIRE_BOUNDARY = "persona_chat.native_wire_row"
 
+#: The provider wire's message roles — a BOUNDARY vocabulary (the OpenAI message
+#: shape this lane submits), read by name at the boundary checks below. Not
+#: ``persona_chat_history``'s ``WIRE_ROLES``, which maps roles onto the
+#: projection's ``MessageRole``: that is a different question.
+WIRE_ROLE_SYSTEM = "system"
+WIRE_ROLE_USER = "user"
+WIRE_ROLE_ASSISTANT = "assistant"
+WIRE_ROLE_TOOL = "tool"
+WIRE_ROLE_NAMES = frozenset({WIRE_ROLE_SYSTEM, WIRE_ROLE_USER, WIRE_ROLE_ASSISTANT, WIRE_ROLE_TOOL})
+
 
 @dataclass(frozen=True, slots=True)
 class WireBoundaryRow:
@@ -175,8 +185,8 @@ def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:
     """
 
     role = str(message.get("role") or "").strip().lower()
-    if role not in {"system", "user", "assistant", "tool"}:
-        role = "assistant"
+    if role not in WIRE_ROLE_NAMES:
+        role = WIRE_ROLE_ASSISTANT
     # Named `submitted`, not `raw`: the loop over `tool_calls` below rebinds
     # `raw` per call, and the two must not be the same name.
     submitted = message.get("content")
@@ -186,7 +196,7 @@ def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:
     # text and keeps the flat bound it always had — but now reports it.
     bounded = (
         bound_composed_user_content(submitted)
-        if role == "user"
+        if role == WIRE_ROLE_USER
         else _bounded_free_text(submitted)
     )
     content = bounded.text
@@ -297,12 +307,12 @@ def safe_native_history(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     available_results = {
         str(item.get("tool_call_id"))
         for item in normalized
-        if item.get("role") == "tool" and item.get("tool_call_id")
+        if item.get("role") == WIRE_ROLE_TOOL and item.get("tool_call_id")
     }
     safe: list[dict[str, Any]] = []
     live_tool_ids: set[str] = set()
     for item in normalized:
-        if item["role"] == "assistant":
+        if item["role"] == WIRE_ROLE_ASSISTANT:
             paired_calls = [
                 call
                 for call in item.get("tool_calls", [])
@@ -313,7 +323,7 @@ def safe_native_history(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 live_tool_ids.update(str(call["id"]) for call in paired_calls)
             else:
                 item.pop("tool_calls", None)
-        if item["role"] == "tool" and item.get("tool_call_id") not in live_tool_ids:
+        if item["role"] == WIRE_ROLE_TOOL and item.get("tool_call_id") not in live_tool_ids:
             continue
         safe.append(item)
     return safe

@@ -259,7 +259,7 @@ def bound_composed_user_content(value: Any) -> BoundedUserContent:
     # imported very early. It is guaranteed importable on any lane that composes
     # an envelope (``mission_chat_turn_context`` imports it at module scope), so
     # no defensive swallow — a silent degrade here would restore F1.
-    from ..runtime_hud import (
+    from ..runtime_hud.envelopes import (
         RUNTIME_CONTEXT_CODEC,
         SKILL_PRELOAD_CODEC,
         split_composed_user_row,

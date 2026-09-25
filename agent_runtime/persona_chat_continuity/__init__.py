@@ -18,28 +18,32 @@ this map is ``stores`` because the highest layer it re-exports is ``stores``.
       lease.py             stores   the chat-root lease + the scopes a turn holds
                                     (tool_execution_scope, chat_root_session_key_scope),
                                     repair_orphaned_chat_turns
-      mint_receipts.py     stores   PersonaChatMintReceiptStore (the idempotent mint),
-                                    the dispatch-lineage meta, _atomic_json
+      mint_receipts.py     stores   PersonaChatMintReceiptStore and its Mint phases
+                                    (precondition -> receipt -> early bind -> session ->
+                                    meta -> title -> commit; retract), _atomic_json
       clarify_tickets.py   stores   CLARIFY_* words and PersonaChatClarifyTicketStore
-      runtime_registry.py  stores   ResidentPersonaChatRuntime + PersonaChatRuntimeRegistry
+      clarify_index.py     stores   ClarifyTicketIndex: the store's by-session pointer
+                                    index (lookup/add/drop/rebuild/sweep), expired()
+      runtime_registry.py  stores   ResidentPersonaChatRuntime + PersonaChatRuntimeRegistry,
+                                    RUNTIME_STATES
 
     entry point                                          opens
     persona_chat_root_lease / repair_orphaned_chat_turns lease
-    PersonaChatMintReceiptStore.mint                     mint_receipts
+    PersonaChatMintReceiptStore.mint                     mint_receipts (Mint)
     safe_native_history / native_wire_row                wire -> bounds
     bound_composed_user_content                          bounds
-    PersonaChatClarifyTicketStore.*                      clarify_tickets
+    PersonaChatClarifyTicketStore.*                      clarify_tickets -> clarify_index
     persona_chat_runtime_registry().acquire/finish       runtime_registry
 
 The fd byte lock the lease and the mint take is ``agent_runtime.file_locks``'
 ``try_lock_fd`` / ``unlock_fd``. A test patches a name where it is BOUND
-(``persona_chat_continuity.lease._unlock``, ``...clarify_tickets._atomic_json``);
+(``persona_chat_continuity.lease.unlock_fd``, ``...clarify_index._atomic_json``);
 a patch on this package's attribute reaches no caller.
 """
 
 from __future__ import annotations
 
-from . import bounds, clarify_tickets, lease, mint_receipts, runtime_registry, wire
+from . import bounds, clarify_index, clarify_tickets, lease, mint_receipts, runtime_registry, wire
 from .bounds import (
     BOUND_ACTION_DROPPED,
     BOUND_ACTION_TRUNCATED,
@@ -58,6 +62,7 @@ from .bounds import (
     _bound_envelope,
     bound_composed_user_content,
 )
+from .clarify_index import ClarifyTicketIndex
 from .clarify_tickets import (
     CLARIFY_TICKET_ANSWERED,
     CLARIFY_TICKET_OPEN,
@@ -69,17 +74,16 @@ from .clarify_tickets import (
 from .lease import (
     PersonaChatBusyError,
     _lease_paths,
-    _try_lock,
-    _unlock,
     chat_root_session_key_scope,
     current_tool_execution_scope,
     persona_chat_root_lease,
     repair_orphaned_chat_turns,
     tool_execution_scope,
 )
-from .mint_receipts import PERSONA_CHAT_SESSION_SOURCE, PersonaChatMintReceiptStore, _atomic_json
+from .mint_receipts import PERSONA_CHAT_SESSION_SOURCE, Mint, PersonaChatMintReceiptStore, _atomic_json
 from .runtime_registry import (
     RESIDENT_SIGNATURE_DIFF_RECEIPT,
+    RUNTIME_STATES,
     PersonaChatRuntimeRegistry,
     ResidentPersonaChatRuntime,
     _signature_component_diff,
@@ -88,6 +92,11 @@ from .runtime_registry import (
 )
 from .wire import (
     WIRE_BOUNDARY,
+    WIRE_ROLE_ASSISTANT,
+    WIRE_ROLE_NAMES,
+    WIRE_ROLE_SYSTEM,
+    WIRE_ROLE_TOOL,
+    WIRE_ROLE_USER,
     WireBoundaryRow,
     native_history_revision,
     native_lineage_summary,
@@ -115,9 +124,17 @@ __all__ = [
     "CONTENT_BOUND_PARTS",
     "PERSONA_CHAT_SESSION_SOURCE",
     "RESIDENT_SIGNATURE_DIFF_RECEIPT",
+    "RUNTIME_STATES",
     "WIRE_BOUNDARY",
+    "WIRE_ROLE_ASSISTANT",
+    "WIRE_ROLE_NAMES",
+    "WIRE_ROLE_SYSTEM",
+    "WIRE_ROLE_TOOL",
+    "WIRE_ROLE_USER",
     "BoundedUserContent",
+    "ClarifyTicketIndex",
     "ContentBoundNote",
+    "Mint",
     "PersonaChatBusyError",
     "PersonaChatClarifyTicketStore",
     "PersonaChatMintReceiptStore",
@@ -127,6 +144,7 @@ __all__ = [
     "bound_composed_user_content",
     "bounds",
     "chat_root_session_key_scope",
+    "clarify_index",
     "clarify_tickets",
     "current_tool_execution_scope",
     "initialize_persona_chat_runtime_registry",

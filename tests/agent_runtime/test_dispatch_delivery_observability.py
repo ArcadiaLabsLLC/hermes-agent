@@ -25,6 +25,7 @@ import pytest
 
 from agent_runtime import dispatch_delivery, persona_chat_continuity
 from agent_runtime.dispatch_store import DELIVERY_DELIVERED, get_dispatch
+from agent_runtime.file_locks import try_lock_fd, unlock_fd
 
 # Reused AS-IS from the drain's own suite: these are the fixtures whose
 # overrides this module has to prove are still honored.
@@ -201,7 +202,7 @@ def test_a_held_lease_with_no_owner_file_is_the_stale_lock_fingerprint(store_hom
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR)
     try:
-        persona_chat_continuity._try_lock(fd)
+        try_lock_fd(fd)
         assert not owner_path.exists()
 
         probe = dispatch_delivery._probe_sender_idle(SENDER_ROOT)
@@ -210,7 +211,7 @@ def test_a_held_lease_with_no_owner_file_is_the_stale_lock_fingerprint(store_hom
         assert probe.busy_sub == "lease_busy_ownerless"
     finally:
         try:
-            persona_chat_continuity._unlock(fd)
+            unlock_fd(fd)
         except OSError:
             pass
         os.close(fd)

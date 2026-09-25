@@ -8,13 +8,13 @@ import logging
 import os
 import time
 from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any, Iterator
 
 from .. import paths
-from ..file_locks import try_lock_fd as _try_lock, unlock_fd as _unlock
+from ..file_locks import try_lock_fd, unlock_fd
 from ..serde import safe_assignment_text, safe_assignment_token
-from contextvars import ContextVar
 
 __layer__ = "stores"
 
@@ -115,6 +115,75 @@ def _lease_paths(root: str) -> tuple[Path, Path]:
     return base / f"{stem}.lock", base / f"{stem}.owner.json"
 
 
+def _acquire(fd: int, root: str, owner_path: Path, timeout_seconds: float) -> None:
+    """Take the byte lock, polling until *timeout_seconds*; busy past it is typed."""
+
+    deadline = time.monotonic() + max(timeout_seconds, 0.0)
+    while True:
+        try:
+            try_lock_fd(fd)
+            return
+        except OSError:
+            if time.monotonic() >= deadline:
+                owner = None
+                try:
+                    owner = json.loads(owner_path.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+                raise PersonaChatBusyError(root, owner)
+            time.sleep(0.01)
+
+
+def _write_owner(
+    owner_path: Path, root: str, owner_id: str | None, observer_kind: str
+) -> dict[str, Any]:
+    owner = {
+        "root_chat_session_id": root,
+        "owner_id": safe_assignment_token(owner_id) or f"pid-{os.getpid()}",
+        "observer_kind": safe_assignment_token(observer_kind) or "cli",
+        "pid": os.getpid(),
+        "acquired_at": time.time(),
+    }
+    tmp = owner_path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(owner, sort_keys=True), encoding="utf-8")
+    os.replace(str(tmp), str(owner_path))
+    return owner
+
+
+def _release(fd: int, root: str, owner_path: Path, *, acquired: bool) -> None:
+    """Release in the one order the stale-lock discriminator reads: unlink-owner → unlock → close.
+
+    Both arms swallow and ``os.close(fd)`` is always reached; neither failure is
+    silent. This is the producer-side half of the stale-lock discriminator: a
+    WARNING here, correlated by root and time with the delivery drain's
+    ``lease_busy_ownerless``, turns a hypothesis into a diagnosis.
+    """
+
+    if acquired:
+        try:
+            owner_path.unlink(missing_ok=True)
+        except OSError as exc:
+            logger.warning(
+                "persona chat root lease owner file for %s could not be removed"
+                " (%s) — release continues",
+                root,
+                exc,
+                exc_info=True,
+            )
+        try:
+            unlock_fd(fd)
+        except OSError as exc:
+            logger.warning(
+                "persona chat root lease byte-unlock FAILED for %s (%s) — the lock"
+                " will be released by handle close, whose timing Windows does not"
+                " guarantee; if the delivery drain then reports"
+                " lease_busy_ownerless, this line is the cause",
+                root,
+                exc,
+            )
+    os.close(fd)
+
+
 @contextmanager
 def persona_chat_root_lease(
     root_session_id: str,
@@ -132,63 +201,12 @@ def persona_chat_root_lease(
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR)
     acquired = False
-    deadline = time.monotonic() + max(timeout_seconds, 0.0)
     try:
-        while True:
-            try:
-                _try_lock(fd)
-                acquired = True
-                break
-            except OSError:
-                if time.monotonic() >= deadline:
-                    owner = None
-                    try:
-                        owner = json.loads(owner_path.read_text(encoding="utf-8"))
-                    except Exception:
-                        pass
-                    raise PersonaChatBusyError(root, owner)
-                time.sleep(0.01)
-        owner = {
-            "root_chat_session_id": root,
-            "owner_id": safe_assignment_token(owner_id) or f"pid-{os.getpid()}",
-            "observer_kind": safe_assignment_token(observer_kind) or "cli",
-            "pid": os.getpid(),
-            "acquired_at": time.time(),
-        }
-        tmp = owner_path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(owner, sort_keys=True), encoding="utf-8")
-        os.replace(str(tmp), str(owner_path))
-        yield owner
+        _acquire(fd, root, owner_path, timeout_seconds)
+        acquired = True
+        yield _write_owner(owner_path, root, owner_id, observer_kind)
     finally:
-        # Control flow is UNCHANGED: both arms still swallow, the release order
-        # is still unlink-owner → unlock → close, and ``os.close(fd)`` is still
-        # always reached. What is new is that neither failure is silent any
-        # more. This is the producer-side half of the stale-lock discriminator:
-        # a WARNING here, correlated by root and time with the delivery drain's
-        # ``lease_busy_ownerless``, turns a hypothesis into a diagnosis.
-        if acquired:
-            try:
-                owner_path.unlink(missing_ok=True)
-            except OSError as exc:
-                logger.warning(
-                    "persona chat root lease owner file for %s could not be removed"
-                    " (%s) — release continues",
-                    root,
-                    exc,
-                    exc_info=True,
-                )
-            try:
-                _unlock(fd)
-            except OSError as exc:
-                logger.warning(
-                    "persona chat root lease byte-unlock FAILED for %s (%s) — the lock"
-                    " will be released by handle close, whose timing Windows does not"
-                    " guarantee; if the delivery drain then reports"
-                    " lease_busy_ownerless, this line is the cause",
-                    root,
-                    exc,
-                )
-        os.close(fd)
+        _release(fd, root, owner_path, acquired=acquired)
 
 
 def repair_orphaned_chat_turns() -> list[str]:
@@ -210,10 +228,8 @@ def repair_orphaned_chat_turns() -> list[str]:
     not patch-covered). Best-effort per session; the next boot retries.
     """
 
-    from ..mission_chat_turns import (
-        inflight_chat_session_roots,
-        mark_stale_inflight_turns_interrupted,
-    )
+    from ..mission_chat_turns.journal import mark_stale_inflight_turns_interrupted
+    from ..mission_chat_turns.reads import inflight_chat_session_roots
 
     repaired: list[str] = []
     for root in inflight_chat_session_roots():

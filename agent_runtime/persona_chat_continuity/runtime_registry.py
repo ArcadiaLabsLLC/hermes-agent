@@ -8,18 +8,13 @@ import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field as dataclass_field
-from datetime import datetime, timezone
 from typing import Any, Callable
+
+from ..clock import now_iso_micro
 
 __layer__ = "stores"
 
 logger = logging.getLogger(__name__)
-
-
-def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace(
-        "+00:00", "Z"
-    )
 
 
 @dataclass
@@ -78,6 +73,14 @@ def _signature_component_diff(
             if left.get(name, missing) != right.get(name, missing)
         )
     )
+
+
+#: The registry's own lifecycle vocabulary, read by name in :meth:`transition`.
+#: Not ``states.TaskState``/``RunState``: ``failed`` is spelled there too, for a
+#: different question (program batch-1 rule: a fork-wide word is named in its
+#: single reader, never enum-ised).
+RUNTIME_STATES: tuple[str, ...] = ("cold", "busy", "hot", "failed")
+RUNTIME_STATE_FAILED = "failed"
 
 
 class PersonaChatRuntimeRegistry:
@@ -144,7 +147,7 @@ class PersonaChatRuntimeRegistry:
                     agent=factory(),
                     created_at=now,
                     last_used_at=now,
-                    last_resumed_at=_utc_now_iso(),
+                    last_resumed_at=now_iso_micro(),
                     signature_components=components,
                 )
                 self._record_transition(
@@ -180,13 +183,13 @@ class PersonaChatRuntimeRegistry:
     def transition(self, root_session_id: str, state: str) -> None:
         """Record process-local lifecycle truth for an owning serve observer."""
 
-        if state not in {"cold", "busy", "hot", "failed"}:
+        if state not in RUNTIME_STATES:
             raise ValueError(f"invalid persona chat runtime state: {state}")
         with self._lock:
             self._record_transition(
                 root_session_id,
                 state,
-                "failed" if state == "failed" else None,
+                RUNTIME_STATE_FAILED if state == RUNTIME_STATE_FAILED else None,
             )
 
     def evict(self, root_session_id: str) -> bool:
@@ -203,7 +206,7 @@ class PersonaChatRuntimeRegistry:
             return {
                 "runtime_state": "unknown",
                 "runtime_observer_id": "external_cli",
-                "runtime_observed_at": _utc_now_iso(),
+                "runtime_observed_at": now_iso_micro(),
             }
         with self._lock:
             entry = self._entries.get(root_session_id)
@@ -213,7 +216,7 @@ class PersonaChatRuntimeRegistry:
                 "runtime_state": state,
                 "last_runtime_transition": transition.get("transition"),
                 "runtime_observer_id": f"serve:{os.getpid()}",
-                "runtime_observed_at": _utc_now_iso(),
+                "runtime_observed_at": now_iso_micro(),
                 "active_session_id": entry.active_session_id if entry else None,
                 "last_resumed_at": entry.last_resumed_at if entry else None,
             }

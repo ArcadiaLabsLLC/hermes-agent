@@ -6,8 +6,8 @@ stamp ``serve_socket`` and ``serve_registry`` each spelled as ``_now_iso``
 (god-file program §4; lane R3 folded the first). ``iso_timestamp`` is the
 wall-clock normalizer lane R2 moved out of ``persona_chat_history``.
 ``now_iso_micro`` is the MICROSECOND stamp the turn journal orders by (lane
-2B-B folded ``mission_chat_turns`` and ``mission_chat_phases``;
-``persona_chat_continuity`` folds in its own lane).
+2B-B folded ``mission_chat_turns`` and ``mission_chat_phases``; lane B3
+folded ``persona_chat_continuity``'s resident registry).
 """
 
 from __future__ import annotations
