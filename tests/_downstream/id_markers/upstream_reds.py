@@ -160,6 +160,26 @@ if _WIN:
                          "the spin starves the test past the 30 s thread timeout, which kills "
                          "the process (upstream-owned test, loop and guard; green before the guard)"),
         ),
+        # Arrived with the 2026-09-25 merge (067fa1a257): upstream tests of upstream code,
+        # red on Windows with no fork line in the path.
+        "tests/hermes_cli/test_gui_command.py::test_gui_successful_pack_swaps_new_app_into_release": (
+            _up_red("the pack step asks pm for git and the hermetic harness disables lazy installs"),
+        ),
+        "tests/hermes_cli/test_update_wedged_gateway.py::TestLaunchdRestartWedgedIntegration": (
+            _up_red("the launchd restart path imports the POSIX-only pwd module (class e-BR)"),
+        ),
+        "tests/test_live_system_guard.py::test_default_home_unmarked_tmpdir_is_relocated_before_pytest_uses_it": (
+            _up_red("the relocated tmpdir is still reported under the operator home on Windows"),
+        ),
+        "tests/tools/test_code_execution_modes.py::test_selected_interpreter_environment_and_real_rpc": (
+            _up_red("the child environment carries Windows-only keys the expected mapping omits"),
+        ),
+        "tests/scripts/test_run_tests_parallel.py::test_scratch_root_is_per_user": (
+            _up_red("calls os.getuid, which Windows does not have"),
+        ),
+        "tests/tools/test_file_write_safety.py::TestBomHandling::test_a_dangling_symlink_destination_is_occupied": (
+            _up_red("readlink hands back the extended-length \\?\ spelling (class c-D)"),
+        ),
         "tests/hermes_cli/test_session_message_page_owner.py::"
         "test_message_pages_identify_the_serving_profile[None]": (
             _up_red("with no serving profile the default page is the serving page, 120 != 1"),

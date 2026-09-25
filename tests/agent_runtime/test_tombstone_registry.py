@@ -3636,7 +3636,7 @@ TOMBSTONES: tuple[Tombstone, ...] = (
     ),
     # -- the 2026-09-25 upstream merge ------------------------------------
     *rows(
-        "merge-2026-09-25",
+        "s-merge-2026-09-25",
         "2aa09594c5",
         Form.ATTR,
         "the fork's Git Bash discovery helpers lost their only caller when the "

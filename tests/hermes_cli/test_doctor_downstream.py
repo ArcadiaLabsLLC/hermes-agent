@@ -12,8 +12,6 @@ from argparse import Namespace
 import pytest
 
 from hermes_cli import doctor as doctor_mod
-from hermes_cli import doctor_tools
-from tools import browser_tool_install as bt_install
 
 
 class TestDoctorResolvesTheHomeAtCallTime:
@@ -76,45 +74,6 @@ class TestDoctorResolvesTheHomeAtCallTime:
         )
 
 
-class TestDoctorAgentBrowserProbe:
-    """Doctor asks upstream's ``agent_browser_runnable`` about a resolved install.
-
-    Lane ADOPT (2026-09-24) retired the fork's ``browser_probe_scope`` seam; a
-    test controls the probe where ``_check_agent_browser`` reads it,
-    ``hermes_cli.doctor_tools.agent_browser_runnable``. The two cases are each
-    other's control: one bytes-identical resolution, only the probe's answer
-    changes, and the report must change with it.
-    """
-
-    @staticmethod
-    def _report(monkeypatch, runnable: bool) -> str:
-        monkeypatch.setattr(
-            bt_install, "_find_agent_browser", lambda **_kw: "/opt/node/bin/agent-browser"
-        )
-        seen = []
-
-        def probe(candidate):
-            seen.append(candidate)
-            return runnable
-
-        monkeypatch.setattr(doctor_tools, "agent_browser_runnable", probe)
-        buf = io.StringIO()
-        with contextlib.redirect_stdout(buf):
-            doctor_tools._check_agent_browser(False)
-        assert seen == ["/opt/node/bin/agent-browser"]
-        return buf.getvalue()
-
-    def test_a_runnable_install_reports_browser_automation(self, monkeypatch):
-        out = self._report(monkeypatch, runnable=True)
-        assert "(browser automation)" in out
-        assert "not runnable" not in out
-
-    def test_an_unrunnable_install_reports_the_broken_symlink(self, monkeypatch):
-        out = self._report(monkeypatch, runnable=False)
-        assert "agent-browser found but not runnable" in out
-        assert "(browser automation)" not in out
-
-
 @pytest.mark.parametrize(
     ("base_url", "expects_warning"),
     [
@@ -160,9 +119,13 @@ def test_run_doctor_vendor_slug_policy_for_openai_api_endpoint(
     monkeypatch.setattr(_auth_mod, "get_codex_auth_status", lambda: {})
     monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", lambda: {})
 
+    # Imported by name: the fork edits run_doctor, and upstream's last direct
+    # reference to it (the WAL-reset doctor test) left at the 2026-09-25 merge.
+    from hermes_cli.doctor import run_doctor
+
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        doctor_mod.run_doctor(Namespace(fix=False))
+        run_doctor(Namespace(fix=False))
 
     warning = (
         "model.default 'nvidia/z-ai/glm-5.2' uses a vendor/model slug "
