@@ -46,14 +46,34 @@ def test_a_fixed_site_loses_its_row(key):
     assert not drift.stale, "delete these rows — the site is gone:\n" + drift.render()
 
 
+def _missing_dependency(missing: dict[str, str]) -> str:
+    """Name the environment defect: which declared module, which missing import, which extra."""
+    import tomllib
+
+    pyproject = tomllib.loads((probe.ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    extras = pyproject.get("project", {}).get("optional-dependencies", {})
+    lines = ["the test venv cannot import these declared modules — a missing DEPENDENCY, not a layer defect:"]
+    for module, name in sorted(missing.items()):
+        top = (name or "").split(".")[0]
+        fix = f"the `{top}` extra: re-sync with `pip install -e .[{top}]`" if top in extras else "no extra of that name"
+        lines.append(f"  {module}: No module named {name!r} ({fix})")
+    return "\n".join(lines)
+
+
 def test_declared_layers_are_bound_at_runtime_and_point_down():
     root = probe.ROOT
     declared = probe.declared_modules(root)
-    layers = {dotted: probe.runtime_layer(root, path) for path, dotted in declared.items()}
+    layers, missing = {}, {}
+    for path, dotted in declared.items():
+        try:
+            layers[dotted] = probe.runtime_layer(root, path)
+        except ModuleNotFoundError as exc:
+            missing[dotted] = exc.name or str(exc)
     unbound = sorted(m for m, layer in layers.items() if layer is None)
     assert not unbound, f"these modules spell a layer the runtime does not bind: {unbound}"
     imports = {dotted: probe.module_imports(root, path) for path, dotted in declared.items()}
     assert probe.layer_violations(layers, imports) == []
+    assert not missing, _missing_dependency(missing)
 
 
 def test_the_layer_check_reds_an_upward_import_read_at_runtime(tmp_path, monkeypatch):
