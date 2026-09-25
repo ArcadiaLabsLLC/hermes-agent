@@ -142,13 +142,13 @@ Protocol (NDJSON, one frame per line):
              ``{"jsonrpc":"2.0","id":…,"error":{"code":…,"message":…,"data":…}}``.
 
              The method name above is ONE example, deliberately not a list:
-             the ``@method`` registry in ``agent_runtime/serve_rpc.py`` is the
+             the ``@method`` registry in ``agent_runtime/serve_rpc/registry.py`` is the
              authority for the advertised set (count it there). This block
              used to name ``get`` | ``upsert`` and stayed at two while the
              registry grew — a docstring that copies a register starts lying
              the first time the register moves, and nothing reports it.
 
-             The CALL half (``agent_runtime/serve_rpc.py``), mirroring
+             The CALL half (``agent_runtime/serve_rpc/``), mirroring
              ``tui_gateway``'s JSON-RPC 2.0 shape and its error codes rather
              than minting a third convention. It sits BESIDE the argv lane
              above, which is unchanged and remains the fallback: a frame is

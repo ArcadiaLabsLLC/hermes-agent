@@ -167,7 +167,7 @@ class MessageHandling:
     def _op_version(
         self, message: dict[str, Any], sink: Any, connection: Any
     ) -> str | None:
-        from agent_runtime import serve_rpc
+        from agent_runtime.serve_rpc import registry as serve_rpc
 
         # Re-askable at any time, and deliberately NOT re-measured:
         # the answer is what code THIS interpreter loaded, which
@@ -764,9 +764,9 @@ class MessageHandling:
     ) -> str | None:
         """A frame no op claims: the METHOD lane if it is JSON-RPC, else argv."""
 
-        from agent_runtime import serve_rpc
+        from agent_runtime.serve_rpc.dispatch import is_rpc_frame
 
-        if serve_rpc.is_rpc_frame(message):
+        if is_rpc_frame(message):
             self._dispatch_rpc(message, sink, connection)
         else:
             self._dispatch_argv_request(message, sink, connection)
@@ -820,12 +820,13 @@ class MessageHandling:
         # ``spawn_chat_turn`` and ``spawn_reply`` are the two seams onto the
         # pool (``lanes.ArgvLanes``); each is bound to THIS frame's sink and
         # connection, which is what the closures they replaced captured.
-        from agent_runtime import serve_rpc
         from agent_runtime.call_authorization import caller_for_connection
+        from agent_runtime.serve_rpc.dispatch import handle_request
+        from agent_runtime.serve_rpc.protocol import RpcContext, is_deferred
 
-        rpc_frame = serve_rpc.handle_request(
+        rpc_frame = handle_request(
             message,
-            serve_rpc.RpcContext(
+            RpcContext(
                 connection_key=getattr(connection, "key", None),
                 transport=getattr(connection, "transport", "stdio"),
                 emit=sink.emit,
@@ -837,7 +838,7 @@ class MessageHandling:
         # The ONE frame this lane does not write: the handler took the
         # deferral and the worker owns the reply now. Compared by
         # identity, so no result a handler builds can land here.
-        if not serve_rpc.is_deferred(rpc_frame):
+        if not is_deferred(rpc_frame):
             sink.emit(rpc_frame)
 
     def _dispatch_argv_request(
@@ -976,7 +977,7 @@ class MessageHandling:
 
     def _hello_ok_frame(self, message: dict[str, Any], connection: Any) -> dict[str, Any]:
         """The version handshake, enforced end to end at the door."""
-        from agent_runtime import serve_rpc
+        from agent_runtime.serve_rpc import registry as serve_rpc
 
         from agent_runtime.serve_socket import HELLO_CONTRACT_VERSION
 

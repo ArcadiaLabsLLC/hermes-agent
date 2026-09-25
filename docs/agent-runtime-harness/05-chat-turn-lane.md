@@ -528,7 +528,7 @@ to nothing on the machine that received it.
 
 ## 9. The agent create path
 
-`runtime.agent.create` (`serve_rpc.py::_runtime_agent_create`) performs roster row + chat root +
+`runtime.agent.create` (`serve_rpc/agent.py::_runtime_agent_create`) performs roster row + chat root +
 office placement in ONE handler with a recorded-progress reservation
 (`agent_runtime/agent_create_reservations.py`) and a compensating retire, replacing the launcher's
 two sequenced writes over two transports. `harness agent create`
@@ -541,7 +541,7 @@ it; see [06 — The inverse](06-office-and-board.md#the-inverse--one-call-takes-
 An unknown persona is refused with `persona_not_found` (`agent_create.PERSONA_NOT_FOUND_REASON`,
 message built by `persona_not_found_message`), kept a separate reason from
 `persona_roster_unavailable` because the two need opposite responses. Anchors here are symbols
-rather than lines because this paragraph's `serve_rpc.py:1960` was pointing thirty lines short of
+rather than lines because this paragraph's `serve_rpc.py` line number (1960) was pointing thirty lines short of
 its handler by 2026-08-27, and read as verified the whole time.
 
 **The create path has THREE phases, and only two of them are atomic** (plan S4).

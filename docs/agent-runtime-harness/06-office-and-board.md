@@ -17,10 +17,10 @@ and appears nowhere on this surface.
 ## The write verbs — the level's mutations, one RPC lane
 
 Every office mutation is one of these verbs, and all of them are registered
-JSON-RPC methods on the serve child today (`agent_runtime/serve_rpc.py`,
+JSON-RPC methods on the serve child today (`agent_runtime/serve_rpc/`,
 `@method(...)`):
 
-| Gesture | Method | Handler (all in `agent_runtime/serve_rpc.py`) | Ack |
+| Gesture | Method | Handler (all in `agent_runtime/serve_rpc/`) | Ack |
 |---|---|---|---|
 | place / move | `runtime.office.upsert` | `_runtime_office_upsert` | `{actor_key, revision}` |
 | delete | `runtime.office.remove` | `_runtime_office_remove` | `{actor_key, revision, state}` |
@@ -30,8 +30,8 @@ JSON-RPC methods on the serve child today (`agent_runtime/serve_rpc.py`,
 | retire an agent (row + every actor bound to it) | `runtime.agent.retire` | `_runtime_agent_retire` | `{persona_instance_id, archive_path, archived_actor_keys, office_archive_failures, already_retired, correlation_id?, retire_receipt_path? \| first_attempt?, …}` |
 
 **Handlers are named, never `file:line`, and the reason is this table's own
-history.** The retire row carried `serve_rpc.py:2055` from the day S5 landed it,
-and by the time S10 read it back the function was at `:2079` — four days, one
+history.** The retire row carried a `serve_rpc.py` line number (2055) from the day S5 landed it,
+and by the time S10 read it back the function was at line 2079 — four days, one
 intervening slice, and the citation went on reading as verified (invariant 13).
 S8b had already had to strip that one number by hand; this change strips the
 other five for the same reason rather than waiting for each to rot in turn.
@@ -987,7 +987,7 @@ resubscribe ladder — boundary-validated (≤64 chars, `[a-z0-9_:.-]`, refused
 receipt, with absence printed as `-`. The docstring states the rule out loud: *a
 cause the client chose is evidence, never authority* — a server that branched on
 it would be taking dispatch orders from an untrusted string
-(`serve_rpc.py:725-740`).
+(`serve_rpc/office_read.py:75-90`).
 
 ## Optimistic rendering vs snapshot truth
 

@@ -47,7 +47,7 @@
     },
     {
       "id": "rdh6-rpc-create-hands-over-a-synthesised-persona",
-      "path": "agent_runtime/serve_rpc.py",
+      "path": "agent_runtime/serve_rpc/agent.py",
       "symbol": "_runtime_agent_create",
       "operator": "bypass-roster-check-with-object",
       "find": "    outcome = perform_agent_create(\n        params, caller=context.caller if context is not None else None\n    )",
@@ -819,7 +819,7 @@
     },
     {
       "id": "d1-wire-refusal-loses-its-pinned-reason",
-      "path": "agent_runtime/serve_rpc.py",
+      "path": "agent_runtime/serve_rpc/office_actor_writes.py",
       "symbol": "_runtime_office_upsert",
       "operator": "collapse-refusal-reason",
       "find": "                \"reason\": \"actor_archived\",\n                \"workspace_id\": workspace_id,\n                \"actor_key\": details[\"actor_key\"],",
@@ -1419,7 +1419,7 @@
     },
     {
       "id": "hh13-the-dispatcher-stops-handing-over-the-proven-caller",
-      "path": "agent_runtime/serve_rpc.py",
+      "path": "agent_runtime/serve_rpc/agent.py",
       "symbol": "_runtime_agent_retire",
       "operator": "drop-caller-from-service-call",
       "find": "    outcome = perform_agent_retire(\n        params, caller=context.caller if context is not None else None\n    )",
@@ -3225,7 +3225,7 @@
     },
     {
       "id": "p4-peer-keyhole-would-proxy-a-third-install",
-      "path": "agent_runtime/serve_rpc.py",
+      "path": "agent_runtime/serve_rpc/peer.py",
       "symbol": "_peer_media_get",
       "operator": "widen-resolution-scope",
       "find": "    scope = media_handles.build_media_scope(remote_completions=())\n",
@@ -3240,7 +3240,7 @@
     },
     {
       "id": "p4-media-get-never-reaches-the-proxy-arm",
-      "path": "agent_runtime/serve_rpc.py",
+      "path": "agent_runtime/serve_rpc/media.py",
       "symbol": "_runtime_media_get",
       "operator": "drop-branch",
       "find": "    if isinstance(resolved, media_handles.RemoteMediaArtifact):\n",
@@ -3255,7 +3255,7 @@
     },
     {
       "id": "p4-peer-keyhole-answers-a-caller-that-proved-nothing",
-      "path": "agent_runtime/serve_rpc.py",
+      "path": "agent_runtime/serve_rpc/peer.py",
       "symbol": "_peer_media_get",
       "operator": "drop-provenance-guard",
       "find": "    if not peer_install_id:\n",
@@ -4155,7 +4155,7 @@
     },
     {
       "id": "w5-media-get-dials-on-the-reader-again",
-      "path": "agent_runtime/serve_rpc.py",
+      "path": "agent_runtime/serve_rpc/media.py",
       "symbol": "_runtime_media_get",
       "operator": "drop-deferral",
       "find": "        if spawn is not None and spawn(\n",
@@ -4185,7 +4185,7 @@
     },
     {
       "id": "w5-the-deferred-sentinel-is-written-to-the-wire",
-      "path": "agent_runtime/serve_rpc.py",
+      "path": "agent_runtime/serve_rpc/protocol.py",
       "symbol": "is_deferred",
       "operator": "break-identity-check",
       "find": "    return frame is DEFERRED\n",
@@ -4200,7 +4200,7 @@
     },
     {
       "id": "w5-a-deferred-fault-escapes-instead-of-answering",
-      "path": "agent_runtime/serve_rpc.py",
+      "path": "agent_runtime/serve_rpc/protocol.py",
       "symbol": "deferred_reply",
       "operator": "drop-worker-boundary",
       "find": "            return err(\n                rid,\n                ERR_HANDLER_FAILED,\n                f\"handler error: {exc}\",\n                {\"reason\": \"handler_failed\", \"method\": method_name},\n            )\n",

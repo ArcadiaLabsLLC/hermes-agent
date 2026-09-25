@@ -142,8 +142,9 @@ LANE_CONTRACT_ALLOWLIST = {
         "Upstream plugin platform-action capability contract, independent of "
         "snapshot parity and its version. Versions adapter action dispatch."
     ),
-    ("serve_rpc.py", "RPC_CONTRACT_VERSION"): (
-        "the JSON-RPC METHOD-SURFACE contract, published at serve_rpc.py:178 as "
+    ("protocol.py", "RPC_CONTRACT_VERSION"): (
+        "the JSON-RPC METHOD-SURFACE contract, declared in serve_rpc/protocol.py and "
+        "published by serve_rpc/registry.py::manifest as "
         "`{'contract': RPC_CONTRACT_VERSION, 'methods': method_names()}`. It "
         "versions request/result SHAPES on the method manifest, which argv on "
         "the wire cannot version for itself; adding a method deliberately does "
@@ -183,7 +184,7 @@ LANE_CONTRACT_ALLOWLIST = {
 #: exemption it was never reasoned about. Witnessed by the lookalike test.
 LANE_CONTRACT_MODULE_HOMES = {
     "platform_actions.py": "hermes_cli",
-    "serve_rpc.py": "agent_runtime",
+    "protocol.py": "agent_runtime/serve_rpc",
     "constants.py": "hermes_cli/harness_parts/serve",
     "serve_socket.py": "agent_runtime",
     "contract.py": "agent_runtime/discussions",

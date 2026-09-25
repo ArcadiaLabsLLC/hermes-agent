@@ -282,7 +282,7 @@ def _console_denial(action: str) -> dict | None:
         TIER_CONSOLE,
         authorize_call,
     )
-    from agent_runtime.serve_rpc import ERR_HANDLER_FAILED
+    from agent_runtime.serve_rpc.protocol import ERR_HANDLER_FAILED
 
     decision = authorize_call(TIER_CONSOLE, CLI_CONSOLE)
     if decision.ok:

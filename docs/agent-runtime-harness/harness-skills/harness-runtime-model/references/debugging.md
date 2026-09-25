@@ -91,7 +91,7 @@ runtime proof:
   verb (alias of `retire`, 2026-08-27) does not change it.
 - **An agent that keeps coming back after a delete is a client bug, not a store bug.**
   The serve refuses an `office actor-upsert` against a deleted key with JSON-RPC `4090`
-  / `data.reason = "actor_archived"` (`agent_runtime/serve_rpc.py` ~1401), which is
+  / `data.reason = "actor_archived"` (`agent_runtime/serve_rpc/office_actor_writes.py:284`), which is
   terminal: the client must DROP its local row, and re-placing is a new create with a new
   id. A client that treats it as retryable re-pushes forever — the live incident was a
   launcher re-pushing archived actors nineteen seconds after boot. Conversely a desk still

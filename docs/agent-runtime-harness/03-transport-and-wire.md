@@ -416,7 +416,7 @@ chain root on B and **A→B→A across two installs is not detected as a cycle**
 A durable service outlives the install it was started from, so "what does the
 thing I am attached to carry" must be answerable at any time. Two manifests ride
 `ready` (stdio), `hello_ok` (socket), and the re-askable `version` reply:
-`"rpc"` from `serve_rpc.manifest()` (`agent_runtime/serve_rpc.py`) and `"ops"`
+`"rpc"` from `serve_rpc.manifest()` (`agent_runtime/serve_rpc/`) and `"ops"`
 from `ops_manifest(transport=…)` (`serve.py::ops_manifest`),
 `{"contract", "transport", "ops", "subscribe_lanes", "service"}`.
 
@@ -456,7 +456,7 @@ published endpoint reads `transport` first.
 **The `rpc` roster is THIRTEEN methods, and each is named by its handler** —
 every one registered by a `@method("…")` decorator in `serve_rpc.py`, which is
 the only registration site, so this list is
-`grep -n '@method(' agent_runtime/serve_rpc.py` and nothing else:
+`grep -rn '@method(' agent_runtime/serve_rpc/` and nothing else:
 
 | Method | Handler | Domain |
 |---|---|---|

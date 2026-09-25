@@ -199,7 +199,7 @@ python -m hermes_cli.main harness persona instance delete personainst_<placement
      that cleans it up, not a no-op.
    - **Archived actors refuse re-upsert, and the client must drop the row.** An
      `office actor-upsert` against a deleted key answers JSON-RPC **4090** with
-     `data.reason = "actor_archived"` (`agent_runtime/serve_rpc.py` ~1401). It is
+     `data.reason = "actor_archived"` (`agent_runtime/serve_rpc/office_actor_writes.py:284`). It is
      **terminal**: not refetch-and-rebase, not retry. Re-placing that agent is a NEW create
      with a freshly minted id, never a re-add of the key. The deliberate re-add doors are
      `harness office actor-restore` and `harness office actor-upsert --resurrect`

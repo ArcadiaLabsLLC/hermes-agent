@@ -370,7 +370,7 @@ directions (a token no row names, a row naming a token no writer emits); and
 ## Stage 9 — persona prewarm
 
 `agent_runtime/persona_prewarm.py`. Not a boot stage — it is **gesture-triggered**, via the
-JSON-RPC verb `runtime.persona.prewarm` (`agent_runtime/serve_rpc.py:2009`), which the launcher
+JSON-RPC verb `runtime.persona.prewarm` (`agent_runtime/serve_rpc/chat.py:93`), which the launcher
 fires per persona chip when the palette opens.
 
 The verb resolves the persona SYNCHRONOUSLY through `agent_create.resolve_persona` — the same

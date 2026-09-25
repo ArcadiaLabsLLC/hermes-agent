@@ -427,8 +427,8 @@ def test_the_handlers_hand_the_proven_caller_to_the_service():
             ok=True, reason="stubbed", tier=tier, caller_kind=getattr(caller, "kind", "?")
         )
 
-    original = serve_rpc.authorize_call
-    serve_rpc.authorize_call = _always_allow
+    original = serve_rpc.dispatch.authorize_call
+    serve_rpc.dispatch.authorize_call = _always_allow
     try:
         for name in ("runtime.agent.create", "runtime.agent.retire"):
             frame = serve_rpc.handle_request(
@@ -438,4 +438,4 @@ def test_the_handlers_hand_the_proven_caller_to_the_service():
             assert frame["error"]["data"]["reason"] == REASON_SCOPE_DENIED, name
             assert frame["error"]["data"]["caller"] == CALLER_DEVICE, name
     finally:
-        serve_rpc.authorize_call = original
+        serve_rpc.dispatch.authorize_call = original

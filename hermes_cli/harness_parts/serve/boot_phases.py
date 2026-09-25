@@ -650,7 +650,7 @@ class BootPhases:
         self.timeline.mark("service_foundations_ms")
 
     def _boot_sweeps_and_ready_frame(self) -> None:
-        from agent_runtime import serve_rpc
+        from agent_runtime.serve_rpc import registry as serve_rpc
         # Orphaned-turn sweep BEFORE the ready frame: serve boot is the moment
         # a launcher restart replaces a dead runtime, and the first hydrate is
         # only requested after ready — so records a dead executor left frozen
