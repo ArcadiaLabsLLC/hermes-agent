@@ -1,10 +1,12 @@
-"""``detect_mirrored_art`` and the acceptance-basis tokens."""
+"""``detect_mirrored_art`` — the handedness detector, as phases over one sheet."""
 
 from __future__ import annotations
 
+from agent.charsheet.palette import as_rgba
 from agent.charsheet.spec import RowSpec, SheetSpec, row_key
 
-from .geometry import _open_rgba, turnaround_order
+from .findings import Attribution, MirrorBasis, Severity
+from .geometry import turnaround_order
 from .registration import MIRROR_GAIN_THRESHOLD, _gain, _row_cells, _run_findings, _seam_distance, _seam_evidence, _seam_record, registration_window
 
 __layer__ = "lanes"
@@ -126,40 +128,77 @@ def detect_mirrored_art(spec: SheetSpec, image) -> dict:
     accounting: a row this cannot answer for is named with the reason rather
     than silently dropped.
     """
-    rgba = _open_rgba(image)
-    window = registration_window(spec.frame_w)
-    rows_by_key = {row.key: row for row in spec.rows()}
-    cells_by_key: dict[str, list] = {}
+    return HandednessDetector(spec, image).run()
 
-    def cells(row: RowSpec) -> list:
-        if row.key not in cells_by_key:
-            cells_by_key[row.key] = _row_cells(rgba, spec, row)
-        return cells_by_key[row.key]
 
-    def blank(row: RowSpec) -> bool:
-        return not any(cell.getbbox() for cell in cells(row))
+class HandednessDetector:
+    """:func:`detect_mirrored_art` as phases over one sheet (W0-G7; the H4
+    ``ServeSession`` shape).
 
-    judged: list[dict] = []
-    unjudged: list[dict] = []
+    The fields are what the 504-line function carried as locals; each phase
+    reads and writes them, and :meth:`run` is the ORDER, which is load-bearing:
+    the states pass runs FIRST, because the rotation's attribution reads it.
+    Naming a row as the culprit of a rotation run is a claim the rotation
+    cannot make on its own (see ``_attribute_run``), so the second basis has to
+    exist before the first one is allowed to point at anybody.
+    """
 
-    # The states pass runs FIRST, because the rotation's attribution reads it.
-    # Naming a row as the culprit of a rotation run is a claim the rotation
-    # cannot make on its own (see _attribute_run), so the second basis has to
-    # exist before the first one is allowed to point at anybody.
-    state_flagged: list[dict] = []
-    states_judged_per_state: dict[str, int] = {}
-    directional = [state for state in spec.states if state.directional]
-    for direction in turnaround_order(spec.scheme.authored)[1:-1]:
+    def __init__(self, spec: SheetSpec, image) -> None:
+        self.spec = spec
+        self.rgba = as_rgba(image)
+        self.window = registration_window(spec.frame_w)
+        self.rows_by_key = {row.key: row for row in spec.rows()}
+        self._cells_by_key: dict[str, list] = {}
+        self.judged: list[dict] = []
+        self.unjudged: list[dict] = []
+        self.state_flagged: list[dict] = []
+        self.states_judged_per_state: dict[str, int] = {}
+        self.convicted_per_state: dict[str, int] = {}
+        self.whole_state_rows: dict[str, list[str]] = {}
+        self.per_state_scored: list[list[tuple[int, dict]]] = []
+        self.rotation_scored: list[tuple[int, dict]] = []
+
+    def run(self) -> dict:
+        self.states_pass()
+        self.rotation_pass()
+        flagged = self.attribute(self.convict())
+        self.summarise(flagged)
+        flagged.sort(key=lambda finding: self.rows_by_key[finding["row"]].index)
+        return {"flagged": flagged, "judged": self.judged, "unjudged": self.unjudged}
+
+    def cells(self, row: RowSpec) -> list:
+        if row.key not in self._cells_by_key:
+            self._cells_by_key[row.key] = _row_cells(self.rgba, self.spec, row)
+        return self._cells_by_key[row.key]
+
+    def blank(self, row: RowSpec) -> bool:
+        return not any(cell.getbbox() for cell in self.cells(row))
+
+    # -- the states pass ---------------------------------------------------
+
+    def states_pass(self) -> None:
+        """The SAME direction across every directional state, then the whole-state rule."""
+        directional = [state for state in self.spec.states if state.directional]
+        for direction in turnaround_order(self.spec.scheme.authored)[1:-1]:
+            self._judge_across_states(direction, directional)
+        for finding in self.state_flagged:
+            self.convicted_per_state[finding["state"]] = (
+                self.convicted_per_state.get(finding["state"], 0) + 1
+            )
+        self._whole_states()
+
+    def _judge_across_states(self, direction: str, directional: list) -> None:
+        rows_by_key = self.rows_by_key
         drawn = [
             rows_by_key[row_key(state.name, direction)]
             for state in directional
-            if not blank(rows_by_key[row_key(state.name, direction)])
+            if not self.blank(rows_by_key[row_key(state.name, direction)])
         ]
         if len(drawn) < 3:
-            unjudged.append(
+            self.unjudged.append(
                 {
                     "rows": [row.key for row in drawn],
-                    "basis": "states",
+                    "basis": MirrorBasis.STATES,
                     "reason": (
                         f"only {len(drawn)} state(s) draw {direction!r} — across one "
                         "pair a disagreement cannot say WHICH of the two states is "
@@ -167,12 +206,12 @@ def detect_mirrored_art(spec: SheetSpec, image) -> dict:
                     ),
                 }
             )
-            continue
+            return
         across: dict[tuple[str, str], dict] = {}
         for index, left in enumerate(drawn):
             for right in drawn[index + 1 :]:
                 direct, flipped = _seam_distance(
-                    cells(left), cells(right), window=window
+                    self.cells(left), self.cells(right), window=self.window
                 )
                 across[(left.key, right.key)] = _seam_record(
                     left.key, right.key, direct, flipped
@@ -188,6 +227,54 @@ def detect_mirrored_art(spec: SheetSpec, image) -> dict:
         # a strict MINORITY of the states — the same argument that forces the
         # three-state minimum above.
         needed = len(drawn) // 2 + 1
+        entries, against = self._rank_across_states(drawn, across, needed)
+        # An even split is every row landing exactly ONE short of the conviction
+        # line — which is why it is spelled `needed - 1` and not `len(drawn) //
+        # 2`. The two are equal, and writing the second one made this branch
+        # able to mask a wrong `needed`: with the old `len(pairs) // 2 + 1` the
+        # conviction line drops to 2 of 4 and every row of a 2-2 split is
+        # convicted, but a branch keyed to its own arithmetic still fired first
+        # and hid it. One knob, one place.
+        if (
+            len(drawn) % 2 == 0
+            and len(against) == len(drawn)
+            and all(count == needed - 1 for count in against.values())
+        ):
+            # Every state disagrees with exactly half the others: two camps of
+            # equal size, and nothing inside the sheet says which camp holds the
+            # mirrored art. Reporting a gain here would read as a clean pass.
+            self.unjudged.append(
+                {
+                    "rows": [row.key for row in drawn],
+                    "basis": MirrorBasis.STATES,
+                    "reason": (
+                        f"the {len(drawn)} states that draw {direction!r} split "
+                        f"evenly, {needed - 1} against {needed - 1} — neither "
+                        "camp is a "
+                        "minority, so this pass cannot say which half is mirrored"
+                    ),
+                }
+            )
+            return
+        self.judged.extend(entries)
+        # Counted per STATE, not per direction, because the whole-state rule
+        # below asks "did EVERY row of this state that anyone could answer for
+        # read as a mirror?" — and a row this pass gave up on (unjudged above)
+        # must not be silently counted as agreement in either direction.
+        for entry in entries:
+            self.states_judged_per_state[entry["state"]] = (
+                self.states_judged_per_state.get(entry["state"], 0) + 1
+            )
+        self.state_flagged.extend(
+            dict(entry, corroborating=[], alternatives=[])
+            for entry in entries
+            if entry["gain"] >= MIRROR_GAIN_THRESHOLD
+        )
+
+    def _rank_across_states(
+        self, drawn: list, across: dict[tuple[str, str], dict], needed: int
+    ) -> tuple[list[dict], dict[str, int]]:
+        """Each drawn row's cross-state reading, and how many states disagree with it."""
         entries: list[dict] = []
         against: dict[str, int] = {}
         for row in drawn:
@@ -201,10 +288,10 @@ def detect_mirrored_art(spec: SheetSpec, image) -> dict:
                 # Never a bare `continue`: a row that vanishes from the payload
                 # reads exactly like a clean one. Same accounting rule as the
                 # rotation's `as_drawn <= 0` case.
-                unjudged.append(
+                self.unjudged.append(
                     {
                         "rows": [row.key],
-                        "basis": "states",
+                        "basis": MirrorBasis.STATES,
                         "reason": (
                             f"only {len(ranked)} of its {len(pairs)} cross-state "
                             "pairs measure anything, and a conviction here needs "
@@ -222,333 +309,254 @@ def detect_mirrored_art(spec: SheetSpec, image) -> dict:
                     "state": row.state,
                     "direction": row.direction,
                     "gain": _gain([ranked[needed - 1]]),
-                    "basis": "states",
+                    "basis": MirrorBasis.STATES,
                     "seams": _seam_evidence(row.key, ranked[:needed]),
                 }
             )
-        # An even split is every row landing exactly ONE short of the conviction
-        # line — which is why it is spelled `needed - 1` and not `len(drawn) //
-        # 2`. The two are equal, and writing the second one made this branch
-        # able to mask a wrong `needed`: with the old `len(pairs) // 2 + 1` the
-        # conviction line drops to 2 of 4 and every row of a 2-2 split is
-        # convicted, but a branch keyed to its own arithmetic still fired first
-        # and hid it. One knob, one place.
-        if (
-            len(drawn) % 2 == 0
-            and len(against) == len(drawn)
-            and all(count == needed - 1 for count in against.values())
-        ):
-            # Every state disagrees with exactly half the others: two camps of
-            # equal size, and nothing inside the sheet says which camp holds the
-            # mirrored art. Reporting a gain here would read as a clean pass.
-            unjudged.append(
-                {
-                    "rows": [row.key for row in drawn],
-                    "basis": "states",
-                    "reason": (
-                        f"the {len(drawn)} states that draw {direction!r} split "
-                        f"evenly, {needed - 1} against {needed - 1} — neither "
-                        "camp is a "
-                        "minority, so this pass cannot say which half is mirrored"
+        return entries, against
+
+    def _whole_states(self) -> None:
+        # THE WHOLE-STATE RULE (owner ruling 2026-08-25). A state whose EVERY
+        # cross-state-judged row reads as a mirror is a whole state drawn backwards,
+        # and that is an ERROR on this one basis. It is not a second basis and it
+        # must not be mistaken for one: it is a second-order CONSENSUS over the same
+        # pass, and it is the only reading that can exist for this defect, because
+        # the rotation is a FIXED POINT of a wholly mirrored state — flip every row
+        # of one state and its chain still fits itself perfectly. Waiting for a
+        # second basis here means waiting forever.
+        #
+        # The shape is exactly what `add_state` produces: all of a new state's rows
+        # in ONE batch, against one reference and one prompt — the same generation
+        # shape that drew `ne` backwards three times along the other axis.
+        #
+        # TWO guards, and both are load-bearing:
+        #
+        #   * `>= 2` rows. A state with ONE judged row is the single-row case, which
+        #     the ruling leaves a WARNING; escalating it would be the 4-way scheme's
+        #     whole answer (`turnaround_order(...)[1:-1]` is one direction there), so
+        #     without this guard a 4-way sheet would refuse on exactly the reading
+        #     the owner declined to escalate.
+        #   * EVERY judged row, never a majority. One row of the state judged CLEAN
+        #     is the sheet saying the state faces the right way somewhere, which is
+        #     a contiguous block of mirrored rows, not a mirrored state.
+        #
+        # What this buys and what it costs, said out loud: it makes the `add-state`
+        # defect blocking on the only pass that can see it, and it makes a whole
+        # state of CORRECT art that is displaced in every direction (one prop, drawn
+        # in every direction of one state — the false population measured at +18.75%
+        # on a single row) blocking too. That is what `--accept-handedness` is for,
+        # and why the override had to work per row on this finding as well.
+        for state, convicted in self.convicted_per_state.items():
+            if convicted >= 2 and convicted == self.states_judged_per_state.get(state, 0):
+                self.whole_state_rows[state] = sorted(
+                    (
+                        finding["row"]
+                        for finding in self.state_flagged
+                        if finding["state"] == state
                     ),
-                }
+                    key=lambda key: self.rows_by_key[key].index,
+                )
+
+    # -- the rotation pass -------------------------------------------------
+
+    def rotation_pass(self) -> None:
+        """The authored directions of ONE state, walked in turnaround order."""
+        for state in self.spec.states:
+            if not state.directional:
+                self.unjudged.append(
+                    {
+                        "rows": [row_key(state.name, None)],
+                        "basis": MirrorBasis.BOTH,
+                        "reason": (
+                            "state is not directional — it has no rotation to walk, "
+                            "and no other state holds a copy of a direction to "
+                            "compare it against"
+                        ),
+                    }
+                )
+                continue
+            chain = [
+                self.rows_by_key[row_key(state.name, direction)]
+                for direction in turnaround_order(self.spec.scheme.authored)
+            ]
+            seams: dict[tuple[str, str], dict] = {}
+            for left, right in zip(chain, chain[1:]):
+                if self.blank(left) or self.blank(right):
+                    continue
+                direct, flipped = _seam_distance(
+                    self.cells(left), self.cells(right), window=self.window
+                )
+                seams[(left.key, right.key)] = _seam_record(
+                    left.key, right.key, direct, flipped
+                )
+            scored = [
+                (position, entry)
+                for position, row in enumerate(chain)
+                if (entry := self._score_in_rotation(chain, position, row, seams))
+            ]
+            self.judged.extend(entry for _position, entry in scored)
+            self.per_state_scored.append(scored)
+            self.rotation_scored.extend(scored)
+
+    def _score_in_rotation(
+        self, chain: list, position: int, row: RowSpec, seams: dict
+    ) -> dict | None:
+        """One row's rotation reading, or ``None`` with the reason in ``unjudged``."""
+        if self.blank(row):
+            self._unjudged_in_rotation(row, "the row is empty — an empty row has no facing")
+            return None
+        before = seams.get((chain[position - 1].key, row.key)) if position else None
+        after = (
+            seams.get((row.key, chain[position + 1].key))
+            if position + 1 < len(chain)
+            else None
+        )
+        touching = [seam for seam in (before, after) if seam is not None]
+        if len(touching) < 2:
+            self._unjudged_in_rotation(
+                row,
+                f"{len(touching)} of the two seams it needs — a row is "
+                "judged only with a measurable neighbour on EACH side, "
+                "because one seam cannot say WHICH of the two rows "
+                "either side of it is mirrored (flipping either scores "
+                "identically). The ends of the rotation always land "
+                "here, and they are also the two views closest to their "
+                "own mirror image, so there is little to see",
             )
-            continue
-        judged.extend(entries)
-        # Counted per STATE, not per direction, because the whole-state rule
-        # below asks "did EVERY row of this state that anyone could answer for
-        # read as a mirror?" — and a row this pass gave up on (unjudged above)
-        # must not be silently counted as agreement in either direction.
-        for entry in entries:
-            states_judged_per_state[entry["state"]] = (
-                states_judged_per_state.get(entry["state"], 0) + 1
+            return None
+        gain = _gain(touching)
+        if gain is None:
+            self._unjudged_in_rotation(
+                row,
+                "both of its seams measure zero — a row identical to "
+                "its neighbours carries no handedness signal",
             )
-        state_flagged.extend(
-            dict(entry, corroborating=[], alternatives=[])
-            for entry in entries
-            if entry["gain"] >= MIRROR_GAIN_THRESHOLD
+            return None
+        return {
+            "row": row.key,
+            "state": row.state,
+            "direction": row.direction,
+            "gain": gain,
+            "basis": MirrorBasis.ROTATION,
+            "seams": _seam_evidence(row.key, touching),
+        }
+
+    def _unjudged_in_rotation(self, row: RowSpec, reason: str) -> None:
+        self.unjudged.append(
+            {"rows": [row.key], "basis": MirrorBasis.ROTATION, "reason": reason}
         )
 
-    cross_gain = {
-        entry["row"]: entry["gain"] for entry in judged if entry["basis"] == "states"
-    }
-    convicted_per_state: dict[str, int] = {}
-    for finding in state_flagged:
-        convicted_per_state[finding["state"]] = (
-            convicted_per_state.get(finding["state"], 0) + 1
-        )
+    # -- conviction, attribution, severity ---------------------------------
 
-    # THE WHOLE-STATE RULE (owner ruling 2026-08-25). A state whose EVERY
-    # cross-state-judged row reads as a mirror is a whole state drawn backwards,
-    # and that is an ERROR on this one basis. It is not a second basis and it
-    # must not be mistaken for one: it is a second-order CONSENSUS over the same
-    # pass, and it is the only reading that can exist for this defect, because
-    # the rotation is a FIXED POINT of a wholly mirrored state — flip every row
-    # of one state and its chain still fits itself perfectly. Waiting for a
-    # second basis here means waiting forever.
-    #
-    # The shape is exactly what `add_state` produces: all of a new state's rows
-    # in ONE batch, against one reference and one prompt — the same generation
-    # shape that drew `ne` backwards three times along the other axis.
-    #
-    # TWO guards, and both are load-bearing:
-    #
-    #   * `>= 2` rows. A state with ONE judged row is the single-row case, which
-    #     the ruling leaves a WARNING; escalating it would be the 4-way scheme's
-    #     whole answer (`turnaround_order(...)[1:-1]` is one direction there), so
-    #     without this guard a 4-way sheet would refuse on exactly the reading
-    #     the owner declined to escalate.
-    #   * EVERY judged row, never a majority. One row of the state judged CLEAN
-    #     is the sheet saying the state faces the right way somewhere, which is
-    #     a contiguous block of mirrored rows, not a mirrored state.
-    #
-    # What this buys and what it costs, said out loud: it makes the `add-state`
-    # defect blocking on the only pass that can see it, and it makes a whole
-    # state of CORRECT art that is displaced in every direction (one prop, drawn
-    # in every direction of one state — the false population measured at +18.75%
-    # on a single row) blocking too. That is what `--accept-handedness` is for,
-    # and why the override had to work per row on this finding as well.
-    whole_state_rows: dict[str, list[str]] = {}
-    for state, convicted in convicted_per_state.items():
-        if convicted >= 2 and convicted == states_judged_per_state.get(state, 0):
-            whole_state_rows[state] = sorted(
+    def convict(self) -> list[dict]:
+        """The rotation's runs, attributed against the states pass's readings."""
+        cross_gain = {
+            entry["row"]: entry["gain"]
+            for entry in self.judged
+            if entry["basis"] == MirrorBasis.STATES
+        }
+        # A direction the rotation suspects in a strict MAJORITY of the states that
+        # judged it is the signature of a direction drawn the same wrong way every
+        # time — which is exactly the case the cross-state pass is blind to, so its
+        # silence there must not be read as a character reference.
+        judged_per_direction: dict[str, int] = {}
+        over_per_direction: dict[str, int] = {}
+        for _position, entry in self.rotation_scored:
+            judged_per_direction[entry["direction"]] = (
+                judged_per_direction.get(entry["direction"], 0) + 1
+            )
+            if entry["gain"] >= MIRROR_GAIN_THRESHOLD:
+                over_per_direction[entry["direction"]] = (
+                    over_per_direction.get(entry["direction"], 0) + 1
+                )
+        suspected = {
+            direction
+            for direction, seen in judged_per_direction.items()
+            if seen >= 2 and over_per_direction.get(direction, 0) * 2 > seen
+        }
+        flagged: list[dict] = []
+        for scored in self.per_state_scored:
+            flagged.extend(_run_findings(scored, cross_gain, suspected))
+        return flagged
+
+    def attribute(self, flagged: list[dict]) -> list[dict]:
+        """Fold the states pass's findings into the rotation's, one entry per row."""
+        by_row = {finding["row"]: finding for finding in flagged}
+        for finding in self.state_flagged:
+            # The cross-state pass names one row, never a neighbourhood, so it has
+            # no run to attribute. It still has to answer the same question the
+            # rotation does: is this row named on evidence, or only ranked? A row
+            # whose rotation reading CONTRADICTS the states one is named only when
+            # its state is convicted as a whole — the `add-state` shape, where the
+            # rotation is a fixed point and its silence means nothing.
+            rotation_gain = next(
                 (
-                    finding["row"]
-                    for finding in state_flagged
-                    if finding["state"] == state
+                    entry["gain"]
+                    for entry in self.judged
+                    if entry["row"] == finding["row"]
+                    and entry["basis"] == MirrorBasis.ROTATION
                 ),
-                key=lambda key: rows_by_key[key].index,
+                None,
+            )
+            finding["attributed"] = not (
+                rotation_gain is not None
+                and rotation_gain < 0
+                and self.convicted_per_state.get(finding["state"], 0) < 2
+            )
+            finding["attribution"] = (
+                Attribution.STATES if finding["attributed"] else Attribution.CONTRADICTED
+            )
+            existing = by_row.get(finding["row"])
+            if existing is None:
+                # A row that only rode along as corroborating now has evidence of its
+                # own: stop telling the operator not to touch it.
+                for other in flagged:
+                    other["corroborating"] = [
+                        entry
+                        for entry in other["corroborating"]
+                        if entry["row"] != finding["row"]
+                    ]
+                flagged.append(finding)
+                by_row[finding["row"]] = finding
+            else:
+                existing["basis"] = MirrorBasis.BOTH
+                existing["seams"] = existing["seams"] + finding["seams"]
+                existing["gain"] = max(existing["gain"], finding["gain"])
+                existing["attributed"] = True
+                existing["attribution"] = Attribution.BOTH
+                existing["alternatives"] = []
+        return flagged
+
+    def summarise(self, flagged: list[dict]) -> None:
+        for finding in flagged:
+            # THE SEVERITY RULE, in two lines because there are two ways to refuse.
+            #
+            # (1) A single basis about a single ROW warns; two independent bases
+            # agreeing about it REFUSE. The two populations do not separate on one
+            # reading — measured in both directions, the true floor on real art is
+            # +6.78% rotation / +7.64% states (`jumping-se` mirrored, caught by
+            # neither pass) and the false ceiling on CORRECT art displaced sideways
+            # is +18.75%. An 8% line does not sit BETWEEN two populations there; it
+            # sits inside both of them. Moving the number cannot fix that, so what
+            # moved instead is what a single reading is allowed to DO.
+            #
+            # (2) A whole STATE reading as mirrored REFUSES on one basis or two
+            # (`whole_state_rows` above). That is not the rule in (1) relaxed: the
+            # evidence is every judged row of the state agreeing, which the rotation
+            # can never corroborate because it is blind to this defect by algebra.
+            # `wholeState` carries the roster rather than a bare flag, so the
+            # message can name the state's rows and nothing has to re-derive them.
+            if finding["basis"] in _STATES_BASES and finding[
+                "row"
+            ] in self.whole_state_rows.get(finding["state"], ()):
+                finding["wholeState"] = list(self.whole_state_rows[finding["state"]])
+            finding["severity"] = (
+                Severity.ERROR
+                if finding["basis"] == MirrorBasis.BOTH or finding.get("wholeState")
+                else Severity.WARNING
             )
 
-    # The rotation pass.
-    rotation_scored: list[tuple[int, dict]] = []
-    per_state_scored: list[list[tuple[int, dict]]] = []
-    for state in spec.states:
-        if not state.directional:
-            unjudged.append(
-                {
-                    "rows": [row_key(state.name, None)],
-                    "basis": "rotation and states",
-                    "reason": (
-                        "state is not directional — it has no rotation to walk, "
-                        "and no other state holds a copy of a direction to "
-                        "compare it against"
-                    ),
-                }
-            )
-            continue
 
-        chain = [
-            rows_by_key[row_key(state.name, direction)]
-            for direction in turnaround_order(spec.scheme.authored)
-        ]
-        seams: dict[tuple[str, str], dict] = {}
-        for left, right in zip(chain, chain[1:]):
-            if blank(left) or blank(right):
-                continue
-            direct, flipped = _seam_distance(cells(left), cells(right), window=window)
-            seams[(left.key, right.key)] = _seam_record(
-                left.key, right.key, direct, flipped
-            )
-
-        scored: list[tuple[int, dict]] = []
-        for position, row in enumerate(chain):
-            if blank(row):
-                unjudged.append(
-                    {
-                        "rows": [row.key],
-                        "basis": "rotation",
-                        "reason": "the row is empty — an empty row has no facing",
-                    }
-                )
-                continue
-            before = seams.get((chain[position - 1].key, row.key)) if position else None
-            after = (
-                seams.get((row.key, chain[position + 1].key))
-                if position + 1 < len(chain)
-                else None
-            )
-            touching = [seam for seam in (before, after) if seam is not None]
-            if len(touching) < 2:
-                unjudged.append(
-                    {
-                        "rows": [row.key],
-                        "basis": "rotation",
-                        "reason": (
-                            f"{len(touching)} of the two seams it needs — a row is "
-                            "judged only with a measurable neighbour on EACH side, "
-                            "because one seam cannot say WHICH of the two rows "
-                            "either side of it is mirrored (flipping either scores "
-                            "identically). The ends of the rotation always land "
-                            "here, and they are also the two views closest to their "
-                            "own mirror image, so there is little to see"
-                        ),
-                    }
-                )
-                continue
-            gain = _gain(touching)
-            if gain is None:
-                unjudged.append(
-                    {
-                        "rows": [row.key],
-                        "basis": "rotation",
-                        "reason": (
-                            "both of its seams measure zero — a row identical to "
-                            "its neighbours carries no handedness signal"
-                        ),
-                    }
-                )
-                continue
-            scored.append(
-                (
-                    position,
-                    {
-                        "row": row.key,
-                        "state": row.state,
-                        "direction": row.direction,
-                        "gain": gain,
-                        "basis": "rotation",
-                        "seams": _seam_evidence(row.key, touching),
-                    },
-                )
-            )
-
-        judged.extend(entry for _position, entry in scored)
-        per_state_scored.append(scored)
-        rotation_scored.extend(scored)
-
-    # A direction the rotation suspects in a strict MAJORITY of the states that
-    # judged it is the signature of a direction drawn the same wrong way every
-    # time — which is exactly the case the cross-state pass is blind to, so its
-    # silence there must not be read as a character reference.
-    judged_per_direction: dict[str, int] = {}
-    over_per_direction: dict[str, int] = {}
-    for _position, entry in rotation_scored:
-        judged_per_direction[entry["direction"]] = (
-            judged_per_direction.get(entry["direction"], 0) + 1
-        )
-        if entry["gain"] >= MIRROR_GAIN_THRESHOLD:
-            over_per_direction[entry["direction"]] = (
-                over_per_direction.get(entry["direction"], 0) + 1
-            )
-    suspected = {
-        direction
-        for direction, seen in judged_per_direction.items()
-        if seen >= 2 and over_per_direction.get(direction, 0) * 2 > seen
-    }
-
-    rotation_flagged: list[dict] = []
-    for scored in per_state_scored:
-        rotation_flagged.extend(_run_findings(scored, cross_gain, suspected))
-
-    flagged: list[dict] = list(rotation_flagged)
-    by_row = {finding["row"]: finding for finding in flagged}
-    for finding in state_flagged:
-        # The cross-state pass names one row, never a neighbourhood, so it has
-        # no run to attribute. It still has to answer the same question the
-        # rotation does: is this row named on evidence, or only ranked? A row
-        # whose rotation reading CONTRADICTS the states one is named only when
-        # its state is convicted as a whole — the `add-state` shape, where the
-        # rotation is a fixed point and its silence means nothing.
-        rotation_gain = next(
-            (
-                entry["gain"]
-                for entry in judged
-                if entry["row"] == finding["row"] and entry["basis"] == "rotation"
-            ),
-            None,
-        )
-        finding["attributed"] = not (
-            rotation_gain is not None
-            and rotation_gain < 0
-            and convicted_per_state.get(finding["state"], 0) < 2
-        )
-        finding["attribution"] = "states" if finding["attributed"] else "contradicted"
-        existing = by_row.get(finding["row"])
-        if existing is None:
-            # A row that only rode along as corroborating now has evidence of its
-            # own: stop telling the operator not to touch it.
-            for other in flagged:
-                other["corroborating"] = [
-                    entry
-                    for entry in other["corroborating"]
-                    if entry["row"] != finding["row"]
-                ]
-            flagged.append(finding)
-            by_row[finding["row"]] = finding
-        else:
-            existing["basis"] = "rotation and states"
-            existing["seams"] = existing["seams"] + finding["seams"]
-            existing["gain"] = max(existing["gain"], finding["gain"])
-            existing["attributed"] = True
-            existing["attribution"] = "both"
-            existing["alternatives"] = []
-
-    for finding in flagged:
-        # THE SEVERITY RULE, in two lines because there are two ways to refuse.
-        #
-        # (1) A single basis about a single ROW warns; two independent bases
-        # agreeing about it REFUSE. The two populations do not separate on one
-        # reading — measured in both directions, the true floor on real art is
-        # +6.78% rotation / +7.64% states (`jumping-se` mirrored, caught by
-        # neither pass) and the false ceiling on CORRECT art displaced sideways
-        # is +18.75%. An 8% line does not sit BETWEEN two populations there; it
-        # sits inside both of them. Moving the number cannot fix that, so what
-        # moved instead is what a single reading is allowed to DO.
-        #
-        # (2) A whole STATE reading as mirrored REFUSES on one basis or two
-        # (`whole_state_rows` above). That is not the rule in (1) relaxed: the
-        # evidence is every judged row of the state agreeing, which the rotation
-        # can never corroborate because it is blind to this defect by algebra.
-        # `wholeState` carries the roster rather than a bare flag, so the
-        # message can name the state's rows and nothing has to re-derive them.
-        if "states" in finding["basis"] and finding["row"] in whole_state_rows.get(
-            finding["state"], ()
-        ):
-            finding["wholeState"] = list(whole_state_rows[finding["state"]])
-        finding["severity"] = (
-            "error"
-            if finding["basis"] == "rotation and states" or finding.get("wholeState")
-            else "warning"
-        )
-
-    flagged.sort(key=lambda finding: rows_by_key[finding["row"]].index)
-    return {"flagged": flagged, "judged": judged, "unjudged": unjudged}
-
-
-# How an operator spells WHICH evidence they are waiving, per finding. There is
-# no single constant here any more and there must not be one: two shapes block
-# now — a row two bases agree about (`rotation+states`) and a row carried by a
-# whole mirrored STATE (`states`) — and one hardcoded token would have made the
-# second unacceptable at all, which is an error with no override, which is a
-# wall. The token is DERIVED from the finding's own basis so the two can never
-# drift apart: `validate_sheet` demands it and `mirrored_art_error` prints it,
-# both through this one function.
-_ACCEPT_BASIS_TOKENS = {
-    "rotation": "rotation",
-    "states": "states",
-    "rotation and states": "rotation+states",
-}
-
-
-def accept_basis_token(basis: str) -> str:
-    """The ``--accept-handedness`` basis token for a finding on *basis*.
-
-    Public because the refusal that demands the spelling and the message that
-    teaches it are in two places, and a second spelling of this map is how an
-    operator gets told to type something the validator then rejects.
-    """
-    try:
-        return _ACCEPT_BASIS_TOKENS[basis]
-    except KeyError:  # pragma: no cover - a new basis would be a code change
-        raise ValueError(f"no acceptance token for basis {basis!r}") from None
-
-
-_MIRROR_BASIS = {
-    "rotation": "flipping it fits its neighbours in the rotation",
-    "states": "flipping it fits the same direction in the other states",
-    "rotation and states": (
-        "flipping it fits both its neighbours in the rotation and the same "
-        "direction in the other states"
-    ),
-}
+#: The bases a whole-state conviction can ride on (the old ``"states" in basis``
+#: substring test, spelled as members).
+_STATES_BASES = frozenset({MirrorBasis.STATES, MirrorBasis.BOTH})

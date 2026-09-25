@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from agent.charsheet._upstream_doors import frame_x_bounds, remove_background
+from agent.charsheet.palette import as_rgba
 
-from .geometry import MAGENTA, MAX_THUMB_PIXELS, QA_BACKDROP, _open_rgba, require_scale
+from .geometry import MAGENTA, MAX_THUMB_PIXELS, QA_BACKDROP, require_scale
 
 __layer__ = "policy"
 
@@ -22,7 +23,7 @@ def recomposite_on_magenta(image_or_path):
     """
     from PIL import Image
 
-    cutout = _open_rgba(image_or_path)
+    cutout = as_rgba(image_or_path)
     field = Image.new("RGBA", cutout.size, (*MAGENTA, 255))
     field.alpha_composite(cutout)
     return field
@@ -72,7 +73,7 @@ def frame_cell(image_or_path, *, frame: int, frames: int):
             f"frame {frame} out of range: this row has {frames} frame(s), "
             f"addressed 0-{frames - 1}"
         )
-    strip = _open_rgba(image_or_path)
+    strip = as_rgba(image_or_path)
     left, right = frame_x_bounds(strip, frames)[frame]
     if right <= left:
         raise ValueError(
@@ -134,7 +135,7 @@ def face_offset(image_or_path) -> float | None:
     ``None`` for an empty picture, never ``0.0``: "there is nothing here" and
     "it faces straight at you" are different answers.
     """
-    rgba = remove_background(_open_rgba(image_or_path), chroma_key=MAGENTA)
+    rgba = remove_background(as_rgba(image_or_path), chroma_key=MAGENTA)
     box = rgba.getbbox()
     if box is None:
         return None
@@ -166,7 +167,7 @@ def reference_cell(image_or_path):
     this module's job: the caller weighs a size and writes a file, and never
     opens one.
     """
-    return _open_rgba(image_or_path)
+    return as_rgba(image_or_path)
 
 
 def upscale_on_backdrop(
@@ -210,7 +211,7 @@ def upscale_on_backdrop(
     from PIL import Image
 
     scale = require_scale(scale)
-    source = _open_rgba(image_or_path)
+    source = as_rgba(image_or_path)
     pixels = source.width * source.height * scale * scale
     if pixels > MAX_THUMB_PIXELS:
         raise ValueError(
@@ -252,7 +253,7 @@ def pad_to_square(image_or_path, *, backdrop=QA_BACKDROP):
     """
     from PIL import Image
 
-    source = _open_rgba(image_or_path)
+    source = as_rgba(image_or_path)
     side = max(source.width, source.height)
     pixels = side * side
     if pixels > MAX_THUMB_PIXELS:

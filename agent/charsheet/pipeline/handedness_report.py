@@ -1,10 +1,10 @@
-"""The operator-facing rendering of a handedness finding."""
+"""The operator-facing rendering of a handedness finding: ``REPORT_SECTIONS``, walked in order."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
-from .handedness import _MIRROR_BASIS, accept_basis_token
+from .findings import _MIRROR_BASIS, Attribution, Severity, accept_basis_token
 
 __layer__ = "lanes"
 
@@ -66,7 +66,7 @@ def _disposition(finding: dict, accepted: bool) -> str:
     """
     if accepted:
         return "WAIVED by the operator, this install carries it"
-    return "REFUSED" if finding.get("severity") == "error" else "WARNING, does not block"
+    return "REFUSED" if finding.get("severity") == Severity.ERROR else "WARNING, does not block"
 
 
 def _corroborating_rows(finding: dict) -> list[tuple[str, str]]:
@@ -181,139 +181,167 @@ def mirrored_art_error(
     :func:`accept_basis_token` on THIS finding's basis, so the token an operator
     is told to type is the token :func:`validate_sheet` will accept.
     """
-    row = finding["row"]
-    evidence = "; ".join(
-        f"vs '{seam['with']}' {seam['distance']:.2f} -> "
-        f"{seam['mirroredDistance']:.2f} flipped"
-        for seam in finding["seams"]
+    report = _Report(finding, accepted, acceptance_error)
+    for applies, render in REPORT_SECTIONS:
+        if applies(finding):
+            return render(report)
+    raise AssertionError("REPORT_SECTIONS ends in a catch-all")  # pragma: no cover
+
+
+class _Report:
+    """What every section renderer of :func:`mirrored_art_error` reads: the
+    finding, whether it was waived, and the lines every block shares."""
+
+    def __init__(
+        self, finding: dict, accepted: bool, acceptance_error: str | None
+    ) -> None:
+        self.finding = finding
+        self.accepted = accepted
+        self.row = finding["row"]
+        self.evidence = "; ".join(
+            f"vs '{seam['with']}' {seam['distance']:.2f} -> "
+            f"{seam['mirroredDistance']:.2f} flipped"
+            for seam in finding["seams"]
+        )
+        self.corrupts = (
+            "A mirrored authored row corrupts the derived direction with it, "
+            "because the consumer builds that one by flipping this row."
+        )
+        self.rows: list[tuple[str, str]] = []
+        if acceptance_error:
+            self.rows.append(("you typed", acceptance_error))
+
+    def reads(self, prefix: str = "") -> tuple[str, str]:
+        finding = self.finding
+        return (
+            "reads",
+            f"{prefix}{_MIRROR_BASIS[finding['basis']]} "
+            f"{finding['gain'] * 100:.0f}% better",
+        )
+
+    def disposition(self) -> str:
+        return _disposition(self.finding, self.accepted)
+
+
+def _render_unattributed(report: _Report) -> str:
+    """A run the rotation cannot take apart, or a row the other basis vouches for."""
+    finding = report.finding
+    alternatives = finding.get("alternatives") or [finding]
+    ranked = ", ".join(
+        f"'{entry['row']}' {entry['gain'] * 100:.0f}%" for entry in alternatives
     )
-    corrupts = (
-        "A mirrored authored row corrupts the derived direction with it, "
-        "because the consumer builds that one by flipping this row."
+    why = (
+        "flagged rows next to each other raise each other, and the rotation "
+        "cannot say which of them started it — a correct row slid sideways, "
+        "and a correct row flanked by two mirrored ones, both put an "
+        "innocent row at the top. Only a second, independent read takes a "
+        "run apart, and a third state is what provides one"
+        if finding.get("attribution") == Attribution.RUN
+        else "the same direction in the other states vouches for it, so this "
+        "reads as PLACEMENT — a prop or a framing drift — rather than "
+        "handedness"
     )
-    rows: list[tuple[str, str]] = []
-    if acceptance_error:
-        rows.append(("you typed", acceptance_error))
+    rows = report.rows + [
+        ("ranked", ranked),
+        ("seams", report.evidence),
+        (
+            "why",
+            f"it is NOT attributed to {report.row!r} or to any other single row — "
+            f"{why}",
+        ),
+        ("corrupts", report.corrupts),
+        (
+            "look",
+            "crop these rows and look at them. Do not re-roll on this alone: "
+            f"{_REROLL_IS_ONE_WAY}. Reach for --accept-handedness only on a "
+            "finding that actually blocks.",
+        ),
+    ]
+    return _block(
+        f"one of {len(alternatives)} rows in {finding['state']!r} reads as a "
+        f"MIRROR and this pass cannot say which — {report.disposition()}",
+        rows,
+    )
 
-    if not finding.get("attributed", True):
-        alternatives = finding.get("alternatives") or [finding]
-        ranked = ", ".join(
-            f"'{entry['row']}' {entry['gain'] * 100:.0f}%" for entry in alternatives
-        )
-        why = (
-            "flagged rows next to each other raise each other, and the rotation "
-            "cannot say which of them started it — a correct row slid sideways, "
-            "and a correct row flanked by two mirrored ones, both put an "
-            "innocent row at the top. Only a second, independent read takes a "
-            "run apart, and a third state is what provides one"
-            if finding.get("attribution") == "run"
-            else "the same direction in the other states vouches for it, so this "
-            "reads as PLACEMENT — a prop or a framing drift — rather than "
-            "handedness"
-        )
-        rows += [
-            ("ranked", ranked),
-            ("seams", evidence),
-            (
-                "why",
-                f"it is NOT attributed to {row!r} or to any other single row — "
-                f"{why}",
-            ),
-            ("corrupts", corrupts),
-            (
-                "look",
-                "crop these rows and look at them. Do not re-roll on this alone: "
-                f"{_REROLL_IS_ONE_WAY}. Reach for --accept-handedness only on a "
-                "finding that actually blocks.",
-            ),
-        ]
-        return _block(
-            f"one of {len(alternatives)} rows in {finding['state']!r} reads as a "
-            f"MIRROR and this pass cannot say which — "
-            f"{_disposition(finding, accepted)}",
-            rows,
-        )
 
-    if finding.get("wholeState"):
-        roster = ", ".join(f"'{key}'" for key in finding["wholeState"])
-        rows += [
-            (
-                "state",
-                f"every one of the {len(finding['wholeState'])} rows of "
-                f"{finding['state']!r} this pass could judge ({roster}) reads as "
-                "the mirror of the direction it claims",
-            ),
-            (
-                "reads",
-                f"this row: {_MIRROR_BASIS[finding['basis']]} "
-                f"{finding['gain'] * 100:.0f}% better",
-            ),
-            ("seams", evidence),
-            (
-                "blocks",
-                "ONE basis refuses here, and that is not the single-row rule "
-                "relaxed — a wholly mirrored state is a FIXED POINT of the "
-                "rotation pass (flip every row of a state and its chain still "
-                "fits itself), so the rotation's silence is not a second opinion "
-                "and no second basis can ever arrive. It is the shape add-state "
-                "produces: one batch, one reference, one prompt.",
-            ),
-            ("corrupts", corrupts),
-        ]
-        rows += _corroborating_rows(finding)
-        rows += [
-            (
-                "re-roll",
-                f"characters reroll-row --row {row} --note ... — and the same for "
-                "the state's other rows, with the facing spelled in frame terms; "
-                "look at the strips before composing. Be sure first: "
-                f"{_REROLL_IS_ONE_WAY}.",
-            ),
-        ]
-        rows += _accept_rows(finding, accepted, looked="the strips")
-        return _block(
-            f"row {row!r} belongs to a WHOLE STATE that reads as MIRRORED — "
-            f"{_disposition(finding, accepted)}",
-            rows,
-        )
-
-    if finding.get("severity") == "error":
-        rows += [
-            (
-                "reads",
-                f"{_MIRROR_BASIS[finding['basis']]} "
-                f"{finding['gain'] * 100:.0f}% better",
-            ),
-            ("seams", evidence),
-            (
-                "blocks",
-                "two independent reads agree about this one row, which is what "
-                "refuses an install",
-            ),
-            ("corrupts", corrupts),
-        ]
-        rows += _corroborating_rows(finding)
-        rows += [
-            (
-                "re-roll",
-                f"characters reroll-row --row {row} --note ... — with the facing "
-                "spelled in frame terms, and look at the strip before composing. "
-                f"Be sure first: {_REROLL_IS_ONE_WAY}.",
-            ),
-        ]
-        rows += _accept_rows(finding, accepted, looked="this row's strip")
-        return _block(
-            f"row {row!r} looks drawn as the MIRROR of {finding['direction']!r} — "
-            f"{_disposition(finding, accepted)}",
-            rows,
-        )
-
+def _render_whole_state(report: _Report) -> str:
+    """Every judged row of one state reads mirrored: ONE basis refuses."""
+    finding, row = report.finding, report.row
+    roster = ", ".join(f"'{key}'" for key in finding["wholeState"])
+    rows = report.rows + [
+        (
+            "state",
+            f"every one of the {len(finding['wholeState'])} rows of "
+            f"{finding['state']!r} this pass could judge ({roster}) reads as "
+            "the mirror of the direction it claims",
+        ),
+        report.reads("this row: "),
+        ("seams", report.evidence),
+        (
+            "blocks",
+            "ONE basis refuses here, and that is not the single-row rule "
+            "relaxed — a wholly mirrored state is a FIXED POINT of the "
+            "rotation pass (flip every row of a state and its chain still "
+            "fits itself), so the rotation's silence is not a second opinion "
+            "and no second basis can ever arrive. It is the shape add-state "
+            "produces: one batch, one reference, one prompt.",
+        ),
+        ("corrupts", report.corrupts),
+    ]
+    rows += _corroborating_rows(finding)
     rows += [
         (
-            "reads",
-            f"{_MIRROR_BASIS[finding['basis']]} {finding['gain'] * 100:.0f}% better",
+            "re-roll",
+            f"characters reroll-row --row {row} --note ... — and the same for "
+            "the state's other rows, with the facing spelled in frame terms; "
+            "look at the strips before composing. Be sure first: "
+            f"{_REROLL_IS_ONE_WAY}.",
         ),
-        ("seams", evidence),
+    ]
+    rows += _accept_rows(finding, report.accepted, looked="the strips")
+    return _block(
+        f"row {row!r} belongs to a WHOLE STATE that reads as MIRRORED — "
+        f"{report.disposition()}",
+        rows,
+    )
+
+
+def _render_two_bases(report: _Report) -> str:
+    """Two independent reads agree about ONE row: it refuses."""
+    finding, row = report.finding, report.row
+    rows = report.rows + [
+        report.reads(),
+        ("seams", report.evidence),
+        (
+            "blocks",
+            "two independent reads agree about this one row, which is what "
+            "refuses an install",
+        ),
+        ("corrupts", report.corrupts),
+    ]
+    rows += _corroborating_rows(finding)
+    rows += [
+        (
+            "re-roll",
+            f"characters reroll-row --row {row} --note ... — with the facing "
+            "spelled in frame terms, and look at the strip before composing. "
+            f"Be sure first: {_REROLL_IS_ONE_WAY}.",
+        ),
+    ]
+    rows += _accept_rows(finding, report.accepted, looked="this row's strip")
+    return _block(
+        f"row {row!r} looks drawn as the MIRROR of {finding['direction']!r} — "
+        f"{report.disposition()}",
+        rows,
+    )
+
+
+def _render_one_basis(report: _Report) -> str:
+    """One basis about one row: a WARNING, and it says why."""
+    finding, row = report.finding, report.row
+    rows = report.rows + [
+        report.reads(),
+        ("seams", report.evidence),
         (
             "warns",
             "one basis is a WARNING and does not block the install — the true and "
@@ -321,7 +349,7 @@ def mirrored_art_error(
             "reading measured on real art is +6.8%, the loudest false one "
             "+18.8%), so this cannot be told apart from placement on its own",
         ),
-        ("corrupts", corrupts),
+        ("corrupts", report.corrupts),
     ]
     rows += _corroborating_rows(finding)
     rows += [
@@ -334,10 +362,22 @@ def mirrored_art_error(
     ]
     return _block(
         f"row {row!r} reads as the MIRROR of {finding['direction']!r} on ONE basis "
-        f"— {_disposition(finding, accepted)}",
+        f"— {report.disposition()}",
         rows,
     )
 
+
+#: The four blocks :func:`mirrored_art_error` renders, walked IN ORDER; the first
+#: whose predicate holds renders the finding. The order is the precedence the
+#: branches had: an unattributed finding names no row whatever its severity; a
+#: whole-state finding is an error that needs the state's text, not the
+#: two-basis one; the last row is the catch-all warning.
+REPORT_SECTIONS: tuple[tuple[Callable[[dict], bool], Callable[[_Report], str]], ...] = (
+    (lambda finding: not finding.get("attributed", True), _render_unattributed),
+    (lambda finding: bool(finding.get("wholeState")), _render_whole_state),
+    (lambda finding: finding.get("severity") == Severity.ERROR, _render_two_bases),
+    (lambda finding: True, _render_one_basis),
+)
 
 def handedness_summary(handedness: dict) -> str:
     """One line saying what the handedness check could and could not answer for.
@@ -362,12 +402,12 @@ def handedness_summary(handedness: dict) -> str:
     blocking = [
         finding
         for finding in handedness["flagged"]
-        if finding.get("severity") == "error" and finding["row"] not in accepted_rows
+        if finding.get("severity") == Severity.ERROR and finding["row"] not in accepted_rows
     ]
     warned = [
         finding
         for finding in handedness["flagged"]
-        if finding.get("severity") != "error" and finding["row"] not in accepted_rows
+        if finding.get("severity") != Severity.ERROR and finding["row"] not in accepted_rows
     ]
     if blocking:
         parts.append(f"{len(blocking)} refused")

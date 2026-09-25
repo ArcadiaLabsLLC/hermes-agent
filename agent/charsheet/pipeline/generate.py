@@ -7,9 +7,10 @@ from pathlib import Path
 
 from agent.charsheet import prompts
 from agent.charsheet._upstream_doors import extract_strip_frames, remove_background
+from agent.charsheet.palette import as_rgba
 from agent.charsheet.spec import RowSpec, SheetSpec
 
-from .geometry import NON_DIRECTIONAL_VIEW, PREFIX_TURNAROUND, _ROW_GEN_ATTEMPTS, _open_rgba, _save_png, row_prefix, turnaround_order, view_prefix
+from .geometry import NON_DIRECTIONAL_VIEW, PREFIX_TURNAROUND, _ROW_GEN_ATTEMPTS, _save_png, row_prefix, turnaround_order, view_prefix
 from .grounding import recomposite_on_magenta
 from .provider import _draftsman
 
@@ -100,7 +101,7 @@ def generate_direction_view(
         prefix=view_prefix(direction),
         provider=provider,
     )
-    keyed = remove_background(_open_rgba(generated))
+    keyed = remove_background(as_rgba(generated))
     return _save_png(recomposite_on_magenta(keyed), Path(out))
 
 

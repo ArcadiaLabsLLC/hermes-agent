@@ -49,7 +49,7 @@ _MAX_SAMPLE_PIXELS = 1 << 16
 _SAMPLE_ROW_WIDTH = 256
 
 
-def _as_rgba(source):
+def as_rgba(source):
     """An RGBA image from an image or a path (paths are opened and closed)."""
     from PIL import Image
 
@@ -83,7 +83,7 @@ def build_palette(images: Iterable, max_colors: int = DEFAULT_MAX_COLORS):
 
     counts: dict[tuple[int, int, int], int] = {}
     for source in sources:
-        rgba = _as_rgba(source)
+        rgba = as_rgba(source)
         # getcolors is a C-level histogram; the cap is the pixel count so it can
         # only return None for an image with more distinct colours than pixels
         # (impossible), never for a photographic reference.
@@ -167,7 +167,7 @@ def palette_table(image) -> list[str]:
     order and a consumer diffing two sheets' tables reads a real change rather
     than a histogram's iteration order.
     """
-    rgba = _as_rgba(image)
+    rgba = as_rgba(image)
     # Cap = pixel count, so this can only answer None for an image with more
     # distinct colours than pixels, which does not exist.
     colors = rgba.getcolors(maxcolors=max(1, rgba.width * rgba.height))
@@ -202,7 +202,7 @@ def lock_to_palette(frame_rgba, palette):
             f"{getattr(palette, 'mode', None)!r}"
         )
 
-    rgba = _as_rgba(frame_rgba)
+    rgba = as_rgba(frame_rgba)
     alpha = rgba.getchannel("A")
     locked = rgba.convert("RGB").quantize(palette=palette, dither=Image.Dither.NONE).convert("RGBA")
     locked.putalpha(alpha)

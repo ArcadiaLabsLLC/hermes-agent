@@ -39,14 +39,15 @@ Layers point down (models <- policy <- stores <- lanes <- wiring); this map is
     agent/charsheet/_upstream_doors.py  models  every upstream agent.pet name the package reads
     agent/charsheet/pipeline/
       __init__.py          lanes    this map; re-exports __all__ and the test-read privates
-      geometry.py          models   chroma field, pixel budgets, prefixes, PNG/RGBA I/O, turnaround_order
+      findings.py          models   the finding vocabulary: MirrorBasis, Severity, Attribution, the accept tokens
+      geometry.py          models   chroma field, pixel budgets, prefixes, PNG I/O, turnaround_order
       provider.py          stores   the provider seam: deadline, _generate_image, _draftsman
       grounding.py         policy   cutout -> magenta, cell framing, face offset, upscale/pad
       registration.py      policy   seam/registration arithmetic and the measured thresholds
       generate.py          lanes    turnaround, direction re-roll, row strips (reject-and-retry)
-      compose.py           lanes    palette + frame packing (the no-flip chokepoint) AND validate_sheet
-      handedness.py        lanes    detect_mirrored_art and the acceptance-basis tokens
-      handedness_report.py lanes    the operator-facing rendering of a finding
+      compose.py           lanes    palette + frame packing (the no-flip chokepoint) AND validate_sheet (SheetValidation phases)
+      handedness.py        lanes    detect_mirrored_art = HandednessDetector: states -> rotation -> convict -> attribute -> summarise
+      handedness_report.py lanes    the operator-facing rendering of a finding: REPORT_SECTIONS, walked in order
 
     entry point                                            opens
     generate_turnaround / _direction_view / _row_strip     generate -> provider -> grounding
@@ -54,7 +55,7 @@ Layers point down (models <- policy <- stores <- lanes <- wiring); this map is
     compose_sheet / compose_draft_frames / build_palette   compose -> grounding
     validate_sheet                                         compose -> handedness -> handedness_report
     detect_mirrored_art                                    handedness -> registration -> geometry
-    mirrored_art_error / handedness_summary                handedness_report -> handedness
+    mirrored_art_error / handedness_summary                handedness_report -> findings
 
 The provider seam is patched where it is BOUND: ``pipeline.provider._generate_image``
 (``_draftsman`` reads it as a module global there) and
@@ -68,12 +69,19 @@ from agent.charsheet._upstream_doors import atlas_to_webp_bytes, extract_strip_f
 from agent.charsheet.palette import palette_table
 from agent.charsheet.spec import row_key
 
-from . import compose, generate, geometry, grounding, handedness, handedness_report, provider, registration
+from . import compose, findings, generate, geometry, grounding, handedness, handedness_report, provider, registration
 from .compose import (
+    SheetValidation,
     build_sheet_palette,
     compose_draft_frames,
     compose_sheet,
     validate_sheet,
+)
+from .findings import (
+    Attribution,
+    MirrorBasis,
+    Severity,
+    accept_basis_token,
 )
 from .generate import (
     generate_direction_view,
@@ -106,10 +114,11 @@ from .grounding import (
     upscale_on_backdrop,
 )
 from .handedness import (
-    accept_basis_token,
+    HandednessDetector,
     detect_mirrored_art,
 )
 from .handedness_report import (
+    REPORT_SECTIONS,
     handedness_summary,
     mirrored_art_error,
 )

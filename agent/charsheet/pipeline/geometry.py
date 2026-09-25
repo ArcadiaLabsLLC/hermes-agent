@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from agent.charsheet import prompts
+from agent.charsheet.palette import as_rgba
 from agent.charsheet.spec import CHAR8, SheetSpec
 
 __layer__ = "models"
@@ -182,21 +183,11 @@ def row_prefix(key: str) -> str:
     return "charsheet_row_" + str(key)
 
 
-def _open_rgba(source):
-    """An RGBA image from an image or a path (paths are opened and closed)."""
-    from PIL import Image
-
-    if isinstance(source, (str, Path)):
-        with Image.open(source) as opened:
-            return opened.convert("RGBA")
-    return source.convert("RGBA")
-
-
 def _save_png(image_or_path, out: Path) -> Path:
     """Write *image_or_path* to *out* as PNG, creating parent directories."""
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    _open_rgba(image_or_path).save(out, format="PNG")
+    as_rgba(image_or_path).save(out, format="PNG")
     return out
 
 

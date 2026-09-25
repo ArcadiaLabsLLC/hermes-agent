@@ -330,6 +330,26 @@ def test_rgb_left_under_a_transparent_pixel_is_an_error(sheet):
     assert any("RGB residue" in error for error in report["errors"])
 
 
+def test_a_sheet_refused_for_residue_still_carries_the_handedness_answer(sheet):
+    """Only the wrong-SIZE return short-circuits handedness (``SheetValidation.run``).
+
+    Every other refusal still reports what the handedness pass judged, because a
+    caller deciding whether to trust the refusal needs to see how far the check
+    could see. The clean sheet is the positive control: it names rows, so an
+    empty answer on the dirty one cannot be read as agreement.
+    """
+    clean = pipeline.validate_sheet(SPEC, sheet)["handedness"]
+    assert clean["judged"] or clean["unjudged"]
+    dirty = sheet.copy()
+    dirty.putpixel((0, 0), (7, 9, 11, 0))
+
+    report = pipeline.validate_sheet(SPEC, dirty)
+
+    assert report["ok"] is False
+    assert report["handedness"]["judged"] == clean["judged"]
+    assert report["handedness"]["unjudged"] == clean["unjudged"]
+
+
 def test_composition_itself_leaves_no_rgb_under_transparency(sheet):
     colors = sheet.getcolors(maxcolors=sheet.width * sheet.height) or []
 

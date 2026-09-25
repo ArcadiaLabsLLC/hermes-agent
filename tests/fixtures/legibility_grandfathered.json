@@ -6,21 +6,6 @@
    "unit": "agent/charsheet/draft.py|CharacterDraft.compose"
   },
   {
-   "depth": 3,
-   "lines": 504,
-   "unit": "agent/charsheet/pipeline/handedness.py|detect_mirrored_art"
-  },
-  {
-   "depth": 1,
-   "lines": 202,
-   "unit": "agent/charsheet/pipeline/handedness_report.py|mirrored_art_error"
-  },
-  {
-   "depth": 3,
-   "lines": 265,
-   "unit": "agent/charsheet/pipeline/compose.py|validate_sheet"
-  },
-  {
    "depth": 2,
    "lines": 152,
    "unit": "agent_runtime/call_authorization.py|authorize_call"

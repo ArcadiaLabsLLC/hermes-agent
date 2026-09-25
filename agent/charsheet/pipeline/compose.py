@@ -5,12 +5,12 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
-from agent.charsheet._upstream_doors import CELL_HEIGHT, CELL_WIDTH, _clear_transparent_rgb, _fit_to_cell, extract_strip_frames, normalize_cells, remove_background
-from agent.charsheet.palette import DEFAULT_MAX_COLORS, build_palette, lock_to_palette
+from agent.charsheet._upstream_doors import CELL_HEIGHT, CELL_WIDTH, clear_transparent_rgb, extract_strip_frames, fit_to_cell, normalize_cells, remove_background
+from agent.charsheet.palette import DEFAULT_MAX_COLORS, as_rgba, build_palette, lock_to_palette
 from agent.charsheet.spec import SheetSpec
 
-from .geometry import _open_rgba
-from .handedness import accept_basis_token, detect_mirrored_art
+from .findings import Severity, accept_basis_token
+from .handedness import detect_mirrored_art
 from .handedness_report import mirrored_art_error
 
 __layer__ = "lanes"
@@ -29,7 +29,7 @@ def build_sheet_palette(palette_sources: Iterable, *, max_colors: int = DEFAULT_
     happens — :func:`~agent.charsheet.palette.build_palette` deliberately knows
     nothing about chroma keys.
     """
-    cutouts = [remove_background(_open_rgba(source)) for source in palette_sources]
+    cutouts = [remove_background(as_rgba(source)) for source in palette_sources]
     if not cutouts:
         raise ValueError("build_sheet_palette needs at least one approved reference")
     return build_palette(cutouts, max_colors=max_colors)
@@ -102,9 +102,9 @@ def compose_sheet(spec: SheetSpec, cells_by_key: dict[str, list]):
                         f"{spec.frame_w}x{spec.frame_h}; only the upstream "
                         f"{CELL_WIDTH}x{CELL_HEIGHT} cell geometry can be re-fitted"
                     )
-                cell = _fit_to_cell(cell)
+                cell = fit_to_cell(cell)
             sheet.alpha_composite(cell, (column * spec.frame_w, row.index * spec.frame_h))
-    return _clear_transparent_rgb(sheet)
+    return clear_transparent_rgb(sheet)
 
 
 def _rgb_residue_count(rgba) -> int:
@@ -195,199 +195,248 @@ def validate_sheet(
     not on the sheet, was never flagged, or only warned has no block to fold
     into and stays an error of its own.
     """
-    rgba = _open_rgba(image)
-    errors: list[str] = []
-    warnings: list[str] = []
-    expected = spec.sheet_size()
-    if rgba.size != expected:
-        errors.append(
-            f"expected {expected[0]}x{expected[1]}, got {rgba.width}x{rgba.height}"
+    return SheetValidation(spec, image, accept_handedness).run()
+
+
+class SheetValidation:
+    """:func:`validate_sheet` as phases over one image (W0-G7):
+    ``size_gate → boxes → outliers → residue → handedness → payload``.
+
+    The fields are the lists the 265-line function carried as locals. Only the
+    size gate short-circuits; every later phase appends to ``errors`` /
+    ``warnings`` and runs whatever the phases before it found.
+    """
+
+    def __init__(self, spec: SheetSpec, image, accept_handedness: Sequence[str]) -> None:
+        self.spec = spec
+        self.rgba = as_rgba(image)
+        self.accept_handedness = accept_handedness
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
+        self.filled_rows: list[str] = []
+        self.boxes_by_row: dict[str, list[tuple[int, int, int, int]]] = {}
+
+    def run(self) -> dict:
+        if not self.size_gate():
+            return self.wrong_size_payload()
+        self.boxes()
+        self.outliers()
+        self.residue()
+        # Last, after the collapse/outlier/residue checks above — but NOT conditional
+        # on them: only the wrong-SIZE early return short-circuits this, and every
+        # other error still leaves the handedness answer in the payload. Its findings
+        # are errors unless the operator accepted that row by name — see the
+        # docstring for why this one is not allowed to be a plain warning.
+        return self.payload(self.handedness())
+
+    def size_gate(self) -> bool:
+        expected = self.spec.sheet_size()
+        if self.rgba.size == expected:
+            return True
+        self.errors.append(
+            f"expected {expected[0]}x{expected[1]}, got {self.rgba.width}x{self.rgba.height}"
         )
-        return {
-            "ok": False,
-            "width": rgba.width,
-            "height": rgba.height,
-            "errors": errors,
-            "warnings": warnings,
-            "filled_rows": [],
-            "handedness": {
+        return False
+
+    def wrong_size_payload(self) -> dict:
+        return self.payload(
+            {
                 "flagged": [],
                 "accepted": [],
                 "judged": [],
                 "unjudged": [
                     {
-                        "rows": [row.key for row in spec.rows()],
+                        "rows": [row.key for row in self.spec.rows()],
                         "reason": (
                             "the sheet is not the size its spec describes; rows "
                             "cannot be cut out of it"
                         ),
                     }
                 ],
-            },
+            }
+        )
+
+    def boxes(self) -> None:
+        spec, rgba = self.spec, self.rgba
+        for row in spec.rows():
+            row_pixels = 0
+            boxes: list[tuple[int, int, int, int]] = []
+            top = row.index * spec.frame_h
+            for column in range(row.frames):
+                left = column * spec.frame_w
+                cell = rgba.crop((left, top, left + spec.frame_w, top + spec.frame_h))
+                row_pixels += sum(cell.getchannel("A").histogram()[1:])
+                bbox = cell.getbbox()
+                if bbox is not None:
+                    boxes.append(bbox)
+            if row_pixels > 0:
+                self.filled_rows.append(row.key)
+                self.boxes_by_row[row.key] = boxes
+            else:
+                self.warnings.append(f"row '{row.key}' has no frames")
+        if not self.filled_rows:
+            self.errors.append("sheet is empty — no row produced any frames")
+
+    def outliers(self) -> None:
+        boxes_by_row = self.boxes_by_row
+        all_widths = sorted(
+            right - left for boxes in boxes_by_row.values() for left, _t, right, _b in boxes
+        )
+        all_heights = sorted(
+            bottom - top for boxes in boxes_by_row.values() for _l, top, _r, bottom in boxes
+        )
+        global_med_w = 0
+        global_med_h = 0
+        if all_widths and all_heights:
+            global_med_w = all_widths[len(all_widths) // 2]
+            global_med_h = all_heights[len(all_heights) // 2]
+            min_h = max(56, round(self.spec.frame_h * 0.28))
+            if global_med_h < min_h:
+                self.errors.append(
+                    f"sheet sprites are too small after normalization (median frame "
+                    f"height {global_med_h}px, floor {min_h}px)"
+                )
+        for key, boxes in boxes_by_row.items():
+            if len(boxes) <= 1:
+                continue
+            widths = sorted(right - left for left, _t, right, _b in boxes)
+            heights = sorted(bottom - top for _l, top, _r, bottom in boxes)
+            med_w = max(1, widths[len(widths) // 2])
+            med_h = max(1, heights[len(heights) // 2])
+            if widths[-1] > max(med_w * 3.0, med_w + 96) and heights[-1] <= med_h * 1.6:
+                self.errors.append(f"row '{key}' contains a multi-pose frame outlier")
+            # The `if global_med_w and global_med_h:` guard that used to wrap this
+            # was a branch no sheet could take, and is deleted (2026-09-05, off the
+            # one-armed-branch report). Reaching this line means `boxes_by_row`
+            # carries a row with at least two boxes; every box is a `getbbox()` and
+            # so spans at least one pixel; and a non-empty `boxes_by_row` is exactly
+            # what makes `all_widths`/`all_heights` non-empty above, which is what
+            # assigns both medians. Both are therefore >= 1 here, and the zeroes
+            # they are initialised to are only ever read by the check above this
+            # loop.
+            if med_w < max(32, round(global_med_w * 0.42)) or med_h < max(
+                40, round(global_med_h * 0.50)
+            ):
+                self.errors.append(
+                    f"row '{key}' appears collapsed (median {med_w}x{med_h}px, "
+                    f"sheet median {global_med_w}x{global_med_h}px)"
+                )
+
+    def residue(self) -> None:
+        residue = _rgb_residue_count(self.rgba)
+        if residue:
+            self.errors.append(f"{residue} transparent pixels retain RGB residue")
+
+    def handedness(self) -> dict:
+        handedness = detect_mirrored_art(self.spec, self.rgba)
+        accepted, acceptance_notes = self.acceptances(handedness)
+        handedness["accepted"] = accepted
+        accepted_rows = {entry["row"] for entry in accepted}
+        for finding in handedness["flagged"]:
+            waived = finding["row"] in accepted_rows
+            message = mirrored_art_error(
+                finding,
+                acceptance_error=" ".join(acceptance_notes.get(finding["row"], ())) or None,
+                accepted=waived,
+            )
+            if waived:
+                self.warnings.append(f"handedness accepted by the operator — {message}")
+            elif finding.get("severity") == Severity.ERROR:
+                self.errors.append(message)
+            else:
+                # The disposition rides on the block's own headline now, so the
+                # list-level tag says only which list this is.
+                self.warnings.append(f"handedness warning — {message}")
+        return handedness
+
+    def acceptances(self, handedness: dict) -> tuple[list[dict], dict[str, list[str]]]:
+        """The operator's ``--accept-handedness`` tokens, judged against the findings.
+
+        A complaint about a MALFORMED acceptance is folded into the block for the
+        row it is about, never appended beside it. Both used to be entries in
+        `errors` about the same finding, so `--accept-handedness walk-e` printed
+        the acceptance complaint and then the whole diagnostic a second time
+        underneath it — measured 2026-08-26 at 1519 characters against the plain
+        refusal's 1206, of which 1206 was text the operator had just read. There
+        is one row, so there is one block.
+        """
+        flagged_by_row = {finding["row"]: finding for finding in handedness["flagged"]}
+        known_rows = {row.key for row in self.spec.rows()}
+        accepted: list[dict] = []
+        acceptance_notes: dict[str, list[str]] = {}
+        for token in dict.fromkeys(str(row).strip() for row in self.accept_handedness):
+            if not token:
+                continue
+            key, _colon, basis = token.partition(":")
+            key = key.strip()
+            basis = basis.strip()
+            finding = flagged_by_row.get(key)
+            refusal = _acceptance_refusal(key, finding, known_rows)
+            if refusal:
+                self.errors.append(refusal)
+            elif not basis:
+                acceptance_notes.setdefault(key, []).append(_bare_row_note(key, finding))
+            elif basis != accept_basis_token(finding["basis"]):
+                acceptance_notes.setdefault(key, []).append(
+                    f"--accept-handedness {key}:{basis}, but this finding's bases are "
+                    f"{finding['basis']!r}, so the acceptance is spelled "
+                    f"{key}:{accept_basis_token(finding['basis'])}."
+                )
+            else:
+                accepted.append(
+                    {"row": key, "gain": finding["gain"], "basis": finding["basis"]}
+                )
+        return accepted, acceptance_notes
+
+    def payload(self, handedness: dict) -> dict:
+        return {
+            "ok": not self.errors,
+            "width": self.rgba.width,
+            "height": self.rgba.height,
+            "errors": self.errors,
+            "warnings": self.warnings,
+            "filled_rows": self.filled_rows,
+            "handedness": handedness,
         }
 
-    filled_rows: list[str] = []
-    boxes_by_row: dict[str, list[tuple[int, int, int, int]]] = {}
-    for row in spec.rows():
-        row_pixels = 0
-        boxes: list[tuple[int, int, int, int]] = []
-        top = row.index * spec.frame_h
-        for column in range(row.frames):
-            left = column * spec.frame_w
-            cell = rgba.crop((left, top, left + spec.frame_w, top + spec.frame_h))
-            row_pixels += sum(cell.getchannel("A").histogram()[1:])
-            bbox = cell.getbbox()
-            if bbox is not None:
-                boxes.append(bbox)
-        if row_pixels > 0:
-            filled_rows.append(row.key)
-            boxes_by_row[row.key] = boxes
-        else:
-            warnings.append(f"row '{row.key}' has no frames")
 
-    if not filled_rows:
-        errors.append("sheet is empty — no row produced any frames")
-
-    all_widths = sorted(
-        right - left for boxes in boxes_by_row.values() for left, _t, right, _b in boxes
-    )
-    all_heights = sorted(
-        bottom - top for boxes in boxes_by_row.values() for _l, top, _r, bottom in boxes
-    )
-    global_med_w = 0
-    global_med_h = 0
-    if all_widths and all_heights:
-        global_med_w = all_widths[len(all_widths) // 2]
-        global_med_h = all_heights[len(all_heights) // 2]
-        min_h = max(56, round(spec.frame_h * 0.28))
-        if global_med_h < min_h:
-            errors.append(
-                f"sheet sprites are too small after normalization (median frame "
-                f"height {global_med_h}px, floor {min_h}px)"
-            )
-
-    for key, boxes in boxes_by_row.items():
-        if len(boxes) <= 1:
-            continue
-        widths = sorted(right - left for left, _t, right, _b in boxes)
-        heights = sorted(bottom - top for _l, top, _r, bottom in boxes)
-        med_w = max(1, widths[len(widths) // 2])
-        med_h = max(1, heights[len(heights) // 2])
-        if widths[-1] > max(med_w * 3.0, med_w + 96) and heights[-1] <= med_h * 1.6:
-            errors.append(f"row '{key}' contains a multi-pose frame outlier")
-        # The `if global_med_w and global_med_h:` guard that used to wrap this
-        # was a branch no sheet could take, and is deleted (2026-09-05, off the
-        # one-armed-branch report). Reaching this line means `boxes_by_row`
-        # carries a row with at least two boxes; every box is a `getbbox()` and
-        # so spans at least one pixel; and a non-empty `boxes_by_row` is exactly
-        # what makes `all_widths`/`all_heights` non-empty above, which is what
-        # assigns both medians. Both are therefore >= 1 here, and the zeroes
-        # they are initialised to are only ever read by the check above this
-        # loop.
-        if med_w < max(32, round(global_med_w * 0.42)) or med_h < max(
-            40, round(global_med_h * 0.50)
-        ):
-            errors.append(
-                f"row '{key}' appears collapsed (median {med_w}x{med_h}px, "
-                f"sheet median {global_med_w}x{global_med_h}px)"
-            )
-
-    residue = _rgb_residue_count(rgba)
-    if residue:
-        errors.append(f"{residue} transparent pixels retain RGB residue")
-
-    # Last, after the collapse/outlier/residue checks above — but NOT conditional
-    # on them: only the wrong-SIZE early return short-circuits this, and every
-    # other error still leaves the handedness answer in the payload. Its findings
-    # are errors unless the operator accepted that row by name — see the
-    # docstring for why this one is not allowed to be a plain warning.
-    handedness = detect_mirrored_art(spec, rgba)
-    flagged_by_row = {finding["row"]: finding for finding in handedness["flagged"]}
-    known_rows = {row.key for row in spec.rows()}
-    accepted: list[dict] = []
-    # A complaint about a MALFORMED acceptance is folded into the block for the
-    # row it is about, never appended beside it. Both used to be entries in
-    # `errors` about the same finding, so `--accept-handedness walk-e` printed
-    # the acceptance complaint and then the whole diagnostic a second time
-    # underneath it — measured 2026-08-26 at 1519 characters against the plain
-    # refusal's 1206, of which 1206 was text the operator had just read. There
-    # is one row, so there is one block.
-    acceptance_notes: dict[str, list[str]] = {}
-    for token in dict.fromkeys(str(row).strip() for row in accept_handedness):
-        if not token:
-            continue
-        key, _colon, basis = token.partition(":")
-        key = key.strip()
-        basis = basis.strip()
-        finding = flagged_by_row.get(key)
-        if key not in known_rows:
-            errors.append(
-                f"handedness acceptance names {key!r}, which is not a row of this "
-                f"sheet ({', '.join(sorted(known_rows))})"
-            )
-        elif finding is None:
-            errors.append(
-                f"handedness acceptance names {key!r}, which was not flagged — an "
-                "acceptance with nothing to accept is a bypass waiting for the "
-                "next refusal; drop it"
-            )
-        elif finding.get("severity") != "error":
-            errors.append(
-                f"handedness acceptance names {key!r}, which is a WARNING and "
-                "does not block this install — there is nothing to accept. Only "
-                "a row both passes agree about is refused; drop it"
-            )
-        elif not basis:
-            acceptance_notes.setdefault(key, []).append(
-                f"--accept-handedness {key}, with no basis. "
-                + (
-                    "That row is refused because its whole state reads as "
-                    "mirrored, and the evidence is every judged row of "
-                    f"{finding['state']!r} — a bare row name waives a "
-                    "state-wide reading one row at a time without saying so. "
-                    if finding.get("wholeState")
-                    else "That row is refused because TWO independent reads "
-                    "agree about it, and a bare row name waives both — "
-                    "including the cross-state evidence, which a placement or "
-                    "framing argument cannot explain. "
-                )
-                + "Name what you are waiving; the spelling this finding needs is "
-                "on the accept line below."
-            )
-        elif basis != accept_basis_token(finding["basis"]):
-            acceptance_notes.setdefault(key, []).append(
-                f"--accept-handedness {key}:{basis}, but this finding's bases are "
-                f"{finding['basis']!r}, so the acceptance is spelled "
-                f"{key}:{accept_basis_token(finding['basis'])}."
-            )
-        else:
-            accepted.append(
-                {"row": key, "gain": finding["gain"], "basis": finding["basis"]}
-            )
-    handedness["accepted"] = accepted
-    accepted_rows = {entry["row"] for entry in accepted}
-    for finding in handedness["flagged"]:
-        waived = finding["row"] in accepted_rows
-        message = mirrored_art_error(
-            finding,
-            acceptance_error=" ".join(acceptance_notes.get(finding["row"], ())) or None,
-            accepted=waived,
+def _acceptance_refusal(key: str, finding: dict | None, known_rows: set[str]) -> str | None:
+    """Why an acceptance naming *key* has no block to fold into, or ``None``."""
+    if key not in known_rows:
+        return (
+            f"handedness acceptance names {key!r}, which is not a row of this "
+            f"sheet ({', '.join(sorted(known_rows))})"
         )
-        if waived:
-            warnings.append(f"handedness accepted by the operator — {message}")
-        elif finding.get("severity") == "error":
-            errors.append(message)
-        else:
-            # The disposition rides on the block's own headline now, so the
-            # list-level tag says only which list this is.
-            warnings.append(f"handedness warning — {message}")
+    if finding is None:
+        return (
+            f"handedness acceptance names {key!r}, which was not flagged — an "
+            "acceptance with nothing to accept is a bypass waiting for the "
+            "next refusal; drop it"
+        )
+    if finding.get("severity") != Severity.ERROR:
+        return (
+            f"handedness acceptance names {key!r}, which is a WARNING and "
+            "does not block this install — there is nothing to accept. Only "
+            "a row both passes agree about is refused; drop it"
+        )
+    return None
 
-    return {
-        "ok": not errors,
-        "width": rgba.width,
-        "height": rgba.height,
-        "errors": errors,
-        "warnings": warnings,
-        "filled_rows": filled_rows,
-        "handedness": handedness,
-    }
+
+def _bare_row_note(key: str, finding: dict) -> str:
+    """The note folded into *key*'s block when the acceptance names no basis."""
+    return (
+        f"--accept-handedness {key}, with no basis. "
+        + (
+            "That row is refused because its whole state reads as "
+            "mirrored, and the evidence is every judged row of "
+            f"{finding['state']!r} — a bare row name waives a "
+            "state-wide reading one row at a time without saying so. "
+            if finding.get("wholeState")
+            else "That row is refused because TWO independent reads "
+            "agree about it, and a bare row name waives both — "
+            "including the cross-state evidence, which a placement or "
+            "framing argument cannot explain. "
+        )
+        + "Name what you are waiving; the spelling this finding needs is "
+        "on the accept line below."
+    )

@@ -6,7 +6,7 @@ import threading
 from collections.abc import Sequence
 from pathlib import Path
 
-from agent.charsheet._upstream_doors import imagegen
+from agent.charsheet._upstream_doors import charsheet_setting, imagegen
 from agent.charsheet.errors import ProviderTimeout
 
 __layer__ = "stores"
@@ -52,14 +52,7 @@ def provider_timeout_seconds() -> float:
     """
 
     try:
-        from hermes_cli.config import cfg_get, load_config_readonly
-
-        value = cfg_get(
-            load_config_readonly(),
-            "charsheet",
-            "provider_timeout_seconds",
-            default=PROVIDER_TIMEOUT_SECONDS,
-        )
+        value = charsheet_setting("provider_timeout_seconds", PROVIDER_TIMEOUT_SECONDS)
         return float(value)
     except Exception:  # noqa: BLE001 - an unreadable config must not stop a draft
         return PROVIDER_TIMEOUT_SECONDS

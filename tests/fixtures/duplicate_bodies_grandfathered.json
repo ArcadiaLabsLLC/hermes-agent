@@ -1,7 +1,6 @@
 {
  "body_groups": [
   "agent/charsheet/draft.py::_sheet_revision == hermes_cli/harness_parts/pets_commands.py::_pet_sheet_revision",
-  "agent/charsheet/palette.py::_as_rgba == agent/charsheet/pipeline/geometry.py::_open_rgba",
   "agent_runtime/default_scope.py::_get_realm == agent_runtime/default_scope.py::_get_workspace",
   "agent_runtime/mcp_admission.py::_positive_float == agent_runtime/relay_policy.py::parse_deadline_epoch",
   "agent_runtime/mcp_lane.py::_clean == agent_runtime/tool_visibility.py::_clean_names",

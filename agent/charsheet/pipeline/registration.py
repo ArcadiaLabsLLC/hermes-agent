@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from agent.charsheet.spec import RowSpec, SheetSpec
 
+from .findings import Attribution
+
 __layer__ = "policy"
 
 
@@ -244,7 +246,7 @@ def _contradicted(entry: dict, cross: dict[str, float], suspected: set[str]) -> 
 
 def _attribute_run(
     run: list[tuple[int, dict]], cross: dict[str, float], suspected: set[str]
-) -> tuple[dict | None, str]:
+) -> tuple[dict | None, Attribution]:
     """``(culprit, how)`` — which row of a run the evidence can actually NAME.
 
     ``how`` is ``"both"`` (a second, independent basis convicts this row),
@@ -288,12 +290,12 @@ def _attribute_run(
     # understands, and the safe answer to a shape you do not understand is to
     # name nobody rather than to sort it.
     if len(convicted) == 1:
-        return convicted[0], "both"
+        return convicted[0], Attribution.BOTH
     if len(entries) >= 2:
-        return None, "run"
+        return None, Attribution.RUN
     if _contradicted(entries[0], cross, suspected):
-        return None, "contradicted"
-    return entries[0], "rotation"
+        return None, Attribution.CONTRADICTED
+    return entries[0], Attribution.ROTATION
 
 
 def _finding_from_run(
