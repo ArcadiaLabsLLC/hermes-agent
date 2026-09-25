@@ -1,9 +1,10 @@
 """Monotonic-clock helpers the fork shares: one owner each (program rule 15).
 
 A stdlib-only leaf, like :mod:`agent_runtime.serde`, so any module may import it
-without risking a cycle. ``now_iso`` joins here when lane R3 folds the four
-``_now_iso`` copies (god-file program §4). ``iso_timestamp`` is the wall-clock
-normalizer lane R2 moved out of ``persona_chat_history``.
+without risking a cycle. ``now_iso`` is the millisecond, ``Z``-suffixed UTC
+stamp ``serve_socket`` and ``serve_registry`` each spelled as ``_now_iso``
+(god-file program §4; lane R3 folded the first). ``iso_timestamp`` is the
+wall-clock normalizer lane R2 moved out of ``persona_chat_history``.
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from datetime import datetime, timezone
 from functools import singledispatch
 
 __layer__ = "models"
-__all__ = ["elapsed_ms", "iso_timestamp"]
+__all__ = ["elapsed_ms", "iso_timestamp", "now_iso"]
 
 
 def elapsed_ms(started: object) -> int | None:
@@ -97,3 +98,13 @@ def _iso_from_text(value: str) -> str | None:
     except ValueError:
         return None
     return _iso_z(parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc))
+
+
+def now_iso() -> str:
+    """Now, UTC, as ``YYYY-MM-DDTHH:MM:SS.mmmZ`` — the serve lane's stamp."""
+
+    return (
+        datetime.now(tz=timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )

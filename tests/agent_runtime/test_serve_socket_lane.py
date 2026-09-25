@@ -3031,12 +3031,12 @@ def test_a_handshake_that_RAISES_still_rejects_charges_and_is_counted():
         port,
         _logs,
     ):
-        original = serve_socket.server.verify_hello_proof
+        original = serve_socket.handshake.verify_hello_proof
 
         def _explode(*args, **kwargs):
             raise RuntimeError("boom from inside the handshake")
 
-        serve_socket.server.verify_hello_proof = _explode
+        serve_socket.handshake.verify_hello_proof = _explode
         try:
             for _ in range(2):
                 _g, reply = raw_handshake(port, token="the-shared-secret")
@@ -3045,7 +3045,7 @@ def test_a_handshake_that_RAISES_still_rejects_charges_and_is_counted():
                     "reason": REJECT_HELLO_MALFORMED,
                 }
         finally:
-            serve_socket.server.verify_hello_proof = original
+            serve_socket.handshake.verify_hello_proof = original
 
         payload = server.connections_payload()
         assert payload["handshake_errors"] == 2
@@ -3223,3 +3223,28 @@ def test_drain_progress_reaches_the_SOCKET_client_and_not_only_stdio(monkeypatch
 
             release.set()
             assert _read_until(connection, "exit")["id"] == "slow-1"
+
+
+def test_set_timeout_rearms_the_read_budget_on_a_live_connection():
+    """Positive control for ``ServeSocketClient.set_timeout`` (god-file sheet
+    serve_socket.md §5): live in ``media_proxy`` and ``tools.agent_chat_dispatch``,
+    reached by no test before. A peer that accepts and never speaks must time the
+    READ out on the re-armed budget, not on the dial's.
+    """
+
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    try:
+        silent = ServeSocketClient("127.0.0.1", listener.getsockname()[1], timeout_seconds=30.0)
+        silent.connect()
+        try:
+            silent.set_timeout(0.2)
+            started = time.monotonic()
+            with pytest.raises(socket.timeout):  # noqa: UP041 - alias differs across versions
+                silent.read_frame()
+            assert time.monotonic() - started < 5.0
+        finally:
+            silent.close()
+    finally:
+        listener.close()

@@ -10,9 +10,13 @@ cycle. The protocol these constants serve is documented in
 
 from __future__ import annotations
 
+from enum import StrEnum
+
 __layer__ = "models"
 
 __all__ = [
+    "LockOutcome",
+    "RejectReason",
     "AUTH_FAILURE_REJECT_REASONS",
     "BROADCAST_BUDGET_SECONDS",
     "DEFAULT_MAX_CONNECTIONS",
@@ -123,46 +127,49 @@ HELLO_PROOF_ALGORITHM = "hmac-sha256"
 #: rejection counts against the auth rate limiter is derived from it below,
 #: never from a boolean the caller passes in (a caller-supplied flag is exactly
 #: how capacity refusals came to be charged as auth failures).
-REJECT_TOO_MANY_CONNECTIONS = "too_many_connections"
+class RejectReason(StrEnum):
+    """Every ``hello_rejected`` reason: part of the hello contract (rule 14).
+
+    A client branches on the reason, so the set is closed here and every
+    refusal site reads a member. ``StrEnum`` members ARE their strings on the
+    wire, so the frames are byte-identical to the free strings they replace.
+    """
+
+    TOO_MANY_CONNECTIONS = "too_many_connections"
+    TOO_MANY_PENDING = "too_many_pending"
+    RATE_LIMITED = "rate_limited"
+    HANDSHAKE_THROTTLED = "handshake_throttled"
+    DRAINING = "draining"
+    HELLO_TIMEOUT = "hello_timeout"
+    HELLO_REQUIRED = "hello_required"
+    HELLO_MALFORMED = "hello_malformed"
+    HELLO_TOO_LONG = "hello_too_long"
+    BAD_PROOF = "bad_proof"
+
+    #: The peer could not complete TLS. Only reachable on a listener configured with
+    #: an ``ssl_context`` (the gateway lane); the loopback lane never mints it.
+    #:
+    #: NOT an auth failure — a TLS failure says nothing about whether the peer holds
+    #: a credential, and charging it to the auth limiter is the same mistake that
+    #: made capacity refusals self-sustaining. It IS a way to spend the runtime's
+    #: threads, so it charges the SILENCE throttle instead, alongside the peer that
+    #: connects and says nothing: from the accept loop's point of view a half-open
+    #: TLS handshake is exactly that.
+    TLS_HANDSHAKE_FAILED = "tls_handshake_failed"
 
 
-REJECT_TOO_MANY_PENDING = "too_many_pending"
-
-
-REJECT_RATE_LIMITED = "rate_limited"
-
-
-REJECT_HANDSHAKE_THROTTLED = "handshake_throttled"
-
-
-REJECT_DRAINING = "draining"
-
-
-REJECT_HELLO_TIMEOUT = "hello_timeout"
-
-
-REJECT_HELLO_REQUIRED = "hello_required"
-
-
-REJECT_HELLO_MALFORMED = "hello_malformed"
-
-
-REJECT_HELLO_TOO_LONG = "hello_too_long"
-
-
-REJECT_BAD_PROOF = "bad_proof"
-
-
-#: The peer could not complete TLS. Only reachable on a listener configured with
-#: an ``ssl_context`` (the gateway lane); the loopback lane never mints it.
-#:
-#: NOT an auth failure — a TLS failure says nothing about whether the peer holds
-#: a credential, and charging it to the auth limiter is the same mistake that
-#: made capacity refusals self-sustaining. It IS a way to spend the runtime's
-#: threads, so it charges the SILENCE throttle instead, alongside the peer that
-#: connects and says nothing: from the accept loop's point of view a half-open
-#: TLS handshake is exactly that.
-REJECT_TLS_HANDSHAKE_FAILED = "tls_handshake_failed"
+#: The module-level names every importer and test reads — aliases of the members.
+REJECT_TOO_MANY_CONNECTIONS = RejectReason.TOO_MANY_CONNECTIONS
+REJECT_TOO_MANY_PENDING = RejectReason.TOO_MANY_PENDING
+REJECT_RATE_LIMITED = RejectReason.RATE_LIMITED
+REJECT_HANDSHAKE_THROTTLED = RejectReason.HANDSHAKE_THROTTLED
+REJECT_DRAINING = RejectReason.DRAINING
+REJECT_HELLO_TIMEOUT = RejectReason.HELLO_TIMEOUT
+REJECT_HELLO_REQUIRED = RejectReason.HELLO_REQUIRED
+REJECT_HELLO_MALFORMED = RejectReason.HELLO_MALFORMED
+REJECT_HELLO_TOO_LONG = RejectReason.HELLO_TOO_LONG
+REJECT_BAD_PROOF = RejectReason.BAD_PROOF
+REJECT_TLS_HANDSHAKE_FAILED = RejectReason.TLS_HANDSHAKE_FAILED
 
 
 #: The ONLY reasons that charge the auth rate limiter: a peer that presented a
@@ -213,10 +220,15 @@ IO_TIMEOUT_SECONDS = 10.0
 MAX_LINE_BYTES = 1 << 20
 
 
-LOCK_OUTCOME_ACQUIRED = "acquired"
+class LockOutcome(StrEnum):
+    """What ``SocketOwnerLock.acquire`` answered (``SocketLockResult.outcome``)."""
+
+    ACQUIRED = "acquired"
+    HELD = "lock_held_by"
 
 
-LOCK_OUTCOME_HELD = "lock_held_by"
+LOCK_OUTCOME_ACQUIRED = LockOutcome.ACQUIRED
+LOCK_OUTCOME_HELD = LockOutcome.HELD
 
 
 #: The key a LEAVING owner stamps on its sidecar at drain start (RS-3), and the
@@ -253,24 +265,10 @@ SOCKET_LOCK_DRAIN_POLL_SECONDS = 0.25
 #: ``stale_dead_pid`` rows, because it is the same probe answering the same
 #: question about the same process.
 OWNER_STATE_ABSENT = "absent"
-
-
 OWNER_STATE_UNREADABLE = "sidecar_unreadable"
-
-
 OWNER_STATE_MALFORMED = "sidecar_malformed"
-
-
 OWNER_STATE_PID_MISSING = "pid_missing"
-
-
 OWNER_STATE_SELF = "self"
-
-
 OWNER_STATE_DEAD = "pid_not_running"
-
-
 OWNER_STATE_LIVE = "pid_running"
-
-
 OWNER_STATE_LIVENESS_UNKNOWN = "liveness_unreadable"

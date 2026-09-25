@@ -7,7 +7,6 @@ ceiling for exactly one commit); the CHANGE lifts the handshake methods into
 
 from __future__ import annotations
 
-import secrets
 import select
 import socket
 import threading
@@ -15,46 +14,40 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
+from agent_runtime.clock import now_iso
 from agent_runtime.serve_socket.vocabulary import (
-    AUTH_FAILURE_REJECT_REASONS,
     BROADCAST_BUDGET_SECONDS,
     DEFAULT_MAX_CONNECTIONS,
     DEFAULT_MAX_PENDING_CONNECTIONS,
     HELLO_DEADLINE_SECONDS,
-    HELLO_PROOF_ALGORITHM,
     HELLO_REJECT_PENALTY_SECONDS,
     HELLO_TIMEOUT_LIMIT,
     HELLO_TIMEOUT_WINDOW_SECONDS,
     IO_TIMEOUT_SECONDS,
-    NONCE_BYTES,
-    REJECT_BAD_PROOF,
     REJECT_DRAINING,
     REJECT_HANDSHAKE_THROTTLED,
     REJECT_HELLO_MALFORMED,
-    REJECT_HELLO_REQUIRED,
-    REJECT_HELLO_TIMEOUT,
-    REJECT_HELLO_TOO_LONG,
     REJECT_RATE_LIMITED,
     REJECT_TLS_HANDSHAKE_FAILED,
     REJECT_TOO_MANY_CONNECTIONS,
     REJECT_TOO_MANY_PENDING,
     SOCKET_HOST,
-    _REJECT_LINGER_SECONDS,
 )
 from agent_runtime.serve_socket.hello import (
     HELLO_CONTRACT_VERSION,
     HelloAuthOutcome,
     HelloRateLimiter,
-    verify_hello_proof,
 )
 from agent_runtime.serve_socket.connection import SocketConnection
+from agent_runtime.serve_socket.handshake import (
+    handshake,
+    wrap_tls,
+    read_loop,
+    reject,
+)
 from agent_runtime.serve_socket.wire import (
     _LineReader,
-    _LineTooLong,
-    _client_text,
     _is_fatal_accept_error,
-    _now_iso,
-    _parse_object,
     _peer_text,
     _reached_at,
 )
@@ -224,7 +217,7 @@ class ServeSocketServer:
         self._wake_read.setblocking(False)
         self._listener = listener
         self._port = int(listener.getsockname()[1])
-        self._started_at = _now_iso()
+        self._started_at = now_iso()
         return self._port
 
     def start_accepting(self) -> None:
@@ -452,29 +445,7 @@ class ServeSocketServer:
                 # while the port stayed advertised. It is now one accounted
                 # rejection of one peer, and the lane keeps serving everybody
                 # else.
-                try:
-                    threading.Thread(
-                        target=self._serve_connection,
-                        args=(sock, peer),
-                        name="harness-serve-socket-conn",
-                        daemon=True,
-                    ).start()
-                except BaseException as exc:  # noqa: BLE001 - reported, never raised out
-                    with self._lock:
-                        self._accept_errors += 1
-                    self._emit_log(
-                        {
-                            "event": "serve_socket_accept_error",
-                            "phase": "spawn",
-                            "reason": type(exc).__name__,
-                        }
-                    )
-                    try:
-                        sock.close()
-                    except OSError:
-                        pass
-                    time.sleep(0.05)
-                    continue
+                self._admit_socket(sock, peer)
         except BaseException as exc:  # noqa: BLE001 - reported, never raised out
             outcome = f"error:{type(exc).__name__}"
             with self._lock:
@@ -490,6 +461,37 @@ class ServeSocketServer:
                 {"event": "serve_socket_accept_loop_exit", "outcome": outcome}
             )
 
+    def _admit_socket(self, sock: socket.socket, peer: Any) -> None:
+        """Hand one accepted socket to its own thread, or account the refusal.
+
+        Lifted out of :meth:`_accept_loop` so the loop's nesting has room; the
+        comment above the call site says why a failed spawn is one accounted
+        rejection and not the loop's death.
+        """
+
+        try:
+            threading.Thread(
+                target=self._serve_connection,
+                args=(sock, peer),
+                name="harness-serve-socket-conn",
+                daemon=True,
+            ).start()
+        except BaseException as exc:  # noqa: BLE001 - reported, never raised out
+            with self._lock:
+                self._accept_errors += 1
+            self._emit_log(
+                {
+                    "event": "serve_socket_accept_error",
+                    "phase": "spawn",
+                    "reason": type(exc).__name__,
+                }
+            )
+            try:
+                sock.close()
+            except OSError:
+                pass
+            time.sleep(0.05)
+
     def _serve_connection(self, sock: socket.socket, peer: Any) -> None:
         with self._lock:
             self._next_connection += 1
@@ -504,7 +506,7 @@ class ServeSocketServer:
             key=key,
             sock=sock,
             peer=_peer_text(peer),
-            connected_at=_now_iso(),
+            connected_at=now_iso(),
             # Read HERE, at accept, and not lazily at greeting time: a TLS wrap
             # or a refusal can close this socket before the frame is built, and
             # a `getsockname()` on a closed socket answers nothing useful. The
@@ -527,7 +529,7 @@ class ServeSocketServer:
             # IS the observability; paying a handshake to deliver one is the
             # right trade.
             if self._ssl_context is not None:
-                wrapped = self._wrap_tls(sock)
+                wrapped = wrap_tls(self, sock)
                 if wrapped is None:
                     # Nothing readable can be sent to a peer that never
                     # negotiated, so this refusal is COUNTED rather than
@@ -554,24 +556,24 @@ class ServeSocketServer:
                 connection.sock = wrapped
                 sock = wrapped
             if at_capacity:
-                self._reject(connection, REJECT_TOO_MANY_CONNECTIONS)
+                reject(self, connection, REJECT_TOO_MANY_CONNECTIONS)
                 return
             if pending_full:
                 # The bound that did not exist: 64 peers that said nothing sat
                 # on 64 threads because only AUTHENTICATED connections counted.
-                self._reject(connection, REJECT_TOO_MANY_PENDING)
+                reject(self, connection, REJECT_TOO_MANY_PENDING)
                 return
             if self._rate_limiter.blocked():
-                self._reject(connection, REJECT_RATE_LIMITED)
+                reject(self, connection, REJECT_RATE_LIMITED)
                 return
             if self._timeout_limiter.blocked():
-                self._reject(connection, REJECT_HANDSHAKE_THROTTLED)
+                reject(self, connection, REJECT_HANDSHAKE_THROTTLED)
                 return
             if self._draining:
-                self._reject(connection, REJECT_DRAINING)
+                reject(self, connection, REJECT_DRAINING)
                 return
             try:
-                reader = self._handshake(connection, sock, key)
+                reader = handshake(self, connection, sock, key)
             except Exception as exc:
                 # The pre-auth path is driven entirely by an unauthenticated
                 # peer, so ONE uncaught call on it is one too many: an escaping
@@ -587,7 +589,7 @@ class ServeSocketServer:
                     self._handshake_errors += 1
                     self._last_handshake_error = type(exc).__name__
                 try:
-                    self._reject(connection, REJECT_HELLO_MALFORMED)
+                    reject(self, connection, REJECT_HELLO_MALFORMED)
                 except Exception:
                     connection.close("handshake_failed")
         finally:
@@ -596,264 +598,9 @@ class ServeSocketServer:
                     self._pending = max(0, self._pending - 1)
         if reader is None:
             return
-        self._read_loop(connection, reader)
-
-    def _handshake(
-        self, connection: SocketConnection, sock: socket.socket, key: str
-    ) -> "_LineReader | None":
-        """Challenge, verify, admit. Returns the reader, or None on rejection.
-
-        The SERVER speaks first — one ``server_hello`` carrying a nonce minted
-        for THIS connection — and the client answers with an HMAC over it. The
-        token never appears on the wire in either direction, so a captured
-        transcript authenticates nothing and cannot be replayed: the next
-        connection demands a proof over a different nonce.
-
-        What an unauthenticated peer learns is deliberately bounded to the
-        challenge itself (nonce, boot id, contract numbers, algorithm). No
-        build, no runtime root, no answer to any op — the boot id is disclosed
-        because a client must be able to tell "the service I was talking to
-        restarted" from "a different service answered" BEFORE it commits to a
-        handshake, and it is a per-boot random value that authorises nothing.
-        """
-
-        reader = _LineReader(sock)
-        nonce = secrets.token_hex(NONCE_BYTES)
-        try:
-            connection.emit(
-                {
-                    "event": "server_hello",
-                    "nonce": nonce,
-                    "boot_id": self._boot_id,
-                    "contract": self._frame_contract,
-                    "hello_contract": HELLO_CONTRACT_VERSION,
-                    "algorithm": HELLO_PROOF_ALGORITHM,
-                }
-            )
-        except Exception:
-            connection.close("server_hello_write_failed")
-            return None
-        try:
-            hello_line = reader.read_line(deadline_seconds=self._hello_deadline)
-        except _LineTooLong:
-            # A peer that FLOODED is not a peer that was silent. Charging this
-            # to the timeout throttle accounted an attack as an absence, and
-            # let it consume the budget reserved for genuinely quiet clients.
-            self._reject(connection, REJECT_HELLO_TOO_LONG)
-            return None
-        except Exception:
-            hello_line = None
-        if hello_line is None:
-            # NOT an auth failure: a peer that said nothing presented no
-            # credential to be wrong about. It gets its own throttle instead,
-            # so silence can still be bounded without locking out clients that
-            # hold the right secret.
-            with self._lock:
-                self._hello_timeouts += 1
-            self._timeout_limiter.record_failure()
-            self._reject(connection, REJECT_HELLO_TIMEOUT)
-            return None
-        message = _parse_object(hello_line)
-        if message is None:
-            self._reject(connection, REJECT_HELLO_MALFORMED)
-            return None
-        if message.get("op") != "hello":
-            self._reject(connection, REJECT_HELLO_REQUIRED)
-            return None
-        # `self._port` — what this server actually listens on — never a value
-        # from the peer's frame, which is the whole point of the binding.
-        outcome = self._authenticate_hello(message, nonce, self._port or 0)
-        if not outcome.ok:
-            # ONE typed frame, and nothing else: a rejected connection never
-            # learns anything about the runtime it failed to reach. On the
-            # gateway lane every credential failure — no device named, unknown
-            # id, revoked row, wrong proof — collapses into this single reason,
-            # so a peer cannot map which device ids exist by watching it change.
-            self._reject(connection, outcome.reject_reason)
-            return None
-        connection.device_id = outcome.device_id
-        connection.device_tier = outcome.device_tier
-        connection.pairing_token = outcome.issued_token
-        connection.peer_install_id = outcome.peer_install_id
-        connection.peer_secret = outcome.issued_peer_secret
-        connection.peer_secret_expires_at = outcome.issued_peer_secret_expires_at
-        self._rate_limiter.record_success()
-        # Symmetry the first pass missed: a completed handshake proves the lane
-        # is reachable and answering, so the SILENCE throttle has nothing left
-        # to protect against either. Cleared only by time, a burst of abandoned
-        # connections went on refusing the client holding the right credential —
-        # the same "the server's own state locks out a good client" shape the
-        # auth limiter was given `record_success` to retire.
-        self._timeout_limiter.record_success()
-        connection.client = _client_text(message.get("client"))
-        connection.client_build = _client_text(message.get("client_build"))
-        connection.authenticated = True
-        with self._lock:
-            self._connections[key] = connection
-            self._accepted += 1
-        try:
-            sock.settimeout(self._io_timeout)
-        except OSError:
-            pass
-        open_log: dict[str, Any] = {
-            "event": "serve_socket_connection_open",
-            "connection": key,
-            "client": connection.client,
-            "client_build": connection.client_build,
-            "peer": connection.peer,
-        }
-        if connection.device_id is not None:
-            # Additive on a gateway row only, so every existing consumer of this
-            # line reads the shape it was written against. A device id is the
-            # one thing that makes a remote connection auditable after the fact;
-            # the credential that proved it appears here as it appears
-            # everywhere else, which is nowhere.
-            open_log["transport"] = self._transport_name
-            open_log["device_id"] = connection.device_id
-            open_log["device_tier"] = connection.device_tier
-        if connection.peer_install_id is not None:
-            # The peer half of the same line, and the reason is the same one:
-            # an install id is what makes a cross-install connection auditable
-            # after the fact. The credential that proved it appears here as it
-            # appears everywhere else, which is nowhere.
-            open_log["transport"] = self._transport_name
-            open_log["peer_install_id"] = connection.peer_install_id
-        self._emit_log(open_log)
-        try:
-            connection.emit(self._hello_payload(message, connection))
-        except Exception:
-            self._drop_connection(connection, reason="hello_write_failed")
-            return None
-        return reader
-
-    def _authenticate_hello(
-        self, message: dict[str, Any], nonce: str, port: int
-    ) -> HelloAuthOutcome:
-        """Who is this? The per-root token by default; a device when injected.
-
-        The DEFAULT arm is the loopback lane's original code, moved and not
-        rewritten: read this root's shared secret, recompute the proof over the
-        nonce and the listening port, compare in constant time. A server built
-        with no ``authenticator`` therefore behaves byte-for-byte as it did
-        before this seam existed, which is the invariant Stage 1 owes the local
-        launcher and the CLI.
-
-        An authenticator that RAISES is a refusal, never an admission. The
-        gateway lane's reads a store off disk on a path an unauthenticated peer
-        drives, so the failure is ordinary rather than exotic — and the one
-        answer that must never come out of an exception handler here is "yes".
-        """
-
-        if self._authenticator is not None:
-            try:
-                outcome = self._authenticator(message, nonce, port)
-            except Exception:
-                with self._lock:
-                    self._handshake_errors += 1
-                    self._last_handshake_error = "authenticator_failed"
-                return HelloAuthOutcome(ok=False, reject_reason=REJECT_BAD_PROOF)
-            if not isinstance(outcome, HelloAuthOutcome):  # pragma: no cover
-                return HelloAuthOutcome(ok=False, reject_reason=REJECT_BAD_PROOF)
-            return outcome
-        try:
-            token = self._token_provider()
-        except Exception:
-            token = None
-        ok = verify_hello_proof(message.get("proof"), nonce, token, port=port)
-        del token
-        return HelloAuthOutcome(ok=ok, reject_reason=REJECT_BAD_PROOF)
-
-    def _wrap_tls(self, sock: socket.socket) -> Any | None:
-        """Server-side TLS handshake. Returns the wrapped socket, or ``None``.
-
-        Never raises: a peer that cannot speak TLS — a port scanner, a browser,
-        a client that has not been told this lane is encrypted — is an ordinary
-        event on a listener bound beyond loopback, and an exception escaping
-        here would land on the pre-auth path the module docstring says must have
-        no uncaught calls on it.
-
-        The raw socket is closed by the caller's rejection path; this only
-        reports.
-        """
-
-        try:
-            return self._ssl_context.wrap_socket(sock, server_side=True)
-        except Exception:
-            return None
-
-    def _read_loop(self, connection: SocketConnection, reader: "_LineReader") -> None:
-        reason = "client_disconnect"
-        try:
-            while not self._stop.is_set() and not connection.closed:
-                try:
-                    line = reader.read_line(deadline_seconds=None)
-                except socket.timeout:  # noqa: UP041 - alias differs across versions
-                    continue
-                except OSError as exc:
-                    reason = f"read_error:{type(exc).__name__}"
-                    break
-                if line is None:
-                    break
-                if not line.strip():
-                    continue
-                try:
-                    self._dispatch_line(line, connection)
-                except Exception as exc:  # a handler fault is not a process fault
-                    self._emit_log(
-                        {
-                            "event": "serve_socket_dispatch_error",
-                            "connection": connection.key,
-                            "client": connection.client,
-                            "reason": type(exc).__name__,
-                        }
-                    )
-        except _LineTooLong:
-            reason = "line_too_long"
-        finally:
-            self._drop_connection(connection, reason=reason)
+        read_loop(self, connection, reader)
 
     # ── connection teardown / rejection ─────────────────────────────────────
-
-    def _reject(self, connection: SocketConnection, reason: str) -> None:
-        """Refuse one connection, typed, and charge the RIGHT counter.
-
-        Whether this counts as an authentication failure is derived from the
-        reason (:data:`AUTH_FAILURE_REJECT_REASONS`) and from nothing else. It
-        used to be a boolean the caller passed, defaulting to True, so capacity
-        and drain refusals were charged as attacks — and a ``rate_limited``
-        refusal re-armed the very window that produced it. That is a permanent,
-        self-sustaining lockout: proven live, 12 polite retries with the RIGHT
-        credential over 12 seconds, never recovering. A refusal caused by the
-        SERVER's own state can never extend a block against the client.
-        """
-
-        if reason in AUTH_FAILURE_REJECT_REASONS:
-            self._rate_limiter.record_failure()
-        with self._lock:
-            self._rejected += 1
-            self._rejected_by_reason[reason] = (
-                self._rejected_by_reason.get(reason, 0) + 1
-            )
-        connection.try_emit({"event": "hello_rejected", "reason": reason})
-        self._emit_log(
-            {
-                "event": "serve_socket_connection_rejected",
-                "connection": connection.key,
-                "client": connection.client,
-                "peer": connection.peer,
-                "reason": reason,
-            }
-        )
-        if self._reject_penalty > 0:
-            # Charged here, on the rejected connection's own thread — the accept
-            # loop stays responsive for legitimate clients.
-            time.sleep(self._reject_penalty)
-        # Lingering close: a rejected client has almost always pipelined its
-        # next op already, and closing on top of that unread data would RST the
-        # connection and can destroy the rejection frame in flight. The typed
-        # reason IS the observability of an auth failure; losing it would leave
-        # the peer with an unexplained disconnect.
-        connection.close(reason, linger_seconds=_REJECT_LINGER_SECONDS)
 
     def _drop_connection(self, connection: SocketConnection, *, reason: str) -> None:
         with self._lock:

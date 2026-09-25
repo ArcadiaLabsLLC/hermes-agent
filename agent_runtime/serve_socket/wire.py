@@ -1,6 +1,6 @@
 """Line framing and small wire coercions shared by the server and the client:
-``_LineReader`` (bounded line reads), JSON object parsing, text/int
-coercion, accept-error classification and timestamps.
+``_LineReader`` (bounded line reads), JSON object parsing, text
+coercion, accept-error classification and the ``reached_at`` stamp.
 """
 
 from __future__ import annotations
@@ -9,7 +9,6 @@ import errno
 import json
 import socket
 import time
-from datetime import datetime, timezone
 from typing import Any
 
 from agent_runtime.serve_socket.vocabulary import MAX_LINE_BYTES
@@ -20,10 +19,7 @@ __all__ = [
     "_LineReader",
     "_LineTooLong",
     "_client_text",
-    "_int_or_none",
     "_is_fatal_accept_error",
-    "_now_iso",
-    "_os_error_token",
     "_parse_object",
     "_peer_text",
     "_reached_at",
@@ -141,28 +137,3 @@ def _reached_at(sock: Any) -> dict[str, Any] | None:
 
 def _is_fatal_accept_error(exc: OSError) -> bool:
     return exc.errno in {errno.EBADF, errno.EINVAL, errno.ENOTSOCK}
-
-
-def _int_or_none(value: Any) -> int | None:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _os_error_token(exc: OSError) -> str:
-    if isinstance(exc, PermissionError):
-        return "permission_denied"
-    if isinstance(exc, FileNotFoundError):
-        return "root_missing"
-    if isinstance(exc, NotADirectoryError):
-        return "root_not_a_directory"
-    return type(exc).__name__
-
-
-def _now_iso() -> str:
-    return (
-        datetime.now(tz=timezone.utc)
-        .isoformat(timespec="milliseconds")
-        .replace("+00:00", "Z")
-    )

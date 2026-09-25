@@ -10,7 +10,7 @@ from typing import Any
 
 from agent_runtime.serve_socket.vocabulary import SOCKET_HOST
 from agent_runtime.serve_socket.owner_lock import read_socket_owner
-from agent_runtime.serve_socket.wire import _int_or_none
+from agent_runtime.serde import safe_int
 
 __layer__ = "stores"
 
@@ -102,7 +102,7 @@ def resolve_socket_target(
     candidates = [
         row
         for row in rows
-        if _int_or_none(row.get("port")) and "socket" in str(row.get("transport") or "")
+        if safe_int(row.get("port")) and "socket" in str(row.get("transport") or "")
     ]
     live = [row for row in candidates if row.get("classification") == CLASSIFICATION_LIVE]
     for row in live:
@@ -116,13 +116,13 @@ def resolve_socket_target(
         if target is not None:
             return target
     owner = read_socket_owner(store_root)
-    port = _int_or_none(owner.get("port"))
+    port = safe_int(owner.get("port"))
     if port is None:
         return None
     return SocketTarget(
         host=str(owner.get("host") or SOCKET_HOST),
         port=port,
-        pid=_int_or_none(owner.get("pid")),
+        pid=safe_int(owner.get("pid")),
         boot_id=owner.get("boot_id") if isinstance(owner.get("boot_id"), str) else None,
         source="owner_file",
         classification=CLASSIFICATION_OWNER_FILE_UNVERIFIED,
@@ -130,13 +130,13 @@ def resolve_socket_target(
 
 
 def _target_from_row(row: dict[str, Any]) -> SocketTarget | None:
-    port = _int_or_none(row.get("port"))
+    port = safe_int(row.get("port"))
     if port is None:  # pragma: no cover - callers filter on this already
         return None
     return SocketTarget(
         host=SOCKET_HOST,
         port=port,
-        pid=_int_or_none(row.get("pid")),
+        pid=safe_int(row.get("pid")),
         boot_id=row.get("boot_id") if isinstance(row.get("boot_id"), str) else None,
         source="registry",
         classification=str(row.get("classification") or "unknown"),

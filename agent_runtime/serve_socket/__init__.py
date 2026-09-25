@@ -16,12 +16,14 @@ Modules, lowest layer first (no module imports one above it — W0-G6):
 module      layer   owns
 ==========  ======  ========================================================
 vocabulary  models  limits, the hello contract version, ``REJECT_*``, owner states
-wire        models  line framing, JSON/text coercion, timestamps
+wire        models  line framing, JSON/text coercion, the reached-at stamp
 hello       policy  rate limiter, proof, ``HelloAuthOutcome``, hello errors
-owner_lock  stores  the one-owner lock, owner record, drain wait, byte locks
+owner_lock  stores  the one-owner lock, owner record, drain wait (byte locks:
+                    ``agent_runtime.file_locks``)
 connection  stores  ``SocketConnection``
 target      stores  ``SocketTarget``, ``resolve_socket_target``
-server      lanes   ``ServeSocketServer``
+server      lanes   ``ServeSocketServer``: bind, accept, admit, drain, close
+handshake   lanes   TLS wrap, the hello, authentication, rejection, read loop
 client      lanes   ``ServeSocketClient``
 ==========  ======  ========================================================
 

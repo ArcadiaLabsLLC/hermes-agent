@@ -7,7 +7,6 @@ is how a client reads the record it publishes.
 
 from __future__ import annotations
 
-import errno
 import json
 import os
 import threading
@@ -15,12 +14,11 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
-if os.name == "nt":  # pragma: no cover - platform split, both sides exercised in CI
-    import msvcrt
-else:  # pragma: no cover - platform split
-    import fcntl
 
-from agent_runtime.serde import write_json_atomic
+from agent_runtime.file_locks import LockUnavailable, try_lock_exclusive, unlock
+from agent_runtime.clock import now_iso
+from agent_runtime.serde import safe_int, write_json_atomic
+from agent_runtime.store_file_io import os_error_reason
 
 from agent_runtime.serve_socket.vocabulary import (
     LOCK_OUTCOME_ACQUIRED,
@@ -39,19 +37,15 @@ from agent_runtime.serve_socket.vocabulary import (
     SOCKET_OWNER_DRAINING_KEY,
     SOCKET_OWNER_FILENAME,
 )
-from agent_runtime.serve_socket.wire import _int_or_none, _now_iso, _os_error_token
 
 __layer__ = "stores"
 
 __all__ = [
     "SocketLockResult",
     "SocketOwnerLock",
-    "_LockUnavailable",
-    "_lock_first_byte",
     "_owner_pid_alive",
     "_read_owner_record",
     "_text_or_none",
-    "_unlock_first_byte",
     "read_socket_owner",
     "socket_lock_path",
     "socket_owner_path",
@@ -245,7 +239,7 @@ class SocketOwnerLock:
             # a few lines later in the caller, and after that nothing can say
             # whose lane this used to be.
             owner, owner_state = self._classify_owner()
-            owner_pid = _int_or_none(owner.get("pid"))
+            owner_pid = safe_int(owner.get("pid"))
             owner_started_at = _text_or_none(owner.get("started_at"))
 
             handle, failure = self._try_lock()
@@ -276,7 +270,7 @@ class SocketOwnerLock:
                     # the takeover receipt; the freshest copy is what a loser
                     # reports.
                     owner, owner_state = self._classify_owner()
-                    owner_pid = _int_or_none(owner.get("pid"))
+                    owner_pid = safe_int(owner.get("pid"))
                     owner_started_at = _text_or_none(owner.get("started_at"))
                 result = SocketLockResult(
                     outcome=(
@@ -402,15 +396,15 @@ class SocketOwnerLock:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             handle = open(self._path, "a+b")
         except OSError as exc:
-            return None, _os_error_token(exc)
+            return None, os_error_reason(exc)
         try:
-            _lock_first_byte(handle)
-        except _LockUnavailable:
+            try_lock_exclusive(handle)
+        except LockUnavailable:
             handle.close()
             return None, None
         except OSError as exc:
             handle.close()
-            return None, _os_error_token(exc)
+            return None, os_error_reason(exc)
         return handle, None
 
     def _classify_owner(self) -> tuple[dict[str, Any], str]:
@@ -428,7 +422,7 @@ class SocketOwnerLock:
         record, state = _read_owner_record(self._owner_path)
         if record is None:
             return {}, state or OWNER_STATE_ABSENT
-        pid = _int_or_none(record.get("pid"))
+        pid = safe_int(record.get("pid"))
         if pid is None or pid <= 0:
             return record, OWNER_STATE_PID_MISSING
         if pid == os.getpid():
@@ -511,7 +505,7 @@ class SocketOwnerLock:
             record, _state = _read_owner_record(self._owner_path)
             row = dict(record or {})
             row.setdefault("pid", os.getpid())
-            row[SOCKET_OWNER_DRAINING_KEY] = when or _now_iso()
+            row[SOCKET_OWNER_DRAINING_KEY] = when or now_iso()
             write_json_atomic(self._owner_path, row)
             return True
         except Exception:  # noqa: BLE001 — the drain outranks its own receipt
@@ -545,7 +539,7 @@ class SocketOwnerLock:
             was_acquired, self._acquired = self._acquired, False
         if handle is not None:
             try:
-                _unlock_first_byte(handle)
+                unlock(handle)
             except Exception:
                 pass
             try:
@@ -628,43 +622,3 @@ def _text_or_none(value: Any) -> str | None:
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
-
-
-class _LockUnavailable(Exception):
-    pass
-
-
-def _lock_first_byte(handle) -> None:
-    """Exclusive, NON-BLOCKING lock on byte 0 — the locks.py pattern.
-
-    The file is padded to one byte first because ``msvcrt.locking`` cannot lock
-    a region of an empty file.
-    """
-
-    if os.name == "nt":
-        handle.seek(0, os.SEEK_END)
-        if handle.tell() == 0:
-            handle.write(b"0")
-            handle.flush()
-        handle.seek(0)
-        try:
-            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-        except OSError as exc:
-            if exc.errno in {errno.EACCES, errno.EDEADLK, 13, 36}:
-                raise _LockUnavailable() from exc
-            raise
-        return
-    try:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError as exc:
-        if exc.errno in {errno.EACCES, errno.EAGAIN, errno.EWOULDBLOCK}:
-            raise _LockUnavailable() from exc
-        raise
-
-
-def _unlock_first_byte(handle) -> None:
-    if os.name == "nt":
-        handle.seek(0)
-        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-        return
-    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)

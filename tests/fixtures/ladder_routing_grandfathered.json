@@ -250,10 +250,6 @@
    "site": "agent_runtime/serde.py|to_jsonable|isinstance|value"
   },
   {
-   "arms": 3,
-   "site": "agent_runtime/serve_socket/wire.py|_os_error_token|isinstance|exc"
-  },
-  {
    "arms": 6,
    "site": "agent_runtime/skill_promotion.py|execute_promotion|ladder|action"
   },

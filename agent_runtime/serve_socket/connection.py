@@ -166,31 +166,36 @@ class SocketConnection:
             self.closed = True
             self.close_reason = reason
         if linger_seconds > 0:
-            # Closing a socket that still has UNREAD data in its receive buffer
-            # makes the stack send an RST instead of a FIN, and an RST can
-            # discard data already queued for the peer — so the client loses the
-            # very frame that explains why it was closed. This is not
-            # theoretical: a rejected client pipelines its next op immediately,
-            # which is exactly the unread data that triggers it.
-            #
-            # Half-close (FIN out, keep reading), drain briefly, then close.
-            try:
-                self.sock.shutdown(socket.SHUT_WR)
-            except OSError:
-                pass
-            deadline = time.monotonic() + float(linger_seconds)
-            try:
-                self.sock.settimeout(0.05)
-                while time.monotonic() < deadline:
-                    if not self.sock.recv(65536):
-                        break
-            except OSError:
-                pass
+            self._linger(float(linger_seconds))
         try:
             self.sock.shutdown(socket.SHUT_RDWR)
         except OSError:
             pass
         try:
             self.sock.close()
+        except OSError:
+            pass
+
+    def _linger(self, linger_seconds: float) -> None:
+        """Half-close, drain the receive buffer briefly, so the last frame survives."""
+
+        # Closing a socket that still has UNREAD data in its receive buffer
+        # makes the stack send an RST instead of a FIN, and an RST can
+        # discard data already queued for the peer — so the client loses the
+        # very frame that explains why it was closed. This is not
+        # theoretical: a rejected client pipelines its next op immediately,
+        # which is exactly the unread data that triggers it.
+        #
+        # Half-close (FIN out, keep reading), drain briefly, then close.
+        try:
+            self.sock.shutdown(socket.SHUT_WR)
+        except OSError:
+            pass
+        deadline = time.monotonic() + linger_seconds
+        try:
+            self.sock.settimeout(0.05)
+            while time.monotonic() < deadline:
+                if not self.sock.recv(65536):
+                    break
         except OSError:
             pass

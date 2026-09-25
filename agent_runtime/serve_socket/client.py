@@ -22,6 +22,7 @@ from agent_runtime.serve_socket.wire import _LineReader, _parse_object
 __layer__ = "lanes"
 
 __all__ = [
+    "_add_peer_assertions",
     "ServeSocketClient",
 ]
 
@@ -133,12 +134,7 @@ class ServeSocketClient:
         neither is a case where sending a credential is the right next move.
         """
 
-        greeting = self._challenge(expect_hello_contract)
-        nonce = greeting.get("nonce")
-        if not isinstance(nonce, str) or len(nonce) < 2 * NONCE_BYTES:
-            raise ServeHelloProtocolError(
-                "server_hello carried no usable nonce", frame=greeting
-            )
+        nonce = self._challenge_nonce(expect_hello_contract)
         self.send(
             {
                 "op": "hello",
@@ -180,12 +176,7 @@ class ServeSocketClient:
 
         from ..serve_gateway_auth import device_proof
 
-        greeting = self._challenge(expect_hello_contract)
-        nonce = greeting.get("nonce")
-        if not isinstance(nonce, str) or len(nonce) < 2 * NONCE_BYTES:
-            raise ServeHelloProtocolError(
-                "server_hello carried no usable nonce", frame=greeting
-            )
+        nonce = self._challenge_nonce(expect_hello_contract)
         self.send(
             {
                 "op": "hello",
@@ -246,12 +237,7 @@ class ServeSocketClient:
 
         from ..gateway_peers import peer_proof
 
-        greeting = self._challenge(expect_hello_contract)
-        nonce = greeting.get("nonce")
-        if not isinstance(nonce, str) or len(nonce) < 2 * NONCE_BYTES:
-            raise ServeHelloProtocolError(
-                "server_hello carried no usable nonce", frame=greeting
-            )
+        nonce = self._challenge_nonce(expect_hello_contract)
         frame: dict[str, Any] = {
             "op": "hello",
             "client": client,
@@ -266,12 +252,7 @@ class ServeSocketClient:
         # Omitted rather than sent as null when a caller has nothing to say, so
         # a hello from a client that does not know these keys and a hello from
         # one that has no address to offer are the same bytes.
-        if display_name:
-            frame["peer_display_name"] = display_name
-        if endpoints:
-            frame["peer_endpoints"] = endpoints
-        if cert_fingerprint:
-            frame["peer_cert_fingerprint"] = cert_fingerprint
+        _add_peer_assertions(frame, display_name, endpoints, cert_fingerprint)
         self.send(frame)
         return self.read_frame()
 
@@ -328,12 +309,7 @@ class ServeSocketClient:
             "peer_code": str(peer_code).strip().upper(),
             "peer_install_id": peer_install_id,
         }
-        if display_name:
-            frame["peer_display_name"] = display_name
-        if endpoints:
-            frame["peer_endpoints"] = endpoints
-        if cert_fingerprint:
-            frame["peer_cert_fingerprint"] = cert_fingerprint
+        _add_peer_assertions(frame, display_name, endpoints, cert_fingerprint)
         self.send(frame)
         return self.read_frame()
 
@@ -364,6 +340,21 @@ class ServeSocketClient:
             )
         self.server_hello = greeting
         return greeting
+
+    def _challenge_nonce(self, expect_hello_contract: int | None) -> str:
+        """:meth:`_challenge`, then the nonce the three proof-carrying hellos sign.
+
+        A greeting without a usable nonce RAISES with the frame attached, for the
+        reason :meth:`_challenge` gives: sending a credential is the wrong move.
+        """
+
+        greeting = self._challenge(expect_hello_contract)
+        nonce = greeting.get("nonce")
+        if not isinstance(nonce, str) or len(nonce) < 2 * NONCE_BYTES:
+            raise ServeHelloProtocolError(
+                "server_hello carried no usable nonce", frame=greeting
+            )
+        return nonce
 
     def pair_hello(
         self,
@@ -458,3 +449,23 @@ class ServeSocketClient:
 
     def __exit__(self, *_exc: Any) -> None:
         self.close()
+
+
+def _add_peer_assertions(
+    frame: dict[str, Any],
+    display_name: str | None,
+    endpoints: Any,
+    cert_fingerprint: str | None,
+) -> None:
+    """The peer hellos' three optional ASSERTIONS, each omitted rather than null.
+
+    A hello from a client that does not know these keys and a hello from one that
+    has no address to offer are then the same bytes (see :meth:`ServeSocketClient.peer_hello`).
+    """
+
+    if display_name:
+        frame["peer_display_name"] = display_name
+    if endpoints:
+        frame["peer_endpoints"] = endpoints
+    if cert_fingerprint:
+        frame["peer_cert_fingerprint"] = cert_fingerprint
