@@ -6,7 +6,7 @@ import tempfile
 from dataclasses import fields, is_dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from functools import lru_cache
+from functools import lru_cache, singledispatch
 from pathlib import Path
 from types import NoneType, UnionType
 from typing import Any, get_args, get_origin, get_type_hints
@@ -229,6 +229,37 @@ def strict_int(value: Any) -> int | None:
     """:func:`safe_int`, but a ``bool`` is not a number here (``True`` is not exit code 1)."""
 
     return None if isinstance(value, bool) else safe_int(value)
+
+
+@singledispatch
+def number_or_bounded_text(value: Any, *, limit: int) -> int | float | str | None:
+    """A foreign field that may be a NUMBER or a TEXT: the number as given, the
+    text as :func:`safe_text` bounds it, anything else ``None``.
+
+    ``bool`` is not a number here (``True`` is not a timestamp). One owner for
+    the three-arm coercion the provider-refusal block carried inline
+    (``reset_at``: an epoch or an ISO string, from a provider's error body).
+    One implementation per input type (``functools.singledispatch`` — the
+    standard library's type table, as :func:`agent_runtime.clock.iso_timestamp`).
+    """
+
+    return None
+
+
+@number_or_bounded_text.register(bool)
+def _number_or_text_from_bool(value: bool, *, limit: int) -> None:
+    return None
+
+
+@number_or_bounded_text.register(int)
+@number_or_bounded_text.register(float)
+def _number_or_text_from_number(value: float, *, limit: int) -> int | float:
+    return value
+
+
+@number_or_bounded_text.register(str)
+def _number_or_text_from_text(value: str, *, limit: int) -> str | None:
+    return safe_text(value, limit=limit)
 
 
 def positive_int(value: Any, *, default: int | None = None) -> int | None:

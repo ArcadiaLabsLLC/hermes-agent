@@ -15,11 +15,11 @@ import uuid
 from agent_runtime.cli_format import emit_json
 from agent_runtime.clock import elapsed_ms
 from agent_runtime.events import EventLog
-from agent_runtime.mission_chat_turns import (
+from agent_runtime.mission_chat_turns.journal import transition_mission_chat_turn
+from agent_runtime.mission_chat_turns.reads import mission_chat_turn_record
+from agent_runtime.mission_chat_turns.states import (
     MissionChatTurnPersistOutcome,
     TURN_STATE_PROJECTED,
-    mission_chat_turn_record,
-    transition_mission_chat_turn,
 )
 from agent_runtime.models import Event
 from agent_runtime.persona_assignments import safe_assignment_text, safe_assignment_token

@@ -21,7 +21,7 @@ root covers all of them.
 from __future__ import annotations
 
 from agent_runtime.mission_chat_outcome import FinalizationWarning, FinalizationWarningKind
-from agent_runtime.mission_chat_turns import MissionChatTurnPersistOutcome
+from agent_runtime.mission_chat_turns.states import MissionChatTurnPersistOutcome
 from agent_runtime.persona_assignments import safe_assignment_text
 from .admit import _AdmitPhases
 from .run import _RunPhases

@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_runtime import mission_chat_turns
+from agent_runtime import file_locks, mission_chat_turns
 from agent_runtime.mission_chat_turns import (
     MissionChatTurnPersistOutcome,
     mark_stale_inflight_turns_interrupted,
@@ -343,12 +343,20 @@ def test_concurrent_processes_do_not_lose_writes(isolate_agent_runtime_root):
     }
 
 
+def _hold_lock(lock_path):
+    """Take a session's lock the way another process would: its own handle,
+    the store's byte-lock owner (``agent_runtime.file_locks``)."""
+
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    handle = os.fdopen(os.open(str(lock_path), os.O_CREAT | os.O_RDWR), "r+b")
+    file_locks.try_lock_exclusive(handle)
+    return handle
+
+
 def test_persist_skips_with_typed_outcome_when_lock_is_held(monkeypatch):
     monkeypatch.setattr(mission_chat_turns.storage, "_LOCK_TIMEOUT_SECONDS", 0.05)
     lock_path = mission_chat_turns.storage._session_lock_path("s1")
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR)
-    mission_chat_turns.storage._lock_fd_exclusive_nonblocking(fd)
+    handle = _hold_lock(lock_path)
     try:
         outcome = persist_mission_chat_turn(
             session_id="s1",
@@ -369,8 +377,8 @@ def test_persist_skips_with_typed_outcome_when_lock_is_held(monkeypatch):
             == []
         )
     finally:
-        mission_chat_turns.storage._unlock_fd(fd)
-        os.close(fd)
+        file_locks.unlock(handle)
+        handle.close()
 
     # Once the lock is released the same write goes through.
     outcome = persist_mission_chat_turn(
@@ -393,9 +401,7 @@ def test_lock_on_one_session_never_blocks_another_session(monkeypatch):
         "sess_b"
     )
     lock_path = mission_chat_turns.storage._session_lock_path("sess_a")
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR)
-    mission_chat_turns.storage._lock_fd_exclusive_nonblocking(fd)
+    handle = _hold_lock(lock_path)
     try:
         # Session A cannot be written — its lock is held.
         assert (
@@ -423,8 +429,8 @@ def test_lock_on_one_session_never_blocks_another_session(monkeypatch):
         )
         assert mission_chat_turn_record(session_id="sess_b", client_message_id="m1")["state"] == "running"
     finally:
-        mission_chat_turns.storage._unlock_fd(fd)
-        os.close(fd)
+        file_locks.unlock(handle)
+        handle.close()
 
 
 # ---------------------------------------------------------------------------

@@ -9,14 +9,11 @@ from __future__ import annotations
 
 from typing import Any, Callable, TypeVar
 
+from agent_runtime.clock import now_iso_micro
 from agent_runtime.mission_chat_phases import TURN_RECORD_SCHEMA_VERSION
 from agent_runtime.serde import safe_assignment_text, safe_assignment_token
 
-from agent_runtime.mission_chat_turns.records import (
-    _safe_elements,
-    _safe_journal_metadata,
-    _utc_now_iso,
-)
+from agent_runtime.mission_chat_turns.records import _safe_elements, _safe_journal_metadata
 from agent_runtime.mission_chat_turns.states import (
     INFLIGHT_TURN_STATES,
     JOURNAL_TURN_STATES,
@@ -33,16 +30,16 @@ from agent_runtime.mission_chat_turns.states import (
 )
 from agent_runtime.mission_chat_turns.storage import (
     _apply_session_turn_cap,
-    _file_lock,
     _gc_session_files,
     _migrate_legacy_if_present,
     _read_session_map,
     _session_file_path,
     _session_lock_path,
     _write_session_file,
+    try_session_lock,
 )
 
-__layer__ = "lanes"
+__layer__ = "stores"
 
 
 _T = TypeVar("_T")
@@ -92,14 +89,14 @@ def persist_mission_chat_turn(
             else None
         )
         if write_ahead and not started_at:
-            started_at = _utc_now_iso()
+            started_at = now_iso_micro()
         prior = dict(existing) if isinstance(existing, dict) else {}
         session[message_key] = {
             **prior,
             "schema_version": TURN_RECORD_SCHEMA_VERSION,
             "turn_id": safe_assignment_token(turn_id) or safe_assignment_token(message_key),
             "state": resolved_state,
-            "updated_at": _utc_now_iso(),
+            "updated_at": now_iso_micro(),
             **({"started_at": started_at} if started_at else {}),
             "elements": safe_elements,
             **_safe_journal_metadata(metadata),
@@ -145,7 +142,7 @@ def transition_mission_chat_turn(
             current = _LEGACY_TO_JOURNAL_STATE.get(current)
         if requested not in _JOURNAL_TRANSITIONS.get(current, set()):
             return False, MissionChatTurnPersistOutcome.REJECTED_STALE_TRANSITION
-        now_iso = _utc_now_iso()
+        now_iso = now_iso_micro()
         record = dict(existing) if isinstance(existing, dict) else {}
         if not record.get("started_at"):
             record["started_at"] = now_iso
@@ -200,8 +197,8 @@ def abandon_mission_chat_turn(
         record.update(
             {
                 "state": TURN_STATE_ABANDONED,
-                "updated_at": _utc_now_iso(),
-                "resolved_at": _utc_now_iso(),
+                "updated_at": now_iso_micro(),
+                "resolved_at": now_iso_micro(),
                 "resolution": "abandon",
                 "resolution_actor": safe_assignment_text(
                     resolution_actor, limit=160
@@ -251,7 +248,7 @@ def mark_stale_inflight_turns_interrupted(
 
     def _mutate(session: dict[str, Any]) -> tuple[bool, list[str]]:
         flipped: list[str] = []
-        now_iso = _utc_now_iso()
+        now_iso = now_iso_micro()
         for message_key, record in session.items():
             safe_key = safe_assignment_text(message_key, limit=240)
             if not safe_key or safe_key == active_key or not isinstance(record, dict):
@@ -300,7 +297,7 @@ def _mutate_session(
     path = _session_file_path(session_key)
     changed = False
     created = False
-    with _file_lock(_session_lock_path(session_key)) as acquired:
+    with try_session_lock(_session_lock_path(session_key)) as acquired:
         if not acquired:
             return timeout_result
         created = not path.exists()

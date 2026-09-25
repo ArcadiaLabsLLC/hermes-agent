@@ -29,7 +29,7 @@ Directories present in the live root, with the module that owns each:
 | `persona_assignments/` + `_archive/` | `paths.py:37,41` | persona↔channel bindings |
 | `persona_chat_mint_receipts/` | `paths.py:45` | durable idempotency receipts for server-minted chat roots |
 | `persona_chat_leases/`, `persona_chat_clarify_tickets/` | `persona_chat_continuity.py:815,1236` | per-chat leases and clarify tickets |
-| `mission_chat_turns/` + `_archive/` | `mission_chat_turns/storage.py:40` | one `<safe_session_key>.json` + `.lock` per chat |
+| `mission_chat_turns/` + `_archive/` | `mission_chat_turns/storage.py:33-42` | one `<safe_session_key>.json` + `.lock` per chat |
 | `mission_chat_steer/` | `mission_chat_steer.py:328` | per-session steer drops |
 | `tool_turn_context/`, `queued_skills/` | `tool_turn_history.py:132`, `queued_skills.py:16` | per-turn tool context; skill inbox |
 | `prompt_observability/` | `paths.py:450` | one `ctx_<id>.json` per captured prompt context |
@@ -185,10 +185,10 @@ log is `tests/agent_runtime/test_serve_socket_child_e2e.py::test_a_service_boots
 
 One file per chat session, `mission_chat_turns/<safe_session_key>.json`, holding
 that session's `{client_message_id: record}` map, plus a co-located
-`.lock` (`mission_chat_turns/storage.py:28-39`). Concurrent turns in *different* chats
+`.lock` (`mission_chat_turns/storage.py:30-41`). Concurrent turns in *different* chats
 never contend. The filename is a sanitized 80-char prefix plus a 12-char sha256
 suffix, keeping the total under the Windows `MAX_PATH` budget
-(`mission_chat_turns/storage.py:50-55`). The pre-2026-07-17 single-file monolith is
+(`mission_chat_turns/storage.py:52-57`). The pre-2026-07-17 single-file monolith is
 split once on first read/write and renamed to `mission_chat_turns.legacy.json`,
 never deleted — that file is still on disk live. Retention is
 `_RETENTION_MAX_TURNS_PER_SESSION = 100` turns per session (`:72`, applied

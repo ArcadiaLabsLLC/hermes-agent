@@ -14,7 +14,7 @@ from enum import StrEnum, auto
 from types import MappingProxyType
 from typing import Any, Mapping
 
-from ..mission_chat_turns import TERMINAL_TURN_STATES
+from ..mission_chat_turns.states import TERMINAL_TURN_STATES
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..redaction import TEXT_SECRET_ASSIGNMENT_RE
 from ..turn_visibility import SILENT_REASONS, VisibilityReason

@@ -425,7 +425,7 @@ legacy behavior byte-for-byte" (`:616-628`) — callers must treat it as fall-th
 ## 7. Turn durability and the run budget
 
 **One file per chat session** — `mission_chat_turns/<safe_session_key>.json` with a co-located lock
-(`agent_runtime/mission_chat_turns/storage.py:29-55`), so concurrent turns in different chats never contend;
+(`agent_runtime/mission_chat_turns/storage.py:31-57`), so concurrent turns in different chats never contend;
 the legacy monolith splits once on first read/write and is renamed aside, never deleted. Retention:
 100 turns per session, 50 session files, inside the per-session lock (`:72-73`).
 
@@ -722,7 +722,7 @@ Mechanism exists in code; the NUMBER or live condition was not re-measured here.
   states no test asserts a millisecond and none can reproduce the magnitude; the enforced gate is
   the probe-round count. **Annotated 2026-08-23 (prep-cost 2026-08 text §3 H2, in that file's history): the 2,421 ms is the UNWARMED
   CREATE subphase (warm create: 859/15 ms) — never re-quote it as a per-turn cost.**
-- **The 1,762 ms hermes share of turn `c59ab99e`** (`mission_chat_phases.py:442-443`) and the live
+- **The 1,762 ms hermes share of turn `c59ab99e`** (`mission_chat_phases.py:435-436`) and the live
   phase-joined TTFT splits (alice 17.8 s, qa 9.2 s) — 2026-08-22 session receipts, read through the
   launcher's audit tooling; not reproducible from this repo.
 - **Tool-schema census** (62 core tools / 93,075 bytes vs 34 deferrable / 32,182; 74% core) —

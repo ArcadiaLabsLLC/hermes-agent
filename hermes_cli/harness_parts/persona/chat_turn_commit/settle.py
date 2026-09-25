@@ -22,15 +22,17 @@ from agent_runtime.mission_chat_phases import (
     TURN_TIMING_KEY as MISSION_CHAT_TURN_TIMING_KEY,
     turn_timing_block,
 )
-from agent_runtime.mission_chat_turns import (
+from agent_runtime.mission_chat_turns.journal import transition_mission_chat_turn
+from agent_runtime.mission_chat_turns.records import (
     TURN_PROFILE_TIMING_KEY as MISSION_CHAT_TURN_PROFILE_TIMING_KEY,
+)
+from agent_runtime.mission_chat_turns.states import (
     MissionChatTurnPersistOutcome,
     TURN_STATE_BUDGET_EXHAUSTED,
     TURN_STATE_NATIVE_COMMITTED,
     TURN_STATE_OUTCOME_UNKNOWN,
     TURN_STATE_PROJECTED,
     TURN_STATE_PROVIDER_REFUSED,
-    transition_mission_chat_turn,
 )
 from agent_runtime.persona_assignments import safe_assignment_text, safe_assignment_token
 from agent_runtime.persona_chat_durability import PersonaChatPersistenceError

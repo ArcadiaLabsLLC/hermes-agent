@@ -9,7 +9,7 @@ supplies nothing.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable, Mapping
 
 from agent_runtime.mission_chat_phases import TURN_PHASES_KEY, safe_turn_phases
 from agent_runtime.run_budget import (
@@ -18,6 +18,7 @@ from agent_runtime.run_budget import (
 )
 from agent_runtime.serde import (
     non_negative_int,
+    number_or_bounded_text,
     safe_assignment_text,
     safe_assignment_token,
     safe_block,
@@ -260,15 +261,9 @@ def safe_provider_refusal(value: Any) -> dict[str, Any] | None:
         text = safe_assignment_text(value.get(key), limit=limit)
         if text:
             block[key] = text
-    reset_at = value.get("reset_at")
-    if isinstance(reset_at, bool):
-        reset_at = None
-    if isinstance(reset_at, (int, float)):
+    reset_at = number_or_bounded_text(value.get("reset_at"), limit=80)
+    if reset_at is not None:
         block["reset_at"] = reset_at
-    elif isinstance(reset_at, str):
-        text = safe_assignment_text(reset_at, limit=80)
-        if text:
-            block["reset_at"] = text
     try:
         resets_in = int(value["resets_in_seconds"])
     except (KeyError, TypeError, ValueError):
@@ -331,96 +326,111 @@ def _safe_journal_metadata(value: Any) -> dict[str, Any]:
     return result
 
 
-def _utc_now_iso() -> str:
-    from datetime import datetime, timezone
-
-    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+#: The two element kinds a turn record carries. A plain tuple, NOT a ``Final`` /
+#: ``StrEnum`` vocabulary: ``segment`` / ``tool`` are spelled across
+#: ``persona_chat_history``, ``stream``, ``progress`` and the launcher, and W0-G5
+#: arm (c) would read every member of a declared vocabulary as a routed word
+#: fork-wide (fork-hygiene row, lane R4 2026-09-25). ``_ELEMENT_FIELDS`` is its
+#: one reader.
+ELEMENT_KINDS = ("segment", "tool")
 
 
 def _safe_elements(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
-    elements: list[dict[str, Any]] = []
-    for raw in value[:_MAX_ELEMENTS]:
-        if not isinstance(raw, dict):
-            continue
-        kind = safe_assignment_token(raw.get("kind"))
-        element_id = safe_assignment_text(raw.get("id"), limit=240)
-        turn_id = safe_assignment_token(raw.get("turn_id"))
-        try:
-            seq = int(raw.get("seq"))
-        except Exception:
-            continue
-        if kind not in {"segment", "tool"} or not element_id or not turn_id:
-            continue
-        base: dict[str, Any] = {
-            "kind": kind,
-            "id": element_id,
-            "turn_id": turn_id,
-            "seq": seq,
-            "state": safe_assignment_token(raw.get("state")) or "settled",
-        }
-        if kind == "segment":
-            base.update(
-                {
-                    "seg_type": safe_assignment_token(raw.get("seg_type")) or "answer",
-                    "text": safe_assignment_text(raw.get("text"), limit=_MAX_TEXT) or "",
-                    "ttft_ms": non_negative_int(raw.get("ttft_ms")),
-                    "duration_ms": non_negative_int(raw.get("duration_ms")),
-                    "redacted": bool(raw.get("redacted")),
-                }
-            )
-        else:
-            files = raw.get("files")
-            safe_files = [_safe_file_label(item) for item in files[:20]] if isinstance(files, list) else []
-            base.update(
-                {
-                    "name": safe_assignment_token(raw.get("name")) or "tool",
-                    "args": safe_assignment_text(raw.get("args"), limit=800),
-                    "command": safe_assignment_text(raw.get("command"), limit=1000),
-                    "status": safe_assignment_token(raw.get("status")) or None,
-                    "summary": safe_assignment_text(raw.get("summary"), limit=1200),
-                    "detail": safe_assignment_text(raw.get("detail"), limit=1200),
-                    "output": safe_assignment_text(raw.get("output"), limit=_MAX_TEXT),
-                    "exit_code": _safe_exit_code(raw.get("exit_code")),
-                    "duration_ms": non_negative_int(raw.get("duration_ms")),
-                    "files": [item for item in safe_files if item],
-                    "redacted": bool(raw.get("redacted")),
-                    # Generic tool input/result record — block-preserving bound
-                    # (safe_assignment_text would fold the key-per-line contract
-                    # the console dropdown renders into one line). Scrubbed and
-                    # bounded upstream at the progress sink.
-                    "tool_input": safe_block(raw.get("tool_input"), limit=1200),
-                    "tool_result": safe_block(raw.get("tool_result"), limit=1800),
-                }
-            )
-            # T7: preserve the todo tool's structured checklist (id/content/status)
-            # so the operator console can render it after the turn persists. Bounded
-            # again here (defence in depth over the producer cap).
-            # T9d: keep an explicit EMPTY list too (`is not None`, not truthiness) —
-            # a cleared checklist persists as `todo_state: []` so a reloaded turn
-            # clears the panel exactly like the live lane. `_safe_todo_state`
-            # returns None only for a truly absent/non-list value, so non-todo
-            # elements still gain no key.
-            todo_state = _safe_todo_state(raw.get("todo_state"))
-            if todo_state is not None:
-                base["todo_state"] = todo_state
-            # Patch observability: the diff artifact's path and its +/− counts,
-            # re-bounded here (defence in depth over the producer cap) so a
-            # reloaded turn offers the same viewer affordance the live one did.
-            # Keyed absent-when-absent — a non-patch element gains nothing.
-            patch_artifact = safe_assignment_text(raw.get("patch_artifact"), limit=500)
-            if patch_artifact:
-                base["patch_artifact"] = patch_artifact
-            patch_mode = safe_assignment_token(raw.get("patch_mode"))
-            if patch_mode:
-                base["patch_mode"] = patch_mode
-            for count_key in ("patch_adds", "patch_dels"):
-                count = non_negative_int(raw.get(count_key))
-                if count is not None:
-                    base[count_key] = count
-        elements.append(base)
+    elements = [element for element in map(_safe_element, value[:_MAX_ELEMENTS]) if element is not None]
     return sorted(elements, key=lambda item: (int(item.get("seq") or 0), str(item.get("id") or "")))
+
+
+def _safe_element(raw: Any) -> dict[str, Any] | None:
+    """One element: the fields every kind carries, then its own kind's fields."""
+
+    if not isinstance(raw, dict):
+        return None
+    kind = safe_assignment_token(raw.get("kind"))
+    element_id = safe_assignment_text(raw.get("id"), limit=240)
+    turn_id = safe_assignment_token(raw.get("turn_id"))
+    try:
+        seq = int(raw.get("seq"))
+    except Exception:
+        return None
+    if kind not in ELEMENT_KINDS or not element_id or not turn_id:
+        return None
+    return {
+        "kind": kind,
+        "id": element_id,
+        "turn_id": turn_id,
+        "seq": seq,
+        "state": safe_assignment_token(raw.get("state")) or "settled",
+        **_ELEMENT_FIELDS[kind](raw),
+    }
+
+
+def _segment_fields(raw: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "seg_type": safe_assignment_token(raw.get("seg_type")) or "answer",
+        "text": safe_assignment_text(raw.get("text"), limit=_MAX_TEXT) or "",
+        "ttft_ms": non_negative_int(raw.get("ttft_ms")),
+        "duration_ms": non_negative_int(raw.get("duration_ms")),
+        "redacted": bool(raw.get("redacted")),
+    }
+
+
+def _tool_fields(raw: dict[str, Any]) -> dict[str, Any]:
+    files = raw.get("files")
+    safe_files = [_safe_file_label(item) for item in files[:20]] if isinstance(files, list) else []
+    fields: dict[str, Any] = {
+        "name": safe_assignment_token(raw.get("name")) or "tool",
+        "args": safe_assignment_text(raw.get("args"), limit=800),
+        "command": safe_assignment_text(raw.get("command"), limit=1000),
+        "status": safe_assignment_token(raw.get("status")) or None,
+        "summary": safe_assignment_text(raw.get("summary"), limit=1200),
+        "detail": safe_assignment_text(raw.get("detail"), limit=1200),
+        "output": safe_assignment_text(raw.get("output"), limit=_MAX_TEXT),
+        "exit_code": _safe_exit_code(raw.get("exit_code")),
+        "duration_ms": non_negative_int(raw.get("duration_ms")),
+        "files": [item for item in safe_files if item],
+        "redacted": bool(raw.get("redacted")),
+        # Generic tool input/result record — block-preserving bound
+        # (safe_assignment_text would fold the key-per-line contract
+        # the console dropdown renders into one line). Scrubbed and
+        # bounded upstream at the progress sink.
+        "tool_input": safe_block(raw.get("tool_input"), limit=1200),
+        "tool_result": safe_block(raw.get("tool_result"), limit=1800),
+    }
+    # T7: preserve the todo tool's structured checklist (id/content/status)
+    # so the operator console can render it after the turn persists. Bounded
+    # again here (defence in depth over the producer cap).
+    # T9d: keep an explicit EMPTY list too (`is not None`, not truthiness) —
+    # a cleared checklist persists as `todo_state: []` so a reloaded turn
+    # clears the panel exactly like the live lane. `_safe_todo_state`
+    # returns None only for a truly absent/non-list value, so non-todo
+    # elements still gain no key.
+    todo_state = _safe_todo_state(raw.get("todo_state"))
+    if todo_state is not None:
+        fields["todo_state"] = todo_state
+    # Patch observability: the diff artifact's path and its +/− counts,
+    # re-bounded here (defence in depth over the producer cap) so a
+    # reloaded turn offers the same viewer affordance the live one did.
+    # Keyed absent-when-absent — a non-patch element gains nothing.
+    patch_artifact = safe_assignment_text(raw.get("patch_artifact"), limit=500)
+    if patch_artifact:
+        fields["patch_artifact"] = patch_artifact
+    patch_mode = safe_assignment_token(raw.get("patch_mode"))
+    if patch_mode:
+        fields["patch_mode"] = patch_mode
+    for count_key in ("patch_adds", "patch_dels"):
+        count = non_negative_int(raw.get(count_key))
+        if count is not None:
+            fields[count_key] = count
+    return fields
+
+
+#: Routing is data (program rule 12): one builder per element kind.
+_ELEMENT_FIELDS: Mapping[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
+    "segment": _segment_fields,
+    "tool": _tool_fields,
+}
 
 
 # Turn-store caps for the T7 todo checklist. Compact by design — a checklist row

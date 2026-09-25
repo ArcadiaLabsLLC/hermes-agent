@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..clock import iso_timestamp
-from ..mission_chat_turns import mission_chat_turn_records
+from ..mission_chat_turns.reads import mission_chat_turn_records
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..run_budget import ACCOUNTING_KEY as RUN_BUDGET_ACCOUNTING_KEY
 from ..transcript_order import TURN_SEQ_TERMINAL, order_transcript_rows

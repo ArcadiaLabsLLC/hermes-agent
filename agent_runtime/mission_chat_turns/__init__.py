@@ -33,9 +33,9 @@ storage   stores  the store on disk: layout constants + every path, the
                   per-session lock, read / write / archive of one session
                   file, the per-session turn cap, the session-file GC, the
                   one-time monolith migration
-journal   lanes   the four writes over ``_mutate_session`` — the ONE write
+journal   stores  the four writes over ``_mutate_session`` — the ONE write
                   chokepoint
-reads     lanes   elements / record / records / in-flight roots / rows
+reads     stores  elements / record / records / in-flight roots / rows
 ========  ======  ==========================================================
 
 Stores written: ``<store_root>/mission_chat_turns/<safe_session_key>.json`` +

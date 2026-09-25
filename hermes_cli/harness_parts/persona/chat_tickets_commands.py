@@ -8,11 +8,11 @@ from __future__ import annotations
 import time
 from agent_runtime.cli_format import emit_json
 from agent_runtime.config import mission_chat_clarify_token_binding
-from agent_runtime.mission_chat_turns import (
+from agent_runtime.mission_chat_turns.journal import abandon_mission_chat_turn
+from agent_runtime.mission_chat_turns.reads import mission_chat_turn_record
+from agent_runtime.mission_chat_turns.states import (
     MissionChatTurnPersistOutcome,
     TURN_STATE_ABANDONED,
-    abandon_mission_chat_turn,
-    mission_chat_turn_record,
 )
 from agent_runtime.persona_assignments import (
     PersonaInstanceStore,
@@ -288,7 +288,7 @@ def _cmd_mission_chat_turn_resolve(args) -> int:
     # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.
     from agent_runtime.mission_chat_outcome import ChatErrorKind
-    from agent_runtime.mission_chat_turns import OPERATOR_RESOLVABLE_TURN_STATES
+    from agent_runtime.mission_chat_turns.states import OPERATOR_RESOLVABLE_TURN_STATES
     session_id = safe_assignment_text(getattr(args, "session_id", None), limit=240)
     client_message_id = safe_assignment_text(
         getattr(args, "client_message_id", None), limit=240

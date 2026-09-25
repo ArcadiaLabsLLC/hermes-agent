@@ -368,7 +368,7 @@ component that moved (CP-7): the same NAMES-never-values rule as
 durable record through this key — by construction, not by scrubbing.
 
 Persisted at `<store>/mission_chat_turns/<safe_session_key>.json`
-(`mission_chat_turns/storage.py:31-46`) with `sort_keys=True` (`mission_chat_turns/storage.py:359`), so the on-disk order is
+(`mission_chat_turns/storage.py:33-48`) with `sort_keys=True` (`mission_chat_turns/storage.py:352`), so the on-disk order is
 alphabetical and **nothing may depend on ordering** — the join contract is the
 key names and their meaning (`mission_chat_phases.py:126-142`). A "phase" more
 than 24 h after the anchor is rejected on READ as corrupt; the writer cannot

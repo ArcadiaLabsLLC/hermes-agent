@@ -12,7 +12,9 @@ from types import MappingProxyType
 from typing import Any, Callable, Final, Mapping
 
 from agent_runtime.mission_chat_outcome import ChatErrorKind, ExecutionState
-from agent_runtime.mission_chat_turns import (
+from agent_runtime.mission_chat_turns.journal import transition_mission_chat_turn
+from agent_runtime.mission_chat_turns.reads import mission_chat_turn_record
+from agent_runtime.mission_chat_turns.states import (
     REPLY_RECOVERABLE_TURN_STATES,
     RESEND_BLOCKING_TURN_STATES,
     SETTLING_TURN_STATES,
@@ -23,8 +25,6 @@ from agent_runtime.mission_chat_turns import (
     TURN_STATE_PENDING,
     TURN_STATE_PROJECTED,
     TURN_STATE_PROVIDER_REFUSED,
-    mission_chat_turn_record,
-    transition_mission_chat_turn,
 )
 from agent_runtime.models import apply_instance_model_overrides
 from agent_runtime.persona_assignments import (

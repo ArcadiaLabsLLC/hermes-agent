@@ -16,7 +16,10 @@ from types import MappingProxyType
 from typing import Any, Mapping, Protocol
 
 from ..clock import iso_timestamp
-from ..mission_chat_turns import mission_chat_turn_elements, mission_chat_turn_records
+from ..mission_chat_turns.reads import (
+    mission_chat_turn_elements,
+    mission_chat_turn_records,
+)
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..relay_policy import parse_harness_delivery_marker, parse_relay_sender_marker
 from ..runtime_hud import extract_runtime_context_envelope, extract_skill_preload_envelope

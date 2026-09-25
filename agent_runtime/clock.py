@@ -5,6 +5,9 @@ without risking a cycle. ``now_iso`` is the millisecond, ``Z``-suffixed UTC
 stamp ``serve_socket`` and ``serve_registry`` each spelled as ``_now_iso``
 (god-file program §4; lane R3 folded the first). ``iso_timestamp`` is the
 wall-clock normalizer lane R2 moved out of ``persona_chat_history``.
+``now_iso_micro`` is the MICROSECOND stamp the turn journal orders by (lane
+2B-B folded ``mission_chat_turns`` and ``mission_chat_phases``;
+``persona_chat_continuity`` folds in its own lane).
 """
 
 from __future__ import annotations
@@ -14,7 +17,7 @@ from datetime import datetime, timezone
 from functools import singledispatch
 
 __layer__ = "models"
-__all__ = ["elapsed_ms", "iso_timestamp", "now_iso"]
+__all__ = ["elapsed_ms", "iso_timestamp", "now_iso", "now_iso_micro"]
 
 
 def elapsed_ms(started: object) -> int | None:
@@ -108,3 +111,14 @@ def now_iso() -> str:
         .isoformat(timespec="milliseconds")
         .replace("+00:00", "Z")
     )
+
+
+def now_iso_micro() -> str:
+    """Now, UTC, as ``YYYY-MM-DDTHH:MM:SS.ffffffZ`` — the turn journal's stamp.
+
+    NOT :func:`now_iso`: the journal replays turns by ``started_at``, and a
+    millisecond stamp collapses two turns started in the same millisecond into
+    one key, handing their order to the client-id tie-break (C8).
+    """
+
+    return _iso_z(datetime.now(timezone.utc))

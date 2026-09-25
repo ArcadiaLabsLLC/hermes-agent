@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from agent_runtime import paths
+from agent_runtime.file_locks import LockUnavailable, try_lock_exclusive, unlock
 from agent_runtime.serde import safe_assignment_text
 
 from agent_runtime.mission_chat_turns.states import INFLIGHT_TURN_STATES, _record_state
@@ -127,7 +128,7 @@ def _gc_session_files(*, protected_session_key: str | None = None) -> None:
         protected_path = (
             _session_file_path(protected_session_key) if protected_session_key else None
         )
-        with _file_lock(_gc_lock_path(), timeout_seconds=_GC_LOCK_TIMEOUT_SECONDS) as acquired:
+        with try_session_lock(_gc_lock_path(), timeout_seconds=_GC_LOCK_TIMEOUT_SECONDS) as acquired:
             if not acquired:
                 return
             files = _iter_session_files()
@@ -140,19 +141,24 @@ def _gc_session_files(*, protected_session_key: str | None = None) -> None:
                     break
                 if protected_path is not None and path == protected_path:
                     continue
-                with _file_lock(_lock_path_for_session_file(path), timeout_seconds=0.0) as got:
-                    if not got:
-                        continue
-                    session = _read_session_map(path)
-                    if any(
-                        _record_state(record) in INFLIGHT_TURN_STATES
-                        for record in session.values()
-                    ):
-                        continue
-                    if _archive_session_file(path):
-                        dropped += 1
+                if _archive_if_idle(path):
+                    dropped += 1
     except Exception:
         return
+
+
+def _archive_if_idle(path: Path) -> bool:
+    """Archive one GC candidate unless it is busy: its session lock is probed
+    NON-blocking (a live write simply wins), and a file holding an in-flight
+    record is never archived. ``True`` only when the file moved."""
+
+    with try_session_lock(_lock_path_for_session_file(path), timeout_seconds=0.0) as got:
+        if not got:
+            return False
+        session = _read_session_map(path)
+        if any(_record_state(record) in INFLIGHT_TURN_STATES for record in session.values()):
+            return False
+        return _archive_session_file(path)
 
 
 def _migrate_legacy_if_present() -> None:
@@ -174,7 +180,7 @@ def _migrate_legacy_if_present() -> None:
             return
     except OSError:
         return
-    with _file_lock(_migrate_lock_path(), timeout_seconds=_MIGRATE_LOCK_TIMEOUT_SECONDS) as acquired:
+    with try_session_lock(_migrate_lock_path(), timeout_seconds=_MIGRATE_LOCK_TIMEOUT_SECONDS) as acquired:
         if not acquired:
             return
         try:
@@ -218,58 +224,44 @@ def _migrate_legacy_if_present() -> None:
 
 
 @contextmanager
-def _file_lock(
+def try_session_lock(
     lock_path: Path,
     timeout_seconds: float | None = None,
 ) -> Iterator[bool]:
+    """Hold ``lock_path``'s exclusive byte-0 lock for the ``with`` body; yield
+    whether it was acquired.
+
+    The byte lock is :mod:`agent_runtime.file_locks`' (one owner of the
+    platform split); this adds the bounded poll and the ``acquired: bool``
+    contract the journal is written against — a chat turn never hangs on a stuck
+    lock, it gets the typed ``SKIPPED_LOCK_TIMEOUT`` outcome. The handle opens
+    ``r+b`` (created if absent) because the owner pads an empty file to one byte
+    before locking it on Windows.
+    """
+
     if timeout_seconds is None:
         timeout_seconds = _LOCK_TIMEOUT_SECONDS
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR)
-    acquired = False
-    try:
+    with os.fdopen(os.open(str(lock_path), os.O_CREAT | os.O_RDWR), "r+b") as handle:
+        acquired = False
         deadline = time.monotonic() + max(timeout_seconds, 0.0)
         while True:
             try:
-                _lock_fd_exclusive_nonblocking(fd)
+                try_lock_exclusive(handle)
                 acquired = True
                 break
-            except OSError:
+            except (LockUnavailable, OSError):
                 if time.monotonic() >= deadline:
                     break
                 time.sleep(_LOCK_POLL_SECONDS)
-        yield acquired
-    finally:
-        if acquired:
-            try:
-                _unlock_fd(fd)
-            except OSError:
-                pass
-        os.close(fd)
-
-
-def _lock_fd_exclusive_nonblocking(fd: int) -> None:
-    if os.name == "nt":
-        import msvcrt
-
-        os.lseek(fd, 0, os.SEEK_SET)
-        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
-    else:
-        import fcntl
-
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-
-
-def _unlock_fd(fd: int) -> None:
-    if os.name == "nt":
-        import msvcrt
-
-        os.lseek(fd, 0, os.SEEK_SET)
-        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
-    else:
-        import fcntl
-
-        fcntl.flock(fd, fcntl.LOCK_UN)
+        try:
+            yield acquired
+        finally:
+            if acquired:
+                try:
+                    unlock(handle)
+                except OSError:
+                    pass
 
 
 # ---------------------------------------------------------------------------

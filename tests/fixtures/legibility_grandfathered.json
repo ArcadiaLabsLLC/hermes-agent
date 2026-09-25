@@ -81,11 +81,6 @@
    "unit": "agent_runtime/mcp_admission.py|resolve_mcp_admission"
   },
   {
-   "depth": 5,
-   "lines": 45,
-   "unit": "agent_runtime/mission_chat_turns/storage.py|_gc_session_files"
-  },
-  {
    "depth": 1,
    "lines": 203,
    "unit": "agent_runtime/operator_channels.py|_OperatorChannelBuilder.build"

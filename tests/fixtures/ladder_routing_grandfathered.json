@@ -138,10 +138,6 @@
    "site": "agent_runtime/mission_chat_outcome.py|_reset_delta_seconds|isinstance|value"
   },
   {
-   "arms": 3,
-   "site": "agent_runtime/mission_chat_turns/records.py|safe_provider_refusal|isinstance|reset_at"
-  },
-  {
    "arms": 5,
    "site": "agent_runtime/observability.py|_event_display_kind|ladder|event_type"
   },
