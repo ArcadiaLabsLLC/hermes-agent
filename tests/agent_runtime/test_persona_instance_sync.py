@@ -19,7 +19,7 @@ import dataclasses
 from datetime import datetime, timezone
 
 import pytest
-import yaml
+from agent_runtime import yaml_io
 
 from agent_runtime.models import PersonaInstance
 from agent_runtime.persona_instance_sync import (
@@ -215,7 +215,7 @@ def test_the_projection_is_deterministic_and_lf():
 
     RED-PROOF NOTE, so the next reader does not conclude this is uncovered:
     determinism has TWO mechanisms — the walk sorts its ids/field names, and
-    ``yaml.safe_dump(sort_keys=True)`` sorts the dump — and they are genuinely
+    ``yaml_io.dump(sort_keys=True)`` sorts the dump — and they are genuinely
     redundant. Removing either ALONE leaves this green (measured); removing BOTH
     reds it. That redundancy is the point rather than an accident, so the test
     claims the observable property (sorted, LF, order-independent bytes) instead
@@ -231,7 +231,7 @@ def test_the_projection_is_deterministic_and_lf():
     second = project_persona_instances(sorted(records, reverse=True), records=records).to_bytes()
     assert first == second
     assert b"\r" not in first
-    assert yaml.safe_load(first.decode("utf-8"))["kind"] == PROJECTION_KIND
+    assert yaml_io.load(first.decode("utf-8"))["kind"] == PROJECTION_KIND
 
     # The dump itself must SORT, not merely inherit whatever insertion order the
     # walk happened to build. Order-independence of the input set does not prove

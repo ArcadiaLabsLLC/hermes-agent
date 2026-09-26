@@ -22,7 +22,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
-import yaml
+from agent_runtime import yaml_io
 
 from agent_runtime.persona_config_sync import (
     PERSONA_DEF_ALLOWED_KEYS,
@@ -122,7 +122,7 @@ _MACHINE_CONFIG = {
 def _write_config(data: dict) -> Path:
     path = get_config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(yaml.safe_dump(data, sort_keys=True), encoding="utf-8")
+    path.write_text(yaml_io.dump(data, sort_keys=True), encoding="utf-8")
     return path
 
 
@@ -425,7 +425,7 @@ def test_find_nonportable_values_names_every_offender_with_its_key():
 
 
 def test_publish_refuses_a_nonportable_projection_naming_all_offenders(tmp_path):
-    bad = yaml.safe_dump(
+    bad = yaml_io.dump(
         {
             "kind": PROJECTION_KIND,
             "schema_version": 1,
@@ -509,7 +509,7 @@ def test_publish_ships_the_projection_and_never_a_raw_profile_config(tmp_path):
     assert not any(path.startswith("profiles/") and path.endswith("/config.yaml") for path in paths)
 
     published = (repo / "realms" / realm.id / Path(PROJECTION_RELATIVE_PATH)).read_text(encoding="utf-8")
-    data = yaml.safe_load(published)
+    data = yaml_io.load(published)
     assert data["kind"] == PROJECTION_KIND
     assert "dev" in data["personas"]
     for leaked in ("mcp_servers", "STAGEC", "X:\\", "X:/", "readiness"):
@@ -554,7 +554,7 @@ def test_publish_ships_the_whole_resolved_definition_under_a_one_key_override(tm
 
     result = publish_realm_sync(realm.id)
     published = (repo / "realms" / realm.id / Path(PROJECTION_RELATIVE_PATH)).read_text(encoding="utf-8")
-    body = yaml.safe_load(published)["personas"]["neko_supervisor"]
+    body = yaml_io.load(published)["personas"]["neko_supervisor"]
 
     assert body["display_name"] == "Neko Mission Lead"
     assert body["hermes_profile"] == "base"

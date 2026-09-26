@@ -14,7 +14,7 @@ store.
 
 from __future__ import annotations
 
-import yaml
+from agent_runtime import yaml_io
 
 from agent_runtime import paths
 from agent_runtime.office_store import OfficeStore
@@ -93,7 +93,7 @@ def _mint_instance(instance_id: str = INSTANCE_ID, *, persona_id: str = "dev", *
 def _published_instance_document(realm_id: str) -> dict | None:
     for artifact in resolve_realm_sync_artifacts(realm_id):
         if artifact.relative_path == PROJECTION_RELATIVE_PATH:
-            return yaml.safe_load(artifact.read_bytes().decode("utf-8"))
+            return yaml_io.load(artifact.read_bytes().decode("utf-8"))
     return None
 
 

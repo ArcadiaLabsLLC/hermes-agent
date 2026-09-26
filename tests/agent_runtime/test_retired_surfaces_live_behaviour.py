@@ -25,7 +25,7 @@ from __future__ import annotations
 import json
 
 import pytest
-import yaml
+from agent_runtime import yaml_io
 
 from agent_runtime import migrations, paths, persona_profile_binding, runtime_instances, snapshot, status
 from agent_runtime.config import AgentRuntimeConfig, load_agent_runtime_config
@@ -103,7 +103,7 @@ def test_an_operator_config_still_setting_retired_knobs_loads_ignores_them_and_k
     stanza = {**_RETIRED_BLOCKS, **_RETIRED_SCALARS}
     stanza["supervision"] = {"child_events_enabled": True, "recursive_enabled": True}
     stanza["lock_acquire_timeout_seconds"] = 33
-    (home / "config.yaml").write_text(yaml.safe_dump({"agent_runtime": stanza}), encoding="utf-8")
+    (home / "config.yaml").write_text(yaml_io.dump({"agent_runtime": stanza}), encoding="utf-8")
     monkeypatch.setenv("HERMES_HOME", str(home))
 
     cfg = load_agent_runtime_config()
@@ -145,7 +145,7 @@ def test_the_persona_roster_is_emitted_whatever_the_retired_flag_says(
 ):
     home = tmp_path / "profile"
     home.mkdir()
-    (home / "config.yaml").write_text(yaml.safe_dump(config), encoding="utf-8")
+    (home / "config.yaml").write_text(yaml_io.dump(config), encoding="utf-8")
     monkeypatch.setenv("HERMES_HOME", str(home))
 
     frame = snapshot.build_snapshot()

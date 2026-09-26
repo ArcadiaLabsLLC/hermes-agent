@@ -13,7 +13,7 @@ store.
 
 from __future__ import annotations
 
-import yaml
+from agent_runtime import yaml_io
 
 from agent_runtime import paths
 from agent_runtime.flow_graph import FlowGraphStore, parse_flow_graph_doc
@@ -86,7 +86,7 @@ def _store_canvas(owner_instance_id: str = INSTANCE_ID, *, viewport=True) -> dic
 def _published_document(realm_id: str) -> dict | None:
     for artifact in resolve_realm_sync_artifacts(realm_id):
         if artifact.relative_path == FLOW_GRAPH_PROJECTION_RELATIVE_PATH:
-            return yaml.safe_load(artifact.read_bytes().decode("utf-8"))
+            return yaml_io.load(artifact.read_bytes().decode("utf-8"))
     return None
 
 

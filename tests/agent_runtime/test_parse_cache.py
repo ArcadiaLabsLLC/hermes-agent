@@ -17,9 +17,9 @@ def test_cached_yaml_file_parses_and_memoizes_by_mtime(tmp_path):
 
     def loader(p):
         calls["n"] += 1
-        import yaml
+        from agent_runtime import yaml_io
 
-        return yaml.safe_load(p.read_text(encoding="utf-8"))
+        return yaml_io.load(p.read_text(encoding="utf-8"))
 
     first = cached_by_mtime(path, loader)
     second = cached_by_mtime(path, loader)

@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 
 import pytest
-import yaml
+from agent_runtime import yaml_io
 
 from agent_runtime import paths
 from agent_runtime.events import EventLog
@@ -73,7 +73,7 @@ def _write_remote(subtree, *bodies: dict) -> None:
         "kind": PROJECTION_KIND,
         "schema_version": 1,
     }
-    path.write_text(yaml.safe_dump(document, sort_keys=True), encoding="utf-8")
+    path.write_text(yaml_io.dump(document, sort_keys=True), encoding="utf-8")
 
 
 def _local(instance_id: str = INSTANCE_ID, **overrides) -> PersonaInstance:

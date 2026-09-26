@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 
-import yaml
+from agent_runtime import yaml_io
 
 from agent_runtime import paths
 from agent_runtime.flow_graph import FlowGraphStore, parse_flow_graph_doc
@@ -51,7 +51,7 @@ def _publish(tmp_path, *bodies: dict):
         "schema_version": PROJECTION_SCHEMA_VERSION,
     }
     (subtree / "store" / "flow_graphs.yaml").write_text(
-        yaml.safe_dump(document, sort_keys=True), encoding="utf-8"
+        yaml_io.dump(document, sort_keys=True), encoding="utf-8"
     )
     return subtree
 

@@ -98,7 +98,7 @@ def test_operator_value_is_never_overwritten(anchor_env):
 
 
 def test_append_preserves_an_existing_config_without_the_block(anchor_env):
-    import yaml
+    from agent_runtime import yaml_io
 
     env, real_root, config_path = anchor_env
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -109,7 +109,7 @@ def test_append_preserves_an_existing_config_without_the_block(anchor_env):
     assert report.outcome is RootAnchorOutcome.PUBLISHED
     text = config_path.read_text(encoding="utf-8")
     assert text.startswith(original)  # operator bytes untouched, block appended
-    parsed = yaml.safe_load(text)
+    parsed = yaml_io.load(text)
     assert parsed["redaction_mode"] == "strict"
     assert parsed["read_model"] == {"enabled": False}
     assert parsed["agent_runtime"]["store_root"] == str(real_root)
@@ -117,7 +117,7 @@ def test_append_preserves_an_existing_config_without_the_block(anchor_env):
 
 
 def test_insertion_into_an_existing_agent_runtime_block(anchor_env):
-    import yaml
+    from agent_runtime import yaml_io
 
     env, real_root, config_path = anchor_env
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -131,7 +131,7 @@ def test_insertion_into_an_existing_agent_runtime_block(anchor_env):
 
     report = publish_store_root_anchor(env)
     assert report.outcome is RootAnchorOutcome.PUBLISHED
-    parsed = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    parsed = yaml_io.load(config_path.read_text(encoding="utf-8"))
     # The merge is exactly the old document plus the anchor key — the block's
     # existing children and the file's other top-level keys survive.
     assert parsed == {
@@ -147,7 +147,7 @@ def test_insertion_into_an_existing_agent_runtime_block(anchor_env):
 
 
 def test_crlf_config_is_extended_without_flipping_line_endings(anchor_env):
-    import yaml
+    from agent_runtime import yaml_io
 
     env, real_root, config_path = anchor_env
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -158,7 +158,7 @@ def test_crlf_config_is_extended_without_flipping_line_endings(anchor_env):
     assert report.outcome is RootAnchorOutcome.PUBLISHED
     raw = config_path.read_bytes()
     assert raw.count(b"\n") == raw.count(b"\r\n"), "an existing CRLF file must stay CRLF"
-    parsed = yaml.safe_load(raw.decode("utf-8"))
+    parsed = yaml_io.load(raw.decode("utf-8"))
     assert parsed["agent_runtime"]["store_root"] == str(real_root)
     assert parsed["agent_runtime"]["read_model"] == {"enabled": False}
 
@@ -252,11 +252,11 @@ def _declared_head(config_path):
     search: pytest's tmp dir is named after the test, so a test with
     ``head_home`` in its own name matches its own path inside the config."""
 
-    import yaml
+    from agent_runtime import yaml_io
 
     if not config_path.exists():
         return None
-    parsed = yaml.safe_load(config_path.read_bytes().decode("utf-8"))
+    parsed = yaml_io.load(config_path.read_bytes().decode("utf-8"))
     if not isinstance(parsed, dict):
         return None
     return (parsed.get("agent_runtime") or {}).get("head_home")
@@ -291,7 +291,7 @@ def test_the_declared_head_wins_the_config_rung_for_an_ambient_process(
 ):
     """THE rung verification, and the reason this slice exists."""
 
-    import yaml
+    from agent_runtime import yaml_io
 
     from agent_runtime.chat_session_scope import (
         ChatHeadSource,
@@ -306,7 +306,7 @@ def test_the_declared_head_wins_the_config_rung_for_an_ambient_process(
     assert report.head.outcome is RootAnchorOutcome.PUBLISHED
     assert report.head.declared
     assert report.head.head_home == str(head_home)
-    parsed = yaml.safe_load(config_path.read_bytes().decode("utf-8"))
+    parsed = yaml_io.load(config_path.read_bytes().decode("utf-8"))
     assert parsed["agent_runtime"]["head_home"] == str(head_home)
 
     # An ambient process — no head named, no pointer, and (deliberately) no
@@ -401,7 +401,7 @@ def test_probe_isolation_refuses_to_declare_a_head(head_env):
 def test_both_declarations_share_one_agent_runtime_block(head_env):
     """The merge is exactly the old document plus the two anchor keys."""
 
-    import yaml
+    from agent_runtime import yaml_io
 
     env, head_home, config_path = head_env
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -411,7 +411,7 @@ def test_both_declarations_share_one_agent_runtime_block(head_env):
 
     assert report.outcome is RootAnchorOutcome.PUBLISHED
     assert report.head.outcome is RootAnchorOutcome.PUBLISHED
-    parsed = yaml.safe_load(config_path.read_bytes().decode("utf-8"))
+    parsed = yaml_io.load(config_path.read_bytes().decode("utf-8"))
     assert parsed == {
         "redaction_mode": "strict",
         "agent_runtime": {
@@ -558,9 +558,9 @@ def test_the_two_key_names_match_the_readers(head_env):
     assert HEAD_HOME_KEY == DECLARED_HEAD_HOME_KEY
     env, head_home, config_path = head_env
     publish_store_root_anchor(env, chat_scope=_explicit_scope(head_home))
-    import yaml
+    from agent_runtime import yaml_io
 
-    block = yaml.safe_load(config_path.read_bytes().decode("utf-8"))["agent_runtime"]
+    block = yaml_io.load(config_path.read_bytes().decode("utf-8"))["agent_runtime"]
     assert set(block) == {STORE_ROOT_KEY, HEAD_HOME_KEY}
 
 

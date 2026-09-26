@@ -22,7 +22,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
-import yaml
+from agent_runtime import yaml_io
 
 from agent_runtime.persona_config_sync import (
     PROJECTION_KIND,
@@ -61,12 +61,12 @@ def _member_config(personas: dict | None = None, **extra) -> Path:
     }
     path = get_config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(yaml.safe_dump(data, sort_keys=True), encoding="utf-8")
+    path.write_text(yaml_io.dump(data, sort_keys=True), encoding="utf-8")
     return path
 
 
 def _read_member_config() -> dict:
-    return yaml.safe_load(get_config_path().read_text(encoding="utf-8")) or {}
+    return yaml_io.load(get_config_path().read_text(encoding="utf-8")) or {}
 
 
 def _member_personas() -> dict:
@@ -80,7 +80,7 @@ def _remote_projection(tmp_path: Path, personas: dict) -> Path:
     target = subtree.joinpath(*PROJECTION_RELATIVE_PATH.split("/"))
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
-        yaml.safe_dump(
+        yaml_io.dump(
             {"kind": PROJECTION_KIND, "schema_version": 1, "personas": personas},
             sort_keys=True,
         ),
@@ -95,7 +95,7 @@ def _legacy_subtree(tmp_path: Path, profile: str, config: dict) -> Path:
     subtree = tmp_path / "legacy-subtree"
     target = subtree / "profiles" / profile / "config.yaml"
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(yaml.safe_dump(config, sort_keys=True), encoding="utf-8")
+    target.write_text(yaml_io.dump(config, sort_keys=True), encoding="utf-8")
     return subtree
 
 
@@ -337,7 +337,7 @@ def test_new_projection_wins_over_a_legacy_config_in_the_same_subtree(tmp_path):
     legacy = subtree / "profiles" / "base" / "config.yaml"
     legacy.parent.mkdir(parents=True, exist_ok=True)
     legacy.write_text(
-        yaml.safe_dump({"agent_runtime": {"personas": {"dev": DEV_V1}}}, sort_keys=True), encoding="utf-8"
+        yaml_io.dump({"agent_runtime": {"personas": {"dev": DEV_V1}}}, sort_keys=True), encoding="utf-8"
     )
 
     defs, _dropped, source = read_remote_persona_defs(subtree)
@@ -399,7 +399,7 @@ def test_pull_realm_sync_merges_persona_definitions_and_reports_them(tmp_path):
     target = subtree.joinpath(*PROJECTION_RELATIVE_PATH.split("/"))
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
-        yaml.safe_dump(
+        yaml_io.dump(
             {"kind": PROJECTION_KIND, "schema_version": 1, "personas": {"dev": DEV_V2}}, sort_keys=True
         ),
         encoding="utf-8",
@@ -427,7 +427,7 @@ def test_pull_realm_sync_never_writes_a_raw_legacy_config_over_the_member(tmp_pa
     legacy = subtree / "profiles" / str(active_profile_name() or "default") / "config.yaml"
     legacy.parent.mkdir(parents=True, exist_ok=True)
     legacy.write_text(
-        yaml.safe_dump(
+        yaml_io.dump(
             {
                 "mcp_servers": {"launcher_qa": {"command": "X:\\Publisher\\qa.exe"}},
                 "agent_runtime": {"personas": {"dev": DEV_V1}},

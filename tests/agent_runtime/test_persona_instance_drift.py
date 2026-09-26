@@ -17,7 +17,7 @@ Autouse conftest fixtures isolate the runtime root.
 
 from __future__ import annotations
 
-import yaml
+from agent_runtime import yaml_io
 
 from agent_runtime import paths
 from agent_runtime.events import EventLog
@@ -90,7 +90,7 @@ def _write_remote(subtree, *bodies: dict) -> None:
     path = subtree.joinpath(*PROJECTION_RELATIVE_PATH.split("/"))
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        yaml.safe_dump(
+        yaml_io.dump(
             {
                 "instances": {b["id"]: b for b in bodies},
                 "kind": PROJECTION_KIND,

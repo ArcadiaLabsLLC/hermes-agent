@@ -806,14 +806,14 @@ def test_a_remote_canvas_the_pull_would_reject_is_refused_here_too(tmp_path):
     writes what a pull could not have written nor refuses what it would have
     admitted."""
 
-    import yaml
+    from agent_runtime import yaml_io
 
     realm_id, _, subtree = _desk_with_instance(tmp_path)
     _store_canvas(x=7)
     path = subtree / "store" / "flow_graphs.yaml"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        yaml.safe_dump(
+        yaml_io.dump(
             {
                 "kind": "realm_flow_graphs",
                 "schema_version": 1,

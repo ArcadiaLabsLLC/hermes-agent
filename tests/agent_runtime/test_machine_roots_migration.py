@@ -29,7 +29,7 @@ import textwrap
 from pathlib import Path
 
 import pytest
-import yaml
+from agent_runtime import yaml_io
 
 from agent_runtime import machine_roots
 from agent_runtime.machine_roots import MachineRoots, machine_roots_cache_clear
@@ -301,7 +301,7 @@ def test_windows_only_entries_get_a_platform_gate_and_portable_ones_do_not(tmp_p
     migration = plan_config_migration([config], roots).files[0]
     assert migration.platform_gates == ("launcher_qa",)
     assert migration.verification == ()
-    document = yaml.safe_load(migration.after)
+    document = yaml_io.load(migration.after)
     assert document["mcp_servers"]["launcher_qa"]["platforms"] == ["windows"]
     assert "platforms" not in document["mcp_servers"]["portable_thing"]
 
@@ -314,7 +314,7 @@ def test_platform_gates_can_be_declined(tmp_path):
 
     migration = plan_config_migration([config], roots, add_platform_gates=False).files[0]
     assert migration.platform_gates == ()
-    assert "platforms" not in yaml.safe_load(migration.after)["mcp_servers"]["launcher_qa"]
+    assert "platforms" not in yaml_io.load(migration.after)["mcp_servers"]["launcher_qa"]
 
 
 # ── Dry run ─────────────────────────────────────────────────────────────────

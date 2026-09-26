@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
+from agent_runtime import yaml_io
 
 from agent_runtime.machine_roots import (
     CANONICAL_LAUNCHER_QA_MCP_SERVER,
@@ -123,8 +123,8 @@ def _launcher_qa_blocks(root: Path, *, missing_is_skip: bool) -> dict[str, Any]:
         if not config.is_file():
             continue
         try:
-            raw = yaml.safe_load(config.read_text(encoding="utf-8")) or {}
-        except yaml.YAMLError as exc:  # a broken config is not this test's finding
+            raw = yaml_io.load(config.read_text(encoding="utf-8")) or {}
+        except yaml_io.YAMLError as exc:  # a broken config is not this test's finding
             pytest.fail(f"{config} is unparseable: {type(exc).__name__}: {exc}")
         cfg = _configured_servers(raw).get(SERVER)
         if cfg is not None:
@@ -167,7 +167,7 @@ def _write_synthetic_profile_tree(root: Path, block: dict[str, Any]) -> None:
     profile = root / "profiles" / "synthetic-qa"
     profile.mkdir(parents=True)
     (profile / "config.yaml").write_text(
-        yaml.safe_dump({"mcp_servers": {SERVER: block}}, sort_keys=True),
+        yaml_io.dump({"mcp_servers": {SERVER: block}}, sort_keys=True),
         encoding="utf-8",
     )
 
@@ -221,9 +221,9 @@ def test_the_template_cannot_be_mutated_by_a_consumer():
 
 
 def test_the_emitted_yaml_patch_round_trips_to_the_template():
-    parsed = yaml.safe_load(canonical_mcp_server_yaml(SERVER))
+    parsed = yaml_io.load(canonical_mcp_server_yaml(SERVER))
     assert list(parsed) == [SERVER]
-    assert parsed[SERVER] == yaml.safe_load(yaml.safe_dump(_plain(CANONICAL_LAUNCHER_QA_MCP_SERVER)))
+    assert parsed[SERVER] == yaml_io.load(yaml_io.dump(_plain(CANONICAL_LAUNCHER_QA_MCP_SERVER)))
 
 
 def _plain(value: Any) -> Any:
