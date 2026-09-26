@@ -18,10 +18,9 @@ The Hermes-native persona runtime behind Mission Control: personas → durable i
 
 `commands_cursor::` 2026-09-25 — [Operator command directory](../../docs/agent-runtime-harness/10-command-directory.md): task-oriented recipes and a generated argparse reference; syntax, link and freshness checks live in `tests/scripts/test_emit_harness_command_directory.py`.
 
-`skills_cursor::` 2026-09-24 — [Client-neutral session skills](../../docs/downstream/session-skills.md)
-reuse the canonical resolver and transcript evidence. Launcher Intelligence is
-the first consumer; Mission Control keeps its existing catalog/assignment and
-runtime ownership. [Verification limits](../../docs/downstream/session-skills-verification.md).
+`skills_cursor::` 2026-09-26 — ~~client-neutral session skills over ACP~~ DROPPED
+with the fork's ACP surface (owner ruling 2026-09-26, lane ACP-DROP): the
+`session-skills` contract notes were deleted; last present at `4ddc4f0ce8`.
 
 - **[`docs/agent-runtime-harness/00-index.md`](../../docs/agent-runtime-harness/00-index.md) — the canon. Read first.** Nine domain docs: 01 architecture · 02 data and shapes · 03 transport and wire · 04 boot and lifecycle · 05 chat turn lane · 06 office and board · 07 observability · 08 performance and debt ledger · 09 multi-device runtime. `planned/` = designed, not shipped (106 files incl. field notes); `archive/` = history.
 - **The launcher half:** `EterniaLauncher/docs/mission_control/00-index.md` (eight domain docs) and `EterniaLauncher/docs/mission_control/10-multi-device-architecture.md` — read doc 10 first for the multi-device target and ledger.

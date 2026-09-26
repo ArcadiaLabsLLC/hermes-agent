@@ -66,7 +66,7 @@ def test_ambiguous_skills_refuse_and_unknown_names_are_not_file_reads(tmp_path, 
 
 
 def test_workspace_discovery_requires_the_runtime_trust_and_quarantine_gates(tmp_path, monkeypatch):
-    from agent_runtime.acp_skills import skill_inspection_scope
+    from agent.runtime_cwd import reset_session_cwd, set_session_cwd
     from agent.skill_utils import PROJECT_SKILLS_SUBDIRS
     from tools.skills_guard import scan_skill
 
@@ -78,7 +78,8 @@ def test_workspace_discovery_requires_the_runtime_trust_and_quarantine_gates(tmp
     (skill_dir / "SKILL.md").write_text(
         "---\nname: project-example\ndescription: Review code\n---\nRead and review code.", encoding="utf-8")
     monkeypatch.setenv("HERMES_HOME", str(home))
-    with skill_inspection_scope(str(workspace)):
+    token = set_session_cwd(str(workspace))
+    try:
         reader = skill_inspection_reader()
         assert "project-example" not in {row["id"] for row in reader.catalog(can_load=True)}
         (home / "config.yaml").write_text(json.dumps({"skills": {
@@ -86,3 +87,5 @@ def test_workspace_discovery_requires_the_runtime_trust_and_quarantine_gates(tmp
         # The real scanner participates; this fixture contains no execution directives.
         assert scan_skill(skill_dir).verdict != "dangerous"
         assert reader.detail("project-example", can_load=True)["content"].endswith("Read and review code.")
+    finally:
+        reset_session_cwd(token)

@@ -50,3 +50,7 @@ Delete it. When the last row of an instalment closes, the program ledger (`god-f
 ## Filed on arrival — 2026-09-25, lane B3
 
 - [ ] **`persona_chat_continuity.bounds._safe_text`** · `agent_runtime/persona_chat_continuity/bounds.py` · 2 · DELETE (0 callers: `git grep -nw _safe_text agent_runtime/persona_chat_continuity` → the def and one docstring mention in `_bounded_free_text`; the census missed it by size) · the sheet drew a rename to a public `bounded_text`, which would now collide by name with `serde.bounded_text` (lane 2B-A) — deletion is the answer, under "Working a slice" · lane B3 CHANGE 2026-09-25 · R1 **UNCLAIMED**
+
+## Filed on arrival — 2026-09-26, lane ACP-DROP
+
+- [ ] **the session-skill inspection chain lost its only production reader with `agent_runtime/acp_skills.py`: `tools/skills_tool.skill_inspection_reader`, `agent_runtime/skill_inspection.py`, `agent_runtime/skill_activity.skill_load_history`** · 3 names · DECIDE (delete with tombstones vs keep for a non-ACP consumer) · `git grep -n "skill_inspection_reader\|skill_load_history" -- '*.py'` after the ACP drop = the defs plus `tests/agent_runtime/test_skill_inspection.py`; `skill_inspection_reader` is a fork edit inside upstream-owned `tools/skills_tool.py` · lane ACP-DROP 2026-09-26 **UNCLAIMED**
