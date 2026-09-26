@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-26",
   "base": "067fa1a257",
-  "files": 177,
-  "deleted_lines": 923,
+  "files": 174,
+  "deleted_lines": 914,
   "heavy": 4,
   "reasons": [
     {
@@ -288,6 +288,12 @@
       "files": "178 -> 177: .github/workflows/e2e-desktop.yml byte-identical to 067fa1a257 again (ci.yaml calls it only under `if: false`, so its runner never runs on the fork)",
       "deleted_lines": "924 -> 923; heavy unchanged at 4",
       "reason": "the other six workflow edits stay: upstream carries no github.repository gate and ci.yaml runs them on the fork, so moving them to a fork-only file needs the owner to disable the CI workflow in repository settings; the five runner files were minimised to the bare conditional (runner-file added lines 34 -> 11), contributor-check stays a PR candidate"
+    },
+    {
+      "change": "lane ACP-DROP: the fork's ACP surface dropped (owner ruling 2026-09-26: \"we aren't using ACP, just remove that\")",
+      "files": "177 -> 174: acp_adapter/server.py, session.py and tools.py are byte-identical to upstream 067fa1a257 again (f6894e3497)",
+      "deleted_lines": "923 -> 914: the three acp_adapter rows' deleted sum (4 + 2 + 3); heavy unchanged at 4",
+      "reason": "the named-provider identity carry and the held session-skills widening bindings are retired with agent_runtime/acp_skills.py (4d61ced864); the ledger's three acp_adapter rows and its 2026-09-24 skills-widening preamble go with them"
     }
   ]
 }
