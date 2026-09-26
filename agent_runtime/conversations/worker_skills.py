@@ -46,7 +46,7 @@ def _inspect(operation: str, snapshot: dict, skill_id: str | None) -> dict:
     from agent_runtime.skill_activity import skill_load_history
     from hermes_constants import get_hermes_home
     from hermes_state_registry import acquire, release_or_close
-    from tools.skills_tool import skill_inspection_reader
+    from agent_runtime.skill_inspection import skill_inspection_reader
 
     info = snapshot["info"]
     token = set_session_cwd(info["cwd"])

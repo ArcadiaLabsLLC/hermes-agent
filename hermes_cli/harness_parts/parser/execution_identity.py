@@ -1,9 +1,8 @@
 """Read-only executable identity, before attaching to a shared store owner."""
 from __future__ import annotations
 
-import json
-
 from agent_runtime.execution_identity import execution_identity
+from hermes_cli.harness_support import _print_stage42
 
 __layer__ = "wiring"
 
@@ -16,5 +15,5 @@ def add_execution_identity(subs) -> None:
 
 def print_execution_identity(args) -> int:
     value = execution_identity()
-    print(json.dumps(value) if args.json else value["execution_id"])
+    _print_stage42({"id": value["execution_id"], **value}, args=args)
     return 0

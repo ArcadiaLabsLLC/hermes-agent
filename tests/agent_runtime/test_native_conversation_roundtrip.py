@@ -64,6 +64,9 @@ def test_real_profile_a_b_a_native_turns_and_persistent_sessions(tmp_path):
             "model:\n  default: test-model\n  provider: custom:local-test\n"
             f"providers:\n  local-test:\n    api: http://127.0.0.1:{provider.server_port}/v1\n    api_key: isolated-{profile}\n"
             "mcp_servers: {}\n", encoding="utf-8")
+        skill = home / "skills" / f"review-{profile}" / "SKILL.md"
+        skill.parent.mkdir(parents=True)
+        skill.write_text(f"---\nname: review-{profile}\ndescription: Profile review\n---\nRead only {profile}.\n", encoding="utf-8")
     service = ConversationService(root, "isolated-install", profile_home=lambda p: tmp_path / p)
     sessions = {}
     try:
@@ -87,6 +90,11 @@ def test_real_profile_a_b_a_native_turns_and_persistent_sessions(tmp_path):
             terminal = [e["frame"]["params"]["payload"] for e in result["events"]
                         if e["turn_id"] == turn and e["frame"].get("params", {}).get("type") == "message.complete"]
             assert terminal[-1]["text"] == "Local native answer"
+            catalog = service.skills(scope, sid, "list")
+            assert any(row["id"] == f"review-{profile}" for row in catalog["skills"])
+            detail = service.skills(scope, sid, "detail", f"review-{profile}")
+            assert f"Read only {profile}." in detail["skill"]["content"]
+            assert service.skills(scope, sid, "history") == {"loaded": [], "historyComplete": True}
         assert len(set(sessions.values())) == 2
         # The real agents reached the stub using only their own profile credentials/history.
         chat = [(auth, body) for auth, body in Provider.requests if any(

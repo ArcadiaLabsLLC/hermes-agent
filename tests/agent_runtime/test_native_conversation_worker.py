@@ -22,7 +22,7 @@ def test_actual_native_worker_boot_and_profile_local_catalog(tmp_path, monkeypat
         reply = peer.call("session.create", {"cwd": str(tmp_path), "source": "eternia_intelligence"})
         session = reply["session_id"]
         assert reply["stored_session_id"]
-        result = peer.call("eternia.skills.list", {"session_id": session})
+        result = peer.call("eternia.skills.list", {"session_id": session, "skill_id": None})
         assert any(row["id"] == "private-review" for row in result["data"]["skills"])
         detail = peer.call("eternia.skills.detail", {"session_id": session, "skill_id": "private-review"})
         assert "Review this carefully." in str(detail["data"])
