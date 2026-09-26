@@ -24,15 +24,6 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
-def agent_provider_identity(agent: Any) -> str | None:
-    """A named endpoint is a route; ``custom`` is only its transport family."""
-    provider = getattr(agent, "provider", None)
-    requested = getattr(agent, "requested_provider", None)
-    if provider == "custom" and isinstance(requested, str) and requested.strip() not in {"", "auto"}:
-        return requested.strip()
-    return provider if isinstance(provider, str) else None
-
-
 def _translate_acp_cwd(cwd: str) -> str:
     """Translate Windows ACP cwd values (``E:\\Projects``, ``\\\\wsl.localhost\\``) to POSIX form
     when Hermes runs in WSL so agents, tools, and persisted sessions agree; no-op elsewhere."""
@@ -210,12 +201,7 @@ class SessionManager:
         if original is None:
             return None
         new_id = str(uuid.uuid4())
-        agent = self._make_agent(
-            session_id=new_id, cwd=cwd, model=original.model or None,
-            requested_provider=agent_provider_identity(original.agent),
-            base_url=getattr(original.agent, "base_url", None),
-            api_mode=getattr(original.agent, "api_mode", None),
-        )
+        agent = self._make_agent(session_id=new_id, cwd=cwd, model=original.model or None)
         model = getattr(agent, "model", original.model) or original.model
         state = self._install_state(new_id, agent, cwd, model, copy.deepcopy(original.history))
         logger.info("Forked ACP session %s -> %s", session_id, new_id)
@@ -287,24 +273,6 @@ class SessionManager:
         if state is not None:
             self._persist(state)
 
-    def peek_session(self, session_id: str) -> Optional[SessionState]:
-        """A read capability never restores or creates an agent implicitly."""
-        with self._lock:
-            return self._sessions.get(session_id)
-
-    def skill_history(self, session_id: str) -> tuple[list[dict], bool]:
-        """Use the transcript owner, including compacted lineage; no second usage store."""
-        state = self.peek_session(session_id)
-        if state is None:
-            return [], False
-        db = self._get_db()
-        if db is not None:
-            current_id = getattr(state.agent, "session_id", None) or session_id
-            if db.get_session(current_id) is not None:
-                _model, display = db.get_resume_conversations(current_id)
-                return display, True
-        return list(state.history), not bool(state.history)
-
     # ---- persistence via SessionDB ------------------------------------------
 
     def _install_state(self, session_id: str, agent: Any, cwd: str, model: str,
@@ -356,10 +324,6 @@ class SessionManager:
             value = getattr(state.agent, key, None)
             if isinstance(value, str) and value.strip():
                 session_meta[key] = value.strip()
-
-        identity = agent_provider_identity(state.agent)
-        if identity and identity != session_meta.get("provider"):
-            session_meta["requested_provider"] = identity
 
         try:
             if db.get_session(state.session_id) is None:
@@ -478,7 +442,7 @@ class SessionManager:
         try:
             agent = self._make_agent(
                 session_id=session_id, cwd=cwd, model=model, api_mode=meta.get("api_mode") or None,
-                requested_provider=meta.get("requested_provider") or meta.get("provider") or row.get("billing_provider"),
+                requested_provider=meta.get("provider") or row.get("billing_provider"),
                 base_url=meta.get("base_url") or row.get("billing_base_url"))
         except Exception:
             logger.warning("Failed to recreate agent for ACP session %s", session_id, exc_info=True)
@@ -539,7 +503,6 @@ class SessionManager:
                 requested=requested_provider or config_provider, target_model=(model or default_model) or None)
             kwargs.update({
                 "provider": runtime.get("provider"), "api_mode": api_mode or runtime.get("api_mode"),
-                "requested_provider": runtime.get("requested_provider"),
                 "base_url": base_url or runtime.get("base_url"), "api_key": runtime.get("api_key"),
                 "credential_pool": runtime.get("credential_pool"),
                 "command": runtime.get("command"), "args": list(runtime.get("args") or []),

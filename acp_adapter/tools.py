@@ -787,11 +787,7 @@ def build_tool_start(tool_call_id: str, tool_name: str, arguments: Args, *, edit
     title/content/location builders falls back to a minimal valid start event
     (mirrors ``get_cute_tool_message`` in ``agent/display.py``)."""
     try:
-        from agent_runtime.skill_activity import with_skill_evidence
-        return with_skill_evidence(
-            _build_tool_start(tool_call_id, tool_name, arguments, edit_diff=edit_diff),
-            tool_name, arguments,
-        )
+        return _build_tool_start(tool_call_id, tool_name, arguments, edit_diff=edit_diff)
     except Exception as exc:  # noqa: BLE001 — a tool-call render must never abort the turn
         logger.debug("ACP tool-start render failed for %r: %s", tool_name, exc)
         safe_name = tool_name if isinstance(tool_name, str) and tool_name else "tool"
@@ -832,12 +828,11 @@ def build_tool_complete(
     else:
         content = _build_tool_complete_content(tool_name, result, function_args=function_args, snapshot=snapshot)
     structured = isinstance(_json_loads_maybe(result), (dict, list))
-    from agent_runtime.skill_activity import with_skill_evidence
-    return with_skill_evidence(acp.update_tool_call(
+    return acp.update_tool_call(
         tool_call_id, kind=get_tool_kind(tool_name),
         status="failed" if is_error or _tool_result_failed(result, tool_name) else "completed", content=content,
         raw_output=None if tool_name in _POLISHED_TOOLS or structured else result,
-    ), tool_name, function_args, result=None if is_error else result, finished=True)
+    )
 
 
 def build_tool_abandoned(tool_call_id: str, tool_name: str) -> ToolCallProgress:
