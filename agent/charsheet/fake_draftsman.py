@@ -123,7 +123,7 @@ def draw_glyph(draw, cx, cy, size, direction, tick, ticks) -> None:
 
 
 def _magenta():
-    from agent.charsheet.pipeline import MAGENTA
+    from agent.charsheet.pipeline.geometry import MAGENTA
 
     return (*MAGENTA, 255)
 
@@ -213,12 +213,12 @@ def slots_for(prompt: str, prefix: str):
     batch run to completion with real revision rows rather than dying on the
     first strip the extractor refuses.
     """
-    from agent.charsheet import pipeline
+    from agent.charsheet.pipeline import geometry
 
-    view_prefix = pipeline.view_prefix("")
-    row_prefix = pipeline.row_prefix("")
+    view_prefix = geometry.view_prefix("")
+    row_prefix = geometry.row_prefix("")
 
-    if prefix == pipeline.PREFIX_TURNAROUND:
+    if prefix == geometry.PREFIX_TURNAROUND:
         directions = [token.lower() for token in _TURNAROUND_SLOT.findall(prompt)]
         _anchor(directions, prefix, "the numbered per-slot direction list")
         expected = _layout_count(prompt, prefix)
