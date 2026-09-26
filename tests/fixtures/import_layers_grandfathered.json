@@ -68,7 +68,5 @@
   "scripts/verify_harness_skill_install.py|hermes_constants|_get_platform_default_hermes_home",
   "tools/tool_full_descriptions.py|tools.skill_manager_tool|_skill_manage_description"
  ],
- "undeclared": [
-  "agent_runtime/skill_sync.py"
- ]
+ "undeclared": []
 }

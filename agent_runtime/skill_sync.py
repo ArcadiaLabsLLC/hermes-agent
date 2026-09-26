@@ -41,6 +41,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+__layer__ = "stores"
+
 #: The baseline/selector key prefix for this family. A skill's key is
 #: ``skill::<slug>`` — unambiguous against the profile-file family's
 #: ``<profile>:<path>`` keys (which never carry a doubled colon), which is what
