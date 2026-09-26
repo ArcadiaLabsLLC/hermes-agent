@@ -3,6 +3,7 @@
 Pure data, split out of ``tests/conftest.py`` to keep it under the file-size
 gate; the fixture itself stays in conftest next to the sandbox it maintains.
 """
+import re
 
 
 # ── Credential env-var filter ──────────────────────────────────────────────
@@ -119,11 +120,19 @@ _CREDENTIAL_NAMES = frozenset({
 })
 
 
+#: One compiled alternation instead of 15 ``endswith`` probes per env var —
+#: this predicate runs against every environment key at EVERY test's setup,
+#: so it sits on the per-test floor (hermes-suite-perf plan, Stage 2).
+_CREDENTIAL_SUFFIX_RE = re.compile(
+    "(?:" + "|".join(re.escape(suffix) for suffix in _CREDENTIAL_SUFFIXES) + ")$"
+)
+
+
 def _looks_like_credential(name: str) -> bool:
     """True if env var name matches a credential-shaped pattern."""
     if name in _CREDENTIAL_NAMES:
         return True
-    return any(name.endswith(suf) for suf in _CREDENTIAL_SUFFIXES)
+    return _CREDENTIAL_SUFFIX_RE.search(name) is not None
 
 
 # HERMES_* vars that change test behavior by being set. Unset all of these
