@@ -27,7 +27,7 @@ from agent_runtime.tool_visibility import (
     turn_tool_context_for_persona,
 )
 
-__layer__ = "policy"
+__layer__ = "stores"
 
 #: Reads the persona roster on demand — ``config.ensure_persisted_personas``,
 #: passed by a ``stores``-or-higher caller.
