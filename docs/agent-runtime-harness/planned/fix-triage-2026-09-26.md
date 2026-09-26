@@ -117,7 +117,7 @@ and names the rest in `why`.
 | `scripts/run_tests.sh` | upstream | KEEP-HELD `up/test-runner` | test-runner (P5) | runner improvements; the hermetic-env rows are the fork's and are split out at the branch |
 | `scripts/run_tests_parallel.py` | upstream | KEEP-HELD `up/test-runner` | test-runner (P5) | node-id selectors, adaptive jobs, timeout retry, pathsep split |
 | `tests/_fixtures/env_filter.py` | upstream | KEEP-HELD `up/test-runner` | test-runner (P5) | one compiled credential-suffix alternation |
-| `tests/_fixtures/live_system_guard.py` | upstream | KEEP-HELD `up/live-system-guard` | live-system-guard | the backend-spawn arm and the other guard hardenings (159/8) |
+| `tests/_fixtures/live_system_guard.py` | upstream | CARRY | live-system-guard | the backend-spawn arm imports `tests._downstream` and mirrors the fork's `_gateway_fence.py`; transplanted onto upstream/main it reddened 10 guard tests (`ModuleNotFoundError: tests._downstream`), so it is fork test infrastructure, not a PR — re-verdicted from KEEP-HELD after the branch was cut and deleted |
 | `tests/agent/test_coding_context.py` | upstream | KEEP-HELD `up/win-test-fixes-2` | win-tests-2 | LEDGER DRIFT: the row says "lifted: up/win-line-endings", but #121221's file set (5 files) does not carry it |
 | `tests/agent/test_compression_adoption_preserves_live_tail.py` | upstream | KEEP-HELD `up/test-hygiene` | test-hygiene | stale doc pointer |
 | `tests/agent/test_image_routing.py` | upstream | KEEP-PR #121222 | win-tilde-home | also in #121641's file set |
