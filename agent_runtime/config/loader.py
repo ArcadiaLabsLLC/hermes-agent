@@ -11,9 +11,8 @@ from typing import Any
 
 from hermes_constants import get_config_path
 from ..personas import persona_id_aliases
-from ..redaction_mode import normalize_redaction_mode
 from ..serde import optional_str, positive_int
-from .schema import ROOT_ONLY_CONFIG_KEYS, AgentRuntimeConfig
+from .schema import ROOT_ONLY_CONFIG_KEYS, AgentRuntimeConfig, normalize_redaction_mode
 from .sections import SECTION_PARSERS
 
 __layer__ = "policy"

@@ -13,6 +13,18 @@ from ..runtime_config import RuntimeConfig
 __layer__ = "models"
 
 
+STRICT = "strict"
+OBSERVE = "observe"
+ALLOWED = {STRICT, OBSERVE}
+
+
+def normalize_redaction_mode(value: Any, *, fallback: str = STRICT) -> str:
+    text = str(value or "").strip().lower()
+    if text in ALLOWED:
+        return text
+    return fallback if fallback in ALLOWED else STRICT
+
+
 #: Bounds for ``agent_runtime.mission_chat.default_max_seconds``. Below the
 #: floor the graceful checkpoint reserve (``turn_budget``: ``max(60s, 15%)``,
 #: capped so 30 s of work survives) consumes the whole window and the turn can

@@ -2,17 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-
-STRICT = "strict"
-OBSERVE = "observe"
-ALLOWED = {STRICT, OBSERVE}
-
-
-def normalize_redaction_mode(value: Any, *, fallback: str = STRICT) -> str:
-    text = str(value or "").strip().lower()
-    if text in ALLOWED:
-        return text
-    return fallback if fallback in ALLOWED else STRICT
+from .config.schema import ALLOWED, OBSERVE, STRICT, normalize_redaction_mode
 
 
 def redaction_mode(config: Any | None = None) -> str:
