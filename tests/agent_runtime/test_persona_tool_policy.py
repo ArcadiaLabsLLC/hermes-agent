@@ -1,10 +1,6 @@
 from agent_runtime.models import AgentPersona
-from agent_runtime.personas import (
-    REGISTRY_HYGIENE_BLOCKED_TOOLS,
-    AgentRole,
-    blocked_tool_names,
-    effective_toolsets,
-)
+from agent_runtime.personas import REGISTRY_HYGIENE_BLOCKED_TOOLS, AgentRole, blocked_tool_names
+from agent_runtime.persona_profiles import effective_toolsets
 from tests.agent_runtime.persona_samples import sample_personas
 from agent_runtime.tool_visibility import ToolVisibilityOptions, resolve_tool_visibility
 

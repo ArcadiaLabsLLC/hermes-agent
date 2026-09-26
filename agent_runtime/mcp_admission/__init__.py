@@ -31,7 +31,7 @@ The invariants this module exists to hold
    ``unbounded`` mode USED to resolve ``all_registered_toolsets()`` — which, in
    a long-lived multi-persona harness process, includes another persona's
    admitted MCP toolsets. Since S0a A1 (2026-09-03) both modes resolve the
-   persona's own declaration (``personas.declared_lane_toolsets``), so no
+   persona's own declaration (``persona_profiles.declared_lane_toolsets``), so no
    foreign ``mcp-*`` name reaches the scope in the first place.
    ``scope_toolsets_to_admission`` is still applied AFTER permission-mode
    resolution and still strips every ``mcp-*`` toolset (and alias) this run was

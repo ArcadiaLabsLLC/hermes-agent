@@ -29,7 +29,7 @@ import textwrap
 import pytest
 
 from agent_runtime.parse_cache import clear_parse_cache
-from agent_runtime.personas import declared_lane_toolsets, effective_toolsets
+from agent_runtime.persona_profiles import declared_lane_toolsets, effective_toolsets
 from agent_runtime.tool_visibility import ToolVisibilityOptions, resolve_tool_visibility
 from tests.agent_runtime.persona_samples import sample_personas
 

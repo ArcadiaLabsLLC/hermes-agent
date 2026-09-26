@@ -5,7 +5,8 @@ import pytest
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
 from agent_runtime.config import persona_records_from_config
-from agent_runtime.personas import blocked_tool_names, effective_toolsets
+from agent_runtime.personas import blocked_tool_names
+from agent_runtime.persona_profiles import effective_toolsets
 from agent_runtime.snapshot import _agent_summary
 
 

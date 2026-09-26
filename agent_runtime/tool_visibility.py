@@ -25,10 +25,9 @@ from .personas import (
     PERSONA_BLOCKED_TOOLS,
     REGISTRY_HYGIENE_BLOCKED_TOOLS,
     blocked_tool_names,
-    declared_lane_toolsets,
-    effective_toolsets,
     role_from_persona,
 )
+from .persona_profiles import declared_lane_toolsets, effective_toolsets
 from .profile_readiness import declared_mcp_server_names, profile_readiness_for_persona
 from .serde import unique_texts
 from .tool_turn_history import load_tool_turn_history
@@ -717,7 +716,7 @@ def _resolved_toolsets(persona: AgentPersona, options: ToolVisibilityOptions, *,
     an unbounded preview reported 32 configured toolsets and 79 callable tools for
     every persona alike (17 of them withheld as registry hygiene, every turn). The
     preview now walks the same declaration the chat lane admits by
-    (``personas.declared_lane_toolsets`` via ``effective_toolsets``); an explicit
+    (``persona_profiles.declared_lane_toolsets`` via ``effective_toolsets``); an explicit
     ``enabled_toolsets`` from a caller that already resolved the lane still wins.
     """
 

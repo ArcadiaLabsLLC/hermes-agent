@@ -9,7 +9,8 @@ pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 from agent_runtime.config import AgentRuntimeConfig, persona_records_from_config
 from agent_runtime.machine_roots import MachineRoots
 from agent_runtime.models import AgentPersona
-from agent_runtime.personas import blocked_tool_names, effective_toolsets
+from agent_runtime.personas import blocked_tool_names
+from agent_runtime.persona_profiles import effective_toolsets
 from tests.agent_runtime.persona_samples import sample_personas
 import agent_runtime.repo_context as repo_context
 from agent_runtime.repo_context import resolve_affected_repo_workdir, safe_affected_repo_labels

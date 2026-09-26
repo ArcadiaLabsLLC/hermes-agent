@@ -3,10 +3,9 @@ from agent_runtime.personas import (
     AgentRole,
     AutonomyLevel,
     PERSONA_BLOCKED_TOOLS,
-    declared_lane_toolsets,
-    effective_toolsets,
     validate_toolsets,
 )
+from agent_runtime.persona_profiles import declared_lane_toolsets, effective_toolsets
 from tests.agent_runtime.persona_samples import sample_personas
 
 

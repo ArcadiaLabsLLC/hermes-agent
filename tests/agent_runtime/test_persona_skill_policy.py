@@ -8,7 +8,8 @@ import pytest
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
 from agent_runtime.models import AgentPersona
-from agent_runtime.personas import effective_toolsets, validate_toolsets
+from agent_runtime.personas import validate_toolsets
+from agent_runtime.persona_profiles import effective_toolsets
 from tests.agent_runtime.persona_samples import sample_personas
 from hermes_cli.harness_parts import agent_commands
 from hermes_cli.harness_parts import init_commands

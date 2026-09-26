@@ -36,9 +36,8 @@ from agent_runtime.personas import (
     TOOLSET_SOURCE_LANE_DEFAULT,
     TOOLSET_SOURCE_PROFILE_CONFIG,
     TOOLSET_SOURCE_PROFILE_UNRESOLVED,
-    declared_lane_toolsets,
-    effective_toolsets,
 )
+from agent_runtime.persona_profiles import declared_lane_toolsets, effective_toolsets
 
 
 HARNESS_CORE_MEMBERS = [
@@ -253,7 +252,7 @@ def test_the_declaration_read_never_imports_model_tools(tmp_path):
     code = (
         "import sys\n"
         "from agent_runtime.models import AgentPersona\n"
-        "from agent_runtime.personas import declared_lane_toolsets\n"
+        "from agent_runtime.persona_profiles import declared_lane_toolsets\n"
         "persona = AgentPersona(id='dev', display_name='dev', role='dev', model=None,\n"
         "    provider=None, api_mode='codex_responses', toolsets=['file'],\n"
         "    system_prompt_path='', hermes_profile='gpt-launcher')\n"

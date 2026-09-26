@@ -13,11 +13,8 @@ from agent_runtime.agent_create_phases import timed_create_subphase
 from agent_runtime.models import AgentPersona, PersonaAssignment, PersonaInstance
 from agent_runtime.persona_assignments.identity import _display_name_for_template
 from agent_runtime.persona_assignments.profile import _model_supports_reasoning_effort
-from agent_runtime.personas import (
-    declared_lane_toolsets,
-    effective_toolsets,
-    profile_chat_toolsets,
-)
+from agent_runtime.persona_profiles import declared_lane_toolsets, effective_toolsets
+from agent_runtime.personas import profile_chat_toolsets
 from agent_runtime.serde import safe_assignment_token
 from agent_runtime.states import ACTIVE_LANE_STATES
 from agent_runtime.tool_permissions import (

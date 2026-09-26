@@ -5,7 +5,7 @@ something so the KEEP set survives the deletions in S3-S12. These tests pin the
 contracts those later stages will lean on:
 
 1. the permanent ``TaskStore`` stub for upstream ``tools/board_tool.py`` (ruling R-3),
-2. ``promote_profile_to_persona`` at its new home in ``agent_runtime.personas``,
+2. ``promote_profile_to_persona`` at its new home in ``agent_runtime.persona_profiles``,
    still reachable from the upstream import path.
 
 Items 3-5 were the Stage C Python capture extractions, retired in S14 by operator
@@ -87,10 +87,10 @@ def test_upstream_board_resolution_falls_through_when_taskstore_is_the_stub(monk
 # ── item 2: promote_profile_to_persona re-homed ───────────────────────────
 
 
-def test_promote_profile_to_persona_lives_in_personas():
-    from agent_runtime.personas import promote_profile_to_persona
+def test_promote_profile_to_persona_lives_in_persona_profiles():
+    from agent_runtime.persona_profiles import promote_profile_to_persona
 
-    assert promote_profile_to_persona.__module__ == "agent_runtime.personas"
+    assert promote_profile_to_persona.__module__ == "agent_runtime.persona_profiles"
 
 
 def test_upstream_import_path_still_resolves_to_the_same_function():
@@ -102,14 +102,14 @@ def test_upstream_import_path_still_resolves_to_the_same_function():
     """
 
     from agent_runtime.blueprints.resolve import promote_profile_to_persona as via_blueprints
-    from agent_runtime.personas import promote_profile_to_persona as via_personas
+    from agent_runtime.persona_profiles import promote_profile_to_persona as via_personas
 
     assert via_blueprints is via_personas
 
 
 def test_promotion_clones_the_role_template_and_binds_the_profile():
     from agent_runtime.models import AgentPersona
-    from agent_runtime.personas import promote_profile_to_persona
+    from agent_runtime.persona_profiles import promote_profile_to_persona
     from agent_runtime.store import AgentStore
 
     template = AgentPersona(
@@ -138,7 +138,7 @@ def test_promotion_clones_the_role_template_and_binds_the_profile():
 
 def test_promotion_unknown_role_does_not_clone_an_unrelated_stored_persona():
     from agent_runtime.models import AgentPersona
-    from agent_runtime.personas import promote_profile_to_persona
+    from agent_runtime.persona_profiles import promote_profile_to_persona
     from agent_runtime.store import AgentStore
 
     store = AgentStore()

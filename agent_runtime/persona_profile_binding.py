@@ -10,7 +10,7 @@ servers the agent actually runs with. Until this module existed the binding had
   ``display_name`` / ``current_chat_goal`` / ``goal_id`` / ``skills`` and never
   touches ``profile_id``.
 * Persona/profile bindings come only from persisted or configured persona data.
-* ``personas.promote_profile_to_persona`` mints a NEW persona.
+* ``persona_profiles.promote_profile_to_persona`` mints a NEW persona.
 
 So the only way to rebind was to drive :meth:`AgentStore.save` from a Python
 one-liner, which left three defects behind every time (live incident,

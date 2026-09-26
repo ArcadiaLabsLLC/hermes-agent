@@ -89,7 +89,7 @@ def persona_records_from_config(cfg: AgentRuntimeConfig | None = None):
             # did, and the realm-sync body would keep shipping a list nothing in
             # the runtime could even show. What changed is that the field admits
             # nothing — the harness lane reads the PROFILE's declaration
-            # (``personas.declared_lane_toolsets``) — so a non-empty list is
+            # (``persona_profiles.declared_lane_toolsets``) — so a non-empty list is
             # announced once per load and reported in every projection as
             # ``toolset_declaration.persona_list``, never obeyed.
             p.toolsets = validate_toolsets(list(overrides["toolsets"]))

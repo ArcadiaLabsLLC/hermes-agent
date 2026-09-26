@@ -152,7 +152,7 @@ def test_unbounded_default_reaches_the_chat_lane_block_and_toolsets():
         _blocked_tool_names_for_chat,
         _enabled_toolsets_for_chat,
     )
-    from agent_runtime.personas import effective_toolsets
+    from agent_runtime.persona_profiles import effective_toolsets
 
     persona = _persona()
 

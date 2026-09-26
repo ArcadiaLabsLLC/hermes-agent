@@ -16,10 +16,8 @@ from types import SimpleNamespace
 Task = SimpleNamespace
 from agent_runtime.persona_runtime import GPTPersonaRuntime
 from agent_runtime.profile_runner import AgentRunResult
-from agent_runtime.personas import (
-    REGISTRY_HYGIENE_BLOCKED_TOOLS,
-    effective_toolsets,
-)
+from agent_runtime.personas import REGISTRY_HYGIENE_BLOCKED_TOOLS
+from agent_runtime.persona_profiles import effective_toolsets
 from tests.agent_runtime.persona_samples import sample_personas
 from agent_runtime.tool_permissions import ChatToolPermissionStore
 from agent_runtime.states import RunState, TaskState
@@ -1004,12 +1002,8 @@ def test_profile_role_sentinel_resolves_to_supervisor_capabilities():
     # A synthetic operator-channel persona built from a raw Hermes profile carries
     # the "profile" role sentinel. It must resolve (not raise 'profile' is not a
     # valid AgentRole) and intersect down to its own configured toolsets.
-    from agent_runtime.personas import (
-        AgentRole,
-        coerce_agent_role,
-        effective_toolsets,
-        role_from_persona,
-    )
+    from agent_runtime.personas import AgentRole, coerce_agent_role, role_from_persona
+    from agent_runtime.persona_profiles import effective_toolsets
     from agent_runtime.models import AgentPersona
 
     assert coerce_agent_role("profile") == "profile"
@@ -1030,7 +1024,7 @@ def test_profile_role_sentinel_resolves_to_supervisor_capabilities():
     # No ceiling intersects anything — and since S0a the lane reads the bound
     # PROFILE's declaration rather than this field, so what has to hold is that
     # the sentinel role resolves and the declaration answers for it.
-    from agent_runtime.personas import declared_lane_toolsets
+    from agent_runtime.persona_profiles import declared_lane_toolsets
 
     declaration = declared_lane_toolsets(profile)
     assert declaration.source in {"lane_default", "profile_config", "profile_unresolved"}

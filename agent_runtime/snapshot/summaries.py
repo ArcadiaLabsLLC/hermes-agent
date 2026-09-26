@@ -14,7 +14,7 @@ from agent_runtime.profile_home import (
 from agent_runtime import paths
 from agent_runtime.persona_assignments import persona_instance_visibility_ref
 from agent_runtime.persona_chat_history.vocabulary import _SECRET_RE
-from agent_runtime.personas import effective_toolsets
+from agent_runtime.persona_profiles import effective_toolsets
 from agent_runtime.realm_sync.sidecar import read_realm_sync_sidecar
 from agent_runtime.repo_context import resolve_affected_repo_workdir
 from agent_runtime.tool_visibility import (

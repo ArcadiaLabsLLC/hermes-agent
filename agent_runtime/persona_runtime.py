@@ -30,7 +30,8 @@ from .mcp_lane import mission_chat_mcp_lane_line
 from .models import AgentPersona
 from .mission_chat_clarify import MissionChatClarifyCapture
 from .mission_chat_workdir import mission_chat_workdir_for_persona
-from .personas import blocked_tool_names, effective_toolsets
+from .persona_profiles import effective_toolsets
+from .personas import blocked_tool_names
 from .profile_context import resolve_persona_profile
 from .provider_health import assert_provider_health_for_persona
 from .terminal_envelope import scope_for_persona as terminal_envelope_scope_for_persona
@@ -706,7 +707,7 @@ def _enabled_toolsets_for_chat(
 
     BOTH branches start from the SAME declaration since S0a A1 (2026-09-03):
     ``effective_toolsets(persona)`` = the bound profile's ``toolsets:`` key, or
-    ``harness_core`` when it declares nothing (``personas.declared_lane_toolsets``).
+    ``harness_core`` when it declares nothing (``persona_profiles.declared_lane_toolsets``).
     ``unbounded`` used to resolve ``all_registered_toolsets()`` — every toolset in
     the process — which is why every persona had the same 79-tool surface with 17
     hygiene-withheld names on every turn. What ``unbounded`` still bypasses is the
