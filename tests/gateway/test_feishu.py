@@ -1589,23 +1589,16 @@ class TestWebhookSecurity(unittest.TestCase):
 class TestDedupTTL(unittest.TestCase):
     """Tests for TTL-aware deduplication."""
 
+    @patch.dict(os.environ, {}, clear=True)
     def test_duplicate_within_ttl_is_rejected(self):
         from gateway.config import PlatformConfig
         from plugins.platforms.feishu.adapter import FeishuAdapter
 
-        # The scrub keeps ambient FEISHU_* settings out, but still hands the
-        # adapter a real (throwaway) HERMES_HOME: ``_is_duplicate`` hydrates
-        # the persisted dedup cache on first use, so a home has to resolve. A
-        # bare ``clear=True`` only looked hermetic on POSIX, where
-        # ``Path.home()`` falls back to ``pwd.getpwuid()`` — which silently
-        # pointed the cache at the developer's real home.
-        with tempfile.TemporaryDirectory() as temp_home:
-            with patch.dict(os.environ, {"HERMES_HOME": temp_home}, clear=True):
-                adapter = FeishuAdapter(PlatformConfig())
-                with patch.object(adapter, "_persist_seen_message_ids"):
-                    adapter._seen_message_ids = {"om_dup": time.time()}
-                    adapter._seen_message_order = ["om_dup"]
-                    self.assertTrue(asyncio.run(adapter._is_duplicate("om_dup")))
+        adapter = FeishuAdapter(PlatformConfig())
+        with patch.object(adapter, "_persist_seen_message_ids"):
+            adapter._seen_message_ids = {"om_dup": time.time()}
+            adapter._seen_message_order = ["om_dup"]
+            self.assertTrue(asyncio.run(adapter._is_duplicate("om_dup")))
 
     @patch.dict(os.environ, {}, clear=True)
     def test_load_tolerates_malformed_timestamp_values(self):
