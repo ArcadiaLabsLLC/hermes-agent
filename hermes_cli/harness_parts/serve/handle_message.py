@@ -584,6 +584,8 @@ class MessageHandling:
         with self.inflight_lock:
             existing = self.drain_state
             if existing is None:
+                if self.conversation_owner is not None:
+                    self.conversation_owner.begin_drain()
                 self.drain_state = _DrainState(effective_deadline)
                 started = self.drain_state
                 pending_at_start = sorted(self.inflight)

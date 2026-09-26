@@ -22,6 +22,7 @@ __all__ = [
     "_METHOD_TIERS",
     "_ensure_discussion_methods",
     "_ensure_local_llama_methods",
+    "_ensure_conversation_methods",
     "manifest",
     "method",
     "method_names",
@@ -102,11 +103,18 @@ def _ensure_local_llama_methods():
         register(method, ok, err)
 
 
+def _ensure_conversation_methods():
+    if "runtime.conversation.capabilities" not in _METHODS:
+        from ..conversations.rpc import register
+        register(method, ok, err)
+
+
 def method_names() -> list[str]:
     # Registration is lazy to keep imports one-directional and avoid eager
     # filesystem/process work on every client of the method manifest.
     _ensure_local_llama_methods()
     _ensure_discussion_methods()
+    _ensure_conversation_methods()
     return sorted(_METHODS)
 
 
