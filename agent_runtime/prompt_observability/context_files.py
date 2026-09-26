@@ -17,7 +17,7 @@ from hermes_cli.profiles import get_profile_dir
 from ..serde import non_negative_int
 from .safe_views import _safe_preview
 
-__layer__ = "policy"
+__layer__ = "stores"
 __all__ = [
     "CONTEXT_FILES",
     "ContextFileKind",
