@@ -52,7 +52,7 @@ Entry points, and the modules an agent opens to follow each:
   ``hud`` -> ``fields``;
 * the observability frame (``prompt_observability/snapshot_frame``) ->
   ``hud.resolve_situational_hud`` + ``ambient.installs_block``;
-* the capability account (``chat_lane_bundle``) -> ``ambient`` ->
+* the capability account (``chat_lane_bundle``) -> ``capability_account`` ->
   ``capability``;
 * the envelope round-trip (``persona_chat_history/curation``,
   ``persona_chat_continuity``, ``mission_chat_turn_context``) -> ``envelopes``.
@@ -71,15 +71,17 @@ envelopes   policy  the two envelope grammars (runtime_context,
 hud         policy  ``resolve_situational_hud`` and its block builders;
                     ``render_situational_hud_block`` (the hashed body)
 capability  policy  ``resolve_capability_block`` + ``render_capability_block``
+capability_account
+            stores  ``capability_block_for_persona`` (the permission posture,
+                    the chat-lane drops, the envelope view)
 ambient     lanes   the I/O wrappers: ``situational_hud_for_instance``,
-                    ``capability_block_for_persona``, the board digest, the
-                    paired-install rows
+                    the board digest, the paired-install rows
 ==========  ======  =======================================================
 
 Stores written: none (``ambient`` READS the persona, workspace, realm, board
-and peer stores). The ``persona_runtime`` <-> ``runtime_hud`` cycle stays lazy
-on both sides and lives in ``ambient`` only — no policy module names
-``persona_runtime``.
+and peer stores). The ``chat_lane_bundle`` <-> ``runtime_hud`` cycle stays lazy
+on both sides and lives in ``capability_account`` only — no policy module names
+``chat_lane_bundle``.
 """
 
 from __future__ import annotations
@@ -89,6 +91,7 @@ from agent_runtime.runtime_hud import (  # noqa: F401 — every family, lowest l
     envelopes,
     hud,
     capability,
+    capability_account,
     ambient,
 )
 from agent_runtime.runtime_hud.fields import (
@@ -122,11 +125,8 @@ from agent_runtime.runtime_hud.envelopes import (
 )
 from agent_runtime.runtime_hud.hud import render_situational_hud_block, resolve_situational_hud
 from agent_runtime.runtime_hud.capability import render_capability_block, resolve_capability_block
-from agent_runtime.runtime_hud.ambient import (
-    capability_block_for_persona,
-    installs_block,
-    situational_hud_for_instance,
-)
+from agent_runtime.runtime_hud.capability_account import capability_block_for_persona
+from agent_runtime.runtime_hud.ambient import installs_block, situational_hud_for_instance
 
 __layer__ = "lanes"
 

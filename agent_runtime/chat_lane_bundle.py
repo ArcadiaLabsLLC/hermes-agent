@@ -488,7 +488,7 @@ def chat_lane_bundle(persona: Any, *, session_id: str | None) -> ChatLaneBundle:
 def _build_bundle(
     persona: Any, *, session_id: str | None, permission: Any, key: str
 ) -> ChatLaneBundle:
-    from .runtime_hud import capability_block_for_persona
+    from .runtime_hud.capability_account import capability_block_for_persona
     from .tool_permissions import permission_state_for_chat
 
     _note_bundle_build()

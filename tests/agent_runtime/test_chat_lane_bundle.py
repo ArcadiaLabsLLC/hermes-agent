@@ -423,7 +423,7 @@ def test_a_degraded_bundle_is_served_to_this_turn_and_then_thrown_away(monkeypat
     one transient failure becomes a permanent wrong answer that no input change
     can clear."""
 
-    from agent_runtime import runtime_hud
+    from agent_runtime.runtime_hud import capability_account
 
     faults: list[int] = []
 
@@ -431,7 +431,7 @@ def test_a_degraded_bundle_is_served_to_this_turn_and_then_thrown_away(monkeypat
         faults.append(1)
         raise RuntimeError("capability account unavailable")
 
-    monkeypatch.setattr(runtime_hud, "capability_block_for_persona", _boom)
+    monkeypatch.setattr(capability_account, "capability_block_for_persona", _boom)
     persona = _persona()
     first = CLB.chat_lane_bundle(persona, session_id="chat-fault")
     assert first.complete is False
