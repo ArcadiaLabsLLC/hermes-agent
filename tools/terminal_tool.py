@@ -1464,7 +1464,6 @@ def check_terminal_requirements() -> bool:
         return False
 
 
-from tools.downstream_schema import brief_schema
 from tools.registry import registry
 
 TERMINAL_SCHEMA = {
@@ -1596,7 +1595,7 @@ def _handle_terminal(args, **kw):
 registry.register(
     name="terminal",
     toolset="terminal",
-    schema=brief_schema("terminal", TERMINAL_SCHEMA),
+    schema=TERMINAL_SCHEMA,
     handler=_handle_terminal,
     check_fn=check_terminal_requirements,
     emoji="💻",
