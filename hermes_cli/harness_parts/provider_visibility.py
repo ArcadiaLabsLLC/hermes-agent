@@ -150,8 +150,13 @@ def _provider_visibility_catalog() -> list[dict]:
     "configured and dead", because both render as an absence of usable models.
     """
     from hermes_cli.provider_catalog import provider_login_catalog
+    from hermes_cli.provider_browser_login import supports_browser_login, browser_login_methods
 
-    return provider_login_catalog()
+    return [
+        {**row,
+            "browser_login": supports_browser_login(slug),
+            "browser_login_methods": browser_login_methods(slug),
+        } for row in provider_login_catalog()]
 
 
 def build_provider_visibility() -> dict:
