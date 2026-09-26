@@ -187,6 +187,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 ## Seams — fork edits inside upstream files (additive only)
+
+### Filed on arrival — 2026-09-26 (owner ask: what else moves to the plugin side without a PR)
+
+- [ ] **Every remaining `hook` and `carry` ledger row (~30 files after the 2026-09-26 landings) checked against upstream's CURRENT plugin surface — 41 hooks, 4 middleware kinds, `register_command`/`register_tool`/`create_custom_toolset`, plus the surface our open PRs add — with one verdict each: PLUGIN-NOW (a seam exists today, named), PLUGIN-AFTER (which open PR, by number), NO (the edit is a fix or a wire, not a hook)** · `fork / seams` · the morning's verify lane covered five asks; the other rows were ruled on the 09-24 surface, which has moved · evidence: `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md` rows `hook`/`carry`; `hermes_cli/plugins.py::VALID_HOOKS`, `hermes_cli/middleware.py::VALID_MIDDLEWARE` on `upstream/main` · filed by the orchestrator 2026-09-26 · RULED 2026-09-26 (owner): investigate now **TAKEN 2026-09-26 lane PLUGIN-FIT**
 ### Filed on arrival — 2026-09-26 (orchestrator, the sync-friction read)
 
 
