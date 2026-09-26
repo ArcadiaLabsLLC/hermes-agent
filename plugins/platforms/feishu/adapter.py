@@ -152,16 +152,7 @@ _DEFAULT_DEDUP_CACHE_SIZE = 2048
 _DEFAULT_WEBHOOK_HOST = "127.0.0.1"
 _DEFAULT_WEBHOOK_PORT = 8765
 _DEFAULT_WEBHOOK_PATH = "/feishu/webhook"
-# ---------------------------------------------------------------------------
-# TTL, rate-limit and webhook security constants
-# ---------------------------------------------------------------------------
-
-_FEISHU_DEDUP_STATE_NAME = "feishu_seen_message_ids.json"
-# Sentinel for "no explicit override installed" on ``_dedup_state_path``, so an
-# override of ``None`` — which tests/gateway/feishu_helpers.py installs to turn
-# persistence off — stays distinguishable from "resolve it live".
-_UNRESOLVED_DEDUP_STATE_PATH: Any = object()
-
+# --- TTL, rate-limit and webhook security constants ---
 _FEISHU_DEDUP_TTL_SECONDS = 24 * 60 * 60          # 24 hours — matches openclaw
 _FEISHU_SENDER_NAME_TTL_SECONDS = 10 * 60          # 10 minutes sender-name cache
 _FEISHU_WEBHOOK_MAX_BODY_BYTES = 1 * 1024 * 1024   # 1 MB body limit
@@ -1319,7 +1310,7 @@ class FeishuAdapter(BasePlatformAdapter):
         self._webhook_runner = self._webhook_site = self._event_handler = None
         self._seen_message_ids: Dict[str, float] = {}  # message_id → seen_at (time.time())
         self._seen_message_order: List[str] = []
-        self._dedup_state_path_override = _UNRESOLVED_DEDUP_STATE_PATH
+        self._dedup_state_path = get_hermes_home() / "feishu_seen_message_ids.json"
         self._dedup_lock = threading.Lock()
         # Serializes the offloaded dedup-state flushes so two concurrent
         # inbound messages cannot land their writes out of order.
@@ -1351,11 +1342,7 @@ class FeishuAdapter(BasePlatformAdapter):
         self._update_prompt_counter = itertools.count(1)
         # Reaction deletion needs the opaque reaction_id from create, cached per message_id.
         self._pending_processing_reactions: "OrderedDict[str, str]" = OrderedDict()
-        # The persisted dedup cache is hydrated on FIRST USE, not here.
-        # Constructing an adapter used to read HERMES_HOME off disk, which made
-        # construction fail wherever the home is not resolvable even though
-        # nothing on that path had asked for the cache yet.
-        self._dedup_state_loaded = False
+        self._load_seen_message_ids()
 
     @staticmethod
     def _load_settings(extra: Dict[str, Any]) -> FeishuAdapterSettings:
@@ -3540,48 +3527,10 @@ class FeishuAdapter(BasePlatformAdapter):
         except Exception:
             logger.debug("[Feishu] Failed to hydrate bot name from application info", exc_info=True)
 
-    # =========================================================================
-    # Deduplication — seen message ID cache (persistent)
-    # =========================================================================
-
-    @property
-    def _dedup_state_path(self) -> Any:
-        """Where the persistent dedup cache lives — resolved live, per call.
-
-        This used to be bound in ``__init__``, which froze the path against
-        whatever ``HERMES_HOME`` happened to be set when the adapter was
-        constructed. ``get_hermes_home()`` reads the environment on every
-        call; a constructor-bound attribute does not, so the two drift apart
-        the moment anything moves the home after construction — a profile
-        switch, or a test that redirects ``HERMES_HOME`` to a tmpdir after the
-        adapter already exists. Same hazard the module-level freeze ledger in
-        ``tests/test_no_frozen_hermes_home.py`` exists for, one scope down.
-
-        It also made construction itself depend on the home being resolvable:
-        building an adapter under a scrubbed environment raised out of
-        ``__init__`` rather than out of the persistence path that actually
-        needs a home.
-
-        An explicitly assigned value (including ``None``) wins, so
-        ``monkeypatch``/helper isolation keeps working.
-        """
-        override = getattr(self, "_dedup_state_path_override", _UNRESOLVED_DEDUP_STATE_PATH)
-        if override is not _UNRESOLVED_DEDUP_STATE_PATH:
-            return override
-        return get_hermes_home() / _FEISHU_DEDUP_STATE_NAME
-
-    @_dedup_state_path.setter
-    def _dedup_state_path(self, value: Any) -> None:
-        self._dedup_state_path_override = value
-
+    # --- Deduplication — seen message ID cache (persistent) ---
     def _load_seen_message_ids(self) -> None:
-        self._dedup_state_loaded = True
-        state_path = self._dedup_state_path
-        if state_path is None:
-            # Persistence explicitly disabled by an installed override.
-            return
         try:
-            payload = json.loads(state_path.read_text(encoding="utf-8-sig"))
+            payload = json.loads(self._dedup_state_path.read_text(encoding="utf-8-sig"))
         except FileNotFoundError:
             return
         except (OSError, json.JSONDecodeError):
@@ -3624,13 +3573,6 @@ class FeishuAdapter(BasePlatformAdapter):
     async def _is_duplicate(self, message_id: str) -> bool:
         now, ttl = time.time(), _FEISHU_DEDUP_TTL_SECONDS
         with self._dedup_lock:
-            if not getattr(self, "_dedup_state_loaded", True):
-                # First dedup decision of this adapter's life — hydrate the
-                # persisted cache now. Doing it here rather than in __init__
-                # keeps construction free of HERMES_HOME resolution and disk
-                # I/O; the path is resolved live, so a home that moved after
-                # construction is honoured.
-                self._load_seen_message_ids()
             seen_at = self._seen_message_ids.get(message_id)
             if seen_at is not None and (ttl <= 0 or now - seen_at < ttl):
                 return True
