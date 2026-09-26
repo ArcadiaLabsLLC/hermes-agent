@@ -130,11 +130,11 @@ def _set_row_prompt_contribution(row: dict[str, Any], chars: int | None) -> None
 def _soul_overlay_prompt_chars(persona: Any) -> int | None:
     """Chars of the persona's own soul overlay as PASTED into the surface
     message, or ``None`` when no overlay resolves. Uses the SAME function the
-    assembly pastes with (``persona_runtime._safe_read_soul_overlay``), so the
+    assembly pastes with (``mission_chat_prompts._safe_read_soul_overlay``), so the
     SOUL.md row's in-prompt number is exact, not a re-derivation."""
 
     try:
-        from ..persona_runtime import _mission_chat_soul_overlay
+        from ..mission_chat_prompts import _mission_chat_soul_overlay
 
         soul = _mission_chat_soul_overlay(persona)
         return len(soul) if isinstance(soul, str) and soul else None
@@ -147,13 +147,13 @@ def _workspace_agents_prompt_chars(
 ) -> int | None:
     """Chars of the workspace-AGENTS.md PART pasted into the surface message
     (fixed preamble + stripped body), or ``None`` when nothing was injected.
-    Reuses ``persona_runtime.MISSION_CHAT_WORKSPACE_AGENTS_PREAMBLE`` so the
+    Reuses ``mission_chat_prompts.MISSION_CHAT_WORKSPACE_AGENTS_PREAMBLE`` so the
     measured part can never drift from the text actually pasted."""
 
     if workspace_agents is None or workspace_agents.content is None:
         return None
     try:
-        from ..persona_runtime import MISSION_CHAT_WORKSPACE_AGENTS_PREAMBLE
+        from ..mission_chat_prompts import MISSION_CHAT_WORKSPACE_AGENTS_PREAMBLE
 
         body = str(workspace_agents.content or "").strip()
         return len(MISSION_CHAT_WORKSPACE_AGENTS_PREAMBLE) + len(body)
@@ -165,7 +165,7 @@ def _mission_chat_identity_prompt_chars(persona: Any) -> int | None:
     """Exact chars of the generated Mission Control runtime-identity block."""
 
     try:
-        from ..persona_runtime import _mission_chat_identity_prompt
+        from ..mission_chat_prompts import _mission_chat_identity_prompt
 
         return len(_mission_chat_identity_prompt(persona))
     except Exception:
@@ -176,7 +176,7 @@ def _mission_chat_identity_prompt_content(persona: Any) -> str | None:
     """Captured text of the generated Mission Control identity layer."""
 
     try:
-        from ..persona_runtime import _mission_chat_identity_prompt
+        from ..mission_chat_prompts import _mission_chat_identity_prompt
 
         return _mission_chat_identity_prompt(persona)
     except Exception:
@@ -187,7 +187,7 @@ def _mission_chat_operative_rules_chars() -> int | None:
     """Exact chars of the stable Mission Control operator-channel rules."""
 
     try:
-        from ..persona_runtime import _mission_chat_operative_rules
+        from ..mission_chat_prompts import _mission_chat_operative_rules
 
         return len(_mission_chat_operative_rules())
     except Exception:
@@ -198,7 +198,7 @@ def _mission_chat_operative_rules_content() -> str | None:
     """Captured text of the stable Mission Control channel-rules layer."""
 
     try:
-        from ..persona_runtime import _mission_chat_operative_rules
+        from ..mission_chat_prompts import _mission_chat_operative_rules
 
         return _mission_chat_operative_rules()
     except Exception:

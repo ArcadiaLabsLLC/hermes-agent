@@ -823,7 +823,7 @@ system message is composed by `_mission_chat_surface_message`
 (`persona_runtime.py::_mission_chat_surface_message`) in this order:
 
 1. **Runtime identity** — a first-person block naming the selected persona and
-   making self-relay impossible (`_mission_chat_identity_prompt`, `:434`).
+   making self-relay impossible (`mission_chat_prompts.py::_mission_chat_identity_prompt`).
 2. **Profile SOUL** — the profile-owned durable character and voice.
 3. **Operator-channel rules** — tool, permission, clarification and
    anti-fabrication behaviour, always applied. It also carries the one standing
@@ -837,13 +837,13 @@ system message is composed by `_mission_chat_surface_message`
    ([planned/charsheet-turn-efficiency-2026-08-29.md](planned/charsheet-turn-efficiency-2026-08-29.md)).
 4. Optional workspace `AGENTS.md`, behind a fixed preamble that states the
    boundary: a repo doc describes the repo and never redefines how this channel
-   handles confirmation (`MISSION_CHAT_WORKSPACE_AGENTS_PREAMBLE`, `:473`).
+   handles confirmation (`mission_chat_prompts.py::MISSION_CHAT_WORKSPACE_AGENTS_PREAMBLE`).
 5. Optional operator per-session surface prompt.
 
 SOUL resolution defaults to `profiles/<hermes_profile>/SOUL.md` with **no
 fallthrough**: on a miss a bare `SOUL.md` must never resolve to the operator
 profile's SOUL, which is the persona-identity-leak class
-(`_mission_chat_soul_overlay`, `:949-960`). Profile memory and core context
+(`mission_chat_prompts.py::_mission_chat_soul_overlay`). Profile memory and core context
 files are persona-declared opt-ins (`models.py:266-267`). That whole string is
 **byte-stable for the life of a conversation** by invariant, because the
 transport keys its cross-turn prompt cache on `sha256(instructions + tools)`;

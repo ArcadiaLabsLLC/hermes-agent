@@ -1,4 +1,4 @@
-from agent_runtime.persona_runtime import _safe_read_soul_overlay
+from agent_runtime.mission_chat_prompts import _safe_read_soul_overlay
 
 
 def test_soul_overlay_rejects_absolute_or_secret_like_paths(tmp_path):

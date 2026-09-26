@@ -694,7 +694,7 @@ def test_attach_context_file_contributions_none_soul_omits_field():
 
 
 def test_workspace_agents_prompt_chars_is_preamble_plus_body(tmp_path):
-    from agent_runtime.persona_runtime import MISSION_CHAT_WORKSPACE_AGENTS_PREAMBLE
+    from agent_runtime.mission_chat_prompts import MISSION_CHAT_WORKSPACE_AGENTS_PREAMBLE
 
     agents_file = tmp_path / "AGENTS.md"
     body = "# Workspace rules\nKeep this workspace isolated.\n"
@@ -742,7 +742,7 @@ def test_persona_envelope_layers_carry_separate_estimates():
 def test_persona_section_reconciles_identity_rules_and_soul_no_overlap():
     # Runtime identity + SOUL context-file attribution + operator rules must
     # reconcile to the surface-message persona section with no overlap.
-    from agent_runtime import persona_runtime as PR
+    from agent_runtime import mission_chat_prompts as prompts
     from agent_runtime.models import AgentPersona
 
     persona = AgentPersona(
@@ -755,8 +755,8 @@ def test_persona_section_reconciles_identity_rules_and_soul_no_overlap():
         toolsets=[],
         system_prompt_path=None,
     )
-    identity = PR._mission_chat_identity_prompt(persona)
-    rules = PR._mission_chat_operative_rules()
+    identity = prompts._mission_chat_identity_prompt(persona)
+    rules = prompts._mission_chat_operative_rules()
     template_chars = len(identity) + len(rules)
 
     # With a soul overlay pasted, the surface message == template + soul + the

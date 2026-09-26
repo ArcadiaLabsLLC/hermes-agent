@@ -298,11 +298,11 @@ def test_clarify_enabled_and_unblocked_on_chat_lane_but_blocked_on_runs():
 
 
 def test_mission_chat_surface_message_always_carries_operative_rules():
-    from agent_runtime.persona_runtime import (
+    from agent_runtime.mission_chat_prompts import (
         _mission_chat_identity_prompt,
         _mission_chat_operative_rules,
-        _mission_chat_surface_message,
     )
+    from agent_runtime.persona_runtime import _mission_chat_surface_message
 
     neko = next(persona for persona in sample_personas() if persona.id == "neko_supervisor")
 
@@ -342,7 +342,7 @@ def test_mission_chat_ack_is_the_first_hard_rule():
     # §7 acknowledge-before-acting promotion: the ack requirement is the FIRST
     # bullet of the operative rules and phrased as a hard requirement, so a
     # model that skims the rules still meets it before its first tool call.
-    from agent_runtime.persona_runtime import _mission_chat_operative_rules
+    from agent_runtime.mission_chat_prompts import _mission_chat_operative_rules
 
     rules = _mission_chat_operative_rules()
     bullets = [line for line in rules.splitlines() if line.startswith("- ")]
@@ -361,7 +361,7 @@ def test_mission_chat_operative_rules_treat_a_clear_order_as_the_go_ahead():
     # must survive here: a clear non-destructive order is itself the go-ahead,
     # and any pause that IS earned has to restate a concrete plan — so a bare
     # hold is never the shape of a compliant turn. The ack rule stays first.
-    from agent_runtime.persona_runtime import _mission_chat_operative_rules
+    from agent_runtime.mission_chat_prompts import _mission_chat_operative_rules
 
     rules = _mission_chat_operative_rules()
     bullets = [line for line in rules.splitlines() if line.startswith("- ")]
@@ -398,7 +398,7 @@ def test_mission_chat_operative_rules_own_the_confirm_back_scope():
     #   * a complete, unambiguous instruction is NOT that case even when it has
     #     side effects. Relaying a dictated one-liner behind a "go ahead?" is
     #     the friction that started this (2026-08-10 operator report).
-    from agent_runtime.persona_runtime import _mission_chat_operative_rules
+    from agent_runtime.mission_chat_prompts import _mission_chat_operative_rules
 
     rules = _mission_chat_operative_rules()
     bullets = [line for line in rules.splitlines() if line.startswith("- ")]
@@ -432,7 +432,7 @@ def test_operator_channel_permission_policy_has_exactly_one_layer():
     # permission / go-ahead behavior. A future edit that teaches the identity
     # hat (or any sibling layer) its own permission rule reintroduces the
     # 2026-08-10 two-rules-one-prompt defect, so it fails here.
-    from agent_runtime.persona_runtime import (
+    from agent_runtime.mission_chat_prompts import (
         _mission_chat_identity_prompt,
         _mission_chat_operative_rules,
     )
@@ -462,11 +462,11 @@ def test_workspace_agents_may_not_redefine_operator_channel_policy():
     # repo's AGENTS.md. The only thing knowable on this side is the boundary,
     # and the preamble states it once, ahead of the body: repo instructions
     # describe the repo and never govern this channel's confirmation behavior.
-    from agent_runtime.persona_runtime import (
+    from agent_runtime.mission_chat_prompts import (
         MISSION_CHAT_WORKSPACE_AGENTS_PREAMBLE,
         _mission_chat_operative_rules,
-        _mission_chat_surface_message,
     )
+    from agent_runtime.persona_runtime import _mission_chat_surface_message
 
     neko = next(persona for persona in sample_personas() if persona.id == "neko_supervisor")
 
@@ -511,7 +511,7 @@ def test_mission_chat_operative_rules_teach_the_chat_session_verbs():
     # and the three thread lanes of agent_chat_send (omit / session_id /
     # new_session) plus the read verbs are spelled out. Rule #1 must STILL be the
     # ack rule — the new bullet may not displace it.
-    from agent_runtime.persona_runtime import _mission_chat_operative_rules
+    from agent_runtime.mission_chat_prompts import _mission_chat_operative_rules
 
     rules = _mission_chat_operative_rules()
     bullets = [line for line in rules.splitlines() if line.startswith("- ")]
@@ -528,7 +528,7 @@ def test_mission_chat_operative_rules_teach_the_chat_session_verbs():
 
 
 def test_mission_chat_operative_rules_route_named_agents_without_creating_goals():
-    from agent_runtime.persona_runtime import _mission_chat_operative_rules
+    from agent_runtime.mission_chat_prompts import _mission_chat_operative_rules
 
     # The RULE, not the paragraph. c2320b73e ("keep normal persona chat
     # task-free") rewrote this bullet to match the code change that made
@@ -572,7 +572,7 @@ def test_mission_chat_operative_rules_delegate_charsheet_authoring():
     # verbatim, and do not drive the `characters` verbs. Plus the self-exemption:
     # without it this same channel-wide rule would tell the authoring agent to
     # delegate its own job.
-    from agent_runtime.persona_runtime import _mission_chat_operative_rules
+    from agent_runtime.mission_chat_prompts import _mission_chat_operative_rules
 
     rules = _mission_chat_operative_rules()
     bullets = [line for line in rules.splitlines() if line.startswith("- ")]
@@ -624,7 +624,7 @@ def test_mission_chat_operative_rules_preserve_media_lines_verbatim():
     # overstating its own mechanism, because that discredits it exactly where it
     # is right. It must also read as the explicit carve-out to the clean-prose
     # rule that precedes it (not as a competing instruction).
-    from agent_runtime.persona_runtime import _mission_chat_operative_rules
+    from agent_runtime.mission_chat_prompts import _mission_chat_operative_rules
 
     rules = _mission_chat_operative_rules()
     bullets = [line for line in rules.splitlines() if line.startswith("- ")]
@@ -669,6 +669,7 @@ def test_persona_soul_overlay_layers_between_identity_and_rules(tmp_path, monkey
     # surface. Personas without one keep the exact legacy composition.
     from dataclasses import replace
 
+    import agent_runtime.mission_chat_prompts as prompts
     import agent_runtime.persona_runtime as pr
 
     profile_home = tmp_path / "profiles" / "neko"
@@ -679,15 +680,15 @@ def test_persona_soul_overlay_layers_between_identity_and_rules(tmp_path, monkey
         encoding="utf-8",
     )
     monkeypatch.setattr(
-        pr, "_persona_profile_home", lambda name: profile_home if name == "neko" else None
+        prompts, "_persona_profile_home", lambda name: profile_home if name == "neko" else None
     )
 
     neko = next(persona for persona in sample_personas() if persona.id == "neko_supervisor")
     souled = replace(neko, soul_overlay_path=None, hermes_profile="neko")
 
     composed = pr._mission_chat_surface_message(souled, "")
-    identity = pr._mission_chat_identity_prompt(souled)
-    rules = pr._mission_chat_operative_rules()
+    identity = prompts._mission_chat_identity_prompt(souled)
+    rules = prompts._mission_chat_operative_rules()
     soul_marker = "You are Neko, the Mission Lead — test soul."
     ack_habit = "Before your first tool call in any turn"
     assert soul_marker in composed
@@ -704,7 +705,7 @@ def test_persona_soul_overlay_layers_between_identity_and_rules(tmp_path, monkey
     bogus = replace(neko, soul_overlay_path="does_not_exist.md", hermes_profile="neko")
     assert (
         pr._mission_chat_surface_message(bogus, "")
-        == pr._mission_chat_identity_prompt(bogus) + "\n\n" + rules
+        == prompts._mission_chat_identity_prompt(bogus) + "\n\n" + rules
     )
 
 
@@ -714,13 +715,14 @@ def test_profile_backed_soul_never_falls_through_to_operator_home(tmp_path, monk
     # operator-home fallback (that would put Alice's soul on Neko).
     from dataclasses import replace
 
+    import agent_runtime.mission_chat_prompts as prompts
     import agent_runtime.persona_runtime as pr
 
     operator_home = tmp_path / "profiles" / "alice"
     operator_home.mkdir(parents=True)
     (operator_home / "SOUL.md").write_text("OPERATOR SOUL — must not leak", encoding="utf-8")
-    monkeypatch.setattr(pr, "get_hermes_home", lambda: operator_home)
-    monkeypatch.setattr(pr, "_persona_profile_home", lambda name: None)
+    monkeypatch.setattr(prompts, "get_hermes_home", lambda: operator_home)
+    monkeypatch.setattr(prompts, "_persona_profile_home", lambda name: None)
 
     neko = next(persona for persona in sample_personas() if persona.id == "neko_supervisor")
     souled = replace(neko, soul_overlay_path="SOUL.md", hermes_profile="neko")
@@ -738,7 +740,7 @@ def test_mission_chat_identity_prompt_names_persona_and_forbids_self_relay():
     # the model learns which persona it is. It must name the persona, name the
     # persona id (so a self-directed agent_chat_send is recognizable), and
     # forbid relaying to itself.
-    from agent_runtime.persona_runtime import _mission_chat_identity_prompt
+    from agent_runtime.mission_chat_prompts import _mission_chat_identity_prompt
 
     neko = next(persona for persona in sample_personas() if persona.id == "neko_supervisor")
     identity = _mission_chat_identity_prompt(neko)
