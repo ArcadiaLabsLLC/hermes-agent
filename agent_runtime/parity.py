@@ -26,6 +26,8 @@ from hermes_time import now
 from . import event_rotation
 from .projection_accountant import _safe_text
 
+__layer__ = "stores"
+
 PARITY_ENVELOPE_VERSION = 1
 
 
