@@ -11,12 +11,12 @@ from typing import Any
 from tools.registry import registry
 
 from .chat_lane_toolsets import ChatLaneDrop, chat_lane_drop_rows
-from .mcp_admission import (
-    LANE_MISSION_CHAT,
+from .mcp_admission.resolve import (
     admission_enabled,
     admission_requirement_failures,
     resolve_mcp_admission,
 )
+from .mcp_admission.vocabulary import LANE_MISSION_CHAT
 from .mcp_lane import current_entry_point_lane, mcp_lane_requirement_failures
 from .mission_chat_workdir import MissionChatWorkdir
 from .models import AgentPersona
