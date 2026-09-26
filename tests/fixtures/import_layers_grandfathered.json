@@ -69,7 +69,6 @@
   "tools/tool_full_descriptions.py|tools.skill_manager_tool|_skill_manage_description"
  ],
  "undeclared": [
-  "agent_runtime/persona_config_sync.py",
   "agent_runtime/profile_artifact_sync.py",
   "agent_runtime/realm_membership.py",
   "agent_runtime/skill_install.py",

@@ -70,6 +70,8 @@ from hermes_constants import get_config_path
 
 from .sync_merge import PullAction, classify_three_way_pull
 
+__layer__ = "stores"
+
 # --- projection contract ---------------------------------------------------
 
 PROJECTION_KIND = "realm_persona_config"
