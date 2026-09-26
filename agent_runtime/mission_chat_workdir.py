@@ -57,6 +57,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+__layer__ = "stores"
+
 #: ``requirement_failures[].code`` for a configured workdir this machine cannot
 #: use. Subject key: ``workdir``.
 MISSION_CHAT_WORKDIR_UNRESOLVED = "mission_chat_workdir_unresolved"
