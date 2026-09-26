@@ -10,6 +10,8 @@ from .events import EventLog
 from .models import Event
 from .redaction_mode import redaction_observe_enabled
 
+__layer__ = "lanes"
+
 _SAFE_PROGRESS_KEYS = {
     "type", "event_id", "phase", "severity", "step", "state", "tool", "tool_name", "status",
     "summary", "detail", "elapsed_seconds", "duration_ms", "api_calls", "iteration",

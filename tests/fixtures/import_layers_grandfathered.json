@@ -73,7 +73,6 @@
   "agent_runtime/office_sync.py",
   "agent_runtime/persona_config_sync.py",
   "agent_runtime/profile_artifact_sync.py",
-  "agent_runtime/progress.py",
   "agent_runtime/realm_membership.py",
   "agent_runtime/skill_install.py",
   "agent_runtime/skill_promotion.py",
