@@ -7,7 +7,6 @@ not own model turns: hosted_room_driver and the native turn journal do.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import sqlite3
 import time
@@ -20,7 +19,10 @@ from gateway.hosted_rooms_common import connect
 from hermes_cli.sqlite_util import transaction
 
 from .definition_store import DefinitionStore, _encode, _expect, _required, _key, DefinitionKind
-from .definitions import DefinitionError, ParticipantRef, TableSpec, identifier, revision, plan_seats
+from .definitions import DefinitionError, ParticipantRef, identifier, revision, plan_seats
+from .run_values import DiscussionError, text, digest, member_id, native_session_id
+from .run_schema import _ready, _initialize
+from .run_records import _run, _advance, _expect_run, _add_member
 
 __layer__ = "stores"
 
@@ -29,117 +31,6 @@ MAX_OPEN_RUNS = 128
 MAX_PENDING_COMMANDS = 64
 COMMANDS = frozenset({"send", "stop", "end", "invite", "remove", "answer", "retry", "abandon"})
 LIVE_PHASES = ("initializing", "open", "stopping", "paused", "ending")
-
-
-class DiscussionError(ValueError):
-    def __init__(self, reason: str, **details: Any) -> None:
-        self.reason, self.details = reason, details
-        super().__init__(reason.replace("_", " "))
-
-
-def text(value: Any, *, field: str, max_bytes: int = 12000) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise DefinitionError("invalid_text", field)
-    try:
-        size = len(value.encode("utf-8"))
-    except UnicodeEncodeError as exc:
-        raise DefinitionError("invalid_text", field) from exc
-    if size > max_bytes or "\x00" in value:
-        raise DefinitionError("invalid_text", field)
-    return value.strip()
-
-
-def digest(value: Mapping[str, Any]) -> str:
-    return hashlib.sha256(_encode(value).encode("utf-8")).hexdigest()
-
-
-def member_id(ref: ParticipantRef) -> str:
-    return "m-" + digest(ref.to_dict())[:24]
-
-
-def native_session_id(run_id: str, instance_id: str) -> str:
-    # Native ownership parser uses the final twelve hex characters.
-    suffix = digest({"run_id": run_id, "instance_id": instance_id})[:12]
-    return f"persona_chat_{instance_id}_{suffix}"
-
-
-def _ready(conn: sqlite3.Connection) -> bool:
-    if conn.execute("SELECT 1 FROM sqlite_master WHERE name='mc_discussion_runs_schema'").fetchone() is None:
-        return False
-    rows = conn.execute("SELECT version FROM mc_discussion_runs_schema").fetchall()
-    if len(rows) != 1 or rows[0][0] != 1:
-        raise DiscussionError("unsupported_run_schema")
-    return True
-
-
-def _initialize(conn: sqlite3.Connection) -> None:
-    if _ready(conn):
-        return
-    statements = (
-        "CREATE TABLE mc_discussion_runs_schema (singleton INTEGER PRIMARY KEY CHECK(singleton=1), version INTEGER NOT NULL)",
-        """CREATE TABLE mc_discussion_runs (
-            run_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, table_id TEXT NOT NULL,
-            start_key TEXT NOT NULL, request_digest TEXT NOT NULL, revision INTEGER NOT NULL,
-            phase TEXT NOT NULL CHECK(phase IN ('initializing','open','stopping','paused','ending','ended','failed')),
-            initial_json TEXT NOT NULL, topic TEXT NOT NULL, actor_id TEXT NOT NULL,
-            created_at REAL NOT NULL, updated_at REAL NOT NULL, error TEXT,
-            UNIQUE(workspace_id,start_key))""",
-        "CREATE INDEX mc_discussion_runs_workspace ON mc_discussion_runs(workspace_id,created_at,run_id)",
-        """CREATE TABLE mc_discussion_table_claims (
-            workspace_id TEXT NOT NULL, table_id TEXT NOT NULL, run_id TEXT NOT NULL UNIQUE,
-            PRIMARY KEY(workspace_id,table_id))""",
-        """CREATE TABLE mc_discussion_instance_claims (
-            install_id TEXT NOT NULL, instance_id TEXT NOT NULL, run_id TEXT NOT NULL,
-            PRIMARY KEY(install_id,instance_id))""",
-        """CREATE TABLE mc_discussion_members (
-            run_id TEXT NOT NULL, member_id TEXT NOT NULL, ordinal INTEGER NOT NULL,
-            install_id TEXT NOT NULL, instance_id TEXT NOT NULL, persona_id TEXT NOT NULL,
-            profile TEXT NOT NULL, display_name TEXT NOT NULL, handle TEXT NOT NULL,
-            session_id TEXT NOT NULL, seat INTEGER NOT NULL,
-            status TEXT NOT NULL CHECK(status IN ('joining','active','removing','removed')),
-            PRIMARY KEY(run_id,member_id), UNIQUE(run_id,ordinal), UNIQUE(run_id,session_id))""",
-        """CREATE TABLE mc_discussion_commands (
-            run_id TEXT NOT NULL, command_key TEXT NOT NULL, operation TEXT NOT NULL,
-            digest TEXT NOT NULL, body TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'pending',
-            created_at REAL NOT NULL, PRIMARY KEY(run_id,command_key))""",
-    )
-    for statement in statements:
-        conn.execute(statement)
-    conn.execute("INSERT INTO mc_discussion_runs_schema VALUES(1,1)")
-
-
-def _run(conn: sqlite3.Connection, run_id: str, workspace_id: str | None = None) -> dict[str, Any]:
-    row = conn.execute("SELECT * FROM mc_discussion_runs WHERE run_id=?", (run_id,)).fetchone()
-    if row is None or (workspace_id is not None and row["workspace_id"] != workspace_id):
-        raise DiscussionError("run_not_found")
-    result = dict(row)
-    result["initial"] = json.loads(result.pop("initial_json"))
-    result.pop("request_digest")
-    return result
-
-
-def _advance(conn: sqlite3.Connection, run: Mapping[str, Any], *, phase: str | None = None) -> None:
-    if run["revision"] >= 2**53 - 1:
-        raise DiscussionError("revision_exhausted")
-    conn.execute("UPDATE mc_discussion_runs SET revision=revision+1,phase=?,updated_at=? WHERE run_id=?",
-                 (phase or run["phase"], time.time(), run["run_id"]))
-
-
-def _expect_run(run: Mapping[str, Any], expected: int) -> None:
-    if run["revision"] != revision(expected, minimum=1):
-        raise DiscussionError("stale_revision", current_revision=run["revision"])
-
-
-def _add_member(conn: sqlite3.Connection, run_id: str, item: Mapping[str, Any], *, ordinal: int, seat: int) -> None:
-    ref = ParticipantRef.parse({k: item[k] for k in ("install_id", "instance_id")})
-    try:
-        conn.execute("INSERT INTO mc_discussion_instance_claims VALUES(?,?,?)", (ref.install_id, ref.instance_id, run_id))
-    except sqlite3.IntegrityError as exc:
-        raise DiscussionError("instance_busy", instance_id=ref.instance_id) from exc
-    mid = member_id(ref)
-    conn.execute("""INSERT INTO mc_discussion_members VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
-                 (run_id, mid, ordinal, ref.install_id, ref.instance_id, item["persona_id"], item["profile"],
-                  item["display_name"], "agent-" + mid[2:14], native_session_id(run_id, ref.instance_id), seat, "joining"))
 
 
 class RunStore:
