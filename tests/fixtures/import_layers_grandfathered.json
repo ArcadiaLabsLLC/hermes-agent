@@ -81,7 +81,6 @@
   "agent_runtime/local_llama_adapter/provider.py",
   "agent_runtime/local_llama_adapter/rpc.py",
   "agent_runtime/local_llama_adapter/setup.py",
-  "agent_runtime/media_proxy.py",
   "agent_runtime/mission_chat_steer.py",
   "agent_runtime/mission_chat_turn_context.py",
   "agent_runtime/mission_chat_workdir.py",
