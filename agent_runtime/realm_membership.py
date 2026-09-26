@@ -31,6 +31,8 @@ from .models import Event, Realm
 from .realm_sync.models import MembershipDecision, RealmMembershipProvider, RealmSyncError
 from .store import RealmStore, WorkspaceStore
 
+__layer__ = "stores"
+
 CREDENTIAL_ENV_VAR = "HERMES_REALM_SYNC_CREDENTIAL"
 CREDENTIAL_SCHEMA_VERSION = 1
 SYNC_ACTIONS = frozenset({"pull", "publish", "status"})
