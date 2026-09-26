@@ -1088,6 +1088,7 @@ def _refresh_windows_gateway_launchers() -> None:
         if gateway_windows.is_installed():
             gateway_windows._write_task_script()
             print("  ✓ Refreshed Windows gateway launcher scripts")
+            _warn_legacy_console_gateway_task()
             if gateway_windows.is_task_registered():
                 # A task registered by an older build never picks up template hardening otherwise (#113670).
                 gateway_windows.reconcile_scheduled_task(gateway_windows.get_task_name())
@@ -1340,3 +1341,25 @@ def _resume_windows_gateways_and_merge_outcome(outcome, _windows_gateway_resume,
             failed_units=outcome.failed_or_stale_units, incomplete=outcome.incomplete or bool(outcome.failed_or_stale_units),
             phase_error="; ".join(outcome.phase_errors) or None,
         )
+
+
+def _warn_legacy_console_gateway_task() -> None:
+    """Tell the operator when the registered task still runs a visible console.
+
+    Re-registering the action requires ``schtasks /Create`` (elevation), which
+    the update path deliberately avoids — so a pre-#45610 install cannot heal
+    itself here. What it *can* do is stop being silent: a gateway launched
+    through the ``.cmd`` dies with ``STATUS_CONTROL_C_EXIT`` (0xC000013A) the
+    moment its console window is closed, and the ONLOGON-only trigger means it
+    stays down until the next login.
+    """
+    from hermes_cli import gateway_windows
+
+    if gateway_windows.task_action_is_console_less() is not False:
+        return
+    task_name = gateway_windows.get_task_name()
+    print(f"  ⚠ Scheduled Task {task_name!r} still launches the gateway in a VISIBLE console window.")
+    print("    Closing that window (or a stray console-control broadcast) kills the")
+    print("    gateway outright, and nothing restarts it until the next login.")
+    print("    Re-register it on the console-less launcher — approve the UAC prompt:")
+    print("      hermes gateway install")
