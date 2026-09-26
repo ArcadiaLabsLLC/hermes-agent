@@ -26,6 +26,8 @@ from .profile_runner import (
 from .progress import ChatProgressSink
 from .tool_permissions import ChatToolPermissionStore
 
+__layer__ = "lanes"
+
 
 class GPTPersonaRuntime:
     def __init__(

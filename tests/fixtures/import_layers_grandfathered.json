@@ -79,7 +79,6 @@
   "agent_runtime/persona_config_sync.py",
   "agent_runtime/persona_open_chat.py",
   "agent_runtime/persona_prewarm.py",
-  "agent_runtime/persona_runtime.py",
   "agent_runtime/profile_artifact_sync.py",
   "agent_runtime/progress.py",
   "agent_runtime/realm_membership.py",
