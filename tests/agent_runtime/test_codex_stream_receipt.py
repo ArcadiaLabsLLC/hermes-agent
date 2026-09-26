@@ -101,6 +101,7 @@ def _plugin_hooks():
     class _Ctx:
         def register_hook(self, name, callback):
             hooks.setdefault(name, []).append(callback)
+            return SimpleNamespace(dispose=lambda: hooks[name].remove(callback))
 
         def __getattr__(self, _name):
             return lambda *a, **k: None
@@ -127,10 +128,12 @@ def test_the_codex_stream_writes_the_receipt_through_the_plugin_hooks(tmp_path, 
     from agent.plugin_stream_hooks import shutdown_plugin_stream_hook_dispatcher
     from tests.agent.test_codex_ttfb_watchdog import _install_codex_event_stream, _make_codex_agent
 
+    agent = _make_codex_agent(tmp_path, monkeypatch)
+    # after the agent: its construction discovers the real plugin, whose load re-installs
+    # the real register_hook; this load is the one the turn must arm
     plugin, hooks = _plugin_hooks()
     shutdown_plugin_stream_hook_dispatcher()
     monkeypatch.setattr("hermes_cli.plugins.iter_hook_callbacks", lambda name: tuple(hooks.get(name, ())))
-    agent = _make_codex_agent(tmp_path, monkeypatch)
     events: list = []
     agent.status_callback = events.append
 
@@ -141,7 +144,7 @@ def test_the_codex_stream_writes_the_receipt_through_the_plugin_hooks(tmp_path, 
         yield SimpleNamespace(type="response.completed", response=SimpleNamespace(status="completed", id="r", usage=None))
 
     _install_codex_event_stream(agent, monkeypatch, stream, [])
-    with bind_persona_turn_agent(agent):
+    with bind_persona_turn_agent(agent), receipt.stream_observers_armed():
         # the plugin's llm_execution middleware, around the codex streaming call
         plugin.time_provider_dispatch(
             request=None, next_call=lambda: h.interruptible_streaming_api_call(agent, {"model": "gpt-5.5", "input": "hi"}),
@@ -156,3 +159,46 @@ def test_the_codex_stream_writes_the_receipt_through_the_plugin_hooks(tmp_path, 
     assert steps["provider_stream_consume"]["timing_values"] == {"provider_stream_text_delta_count": 2}
     assert "provider_stream_first_delta" in steps
     assert "conversation_provider_dispatch" in steps  # the dispatch total, same middleware
+
+
+# ── the observers exist only while a persona turn runs ───────────────────────
+# Any registered on_stream_* callback makes upstream's ``_has_stream_consumers()`` True
+# for EVERY agent in the process (streaming, spinner and post-response mute follow it).
+
+
+_STREAM_HOOKS = ("on_stream_start", "on_stream_delta", "on_stream_end")
+
+
+def _registered(hooks):
+    return {name for name in _STREAM_HOOKS if hooks.get(name)}
+
+
+def test_plugin_load_registers_no_stream_observer():
+    _plugin, hooks = _plugin_hooks()
+
+    assert _registered(hooks) == set()
+    with receipt.stream_observers_armed():  # positive control: the same load CAN arm them
+        assert _registered(hooks) == set(_STREAM_HOOKS)
+
+
+def test_armed_turns_share_one_registration_and_the_last_one_out_disposes_it():
+    _plugin, hooks = _plugin_hooks()
+
+    with receipt.stream_observers_armed():
+        with receipt.stream_observers_armed():
+            assert [len(hooks[name]) for name in _STREAM_HOOKS] == [1, 1, 1]
+        assert _registered(hooks) == set(_STREAM_HOOKS)
+    assert _registered(hooks) == set()
+
+
+def test_the_profile_runner_turn_runs_with_the_observers_armed():
+    from agent_runtime.profile_runner.execute import _run_conversation_with_usage_ledger
+
+    _plugin, hooks = _plugin_hooks()
+    seen = []
+    agent = _Agent(session_id="s1", run_conversation=lambda **_k: seen.append(_registered(hooks)) or {})
+
+    _run_conversation_with_usage_ledger(agent, {})
+
+    assert seen == [set(_STREAM_HOOKS)]
+    assert _registered(hooks) == set()
