@@ -9,6 +9,8 @@ from typing import Iterator
 
 from . import paths
 
+__layer__ = "stores"
+
 #: How long the retry loop sleeps between two non-blocking attempts. One value
 #: for both platforms: the deadline is the contract, this is only how finely it
 #: is sampled.
