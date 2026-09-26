@@ -34,6 +34,8 @@ from urllib.parse import quote
 from . import model_alias
 from .config import GENERATION_DEFAULTS, LOAD_DEFAULTS, LocalLlamaError
 
+__layer__ = "stores"
+
 _SHARD = re.compile(r"(.+)-(\d{5})-of-(\d{5})\.gguf", re.IGNORECASE)
 
 
