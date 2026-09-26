@@ -22,6 +22,9 @@ Rows are one line and a pointer; claim with `**TAKEN <date> <who>**` before star
 Rows below were moved verbatim from the launcher queue on 2026-09-22 (their provenance headings are kept as sub-headings). Fork-hygiene findings the launcher queue carried (CI, the suite, the mutation gate, upstream reds) went to [[fork-hygiene-queue]] in the same commit.
 
 ## Fork-owned
+
+- [ ] **Expose independent native conversations and non-spatial discussion admission through the shared service; preserve operator sessions, profile scope and durable lifecycle.** · Owner-approved Launcher native Hermes migration, 2026-09-26; consumer: `EterniaLauncher/docs/companion/planned/ROOMS_CONNECTION_FOUNDATION_2026-09-26.md`. **TAKEN 2026-09-26 native-hermes**
+
 ### Filed on arrival — 2026-09-26 (lane L4, filed by the orchestrator)
 
 - [ ] **`tests/agent_runtime/test_dispatch_session_policy.py::test_clarify_binding_never_loads_the_configured_policy` asserts only `loads == []` with no positive control, so a patch on the wrong module passes it silently** · `fork / tests` · add the positive control (the binding that DOES load, asserted through the same capture) · evidence: lane L4 report 2026-09-26 · filed by lane L4 2026-09-26 **UNCLAIMED**
