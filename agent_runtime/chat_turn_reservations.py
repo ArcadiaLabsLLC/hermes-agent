@@ -78,6 +78,8 @@ from utils import atomic_json_write
 from . import paths
 from .locks import HarnessLockUnavailable, chat_turn_reservation_lock
 
+__layer__ = "stores"
+
 _SCHEMA_VERSION = 1
 
 #: Handed to a worker. The durable write that makes a retry a replay.
