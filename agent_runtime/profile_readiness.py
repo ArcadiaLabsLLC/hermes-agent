@@ -16,6 +16,8 @@ from .parse_cache import cached_yaml_file
 from .profile_context import persona_profile_scope, resolve_persona_profile
 from .skill_install import SKILL_HASH_MISMATCH, harness_skill_hash_states
 
+__layer__ = "stores"
+
 READINESS_READY = "ready"
 READINESS_MISSING_PROFILE = "missing_profile"
 READINESS_CONFIG_ERROR = "config_error"
