@@ -5,8 +5,27 @@ lane, a JSON-RPC method lane, an op lane carrying a push subscription, and MCP â
 and one warm serve process answers all of them. This is the current,
 code-verified contract for each: the frames, how a consumer negotiates what it
 can fold, and which parts of the wire are pinned byte-for-byte across the repo
-boundary. The goal/task mission lane was removed 2026-07-30; chat is the only
-lane and nothing below carries a task frame.
+boundary. The old goal/task mission lane remains removed.
+
+## Native conversation methods
+
+`agent_runtime/conversations/rpc.py` registers `runtime.conversation.*` on the
+existing authenticated JSON-RPC lane, at console tier. Capabilities, open,
+send, read, Stop, questions, model facts/selection and skill inspection are
+focused conversation operations, not a universal Work/Observation protocol.
+`execution_identity.py::execution_identity` identifies the executing checkout;
+the native dispatch guard requires the selected executable's matching identity.
+The actor credential, client account scope, profile/home and session must also
+match. Sharing a profile store does not permit switching installations.
+
+`ConversationStore` persists dispatch identity before execution. Duplicate
+requests return their existing receipt; uncertain outcomes are never silently
+replayed. Native worker messages stay behind `NativePeer`; consumers receive
+bounded event projections, not provider credentials or raw diagnostics.
+
+`agent_runtime/discussions/rpc.py` exposes the same discussion service to both
+consumers. Non-spatial room admission uses explicit workspace and persona-instance
+identities; spatial placement remains separate.
 
 ## 1. The serve process model
 

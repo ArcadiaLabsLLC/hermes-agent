@@ -9,7 +9,13 @@ tags: [program/agent-runtime-harness, program]
 
 # Agent Runtime Harness
 
-The Hermes-native persona runtime behind Mission Control: personas → durable instances → chat roots → scene actors; realms and workspaces; the office and board; the serve process the launcher talks to; one runtime per machine, paired across devices. **Chat is the only lane** (2026-07-30).
+The Hermes-native runtime serving Mission Control and Intelligence: operator roots,
+independent conversations, discussions, personas, workspaces, office and board.
+Shared service authority does not mean a shared conversation identity.
+
+`native_cursor::` 2026-09-26 — native conversation workers and non-spatial discussion
+admission; [wire contracts](../../docs/agent-runtime-harness/03-transport-and-wire.md#native-conversation-methods),
+[qualification and repository limits](../../docs/downstream/native-hermes-qualification-2026-09-26.md).
 
 > [!info] Cursor
 > `cursor::` see frontmatter — the last landed program and what it still owes.
@@ -24,7 +30,7 @@ with the fork's ACP surface (owner ruling 2026-09-26, lane ACP-DROP): the
 
 - **[`docs/agent-runtime-harness/00-index.md`](../../docs/agent-runtime-harness/00-index.md) — the canon. Read first.** Nine domain docs: 01 architecture · 02 data and shapes · 03 transport and wire · 04 boot and lifecycle · 05 chat turn lane · 06 office and board · 07 observability · 08 performance and debt ledger · 09 multi-device runtime. `planned/` = designed, not shipped (106 files incl. field notes); `archive/` = history.
 - **The launcher half:** `EterniaLauncher/docs/mission_control/00-index.md` (eight domain docs) and `EterniaLauncher/docs/mission_control/10-multi-device-architecture.md` — read doc 10 first for the multi-device target and ledger.
-- **The work queue is the launcher's** `mission-control-queue.md` (both repos). This note carries a cursor, never rows.
+- **Work is split by repository:** [[runtime-queue]] here, `mission-control-queue.md` in Launcher. This note carries a cursor, never rows.
 - Source map: [[Codebase Map]]. Rules: [[Architecture Invariants]].
 
 ## Open programs (each a plan under `planned/`, each with field notes)
@@ -41,7 +47,7 @@ with the fork's ACP surface (owner ruling 2026-09-26, lane ACP-DROP): the
 
 ## Live facts an agent forgets
 
-- The running launcher's serve uses `HERMES_HOME=<store>/profiles/base`, not `alice`. Measuring under alice measures a different runtime.
+- Read the serve receipt's selected profile/home before measuring; another home is another runtime.
 - Every hermes home defaults to `gpt-5.6-luna` on `openai-codex` since 2026-09-06 (alice: `luna-pro`). A running runtime reads config at boot — reap once to take a change.
 - Diag log for chat-turn timing: `%TEMP%/eternia_launcher_diag.log` (launcher side; deleted past 2 MB on open). The hermes ledger is `<store>/mission_chat_turns/*.json`, joined on `phases.anchored_at`, never `started_at`.
 - Defender exclusion for `X:/Eternia` exists (2026-09-06); `Get-MpPreference` is blind unelevated — do not read it as proof.

@@ -1,4 +1,4 @@
-# Native Hermes qualification — work branch
+# Native Hermes qualification
 
 Owner scope: full native Launcher Chat/Compare and non-spatial Discuss; preserve
 Mission Control's operator lane. Consumer contract and full receipt table:
@@ -46,6 +46,50 @@ Definition read/delete/revision and shutdown tests pass. Bypassing the shutdown
 guard makes the regression fail with `DID NOT RAISE DiscussionError`; the
 restored test passes.
 
-Native Launcher smoke and final qualification are still pending. The
-working branch is not a main landing, and these receipts are not live-provider
-acceptance. Upstream Hermes ACP remains unchanged.
+Native Launcher smoke completed on Launcher `b07e9b4311` and Hermes `9ee2da7bfc`:
+Direct, Compare, non-spatial Discuss, full skill details, hide-and-continue,
+confirmed Stop and a separate Mission Control operator turn. Both operator root
+pointers stayed unchanged. Exact receipts are in the consumer note above.
+The moved canonical skill-reader import was repaired after rebase; 23 native
+tests passed. Probe output/fields/quiet coverage passed 63 tests. Final tooling
+passed 45 tests (size, imports, namespace, duplicates, legibility, routing and
+payload contract). These receipts are not live-provider acceptance.
+
+## Repository findings outside this integration
+
+The baseline comparison used unchanged `613a04abdd`; completed comparisons
+reproduced many failures there. The remaining batch finished with 1,550 passed,
+74 failed, 15 skipped. Not every original failure has been classified.
+
+Nine files passed the primary checkout but failed with the borrowed interpreter.
+A worktree-local virtual environment fixed seven updater/environment files.
+The probe's output-flag failure was ours and is fixed in `9ee2da7bfc`.
+Two `test_fleet_matrix_down_state.py` assertions still classify the fixture process
+as external rather than current. Their production/test inputs are unchanged;
+the dependency-sharing environment remains a hypothesis, not a proven cause.
+
+The doc-cite gate reports seven unwaived citations and one stale waiver: model
+persona, canonical skills, shipped patches, compaction, persona toolsets,
+office surface coverage and boot timeline. Re-anchor symbols; do not expand the
+waiver baseline. Frozen-home checks also fail on unchanged primary for
+`gateway/mirror.py::_SESSIONS_INDEX_AT_IMPORT` and
+`tui_gateway/server.py::_HERMES_HOME_AT_IMPORT`.
+Existing tombstone findings remain queued separately.
+
+The changed-line mutation runner selected two existing claims, but refused to
+mutate because `test_console_device_can_configure_only_the_served_host` fails
+its baseline with `ServeCertificatePinMismatch`. The exact test also fails on
+unchanged primary `613a04abdd`. Neither selected mutation is claimed killed;
+the native integration's separately recorded controls above did run and kill.
+
+Raw receipts: `native-suite.log`, `native-baseline.log`, `native-baseline-rest.log`,
+`native-localvenv-recheck.log`, `native-doc-cite.log`, `native-mutation-final.log`
+and `native-mutation-baseline.log`. No real credentials were used.
+
+## Code shape
+
+New conversation capability: 18 files, 91 functions, maximum 210 raw lines/file,
+34 lines/function and nesting 4 (AST census using the repository's unit/depth
+instrument). Discussion RPC: 111 → 76 lines; run storage: 342 → 210. Helpers and
+wire codecs have focused owners. No size, import or routing ceiling was raised.
+The CLI dump is fresh: 204 command paths, digest prefix `341a08107d3438d2`.

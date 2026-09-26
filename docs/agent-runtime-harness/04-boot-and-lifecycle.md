@@ -8,16 +8,27 @@ half is the FIRST READ-MODEL CORE, which has its own cache, its own receipts and
 defects. Read
 `## Open rows` before trusting any boot number you measure today.
 
-**Stage 0, briefly, because it is the Launcher's:** the serve child is spawned with an explicit
-env set of FOUR keys — `ETERNIA_HERMES_ROOT`, `HERMES_HOME`, `HERMES_HEAD_HOME`,
-`HERMES_AGENT_RUNTIME_ROOT`, with `HERMES_HOME` and `HERMES_HEAD_HOME` both at the **base
-profile home**, not the state root
-(`EterniaLauncher .../data/mission_control_hermes_installer.dart`, `runtimeEnvironment`).
-The spawn RECEIPT records three of them, dropping `ETERNIA_HERMES_ROOT`
-(`.../data/mission_control_serve_session_io.dart`, the
-`MissionTransportReceiptKind.serveSpawn` receipt).
-So **the live serve reads `profiles/base`** — measuring under another home measures a different
-runtime. Everything else launcher-side belongs to the Launcher's docs.
+**Stage 0 is Launcher's:** app composition supplies the selected installation,
+profile home and runtime root to the shared core service. Never assume a fixed
+`profiles/base` home. The spawn/attach receipt records the effective selection;
+measuring another home measures another runtime. Launcher composition lives in
+`EterniaLauncher/lib/app/hermes/`, transport ownership in
+`EterniaLauncher/lib/core/services/hermes/`.
+
+## Native conversation workers
+
+`agent_runtime/conversations/binding.py` binds one conversation service to the
+existing runtime owner. `worker.py::start_worker` launches the selected Python
+with the canonical served-profile environment and owned process containment.
+Each profile has an isolated Desktop/TUI engine; the serve coordinator does not
+import that engine or replace its SessionDB/provider services.
+
+Closing a view or losing a client connection leaves execution running.
+`ConversationService.begin_drain` and `execution_possible` protect unfinished
+or uncertain workers. Stop is confirmed only by the matching native terminal
+event, not the acknowledgement that an interrupt request was written. Route
+receipts survive service restart; unknown dispatches block automatic replay.
+These records are routing evidence, never a second transcript store.
 
 ---
 

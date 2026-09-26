@@ -1,12 +1,28 @@
 # 05 — The chat turn lane: one turn, end to end
 
-The goal/task mission lane was removed 2026-07-30. What remains is the chat lane, and it is the
-whole operating surface: an operator (or a relaying agent) sends one message to one persona
-instance, and a bounded, receipted, durable turn runs. This walks that turn in the order it happens.
+This document's operator lane sends one message to one persona instance and
+runs a bounded, receipted, durable turn. The old goal/task mission lane remains
+removed. Independent conversations and discussion runs share runtime authority
+without replacing the operator's session or prompt policy.
 Every claim cites the file and line holding it at HEAD; anything the code could not be made to say
 sits under `## Open rows`, `## Unverified carry-forward`, or is gone. The handler is
 `_cmd_mission_chat_message` in `hermes_cli/harness_parts/persona/chat_turn_message.py`, which hands the run to
 `hermes_cli/harness_parts/persona/chat_turn_commit/`; most of the turn's logic lives in the `agent_runtime/` modules they call.
+
+## Independent native conversations
+
+`agent_runtime/conversations/service.py::ConversationService` admits exact
+actor/account/profile/session scopes and delegates to runtime-owned native
+workers. Those workers reuse the canonical Desktop/TUI engine, SessionDB,
+provider/model resolution, permissions and skill reader. They never enter the
+operator-channel prompt policy or overwrite its default chat pointer.
+`worker_skills.py` binds catalog/detail/history to the worker's exact session;
+skill-load evidence proves a load, not ongoing model reasoning.
+
+`agent_runtime/discussions/native.py` uses auxiliary chat sessions for
+discussion participants. The same executor serves office and non-spatial rooms;
+the operator root remains independent. Launcher Compare instead fans out to
+independent native conversations, with failure and queues scoped per participant.
 
 ## 1. Send admission — the turn's identity and its thread
 

@@ -1,12 +1,15 @@
 # Agent Runtime Harness — Master Index
 
-> **What this system is.** The Hermes-native persona runtime behind Mission
-> Control. **Chat is the only lane**: an operator (or another agent) messages an
-> on-level persona instance's chat root; the runtime owns identity, chat
-> continuity, the office scene, the board, realms/workspaces, and an
-> enforcement-free agent graph. The goal/task mission lane (daemon, stage graph,
-> proof gates, role gating) was removed 2026-07-30 — what remains is documented
-> here, and only what remains.
+> **What this system is.** The Hermes service consumed by Mission Control and
+> Intelligence through focused adapters. It owns operator chat, independent
+> native conversations, discussion execution, identity, history, workspaces,
+> office and board state. Consumers share runtime authority, not one session.
+> Independent conversations reuse the Desktop/TUI engine in runtime-owned
+> workers; discussion uses the existing executor without requiring furniture.
+> See [transport](03-transport-and-wire.md#native-conversation-methods),
+> [lifecycle](04-boot-and-lifecycle.md#native-conversation-workers) and
+> [turn ownership](05-chat-turn-lane.md#independent-native-conversations).
+> The old goal/task mission lane remains removed.
 
 Consolidated 2026-08-22 from 56 files. The rules that keep it consolidated are
 at the bottom; read them before adding a document.

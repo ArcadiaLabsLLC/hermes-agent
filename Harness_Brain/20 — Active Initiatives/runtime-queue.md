@@ -50,8 +50,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 - [ ] **`agent_runtime/chat_lane_bundle.py` is 884 raw lines after lane L5 moved the chat-lane scope family into it (sheet §2.1 `persona_runtime` row) — over the god-file readability cap of 500; split the scope family (`_enabled_toolsets_for_chat` … `apply_chat_lane_tool_scope`, `stores`) into a sibling `chat_lane_scope.py` and leave the memo/bundle in `chat_lane_bundle`** · `fork / refactor` · also stale: `docs/agent-runtime-harness/planned/god-file-layout-sheets/runtime_hud.md` still places `capability_block_for_persona` in `ambient.py` (it is `runtime_hud/capability_account.py` since L5) · evidence: lane L5 commit `bfd1f656ec` · filed by lane L5 2026-09-26 **UNCLAIMED**
 
-- [ ] **Expose independent native conversations and non-spatial discussion admission through the shared service; preserve operator sessions, profile scope and durable lifecycle.** · Owner-approved Launcher native Hermes migration, 2026-09-26; consumer: `EterniaLauncher/docs/companion/planned/ROOMS_CONNECTION_FOUNDATION_2026-09-26.md`. **TAKEN 2026-09-26 native-hermes**
-
 ### Filed on arrival — 2026-09-26 (lane L4, filed by the orchestrator)
 
 - [ ] **`tests/agent_runtime/test_dispatch_session_policy.py::test_clarify_binding_never_loads_the_configured_policy` asserts only `loads == []` with no positive control, so a patch on the wrong module passes it silently** · `fork / tests` · add the positive control (the binding that DOES load, asserted through the same capture) · evidence: lane L4 report 2026-09-26 · filed by lane L4 2026-09-26 **UNCLAIMED**

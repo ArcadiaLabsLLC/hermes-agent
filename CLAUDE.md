@@ -234,10 +234,11 @@ a finding that needs both sides is filed on the side that must move first and na
 
 ## Repo facts a session must not re-learn
 
-- `HERMES_HOME` is resolved at CALL time, never at module scope; the live store on this box
-  is `X:/Eternia/.hermes`, and the launcher's runtime uses `profiles/base`, not `alice`.
-- Chat is the only lane (2026-07-30). Profile declaration is the sole MCP admission
-  authority. Every write verb is an RPC method; argv is a fallback marked for delete.
+- `HERMES_HOME` is resolved at CALL time, never at module scope. Launcher passes its
+  selected profile explicitly; read the serve receipt rather than assuming a home.
+- Operator chat, independent native conversations and discussions share the runtime,
+  not a session. Profile declaration is the sole MCP admission authority. Every
+  write verb is an RPC method; argv is a fallback marked for delete.
 - Observability lands as log receipts, never as new keys on the parity envelope.
 - The 800-code-line ceiling is flat; cite code by symbol and file, never line number.
 - Run the thing before fixing it: a filed row is often right that something is wrong and
