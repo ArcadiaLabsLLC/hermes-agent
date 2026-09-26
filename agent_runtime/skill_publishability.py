@@ -70,6 +70,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
+__layer__ = "stores"
+
 logger = logging.getLogger(__name__)
 
 BUNDLED_MANIFEST_FILENAME = ".bundled_manifest"
