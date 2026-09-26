@@ -66,6 +66,8 @@ from __future__ import annotations
 
 from typing import Any
 
+__layer__ = "stores"
+
 __all__ = [
     "EVENT_TURN_ENDED",
     "EVENT_TURN_STARTED",
