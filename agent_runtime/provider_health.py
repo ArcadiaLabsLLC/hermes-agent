@@ -10,6 +10,8 @@ from . import paths
 from .models import AgentPersona
 from .profile_context import active_profile_name
 
+__layer__ = "stores"
+
 
 def provider_health_for_personas(personas: list[AgentPersona]) -> dict[str, Any]:
     """Return compact redaction-safe runtime/provider dependency health.
