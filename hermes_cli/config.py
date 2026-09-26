@@ -2069,7 +2069,7 @@ def load_config_readonly() -> Dict[str, Any]:
     """``load_config()`` without the defensive deepcopy (~half of the 265us cache-hit cost).
     **Mutating the returned dict (or any nested structure) corrupts the in-process cache for
     every subsequent caller** — only for code paths that never write to the result."""
-    return _load_config_impl(want_deepcopy=False)
+    return _load_config_impl(want_deepcopy=False, ensure_home=False)
 
 
 def _ensure_dict(parent: Dict[str, Any], key: str) -> Dict[str, Any]:
@@ -2284,7 +2284,7 @@ def _load_config_cache_hit(path_key: str, cache_sig: Any) -> Optional[Dict[str, 
     return None
 
 
-def _load_config_impl(*, want_deepcopy: bool) -> Dict[str, Any]:
+def _load_config_impl(*, want_deepcopy: bool, ensure_home: bool = True) -> Dict[str, Any]:
     # Lock-free fast path for cache hits — same publication contract as `_read_raw_config_impl`
     # above (whole-tuple replace, `_CONFIG_LOCK` only serializes rebuilds and writers). A hit costs
     # ~0.024ms; behind a lock held by `save_config()` the same read measured 10010ms, and on a
@@ -2303,7 +2303,12 @@ def _load_config_impl(*, want_deepcopy: bool) -> Dict[str, Any]:
         pass
 
     with _CONFIG_LOCK:
-        ensure_hermes_home()
+        # ``ensure_home=False`` is the read-only contract: loading config to
+        # LOOK at it must not scaffold the home directory tree (mkdirs +
+        # SOUL.md). Everything below already tolerates an absent home — the
+        # config stat handles FileNotFoundError and the cache is in-memory.
+        if ensure_home:
+            ensure_hermes_home()
         config_path = get_config_path()
         path_key = str(config_path)
 
