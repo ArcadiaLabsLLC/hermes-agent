@@ -103,3 +103,38 @@ jobs:
           uv run python scripts/changed_line_mutation_check.py
           --base "${{ steps.select.outputs.base }}"
           --wall-budget-seconds 600
+
+  # The two history-reading gates used to run inside upstream's tests.yml on a
+  # fork-patched `fetch-depth: 0` checkout. That file is byte-identical to
+  # upstream again and upstream's ci.yaml is disabled on the fork (owner,
+  # 2026-09-26), so they run here, on full history, and nowhere else.
+  history-gates:
+    name: History-reading gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code and full history
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
+        with:
+          version: "0.9.28"
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+
+      - name: Install test environment
+        uses: ./.github/actions/retry
+        with:
+          command: uv sync --locked --python 3.11 --extra all --group dev
+
+      - name: Tombstone registry and docket stage claims
+        run: >-
+          uv run python -m pytest -q -p no:cacheprovider
+          tests/agent_runtime/test_tombstone_registry.py
+          tests/test_docket_stage_claims.py
