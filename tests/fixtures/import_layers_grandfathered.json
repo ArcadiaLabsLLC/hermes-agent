@@ -83,7 +83,6 @@
   "agent_runtime/profile_artifact_sync.py",
   "agent_runtime/progress.py",
   "agent_runtime/realm_membership.py",
-  "agent_runtime/scope_activation.py",
   "agent_runtime/skill_install.py",
   "agent_runtime/skill_promotion.py",
   "agent_runtime/skill_publishability.py",

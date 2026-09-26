@@ -66,6 +66,8 @@ from typing import Any, Callable
 
 from .store import RealmStore, WorkspaceStore
 
+__layer__ = "lanes"
+
 __all__ = [
     "WORKSPACE_USE_METHOD",
     "REALM_USE_METHOD",
