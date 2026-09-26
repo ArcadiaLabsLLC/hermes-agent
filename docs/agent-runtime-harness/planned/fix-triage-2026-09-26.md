@@ -66,9 +66,9 @@ and names the rest in `why`.
 | `gateway/run_notifications.py` | upstream | KEEP-HELD `up/watcher-reply-to` | watcher-reply-to | `reply_to=watcher message_id`; upstream 34343e79ab6 changes the synthetic-event anchor, not the watcher send |
 | `gateway/shutdown_watchdog.py` | upstream | KEEP-PR #123891 | process-home | — |
 | `hermes_cli/auth.py` | hook | KEEP-PR #124190 | store-home-override | `_auth_file_path` honours `HERMES_AUTH_HOME` (PLUGIN-FIT: AFTER #124190); `persist_provider_login` already moved to the fork-only transport |
-| `hermes_cli/auth_codex.py` | carry | KEEP-HELD `up/auth-on-verification` | auth-on-verification | the `on_verification` kwarg + fire only |
+| `hermes_cli/auth_codex.py` | carry | KEEP-HELD `up/auth-on-verification` | auth-on-verification | the `on_verification` kwarg + fire only; the branch ALREADY EXISTS on origin (da0369aee6, cut 2026-09-26 from 467902fdb3c, body `X:/wt/_holds/pr-bodies/auth-on-verification.md`) — reused, not re-cut; 8 upstream commits behind, rebase before opening |
 | `hermes_cli/auth_codex_browser.py` | carry | KEEP-HELD `up/auth-on-verification` | auth-on-verification | same |
-| `hermes_cli/auth_commands.py` | hook | PLUGIN | harness-cli (LAUNCHER-MOVE) | `register_cli_command("harness")` sub-verbs (PLUGIN-FIT §4 Q5); deletes once the launcher spells `hermes harness auth …` — launcher row filed 793a0c2fe |
+| `hermes_cli/auth_commands.py` | hook | PLUGIN | harness-cli (LAUNCHER-MOVE) | `register_cli_command("harness")` sub-verbs (PLUGIN-FIT §4 Q5); deletes once the launcher spells `hermes harness auth …` — launcher row filed 793a0c2fe; fallback if the launcher move is refused: the existing held `up/plugin-cli-commands` adds `parent="auth"` |
 | `hermes_cli/auth_minimax.py` | carry | KEEP-HELD `up/auth-on-verification` | auth-on-verification | kwarg + fire + `persist=False` |
 | `hermes_cli/auth_nous.py` | upstream | KEEP-PR #121642 | nous-login-url | — |
 | `hermes_cli/auth_xai.py` | carry | KEEP-HELD `up/auth-on-verification` | auth-on-verification | kwarg + fire |
@@ -81,13 +81,13 @@ and names the rest in `why`.
 | `hermes_cli/gateway.py` | upstream | KEEP-PR #119069 | launchd-pwd-guard | the `pwd` guard rides #119069 and the two `getuid` guards belong beside it at its rebase; `resolve_managed_python` / `_detect_venv_dir` are a RECORDED PARALLEL (CARRY until the launcher install moves onto pm bundles); the home receipt is fork observability (CARRY); `_command_matches_profile` is a no-behaviour extraction (REVERT candidate) |
 | `hermes_cli/gateway_windows.py` | upstream | KEEP-HELD `up/win-gateway-task-console` | win-gateway-task | console-less task detection + `status` warning + the named-profile wrapper pin refusal; the `resolve_managed_python` call stays with the CARRY above |
 | `hermes_cli/kanban_db_dispatch.py` | upstream | KEEP-HELD `up/kanban-crash-evidence` | kanban-crash-evidence | with `hermes_cli/kanban_crash_evidence.py` (485 lines); upstream 63e44332f5d touched the reclaim path, the hunk still applies |
-| `hermes_cli/main.py` | hook | KEEP-HELD `up/profile-bootstrap-extraction` | profile-bootstrap (P1) | (a) the −187 extraction into `_profile_bootstrap.py`; (b) the boot-clock marks CARRY (no fire site); (c) manifest CLI commands → `up/plugin-cli-commands-manifest`; (d) `restore_durable_completions` and (e) the dead `cmd_postinstall` import are PLUGIN (PF-2) |
+| `hermes_cli/main.py` | hook | KEEP-HELD `up/profile-bootstrap-extraction` | profile-bootstrap (P1) | (a) the −187 extraction into `_profile_bootstrap.py`; (b) the boot-clock marks CARRY (no fire site); (c) manifest CLI commands → `up/plugin-cli-commands` (existing branch); (d) `restore_durable_completions` and (e) the dead `cmd_postinstall` import are PLUGIN (PF-2) |
 | `hermes_cli/main_web_build.py` | upstream | KEEP-HELD `up/bytecode-sweep-lock` | bytecode-sweep | with `hermes_cli/_bytecode_sweep.py` |
 | `hermes_cli/mcp_config.py` | upstream | KEEP-HELD `up/mcp-test-env` | mcp-test-env | the `--env` hunk, re-authored without the fork's `flag_binding`; needs #124210's `runtime_env` to be honoured by `_build_safe_env`; the machine-root tokens are CARRY (fork), the `_ENV_VAR_NAME_RE` re-home is a parallel → REVERT to upstream's constant |
 | `hermes_cli/plugin_compat.py` | upstream | KEEP-PR #121023 | plugin-compat | — |
-| `hermes_cli/plugins.py` | hook | KEEP-HELD `up/plugin-cli-commands-manifest` | cli-commands-manifest | the Stage-1 seam (`discover_declared_cli_commands` / `_materialize_declared_cli_command`); the discovery `elapsed_ms` log rides along |
+| `hermes_cli/plugins.py` | hook | KEEP-HELD `up/plugin-cli-commands` | cli-commands-manifest | the Stage-1 seam (`discover_declared_cli_commands` / `_materialize_declared_cli_command`); the branch ALREADY EXISTS on origin (df624d82cc, body `X:/wt/_holds/pr-bodies/plugin-cli-commands.md`, also carries `parent=` sub-verbs under a built-in) — reused; the discovery `elapsed_ms` log rides along |
 | `hermes_cli/plugins_discovery.py` | upstream | KEEP-HELD `up/readonly-config-reads` | readonly-config | enable/disable lists through `load_config_readonly`, one shared read |
-| `hermes_cli/plugins_manifest.py` | hook | KEEP-HELD `up/plugin-cli-commands-manifest` | cli-commands-manifest | the manifest `cli_commands` field |
+| `hermes_cli/plugins_manifest.py` | hook | KEEP-HELD `up/plugin-cli-commands` | cli-commands-manifest | the manifest `cli_commands` field (existing branch, above) |
 | `hermes_cli/provider_catalog.py` | upstream | KEEP-HELD `up/oauth-flow-catalog` | oauth-catalog | `OAUTH_FLOW_OVERRIDES` + `disconnect_command_for` only; `provider_login_catalog` / `MODELS_DEV_LANE_IDS` / `models_dev_id_for` / `_default_flow_for` are the launcher roster → MOVE to a fork module beside `model_picker_policy.py`, never a PR |
 | `hermes_cli/service_manager.py` | upstream | KEEP-PR #121640 | doc-accuracy | — |
 | `hermes_cli/slack_cli.py` | upstream | DROP | slack-adapter | same as `commands_platforms.py` |
@@ -153,8 +153,8 @@ and names the rest in `why`.
 | `tests/tools/test_delegate.py` | upstream | KEEP-HELD `up/test-hygiene` | test-hygiene | stale doc pointer |
 | `tests/tools/test_execution_flag_detection.py` | upstream | KEEP-PR #121226 | win-shell-invocation | the second hunk annotates a test upstream deleted (5f6b1d251f) — DROP that hunk |
 | `tests/tools/test_file_ops_cwd_tracking.py` | upstream | DROP | R10 | still red at a later line after the hunk — revert |
-| `tests/tools/test_file_tools.py` | upstream | KEEP-HELD `up/win-test-fixes-2` | win-tests-2 | `os.path.normpath` |
-| `tests/tools/test_file_tools_live.py` | upstream | KEEP-PR #121226 | win-shell-invocation | the LF half is not in #121221 — it rides `up/win-test-fixes-2` |
+| `tests/tools/test_file_tools.py` | upstream | DROP | dead-hunk | the tree carries only an unused `import os` (the `normpath` extension the ledger names is not in the diff, and upstream's file has no `os.` use) — revert |
+| `tests/tools/test_file_tools_live.py` | upstream | KEEP-PR #121226 | win-shell-invocation | the whole diff, LF pin included, is in #121226's branch (the ledger's `up/win-line-endings` attribution is stale) |
 | `tests/tools/test_file_tools_tilde_profile.py` | upstream | KEEP-PR #121224 | win-path-spelling | — |
 | `tests/tools/test_interrupt.py` | upstream | KEEP-HELD `up/test-hygiene` | test-hygiene | stale doc pointer |
 | `tests/tools/test_local_background_child_hang.py` | upstream | KEEP-PR #121226 | win-shell-invocation | — |
