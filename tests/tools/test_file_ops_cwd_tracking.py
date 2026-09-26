@@ -18,17 +18,9 @@ from __future__ import annotations
 
 import pytest
 
-from tools.environments.local import _find_bash
-from tools.file_operations import ShellFileOperations
+import pytest
 
-# Resolve the SAME bash the local terminal environment resolves. Spawning a
-# bare ``"bash"`` does not: Windows searches System32 before PATH, so
-# ``["bash", "-c", ...]`` runs the WSL launcher — a Linux userland where the
-# ``C:/Users/...`` paths ShellFileOperations emits simply do not exist (they
-# live under ``/mnt/c``). ``_find_bash`` deliberately refuses that binary; see
-# its "The Windows System32 'bash.exe' is the WSL launcher and is not used."
-# On POSIX this resolves to the same bash the bare name would have.
-_BASH = _find_bash()
+from tools.file_operations import ShellFileOperations
 
 
 class _FakeEnv:
@@ -56,7 +48,7 @@ class _FakeEnv:
         # Actually run the command — handle stdin via subprocess
         stdin_data = kwargs.get("stdin_data")
         proc = subprocess.run(
-            [_BASH, "-c", command],
+            ["bash", "-c", command],
             cwd=cwd or self.cwd,
             input=stdin_data,
             capture_output=True,
@@ -124,7 +116,7 @@ class TestShellFileOpsCwdTracking:
         class _NoCwdEnv:
             def execute(self, command, cwd=None, **kwargs):
                 import subprocess
-                proc = subprocess.run([_BASH, "-c", command], cwd=cwd,
+                proc = subprocess.run(["bash", "-c", command], cwd=cwd,
                                       capture_output=True, text=True)
                 return {"output": proc.stdout, "returncode": proc.returncode}
 
