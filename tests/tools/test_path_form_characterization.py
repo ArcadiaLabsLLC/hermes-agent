@@ -2,7 +2,7 @@
 
 Why this file exists
 --------------------
-``tools/environments/local.py`` is **upstream-owned**. It carries four
+``tools/environments/local.py`` is **upstream-owned**. It carries three
 path translators that convert between the three spellings a path can
 have on a Windows host running Git Bash:
 
@@ -15,12 +15,15 @@ MSYS                 ``/c/Users/alice/notes.txt``
 mixed                ``/c/Users/alice\\notes.txt``
 ===================  =====================================
 
-and four consumers that each need a *different* one of those forms:
+and three consumers that each need a *different* one of those forms:
 
 * ``_msys_to_windows_path``  — for ``os.path.isdir`` / ``Popen(cwd=...)``
 * ``_windows_to_msys_path``  — for bash ``builtin cd``
 * ``_bash_safe_path``        — for text interpolated into a bash *script*
-* ``_shell_arg_safe_path``   — for *argv* handed to a possibly-native binary
+
+(A fourth, ``_shell_arg_safe_path`` for native-binary argv, was the fork's
+fix for doc 18 defect #4; it lost its last caller and was deleted
+2026-09-26, fix-triage lane DROP-EXEC, so its pins left with it.)
 
 The 2026-07-30 upstream merge rehearsal (doc 18, defect #4, fixed on the
 fork at ``93dc56bd9``) showed how thin the ice is here: upstream's
@@ -31,7 +34,7 @@ containing a backslash. The contradiction still exists in upstream, where
 it is PR candidate #1.
 
 So this file is not a behavior proposal — it is a **tripwire**. It pins
-the observed input→output of all four translators across the form matrix
+the observed input→output of all three translators across the form matrix
 and the edges that actually bit us, so the next upstream sync that
 "tidies", merges, or unifies these functions fails loudly here with a
 readable diff instead of silently breaking a tool on Windows only.
@@ -74,7 +77,6 @@ TRANSLATORS = (
     "_msys_to_windows_path",
     "_windows_to_msys_path",
     "_bash_safe_path",
-    "_shell_arg_safe_path",
 )
 
 
@@ -148,8 +150,8 @@ def test_translators_touch_no_host_state(win, name):
 
 
 # ---------------------------------------------------------------------------
-# The 4x4 matrix: four input forms x four translators.
-# Row: (id, input, msys_to_windows, windows_to_msys, bash_safe, shell_arg_safe)
+# The form matrix: every input form x three translators.
+# Row: (id, input, msys_to_windows, windows_to_msys, bash_safe)
 # ---------------------------------------------------------------------------
 
 FORM_MATRIX = [
@@ -159,7 +161,6 @@ FORM_MATRIX = [
         r"C:\Users\alice\notes.txt",          # already native: verbatim
         "/c/Users/alice/notes.txt",
         "/c/Users/alice/notes.txt",
-        "C:/Users/alice/notes.txt",
     ),
     (
         "drive-forward-slash",
@@ -167,7 +168,6 @@ FORM_MATRIX = [
         "C:/Users/alice/notes.txt",           # not MSYS form: verbatim
         "/c/Users/alice/notes.txt",
         "/c/Users/alice/notes.txt",
-        "C:/Users/alice/notes.txt",           # already the argv form: verbatim
     ),
     (
         "msys",
@@ -175,7 +175,6 @@ FORM_MATRIX = [
         r"C:\Users\alice\notes.txt",
         "/c/Users/alice/notes.txt",           # already MSYS form: verbatim
         "/c/Users/alice/notes.txt",           # already MSYS form: verbatim
-        "C:/Users/alice/notes.txt",
     ),
     (
         "mixed-msys-head-backslash-tail",
@@ -185,7 +184,6 @@ FORM_MATRIX = [
                                               # backslashes survive (see the
                                               # _bash_safe_path second pass)
         "/c/Users/alice/notes.txt",
-        "C:/Users/alice/notes.txt",
     ),
     (
         "mixed-native-head-forward-tail",
@@ -193,7 +191,6 @@ FORM_MATRIX = [
         r"C:\Users/alice\AppData/Local",      # not MSYS form: verbatim
         "/c/Users/alice/AppData/Local",
         "/c/Users/alice/AppData/Local",
-        "C:/Users/alice/AppData/Local",
     ),
     (
         "mixed-drive-forward-head-backslash-tail",
@@ -201,7 +198,6 @@ FORM_MATRIX = [
         r"C:/Users/alice\notes.txt",          # not MSYS form: verbatim
         "/c/Users/alice/notes.txt",
         "/c/Users/alice/notes.txt",
-        "C:/Users/alice/notes.txt",
     ),
 ]
 
@@ -211,19 +207,18 @@ MATRIX_IDS = [row[0] for row in FORM_MATRIX]
 @pytest.mark.parametrize("row", FORM_MATRIX, ids=MATRIX_IDS)
 def test_form_matrix(win, row):
     """Pin every cell of the form x translator matrix."""
-    _id, source, expect_m2w, expect_w2m, expect_bash, expect_arg = row
+    _id, source, expect_m2w, expect_w2m, expect_bash = row
 
     assert win._msys_to_windows_path(source) == expect_m2w
     assert win._windows_to_msys_path(source) == expect_w2m
     assert win._bash_safe_path(source) == expect_bash
-    assert win._shell_arg_safe_path(source) == expect_arg
 
 
 def test_matrix_covers_every_form_and_translator():
-    """Guard the matrix itself: 4 canonical forms x 4 translators, minimum."""
+    """Guard the matrix itself: the canonical forms x 3 translators, minimum."""
     assert {"native-backslash", "drive-forward-slash", "msys"} <= set(MATRIX_IDS)
     assert any(mid.startswith("mixed-") for mid in MATRIX_IDS)
-    assert len(TRANSLATORS) == 4
+    assert len(TRANSLATORS) == 3
 
 
 # ---------------------------------------------------------------------------
@@ -243,30 +238,6 @@ BACKSLASH_NON_PATHS = [
 
 
 @pytest.mark.parametrize("pattern", BACKSLASH_NON_PATHS)
-def test_shell_arg_safe_path_passes_backslash_patterns_through(win, pattern):
-    """argv rewriting must never touch a non-drive-qualified argument.
-
-    This is the exact regression from doc 18 defect #4: ``_shell_arg_safe_path``
-    quotes ``search_files`` patterns as well as paths, so a blanket
-    ``replace('\\\\', '/')`` silently rewrote ``func_\\w+`` into ``func_/w+``
-    and every content search came back empty.
-    """
-    assert win._shell_arg_safe_path(pattern) == pattern
-
-
-def test_drive_shaped_regex_is_indistinguishable(win):
-    """KNOWN SHARP EDGE, pinned deliberately.
-
-    ``_shell_arg_safe_path`` decides by shape: ``<letter>:`` followed by a
-    slash of either kind. A regex that happens to start that way — ``C:\\d+``
-    — is therefore rewritten like a path. There is no information available
-    to the function that would let it do better; the pin exists so the edge
-    is documented rather than rediscovered.
-    """
-    assert win._shell_arg_safe_path(r"C:\d+") == "C:/d+"
-
-
-@pytest.mark.parametrize("pattern", BACKSLASH_NON_PATHS)
 def test_bash_safe_path_still_corrupts_backslash_patterns(win, pattern):
     """The sibling still mangles them — BY DESIGN, and that is the trap.
 
@@ -278,15 +249,13 @@ def test_bash_safe_path_still_corrupts_backslash_patterns(win, pattern):
     """
     corrupted = win._bash_safe_path(pattern)
     assert corrupted == pattern.replace("\\", "/")
-    # ...and the argv sibling deliberately disagrees on every one of them.
-    assert win._shell_arg_safe_path(pattern) != corrupted
 
 
 # ---------------------------------------------------------------------------
-# Non-drive-qualified input is returned verbatim (the argv escape hatch).
+# Non-drive-qualified inputs, kept as corpus for the properties below.
 # ---------------------------------------------------------------------------
 
-VERBATIM_FOR_SHELL_ARG = [
+VERBATIM_CORPUS = [
     "/home/teknium",
     "/tmp/foo",
     "relative/dir",
@@ -295,40 +264,22 @@ VERBATIM_FOR_SHELL_ARG = [
     r"\\server\share\folder",
     'python -c "import os; print(os.sep)"',
     "--include=*.py",
-    "C:",  # bare drive with no separator does NOT qualify
-    "/c/Users/alice",  # NOTE: MSYS form DOES qualify — see the assert below
+    "C:",
+    "/c/Users/alice",
 ]
 
 
-@pytest.mark.parametrize(
-    "value",
-    [v for v in VERBATIM_FOR_SHELL_ARG if not v.startswith("/c/")],
-)
-def test_shell_arg_safe_path_returns_non_drive_input_verbatim(win, value):
-    """Genuine POSIX paths, relative paths, UNC paths and plain arguments
-    are handed back untouched — the guarantee that lets the same helper
-    quote both a path and a ``python -c`` snippet."""
-    assert win._shell_arg_safe_path(value) == value
-
-
-def test_shell_arg_safe_path_qualifies_msys_form_first(win):
-    """MSYS input is *not* verbatim: it is drive-qualified via
-    ``_msys_to_windows_path`` before the shape test, so ``/c/...`` becomes
-    ``C:/...``. This is the whole reason native ``rg.exe`` can resolve it."""
-    assert win._shell_arg_safe_path("/c/Users/alice") == "C:/Users/alice"
-
-
 # ---------------------------------------------------------------------------
-# Drive-root and bare-drive edges: the four translators disagree here.
+# Drive-root and bare-drive edges: the translators disagree here.
 # ---------------------------------------------------------------------------
 
 DRIVE_EDGES = [
-    # (input,      m2w,      w2m,     bash,    shell_arg)
-    ("/c/",        "C:\\",   "/c/",   "/c/",   "C:/"),
-    ("/c",         "C:\\",   "/c",    "/c",    "C:/"),
-    ("C:\\",       "C:\\",   "/c/",   "/c/",   "C:/"),
-    ("C:/",        "C:/",    "/c/",   "/c/",   "C:/"),
-    ("C:",         "C:",     "/c/",   "/c/",   "C:"),
+    # (input,      m2w,      w2m,     bash)
+    ("/c/",        "C:\\",   "/c/",   "/c/"),
+    ("/c",         "C:\\",   "/c",    "/c"),
+    ("C:\\",       "C:\\",   "/c/",   "/c/"),
+    ("C:/",        "C:/",    "/c/",   "/c/"),
+    ("C:",         "C:",     "/c/",   "/c/"),
 ]
 
 
@@ -336,27 +287,26 @@ DRIVE_EDGES = [
     "row", DRIVE_EDGES, ids=[r[0].replace("\\", "bs") for r in DRIVE_EDGES]
 )
 def test_drive_root_edges(win, row):
-    """Bare drive roots are where the four disagree, so pin all of them.
+    """Bare drive roots are where the translators disagree, so pin all of them.
 
     Two asymmetries worth reading twice:
 
     * ``"C:"`` (no separator) becomes ``"/c/"`` through ``_windows_to_msys_path``
       — it is treated as the drive root — but stays ``"C:"`` through
-      ``_shell_arg_safe_path``, whose shape test requires a following slash.
-    * ``"/c"`` (no trailing slash) becomes ``"C:\\"`` / ``"C:/"`` going one way
+      ``_msys_to_windows_path``.
+    * ``"/c"`` (no trailing slash) becomes ``"C:\\"`` going one way
       but survives ``_windows_to_msys_path`` untouched, so the MSYS->native->MSYS
       round trip is *not* the identity: ``/c`` -> ``C:\\`` -> ``/c/``.
     """
-    source, expect_m2w, expect_w2m, expect_bash, expect_arg = row
+    source, expect_m2w, expect_w2m, expect_bash = row
 
     assert win._msys_to_windows_path(source) == expect_m2w
     assert win._windows_to_msys_path(source) == expect_w2m
     assert win._bash_safe_path(source) == expect_bash
-    assert win._shell_arg_safe_path(source) == expect_arg
 
 
 # ---------------------------------------------------------------------------
-# Cygwin / WSL mount spellings: only two of the four know about them.
+# Cygwin / WSL mount spellings: only one of the three knows about them.
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("source", ["/cygdrive/c/Users/alice", "/mnt/c/Users/alice"])
@@ -368,12 +318,11 @@ def test_cygdrive_and_wsl_mount_forms(win, source):
     preference: ``_bash_safe_path`` (which routes through the *reverse*
     translator) leaves these spellings ALONE, so a ``/cygdrive/c/...`` value
     interpolated into a Git Bash script stays in a form Git Bash cannot
-    resolve — while ``_shell_arg_safe_path`` normalizes it correctly.
+    resolve.
     """
     assert win._msys_to_windows_path(source) == r"C:\Users\alice"
     assert win._windows_to_msys_path(source) == source
     assert win._bash_safe_path(source) == source  # the gap
-    assert win._shell_arg_safe_path(source) == "C:/Users/alice"
 
 
 # ---------------------------------------------------------------------------
@@ -384,15 +333,13 @@ def test_drive_letter_case_is_not_normalized(win):
     """Only the MSYS->native direction upper-cases the drive.
 
     ``/c/Users`` -> ``C:\\Users`` (upper), but an already-native ``c:\\Users``
-    keeps its lower-case drive, so ``_shell_arg_safe_path`` emits ``C:/Users``
-    or ``c:/Users`` depending purely on which spelling the caller had. Windows
+    keeps its lower-case drive, so the native spelling depends purely on
+    which spelling the caller had. Windows
     does not care; string comparisons on the results do. Pinned so a future
     normalization change is a visible decision.
     """
     assert win._msys_to_windows_path("/c/Users/alice") == r"C:\Users\alice"
     assert win._msys_to_windows_path(r"c:\Users\alice") == r"c:\Users\alice"
-    assert win._shell_arg_safe_path("/c/Users/alice") == "C:/Users/alice"
-    assert win._shell_arg_safe_path("c:/Users/alice") == "c:/Users/alice"
     # The reverse translator always lower-cases.
     assert win._windows_to_msys_path(r"C:\Users\alice") == "/c/Users/alice"
     assert win._windows_to_msys_path(r"c:\Users\alice") == "/c/Users/alice"
@@ -406,14 +353,14 @@ CORPUS = (
     [row[1] for row in FORM_MATRIX]
     + [row[0] for row in DRIVE_EDGES]
     + BACKSLASH_NON_PATHS
-    + VERBATIM_FOR_SHELL_ARG
+    + VERBATIM_CORPUS
     + ["/cygdrive/c/Users/alice", "/mnt/c/Users/alice", "c:/users/alice"]
 )
 
 
 @pytest.mark.parametrize("name", TRANSLATORS)
 def test_every_translator_is_idempotent(win, name):
-    """``f(f(x)) == f(x)`` for all four, over the whole corpus.
+    """``f(f(x)) == f(x)`` for all three, over the whole corpus.
 
     Load-bearing: these helpers are applied at several layers (a cwd can be
     translated on capture and again on use), so a non-idempotent one would
@@ -444,7 +391,7 @@ def test_msys_native_round_trip_normalizes_rather_than_preserves(win):
 
 
 # ---------------------------------------------------------------------------
-# Off Windows, all four are the identity function.
+# Off Windows, all three are the identity function.
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("name", TRANSLATORS)
