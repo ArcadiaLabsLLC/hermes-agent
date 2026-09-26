@@ -69,7 +69,6 @@
   "tools/tool_full_descriptions.py|tools.skill_manager_tool|_skill_manage_description"
  ],
  "undeclared": [
-  "agent_runtime/skill_promotion.py",
   "agent_runtime/skill_publishability.py",
   "agent_runtime/skill_resolution.py",
   "agent_runtime/skill_sync.py"

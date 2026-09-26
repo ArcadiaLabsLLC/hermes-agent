@@ -49,6 +49,8 @@ from utils import atomic_json_write
 
 from .paths import is_windows_reserved_component, safe_path_token
 
+__layer__ = "stores"
+
 logger = logging.getLogger(__name__)
 
 _REALM_INBOX_DIRNAME = ".realm_inbox"
