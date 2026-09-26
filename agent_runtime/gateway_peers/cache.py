@@ -31,6 +31,9 @@ from .models import (
     REACHABILITY_REACHABLE,
     REACHABILITY_UNKNOWN,
     REACHABILITY_UNREACHABLE,
+    REASON_PEER_EXPIRED,
+    REASON_PEER_REVOKED,
+    REASON_PEER_REVOKED_YOU,
     PeerCacheRow,
     UsablePeer,
     _clean_fingerprint,
@@ -577,12 +580,6 @@ def _touch_cache(
 
 def unusable_reason(record: Any, cache: Any) -> str:
     """The resolver's own vocabulary, so one condition has one word everywhere."""
-
-    from ..gateway_targets import (
-        REASON_PEER_EXPIRED,
-        REASON_PEER_REVOKED,
-        REASON_PEER_REVOKED_YOU,
-    )
 
     if record.revoked:
         return REASON_PEER_REVOKED

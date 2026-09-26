@@ -300,8 +300,8 @@ def test_revoked_you_makes_the_next_send_refuse_deterministically_before_any_dia
     """
 
     from agent_runtime import serve_socket
+    from agent_runtime.gateway_peers.models import REASON_PEER_REVOKED_YOU
     from agent_runtime.gateway_targets import (
-        REASON_PEER_REVOKED_YOU,
         TargetRefusal,
         parse_install_target,
         resolve_install_target,

@@ -10,6 +10,7 @@ import pytest
 
 from agent_runtime import gateway_targets as gt
 from agent_runtime.gateway_peers import record_peer, revoke_peer
+from agent_runtime.gateway_peers.models import REASON_PEER_REVOKED
 
 
 # ── the grammar ──────────────────────────────────────────────────────────────
@@ -156,7 +157,7 @@ def test_a_revoked_edge_refuses_with_its_own_reason(tmp_path):
     refusal = gt.resolve_install_target(tmp_path, parsed)
     assert isinstance(refusal, gt.TargetRefusal)
     # NOT `unknown_peer_install`: an operator acts differently on the two.
-    assert refusal.reason == gt.REASON_PEER_REVOKED
+    assert refusal.reason == REASON_PEER_REVOKED
     assert "install-b" in refusal.message
 
 
@@ -191,10 +192,12 @@ def test_an_expired_row_refuses_with_peer_expired_and_a_revoked_you_row_with_its
     from the far install being down."""
 
     from agent_runtime.gateway_peers import apply_peer_announce, record_peer, revoke_peer
-    from agent_runtime.gateway_targets import (
+    from agent_runtime.gateway_peers.models import (
         REASON_PEER_EXPIRED,
         REASON_PEER_REVOKED,
         REASON_PEER_REVOKED_YOU,
+    )
+    from agent_runtime.gateway_targets import (
         TargetRefusal,
         parse_install_target,
         resolve_install_target,

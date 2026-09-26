@@ -52,6 +52,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .gateway_peers.models import (
+    REASON_PEER_EXPIRED,
+    REASON_PEER_REVOKED,
+    REASON_PEER_REVOKED_YOU,
+)
+
 __all__ = [
     "INSTALL_QUALIFIER",
     "MAX_INSTALL_REF_CHARS",
@@ -59,9 +65,6 @@ __all__ = [
     "REASON_AMBIGUOUS_INSTALL",
     "REASON_EMPTY_INSTALL",
     "REASON_EMPTY_TARGET",
-    "REASON_PEER_EXPIRED",
-    "REASON_PEER_REVOKED",
-    "REASON_PEER_REVOKED_YOU",
     "REASON_UNKNOWN_INSTALL",
     "InstallTarget",
     "ResolvedInstallTarget",
@@ -96,18 +99,6 @@ REASON_EMPTY_INSTALL = "install_qualifier_empty"
 REASON_EMPTY_TARGET = "install_qualifier_target_empty"
 REASON_UNKNOWN_INSTALL = "unknown_peer_install"
 REASON_AMBIGUOUS_INSTALL = "ambiguous_peer_install"
-REASON_PEER_REVOKED = "peer_revoked"
-#: S2. The credential lapsed (R-IP15 as amended). Its own reason because the
-#: operator's next move differs from a revocation's: nobody decided this, a
-#: clock ran out, and the cure is a fresh introduction rather than an argument
-#: about whether the edge should exist.
-REASON_PEER_EXPIRED = "peer_expired"
-#: S2c. The FAR operator cut the edge and told us so (``peer.announce``). A
-#: third word rather than folding into ``peer_revoked``, because "you revoked
-#: them" and "they revoked you" send an operator to different machines — and
-#: before the announce edge existed this state was indistinguishable from the
-#: far install being down.
-REASON_PEER_REVOKED_YOU = "peer_revoked_you"
 
 
 @dataclass(frozen=True, slots=True)
@@ -332,7 +323,8 @@ def resolve_install_ref(store_root: Path | str, install_ref: str):
     revoked you* instead of the flat "no such install" all three used to be.
     """
 
-    from .gateway_peers import list_peers, usable_peers
+    from .gateway_peers.cache import usable_peers
+    from .gateway_peers.trust_store import list_peers
 
     root = Path(store_root)
     ref = str(install_ref or "").strip()
@@ -371,7 +363,7 @@ def resolve_install_ref(store_root: Path | str, install_ref: str):
 def _refuse_unmatched(root, ref: str, usable, every_row):
     """Why nothing usable matched *ref*, in the operator's own vocabulary."""
 
-    from .gateway_peers import read_peer_cache
+    from .gateway_peers.cache import read_peer_cache
 
     folded = ref.casefold()
     unusable = [

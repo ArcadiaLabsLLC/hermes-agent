@@ -80,6 +80,23 @@ PEER_AUTH_REASONS: Final[tuple[str, ...]] = (
     PEER_AUTH_EXPIRED,
 )
 
+#: The three peer-edge words ``gateway_targets`` refuses a target with and
+#: ``cache.unusable_reason`` classifies a row by — one condition, one word.
+#: They live with the peer vocabulary (lane L1) so a ``models`` reader need not
+#: reach the resolver.
+REASON_PEER_REVOKED = "peer_revoked"
+#: S2. The credential lapsed (R-IP15 as amended). Its own reason because the
+#: operator's next move differs from a revocation's: nobody decided this, a
+#: clock ran out, and the cure is a fresh introduction rather than an argument
+#: about whether the edge should exist.
+REASON_PEER_EXPIRED = "peer_expired"
+#: S2c. The FAR operator cut the edge and told us so (``peer.announce``). A
+#: third word rather than folding into ``peer_revoked``, because "you revoked
+#: them" and "they revoked you" send an operator to different machines — and
+#: before the announce edge existed this state was indistinguishable from the
+#: far install being down.
+REASON_PEER_REVOKED_YOU = "peer_revoked_you"
+
 
 # ── typed results ────────────────────────────────────────────────────────────
 
