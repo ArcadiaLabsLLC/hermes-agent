@@ -95,7 +95,7 @@ def path_refusal(rel: str) -> tuple[str, str] | None:
     """
 
     from .realm_sync import _is_hard_excluded_path, _is_secretish_path
-    from .skill_promotion import is_windows_reserved_component
+    from .paths import is_windows_reserved_component
 
     text = str(rel or "").replace("\\", "/")
     if not text.strip():

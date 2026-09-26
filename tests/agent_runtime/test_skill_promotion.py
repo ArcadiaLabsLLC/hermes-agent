@@ -464,7 +464,7 @@ def test_execute_toctou_occupied_canonical_returns_refused_not_raise(tmp_path):
 
 
 def test_is_windows_reserved_component_matrix():
-    from agent_runtime.skill_promotion import is_windows_reserved_component
+    from agent_runtime.paths import is_windows_reserved_component
 
     for reserved in ("con", "CON", "Con", "con.md", "con.tar.gz", "nul", "prn",
                      "aux", "com1", "com9", "lpt1", "lpt9", "  con  "):
@@ -483,11 +483,11 @@ def test_mirror_skips_reserved_name_package(tmp_path, monkeypatch):
     # the mirror's skip-and-report machinery from OS quirks by treating a benign
     # marker as "reserved" — ``is_windows_reserved_component`` itself is proven
     # over the real device names by ``test_is_windows_reserved_component_matrix``.
-    from agent_runtime import skill_promotion
+    from agent_runtime import paths
     from agent_runtime.realm_sync import _mirror_realm_skill_inbox
 
     monkeypatch.setattr(
-        skill_promotion,
+        paths,
         "is_windows_reserved_component",
         lambda c: str(c or "").split(".", 1)[0].strip().lower() == "blocked",
     )

@@ -440,10 +440,10 @@ def test_pull_refuses_reserved_name_package_and_completes(tmp_path, monkeypatch)
     # dir/file can't be materialized on Windows (the OS forbids it / redirects to
     # the device), so a benign marker stands in for the device name here; the
     # reserved-name recognition itself is proven in test_skill_promotion.py.
-    from agent_runtime import skill_promotion
+    from agent_runtime import paths
 
     monkeypatch.setattr(
-        skill_promotion,
+        paths,
         "is_windows_reserved_component",
         lambda c: str(c or "").split(".", 1)[0].strip().lower() == "blocked",
     )

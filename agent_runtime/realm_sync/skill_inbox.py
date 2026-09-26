@@ -338,7 +338,7 @@ def _mirror_realm_skill_inbox(
     publish EOL guard, ``test_realm_sync_eol.py``).
     """
 
-    from ..skill_promotion import is_windows_reserved_component
+    from ..paths import is_windows_reserved_component
 
     # First pass: collect legal source files and the set of top-level package
     # families that contain a reserved-device-name component anywhere in their

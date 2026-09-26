@@ -47,7 +47,7 @@ from agent_runtime.profile_home import get_shared_skills_dir
 from hermes_time import now
 from utils import atomic_json_write
 
-from .paths import safe_path_token
+from .paths import is_windows_reserved_component, safe_path_token
 
 logger = logging.getLogger(__name__)
 
@@ -59,39 +59,6 @@ _ARCHIVE_DIRNAME = ".archive"
 # path hygiene allows. A category slug is exactly two such components joined by
 # a single ``/`` (multi-level nesting is out of scope — design §"Out of scope").
 _SLUG_COMPONENT_RE = re.compile(r"^[A-Za-z0-9_.-]{1,120}$")
-
-# Windows reserved device basenames. A path component whose STEM (the text
-# before the first ``.``, case-insensitive, trailing dots/spaces stripped)
-# resolves to one of these names is illegal as a directory/file on Windows —
-# ``con``, ``con.md``, ``NUL`` etc. all address the device, not a path — so a
-# realm publishing a package named after one would crash the inbox mirror on
-# Windows (a pull DoS). Rejected here in :func:`_validate_slug` (so it can never
-# be promoted) and skipped by the pull mirror (``_mirror_realm_skill_inbox``)
-# before any write is attempted, on every platform for deterministic behaviour.
-_WINDOWS_RESERVED_NAMES = frozenset(
-    {
-        "con",
-        "prn",
-        "aux",
-        "nul",
-        *(f"com{i}" for i in range(1, 10)),
-        *(f"lpt{i}" for i in range(1, 10)),
-    }
-)
-
-
-def is_windows_reserved_component(component: str) -> bool:
-    """True when a single path component maps to a Windows reserved device name.
-
-    Windows resolves ``con``, ``con.txt``, ``CON``, ``nul``, ``com1`` … to the
-    device regardless of extension or case, and strips trailing dots/spaces, so
-    the check is on the lower-cased stem (text before the first ``.``, trimmed).
-    """
-
-    stem = str(component or "").split(".", 1)[0].strip().rstrip(".").lower()
-    return stem in _WINDOWS_RESERVED_NAMES
-
-
 # ── Dataclasses (pinned API) ───────────────────────────────────────────────
 
 
