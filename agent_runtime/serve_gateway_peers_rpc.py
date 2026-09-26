@@ -52,7 +52,8 @@ import threading
 from pathlib import Path
 from typing import Any, Callable
 
-from .gateway_peers import unusable_reason
+from .gateway_peers.cache import unusable_reason
+from .gateway_peers.trust_store import add_peer_event_listener
 
 __all__ = [
     "PEER_DIRECTORY_CONTRACT",
@@ -114,7 +115,8 @@ def peer_directory_rows(store_root: Any) -> list[dict]:
     needs. ``usable`` and ``unusable_reason`` are what let a sheet group them.
     """
 
-    from .gateway_peers import list_peers, read_peer_cache, usable_peers
+    from .gateway_peers.cache import read_peer_cache, usable_peers
+    from .gateway_peers.trust_store import list_peers
 
     cache = read_peer_cache(store_root)
     refs = {peer.record.peer_install_id: peer.ref for peer in usable_peers(store_root)}
@@ -261,12 +263,8 @@ def publish_peer_event(
     row = None
     revision: list[int] = []
     try:
-        from .gateway_peers import (
-            list_peers,
-            peer_store_revision,
-            read_peer_cache,
-            usable_peers,
-        )
+        from .gateway_peers.cache import read_peer_cache, usable_peers
+        from .gateway_peers.trust_store import list_peers, peer_store_revision
         from .gateway_targets import peer_store_root
 
         root = Path(store_root) if store_root is not None else peer_store_root()
@@ -304,3 +302,11 @@ def publish_peer_event(
     if grant_id:
         params["grant_id"] = str(grant_id)
     PEER_DIRECTORY_SUBSCRIPTIONS.publish(params)
+
+
+# The store calls DOWN into nothing: it keeps a listener list and this lane
+# registers into it (lanes -> stores). Registered when this module loads, which
+# is exactly the processes that can have a subscriber — the subscription
+# registry above lives here — so a CLI write that never loads it notifies no
+# one, as the store's old lazy import of this function did.
+add_peer_event_listener(publish_peer_event)

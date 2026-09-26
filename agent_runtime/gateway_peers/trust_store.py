@@ -13,7 +13,7 @@ import hashlib
 import hmac
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from ..gateway_identity import clean_display_name
 from ..serve_gateway_auth import StoreRefusal, store_lock
@@ -45,6 +45,21 @@ from .models import (
 )
 
 __layer__ = "stores"
+
+#: Who hears a peer event besides the EventLog, called at the SAME site the
+#: event is appended. The serve's push lane registers
+#: ``serve_gateway_peers_rpc.publish_peer_event`` here when it loads; a CLI
+#: ``peers join`` process registers nothing and notifies no one. A list rather
+#: than an import because a credential store must not depend on the serve's RPC
+#: surface (lane L1 inverted the deferred store -> lane import this replaces).
+_peer_event_listeners: list[Callable[..., None]] = []
+
+
+def add_peer_event_listener(listener: Callable[..., None]) -> None:
+    """Register *listener* for ``(event_type, payload, *, store_root)``; idempotent."""
+
+    if listener not in _peer_event_listeners:
+        _peer_event_listeners.append(listener)
 
 
 # ── the derivation ───────────────────────────────────────────────────────────
@@ -561,12 +576,12 @@ def _emit_peer_event(
     # from here is what stops the two lanes disagreeing about WHEN something
     # changed: one write, one process, one moment.
     #
-    # Imported lazily and guarded: this is a credential store, and it must not
-    # take a hard dependency on the serve's RPC surface — a CLI ``peers join``
-    # runs this function in a process where nobody is subscribed to anything.
-    try:
-        from ..serve_gateway_peers_rpc import publish_peer_event
-
-        publish_peer_event(event_type, dict(payload), store_root=store_root)
-    except Exception:  # noqa: BLE001 — a notification is never the mutation
-        pass
+    # Through the listener list and guarded: this is a credential store, and it
+    # must not take a hard dependency on the serve's RPC surface — a CLI
+    # ``peers join`` runs this function in a process where nobody is subscribed
+    # to anything.
+    for listener in tuple(_peer_event_listeners):
+        try:
+            listener(event_type, dict(payload), store_root=store_root)
+        except Exception:  # noqa: BLE001 — a notification is never the mutation
+            pass
