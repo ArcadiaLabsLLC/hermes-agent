@@ -11,7 +11,7 @@ from ..serde import positive_float, positive_int
 from .outcomes import McpAdmission, McpAdmissionDenial
 from .vocabulary import LANE_MISSION_CHAT, MCP_ADMISSION_DISABLED, MCP_OPERATING_SKILLS, MCP_READ_ONLY_SUBSET_UNKNOWN, MCP_SERVER_NOT_CONFIGURED, READ_ONLY_EXCLUDED_TOOLS, READ_ONLY_INCLUDED_TOOLS, _DEFAULT_CONNECT_TIMEOUT_SECONDS, _DEFAULT_MAX_TOOL_CALLS_PER_RUN, _MCP_TOOLSET_PREFIX, logger
 
-__layer__ = "policy"
+__layer__ = "stores"
 
 
 def admission_config(cfg: Any | None = None):
