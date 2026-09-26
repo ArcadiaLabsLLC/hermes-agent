@@ -3651,10 +3651,10 @@ TOMBSTONES: tuple[Tombstone, ...] = (
     # -- lane ACP-DROP (2026-09-26) ----------------------------------------
     # Owner ruling 2026-09-26: "we aren't using ACP, just remove that." The
     # fork's ACP surface went: acp_adapter/ back to byte-identical upstream at
-    # 4ddc4f0ce8, the skills binding and its notes deleted at 6d5f84e583.
+    # f6894e3497, the skills binding and its notes deleted at 4d61ced864.
     *rows(
         "s-acpdrop",
-        "6d5f84e583",
+        "4d61ced864",
         Form.MODULE,
         "the fork's ACP session-skills binding; ACP is not used (owner "
         "ruling 2026-09-26), so no fork module may bind acp again",
@@ -3662,7 +3662,7 @@ TOMBSTONES: tuple[Tombstone, ...] = (
     ),
     *rows(
         "s-acpdrop",
-        "6d5f84e583",
+        "4d61ced864",
         Form.CODE,
         "the ACP skills-inspection binding's exports; an upstream sync must "
         "not hand them back into acp_adapter (owner ruling 2026-09-26)",
@@ -3672,7 +3672,7 @@ TOMBSTONES: tuple[Tombstone, ...] = (
     ),
     *rows(
         "s-acpdrop",
-        "4ddc4f0ce8",
+        "f6894e3497",
         Form.CODE,
         "the fork's named-provider identity carry inside acp_adapter/session.py; "
         "acp_adapter is byte-identical upstream again (owner ruling 2026-09-26)",
@@ -3680,7 +3680,7 @@ TOMBSTONES: tuple[Tombstone, ...] = (
     ),
     *rows(
         "s-acpdrop",
-        "6d5f84e583",
+        "4d61ced864",
         Form.PATH,
         "the ACP identity carry and session-skills contract notes; the "
         "surface they documented is gone (owner ruling 2026-09-26)",

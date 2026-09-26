@@ -44,7 +44,7 @@ The subsequent rebase contains documentation only, with no touched-code overlap.
 
 The separately run frozen-home gate still names `gateway/mirror.py` and
 `tui_gateway/server.py`, as the skills verification did (that note was deleted with the
-ACP surface, lane ACP-DROP; last present at `4ddc4f0ce8`).
+ACP surface, lane ACP-DROP; last present at `f6894e3497`).
 Existing queue rows retain gateway, fixture/history, empty-WAL and frozen-home
 work. New rows record provider seam fixtures and auth-test classification;
 no skip, xfail or assertion was added to conceal these failures.
