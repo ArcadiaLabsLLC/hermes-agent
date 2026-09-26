@@ -128,3 +128,10 @@ def login_nous_account(on_verification) -> None:
     state = _nous_device_code_login(open_browser=False, on_verification=on_verification)
     persist_provider_login("nous", state)
     _sync_nous_pool_from_auth_store()
+
+
+def login_xai_account(on_verification) -> None:
+    """A fresh grant belongs to this profile, never the account it previously borrowed."""
+    from hermes_cli.auth import persist_provider_login
+    state = _xai_oauth_device_code_login(open_browser=False, on_verification=on_verification)
+    persist_provider_login("xai-oauth", {**state, "auth_mode": "oauth_device_code"})
