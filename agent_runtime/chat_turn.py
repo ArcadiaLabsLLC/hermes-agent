@@ -465,16 +465,6 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
     )
 
 
-#: The ``--requested-by`` prefix a peer-executed turn carries. Beside
-#: ``gateway_device`` (a device's, hardcoded in :func:`normalize_chat_message`)
-#: and ``agent:<session>`` (a local relay's, ``tools/agent_chat_tool``). The
-#: install id after the colon is the ONE variable part, and it is the reason
-#: this is a prefix rather than a constant: an operator on B reading their own
-#: chat has to be able to see WHICH paired install asked, and "a peer" would not
-#: tell them.
-PEER_REQUESTED_BY_PREFIX = "peer:"
-
-
 def normalize_peer_chat_execute(
     params: dict, *, peer_install_id: str
 ) -> ChatTurnRequest:
@@ -549,6 +539,7 @@ def normalize_peer_chat_execute(
             )
 
     from .persona_assignments import safe_assignment_token
+    from .serve_rpc.protocol import PEER_REQUESTED_BY_PREFIX
 
     instance_id = target if safe_assignment_token(target).startswith("personainst_") else ""
 
@@ -677,7 +668,7 @@ def perform_chat_turn(
     lose.
     """
 
-    from .serve_rpc import ERR_CONFLICT, ERR_HANDLER_FAILED, ERR_INVALID_PARAMS
+    from .serve_rpc.protocol import ERR_CONFLICT, ERR_HANDLER_FAILED, ERR_INVALID_PARAMS
 
     try:
         if verb == CHAT_MESSAGE_METHOD:

@@ -31,7 +31,7 @@ import types
 import pytest
 
 from agent_runtime import dispatch_store, media_handles, media_proxy
-from agent_runtime.chat_turn import PEER_REQUESTED_BY_PREFIX
+from agent_runtime.serve_rpc.protocol import PEER_REQUESTED_BY_PREFIX
 from agent_runtime.dispatch_store import (
     STATE_COMPLETED,
     get_dispatch,

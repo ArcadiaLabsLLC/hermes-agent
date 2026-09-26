@@ -147,6 +147,7 @@ __all__ = [
     "ERR_METHOD_NOT_FOUND",
     "ERR_NOT_FOUND",
     "JSONRPC_VERSION",
+    "PEER_REQUESTED_BY_PREFIX",
     "RPC_CONTRACT_VERSION",
     "RpcContext",
     "deferred_reply",
@@ -188,6 +189,16 @@ ERR_NOT_FOUND = 4001
 # Fork-minted; see the module docstring for why the number is 4090 and not the
 # 4002 a first guess reaches for.
 ERR_CONFLICT = 4090
+
+
+#: The ``--requested-by`` prefix a peer-executed turn carries. Beside
+#: ``gateway_device`` (a device's, hardcoded in :func:`normalize_chat_message`)
+#: and ``agent:<session>`` (a local relay's, ``tools/agent_chat_tool``). The
+#: install id after the colon is the ONE variable part, and it is the reason
+#: this is a prefix rather than a constant: an operator on B reading their own
+#: chat has to be able to see WHICH paired install asked, and "a peer" would not
+#: tell them.
+PEER_REQUESTED_BY_PREFIX = "peer:"
 
 
 def ok(rid: Any, result: dict) -> dict:

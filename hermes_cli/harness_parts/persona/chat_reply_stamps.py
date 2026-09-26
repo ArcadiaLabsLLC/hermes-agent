@@ -90,7 +90,7 @@ def _stamp_reply_media(data: dict, reply_text, args) -> dict:
 
     try:
         requested_by = str(getattr(args, "requested_by", "") or "")
-        from agent_runtime.chat_turn import PEER_REQUESTED_BY_PREFIX
+        from agent_runtime.serve_rpc.protocol import PEER_REQUESTED_BY_PREFIX
 
         if not requested_by.startswith(PEER_REQUESTED_BY_PREFIX):
             return data
