@@ -73,6 +73,8 @@ from agent_runtime.runtime_config import (
     STICKY,
 )
 
+__layer__ = "policy"
+
 #: Typed reasons carried in the ``session_established`` envelope block. A caller
 #: (human reading Mission Control, or an agent reading its own tool result) can
 #: always tell WHY it landed in the session it landed in.
