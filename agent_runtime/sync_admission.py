@@ -41,6 +41,8 @@ from typing import Any
 
 from .redaction import SECRET_ASSIGNMENT_RE
 
+__layer__ = "policy"
+
 #: Free-text keys pruned before the portability walk, at ANY depth. These carry
 #: operator/agent English (board card titles + descriptions + checklist text,
 #: column titles, office folder names, actor display names), where an absolute
