@@ -88,3 +88,8 @@ def browser_login_command(provider: str, *, home: str, flow: str | None = None) 
         logging.disable(previous_logging)
     emit({"event": "done", "ok": True})
     return 0
+
+
+def persist_provider_login(provider_id: str, state: Dict[str, Any]) -> Path:
+    """Save a fresh login to the selected store without changing inference selection."""
+    return _persist_provider_state_to_store(provider_id, state, _auth_file_path(), set_active=False)
