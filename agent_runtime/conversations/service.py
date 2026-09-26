@@ -37,6 +37,7 @@ class ConversationService:
 
     def capabilities(self) -> dict:
         return {"version": 1, "install_id": self.install_id, "accepting": not self._draining,
+                "execution_identity_guard": True,
                 "images": True, "models": True, "skills": True,
                 "independent_sessions": True, "disconnect_keeps_work": True}
 
@@ -141,10 +142,7 @@ class ConversationService:
     def read(self, scope: ConversationScope, session_id: str, cursor: int,
              turn_id: str | None = None) -> dict:
         live = self._session(scope, session_id)
-        result = live.snapshot(cursor)
-        if turn_id is not None:
-            result["turn"] = {"turn_id": turn_id, "state": self.store.turn(live.route, turn_id).state}
-        return result
+        return live.snapshot(cursor, turn_id)
 
     def stop(self, scope: ConversationScope, session_id: str, turn_id: str) -> dict:
         live = self._session(scope, session_id)
@@ -200,3 +198,13 @@ class ConversationService:
         with self._lock:
             self._draining = True
         self._workers.close()
+
+    def drain_pending(self, *, close_idle: bool) -> list[str]:
+        """An unreadable receipt or unclosed worker holds drain, never kills it."""
+        try:
+            pending = self.begin_drain()
+            if close_idle and not pending:
+                self.close()
+            return ["conversation:" + key for key in pending]
+        except Exception:
+            return ["conversation:recovery-unavailable"]

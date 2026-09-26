@@ -29,6 +29,8 @@ class NativePeer:
         self._write_lock = threading.Lock()
         self._pending: dict[str, Future] = {}
         self._closed = False
+        self._close_lock = threading.Lock()
+        self._disposed = False
         self._reader = threading.Thread(target=self._read, daemon=True,
                                         name="native-conversation-reader")
         self._reader.start()
@@ -111,6 +113,13 @@ class NativePeer:
 
     def close(self) -> None:
         """Explicit service shutdown only; never invoked for view/socket loss."""
+        with self._close_lock:
+            if self._disposed:
+                return
+            self._dispose()
+            self._disposed = True
+
+    def _dispose(self) -> None:
         closer = threading.Thread(target=self._close_input, daemon=True,
                                   name="native-conversation-close")
         closer.start()
@@ -136,5 +145,5 @@ class NativePeer:
         with self._write_lock:
             try:
                 self.process.stdin.close()
-            except (BrokenPipeError, OSError):
+            except (BrokenPipeError, OSError, ValueError):
                 pass

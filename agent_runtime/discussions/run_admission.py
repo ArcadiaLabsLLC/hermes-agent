@@ -9,7 +9,7 @@ from typing import Any, Callable, Mapping
 from hermes_cli.sqlite_util import transaction
 
 from .definition_store import DefinitionKind, _encode, _expect, _key, _required
-from .definitions import ParticipantRef, identifier, plan_seats, revision
+from .definitions import ParticipantRef, identifier, plan_seats
 from .room_definition import RoomSpec
 from .run_records import _add_member, _run
 from .run_values import DiscussionError, digest, text

@@ -14,6 +14,7 @@ PREFIX = "runtime.discussion."
 # catch-all action endpoint. Explicit fields also drive the compatibility fixture.
 METHODS: dict[str, tuple[str, tuple[str, ...], tuple[str, ...]]] = {
     "capabilities": ("read", (), ()),
+    "workspaces": ("read", (), ()),
     "roster": ("read", ("workspace_id",), ()),
     "table.list": ("read", ("workspace_id",), ("limit", "after")),
     "table.get": ("read", ("workspace_id", "table_id"), ()),

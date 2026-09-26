@@ -235,12 +235,10 @@ class DrainLane:
                 )
             owner = getattr(self, "conversation_owner", None)
             if owner is not None:
-                native_ids = ["conversation:" + key for key in owner.begin_drain()]
+                native_ids = owner.drain_pending(close_idle=not remaining)
                 remaining.extend(native_ids)
                 chat_turn_ids.extend(native_ids)
             if not remaining:
-                if owner is not None:
-                    owner.close()
                 self._finish_drain(
                     0,
                     {

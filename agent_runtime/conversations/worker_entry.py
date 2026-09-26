@@ -1,6 +1,8 @@
 """Native gateway composition for the harness-owned conversation worker."""
 from __future__ import annotations
 
+import hermes_bootstrap  # Activate the selected installation's dependency owner first.
+
 __layer__ = "wiring"
 
 
