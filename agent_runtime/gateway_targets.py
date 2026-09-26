@@ -58,6 +58,8 @@ from .gateway_peers.models import (
     REASON_PEER_REVOKED_YOU,
 )
 
+__layer__ = "stores"
+
 __all__ = [
     "INSTALL_QUALIFIER",
     "MAX_INSTALL_REF_CHARS",
