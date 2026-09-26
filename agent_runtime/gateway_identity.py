@@ -103,6 +103,8 @@ from .paths import install_record_path
 from .store_file_io import os_error_reason as _error_reason
 from .store_file_io import read_raw_text as _read_raw
 
+__layer__ = "stores"
+
 __all__ = [
     "DISPLAY_NAME_MAX_CHARS",
     "InstallIdentity",
