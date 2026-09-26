@@ -439,7 +439,8 @@ def _assert_portable_artifacts(artifacts: list[RealmSyncArtifact]) -> None:
     named in one typed error so an operator fixes them in a single pass.
     """
 
-    from ..persona_config_sync import NONPORTABLE_HINT, find_nonportable_values, raw_persona_overrides
+    from ..persona_config_sync import raw_persona_overrides
+    from ..sync_admission import NONPORTABLE_HINT, find_nonportable_values
 
     offenders: list[dict[str, str]] = []
     for artifact in artifacts:

@@ -28,10 +28,9 @@ from agent_runtime.persona_config_sync import (
     PERSONA_DEF_ALLOWED_KEYS,
     PROJECTION_KIND,
     PROJECTION_RELATIVE_PATH,
-    find_nonportable_values,
-    nonportable_reason,
     project_persona_definitions,
 )
+from agent_runtime.sync_admission import find_nonportable_values, nonportable_reason
 from agent_runtime.realm_sync import (
     RealmSyncArtifact,
     RealmSyncError,

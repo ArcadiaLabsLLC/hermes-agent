@@ -215,7 +215,7 @@ def project_persona_instances(
     """
 
     from ..persona_assignments.identity import is_canonical_persona_channel
-    from ..persona_config_sync import find_nonportable_values
+    from ..sync_admission import find_nonportable_values
 
     records = records or {}
     instances: dict[str, dict[str, Any]] = {}

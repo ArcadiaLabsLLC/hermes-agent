@@ -34,6 +34,7 @@ Two deliberate posture rules, both learned the hard way in this subsystem:
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -62,6 +63,79 @@ PROSE_KEYS: frozenset[str] = frozenset(
 #: are traversal; empty is malformed. Absolute/drive-letter/UNC shapes are
 #: rejected by :func:`path_refusal` structurally rather than by name.
 _UNSAFE_COMPONENTS = frozenset({"", ".", ".."})
+
+
+# --- portability validation -------------------------------------------------
+
+# A Windows drive-letter path (``X:\...`` / ``x:/...``) ANYWHERE in a value. The
+# negative lookbehind keeps URL schemes out: ``http://host`` contains ``p://``
+# but its ``p`` is preceded by ``t``. Case-insensitive by construction.
+_DRIVE_LETTER_RE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]")
+
+# A UNC share (``\\host\share``). Written as two literal backslashes followed by
+# a hostname component and a separator.
+_UNC_RE = re.compile(r"\\\\[A-Za-z0-9_.-]+[\\/]")
+
+# A POSIX-absolute path as the WHOLE value: leading ``/`` plus at least two
+# whitespace-free segments (``/home/tony/repo``, ``/opt/hermes/bin``). Anchored
+# and whitespace-free on purpose — an unanchored ``^/`` rule fires on prose like
+# ``"/help /clear"`` and a refusal that bricks a publish over a display-name
+# false positive is a failure class this file has already paid for. The known,
+# accepted miss is a POSIX path containing spaces (``/home/my user/repo``);
+# missing a rare path beats bricking every publish.
+_POSIX_ABS_RE = re.compile(r"^/(?:[^/\s]+/)+[^/\s]*$")
+
+
+def nonportable_reason(value: Any) -> str | None:
+    """Return a typed reason when ``value`` is machine/installation-shaped.
+
+    ``None`` means portable. Non-strings are always portable (numbers, bools).
+    Whitespace cannot defeat the check: drive-letter/UNC are scanned anywhere in
+    the raw string, and the POSIX rule runs on the stripped value.
+    """
+
+    if not isinstance(value, str):
+        return None
+    if _DRIVE_LETTER_RE.search(value):
+        return "drive_letter_path"
+    if _UNC_RE.search(value):
+        return "unc_path"
+    if _POSIX_ABS_RE.match(value.strip()):
+        return "posix_absolute_path"
+    return None
+
+
+def find_nonportable_values(data: Any, *, prefix: str = "") -> list[dict[str, str]]:
+    """Walk a projected structure and return EVERY machine-shaped leaf.
+
+    Rows are ``{"key": <dotted path>, "reason": <typed>, "value": <preview>}``.
+    All offenders are returned in one pass so the caller can name them in a
+    single typed error (the "name ALL offenders" precedent) instead of making an
+    operator re-run the publish once per bad key.
+    """
+
+    offenders: list[dict[str, str]] = []
+    if isinstance(data, dict):
+        for key in sorted(data, key=str):
+            offenders.extend(find_nonportable_values(data[key], prefix=f"{prefix}.{key}" if prefix else str(key)))
+        return offenders
+    if isinstance(data, (list, tuple)):
+        for index, item in enumerate(data):
+            offenders.extend(find_nonportable_values(item, prefix=f"{prefix}[{index}]"))
+        return offenders
+    reason = nonportable_reason(data)
+    if reason is not None:
+        offenders.append({"key": prefix or "<root>", "reason": reason, "value": str(data)[:200]})
+    return offenders
+
+
+NONPORTABLE_HINT = (
+    "Machine-shaped values cannot travel to another member (or another OS). "
+    "Remove the absolute path from the persona definition, or express it "
+    "portably — 'repo_scope' is already excluded from realm sync; use "
+    "'repo_scope_label' for the human name and let each member bind their own "
+    "checkout. MCP server commands/env are never published."
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,8 +254,6 @@ def payload_refusal(
     prose-pruned payload. ALL portability offenders are named in one message
     (the "name ALL offenders" precedent) so an operator sees the full picture.
     """
-
-    from .persona_config_sync import find_nonportable_values
 
     try:
         encoded = json.dumps(payload, sort_keys=True, default=str)
