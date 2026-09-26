@@ -23,6 +23,12 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-09-26 (lane PF-3, filed by the orchestrator)
+
+- [ ] **`mission_chat_phases.TURN_TIMING_ORDER` still maps `responses_create_ms` ← `profile_provider_responses_create_ms`, which no receipt writes after PF-3 (§4 Q4 dropped client_resolve): the launcher's turn-timing key is permanently empty — retire the key or map it to the dispatch span** · `fork / observability` · evidence: plugin-fit sheet §4, `agent_runtime/codex_observability.py`, lane PF-3 report (landed 5c24dd925d) · filed 2026-09-26 (lane PF-3) **UNCLAIMED**
+- [ ] **`agent_runtime/skill_inspection.py::skill_inspection_reader` has zero production callers (only its test): wire the launcher's reader to it or delete it with its door `_upstream_doors.skills_tool_inspection_doors`** · `fork / skills` · evidence: plugin-fit sheet §4, `agent_runtime/codex_observability.py`, lane PF-3 report (landed 5c24dd925d) · filed 2026-09-26 (lane PF-3) **UNCLAIMED**
+- [ ] **Registering `on_stream_*` observers in the plugin makes `agent._has_stream_consumers()` True for EVERY agent in a plugin-loaded process (read by `turn_api_call._should_stream` for moa/Mock, the post-response mute in `status_output`, the spinner in `turn_iteration_prep` / `turn_tool_round`): measure the CLI display and moa behaviour under the plugin, or gate the observers to the persona lane** · `fork / plugin` · evidence: plugin-fit sheet §4, `agent_runtime/codex_observability.py`, lane PF-3 report (landed 5c24dd925d) · filed 2026-09-26 (lane PF-3) **UNCLAIMED**
+
 ### Filed on arrival — 2026-09-26 (the wedged live serve, owner screenshot 15:05; filed by the orchestrator)
 
 - [ ] **A stdio serve whose parent dies shuts down in the wrong order: `_serve_until_eof` joins the worker pool (`pool.shutdown(wait=True)`) BEFORE `_close_socket_lane` / lock release / the end note, so ONE stuck worker keeps a dead runtime registered as the live socket owner with its listener open — pid 33312 sat that way from 13:22 to 15:18 and every launcher attached to it** · `fork / serve` · fix shape: close the lane, release the lock and write the end note FIRST, then a bounded pool shutdown under the same exit watchdog the drain arms · evidence: `X:/wt/_holds/serve-wedge-0926/README.md` (timeline), `stacks.txt` (thread dump), the probe's `drain_in_progress` line · filed on arrival 2026-09-26 (orchestrator, owner screenshot) **UNCLAIMED**
