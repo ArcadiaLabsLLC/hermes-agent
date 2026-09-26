@@ -597,9 +597,9 @@ def _print_stage42(data: dict, *, args, default_output: str | None = None) -> No
     if output == "json":
         print(emit_json(data))
     elif output == "yaml":
-        import yaml
+        from agent_runtime import yaml_io
 
-        print(yaml.safe_dump(json.loads(emit_json(data)), sort_keys=False, allow_unicode=True))
+        print(yaml_io.dump(json.loads(emit_json(data)), sort_keys=False, allow_unicode=True))
     else:
         print(_table_output(data, wide=output == "wide"))
 

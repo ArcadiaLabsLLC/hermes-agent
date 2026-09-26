@@ -63,12 +63,12 @@ def cached_by_mtime(path: Path, loader: Callable[[Path], Any], *, default: Any =
 
 
 def cached_yaml_file(path: Path, *, default: Any = None) -> Any:
-    """mtime-cached ``yaml.safe_load`` of a file. Returns ``default`` if absent/bad."""
+    """mtime-cached ``yaml_io.load`` of a file. Returns ``default`` if absent/bad."""
 
     def _load(p: Path) -> Any:
-        import yaml
+        from agent_runtime import yaml_io
 
-        return yaml.safe_load(p.read_text(encoding="utf-8"))
+        return yaml_io.load(p.read_text(encoding="utf-8"))
 
     return cached_by_mtime(path, _load, default=default)
 

@@ -12,7 +12,7 @@ from datetime import datetime
 from functools import singledispatch
 from typing import Any
 
-import yaml
+from agent_runtime import yaml_io
 
 from ..models import looks_like_persona_instance_id
 from .contract import (
@@ -71,7 +71,7 @@ class PersonaInstanceProjection:
         unchanged projection is a byte-for-byte no-op, so the publish
         change-detector (``_published_artifacts_differ``) stays honest."""
 
-        text = yaml.safe_dump(
+        text = yaml_io.dump(
             self.document(),
             sort_keys=True,
             default_flow_style=False,

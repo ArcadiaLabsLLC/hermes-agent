@@ -13,7 +13,7 @@ import math
 from pathlib import Path
 import uuid
 
-import yaml
+from agent_runtime import yaml_io
 
 LOAD_DEFAULTS = {"context_size": 32768, "gpu_layers": "auto", "flash_attention": "auto",
                  "cache_type_k": "f16", "cache_type_v": "f16", "chat_template_path": None}
@@ -140,8 +140,8 @@ class ConfigStore:
         if not self.path.exists():
             return default_config()
         try:
-            document = yaml.safe_load(self.path.read_bytes()) or {}
-        except (yaml.YAMLError, OSError) as exc:
+            document = yaml_io.load(self.path.read_bytes()) or {}
+        except (yaml_io.YAMLError, OSError) as exc:
             raise LocalLlamaError("invalid_config", "Cannot read the Hermes root configuration") from exc
         if not isinstance(document, dict):
             raise LocalLlamaError("invalid_config", "Root config must be a mapping")

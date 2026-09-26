@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Mapping
 
-import yaml
+from agent_runtime import yaml_io
 
 from ..dispatch_session_policy import normalize_dispatch_session_policy
 from ..permission_modes import (
@@ -43,8 +43,8 @@ def _string_list(value: Any) -> list[str]:
             return []
         if text.startswith("["):
             try:
-                decoded = yaml.safe_load(text)
-            except yaml.YAMLError:
+                decoded = yaml_io.load(text)
+            except yaml_io.YAMLError:
                 decoded = None
             if isinstance(decoded, list):
                 return [str(item).strip() for item in decoded if str(item).strip()]

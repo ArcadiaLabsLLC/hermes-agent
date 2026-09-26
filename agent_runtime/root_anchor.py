@@ -475,7 +475,7 @@ def _merge_keys(
     Returns one :class:`_KeyMerge` per requested key, always.
     """
 
-    import yaml
+    from agent_runtime import yaml_io
 
     def every(outcome: RootAnchorOutcome, detail: str = "") -> dict[str, _KeyMerge]:
         return {key: _KeyMerge(outcome, detail) for key in values}
@@ -495,8 +495,8 @@ def _merge_keys(
             except UnicodeDecodeError:
                 return every(RootAnchorOutcome.UNWRITABLE, "config_not_utf8")
             try:
-                parsed = yaml.safe_load(original_text)
-            except yaml.YAMLError:
+                parsed = yaml_io.load(original_text)
+            except yaml_io.YAMLError:
                 # A file we cannot understand is a file we must not touch.
                 return every(RootAnchorOutcome.UNWRITABLE, "config_unparseable")
             if parsed is not None and not isinstance(parsed, dict):
@@ -556,8 +556,8 @@ def _merge_keys(
         # keys.
         expected = {**base, "agent_runtime": {**existing_block, **composed}}
         try:
-            reparsed = yaml.safe_load(text)
-        except yaml.YAMLError:
+            reparsed = yaml_io.load(text)
+        except yaml_io.YAMLError:
             reparsed = None
             detail = "merged_text_unparseable"
         else:
@@ -611,11 +611,11 @@ def _recorded_values(config_path: Path, keys: Mapping[str, str]) -> dict[str, st
     rename that landed on top of it.
     """
 
-    import yaml
+    from agent_runtime import yaml_io
 
     try:
-        parsed = yaml.safe_load(config_path.read_bytes().decode("utf-8"))
-    except (OSError, UnicodeDecodeError, yaml.YAMLError):
+        parsed = yaml_io.load(config_path.read_bytes().decode("utf-8"))
+    except (OSError, UnicodeDecodeError, yaml_io.YAMLError):
         return {}
     block = parsed.get("agent_runtime") if isinstance(parsed, dict) else None
     if not isinstance(block, dict):

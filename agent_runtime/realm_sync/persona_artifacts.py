@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import yaml
+from agent_runtime import yaml_io
 
 from hermes_constants import get_config_path, get_hermes_home
 
@@ -446,8 +446,8 @@ def _assert_portable_artifacts(artifacts: list[RealmSyncArtifact]) -> None:
         if artifact.kind != SyncFamily.PERSONA_CONFIG:
             continue
         try:
-            data = yaml.safe_load(artifact.read_bytes().decode("utf-8"))
-        except (OSError, UnicodeDecodeError, yaml.YAMLError):
+            data = yaml_io.load(artifact.read_bytes().decode("utf-8"))
+        except (OSError, UnicodeDecodeError, yaml_io.YAMLError):
             continue
         personas = data.get("personas") if isinstance(data, dict) else None
         if not isinstance(personas, dict):

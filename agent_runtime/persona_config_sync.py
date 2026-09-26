@@ -64,7 +64,7 @@ from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
-import yaml
+from agent_runtime import yaml_io
 
 from hermes_constants import get_config_path
 
@@ -281,7 +281,7 @@ class PersonaConfigProjection:
         unchanged projection is a byte-for-byte no-op, so the publish
         change-detector (``_published_artifacts_differ``) stays honest."""
 
-        text = yaml.safe_dump(
+        text = yaml_io.dump(
             self.document(),
             sort_keys=True,
             default_flow_style=False,
@@ -421,8 +421,8 @@ def raw_persona_overrides(config: Any) -> dict[str, Any]:
 def load_raw_config(config_path: Path | None = None) -> dict[str, Any]:
     path = Path(config_path) if config_path is not None else get_config_path()
     try:
-        loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, yaml.YAMLError):
+        loaded = yaml_io.load(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, yaml_io.YAMLError):
         return {}
     return loaded if isinstance(loaded, dict) else {}
 
@@ -639,8 +639,8 @@ def read_remote_persona_defs(subtree: Path) -> tuple[dict[str, Any], list[str], 
     projection_path = subtree.joinpath(*PROJECTION_RELATIVE_PATH.split("/"))
     if projection_path.is_file():
         try:
-            data = yaml.safe_load(projection_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, yaml.YAMLError):
+            data = yaml_io.load(projection_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, yaml_io.YAMLError):
             data = None
         parsed = _projection_from_document(data)
         if parsed is not None:
@@ -659,8 +659,8 @@ def read_remote_persona_defs(subtree: Path) -> tuple[dict[str, Any], list[str], 
             continue
         found = True
         try:
-            data = yaml.safe_load(legacy.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, yaml.YAMLError):
+            data = yaml_io.load(legacy.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, yaml_io.YAMLError):
             continue
         for persona_id, raw in sorted(raw_persona_overrides(data).items(), key=lambda kv: str(kv[0])):
             body = _allowlist_persona_def(str(persona_id), raw, dropped)

@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-import yaml
+from agent_runtime import yaml_io
 
 from .contract import PROJECTION_RELATIVE_PATH
 from .projection import PersonaInstanceProjection, read_projection_document
@@ -175,8 +175,8 @@ def read_remote_persona_instances(subtree) -> tuple[dict[str, dict[str, Any]], s
     if not path.is_file():
         return {}, None
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, yaml.YAMLError):
+        data = yaml_io.load(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, yaml_io.YAMLError):
         # A projection that exists and will not decode is NOT absence: absence
         # drives ``upstream_absent`` for every baselined row, and reading a parse
         # error as absence would be a delete-shaped decision taken on a read

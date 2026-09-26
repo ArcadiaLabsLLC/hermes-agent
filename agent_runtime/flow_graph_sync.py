@@ -45,7 +45,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-import yaml
+from agent_runtime import yaml_io
 
 from .flow_graph import owner_instance_id_of
 
@@ -123,7 +123,7 @@ class FlowGraphProjection:
         sequences — which is what preserves fan-in priority on the wire.
         """
 
-        text = yaml.safe_dump(
+        text = yaml_io.dump(
             self.document(),
             sort_keys=True,
             default_flow_style=False,
@@ -404,8 +404,8 @@ def read_remote_flow_graphs(subtree) -> tuple[dict[str, dict[str, Any]], str | N
     if not path.is_file():
         return {}, None
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, yaml.YAMLError):
+        data = yaml_io.load(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, yaml_io.YAMLError):
         return {}, "unreadable"
     parsed = read_projection_document(data)
     if parsed is None:

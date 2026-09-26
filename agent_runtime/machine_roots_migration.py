@@ -4,7 +4,7 @@ This is the one-way trip from "this config only works on Tony's Windows box"
 to the portable ``${roots.<name>}`` / ``${exe_suffix}`` grammar owned by
 :mod:`agent_runtime.machine_roots`. It is deliberately a TEXT rewrite, not a
 YAML round-trip: the live profile configs carry hand-written comments and
-section banners that ``yaml.safe_dump`` would erase.
+section banners that ``yaml_io.dump`` would erase.
 
 Safety comes from verification rather than from trusting the rewrite: every
 planned file is re-parsed, its tokens are expanded back with the same registry,
@@ -20,7 +20,7 @@ from dataclasses import dataclass, field as dataclass_field
 from pathlib import Path
 from typing import Any
 
-import yaml
+from agent_runtime import yaml_io
 
 from .machine_roots import (
     EXE_SUFFIX_TOKEN,
@@ -326,8 +326,8 @@ def _apply_platform_gates(text: str) -> tuple[str, tuple[str, ...]]:
     """
 
     try:
-        document = yaml.safe_load(text) or {}
-    except yaml.YAMLError:
+        document = yaml_io.load(text) or {}
+    except yaml_io.YAMLError:
         return text, ()
     servers = document.get("mcp_servers") if isinstance(document, dict) else None
     if not isinstance(servers, dict):
@@ -438,12 +438,12 @@ def verify_roundtrip(
     if after == before:
         return []
     try:
-        before_doc = yaml.safe_load(before) or {}
-    except yaml.YAMLError as exc:
+        before_doc = yaml_io.load(before) or {}
+    except yaml_io.YAMLError as exc:
         return [f"original YAML did not parse: {type(exc).__name__}"]
     try:
-        after_doc = yaml.safe_load(after) or {}
-    except yaml.YAMLError as exc:
+        after_doc = yaml_io.load(after) or {}
+    except yaml_io.YAMLError as exc:
         return [f"rewritten YAML did not parse: {type(exc).__name__}"]
     expanded = expand_config_paths(after_doc, roots=roots, check_target_exists=False)
     return _diff_docs(before_doc, expanded, path="", expected_gates=set(expected_gates))
