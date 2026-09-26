@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-26",
   "base": "067fa1a257",
-  "files": 174,
-  "deleted_lines": 914,
+  "files": 169,
+  "deleted_lines": 906,
   "heavy": 4,
   "reasons": [
     {
@@ -294,6 +294,12 @@
       "files": "177 -> 174: acp_adapter/server.py, session.py and tools.py are byte-identical to upstream 067fa1a257 again (f6894e3497)",
       "deleted_lines": "923 -> 914: the three acp_adapter rows' deleted sum (4 + 2 + 3); heavy unchanged at 4",
       "reason": "the named-provider identity carry and the held session-skills widening bindings are retired with agent_runtime/acp_skills.py (4d61ced864); the ledger's three acp_adapter rows and its 2026-09-24 skills-widening preamble go with them"
+    },
+    {
+      "change": "lane CI-RESTORE (lane/ci-restore)",
+      "files": "177 -> 172: .github/workflows/tests.yml, tests-os.yml, js-tests.yml, nix.yml, rust-tests.yml byte-identical to 067fa1a257 again",
+      "deleted_lines": "923 -> 915 (tests 3, tests-os 2, js-tests 1, nix 1, rust-tests 1); heavy unchanged at 4",
+      "reason": "the owner disabled upstream's ci.yaml, nix.yml and docker.yml in the fork's Actions on 2026-09-26, so nothing on the fork runs the five runner files and their fork-only conditionals retire; fork-gates.yml gains a history-gates job for the two history-reading tests that ran inside tests.yml; contributor-check stays a PR candidate"
     }
   ]
 }
