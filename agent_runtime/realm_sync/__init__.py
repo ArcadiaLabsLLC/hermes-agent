@@ -75,7 +75,6 @@ from agent_runtime.realm_sync.families import (
     _is_secretish_path,
     _kind_for_sync_path,
 )
-from agent_runtime.profile_context import _profile_home_for_token
 from agent_runtime.realm_sync.ledgers import (
     merge_deleted_workspace_ledgers,
     merge_skill_tombstone_ledgers,
@@ -223,7 +222,6 @@ __all__ = [
     "_persona_artifacts",
     "_persona_instance_row",
     "_persona_instance_store_drift_items",
-    "_profile_home_for_token",
     "_realm_subtree",
     "_redact_text",
     "_resolve_artifacts_with_projection",

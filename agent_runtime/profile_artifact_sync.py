@@ -185,7 +185,7 @@ def content_hash(data: bytes) -> str:
     """Semantic content hash: EOL-canonical so a member's CRLF file and a
     publisher's LF artifact converge instead of conflicting forever."""
 
-    from .realm_sync import _canonicalize_text_bytes
+    from agent_runtime.realm_sync.models import _canonicalize_text_bytes
 
     return hashlib.sha256(_canonicalize_text_bytes(data)).hexdigest()
 
@@ -463,7 +463,7 @@ def _may_write(local_hash: str | None, baseline_hash: str | None) -> bool:
 
 
 def _profile_home(token: str) -> Path | None:
-    from .realm_sync import _profile_home_for_token
+    from .profile_context import _profile_home_for_token
 
     return _profile_home_for_token(token)
 

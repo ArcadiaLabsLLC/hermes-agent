@@ -23,7 +23,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import agent_runtime.profile_context as profile_context
-from agent_runtime.realm_sync import _destination_for_sync_path, _profile_home_for_token
+from agent_runtime.profile_context import _profile_home_for_token
+from agent_runtime.realm_sync import _destination_for_sync_path
 
 
 def _pin_profiles(monkeypatch, tmp_path, *, active: str = "alice") -> Path:
