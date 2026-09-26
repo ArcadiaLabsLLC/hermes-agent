@@ -8,6 +8,8 @@ wall-clock normalizer lane R2 moved out of ``persona_chat_history``.
 ``now_iso_micro`` is the MICROSECOND stamp the turn journal orders by (lane
 2B-B folded ``mission_chat_turns`` and ``mission_chat_phases``; lane B3
 folded ``persona_chat_continuity``'s resident registry).
+``iso_stamp`` / ``stamp_passed`` are the stored-timestamp writer/reader pair
+(lane L1 moved them out of ``store_file_io`` so ``models`` modules may read them).
 """
 
 from __future__ import annotations
@@ -15,9 +17,19 @@ from __future__ import annotations
 import time
 from datetime import datetime, timezone
 from functools import singledispatch
+from typing import Any
 
 __layer__ = "models"
-__all__ = ["elapsed_ms", "iso_timestamp", "now_iso", "now_iso_micro", "parse_iso", "parse_iso_utc"]
+__all__ = [
+    "elapsed_ms",
+    "iso_stamp",
+    "iso_timestamp",
+    "now_iso",
+    "now_iso_micro",
+    "parse_iso",
+    "parse_iso_utc",
+    "stamp_passed",
+]
 
 
 def elapsed_ms(started: object) -> int | None:
@@ -181,3 +193,51 @@ def parse_iso(value: object) -> datetime | None:
         return datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
         return None
+
+
+def iso_stamp(now: float | None) -> str:
+    when = datetime.now(timezone.utc) if now is None else datetime.fromtimestamp(
+        float(now), tz=timezone.utc
+    )
+    return when.isoformat()
+
+
+def stamp_passed(value: Any, *, now: float | None = None) -> bool:
+    """Has the ISO-8601 stamp *value* already gone by? ``False`` when unreadable.
+
+    The reader half of :func:`iso_stamp`, and it lives beside it for the reason
+    every derivation in this repo is written once: an expiry WRITTEN by one
+    module and READ by another is exactly the pair that drifts — one side
+    naive, one aware; one side ``fromisoformat``, one side a substring compare —
+    and the failure mode is a credential that expires an hour early on one
+    machine and never on the other.
+
+    **Unreadable reads as NOT passed, deliberately.** An absent stamp means "no
+    expiry" and must answer ``False``; a MALFORMED one could in principle fail
+    the other way, and does not, because the blast radius is asymmetric. Reading
+    a broken stamp as expired would refuse every credential in a store one bad
+    write corrupted, at the door, with the wire collapsing the reason — an
+    operator would see "bad proof" on a phone that is fine. Reading it as live
+    leaves a credential working that should have lapsed, which the revocation
+    path still answers and an operator can still see in ``devices list``.
+
+    A naive stamp (no offset) is read as UTC, because that is what
+    :func:`iso_stamp` writes and the only naive value that could appear here is
+    one an editor typed.
+    """
+
+    text = str(value or "").strip()
+    if not text:
+        return False
+    try:
+        when = datetime.fromisoformat(text)
+    except (TypeError, ValueError):
+        return False
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    reference = (
+        datetime.now(timezone.utc)
+        if now is None
+        else datetime.fromtimestamp(float(now), tz=timezone.utc)
+    )
+    return when <= reference

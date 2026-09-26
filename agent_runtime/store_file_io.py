@@ -47,8 +47,9 @@ The rules the bodies carry are load-bearing, so they live here once:
   gateway lane may not re-derive: ``locks``' other helpers resolve their
   directory through ``paths.lock_dir()``, and this one must not, so the path
   comes from the caller and the primitive comes from ``locks``.
-- ``iso_stamp``: one UTC spelling for every stored timestamp, so two stores
-  written in the same ceremony cannot disagree about what "now" looks like.
+- ``iso_stamp`` / ``stamp_passed`` (the UTC stamp and its reader) live in
+  :mod:`agent_runtime.clock` since lane L1 (2026-09-26): a pure clock fact a
+  ``models`` module reads may not sit in a ``stores`` module.
 
 Importers keep their conventional private names via alias imports; the body
 lives only here.
@@ -61,7 +62,6 @@ import os
 import subprocess
 import tempfile
 from contextlib import AbstractContextManager
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -186,54 +186,6 @@ def prepare_windows_replace(temp_path: Path, target: Path) -> tuple[str, str]:
     except OSError:
         target_outcome = "skipped:absent"
     return (narrow_windows_acl(temp_path), target_outcome)
-
-
-def iso_stamp(now: float | None) -> str:
-    when = datetime.now(timezone.utc) if now is None else datetime.fromtimestamp(
-        float(now), tz=timezone.utc
-    )
-    return when.isoformat()
-
-
-def stamp_passed(value: Any, *, now: float | None = None) -> bool:
-    """Has the ISO-8601 stamp *value* already gone by? ``False`` when unreadable.
-
-    The reader half of :func:`iso_stamp`, and it lives beside it for the reason
-    every derivation in this repo is written once: an expiry WRITTEN by one
-    module and READ by another is exactly the pair that drifts — one side
-    naive, one aware; one side ``fromisoformat``, one side a substring compare —
-    and the failure mode is a credential that expires an hour early on one
-    machine and never on the other.
-
-    **Unreadable reads as NOT passed, deliberately.** An absent stamp means "no
-    expiry" and must answer ``False``; a MALFORMED one could in principle fail
-    the other way, and does not, because the blast radius is asymmetric. Reading
-    a broken stamp as expired would refuse every credential in a store one bad
-    write corrupted, at the door, with the wire collapsing the reason — an
-    operator would see "bad proof" on a phone that is fine. Reading it as live
-    leaves a credential working that should have lapsed, which the revocation
-    path still answers and an operator can still see in ``devices list``.
-
-    A naive stamp (no offset) is read as UTC, because that is what
-    :func:`iso_stamp` writes and the only naive value that could appear here is
-    one an editor typed.
-    """
-
-    text = str(value or "").strip()
-    if not text:
-        return False
-    try:
-        when = datetime.fromisoformat(text)
-    except (TypeError, ValueError):
-        return False
-    if when.tzinfo is None:
-        when = when.replace(tzinfo=timezone.utc)
-    reference = (
-        datetime.now(timezone.utc)
-        if now is None
-        else datetime.fromtimestamp(float(now), tz=timezone.utc)
-    )
-    return when <= reference
 
 
 def read_json_object(path: Path) -> dict[str, Any]:

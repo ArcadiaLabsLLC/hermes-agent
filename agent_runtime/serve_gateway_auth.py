@@ -155,6 +155,8 @@ from pathlib import Path
 from typing import Any
 
 from .call_authorization import TIER_CONSOLE, TIER_READ, TIERS
+from .clock import iso_stamp as _iso
+from .clock import stamp_passed as _stamp_passed
 from .gateway_identity import gateway_dir
 from .gateway_pairing_codes import (
     CODE_ALPHABET,
@@ -173,10 +175,8 @@ from .gateway_pairing_codes import (
     supersede_pending,
 )
 from .store_file_io import HarnessLockUnavailable
-from .store_file_io import iso_stamp as _iso
 from .store_file_io import os_error_reason as _os_reason
 from .store_file_io import read_json_object as _read_json
-from .store_file_io import stamp_passed as _stamp_passed
 from .store_file_io import store_lock as _file_lock
 from .store_file_io import write_secure_json as _write_secure
 

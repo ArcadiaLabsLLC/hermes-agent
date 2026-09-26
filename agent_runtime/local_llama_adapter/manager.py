@@ -16,7 +16,8 @@ import threading
 import time
 import uuid
 
-from agent_runtime.store_file_io import iso_stamp, read_json_object
+from agent_runtime.clock import iso_stamp
+from agent_runtime.store_file_io import read_json_object
 from utils import atomic_json_write
 
 from . import SCHEMA, model_alias

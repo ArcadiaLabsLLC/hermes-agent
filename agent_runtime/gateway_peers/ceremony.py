@@ -25,7 +25,7 @@ from ..gateway_pairing_codes import (
 )
 from ..serve_gateway_auth import StoreRefusal, read_pairing, store_lock, write_pairing
 from ..store_file_io import HarnessLockUnavailable
-from ..store_file_io import iso_stamp as _iso
+from ..clock import iso_stamp as _iso
 from ..store_file_io import os_error_reason as _os_reason
 from .cache import _clear_revoked_you
 from .models import (

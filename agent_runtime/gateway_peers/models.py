@@ -16,7 +16,7 @@ from typing import Any, Final
 
 from ..gateway_identity import gateway_dir
 from ..serde import is_hex
-from ..store_file_io import stamp_passed as _stamp_passed
+from ..clock import stamp_passed as _stamp_passed
 
 __layer__ = "models"
 
@@ -176,7 +176,7 @@ class PeerRecord:
         """Has :attr:`expires_at` passed? ``False`` when there is none.
 
         Fails toward LIVE on an unreadable stamp — see
-        ``store_file_io.stamp_passed`` for why that direction, and why it is the
+        ``clock.stamp_passed`` for why that direction, and why it is the
         opposite of the direction ``_decode_device`` fails in for a tier.
         """
 

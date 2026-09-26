@@ -8,7 +8,7 @@ import base64
 from typing import Any
 
 from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
-from agent_runtime.store_file_io import iso_stamp as _now_iso
+from agent_runtime.clock import iso_stamp as _now_iso
 
 from agent_runtime.serve_rpc.protocol import (
     ERR_HANDLER_FAILED,

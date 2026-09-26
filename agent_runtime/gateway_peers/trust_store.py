@@ -18,7 +18,7 @@ from typing import Any
 from ..gateway_identity import clean_display_name
 from ..serve_gateway_auth import StoreRefusal, store_lock
 from ..store_file_io import HarnessLockUnavailable
-from ..store_file_io import iso_stamp as _iso
+from ..clock import iso_stamp as _iso
 from ..store_file_io import os_error_reason as _os_reason
 from ..store_file_io import read_json_object as _read_json
 from ..store_file_io import write_secure_json as _write_secure
