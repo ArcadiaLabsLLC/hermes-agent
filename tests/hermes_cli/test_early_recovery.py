@@ -111,24 +111,32 @@ def test_early_recovery_module_is_stdlib_only(tmp_path):
             import builtins
             import sys
 
-            STDLIB = set(sys.stdlib_module_names) | {"hermes_cli"}
+            STDLIB = set(sys.stdlib_module_names)
+            ALLOWED = STDLIB | {"hermes_cli"}
             real_import = builtins.__import__
 
             def guard(name, globals=None, locals=None, fromlist=(), level=0):
-                # level > 0 is a RELATIVE import executed from inside a
-                # package whose own absolute import already cleared this
-                # guard -- e.g. importlib/__init__.py doing
-                # `from ._bootstrap import __import__`, which arrives here
-                # as the bare name "_bootstrap". That is not a top-level
-                # stdlib name, so gating it on STDLIB rejects legitimate
-                # stdlib internals and makes the whole check depend on
-                # which modules the host interpreter happened to preload
-                # at startup. Only ABSOLUTE imports carry the signal this
-                # test exists to pin.
+                # A RELATIVE import (level > 0) arrives with a name relative
+                # to the importing package -- re/__init__.py doing
+                # `from . import _compiler` reports name="" -- so gating it
+                # on the top-level NAME rejects stdlib internals and makes
+                # the check depend on what the interpreter preloaded. The
+                # invariant relied on instead: the relative import stays
+                # inside a stdlib package. The importing module's
+                # __package__ names that package; anything else (hermes_cli
+                # included) is blocked, so code vendored next to
+                # _early_recovery.py cannot load by relative import.
                 if level:
+                    pkg = (globals or {}).get("__package__") or ""
+                    root = pkg.split(".")[0]
+                    if root and root not in STDLIB:
+                        raise ImportError(
+                            "non-stdlib relative import blocked: "
+                            f"level={level} pkg={pkg} name={name!r}"
+                        )
                     return real_import(name, globals, locals, fromlist, level)
                 top = name.split(".")[0]
-                if top not in STDLIB:
+                if top not in ALLOWED:
                     raise ImportError(f"non-stdlib import blocked: {name}")
                 return real_import(name, globals, locals, fromlist, level)
 
