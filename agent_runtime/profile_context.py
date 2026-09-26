@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import logging
 import os
 from pathlib import Path
@@ -14,6 +14,7 @@ from hermes_constants import (
     set_hermes_home_override,
 )
 from agent_runtime.profile_home import (
+    PersonaProfileBinding,
     get_hermes_auth_home,
     get_hermes_head_home,
     record_hermes_head_home_if_unset,
@@ -111,17 +112,6 @@ def _resolved_runtime_root() -> Path | None:
         return None
     text = str(root or "").strip()
     return Path(text) if text else None
-
-
-@dataclass(slots=True)
-class PersonaProfileBinding:
-    persona_id: str
-    hermes_profile: str | None
-    profile_home: Path | None
-    readiness: str = "ready"
-    summary: str = "ready"
-    metadata: dict[str, Any] = field(default_factory=dict)
-
 
 def active_profile_name() -> str:
     """Return the current Hermes profile name without assuming Alice is head.

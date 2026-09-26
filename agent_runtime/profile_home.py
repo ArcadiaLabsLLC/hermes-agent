@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import os
 from contextvars import ContextVar, Token
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -327,3 +327,14 @@ def profile_is_tombstoned(profile_name: Any) -> bool:
         return bool(named_profile_is_deleted(get_profile_dir(name)))
     except Exception:
         return False
+
+
+@dataclass(slots=True)
+class PersonaProfileBinding:
+    persona_id: str
+    hermes_profile: str | None
+    profile_home: Path | None
+    readiness: str = "ready"
+    summary: str = "ready"
+    metadata: dict[str, Any] = field(default_factory=dict)
+

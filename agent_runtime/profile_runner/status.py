@@ -8,7 +8,7 @@ import time
 from typing import Any
 
 from hermes_cli.profiles import get_profile_dir, normalize_profile_name, profile_exists
-from agent_runtime.profile_context import PersonaProfileBinding
+from agent_runtime.profile_home import PersonaProfileBinding
 
 from agent_runtime.profile_runner.models import AgentRunRequest
 
