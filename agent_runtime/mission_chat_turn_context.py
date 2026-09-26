@@ -119,6 +119,8 @@ from .runtime_hud import (
 from .turn_budget import TurnWallBudget, render_turn_budget_line, resolve_turn_wall_budget
 from .volatile_tail import VolatileTail, VolatileTailBuilder
 
+__layer__ = "lanes"
+
 logger = logging.getLogger(__name__)
 
 #: The prompt-contract revision folded into the runtime signature. A resident
