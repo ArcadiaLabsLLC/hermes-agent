@@ -1,12 +1,59 @@
-"""Codex provider receipts retained independently of the upstream stream assembler."""
+"""Provider stream timing receipts, read off upstream's stream observer hooks.
+
+Upstream brackets every streamed provider call — the Codex passthrough included
+(``agent.chat_completion_helpers._stream_codex_passthrough``) — with
+``on_stream_start`` / ``on_stream_end`` and fires ``on_stream_delta`` per text
+delta, all enqueued OFF the token path onto a dispatcher thread. The
+eternia-harness plugin registers the three observers below; they write two
+receipts into the persona agent's ``status_callback``:
+
+* ``provider_stream_first_delta`` — ``on_stream_start`` to the first text delta
+  (time to first token);
+* ``provider_stream_consume`` — the first text delta to ``on_stream_end`` (start
+  to end when no text arrived; ``provider_stream_text_delta_count`` is then 0).
+
+The dispatch total is the plugin's ``llm_execution`` span
+(``conversation_observability.time_provider_dispatch``). Two limits are the
+price of the hook form: each instant is taken when the dispatcher DELIVERS the
+event, not when upstream enqueued it (upstream runs one dispatcher per callback,
+so a slow co-consumer does not delay ours, but a busy box can); and the
+per-attempt split and the client-resolve stamp are gone (plugin-fit §4 Q4).
+
+The observers run on the dispatcher thread, where the turn's ContextVar binding
+(``persona_turn_binding``) is not visible, so the plugin's ``llm_execution``
+middleware — which runs in the turn's thread — names the bound agent for its
+session first (``remember_stream_agent``). An unbound session gets no receipt.
+"""
+
+from __future__ import annotations
+
 import logging
+import threading
 import time
-from contextlib import contextmanager
+import weakref
+from collections import OrderedDict
+from dataclasses import dataclass
 from typing import Any, Dict
 
 __layer__ = "stores"
 
 logger = logging.getLogger(__name__)
+
+#: Open streams kept at most; an ``on_stream_end`` the dispatcher dropped
+#: (drop-oldest queue) must not grow this without bound.
+_MAX_OPEN_STREAMS = 256
+
+_LOCK = threading.Lock()
+_AGENTS: "weakref.WeakValueDictionary[str, Any]" = weakref.WeakValueDictionary()
+_STREAMS: "OrderedDict[tuple, _OpenStream]" = OrderedDict()
+
+
+@dataclass
+class _OpenStream:
+    started: float
+    first_delta: float | None = None
+    text_deltas: int = 0
+
 
 def _emit_provider_timing(
     agent: Any,
@@ -40,54 +87,78 @@ def _emit_provider_timing(
     except Exception:
         logger.debug("provider timing callback failed", exc_info=True)
 
-def _elapsed_ms(started: float) -> int:
-    return max(0, int((time.perf_counter() - started) * 1000))
 
-def note_stream_event(stats, event, started):
-    if stats is None:
+def _ms(seconds: float) -> int:
+    return max(0, int(seconds * 1000))
+
+
+def _key(session_id: Any, turn_id: Any, iteration: Any) -> tuple:
+    return (str(session_id or ""), str(turn_id or ""), str(iteration or 0))
+
+
+def remember_stream_agent(agent: Any = None) -> None:
+    """Name the persona agent for its session, so the observers can reach its sink.
+
+    Called in the turn's thread (``llm_execution``) before the provider call; with no
+    argument it reads the turn's binding. Weakly held: a finished agent drops out."""
+    if agent is None:
+        from agent_runtime.persona_turn_binding import current_persona_turn_agent
+
+        agent = current_persona_turn_agent()
+    session_id = str(getattr(agent, "session_id", "") or "") if agent is not None else ""
+    if not session_id:
         return
-    for key in ("event_count", "text_delta_count", "reasoning_delta_count", "tool_call_event_count", "output_item_count"):
-        stats.setdefault(key, 0)
-    stats["event_count"] += 1
-    stats.setdefault("first_event_ms", _elapsed_ms(started))
-    kind = event.get("type", "") if isinstance(event, dict) else getattr(event, "type", "")
-    kind = kind if isinstance(kind, str) else ""
-    if "output_text.delta" in kind:
-        stats["text_delta_count"] += 1
-    if "function_call" in kind:
-        stats["tool_call_event_count"] += 1
-    if "reasoning" in kind and "delta" in kind:
-        stats["reasoning_delta_count"] += 1
-    if kind == "response.output_item.done":
-        stats["output_item_count"] += 1
-    if kind in {"response.completed", "response.incomplete", "response.failed"}:
-        stats["terminal_event_type"] = kind
-        stats["terminal_event_ms"] = _elapsed_ms(started)
+    with _LOCK:
+        _AGENTS[session_id] = agent
 
 
-def stream_timing_values(stats):
-    values = {f"provider_stream_{key}": int(stats.get(key, 0) or 0) for key in (
-        "event_count", "text_delta_count", "reasoning_delta_count", "tool_call_event_count",
-        "output_item_count", "saw_terminal_count",
-    )}
-    if stats.get("terminal_event_ms") is not None:
-        values["provider_stream_terminal_event_ms"] = int(stats["terminal_event_ms"])
-    return values
+def on_stream_start(*, session_id: Any = "", turn_id: Any = "", iteration: Any = 0, **_kwargs: Any) -> None:
+    """``on_stream_start`` observer: open the stream's clock (named sessions only)."""
+    now = time.perf_counter()
+    with _LOCK:
+        if str(session_id or "") not in _AGENTS:
+            return
+        _STREAMS[_key(session_id, turn_id, iteration)] = _OpenStream(started=now)
+        while len(_STREAMS) > _MAX_OPEN_STREAMS:
+            _STREAMS.popitem(last=False)
 
 
-@contextmanager
-def measure_provider(agent, step, *, stats=None, **extra):
-    started = time.perf_counter()
-    try:
-        yield
-    except BaseException as exc:
-        _emit_provider_timing(agent, step, _elapsed_ms(started), status="failed",
-            timing_values=stream_timing_values(stats) if stats is not None else {},
-            error_class=type(exc).__name__, **extra)
-        raise
-    else:
-        if stats is not None and stats.get("first_event_ms") is not None:
-            _emit_provider_timing(agent, "stream_first_event", int(stats["first_event_ms"]), **extra)
-        _emit_provider_timing(agent, step, _elapsed_ms(started),
-            timing_values=stream_timing_values(stats) if stats is not None else {},
-            **({"terminal_event_type": stats.get("terminal_event_type")} if stats is not None else {}), **extra)
+def on_stream_delta(
+    *, session_id: Any = "", turn_id: Any = "", iteration: Any = 0, kind: str = "text", **_kwargs: Any,
+) -> None:
+    """``on_stream_delta`` observer: the first TEXT delta stamps time-to-first-token."""
+    if kind != "text":
+        return
+    now = time.perf_counter()
+    with _LOCK:
+        stream = _STREAMS.get(_key(session_id, turn_id, iteration))
+        if stream is None:
+            return
+        if stream.first_delta is None:
+            stream.first_delta = now
+        stream.text_deltas += 1
+
+
+def on_stream_end(
+    *, session_id: Any = "", turn_id: Any = "", iteration: Any = 0,
+    finished: Any = True, error: Any = None, **_kwargs: Any,
+) -> None:
+    """``on_stream_end`` observer: write the first-delta and consume receipts."""
+    now = time.perf_counter()
+    with _LOCK:
+        stream = _STREAMS.pop(_key(session_id, turn_id, iteration), None)
+        agent = _AGENTS.get(str(session_id or ""))
+    if stream is None or agent is None:
+        return
+    status = "completed" if finished and not error else "failed"
+    values = {"provider_stream_text_delta_count": stream.text_deltas}
+    if stream.first_delta is not None:
+        _emit_provider_timing(agent, "stream_first_delta", _ms(stream.first_delta - stream.started))
+    consume_from = stream.first_delta if stream.first_delta is not None else stream.started
+    _emit_provider_timing(agent, "stream_consume", _ms(now - consume_from), status=status, timing_values=values)
+
+
+def reset_for_tests() -> None:
+    with _LOCK:
+        _AGENTS.clear()
+        _STREAMS.clear()
