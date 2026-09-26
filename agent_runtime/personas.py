@@ -6,6 +6,8 @@ from enum import StrEnum
 
 from .models import AgentPersona
 
+__layer__ = "models"
+
 _LOGGER = logging.getLogger(__name__)
 
 
