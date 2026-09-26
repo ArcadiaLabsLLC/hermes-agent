@@ -390,7 +390,7 @@ def _sanitize_slack_name(raw: str) -> str:
     return _SLACK_INVALID_CHARS.sub("", raw.lower()).strip("-_")[:_SLACK_NAME_LIMIT]
 
 
-def _slack_native_slashes_and_clamped() -> tuple[list[tuple[str, str, str]], list[str]]:
+def slack_native_slashes() -> list[tuple[str, str, str]]:
     """(slash_name, description, usage_hint) triples for Slack: every gateway-available command
     (canonical names first so they win slots at the cap, then aliases, then plugins) becomes a
     standalone slash, deduped and clamped to the 50-command cap; Slack built-ins and
@@ -404,20 +404,16 @@ def _slack_native_slashes_and_clamped() -> tuple[list[tuple[str, str, str]], lis
     entries: list[tuple[str, str, str]] = [
         ("hermes", "Talk to Hermes or run a subcommand", "[subcommand] [args]")]
     seen = {"hermes"}
-    clamped: list[str] = []
     for name, desc, hint in wanted:
         slack_name = _sanitize_slack_name(name)
         if (not slack_name or slack_name in seen or slack_name in _SLACK_RESERVED_COMMANDS
-                or slack_name in _SLACK_VIA_HERMES_ONLY):
-            continue
-        if len(entries) >= _SLACK_MAX_SLASH_COMMANDS:
-            if slack_name not in clamped:
-                clamped.append(slack_name)
+                or slack_name in _SLACK_VIA_HERMES_ONLY
+                or len(entries) >= _SLACK_MAX_SLASH_COMMANDS):
             continue
         # Slack description cap is 2000 chars; keep it short.
         entries.append((slack_name, desc[:140], hint[:100]))
         seen.add(slack_name)
-    return entries, clamped
+    return entries
 
 
 def slack_app_manifest(
@@ -442,16 +438,3 @@ def slack_subcommand_map() -> dict[str, str]:
     for name, _description, _args_hint in _iter_plugin_command_entries():
         mapping.setdefault(name, f"/{name}")
     return mapping
-
-
-def slack_clamped_slashes() -> list[str]:
-    return _slack_native_slashes_and_clamped()[1]
-
-
-def slack_native_slashes() -> list[tuple[str, str, str]]:
-    entries, clamped = _slack_native_slashes_and_clamped()
-    if clamped:
-        logger.warning("Slack's %d-command cap omitted %d native slashes: %s. Use /hermes <command> for these.",
-                       _SLACK_MAX_SLASH_COMMANDS, len(clamped), ", ".join(f"/{name}" for name in clamped))
-    return entries
-
