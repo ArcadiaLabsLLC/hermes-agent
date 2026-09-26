@@ -30,9 +30,7 @@ def _load_contributor_dir(directory: "Path | None" = None) -> dict:
     mapping = {}
     if not directory.is_dir():
         return mapping
-    # Case-only email variants live in separate subdirectories so both exact
-    # identities survive a Windows checkout without colliding filenames.
-    for path in sorted(directory.rglob("*")):
+    for path in sorted(directory.iterdir()):
         if not path.is_file() or path.name.startswith("."):
             continue
         try:
