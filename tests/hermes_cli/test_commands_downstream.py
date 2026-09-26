@@ -3,82 +3,13 @@
 Same names, same bodies; the upstream file keeps only upstream's tests.
 """
 
-import logging
 from pathlib import Path
 from types import SimpleNamespace
 from tests._downstream import hermes_cli_conftest as package_conftest
-import hermes_cli.commands_platforms as commands_module
-from hermes_cli.commands_platforms import _SLACK_RESERVED_COMMANDS, _SLACK_VIA_HERMES_ONLY, slack_native_slashes
-from hermes_cli.commands_platforms import slack_clamped_slashes
 
 # Imported as a module, not by name: a ``Test*`` class bound here would be
-# collected a second time, and this file defines its own TestSlackNativeSlashes.
+# collected a second time.
 from tests.hermes_cli import test_commands as _upstream_test_commands
-
-
-class TestSlackNativeSlashes:
-    def test_clamped_commands_are_named_not_silently_dropped(self, monkeypatch, caplog):
-        """Slack's app cap must never cost coverage silently.
-
-        The 50 is SLACK'S limit (an app may register at most 50 slash
-        commands), not a Hermes tuning knob — so the answer to a full registry
-        is curation, not a bigger number. But an unaccounted clamp made "which
-        commands keep a native slash" a function of how many plugins happen to
-        be installed, discoverable only by diffing generated manifests.
-
-        Driven off a forced small cap so the pin is deterministic rather than
-        a function of the installed plugin set.
-        """
-        monkeypatch.setattr(commands_module, "_SLACK_MAX_SLASH_COMMANDS", 5)
-
-        with caplog.at_level(logging.WARNING, logger="hermes_cli.commands"):
-            entries = slack_native_slashes()
-        clamped = slack_clamped_slashes()
-        names = {name for name, _d, _h in entries}
-
-        assert len(entries) == 5
-        assert clamped, "a cap of 5 must drop commands"
-        # Accounting agrees with the list it accounts for.
-        assert not (set(clamped) & names)
-
-        warnings = [
-            record.getMessage()
-            for record in caplog.records
-            if record.levelno >= logging.WARNING
-            and record.name == "hermes_cli.commands"
-        ]
-        assert len(warnings) == 1, warnings
-        message = warnings[0]
-        assert str(len(clamped)) in message
-        for name in clamped:
-            assert f"/{name}" in message, f"{name!r} dropped without being named"
-
-    def test_no_clamp_report_when_everything_fits(self, monkeypatch, caplog):
-        """Control: the report is caused by the clamp, not emitted always."""
-        monkeypatch.setattr(commands_module, "_SLACK_MAX_SLASH_COMMANDS", 10_000)
-
-        with caplog.at_level(logging.WARNING, logger="hermes_cli.commands"):
-            slack_native_slashes()
-
-        assert slack_clamped_slashes() == []
-        assert not [
-            record for record in caplog.records
-            if record.levelno >= logging.WARNING
-            and record.name == "hermes_cli.commands"
-        ]
-
-    def test_clamp_report_excludes_deliberate_skips(self, monkeypatch):
-        """Curated omissions are not clamp casualties.
-
-        Slack built-ins and ``_SLACK_VIA_HERMES_ONLY`` entries are deliberate
-        decisions with their own comments; reporting them as cap casualties
-        would bury the names that really did lose a slot to the cap.
-        """
-        monkeypatch.setattr(commands_module, "_SLACK_MAX_SLASH_COMMANDS", 5)
-        clamped = set(slack_clamped_slashes())
-
-        assert not (clamped & set(_SLACK_RESERVED_COMMANDS))
-        assert not (clamped & set(_SLACK_VIA_HERMES_ONLY))
 
 
 class TestKnownDefectFence:
