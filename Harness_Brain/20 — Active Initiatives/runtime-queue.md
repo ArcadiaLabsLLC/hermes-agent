@@ -202,6 +202,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Upstream-owned — never edited here
 
+- [ ] **`tests/tools/test_local_env_blocklist.py:610` reads `MagicMock` without importing it (ruff F821) — upstream's own test file, same line on `upstream/main` at 067fa1a257** · `upstream` · a marker only: the fork never edits it; it is the eighth F821 the root `ruff check .` reports beside the seven rowed in `tui_gateway/plugin_inject.py`, and an upstream issue is the fix · evidence: `X:/wt/_holds/merge-0925/ruff.log` · filed by the orchestrator 2026-09-25 **UNCLAIMED**
 - [ ] **`hermes_state_repair.py::state_db_has_structural_damage` reads an FTS-only stomp as structural damage (recover instead of FTS rebuild)** · `upstream` · on SQLite 3.45.3 `PRAGMA integrity_check` RAISES `vtable constructor failed: messages_fts` and any raise reads as structural; file and test byte-identical to `upstream/main`; the test is an `_up_red` id marker (`tests/_downstream/id_markers.py`, ec714fa150) · PR candidate: a `DatabaseError` naming a `messages_fts*` vtable is FTS-only · moved from fork-hygiene by lane FORK-CODE 2026-09-24 (lane GREEN verdict 2026-09-23)
 - [ ] **Native Windows ACP qualification has five baseline failures: resource-link file paths, ping pipe handles and three cwd symlink/lexical cases.** · Reproduced unchanged at `2455c606b4`; exact cases and comparison in `docs/downstream/acp-named-provider-identity-2026-09-24.md`. Review upstream-owned behavior/tests without broadening the named-provider correction. **UNCLAIMED**
 

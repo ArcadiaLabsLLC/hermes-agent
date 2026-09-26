@@ -45,6 +45,7 @@ Retired with the old method: the per-file "reconcile X with upstream" prompt, it
 
 ## Known shapes
 
+- **Upstream patches a stdlib class process-wide; the fork's own protocol must not build from the patched binding.** Since 2026-09-25 (`067fa1a257`) upstream calls `agent.ssl_verify.install_truststore()` at process start — `truststore.inject_into_ssl()` rebinds `ssl.SSLContext` to a client-only class — and the fork's gateway (self-signed certificate, fingerprint pinned one layer up, server-side wrap) went from 9 passed to 9 failed with `ServeHelloProtocolError`. `agent_runtime/gateway_tls.py::stdlib_ssl_context` builds both ends from the interpreter's class through truststore's public extract/inject under a lock; the control that proved it was the injection made a no-op (X:/wt/_holds/merge-0925/peer-control-noinject.log). Grep every `ssl.SSLContext(` in fork trees at each merge; a new one is this shape again.
 - Conflicts cluster in the 22 heavy fork-edited upstream files ([[Fork Boundary Map]]); nothing in `agent_runtime/` or `harness_parts/` conflicts.
 - Upstream renames tools (`cronjob`/`process`/`todo` → `*_manage`, `todo_list`); the fork's toolset manifest gate (`scripts/dump_toolset_manifest.py`) will red on a rename — regenerate after reading the diff.
 - The fork's CI runs on `main` but is red on every run (queue row); a red it reports is not yet a signal, so assume nothing passed that you did not run.

@@ -2,7 +2,7 @@
 type: program
 program: upstream-sync
 status: active
-cursor: "2026-09-24 — Weekly merge of upstream f24a1d7f92 (1,663 commits) as 075fb4eba4 on seam/upstream-merge-2026-09-24, NOT on main: 73 conflicts, supersession 22 retired / 6 kept, origin/main (S2) merged in as 5b5a68bb69, ratchet 408/2612/11 -> 373/2404/10 at base f24a1d7f92, all 11 open PRs still open. Evidence: [[upstream-release-2026-09-24]]. Next: the operator lands the branch; weekly cadence."
+cursor: "2026-09-25 — Weekly merge of upstream 067fa1a257 (1,831 commits) LANDED on main at 175caaf5c7 (merge 2aa09594c5 on merge/upstream-2026-09-25, lane MERGE): 56 conflicts (54 content / 75 hunks + 2 modify/delete), three re-seats (serve prewarm → agent.ssl_verify.install_truststore; postinstall → upstream pm; the local-llama adapter → binaries.ensure_engine / pinned_tag / installed_engine), supersession 25 retired / 8 shrunk / 3 moved, ratchet 200/999/4 → 178/924/4 at base 067fa1a257, the gateway TLS listener rebuilt off the stdlib class under upstream's process-start truststore injection (gateway_tls.stdlib_ssl_context), landing suite 23,178 passed / 117 failed → 0 merge-caused after three fix passes (9 pre-existing files rowed, 63 upstream Windows reds as strict-xfail rows). Design and rulings Q1–Q8: docs/agent-runtime-harness/planned/upstream-merge-2026-09-25-design.md. PRs: #121647 and #121220 superseded (owner closes); #121221/#121222/#121224/#121225/#121219/#121218/#121226 stand. Next: weekly cadence; Q4 `hermes update` not yet exercised on this box."
 tags: [program/upstream-sync, program, upstream]
 ---
 
