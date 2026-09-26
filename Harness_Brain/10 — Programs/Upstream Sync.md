@@ -57,6 +57,13 @@ After the conflicts are resolved and before the suite: for every upstream commit
 | NousResearch/hermes-agent#121224 | `test(paths)`: compare paths as paths, not POSIX spellings, on Windows (`up/win-path-spelling`) | the in-place test edits whose ledger rows name `up/win-path-spelling` | 2026-09-24 |
 | NousResearch/hermes-agent#121225 | `test(posix)`: stop assuming POSIX-only os APIs and mode bits on Windows (`up/win-posix-only-apis`) | the in-place test edits whose ledger rows name `up/win-posix-only-apis` | 2026-09-24 |
 | NousResearch/hermes-agent#121226 | `test(shell)`: resolve bash/python and pass bash POSIX paths on Windows (`up/win-shell-invocation`) | the in-place test edits whose ledger rows name `up/win-shell-invocation` | 2026-09-24 |
+| NousResearch/hermes-agent#121640 | `docs(cli)`: correct three stale references and name the uninstall history loss (`up/doc-accuracy`) | CLI and installation documentation | 2026-09-24 |
+| NousResearch/hermes-agent#121641 | `fix(image-routing)`: recognise Windows drive paths in extract_image_refs (`up/win-drive-image-paths`) | image routing and path extraction | 2026-09-24 |
+| NousResearch/hermes-agent#121642 | `fix(auth)`: check the device-login inference URL against the Nous host allowlist (`up/nous-login-inference-url`) | `auth.py` device-login flow | 2026-09-24 |
+| NousResearch/hermes-agent#121643 | `fix(environments)`: spell remote and bundle paths with POSIX separators on Windows hosts (`up/win-remote-posix-paths`) | `environments.py` path handling | 2026-09-24 |
+| NousResearch/hermes-agent#121644 | `fix(file-ops)`: pass python -c snippets to the shell verbatim on Windows (`up/win-python-snippet-verbatim`) | `file_tools.py` shell invocation | 2026-09-24 |
+| NousResearch/hermes-agent#121645 | `fix(file-tools)`: match POSIX-rooted guard lists against the POSIX spelling on Windows (`up/win-posix-guard-forms`) | `file_tools_write_guards.py` | 2026-09-24 |
+| NousResearch/hermes-agent#121646 | `fix(security)`: honour TIRITH_ENABLED / TIRITH_FAIL_OPEN at every tirith flag reader (`up/tirith-env-overrides`) | security and tirith environment overrides | 2026-09-24 |
 | NousResearch/hermes-agent#123874 | `fix(gitattributes)`: default every text file to LF (`fix/gitattributes-eol-lf`) | `.gitattributes` | 2026-09-26 |
 | NousResearch/hermes-agent#123876 | `fix(gitignore)`: ignore `.claude/` beside the other agent-tool dirs (`fix/gitignore-claude-dir`) | none (no ledger row) | 2026-09-26 |
 | NousResearch/hermes-agent#123890 | `fix(evals)`: define the names `cache_concurrency_probe`'s native recorder uses (`fix/cache-concurrency-probe-nameerror`) | `evals/postmortem/live_ab/cache_concurrency_probe.py` | 2026-09-26 |
@@ -75,6 +82,8 @@ After the conflicts are resolved and before the suite: for every upstream commit
 | NousResearch/hermes-agent#124210 | `feat(plugins)`: persisted-row and MCP transform hooks, `reuse_current_user_message`, HERMES_HOME for stdio MCP children (`up/persisted-row-hooks`; rebased onto f077152871 — upstream's cross-profile stdio adoption now shares a child only when the server's `env:` pins HERMES_HOME, stated in the body) | recorded parallels 4, 5, 6 | 2026-09-26 |
 
 **Checked 2026-09-24 (lane MERGE):** all eleven rows above are OPEN upstream and none is in `upstream/main`; every carry stays.
+
+**Rebase needed:** #121645 and #124210 need a rebase onto upstream/main (conflicts in `file_tools_write_guards.py` and `mcp_tool_transport.py`, found by lane FIX-TRIAGE 2026-09-26).
 
 **Dropped 2026-09-24 (lane UPREV, never opened):** `up/win-text-encoding` (upstream's `run_tests.sh` sets `PYTHONUTF8=1`, no red), `up/monkeypatch-undo-scoped` (no red), `up/profile-home-generic` (P7; perf memo, no red), `up/profiles-delete-guard` (P6; psutil is a pinned core dep, refusal unreachable). Their ledger rows are `carry` with reason "PR dropped 2026-09-24: …".
 
