@@ -20,7 +20,7 @@ from hermes_cli.harness_parts._upstream_doors import (
     status_api_keys,
 )
 
-__layer__ = "policy"
+__layer__ = "stores"
 __all__ = [
     "_TOKEN_PREVIEW_CHARS",
     "_cmd_providers",
