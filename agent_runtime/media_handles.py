@@ -129,6 +129,8 @@ from typing import Any, Iterable
 
 from . import paths
 
+__layer__ = "stores"
+
 __all__ = [
     "HANDLE_PREFIX",
     "HANDLE_RE",
