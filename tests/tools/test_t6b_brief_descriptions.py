@@ -144,7 +144,7 @@ def test_shell_policy_left_the_terminal_wire_but_stays_in_full_docs():
     gone from the terminal wire brief but preserved in the full docs."""
     wire = _wire("terminal")
     assert "Do NOT use cat/head/tail" not in wire
-    full = full_tool_description("terminal")
+    full = _full("terminal")
     assert "Do NOT use cat/head/tail" in full
 
 
@@ -163,9 +163,9 @@ def test_terminal_wire_brief_states_persistence_full_docs_keep_the_detail():
     """Moved from ``tests/tools/test_terminal_tool.py`` (seam Stage 2): the wire
     brief states cwd + env persist between calls; the virtualenv / re-source
     detail lives in the full docs (tool_describe)."""
-    wire = (registry.get_entry("terminal").schema or {}).get("description", "")
+    wire = _wire("terminal")
     assert "cwd/exported env persist" in wire
-    full = full_tool_description("terminal")
+    full = _full("terminal")
     assert "exported environment variables persist between calls" in full
     assert "activate a virtualenv" in full
     assert "once per session" in full
