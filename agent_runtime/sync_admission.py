@@ -168,7 +168,7 @@ def path_refusal(rel: str) -> tuple[str, str] | None:
     and the shared secret-ish / hard-excluded path markers.
     """
 
-    from .realm_sync import _is_hard_excluded_path, _is_secretish_path
+    from .realm_sync.families import _is_hard_excluded_path, _is_secretish_path
     from .paths import is_windows_reserved_component
 
     text = str(rel or "").replace("\\", "/")
