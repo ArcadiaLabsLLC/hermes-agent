@@ -12,6 +12,8 @@ from .child_events import emit_child_returned
 from .config import load_root_runtime_config
 from .persona_assignments import PersonaInstanceStore, safe_assignment_text
 
+__layer__ = "lanes"
+
 SUMMARY_LIMIT = 1200
 REF_LIMIT = 8
 REF_TEXT_LIMIT = 120
