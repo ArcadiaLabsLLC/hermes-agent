@@ -10,7 +10,7 @@ __layer__ = "lanes"
 
 
 def model_key(provider: str, model: str) -> str:
-    return json.dumps([provider, model], ensure_ascii=True, separators=(",", ":"))
+    return json.dumps([provider, model], ensure_ascii=False, separators=(",", ":"))
 
 
 def choices(inventory: dict) -> dict[str, tuple[str, str]]:

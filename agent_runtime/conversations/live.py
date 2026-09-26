@@ -7,7 +7,8 @@ import uuid
 from .events import ConversationEvents
 from .model import TurnState
 from .questions import SUPPORTED, validate_answer
-from agent_runtime.skill_activity import skill_load_evidence
+from .projection import event_frames
+import json
 
 __layer__ = "lanes"
 
@@ -57,25 +58,22 @@ class LiveConversation:
             params = frame.get("params") or {}
             if frame.get("method") == "event":
                 self._event(params, turn)
-                frame = self._skill_event(frame)
+                for projected in event_frames(frame):
+                    self.events.append(turn, projected)
+                return
             elif isinstance(frame.get("id"), str):
                 if frame.get("method") not in SUPPORTED:
                     self.peer.write({"jsonrpc": "2.0", "id": frame["id"], "error": {
                         "code": -32601, "message": "This client does not support this request."}})
                     self.events.append(turn, {"method": "request.unsupported", "params": {}})
                     return
+                if len(self.questions) >= 8 or len(json.dumps(frame, ensure_ascii=True)) > 64 * 1024:
+                    self.peer.write({"jsonrpc": "2.0", "id": frame["id"], "error": {
+                        "code": -32602, "message": "The question exceeds this client's presentation limits."}})
+                    self.events.append(turn, {"method": "request.unsupported", "params": {}})
+                    return
                 self.questions[frame["id"]] = frame
             self.events.append(turn, frame)
-
-    @staticmethod
-    def _skill_event(frame: dict) -> dict:
-        params = frame["params"]
-        kind, payload = params.get("type"), params.get("payload") or {}
-        if kind not in {"tool.start", "tool.complete"}:
-            return frame
-        evidence = skill_load_evidence(payload.get("name"), payload.get("args"),
-                                       result=payload.get("result"), finished=kind == "tool.complete")
-        return {**frame, "skill_load": {"call_id": payload.get("tool_id"), **evidence}} if evidence else frame
 
     def _event(self, params: dict, turn: str | None) -> None:
         kind, payload = params.get("type"), params.get("payload") or {}
@@ -109,8 +107,7 @@ class LiveConversation:
 
     def snapshot(self, cursor: int, turn_id: str | None = None) -> dict:
         with self._lock:
-            result = {**self.events.since(cursor), "pending_requests": list(self.questions.values()),
-                      "connected": self.peer.alive}
+            result = {**self.events.since(cursor), "connected": self.peer.alive}
             if turn_id is not None:
                 result["turn"] = {"turn_id": turn_id,
                                   "state": self.store.turn(self.route, turn_id).state}

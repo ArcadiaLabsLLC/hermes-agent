@@ -258,15 +258,19 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
             raise
         finally:
             sys.stdout, sys.stderr = self.original_stdout, self.original_stderr
-            if self.conversation_owner is not None:
-                from agent_runtime.conversations.binding import shutdown as shutdown_conversations
-                shutdown_conversations(root=self.conversation_owner.root)
-            if self.discussion_owner is not None:
-                from agent_runtime.discussions.service import shutdown as shutdown_discussions
-                shutdown_discussions(root=self.discussion_owner.context.root)
-            from agent_runtime.local_llama_adapter.binding import shutdown as shutdown_local_llama
-            if self.local_llama_bound_root is not None:
-                shutdown_local_llama(root=self.local_llama_bound_root)
+            try:
+                if self.conversation_owner is not None:
+                    from agent_runtime.conversations.binding import shutdown as shutdown_conversations
+                    shutdown_conversations(root=self.conversation_owner.root)
+            finally:
+                try:
+                    if self.discussion_owner is not None:
+                        from agent_runtime.discussions.service import shutdown as shutdown_discussions
+                        shutdown_discussions(root=self.discussion_owner.context.root)
+                finally:
+                    from agent_runtime.local_llama_adapter.binding import shutdown as shutdown_local_llama
+                    if self.local_llama_bound_root is not None:
+                        shutdown_local_llama(root=self.local_llama_bound_root)
 
     def _boot_and_serve(self) -> int:
         """Everything between the stdio swap and the unwind, in boot order."""
