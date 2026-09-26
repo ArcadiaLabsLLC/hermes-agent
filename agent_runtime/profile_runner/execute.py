@@ -28,6 +28,7 @@ from agent_runtime.run_budget import (
 )
 
 from agent_runtime.serde import positive_float, positive_int
+from agent_runtime.tool_blocks import bound_tool_block
 from agent_runtime.profile_runner.errors import (
     RunBudgetExceeded,
     _NO_WALL_BUDGET_SECONDS,
@@ -358,6 +359,10 @@ class AgentRunExecution:
                 _finish_resident_persona_chat_agent(self.agent)
                 return None, self.agent, self.timing
             self.bind_chat_root()
+            mcp_scope.enter_context(bound_tool_block(
+                _blocked_tool_names_for_run(self.request),
+                session_ids=(getattr(self.agent, "session_id", None), self.request.session_id),
+            ))
             _steer_mcp_admission_notice(self.agent, self.request, self.admission_outcome)
             # Entered on the run's own ExitStack so it unwinds on BOTH
             # conversation lanes below and on the raised path, before the
