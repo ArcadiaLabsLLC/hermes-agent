@@ -69,7 +69,6 @@
   "tools/tool_full_descriptions.py|tools.skill_manager_tool|_skill_manage_description"
  ],
  "undeclared": [
-  "agent/charsheet/fake_draftsman.py",
   "agent_runtime/board_sync.py",
   "agent_runtime/chat_lane_bundle.py",
   "agent_runtime/chat_turn.py",

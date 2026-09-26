@@ -54,6 +54,8 @@ import tempfile
 import threading
 from pathlib import Path
 
+__layer__ = "stores"
+
 #: The declared seam. Default-off: unset is the real provider door.
 DRAFTSMAN_ENV = "HERMES_CHARSHEET_DRAFTSMAN"
 
