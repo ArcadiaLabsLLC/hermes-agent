@@ -37,6 +37,8 @@ from typing import Any, Iterable, Sequence
 from .mcp_admission.vocabulary import MCP_NOT_REGISTERED_ON_LANE
 from .serde import unique_texts
 
+__layer__ = "stores"
+
 logger = logging.getLogger(__name__)
 
 

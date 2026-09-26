@@ -92,7 +92,6 @@
   "agent_runtime/local_llama_adapter/rpc.py",
   "agent_runtime/local_llama_adapter/setup.py",
   "agent_runtime/locks.py",
-  "agent_runtime/mcp_lane.py",
   "agent_runtime/media_handles.py",
   "agent_runtime/media_proxy.py",
   "agent_runtime/mission_chat_outcome.py",
