@@ -128,12 +128,6 @@ export function UninstallSection(): ReactElement | null {
           <div>
             <p className="text-sm font-medium text-destructive">{t.settings.uninstallSection.confirmUninstall}</p>
             <p className="mt-1 text-xs text-muted-foreground">{u.confirmBody(pendingOption.consequence)}</p>
-            {pendingOption.needsAgent && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                This deletes the agent&apos;s code checkout, including its git history — not backed up by this
-                tool.
-              </p>
-            )}
             {summary?.running_app_path && (
               <p className="mt-1 font-mono text-[0.68rem] text-muted-foreground/60">
                 {u.appLabel} {summary.running_app_path}
