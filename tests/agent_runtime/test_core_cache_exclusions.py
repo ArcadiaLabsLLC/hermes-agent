@@ -209,7 +209,7 @@ def test_the_exclusion_set_agrees_with_the_constants_its_writers_own(
         "dispatch_delivery.DRAIN_STATE_FILENAME": dispatch_delivery.DRAIN_STATE_FILENAME,
         "serve_socket.SOCKET_LOCK_FILENAME": serve_socket.SOCKET_LOCK_FILENAME,
         "serve_socket.SOCKET_OWNER_FILENAME": serve_socket.SOCKET_OWNER_FILENAME,
-        "serve_auth.SERVE_AUTH_TOKEN_FILENAME": serve_auth.SERVE_AUTH_TOKEN_FILENAME,
+        "paths.SERVE_AUTH_TOKEN_FILENAME": paths.SERVE_AUTH_TOKEN_FILENAME,
         "serve_registry.SERVE_INSTANCES_DIRNAME": serve_registry.SERVE_INSTANCES_DIRNAME,
         "paths.DELETED_ARCHIVE_DIRNAME": paths.DELETED_ARCHIVE_DIRNAME,
     }

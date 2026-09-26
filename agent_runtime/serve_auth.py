@@ -61,11 +61,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .paths import SERVE_AUTH_TOKEN_FILENAME
 from .store_file_io import os_error_reason as _error_token
 from .store_file_io import read_raw_text as _read_raw
 
 __all__ = [
-    "SERVE_AUTH_TOKEN_FILENAME",
     "TOKEN_BYTES",
     "ServeAuthStatus",
     "ensure_token",
@@ -73,16 +73,6 @@ __all__ = [
     "serve_auth_token_path",
     "verify",
 ]
-
-#: Lives beside the other per-root runtime state, under ``<store_root>``.
-#:
-#: MUST NOT be added to any freshness fingerprint (serve's
-#: ``_FINGERPRINT_ROOT_FILES``/``_FINGERPRINT_STORE_DIRS``, or
-#: ``stream._scope_fingerprint``): the file APPEARS at first boot, which inside
-#: a fingerprint would cold the read-model cache exactly when a fresh runtime
-#: is warming up. Same rationale as ``dispatch_delivery.DRAIN_STATE_FILENAME``
-#: and the per-session turn store's documented exclusion.
-SERVE_AUTH_TOKEN_FILENAME = "serve_auth_token"
 
 #: 256 bits, hex-encoded. Not configurable: a knob here can only ever be turned
 #: down.

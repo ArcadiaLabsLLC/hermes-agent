@@ -676,3 +676,14 @@ def gateway_dir(store_root: Path | str) -> Path:
 
 def install_record_path(store_root: Path | str) -> Path:
     return gateway_dir(store_root) / INSTALL_RECORD_FILENAME
+
+
+#: Lives beside the other per-root runtime state, under ``<store_root>``.
+#:
+#: MUST NOT be added to any freshness fingerprint (serve's
+#: ``_FINGERPRINT_ROOT_FILES``/``_FINGERPRINT_STORE_DIRS``, or
+#: ``stream._scope_fingerprint``): the file APPEARS at first boot, which inside
+#: a fingerprint would cold the read-model cache exactly when a fresh runtime
+#: is warming up. Same rationale as ``dispatch_delivery.DRAIN_STATE_FILENAME``
+#: and the per-session turn store's documented exclusion.
+SERVE_AUTH_TOKEN_FILENAME = "serve_auth_token"

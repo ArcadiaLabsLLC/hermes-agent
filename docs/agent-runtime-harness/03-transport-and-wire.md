@@ -591,7 +591,7 @@ the first socket boot and vanish on every clean exit, which inside a
 fingerprint would cold the read-model cache exactly when a fresh runtime is
 warming up and make the stream emit ``state.reconciled`` on every restart. Same
 standing precedent as ``dispatch_delivery.DRAIN_STATE_FILENAME``,
-``serve_auth.SERVE_AUTH_TOKEN_FILENAME``, and ``serve_instances/``.
+``paths.SERVE_AUTH_TOKEN_FILENAME``, and ``serve_instances/``.
 
 The sentence above names TWO obligations because there are two fingerprint
 designs in this runtime with OPPOSITE defaults, and one doctrine written for the
