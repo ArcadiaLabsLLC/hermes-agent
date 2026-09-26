@@ -288,6 +288,45 @@ if _WIN:
         "test_parse_proc_locks_keeps_only_write_locks_on_our_inodes_and_decodes_the_wal_write_byte": (
             _posix_only("Linux /proc/locks parsing keyed by os.makedev, which Windows lacks"),
         ),
+        # Lane DROP-EXEC (2026-09-26): the Feishu adapter reverted to upstream bytes.
+        **{
+            f"tests/gateway/test_feishu.py::{test}": (
+                _posix_only("FeishuAdapter.__init__ resolves get_hermes_home(); "
+                            "patch.dict(os.environ, {}, clear=True) leaves no home on Windows"),
+            )
+            for test in (
+                "TestAdapterBehavior::test_bot_origin_reactions_are_dropped_to_avoid_feedback_loops",
+                "TestAdapterBehavior::test_build_event_handler_registers_reaction_and_card_processors",
+                "TestAdapterBehavior::test_extract_audio_message_downloads_and_caches",
+                "TestAdapterBehavior::test_extract_post_message_downloads_embedded_resources",
+                "TestAdapterBehavior::test_extract_text_file_injects_content",
+                "TestAdapterBehavior::test_extract_text_message_starting_with_slash_becomes_command",
+                "TestAdapterBehavior::test_group_message_matches_bot_name_when_only_name_available",
+                "TestAdapterBehavior::test_media_batch_merges_rapid_photo_messages",
+                "TestAdapterBehavior::test_message_event_submits_to_adapter_loop",
+                "TestAdapterBehavior::test_process_inbound_message_uses_event_sender_identity_only",
+                "TestAdapterBehavior::test_reaction_on_peer_bot_message_is_not_routed",
+                "TestAdapterBehavior::test_send_document_reply_uses_thread_flag",
+                "TestAdapterBehavior::test_send_splits_fenced_code_blocks_into_separate_post_rows",
+                "TestAdapterBehavior::test_send_uses_post_for_every_chunk_of_multi_chunk_markdown",
+                "TestAdapterBehavior::test_text_batch_flushes_when_message_count_limit_is_hit",
+                "TestAdapterBehavior::test_url_verification_requires_configured_verification_token",
+                "TestAdapterBehavior::test_user_reaction_with_managed_emoji_is_still_routed",
+                "TestAdapterBehavior::test_webhook_request_uses_same_message_dispatch_path",
+                "TestDedupTTL::test_duplicate_within_ttl_is_rejected",
+                "TestDedupTTL::test_persist_on_new_message_runs_off_event_loop_thread",
+                "TestDeleteMessage::test_delete_message_calls_im_message_delete",
+                "TestFeishuAdapterMessaging::test_connect_websocket_sets_channel_ua_tag_and_uses_owned_executor",
+                "TestFeishuAdapterMessaging::test_edit_message_falls_back_to_text_when_post_update_is_rejected",
+                "TestGroupMentionAtAll::test_at_all_still_requires_policy_gate",
+                "TestPendingInboundQueue::test_drainer_replays_queued_events_when_loop_becomes_ready",
+                "TestPendingInboundQueue::test_event_queued_when_loop_not_ready",
+                "TestWebhookSecurity::test_rate_limit_resets_after_window_expires",
+                "TestWebhookSecurity::test_signature_valid_passes",
+                "TestWebhookSecurity::test_webhook_connect_requires_inbound_auth_secret",
+                "TestWebhookSecurity::test_webhook_loads_auth_secrets_from_platform_extra",
+            )
+        },
     })
 
 #: Upstream test modules that call a POSIX-only ``os`` attribute at IMPORT (a
