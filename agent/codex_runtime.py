@@ -7,9 +7,6 @@ from __future__ import annotations
 import contextvars
 import functools
 import json
-from agent_runtime.codex_observability import (
-    _emit_provider_timing, _elapsed_ms, note_stream_event, measure_provider,
-)
 import logging
 import os
 import threading
@@ -988,7 +985,7 @@ class _CodexResponseAssembler:
 
 def _consume_codex_event_stream(
     event_iter: Any, *, model: str, on_text_delta=None, on_reasoning_delta=None, on_commentary_message=None,
-    on_first_delta=None, on_event=None, interrupt_check=None, stream_stats: Dict[str, Any] | None = None,
+    on_first_delta=None, on_event=None, interrupt_check=None,
 ) -> SimpleNamespace:
     """Consume a Codex Responses SSE stream into a Response-shaped ``SimpleNamespace`` (see
     :class:`_CodexResponseAssembler`; ``status`` is ``completed`` when the stream ended with content but no
@@ -1002,9 +999,7 @@ def _consume_codex_event_stream(
     must not become a partial final response."""
     assembler = _CodexResponseAssembler(model=model, on_text_delta=on_text_delta, on_reasoning_delta=on_reasoning_delta,
                                         on_commentary_message=on_commentary_message, on_first_delta=on_first_delta)
-    stream_started = time.perf_counter()
     for event in event_iter:
-        note_stream_event(stream_stats, event, stream_started)
         if on_event is not None:
             try:
                 on_event(event)
@@ -1014,12 +1009,7 @@ def _consume_codex_event_stream(
                 logger.debug("Codex stream on_event hook raised", exc_info=True)
         if (interrupt_check is not None and interrupt_check()) or assembler.feed(event):
             break
-    final = assembler.result()
-    if stream_stats is not None:
-        stream_stats["consume_ms"] = _elapsed_ms(stream_started)
-        stream_stats["saw_terminal_count"] = int(assembler.saw_terminal)
-        final._stream_stats = dict(stream_stats)
-    return final
+    return assembler.result()
 
 
 def _sanitize_consumer_codex_request(agent: Any, request: dict[str, Any]) -> dict[str, Any]:
@@ -1052,8 +1042,7 @@ def run_codex_stream(agent, api_kwargs: dict, client: Any = None, on_first_delta
     from openai import APIConnectionError as _APIConnectionError
     from agent import relay_llm
     transport_errors = (_httpx.RemoteProtocolError, _httpx.ReadTimeout, _httpx.ReadError, _httpx.ConnectError, ConnectionError)
-    with measure_provider(agent, "client_resolve"):
-        active_client = client or agent._ensure_primary_openai_client(reason="codex_stream_direct")
+    active_client = client or agent._ensure_primary_openai_client(reason="codex_stream_direct")
     max_stream_retries, model = 1, api_kwargs.get("model")
     # Accumulate streamed text so callers / compat shims can read it.
     agent._codex_streamed_text_parts: list = []
@@ -1237,27 +1226,24 @@ def run_codex_stream(agent, api_kwargs: dict, client: Any = None, on_first_delta
         writer_token["superseded_logged"] = False
         try:
             try:
-                with measure_provider(agent, "responses_create", attempt=attempt + 1):
-                    event_stream = relay_llm.stream(
-                        dict(api_kwargs), _open_codex_stream,
-                        session_id=str(getattr(agent, "session_id", "") or ""),
-                        name=str(getattr(agent, "provider", "") or "codex"), model_name=str(model or ""),
-                        finalizer=lambda: _consume_codex_event_stream(list(intercepted_events), model=model),
-                        on_stream_created=_codex_stream_created, on_chunk=intercepted_events.append,
-                        chunk_adapter=lambda chunk: chunk,
-                        completed_response_predicate=lambda r: bool(hasattr(r, "output") and not hasattr(r, "__iter__")),
-                        metadata={"api_mode": "codex_responses", "call_role": call_role, "retry_count": attempt,
-                                  "api_request_id": getattr(agent, "_current_api_request_id", None)},
-                        defer_logical_completion=True,
-                    )
-                stream_stats: Dict[str, Any] = {}
-                with measure_provider(agent, "stream_consume", attempt=attempt + 1, stats=stream_stats):
-                    final = _consume_codex_event_stream(
-                        event_stream, model=model, on_text_delta=_fenced(_on_text_delta),
-                        on_reasoning_delta=_live(agent._fire_reasoning_delta), on_commentary_message=on_commentary_message,
-                        on_first_delta=_live(on_first_delta) if on_first_delta is not None else None,
-                        on_event=_fenced(_on_event), interrupt_check=_interrupt_or_superseded, stream_stats=stream_stats,
-                    )
+                event_stream = relay_llm.stream(
+                    dict(api_kwargs), _open_codex_stream,
+                    session_id=str(getattr(agent, "session_id", "") or ""),
+                    name=str(getattr(agent, "provider", "") or "codex"), model_name=str(model or ""),
+                    finalizer=lambda: _consume_codex_event_stream(list(intercepted_events), model=model),
+                    on_stream_created=_codex_stream_created, on_chunk=intercepted_events.append,
+                    chunk_adapter=lambda chunk: chunk,
+                    completed_response_predicate=lambda r: bool(hasattr(r, "output") and not hasattr(r, "__iter__")),
+                    metadata={"api_mode": "codex_responses", "call_role": call_role, "retry_count": attempt,
+                              "api_request_id": getattr(agent, "_current_api_request_id", None)},
+                    defer_logical_completion=True,
+                )
+                final = _consume_codex_event_stream(
+                    event_stream, model=model, on_text_delta=_fenced(_on_text_delta),
+                    on_reasoning_delta=_live(agent._fire_reasoning_delta), on_commentary_message=on_commentary_message,
+                    on_first_delta=_live(on_first_delta) if on_first_delta is not None else None,
+                    on_event=_fenced(_on_event), interrupt_check=_interrupt_or_superseded,
+                )
             except transport_errors as exc:
                 if attempt >= max_stream_retries:
                     _log_failure(exc)
@@ -1273,8 +1259,6 @@ def run_codex_stream(agent, api_kwargs: dict, client: Any = None, on_first_delta
             except RuntimeError:
                 # "No terminal response"; Relay may still hold a finalizer-assembled response.
                 if event_stream is not None and event_stream.final_response is not None:
-                    _emit_provider_timing(agent, "concrete_response", 0, attempt=attempt + 1,
-                        timing_values={"provider_stream_event_count": 0})
                     return event_stream.final_response
                 raise
             except _APIConnectionError as exc:
