@@ -96,6 +96,8 @@ from .realm_sync.families import (
 )
 from .sync_merge import PullAction, classify_three_way_pull
 
+__layer__ = "stores"
+
 
 # --- baseline sidecar (never synced, never published) ------------------------
 
