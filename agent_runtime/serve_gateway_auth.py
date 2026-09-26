@@ -180,7 +180,7 @@ from .store_file_io import read_json_object as _read_json
 from .store_file_io import store_lock as _file_lock
 from .store_file_io import write_secure_json as _write_secure
 
-__layer__ = "policy"
+__layer__ = "stores"
 
 __all__ = [
     "AUTH_EXPIRED",
