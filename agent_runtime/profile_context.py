@@ -5,6 +5,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -13,6 +14,7 @@ from hermes_constants import (
     reset_hermes_home_override,
     set_hermes_home_override,
 )
+from agent_runtime import paths
 from agent_runtime.profile_home import (
     PersonaProfileBinding,
     get_hermes_auth_home,
@@ -462,3 +464,30 @@ def process_home_scope(home: Path | str | None) -> Iterator[None]:
         yield
     finally:
         reset_hermes_home_override(token)
+
+
+def _profile_home_for_token(token: str) -> Path | None:
+    """Profile-aware pull destination (W-H4, plan §5.1).
+
+    Before 2026-07-17 this mapping collapsed EVERY ``profiles/<name>/…``
+    artifact into the active profile home (a degenerate ternary — both
+    branches returned ``get_hermes_home()``), so a multi-profile realm pull
+    last-write-wins'd every profile's config.yaml/MEMORY.md onto one home.
+    Now: the active profile keeps the active home; any other published profile
+    resolves to ITS OWN home via ``get_profile_dir`` (materialized by the pull
+    write-loop's mkdir and reported as a typed ``profile_sync`` row). Untrusted
+    remote component: refuse traversal/absolute/drive-letter shapes.
+    """
+
+    if token in ("", ".", "..") or ":" in token or token.startswith(("/", "\\")):
+        return None
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,120}", token):
+        return None
+    if token == paths.safe_path_token(active_profile_name()):
+        return get_hermes_home()
+    try:
+        from hermes_cli.profiles import get_profile_dir, normalize_profile_name
+
+        return get_profile_dir(normalize_profile_name(token))
+    except Exception:
+        return None

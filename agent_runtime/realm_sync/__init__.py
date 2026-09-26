@@ -74,8 +74,8 @@ from agent_runtime.realm_sync.families import (
     _is_hard_excluded_path,
     _is_secretish_path,
     _kind_for_sync_path,
-    _profile_home_for_token,
 )
+from agent_runtime.profile_context import _profile_home_for_token
 from agent_runtime.realm_sync.ledgers import (
     merge_deleted_workspace_ledgers,
     merge_skill_tombstone_ledgers,

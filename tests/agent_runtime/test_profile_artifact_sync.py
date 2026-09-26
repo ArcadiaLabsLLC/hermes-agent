@@ -50,7 +50,9 @@ def homes(monkeypatch, tmp_path):
     active_home = profiles_root / "alice"
     active_home.mkdir(parents=True)
     # Every realm_sync module that reads either name as a global.
-    for module in (realm_sync.models, realm_sync.families, realm_sync.git, realm_sync.persona_artifacts):
+    import agent_runtime.profile_context as profile_context  # _profile_home_for_token's home (lane LAYERS L4)
+
+    for module in (realm_sync.models, realm_sync.families, realm_sync.git, realm_sync.persona_artifacts, profile_context):
         for name, value in (("active_profile_name", lambda: "alice"), ("get_hermes_home", lambda: active_home)):
             if hasattr(module, name):
                 monkeypatch.setattr(module, name, value)

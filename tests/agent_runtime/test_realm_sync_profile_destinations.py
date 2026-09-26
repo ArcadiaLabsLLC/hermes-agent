@@ -22,13 +22,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import agent_runtime.realm_sync.families as realm_sync
+import agent_runtime.profile_context as profile_context
 from agent_runtime.realm_sync import _destination_for_sync_path, _profile_home_for_token
 
 
 def _pin_profiles(monkeypatch, tmp_path, *, active: str = "alice") -> Path:
     profiles_root = tmp_path / "profiles"
-    monkeypatch.setattr(realm_sync, "active_profile_name", lambda: active)
+    monkeypatch.setattr(profile_context, "active_profile_name", lambda: active)
     import hermes_cli.profiles as profiles_mod
 
     monkeypatch.setattr(profiles_mod, "get_profile_dir", lambda name: profiles_root / profiles_mod.normalize_profile_name(name))
@@ -84,7 +84,7 @@ def test_generic_loop_still_owns_workspaces_and_realms(monkeypatch, tmp_path):
 def test_named_profile_homes_stay_profile_scoped(monkeypatch, tmp_path):
     profiles_root = _pin_profiles(monkeypatch, tmp_path, active="alice")
     assert _profile_home_for_token("bob") == profiles_root / "bob"
-    assert _profile_home_for_token("alice") == realm_sync.get_hermes_home()
+    assert _profile_home_for_token("alice") == profile_context.get_hermes_home()
 
 
 def test_hostile_profile_tokens_are_refused(monkeypatch, tmp_path):

@@ -1,25 +1,22 @@
 """Which sync family a published path belongs to, and where the generic pull may write it.
 
 Pure path policy: ``_destination_for_sync_path`` (``None`` = an applier owns the
-family), ``_kind_for_sync_path``, the per-profile home a token maps to, and the
-secret/hard-excluded path predicates. Separate from ``pull`` so the importers that
+family), ``_kind_for_sync_path``, and the secret/hard-excluded path predicates.
+The per-profile home a token maps to (``_profile_home_for_token``) needs the
+active profile, so it lives in ``profile_context`` (stores). Separate from ``pull`` so the importers that
 read these (``profile_artifact_sync``, ``sync_admission``) reach a module that
 imports no applier.
 """
 
 from __future__ import annotations
 
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from typing import Final
 
-from hermes_constants import get_hermes_home
-
 from .. import paths
-from ..profile_context import active_profile_name
 from .models import HARD_EXCLUDED_PATH_PARTS, SECRET_PATH_MARKERS
 
 __layer__ = "policy"
@@ -37,7 +34,6 @@ __all__ = [
     "_kind_for_sync_path",
     "_prefix",
     "_profile_file_kind",
-    "_profile_home_for_token",
     "_store_record",
 ]
 
@@ -244,33 +240,6 @@ def _destination_for_sync_path(rel: str) -> Path | None:
             if target is not None:
                 return target
     return None
-
-
-def _profile_home_for_token(token: str) -> Path | None:
-    """Profile-aware pull destination (W-H4, plan §5.1).
-
-    Before 2026-07-17 this mapping collapsed EVERY ``profiles/<name>/…``
-    artifact into the active profile home (a degenerate ternary — both
-    branches returned ``get_hermes_home()``), so a multi-profile realm pull
-    last-write-wins'd every profile's config.yaml/MEMORY.md onto one home.
-    Now: the active profile keeps the active home; any other published profile
-    resolves to ITS OWN home via ``get_profile_dir`` (materialized by the pull
-    write-loop's mkdir and reported as a typed ``profile_sync`` row). Untrusted
-    remote component: refuse traversal/absolute/drive-letter shapes.
-    """
-
-    if token in ("", ".", "..") or ":" in token or token.startswith(("/", "\\")):
-        return None
-    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,120}", token):
-        return None
-    if token == paths.safe_path_token(active_profile_name()):
-        return get_hermes_home()
-    try:
-        from hermes_cli.profiles import get_profile_dir, normalize_profile_name
-
-        return get_profile_dir(normalize_profile_name(token))
-    except Exception:
-        return None
 
 
 def _kind_for_sync_path(rel: str) -> str:
