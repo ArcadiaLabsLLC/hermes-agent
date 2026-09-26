@@ -25,6 +25,8 @@ from .store import ACTIVE_RUN_STATES, AgentStore, IncidentStore, RunStore
 from .snapshot import parity_envelope, persona_session_db_scope
 from .resolution import runtime_resolution_scope
 
+__layer__ = "lanes"
+
 
 def build_status(run_store: RunStore | None = None, incident_store: IncidentStore | None = None, agent_store: AgentStore | None = None, event_log: EventLog | None = None) -> dict:
     # Owns the chat SessionDB for the life of the status build and closes it —
