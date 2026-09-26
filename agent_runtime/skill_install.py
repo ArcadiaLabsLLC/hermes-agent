@@ -9,6 +9,8 @@ from pathlib import Path
 
 from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS, get_shared_skills_dir
 
+__layer__ = "stores"
+
 HARNESS_SKILLS = CANONICAL_SHARED_SKILL_IDS
 
 #: Where a package this install DISPLACES is kept instead of deleted. Already in
