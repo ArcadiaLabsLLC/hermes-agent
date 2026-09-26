@@ -1,8 +1,8 @@
 {
-  "measured_at": "2026-09-25",
+  "measured_at": "2026-09-26",
   "base": "067fa1a257",
-  "files": 178,
-  "deleted_lines": 924,
+  "files": 177,
+  "deleted_lines": 923,
   "heavy": 4,
   "reasons": [
     {
@@ -282,6 +282,12 @@
       "files": "178 unchanged (both files already on the ledger)",
       "deleted_lines": "918 -> 924: tests/hermes_cli/test_projects_db.py 4 -> 7 and tests/tools/test_skills_hub.py 0 -> 3",
       "reason": "design note section 5 Q7: a `theirs` on a Windows-carry test that is red on Windows re-applies the fork hunk as its carry. Upstream's os.path.abspath('/tmp/hermes') literals and os.path.join bundle keys are red on this Windows box; the fork's host-spelled paths / POSIX keys come back and PRs #121224 and #121221 stand. Retires when those PRs merge upstream."
+    },
+    {
+      "change": "lane CI-FORK (lane/ci-fork)",
+      "files": "178 -> 177: .github/workflows/e2e-desktop.yml byte-identical to 067fa1a257 again (ci.yaml calls it only under `if: false`, so its runner never runs on the fork)",
+      "deleted_lines": "924 -> 923; heavy unchanged at 4",
+      "reason": "the other six workflow edits stay: upstream carries no github.repository gate and ci.yaml runs them on the fork, so moving them to a fork-only file needs the owner to disable the CI workflow in repository settings; the five runner files were minimised to the bare conditional (runner-file added lines 34 -> 11), contributor-check stays a PR candidate"
     }
   ]
 }
