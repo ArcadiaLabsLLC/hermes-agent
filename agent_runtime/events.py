@@ -17,6 +17,8 @@ from .locks import events_lock
 from .models import EVENT_PAYLOAD_LIMIT_BYTES, Event, payload_bytes
 from .serde import from_jsonable, to_jsonable
 
+__layer__ = "stores"
+
 # Match compact-JSON top-level id tokens while still treating the parsed event
 # as authoritative. Payload copies may add candidates, but never false results.
 _INDEXED_EVENT_ID_TOKEN_RE = re.compile(

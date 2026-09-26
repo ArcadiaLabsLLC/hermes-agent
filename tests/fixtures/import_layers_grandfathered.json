@@ -78,7 +78,6 @@
   "agent_runtime/discussions/native.py",
   "agent_runtime/discussions/rpc.py",
   "agent_runtime/discussions/service.py",
-  "agent_runtime/events.py",
   "agent_runtime/local_llama_adapter/config.py",
   "agent_runtime/local_llama_adapter/engine.py",
   "agent_runtime/local_llama_adapter/manager.py",
