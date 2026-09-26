@@ -14,7 +14,7 @@ from ..redaction import mask_secret_lines
 from ..redaction_mode import redaction_observe_enabled
 from .vocabulary import PERSONA_CHAT_MESSAGE_TEXT_LIMIT, _SECRET_RE
 
-__layer__ = "policy"
+__layer__ = "stores"
 __all__ = [
     "_INTERNAL_SCAFFOLDING_MARKERS",
     "_curate_chat_message_text",
