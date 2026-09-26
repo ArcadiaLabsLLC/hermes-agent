@@ -200,3 +200,66 @@ and names the rest in `why`.
 | `website/docs/developer-guide/gateway-session-lifecycle.md` | upstream | DROP | website-docs | same |
 | `website/docs/developer-guide/relay-connector-contract.md` | upstream | DROP | website-docs | same |
 | `website/docs/user-guide/egress/network-isolation.md` | upstream | DROP | website-docs | same |
+
+## 2. Held branches (KEEP-HELD rows) — cut from `upstream/main` 77a799e2f9c, pushed to ORIGIN only, never to upstream
+
+28 branches cut and pushed this sitting, plus two REUSED that were already on origin (`up/auth-on-verification` da0369aee6, `up/plugin-cli-commands` df624d82cc; bodies under `X:/wt/_holds/pr-bodies/`). Each branch carries one commit whose subject is the PR title and a body under `X:/wt/_holds/fix-triage-0926/pr-<class>.md` (upstream's PR template, filled). The tests column is the branch's own run of that class's upstream test files on this box; where a class was red, the SAME targets were run on a pristine `upstream/main` worktree and the failure sets diffed — `introduced: N` is the count of failures the branch adds, and it is 0 everywhere. A red that is the base tree's own (Windows-host reds upstream has not fixed, `schtasks` needing elevation, `tests._downstream`-free trees) is reported, not hidden. `up/live-system-guard` was cut, reddened 10 guard tests on `tests._downstream`, and was DELETED (row re-verdicted CARRY).
+
+| branch | tip | diff vs upstream/main | body (`X:/wt/_holds/fix-triage-0926/`) | tests (this box, Windows 10 19045) |
+|---|---|---|---|---|
+| `up/atomic-write-newline` | 114ad80297e (pushed: 114ad80297e) | 1 file changed, 4 insertions(+), 4 deletions(-) | `pr-atomic-write-newline.md` | 25 passed, 1 skipped |
+| `up/bytecode-sweep-lock` | 5a49ec39070 (pushed: 5a49ec39070) | 3 files changed, 791 insertions(+), 47 deletions(-) | `pr-bytecode-sweep-lock.md` | 14 passed, 1 warning |
+| `up/copilot-direct-http-client` | a68d70a7e94 (pushed: a68d70a7e94) | 1 file changed, 5 insertions(+) | `pr-copilot-direct-http-client.md` | smoke import: copilot URL → plain HTTPTransport client, default URL → keep-alive client (no upstream test file) |
+| `up/doctor-call-time-home` | 56175ca7803 (pushed: 56175ca7803) | 5 files changed, 66 insertions(+), 19 deletions(-) | `pr-doctor-call-time-home.md` | 1 failed, 105 passed, 21 skipped; base tree same targets: 1 failed, 105 passed, 21 skipped; introduced: 1 (test_run_doctor_vendor_slug_policy_for_openai_api_endpoint[https://api.openai.com/v1-True]); fixed by the branch: 1 |
+| `up/kanban-crash-evidence` | 8a8bbc6c813 (pushed: 8a8bbc6c813) | 2 files changed, 498 insertions(+) | `pr-kanban-crash-evidence.md` | 13 failed, 63 passed; base tree same targets: 13 failed, 63 passed; introduced: 0 |
+| `up/mcp-test-env` | 7545a31723f (pushed: 7545a31723f) | 2 files changed, 23 insertions(+) | `pr-mcp-test-env.md` | 2 failed, 183 passed, 8 skipped, 2 warnings; base tree same targets: 2 failed, 183 passed, 8 skipped, 2 warnings; introduced: 0 |
+| `up/media-path-hardening` | cebbd140f68 (pushed: cebbd140f68) | 1 file changed, 4 insertions(+), 2 deletions(-) | `pr-media-path-hardening.md` | 33 failed, 137 passed, 16 skipped, 1 warning; base tree same targets: 33 failed, 137 passed, 16 skipped, 1 warning; introduced: 0 |
+| `up/memory-plugin-publish-module` | d1a5c524314 (pushed: d1a5c524314) | 1 file changed, 76 insertions(+), 2 deletions(-) | `pr-memory-plugin-publish-module.md` | 4 failed, 287 passed, 6 skipped; base tree same targets: 4 failed, 287 passed, 6 skipped; introduced: 0 |
+| `up/oauth-flow-catalog` | b7fd17717a7 (pushed: b7fd17717a7) | 3 files changed, 105 insertions(+), 58 deletions(-) | `pr-oauth-flow-catalog.md` | 14 passed, 1 warning |
+| `up/pet-atlas-extraction` | d7dc317e8e2 (pushed: d7dc317e8e2) | 1 file changed, 109 insertions(+), 14 deletions(-) | `pr-pet-atlas-extraction.md` | 9 passed |
+| `up/platform-markers-linux` | 022906ae592 (pushed: 022906ae592) | 5 files changed, 32 insertions(+) | `pr-platform-markers-linux.md` | 2 failed, 79 passed, 34 skipped; base tree same targets: 27 failed, 85 passed, 3 skipped; introduced: 0; fixed by the branch: 25 |
+| `up/plugin-session-info-tool-names` | a13c068b787 (pushed: a13c068b787) | 1 file changed, 1 insertion(+) | `pr-plugin-session-info-tool-names.md` | 68 passed |
+| `up/process-notification-redaction` | 7df6a3218c7 (pushed: 7df6a3218c7) | 1 file changed, 29 insertions(+), 1 deletion(-) | `pr-process-notification-redaction.md` | 24 failed, 87 passed, 33 skipped, 1 warning; base tree same targets: 24 failed, 87 passed, 33 skipped, 1 warning; introduced: 0 |
+| `up/profile-bootstrap-extraction` | 4fdca58701c (pushed: 4fdca58701c) | 2 files changed, 375 insertions(+), 195 deletions(-) | `pr-profile-bootstrap-extraction.md` | 146 passed, 3 skipped, 1 warning |
+| `up/providers-discovery-import` | 5ce87836af0 (pushed: 5ce87836af0) | 2 files changed, 2 insertions(+), 2 deletions(-) | `pr-providers-discovery-import.md` | 19 failed, 46 passed; base tree same targets: 19 failed, 46 passed; introduced: 0 |
+| `up/readonly-config-reads` | 1f4541dd330 (pushed: 1f4541dd330) | 12 files changed, 94 insertions(+), 30 deletions(-) | `pr-readonly-config-reads.md` | 5 failed, 653 passed, 4 skipped, 1 warning; base tree same targets: 5 failed, 651 passed, 4 skipped, 1 warning; introduced: 0 |
+| `up/reasoning-relay-native` | 789eac4b000 (pushed: 789eac4b000) | 1 file changed, 12 insertions(+), 1 deletion(-) | `pr-reasoning-relay-native.md` | 25 failed, 218 passed, 1 warning, 17 errors; base tree same targets: 25 failed, 218 passed, 1 warning, 17 errors; introduced: 0 |
+| `up/ruff-f821` | 28390921b6e (pushed: 28390921b6e) | 1 file changed, 68 insertions(+), 1 deletion(-) | `pr-ruff-f821.md` | no summary |
+| `up/state-db-small-fixes` | 9a2a5b8aca6 (pushed: 9a2a5b8aca6) | 2 files changed, 5 insertions(+), 3 deletions(-) | `pr-state-db-small-fixes.md` | 2 failed, 274 passed, 27 skipped; base tree same targets: 2 failed, 274 passed, 27 skipped; introduced: 0 |
+| `up/test-hygiene` | 0e0e09f53df (pushed: 0e0e09f53df) | 7 files changed, 16 insertions(+), 9 deletions(-) | `pr-test-hygiene.md` | 23 failed, 122 passed, 1 skipped; base tree same targets: 23 failed, 68 passed; introduced: 0 |
+| `up/test-runner` | 33c7ed5dfeb (pushed: 33c7ed5dfeb) | 4 files changed, 284 insertions(+), 46 deletions(-) | `pr-test-runner.md` | 1 failed, 18 passed, 2 skipped; base tree same targets: 1 failed, 15 passed, 2 skipped; introduced: 0 |
+| `up/tool-registry-probe-cache` | 36631a41687 (pushed: 36631a41687) | 1 file changed, 119 insertions(+), 35 deletions(-) | `pr-tool-registry-probe-cache.md` | 39 passed |
+| `up/updater-fork-history` | 8dc246c5787 (pushed: 8dc246c5787) | 4 files changed, 292 insertions(+) | `pr-updater-fork-history.md` | 18 passed; base tree same targets: 8 passed; introduced: 0 |
+| `up/watcher-reply-to` | 081801f0623 (pushed: 081801f0623) | 1 file changed, 2 insertions(+), 1 deletion(-) | `pr-watcher-reply-to.md` | 84 passed |
+| `up/win-gateway-task-console` | 0786d1a2482 (pushed: 0786d1a2482) | 2 files changed, 112 insertions(+) | `pr-win-gateway-task-console.md` | 1 failed, 25 passed; base tree same targets: 1 failed, 25 passed; introduced: 0 |
+| `up/win-path-identity` | f93b87d3fb9 (pushed: f93b87d3fb9) | 9 files changed, 556 insertions(+), 17 deletions(-) | `pr-win-path-identity.md` | 4 failed, 298 passed, 21 skipped, 1 warning, 5 subtests passed; base tree same targets: 4 failed, 269 passed, 19 skipped, 5 subtests passed; introduced: 0 |
+| `up/win-runtime-fixes` | 4140e5d5bb7 (pushed: 4140e5d5bb7) | 3 files changed, 72 insertions(+), 4 deletions(-) | `pr-win-runtime-fixes.md` | 10 failed, 177 passed, 41 skipped; base tree same targets: 10 failed, 177 passed, 41 skipped; introduced: 0 |
+| `up/win-test-fixes-2` | bfde9ce1a98 (pushed: bfde9ce1a98) | 6 files changed, 96 insertions(+), 17 deletions(-) | `pr-win-test-fixes-2.md` | 144 passed, 10 skipped, 1 warning |
+
+
+## 3. Issue drafts (KEEP-ISSUE rows) — `X:/wt/_holds/fix-triage-0926/issue-<slug>.md`, none filed
+
+| draft | rows it retires | the question |
+|---|---|---|
+| `issue-turn-phase-observer.md` | `agent/turn_api_request.py`, `agent/turn_response_check.py`; the (b) halves of `agent/conversation_loop.py`, `agent/agent_init.py`, `model_tools.py` | the phase vocabulary of an `on_turn_phase` / `on_agent_init_phase` observer |
+| `issue-group-chat-host-surface.md` | `gateway/hosted_room_discussion.py`, `gateway/hosted_room_policy_checkpoint.py`, `gateway/hosted_rooms.py`, `tui_gateway/hosted_room_driver.py` | kwargs on the existing functions or a `RoomHost` protocol; the three settlement fixes split out after |
+| `issue-configurable-context-floor.md` | `agent/conversation_compression.py`; `agent/agent_init.py` (c) | a `context.minimum_length` key (the fork's provider-name exemption is not a PR shape); `transform_compression_child` beside #124210 |
+| `issue-skill-visibility-hook.md` | `agent/prompt_builder.py` (c), `tools/skills_tool.py` (d) | `filter_skill_visible(skill_name, frontmatter, session_info)` in `hides()` / `_find_all_skills` |
+| `issue-config-readonly-projection.md` | `hermes_cli/config.py` (the ContextVar half) | `set_readonly_projection(fn)` on the read-only door |
+| `issue-durable-completion-restore.md` | `tui_gateway/entry.py`; `gateway/run.py` (P2 hunk); `tools/process_registry.py` (mixin, `wait_ceiling_seconds`); `hermes_cli/main.py` (d) | an explicit, idempotent startup restore instead of the ctor-time import side effect; wait ceiling as config |
+| `issue-updater-fork-sync-no-force.md` | `hermes_cli/update_cmd_git.py` | whether `--force-with-lease` on the fork sync push is intentional |
+| `issue-context-files-load-all.md` | `agent/prompt_builder.py` (d) | a `context_files.load_all` key |
+
+## 4. Close candidates
+
+**None.** Every one of our 33 open PRs was checked against the table: no open PR's subject is a DROP row (the DROP set is website docs, the desktop app, nix, docker tests, the Feishu and Slack adapters, the contributors `case-variants/` lookup, two R10 test hunks and one dead hunk), and none of the 18 upstream-touched files carries our fix already. Two open PRs need a REBASE before review, not a close: #121645 (`tools/file_tools_write_guards.py` conflicts with 641c49f8412…42841ece0f0) and #124210 (`tools/mcp_tool_transport.py` conflicts with 75b64fb8ff5). #121220 was already closed 2026-09-26 as superseded and stays closed.
+
+## 5. Counts and what this sitting did not do
+
+Verdicts over 169 rows: **DROP 19 · PLUGIN 8 · KEEP-PR 58 · KEEP-HELD 71 (29 classes; 27 cut and pushed here + 2 reused from origin; `up/live-system-guard` cut, refuted, deleted) · KEEP-ISSUE 9 (8 drafts) · CARRY 4.**
+
+- No fork tree file was changed; the ledger's `disposition` column is untouched — an exec lane applies the DROP reverts (19 files, all byte-revertible with `git checkout upstream/main -- <path>` except `tools/environments/local.py`'s dead `_shell_arg_safe_path` def, which is a partial) and re-takes `[up-fp]`.
+- `scripts/upstream_footprint.py --check` (the brief's gate) does not exist; the script's flags are `--base`, `--json`, `--ledger`, `--refresh-manifest`. The line of record was re-taken with the bare invocation: `[up-fp] files=169 deleted_lines=906 heavy=4`, unchanged.
+- Held branches carry each class's fork tests where one exists upstream-shaped (`test_path_identity.py`, `test_update_history.py`, `test_bytecode_sweep*.py`, `test_config_readonly_no_scaffold.py`); `up/kanban-crash-evidence` carries a 485-line module with no test in either tree — its body says so.
+- Every branch's test line was taken on this box (Windows 10 19045); where a class reddened, the SAME targets were run on a pristine `upstream/main` worktree and the failure sets diffed — the §2 column records "introduced: N", and N is 0 for every branch.
+- The eight `up/*` fix PRs #121640–#121646 are open upstream and absent from `Harness_Brain/10 — Programs/Upstream Sync.md` § Open upstream PRs (queue row filed by the parent).
