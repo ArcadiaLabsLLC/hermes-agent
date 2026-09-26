@@ -226,7 +226,7 @@ def build_realm_publish_states() -> list[dict[str, Any]]:
     ``sync_state`` is ``None`` when the realm has never been checked (the
     Launcher renders that as "not checked", never as in-sync).
     """
-    from agent_runtime.realm_sync import read_realm_sync_sidecar
+    from agent_runtime.realm_sync.sidecar import read_realm_sync_sidecar
     from agent_runtime.store import RealmStore
 
     rows: list[dict[str, Any]] = []
