@@ -15,7 +15,7 @@ from agent_runtime.call_authorization import TIER_CONSOLE, TIERS
 
 from agent_runtime.serve_rpc.protocol import RPC_CONTRACT_VERSION, RpcContext, err, ok
 
-__layer__ = "models"
+__layer__ = "lanes"
 
 __all__ = [
     "_METHODS",
