@@ -48,6 +48,8 @@ from .permission_modes import (
 )
 from .tool_visibility import ToolVisibilityOptions, permission_state_for_persona
 
+__layer__ = "stores"
+
 logger = logging.getLogger(__name__)
 
 #: The mutating-tool set. ONE definition: ``read_only`` blocks exactly the tools
