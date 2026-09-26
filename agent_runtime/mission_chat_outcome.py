@@ -535,7 +535,7 @@ def wall_budget_exceeded(exc: BaseException, *, provider_submitted: bool) -> boo
 
     if not provider_submitted:
         return False
-    from .profile_runner import RunBudgetExceeded
+    from .profile_runner.errors import RunBudgetExceeded
 
     return bool(isinstance(exc, RunBudgetExceeded) and getattr(exc, "wall_budget", None))
 
