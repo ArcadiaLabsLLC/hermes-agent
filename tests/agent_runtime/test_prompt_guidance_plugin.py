@@ -100,7 +100,7 @@ class TestSafetySentenceOnTheWire:
 
 
 class TestWindowsToolingSection:
-    def _section(self, monkeypatch, *, platform="win32", wsl=False, backend=None):
+    def _section(self, monkeypatch, *, platform="win32", wsl=False, backend=None, tools="read_file,terminal"):
         import sys
 
         import hermes_constants
@@ -111,14 +111,15 @@ class TestWindowsToolingSection:
             monkeypatch.delenv("TERMINAL_ENV", raising=False)
         else:
             monkeypatch.setenv("TERMINAL_ENV", backend)
-        return _plugin().render_windows_tooling({})
+        return _plugin().render_windows_tooling({"tool_names": tools})
 
     def test_present_on_native_windows_with_a_local_backend(self, monkeypatch):
         assert self._section(monkeypatch) == WINDOWS_NATIVE_TOOLING_HINT
         assert self._section(monkeypatch, backend="local") == WINDOWS_NATIVE_TOOLING_HINT
 
     @pytest.mark.parametrize("kwargs", [{"platform": "linux"}, {"platform": "darwin"}, {"wsl": True},
-                                        {"backend": "docker"}, {"backend": "ssh"}])
+                                        {"backend": "docker"}, {"backend": "ssh"},
+                                        {"tools": "read_file"}, {"tools": ""}])
     def test_absent_elsewhere(self, monkeypatch, kwargs):
         assert self._section(monkeypatch, **kwargs) == ""
 
