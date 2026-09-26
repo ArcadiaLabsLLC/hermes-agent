@@ -23,16 +23,15 @@ def _explicit_pm():
 
 
 def _tool_names(toolsets, blocked):
+    """The agent's tool names after the run's block prunes it (``agent_runtime.tool_blocks``)."""
+    from types import SimpleNamespace
+
+    from agent_runtime.tool_blocks import prune_agent_tools
     from model_tools import get_tool_definitions
 
-    return {
-        tool["function"]["name"]
-        for tool in get_tool_definitions(
-            enabled_toolsets=toolsets,
-            blocked_tool_names=list(blocked),
-            quiet_mode=True,
-        )
-    }
+    agent = SimpleNamespace(tools=get_tool_definitions(enabled_toolsets=toolsets, quiet_mode=True))
+    prune_agent_tools(agent, blocked)
+    return {tool["function"]["name"] for tool in agent.tools}
 
 
 def test_pm_actual_tool_schema_follows_its_configured_toolsets():
