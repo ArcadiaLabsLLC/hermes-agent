@@ -252,6 +252,42 @@ if _WIN:
                 "test_state_stale_after_patch_bump",
             )),
         )},
+        # Lane TRIAGE (2026-09-26): the Windows-main reds of fork-hygiene-queue's
+        # "25 failed in 18 files" row whose premise is POSIX.
+        "tests/hermes_state/test_auto_vacuum_in_process_holder_gate.py::"
+        "test_auto_vacuum_is_not_starved_by_a_retired_write_fenced_generation": (
+            _posix_only("replaces state.db while a SessionDB still holds it open; Windows "
+                        "refuses the rename over an open file (WinError 5)"),
+        ),
+        **{
+            f"tests/hermes_state/test_cross_vm_fs_wal_refusal.py::TestDetectCrossVmFs::"
+            f"test_only_virtiofs_and_9p_mounts_are_flagged[{param}]": (
+                _posix_only("virtiofs/9p detection reads Linux /proc/self/mountinfo; "
+                            "_detect_cross_vm_fs returns False off Linux by design"),
+            )
+            for param in ("/data/agent-True", "/mnt/host/db-True", "/mnt/my share/db-True")
+        },
+        **{
+            f"tests/hermes_state/test_shared_session_db_registry.py::"
+            f"TestMultiGenerationTeardownBarrier::{test}": (
+                _posix_only("unlinks state.db under a live connection to mint a new inode; "
+                            "Windows refuses to delete an open file (WinError 32)"),
+            )
+            for test in (
+                "test_retired_drain_does_not_lift_a_pending_current_teardown",
+                "test_replacement_is_not_published_before_the_last_close_settles",
+            )
+        },
+        "tests/hermes_state/test_state_db_second_process_maintenance.py::"
+        "test_holder_scan_sees_through_a_symlinked_home": (
+            _posix_only("compares the holder to Popen(sys.executable).pid; a Windows venv "
+                        "python.exe is a redirector, so the SQLite holder Restart Manager "
+                        "names is its child (the scan itself resolves the alias)"),
+        ),
+        "tests/hermes_state/test_write_lock_owner_attribution.py::"
+        "test_parse_proc_locks_keeps_only_write_locks_on_our_inodes_and_decodes_the_wal_write_byte": (
+            _posix_only("Linux /proc/locks parsing keyed by os.makedev, which Windows lacks"),
+        ),
     })
 
 #: Upstream test modules that call a POSIX-only ``os`` attribute at IMPORT (a
