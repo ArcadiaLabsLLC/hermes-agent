@@ -193,6 +193,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 ## Seams — fork edits inside upstream files (additive only)
+### Filed on arrival — 2026-09-26 (lane AUTH-PR, filed by the orchestrator)
+
+- [ ] **Fork `hermes_cli/main.py::_attach_declared_plugin_cli_commands` materialises EVERY declared plugin per invocation (each stub's `setup_fn` runs at attach), not the one the docstring claims** · `fork / seams` · retires when `up/plugin-cli-commands` merges (it attaches only the command argv names) · evidence: `X:/wt/_holds/pr-bodies/plugin-cli-commands-logs/` · filed 2026-09-26 (lane AUTH-PR) **UNCLAIMED**
+
 ### Filed on arrival — 2026-09-26 (owner ask: the fix-shaped footprint)
 
 - [ ] **Every ledger row — all 169 files on the footprint, every disposition (124 `upstream`, 34 `hook`, 7 `carry`, 4 `carry-permanent`; a hook/carry row takes PLUGIN-FIT's verdict where that sitting gave one and is triaged here where it said NO) — gets one verdict — DROP (upstream fixed it since the base, or it serves a surface the fork does not use: ACP is gone, the desktop app, website docs, platform adapters we never run), PLUGIN (a seam exists), or KEEP; every KEEP without a PR is verified on a fresh `upstream/main`, deduped against upstream's open PRs, and written as a HELD branch + body by class (~20), with an issue DRAFT where a PR is the wrong shape; every open PR of ours whose subject is DROP-shaped is named for closing** · `fork / seams` · nothing is published (owner 2026-09-26: "we have too many today") · evidence: `scripts/upstream_footprint.py --json` × the ledger; `Harness_Brain/10 — Programs/Upstream Sync.md` § Open upstream PRs · filed by the orchestrator 2026-09-26 · RULED 2026-09-26 (owner; widened to every row the same day: "do this for everything actually all") **TAKEN 2026-09-26 lane FIX-TRIAGE** (design sitting; queued behind PLUGIN-FIT)

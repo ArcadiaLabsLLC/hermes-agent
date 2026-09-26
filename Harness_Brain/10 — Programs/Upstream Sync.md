@@ -84,7 +84,14 @@ Rules used: branch cut from `upstream/main` (never from the fork), `fix/…` / `
 
 ## Held branches
 
-None as of 2026-09-26 evening: all seven recorded-parallel widenings are open (#124190–#124195, #124210). Bodies at `X:/wt/_holds/pr-bodies/<name>.md`.
+Held on the owner's word ("we have too many today", 2026-09-26). Bodies at `X:/wt/_holds/pr-bodies/<name>.md`.
+
+| branch | tip | what it carries | retires | filed |
+|---|---|---|---|---|
+| `up/auth-on-verification` | `da0369aee6` (base upstream `467902fdb3`) | `feat(auth)`: `on_verification` on codex / codex-browser / xai / minimax logins + minimax `persist=`; nine login helpers public by rename (no alias) | ledger rows `auth_codex.py`, `auth_codex_browser.py`, `auth_minimax.py`, `auth_xai.py`; the nine `provider_browser_login.py` grandfathered private reaches | 2026-09-26 (lane AUTH-PR) |
+| `up/plugin-cli-commands` | `df624d82cc` (base upstream `467902fdb3`) | `feat(plugins)`: manifest `cli_commands` + `discover_declared_cli_commands` + `register_cli_command(parent=)`; a declared command attaches only when argv names it | ledger rows `plugins.py` (Stage 1 seam), `plugins_manifest.py`; on adoption `subcommands/auth.py` + `auth_commands.py` | 2026-09-26 (lane AUTH-PR) |
+
+Merge note (lane AUTH-PR): the fork's own `tests/hermes_cli/test_plugin_declared_cli_commands.py` shares a path with the branch's — at the merge take upstream's file.
 
 ## Related
 
