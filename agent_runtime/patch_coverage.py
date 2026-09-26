@@ -101,6 +101,8 @@ from .state_patches import (
     STATE_PATCHED_EVENT_TYPE,
 )
 
+__layer__ = "stores"
+
 #: A CAPABILITY token, not an entity — and the declaration channel carries it
 #: because that channel was never anything but a set of strings
 #: (:func:`normalize_fold_entities` interprets none of them).
