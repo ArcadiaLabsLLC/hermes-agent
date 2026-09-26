@@ -11,7 +11,7 @@ from hermes_cli.sqlite_util import transaction
 from .definition_store import DefinitionKind, _encode, _expect, _key, _required
 from .definitions import ParticipantRef, identifier, plan_seats
 from .room_definition import RoomSpec
-from .run_records import _add_member, _run
+from .run_records import _add_member, read_run_record
 from .run_values import DiscussionError, digest, text
 
 __layer__ = "stores"
@@ -61,7 +61,7 @@ def admit(connect: Callable[[], sqlite3.Connection], workspace: str, *, key: str
         if previous is not None:
             if previous["request_digest"] != signature:
                 raise DiscussionError("idempotency_conflict")
-            return _run(conn, previous["run_id"])
+            return read_run_record(conn, previous["run_id"])
         admission = load(conn)
         if conn.execute("SELECT COUNT(*) FROM mc_discussion_runs WHERE phase NOT IN ('ended','failed')").fetchone()[0] >= MAX_OPEN_RUNS:
             raise DiscussionError("too_many_open_discussions")
@@ -75,4 +75,4 @@ def admit(connect: Callable[[], sqlite3.Connection], workspace: str, *, key: str
             conn.execute("INSERT INTO mc_discussion_table_claims VALUES(?,?,?)", (workspace, admission.table_id, run_id))
         for index, (ref, item) in enumerate(zip(admission.participants, catalog, strict=True)):
             _add_member(conn, run_id, item, ordinal=index, seat=admission.positions[ref])
-        return _run(conn, run_id)
+        return read_run_record(conn, run_id)

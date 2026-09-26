@@ -34,9 +34,18 @@ conversation, native discussion and generated-wire files).
   native acknowledgement. The valid case ignores a foreign terminal and waits
   for the exact session's interrupted completion.
 - `test_native_discussion_room.py::test_schema_one_upgrade_preserves_every_run_and_claim`:
-  omit the old-row INSERT/SELECT in `_initialize`; the assertion returned
+  omit the old-row INSERT/SELECT in `initialize_runs`; the assertion returned
   `None != ('old', 'ws', 'table', …)`.
 
-Broad suite, tooling gates and native Launcher smoke are still pending. The
+The full validated suite ran: 23,082 passed, 183 failed and 668 skipped, plus
+collection/teardown errors. Baseline comparison remains in progress; this is
+not a green broad suite. Focused conversation/discussion qualification passed.
+After splitting definition/run RPC handlers, 28 duplicate-helper, import-layer,
+legibility and dispatch-ladder checks pass with smaller exception baselines.
+Definition read/delete/revision and shutdown tests pass. Bypassing the shutdown
+guard makes the regression fail with `DID NOT RAISE DiscussionError`; the
+restored test passes.
+
+Native Launcher smoke and final qualification are still pending. The
 working branch is not a main landing, and these receipts are not live-provider
 acceptance. Upstream Hermes ACP remains unchanged.

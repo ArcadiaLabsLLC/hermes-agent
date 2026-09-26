@@ -24,7 +24,7 @@ def _send(service, scope, params):
     return service.send(scope, identifier(params["session_id"]), identifier(params["turn_id"]), params["prompt"])
 
 
-def _read(service, scope, params):
+def _read_conversation(service, scope, params):
     cursor = params.get("cursor", 0)
     if type(cursor) is not int or cursor < 0:
         raise ConversationError(Refusal.INVALID_REQUEST)
@@ -54,7 +54,7 @@ def _skills(action, service, scope, params):
                           identifier(params["skill_id"]) if action == "detail" else None)
 
 
-OPERATIONS = {"open": _open, "send": _send, "read": _read, "stop": _stop,
+OPERATIONS = {"open": _open, "send": _send, "read": _read_conversation, "stop": _stop,
               "respond": _respond, "facts": _facts, "model": _model,
               **{"skills." + action: partial(_skills, action) for action in ("list", "detail", "history")}}
 

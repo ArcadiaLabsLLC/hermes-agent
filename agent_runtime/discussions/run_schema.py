@@ -17,7 +17,7 @@ _RUN_COLUMNS = """(
 _INDEX = "CREATE INDEX mc_discussion_runs_workspace ON mc_discussion_runs(workspace_id,created_at,run_id)"
 
 
-def _ready(conn: sqlite3.Connection) -> bool:
+def run_schema_ready(conn: sqlite3.Connection) -> bool:
     if conn.execute("SELECT 1 FROM sqlite_master WHERE name='mc_discussion_runs_schema'").fetchone() is None:
         return False
     rows = conn.execute("SELECT version FROM mc_discussion_runs_schema").fetchall()
@@ -26,8 +26,8 @@ def _ready(conn: sqlite3.Connection) -> bool:
     return rows[0][0] == 2
 
 
-def _initialize(conn: sqlite3.Connection) -> None:
-    if _ready(conn):
+def initialize_runs(conn: sqlite3.Connection) -> None:
+    if run_schema_ready(conn):
         return
     if conn.execute("SELECT 1 FROM sqlite_master WHERE name='mc_discussion_runs_schema'").fetchone():
         # Preserve every Mission Control row and claim. Only placement becomes
