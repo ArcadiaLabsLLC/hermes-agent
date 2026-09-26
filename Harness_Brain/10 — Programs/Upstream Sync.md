@@ -60,6 +60,10 @@ After the conflicts are resolved and before the suite: for every upstream commit
 | NousResearch/hermes-agent#123890 | `fix(evals)`: define the names `cache_concurrency_probe`'s native recorder uses (`fix/cache-concurrency-probe-nameerror`) | `evals/postmortem/live_ab/cache_concurrency_probe.py` | 2026-09-26 |
 | NousResearch/hermes-agent#123891 | `fix(gateway)`: keep the lifecycle sentinel and loop heartbeat in the launch home (`fix/process-hermes-home-no-override-fallback`) | `gateway/lifecycle_ledger.py`, `gateway/shutdown_watchdog.py` | 2026-09-26 |
 | NousResearch/hermes-agent#123892 | `fix(shell-hooks)`: treat a backslash path as the hook's script path on Windows (`fix/shell-hook-script-path-os-sep`) | `agent/shell_hooks.py` (G2 os.sep hunk) | 2026-09-26 |
+| NousResearch/hermes-agent#123976 | `feat(plugins)`: busy_policy and gateway_context for plugin slash commands (`widen/register-command-gateway-context`) | `gateway/run.py` (`/queue-status`), seams-note Stage 2 `/queue-status` | 2026-09-26 |
+| NousResearch/hermes-agent#123977 | `feat(plugins)`: command_guard hook for terminal commands (`widen/terminal-command-guard-hook`) | `tools/terminal_tool.py` | 2026-09-26 |
+| NousResearch/hermes-agent#123978 | `feat(plugins)`: per-call cost on post_api_request, Codex app-server parity (`widen/per-call-usage-record`) | `agent/codex_runtime.py`, `run_agent.py` | 2026-09-26 |
+| NousResearch/hermes-agent#123979 | `feat(plugins)`: register_toolset and add_to_toolset on PluginContext (`widen/register-toolset`) | `toolsets.py` | 2026-09-26 |
 
 **Checked 2026-09-24 (lane MERGE):** all eleven rows above are OPEN upstream and none is in `upstream/main`; every carry stays.
 
