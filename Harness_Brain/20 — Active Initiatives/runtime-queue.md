@@ -24,7 +24,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ## Fork-owned
 ### Filed on arrival — 2026-09-26 (post-landing gate, filed by the orchestrator)
 
-- [ ] **`tests/tooling/test_no_silent_package_patches.py::test_no_new_silent_package_patch` is red on `main` since lane L1 (6af9212f11): `tests/agent_runtime/test_gateway_announce.py` and `test_peer_directory.py` now patch `agent_runtime.gateway_peers:usable_peers`, a package door production no longer reads after the respell** · `fork / tests` · the two tests patch the module production reads (`gateway_peers` submodule) — never the census · evidence: lane CI-FORK pytest log; re-run on main 2026-09-26 · filed by the orchestrator 2026-09-26 **UNCLAIMED**
 
 
 ### Filed on arrival — 2026-09-26 (owner ruling: ACP is not used)
