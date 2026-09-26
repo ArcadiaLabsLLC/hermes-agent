@@ -44,13 +44,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ### Filed on arrival — 2026-09-26 (post-landing gate, filed by the orchestrator)
 
 
-
 ### Filed on arrival — 2026-09-26 (owner ruling: ACP is not used)
 
 ### Filed on arrival — 2026-09-26 (lane L5, filed by the orchestrator)
 
 - [ ] **`agent_runtime/chat_lane_bundle.py` is 884 raw lines after lane L5 moved the chat-lane scope family into it (sheet §2.1 `persona_runtime` row) — over the god-file readability cap of 500; split the scope family (`_enabled_toolsets_for_chat` … `apply_chat_lane_tool_scope`, `stores`) into a sibling `chat_lane_scope.py` and leave the memo/bundle in `chat_lane_bundle`** · `fork / refactor` · also stale: `docs/agent-runtime-harness/planned/god-file-layout-sheets/runtime_hud.md` still places `capability_block_for_persona` in `ambient.py` (it is `runtime_hud/capability_account.py` since L5) · evidence: lane L5 commit `bfd1f656ec` · filed by lane L5 2026-09-26 **UNCLAIMED**
-
 
 - [ ] **Expose independent native conversations and non-spatial discussion admission through the shared service; preserve operator sessions, profile scope and durable lifecycle.** · Owner-approved Launcher native Hermes migration, 2026-09-26; consumer: `EterniaLauncher/docs/companion/planned/ROOMS_CONNECTION_FOUNDATION_2026-09-26.md`. **TAKEN 2026-09-26 native-hermes**
 
@@ -58,7 +56,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 - [ ] **`tests/agent_runtime/test_dispatch_session_policy.py::test_clarify_binding_never_loads_the_configured_policy` asserts only `loads == []` with no positive control, so a patch on the wrong module passes it silently** · `fork / tests` · add the positive control (the binding that DOES load, asserted through the same capture) · evidence: lane L4 report 2026-09-26 · filed by lane L4 2026-09-26 **UNCLAIMED**
 - [ ] **The `homes` fixture in `tests/agent_runtime/test_profile_artifact_sync.py` patches only `if hasattr(module, name)`, so a moved global silently stops being patched and nothing reports it** · `fork / tests` · the fixture asserts every name it means to patch exists, or fails · evidence: lane L4 report 2026-09-26 · filed by lane L4 2026-09-26 **UNCLAIMED**
-
 
 ### Filed on arrival — 2026-09-26 (launcher lane LLAMA-SWITCH, filed by the orchestrator)
 
@@ -90,15 +87,11 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - [ ] **`open_chat_session_db` callers do not declare read vs write: `persona_chat_history.history_rows._default_session_db` serves on-demand reads AND transcript writes through one writer open, and the snapshot read door still CREATES an absent store (one writer open) because `None` would drop bound sessions unaccounted** · `fork / runtime` · type the acquisition per caller (`read` / `write`), give an absent store a typed `session_db_absent` drop instead of creating it from a read · evidence: lane W3-D row-1 follow-up commit body · filed by lane W3-D 2026-09-25
 
 
-
 ### Filed on arrival — 2026-09-25 (lane W3-C)
-
 
 ### Filed on arrival — 2026-09-25 (lane B4)
 
-
 ### Filed on arrival — 2026-09-25 (lane 2B-A)
-
 
 ### Filed on arrival — 2026-09-24 (lane LLAMA-H)
 
@@ -114,11 +107,9 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-24 (seam lane S5)
 
-
 ### Filed on arrival — 2026-09-24 (seam lane S4)
 
 ### Owner asks — 2026-09-22, filed on arrival
-
 
 - [ ] **`test_serve_rpc_office_subscribe_live_hub` waits 5 s with no `@pytest.mark.timeout`, so it flakes under a full-suite batch and passes alone** · `fork / suite` · a wait bound over 30 s must declare the marker and this one is under it, so the marker is not the fix — the fix is a wait that observes the hub rather than sleeping toward it. Seen once in lane HM's 221-file touched run, green when run alone · filed by lane HM at its landing 2026-09-22 **UNCLAIMED** **TAKEN 2026-09-24 FORK-CODE** · VERDICT 2026-09-24 (lane FORK-CODE): the tree already has the row's fix — every wait in the file is `_wait_for`, a 10 ms poll on a hub CONDITION (`_boot_hydrate_delivered` observes produced + delivered frames) under one 5 s `_DEADLINE_SECONDS`; no sleep-toward-it exists, and the file is unchanged since 51ee01d954 (09-15), before the row. What stays open is a load question the row does not carry evidence for: WHICH case timed out under the 221-file batch and on what condition. Owner call: raise `_DEADLINE_SECONDS` (4 × 7 s still fits the 30 s cap) or require the failing case id + `what=` string before any change. File alone: 25 passed, slowest call 1.59 s. · EVIDENCE 2026-09-24 (lane H4): `::test_a_real_office_write_reaches_a_subscriber_as_an_office_patch` fails only in combined runs and passes alone, identically at H4's MOVE commit where the code is byte-identical to base — a leak through the process-global `OFFICE_SUBSCRIPTIONS`, not load; the failing case the row lacked. · RULED 2026-09-25 (owner): no change without the failing case id and its `what=` string; the row is a watch, not work
 
@@ -170,40 +161,31 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - **No CLI-level test pins the `realm sync resolve --key skill::<slug>` envelope the launcher's held-skill buttons call — only the python seam (`skill_sync.resolve_held_skill`) and the argparse dump are covered, nothing drives `main()` end-to-end** · `hermes` · handed over by the hermes lane 2026-09-12; evidence `docs/agent-runtime-harness/planned/skill-three-way-sync-mutation-record-2026-09-12.md`, contract §4.6 of `EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md` · `tests/hermes_cli/` **UNCLAIMED**
 
 
-
 - [ ] **H2 sheet leftover — the `runtime_commands` → `runtime/{work,verify}` split with `WorkCancelOutcome`** · `fork / refactor` · a sheet-sized MOVE, one MOVE + one CHANGE, cut as its own lane when the H3 lane is cut · evidence: `docs/agent-runtime-harness/planned/god-file-layout-sheets/harness.md` §1–§3; the split row's verdict of 2026-09-25 (lane Q-RUNTIME) · split by the orchestrator 2026-09-25 from the H2 bundle row **UNCLAIMED**
 
 ### Filed on arrival — 2026-09-25 (lane R4)
 
 
 
-
 ### Filed on arrival — 2026-09-25 (lane S2B)
-
 
 ### Filed on arrival — 2026-09-25 (lane S2A)
 
-
 ### Filed on arrival — 2026-09-25 (lane 2B-C)
-
 
 
 ### Filed on arrival — 2026-09-25 (lane B2)
 
 - [ ] **`gateway_peers._emit_peer_event` cannot fold onto `store_events.emit_store_event`: the helper drops None-valued keys, the peer reachability event sends `"unreachable_since": None` — two event emitters, two None rules** · `fork / runtime` · decide the one rule (a typed absent-marker, or None preserved) and fold; until then every future emitter fold has to check this first · evidence: B2 gateway_peers CHANGE body · filed by lane B2 2026-09-25 **UNCLAIMED**
 
-
 ### Filed on arrival — 2026-09-25 (lane B3)
-
 
 
 ### Filed on arrival — 2026-09-25 (lane B4, filed by the orchestrator)
 
 
-
 ## Seams — fork edits inside upstream files (additive only)
 ### Filed on arrival — 2026-09-26 (lane FIX-TRIAGE, filed by the orchestrator)
-
 
 ### Filed on arrival — 2026-09-26 (lane PF-1, seams; filed by the orchestrator)
 
@@ -217,12 +199,9 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 - [ ] **Every ledger row — all 169 files on the footprint, every disposition (124 `upstream`, 34 `hook`, 7 `carry`, 4 `carry-permanent`; a hook/carry row takes PLUGIN-FIT's verdict where that sitting gave one and is triaged here where it said NO) — gets one verdict — DROP (upstream fixed it since the base, or it serves a surface the fork does not use: ACP is gone, the desktop app, website docs, platform adapters we never run), PLUGIN (a seam exists), or KEEP; every KEEP without a PR is verified on a fresh `upstream/main`, deduped against upstream's open PRs, and written as a HELD branch + body by class (~20), with an issue DRAFT where a PR is the wrong shape; every open PR of ours whose subject is DROP-shaped is named for closing** · `fork / seams` · nothing is published (owner 2026-09-26: "we have too many today") · evidence: `scripts/upstream_footprint.py --json` × the ledger; `Harness_Brain/10 — Programs/Upstream Sync.md` § Open upstream PRs · filed by the orchestrator 2026-09-26 · RULED 2026-09-26 (owner; widened to every row the same day: "do this for everything actually all") · VERDICT 2026-09-26: sheet `docs/agent-runtime-harness/planned/fix-triage-2026-09-26.md` — DROP 19 / PLUGIN 8 / KEEP-PR 58 / KEEP-HELD 71 (29 held branches on origin, 27 new) / KEEP-ISSUE 9 (8 drafts) / CARRY 4; close candidates none; nothing published. DROP reverts landed 2026-09-26 (lane DROP-EXEC: 19 files back to `067fa1a257`, `_shell_arg_safe_path` deleted, `[up-fp]` 167/876 -> 148/839)
 
-
 ### Filed on arrival — 2026-09-26 (owner ask: what else moves to the plugin side without a PR)
 
-- [ ] **Every remaining `hook` and `carry` ledger row (~30 files after the 2026-09-26 landings) checked against upstream's CURRENT plugin surface — 41 hooks, 4 middleware kinds, `register_command`/`register_tool`/`create_custom_toolset`, plus the surface our open PRs add — with one verdict each: PLUGIN-NOW (a seam exists today, named), PLUGIN-AFTER (which open PR, by number), NO (the edit is a fix or a wire, not a hook)** · `fork / seams` · the morning's verify lane covered five asks; the other rows were ruled on the 09-24 surface, which has moved · evidence: `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md` rows `hook`/`carry`; `hermes_cli/plugins.py::VALID_HOOKS`, `hermes_cli/middleware.py::VALID_MIDDLEWARE` on `upstream/main` · filed by the orchestrator 2026-09-26 · RULED 2026-09-26 (owner): investigate now · VERDICT 2026-09-26 (lane PLUGIN-FIT): DESIGN — sheet `docs/agent-runtime-harness/planned/plugin-fit-2026-09-26.md`: 45 rows → PLUGIN-NOW 11 files (≈195/30 lines, no PR; exec lanes PF-1…3, end state `[up-fp]` 169/906 → 167/876) · PLUGIN-AFTER 16 rows on 8 open PRs (≈275/35) · NO 24 files + 11 halves (≈1,100; hosted-room PR, profile-bootstrap P1, Stage-1 CLI widening, AUTH-PR, PHASE-PR); one non-PR alternative outside the plugin: LAUNCHER-MOVE (`hermes harness auth set-key|login`, retires 44 lines) **TAKEN 2026-09-26 lanes PF-1 / PF-2 / PF-3 (exec of the sheet's §2; sitting PLUGIN-FIT landed 8d2c924c13b)**
 ### Filed on arrival — 2026-09-26 (orchestrator, the sync-friction read)
-
 
 
 ### Filed on arrival — 2026-09-26 (orchestrator, the footprint read)
@@ -232,7 +211,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ### Filed on arrival — 2026-09-25 (lane MERGE, filed by the orchestrator)
 
 - [ ] **Under truststore each `httpx.Client()` still re-parses the trust store (~210 ms per client, measured at merge re-seat A `877a77986b`; 234 ms under certifi) — the retired fork memo's cost did not go away with its premise** · `fork / seams` · share one default context through upstream's `agent.ssl_verify.resolve_httpx_verify` (an additive door), never a second fork memo · evidence: lane MERGE report 2026-09-25, `X:/wt/h-merge2/.lane-logs/reseatA.log` · filed 2026-09-25 **UNCLAIMED**
-
 
 ### Filed on arrival — 2026-09-25 (orchestrator, the `[up-fp]` raise)
 
@@ -249,7 +227,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-24 (disposition wave, lane DISP-C)
 
-
 ### Filed on arrival — 2026-09-23 (seam lane S45, Stage 4/5/6 inventories)
 
 - [ ] **177 of the 252 upstream test files the fork edits hold in-place edits, not fork tests. Stage 5's MOVE lanes cannot retire them, and its `[up-fp] files −242` target is not reachable (MOVE ceiling 28)** · `seams / tests` · these need a disposition pass (a batched portability/hermeticity PR upstream, or carry with a reason) before Stage 5's gate means anything. Evidence: the same note §1.1–§1.3 · filed by lane S45 2026-09-23 **TAKEN 2026-09-23 lane S5 (X:/wt/h-s5)** · VERDICT 2026-09-23 (owner): upstream, separate PRs per fix class; never carried · RE-READ 2026-09-26 (orchestrator): the probe counts 48 test files under `upstream` today and every one is carried by an open PR (#121218–#121226, #121640–#121646, today's five); the marker registry cannot replace a FIX, only mark a red, so this row leaves only through merges — no lane
@@ -260,7 +237,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - **A `manual:device_code` Codex pool entry can never be rescued by a re-auth, so a stale exhausted mark only ever clears on the TTL** · `hermes` · `CredentialPool._sync_codex_entry_from_auth_store` is gated on `entry.source == "device_code"` and the field row's source is `manual:device_code`, so fresh tokens sitting on disk never reach it; the naive widening is the #39236 regression, because `_sync_codex_pool_entries` syncs a `manual:device_code` entry ONLY when its access token matched the PREVIOUS singleton (the same source string is also produced by independent-account additions), so the fix needs that legacy-alias test — deliberately NOT bundled into the readiness fix, which is why the false amber was narrowed rather than its cause removed · `agent/credential_pool.py` `_sync_codex_entry_from_auth_store` against `hermes_cli/auth.py` `_sync_codex_pool_entries`, evidence in hermes `3c3a5631c8`. **UNCLAIMED**
 - **`resolve_codex_runtime_credentials`' pool fallback defeats the cooldown the pool selection just enforced** · `hermes` · when the singleton is unusable `_pool_codex_access_token` accepts any pool row with an access token whose `last_error_reset_at` is not in the future — it never consults `last_status`/`last_status_at`, the cooldown `_available_entries` used to refuse that very row seconds earlier — so a turn can be served with a credential the pool declared exhausted; the readiness mirror deliberately does not copy this lane and says so at its definition · `hermes_cli/auth.py` `_pool_codex_access_token` against `agent/credential_pool.py` `_available_entries`, evidence in hermes `3c3a5631c8`. **UNCLAIMED**
 - **Spark has a Pro usage bucket but Hermes's ChatGPT-account Codex route rejects it** · observed 2026-09-16: the live model catalog omitted Spark, the same account's usage response named the separate `codex_bengalfox` bucket, and a minimal `gpt-5.3-codex-spark` request returned HTTP 400 "not supported when using Codex with a ChatGPT account." The picker now shows it disabled. Investigate a supported runtime route before enabling it · `EterniaLauncher/docs/mission_control/planned/model-picker-account-catalog-contract-20260916.md`, `hermes_cli/codex_models.py`. **UNCLAIMED**
-
 
 - [ ] **RULED 2026-09-24 (owner): the 16 FIRST-DOOR rows of `docs/agent-runtime-harness/planned/second-doors-2026-09-24.md` are done IN the next upstream merge lane — upstream door adopted, fork second door deleted, hook row retired — with four rulings: (1) lazy installs go through upstream `security.allow_lazy_installs` / `HERMES_LAZY_INSTALL_TARGET`, installs outside a turn are NOT kept; (2) BG "on" means BOTH: notify on by default AND a background agent turn on completion, per-spawn opt-out is upstream's parameter; (3) profile delete adopts upstream's tombstone and the plugin clears persona placements on delete; (4) the `auth` spelling moves to the plugin's `harness` command, launcher argv row filed in `Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`** · `hermes / seams` · order: top-5 of the table first (process_registry notify, claim TTL env, PM watcher → on_kanban_dispatch_tick, /queue-status → pre_gateway_dispatch, dispatch timing → llm_execution), then the rest by lines deleted; NEAR-DOOR rows stay held PRs · evidence: the table, `X:/wt/_holds/seam-s1-green-2026-09-23.md` § DOORS **TAKEN 2026-09-24 DOORS-A** · VERDICT 2026-09-24 (lane DOORS-A): 13 of 16 DONE on `seam/doors-a-2026-09-24` (process_registry, conversation_loop + G1, transports/codex, chat_completion_helpers, config_defaults + G9, skill_commands, turn_api_call, desktop registry, commands, profiles, run_busy, run_startup, slash-commands.md; rulings (1)-(3) applied). LEFT: `hermes_cli/subcommands/auth.py` + `hermes_cli/auth_commands.py` wait on the launcher argv row (ruling (4); the launcher moves first). DESIGN `agent/turn_api_request.py`: the only door that sees the attempt start (`started_at`) is `pre_api_request`, and registering it makes `has_hook` true for every agent's every call, which sanitizes a full copy of the request body (`_api_request_payload_for_hook`) — a per-call whole-prompt cost to keep an 11-line timing hunk. Owner call: drop the request_build / pre_api_hook / request_dump stamps (the table's own advice for `turn_response_check.py`), or keep them until PHASE-PR
 
