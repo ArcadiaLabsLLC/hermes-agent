@@ -1160,6 +1160,19 @@ def _reclaim_dead_workers(conn: sqlite3.Connection, board: Optional[str] = None)
             dead = _classify_dead_worker(pid, row["claim_lock"], task_id=row["id"], board=board)
             retry_status = _kb._retry_status_for_run(conn, row["id"])
             dead.event_payload["retry_status"] = retry_status
+            try:
+                from hermes_cli.kanban_crash_evidence import _capture_crash_artifact
+                evidence = _capture_crash_artifact(
+                    conn, row["id"], worker_pid=pid, claim_lock=row["claim_lock"],
+                    exit_kind=dead.kind, exit_code=dead.code, error_text=dead.error_text,
+                    event_kind=dead.event_kind,
+                )
+            except Exception:
+                evidence = None
+            if evidence:
+                dead.event_payload.update(evidence_path=evidence["path"], classification=evidence["classification"])
+                if evidence["alive_sidecar_pids"]:
+                    dead.event_payload["alive_sidecar_pids"] = list(evidence["alive_sidecar_pids"])
             cur = conn.execute(
                 "UPDATE tasks SET status = ?, claim_lock = NULL, "
                 "claim_expires = NULL, worker_pid = NULL, worker_started_at = NULL "
