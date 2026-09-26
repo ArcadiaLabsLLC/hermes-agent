@@ -394,7 +394,7 @@ def test_capability_block_for_persona_degrades_each_half_independently(monkeypat
     versa. Both halves are best-effort — the account decorates a turn, it never
     blocks one — but "best effort" must not mean "all or nothing"."""
 
-    import agent_runtime.persona_runtime as persona_runtime
+    import agent_runtime.chat_lane_bundle as chat_lane_bundle
     import agent_runtime.terminal_envelope as terminal_envelope
 
     persona = types.SimpleNamespace(id="dev", role="dev")
@@ -403,7 +403,7 @@ def test_capability_block_for_persona_degrades_each_half_independently(monkeypat
         raise RuntimeError("resolution fault")
 
     # Drops fault ⇒ envelope half survives.
-    monkeypatch.setattr(persona_runtime, "chat_lane_capability_drops", _boom)
+    monkeypatch.setattr(chat_lane_bundle, "chat_lane_capability_drops", _boom)
     monkeypatch.setattr(
         terminal_envelope.decision,
         "explain_terminal_envelope",
@@ -417,7 +417,7 @@ def test_capability_block_for_persona_degrades_each_half_independently(monkeypat
 
     # Envelope fault ⇒ drops half survives.
     monkeypatch.setattr(
-        persona_runtime, "chat_lane_capability_drops", lambda *a, **k: _dev_drops()
+        chat_lane_bundle, "chat_lane_capability_drops", lambda *a, **k: _dev_drops()
     )
     monkeypatch.setattr(terminal_envelope.decision, "explain_terminal_envelope", _boom)
     block = capability_block_for_persona(persona, session_id="chat-1")

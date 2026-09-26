@@ -90,7 +90,7 @@ def persona_instance_summary(
         # must reflect the chat-lane scoping (augmentation + cost cuts + restore
         # knob + registry hygiene) — not the raw effective_toolsets. Lazy import
         # avoids a module-load cycle; the chat-lane authority stays single.
-        from ..persona_runtime import apply_chat_lane_tool_scope
+        from ..chat_lane_bundle import apply_chat_lane_tool_scope
 
         with timed_create_subphase("chat_lane_scope_ms"):
             apply_chat_lane_tool_scope(
@@ -260,7 +260,7 @@ def persona_instance_tool_detail(
     )
     # T9b: this on-demand tool detail is the persona instance's operator CHAT
     # lane — scope the preview to it (see apply_chat_lane_tool_scope).
-    from ..persona_runtime import apply_chat_lane_tool_scope
+    from ..chat_lane_bundle import apply_chat_lane_tool_scope
 
     apply_chat_lane_tool_scope(
         visibility_persona, tool_options, session_id=instance.default_chat_session_id

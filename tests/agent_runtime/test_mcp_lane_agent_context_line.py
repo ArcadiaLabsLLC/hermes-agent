@@ -59,9 +59,9 @@ def _harness_lane():
 
 @pytest.fixture(autouse=True)
 def _flag_off(monkeypatch):
-    import agent_runtime.persona_runtime as persona_runtime
+    import agent_runtime.chat_lane_bundle as chat_lane_bundle
 
-    monkeypatch.setattr(persona_runtime, "admission_enabled", lambda: False)
+    monkeypatch.setattr(chat_lane_bundle, "admission_enabled", lambda: False)
 
 
 # ── the renderer ────────────────────────────────────────────────────────────
@@ -174,9 +174,9 @@ def test_the_flag_off_and_flag_on_lines_are_ONE_voice():
 def test_the_agent_is_told_about_its_declared_dark_server_with_the_flag_off():
     """THE G5 FIX. This returned "" before 2026-07-26."""
 
-    import agent_runtime.persona_runtime as persona_runtime
+    import agent_runtime.chat_lane_bundle as chat_lane_bundle
 
-    line = persona_runtime.mission_chat_admission_line(
+    line = chat_lane_bundle.mission_chat_admission_line(
         _qa_declaring("launcher_qa"), session_id=None
     )
 
@@ -188,10 +188,10 @@ def test_a_persona_that_declares_nothing_still_pays_nothing():
     """Byte-stability where it is owed: the overwhelming majority of turns
     declare no MCP server, and their volatile envelope must not change."""
 
-    import agent_runtime.persona_runtime as persona_runtime
+    import agent_runtime.chat_lane_bundle as chat_lane_bundle
 
     assert (
-        persona_runtime.mission_chat_admission_line(_qa_declaring(), session_id=None)
+        chat_lane_bundle.mission_chat_admission_line(_qa_declaring(), session_id=None)
         == ""
     )
 
@@ -229,7 +229,7 @@ def test_the_flag_off_line_costs_no_root_config_load_and_no_profile_read(monkeyp
 
     import agent_runtime.mcp_admission as mcp_admission
     import agent_runtime.parse_cache as parse_cache
-    import agent_runtime.persona_runtime as persona_runtime
+    import agent_runtime.chat_lane_bundle as chat_lane_bundle
     import agent_runtime.profile_context as profile_context
 
     def _never_config(*_args, **_kwargs):
@@ -239,11 +239,11 @@ def test_the_flag_off_line_costs_no_root_config_load_and_no_profile_read(monkeyp
         raise AssertionError("the flag-off path must not read the persona profile")
 
     patch_where_bound(monkeypatch, mcp_admission, "resolve_mcp_admission", _never_config)
-    monkeypatch.setattr(persona_runtime, "resolve_mcp_admission", _never_config)
+    monkeypatch.setattr(chat_lane_bundle, "resolve_mcp_admission", _never_config)
     monkeypatch.setattr(parse_cache, "cached_yaml_file", _never_profile)
     monkeypatch.setattr(profile_context, "resolve_persona_profile", _never_profile)
 
-    line = persona_runtime.mission_chat_admission_line(
+    line = chat_lane_bundle.mission_chat_admission_line(
         _qa_declaring("launcher_qa"), session_id=None
     )
 

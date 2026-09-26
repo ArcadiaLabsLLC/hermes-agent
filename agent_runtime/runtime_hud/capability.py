@@ -63,7 +63,7 @@ def resolve_capability_block(
     resolves no policy of its own.
 
     * ``drops`` — :class:`agent_runtime.chat_lane_toolsets.ChatLaneDrop` values
-      from ``persona_runtime.chat_lane_capability_drops`` (G5). Each carries the
+      from ``chat_lane_bundle.chat_lane_capability_drops`` (G5). Each carries the
       exact root-config key that un-excludes it, which is the whole point of the
       row: the reader can act without reading source.
     * ``envelope`` — the side-effect-free

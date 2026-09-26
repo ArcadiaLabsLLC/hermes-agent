@@ -21,7 +21,7 @@ from agent_runtime.persona_assignments import (
     persona_instance_id_for,
     persona_instance_summary,
 )
-from agent_runtime.persona_runtime import chat_lane_capability_drops
+from agent_runtime.chat_lane_bundle import chat_lane_capability_drops
 from agent_runtime.tool_permissions import (
     ChatToolPermissionStore,
     default_permission_mode,

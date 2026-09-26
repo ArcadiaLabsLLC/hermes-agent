@@ -244,14 +244,14 @@ def test_tool_does_not_mutate_ambient_relay_state(monkeypatch):
 
 @pytest.mark.parametrize("role", ["custom-reviewer", "dev", "qa", "profile"])
 def test_every_configured_role_gets_chat_capabilities(role):
-    from agent_runtime.persona_runtime import _augment_chat_capabilities
+    from agent_runtime.chat_lane_bundle import _augment_chat_capabilities
     from tests.agent_runtime.persona_samples import sample_persona
 
     assert "agent_chat" in _augment_chat_capabilities(sample_persona(role=role), ["search"])
 
 
 def test_chat_capability_augmentation_includes_agent_chat():
-    from agent_runtime.persona_runtime import _CHAT_CAPABILITY_TOOLSETS
+    from agent_runtime.chat_lane_bundle import _CHAT_CAPABILITY_TOOLSETS
 
     assert "agent_chat" in _CHAT_CAPABILITY_TOOLSETS
 

@@ -127,12 +127,6 @@ def test_no_module_level_name_is_unreachable_from_the_external_surface():
 
     roots = {
         "GPTPersonaRuntime",
-        "_blocked_tool_names_for_chat",  # imported by chat_lane_bundle
-        "_enabled_toolsets_for_chat",  # imported by chat_lane_bundle
-        "apply_chat_lane_tool_scope",
-        "chat_lane_capability_drops",
-        "mission_chat_admission_line",
-        "mission_chat_operating_skills",
     }
     kept_with_cause: set[str] = set()
 
@@ -176,12 +170,14 @@ def test_the_chat_lane_entry_points_still_resolve():
     """Negative gate: this module is LIVE — the mission-chat lane runs through
     it. A residue cut must not disturb the entry points its importers bind."""
 
+    from agent_runtime import chat_lane_bundle
+
+    assert hasattr(persona_runtime, "GPTPersonaRuntime")
     for name in (
-        "GPTPersonaRuntime",
         "apply_chat_lane_tool_scope",
         "chat_lane_capability_drops",
         "mission_chat_admission_line",
         "mission_chat_operating_skills",
     ):
-        assert hasattr(persona_runtime, name), name
+        assert hasattr(chat_lane_bundle, name), name
     assert callable(persona_runtime.GPTPersonaRuntime.mission_chat_reply)

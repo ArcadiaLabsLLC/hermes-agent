@@ -405,7 +405,7 @@ def _actual_chat_lane(persona, session_id=None):
     """The tools + toolsets the operator chat lane actually ships for ``persona``,
     computed straight from the chat-lane chokepoint (the authority the preview
     must mirror)."""
-    from agent_runtime.persona_runtime import (
+    from agent_runtime.chat_lane_bundle import (
         _blocked_tool_names_for_chat,
         _enabled_toolsets_for_chat,
     )
@@ -421,7 +421,7 @@ def _actual_chat_lane(persona, session_id=None):
 
 
 def _scoped_preview(persona, session_id=None):
-    from agent_runtime.persona_runtime import apply_chat_lane_tool_scope
+    from agent_runtime.chat_lane_bundle import apply_chat_lane_tool_scope
 
     options = permission_options_for_chat(persona, session_id=session_id)
     apply_chat_lane_tool_scope(persona, options, session_id=session_id)

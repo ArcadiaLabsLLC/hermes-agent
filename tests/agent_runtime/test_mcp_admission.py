@@ -551,11 +551,11 @@ def test_unbounded_chat_lane_resolution_is_scoped_end_to_end(
 ):
     # Through the real chat-lane chokepoint, with the permission store forced to
     # `unbounded`: a persona with no admission sees no MCP toolset at all.
-    from agent_runtime import persona_runtime
+    from agent_runtime import chat_lane_bundle
     from agent_runtime.tool_visibility import ToolVisibilityOptions
 
     monkeypatch.setattr(
-        persona_runtime,
+        chat_lane_bundle,
         "permission_options_for_chat",
         lambda persona, session_id=None, **_kwargs: ToolVisibilityOptions(
             permission_mode="unbounded"
@@ -563,7 +563,7 @@ def test_unbounded_chat_lane_resolution_is_scoped_end_to_end(
     )
     _bind_profile(monkeypatch, _profile_home(tmp_path, "model:\n  default: gpt-5\n"))
 
-    resolved = persona_runtime._enabled_toolsets_for_chat(_persona("dev"), session_id="s1")
+    resolved = chat_lane_bundle._enabled_toolsets_for_chat(_persona("dev"), session_id="s1")
 
     assert "mcp-launcher_qa" not in resolved
     assert "launcher_qa" not in resolved
@@ -646,14 +646,14 @@ def test_the_flag_off_turn_resolves_no_manual_and_pays_no_config_load(monkeypatc
     off nothing is ever admitted, so there is no surface to document and no
     policy resolve to pay for."""
 
-    from agent_runtime import persona_runtime
+    from agent_runtime import chat_lane_bundle
 
     def _never(*_args, **_kwargs):
         raise AssertionError("the flag-off path must not resolve admission")
 
-    monkeypatch.setattr(persona_runtime, "resolve_mcp_admission", _never)
+    monkeypatch.setattr(chat_lane_bundle, "resolve_mcp_admission", _never)
 
-    assert persona_runtime.mission_chat_operating_skills(
+    assert chat_lane_bundle.mission_chat_operating_skills(
         _qa_with_manual("launcher_qa"), session_id=None
     ) == []
 
@@ -663,11 +663,11 @@ def test_the_live_turn_resolves_the_manual_for_an_admitted_persona(
 ):
     """End to end through the REAL kill switch and the REAL declaration path."""
 
-    from agent_runtime import persona_runtime
+    from agent_runtime import chat_lane_bundle
 
     _enable_root_admission(monkeypatch)
 
-    assert persona_runtime.mission_chat_operating_skills(
+    assert chat_lane_bundle.mission_chat_operating_skills(
         _qa_with_manual(), session_id=None
     ) == ["launcher-mcp-operations"]
 
@@ -728,7 +728,7 @@ def test_a_non_qa_persona_resolves_the_same_surfaces_manual(qa_profile, monkeypa
     than the persona's role: a `dev` persona that declares `launcher_qa` gets
     exactly the manual `qa` gets."""
 
-    from agent_runtime import persona_runtime
+    from agent_runtime import chat_lane_bundle
 
     _enable_root_admission(monkeypatch)
     dev = dataclasses.replace(
@@ -736,20 +736,20 @@ def test_a_non_qa_persona_resolves_the_same_surfaces_manual(qa_profile, monkeypa
         skills=["harness-dev-delivery", "launcher-mcp-operations"],
     )
 
-    assert persona_runtime.mission_chat_operating_skills(dev, session_id=None) == ["launcher-mcp-operations"]
+    assert chat_lane_bundle.mission_chat_operating_skills(dev, session_id=None) == ["launcher-mcp-operations"]
 
 
 def test_manual_resolution_never_fails_a_turn(qa_profile, monkeypatch):
-    from agent_runtime import persona_runtime
+    from agent_runtime import chat_lane_bundle
 
     _enable_root_admission(monkeypatch)
 
     def _boom(*_args, **_kwargs):
         raise RuntimeError("the admission policy is wedged")
 
-    monkeypatch.setattr(persona_runtime, "resolve_mcp_admission", _boom)
+    monkeypatch.setattr(chat_lane_bundle, "resolve_mcp_admission", _boom)
 
-    assert persona_runtime.mission_chat_operating_skills(
+    assert chat_lane_bundle.mission_chat_operating_skills(
         _qa_with_manual(), session_id=None
     ) == []
 

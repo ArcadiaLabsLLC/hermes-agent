@@ -148,7 +148,7 @@ def test_chokepoint_resolves_unbounded_by_default_with_an_empty_store():
 def test_unbounded_default_reaches_the_chat_lane_block_and_toolsets():
     """The default is not a scalar on a preview — it changes what a turn ships."""
 
-    from agent_runtime.persona_runtime import (
+    from agent_runtime.chat_lane_bundle import (
         _blocked_tool_names_for_chat,
         _enabled_toolsets_for_chat,
     )
@@ -185,7 +185,7 @@ def test_root_config_can_restore_the_bounded_default(tmp_path, monkeypatch):
 
     assert default_permission_mode() == PERMISSION_MODE_PROFILE_DEFAULT
 
-    from agent_runtime.persona_runtime import (
+    from agent_runtime.chat_lane_bundle import (
         _blocked_tool_names_for_chat,
         _enabled_toolsets_for_chat,
     )
@@ -277,7 +277,7 @@ def test_operator_restriction_still_bites_under_the_new_default():
     assert options.permission_source == "operator"
     assert set(options.blocked_tool_names) == set(READ_ONLY_BLOCKS)
 
-    from agent_runtime.persona_runtime import _blocked_tool_names_for_chat
+    from agent_runtime.chat_lane_bundle import _blocked_tool_names_for_chat
 
     blocked = set(_blocked_tool_names_for_chat(persona, session_id="chat-ro"))
     assert READ_ONLY_BLOCKS <= blocked
@@ -303,7 +303,7 @@ def test_bounded_is_the_explicit_restriction_spelling():
     assert options.permission_mode == PERMISSION_MODE_PROFILE_DEFAULT
     assert options.permission_source == "operator"
 
-    from agent_runtime.persona_runtime import _blocked_tool_names_for_chat
+    from agent_runtime.chat_lane_bundle import _blocked_tool_names_for_chat
 
     assert "delegate_task" in _blocked_tool_names_for_chat(persona, session_id="chat-bounded")
 

@@ -85,7 +85,7 @@ def capability_block_for_persona(
     try:
         # Deferred: ``persona_runtime`` pulls the runtime graph (and imports this
         # module's siblings), so a module-level import here would be circular.
-        from ..persona_runtime import chat_lane_capability_drops
+        from ..chat_lane_bundle import chat_lane_capability_drops
 
         drops = chat_lane_capability_drops(
             persona, session_id=session_id, permission_mode=permission_mode

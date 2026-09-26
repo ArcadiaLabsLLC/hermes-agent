@@ -242,7 +242,7 @@ def warm_persona_memos(persona: Any) -> None:
     should see its own failure.
     """
 
-    from .persona_runtime import apply_chat_lane_tool_scope
+    from .chat_lane_bundle import apply_chat_lane_tool_scope
     from .tool_permissions import permission_options_for_chat
     from .tool_visibility import resolve_tool_visibility
 

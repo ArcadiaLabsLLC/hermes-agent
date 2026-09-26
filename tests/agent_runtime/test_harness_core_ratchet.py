@@ -239,10 +239,10 @@ def test_the_bounded_cost_policy_still_cuts_the_declared_set(bounded_chat_sessio
     ``["harness_core"]`` unexpanded would slip past a policy that drops
     ``browser`` by name, and the bounded tier would silently widen."""
 
-    from agent_runtime import persona_runtime as PR
+    from agent_runtime import chat_lane_bundle as CLB
 
     neko = _persona("neko_supervisor")
-    enabled = PR._enabled_toolsets_for_chat(neko, session_id=bounded_chat_session(neko.id))
+    enabled = CLB._enabled_toolsets_for_chat(neko, session_id=bounded_chat_session(neko.id))
 
     assert not {"browser", "vision", "code_execution", "file", "terminal"} & set(enabled)
     assert {"agent_chat", "board", "session_search", "skills"} <= set(enabled)
@@ -258,7 +258,7 @@ def test_the_chokepoint_and_the_preview_agree_on_the_final_tool_list():
     which is exactly why ``browser-cdp`` is a named member of ``harness_core``.
     """
 
-    from agent_runtime.persona_runtime import apply_chat_lane_tool_scope
+    from agent_runtime.chat_lane_bundle import apply_chat_lane_tool_scope
 
     persona = _persona("dev")
     options = ToolVisibilityOptions(permission_mode="unbounded", permission_source="test")

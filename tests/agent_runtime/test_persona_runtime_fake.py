@@ -114,7 +114,7 @@ def _unbounded_chat_toolsets(persona):
     policy and the blocklist, so this helper deliberately does NOT scope.
     """
 
-    from agent_runtime.persona_runtime import _augment_chat_capabilities
+    from agent_runtime.chat_lane_bundle import _augment_chat_capabilities
 
     return _augment_chat_capabilities(persona, list(effective_toolsets(persona)))
 
@@ -280,7 +280,7 @@ def test_reasoning_summary_does_not_fire_pre_trace_ack(tmp_path, monkeypatch):
 
 
 def test_clarify_enabled_and_unblocked_on_chat_lane_but_blocked_on_runs():
-    from agent_runtime.persona_runtime import (
+    from agent_runtime.chat_lane_bundle import (
         _blocked_tool_names_for_chat,
         _enabled_toolsets_for_chat,
     )

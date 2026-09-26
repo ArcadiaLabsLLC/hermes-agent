@@ -137,20 +137,19 @@ def test_the_whole_turn_path_walks_the_toolset_chokepoint_exactly_once(monkeypat
     and four times per turn.
     """
 
-    from agent_runtime import persona_runtime
     from agent_runtime.mission_chat_turn_context import DEFAULT_RESOLVERS
 
     persona = _persona()
     _warm_the_lane(persona)
 
     calls: list[int] = []
-    real = persona_runtime._enabled_toolsets_for_chat
+    real = CLB._enabled_toolsets_for_chat
 
     def _counted(persona, **kwargs):
         calls.append(1)
         return real(persona, **kwargs)
 
-    monkeypatch.setattr(persona_runtime, "_enabled_toolsets_for_chat", _counted)
+    monkeypatch.setattr(CLB, "_enabled_toolsets_for_chat", _counted)
     builds_before = CLB.bundle_builds_this_thread()
     DEFAULT_RESOLVERS.admitted_operating_skills(persona, session_id="chat-once")
     DEFAULT_RESOLVERS.tool_contract(persona, session_id="chat-once")

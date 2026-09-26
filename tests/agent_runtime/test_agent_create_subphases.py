@@ -314,13 +314,13 @@ def rounds_per_projection_read(monkeypatch):
     projection's three calls is the one paying.
 
     Patched at the modules the create actually reaches through —
-    ``persona_runtime`` (imported lazily inside ``persona_instance_summary``)
+    ``chat_lane_bundle`` (imported lazily inside ``persona_instance_summary``)
     and ``persona_assignments`` (module-level import) — so a create routed some
     other way would show up as an unattributed remainder rather than as a
     silently passing zero.
     """
 
-    from agent_runtime import persona_assignments, persona_runtime, tool_permissions
+    from agent_runtime import chat_lane_bundle, persona_assignments, tool_permissions
 
     billed: dict[str, int] = {
         "permission_options": 0,
@@ -344,9 +344,9 @@ def rounds_per_projection_read(monkeypatch):
         _billing("permission_options", tool_permissions.permission_options_for_chat),
     )
     monkeypatch.setattr(
-        persona_runtime,
+        chat_lane_bundle,
         "apply_chat_lane_tool_scope",
-        _billing("chat_lane_scope", persona_runtime.apply_chat_lane_tool_scope),
+        _billing("chat_lane_scope", chat_lane_bundle.apply_chat_lane_tool_scope),
     )
     monkeypatch.setattr(
         persona_assignments.summary,

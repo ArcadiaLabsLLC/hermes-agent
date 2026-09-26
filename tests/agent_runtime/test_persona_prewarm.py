@@ -559,7 +559,7 @@ def test_the_warm_fills_the_exact_toolset_key_the_create_reads(
 
     from agent_runtime import tool_visibility
     from agent_runtime.parse_cache import clear_parse_cache
-    from agent_runtime.persona_runtime import apply_chat_lane_tool_scope
+    from agent_runtime.chat_lane_bundle import apply_chat_lane_tool_scope
     from agent_runtime.tool_permissions import permission_options_for_chat
 
     root = tmp_path / "hermes-root"

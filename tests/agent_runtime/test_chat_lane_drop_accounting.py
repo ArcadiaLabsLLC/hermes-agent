@@ -21,7 +21,7 @@ import pytest
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
-from agent_runtime import persona_runtime as PR
+from agent_runtime import chat_lane_bundle as CLB
 from agent_runtime.chat_lane_toolsets import (
     DROP_KIND_TOOL,
     DROP_KIND_TOOLSET,
@@ -205,8 +205,8 @@ def test_capability_drops_match_what_the_chat_lane_actually_ships(bounded_chat_s
     # ``test_unbounded_mode_claims_no_drops``), so the tier is named explicitly.
     qa = _persona("qa")
     session_id = bounded_chat_session(qa.id)
-    enabled = set(PR._enabled_toolsets_for_chat(qa, session_id=session_id))
-    drops = PR.chat_lane_capability_drops(qa, session_id=session_id)
+    enabled = set(CLB._enabled_toolsets_for_chat(qa, session_id=session_id))
+    drops = CLB.chat_lane_capability_drops(qa, session_id=session_id)
     toolsets = {drop.subject for drop in drops if drop.kind == DROP_KIND_TOOLSET}
 
     # Everything reported as dropped is genuinely absent from the shipped lane…
@@ -223,7 +223,7 @@ def test_unbounded_mode_claims_no_drops():
     # `unbounded` genuinely bypasses the cost policy, so a row there would report
     # a drop that never happened.
     assert (
-        PR.chat_lane_capability_drops(
+        CLB.chat_lane_capability_drops(
             _persona("qa"), session_id="s1", permission_mode=PERMISSION_MODE_UNBOUNDED
         )
         == ()
@@ -232,10 +232,10 @@ def test_unbounded_mode_claims_no_drops():
 
 def test_restore_config_suppresses_the_lane_rows(monkeypatch, bounded_chat_session):
     monkeypatch.setattr(
-        PR, "chat_lane_restore_toolsets", lambda persona_id: ["file", "terminal"]
+        CLB, "chat_lane_restore_toolsets", lambda persona_id: ["file", "terminal"]
     )
     qa = _persona("qa")
-    drops = PR.chat_lane_capability_drops(qa, session_id=bounded_chat_session(qa.id))
+    drops = CLB.chat_lane_capability_drops(qa, session_id=bounded_chat_session(qa.id))
     subjects = {drop.subject for drop in drops}
 
     assert not {"file", "terminal"} & subjects
@@ -252,7 +252,7 @@ def test_rows_ride_the_same_requirement_failures_list(bounded_chat_session):
         qa,
         ToolVisibilityOptions(
             entry_point_lane=HARNESS_LANE,
-            chat_lane_capability_drops=PR.chat_lane_capability_drops(
+            chat_lane_capability_drops=CLB.chat_lane_capability_drops(
                 qa, session_id=session_id
             ),
         ),
@@ -272,7 +272,7 @@ def test_rows_compose_with_the_mcp_rows_without_displacing_them(bounded_chat_ses
         qa,
         ToolVisibilityOptions(
             entry_point_lane=HARNESS_LANE,
-            chat_lane_capability_drops=PR.chat_lane_capability_drops(
+            chat_lane_capability_drops=CLB.chat_lane_capability_drops(
                 qa, session_id=session_id
             ),
         ),
@@ -304,7 +304,7 @@ def test_accounting_changes_no_tool():
         _persona("qa"),
         ToolVisibilityOptions(
             entry_point_lane=HARNESS_LANE,
-            chat_lane_capability_drops=PR.chat_lane_capability_drops(
+            chat_lane_capability_drops=CLB.chat_lane_capability_drops(
                 _persona("qa"), session_id=None
             ),
         ),
@@ -319,7 +319,7 @@ def test_chat_lane_preview_carries_the_rows_end_to_end(bounded_chat_session):
     # apply_chat_lane_tool_scope is what Mission Control's persona-instance
     # preview uses; the drops must ride it without any caller opting in.
     qa = _persona("qa")
-    options = PR.apply_chat_lane_tool_scope(
+    options = CLB.apply_chat_lane_tool_scope(
         qa,
         ToolVisibilityOptions(entry_point_lane=HARNESS_LANE),
         session_id=bounded_chat_session(qa.id),

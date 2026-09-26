@@ -224,7 +224,7 @@ frozen every session that ever held a lapsed grant into the old bounded tier. An
 mode clamps to `bounded`, not to the wide default (`:91-103`).
 
 Every consumer reads one answer, from `permission_options_for_chat` (`:285-301`). What unbounded
-does on the lane (`agent_runtime/persona_runtime.py`):
+does on the lane (`agent_runtime/chat_lane_bundle.py`, where the chat-lane scope family lives since lane L5):
 
 - `_blocked_tool_names_for_chat` returns `[]` outright (`:583-586`), so the pre-ruling
   `PERSONA_BLOCKED_TOOLS` set (`agent_runtime/personas.py:129-138`: `delegate_task`, `clarify`, `memory`,

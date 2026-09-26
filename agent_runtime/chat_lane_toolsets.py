@@ -21,7 +21,7 @@ never GRANTS a toolset that a role / permission layer withheld — it only DROPS
 the browser / vision / heavy-dev toolsets from a chat lane's enabled set. Role
 gating, persona blocklists, and permission mode
 all run first and upstream; this is the last, cost-motivated narrowing applied
-only at the chat-lane chokepoint (``persona_runtime._enabled_toolsets_for_chat``).
+only at the chat-lane chokepoint (``chat_lane_bundle._enabled_toolsets_for_chat``).
 
 Worker / dev task lanes never go through here — they resolve toolsets via
 ``effective_toolsets(persona)`` directly (``persona_runtime.run_persona``,
@@ -354,7 +354,7 @@ def chat_lane_blocked_tools(
 ) -> list[str]:
     """The single tools the chat-lane cost policy blocks, minus restored names.
 
-    Feeds the blocked-tool-names lane (``persona_runtime._blocked_tool_names_for_chat``)
+    Feeds the blocked-tool-names lane (``chat_lane_bundle._blocked_tool_names_for_chat``)
     so a bounded chat turn's schema drops these individual tools while keeping
     the rest of their toolset. Sorted for a stable, testable block list. A pure
     function of its input; the ``unbounded`` escape hatch is enforced upstream
