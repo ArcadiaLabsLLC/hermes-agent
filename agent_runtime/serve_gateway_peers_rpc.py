@@ -55,6 +55,8 @@ from typing import Any, Callable
 from .gateway_peers.cache import unusable_reason
 from .gateway_peers.trust_store import add_peer_event_listener
 
+__layer__ = "lanes"
+
 __all__ = [
     "PEER_DIRECTORY_CONTRACT",
     "PEER_DIRECTORY_CHANGED_METHOD",
