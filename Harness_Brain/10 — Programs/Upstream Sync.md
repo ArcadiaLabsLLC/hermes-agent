@@ -25,6 +25,8 @@ Goal (owner, 2026-09-21): **easy upstream syncs without much conflict.** The for
 - Cadence: a history-preserving `git merge upstream/main` **weekly**, in a worktree, conflicts resolved by rule, the validated suite run, landed fast-forward by the operator. A three-day gap already costs 40 conflicts.
 - Conflict resolution rules (the merge lane's brief): keep both when additive; prefer upstream's version of upstream logic and re-apply the fork's addition on top; the fork's seams must survive (`_downstream_cli`, `_profile_bootstrap`, `_boot_clock`, harness registration, `process_registry` durable completions, profile scoping); never drop a fork test; keep the fork's `pyproject`/`uv.lock` pair plus new upstream rows.
 - Fork gates apply to fork-authored lines only (`tests/_fork_scope.is_fork_authored`); no registers of upstream tests — owner 2026-09-24.
+- Cadence RULED 2026-09-26 (owner): the merge runs **twice a week** (Monday and Thursday), not weekly — 1,831 commits in one merge cost a day of conflicts. `rerere.enabled` + `rerere.autoupdate` are set on the primary clone so a conflict resolved once replays at the next merge.
+- Growth RULED 2026-09-26 (owner): a new feature lands behind the plugin surface FIRST; it touches an upstream file only with a ledger row that names its retirement, in the same commit. The two 2026-09-24/25 batches that raised the footprint (auth transport, ACP identity) are lane AUTH-DESIGN's to bring back.
 
 ## Each merge — the supersession pass
 

@@ -177,6 +177,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 ## Seams — fork edits inside upstream files (additive only)
+### Filed on arrival — 2026-09-26 (orchestrator, the sync-friction read)
+
+- [ ] **Seven `.github/workflows/*.yml` carry fork-only runner/timeout/worker conditionals (`github.repository == NousResearch/hermes-agent` guards; ledger rows `upstream`, class CI-1) — a merge surface every week for a fork concern** · `fork / seams` · a fork-only workflow file upstream never touches does the same job; the seven upstream files return byte-identical and the fixture lowers · evidence: `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md` rows `.github/workflows/*` · filed by the orchestrator 2026-09-26 · RULED 2026-09-26 (owner) **TAKEN 2026-09-26 lane CI-FORK**
+
 
 ### Filed on arrival — 2026-09-26 (orchestrator, the footprint read)
 
@@ -189,7 +193,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-25 (orchestrator, the `[up-fp]` raise)
 
-- [ ] **The auth-transport edits in eight upstream files want a plugin-surface home: `98f8a8caf9` edits `hermes_cli/auth.py`, `auth_codex.py`, `auth_codex_browser.py`, `auth_minimax.py`, `auth_nous.py`, `auth_xai.py`, `provider_catalog.py`, `subcommands/auth.py`, and the fixture was raised 195 → 200 files to carry them** · `fork / seams` · move the canonical browser sign-in transport behind the plugin surface (or an additive hook) and lower `tests/fixtures/upstream_footprint.json` back in the same commit · evidence: the fixture's eight `reasons` rows dated 2026-09-25 · filed by the orchestrator 2026-09-25 **UNCLAIMED**
+- [ ] **The auth-transport edits in eight upstream files want a plugin-surface home: `98f8a8caf9` edits `hermes_cli/auth.py`, `auth_codex.py`, `auth_codex_browser.py`, `auth_minimax.py`, `auth_nous.py`, `auth_xai.py`, `provider_catalog.py`, `subcommands/auth.py`, and the fixture was raised 195 → 200 files to carry them** · `fork / seams` · move the canonical browser sign-in transport behind the plugin surface (or an additive hook) and lower `tests/fixtures/upstream_footprint.json` back in the same commit · evidence: the fixture's eight `reasons` rows dated 2026-09-25 · filed by the orchestrator 2026-09-25 · RULED 2026-09-26 (owner): bring it to the plugin, with the ACP named-provider identity carry (`acp_adapter/server.py`, `session.py`) as one sitting **TAKEN 2026-09-26 lane AUTH-DESIGN**
 
 ### Filed on arrival — 2026-09-25 (lane 2B-B)
 
@@ -205,7 +209,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-23 (seam lane S45, Stage 4/5/6 inventories)
 
-- [ ] **177 of the 252 upstream test files the fork edits hold in-place edits, not fork tests. Stage 5's MOVE lanes cannot retire them, and its `[up-fp] files −242` target is not reachable (MOVE ceiling 28)** · `seams / tests` · these need a disposition pass (a batched portability/hermeticity PR upstream, or carry with a reason) before Stage 5's gate means anything. Evidence: the same note §1.1–§1.3 · filed by lane S45 2026-09-23 **TAKEN 2026-09-23 lane S5 (X:/wt/h-s5)** · VERDICT 2026-09-23 (owner): upstream, separate PRs per fix class; never carried
+- [ ] **177 of the 252 upstream test files the fork edits hold in-place edits, not fork tests. Stage 5's MOVE lanes cannot retire them, and its `[up-fp] files −242` target is not reachable (MOVE ceiling 28)** · `seams / tests` · these need a disposition pass (a batched portability/hermeticity PR upstream, or carry with a reason) before Stage 5's gate means anything. Evidence: the same note §1.1–§1.3 · filed by lane S45 2026-09-23 **TAKEN 2026-09-23 lane S5 (X:/wt/h-s5)** · VERDICT 2026-09-23 (owner): upstream, separate PRs per fix class; never carried · RE-READ 2026-09-26 (orchestrator): the probe counts 48 test files under `upstream` today and every one is carried by an open PR (#121218–#121226, #121640–#121646, today's five); the marker registry cannot replace a FIX, only mark a red, so this row leaves only through merges — no lane
 
 ### Standing
 
