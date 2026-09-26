@@ -48,6 +48,7 @@ __all__ = [
     "session_async_delivery_unset",
     "session_async_delivery_var",
     "skills_sync_primitives",
+    "skills_tool_inspection_doors",
     "skills_walker",
     "strip_quotes",
     "terminate_host_pid",
@@ -96,6 +97,22 @@ def skills_walker():
     from tools.skills_tool import _find_all_skills
 
     return _find_all_skills
+
+
+def skills_tool_inspection_doors():
+    """``tools.skills_tool``'s ``_find_all_skills``, ``_sort_skills``, ``_get_disabled_skill_names``,
+    ``_skill_lookup_path_error``, ``_skill_search_dirs`` and ``_locate_skill`` ITSELF, in that
+    order — read by ``skill_inspection.skill_inspection_reader`` (lane PF-3 moved the reader out
+    of ``skills_tool.py``; it binds human inspection to the tool's own discovery and
+    collision/trust gates, so a copy would be a second resolver). Held widening row: publish a
+    read-only inspection port (catalog rows + locate) on upstream's skills tool."""
+    from tools.skills_tool import (
+        _find_all_skills, _get_disabled_skill_names, _locate_skill, _skill_lookup_path_error,
+        _skill_search_dirs, _sort_skills,
+    )
+
+    return (_find_all_skills, _sort_skills, _get_disabled_skill_names, _skill_lookup_path_error,
+            _skill_search_dirs, _locate_skill)
 
 
 def sanitize_surrogates(text: str) -> str:

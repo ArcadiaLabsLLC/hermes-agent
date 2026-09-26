@@ -5,7 +5,7 @@ import pytest
 
 from agent_runtime.skill_inspection import MAX_DOCUMENT_BYTES, SkillInspectionError
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
-from tools.skills_tool import skill_inspection_reader
+from agent_runtime.skill_inspection import skill_inspection_reader
 
 
 def put_skill(home, name, body="Full instructions\nLast line"):
