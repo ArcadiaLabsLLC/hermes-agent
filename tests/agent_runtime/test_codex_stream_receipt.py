@@ -82,3 +82,77 @@ def test_an_unbound_turn_names_no_agent():
     receipt.remember_stream_agent()
     receipt.on_stream_start(session_id="", turn_id="t", iteration=1)
     assert not receipt._STREAMS
+
+
+# ── end to end: the plugin's own registration, on the codex path ─────────────
+
+
+def _plugin_hooks():
+    """The hook callbacks ``plugins/eternia-harness`` registers, by hook name."""
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[2] / "plugins" / "eternia-harness" / "__init__.py"
+    spec = importlib.util.spec_from_file_location("_eternia_harness_stream_receipt", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    hooks: dict = {}
+
+    class _Ctx:
+        def register_hook(self, name, callback):
+            hooks.setdefault(name, []).append(callback)
+
+        def __getattr__(self, _name):
+            return lambda *a, **k: None
+
+    import hermes_cli.harness_parts.mission_chat_door_binding as door
+    original = door.bind_mission_chat_door
+    door.bind_mission_chat_door = lambda: None
+    try:
+        module.register(_Ctx())
+    finally:
+        door.bind_mission_chat_door = original
+    return module, hooks
+
+
+def test_the_codex_stream_writes_the_receipt_through_the_plugin_hooks(tmp_path, monkeypatch):
+    import sys
+    import time
+    import types
+
+    sys.modules.setdefault("fire", types.SimpleNamespace(Fire=lambda *a, **k: None))
+    sys.modules.setdefault("firecrawl", types.SimpleNamespace(Firecrawl=object))
+    sys.modules.setdefault("fal_client", types.SimpleNamespace())
+    from agent import chat_completion_helpers as h
+    from agent.plugin_stream_hooks import shutdown_plugin_stream_hook_dispatcher
+    from tests.agent.test_codex_ttfb_watchdog import _install_codex_event_stream, _make_codex_agent
+
+    plugin, hooks = _plugin_hooks()
+    shutdown_plugin_stream_hook_dispatcher()
+    monkeypatch.setattr("hermes_cli.plugins.iter_hook_callbacks", lambda name: tuple(hooks.get(name, ())))
+    agent = _make_codex_agent(tmp_path, monkeypatch)
+    events: list = []
+    agent.status_callback = events.append
+
+    def stream():
+        yield SimpleNamespace(type="response.created")
+        yield SimpleNamespace(type="response.output_text.delta", delta="hel")
+        yield SimpleNamespace(type="response.output_text.delta", delta="lo")
+        yield SimpleNamespace(type="response.completed", response=SimpleNamespace(status="completed", id="r", usage=None))
+
+    _install_codex_event_stream(agent, monkeypatch, stream, [])
+    with bind_persona_turn_agent(agent):
+        # the plugin's llm_execution middleware, around the codex streaming call
+        plugin.time_provider_dispatch(
+            request=None, next_call=lambda: h.interruptible_streaming_api_call(agent, {"model": "gpt-5.5", "input": "hi"}),
+            api_call_count=1, api_mode="codex_responses", provider="openai-codex", model="gpt-5.5")
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline and "provider_stream_consume" not in _by_step(events):
+        time.sleep(0.02)
+    shutdown_plugin_stream_hook_dispatcher()
+
+    steps = _by_step(events)
+    assert "provider_stream_consume" in steps, sorted(steps)
+    assert steps["provider_stream_consume"]["timing_values"] == {"provider_stream_text_delta_count": 2}
+    assert "provider_stream_first_delta" in steps
+    assert "conversation_provider_dispatch" in steps  # the dispatch total, same middleware

@@ -201,9 +201,14 @@ def default_background_notify(tool_name=None, args=None, **_context):
 
 
 def time_provider_dispatch(**kwargs):
-    """``llm_execution`` middleware: request-assembled mark + provider-dispatch span."""
+    """``llm_execution`` middleware: request-assembled mark + provider-dispatch span.
+
+    It runs in the turn's thread, so it also names the bound persona agent for the
+    stream observers below, which run on upstream's hook dispatcher thread."""
+    from agent_runtime.codex_observability import remember_stream_agent
     from agent_runtime.conversation_observability import time_provider_dispatch as _time
 
+    remember_stream_agent()
     return _time(**kwargs)
 
 
@@ -221,6 +226,34 @@ def restore_cli_durable_completions(platform=None, **_kwargs) -> None:
     from tools.process_registry import process_registry
 
     process_registry.restore_durable_completions()
+
+
+def provider_stream_start(**kwargs):
+    """``on_stream_start`` hook: open the provider stream receipt's clock."""
+    from agent_runtime.codex_observability import on_stream_start
+
+    on_stream_start(**kwargs)
+
+
+def provider_stream_delta(**kwargs):
+    """``on_stream_delta`` hook: the first text delta is time-to-first-token."""
+    from agent_runtime.codex_observability import on_stream_delta
+
+    on_stream_delta(**kwargs)
+
+
+def provider_stream_end(**kwargs):
+    """``on_stream_end`` hook: write ``provider_stream_first_delta`` / ``provider_stream_consume``."""
+    from agent_runtime.codex_observability import on_stream_end
+
+    on_stream_end(**kwargs)
+
+
+def skill_view_result(**kwargs):
+    """``transform_tool_result`` hook: the runtime-compat refusal and the three stamps on ``skill_view``."""
+    from agent_runtime.skill_view_result import transform_skill_view_result
+
+    return transform_skill_view_result(**kwargs)
 
 
 def record_usage_ledger_row(**kwargs):
@@ -276,6 +309,10 @@ def register(ctx) -> None:
     ctx.register_middleware("llm_execution", time_provider_dispatch)
     ctx.register_hook("on_session_start", restore_cli_durable_completions)
     ctx.register_hook("post_api_request", record_usage_ledger_row)
+    ctx.register_hook("on_stream_start", provider_stream_start)
+    ctx.register_hook("on_stream_delta", provider_stream_delta)
+    ctx.register_hook("on_stream_end", provider_stream_end)
+    ctx.register_hook("transform_tool_result", skill_view_result)
     ctx.register_hook("on_kanban_dispatch_tick", route_blocked_kanban_cards)
     ctx.register_hook("pre_gateway_dispatch", answer_queue_status)
     # Joins the built-in `skills` toolset by registry membership; the platform bundles

@@ -89,3 +89,26 @@ def test_a_plugin_skill_is_refused_through_the_plugin_registry(tmp_path):
         with skill_runtime_scope(surface="mission_worker", root_node_mode=True):
             assert transform_skill_view_result(
                 tool_name="skill_view", args={"name": "demo:writing"}, result=result) is None
+
+
+def test_the_plugin_hook_refuses_on_the_model_dispatch_path(tmp_path, monkeypatch):
+    """End to end: ``model_tools.handle_function_call`` -> the plugin's registered
+    ``transform_tool_result`` callback. Positive control: the declared surface serves."""
+    import model_tools
+    from tests.agent_runtime.test_codex_stream_receipt import _plugin_hooks
+
+    _plugin, hooks = _plugin_hooks()
+    monkeypatch.setattr("hermes_cli.plugins.has_hook", lambda name: name in hooks)
+    monkeypatch.setattr("hermes_cli.plugins.invoke_hook",
+                        lambda name, **kw: [cb(**kw) for cb in hooks.get(name, ())])
+    _make_skill(tmp_path, "root-only", frontmatter_extra=_ROOT_ONLY)
+
+    def _call(**scope):  # a task per call: the repeat-view dedup would stub the second one
+        with patch("tools.skills_tool.SKILLS_DIR", tmp_path), skill_runtime_scope(**scope):
+            return json.loads(model_tools.handle_function_call(
+                "skill_view", {"name": "root-only"}, task_id=f"t-{scope['surface']}", session_id="s-pf3",
+                tool_call_id="tc1", skip_pre_tool_call_hook=True))
+
+    assert _call(surface="mission_chat")["reason"] == "surface_not_supported"
+    served = _call(surface="mission_worker", root_node_mode=True)
+    assert served["success"] is True and len(served["content_hash"]) == 64
