@@ -29,7 +29,6 @@ from agent.skill_utils import (
 )
 from tools.threat_patterns import scan_for_threats as _scan_for_threats
 from agent_runtime.skill_resolution import current_skill_runtime_context, skill_frontmatter_runtime_compatibility
-from agent_runtime.prompt_guidance import _WINDOWS_NATIVE_TOOLING_HINT
 from utils import atomic_json_write, file_signature
 
 logger = logging.getLogger(__name__)
@@ -470,11 +469,7 @@ OPENAI_MODEL_EXECUTION_GUIDANCE = (
     "- Correctness: does the output satisfy every stated requirement?\n"
     "- Grounding: are factual claims backed by tool outputs or provided context?\n"
     "- Formatting: does the output match the requested format or schema?\n"
-    "- Safety: confirm scope before executing ONLY when the next step is destructive "
-    "or hard to reverse (deleting or overwriting data, rewriting history, "
-    "force-pushing, spending money). Routine tool use in service of a clear "
-    "instruction — reads, edits, commands, and API calls the request plainly implies "
-    "— proceeds without asking.\n"
+    "- Safety: if the next step has side effects (file writes, commands, API calls), confirm scope before executing.\n"
     "- Completion: 'done' means every named acceptance criterion is verified — never a plausible subset. Completing "
     "your plan is not itself the answer; the requested output must appear in your response.\n"
     "</verification>\n\n"
@@ -1020,7 +1015,7 @@ def _local_host_hints() -> list[str]:
         "Use the 'User home directory' above to construct paths under C:\\Users\\<user>\\, never the hostname."
     )
     # Windows-local terminal runs bash, not PowerShell — without this the model issues PowerShell syntax.
-    return ["\n".join(host_lines), _WINDOWS_BASH_SHELL_HINT, _WINDOWS_NATIVE_TOOLING_HINT]
+    return ["\n".join(host_lines), _WINDOWS_BASH_SHELL_HINT]
 
 
 def _remote_backend_hint(backend: str) -> str:
