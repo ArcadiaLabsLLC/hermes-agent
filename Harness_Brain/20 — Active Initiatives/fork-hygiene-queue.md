@@ -109,7 +109,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 ## Filed on arrival — 2026-09-24 (lane H1)
 ## Filed on arrival — 2026-09-25 (lane R4)
 
-- [ ] **`tests/tooling/test_fork_import_layers.py::test_declared_layers_are_bound_at_runtime_and_point_down` is red on main because the test venv has no `acp`** · `fork / test env` · `agent_runtime/acp_skills.py:6` imports `acp` (`agent-client-protocol==0.9.0`, the `acp` extra in `pyproject.toml`), the gate imports every `__layer__` module, and `C:/Users/beast/.venvs/hermes-test` was resolved before that extra existed; the fix is the owed venv dependency re-sync (`pip install -e .[acp]`), and the gate should name the missing extra rather than a bare `ModuleNotFoundError` · evidence: `X:/wt/_holds/main-reds-check-2026-09-25.log` · filed by orchestrator 2026-09-25 **UNCLAIMED** **TAKEN 2026-09-25 lane Q-GATES** · VERDICT 2026-09-25 lane Q-GATES: DESIGN (owner: venv) — the gate half is DONE in this commit: the test now collects ModuleNotFoundError per declared module, still checks every importable module's layers, then reds NAMING the extra (`agent_runtime.acp_skills: No module named 'acp' (the `acp` extra: re-sync with `pip install -e .[acp]`)`). Owner runs: `C:/Users/beast/.venvs/hermes-test/Scripts/python.exe -m pip install -e ".[acp]"` in the hermes checkout; the row closes when the gate is green.
 
 ## Filed on arrival — 2026-09-25 (lane S2B)
 
