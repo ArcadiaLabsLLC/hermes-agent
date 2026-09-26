@@ -7,6 +7,8 @@ from unittest.mock import patch
 
 from hermes_cli.main_install_repair import _is_windows_npm_path, _resolve_node_runtime_npm
 
+import pytest
+
 
 def test_windows_npm_path_refuses_windows_shims_but_not_native_data_mounts():
     """A ``/mnt/<drive>`` WSL interop path or a ``.cmd`` shim is Windows npm; a native Linux
@@ -18,6 +20,7 @@ def test_windows_npm_path_refuses_windows_shims_but_not_native_data_mounts():
     assert not _is_windows_npm_path("/usr/bin/npm")
 
 
+@pytest.mark.platforms("linux")
 def test_resolve_node_runtime_npm_rescans_past_windows_drive_to_native_mount(monkeypatch):
     """When PATH interop hands back a Windows npm first, the re-scan skips the Windows drive
     mount but still accepts a native npm living under ``/mnt/data``."""

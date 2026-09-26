@@ -11,6 +11,8 @@ from __future__ import annotations
 import os
 from unittest.mock import patch
 
+import pytest
+
 from hermes_cli.dashboard_procs import (
     _is_desktop_local_serve_cmdline,
     _reap_orphaned_desktop_local_serves,
@@ -43,6 +45,7 @@ def test_desktop_local_serve_shape_spares_fixed_port_and_non_serve():
     )
 
 
+@pytest.mark.platforms("linux")
 def test_reap_only_kills_ppid1_local_serves():
     scanned = [
         (111, "hermes serve --host 127.0.0.1 --port 0"),  # orphan local
@@ -209,6 +212,7 @@ def test_valid_lockfile_payload_rejects_wrong_owner_and_shape():
     assert _valid_lockfile_payload(bad_log, oid) is False
 
 
+@pytest.mark.platforms("linux")
 def test_reap_spare_lock_owned_ssh_remote_backend_of_foreign_client():
     """The exact production-incident shape: a foreign-client SSH remote backend
     matches the Desktop-local serve shape and is orphaned at ppid 1, but a valid
@@ -324,6 +328,7 @@ def test_reap_spares_backend_when_process_age_is_unknown():
     assert terms == []
 
 
+@pytest.mark.platforms("linux")
 def test_reap_age_boundary_makes_180_second_orphan_eligible():
     scanned = [
         (779, "hermes serve --isolated --host 127.0.0.1 --port 0"),
