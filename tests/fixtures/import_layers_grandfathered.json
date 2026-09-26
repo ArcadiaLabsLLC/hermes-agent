@@ -71,7 +71,6 @@
  "undeclared": [
   "agent_runtime/board_sync.py",
   "agent_runtime/chat_lane_bundle.py",
-  "agent_runtime/chat_turn.py",
   "agent_runtime/continuity.py",
   "agent_runtime/discussions/native.py",
   "agent_runtime/discussions/rpc.py",

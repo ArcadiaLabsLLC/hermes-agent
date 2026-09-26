@@ -71,6 +71,8 @@ from .chat_turn_reservations import (
     reserve_chat_turn,
 )
 
+__layer__ = "lanes"
+
 #: The two method names, spelled once so the manifest test, the serve wiring and
 #: the handlers cannot drift.
 CHAT_MESSAGE_METHOD = "runtime.chat.message"
