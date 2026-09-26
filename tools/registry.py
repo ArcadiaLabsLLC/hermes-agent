@@ -6,6 +6,7 @@ tools/*.py import it at module level; model_tools.py imports both; run_agent/cli
 model_tools."""
 
 import ast
+from contextlib import contextmanager
 import functools
 import importlib
 import inspect
@@ -225,7 +226,7 @@ _CHECK_FN_TTL_SECONDS = 30.0
 # so a genuinely-down backend is reflected within a couple of turns.
 _CHECK_FN_FAILURE_GRACE_SECONDS = 60.0
 _CHECK_FN_CACHE_MAX = 512
-_check_fn_cache: Dict[tuple[Callable, Optional[str]], tuple[float, bool]] = {}
+_check_fn_cache: Dict[tuple[Callable, Optional[str]], tuple[float, bool, float]] = {}
 _check_fn_last_good: Dict[tuple[Callable, Optional[str]], float] = {}
 _check_fn_ever_good: Set[tuple[Callable, Optional[str]]] = set()  # probes that admitted tools this process
 _check_fn_core_drop_warned: Set[tuple[Callable, Optional[str]]] = set()  # once-per-process WARNING gate
@@ -251,7 +252,7 @@ def _fn_label(fn: Callable) -> object:
 def _prune_check_fn_caches(now: float) -> None:
     """Expire stale entries and cap profile-dimensional cache growth. Caller holds the lock."""
     for cache, ttl, stamp in (
-        (_check_fn_cache, _CHECK_FN_TTL_SECONDS, lambda v: v[0]),
+        (_check_fn_cache, 0.0, lambda v: v[2]),
         (_check_fn_last_good, _CHECK_FN_FAILURE_GRACE_SECONDS, lambda v: v)):
         for key, value in list(cache.items()):
             if now - stamp(value) >= ttl:
@@ -295,6 +296,7 @@ def _run_check_fn_uncached(fn: Callable) -> bool:
     """Run an availability check without cache/grace handling."""
     from agent.secret_scope import UnscopedSecretError, current_secret_scope
     try:
+        _note_check_fn_probe()
         return bool(fn())
     except UnscopedSecretError:
         # The verdict comes from the LIVE scope at the catch site, not from which registry branch
@@ -337,6 +339,7 @@ def _check_fn_cached(fn: Callable) -> bool:
         if cached is not None:
             return cached[1]
     exc_info = None
+    _note_check_fn_probe()
     try:
         value, outcome = bool(fn()), "returned False"
     except Exception as exc:
@@ -351,11 +354,14 @@ def _check_fn_cached(fn: Callable) -> bool:
         if value:
             _check_fn_last_good[cache_key] = now
             _check_fn_ever_good.add(cache_key)
-            _check_fn_cache[cache_key] = (now, True)
+            _check_fn_cache[cache_key] = (now, True, now + _CHECK_FN_TTL_SECONDS)
             return True
         last_good = _check_fn_last_good.get(cache_key)
         if last_good is not None and now - last_good < _CHECK_FN_FAILURE_GRACE_SECONDS:
-            # Recent success → flake: serve last-good True, do NOT cache (next call re-probes).
+            # Bound re-probe cost without extending grace past the last real success.
+            _check_fn_cache[cache_key] = (now, True, min(
+                now + _CHECK_FN_GRACE_REPROBE_SECONDS,
+                last_good + _CHECK_FN_FAILURE_GRACE_SECONDS))
             logger.warning(
                 "check_fn %s failed (%s) within %.0fs of last success; "
                 "treating as transient and keeping tool(s) available",
@@ -381,7 +387,7 @@ def _check_fn_cached(fn: Callable) -> bool:
             log(
                 "check_fn %s %s; dependent tools will be unavailable this turn", _fn_label(fn), outcome,
                 exc_info=exc_info)
-        _check_fn_cache[cache_key] = (now, False)
+        _check_fn_cache[cache_key] = (now, False, now + _CHECK_FN_TTL_SECONDS)
         return False
 
 
@@ -404,7 +410,9 @@ def _memo_check(fn: Callable, memo: Dict[Callable, bool]) -> bool:
 
 def invalidate_check_fn_cache() -> None:
     """Drop all cached ``check_fn`` results (after config changes like ``hermes tools enable``)."""
+    global _check_fn_epoch
     with _check_fn_cache_lock:
+        _check_fn_epoch += 1
         _check_fn_cache.clear()
         _check_fn_last_good.clear()
         _check_fn_ever_good.clear()
@@ -421,10 +429,24 @@ def get_cached_check_fn_result(fn: Callable) -> Optional[bool]:
         return None
     with _check_fn_cache_lock:
         cached = _check_fn_cache.get((fn, scope))
-    return cached[1] if cached is not None and now - cached[0] < _CHECK_FN_TTL_SECONDS else None
+    return cached[1] if cached is not None and now < cached[2] else None
 
 
 class ToolRegistry:
+    @property
+    def generation(self) -> int:
+        """The registration generation. Compare for EQUALITY, never for order.
+
+        Read under the same lock the mutators bump it under, so a reader can
+        never observe a half-applied registration's counter. Public because
+        memoizing callers outside this module (``agent_init``, and since 2026-08
+        ``agent_runtime.chat_lane_bundle`` through :func:`registry_epoch`) have
+        to key on it; ``_generation`` stays the field.
+        """
+
+        with self._lock:
+            return self._generation
+
     """Singleton registry that collects tool schemas + handlers from tool files."""
 
     def __init__(self):
@@ -492,9 +514,10 @@ class ToolRegistry:
         :meth:`get_definitions` per-tool filtering so doctor/banners agree with runtime:
         mixed toolsets (``terminal`` + desktop-only ``read_terminal``) must not be gated
         by the first ``check_fn``."""
-        memo: Dict[Callable, bool] = {}
-        members = (e for e in entries if e.toolset == toolset)
-        return any(not e.check_fn or _memo_check(e.check_fn, memo) for e in members)
+        with _probe_round():
+            memo: Dict[Callable, bool] = {}
+            members = (e for e in entries if e.toolset == toolset)
+            return any(not e.check_fn or _memo_check(e.check_fn, memo) for e in members)
 
     def get_entry(self, name: str, *, scope: Optional[str] = None) -> Optional[ToolEntry]:
         """Active profile's entry by name, falling back to global."""
@@ -843,32 +866,33 @@ class ToolRegistry:
     def get_definitions(self, tool_names: Set[str], quiet: bool = False) -> List[dict]:
         """OpenAI-format schemas for the requested tools whose ``check_fn`` passes (or is
         absent). Probes use the ~30 s TTL cache so ``hermes tools enable`` lands quickly."""
-        result = []
-        check_results: Dict[Callable, bool] = {}
-        entries_by_name = {entry.name: entry for entry in self._snapshot_entries()}
-        for name in sorted(tool_names):
-            entry = entries_by_name.get(name)
-            if not entry:
-                continue
-            if entry.check_fn and not _memo_check(entry.check_fn, check_results):
-                if not quiet:
-                    logger.debug("Tool %s unavailable (check failed)", name)
-                continue
-            schema_with_name = {**entry.schema, "name": entry.name}
-            # Runtime-dynamic overrides (e.g. delegate_task limits); the caller's memo is
-            # keyed on config.yaml mtime+size, so config changes invalidate it automatically.
-            if entry.dynamic_schema_overrides is not None:
-                try:
-                    overrides = entry.dynamic_schema_overrides()
-                except Exception as exc:
-                    overrides = None
-                    logger.warning(
-                        "dynamic_schema_overrides for tool %s raised %s; using static schema",
-                        name, exc)
-                if isinstance(overrides, dict):
-                    schema_with_name.update(overrides)
-            result.append({"type": "function", "function": schema_with_name})
-        return result
+        with _probe_round():
+            result = []
+            check_results: Dict[Callable, bool] = {}
+            entries_by_name = {entry.name: entry for entry in self._snapshot_entries()}
+            for name in sorted(tool_names):
+                entry = entries_by_name.get(name)
+                if not entry:
+                    continue
+                if entry.check_fn and not _memo_check(entry.check_fn, check_results):
+                    if not quiet:
+                        logger.debug("Tool %s unavailable (check failed)", name)
+                    continue
+                schema_with_name = {**entry.schema, "name": entry.name}
+                # Runtime-dynamic overrides (e.g. delegate_task limits); the caller's memo is
+                # keyed on config.yaml mtime+size, so config changes invalidate it automatically.
+                if entry.dynamic_schema_overrides is not None:
+                    try:
+                        overrides = entry.dynamic_schema_overrides()
+                    except Exception as exc:
+                        overrides = None
+                        logger.warning(
+                            "dynamic_schema_overrides for tool %s raised %s; using static schema",
+                            name, exc)
+                    if isinstance(overrides, dict):
+                        schema_with_name.update(overrides)
+                result.append({"type": "function", "function": schema_with_name})
+            return result
 
     # ---- Dispatch ----------------------------------------------------
 
@@ -1028,6 +1052,66 @@ def tool_error(message, **extra) -> str:
 def tool_result(data=None, **kwargs) -> str:
     """JSON-encode a dict positional arg *or* keyword arguments (not both)."""
     return json.dumps(data if data is not None else kwargs, ensure_ascii=False)
+
+
+_CHECK_FN_GRACE_REPROBE_SECONDS = 5.0
+_check_fn_epoch = 0
+_probe_state = threading.local()
+
+
+def _note_check_fn_probe() -> None:
+    _probe_state.probes = int(getattr(_probe_state, "probes", 0)) + 1
+
+
+@contextmanager
+def _probe_round():
+    before = int(getattr(_probe_state, "probes", 0))
+    try:
+        yield
+    finally:
+        if int(getattr(_probe_state, "probes", 0)) > before:
+            _probe_state.rounds = int(getattr(_probe_state, "rounds", 0)) + 1
+
+
+def probe_rounds_this_thread() -> int:
+    """Rounds this THREAD has run since the process started.
+
+    A cumulative counter, never reset by the runtime: callers take the
+    difference across the window they care about. Resetting it here would make
+    two overlapping observers destroy each other's measurement.
+    """
+
+    return int(getattr(_probe_state, "rounds", 0))
+
+
+def registry_epoch() -> int:
+    """The registry's identity for cache keys: registration + availability.
+
+    Two counters, summed into one monotonically-increasing integer:
+
+    * ``registry.generation`` — every ``register`` / ``deregister`` /
+      ``register_toolset_alias``, which is also every MCP dynamic refresh.
+    * :data:`_check_fn_epoch` — every :func:`invalidate_check_fn_cache`, which
+      is what ``hermes tools enable`` and the credential/config paths call when
+      a backend's AVAILABILITY (not its registration) changes.
+
+    Both halves matter and neither implies the other: a toolset can stay
+    registered while its ``check_fn`` starts answering differently, and a
+    ``check_fn`` cache can stay warm while an MCP server registers new tools.
+    A memo that keyed on only one of them would go stale in the other
+    direction.
+
+    **Comparison is equality, not ordering.** The sum is monotone, but a step of
+    2 says "both halves moved", not "two registrations happened" — nothing may
+    read magnitude out of it. It exists so a caller can ask "is the registry
+    still the one I computed against?" in one integer compare.
+
+    The value is a snapshot the instant it is read; a caller memoizing against
+    it must re-read it on every lookup, which is exactly what makes an
+    invalidation that lands mid-turn visible on the next lookup.
+    """
+
+    return registry.generation + _check_fn_epoch
 
 
 def _kwargs_accepted_by(handler: Callable, kwargs: dict) -> dict:
