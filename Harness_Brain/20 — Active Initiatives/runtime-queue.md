@@ -23,8 +23,9 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
-### Filed on arrival — 2026-09-26 (live `hermes update`, filed by the orchestrator)
+### Filed on arrival — 2026-09-26 (launcher lane LLAMA-SWITCH, filed by the orchestrator)
 
+- [ ] **`installation.plan` stops requiring `destination_parent`** — `agent_runtime/local_llama_adapter/setup.py` `SetupManager.plan` still validates `host_path(params.get("destination_parent"))` and answers `invalid_path` without it, though PM installs into `store_root()`; the launcher keeps a dead folder field until this lands · `fork / local llama` · then the launcher drops the request param and the field (row in `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`) · evidence: launcher `d80c6ae4e` and its wizard CHANGE commit body · filed by lane LLAMA-SWITCH 2026-09-26 **UNCLAIMED**
 
 ### Filed on arrival — 2026-09-25 (launcher lane REALM-HISTORY, filed by the orchestrator)
 
@@ -45,7 +46,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-25 (lane LLAMA-ALIAS)
 
-- [ ] **Drop `local-llama-hermes` once the launcher speaks `llamacpp`: `PROVIDER_ID` becomes `llamacpp`, `PROVIDER_ID_ALIASES` and `is_local_llama_provider` in `agent_runtime/local_llama_adapter/__init__.py` collapse to one id, and the two sub-64K floor exemptions keyed on the `requested_provider` literal (`agent/agent_init.py`, `agent/conversation_compression.py`) move with it** · `fork / local llama` · gated on the launcher switch row (`EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`); stored persona rows still carrying `local-llama-hermes` need a one-chokepoint rewrite-and-report · evidence: the lane LLAMA-ALIAS commit `feat(local-llama): accept upstream's llamacpp as a persona provider id through one chokepoint` (input accepts both ids, output publishes `local-llama-hermes` for one release, owner ruling 2026-09-25) · filed by lane LLAMA-ALIAS 2026-09-25
+- [ ] **Drop `local-llama-hermes` once the launcher speaks `llamacpp`: `PROVIDER_ID` becomes `llamacpp`, `PROVIDER_ID_ALIASES` and `is_local_llama_provider` in `agent_runtime/local_llama_adapter/__init__.py` collapse to one id, and the two sub-64K floor exemptions keyed on the `requested_provider` literal (`agent/agent_init.py`, `agent/conversation_compression.py`) move with it** · `fork / local llama` · gated on the launcher switch row (`EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`); stored persona rows still carrying `local-llama-hermes` need a one-chokepoint rewrite-and-report · evidence: the lane LLAMA-ALIAS commit `feat(local-llama): accept upstream's llamacpp as a persona provider id through one chokepoint` (input accepts both ids, output publishes `local-llama-hermes` for one release, owner ruling 2026-09-25) · filed by lane LLAMA-ALIAS 2026-09-25 · UNBLOCKED 2026-09-26: the launcher speaks `llamacpp` since lane LLAMA-SWITCH landed (launcher `d80c6ae4e`; one tolerant read of the old id stays at its parse boundary until this row lands) **UNCLAIMED**
 
 ### Filed on arrival — 2026-09-25 (lane W3-D)
 
