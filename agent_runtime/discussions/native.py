@@ -52,6 +52,14 @@ class NativeContext:
             reset_hermes_head_home(head_token)
             reset_hermes_home_override(home_token)
 
+    def workspaces(self) -> list[dict[str, str]]:
+        from agent_runtime.store import WorkspaceStore
+        with self.scope():
+            rows = WorkspaceStore().list_all()
+            if len(rows) > 10000:
+                raise DiscussionError("workspace_catalog_limit")
+            return [{"id": row.id, "name": row.name} for row in rows]
+
     def workspace(self, workspace_id: str):
         from agent_runtime.store import WorkspaceStore
         with self.scope():

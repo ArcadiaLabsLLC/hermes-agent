@@ -53,6 +53,7 @@ from .machine import (
 )
 from .persona import add_agent, add_mission_chat, add_persona, add_persona_instance
 from .scope import add_realm, add_workspace
+from .execution_identity import add_execution_identity
 from .surfaces import (
     add_board,
     add_checkpoint,
@@ -69,6 +70,7 @@ __all__ = ["PARSER_FAMILIES", "build_parser", "harness_command", "populate_parse
 
 #: Every ``hermes harness`` family, in the order the tree lists them.
 PARSER_FAMILIES: Final[tuple[Callable[[object], None], ...]] = (
+    add_execution_identity,
     add_init,
     add_roots,
     add_gateway,

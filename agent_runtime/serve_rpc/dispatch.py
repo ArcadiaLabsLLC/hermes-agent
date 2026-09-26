@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from agent_runtime.call_authorization import authorize_call
+from agent_runtime.execution_identity import execution_identity
 
 from agent_runtime.serve_rpc.protocol import (
     ERR_HANDLER_FAILED,
@@ -164,6 +165,9 @@ def handle_request(req: Any, context: RpcContext | None = None) -> dict:
             decision.refusal_data(),
         )
     try:
+        if "execution_id" in req and req["execution_id"] != execution_identity()["execution_id"]:
+            return err(rid, 4090, "The connected service belongs to another Hermes installation.",
+                       {"reason": "execution_identity_mismatch"})
         return fn(rid, params, context)
     except Exception as exc:  # noqa: BLE001 - the boundary is the point
         return err(

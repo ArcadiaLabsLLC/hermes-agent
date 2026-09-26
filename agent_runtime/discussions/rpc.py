@@ -31,7 +31,10 @@ def _record(record) -> dict[str, Any]:
 def execute(service: DiscussionService, operation: str, raw: Any, *, actor_id: str) -> dict[str, Any]:
     params = validate_params(operation, raw)
     if operation == "capabilities":
-        return {**contract_descriptor(), "accepting": service.accepting, "install_id": service.context.install_id}
+        return {**contract_descriptor(), "accepting": service.accepting, "install_id": service.context.install_id,
+                "execution_identity_guard": True}
+    if operation == "workspaces":
+        return {"workspaces": service.context.workspaces(), "install_id": service.context.install_id}
     workspace = params["workspace_id"]
     service.context.workspace(workspace)
     if operation == "roster":

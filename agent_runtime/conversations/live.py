@@ -89,6 +89,7 @@ class LiveConversation:
             self.store.settle(self.route.id, turn, state)
             self.turn_id = None
             self._stop_requested = False
+            self.questions.clear()
 
     def lost(self) -> None:
         with self._lock:
@@ -106,7 +107,11 @@ class LiveConversation:
             self.peer.write({"jsonrpc": "2.0", "id": request_id, "result": result})
             self.questions.pop(request_id)
 
-    def snapshot(self, cursor: int) -> dict:
+    def snapshot(self, cursor: int, turn_id: str | None = None) -> dict:
         with self._lock:
-            return {**self.events.since(cursor), "pending_requests": list(self.questions.values()),
-                    "connected": self.peer.alive}
+            result = {**self.events.since(cursor), "pending_requests": list(self.questions.values()),
+                      "connected": self.peer.alive}
+            if turn_id is not None:
+                result["turn"] = {"turn_id": turn_id,
+                                  "state": self.store.turn(self.route, turn_id).state}
+            return result
