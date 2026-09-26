@@ -88,7 +88,6 @@
   "agent_runtime/skill_sync.py",
   "agent_runtime/skills_inventory.py",
   "agent_runtime/sync_admission.py",
-  "agent_runtime/terminal_envelope_explain.py",
-  "agent_runtime/tool_visibility.py"
+  "agent_runtime/terminal_envelope_explain.py"
  ]
 }

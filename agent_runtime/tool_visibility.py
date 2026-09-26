@@ -38,6 +38,8 @@ from .tool_turn_history import load_tool_turn_history
 # could not.
 from tools.toolset_manifest import builtin_tool_names_for_toolsets, builtin_toolset_for_tool
 
+__layer__ = "stores"
+
 TOOL_VISIBILITY_SCHEMA_VERSION = 2
 
 
