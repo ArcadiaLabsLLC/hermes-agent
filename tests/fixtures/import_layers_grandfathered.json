@@ -109,7 +109,6 @@
   "agent_runtime/profile_artifact_sync.py",
   "agent_runtime/progress.py",
   "agent_runtime/realm_membership.py",
-  "agent_runtime/redaction_mode.py",
   "agent_runtime/scope_activation.py",
   "agent_runtime/serve_auth.py",
   "agent_runtime/serve_gateway_peers_rpc.py",

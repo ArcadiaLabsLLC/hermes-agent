@@ -4,6 +4,8 @@ from typing import Any
 
 from .config.schema import ALLOWED, OBSERVE, STRICT, normalize_redaction_mode
 
+__layer__ = "stores"
+
 
 def redaction_mode(config: Any | None = None) -> str:
     if config is None:
