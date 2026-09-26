@@ -32,6 +32,8 @@ from utils import atomic_json_write
 from . import SETUP_SCHEMA
 from .config import LocalLlamaError, identifier
 
+__layer__ = "stores"
+
 ACTIVE = ("queued", "running", "cancelling")
 _ROUTER_FLAGS = ("--models-dir", "--models-preset", "--models-max", "--models-autoload")
 _INSTALL_HEADROOM_BYTES = 3 * 1024**3
