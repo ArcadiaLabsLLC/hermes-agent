@@ -258,10 +258,22 @@ class TestGitBashCoreutilsOnPath:
         What is no longer faked is the host: the ``_IS_WINDOWS`` gate this
         function opens with is genuinely True here.
         """
+        # Build every path with os.path.join, because that is how
+        # ``_git_bash_bin_dirs`` derives them: hardcoding the POSIX spelling
+        # pins the SEPARATOR rather than the layout rule this test is named
+        # for, and the function is byte-identical to upstream.
+        root = os.path.join(os.sep, "pg")
+        bash = os.path.join(root, "bin", "bash.exe")
+        mingw64 = os.path.join(root, "mingw64", "bin")
+        usr_bin = os.path.join(root, "usr", "bin")
+        bin_dir = os.path.join(root, "bin")
+        mingw32 = os.path.join(root, "mingw32", "bin")
         monkeypatch.setattr(local_mod, "_git_bash_bin_dirs_cache", None)
-        monkeypatch.setattr(local_mod, "_find_bash", lambda: "/pg/bin/bash.exe")
-        existing = {"/pg/mingw64/bin", "/pg/usr/bin", "/pg/bin"}
-        monkeypatch.setattr(local_mod.os.path, "isdir", self._fake_isdir(existing))
+        monkeypatch.setattr(local_mod, "_find_bash", lambda: bash)
+        monkeypatch.setattr(
+            local_mod.os.path, "isdir",
+            self._fake_isdir({mingw64, usr_bin, bin_dir}),
+        )
 
         dirs = _git_bash_bin_dirs()
 

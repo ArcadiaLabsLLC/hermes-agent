@@ -29,8 +29,16 @@ class TestGetDefaultHermesRoot:
 
     @pytest.mark.platforms("linux")
     def test_no_hermes_home_returns_native(self, tmp_path, monkeypatch):
-        """When HERMES_HOME is not set, returns ~/.hermes."""
+        """When HERMES_HOME is not set, returns ~/.hermes.
+
+        ``sys.platform`` is pinned for the same reason the Windows sibling below
+        pins it: the native default is ``%LOCALAPPDATA%\\hermes`` on win32 and
+        ``~/.hermes`` everywhere else, so an unpinned assertion on ``~/.hermes``
+        is not a POSIX test — it is a test that is simply red on Windows, which
+        is what it was on this operator's box.
+        """
         monkeypatch.delenv("HERMES_HOME", raising=False)
+        monkeypatch.setattr(hermes_constants.sys, "platform", "linux")
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
 
         assert get_default_hermes_root() == tmp_path / ".hermes"
