@@ -260,7 +260,7 @@ an unresolvable profile home resolves the same default as `profile_unresolved`. 
 resolves narrow, never wide. `harness_core` (`toolsets.py:259`) is a composite of 15 member
 toolsets — `agent_chat`, `board`, `clarify`, `delegation`, `terminal`, `file`, `web`, `browser`,
 `browser-cdp`, `skills`, `memory`, `todo`, `session_search`, `vision`, `code_execution` — expanded
-to those NAMES by `expand_toolset_names` (`:861`) so the cost policy, which drops by name, still
+to those NAMES by `agent_runtime/toolset_names.py::expand_toolset_names` so the cost policy, which drops by name, still
 sees them. Measured 2026-09-03 on all four mission personas: **43 callable tools, 0 withheld,
 `model_tool_tokens` 1149** (was 79 / 17 / 2142). The per-persona `AgentPersona.toolsets` list is
 LEGACY DISPLAY: it is reported as `persona_toolsets` / `toolset_declaration.persona_list` with

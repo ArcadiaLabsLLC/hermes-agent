@@ -72,7 +72,7 @@ def declared_lane_toolsets(persona: AgentPersona) -> ToolsetDeclaration:
     subprocess.
     """
 
-    from toolsets import expand_toolset_names
+    from agent_runtime.toolset_names import expand_toolset_names
 
     persona_list = tuple(
         str(name).strip()

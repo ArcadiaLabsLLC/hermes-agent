@@ -116,7 +116,7 @@ _TOOLISH = re.compile(r"`([a-z][a-z0-9_]{2,})`")
 
 def _declared_members() -> list[str]:
     from agent_runtime.personas import HARNESS_LANE_DEFAULT_TOOLSETS
-    from toolsets import expand_toolset_names
+    from agent_runtime.toolset_names import expand_toolset_names
 
     return list(expand_toolset_names(HARNESS_LANE_DEFAULT_TOOLSETS))
 

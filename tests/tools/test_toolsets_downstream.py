@@ -97,7 +97,7 @@ class TestHarnessCoreToolset:
         assert {"terminal", "read_file", "clarify", "delegate_task"} <= static
 
     def test_expand_toolset_names_returns_the_member_names_in_order(self):
-        from toolsets import expand_toolset_names
+        from agent_runtime.toolset_names import expand_toolset_names
 
         assert expand_toolset_names(["harness_core"]) == [
             "agent_chat", "board", "clarify", "delegation", "terminal", "file",
@@ -106,7 +106,7 @@ class TestHarnessCoreToolset:
         ]
 
     def test_expand_toolset_names_passes_leaves_and_unknowns_through(self):
-        from toolsets import expand_toolset_names
+        from agent_runtime.toolset_names import expand_toolset_names
 
         assert expand_toolset_names(["file", "mcp-launcher_qa", "made_up"]) == [
             "file", "mcp-launcher_qa", "made_up",
@@ -120,7 +120,7 @@ class TestHarnessCoreToolset:
         """``debugging`` has ``includes`` AND direct tools: expanding it to its
         members would silently drop ``terminal``/``process``. It passes through."""
 
-        from toolsets import expand_toolset_names
+        from agent_runtime.toolset_names import expand_toolset_names
 
         assert expand_toolset_names(["debugging"]) == ["debugging"]
 
@@ -132,7 +132,7 @@ class TestHarnessCoreToolset:
 
         code = (
             "import sys\n"
-            "from toolsets import expand_toolset_names\n"
+            "from agent_runtime.toolset_names import expand_toolset_names\n"
             "names = expand_toolset_names(['harness_core'])\n"
             "assert len(names) == 15, names\n"
             "print('model_tools' in sys.modules)\n"
