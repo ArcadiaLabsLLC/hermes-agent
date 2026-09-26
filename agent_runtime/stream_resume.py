@@ -83,6 +83,8 @@ from .state_patches import delta_patches_enabled
 from .stream import batch_carries_patch_rows, patch_batch_frame
 from .stream.vocabulary import _DELTA_BATCH_CAP
 
+__layer__ = "lanes"
+
 __all__ = [
     "STREAM_RESUME_MAX_EVENTS",
     "StreamResume",
