@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 
 from agent_runtime.permission_modes import SHIPPED_DEFAULT_PERMISSION_MODE
 
+__layer__ = "models"
+
 
 #: ``agent_runtime.mission_chat.dispatch_session_policy`` vocabulary.
 NEW_PER_DISPATCH = "new_per_dispatch"
