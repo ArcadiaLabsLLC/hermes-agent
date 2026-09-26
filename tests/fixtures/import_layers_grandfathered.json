@@ -73,7 +73,6 @@
   "agent_runtime/skill_promotion.py",
   "agent_runtime/skill_publishability.py",
   "agent_runtime/skill_resolution.py",
-  "agent_runtime/skill_sync.py",
-  "agent_runtime/skills_inventory.py"
+  "agent_runtime/skill_sync.py"
  ]
 }

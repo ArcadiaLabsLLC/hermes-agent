@@ -31,6 +31,8 @@ from typing import Any
 
 from .skill_publishability import REASON_SHARED_ROOT
 
+__layer__ = "stores"
+
 SCHEMA = "hermes.skills_inventory/v1"
 
 
