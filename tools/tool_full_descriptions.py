@@ -12,10 +12,8 @@ this mirror keeps serving the same originals — the full docs are never lost.
 Every tool briefed in ``tools.downstream_schema.BRIEF_DESCRIPTIONS`` has no entry
 here: the registry keeps upstream's live text (the brief rides only the wire, via
 the eternia-harness ``llm_request`` middleware), so ``full_tool_description``
-returns None for it and ``tool_describe`` serves the registry schema — except
-``terminal``, still briefed at registration, whose upstream text
-``registered_full_description`` captured. Other entries retain the
-following snapshot contract.
+returns None for it and ``tool_describe`` serves the registry schema. Other
+entries retain the following snapshot contract.
 
 MIRROR DISCIPLINE: this is a snapshot of the descriptions as they shipped before
 the T6b trims. If a tool's genuine documentation changes, update BOTH the brief
@@ -88,11 +86,8 @@ def full_tool_description(name: str) -> Optional[str]:
 
     Values may be plain strings or zero-arg callables (for profile-aware text).
     """
-    from tools.downstream_schema import BRIEF_DESCRIPTIONS, registered_full_description
+    from tools.downstream_schema import BRIEF_DESCRIPTIONS
 
-    current = registered_full_description(name)
-    if current is not None:
-        return current
     if name in BRIEF_DESCRIPTIONS:
         # The registry holds upstream's live text; the brief rides only the wire.
         return None
