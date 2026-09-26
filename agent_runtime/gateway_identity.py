@@ -99,28 +99,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .paths import install_record_path
 from .store_file_io import os_error_reason as _error_reason
 from .store_file_io import read_raw_text as _read_raw
 
 __all__ = [
-    "GATEWAY_DIRNAME",
-    "INSTALL_RECORD_FILENAME",
     "DISPLAY_NAME_MAX_CHARS",
     "InstallIdentity",
     "clean_display_name",
     "default_display_name",
     "ensure_install_identity",
-    "gateway_dir",
-    "install_record_path",
     "read_install_identity",
     "set_display_name",
 ]
 
-#: Lives beside the other per-root runtime state, under ``<store_root>``. The
-#: DIRECTORY (not just the file) is the unit: Stage 1 adds ``devices.json`` and
-#: Stage 6 ``peers.json`` beside this record.
-GATEWAY_DIRNAME = "gateway"
-INSTALL_RECORD_FILENAME = "install.json"
 
 #: A display name is chrome for a picker row, not a key. Capped so a pasted
 #: paragraph cannot bloat every greeting frame on the wire.
@@ -169,14 +161,6 @@ class InstallIdentity:
             "display_name": self.display_name,
             "state": self.state,
         }
-
-
-def gateway_dir(store_root: Path | str) -> Path:
-    return Path(store_root) / GATEWAY_DIRNAME
-
-
-def install_record_path(store_root: Path | str) -> Path:
-    return gateway_dir(store_root) / INSTALL_RECORD_FILENAME
 
 
 def default_display_name(store_root: Path | str) -> str:

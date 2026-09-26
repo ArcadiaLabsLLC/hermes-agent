@@ -67,7 +67,7 @@ def _run(capsys, *argv: str) -> tuple[int, dict]:
 
 
 def _record_path():
-    from agent_runtime.gateway_identity import install_record_path
+    from agent_runtime.paths import install_record_path
 
     return install_record_path(paths.store_root())
 

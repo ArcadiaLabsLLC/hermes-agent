@@ -128,7 +128,7 @@ def test_the_ready_frame_names_which_install_it_is(isolate_agent_runtime_root):
     machine cannot interpret a path, so the greeting has to answer "which
     install" too."""
 
-    from agent_runtime.gateway_identity import install_record_path
+    from agent_runtime.paths import install_record_path
 
     frames, _ = _run([SHUTDOWN])
 

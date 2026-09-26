@@ -491,7 +491,7 @@ def test_record_peer_refuses_the_unwritable_family_rather_than_writing_unlocked(
     seconds a test cannot afford to wait are not."""
 
     from agent_runtime import gateway_peers
-    from agent_runtime.gateway_identity import gateway_dir
+    from agent_runtime.paths import gateway_dir
     from agent_runtime.gateway_peers import PeerRecord, peer_store_path
 
     real_store_lock = gateway_peers.store_lock

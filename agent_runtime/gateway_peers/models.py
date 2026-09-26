@@ -14,9 +14,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final
 
-from ..gateway_identity import gateway_dir
-from ..serde import is_hex
 from ..clock import stamp_passed as _stamp_passed
+from ..paths import gateway_dir
+from ..serde import is_hex
 
 __layer__ = "models"
 

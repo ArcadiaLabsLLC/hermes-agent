@@ -157,7 +157,6 @@ from typing import Any
 from .call_authorization import TIER_CONSOLE, TIER_READ, TIERS
 from .clock import iso_stamp as _iso
 from .clock import stamp_passed as _stamp_passed
-from .gateway_identity import gateway_dir
 from .gateway_pairing_codes import (
     CODE_ALPHABET,
     CODE_LENGTH,
@@ -174,6 +173,7 @@ from .gateway_pairing_codes import (
     pending_codes,
     supersede_pending,
 )
+from .paths import gateway_dir
 from .store_file_io import HarnessLockUnavailable
 from .store_file_io import os_error_reason as _os_reason
 from .store_file_io import read_json_object as _read_json

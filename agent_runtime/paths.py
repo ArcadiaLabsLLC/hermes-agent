@@ -661,3 +661,18 @@ def path_exists_safe(path: Path) -> bool:
         return path.exists()
     except OSError:  # pragma: no cover - defensive
         return False
+
+
+#: Lives beside the other per-root runtime state, under ``<store_root>``. The
+#: DIRECTORY (not just the file) is the unit: Stage 1 adds ``devices.json`` and
+#: Stage 6 ``peers.json`` beside this record.
+GATEWAY_DIRNAME = "gateway"
+INSTALL_RECORD_FILENAME = "install.json"
+
+
+def gateway_dir(store_root: Path | str) -> Path:
+    return Path(store_root) / GATEWAY_DIRNAME
+
+
+def install_record_path(store_root: Path | str) -> Path:
+    return gateway_dir(store_root) / INSTALL_RECORD_FILENAME

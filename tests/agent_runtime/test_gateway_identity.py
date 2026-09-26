@@ -20,10 +20,10 @@ from pathlib import Path
 from agent_runtime.gateway_identity import (
     DISPLAY_NAME_MAX_CHARS,
     ensure_install_identity,
-    install_record_path,
     read_install_identity,
     set_display_name,
 )
+from agent_runtime.paths import install_record_path
 
 
 # ── mint, then never again ──────────────────────────────────────────────────

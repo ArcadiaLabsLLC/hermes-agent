@@ -195,7 +195,7 @@ def test_pair_mints_the_identity_and_the_certificate_it_has_to_name(capsys):
     fingerprint would print a payload with a hole where the trust decision
     goes."""
 
-    from agent_runtime.gateway_identity import install_record_path
+    from agent_runtime.paths import install_record_path
     from agent_runtime.gateway_tls import certificate_path, read_certificate
 
     assert not certificate_path(paths.store_root()).exists()

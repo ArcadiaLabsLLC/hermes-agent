@@ -95,7 +95,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .gateway_identity import gateway_dir
+from .paths import gateway_dir
 from .store_file_io import narrow_windows_acl as _narrow_windows_acl
 from .store_file_io import os_error_reason as _os_reason
 from .store_file_io import prepare_windows_replace as _prepare_windows_replace

@@ -232,7 +232,7 @@ def test_pair_mints_the_identity_and_certificate_the_payload_has_to_name(capsys)
     could not produce an id or a fingerprint would print a payload with a hole
     where the trust decision goes."""
 
-    from agent_runtime.gateway_identity import install_record_path
+    from agent_runtime.paths import install_record_path
     from agent_runtime.gateway_tls import certificate_path
 
     assert not certificate_path(paths.store_root()).exists()
