@@ -10,7 +10,7 @@ from typing import Any, Callable
 
 from ..events import EventLog
 
-__layer__ = "models"
+__layer__ = "stores"
 
 
 DEFAULT_WORKTREE_MIN_AGE_SECONDS = 3600
