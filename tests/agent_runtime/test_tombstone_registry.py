@@ -3648,6 +3648,46 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "_is_windows_system_shim",
         scope=("tools.environments.local",),
     ),
+    # -- lane ACP-DROP (2026-09-26) ----------------------------------------
+    # Owner ruling 2026-09-26: "we aren't using ACP, just remove that." The
+    # fork's ACP surface went: acp_adapter/ back to byte-identical upstream at
+    # 4ddc4f0ce8, the skills binding and its notes deleted at 6d5f84e583.
+    *rows(
+        "s-acpdrop",
+        "6d5f84e583",
+        Form.MODULE,
+        "the fork's ACP session-skills binding; ACP is not used (owner "
+        "ruling 2026-09-26), so no fork module may bind acp again",
+        "agent_runtime.acp_skills",
+    ),
+    *rows(
+        "s-acpdrop",
+        "6d5f84e583",
+        Form.CODE,
+        "the ACP skills-inspection binding's exports; an upstream sync must "
+        "not hand them back into acp_adapter (owner ruling 2026-09-26)",
+        "SkillsInspectionMixin",
+        "skill_inspection_scope",
+        "SKILLS_CAPABILITY",
+    ),
+    *rows(
+        "s-acpdrop",
+        "4ddc4f0ce8",
+        Form.CODE,
+        "the fork's named-provider identity carry inside acp_adapter/session.py; "
+        "acp_adapter is byte-identical upstream again (owner ruling 2026-09-26)",
+        "agent_provider_identity",
+    ),
+    *rows(
+        "s-acpdrop",
+        "6d5f84e583",
+        Form.PATH,
+        "the ACP identity carry and session-skills contract notes; the "
+        "surface they documented is gone (owner ruling 2026-09-26)",
+        "docs/downstream/acp-named-provider-identity-2026-09-24.md",
+        "docs/downstream/session-skills.md",
+        "docs/downstream/session-skills-verification.md",
+    ),
 )
 
 
