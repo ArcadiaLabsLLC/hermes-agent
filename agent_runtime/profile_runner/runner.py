@@ -365,7 +365,14 @@ def _default_agent_factory(**kwargs):
     # codex build seam reads via ``getattr(agent, "cache_scope_id", None)``. It
     # never participates in session/transcript loading.
     cache_scope_id = kwargs.pop("cache_scope_id", None)
+    # The run's blocked tools are not an upstream constructor parameter either: the
+    # agent is pruned once here, and the wire and the call are guarded by the
+    # eternia-harness plugin against the block the run binds (agent_runtime.tool_blocks).
+    blocked_tool_names = kwargs.pop("blocked_tool_names", None)
     agent = AIAgent(**kwargs)
     if cache_scope_id:
         agent.cache_scope_id = cache_scope_id
+    from agent_runtime.tool_blocks import prune_agent_tools
+
+    prune_agent_tools(agent, blocked_tool_names)
     return agent
