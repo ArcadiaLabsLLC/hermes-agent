@@ -11,6 +11,8 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Iterator
 
+__layer__ = "policy"
+
 
 @dataclass(frozen=True, slots=True)
 class AuxiliaryChat:
