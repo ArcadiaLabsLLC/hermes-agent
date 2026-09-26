@@ -573,7 +573,7 @@ def test_a_store_that_will_not_open_costs_the_local_pictures_nothing(
     def sqlite_error():
         return RuntimeError("the store is locked")
 
-    monkeypatch.setattr(dispatch_store, "remote_media_completions", boom)
+    monkeypatch.setattr(dispatch_store.db, "remote_media_completions", boom)
 
     scope = media_handles.build_media_scope(root=mirror)
 

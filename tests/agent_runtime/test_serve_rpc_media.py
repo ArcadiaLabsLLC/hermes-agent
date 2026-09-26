@@ -366,14 +366,14 @@ def _peer_call(params: dict, rid: str = "p1") -> dict:
 def _far_completions(monkeypatch, handle: str, size: int) -> None:
     """Stand a stored cross-install map in front of the scope derivation.
 
-    Patched at ``dispatch_store``'s function rather than at the scope's
+    Patched at ``dispatch_store.db``'s function rather than at the scope's
     parameter, so what is exercised is the wiring ``build_media_scope`` actually
     uses in production — the seam a test that passed ``remote_completions=``
     directly would step around.
     """
 
     monkeypatch.setattr(
-        "agent_runtime.dispatch_store.remote_media_completions",
+        "agent_runtime.dispatch_store.db.remote_media_completions",
         lambda **_k: [
             {
                 "dispatch_id": "d1",

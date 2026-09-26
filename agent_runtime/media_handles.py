@@ -838,9 +838,9 @@ def _remote_media_completions() -> list[dict[str, Any]]:
     """
 
     try:
-        from . import dispatch_store
+        from .dispatch_store.db import remote_media_completions
 
-        return dispatch_store.remote_media_completions(limit=MAX_REMOTE_COMPLETIONS)
+        return remote_media_completions(limit=MAX_REMOTE_COMPLETIONS)
     except Exception:  # pragma: no cover - defensive
         return []
 
@@ -880,7 +880,7 @@ def _remote_artifact_for(
 
 def _live_log_root() -> Path | None:
     try:
-        from .chat_live_log import capture_chat_live_log_root
+        from .chat_live_log.files import capture_chat_live_log_root
 
         return capture_chat_live_log_root()
     except Exception:  # pragma: no cover - defensive; a scope must never raise
