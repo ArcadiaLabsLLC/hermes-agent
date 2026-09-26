@@ -37,6 +37,8 @@ from .sync_merge import (
     classify_three_way_pull as classify_board_pull,
 )
 
+__layer__ = "stores"
+
 __all__ = [
     "BoardPullAction",
     "BoardPullDecision",
