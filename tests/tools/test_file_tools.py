@@ -6,7 +6,6 @@ handling without requiring a running terminal environment.
 
 import json
 import logging
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
