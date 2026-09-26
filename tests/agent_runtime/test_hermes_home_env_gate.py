@@ -84,9 +84,10 @@ SCANNED_FILES = ("tools/agent_chat_tool.py",)
 #: convenient here", "it is only a fallback" — is the defect this gate exists
 #: to stop, and must take the root as an argument instead.
 ALLOWED: dict[str, str] = {
-    "agent_runtime/chat_session_scope.py": (
-        "THE authority. Reading HERMES_HEAD_HOME *is* the ENV_HEAD_HOME rung "
-        "of the resolution ladder this module owns."
+    "agent_runtime/profile_home.py": (
+        "THE authority's one reader. ``configured_head_home`` IS the "
+        "ENV_HEAD_HOME rung; ``chat_session_scope``'s resolution ladder takes "
+        "it from here (moved down a layer, lane LAYERS L4)."
     ),
     "agent_runtime/profile_context.py": (
         "The profile-binding chokepoint, and the only sanctioned WRITER: it "
@@ -210,7 +211,7 @@ def test_every_named_scan_scope_resolves_to_something() -> None:
     empty scan satisfies perfectly.
 
     The witness below cannot see this. It proves the scan finds
-    ``agent_runtime/chat_session_scope.py``, so it fires only when
+    ``agent_runtime/profile_home.py``, so it fires only when
     ``agent_runtime`` breaks; ``agent``, ``hermes_cli/harness_parts`` and every
     ``SCANNED_FILES`` entry could each collapse to zero underneath it.
     (``harness_parts`` is incidentally covered by
@@ -245,7 +246,7 @@ def test_the_scan_finds_the_known_authorities(scanned: dict[str, list[int]]) -> 
         "the scan found no environment reads anywhere — the walker or "
         f"SCANNED_ROOTS is broken, not the codebase (roots: {SCANNED_ROOTS})"
     )
-    assert "agent_runtime/chat_session_scope.py" in scanned, (
+    assert "agent_runtime/profile_home.py" in scanned, (
         "the resolution authority itself must still read HERMES_HEAD_HOME; if "
         "it genuinely stopped, this gate's premise changed and it needs "
         "rewriting rather than relaxing"

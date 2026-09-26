@@ -120,6 +120,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from agent_runtime.profile_home import configured_head_home
+
 logger = logging.getLogger(__name__)
 
 __all__ = [
@@ -773,19 +775,6 @@ def declared_chat_head_home() -> Path | None:
     except OSError:  # pragma: no cover - defensive
         return None
     return candidate
-
-
-def configured_head_home() -> str:
-    """The ``ENV_HEAD_HOME`` rung, raw: the operator-supplied ``HERMES_HEAD_HOME``
-    stripped, or ``""`` when the Launcher named none.
-
-    The ONE reader of that variable. ``agent_runtime.profile_home``'s head
-    resolvers take the value from here rather than asking the environment
-    themselves, so the ladder and the primitive under it cannot disagree about
-    what the environment said.
-    """
-
-    return os.environ.get("HERMES_HEAD_HOME", "").strip()
 
 
 def publish_chat_head_home(scope: ChatSessionScope | None = None) -> Path | None:

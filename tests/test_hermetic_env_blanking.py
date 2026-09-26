@@ -81,7 +81,7 @@ LEAK_PRONE_VARS: dict[str, tuple[str, str]] = {
         "SIG_IGN for SIGINT/SIGBREAK and SetConsoleCtrlHandler(NULL, TRUE)",
     ),
     "HERMES_HEAD_HOME": (
-        "agent_runtime/chat_session_scope.py",
+        "agent_runtime/profile_home.py",
         "`configured_head_home()` is the ONE reader since `73826a8152`; "
         "`profile_home.get_hermes_head_home()` returns its value and it OUTRANKS "
         "the sandboxed HERMES_HOME, it selects the SessionDB the transcript store "

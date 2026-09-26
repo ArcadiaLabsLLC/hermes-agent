@@ -4649,7 +4649,7 @@ def test_a_fork_authored_subject_is_never_upstreams_loss():
     assert not _upstream_retired_its_own_coverage(
         "tests/gateway/test_version_command.py",
         "test_gateway_version_command_returns_release_line",
-        ("agent_runtime.chat_session_scope", "configured_head_home"),
+        ("agent_runtime.profile_home", "configured_head_home"),
     )
 
 
