@@ -70,6 +70,7 @@ After the conflicts are resolved and before the suite: for every upstream commit
 | NousResearch/hermes-agent#124193 | `refactor(credential-pool)`: the strategy branch of `_select_unlocked` extracted into `_pick_and_rotate` (`up/credential-pool-pick-and-rotate`) | recorded parallel 8 | 2026-09-26 |
 | NousResearch/hermes-agent#124194 | `feat(local-runtime)`: `executable_path`, `model_dirs`, `model_overrides` config keys (`up/local-runtime-knobs`) | recorded parallels 10, 11, 12 | 2026-09-26 |
 | NousResearch/hermes-agent#124195 | `feat(environments)`: public `drain_fd(proc, fd, sink, decoder, stop)` pipe drain (`up/public-drain-fd`) | recorded parallel 13 | 2026-09-26 |
+| NousResearch/hermes-agent#124210 | `feat(plugins)`: persisted-row and MCP transform hooks, `reuse_current_user_message`, HERMES_HOME for stdio MCP children (`up/persisted-row-hooks`; rebased onto f077152871 — upstream's cross-profile stdio adoption now shares a child only when the server's `env:` pins HERMES_HOME, stated in the body) | recorded parallels 4, 5, 6 | 2026-09-26 |
 
 **Checked 2026-09-24 (lane MERGE):** all eleven rows above are OPEN upstream and none is in `upstream/main`; every carry stays.
 
@@ -79,13 +80,9 @@ After the conflicts are resolved and before the suite: for every upstream commit
 
 Rules used: branch cut from `upstream/main` (never from the fork), `fix/…` / `test/…` branch names, Conventional Commit subject, upstream's PR template filled in full, `scripts/check-windows-footguns.py` on the staged diff, platform named (this box: Windows 10 Home 22H2, build 19045 — read it from `winver`/`[System.Environment]::OSVersion`, never assume), the affected test files run before and after with the counts in the body. Rebase a PR only on request. The next seam PR is Stage 1's fallback: manifest-declared deferred CLI entries (`cli_commands:` in `plugin.yaml`), after Stage 1 measures the discovery cost on the merged tree.
 
-## Held branches — written, not opened (the owner's word opens them)
+## Held branches
 
-Six of the seven recorded-parallel widenings OPENED 2026-09-26 (#124190–#124195, rows above) on the owner's word; verified on upstream a0fe806c46e, trial-merged clean onto the tip of the moment (f077152871). Bodies at `X:/wt/_holds/pr-bodies/<name>.md`.
-
-| branch | tip | title | ledger rows it retires |
-|---|---|---|---|
-| `up/persisted-row-hooks` | f0c746cc289 | `feat(plugins)`: persisted-row and MCP transform hooks, `reuse_current_user_message`, HERMES_HOME for stdio MCP children | recorded parallels 4, 5, 6 · CONFLICTS with the current upstream tip; lane PAR-PR2 rebases, re-proves and opens it |
+None as of 2026-09-26 evening: all seven recorded-parallel widenings are open (#124190–#124195, #124210). Bodies at `X:/wt/_holds/pr-bodies/<name>.md`.
 
 ## Related
 
