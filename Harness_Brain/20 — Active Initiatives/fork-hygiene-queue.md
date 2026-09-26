@@ -11,6 +11,10 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Release validation — 2026-09-23
 
+### Filed on arrival — 2026-09-26 (lane FIX-TRIAGE, filed by the orchestrator)
+
+- [ ] **Ledger drift: `tests/agent/test_coding_context.py` says "lifted: up/win-line-endings" but #121221 carries 5 other files; `tests/tools/test_file_tools_live.py` credits up/win-line-endings though the whole diff is in #121226; `tests/tools/test_file_tools.py` carries only a dead `import os`** · evidence: `docs/agent-runtime-harness/planned/fix-triage-2026-09-26.md` §1 rows · filed 2026-09-26 (lane FIX-TRIAGE) **UNCLAIMED**
+
 
 
 - [ ] **Sidebar cache concurrency and serve socket disconnect tests are flaky** · `fork / suite` · `test_projects_tree_coalesces_concurrent_scans_and_returns_copies` and `test_a_disconnect_unsubscribes_and_does_nothing_else` fail then pass bounded retries on the exact release merge; do not count retry success as stable proof · evidence: [[upstream-release-2026-09-23]] **UNCLAIMED** **TAKEN 2026-09-24 TESTS** · VERDICT 2026-09-24 (lane TESTS): sidebar half REFUTED — the test was purged in `4b67380698`. Disconnect half is DESIGN: the recorded red (`subscribers` 1 == 0 after `count` == 1) is NOT at the socket seam — a 0.5 s sleep before `_on_connection_closed`'s `_release_subscription`, and deleting that call outright, both stayed green (first poll already `count 1, subscribers 0`), so the hub drops the subscriber on another path; find that path, then poll for both halves before asserting (a both-halves wait was drafted and withdrawn because no mutation could red it)
