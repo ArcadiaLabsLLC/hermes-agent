@@ -2859,12 +2859,6 @@ def _prepare_agent_startup(args) -> None:
             "shell-hook registration failed at CLI startup",
             exc_info=True,
         )
-    try:
-        from tools.process_registry import process_registry
-        process_registry.restore_durable_completions()
-    except Exception:
-        logger.debug("Delegation completion restore failed at CLI startup", exc_info=True)
-
 
 
 def _apply_safe_mode(args) -> None:
@@ -3524,7 +3518,6 @@ def main():
         parser.print_help()
 
 
-from hermes_cli._downstream_cli import cmd_postinstall
 _boot_clock.mark_main_import_completed()
 
 if __name__ == "__main__":

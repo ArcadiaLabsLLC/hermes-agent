@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 
+import hermes_cli._downstream_cli as _downstream_cli
 import hermes_cli.path_setup as _path_setup
 
 def _patch_common(monkeypatch, calls, *, stub_shim: bool = True):
@@ -50,7 +51,7 @@ def test_postinstall_yes_bootstraps_without_provider_setup(monkeypatch, capsys):
 
     monkeypatch.setattr(main_mod, "cmd_setup", fake_setup)
 
-    main_mod.cmd_postinstall(SimpleNamespace(yes=True, non_interactive=False))
+    _downstream_cli.cmd_postinstall(SimpleNamespace(yes=True, non_interactive=False))
 
     assert calls == [
         ("node", True),
@@ -66,7 +67,7 @@ def test_postinstall_json_emits_summary_as_final_line(monkeypatch, capsys):
     calls: list[tuple[str, object]] = []
     main_mod = _patch_common(monkeypatch, calls)
 
-    main_mod.cmd_postinstall(
+    _downstream_cli.cmd_postinstall(
         SimpleNamespace(yes=True, non_interactive=False, json=True)
     )
 
@@ -117,7 +118,7 @@ def test_postinstall_writes_its_shim_inside_the_sandbox_and_nowhere_else(
         monkeypatch.setattr(windows_env, "add_user_path_entry", lambda entry: True)
         monkeypatch.setattr(windows_env, "broadcast_environment_change", lambda: None)
 
-    main_mod.cmd_postinstall(SimpleNamespace(yes=True, non_interactive=False))
+    _downstream_cli.cmd_postinstall(SimpleNamespace(yes=True, non_interactive=False))
 
     shim = Path(_isolate_hermes_shim_dir) / _path_setup._shim_file_name()
 
@@ -145,7 +146,7 @@ def test_postinstall_says_out_loud_when_it_refuses_to_write_the_shim(
         ),
     )
 
-    main_mod.cmd_postinstall(SimpleNamespace(yes=True, non_interactive=False))
+    _downstream_cli.cmd_postinstall(SimpleNamespace(yes=True, non_interactive=False))
 
     out = capsys.readouterr().out
     assert "shim_target_is_shim" in out
