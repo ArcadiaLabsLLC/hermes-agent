@@ -258,6 +258,9 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
             raise
         finally:
             sys.stdout, sys.stderr = self.original_stdout, self.original_stderr
+            if self.conversation_owner is not None:
+                from agent_runtime.conversations.binding import shutdown as shutdown_conversations
+                shutdown_conversations(root=self.conversation_owner.root)
             if self.discussion_owner is not None:
                 from agent_runtime.discussions.service import shutdown as shutdown_discussions
                 shutdown_discussions(root=self.discussion_owner.context.root)
@@ -574,6 +577,7 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         self.original_stdout, self.original_stderr = sys.stdout, sys.stderr
         self.local_llama_bound_root = None
         self.discussion_owner = None
+        self.conversation_owner = None
         sys.stdout, sys.stderr = self.stdout_proxy, self.stderr_proxy
 
     def _start_background_workers(self) -> None:

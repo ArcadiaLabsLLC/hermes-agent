@@ -25300,6 +25300,18 @@
             "default": null,
             "title": "Queued"
           },
+          "reject_if_busy": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reject If Busy"
+          },
           "surface": {
             "anyOf": [
               {

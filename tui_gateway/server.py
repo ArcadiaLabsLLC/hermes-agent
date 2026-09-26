@@ -1996,7 +1996,7 @@ def _tool_progress_enabled(sid: str) -> bool:
 
 def _tool_lifecycle_required_for_ui(name: str) -> bool:
     """Interactive UI, not optional chrome: Desktop renders clarify / connection cards from the tool-call part."""
-    return name in ("clarify", "manage_connections", "setup_mcp")
+    return name in ("clarify", "manage_connections", "setup_mcp", "skill_view")
 
 
 def _restart_slash_worker(sid: str, session: dict):

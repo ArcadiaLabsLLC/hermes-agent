@@ -185,6 +185,14 @@ class BootPhases:
 
         bind_local_llama(self.store_root_path, harness_root_config_path())
         self.local_llama_bound_root = self.store_root_path
+        try:
+            from agent_runtime.conversations.binding import bind as bind_conversations
+            self.conversation_owner = bind_conversations(
+                self.store_root_path, self.install_block["install_id"])
+        except Exception:
+            import logging as _conversation_logging
+            _conversation_logging.getLogger(__name__).warning(
+                "independent conversations unavailable; Mission Control remains enabled")
         # A corrupt optional discussion store must not take the
         # ordinary native socket/chat lane down with it.
         try:
