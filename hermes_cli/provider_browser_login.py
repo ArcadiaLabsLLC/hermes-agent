@@ -10,24 +10,53 @@ import sys
 from typing import Callable
 
 
+def _persist(provider_id: str, state: dict) -> None:
+    """Save a fresh login to the selected store without changing inference selection."""
+    from hermes_cli.auth import _auth_file_path, _persist_provider_state_to_store
+    _persist_provider_state_to_store(provider_id, state, _auth_file_path(), set_active=False)
+
+
 def _codex(verify: Callable[[str, str], None], flow: str) -> None:
-    from hermes_cli.auth_codex import login_codex_account
-    login_codex_account(verify, flow=flow)
+    """Connect an account in the selected store without choosing an inference route."""
+    from hermes_cli.auth_codex import _codex_device_code_login, _save_codex_tokens
+    from hermes_cli.auth_codex_browser import _codex_browser_login
+    state = (_codex_browser_login(open_browser=False, on_verification=verify)
+             if flow == "browser" else _codex_device_code_login(on_verification=verify))
+    _save_codex_tokens(state["tokens"], last_refresh=state["last_refresh"], set_active=False)
 
 
 def _xai(verify: Callable[[str, str], None], flow: str) -> None:
-    from hermes_cli.auth_xai import login_xai_account
-    login_xai_account(verify)
+    """A fresh grant belongs to this profile, never the account it previously borrowed."""
+    from hermes_cli.auth_xai import _xai_oauth_device_code_login
+    state = _xai_oauth_device_code_login(open_browser=False, on_verification=verify)
+    _persist("xai-oauth", {**state, "auth_mode": "oauth_device_code"})
 
 
 def _minimax(verify: Callable[[str, str], None], flow: str) -> None:
-    from hermes_cli.auth_minimax import login_minimax_account
-    login_minimax_account(verify)
+    """Connect without changing the selected provider or model."""
+    from hermes_cli.auth_minimax import _minimax_oauth_login
+    state = _minimax_oauth_login(open_browser=False, on_verification=verify, persist=False)
+    _persist("minimax-oauth", state)
 
 
 def _nous(verify: Callable[[str, str], None], flow: str) -> None:
-    from hermes_cli.auth_nous import login_nous_account
-    login_nous_account(verify)
+    """Preserve free-tier connectors, or connect a fresh account to this profile."""
+    from hermes_cli import anon_auth
+    from hermes_cli.auth_nous import _nous_device_code_login, _sync_nous_pool_from_auth_store
+
+    current = anon_auth.current_nous_state()
+    if current and anon_auth.is_guest_state(current):
+        for state in anon_auth.run_sign_in():
+            if isinstance(state, anon_auth.Code):
+                verify(state.link, state.code)
+            if state.terminal:
+                if not state.ok:
+                    raise RuntimeError("Nous sign-in did not finish")
+                return
+        raise RuntimeError("Nous sign-in ended without confirmation")
+    state = _nous_device_code_login(open_browser=False, on_verification=verify)
+    _persist("nous", state)
+    _sync_nous_pool_from_auth_store()
 
 
 _DRIVERS = {"openai-codex": _codex, "xai-oauth": _xai, "minimax-oauth": _minimax, "nous": _nous}
@@ -88,50 +117,3 @@ def browser_login_command(provider: str, *, home: str, flow: str | None = None) 
         logging.disable(previous_logging)
     emit({"event": "done", "ok": True})
     return 0
-
-
-def persist_provider_login(provider_id: str, state: Dict[str, Any]) -> Path:
-    """Save a fresh login to the selected store without changing inference selection."""
-    return _persist_provider_state_to_store(provider_id, state, _auth_file_path(), set_active=False)
-
-
-def login_codex_account(on_verification, *, flow="device_code") -> None:
-    """Connect an account in the selected store without choosing an inference route."""
-    from hermes_cli.auth_codex_browser import _codex_browser_login
-    state = (_codex_browser_login(open_browser=False, on_verification=on_verification)
-             if flow == "browser" else _codex_device_code_login(on_verification=on_verification))
-    _save_codex_tokens(state["tokens"], last_refresh=state["last_refresh"], set_active=False)
-
-
-def login_minimax_account(on_verification) -> None:
-    """Connect without changing the selected provider or model."""
-    from hermes_cli.auth import persist_provider_login
-    state = _minimax_oauth_login(open_browser=False, on_verification=on_verification, persist=False)
-    persist_provider_login("minimax-oauth", state)
-
-
-def login_nous_account(on_verification) -> None:
-    """Preserve free-tier connectors, or connect a fresh account to this profile."""
-    from hermes_cli import anon_auth
-    from hermes_cli.auth import persist_provider_login
-
-    current = anon_auth.current_nous_state()
-    if current and anon_auth.is_guest_state(current):
-        for state in anon_auth.run_sign_in():
-            if isinstance(state, anon_auth.Code):
-                on_verification(state.link, state.code)
-            if state.terminal:
-                if not state.ok:
-                    raise RuntimeError("Nous sign-in did not finish")
-                return
-        raise RuntimeError("Nous sign-in ended without confirmation")
-    state = _nous_device_code_login(open_browser=False, on_verification=on_verification)
-    persist_provider_login("nous", state)
-    _sync_nous_pool_from_auth_store()
-
-
-def login_xai_account(on_verification) -> None:
-    """A fresh grant belongs to this profile, never the account it previously borrowed."""
-    from hermes_cli.auth import persist_provider_login
-    state = _xai_oauth_device_code_login(open_browser=False, on_verification=on_verification)
-    persist_provider_login("xai-oauth", {**state, "auth_mode": "oauth_device_code"})

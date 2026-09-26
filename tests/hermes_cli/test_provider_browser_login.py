@@ -19,15 +19,24 @@ def events(capsys):
 
 
 def test_catalog_advertises_only_real_machine_methods():
-    from hermes_cli.provider_catalog import provider_login_catalog
+    from hermes_cli.harness_parts.provider_visibility import _provider_visibility_catalog
 
-    catalog = {row["id"]: row for row in provider_login_catalog()}
+    catalog = {row["id"]: row for row in _provider_visibility_catalog()}
     supported = {key for key, row in catalog.items() if row["browser_login"]}
     assert supported == {"openai-codex", "xai-oauth", "minimax-oauth", "nous"}
     assert catalog["openai-codex"]["browser_login_methods"] == ["browser", "device_code"]
     for provider in supported - {"openai-codex"}:
         assert catalog[provider]["browser_login_methods"] == ["device_code"]
     assert not catalog["qwen-oauth"]["browser_login_methods"]
+
+
+def test_upstream_catalog_rows_carry_no_sign_in_methods():
+    """Positive control: the visibility block is what adds the two keys."""
+    from hermes_cli.provider_catalog import provider_login_catalog
+
+    rows = provider_login_catalog()
+    assert {row["id"] for row in rows} >= {"openai-codex", "xai-oauth", "minimax-oauth", "nous"}
+    assert not any("browser_login" in row or "browser_login_methods" in row for row in rows)
 
 
 @pytest.mark.parametrize("failure", [False, True])
@@ -111,14 +120,26 @@ def test_real_drivers_persist_a_b_a_without_switching_models(
     assert calls == ["a", "b", "a"]
 
 
+@pytest.mark.parametrize("provider", ["xai-oauth", "minimax-oauth", "nous"])
+def test_activating_save_is_visible_in_the_a_b_a_fixture(provider, tmp_path, monkeypatch):
+    """Positive control: the fixture's active_provider DOES move under set_active=True."""
+    from hermes_cli.auth import _auth_file_path, _persist_provider_state_to_store
+
+    (tmp_path / "auth.json").write_text(json.dumps({"version": 1, "active_provider": "openrouter", "providers": {}}))
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setenv("HERMES_AUTH_HOME", str(tmp_path))
+    _persist_provider_state_to_store(provider, {"access_token": "SENTINEL"}, _auth_file_path(), set_active=True)
+    assert json.loads((tmp_path / "auth.json").read_text())["active_provider"] == provider
+
+
 def test_failed_persistence_is_never_done(tmp_path, monkeypatch, capsys):
-    from hermes_cli import auth, auth_xai
+    from hermes_cli import auth_xai
     monkeypatch.setattr(auth_xai, "_xai_oauth_device_code_login", lambda **_: {"access_token": "SENTINEL"})
 
     def refuse(*_):
         raise OSError("SENTINEL disk write failed")
 
-    monkeypatch.setattr(auth, "persist_provider_login", refuse)
+    monkeypatch.setattr(wire, "_persist", refuse)
     assert wire.browser_login_command("xai-oauth", home=str(tmp_path)) == 1
     assert [row["event"] for row in events(capsys)] == ["error"]
 
@@ -129,4 +150,4 @@ def test_nous_guest_uses_canonical_upgrade_not_a_second_login(monkeypatch):
     monkeypatch.setattr(anon_auth, "is_guest_state", lambda _: True)
     monkeypatch.setattr(anon_auth, "run_sign_in", lambda: iter([SimpleNamespace(terminal=True, ok=True)]))
     monkeypatch.setattr(auth_nous, "_nous_device_code_login", lambda **_: pytest.fail("Guest bypassed canonical upgrade"))
-    auth_nous.login_nous_account(lambda *_: pytest.fail("No code emitted by fixture"))
+    wire._nous(lambda *_: pytest.fail("No code emitted by fixture"), "device_code")
