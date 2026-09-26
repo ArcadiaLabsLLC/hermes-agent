@@ -24,6 +24,8 @@ from typing import Any, List, Optional
 
 import hermes_constants as _hc
 
+__layer__ = "models"
+
 
 # The ENV_HEAD_HOME rung: this module is its one reader
 # (tests/agent_runtime/test_hermes_home_env_gate.py); ``chat_session_scope``'s
