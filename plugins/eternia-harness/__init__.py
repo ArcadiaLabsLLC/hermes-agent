@@ -80,11 +80,15 @@ def render_tool_guidance(session_info) -> str:
     return "\n".join(getattr(prompt_guidance, attr) for tool, attr in _TOOL_GUIDANCE if tool in tools)
 
 
-def render_windows_tooling(_session_info=None) -> str:
-    """The Windows-native tooling hint: native Windows (not WSL) with a local terminal
-    backend only — the host whose bash terminal can reach ``powershell.exe`` / ``cmd.exe``."""
+def render_windows_tooling(session_info=None) -> str:
+    """The Windows-native tooling hint: a session carrying the ``terminal`` tool, on native
+    Windows (not WSL) with a local terminal backend — the host whose bash terminal can reach
+    ``powershell.exe`` / ``cmd.exe``. The hint is about invoking programs FROM that
+    terminal, so a session without it gets an empty section, which core skips."""
     import sys
 
+    if "terminal" not in str((session_info or {}).get("tool_names") or "").split(","):
+        return ""
     if sys.platform != "win32":
         return ""
     from hermes_constants import is_wsl
@@ -243,27 +247,6 @@ def restore_cli_durable_completions(platform=None, **_kwargs) -> None:
     process_registry.restore_durable_completions()
 
 
-def provider_stream_start(**kwargs):
-    """``on_stream_start`` hook: open the provider stream receipt's clock."""
-    from agent_runtime.codex_observability import on_stream_start
-
-    on_stream_start(**kwargs)
-
-
-def provider_stream_delta(**kwargs):
-    """``on_stream_delta`` hook: the first text delta is time-to-first-token."""
-    from agent_runtime.codex_observability import on_stream_delta
-
-    on_stream_delta(**kwargs)
-
-
-def provider_stream_end(**kwargs):
-    """``on_stream_end`` hook: write ``provider_stream_first_delta`` / ``provider_stream_consume``."""
-    from agent_runtime.codex_observability import on_stream_end
-
-    on_stream_end(**kwargs)
-
-
 def skill_view_result(**kwargs):
     """``transform_tool_result`` hook: the runtime-compat refusal and the three stamps on ``skill_view``."""
     from agent_runtime.skill_view_result import transform_skill_view_result
@@ -325,9 +308,11 @@ def register(ctx) -> None:
     ctx.register_hook("on_session_start", restore_cli_durable_completions)
     ctx.register_hook("pre_tool_call", refuse_blocked_tool)
     ctx.register_hook("post_api_request", record_usage_ledger_row)
-    ctx.register_hook("on_stream_start", provider_stream_start)
-    ctx.register_hook("on_stream_delta", provider_stream_delta)
-    ctx.register_hook("on_stream_end", provider_stream_end)
+    # The on_stream_* receipt observers register only while a persona turn runs: any
+    # registered one makes upstream treat EVERY agent in the process as a stream consumer.
+    from agent_runtime.codex_observability import install_stream_observers
+
+    install_stream_observers(ctx.register_hook)
     ctx.register_hook("transform_tool_result", skill_view_result)
     ctx.register_hook("on_kanban_dispatch_tick", route_blocked_kanban_cards)
     ctx.register_hook("pre_gateway_dispatch", answer_queue_status)
