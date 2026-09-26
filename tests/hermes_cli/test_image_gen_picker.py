@@ -166,9 +166,9 @@ class TestCodexOAuthBootstrapHook:
         monkeypatch.setattr(auth, "get_codex_auth_status", lambda: {"logged_in": logged_in})
         monkeypatch.setattr("hermes_cli.setup.prompt_choice", lambda *a, **kw: 0)
         started, saved = [], []
-        monkeypatch.setattr(auth, "_codex_device_code_login",
+        monkeypatch.setattr(auth, "codex_device_code_login",
                             lambda: started.append(1) or {"tokens": {"access_token": "t"}, "last_refresh": "x"})
-        monkeypatch.setattr(auth, "_save_codex_tokens", lambda tokens, last_refresh=None, **kw: saved.append(kw))
+        monkeypatch.setattr(auth, "save_codex_tokens", lambda tokens, last_refresh=None, **kw: saved.append(kw))
 
         tools_config_post_setup._POST_SETUP_HOOKS["openai_codex"]()
 
@@ -185,7 +185,7 @@ class TestCodexOAuthBootstrapHook:
         monkeypatch.setenv("HERMES_NONINTERACTIVE", "1")
         monkeypatch.setattr(auth, "get_codex_auth_status", lambda: {"logged_in": False})
         monkeypatch.setattr("hermes_cli.setup.prompt_choice", lambda *a, **kw: 0)
-        monkeypatch.setattr(auth, "_codex_device_code_login",
+        monkeypatch.setattr(auth, "codex_device_code_login",
                             lambda: pytest.fail("device-code login must not start without a human"))
 
         tools_config_post_setup._POST_SETUP_HOOKS["openai_codex"]()

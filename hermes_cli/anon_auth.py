@@ -838,7 +838,7 @@ def mark_guest_notice_shown() -> bool:
 
     Returns True when a flag was written; False when there is no guest to mark."""
     from hermes_cli.auth import (
-        _auth_file_path, _load_auth_store, _provider_state_transaction, _same_path, _save_auth_store,
+        auth_file_path, _load_auth_store, _provider_state_transaction, _same_path, _save_auth_store,
         _store_section)
     with _provider_state_transaction("nous") as (auth_store, state, source_path):
         if not is_guest_state(state) or source_path is None:
@@ -847,7 +847,7 @@ def mark_guest_notice_shown() -> bool:
             return True
         state = dict(state)
         state[GUEST_NOTICE_FLAG] = True
-        if _same_path(source_path, _auth_file_path()):
+        if _same_path(source_path, auth_file_path()):
             _store_section(auth_store, "providers")["nous"] = state
             _save_auth_store(auth_store)
         else:

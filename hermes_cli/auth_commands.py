@@ -261,7 +261,7 @@ _OAUTH_ADD_SPECS: dict[str, _OAuthAddSpec] = {
             "last_refresh": creds.get("last_refresh")},
         activate_first=True),
     "xai-oauth": _OAuthAddSpec(
-        login=lambda args: auth_mod._xai_oauth_device_code_login(
+        login=lambda args: auth_mod.xai_oauth_device_code_login(
             timeout_seconds=getattr(args, "timeout", None) or 20.0,
             open_browser=not getattr(args, "no_browser", False)),
         token=lambda creds: creds["tokens"]["access_token"],
@@ -277,7 +277,7 @@ _OAUTH_ADD_SPECS: dict[str, _OAuthAddSpec] = {
         source=f"{SOURCE_MANUAL}:qwen_cli",
         fields=lambda creds, provider: {"base_url": creds.get("base_url")}),
     "minimax-oauth": _OAuthAddSpec(
-        login=lambda args: auth_mod._minimax_oauth_login(
+        login=lambda args: auth_mod.minimax_oauth_login(
             open_browser=not getattr(args, "no_browser", False),
             timeout_seconds=getattr(args, "timeout", None) or 15.0),
         token=lambda creds: creds["access_token"],
@@ -336,7 +336,7 @@ def _add_nous_oauth_credential(args, provider: str) -> PooledCredential:
             # Expired refresh_token, portal down, etc. — fall through to device-code.
             print("Could not refresh shared credentials — falling back to device-code login.")
 
-    creds = auth_mod._nous_device_code_login(
+    creds = auth_mod.nous_device_code_login(
         portal_base_url=getattr(args, "portal_url", None),
         inference_base_url=getattr(args, "inference_url", None),
         client_id=getattr(args, "client_id", None), scope=getattr(args, "scope", None),

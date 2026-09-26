@@ -10,7 +10,7 @@ from hermes_cli.auth import (
     AuthError,
     DEFAULT_CODEX_BASE_URL,
     _read_codex_tokens,
-    _save_codex_tokens,
+    save_codex_tokens,
     refresh_codex_oauth_pure,
     resolve_codex_runtime_credentials,
 )
@@ -132,7 +132,7 @@ def test_save_codex_tokens_syncs_credential_pool(tmp_path, monkeypatch):
     }))
     monkeypatch.setenv("HERMES_HOME", str(hermes_home))
 
-    _save_codex_tokens({"access_token": "new-at", "refresh_token": "new-rt"},
+    save_codex_tokens({"access_token": "new-at", "refresh_token": "new-rt"},
                        last_refresh="2026-05-27T00:00:00Z")
 
     auth = json.loads((hermes_home / "auth.json").read_text())
@@ -229,7 +229,7 @@ def test_save_codex_tokens_syncs_manual_device_code_entries(tmp_path, monkeypatc
     }))
     monkeypatch.setenv("HERMES_HOME", str(hermes_home))
 
-    _save_codex_tokens({"access_token": "fresh-at", "refresh_token": "fresh-rt"},
+    save_codex_tokens({"access_token": "fresh-at", "refresh_token": "fresh-rt"},
                        last_refresh="2026-05-28T00:00:00Z")
 
     auth = json.loads((hermes_home / "auth.json").read_text())
@@ -302,7 +302,7 @@ def test_save_codex_tokens_clears_error_markers_only_on_refreshed_entries(tmp_pa
     }))
     monkeypatch.setenv("HERMES_HOME", str(hermes_home))
 
-    _save_codex_tokens(
+    save_codex_tokens(
         {"access_token": "fresh-at", "refresh_token": "fresh-rt"},
         last_refresh="2026-06-05T00:00:00Z",
     )
@@ -326,7 +326,7 @@ def test_save_codex_tokens_clears_error_markers_only_on_refreshed_entries(tmp_pa
 
 
 def test_codex_tokens_not_written_to_shared_file(tmp_path, monkeypatch):
-    """Verify _save_codex_tokens writes only to Hermes auth store, not ~/.codex/."""
+    """Verify save_codex_tokens writes only to Hermes auth store, not ~/.codex/."""
     hermes_home = tmp_path / "hermes"
     codex_home = tmp_path / "codex-cli"
     hermes_home.mkdir(parents=True, exist_ok=True)
@@ -336,9 +336,9 @@ def test_codex_tokens_not_written_to_shared_file(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(hermes_home))
     monkeypatch.setenv("CODEX_HOME", str(codex_home))
 
-    _save_codex_tokens({"access_token": "hermes-at", "refresh_token": "hermes-rt"})
+    save_codex_tokens({"access_token": "hermes-at", "refresh_token": "hermes-rt"})
 
-    # ~/.codex/auth.json should NOT exist — _save_codex_tokens only touches Hermes store
+    # ~/.codex/auth.json should NOT exist — save_codex_tokens only touches Hermes store
     assert not (codex_home / "auth.json").exists()
 
     # Hermes auth store should have the tokens

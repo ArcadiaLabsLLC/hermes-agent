@@ -17,7 +17,7 @@ import httpx
 import pytest
 
 from hermes_cli import anon_auth
-from hermes_cli.auth import _auth_file_path, _load_auth_store
+from hermes_cli.auth import auth_file_path, _load_auth_store
 
 WELCOME = "https://welcome-api.nousresearch.com/v1"
 INFERENCE = "https://inference-api.nousresearch.com/v1"
@@ -143,7 +143,7 @@ class TestUpgrade:
 
     def test_declined_in_browser_prints_copy_and_leaves_auth_store_untouched(self, portal, capsys, tmp_path):
         anon_auth.ensure_portal_identity(explicit=True)
-        before = _auth_file_path().read_bytes()
+        before = auth_file_path().read_bytes()
         shared_before = _shared_store(tmp_path)
         portal.status_sequence = [{"status": "voided", "reason": "user_declined"}]
         code = anon_auth.upgrade_guest(_args())
@@ -151,7 +151,7 @@ class TestUpgrade:
         assert code == 1
         assert anon_auth.UPGRADE_REASON_COPY["user_declined"] in out
         assert portal.token_grants == 0
-        assert _auth_file_path().read_bytes() == before
+        assert auth_file_path().read_bytes() == before
         assert _shared_store(tmp_path) == shared_before
 
     def test_completed_promotion_signs_in_and_keeps_no_free_tier_fields(self, portal, capsys, tmp_path):

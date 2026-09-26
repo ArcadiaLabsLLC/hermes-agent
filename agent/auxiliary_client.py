@@ -968,8 +968,8 @@ def _auth_json_path():
     """Active profile's ``auth.json`` at call time (a patched ``_AUTH_JSON_PATH`` still wins). The
     import-time constant is the LAUNCH profile's; under multiplexing a secondary's auxiliary calls
     would otherwise authenticate to Nous with the default profile's token."""
-    from hermes_cli.auth import _auth_file_path
-    return _AUTH_JSON_PATH if _AUTH_JSON_PATH != _AUTH_JSON_PATH_AT_IMPORT else _auth_file_path()
+    from hermes_cli.auth import auth_file_path
+    return _AUTH_JSON_PATH if _AUTH_JSON_PATH != _AUTH_JSON_PATH_AT_IMPORT else auth_file_path()
 
 # Hosts exposing BOTH ``…/anthropic`` and a sibling OpenAI ``…/v1``. Matched on the URL *host*
 # only: unconditional rewrites break Anthropic-only gateways.

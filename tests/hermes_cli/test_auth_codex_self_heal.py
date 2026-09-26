@@ -44,8 +44,8 @@ def test_self_heals_on_stale_refresh_token(monkeypatch):
     monkeypatch.setattr(auth_codex, "refresh_codex_oauth_pure", _rejected)
     monkeypatch.setattr(auth, "_import_codex_cli_tokens", lambda: dict(fresh))
     monkeypatch.setattr(auth_codex, "_import_codex_cli_tokens", lambda: dict(fresh))
-    monkeypatch.setattr(auth, "_save_codex_tokens", lambda t, *a, **k: saved.update(t))
-    monkeypatch.setattr(auth_codex, "_save_codex_tokens", lambda t, *a, **k: saved.update(t))
+    monkeypatch.setattr(auth, "save_codex_tokens", lambda t, *a, **k: saved.update(t))
+    monkeypatch.setattr(auth_codex, "save_codex_tokens", lambda t, *a, **k: saved.update(t))
 
     out = _refresh_codex_auth_tokens(STALE, 20.0)
 
@@ -176,7 +176,7 @@ def test_recovery_does_not_overwrite_concurrent_reauth(tmp_path, monkeypatch):
     real_import = auth_codex._import_codex_cli_tokens
 
     def _import_racing_with_reauth():
-        auth_codex._save_codex_tokens({"access_token": reauthed, "refresh_token": "rt-reauthed"})
+        auth_codex.save_codex_tokens({"access_token": reauthed, "refresh_token": "rt-reauthed"})
         return real_import()
 
     monkeypatch.setattr(auth, "_import_codex_cli_tokens", _import_racing_with_reauth)

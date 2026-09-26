@@ -324,7 +324,7 @@ def test_auth_add_nous_oauth_persists_pool_entry(tmp_path, monkeypatch):
     _write_auth_store(tmp_path, {"version": 1, "providers": {}})
     token = _jwt_with_email("nous@example.com")
     monkeypatch.setattr(
-        "hermes_cli.auth._nous_device_code_login",
+        "hermes_cli.auth.nous_device_code_login",
         lambda **kwargs: {
             "portal_base_url": "https://portal.example.com",
             "inference_base_url": "https://inference.example.com/v1",
@@ -401,7 +401,7 @@ def test_auth_add_nous_oauth_honors_custom_label(tmp_path, monkeypatch):
     _write_auth_store(tmp_path, {"version": 1, "providers": {}})
     token = _jwt_with_email("nous@example.com")
     monkeypatch.setattr(
-        "hermes_cli.auth._nous_device_code_login",
+        "hermes_cli.auth.nous_device_code_login",
         lambda **kwargs: {
             "portal_base_url": "https://portal.example.com",
             "inference_base_url": "https://inference.example.com/v1",
@@ -458,7 +458,7 @@ def test_auth_add_codex_oauth_keeps_distinct_pool_accounts(tmp_path, monkeypatch
     accounts must produce two independent pool entries with distinct tokens.
 
     Regression for #39236: the add path used to route through the singleton
-    ``_save_codex_tokens`` save, so the second login overwrote the first
+    ``save_codex_tokens`` save, so the second login overwrote the first
     account's singleton-mirrored ``device_code`` entry instead of adding a
     second independent one. ``hermes auth list`` showed two labels sharing
     one token pair, and rotation silently always used the latest account.
@@ -487,7 +487,7 @@ def test_auth_add_codex_oauth_keeps_distinct_pool_accounts(tmp_path, monkeypatch
             },
         ]
     )
-    monkeypatch.setattr("hermes_cli.auth._codex_device_code_login", lambda: next(logins))
+    monkeypatch.setattr("hermes_cli.auth.codex_device_code_login", lambda: next(logins))
 
     from hermes_cli.auth_commands import auth_add_command
     from agent.credential_pool import load_pool
@@ -540,7 +540,7 @@ def _add_codex_twice(tmp_path, monkeypatch, capsys, second_token: str) -> str:
         {"tokens": {"access_token": _codex_jwt("me@example.com", "acct-A", "user-1"), "refresh_token": "rt-1"}, **codex_login},
         {"tokens": {"access_token": second_token, "refresh_token": "rt-2"}, **codex_login},
     ])
-    monkeypatch.setattr("hermes_cli.auth._codex_device_code_login", lambda: next(logins))
+    monkeypatch.setattr("hermes_cli.auth.codex_device_code_login", lambda: next(logins))
     from hermes_cli.auth_commands import auth_add_command
 
     class _Args:
@@ -637,7 +637,7 @@ def test_auth_add_xai_oauth_keeps_distinct_pool_accounts(tmp_path, monkeypatch):
         ]
     )
     monkeypatch.setattr(
-        "hermes_cli.auth._xai_oauth_device_code_login",
+        "hermes_cli.auth.xai_oauth_device_code_login",
         lambda **kwargs: next(logins),
     )
 

@@ -41,7 +41,7 @@ def profile_and_root(tmp_path, monkeypatch):
     profile_path = tmp_path / "profiles" / "work" / "auth.json"
     root_path = tmp_path / "root" / "auth.json"
 
-    monkeypatch.setattr(auth, "_auth_file_path", lambda: profile_path)
+    monkeypatch.setattr(auth, "auth_file_path", lambda: profile_path)
     monkeypatch.setattr(auth, "_global_auth_file_path", lambda: root_path)
     # Keep the pytest write seat belt from matching our tmp root.
     monkeypatch.setenv("HOME", str(tmp_path / "not-the-root"))
@@ -55,7 +55,7 @@ def profile_and_root(tmp_path, monkeypatch):
 def test_write_through_is_noop_in_classic_mode(tmp_path, monkeypatch):
     """Classic mode (profile == root) already saves to root; no double write."""
     profile_path = tmp_path / "auth.json"
-    monkeypatch.setattr(auth, "_auth_file_path", lambda: profile_path)
+    monkeypatch.setattr(auth, "auth_file_path", lambda: profile_path)
     # Classic mode: _global_auth_file_path returns None.
     monkeypatch.setattr(auth, "_global_auth_file_path", lambda: None)
     _write_store(profile_path, {"version": 1, "providers": {}})

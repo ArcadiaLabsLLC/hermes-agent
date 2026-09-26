@@ -678,7 +678,7 @@ def _run_nous_portal_login_only(*, capability: str) -> bool:
         if auth._read_shared_nous_state() and _confirm("  Found existing Nous OAuth credentials. Import them? [Y/n]: ") is not False:
             auth_state = auth._try_import_shared_nous_state(timeout_seconds=15.0)
         if auth_state is None:
-            auth_state = auth._nous_device_code_login()
+            auth_state = auth.nous_device_code_login()
         with auth._auth_store_lock():
             auth_store = auth._load_auth_store()
             auth._save_provider_state(auth_store, "nous", auth_state)
@@ -688,14 +688,14 @@ def _run_nous_portal_login_only(*, capability: str) -> bool:
                 auth_store.pop("active_provider", None)
             auth._save_auth_store(auth_store)
         auth._write_shared_nous_state(auth_state)
-        auth._sync_nous_pool_from_auth_store()
+        auth.sync_nous_pool_from_auth_store()
         print("  Nous Portal login successful.")
         return True
     except KeyboardInterrupt:
         print("\n  Login cancelled.")
         return False
     except SystemExit:
-        # _nous_device_code_login raises SystemExit on subscription_required (guidance already printed).
+        # nous_device_code_login raises SystemExit on subscription_required (guidance already printed).
         return False
     except Exception as exc:
         print(f"  Nous Portal login failed: {exc}")

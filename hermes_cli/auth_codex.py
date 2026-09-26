@@ -18,7 +18,7 @@ import threading
 import time
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Optional, Tuple
 from hermes_cli.auth_constants import (
     _decode_jwt_claims, AUTH_LOCK_TIMEOUT_SECONDS, AuthError,
     CODEX_ACCESS_TOKEN_REFRESH_SKEW_SECONDS, CODEX_OAUTH_CLIENT_ID, CODEX_OAUTH_TOKEN_URL,
@@ -171,7 +171,7 @@ def _sync_codex_pool_entries(
         _clear_pool_entry_status(entry)
 
 
-def _save_codex_tokens(
+def save_codex_tokens(
     tokens: Dict[str, str], last_refresh: str = None, label: str = None, *,
     set_active: bool = True, write_through: bool = False,
 ) -> None:
@@ -190,7 +190,7 @@ def _save_codex_tokens(
     active inference provider.
     """
     from hermes_cli.auth import (
-        _auth_file_path, _load_auth_store, _provider_state_transaction, _same_path,
+        auth_file_path, _load_auth_store, _provider_state_transaction, _same_path,
         _save_auth_store, _store_provider_state, _utc_now_z)
     if last_refresh is None:
         last_refresh = _utc_now_z()
@@ -204,7 +204,7 @@ def _save_codex_tokens(
         if label and str(label).strip():
             state["label"] = str(label).strip()
         target_store, target_path = auth_store, None
-        if write_through and source_path is not None and not _same_path(source_path, _auth_file_path()):
+        if write_through and source_path is not None and not _same_path(source_path, auth_file_path()):
             # Root-borrowed grant: the transaction already holds root's lock, so write the rotated
             # chain into ROOT's store (never set_active — a refresh is not a provider choice).
             target_store, target_path, set_active = _load_auth_store(source_path), source_path, False
@@ -228,7 +228,7 @@ def _recover_codex_tokens_from_cli(
     """
     from agent.credential_pool import _codex_principal_identity
     from agent.credential_sources import adopt_external_logins_enabled
-    from hermes_cli.auth import _import_codex_cli_tokens, _provider_state_transaction, _save_codex_tokens
+    from hermes_cli.auth import _import_codex_cli_tokens, _provider_state_transaction, save_codex_tokens
     if not adopt_external_logins_enabled():
         return None
     imported = _import_codex_cli_tokens()
@@ -252,7 +252,7 @@ def _recover_codex_tokens_from_cli(
                 reason, _codex_relogin_command())
             return None
         logger.info("Codex auth recovered from Codex CLI auth.json (%s).", reason)
-        _save_codex_tokens(imported)  # nested: the per-path lock is reentrant
+        save_codex_tokens(imported)  # nested: the per-path lock is reentrant
     return dict(imported)
 
 
@@ -524,7 +524,7 @@ def _refresh_codex_auth_tokens(tokens: Dict[str, str], timeout_seconds: float) -
     finds root already rotated by its peer adopts the stored pair instead of replaying the
     consumed token. Both locks wait out a full endpoint timeout so the waiter adopts, not times out.
     """
-    from hermes_cli.auth import _provider_state_transaction, _save_codex_tokens, refresh_codex_oauth_pure
+    from hermes_cli.auth import _provider_state_transaction, save_codex_tokens, refresh_codex_oauth_pure
     lock_timeout = max(float(AUTH_LOCK_TIMEOUT_SECONDS), float(timeout_seconds) + 5.0)
     with _provider_state_transaction("openai-codex", lock_timeout) as (_store, state, _source):
         stored = (state or {}).get("tokens")
@@ -556,7 +556,7 @@ def _refresh_codex_auth_tokens(tokens: Dict[str, str], timeout_seconds: float) -
             **tokens, "access_token": refreshed["access_token"],
             "refresh_token": refreshed["refresh_token"]}
         # Nested transaction: the per-path lock is reentrant, and it re-reads under the held locks.
-        _save_codex_tokens(updated_tokens, write_through=True)
+        save_codex_tokens(updated_tokens, write_through=True)
     return updated_tokens
 
 
@@ -943,7 +943,7 @@ def _login_openai_codex(args, pconfig: ProviderConfig, *, force_new_login: bool 
     ``auth.codex_login_flow``). Tokens stored in ~/.hermes/auth.json."""
     from hermes_cli.auth import (
         _codex_access_token_is_expiring, _import_codex_cli_tokens,
-        _offer_existing_oauth_credentials, _print_login_success, _prompt_yes_no, _save_codex_tokens,
+        _offer_existing_oauth_credentials, _print_login_success, _prompt_yes_no, save_codex_tokens,
         _update_config_for_provider, resolve_codex_runtime_credentials)
     from hermes_cli.auth_codex_browser import codex_oauth_login
     del pconfig  # kept for parity with other provider login helpers
@@ -960,7 +960,7 @@ def _login_openai_codex(args, pconfig: ProviderConfig, *, force_new_login: bool 
             print("Hermes will create its own session to avoid conflicts with Codex CLI / VS Code.")
             if _prompt_yes_no(
                 "Import these credentials? (a separate login is recommended) [y/N]: ", default="n"):
-                _save_codex_tokens(cli_tokens)
+                save_codex_tokens(cli_tokens)
                 config_path = _update_config_for_provider("openai-codex", _codex_base_url())
                 print()
                 print("Credentials imported. Note: if Codex CLI refreshes its token,")
@@ -972,7 +972,7 @@ def _login_openai_codex(args, pconfig: ProviderConfig, *, force_new_login: bool 
     # to the browser flow).
     print()
     creds = codex_oauth_login(args)
-    _save_codex_tokens(creds["tokens"], creds.get("last_refresh"))
+    save_codex_tokens(creds["tokens"], creds.get("last_refresh"))
     config_path = _update_config_for_provider(
         "openai-codex", creds.get("base_url", DEFAULT_CODEX_BASE_URL))
     _print_login_success("openai-codex", config_path, show_auth_state=True)
@@ -1101,7 +1101,8 @@ def _codex_exchange_authorization_code(
     return tokens
 
 
-def _codex_device_code_login() -> Dict[str, Any]:
+def codex_device_code_login(
+    *, on_verification: Optional[Callable[[str, str], None]] = None) -> Dict[str, Any]:
     """Run the OpenAI device code login flow and return credentials dict."""
     from hermes_cli.auth import _utc_now_z
     issuer, client_id = "https://auth.openai.com", CODEX_OAUTH_CLIENT_ID
@@ -1114,6 +1115,11 @@ def _codex_device_code_login() -> Dict[str, Any]:
     print(f"     \033[94m{issuer}/codex/device\033[0m\n")
     print("  2. Enter this code:")
     print(f"     \033[94m{user_code}\033[0m\n")
+    # Out-of-band consumer (same contract as ``nous_device_code_login``): fired AFTER the
+    # print/browser block and BEFORE waiting, so a caller whose stdout is not a terminal can render it.
+    if on_verification is not None:
+        with suppress(Exception):
+            on_verification(f"{issuer}/codex/device", str(user_code))
     print("Waiting for sign-in... (press Ctrl+C to cancel)")
     code_resp = _codex_poll_authorization_code(
         issuer, device_auth_id=device_data["device_auth_id"], user_code=user_code,

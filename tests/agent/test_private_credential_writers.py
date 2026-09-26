@@ -63,7 +63,7 @@ def _writers(home: Path, monkeypatch):
     meet_node = NodeServer(token_path=home / "meetings" / "node_token.json")
     return [
         ("auth.json", lambda: auth_mod._save_auth_store({"version": auth_mod.AUTH_STORE_VERSION, "providers": {}}),
-         auth_mod._auth_file_path()),
+         auth_mod.auth_file_path()),
         ("third-party credentials", lambda: anthropic_credentials._atomic_write_private_json(
             home / "cc" / ".credentials.json", {"tok": 1}), home / "cc" / ".credentials.json"),
         ("mcp oauth tokens", lambda: mcp_oauth._write_json(home / "mcp" / "probe.tokens.json", {"access_token": "x"}),

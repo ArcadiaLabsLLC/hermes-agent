@@ -618,7 +618,7 @@ def test_login_xai_oauth_relogin_clears_suppression_and_reseeds(tmp_path, monkey
 
     new_access = _jwt_with_exp(int(time.time()) + 2 * 60 * 60)
     monkeypatch.setattr(
-        "hermes_cli.auth._xai_oauth_device_code_login",
+        "hermes_cli.auth.xai_oauth_device_code_login",
         lambda **kwargs: {
             "tokens": {
                 "access_token": new_access,

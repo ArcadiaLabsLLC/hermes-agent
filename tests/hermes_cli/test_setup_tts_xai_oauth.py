@@ -48,7 +48,7 @@ def test_run_xai_oauth_login_from_setup_does_not_hijack_active_provider(
     )
 
     monkeypatch.setattr(
-        "hermes_cli.auth._xai_oauth_device_code_login",
+        "hermes_cli.auth.xai_oauth_device_code_login",
         lambda **kwargs: {
             "tokens": {
                 "access_token": "tts-xai-access",

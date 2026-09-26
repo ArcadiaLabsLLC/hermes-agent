@@ -13,7 +13,7 @@ import time
 import pytest
 
 from hermes_cli import anon_auth
-from hermes_cli.auth import _auth_file_path
+from hermes_cli.auth import auth_file_path
 from tests.hermes_cli.test_anon_upgrade import (  # noqa: F401  (fixtures used by name)
     EMAIL, FREE_PICK, PORTAL, WELCOME, _shared_store, _write_model_config, free_account, portal)
 
@@ -53,7 +53,7 @@ def test_a_completed_sign_in_yields_code_waiting_then_completed(portal, free_acc
 
 def test_declined_yields_declined_and_persists_nothing(portal, tmp_path):
     _seed_free_tier()
-    before = _auth_file_path().read_bytes()
+    before = auth_file_path().read_bytes()
     shared_before = _shared_store(tmp_path)
     portal.status_sequence = [_voided("user_declined")]
 
@@ -63,7 +63,7 @@ def test_declined_yields_declined_and_persists_nothing(portal, tmp_path):
     assert terminal[0].kind == "declined"
     assert terminal[0].copy == anon_auth.UPGRADE_REASON_COPY["user_declined"]
     assert portal.token_grants == 0
-    assert _auth_file_path().read_bytes() == before
+    assert auth_file_path().read_bytes() == before
     assert _shared_store(tmp_path) == shared_before
 
 def test_a_timeout_yields_timed_out_and_keeps_the_enriched_detail(portal, monkeypatch):
@@ -111,7 +111,7 @@ def test_a_retired_identity_yields_retired_and_clears_the_free_tier(portal, monk
 
 def test_a_server_superseded_outcome_yields_superseded(portal, tmp_path):
     _seed_free_tier()
-    before = _auth_file_path().read_bytes()
+    before = auth_file_path().read_bytes()
     portal.status_sequence = [_voided("superseded")]
 
     state = _drain()[-1]
@@ -119,7 +119,7 @@ def test_a_server_superseded_outcome_yields_superseded(portal, tmp_path):
     assert state.kind == "superseded"
     assert state.copy == anon_auth.UPGRADE_REASON_COPY["superseded"]
     assert portal.token_grants == 0
-    assert _auth_file_path().read_bytes() == before
+    assert auth_file_path().read_bytes() == before
 
 def test_a_retired_identity_yields_retired_even_when_cleanup_fails(portal, monkeypatch):
     _seed_free_tier()
@@ -153,7 +153,7 @@ def test_an_unknown_reason_yields_failed_with_the_generic_copy(portal, reason, e
 def test_a_transport_error_yields_failed_without_leaking_the_detail_into_chat_copy(
         portal, monkeypatch, tmp_path):
     _seed_free_tier()
-    before = _auth_file_path().read_bytes()
+    before = auth_file_path().read_bytes()
     detail = "boom at https://portal.example.test/api/anonymous/promotion-intent"
 
     def _boom(*a, **kw):
@@ -169,7 +169,7 @@ def test_a_transport_error_yields_failed_without_leaking_the_detail_into_chat_co
         assert banned not in lowered
     assert detail in state.copy_terminal
     assert portal.token_grants == 0
-    assert _auth_file_path().read_bytes() == before
+    assert auth_file_path().read_bytes() == before
 
 def test_a_persist_failure_yields_failed_rather_than_raising(portal, free_account, monkeypatch):
     _seed_free_tier()
@@ -247,7 +247,7 @@ def test_no_identity_on_disk_yields_unavailable_without_touching_the_portal(port
 
 def test_cancelling_before_the_wait_persists_nothing(portal, tmp_path):
     _seed_free_tier()
-    before = _auth_file_path().read_bytes()
+    before = auth_file_path().read_bytes()
     stop = []
 
     # Driven by hand so the flag flips exactly between the code and the wait.
@@ -259,11 +259,11 @@ def test_cancelling_before_the_wait_persists_nothing(portal, tmp_path):
 
     assert [s.kind for s in rest] == ["superseded"]
     assert portal.token_grants == 0
-    assert _auth_file_path().read_bytes() == before
+    assert auth_file_path().read_bytes() == before
 
 def test_cancelling_during_the_wait_ends_it_within_a_second(portal, tmp_path):
     _seed_free_tier()
-    before = _auth_file_path().read_bytes()
+    before = auth_file_path().read_bytes()
     portal.status_sequence = [{"status": "pending"}]
     stop = threading.Event()
     outcomes = []
@@ -292,7 +292,7 @@ def test_cancelling_during_the_wait_ends_it_within_a_second(portal, tmp_path):
     assert outcomes == [{"status": "cancelled"}]
     assert [s.kind for s in rest] == ["waiting", "superseded"]
     assert portal.token_grants == 0
-    assert _auth_file_path().read_bytes() == before
+    assert auth_file_path().read_bytes() == before
 
 @pytest.mark.parametrize("cancel_wins", [False, True])
 def test_cancelling_during_a_completed_status_request_obeys_the_surface_policy(
@@ -327,13 +327,13 @@ def _cancel_after_a_completed_promotion(portal, monkeypatch, *, cancel_wins: boo
 def test_a_desktop_style_cancel_after_a_completed_promotion_persists_nothing(
         portal, free_account, monkeypatch, tmp_path):
     _seed_free_tier()
-    before = _auth_file_path().read_bytes()
+    before = auth_file_path().read_bytes()
 
     states = _cancel_after_a_completed_promotion(portal, monkeypatch, cancel_wins=True)
 
     assert states[-1].kind == "superseded"
     assert portal.token_grants == 0
-    assert _auth_file_path().read_bytes() == before
+    assert auth_file_path().read_bytes() == before
 
 def test_a_gateway_style_supersede_after_a_completed_promotion_still_signs_in(
         portal, free_account, monkeypatch):
@@ -349,7 +349,7 @@ def test_a_persist_guard_that_refuses_persists_nothing_and_never_settles(
         portal, free_account, monkeypatch, tmp_path):
     import contextlib
     _seed_free_tier()
-    before = _auth_file_path().read_bytes()
+    before = auth_file_path().read_bytes()
     settles = []
     monkeypatch.setattr(anon_auth, "settle_after_upgrade", lambda state: settles.append(state) or {})
 
@@ -361,14 +361,14 @@ def test_a_persist_guard_that_refuses_persists_nothing_and_never_settles(
 
     assert states[-1].kind == "superseded"
     assert settles == []
-    assert _auth_file_path().read_bytes() == before
+    assert auth_file_path().read_bytes() == before
 
 def test_persistence_happens_only_after_the_promotion_and_the_token_grant(portal, free_account):
     _seed_free_tier()
-    before = _auth_file_path().read_bytes()
+    before = auth_file_path().read_bytes()
     seen = {}
     for state in anon_auth.run_sign_in():
-        seen[state.kind] = _auth_file_path().read_bytes()
+        seen[state.kind] = auth_file_path().read_bytes()
 
     assert seen["code"] == before
     assert seen["waiting"] == before

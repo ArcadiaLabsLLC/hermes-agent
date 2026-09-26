@@ -29,7 +29,7 @@ import hermes_cli.auth as auth
 def hermes_home(tmp_path, monkeypatch):
     """Point HERMES_HOME at a tmp dir so we never touch the real auth store.
 
-    Required because ``_auth_file_path()`` has a seat belt that refuses to
+    Required because ``auth_file_path()`` has a seat belt that refuses to
     resolve to the real user's ~/.hermes/auth.json under pytest.
     """
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))

@@ -56,8 +56,8 @@ def _stub_persist(monkeypatch):
     monkeypatch.setattr(auth, "_save_auth_store", lambda *a, **kw: "auth.json")
     monkeypatch.setattr(auth, "_write_shared_nous_state", lambda *a, **kw: None)
     monkeypatch.setattr(auth_nous, "_write_shared_nous_state", lambda *a, **kw: None)
-    monkeypatch.setattr(auth, "_sync_nous_pool_from_auth_store", lambda: None)
-    monkeypatch.setattr(auth_nous, "_sync_nous_pool_from_auth_store", lambda: None)
+    monkeypatch.setattr(auth, "sync_nous_pool_from_auth_store", lambda: None)
+    monkeypatch.setattr(auth_nous, "sync_nous_pool_from_auth_store", lambda: None)
 
 
 class _NullCtx:
@@ -86,8 +86,8 @@ def test_step_up_requests_billing_scope_and_reuses_prior_urls(monkeypatch, _stub
         # Simulate the admin ticking the box → token comes back WITH the scope.
         return {"scope": "inference:invoke billing:manage", "access_token": "t"}
 
-    monkeypatch.setattr(auth, "_nous_device_code_login", _fake_login)
-    monkeypatch.setattr(auth_nous, "_nous_device_code_login", _fake_login)
+    monkeypatch.setattr(auth, "nous_device_code_login", _fake_login)
+    monkeypatch.setattr(auth_nous, "nous_device_code_login", _fake_login)
 
     granted = step_up_nous_billing_scope()
     assert granted is True
@@ -139,7 +139,7 @@ def test_device_login_fires_on_verification_before_polling(monkeypatch):
     # validation (JWT usability checks) is out of scope and may raise on the
     # synthetic token — swallow it; the ordering assertion is what matters.
     try:
-        auth._nous_device_code_login(open_browser=False, on_verification=_cb)
+        auth.nous_device_code_login(open_browser=False, on_verification=_cb)
     except Exception:
         pass
 

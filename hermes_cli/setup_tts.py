@@ -85,14 +85,14 @@ def _run_xai_oauth_login_from_setup() -> bool:
     credentials for side tools). False on any failure (caller falls back)."""
     try:
         from hermes_cli.auth import (
-            _is_remote_session, _save_xai_oauth_tokens, _xai_oauth_device_code_login,
+            _is_remote_session, _save_xai_oauth_tokens, xai_oauth_device_code_login,
             unsuppress_credential_source)
     except Exception as exc:
         _setup.print_warning(f"xAI Grok OAuth helpers unavailable: {exc}")
         return False
     _setup._info(None, "Signing in to xAI Grok OAuth (SuperGrok / Premium+)...")
     try:
-        creds = _xai_oauth_device_code_login(open_browser=not _is_remote_session())
+        creds = xai_oauth_device_code_login(open_browser=not _is_remote_session())
         _save_xai_oauth_tokens(
             creds["tokens"], discovery=creds.get("discovery"), redirect_uri=creds.get("redirect_uri", ""),
             last_refresh=creds.get("last_refresh"), auth_mode="oauth_device_code", set_active=False)

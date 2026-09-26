@@ -90,7 +90,7 @@ def test_add_priority_places_reauthenticated_row_in_multi_entry_pool(monkeypatch
     rows[1]["source"] = "device_code"
     write_credential_pool("nous", rows)
     monkeypatch.setattr(auth_commands.auth_mod, "_read_shared_nous_state", lambda: None)
-    monkeypatch.setattr(auth_commands.auth_mod, "_nous_device_code_login", lambda **_kwargs: {
+    monkeypatch.setattr(auth_commands.auth_mod, "nous_device_code_login", lambda **_kwargs: {
         "access_token": "fixture-renewed", "refresh_token": "fixture-renewed-refresh",
         "agent_key": "fixture-agent-key", "expires_at": time.time() + 3600,
     })

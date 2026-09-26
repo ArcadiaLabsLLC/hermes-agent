@@ -231,7 +231,7 @@ def test_read_nous_provider_state_falls_back_to_global_root_for_share_auth_profi
     monkeypatch.setattr(hermes_constants, "get_default_hermes_root", lambda: root)
     monkeypatch.setattr(auth_mod, "get_hermes_home", lambda: profile)
     monkeypatch.setattr(auth_mod, "_global_auth_store_cache", None)
-    monkeypatch.setattr(auth_mod, "_auth_file_path", lambda: profile / "auth.json")
+    monkeypatch.setattr(auth_mod, "auth_file_path", lambda: profile / "auth.json")
 
     state = managed_tool_gateway._read_nous_provider_state()
 

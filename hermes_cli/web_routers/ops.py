@@ -384,7 +384,7 @@ async def add_credential_pool_entry(body: CredentialPoolAdd, profile: Optional[s
                 provider=provider,
                 # Add a distinct, self-contained pool entry per account (matching the qwen-oauth /
                 # minimax-oauth multi-account patterns, and the xai-oauth path below) instead of routing
-                # through the singleton ``_save_codex_tokens`` save path. The singleton round-trip collapsed
+                # through the singleton ``save_codex_tokens`` save path. The singleton round-trip collapsed
                 # every added account into the latest login: a second ``hermes auth add openai-codex``
                 # overwrote the first account's singleton-mirrored ``device_code`` entry rather than
                 # creating an independent one (#39236). ``manual:device_code`` entries refresh from their

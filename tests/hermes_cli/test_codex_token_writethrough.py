@@ -52,7 +52,7 @@ def test_profile_refresh_of_root_grant_writes_through_to_root(profile_env):
     _write(profile_path, {"version": 1, "providers": {}})
 
     rotated = _pair("new")
-    auth._save_codex_tokens(rotated, last_refresh="2026-08-16T00:00:00Z", write_through=True)
+    auth.save_codex_tokens(rotated, last_refresh="2026-08-16T00:00:00Z", write_through=True)
 
     root = _read(root_path)
     assert root["providers"]["openai-codex"]["tokens"] == rotated
@@ -71,7 +71,7 @@ def test_profile_owned_grant_stays_local(profile_env):
     _write(root_path, {"version": 1, "providers": {}})
 
     rotated = _pair("next")
-    auth._save_codex_tokens(rotated, last_refresh="2026-08-16T00:00:00Z", write_through=True)
+    auth.save_codex_tokens(rotated, last_refresh="2026-08-16T00:00:00Z", write_through=True)
 
     assert _read(profile_path)["providers"]["openai-codex"]["tokens"] == rotated
     assert "openai-codex" not in _read(root_path).get("providers", {})
@@ -80,7 +80,7 @@ def test_profile_owned_grant_stays_local(profile_env):
     # never a rewrite of root's.
     _write(profile_path, {"version": 1, "providers": {}})
     _write(root_path, {"version": 1, "providers": {"openai-codex": {"auth_mode": "chatgpt", "tokens": _pair("root")}}})
-    auth._save_codex_tokens(_pair("login"))
+    auth.save_codex_tokens(_pair("login"))
     assert _read(profile_path)["providers"]["openai-codex"]["tokens"] == _pair("login")
     assert _read(root_path)["providers"]["openai-codex"]["tokens"] == _pair("root")
 

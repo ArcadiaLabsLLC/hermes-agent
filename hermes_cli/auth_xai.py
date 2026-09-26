@@ -11,8 +11,9 @@ import base64
 import json
 import os
 import time
+from contextlib import suppress
 from pathlib import Path
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Any, Callable, Dict, Optional, TYPE_CHECKING
 from urllib.parse import urlparse
 from hermes_cli.auth_codex import _load_auth_store_maybe_locked, _refresh_payload_access_token
 from hermes_cli.auth_constants import (
@@ -104,7 +105,7 @@ def _write_through_xai_oauth_to_global_root(state: Dict[str, Any]) -> None:
     must write the chain back to root. Touches only root ``providers.xai-oauth``; swallows all
     errors (root-stale is better than breaking the profile's own save).
     """
-    from hermes_cli.auth import _global_auth_file_path, _persist_provider_state_to_store
+    from hermes_cli.auth import _global_auth_file_path, persist_provider_state_to_store
     global_path = _global_auth_file_path()
     if global_path is None:  # classic mode (profile == root); the profile save already hit root
         return
@@ -119,7 +120,7 @@ def _write_through_xai_oauth_to_global_root(state: Dict[str, Any]) -> None:
         except Exception:
             return
     try:
-        _persist_provider_state_to_store("xai-oauth", state, global_path, set_active=False)
+        persist_provider_state_to_store("xai-oauth", state, global_path, set_active=False)
     except Exception as exc:  # pragma: no cover - best effort
         logger.debug("xAI OAuth: write-through to global root failed: %s", exc)
 
@@ -465,7 +466,7 @@ def resolve_xai_oauth_runtime_credentials(
 
 
 def _login_xai_oauth(args, pconfig: ProviderConfig, *, force_new_login: bool = False) -> None:
-    from hermes_cli.auth import _is_remote_session, _offer_existing_oauth_credentials, _print_login_success, _update_config_for_provider, _xai_oauth_device_code_login, resolve_xai_oauth_runtime_credentials, unsuppress_credential_source
+    from hermes_cli.auth import _is_remote_session, _offer_existing_oauth_credentials, _print_login_success, _update_config_for_provider, xai_oauth_device_code_login, resolve_xai_oauth_runtime_credentials, unsuppress_credential_source
     del pconfig
 
     if not force_new_login and _offer_existing_oauth_credentials(
@@ -487,7 +488,7 @@ def _login_xai_oauth(args, pconfig: ProviderConfig, *, force_new_login: bool = F
     if _is_remote_session():
         open_browser = False
 
-    creds = _xai_oauth_device_code_login(timeout_seconds=timeout_seconds, open_browser=open_browser)
+    creds = xai_oauth_device_code_login(timeout_seconds=timeout_seconds, open_browser=open_browser)
     _save_xai_oauth_tokens(
         creds["tokens"], discovery=creds.get("discovery"),
         redirect_uri=creds.get("redirect_uri", ""), last_refresh=creds.get("last_refresh"),
@@ -552,7 +553,9 @@ def _xai_oauth_poll_device_token(
     )
 
 
-def _xai_oauth_device_code_login(*, timeout_seconds: float = 20.0, open_browser: bool = True) -> Dict[str, Any]:
+def xai_oauth_device_code_login(
+    *, timeout_seconds: float = 20.0, open_browser: bool = True,
+    on_verification: Optional[Callable[[str, str], None]] = None) -> Dict[str, Any]:
     from hermes_cli.auth import _can_open_graphical_browser, _is_remote_session, _print_device_code_instructions, _utc_now_z, _xai_oauth_discovery, _xai_oauth_poll_device_token
     discovery = _xai_oauth_discovery(timeout_seconds)
     timeout = httpx.Timeout(max(20.0, timeout_seconds))
@@ -565,6 +568,13 @@ def _xai_oauth_device_code_login(*, timeout_seconds: float = 20.0, open_browser:
             open_browser=open_browser and not _is_remote_session() and _can_open_graphical_browser(),
             swallow_open_errors=True,
         )
+        # Out-of-band consumer (same contract as ``nous_device_code_login``): fired AFTER the
+        # print/browser block and BEFORE waiting, so a caller whose stdout is not a terminal can render it.
+        if on_verification is not None:
+            with suppress(Exception):
+                on_verification(
+                    str(device_data.get("verification_uri_complete") or device_data["verification_uri"]),
+                    str(device_data["user_code"]))
         print(f"Waiting for approval (polling every {max(1, interval)}s)...")
         payload = _xai_oauth_poll_device_token(
             client, token_endpoint=discovery["token_endpoint"],

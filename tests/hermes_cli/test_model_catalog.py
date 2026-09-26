@@ -345,7 +345,7 @@ class TestIntegrationWithModelsModule:
         """
         # We deliberately do NOT use the ``isolated_home`` fixture here:
         # that fixture monkeypatches ``Path.home`` to ``tmp_path``, which
-        # trips the auth-store seat-belt in ``_auth_file_path()`` because
+        # trips the auth-store seat-belt in ``auth_file_path()`` because
         # ``HERMES_HOME / auth.json`` then resolves to the same path the
         # seat-belt thinks is the "real" user store. Use the autouse
         # ``_hermetic_environment`` HERMES_HOME directly instead.

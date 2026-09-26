@@ -271,7 +271,7 @@ def _post_setup_openai_codex() -> None:
     relogin = "hermes auth add openai-codex"
     _print_info("    OpenAI (Codex auth) needs credentials.")
     try:
-        from hermes_cli.auth import _codex_device_code_login, _save_codex_tokens
+        from hermes_cli.auth import codex_device_code_login, save_codex_tokens
         from hermes_cli.setup import is_noninteractive, prompt_choice
     except Exception as exc:
         _print_warning(f"    Could not load setup helpers: {exc}")
@@ -291,8 +291,8 @@ def _post_setup_openai_codex() -> None:
         _print_info("    Codex image generation will remain inactive until you sign in.")
         return
     try:
-        creds = _codex_device_code_login()
-        _save_codex_tokens(creds["tokens"], creds.get("last_refresh"), set_active=False)
+        creds = codex_device_code_login()
+        save_codex_tokens(creds["tokens"], creds.get("last_refresh"), set_active=False)
     except (Exception, KeyboardInterrupt) as exc:
         _print_warning(f"    Codex sign-in did not complete: {exc}. Run later: {relogin}")
         return

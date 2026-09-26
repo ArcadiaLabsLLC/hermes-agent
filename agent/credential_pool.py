@@ -84,7 +84,7 @@ STATUS_EXHAUSTED = "exhausted"
 # Terminal failure — the credential will never recover on its own (upstream
 # ``token_invalidated`` / ``token_revoked``). DEAD entries are excluded from
 # rotation unconditionally and only clear when an explicit write-side sync
-# (e.g. ``_save_codex_tokens`` after a fresh device-code login) rewrites tokens.
+# (e.g. ``save_codex_tokens`` after a fresh device-code login) rewrites tokens.
 STATUS_DEAD = "dead"
 
 # OAuth error reasons that mean the credential is permanently invalid
@@ -813,7 +813,7 @@ def _write_through_provider_state_to_global_root(
     if global_path is None:
         return
     try:
-        auth_mod._persist_provider_state_to_store(provider_id, state, global_path, set_active=False)
+        auth_mod.persist_provider_state_to_store(provider_id, state, global_path, set_active=False)
     except Exception as exc:  # pragma: no cover - best effort
         logger.debug("%s pool refresh: write-through to global root failed: %s", provider_id, exc)
 

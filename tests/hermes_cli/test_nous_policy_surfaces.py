@@ -38,7 +38,7 @@ class TestLoginNous:
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         monkeypatch.setattr(
             auth_mod,
-            "_nous_device_code_login",
+            "nous_device_code_login",
             lambda **_k: {
                 "access_token": "tok",
                 "agent_key": "key",
@@ -50,7 +50,7 @@ class TestLoginNous:
         )
         monkeypatch.setattr(
             auth_nous,
-            "_nous_device_code_login",
+            "nous_device_code_login",
             lambda **_k: {
                 "access_token": "tok",
                 "agent_key": "key",

@@ -7,7 +7,7 @@ registration, so the port is not negotiable. Organizations that disable the devi
 still sign in this way (#95743). The device-code flow in ``auth_codex.py`` stays the default and is
 the fallback whenever the loopback port is already taken (a Codex CLI login in progress).
 
-Credentials come back in the same dict shape as ``_codex_device_code_login`` with
+Credentials come back in the same dict shape as ``codex_device_code_login`` with
 ``source="loopback_pkce"`` so the pool/singleton save paths treat both flows alike. Tokens,
 authorization codes and the PKCE verifier are never logged or printed.
 
@@ -20,7 +20,8 @@ import hmac
 import logging
 import secrets
 import webbrowser
-from typing import Any, Dict, Optional
+from contextlib import suppress
+from typing import Any, Callable, Dict, Optional
 from urllib.parse import urlencode
 
 from hermes_cli.auth_constants import AuthError, CODEX_OAUTH_CLIENT_ID, CODEX_OAUTH_TOKEN_URL, _codex_err
@@ -64,7 +65,7 @@ def codex_oauth_login(args: Any) -> Dict[str, Any]:
     from hermes_cli import auth as auth_mod  # late: ``hermes_cli.auth.<name>`` patches must intercept
     if _codex_login_flow(args) == "browser":
         try:
-            return _codex_browser_login(
+            return codex_browser_login(
                 open_browser=not getattr(args, "no_browser", False),
                 timeout_seconds=getattr(args, "timeout", None))
         except AuthError as exc:
@@ -75,7 +76,7 @@ def codex_oauth_login(args: Any) -> Dict[str, Any]:
     print("Signing in to OpenAI Codex...")
     print("(Hermes creates its own session — won't affect Codex CLI or VS Code)")
     print()
-    return auth_mod._codex_device_code_login()
+    return auth_mod.codex_device_code_login()
 
 
 def _codex_browser_authorize_url(*, redirect_uri: str, state: str, code_challenge: str) -> str:
@@ -107,8 +108,9 @@ def _codex_browser_exchange_code(code: str, *, redirect_uri: str, code_verifier:
     return tokens
 
 
-def _codex_browser_login(
-    *, open_browser: bool = True, timeout_seconds: Optional[float] = None) -> Dict[str, Any]:
+def codex_browser_login(
+    *, open_browser: bool = True, timeout_seconds: Optional[float] = None,
+    on_verification: Optional[Callable[[str, str], None]] = None) -> Dict[str, Any]:
     """Authorization-code + PKCE login on the loopback listener; returns the device-flow creds shape.
 
     Raises ``AuthError(code=CODEX_BROWSER_PORT_BUSY_CODE)`` when :1455 cannot be bound so the caller
@@ -139,6 +141,11 @@ def _codex_browser_login(
             opened = False
         print("Browser opened for OpenAI authorization." if opened
               else "Could not open the browser automatically; use the URL above.")
+    # Out-of-band consumer (same contract as ``nous_device_code_login``): fired AFTER the
+    # print/browser block and BEFORE waiting, so a caller whose stdout is not a terminal can render it.
+    if on_verification is not None:
+        with suppress(Exception):
+            on_verification(auth_url, "")
     wait = float(timeout_seconds or CODEX_BROWSER_CALLBACK_TIMEOUT_SECONDS)
     print(f"Waiting for the OpenAI callback on {redirect_uri} (timeout {int(wait)}s, Ctrl+C to cancel)...")
     try:

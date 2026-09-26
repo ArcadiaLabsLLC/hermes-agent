@@ -154,9 +154,9 @@ def _json_shape(fingerprint: tuple) -> list:
 def _oauth_heal_clean_mark_path() -> Optional[Path]:
     """Where the persisted clean marks live, or None when unavailable."""
     try:
-        from hermes_cli.auth import _auth_file_path
+        from hermes_cli.auth import auth_file_path
 
-        return _auth_file_path().parent / "cache" / _OAUTH_HEAL_CLEAN_MARK_FILENAME
+        return auth_file_path().parent / "cache" / _OAUTH_HEAL_CLEAN_MARK_FILENAME
     except Exception:
         return None
 
@@ -549,7 +549,7 @@ class _HealPass:
 
 def _heal_forked_single_use_oauth_grants(provider_id: str) -> Optional[Dict[str, Any]]:
     from hermes_cli.auth import (
-        _auth_file_path, _auth_store_lock, _global_auth_file_path, _load_auth_store,
+        auth_file_path, _auth_store_lock, _global_auth_file_path, _load_auth_store,
         _is_same_auth_store, _oauth_heal_clean_marks, _oauth_heal_notices, _same_path,
         _save_auth_store)
     root_path = _global_auth_file_path()
@@ -561,7 +561,7 @@ def _heal_forked_single_use_oauth_grants(provider_id: str) -> Optional[Dict[str,
         real_home_env = os.environ.get("HOME", "")
         if real_home_env and _same_path(root_path, Path(real_home_env) / ".hermes" / "auth.json"):
             return None
-    profile_path = _auth_file_path()
+    profile_path = auth_file_path()
     profile_home = profile_path.parent
     is_anthropic = provider_id == "anthropic"
     profile_singleton = profile_home / ".anthropic_oauth.json" if is_anthropic else None

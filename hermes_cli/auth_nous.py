@@ -343,7 +343,7 @@ def _nous_shared_auth_dir() -> Path:
 
 def _nous_shared_store_path() -> Path:
     path = _nous_shared_auth_dir() / NOUS_SHARED_STORE_FILENAME
-    # Seat belt (mirrors the _auth_file_path() guard): under pytest, refuse a path under the real
+    # Seat belt (mirrors the auth_file_path() guard): under pytest, refuse a path under the real
     # user's Hermes root so a test that forgot HERMES_SHARED_AUTH_DIR fails loudly instead of
     # corrupting cross-profile state.
     if os.environ.get("PYTEST_CURRENT_TEST"):
@@ -494,14 +494,14 @@ def _quarantine_forensics(state: Dict[str, Any], error: AuthError, reason: str) 
     12-char SHA-256 prefix correlates to NAS's refreshTokenHash without leaking the secret;
     provenance is client_id + agent_key_id (Nous state has no session_id).
     """
-    from hermes_cli.auth import _auth_file_path
+    from hermes_cli.auth import auth_file_path
     forensic: Dict[str, Any] = {
         "reason": reason, "error_code": error.code, "client_id": state.get("client_id"),
         "agent_key_id": state.get("agent_key_id"),
         "refresh_token_fp": _token_fingerprint(state.get("refresh_token"))}
     # On-disk integrity of the auth store at the moment of quarantine.
     try:
-        auth_path = _auth_file_path()
+        auth_path = auth_file_path()
         forensic["auth_json_path"] = str(auth_path)
         try:
             st = os.stat(auth_path)
@@ -853,7 +853,7 @@ def persist_nous_credentials(creds: Dict[str, Any], *, label: Optional[str] = No
     return next((e for e in pool.entries() if e.source == NOUS_DEVICE_CODE_SOURCE), None)
 
 
-def _sync_nous_pool_from_auth_store() -> None:
+def sync_nous_pool_from_auth_store() -> None:
     """Best-effort pool reseed after providers.nous changes; never fail login."""
     try:
         from agent.credential_pool import load_pool
@@ -1083,8 +1083,8 @@ def _resolve_nous_runtime_credentials(
     usable token — a peer won the rotation; adopt it rather than invalidate a sibling's token.
     """
     from hermes_cli.auth import (
-        _assert_nous_inference_jwt_usable, _auth_file_path, _provider_state_transaction,
-        _resolve_verify, _select_nous_invoke_jwt, _sync_nous_pool_from_auth_store,
+        _assert_nous_inference_jwt_usable, auth_file_path, _provider_state_transaction,
+        _resolve_verify, _select_nous_invoke_jwt, sync_nous_pool_from_auth_store,
         _tls_state_from_verify)
     with _provider_state_transaction("nous") as (auth_store, state, state_source_path):
         if not state:
@@ -1110,7 +1110,7 @@ def _resolve_nous_runtime_credentials(
                 tls=_tls_state_from_verify(verify))
         run.persist("resolve_nous_runtime_credentials_final")
     if run.persisted_any:
-        _sync_nous_pool_from_auth_store()
+        sync_nous_pool_from_auth_store()
     api_key = state.get("agent_key")
     if not isinstance(api_key, str) or not api_key:
         raise _nous_err("Failed to resolve a Nous inference API key", "server_error")
@@ -1123,7 +1123,7 @@ def _resolve_nous_runtime_credentials(
         # Public semantic source label; the concrete store is exposed separately for diagnostics.
         # Refresh persistence uses state_source_path internally and must not overload this field.
         "auth_path": NOUS_AUTH_PATH_INVOKE_JWT,
-        "state_path": str(state_source_path or _auth_file_path())}
+        "state_path": str(state_source_path or auth_file_path())}
 
 
 def _empty_nous_auth_status() -> Dict[str, Any]:
@@ -1313,7 +1313,7 @@ def _pool_first_oauth_status(
     provider as unconfigured while the runtime resolver still serves it. Refreshing stays with the
     runtime resolver reached through *resolve*, whose failures persist nothing.
     """
-    from hermes_cli.auth import _auth_file_path
+    from hermes_cli.auth import auth_file_path
     try:
         from agent.credential_pool import load_pool
         pool = load_pool(provider_id)
@@ -1324,7 +1324,7 @@ def _pool_first_oauth_status(
                     getattr(entry, "runtime_api_key", None) or getattr(entry, "access_token", ""))
                 if api_key and not is_expiring(api_key, 0):
                     return {
-                        "logged_in": True, "auth_store": str(_auth_file_path()),
+                        "logged_in": True, "auth_store": str(auth_file_path()),
                         "last_refresh": getattr(entry, "last_refresh", None),
                         "auth_mode": auth_mode,
                         "source": f"pool:{getattr(entry, 'label', 'unknown')}", "api_key": api_key,
@@ -1339,15 +1339,15 @@ def _pool_first_oauth_status(
     try:
         creds = resolve()
         return {
-            "logged_in": True, "auth_store": str(_auth_file_path()),
+            "logged_in": True, "auth_store": str(auth_file_path()),
             "last_refresh": creds.get("last_refresh"),
             "auth_mode": creds.get("auth_mode"), "source": creds.get("source"),
             "api_key": creds.get("api_key"), "base_url": creds.get("base_url") or ""}
     except AuthError as exc:
-        return {"logged_in": False, "auth_store": str(_auth_file_path()), "error": str(exc)}
+        return {"logged_in": False, "auth_store": str(auth_file_path()), "error": str(exc)}
 
 
-def _nous_device_code_login(
+def nous_device_code_login(
     *, portal_base_url: Optional[str] = None, inference_base_url: Optional[str] = None,
     client_id: Optional[str] = None, scope: Optional[str] = None, open_browser: bool = True,
     timeout_seconds: float = 15.0, insecure: bool = False, ca_bundle: Optional[str] = None,
@@ -1427,11 +1427,11 @@ def _nous_device_code_login(
 
 def _mirror_nous_state_best_effort(auth_state: Dict[str, Any]) -> None:
     """Mirror to the shared store + reseed the pool, swallowing all errors (same as _login_nous)."""
-    from hermes_cli.auth import _sync_nous_pool_from_auth_store, _write_shared_nous_state
+    from hermes_cli.auth import sync_nous_pool_from_auth_store, _write_shared_nous_state
     with suppress(Exception):
         _write_shared_nous_state(auth_state)
     with suppress(Exception):
-        _sync_nous_pool_from_auth_store()
+        sync_nous_pool_from_auth_store()
 
 
 def step_up_nous_billing_scope(
@@ -1444,7 +1444,7 @@ def step_up_nous_billing_scope(
     model picker.
     """
     from hermes_cli.auth import (
-        PROVIDER_REGISTRY, _nous_device_code_login, _save_active_provider_state,
+        PROVIDER_REGISTRY, nous_device_code_login, _save_active_provider_state,
         get_provider_auth_state)
     prior = get_provider_auth_state("nous") or {}
     pconfig = PROVIDER_REGISTRY["nous"]
@@ -1454,7 +1454,7 @@ def step_up_nous_billing_scope(
     prior_scope = _raw_scope.split() if isinstance(_raw_scope, str) else []
     requested = list(dict.fromkeys([
         *(prior_scope or [NOUS_INFERENCE_INVOKE_SCOPE]), NOUS_BILLING_MANAGE_SCOPE]))
-    auth_state = _nous_device_code_login(
+    auth_state = nous_device_code_login(
         portal_base_url=prior.get("portal_base_url") or None,
         inference_base_url=prior.get("inference_base_url") or None,
         client_id=prior.get("client_id") or pconfig.client_id, scope=" ".join(requested),
@@ -1580,8 +1580,8 @@ def _restore_active_provider(prior_active_provider: Any) -> None:
 def _login_nous(args, pconfig: ProviderConfig) -> None:
     """Nous Portal device authorization flow."""
     from hermes_cli.auth import (
-        _auth_store_lock, _load_auth_store, _nous_device_code_login, _save_active_provider_state,
-        _save_model_choice, _sync_nous_pool_from_auth_store, _update_config_for_provider,
+        _auth_store_lock, _load_auth_store, nous_device_code_login, _save_active_provider_state,
+        _save_model_choice, sync_nous_pool_from_auth_store, _update_config_for_provider,
         _write_shared_nous_state, format_auth_error)
     timeout_seconds = getattr(args, "timeout", None) or 15.0
     ca_bundle = (
@@ -1590,7 +1590,7 @@ def _login_nous(args, pconfig: ProviderConfig) -> None:
     try:
         auth_state = _offer_shared_nous_import(timeout_seconds)
         if auth_state is None:
-            auth_state = _nous_device_code_login(
+            auth_state = nous_device_code_login(
                 portal_base_url=getattr(args, "portal_url", None),
                 inference_base_url=getattr(args, "inference_url", None),
                 client_id=getattr(args, "client_id", None) or pconfig.client_id,
@@ -1606,7 +1606,7 @@ def _login_nous(args, pconfig: ProviderConfig) -> None:
         saved_to = _save_active_provider_state("nous", auth_state)
         # Mirror to the shared store so other profiles can one-tap import (best-effort inside).
         _write_shared_nous_state(auth_state)
-        _sync_nous_pool_from_auth_store()
+        sync_nous_pool_from_auth_store()
         print()
         print("Login successful!")
         print(f"  Auth state: {saved_to}")

@@ -52,17 +52,17 @@ from hermes_cli.auth_nous import (  # noqa: F401  re-exported
     _agent_key_is_usable, _apply_nous_refreshed_tokens, _assert_nous_inference_jwt_usable,
     _compute_nous_auth_status, _format_nous_entitlement_auth_error, _healed_nous_inference_url,
     _login_nous, _merge_shared_nous_oauth_state, _migrate_stale_nous_portal_url,
-    _nous_device_code_login, _nous_inference_env_override, _nous_invoke_jwt_is_usable,
+    nous_device_code_login, _nous_inference_env_override, _nous_invoke_jwt_is_usable,
     _nous_invoke_jwt_status, _nous_portal_env_override, _nous_shared_store_lock,
     _nous_shared_store_path, _pool_first_oauth_status, _quarantine_nous_oauth_state,
     _quarantine_nous_pool_entries, _read_shared_nous_state, _refresh_access_token,
-    _refresh_nous_or_quarantine, _select_nous_invoke_jwt, _sync_nous_pool_from_auth_store,
+    _refresh_nous_or_quarantine, _select_nous_invoke_jwt, sync_nous_pool_from_auth_store,
     _token_fingerprint, _try_import_shared_nous_state, _validate_nous_inference_url_from_network,
     _write_shared_nous_state, fetch_nous_models, get_nous_auth_status_local,
     get_nous_session_validity, persist_nous_credentials, refresh_nous_oauth_from_state,
     resolve_nous_runtime_credentials, step_up_nous_billing_scope)
 from hermes_cli.auth_minimax import (  # noqa: F401  re-exported
-    _MINIMAX_OAUTH_ERROR_BODY_LIMIT, _login_minimax_oauth, _minimax_oauth_login, _minimax_pkce_pair,
+    _MINIMAX_OAUTH_ERROR_BODY_LIMIT, _login_minimax_oauth, minimax_oauth_login, _minimax_pkce_pair,
     _minimax_poll_token, _minimax_post_form, _minimax_request_user_code,
     _minimax_resolve_token_expiry_unix, _minimax_response_error_text, _minimax_save_auth_state,
     _refresh_minimax_oauth_state, build_minimax_oauth_token_provider,
@@ -70,15 +70,15 @@ from hermes_cli.auth_minimax import (  # noqa: F401  re-exported
 from hermes_cli.auth_xai import (  # noqa: F401  re-exported
     _login_xai_oauth, _read_xai_oauth_tokens, _refresh_xai_oauth_tokens, _save_xai_oauth_tokens,
     _write_through_xai_oauth_to_global_root, _xai_access_token_is_expiring,
-    _xai_oauth_device_code_login, _xai_oauth_discovery, _xai_oauth_poll_device_token,
+    xai_oauth_device_code_login, _xai_oauth_discovery, _xai_oauth_poll_device_token,
     _xai_oauth_request_device_code, _xai_proactive_refresh_skew_seconds,
     _xai_validate_inference_base_url, refresh_xai_oauth_pure, resolve_xai_oauth_runtime_credentials)
 from hermes_cli.auth_codex import (  # noqa: F401  re-exported
-    _codex_access_token_is_expiring, _codex_device_code_login, _codex_http_client,
+    _codex_access_token_is_expiring, codex_device_code_login, _codex_http_client,
     _codex_pool_rate_limit_status, _codex_quota_probe_cache, _codex_usage_probe_url,
     _import_codex_cli_tokens, _is_codex_rate_limit_shaped, _login_openai_codex,
     _probe_codex_quota_restored, _read_codex_tokens, _refresh_codex_auth_tokens,
-    _refresh_expired_codex_probe_token, _save_codex_tokens, clear_codex_pool_quota_cooldowns,
+    _refresh_expired_codex_probe_token, save_codex_tokens, clear_codex_pool_quota_cooldowns,
     refresh_codex_oauth_pure, resolve_codex_runtime_credentials)
 from hermes_cli.auth_spotify import (  # noqa: F401  re-exported
     _refresh_spotify_oauth_state, get_spotify_auth_status, login_spotify_command,
@@ -479,7 +479,7 @@ def _nonempty_str(value: Any) -> bool:
 
 # ── Auth Store — persistence layer for ~/.hermes/auth.json ──────────────────────────────────────────
 
-def _auth_file_path() -> Path:
+def auth_file_path() -> Path:
     path = get_hermes_home() / "auth.json"
     # Seat belt: under pytest, refuse to touch the real user's auth store (tests that forgot to
     # monkeypatch HERMES_HOME or escaped the hermetic conftest). In production: one dict lookup.
@@ -495,7 +495,7 @@ def _auth_file_path() -> Path:
 def _global_auth_file_path() -> Optional[Path]:
     """Global-root auth.json in profile mode; None when profile and global root are the same dir.
 
-    Read-only fallback path, so no pytest seat belt here (it lives on ``_auth_file_path()``)."""
+    Read-only fallback path, so no pytest seat belt here (it lives on ``auth_file_path()``)."""
     try:
         from hermes_constants import get_default_hermes_root
         global_root = get_default_hermes_root()
@@ -648,7 +648,7 @@ def _auth_store_lock(
     ``target_path`` is required for profile-to-global write-throughs: each path has its own
     reentrancy tracker and kernel lock. Lock ordering invariant: ``_auth_store_lock`` FIRST (outer),
     ``_nous_shared_store_lock`` SECOND (inner), else deadlock against a concurrent shared import."""
-    auth_path = target_path if target_path is not None else _auth_file_path()
+    auth_path = target_path if target_path is not None else auth_file_path()
     with _file_lock(
         auth_path.with_suffix(".lock"), _auth_lock_holder_for(auth_path), timeout_seconds,
         "Timed out waiting for auth store lock"):
@@ -660,7 +660,7 @@ def _empty_auth_store() -> Dict[str, Any]:
 
 
 def _load_auth_store(auth_file: Optional[Path] = None) -> Dict[str, Any]:
-    auth_file = auth_file or _auth_file_path()
+    auth_file = auth_file or auth_file_path()
     if not auth_file.exists():
         return _empty_auth_store()
     try:
@@ -719,7 +719,7 @@ def _save_private_json(target: Path, data: Any, *, fsync_dir: bool = False, **du
 def _save_auth_store(auth_store: Dict[str, Any], target_path: Optional[Path] = None) -> Path:
     """Atomically persist *auth_store* (0o600, parent tightened to 0o700) to the active store, or to
     an explicit *target_path* (e.g. the global-root write-through for rotating xAI OAuth grants)."""
-    auth_file = target_path if target_path is not None else _auth_file_path()
+    auth_file = target_path if target_path is not None else auth_file_path()
     auth_store["version"] = AUTH_STORE_VERSION
     auth_store["updated_at"] = datetime.now(timezone.utc).isoformat()
     _save_private_json(auth_file, auth_store, fsync_dir=True)
@@ -755,7 +755,7 @@ def _load_provider_state_with_source(
     the same store they read."""
     state = _provider_state_in(auth_store, provider_id)
     if state is not None:
-        return state, _auth_file_path()
+        return state, auth_file_path()
     global_state = _provider_state_in(_load_global_auth_store(), provider_id)
     return (global_state, _global_auth_file_path()) if global_state is not None else (None, None)
 
@@ -777,7 +777,7 @@ def _provider_state_transaction(
     with _auth_store_lock(timeout_seconds):
         auth_store = _load_auth_store()
         state, source_path = _load_provider_state_with_source(auth_store, provider_id)
-        if source_path is None or _same_path(source_path, _auth_file_path()):
+        if source_path is None or _same_path(source_path, auth_file_path()):
             yield auth_store, state, source_path
             return
         with _auth_store_lock(timeout_seconds, target_path=source_path):
@@ -805,7 +805,7 @@ def _save_active_provider_state(provider_id: str, state: Dict[str, Any]) -> Path
         return _save_auth_store(auth_store)
 
 
-def _persist_provider_state_to_store(
+def persist_provider_state_to_store(
     provider_id: str, state: Dict[str, Any], target_path: Path, *, set_active: bool = False,
 ) -> Path:
     """Merge one provider into a specific auth store under that store's lock."""
@@ -823,11 +823,11 @@ def _save_provider_state_to_source(
     A token refresh rewrites credentials, not the user's choice of provider: ``active_provider`` is
     left as it is (a Nous free-tier identity refreshed for a connector call must not become the
     inference provider of an install that has its own key)."""
-    if source_path is None or _same_path(source_path, _auth_file_path()):
+    if source_path is None or _same_path(source_path, auth_file_path()):
         _store_provider_state(auth_store, provider_id, state, set_active=False)
         _save_auth_store(auth_store)
     else:
-        _persist_provider_state_to_store(provider_id, state, source_path, set_active=False)
+        persist_provider_state_to_store(provider_id, state, source_path, set_active=False)
 
 
 def mark_provider_active_if_unset(provider_id: str) -> None:
@@ -1712,7 +1712,7 @@ _NOUS_PORTAL_ALLOWED_HOSTS: FrozenSet[str] = frozenset({
 # Per-process memo for resolve_nous_access_token: startup runs one check_fn per managed tool and
 # each would trigger its own ~15s blocking refresh of an expired token; a short-TTL memo collapses
 # the burst into one round-trip. Callers needing freshness use force_fresh/refresh_nous_oauth_pure.
-# Keyed by hermes_home_key(): the resolution itself is profile-scoped (_auth_file_path reads the
+# Keyed by hermes_home_key(): the resolution itself is profile-scoped (auth_file_path reads the
 # per-turn HERMES_HOME override a multiplex gateway sets), so a single slot would hand profile A's
 # Portal bearer to profile B for up to the TTL.
 _RESOLVE_TOKEN_CACHE_LOCK = threading.Lock()
@@ -1836,7 +1836,7 @@ _global_auth_store_cache: Optional[Tuple[str, int, Dict[str, Any]]] = None
 
 
 def _auth_file_cache_key() -> Tuple[str, Optional[float]]:
-    auth_file = _auth_file_path()
+    auth_file = auth_file_path()
     try:
         return _resolved_key(auth_file), auth_file.stat().st_mtime
     except Exception:  # missing file included: key without an mtime
@@ -1935,7 +1935,7 @@ def _codex_pool_rate_limited_status() -> Optional[Dict[str, Any]]:
     if not rate_limit:
         return None
     return {
-        "logged_in": True, "auth_store": str(_auth_file_path()),
+        "logged_in": True, "auth_store": str(auth_file_path()),
         "last_refresh": rate_limit.get("last_refresh"), "auth_mode": "chatgpt",
         "source": f"pool:{rate_limit.get('label') or 'unknown'}", "rate_limited": True,
         "error_code": CODEX_RATE_LIMITED_CODE,

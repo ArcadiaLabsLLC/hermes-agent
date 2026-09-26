@@ -329,7 +329,7 @@ def _nous_plain_poller(session_id: str, sess: Dict[str, Any]) -> None:
         )
     if _cancelled():
         return
-    # Same post-processing as _nous_device_code_login (validate/refresh JWT)
+    # Same post-processing as nous_device_code_login (validate/refresh JWT)
     now = datetime.now(timezone.utc)
     token_ttl = int(token_data.get("expires_in") or 0)
     auth_state = {
@@ -366,7 +366,7 @@ def _nous_plain_poller(session_id: str, sess: Dict[str, Any]) -> None:
 @_oauth_poller("minimax")
 def _minimax_poller(session_id: str, sess: Dict[str, Any]) -> None:
     """MiniMax poller: PKCE-style ``code_verifier`` + ``user_code`` instead of Nous's
-    ``device_code``. Builds the same auth_state as the CLI's ``_minimax_oauth_login`` and persists
+    ``device_code``. Builds the same auth_state as the CLI's ``minimax_oauth_login`` and persists
     via ``_minimax_save_auth_state`` so the system ends up as after ``hermes auth add minimax-oauth``.
     Region is fixed to "global" here; cn-region operators use the CLI's ``--region cn``."""
     from hermes_cli.web_server_profiles import _profile_scope

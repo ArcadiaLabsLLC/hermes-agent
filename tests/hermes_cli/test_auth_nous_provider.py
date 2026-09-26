@@ -229,12 +229,12 @@ def test_resolve_nous_runtime_credentials_invoke_jwt_is_idempotent(
     monkeypatch.setattr(auth_nous, "_write_shared_nous_state", _unexpected_shared_write)
     monkeypatch.setattr(
         auth_mod,
-        "_sync_nous_pool_from_auth_store",
+        "sync_nous_pool_from_auth_store",
         lambda: sync_calls.append(True),
     )
     monkeypatch.setattr(
         auth_nous,
-        "_sync_nous_pool_from_auth_store",
+        "sync_nous_pool_from_auth_store",
         lambda: sync_calls.append(True),
     )
 
@@ -446,11 +446,11 @@ class TestLoginNousSkipKeepsCurrent:
             "token_expires_at": 9999999999,
         }
         monkeypatch.setattr(
-            auth_mod, "_nous_device_code_login",
+            auth_mod, "nous_device_code_login",
             lambda **kwargs: dict(fake_auth_state),
         )
         monkeypatch.setattr(
-            auth_nous, "_nous_device_code_login",
+            auth_nous, "nous_device_code_login",
             lambda **kwargs: dict(fake_auth_state),
         )
         monkeypatch.setattr(
@@ -566,7 +566,7 @@ class TestLoginNousSkipKeepsCurrent:
 
 
 def _full_state_fixture() -> dict:
-    """Shape of the dict returned by _nous_device_code_login /
+    """Shape of the dict returned by nous_device_code_login /
     refresh_nous_oauth_from_state. Used as helper input."""
     token = _invoke_jwt(seconds=3600)
     expires_at = _future_iso(3600)
@@ -863,7 +863,7 @@ def shared_store_env(tmp_path, monkeypatch):
 def test_shared_store_seat_belt_refuses_real_home_under_pytest(monkeypatch):
     """Without HERMES_SHARED_AUTH_DIR override, the seat belt must trip.
 
-    Mirrors the existing ``_auth_file_path`` seat belt: forgetting to
+    Mirrors the existing ``auth_file_path`` seat belt: forgetting to
     redirect this store in a test must fail loudly instead of silently
     writing to the user's real ``~/.hermes/shared/`` across CI runs.
     """
