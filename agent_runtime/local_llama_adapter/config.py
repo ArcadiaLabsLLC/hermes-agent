@@ -15,6 +15,8 @@ import uuid
 
 from agent_runtime import yaml_io
 
+__layer__ = "stores"
+
 LOAD_DEFAULTS = {"context_size": 32768, "gpu_layers": "auto", "flash_attention": "auto",
                  "cache_type_k": "f16", "cache_type_v": "f16", "chat_template_path": None}
 GENERATION_DEFAULTS = {"temperature": .7, "top_p": .9, "top_k": 40,

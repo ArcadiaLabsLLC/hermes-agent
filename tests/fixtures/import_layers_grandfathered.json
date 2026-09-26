@@ -72,7 +72,6 @@
   "agent_runtime/board_sync.py",
   "agent_runtime/chat_lane_bundle.py",
   "agent_runtime/continuity.py",
-  "agent_runtime/local_llama_adapter/config.py",
   "agent_runtime/local_llama_adapter/engine.py",
   "agent_runtime/local_llama_adapter/manager.py",
   "agent_runtime/local_llama_adapter/provider.py",
