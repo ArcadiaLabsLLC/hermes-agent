@@ -1,8 +1,12 @@
 """``plugin_compat.disable_reason`` never scans a bundled plugin.
 
 Bundled plugins ship in this tree, which CI keeps off compat paths, so the
-post-removal skip has nothing to find there — and scanning costs a config
-read plus an AST walk on every bundled load (discovery included).
+post-removal skip has nothing to find there — and the check costs a config
+read on every bundled load (discovery included).
+
+This pins the call count (plugin_hits is never called for a bundled
+manifest), not walked work: _scan_root already kept bundled plugins from
+being walked before this guard existed.
 """
 
 from __future__ import annotations
