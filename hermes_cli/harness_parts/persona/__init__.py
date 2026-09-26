@@ -16,8 +16,8 @@ Modules, by layer (lowest first; a module imports only its own layer or lower):
   tip), ``chat_events`` (event-log publishes and the protocol-v2 chat frame emitter),
   ``chat_request`` (mission-chat request validation and refusal payloads; reads
   the clarify-ticket store), ``chat_target`` (persona resolution and the
-  mission-chat target decision).
-* policy — ``chat_reply_stamps`` (visibility and media stamps on a reply payload).
+  mission-chat target decision), ``chat_reply_stamps`` (visibility and media
+  stamps on a reply payload; mints reply media through ``media_handles``).
 * lanes — ``chat_history_writes`` (the ONE write path for a persona chat row;
   a lane because it drives the live-log mirror's write lane),
   ``inspect_commands`` (persona list/show/tool-diff/permission/assignments),
