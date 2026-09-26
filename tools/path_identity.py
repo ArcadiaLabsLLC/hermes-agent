@@ -51,8 +51,8 @@ What this module is not
   ``relative_to``). Adding a second one here would recreate the exact
   duplicate-authority defect this module exists to retire.
 * **Not the shell hop.** ``tools/environments/local.py`` emits path spellings
-  *for a shell to consume* (``_bash_safe_path`` -> ``/c/...`` for bash itself,
-  ``_shell_arg_safe_path`` -> ``C:/...`` for native argv). Those are encoders
+  *for a shell to consume* (``_bash_safe_path`` -> ``/c/...`` for bash itself).
+  Those are encoders
   with a target consumer, not identity predicates, and the escaping defect
   recorded against that seam (a search PATTERN, not a path, corrupted by
   MSVCRT re-quoting) is a different bug with a different filed fix. Left alone
