@@ -25,6 +25,8 @@ from .config import (ConfigStore, LocalLlamaError, identifier, integer, publish_
                      recover_journal, validate_config, validate_parameters)
 from .engine import Engine, scan, validate_model
 
+__layer__ = "stores"
+
 _LOG_TAIL_BYTES = 256 * 1024
 _ACTIVE = ("queued", "running")
 
