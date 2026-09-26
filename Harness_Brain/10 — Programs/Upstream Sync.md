@@ -64,6 +64,12 @@ After the conflicts are resolved and before the suite: for every upstream commit
 | NousResearch/hermes-agent#123977 | `feat(plugins)`: command_guard hook for terminal commands (`widen/terminal-command-guard-hook`) | `tools/terminal_tool.py` | 2026-09-26 |
 | NousResearch/hermes-agent#123978 | `feat(plugins)`: per-call cost on post_api_request, Codex app-server parity (`widen/per-call-usage-record`) | `agent/codex_runtime.py`, `run_agent.py` | 2026-09-26 |
 | NousResearch/hermes-agent#123979 | `feat(plugins)`: register_toolset and add_to_toolset on PluginContext (`widen/register-toolset`) | `toolsets.py` | 2026-09-26 |
+| NousResearch/hermes-agent#124190 | `feat(constants)`: per-store home override for the auth store and the background-work ledger (`up/store-home-override`) | recorded parallels 1, 2 | 2026-09-26 |
+| NousResearch/hermes-agent#124191 | `feat(skills)`: `skills.extra_dirs` writable roots and `skills.excluded_dirs`; lookup names are posix (`up/skills-extra-dirs`) | recorded parallel 3 | 2026-09-26 |
+| NousResearch/hermes-agent#124192 | `feat(tool-search)`: `tools.tool_search.never_defer` keeps named plugin/MCP tools eager (`up/tool-search-never-defer`; 7b stays CARRY) | recorded parallel 7a | 2026-09-26 |
+| NousResearch/hermes-agent#124193 | `refactor(credential-pool)`: the strategy branch of `_select_unlocked` extracted into `_pick_and_rotate` (`up/credential-pool-pick-and-rotate`) | recorded parallel 8 | 2026-09-26 |
+| NousResearch/hermes-agent#124194 | `feat(local-runtime)`: `executable_path`, `model_dirs`, `model_overrides` config keys (`up/local-runtime-knobs`) | recorded parallels 10, 11, 12 | 2026-09-26 |
+| NousResearch/hermes-agent#124195 | `feat(environments)`: public `drain_fd(proc, fd, sink, decoder, stop)` pipe drain (`up/public-drain-fd`) | recorded parallel 13 | 2026-09-26 |
 
 **Checked 2026-09-24 (lane MERGE):** all eleven rows above are OPEN upstream and none is in `upstream/main`; every carry stays.
 
@@ -75,17 +81,11 @@ Rules used: branch cut from `upstream/main` (never from the fork), `fix/…` / `
 
 ## Held branches — written, not opened (the owner's word opens them)
 
-Seven recorded-parallel widenings from `docs/agent-runtime-harness/planned/recorded-parallels-2026-09-26.md`, each one commit on `upstream/main` a0fe806c46e with a red-on-base proof; bodies at `X:/wt/_holds/pr-bodies/<name>.md` (lane PAR-PR, 2026-09-26).
+Six of the seven recorded-parallel widenings OPENED 2026-09-26 (#124190–#124195, rows above) on the owner's word; verified on upstream a0fe806c46e, trial-merged clean onto the tip of the moment (f077152871). Bodies at `X:/wt/_holds/pr-bodies/<name>.md`.
 
 | branch | tip | title | ledger rows it retires |
 |---|---|---|---|
-| `up/store-home-override` | 692d48b9851 | `feat(constants)`: per-store home override for the auth store and the background-work ledger | recorded parallels 1, 2 |
-| `up/persisted-row-hooks` | f0c746cc289 | `feat(plugins)`: persisted-row and MCP transform hooks, `reuse_current_user_message`, HERMES_HOME for stdio MCP children (uses `lifecycle.invoke_hook`; threads through `turn_facade`/`conversation_loop`) | recorded parallels 4, 5, 6 |
-| `up/skills-extra-dirs` | 99b6b3a124a | `feat(skills)`: `skills.extra_dirs` writable roots and `skills.excluded_dirs`; lookup names are posix | recorded parallel 3 |
-| `up/tool-search-never-defer` | 750cbfac67c | `feat(tool-search)`: `tools.tool_search.never_defer` keeps named plugin/MCP tools eager (7a only; 7b is CARRY per the sheet §5.7) | recorded parallel 7a |
-| `up/credential-pool-pick-and-rotate` | cba6d2ab0e4 | `refactor(credential-pool)`: the strategy branch of `_select_unlocked` extracted into `_pick_and_rotate` | recorded parallel 8 |
-| `up/local-runtime-knobs` | 9d00610c450 | `feat(local-runtime)`: `executable_path`, `model_dirs`, `model_overrides` config keys (overrides applied in `generate_presets`; rewrites the "no knobs by design" comment — expect push-back) | recorded parallels 10, 11, 12 |
-| `up/public-drain-fd` | 21b0279e9f2 | `feat(environments)`: public `drain_fd(proc, fd, sink, decoder, stop)` pipe drain | recorded parallel 13 |
+| `up/persisted-row-hooks` | f0c746cc289 | `feat(plugins)`: persisted-row and MCP transform hooks, `reuse_current_user_message`, HERMES_HOME for stdio MCP children | recorded parallels 4, 5, 6 · CONFLICTS with the current upstream tip; lane PAR-PR2 rebases, re-proves and opens it |
 
 ## Related
 
