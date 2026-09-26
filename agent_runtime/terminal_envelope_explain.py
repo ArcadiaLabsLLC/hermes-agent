@@ -33,6 +33,8 @@ from .terminal_envelope import (
     scope_for_persona,
 )
 
+__layer__ = "lanes"
+
 #: The lane binds a :class:`TerminalEnvelopeScope`, so every gated command
 #: resolves through ``envelope_decision``: grants are ROOT-config only and a
 #: refusal is typed, explained and final.
