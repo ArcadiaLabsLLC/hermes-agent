@@ -139,16 +139,6 @@ def _serve_plugin_skill(
     if not _st.skill_matches_platform(parsed_frontmatter):
         return _fail(f"Skill '{qualified_name}' is not supported on this platform.",
                      readiness_status=SkillReadinessStatus.UNSUPPORTED.value)
-    from agent_runtime.skill_resolution import current_skill_runtime_context, skill_frontmatter_runtime_compatibility
-    active_surface, root_node_mode = current_skill_runtime_context()
-    if active_surface:
-        compatibility = skill_frontmatter_runtime_compatibility(
-            parsed_frontmatter, surface=active_surface, root_node_mode=root_node_mode)
-        if not compatibility.get("compatible"):
-            return _fail(f"Skill '{qualified_name}' is not available on the active {active_surface} surface.",
-                         reason=compatibility.get("reason"), surface=active_surface,
-                         mode="root_node" if root_node_mode else "standard",
-                         readiness_status=SkillReadinessStatus.UNSUPPORTED.value)
     if file_path:
         return _serve_skill_file(skill_md.parent, file_path, qualified_name, read_error_prefix=True)
     if any(p in content.lower() for p in _INJECTION_PATTERNS):
