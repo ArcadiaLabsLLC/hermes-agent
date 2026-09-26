@@ -108,3 +108,23 @@ def login_minimax_account(on_verification) -> None:
     from hermes_cli.auth import persist_provider_login
     state = _minimax_oauth_login(open_browser=False, on_verification=on_verification, persist=False)
     persist_provider_login("minimax-oauth", state)
+
+
+def login_nous_account(on_verification) -> None:
+    """Preserve free-tier connectors, or connect a fresh account to this profile."""
+    from hermes_cli import anon_auth
+    from hermes_cli.auth import persist_provider_login
+
+    current = anon_auth.current_nous_state()
+    if current and anon_auth.is_guest_state(current):
+        for state in anon_auth.run_sign_in():
+            if isinstance(state, anon_auth.Code):
+                on_verification(state.link, state.code)
+            if state.terminal:
+                if not state.ok:
+                    raise RuntimeError("Nous sign-in did not finish")
+                return
+        raise RuntimeError("Nous sign-in ended without confirmation")
+    state = _nous_device_code_login(open_browser=False, on_verification=on_verification)
+    persist_provider_login("nous", state)
+    _sync_nous_pool_from_auth_store()
