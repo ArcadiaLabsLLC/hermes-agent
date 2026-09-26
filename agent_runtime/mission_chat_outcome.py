@@ -48,6 +48,8 @@ import time
 from dataclasses import dataclass, replace
 from enum import StrEnum
 
+__layer__ = "models"
+
 __all__ = [
     "AMBIGUOUS_400_FAILURE_REASONS",
     "ChatErrorKind",
