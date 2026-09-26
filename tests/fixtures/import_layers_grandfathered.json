@@ -73,7 +73,6 @@
   "agent_runtime/auxiliary_chat.py",
   "agent_runtime/board_sync.py",
   "agent_runtime/chat_lane_bundle.py",
-  "agent_runtime/chat_session_scope.py",
   "agent_runtime/chat_turn.py",
   "agent_runtime/chat_turn_presence.py",
   "agent_runtime/chat_turn_reservations.py",

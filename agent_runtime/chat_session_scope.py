@@ -122,6 +122,8 @@ from typing import Any
 
 from agent_runtime.profile_home import configured_head_home
 
+__layer__ = "stores"
+
 logger = logging.getLogger(__name__)
 
 __all__ = [
