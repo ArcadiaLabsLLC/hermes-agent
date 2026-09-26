@@ -62,10 +62,10 @@ jobs:
             runner: macos-latest
             marker: macos
           - name: Windows-only tests
-            runner: ${{ github.repository == 'NousResearch/hermes-agent' && 'windows-latest-32-core' || 'windows-latest' }}
+            runner: windows-latest-32-core
             marker: windows
           - name: Windows-only tests (arm64)
-            runner: ${{ github.repository == 'NousResearch/hermes-agent' && 'windows-latest-32-arm-core' || 'windows-11-arm' }}
+            runner: windows-latest-32-arm-core
             marker: windows
             timeout: 60
     steps:
