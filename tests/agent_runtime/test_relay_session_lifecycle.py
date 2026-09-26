@@ -1596,7 +1596,7 @@ def test_an_interleaved_retry_never_claims_the_thread_that_followed_it(
 def test_sticky_policy_restores_the_durable_thread_for_unset_callers(
     monkeypatch, capsys, isolate_agent_runtime_root, dispatch_home
 ):
-    import agent_runtime.config as runtime_config_module
+    import agent_runtime.config.knobs as runtime_config_module
 
     monkeypatch.setattr(
         runtime_config_module, "mission_chat_dispatch_session_policy", lambda cfg=None: "sticky"

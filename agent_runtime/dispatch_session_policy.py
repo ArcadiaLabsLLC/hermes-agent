@@ -189,7 +189,7 @@ def resolve_dispatch_session_decision(
         if policy is not None:
             return normalize_dispatch_session_policy(policy)
         try:  # lazy: keeps this module pure/importable and config faults non-fatal
-            from agent_runtime.config import mission_chat_dispatch_session_policy
+            from agent_runtime.config.knobs import mission_chat_dispatch_session_policy
 
             return mission_chat_dispatch_session_policy()
         except Exception:  # pragma: no cover - defensive; a config fault must not kill a turn

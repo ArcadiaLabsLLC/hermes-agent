@@ -88,7 +88,7 @@ def test_an_explicit_caller_never_loads_the_configured_policy(monkeypatch):
     # particular runs this resolver on EVERY mission-chat turn purely to name a
     # reason — so consulting config there was a per-turn YAML parse for a value
     # nothing reads. Only "the caller stated nothing" may reach it.
-    import agent_runtime.config as runtime_config_module
+    import agent_runtime.config.knobs as runtime_config_module
 
     loads: list[int] = []
 
@@ -192,7 +192,7 @@ def test_clarify_binding_never_loads_the_configured_policy(monkeypatch):
     # Same hot-path rule as every other explicit lane: `clarify_session_id` is
     # stated intent, and `mission_chat_dispatch_session_policy()` parses the root
     # config.yaml UNCACHED.
-    import agent_runtime.config as runtime_config_module
+    import agent_runtime.config.knobs as runtime_config_module
 
     loads: list[int] = []
 
