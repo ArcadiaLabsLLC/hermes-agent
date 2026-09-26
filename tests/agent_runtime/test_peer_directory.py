@@ -16,6 +16,7 @@ import json
 
 import pytest
 
+from agent_runtime import gateway_peers
 from agent_runtime.peer_directory import (
     PEER_ROSTER_CONTRACT,
     ROSTER_ROW_CAP,
@@ -24,6 +25,7 @@ from agent_runtime.peer_directory import (
     read_chat_lane_tail,
     resolve_far_target_scope,
 )
+from tests._downstream.split_package_source import patch_where_bound
 
 
 # ── the roster ───────────────────────────────────────────────────────────────
@@ -453,8 +455,10 @@ def test_the_block_is_empty_when_no_peer_is_usable(tmp_path):
 
 
 def test_an_unreadable_store_answers_with_no_rows_rather_than_raising(monkeypatch):
-    monkeypatch.setattr(
-        "agent_runtime.gateway_peers.usable_peers",
+    patch_where_bound(
+        monkeypatch,
+        gateway_peers,
+        "usable_peers",
         lambda root: (_ for _ in ()).throw(OSError("gone")),
     )
 

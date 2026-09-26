@@ -20,7 +20,7 @@ import json
 
 import pytest
 
-from agent_runtime import paths
+from agent_runtime import gateway_peers, paths
 from agent_runtime.gateway_announce import (
     ANNOUNCE_ATTEMPTS,
     ANNOUNCE_METHOD,
@@ -33,6 +33,7 @@ from agent_runtime.gateway_peers import (
     record_peer,
     revoke_peer,
 )
+from tests._downstream.split_package_source import patch_where_bound
 
 PEER_A = "inst_aaaaaaaaaaaa"
 PEER_B = "inst_bbbbbbbbbbbb"
@@ -191,8 +192,10 @@ def test_a_slow_peer_never_delays_the_caller(tmp_path, monkeypatch):
 def test_an_unreadable_store_answers_with_no_receipts_rather_than_raising(
     tmp_path, monkeypatch
 ):
-    monkeypatch.setattr(
-        "agent_runtime.gateway_peers.usable_peers",
+    patch_where_bound(
+        monkeypatch,
+        gateway_peers,
+        "usable_peers",
         lambda root: (_ for _ in ()).throw(OSError("gone")),
     )
 
