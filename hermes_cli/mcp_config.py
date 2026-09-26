@@ -791,8 +791,21 @@ def cmd_mcp_test(args):
     cfg = _lookup_server(name, _get_mcp_servers(), "Available")
     if cfg is None:
         return 3
+    cfg = dict(cfg)
+    try:
+        runtime_env = _parse_env_assignments(getattr(args, "env", None) or [])
+    except ValueError as exc:
+        _error(str(exc))
+        return
+    if runtime_env:
+        if "url" in cfg and "command" not in cfg:
+            _error("--env is only supported for stdio MCP servers")
+            return
+        cfg["runtime_env"] = runtime_env
     print()
     print(color(f"  Testing '{name}'...", Colors.CYAN))
+    if runtime_env:
+        _info(f"Applied {len(runtime_env)} one-shot env override(s): {', '.join(sorted(runtime_env))}")
     if "url" in cfg:
         _info(f"Transport: HTTP → {cfg['url']}")
     else:
