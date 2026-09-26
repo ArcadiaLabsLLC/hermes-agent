@@ -70,7 +70,6 @@
  ],
  "undeclared": [
   "agent_runtime/board_sync.py",
-  "agent_runtime/mission_chat_steer.py",
   "agent_runtime/office_sync.py",
   "agent_runtime/persona_config_sync.py",
   "agent_runtime/profile_artifact_sync.py",

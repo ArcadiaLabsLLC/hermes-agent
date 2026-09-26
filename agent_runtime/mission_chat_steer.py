@@ -12,6 +12,8 @@ from typing import Any
 
 from .paths import unlink_quietly
 
+__layer__ = "lanes"
+
 CAPABILITY_ID = "mission.chat.steer"
 _POLL_SECONDS = 0.05
 _ACK_TIMEOUT_SECONDS = 4.0
