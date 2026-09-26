@@ -71,6 +71,9 @@ def execute(service: DiscussionService, operation: str, raw: Any, *, actor_id: s
     if action == "start":
         return {"run": service.begin(workspace, params["table_id"], expect_revision=params["expect_revision"],
             key=params["idempotency_key"], topic=params["topic"], actor_id=actor_id)}
+    if action == "start_room":
+        return {"run": service.begin_room(workspace, params["spec"],
+            key=params["idempotency_key"], topic=params["topic"], actor_id=actor_id)}
     return service.command(workspace, params["run_id"], action, key=params["idempotency_key"],
         expect_revision=params["expect_revision"], body=command_body(action, params), actor_id=actor_id)
 

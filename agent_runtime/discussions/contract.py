@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any, Mapping
 from .definitions import CAPACITIES, TableStyle, DefinitionError, ParticipantRef, identifier, revision
 from .run_store import text
+from .room_definition import RoomSpec, ROOM_MEMBER_LIMIT
 
 __layer__ = "stores"
 
@@ -29,6 +30,7 @@ METHODS: dict[str, tuple[str, tuple[str, ...], tuple[str, ...]]] = {
     "run.active": ("read", ("workspace_id",), ()),
     "run.get": ("read", ("workspace_id", "run_id"), ("since_seq", "limit")),
     "run.start": ("console", ("workspace_id", "table_id", "expect_revision", "idempotency_key", "topic"), ()),
+    "run.start_room": ("console", ("workspace_id", "spec", "idempotency_key", "topic"), ()),
 }
 _COMMAND_FIELDS = {
     "send": ("message",), "stop": (), "end": (), "invite": ("participant",),
@@ -62,6 +64,8 @@ def validate_params(method: str, value: Any) -> dict[str, Any]:
             result[key] = text(result[key], field=key, max_bytes=8000 if key == "answer" else 12000)
     if "participant" in result:
         result["participant"] = ParticipantRef.parse(result["participant"]).to_dict()
+    if method == "run.start_room":
+        result["spec"] = RoomSpec.parse(result["spec"])
     return result
 
 
@@ -74,11 +78,13 @@ def contract_descriptor() -> dict[str, Any]:
         "contract_version": CONTRACT_VERSION,
         "capacities": list(CAPACITIES), "auto_capacity": "auto", "styles": [s.value for s in TableStyle],
         "participant_fields": ["install_id", "instance_id"],
+        "room_member_limit": ROOM_MEMBER_LIMIT,
         "run_phases": ["initializing", "open", "stopping", "paused", "ending", "ended", "failed"],
         "member_states": ["joining", "active", "removing", "removed"],
         "methods": {PREFIX + name: {"tier": tier, "required": list(required), "optional": list(optional)}
                     for name, (tier, required, optional) in sorted(METHODS.items())},
         "features": {"local_instances": True, "same_profile_instances": True, "presets": True,
+                     "non_spatial_discussions": True,
                      "exact_stop": True, "human_input": True, "instance_presence": True,
                      "history": True, "remote_members": False, "realm_replication": False,
                      "agent_invitations": False, "automatic_failover": False},

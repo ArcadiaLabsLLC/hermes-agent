@@ -18,16 +18,17 @@ from typing import Any
 from gateway.hosted_rooms_common import connect
 from hermes_cli.sqlite_util import transaction
 
-from .definition_store import DefinitionStore, _encode, _expect, _required, _key, DefinitionKind
-from .definitions import DefinitionError, ParticipantRef, identifier, revision, plan_seats
+from .definition_store import DefinitionStore, _encode
+from .definitions import DefinitionError, ParticipantRef, identifier, revision
 from .run_values import DiscussionError, text, digest, member_id, native_session_id
 from .run_schema import _ready, _initialize
 from .run_records import _run, _advance, _expect_run, _add_member
+from .run_admission import admit, table_admission, room_admission, MAX_OPEN_RUNS
+from .room_definition import RoomSpec, execution_spec
 
 __layer__ = "stores"
 
 MAX_CATALOG_MEMBERS = 128
-MAX_OPEN_RUNS = 128
 MAX_PENDING_COMMANDS = 64
 COMMANDS = frozenset({"send", "stop", "end", "invite", "remove", "answer", "retry", "abandon"})
 LIVE_PHASES = ("initializing", "open", "stopping", "paused", "ending")
@@ -66,39 +67,15 @@ class RunStore:
 
     def begin(self, workspace_id: str, table_id: str, *, expect_revision: int, key: str, topic: str,
               actor_id: str, resolve: Callable[[ParticipantRef, str], Mapping[str, Any]]) -> dict[str, Any]:
-        identifier(key, "idempotency_key")
-        expected, topic = revision(expect_revision, minimum=1), text(topic, field="topic")
-        table_key = _key(DefinitionKind.TABLE, workspace_id, table_id)
-        request_digest = digest({"table_id": table_id, "expect_revision": expected, "topic": topic})
-        with transaction(self.connect(), immediate=True) as conn:
-            previous = conn.execute("SELECT run_id,request_digest FROM mc_discussion_runs WHERE workspace_id=? AND start_key=?",
-                                    (workspace_id, key)).fetchone()
-            if previous is not None:
-                if previous["request_digest"] != request_digest:
-                    raise DiscussionError("idempotency_conflict")
-                return _run(conn, previous["run_id"])
-            table = _required(conn, table_key)
-            _expect(table, expected)
-            spec = table.spec
-            if len(spec.configuration.participants) < 2:
-                raise DiscussionError("at_least_two_agents_required")
-            if conn.execute("SELECT 1 FROM mc_discussion_table_claims WHERE workspace_id=? AND table_id=?",
-                            (workspace_id, table_id)).fetchone():
-                raise DiscussionError("table_busy")
-            if conn.execute("SELECT COUNT(*) FROM mc_discussion_table_claims").fetchone()[0] >= MAX_OPEN_RUNS:
-                raise DiscussionError("too_many_open_discussions")
-            catalog = [dict(resolve(ref, workspace_id)) for ref in spec.configuration.participants]
-            run_id = "discussion-" + digest({"workspace_id": workspace_id, "key": key})[:24]
-            now = time.time()
-            initial = {"table": table.to_dict(), "seat_plan": {"capacity": spec.seat_count,
-                       "assignments": [p.to_dict() for p in plan_seats(spec).assignments]}}
-            conn.execute("INSERT INTO mc_discussion_runs VALUES(?,?,?,?,?,1,'initializing',?,?,?,?,?,NULL)",
-                         (run_id, workspace_id, table_id, key, request_digest, _encode(initial), topic, actor_id, now, now))
-            conn.execute("INSERT INTO mc_discussion_table_claims VALUES(?,?,?)", (workspace_id, table_id, run_id))
-            seats = {pref.participant: pref.seat for pref in plan_seats(spec).assignments}
-            for index, (ref, item) in enumerate(zip(spec.configuration.participants, catalog, strict=True)):
-                _add_member(conn, run_id, item, ordinal=index, seat=seats[ref])
-            return _run(conn, run_id)
+        expected = revision(expect_revision, minimum=1)
+        return admit(self.connect, workspace_id, key=key, topic=topic, actor_id=actor_id,
+            identity={"table_id": table_id, "expect_revision": expected},
+            load=lambda conn: table_admission(conn, workspace_id, table_id, expected), resolve=resolve)
+
+    def begin_room(self, workspace_id: str, spec: RoomSpec, *, key: str, topic: str,
+                   actor_id: str, resolve: Callable[[ParticipantRef, str], Mapping[str, Any]]) -> dict[str, Any]:
+        return admit(self.connect, workspace_id, key=key, topic=topic, actor_id=actor_id,
+            identity={"discussion": spec.to_dict()}, load=lambda _conn: room_admission(spec), resolve=resolve)
 
     def activate(self, run_id: str) -> None:
         with transaction(self.connect(), immediate=True) as conn:
@@ -178,7 +155,7 @@ class RunStore:
                 except sqlite3.IntegrityError as exc:
                     raise DiscussionError("instance_busy", instance_id=ref.instance_id) from exc
                 used = {row[0] for row in conn.execute("SELECT seat FROM mc_discussion_members WHERE run_id=? AND status!='removed'", (run_id,))}
-                free = next((i for i in range(run["initial"]["seat_plan"]["capacity"]) if i not in used), None)
+                free = next((i for i in range(execution_spec(run).capacity) if i not in used), None)
                 if free is None:
                     raise DiscussionError("capacity_exceeded")
                 conn.execute("UPDATE mc_discussion_members SET status='joining',seat=? WHERE run_id=? AND member_id=?", (free, run_id, member_id(ref)))
@@ -187,7 +164,7 @@ class RunStore:
                 if len(rows) >= MAX_CATALOG_MEMBERS:
                     raise DiscussionError("member_history_limit")
                 used = {row["seat"] for row in rows if row["status"] != "removed"}
-                free = next((i for i in range(run["initial"]["seat_plan"]["capacity"]) if i not in used), None)
+                free = next((i for i in range(execution_spec(run).capacity) if i not in used), None)
                 if free is None:
                     raise DiscussionError("capacity_exceeded")
                 _add_member(conn, run_id, item, ordinal=len(rows), seat=free)

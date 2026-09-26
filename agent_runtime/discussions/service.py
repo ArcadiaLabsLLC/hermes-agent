@@ -25,6 +25,7 @@ from .definition_store import DefinitionStore
 from .definitions import ParticipantRef, identifier, revision, plan_seats
 from .native import NativeContext, NativeSessionRPC, NativeTurns
 from .run_store import DiscussionError, RunStore, digest
+from .room_definition import RoomSpec, execution_spec
 
 __layer__ = "lanes"
 
@@ -93,6 +94,17 @@ class DiscussionService:
             self.runtime.wakeup()
             return self.runs.get(run["run_id"])
 
+    def begin_room(self, workspace_id: str, spec: RoomSpec, *, key: str,
+                   topic: str, actor_id: str) -> dict[str, Any]:
+        self.context.workspace(workspace_id)
+        with self._lock:
+            if not self.accepting:
+                raise DiscussionError("runtime_stopping")
+            run = self.runs.begin_room(workspace_id, spec, key=key, topic=topic,
+                actor_id=actor_id, resolve=self.context.resolve)
+            self.runtime.wakeup()
+            return self.runs.get(run["run_id"])
+
     def _room(self, run: Mapping[str, Any], *, include_ended: bool = False) -> dict[str, Any]:
         room = rooms.room_state(self.db_path, room_id=run["run_id"], include_disbanded=include_ended)
         if room["authority_gateway_id"] != self.context.install_id or room["authority_epoch"] != 1:
@@ -106,8 +118,8 @@ class DiscussionService:
         return [{k: m[k] for k in ("member_id", "profile", "handle", "display_name")} for m in members]
 
     def _limits(self, run: Mapping[str, Any]) -> policy.DiscussionLimits:
-        config = run["initial"]["table"]["spec"]["configuration"]
-        settings = config["settings"]
+        spec = execution_spec(run)
+        settings = spec.settings
         guidance = ""
         moderator = settings["moderator"]
         if moderator is not None:
@@ -117,7 +129,7 @@ class DiscussionService:
             if member is not None:
                 guidance = f"- @{member['handle']} coordinates this discussion and should synthesize conclusions; this grants no extra tool permissions."
         return policy.DiscussionLimits(max_members=128, max_rounds=settings["rounds"],
-            max_messages=run["initial"]["seat_plan"]["capacity"] * settings["rounds"],
+            max_messages=spec.capacity * settings["rounds"],
             shared_profiles=True, prompt_bytes=12000, guidance=guidance)
 
     def _policy_args(self, run: Mapping[str, Any]) -> dict[str, Any]:
@@ -131,7 +143,7 @@ class DiscussionService:
                 raise DiscussionError("profile_binding_changed")
             self.context.ensure_session(run, member)
         rooms.create_room(self.db_path, room_id=run["run_id"],
-            name=run["initial"]["table"]["spec"]["name"][:200], members=self._roster(members),
+            name=execution_spec(run).name[:200], members=self._roster(members),
             authority_gateway_id=self.context.install_id)
         # NOT pinned here. A retention pin only matters once the room is disbanded
         # -- a live room is not a prune candidate at all -- and a pin taken at
@@ -371,7 +383,7 @@ class DiscussionService:
                     self._append_user(run, key, body["message"], actor_id=body["actor_id"])
                     self.runs.finish_command(rid, key, phase="open")
                 elif op == "invite":
-                    if not run["initial"]["table"]["spec"]["configuration"]["settings"]["allow_invitations"]:
+                    if not execution_spec(run).settings["allow_invitations"]:
                         raise DiscussionError("invitations_disabled")
                     live = self.context.resolve(ParticipantRef.parse(body["participant"]), run["workspace_id"])
                     member = self.runs.join(rid, live)
