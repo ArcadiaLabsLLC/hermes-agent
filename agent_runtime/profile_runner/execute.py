@@ -16,7 +16,7 @@ from typing import Any, Callable
 from hermes_cli.runtime_provider import resolve_runtime_provider
 
 from agent_runtime import turn_budget
-from agent_runtime.personas import REGISTRY_HYGIENE_BLOCKED_TOOLS
+from agent_runtime.personas import _blocked_tool_names_with_registry_hygiene
 from agent_runtime.profile_context import PersonaProfileBinding, persona_profile_context
 from agent_runtime.run_budget import (
     UNIT_CALLS,
@@ -72,7 +72,6 @@ __all__ = [
     "_RUNTIME_RESOLVE_CACHE_LOCK",
     "_RUNTIME_RESOLVE_STAMPED_FILES",
     "_blocked_tool_names_for_run",
-    "_blocked_tool_names_with_registry_hygiene",
     "_cleanup_agent_ready",
     "_emit_agent_ready_callback_warning",
     "_enabled_toolsets_for_run",
@@ -85,26 +84,6 @@ __all__ = [
 
 
 # ── which tools and toolsets a run may use ──────────────────────────────────
-
-def _blocked_tool_names_with_registry_hygiene(requested: list[str] | None) -> list[str]:
-    """Union the fork registry-hygiene block into a request's ``blocked_tool_names``.
-
-    This is the single fork-owned chokepoint that makes the deregistered upstream
-    toolsets (``kanban`` + ``feishu_doc`` / ``feishu_drive``) unresolvable on EVERY
-    agent-runtime lane — the persona chat/run lanes already carry them via
-    ``PERSONA_BLOCKED_TOOLS``, but the worker / root-node lanes construct their
-    request with ``blocked_tool_names=[]`` and would otherwise resolve them. Applied
-    here (agent construction) so no call site can opt out. Order-preserving; the
-    downstream tool-def cache keys on the set, so duplicates/order are harmless."""
-
-    names = list(requested or [])
-    seen = set(names)
-    for name in sorted(REGISTRY_HYGIENE_BLOCKED_TOOLS):
-        if name not in seen:
-            names.append(name)
-            seen.add(name)
-    return names
-
 
 def _blocked_tool_names_for_run(request: "AgentRunRequest") -> list[str]:
     """Registry hygiene plus this run's admission-scoped MCP tool block."""

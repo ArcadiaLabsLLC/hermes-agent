@@ -409,7 +409,7 @@ def _actual_chat_lane(persona, session_id=None):
         _blocked_tool_names_for_chat,
         _enabled_toolsets_for_chat,
     )
-    from agent_runtime.profile_runner import _blocked_tool_names_with_registry_hygiene
+    from agent_runtime.personas import _blocked_tool_names_with_registry_hygiene
     from agent_runtime.tool_visibility import _tool_names_for_toolsets
 
     enabled = _enabled_toolsets_for_chat(persona, session_id=session_id)

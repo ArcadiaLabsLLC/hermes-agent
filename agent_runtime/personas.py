@@ -171,6 +171,26 @@ def blocked_tool_names() -> frozenset[str]:
     return PERSONA_BLOCKED_TOOLS
 
 
+def _blocked_tool_names_with_registry_hygiene(requested: list[str] | None) -> list[str]:
+    """Union the fork registry-hygiene block into a request's ``blocked_tool_names``.
+
+    This is the single fork-owned chokepoint that makes the deregistered upstream
+    toolsets (``kanban`` + ``feishu_doc`` / ``feishu_drive``) unresolvable on EVERY
+    agent-runtime lane — the persona chat/run lanes already carry them via
+    ``PERSONA_BLOCKED_TOOLS``, but the worker / root-node lanes construct their
+    request with ``blocked_tool_names=[]`` and would otherwise resolve them. Applied
+    here (agent construction) so no call site can opt out. Order-preserving; the
+    downstream tool-def cache keys on the set, so duplicates/order are harmless."""
+
+    names = list(requested or [])
+    seen = set(names)
+    for name in sorted(REGISTRY_HYGIENE_BLOCKED_TOOLS):
+        if name not in seen:
+            names.append(name)
+            seen.add(name)
+    return names
+
+
 # ── the harness lane's ONE capability declaration (S0a A1, 2026-09-03) ───────
 #
 # Read ``docs/agent-runtime-harness/archive/s0a-atlas-cleanup.md`` §0.2 before

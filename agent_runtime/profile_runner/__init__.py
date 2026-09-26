@@ -77,7 +77,6 @@ from agent_runtime.profile_runner.runner import (
 )
 from agent_runtime.profile_runner.execute import (
     RUNTIME_RESOLVE_CACHE_TTL_SECONDS,
-    _blocked_tool_names_with_registry_hygiene,
     _resolve_request_runtime,
     _run_conversation_with_usage_ledger,
     _runtime_resolve_cache_key,
@@ -129,7 +128,6 @@ __all__ = [
     "_agent_workdir",
     "_apply_chat_compaction_threshold",
     "_binding_for_profile",
-    "_blocked_tool_names_with_registry_hygiene",
     "_capture_provider_errors",
     "_counted_agent_run",
     "_default_agent_factory",

@@ -9,12 +9,12 @@ agent-construction chokepoint are the deregistration mechanism.
 
 from __future__ import annotations
 
-from agent_runtime.personas import PERSONA_BLOCKED_TOOLS, REGISTRY_HYGIENE_BLOCKED_TOOLS
-from agent_runtime.profile_runner import (
-    AgentRunRequest,
-    ProfileAgentRunner,
+from agent_runtime.personas import (
+    PERSONA_BLOCKED_TOOLS,
+    REGISTRY_HYGIENE_BLOCKED_TOOLS,
     _blocked_tool_names_with_registry_hygiene,
 )
+from agent_runtime.profile_runner import AgentRunRequest, ProfileAgentRunner
 from toolsets import resolve_toolset
 
 

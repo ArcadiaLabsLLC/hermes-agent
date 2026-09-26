@@ -31,7 +31,7 @@ from .models import AgentPersona
 from .mission_chat_clarify import MissionChatClarifyCapture
 from .mission_chat_workdir import mission_chat_workdir_for_persona
 from .persona_profiles import effective_toolsets
-from .personas import blocked_tool_names
+from .personas import _blocked_tool_names_with_registry_hygiene, blocked_tool_names
 from .profile_context import resolve_persona_profile
 from .provider_health import assert_provider_health_for_persona
 from .terminal_envelope import scope_for_persona as terminal_envelope_scope_for_persona
@@ -39,7 +39,6 @@ from .profile_runner import (
     AgentRunRequest,
     AgentRunResult,
     ProfileAgentRunner,
-    _blocked_tool_names_with_registry_hygiene,
 )
 from .progress import ChatProgressSink
 from .tool_permissions import (
