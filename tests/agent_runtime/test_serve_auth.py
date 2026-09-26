@@ -13,8 +13,8 @@ import json
 import pytest
 
 from agent_runtime import serve_auth
+from agent_runtime.paths import SERVE_AUTH_TOKEN_FILENAME
 from agent_runtime.serve_auth import (
-    SERVE_AUTH_TOKEN_FILENAME,
     ensure_token,
     read_token,
     serve_auth_token_path,

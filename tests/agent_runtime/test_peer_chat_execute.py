@@ -33,11 +33,11 @@ from agent_runtime.call_authorization import (
 )
 from agent_runtime.chat_turn import (
     PEER_CHAT_EXECUTE_METHOD,
-    PEER_REQUESTED_BY_PREFIX,
     ChatTurnInvalid,
     normalize_peer_chat_execute,
     perform_chat_turn,
 )
+from agent_runtime.serve_rpc.protocol import PEER_REQUESTED_BY_PREFIX
 
 PEER_A = RpcCaller(
     kind=CALLER_PEER, transport="gateway", peer_install_id="install-a", connection_key="k1"
