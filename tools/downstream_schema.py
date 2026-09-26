@@ -3,10 +3,9 @@
 The registry keeps upstream's schema text (``tool_describe`` serves it). The brief
 reaches the wire through :func:`brief_request_tools`, which the eternia-harness
 plugin registers as ``llm_request`` middleware: it replaces ``description`` by tool
-name in the final provider kwargs and never touches parameters. One built-in
-(``terminal``) still opts in at registration through :func:`brief_schema`; the
-middleware is idempotent over it. A brief exists only while it is shorter than
-upstream's text: ``vision_analyze`` left 2026-09-24 (lane REDS3) once upstream's
+name in the final provider kwargs and never touches parameters. No built-in is
+briefed at registration (``terminal``, the last, left 2026-09-26, lane PF-1). A
+brief exists only while it is shorter than upstream's text: ``vision_analyze`` left 2026-09-24 (lane REDS3) once upstream's
 own diet (#97339) undercut it.
 """
 
@@ -63,24 +62,6 @@ BRIEF_DESCRIPTIONS = {
                  "Cannot read images/binary -- use vision_analyze for images; prefer this over "
                  "shell cat/head/tail.",
 }
-
-_registered_full = {}
-
-
-def brief_schema(name: str, schema: dict) -> dict:
-    """Keep upstream text for tool_describe and send the fork brief on the wire."""
-    brief = BRIEF_DESCRIPTIONS.get(name)
-    if brief is None:
-        return schema
-    full = schema.get("description")
-    if isinstance(full, str) and full:
-        _registered_full[name] = full
-    return {**schema, "description": brief}
-
-
-def registered_full_description(name: str) -> str | None:
-    return _registered_full.get(name)
-
 
 def _briefed(entry: Any) -> Optional[Dict[str, Any]]:
     """``entry`` with its brief description, or None when it needs no rewrite.
