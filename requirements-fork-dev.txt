@@ -2,9 +2,5 @@
 # Installed into the test venv by scripts/ensure_fork_dev_deps.py, which
 # scripts/run_tests.sh runs. coverage: scripts/unreachable_branch_report.py.
 # pytest-timeout: the per-test cap set in tests/_downstream/conftest_plugin.py.
-# agent-client-protocol: pyproject's [acp] extra, which the shared test venv is
-# built without; tests/tooling/test_fork_import_layers.py imports
-# agent_runtime.acp_skills and reds on the hole (lane W3-A, 2026-09-25).
 coverage==7.16.0
 pytest-timeout==2.4.0
-agent-client-protocol==0.9.0
