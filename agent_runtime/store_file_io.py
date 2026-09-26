@@ -72,6 +72,8 @@ from typing import Any
 # is that public name for this package.
 from .locks import HarnessLockUnavailable, _file_lock
 
+__layer__ = "stores"
+
 
 def read_raw_text(path: Path) -> str | None:
     """The file's text, ``None`` when it is absent or holds only whitespace."""
