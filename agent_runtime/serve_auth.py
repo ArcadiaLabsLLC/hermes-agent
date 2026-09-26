@@ -65,6 +65,8 @@ from .paths import SERVE_AUTH_TOKEN_FILENAME
 from .store_file_io import os_error_reason as _error_token
 from .store_file_io import read_raw_text as _read_raw
 
+__layer__ = "stores"
+
 __all__ = [
     "TOKEN_BYTES",
     "ServeAuthStatus",
