@@ -26,6 +26,8 @@ from .definitions import ParticipantRef, identifier, revision, plan_seats
 from .native import NativeContext, NativeSessionRPC, NativeTurns
 from .run_store import DiscussionError, RunStore, digest
 
+__layer__ = "lanes"
+
 logger = logging.getLogger(__name__)
 _LIVE_TASKS = frozenset({"queued", "running", "stopping", "indeterminate"})
 _TERMINAL = frozenset({"settled", "failed", "cancelled", "deferred"})
