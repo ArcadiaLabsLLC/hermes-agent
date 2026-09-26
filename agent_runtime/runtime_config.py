@@ -2,8 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from agent_runtime.dispatch_session_policy import DEFAULT_DISPATCH_SESSION_POLICY
 from agent_runtime.permission_modes import SHIPPED_DEFAULT_PERMISSION_MODE
+
+
+#: ``agent_runtime.mission_chat.dispatch_session_policy`` vocabulary.
+NEW_PER_DISPATCH = "new_per_dispatch"
+STICKY = "sticky"
+DISPATCH_SESSION_POLICIES = (NEW_PER_DISPATCH, STICKY)
+DEFAULT_DISPATCH_SESSION_POLICY = NEW_PER_DISPATCH
 
 
 # S56 (2026-08-01) removed FIVE whole config blocks and pruned a sixth. Every

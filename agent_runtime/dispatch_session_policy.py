@@ -66,11 +66,12 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-#: ``agent_runtime.mission_chat.dispatch_session_policy`` vocabulary.
-NEW_PER_DISPATCH = "new_per_dispatch"
-STICKY = "sticky"
-DISPATCH_SESSION_POLICIES = (NEW_PER_DISPATCH, STICKY)
-DEFAULT_DISPATCH_SESSION_POLICY = NEW_PER_DISPATCH
+from agent_runtime.runtime_config import (
+    DEFAULT_DISPATCH_SESSION_POLICY,
+    DISPATCH_SESSION_POLICIES,
+    NEW_PER_DISPATCH,
+    STICKY,
+)
 
 #: Typed reasons carried in the ``session_established`` envelope block. A caller
 #: (human reading Mission Control, or an agent reading its own tool result) can
