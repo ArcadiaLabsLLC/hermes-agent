@@ -14,10 +14,6 @@
    "site": "agent_runtime/discussions/definition_store.py|_assert_table_editable|vocab|table"
   },
   {
-   "arms": 6,
-   "site": "agent_runtime/discussions/rpc.py|execute|ladder|action"
-  },
-  {
    "arms": 3,
    "site": "agent_runtime/discussions/run_store.py|RunStore.request|ladder|operation"
   },

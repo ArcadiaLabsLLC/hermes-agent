@@ -21,8 +21,8 @@ from hermes_cli.sqlite_util import transaction
 from .definition_store import DefinitionStore, _encode
 from .definitions import DefinitionError, ParticipantRef, identifier, revision
 from .run_values import DiscussionError, text, digest, member_id, native_session_id
-from .run_schema import _ready, _initialize
-from .run_records import _run, _advance, _expect_run, _add_member
+from .run_schema import run_schema_ready, initialize_runs
+from .run_records import read_run_record, _advance, _expect_run, _add_member
 from .run_admission import admit, table_admission, room_admission, MAX_OPEN_RUNS
 from .room_definition import RoomSpec, execution_spec
 
@@ -42,12 +42,12 @@ class RunStore:
         # The definition schema and run schema use separate version authorities.
         with closing(self.definitions._connect()):
             pass
-        return connect(self.db_path, db_label="native-discussions", ready=_ready, initialize=_initialize, lock_retries=4)
+        return connect(self.db_path, db_label="native-discussions", ready=run_schema_ready, initialize=initialize_runs, lock_retries=4)
 
     def get(self, run_id: str, workspace_id: str | None = None) -> dict[str, Any]:
         identifier(run_id, "run_id")
         with closing(self.connect()) as conn:
-            return _run(conn, run_id, workspace_id)
+            return read_run_record(conn, run_id, workspace_id)
 
     def list(self, workspace_id: str, *, limit: int = 50, after: str = "") -> list[dict[str, Any]]:
         identifier(workspace_id, "workspace_id")
@@ -58,12 +58,12 @@ class RunStore:
         with closing(self.connect()) as conn:
             ids = conn.execute("SELECT run_id FROM mc_discussion_runs WHERE workspace_id=? AND run_id>? ORDER BY run_id LIMIT ?",
                                (workspace_id, after, limit)).fetchall()
-            return [_run(conn, row[0]) for row in ids]
+            return [read_run_record(conn, row[0]) for row in ids]
 
     def owned(self) -> list[dict[str, Any]]:
         with closing(self.connect()) as conn:
             ids = conn.execute("SELECT run_id FROM mc_discussion_runs WHERE phase NOT IN ('ended','failed') ORDER BY created_at").fetchall()
-            return [_run(conn, row[0]) for row in ids]
+            return [read_run_record(conn, row[0]) for row in ids]
 
     def begin(self, workspace_id: str, table_id: str, *, expect_revision: int, key: str, topic: str,
               actor_id: str, resolve: Callable[[ParticipantRef, str], Mapping[str, Any]]) -> dict[str, Any]:
@@ -79,7 +79,7 @@ class RunStore:
 
     def activate(self, run_id: str) -> None:
         with transaction(self.connect(), immediate=True) as conn:
-            run = _run(conn, run_id)
+            run = read_run_record(conn, run_id)
             if run["phase"] == "initializing":
                 conn.execute("UPDATE mc_discussion_members SET status='active' WHERE run_id=? AND status='joining'", (run_id,))
                 _advance(conn, run, phase="open")
@@ -96,7 +96,7 @@ class RunStore:
             raise DiscussionError("unknown_command")
         command_digest = digest({"operation": operation, "body": body})
         with transaction(self.connect(), immediate=True) as conn:
-            run = _run(conn, run_id, workspace_id)
+            run = read_run_record(conn, run_id, workspace_id)
             old = conn.execute("SELECT digest FROM mc_discussion_commands WHERE run_id=? AND command_key=?", (run_id, key)).fetchone()
             if old is not None:
                 if old[0] != command_digest:
@@ -132,7 +132,7 @@ class RunStore:
 
     def finish_command(self, run_id: str, key: str, *, phase: str | None = None, error: str | None = None) -> None:
         with transaction(self.connect(), immediate=True) as conn:
-            run = _run(conn, run_id)
+            run = read_run_record(conn, run_id)
             changed = conn.execute("UPDATE mc_discussion_commands SET state=? WHERE run_id=? AND command_key=? AND state='pending'",
                                    ("failed:" + error if error else "done", run_id, key)).rowcount
             if changed:
@@ -141,7 +141,7 @@ class RunStore:
 
     def join(self, run_id: str, item: Mapping[str, Any]) -> dict[str, Any]:
         with transaction(self.connect(), immediate=True) as conn:
-            run = _run(conn, run_id)
+            run = read_run_record(conn, run_id)
             ref = ParticipantRef.parse({k: item[k] for k in ("install_id", "instance_id")})
             existing = conn.execute("SELECT * FROM mc_discussion_members WHERE run_id=? AND member_id=?", (run_id, member_id(ref))).fetchone()
             if existing is not None:
@@ -183,11 +183,11 @@ class RunStore:
             if status == "removed":
                 conn.execute("DELETE FROM mc_discussion_instance_claims WHERE run_id=? AND install_id=? AND instance_id=?",
                              (run_id, row["install_id"], row["instance_id"]))
-            _advance(conn, _run(conn, run_id))
+            _advance(conn, read_run_record(conn, run_id))
 
     def report_error(self, run_id: str, reason: str) -> None:
         with transaction(self.connect(), immediate=True) as conn:
-            run = _run(conn, run_id)
+            run = read_run_record(conn, run_id)
             if run.get("error") != reason:
                 conn.execute("UPDATE mc_discussion_runs SET error=? WHERE run_id=?", (reason, run_id))
                 _advance(conn, run)
@@ -200,7 +200,7 @@ class RunStore:
     def end(self, run_id: str) -> None:
         """Only the service calls this AFTER proving no attempt remains alive."""
         with transaction(self.connect(), immediate=True) as conn:
-            run = _run(conn, run_id)
+            run = read_run_record(conn, run_id)
             if run["phase"] == "ended":
                 return
             if run["phase"] != "ending":

@@ -6,7 +6,7 @@ import pytest
 from agent_runtime.discussions.definitions import DefinitionError
 from agent_runtime.discussions.room_definition import RoomSpec
 from agent_runtime.discussions.run_store import DiscussionError
-from agent_runtime.discussions.run_schema import _initialize
+from agent_runtime.discussions.run_schema import initialize_runs
 from tests.agent_runtime.test_discussion_definitions import table_value
 from tests.agent_runtime.test_discussion_runtime import engine, wait_until, settled, command
 
@@ -72,7 +72,7 @@ def test_schema_one_upgrade_preserves_every_run_and_claim(tmp_path):
         db.execute("INSERT INTO mc_discussion_runs VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", row)
         db.commit()
         with db:
-            _initialize(db)
+            initialize_runs(db)
         assert db.execute("SELECT * FROM mc_discussion_runs").fetchone() == row
         assert db.execute("SELECT * FROM mc_discussion_instance_claims").fetchone() == ('install', 'personainst_a', 'old')
         assert db.execute("SELECT version FROM mc_discussion_runs_schema").fetchone()[0] == 2

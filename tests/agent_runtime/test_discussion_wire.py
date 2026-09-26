@@ -6,8 +6,10 @@ import pytest
 
 from agent_runtime.discussions.definitions import DefinitionError
 from agent_runtime.discussions.rpc import execute
+from agent_runtime.discussions.run_store import DiscussionError
 from tests.agent_runtime.discussion_wire_cases import wire_cases
 from tests.agent_runtime.test_discussion_runtime import engine, begin
+from tests.agent_runtime.test_discussion_definitions import table_value
 
 pytestmark = pytest.mark.timeout(90)
 
@@ -52,3 +54,26 @@ def test_custom_keeps_configuration_and_obeys_revision_and_live_fences(engine):
     assert result["revision"] == loaded.revision + 1
     with pytest.raises(DefinitionError, match="stale_revision"):
         service.definitions.custom_table("ws", "custom", expect_revision=loaded.revision)
+
+
+def test_definition_dispatch_preserves_reads_revisions_and_drain(engine):
+    service, _ = engine
+    def call(operation, **params):
+        return execute(service, operation, {"workspace_id": "ws", **params}, actor_id="operator")
+    table = table_value()
+    for family, spec in (("table", table), ("preset", {"name": "Recipe", "preferred_capacity": "auto",
+                                                       "configuration": table["configuration"]})):
+        identity = {family + "_id": "draft"}
+        saved = call(family + ".save", **identity, expect_revision=0, spec=spec)["record"]
+        assert call(family + ".get", **identity)["record"] == saved
+        assert call(family + ".list")["records"] == [saved]
+        with pytest.raises(DefinitionError, match="stale_revision"):
+            call(family + ".delete", **identity, expect_revision=2)
+        assert call(family + ".delete", **identity, expect_revision=1)["revision"] == 2
+        assert call(family + ".list")["records"] == []
+    service.close()
+    assert call("table.list")["records"] == []
+    with pytest.raises(DiscussionError, match="runtime stopping"):
+        call("table.save", table_id="other", expect_revision=0, spec=table)
+    with pytest.raises(DiscussionError, match="workspace not found"):
+        execute(service, "roster", {"workspace_id": "foreign"}, actor_id="operator")

@@ -12,7 +12,7 @@ from .run_values import DiscussionError, member_id, native_session_id
 __layer__ = "stores"
 
 
-def _run(conn: sqlite3.Connection, run_id: str, workspace_id: str | None = None) -> dict[str, Any]:
+def read_run_record(conn: sqlite3.Connection, run_id: str, workspace_id: str | None = None) -> dict[str, Any]:
     row = conn.execute("SELECT * FROM mc_discussion_runs WHERE run_id=?", (run_id,)).fetchone()
     if row is None or (workspace_id is not None and row["workspace_id"] != workspace_id):
         raise DiscussionError("run_not_found")
