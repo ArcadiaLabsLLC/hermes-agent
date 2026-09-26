@@ -22,6 +22,10 @@ Rows are one line and a pointer; claim with `**TAKEN <date> <who>**` before star
 Rows below were moved verbatim from the launcher queue on 2026-09-22 (their provenance headings are kept as sub-headings). Fork-hygiene findings the launcher queue carried (CI, the suite, the mutation gate, upstream reds) went to [[fork-hygiene-queue]] in the same commit.
 
 ## Fork-owned
+
+### Filed on arrival — 2026-09-26 (owner ruling: ACP is not used)
+
+- [ ] **Drop the fork's ACP surface: `acp_adapter/server.py`, `session.py`, `tools.py` return byte-identical to upstream (the 2026-09-24 named-provider identity carry and the held skills-widening bindings), `agent_runtime/acp_skills.py`, `tests/acp_adapter/test_named_provider_identity_downstream.py`, `test_skills_extension.py`, `docs/downstream/acp-named-provider-identity-2026-09-24.md` and the `session-skills` contract notes deleted with tombstones; the `acp` extra leaves `requirements-fork-dev.txt` and the `test_fork_import_layers` acp pin; the two ACP rows under Upstream-owned (Windows ACP qualification, `mcpCapabilities`) close REFUTED; the ledger's three `acp_adapter` rows and its skills-widening preamble go; `[up-fp]` lowers by 3 files** · `fork / delete` · RULED 2026-09-26 (owner): "we aren't using ACP, just remove that" · evidence: `git diff --stat upstream/main main -- acp_adapter` (3 files, +53/−9) · filed by the orchestrator 2026-09-26 **TAKEN 2026-09-26 lane ACP-DROP**
 ### Filed on arrival — 2026-09-26 (lane L5, filed by the orchestrator)
 
 - [ ] **`agent_runtime/chat_lane_bundle.py` is 884 raw lines after lane L5 moved the chat-lane scope family into it (sheet §2.1 `persona_runtime` row) — over the god-file readability cap of 500; split the scope family (`_enabled_toolsets_for_chat` … `apply_chat_lane_tool_scope`, `stores`) into a sibling `chat_lane_scope.py` and leave the memo/bundle in `chat_lane_bundle`** · `fork / refactor` · also stale: `docs/agent-runtime-harness/planned/god-file-layout-sheets/runtime_hud.md` still places `capability_block_for_persona` in `ambient.py` (it is `runtime_hud/capability_account.py` since L5) · evidence: lane L5 commit `bfd1f656ec` · filed by lane L5 2026-09-26 **UNCLAIMED**
@@ -193,7 +197,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-25 (orchestrator, the `[up-fp]` raise)
 
-- [ ] **The auth-transport edits in eight upstream files want a plugin-surface home: `98f8a8caf9` edits `hermes_cli/auth.py`, `auth_codex.py`, `auth_codex_browser.py`, `auth_minimax.py`, `auth_nous.py`, `auth_xai.py`, `provider_catalog.py`, `subcommands/auth.py`, and the fixture was raised 195 → 200 files to carry them** · `fork / seams` · move the canonical browser sign-in transport behind the plugin surface (or an additive hook) and lower `tests/fixtures/upstream_footprint.json` back in the same commit · evidence: the fixture's eight `reasons` rows dated 2026-09-25 · filed by the orchestrator 2026-09-25 · RULED 2026-09-26 (owner): bring it to the plugin, with the ACP named-provider identity carry (`acp_adapter/server.py`, `session.py`) as one sitting **TAKEN 2026-09-26 lane AUTH-DESIGN**
+- [ ] **The auth-transport edits in eight upstream files want a plugin-surface home: `98f8a8caf9` edits `hermes_cli/auth.py`, `auth_codex.py`, `auth_codex_browser.py`, `auth_minimax.py`, `auth_nous.py`, `auth_xai.py`, `provider_catalog.py`, `subcommands/auth.py`, and the fixture was raised 195 → 200 files to carry them** · `fork / seams` · move the canonical browser sign-in transport behind the plugin surface (or an additive hook) and lower `tests/fixtures/upstream_footprint.json` back in the same commit · evidence: the fixture's eight `reasons` rows dated 2026-09-25 · filed by the orchestrator 2026-09-25 · RULED 2026-09-26 (owner): bring it to the plugin (the ACP carry is DROPPED instead — row below) **TAKEN 2026-09-26 lane AUTH-DESIGN**
 
 ### Filed on arrival — 2026-09-25 (lane 2B-B)
 
