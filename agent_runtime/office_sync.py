@@ -31,6 +31,8 @@ from .office_store import ActorScan, OfficeStore
 from .serde import from_jsonable, read_json, to_jsonable
 from .sync_merge import PullAction, classify_three_way_pull
 
+__layer__ = "stores"
+
 #: The one word every office sync arm spends when it cannot READ the world it
 #: was asked to decide about. Minted in exactly ONE place
 #: (:meth:`OfficeSyncRefusal.for_scan`) so no arm can quietly reuse another
