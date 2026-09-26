@@ -21,6 +21,8 @@ from pathlib import Path
 from . import DISPLAY_NAME, PROVIDER_ID, is_local_llama_provider
 from .config import ConfigStore
 
+__layer__ = "stores"
+
 
 def provider_profile():
     from providers.base import ProviderProfile
