@@ -152,11 +152,16 @@ def _provider_visibility_catalog() -> list[dict]:
     from hermes_cli.provider_catalog import provider_login_catalog
     from hermes_cli.provider_browser_login import supports_browser_login, browser_login_methods
 
+    # The machine sign-in methods are the transport's to advertise, so they are
+    # decorated here, on the one producer the Launcher reads, not in the catalog.
     return [
-        {**row,
-            "browser_login": supports_browser_login(slug),
-            "browser_login_methods": browser_login_methods(slug),
-        } for row in provider_login_catalog()]
+        {
+            **row,
+            "browser_login": supports_browser_login(row["id"]),
+            "browser_login_methods": browser_login_methods(row["id"]),
+        }
+        for row in provider_login_catalog()
+    ]
 
 
 def build_provider_visibility() -> dict:
