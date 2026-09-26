@@ -31,6 +31,8 @@ from hermes_cli.profiles import (
     profile_exists,
 )
 
+__layer__ = "stores"
+
 logger = logging.getLogger(__name__)
 
 RUNTIME_ROOT_ENV = "HERMES_AGENT_RUNTIME_ROOT"
