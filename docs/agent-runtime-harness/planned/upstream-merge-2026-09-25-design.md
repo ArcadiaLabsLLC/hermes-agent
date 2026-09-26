@@ -345,7 +345,7 @@ only fixes the ORDER and names what is specific to this merge.
 
 ## 5. Open questions for the owner — each with the default the lane takes if unanswered
 
-**RULED 2026-09-25 (owner: "sounds good"): every default below is the ruling.** Q4's live `hermes update` on the merged tree is the gate on that adoption; Q7 is decided per PR from the merged tree on Windows.
+**RULED 2026-09-25 (owner: "sounds good"): every default below is the ruling.** **Q4 EXERCISED 2026-09-26** on a throwaway clone of the merged `main` (isolated `HERMES_HOME`/`HERMES_RUNTIME_DIR`, `uv sync` on managed Python 3.14): the update completes — dependencies, Node, TUI and web UI built, skills synced, "Already up to date"; the committed environment lands at `<HERMES_HOME>/installs/<install id>/environments/<hash>/venv`, NOT `.hermes/venvs/hermes-agent`, and a plain `pip install -e` on the 3.12 venv installs nothing (every core pin is gated `python_version >= '3.14'`). So the adoption stands, `resolve_managed_python` stays a recorded parallel only until the launcher moves to pm's environment (launcher row filed 2026-09-26), and the live re-sync is the live `hermes update` — owner-run, because the updater's gateway sweep is machine-wide (runtime-queue § Upstream-owned row). Q4's live `hermes update` on the merged tree is the gate on that adoption; Q7 is decided per PR from the merged tree on Windows.
 
 | # | question | recommended default |
 |---|---|---|
