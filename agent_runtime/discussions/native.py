@@ -26,6 +26,8 @@ from .definitions import ParticipantRef
 from .run_store import DiscussionError
 from agent_runtime.errors import NotFound
 
+__layer__ = "stores"
+
 log = logging.getLogger(__name__)
 
 
