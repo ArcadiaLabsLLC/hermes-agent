@@ -23,7 +23,7 @@ _SCOPE: ContextVar[AuxiliaryChat | None] = ContextVar("native_auxiliary_chat", d
 
 @contextmanager
 def auxiliary_chat(instance_id: str, session_id: str) -> Iterator[None]:
-    from .persona_assignments import chat_session_owner_instance_id
+    from .persona_assignments.identity import chat_session_owner_instance_id
 
     if not instance_id or chat_session_owner_instance_id(session_id) != instance_id:
         raise ValueError("auxiliary chat must name its exact native owner")
