@@ -151,8 +151,8 @@ map (``stores``): that is what keeps it at ``policy``, below
 
 from __future__ import annotations
 
-# Reused from mcp_lane, not re-spelled (the file's own comment); re-exported.
-from ..mcp_lane import MCP_NOT_REGISTERED_ON_LANE
+# Defined in .vocabulary (mcp_lane re-imports it from there); re-exported.
+from .vocabulary import MCP_NOT_REGISTERED_ON_LANE
 
 from . import outcomes, registration, resolve, transport, vocabulary
 from .outcomes import (

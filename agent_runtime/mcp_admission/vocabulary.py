@@ -1,5 +1,5 @@
-"""The admission vocabulary: the typed denial codes (plus ``mcp_lane``'s
-``MCP_NOT_REGISTERED_ON_LANE``, reused), the lane, the toolset prefix, the
+"""The admission vocabulary: the typed denial codes (including
+``MCP_NOT_REGISTERED_ON_LANE``, which ``mcp_lane`` re-imports), the lane, the toolset prefix, the
 transport words, the parked-wake bound, the read-only tool tables, the
 operating skills and the two defaults.
 
@@ -11,7 +11,8 @@ import logging
 from functools import cache
 from typing import Mapping
 
-from ..mcp_lane import MCP_NOT_REGISTERED_ON_LANE
+#: ``requirement_failures[].code`` for the drop this module accounts for.
+MCP_NOT_REGISTERED_ON_LANE = "mcp_not_registered_on_lane"
 
 __layer__ = "models"
 

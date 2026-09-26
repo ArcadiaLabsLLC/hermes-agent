@@ -34,12 +34,11 @@ import os
 import sys
 from typing import Any, Iterable, Sequence
 
+from .mcp_admission.vocabulary import MCP_NOT_REGISTERED_ON_LANE
 from .serde import unique_texts
 
 logger = logging.getLogger(__name__)
 
-#: ``requirement_failures[].code`` for the drop this module accounts for.
-MCP_NOT_REGISTERED_ON_LANE = "mcp_not_registered_on_lane"
 
 HARNESS_LANE = "harness"
 UNKNOWN_LANE = "unknown"

@@ -10,7 +10,7 @@ import threading
 import time
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
-from ..mcp_lane import MCP_NOT_REGISTERED_ON_LANE
+from .vocabulary import MCP_NOT_REGISTERED_ON_LANE
 from ..serde import positive_float
 
 from .outcomes import McpAdmission, McpAdmissionDenial, McpAdmissionOutcome, McpCallBudget, McpTeardownOutcome
