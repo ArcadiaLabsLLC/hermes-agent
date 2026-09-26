@@ -249,13 +249,14 @@ def _notify_agent_ready(request: AgentRunRequest, agent: Any) -> Callable[[], No
 
 
 def _run_conversation_with_usage_ledger(agent: Any, conversation_kwargs: dict[str, Any]) -> Any:
-    """Run the turn with a per-call usage ledger and the persona agent bound for plugin
-    middleware (dispatch timing, cache routing); a dict result carries the ledger as
-    ``usage_ledger``."""
+    """Run the turn with a per-call usage ledger, the persona agent bound for plugin
+    middleware (dispatch timing, cache routing) and the provider stream observers armed;
+    a dict result carries the ledger as ``usage_ledger``."""
+    from agent_runtime.codex_observability import stream_observers_armed
     from agent_runtime.persona_turn_binding import bind_persona_turn_agent
     from agent_runtime.usage_ledger import bind_usage_ledger
 
-    with bind_usage_ledger() as usage_ledger, bind_persona_turn_agent(agent):
+    with bind_usage_ledger() as usage_ledger, bind_persona_turn_agent(agent), stream_observers_armed():
         raw_result = agent.run_conversation(**conversation_kwargs)
     if isinstance(raw_result, dict):
         raw_result["usage_ledger"] = list(usage_ledger)
