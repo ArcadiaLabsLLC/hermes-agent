@@ -1128,11 +1128,3 @@ def _codex_device_code_login(*, on_verification=None) -> Dict[str, Any]:
             "refresh_token": tokens.get("refresh_token", "")},
         "base_url": _codex_base_url(), "last_refresh": _utc_now_z(), "auth_mode": "chatgpt",
         "source": "device-code"}
-
-
-def login_codex_account(on_verification, *, flow="device_code") -> None:
-    """Connect an account in the selected store without choosing an inference route."""
-    from hermes_cli.auth_codex_browser import _codex_browser_login
-    state = (_codex_browser_login(open_browser=False, on_verification=on_verification)
-             if flow == "browser" else _codex_device_code_login(on_verification=on_verification))
-    _save_codex_tokens(state["tokens"], last_refresh=state["last_refresh"], set_active=False)

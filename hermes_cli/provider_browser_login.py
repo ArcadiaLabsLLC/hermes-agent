@@ -93,3 +93,11 @@ def browser_login_command(provider: str, *, home: str, flow: str | None = None) 
 def persist_provider_login(provider_id: str, state: Dict[str, Any]) -> Path:
     """Save a fresh login to the selected store without changing inference selection."""
     return _persist_provider_state_to_store(provider_id, state, _auth_file_path(), set_active=False)
+
+
+def login_codex_account(on_verification, *, flow="device_code") -> None:
+    """Connect an account in the selected store without choosing an inference route."""
+    from hermes_cli.auth_codex_browser import _codex_browser_login
+    state = (_codex_browser_login(open_browser=False, on_verification=on_verification)
+             if flow == "browser" else _codex_device_code_login(on_verification=on_verification))
+    _save_codex_tokens(state["tokens"], last_refresh=state["last_refresh"], set_active=False)
