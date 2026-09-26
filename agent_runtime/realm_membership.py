@@ -28,7 +28,7 @@ from hermes_time import now
 from .errors import NotFound
 from .events import EventLog
 from .models import Event, Realm
-from .realm_sync import MembershipDecision, RealmMembershipProvider, RealmSyncError
+from .realm_sync.models import MembershipDecision, RealmMembershipProvider, RealmSyncError
 from .store import RealmStore, WorkspaceStore
 
 CREDENTIAL_ENV_VAR = "HERMES_REALM_SYNC_CREDENTIAL"
