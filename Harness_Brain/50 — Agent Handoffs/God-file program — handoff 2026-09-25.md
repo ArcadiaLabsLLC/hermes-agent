@@ -77,9 +77,9 @@ sheets are under `docs/agent-runtime-harness/planned/god-file-layout-sheets/`.
 ## What is left to do, in order
 
 1. ~~Land W3-D~~ · ~~gate set on `main`~~ · ~~program-end suite~~ — all done 2026-09-25; the program is CLOSED with its reds filed (above).
-2. The LAYERS exec lanes L1–L5 from the sheet (L1 before L2, L4 before L5, L3 independent), then the `runtime_commands` MOVE row.
+2. ~~The LAYERS exec lanes L1–L5~~ — LANDED 2026-09-26 (L4 48d6ca8573a, L1 6af9212f11, L2 08c599ed766, L5 d98f545c611, L3 af44ab60df): W0-G6 `undeclared` 66 → 0, the grandfathered list is empty; the two rows closed. Left: the `runtime_commands` MOVE row, and the `chat_lane_bundle` 884-line split row L5 filed.
 3. ~~The upstream merge lane~~ — LANDED 2026-09-25 at `175caaf5c7` (Q1–Q8 ruled at their defaults; cursor in `10 — Programs/Upstream Sync.md`). Left from it: Q4's `hermes update` exercise on this box, and the owner closing #121647 / #121220 as superseded.
-4. The queue rows that are lane work: the 24-red suite triage row, the kanban gate row, the coverage-claims and F821 rows, the auth-transport plugin-surface row, and the earlier `fork-hygiene-queue.md` / `runtime-queue.md` / `dead-code-burn-down-queue.md` rows unchanged from the morning list.
+4. The queue rows that are lane work: ~~the 24-red suite triage row~~ (DONE 2026-09-26, lane TRIAGE: 24 → 9, every red rowed), the kanban gate row, the coverage-claims and F821 rows, the auth-transport plugin-surface row, and the earlier `fork-hygiene-queue.md` / `runtime-queue.md` / `dead-code-burn-down-queue.md` rows unchanged from the morning list.
 5. One launcher wave: the `llamacpp` switch, the level scope-denied state, the Update/Repair venv check (all in the launcher's `mission-control-queue.md`).
 6. Owner-owed manual steps unchanged: paste the scheduled sync-job prompt into Codex cloud; delete `origin/automation/upstream-sync`; live venv re-sync.
 
