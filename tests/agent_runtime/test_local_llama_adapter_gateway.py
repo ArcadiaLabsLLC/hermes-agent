@@ -3,7 +3,7 @@ import time
 import uuid
 
 from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
-from agent_runtime.local_llama_adapter import rpc as service
+from agent_runtime.local_llama_adapter import binding as service
 from tests.agent_runtime.test_serve_gateway_lane import (
     gateway_on, device_client, pair_device, running_serve, _rpc,
 )

@@ -40,7 +40,7 @@ def catalog_visibility():
 
 
 def resolve(model_id, *, root=None):
-    from .rpc import get_manager
+    from .binding import get_manager
     return get_manager(root=root, create=False).runtime(model_id)
 
 
@@ -76,7 +76,7 @@ def turn_scope(request):
     if not is_local_llama_provider(request.provider):
         yield
         return
-    from .rpc import get_manager
+    from .binding import get_manager
     manager = get_manager(root=request.runtime_root, create=False)
     with manager.lease(request.model, request.turn_id or request.session_id or "local-turn",
                        request.persona_instance_id or "local-agent") as runtime:

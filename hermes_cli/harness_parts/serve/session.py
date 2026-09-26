@@ -261,7 +261,7 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
             if self.discussion_owner is not None:
                 from agent_runtime.discussions.service import shutdown as shutdown_discussions
                 shutdown_discussions(root=self.discussion_owner.context.root)
-            from agent_runtime.local_llama_adapter.rpc import shutdown as shutdown_local_llama
+            from agent_runtime.local_llama_adapter.binding import shutdown as shutdown_local_llama
             if self.local_llama_bound_root is not None:
                 shutdown_local_llama(root=self.local_llama_bound_root)
 

@@ -178,7 +178,7 @@ class BootPhases:
         """This serve won the per-root lock: bind the lane and advertise it."""
 
         from agent_runtime.config import harness_root_config_path
-        from agent_runtime.local_llama_adapter.rpc import bind as bind_local_llama
+        from agent_runtime.local_llama_adapter.binding import bind as bind_local_llama
         from agent_runtime.serve_auth import read_token as _read_serve_token
         from agent_runtime.serve_socket.vocabulary import SOCKET_HOST
         from agent_runtime.serve_socket.server import ServeSocketServer

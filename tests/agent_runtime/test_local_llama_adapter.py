@@ -17,7 +17,7 @@ import pytest
 
 from agent_runtime import serve_rpc
 from agent_runtime.call_authorization import CALLER_PEER, UNKNOWN_CALLER, RpcCaller
-from agent_runtime.local_llama_adapter import PROVIDER_ID, model_alias, provider, rpc
+from agent_runtime.local_llama_adapter import PROVIDER_ID, binding, model_alias, provider, rpc
 from agent_runtime.local_llama_adapter.config import GENERATION_DEFAULTS, LOAD_DEFAULTS, LocalLlamaError, default_config
 from agent_runtime.local_llama_adapter.engine import scan, validate_model, write_preset
 from agent_runtime.local_llama_adapter.manager import LocalLlamaManager
@@ -564,7 +564,7 @@ def test_either_provider_id_takes_the_whole_turn_lease(provider_id, monkeypatch)
             leases.append((model, turn, agent))
             yield runtime_row()
 
-    monkeypatch.setattr(rpc, "get_manager", lambda root=None, create=False: _Manager())
+    monkeypatch.setattr(binding, "get_manager", lambda root=None, create=False: _Manager())
     monkeypatch.setattr(provider, "_routed", lambda runtime: nullcontext())
     request = SimpleNamespace(provider=provider_id, model="preset-id", turn_id="turn-1", session_id=None,
                               persona_instance_id="agent-1", runtime_root=None, prewarm_only=False)
@@ -574,7 +574,7 @@ def test_either_provider_id_takes_the_whole_turn_lease(provider_id, monkeypatch)
 
 
 def test_a_cloud_provider_takes_no_lease(monkeypatch):
-    monkeypatch.setattr(rpc, "get_manager", lambda **kw: pytest.fail("a cloud turn reached the lease"))
+    monkeypatch.setattr(binding, "get_manager", lambda **kw: pytest.fail("a cloud turn reached the lease"))
     with provider.turn_scope(SimpleNamespace(provider="anthropic", model="claude-x")):
         pass
 
