@@ -22,6 +22,10 @@ Rows are one line and a pointer; claim with `**TAKEN <date> <who>**` before star
 Rows below were moved verbatim from the launcher queue on 2026-09-22 (their provenance headings are kept as sub-headings). Fork-hygiene findings the launcher queue carried (CI, the suite, the mutation gate, upstream reds) went to [[fork-hygiene-queue]] in the same commit.
 
 ## Fork-owned
+### Filed on arrival — 2026-09-26 (post-landing gate, filed by the orchestrator)
+
+- [ ] **`tests/tooling/test_no_silent_package_patches.py::test_no_new_silent_package_patch` is red on `main` since lane L1 (6af9212f11): `tests/agent_runtime/test_gateway_announce.py` and `test_peer_directory.py` now patch `agent_runtime.gateway_peers:usable_peers`, a package door production no longer reads after the respell** · `fork / tests` · the two tests patch the module production reads (`gateway_peers` submodule) — never the census · evidence: lane CI-FORK pytest log; re-run on main 2026-09-26 · filed by the orchestrator 2026-09-26 **UNCLAIMED**
+
 
 ### Filed on arrival — 2026-09-26 (owner ruling: ACP is not used)
 
@@ -183,7 +187,8 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ## Seams — fork edits inside upstream files (additive only)
 ### Filed on arrival — 2026-09-26 (orchestrator, the sync-friction read)
 
-- [ ] **Seven `.github/workflows/*.yml` carry fork-only runner/timeout/worker conditionals (`github.repository == NousResearch/hermes-agent` guards; ledger rows `upstream`, class CI-1) — a merge surface every week for a fork concern** · `fork / seams` · a fork-only workflow file upstream never touches does the same job; the seven upstream files return byte-identical and the fixture lowers · evidence: `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md` rows `.github/workflows/*` · filed by the orchestrator 2026-09-26 · RULED 2026-09-26 (owner) **TAKEN 2026-09-26 lane CI-FORK**
+- [ ] **Seven `.github/workflows/*.yml` carry fork-only runner/timeout/worker conditionals (`github.repository == NousResearch/hermes-agent` guards; ledger rows `upstream`, class CI-1) — a merge surface every week for a fork concern** · `fork / seams` · a fork-only workflow file upstream never touches does the same job; the seven upstream files return byte-identical and the fixture lowers · evidence: `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md` rows `.github/workflows/*` · filed by the orchestrator 2026-09-26 · RULED 2026-09-26 (owner) · VERDICT 2026-09-26 (lane CI-FORK, landed 8857924501): DESIGN — `e2e-desktop.yml` restored byte-identical (files 178 → 177); the other five cannot move: upstream's `ci.yaml` calls them via `workflow_call` with no `github.repository` gate, so upstream's jobs run on the fork whatever a fork-only file does; kept as one-line `runs-on` conditionals (34 fork lines → 11), `contributor-check.yml` stays a PR candidate · OWNER CALL: disable the "CI" workflow in the fork's Actions settings and run a fork CI instead — then all five restore; or open the "fork-friendly runners" PR upstream **TAKEN 2026-09-26 lane CI-FORK**
+- [ ] **The tombstone-registry and docket-claims history gates run inside upstream's `tests.yml`, forcing `fetch-depth: 0` / `filter: blob:none` into an upstream file** · `fork / seams` · run them from `fork-gates.yml` so the `tests.yml` fetch hunk can go · evidence: ledger row `.github/workflows/tests.yml` · filed by lane CI-FORK 2026-09-26 **UNCLAIMED**
 
 
 ### Filed on arrival — 2026-09-26 (orchestrator, the footprint read)
