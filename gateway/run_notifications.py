@@ -1972,7 +1972,8 @@ class GatewayNotificationsMixin:
             with _log_suppressed(logging.ERROR, "Watcher delivery error: %s"):
                 send_meta = {"thread_id": thread_id} if thread_id else None
                 await adapter.send(
-                    chat_id, message_text, metadata=_non_conversational_metadata(send_meta, platform=platform_name),
+                    chat_id, message_text, reply_to=watcher.get("message_id"),
+                    metadata=_non_conversational_metadata(send_meta, platform=platform_name),
                 )
 
     @staticmethod
