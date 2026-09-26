@@ -31,7 +31,8 @@ def install() -> None:
             try:
                 data = _inspect(operation, snapshot["result"], params.get("skill_id"))
                 if len(json.dumps(data, ensure_ascii=True)) > 900 * 1024:
-                    raise ValueError("skill response exceeds wire limit")
+                    return {"jsonrpc": "2.0", "id": rid, "error": {
+                        "code": 4130, "message": "This skill exceeds the document limit."}}
                 return {"jsonrpc": "2.0", "id": rid, "result": {"data": data}}
             except (OSError, ValueError):
                 return {"jsonrpc": "2.0", "id": rid, "error": {
