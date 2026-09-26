@@ -4,8 +4,6 @@ Tests _wrap_command(), _extract_cwd_from_output(), _embed_stdin_heredoc(),
 init_session() failure handling, and the CWD marker contract.
 """
 
-import shutil
-
 from unittest.mock import MagicMock
 
 import pytest
@@ -180,6 +178,7 @@ class TestSnapshotFileModes:
     def test_snapshot_and_cwd_files_are_0600(self, tmp_path):
         import os
         from pathlib import Path
+        import shutil
         import stat
         import subprocess
         bash = shutil.which("bash")
@@ -216,10 +215,7 @@ class TestSnapshotFileModes:
             env.init_session()
 
             user_file = tmp_path / "user-created.txt"
-            # ``as_posix()`` is a no-op on POSIX and keeps the operand
-            # readable by the bash we spawn on Windows, where ``str(Path)``
-            # would hand it backslashes that the shell eats.
-            env.execute(f"touch {user_file.as_posix()}")
+            env.execute(f"touch {user_file}")
 
             assert stat.S_IMODE(user_file.stat().st_mode) == 0o644
             assert stat.S_IMODE(Path(env._snapshot_path).stat().st_mode) == 0o600
