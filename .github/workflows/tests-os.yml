@@ -62,7 +62,6 @@ jobs:
             runner: macos-latest
             marker: macos
           - name: Windows-only tests
-            # Larger hosted runners belong to upstream; forks use the standard pool.
             runner: ${{ github.repository == 'NousResearch/hermes-agent' && 'windows-latest-32-core' || 'windows-latest' }}
             marker: windows
           - name: Windows-only tests (arm64)

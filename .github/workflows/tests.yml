@@ -21,29 +21,12 @@ jobs:
     # 96 cores clear the floor that the slowest single test file sets (about
     # 82s). A second slice divides work that is already at that floor, and
     # adds a second setup.
-    # Larger hosted runners belong to upstream; forks use the standard hosted pool.
     runs-on: ${{ github.repository == 'NousResearch/hermes-agent' && 'ubuntu-latest-96-core' || 'ubuntu-latest' }}
-    # Fork proof reached only 52% at 30 minutes on the standard four-worker runner.
-    # Keep upstream's limit; give forks enough time to finish the same suite.
     timeout-minutes: ${{ github.repository == 'NousResearch/hermes-agent' && 30 || 90 }}
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          # The suite carries gates that READ THIS REPO'S HISTORY, and
-          # the default fetch-depth of 1 handed them a one-commit clone:
-          #   * tests/agent_runtime/test_tombstone_registry.py runs
-          #     `git diff --name-only 4a21f0779..HEAD -- tests` at module
-          #     import — exit 128 on a shallow clone, which took the ENTIRE
-          #     4,300-line gate file out at collection (run 33969282189,
-          #     slice 8: "1 error during collection");
-          #   * tests/test_docket_stage_claims.py asks git `merge-base
-          #     --is-ancestor` per cited sha — with no history every answer is
-          #     "no", so it accused seven BACKED dockets of being unbacked
-          #     (same run, slice 7).
-          # `blob:none` is what keeps this affordable for the suite: both gates need commits and trees, not file contents, so a
-          # blobless clone fetches blobs lazily and only for the handful of
-          # `git show` calls the round-4 walk makes.
           fetch-depth: 0
           filter: blob:none
 

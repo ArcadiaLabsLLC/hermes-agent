@@ -14,7 +14,6 @@ jobs:
     #
     # One larger runner installs one time. vitest, tsc and eslint each size
     # their own worker pool from the core count.
-    # Larger hosted runners belong to upstream; forks use the standard hosted pool.
     runs-on: ${{ github.repository == 'NousResearch/hermes-agent' && 'ubuntu-latest-32-core' || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
