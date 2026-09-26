@@ -25,14 +25,12 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-26 (lane PF-1, filed by the orchestrator)
 
-- [ ] **Ten tests red on main after PF-2/PF-3, green at `b0580d4a16`: `test_verification_continuation_budget` ×5, `test_fallback_429_after_timeout`, `test_image_corrupt_recovery` ×2, `test_turn_completion_explainer`, `test_system_prompt::test_coding_prompt_orders_shared_context_before_workspace` — the likely levers are PF-3's stream observers (`_has_stream_consumers()` now True for every agent) and PF-2's Safety-sentence rewrite / prompt section** · `fork / plugin` · a landing-caused red is fixed before anything else lands · evidence: `X:/wt/pf1/.lane-logs/base-new.log` (copied to `X:/wt/_holds/pf-fix-0926/`), lane PF-1 report · filed 2026-09-26 (orchestrator) **TAKEN 2026-09-26 lane PF-FIX**
 - [ ] **Tool blocks: a mid-session registry refresh (`tools/mcp_tool_agent.py` re-derives `agent.tools` via `get_tool_definitions`) brings blocked names back into `agent.tools` / `valid_tool_names`; the wire filter and `pre_tool_call` still hold, but guidance and review nudges can re-see them — re-apply `prune_agent_tools` after a refresh** · `fork / plugin` · evidence: `agent_runtime/tool_blocks.py`, commit `859d68a1b4` · filed 2026-09-26 (lane PF-1) **UNCLAIMED**
 
 ### Filed on arrival — 2026-09-26 (lane PF-3, filed by the orchestrator)
 
 - [ ] **`mission_chat_phases.TURN_TIMING_ORDER` still maps `responses_create_ms` ← `profile_provider_responses_create_ms`, which no receipt writes after PF-3 (§4 Q4 dropped client_resolve): the launcher's turn-timing key is permanently empty — retire the key or map it to the dispatch span** · `fork / observability` · evidence: plugin-fit sheet §4, `agent_runtime/codex_observability.py`, lane PF-3 report (landed 5c24dd925d) · filed 2026-09-26 (lane PF-3) **UNCLAIMED**
 - [ ] **`agent_runtime/skill_inspection.py::skill_inspection_reader` has zero production callers (only its test): wire the launcher's reader to it or delete it with its door `_upstream_doors.skills_tool_inspection_doors`** · `fork / skills` · evidence: plugin-fit sheet §4, `agent_runtime/codex_observability.py`, lane PF-3 report (landed 5c24dd925d) · filed 2026-09-26 (lane PF-3) **UNCLAIMED**
-- [ ] **Registering `on_stream_*` observers in the plugin makes `agent._has_stream_consumers()` True for EVERY agent in a plugin-loaded process (read by `turn_api_call._should_stream` for moa/Mock, the post-response mute in `status_output`, the spinner in `turn_iteration_prep` / `turn_tool_round`): measure the CLI display and moa behaviour under the plugin, or gate the observers to the persona lane** · `fork / plugin` · evidence: plugin-fit sheet §4, `agent_runtime/codex_observability.py`, lane PF-3 report (landed 5c24dd925d) · filed 2026-09-26 (lane PF-3) **UNCLAIMED**
 
 ### Filed on arrival — 2026-09-26 (the wedged live serve, owner screenshot 15:05; filed by the orchestrator)
 
