@@ -136,6 +136,8 @@ from .state_patches import (
     office_patch_scope,
 )
 
+__layer__ = "lanes"
+
 #: What an RPC office subscriber declares it can fold — the historical set PLUS
 #: ``office_actor``, and the union half of that is the whole point.
 #:
