@@ -24,11 +24,13 @@ def test_producer_fixture(tmp_path):
     expected = json.loads(Path(fixture).read_text(encoding="utf-8"))
     for key in ("capabilities", "preset", "table", "tables", "roster"):
         assert cases[key] == expected[key], key
-    for key in ("live", "ended"):
+    for key in ("live", "ended", "room"):
         assert cases[key].keys() == expected[key].keys()
         assert cases[key]["run"].keys() == expected[key]["run"].keys()
         assert cases[key]["members"][0].keys() == expected[key]["members"][0].keys()
         assert cases[key]["tasks"][0].keys() == expected[key]["tasks"][0].keys()
+    assert cases["room"]["run"]["table_id"] is None
+    assert cases["room"]["run"]["initial"] == expected["room"]["run"]["initial"]
 
 
 def test_custom_keeps_configuration_and_obeys_revision_and_live_fences(engine):

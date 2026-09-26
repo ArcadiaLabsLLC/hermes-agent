@@ -56,6 +56,8 @@ class NativePeer:
             response = future.result(timeout=timeout)
             if "error" in response:
                 code = response["error"].get("code")
+                if code == 4130:
+                    raise ConversationError(Refusal.RESPONSE_TOO_LARGE)
                 raise ConversationError(Refusal.NATIVE_REFUSAL,
                                         native_code=code if type(code) is int else None)
             result = response.get("result")

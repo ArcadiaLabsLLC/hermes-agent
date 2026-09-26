@@ -31,6 +31,11 @@ def wire_cases(tmp_path):
              expect_revision=cases["live"]["run"]["revision"], idempotency_key="wire-end")
         wait_until(lambda: service.view("ws", run["run_id"])["run"]["phase"] == "ended")
         cases["ended"] = call("run.get", workspace_id="ws", run_id=run["run_id"])
+        room = call("run.start_room", workspace_id="ws", idempotency_key="wire-room",
+                    spec={"name": "Design review", "participants": spec["configuration"]["participants"],
+                          "settings": spec["configuration"]["settings"]}, topic="Review without furniture")["run"]
+        wait_until(lambda: settled(service, room))
+        cases["room"] = call("run.get", workspace_id="ws", run_id=room["run_id"])
         return cases
     finally:
         service.close()

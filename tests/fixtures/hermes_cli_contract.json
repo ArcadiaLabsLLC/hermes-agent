@@ -98,6 +98,7 @@
         "config",
         "contracts",
         "doctor",
+        "execution-identity",
         "flow",
         "gateway",
         "health",
@@ -3330,6 +3331,41 @@
       "path": [
         "harness",
         "doctor"
+      ],
+      "positionals": [],
+      "subcommands": []
+    },
+    "harness execution-identity": {
+      "exclusive_groups": [],
+      "options": {
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "execution-identity"
       ],
       "positionals": [],
       "subcommands": []

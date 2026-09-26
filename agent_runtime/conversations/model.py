@@ -20,6 +20,7 @@ class Refusal(StrEnum):
     WORKER_LOST = "conversation_worker_lost"
     RUNTIME_STOPPING = "runtime_stopping"
     NATIVE_REFUSAL = "native_refusal"
+    RESPONSE_TOO_LARGE = "response_too_large"
 
 
 class ConversationError(ValueError):
