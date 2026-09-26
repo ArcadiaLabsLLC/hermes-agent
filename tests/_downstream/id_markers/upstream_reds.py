@@ -373,6 +373,35 @@ if _WIN:
                 ("test_default_build_footer_line_ignores_turn_seconds", "a POSIX cwd literal is drive-qualified (class c-D)"),
             )
         },
+        # Lane TRIAGE (2026-09-26): upstream reds on Windows main whose cause is the
+        # SQLite 3.45.3 bundled with Windows CPython 3.12.5 (CI runs 3.50.4), or a
+        # Windows-only caller of a process-wide patch.
+        **{
+            f"tests/hermes_state/test_fts_runtime_rebuild.py::TestRuntimeFtsRebuild::{test}": (
+                _up_red("SQLite 3.45.3 cannot DROP a corrupt FTS5 table from a fresh "
+                        "connection ('vtable constructor failed: messages_fts'), so the "
+                        "stale-FTS rebuild never recovers; product defect, runtime-queue "
+                        "upstream-owned row"),
+            )
+            for test in (
+                "test_corruption_fails_open_and_rebuilds_on_reopen",
+                "test_repeated_deferrals_reap_inactive_orphan_then_rebuild",
+                "test_retry_backoff_resets_when_the_blocking_holder_set_changes",
+                "test_legacy_inline_fts_fails_open_and_recovers",
+            )
+        },
+        "tests/hermes_state/test_state_db_malformed_repair.py::test_repair_rebuilds_stale_btree_indexes": (
+            _up_red("pins SQLite >= 3.46 integrity_check wording 'wrong # of entries'; "
+                    "3.45.3 reports 'row N missing from index', which the product also "
+                    "parses and repairs via reindex_btree (probed)"),
+        ),
+        "tests/hermes_state/test_state_db_repair_non_destructive.py::"
+        "test_interrupted_snapshot_rolls_back_destination": (
+            _up_red_skip("patches time.monotonic process-wide with a 2-tick iterator; the "
+                         "conftest's Proactor loop close (IocpProactor.close) calls it at "
+                         "teardown and gets StopIteration. Test passes, teardown errors; "
+                         "PR candidate: an unbounded tick source"),
+        ),
     })
 
 if _WIN and not sys.flags.utf8_mode:
