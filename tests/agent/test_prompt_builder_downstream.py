@@ -14,58 +14,24 @@ from tests.agent.test_prompt_builder import (  # noqa: F401 — upstream names t
 )
 
 
-class TestOpenAIModelExecutionGuidance:
-    """Fork guard on the execution-guidance safety bullet (upstream purged its own
-    tests of this block; the fork's wording change still needs one)."""
-
-    def test_safety_bullet_gates_on_destructiveness_not_side_effects(self):
-        # The old wording — "if the next step has side effects (file writes,
-        # commands, API calls), confirm scope before executing" — told EVERY
-        # gpt/codex/grok session to confirm before ordinary tool use, and showed
-        # up live (2026-08-03) as a persona ending its turn on a permission
-        # request instead of acting on a clear, non-destructive order. Gate the
-        # confirmation on destructiveness; leave the other bullets alone.
-        from agent.prompt_builder import OPENAI_MODEL_EXECUTION_GUIDANCE
-
-        text = OPENAI_MODEL_EXECUTION_GUIDANCE
-        assert "side effects (file writes, commands, API calls)" not in text
-        assert "destructive or hard to reverse" in text
-        assert "proceeds without asking" in text
-        # The correctness/grounding/formatting checks must survive intact.
-        lowered = text.lower()
-        assert "correctness" in lowered
-        assert "grounding" in lowered
-        assert "formatting" in lowered
-
-
 class TestWindowsNativeToolingHint:
-    """The Windows-native tooling addendum must ship ALONGSIDE the upstream
-    bash hint (additive), telling the agent it can reach PowerShell/cmd from
-    its bash terminal — without editing or replacing the upstream statement."""
+    """The Windows-native tooling hint rides the eternia-harness plugin's
+    ``eternia-harness.windows-tooling`` section (lane PF-2); the core environment
+    block carries upstream's bash hint only
+    (``tests/agent_runtime/test_prompt_guidance_plugin.py``)."""
 
-    def _win_hints(self, monkeypatch):
+    def test_environment_block_is_upstream_only(self, monkeypatch):
         import sys as _sys
 
         import agent.prompt_builder as pb
-        # build_environment_hints() does a local `import sys`, which returns the
-        # same cached module object — patching sys.platform here reaches it.
+        from agent_runtime.prompt_guidance import WINDOWS_NATIVE_TOOLING_HINT
+
         monkeypatch.setattr(_sys, "platform", "win32")
         monkeypatch.setattr(pb, "is_wsl", lambda: False)
         monkeypatch.delenv("TERMINAL_ENV", raising=False)
-        return pb.build_environment_hints()
-
-    def test_addendum_ships_with_upstream_hint(self, monkeypatch):
-        from agent.prompt_builder import (
-            _WINDOWS_BASH_SHELL_HINT,
-            _WINDOWS_NATIVE_TOOLING_HINT,
-        )
-        out = self._win_hints(monkeypatch)
-        # Upstream statement is still present verbatim (not replaced).
-        assert _WINDOWS_BASH_SHELL_HINT in out
-        # Fork addendum is appended.
-        assert _WINDOWS_NATIVE_TOOLING_HINT in out
-        assert "powershell.exe" in out
-        assert "cmd.exe /c" in out
+        out = pb.build_environment_hints()
+        assert pb._WINDOWS_BASH_SHELL_HINT in out
+        assert WINDOWS_NATIVE_TOOLING_HINT not in out
 
     def test_upstream_hint_string_unchanged(self):
         """Guard: the upstream string must merge cleanly — keep it byte-stable."""

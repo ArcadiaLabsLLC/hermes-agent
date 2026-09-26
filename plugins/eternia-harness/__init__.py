@@ -1,7 +1,7 @@
 """The Eternia Agent Runtime Harness, registered as a Hermes plugin (seam Stages 1-2).
 
-``register(ctx)`` registers the harness CLI and the harness's system-prompt
-guidance. Every import of the harness is LAZY — inside the setup or render call
+``register(ctx)`` registers the harness CLI, the harness's system-prompt
+guidance and its request/session hooks. Every import of the harness is LAZY — inside the setup or render call
 — so loading this plugin costs nothing until its own command is being built or
 a prompt is being rendered. ``plugin.yaml`` declares both commands under
 ``cli_commands:`` so the CLI attaches them without running plugin discovery.
@@ -80,6 +80,23 @@ def render_tool_guidance(session_info) -> str:
     return "\n".join(getattr(prompt_guidance, attr) for tool, attr in _TOOL_GUIDANCE if tool in tools)
 
 
+def render_windows_tooling(_session_info=None) -> str:
+    """The Windows-native tooling hint: native Windows (not WSL) with a local terminal
+    backend only — the host whose bash terminal can reach ``powershell.exe`` / ``cmd.exe``."""
+    import sys
+
+    if sys.platform != "win32":
+        return ""
+    from hermes_constants import is_wsl
+    from tools.terminal_scope import terminal_env
+
+    if is_wsl() or (terminal_env("TERMINAL_ENV", "local") or "local").strip().lower() != "local":
+        return ""
+    from agent_runtime.prompt_guidance import WINDOWS_NATIVE_TOOLING_HINT
+
+    return WINDOWS_NATIVE_TOOLING_HINT
+
+
 SKILL_SEARCH_SCHEMA = {
     "name": "skill_search",
     "description": "Search installed skills + the Hermes Skills Hub by query without loading SKILL.md bodies (compact ids/descriptions). Disambiguator: skill_view loads an installed match; `hermes skills install` fetches an external one.",
@@ -140,25 +157,32 @@ def _check_skill_search() -> bool:
 
 
 def brief_tool_descriptions(request=None, **_context):
-    """``llm_request`` middleware: the fork's short tool descriptions on the wire, then the
-    persona prompt-cache routing (``agent_runtime.cache_routing.route_persona_cache``).
+    """``llm_request`` middleware: the fork's short tool descriptions on the wire, the fork's
+    execution-guidance Safety sentence in the system text
+    (``agent_runtime.prompt_guidance.rewrite_request_safety_sentence``), then the persona
+    prompt-cache routing (``agent_runtime.cache_routing.route_persona_cache``).
 
     The registry keeps upstream's full text (``tool_describe`` serves it); this swaps
     ``description`` by tool name in the final provider kwargs, for the chat, Responses
     and Anthropic payload shapes. Parameters are never touched.
     """
     from agent_runtime.cache_routing import route_persona_cache
+    from agent_runtime.prompt_guidance import rewrite_request_safety_sentence
     from tools.downstream_schema import brief_request_tools
 
-    # ONE callback, both rewrites: upstream feeds every llm_request callback the same
+    # ONE callback, every rewrite: upstream feeds every llm_request callback the same
     # original request and keeps the LAST result, so two callbacks would drop the first.
-    # Briefs first, so the persona cache key hashes the briefed wire tools.
+    # Briefs and the Safety sentence first, so the persona cache key hashes the final wire.
     briefed = brief_request_tools(request)
-    routed = route_persona_cache(briefed if briefed is not None else request, **_context)
-    rewritten = routed if routed is not None else briefed
+    safety = rewrite_request_safety_sentence(briefed if briefed is not None else request)
+    staged = safety if safety is not None else briefed
+    routed = route_persona_cache(staged if staged is not None else request, **_context)
+    rewritten = routed if routed is not None else staged
     if rewritten is None:
         return None
-    reasons = [r for r, done in (("tool wire briefs", briefed is not None), ("persona cache routing", routed is not None)) if done]
+    reasons = [r for r, done in (
+        ("tool wire briefs", briefed is not None), ("execution-guidance Safety sentence", safety is not None),
+        ("persona cache routing", routed is not None)) if done]
     return {"request": rewritten, "source": "eternia-harness", "reason": " + ".join(reasons)}
 
 
@@ -181,6 +205,22 @@ def time_provider_dispatch(**kwargs):
     from agent_runtime.conversation_observability import time_provider_dispatch as _time
 
     return _time(**kwargs)
+
+
+_cli_completions_restored = False
+
+
+def restore_cli_durable_completions(platform=None, **_kwargs) -> None:
+    """``on_session_start`` hook: the interactive CLI owns a completion drain, so its first
+    session restores the durable delegation completions — once per process, CLI only (the
+    gateway, TUI gateway and harness serve restore at their own startup)."""
+    global _cli_completions_restored
+    if platform != "cli" or _cli_completions_restored:
+        return
+    _cli_completions_restored = True
+    from tools.process_registry import process_registry
+
+    process_registry.restore_durable_completions()
 
 
 def record_usage_ledger_row(**kwargs):
@@ -230,9 +270,11 @@ def register(ctx) -> None:
     default_kanban_claim_ttl()
     default_no_venv_lazy_installs()
     ctx.register_system_prompt_section("eternia-harness.tool-guidance", render_tool_guidance)
+    ctx.register_system_prompt_section("eternia-harness.windows-tooling", render_windows_tooling)
     ctx.register_middleware("llm_request", brief_tool_descriptions)
     ctx.register_middleware("tool_request", default_background_notify)
     ctx.register_middleware("llm_execution", time_provider_dispatch)
+    ctx.register_hook("on_session_start", restore_cli_durable_completions)
     ctx.register_hook("post_api_request", record_usage_ledger_row)
     ctx.register_hook("on_kanban_dispatch_tick", route_blocked_kanban_cards)
     ctx.register_hook("pre_gateway_dispatch", answer_queue_status)
