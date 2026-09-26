@@ -101,3 +101,10 @@ def login_codex_account(on_verification, *, flow="device_code") -> None:
     state = (_codex_browser_login(open_browser=False, on_verification=on_verification)
              if flow == "browser" else _codex_device_code_login(on_verification=on_verification))
     _save_codex_tokens(state["tokens"], last_refresh=state["last_refresh"], set_active=False)
+
+
+def login_minimax_account(on_verification) -> None:
+    """Connect without changing the selected provider or model."""
+    from hermes_cli.auth import persist_provider_login
+    state = _minimax_oauth_login(open_browser=False, on_verification=on_verification, persist=False)
+    persist_provider_login("minimax-oauth", state)

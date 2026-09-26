@@ -229,13 +229,6 @@ def _minimax_oauth_login(*, region: str = "global", open_browser: bool = True,
     return auth_state
 
 
-def login_minimax_account(on_verification) -> None:
-    """Connect without changing the selected provider or model."""
-    from hermes_cli.auth import persist_provider_login
-    state = _minimax_oauth_login(open_browser=False, on_verification=on_verification, persist=False)
-    persist_provider_login("minimax-oauth", state)
-
-
 def _refresh_minimax_oauth_state(state: Dict[str, Any], *, timeout_seconds: float = 15.0, force: bool = False) -> Dict[str, Any]:
     """Refresh MiniMax OAuth access token if close to expiry (or forced)."""
     from hermes_cli.auth import _minimax_save_auth_state
