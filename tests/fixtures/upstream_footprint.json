@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-26",
   "base": "067fa1a257",
-  "files": 167,
-  "deleted_lines": 876,
+  "files": 148,
+  "deleted_lines": 839,
   "heavy": 4,
   "reasons": [
     {
@@ -312,6 +312,12 @@
       "files": "168 -> 167: run_agent.py byte-identical to 067fa1a257 again",
       "deleted_lines": "883 -> 876 (model_tools 3 -> 0, agent_init 4 -> 1, terminal_tool 1 -> 0); heavy unchanged at 4",
       "reason": "the per-run block is bound by the profile runner (agent_runtime/tool_blocks.py), pruned from the constructed agent by the default factory, dropped from the wire by the plugin's llm_request middleware and refused by its pre_tool_call hook; terminal registers upstream's schema and its brief rides the middleware. The terminal container-scope hunk stays: the container key is a dispatch kwarg no tool_request rewrite reaches. docs/agent-runtime-harness/planned/plugin-fit-2026-09-26.md section 2 PF-1"
+    },
+    {
+      "change": "lane DROP-EXEC (lane/drop-exec): the 19 DROP verdicts of the fix triage",
+      "files": "167 -> 148: 19 files byte-identical to 067fa1a257 again (contributor-check.yml, audit_pr_attribution.py, releases/authors.py; the two desktop uninstall-section files; commands_platforms.py, slack_cli.py; nix/checks.nix; the Feishu adapter and test_feishu.py; tests/docker/test_dashboard.py; test_base_environment.py, test_file_ops_cwd_tracking.py, test_file_tools.py; five website/docs pages); tools/environments/local.py stays on the list (only its callerless _shell_arg_safe_path was deleted; added lines only)",
+      "deleted_lines": "876 -> 839 (the 19 reverted files' 37); heavy unchanged at 4",
+      "reason": "each file serves a surface the fork does not run (desktop app, website, nix, docker tier, the Slack and Feishu adapters, the contributors case-variants lookup) or carried a hunk that does not do what it claims (two R10 test hunks, one unused import); the fork's case-variants/ directory and the fork tests of the dropped hunks left with them. docs/agent-runtime-harness/planned/fix-triage-2026-09-26.md section 1"
     }
   ]
 }
