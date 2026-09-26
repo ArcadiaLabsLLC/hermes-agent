@@ -99,7 +99,6 @@
   "agent_runtime/parity.py",
   "agent_runtime/patch_coverage.py",
   "agent_runtime/persona_chat_actor_prewarm.py",
-  "agent_runtime/persona_chat_durability.py",
   "agent_runtime/persona_config_sync.py",
   "agent_runtime/persona_open_chat.py",
   "agent_runtime/persona_prewarm.py",

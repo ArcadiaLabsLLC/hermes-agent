@@ -53,6 +53,8 @@ from .persona_assignments import (
 )
 from .persona_chat_continuity import PERSONA_CHAT_SESSION_SOURCE
 
+__layer__ = "stores"
+
 
 class PersonaChatPersistenceError(RuntimeError):
     """A required canonical persona-chat transcript operation failed.
