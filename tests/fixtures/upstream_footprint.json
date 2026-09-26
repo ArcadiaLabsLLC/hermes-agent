@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-26",
   "base": "067fa1a257",
-  "files": 168,
-  "deleted_lines": 883,
+  "files": 167,
+  "deleted_lines": 876,
   "heavy": 4,
   "reasons": [
     {
@@ -306,6 +306,12 @@
       "files": "177 unchanged: every source file keeps a fork hunk (auth.py the HOME hook; auth_codex/auth_codex_browser/auth_minimax/auth_xai the PR-1 on_verification kwargs; auth_nous the G6 row; provider_catalog the launcher roster)",
       "deleted_lines": "923 unchanged; only ADDED lines fall: auth.py 18 -> 13, auth_codex.py 11 -> 3, auth_minimax.py 14 -> 7, auth_nous.py 22 -> 2, auth_xai.py 13 -> 6, provider_catalog.py 199 -> 196; heavy unchanged at 4",
       "reason": "the four login_* callers, persist_provider_login and the browser_login* catalog keys moved into the fork-only hermes_cli/provider_browser_login.py and harness_parts/provider_visibility.py; the ratchet counts files and deletions, and neither moves until PR-1 (up/auth-on-verification) merges. docs/agent-runtime-harness/planned/auth-transport-plugin-2026-09-26.md section 3"
+    },
+    {
+      "change": "lane PF-1 (lane/pf-1): the blocked-tool set and the terminal schema move behind the eternia-harness plugin",
+      "files": "168 -> 167: run_agent.py byte-identical to 067fa1a257 again",
+      "deleted_lines": "883 -> 876 (model_tools 3 -> 0, agent_init 4 -> 1, terminal_tool 1 -> 0); heavy unchanged at 4",
+      "reason": "the per-run block is bound by the profile runner (agent_runtime/tool_blocks.py), pruned from the constructed agent by the default factory, dropped from the wire by the plugin's llm_request middleware and refused by its pre_tool_call hook; terminal registers upstream's schema and its brief rides the middleware. The terminal container-scope hunk stays: the container key is a dispatch kwarg no tool_request rewrite reaches. docs/agent-runtime-harness/planned/plugin-fit-2026-09-26.md section 2 PF-1"
     }
   ]
 }
