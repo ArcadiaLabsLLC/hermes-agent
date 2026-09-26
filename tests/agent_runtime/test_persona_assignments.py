@@ -1559,7 +1559,7 @@ def test_persona_chat_history_parity_separates_the_bound_limit_from_lost_session
     The classification now travels WITH the envelope.
     """
 
-    from agent_runtime.parity import ProjectionAccountant
+    from agent_runtime.projection_accountant import ProjectionAccountant
 
     store = PersonaInstanceStore()
     newer = store.open_chat(persona_id="dev", session_id="chat_new")
@@ -1619,7 +1619,7 @@ def test_persona_chat_history_emits_cache_policy_for_known_provider(isolate_agen
 
 
 def test_persona_chat_history_accounting_ignores_unrelated_session_sources(isolate_agent_runtime_root):
-    from agent_runtime.parity import ProjectionAccountant
+    from agent_runtime.projection_accountant import ProjectionAccountant
 
     store = PersonaInstanceStore()
     instance = store.open_chat(persona_id="dev", session_id="chat_bound_1")
@@ -1662,7 +1662,7 @@ def test_persona_chat_history_separates_a_retired_instance_from_a_lost_binding(
     # undifferentiated orphan count grew by one on every retire, forever — and
     # buried the drops that actually mean something. Three sessions, three
     # outcomes, one archive listing telling them apart.
-    from agent_runtime.parity import ProjectionAccountant
+    from agent_runtime.projection_accountant import ProjectionAccountant
 
     store = PersonaInstanceStore()
     # (a) bound to a live instance.

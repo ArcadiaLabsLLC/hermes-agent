@@ -12,7 +12,7 @@ from typing import Any, Iterable
 from .. import chat_session_scope
 from ..clock import iso_timestamp
 from ..models import PersonaInstance
-from ..parity import ProjectionAccountant
+from ..projection_accountant import ProjectionAccountant
 from ..persona_assignments import (
     retired_persona_instance_ids,
     safe_assignment_text,

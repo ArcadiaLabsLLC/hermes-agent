@@ -8,7 +8,7 @@ from .dirty_state import build_dirty_state
 from .events import CachedEventLog, EventLog
 from .observability import build_observability
 from .operator_channels import operator_channel_summary
-from .parity import ProjectionAccountant
+from .projection_accountant import ProjectionAccountant
 from .persona_assignments import (
     PersonaInstanceStore,
     active_persona_instance_agent_summaries,

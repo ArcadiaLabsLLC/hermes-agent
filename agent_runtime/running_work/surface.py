@@ -6,7 +6,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from ..parity import ProjectionAccountant
+from ..projection_accountant import ProjectionAccountant
 
 from .lanes_chat import _collect_chat_turns, _collect_delegations, _collect_dispatches
 from .lanes_process import _collect_cron, _collect_terminal

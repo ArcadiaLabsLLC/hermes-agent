@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 from agent_runtime.models import PersonaInstance
 from agent_runtime.operator_channels import _turn_identity_dropped, operator_channel_summary
-from agent_runtime.parity import ProjectionAccountant
+from agent_runtime.projection_accountant import ProjectionAccountant
 from agent_runtime.persona_chat_history import persona_chat_history_summary
 from agent_runtime.states import WorkerSessionState
 

@@ -750,7 +750,7 @@ def _work_target_details(row: dict) -> dict:
 
 
 def _cmd_work_list(args) -> int:
-    from agent_runtime.parity import ProjectionAccountant
+    from agent_runtime.projection_accountant import ProjectionAccountant
     from agent_runtime.running_work import RUNNING_WORK_KINDS, build_running_work
 
     kind = str(getattr(args, "kind", None) or "").strip()

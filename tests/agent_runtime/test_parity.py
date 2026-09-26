@@ -1,4 +1,5 @@
-from agent_runtime.parity import ProjectionAccountant, events_watermark
+from agent_runtime.parity import events_watermark
+from agent_runtime.projection_accountant import ProjectionAccountant
 from agent_runtime.snapshot import _parity_warnings, build_snapshot
 
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 from ..models import PersonaInstance
-from ..parity import ProjectionAccountant
+from ..projection_accountant import ProjectionAccountant
 from ..persona_assignments import (
     persona_instance_id_for,
     safe_assignment_text,

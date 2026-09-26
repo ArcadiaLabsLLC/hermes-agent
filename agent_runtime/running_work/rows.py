@@ -7,7 +7,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Any
 
-from ..parity import ProjectionAccountant
+from ..projection_accountant import ProjectionAccountant
 from ..redaction import TEXT_SECRET_ASSIGNMENT_RE
 
 from .vocabulary import SOURCE_OK, SOURCE_UNAVAILABLE, TAIL_PREVIEW_LIMIT, _FALLBACK_STALE_IDLE_SECONDS, _FALLBACK_STALE_IN_TOOL_SECONDS, _MAX_ROWS_PER_SOURCE

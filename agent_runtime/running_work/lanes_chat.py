@@ -11,7 +11,7 @@ from types import MappingProxyType
 from typing import Any
 
 from ..clock import parse_iso_utc
-from ..parity import ProjectionAccountant
+from ..projection_accountant import ProjectionAccountant
 
 from .ownership import _head_home, _owner_of, _pid_identity
 from .rows import (

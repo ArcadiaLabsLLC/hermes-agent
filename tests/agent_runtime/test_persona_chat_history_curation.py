@@ -15,7 +15,7 @@ from hermes_time import now
 
 from agent_runtime.events import EventLog
 from agent_runtime.models import Event, PersonaAssignment, PersonaInstance
-from agent_runtime.parity import ProjectionAccountant
+from agent_runtime.projection_accountant import ProjectionAccountant
 from agent_runtime.mission_chat_turns import (
     mark_stale_inflight_turns_interrupted,
     mission_chat_turn_elements,
@@ -1799,7 +1799,7 @@ def test_persona_chat_trace_projects_profile_persona_with_colon_id():
 
 
 def test_persona_chat_trace_accountant_records_drops():
-    from agent_runtime.parity import ProjectionAccountant
+    from agent_runtime.projection_accountant import ProjectionAccountant
 
     events = EventLog()
     ts = now()

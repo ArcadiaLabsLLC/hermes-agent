@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from agent_runtime import running_work
-from agent_runtime.parity import ProjectionAccountant
+from agent_runtime.projection_accountant import ProjectionAccountant
 from agent_runtime.running_work import (
     KIND_CHAT_TURN,
     KIND_CRON_JOB,

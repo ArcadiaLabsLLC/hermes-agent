@@ -43,7 +43,7 @@ from agent_runtime.persona_chat_history import (
     PERSONA_CHAT_SESSION_SOURCE,
     persona_chat_history_summary,
 )
-from agent_runtime.parity import ProjectionAccountant
+from agent_runtime.projection_accountant import ProjectionAccountant
 from agent_runtime.states import WorkerSessionState
 
 

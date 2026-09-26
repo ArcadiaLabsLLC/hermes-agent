@@ -29,7 +29,8 @@ from agent_runtime.persona_chat_history import (
 )
 from agent_runtime.persona_instance_identity import identity_aliases_for_rows
 from agent_runtime.persona_lifecycle import is_runtime_persona
-from agent_runtime.parity import ProjectionAccountant, events_position
+from agent_runtime.parity import events_position
+from agent_runtime.projection_accountant import ProjectionAccountant
 from agent_runtime.prompt_observability import (
     _SkillObservabilityResolver,
     snapshot_prompt_observability,
