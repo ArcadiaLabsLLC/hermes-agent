@@ -2,7 +2,8 @@
 import base64
 import json
 
-from hermes_cli import auth_codex, harness, model_picker_policy
+from hermes_cli import auth_codex, model_picker_policy
+from hermes_cli.harness_parts.provider_visibility import build_provider_visibility
 
 
 def _fixture_access_token(account_id: str) -> str:
@@ -28,7 +29,7 @@ def test_visibility_carries_route_policy_and_isolates_discovery_failure(monkeypa
 
     monkeypatch.setattr(auth_codex, "_read_codex_tokens", lambda **_: {"tokens": {"access_token": token}})
     monkeypatch.setattr(model_picker_policy, "_fetch_verified_models_from_api", live_catalog)
-    payload = harness.build_provider_visibility()
+    payload = build_provider_visibility()
     rows = {row["id"]: row for row in payload["catalog"]}
     policy = rows["openai-codex"]["model_picker"]
     assert payload["schema"] == "hermes.provider_visibility/v2"
@@ -45,7 +46,7 @@ def test_visibility_carries_route_policy_and_isolates_discovery_failure(monkeypa
         raise RuntimeError("fixture-secret-must-not-cross-the-wire")
 
     monkeypatch.setattr(model_picker_policy, "get_verified_codex_model_ids", broken)
-    failed = harness.build_provider_visibility()
+    failed = build_provider_visibility()
     after = {row["id"]: row for row in failed["catalog"]}
     assert after["openai-codex"]["model_picker"]["catalog_mode"] == "unavailable"
     assert "model_ids" not in after["openai-codex"]["model_picker"]

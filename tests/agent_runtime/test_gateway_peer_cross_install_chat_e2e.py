@@ -157,8 +157,9 @@ from agent_runtime.gateway_targets import (
 )
 from tools import agent_chat_dispatch
 
-agent_chat_dispatch.PEER_RETRY_BACKOFF_SECONDS = 0.0
-agent_chat_dispatch.PEER_DIAL_TIMEOUT_SECONDS = 2.0
+# The remote leg reads its own module's constants (tools/agent_chat_dispatch/remote.py).
+agent_chat_dispatch.remote.PEER_RETRY_BACKOFF_SECONDS = 0.0
+agent_chat_dispatch.remote.PEER_DIAL_TIMEOUT_SECONDS = 2.0
 
 resolved = resolve_install_target(peer_store_root(), parse_install_target(sys.argv[1]))
 dispatch_id = "dispatch-accept01"

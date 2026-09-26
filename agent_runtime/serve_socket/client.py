@@ -89,9 +89,13 @@ class ServeSocketClient:
 
         import ssl
 
-        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
+        from agent_runtime.gateway_tls import stdlib_ssl_context
+
+        def configure(context: ssl.SSLContext) -> None:
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+
+        context = stdlib_ssl_context(ssl.PROTOCOL_TLS_CLIENT, configure)
         wrapped = context.wrap_socket(sock, server_hostname=None)
         if self._cert_fingerprint is not None:
             presented = wrapped.getpeercert(binary_form=True) or b""

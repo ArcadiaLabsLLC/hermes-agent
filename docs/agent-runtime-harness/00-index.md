@@ -11,6 +11,13 @@
 Consolidated 2026-08-22 from 56 files. The rules that keep it consolidated are
 at the bottom; read them before adding a document.
 
+## Operator commands
+
+[10 — Command directory](10-command-directory.md) starts with the task: inspect
+placed agents and XY positions, place/retire an agent, chat, manage the environment,
+and diagnose the runtime. Its [complete command reference](reference/harness-commands.md)
+is generated from the live argparse tree, not a second handwritten registry.
+
 ## The nine domains
 
 Read in this order for a full picture; each stands alone for its own territory.
@@ -82,7 +89,10 @@ that carried the claim rather than only at the top.
 3. **No new root files.** New knowledge folds into the owning domain doc (or a
    planned file). A dated plan/audit/scout file at the root is the sprawl this
    consolidation removed; if a document cannot be folded, the domain partition
-   is wrong and should be re-argued instead of bypassed.
+   is wrong and should be re-argued instead of bypassed. The operator-requested
+   `10-command-directory.md` is a navigation/recipe exception, not a tenth
+   architecture domain; generated syntax lives under `reference/`, and behavior
+   remains in the owning domain docs.
 4. **Staleness is the enemy.** When code moves, the domain doc moves in the
    same change set, or the claim is deleted. An anchor that no longer supports
    its sentence is a defect, not a nuisance.

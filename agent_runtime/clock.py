@@ -5,6 +5,9 @@ without risking a cycle. ``now_iso`` is the millisecond, ``Z``-suffixed UTC
 stamp ``serve_socket`` and ``serve_registry`` each spelled as ``_now_iso``
 (god-file program §4; lane R3 folded the first). ``iso_timestamp`` is the
 wall-clock normalizer lane R2 moved out of ``persona_chat_history``.
+``now_iso_micro`` is the MICROSECOND stamp the turn journal orders by (lane
+2B-B folded ``mission_chat_turns`` and ``mission_chat_phases``; lane B3
+folded ``persona_chat_continuity``'s resident registry).
 """
 
 from __future__ import annotations
@@ -14,7 +17,7 @@ from datetime import datetime, timezone
 from functools import singledispatch
 
 __layer__ = "models"
-__all__ = ["elapsed_ms", "iso_timestamp", "now_iso"]
+__all__ = ["elapsed_ms", "iso_timestamp", "now_iso", "now_iso_micro", "parse_iso", "parse_iso_utc"]
 
 
 def elapsed_ms(started: object) -> int | None:
@@ -108,3 +111,73 @@ def now_iso() -> str:
         .isoformat(timespec="milliseconds")
         .replace("+00:00", "Z")
     )
+
+
+def now_iso_micro() -> str:
+    """Now, UTC, as ``YYYY-MM-DDTHH:MM:SS.ffffffZ`` — the turn journal's stamp.
+
+    NOT :func:`now_iso`: the journal replays turns by ``started_at``, and a
+    millisecond stamp collapses two turns started in the same millisecond into
+    one key, handing their order to the client-id tie-break (C8).
+    """
+
+    return _iso_z(datetime.now(timezone.utc))
+
+
+@singledispatch
+def parse_iso_utc(value: object) -> datetime | None:
+    """A stamp as an AWARE datetime, or ``None`` when it will not parse.
+
+    Tolerant by design: a trailing ``Z`` is accepted, a naive stamp is read as
+    UTC, a ``datetime`` passes through (a naive one read as UTC), and anything
+    unparseable is ``None`` — the caller's one entry loses its rank or its age,
+    nothing more. The owner ``store.ledger_time`` folds onto in lane 2B-A
+    (program §3.1d); ``runtime_hud``'s age phrase reads it (lane 2B-B). One
+    implementation per input type, as :func:`iso_timestamp`.
+    """
+
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text[:-1] + "+00:00" if text.endswith("Z") else text)
+    except ValueError:
+        return None
+    return _as_aware(parsed)
+
+
+@parse_iso_utc.register(datetime)
+def _parse_iso_utc_datetime(value: datetime) -> datetime:
+    return _as_aware(value)
+
+
+def _as_aware(moment: datetime) -> datetime:
+    return moment if moment.tzinfo is not None else moment.replace(tzinfo=timezone.utc)
+
+
+def parse_iso(value: object) -> datetime | None:
+    """A stamp AS WRITTEN: a ``datetime`` passes through, an epoch number is read
+    in LOCAL time, an ISO string (``Z`` accepted) keeps whatever offset it
+    carries — naive stays naive. ``None`` when it will not parse.
+
+    NOT :func:`parse_iso_utc`, which forces every answer aware: the operator
+    console orders rows by ``parse_iso(...).isoformat()`` strings, and that key
+    has always been the value as written (lane B3 moved the body here from
+    ``operator_channels._parse_time``; ``running_work`` folds its float form in
+    its own lane).
+    """
+
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        try:
+            return datetime.fromtimestamp(float(value))
+        except (OverflowError, OSError, ValueError):
+            return None
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None

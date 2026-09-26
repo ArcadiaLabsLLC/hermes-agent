@@ -1,6 +1,8 @@
 """Keep persona ownership across native compression rotations."""
 import json
 
+__layer__ = "policy"
+
 
 def child_model_config(agent):
     config = agent._session_init_model_config

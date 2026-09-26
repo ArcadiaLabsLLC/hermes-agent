@@ -32,6 +32,7 @@ from pathlib import Path
 import pytest
 
 from scripts import changed_line_mutation_check as gate
+from scripts.mutation_check import selection
 
 
 HH2_SHA = "0ecb921b9d"
@@ -124,7 +125,7 @@ def test_the_hh2_case_end_to_end_reports_it_was_selected_by_symbol(
     claims.write_text(json.dumps({"claims": [claim]}), encoding="utf-8")
     exemptions = tmp_path / "exemptions.yaml"
     exemptions.write_text(json.dumps({"exemptions": []}), encoding="utf-8")
-    monkeypatch.setattr(gate, "_changed_lines", lambda base, path: set(changed))
+    monkeypatch.setattr(selection, "_changed_lines", lambda base, path: set(changed))
 
     code = gate.run("BASE", claims, exemptions, wall_budget_seconds=900, list_only=True)
     out = capsys.readouterr().out
@@ -152,7 +153,7 @@ def test_a_line_selected_claim_is_not_labelled_as_selected_by_symbol(
     claims.write_text(json.dumps({"claims": [claim]}), encoding="utf-8")
     exemptions = tmp_path / "exemptions.yaml"
     exemptions.write_text(json.dumps({"exemptions": []}), encoding="utf-8")
-    monkeypatch.setattr(gate, "_changed_lines", lambda base, path: {1170})
+    monkeypatch.setattr(selection, "_changed_lines", lambda base, path: {1170})
 
     gate.run("BASE", claims, exemptions, wall_budget_seconds=900, list_only=True)
     out = capsys.readouterr().out
@@ -198,7 +199,7 @@ def test_a_module_scope_claim_is_not_widened_to_the_whole_file(
     exemptions = tmp_path / "exemptions.yaml"
     exemptions.write_text(json.dumps({"exemptions": []}), encoding="utf-8")
     # Line 7 is inside `unrelated`, nowhere near the anchored import.
-    monkeypatch.setattr(gate, "_changed_lines", lambda base, path: {7})
+    monkeypatch.setattr(selection, "_changed_lines", lambda base, path: {7})
 
     code = gate.run("BASE", claims, exemptions, wall_budget_seconds=900, list_only=True)
     out = capsys.readouterr().out
@@ -231,7 +232,7 @@ def test_a_symbol_scoped_claim_in_the_same_shape_is_selected(
     claims.write_text(json.dumps({"claims": [claim]}), encoding="utf-8")
     exemptions = tmp_path / "exemptions.yaml"
     exemptions.write_text(json.dumps({"exemptions": []}), encoding="utf-8")
-    monkeypatch.setattr(gate, "_changed_lines", lambda base, path: {6})
+    monkeypatch.setattr(selection, "_changed_lines", lambda base, path: {6})
 
     gate.run("BASE", claims, exemptions, wall_budget_seconds=900, list_only=True)
 
@@ -242,7 +243,7 @@ def _diff_returning(stdout: str, monkeypatch):
     def fake_run(args, **kwargs):
         return subprocess.CompletedProcess(args, 0, stdout, "")
 
-    monkeypatch.setattr(gate.subprocess, "run", fake_run)
+    monkeypatch.setattr(selection.subprocess, "run", fake_run)
 
 
 def test_a_deletion_only_hunk_now_contributes_its_surrounding_lines(monkeypatch):

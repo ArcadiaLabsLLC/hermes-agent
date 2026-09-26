@@ -27,7 +27,10 @@ from .skills_commands import _rel_to_shared_skills
 __layer__ = "lanes"
 __all__ = [
     "_ARCHIVE_STAMP_SUFFIX_RE",
+    "_PROFILE_SOURCE_PROBES",
+    "_PROMOTION_SOURCES",
     "_PromotionSourceError",
+    "_REFUSED_ACTION",
     "_archive_content_hint",
     "_canonical_packages_covered",
     "_cmd_skills_delete",
@@ -46,6 +49,71 @@ __all__ = [
 ]
 
 
+def _source_from_realm(realm_id: str, skill: str, args):
+    from agent_runtime.skill_promotion import realm_inbox_dir
+
+    source_dir = realm_inbox_dir(realm_id).joinpath(*skill.split("/"))
+    if not (source_dir / "SKILL.md").is_file():
+        raise _PromotionSourceError("not_found", "Skill not present in that realm's inbox.", {"skill": skill, "realm": realm_id})
+    # An inbox is a byte-faithful realm mirror — promotion never moves it.
+    return source_dir, {"kind": "realm", "realm_id": realm_id}, False
+
+
+def _probe_profile_direct(skills_root: Path, skill: str) -> list[Path]:
+    """``<skills>/<slug>/SKILL.md`` — the slug as written, categorized or not."""
+    candidate = skills_root.joinpath(*skill.split("/"))
+    return [candidate] if (candidate / "SKILL.md").is_file() else []
+
+
+def _probe_profile_category(skills_root: Path, skill: str) -> list[Path]:
+    """``<skills>/<category>/<slug>/SKILL.md`` — a BARE slug under any category."""
+    if "/" in skill or not skills_root.is_dir():
+        return []
+    return [
+        child / skill
+        for child in sorted(skills_root.iterdir(), key=lambda p: p.name)
+        if child.is_dir() and not child.name.startswith(".") and (child / skill / "SKILL.md").is_file()
+    ]
+
+
+#: Where a profile keeps a package, probed IN ORDER: the first probe that finds
+#: one decides, so an exact slug beats a same-named package under a category.
+_PROFILE_SOURCE_PROBES = (_probe_profile_direct, _probe_profile_category)
+
+
+def _source_from_profile(profile: str, skill: str, args):
+    from hermes_cli.profiles import get_profile_dir, normalize_profile_name
+
+    skills_root = get_profile_dir(normalize_profile_name(profile)) / "skills"
+    for probe in _PROFILE_SOURCE_PROBES:
+        found = probe(skills_root, skill)
+        if len(found) > 1:
+            raise _PromotionSourceError("invalid_request", "Skill found under multiple categories in that profile — use <category>/<name>.", {"skill": skill, "profile": profile, "candidates": sorted(p.parent.name for p in found)})
+        if found:
+            # Promoting from a profile retires the duplicate (the collision guard).
+            return found[0], {"kind": "profile", "profile": profile}, True
+    raise _PromotionSourceError("not_found", "Skill not found in that profile's skills directory.", {"skill": skill, "profile": profile})
+
+
+def _source_from_path(path: str, skill: str, args):
+    source_dir = Path(path).expanduser()
+    if not (source_dir / "SKILL.md").is_file():
+        raise _PromotionSourceError("not_found", "No SKILL.md at that path.", {"skill": skill})
+    return source_dir, {"kind": "path", "path": str(source_dir)}, bool(getattr(args, "move_source", False))
+
+
+#: The explicit promotion sources, in the order a refusal names them:
+#: ``(flag, reader, resolver)``. At most one may be given; none means the
+#: implied source — exactly one realm inbox holding the skill. Each reader is
+#: spelled as ``args.<dest>`` so the flag-reachability gate sees the read; a
+#: ``getattr(args, attr)`` over the table's attribute name is invisible to it.
+_PROMOTION_SOURCES = (
+    ("--from-realm", lambda args: args.from_realm, _source_from_realm),
+    ("--from-profile", lambda args: args.from_profile, _source_from_profile),
+    ("--from-path", lambda args: args.from_path, _source_from_path),
+)
+
+
 def _resolve_promotion_source(args, skill: str):
     """Resolve exactly one promotion source.
 
@@ -54,62 +122,35 @@ def _resolve_promotion_source(args, skill: str):
     :class:`_PromotionSourceError` on failure.
     """
 
-    from agent_runtime.skill_promotion import list_inbox_packages, realm_inbox_dir
+    from agent_runtime.skill_promotion import list_inbox_packages
 
-    from_realm = str(getattr(args, "from_realm", "") or "").strip() or None
-    from_profile = str(getattr(args, "from_profile", "") or "").strip() or None
-    from_path = str(getattr(args, "from_path", "") or "").strip() or None
-    provided = [flag for flag, value in (("--from-realm", from_realm), ("--from-profile", from_profile), ("--from-path", from_path)) if value]
-    slug_parts = skill.split("/")
+    given = [
+        (flag, value, resolve)
+        for flag, read, resolve in _PROMOTION_SOURCES
+        if (value := str(read(args) or "").strip())
+    ]
 
-    if len(provided) > 1:
-        raise _PromotionSourceError("invalid_request", "Provide exactly one of --from-realm / --from-profile / --from-path.", {"skill": skill, "provided": provided})
+    if len(given) > 1:
+        raise _PromotionSourceError("invalid_request", "Provide exactly one of --from-realm / --from-profile / --from-path.", {"skill": skill, "provided": [flag for flag, _, _ in given]})
 
-    if not provided:
-        # Implied source: exactly one realm inbox must hold the skill.
-        matches = [row for row in list_inbox_packages() if row["skill"] == skill]
-        if not matches:
-            raise _PromotionSourceError("not_found", "Skill not held in any realm inbox — specify --from-realm / --from-profile / --from-path.", {"skill": skill})
-        if len(matches) > 1:
-            raise _PromotionSourceError("invalid_request", "Skill present in multiple realm inboxes — specify --from-realm <id>.", {"skill": skill, "candidates": sorted(row["realm"] for row in matches)})
-        row = matches[0]
-        return Path(row["source_dir"]), {"kind": "realm", "realm_id": row["realm"]}, False
+    if given:
+        _, value, resolve = given[0]
+        return resolve(value, skill, args)
 
-    if from_realm:
-        source_dir = realm_inbox_dir(from_realm).joinpath(*slug_parts)
-        if not (source_dir / "SKILL.md").is_file():
-            raise _PromotionSourceError("not_found", "Skill not present in that realm's inbox.", {"skill": skill, "realm": from_realm})
-        # An inbox is a byte-faithful realm mirror — promotion never moves it.
-        return source_dir, {"kind": "realm", "realm_id": from_realm}, False
+    # Implied source: exactly one realm inbox must hold the skill.
+    matches = [row for row in list_inbox_packages() if row["skill"] == skill]
+    if not matches:
+        raise _PromotionSourceError("not_found", "Skill not held in any realm inbox — specify --from-realm / --from-profile / --from-path.", {"skill": skill})
+    if len(matches) > 1:
+        raise _PromotionSourceError("invalid_request", "Skill present in multiple realm inboxes — specify --from-realm <id>.", {"skill": skill, "candidates": sorted(row["realm"] for row in matches)})
+    row = matches[0]
+    return Path(row["source_dir"]), {"kind": "realm", "realm_id": row["realm"]}, False
 
-    if from_profile:
-        from hermes_cli.profiles import get_profile_dir, normalize_profile_name
 
-        skills_root = get_profile_dir(normalize_profile_name(from_profile)) / "skills"
-        candidate = skills_root.joinpath(*slug_parts)
-        if (candidate / "SKILL.md").is_file():
-            source_dir = candidate
-        elif "/" not in skill:
-            nested = [
-                child / skill
-                for child in sorted(skills_root.iterdir(), key=lambda p: p.name)
-                if child.is_dir() and not child.name.startswith(".") and (child / skill / "SKILL.md").is_file()
-            ] if skills_root.is_dir() else []
-            if not nested:
-                raise _PromotionSourceError("not_found", "Skill not found in that profile's skills directory.", {"skill": skill, "profile": from_profile})
-            if len(nested) > 1:
-                raise _PromotionSourceError("invalid_request", "Skill found under multiple categories in that profile — use <category>/<name>.", {"skill": skill, "profile": from_profile, "candidates": sorted(p.parent.name for p in nested)})
-            source_dir = nested[0]
-        else:
-            raise _PromotionSourceError("not_found", "Skill not found in that profile's skills directory.", {"skill": skill, "profile": from_profile})
-        # Promoting from a profile retires the duplicate (the collision guard).
-        return source_dir, {"kind": "profile", "profile": from_profile}, True
-
-    # from_path
-    source_dir = Path(from_path).expanduser()
-    if not (source_dir / "SKILL.md").is_file():
-        raise _PromotionSourceError("not_found", "No SKILL.md at that path.", {"skill": skill})
-    return source_dir, {"kind": "path", "path": str(source_dir)}, bool(getattr(args, "move_source", False))
+#: The ``PromotionResult.action`` the guarded door answers when it wrote
+#: nothing (``agent_runtime.skill_promotion.execute_promotion``); the one
+#: action ``skills promote`` exits non-zero on.
+_REFUSED_ACTION = "refused"
 
 
 class _PromotionSourceError(Exception):
@@ -215,7 +256,7 @@ def _cmd_skills_promote(args) -> int:
         },
     )
     _print_stage42(envelope, args=args, default_output="json")
-    return 2 if result.action == "refused" else 0
+    return 2 if result.action == _REFUSED_ACTION else 0
 
 
 # ── skills delete / restore (canon: docs/agent-runtime-harness/01-system-architecture.md §Skills) ──

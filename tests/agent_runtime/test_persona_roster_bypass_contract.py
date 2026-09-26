@@ -83,9 +83,9 @@ STRICT_RESOLVERS = {
 #: parameter, so the contract on it is the contract on ITS callers, which are
 #: themselves rows here.
 PERSONA_ARGUMENT_CONTRACT = {
-    ("agent_runtime/agent_create.py", "normalize_agent_create", "param:persona"),
-    ("agent_runtime/agent_create.py", "perform_agent_create", "param:persona"),
-    ("agent_runtime/agent_create.py", "require_known_persona", "param:persona"),
+    ("agent_runtime/agent_create/request.py", "normalize_agent_create", "param:persona"),
+    ("agent_runtime/agent_create/perform.py", "normalize", "param:persona"),
+    ("agent_runtime/agent_create/request.py", "require_known_persona", "param:persona"),
     ("agent_runtime/serve_rpc/agent.py", "_runtime_agent_create", "absent"),
     (
         "hermes_cli/harness_parts/persona/lifecycle_commands.py",
@@ -120,7 +120,7 @@ def test_any_non_none_persona_short_circuits_the_roster_check(monkeypatch):
 
     from agent_runtime.models import AgentPersona
 
-    monkeypatch.setattr(agent_create, "persona_roster", lambda: [])
+    monkeypatch.setattr(agent_create.request, "persona_roster", lambda: [])
 
     synthesized = AgentPersona(
         id="not_in_any_roster",
@@ -160,7 +160,7 @@ def test_the_bypass_is_the_documented_first_statement_not_an_accident():
     path that had already been answered.
     """
 
-    source = Path(agent_create.__file__).read_text(encoding="utf-8")
+    source = Path(agent_create.request.__file__).read_text(encoding="utf-8")
     func = next(
         node
         for node in ast.walk(ast.parse(source))

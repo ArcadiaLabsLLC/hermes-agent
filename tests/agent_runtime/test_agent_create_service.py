@@ -21,6 +21,7 @@ import pytest
 from agent_runtime import paths
 from agent_runtime.agent_create import perform_agent_create
 from tests.agent_runtime.office_seed import seed_workspace_record
+from tests._downstream.split_package_source import patch_where_bound
 
 WORKSPACE = "ws_agent_create_service"
 
@@ -351,7 +352,7 @@ def test_an_unreadable_roster_is_its_own_reason_not_persona_not_found(
     def _explode(*args, **kwargs):
         raise OSError("config file is locked by another process")
 
-    monkeypatch.setattr(runtime_config, "load_agent_runtime_config", _explode)
+    patch_where_bound(monkeypatch, runtime_config, "load_agent_runtime_config", _explode)
 
     with pytest.raises(agent_create.AgentCreateInvalid) as caught:
         agent_create.normalize_agent_create(
@@ -380,7 +381,7 @@ def test_an_empty_roster_that_LOADED_still_refuses_as_persona_not_found(
 
     from agent_runtime import agent_create
 
-    monkeypatch.setattr(agent_create, "persona_roster", lambda: [])
+    monkeypatch.setattr(agent_create.request, "persona_roster", lambda: [])
 
     with pytest.raises(agent_create.AgentCreateInvalid) as caught:
         agent_create.normalize_agent_create(
@@ -418,11 +419,12 @@ def _invalid_reasons_declared_in_the_module() -> set[str]:
     """
 
     import ast
-    import inspect
 
     from agent_runtime import agent_create
 
-    tree = ast.parse(inspect.getsource(agent_create))
+    from tests._downstream.split_package_source import package_tree
+
+    tree = package_tree(agent_create)
     reasons: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -541,7 +543,7 @@ def test_the_roster_fault_arm_stamps_rolled_back(monkeypatch, qa_persona):
     def _explode(*args, **kwargs):
         raise OSError("config file is locked by another process")
 
-    monkeypatch.setattr(runtime_config, "load_agent_runtime_config", _explode)
+    patch_where_bound(monkeypatch, runtime_config, "load_agent_runtime_config", _explode)
 
     outcome = perform_agent_create(_params(placement_id="qa_roster_stamp_agent_2"))
 
@@ -1813,3 +1815,42 @@ def test_the_skills_phase_is_billed_in_phases(qa_persona, isolated_shared_skills
     assert set(phases) == {"instance_ms", "placement_ms", "skills_ms", "total_ms"}
     assert phases["total_ms"] >= phases["skills_ms"]
 
+
+
+def test_a_rolled_back_key_replays_its_recorded_refusal_and_writes_nothing(
+    qa_persona, monkeypatch
+):
+    """Positive control for the ``rolled_back`` resume arm (god-file sheet
+    agent_create.md §6, ruling Q6): before this, no test spelled
+    ``STATE_ROLLED_BACK``, so the arm the resume table will own was green by
+    construction. A placement that fails compensates the key to
+    ``rolled_back``; the SAME key replayed answers the recorded refusal, marked
+    a replay, and writes nothing — no second roster row, no actor."""
+
+    from agent_runtime.agent_create import ERR_CONFLICT
+    from agent_runtime.agent_create_reservations import STATE_ROLLED_BACK
+    from agent_runtime.errors import StaleRevision
+    from agent_runtime.office_store import OfficeStore
+
+    _seed_workspace()
+    params = _params(placement_id="qa_svc_rolled_agent_2", idempotency_key="service-rolled")
+
+    def _stale(*_args, **_kwargs):
+        raise StaleRevision("the office moved under this placement")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(OfficeStore, "upsert_actor", _stale)
+        first = perform_agent_create(params)
+    assert first.refusal is not None
+    assert _reservation_state("service-rolled") == STATE_ROLLED_BACK
+    receipt = _reservation_record("service-rolled")
+
+    replayed = perform_agent_create(params)
+
+    assert replayed.refusal is not None
+    assert replayed.refusal.code == ERR_CONFLICT
+    assert replayed.refusal.data["idempotent_replay"] is True
+    assert replayed.refusal.data["rolled_back"] is True
+    assert replayed.refusal.data["reason"] == first.refusal.data["reason"]
+    assert _reservation_record("service-rolled") == receipt, "a replay rewrote the receipt"
+    assert _actors() == {}

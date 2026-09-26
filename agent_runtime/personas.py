@@ -47,6 +47,22 @@ class AutonomyLevel(StrEnum):
 # operator chat turn. Unknown roles remain data and ``validate_toolsets`` applies
 # no role-specific ceiling.
 PROFILE_ROLE_SENTINEL = "profile"
+
+#: Historical persona-id spellings, BOTH directions: a key persisted under one
+#: spelling is also consulted (never substituted) under the other. The one
+#: owner of the ``alice_supervisor`` <-> ``neko_supervisor`` alias.
+_PERSONA_ID_ALIASES: dict[str, tuple[str, ...]] = {
+    "alice_supervisor": ("neko_supervisor",),
+    "neko_supervisor": ("alice_supervisor",),
+}
+
+
+def persona_id_aliases(persona_id: str) -> tuple[str, ...]:
+    """The OTHER spellings ``persona_id`` is also known by (``()`` for most ids)."""
+
+    return _PERSONA_ID_ALIASES.get(str(persona_id or "").strip(), ())
+
+
 def coerce_agent_role(role: AgentRole | str | None) -> AgentRole | str:
     """Resolve a persona role token to an ``AgentRole``.
 
@@ -553,3 +569,29 @@ def promote_profile_to_persona(
             include_profile_memory=True,
         )
     return store.save(persona)
+
+
+#: The canonical spelling of the ruled ``alice_supervisor`` / ``neko_supervisor``
+#: pair (:data:`_PERSONA_ID_ALIASES` owns the pair itself).
+_CANONICAL_ALIASED_ID = "alice_supervisor"
+
+
+def canonical_persona_id(persona_id: str) -> str:
+    """The canonical spelling of a ruled alias; any other id unchanged. One-way:
+    the direction a permission table resolves in (the terminal envelope's grant
+    table), so an alias added to :data:`_PERSONA_ID_ALIASES` widens who a grant
+    applies to — do not add one without a ruling that names it (S66 removed an
+    un-ruled third entry for exactly that reason)."""
+
+    return _CANONICAL_ALIASED_ID if _CANONICAL_ALIASED_ID in (persona_id, *persona_id_aliases(persona_id)) else persona_id
+
+
+def role_or_attr(persona: object) -> str:
+    """The persona's role as the role vocabulary reads it, or its raw ``role``
+    attribute when that read faults. Never raises (both callers decorate a
+    turn; neither may block one)."""
+
+    try:
+        return str(role_from_persona(persona))  # type: ignore[arg-type]
+    except Exception:
+        return str(getattr(persona, "role", "") or "")

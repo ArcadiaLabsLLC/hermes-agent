@@ -1092,7 +1092,7 @@ def test_recent_interrupted_marker_survives_retention_churn_and_synthesizes(
 ):
     from agent_runtime import mission_chat_turns
 
-    monkeypatch.setattr(mission_chat_turns, "_RETENTION_MAX_TURNS_PER_SESSION", 10)
+    monkeypatch.setattr(mission_chat_turns.storage, "_RETENTION_MAX_TURNS_PER_SESSION", 10)
     # Old settled turns that retention will churn through.
     for index in range(15):
         persist_mission_chat_turn(
@@ -2147,3 +2147,37 @@ def test_every_wire_role_maps_to_its_transcript_role():
         "": None,
         None: None,
     }
+
+
+def test_the_history_rows_persona_spelling_is_the_vocabularys_one_public_function():
+    """Lane W3-C: hoisted out of the SessionDB reader, so policy-shaped readers
+    need not pin themselves at ``stores`` to spell a persona id.
+
+    POSITIVE CONTROL through a reader: ``_infer_persona_id`` folds the
+    token-safe ``profile_x`` spelling only because it calls the vocabulary's
+    function. KILLING MUTATION: drop the ``profile_`` fold in
+    ``canonical_chat_persona_id`` (the reader answers ``profile_neko``), or
+    re-grow a private definition in ``history_rows`` (the identity arm reds).
+    """
+    from agent_runtime.persona_chat_history import (
+        canonical_chat_persona_id,
+        history_rows,
+        summary,
+        trace,
+        vocabulary,
+    )
+
+    assert canonical_chat_persona_id("profile_neko") == "profile:neko"
+    assert canonical_chat_persona_id("profile:neko") == "profile:neko"
+    assert canonical_chat_persona_id("qa") == "qa"
+    assert canonical_chat_persona_id("") is None
+    assert (
+        history_rows._infer_persona_id(
+            {"system_prompt": "Mission Control persona chat for profile_neko"},
+            session_id="s-1",
+        )
+        == "profile:neko"
+    )
+    one = vocabulary.canonical_chat_persona_id
+    assert summary.canonical_chat_persona_id is one
+    assert trace.canonical_chat_persona_id is one

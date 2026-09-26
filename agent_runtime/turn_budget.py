@@ -39,6 +39,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Iterable
 
+__layer__ = "policy"
+
 # Reserve floor/fraction for the graceful checkpoint. The window reserved at the
 # END of a turn is ``max(60s, 15% of the original budget)``: 60s is roughly one
 # unhurried toolless summary call on a slow provider, and the proportional term

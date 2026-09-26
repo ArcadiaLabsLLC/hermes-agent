@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from agent_runtime.repo_context import RepoExecutionContext, isolated_repo_context_for_run
+from tests._downstream._seams import RepoExecutionContext, isolated_repo_context_for_run
 
 import pytest
 

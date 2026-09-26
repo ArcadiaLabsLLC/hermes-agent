@@ -33,7 +33,7 @@ and validation — with three corrections:
 
 1. **The "safe path" does not validate persona ids either.** `runtime.agent.create` accepts
    `persona_id: "qa_agent"` today. `normalize_agent_create` checks only that the id is a
-   non-empty, tokenizable string (`agent_runtime/agent_create.py:200-220` READ); the roster
+   non-empty, tokenizable string (`agent_runtime/agent_create/request.py:122-142` READ); the roster
    lookup that exists in the same module, `resolve_persona` (`:124-150` READ), is consulted
    **only** to compute the display-name fallback (`:285`, via `honest_default_display_name`
    `:94-121`) — a miss falls through to the title-cased id and the create proceeds. There is
@@ -61,7 +61,7 @@ and validation — with three corrections:
    *conclusions* are confirmed by the code; its quoted command line is incomplete.
 
 **The shape of the fix.** The policy layer is already shared
-(`agent_runtime/agent_create.py`, born in AC-1); the **orchestration** — reserve → mint →
+(`agent_runtime/agent_create/`, born in AC-1); the **orchestration** — reserve → mint →
 place → compensate/resume — is not: it lives inline in the RPC handler, welded to
 JSON-RPC `rid`/`ok`/`err` envelopes. Hoist the orchestration into the same module as a typed
 function, make `serve_rpc` a translation shim over it, add the roster refusal to the shared
@@ -75,10 +75,10 @@ whichever transport they already speak; the launcher's remaining two-call lane i
 Registered `@method("runtime.agent.create")` at `serve_rpc.py:1010`; advertised by the
 manifest like every method (decorator registry — Plan A A-R3, re-confirmed by RAN grep).
 
-**Params** (`agent_create.py:192-289`): required `persona_id` (non-empty string; a
+**Params** (`agent_create/request.py:114-184`): required `persona_id` (non-empty string; a
 `profile:`-prefixed id keeps its prefix through `_normalize_instance_source_persona`,
 `persona_assignments.py:2268-2273`; an id that would *collapse* to the literal token
-`persona` is refused pre-store, `agent_create.py:206-219`), `workspace_id` (non-empty),
+`persona` is refused pre-store, `agent_create/request.py:128-141`), `workspace_id` (non-empty),
 `position: [x, y]` (finite numerics; bools refused, `:167-189`), `idempotency_key`
 (non-empty, ≤240 chars). Optional: `display_name`, `placement_id` (omitted → server-minted
 `<token>_<hex8>`, `:153-164`; sent-but-untokenizable → refused, `:250-262`), `realm_id`,
@@ -102,7 +102,7 @@ manifest like every method (decorator registry — Plan A A-R3, re-confirmed by 
    placement is attempted** (`agent_create_reservations.py:106-121`); a crash before this
    line wrote nothing, after it is resumable.
 6. Placement: `placement_actor_payload` (instance-keyed by construction,
-   `agent_create.py:292-319`), class-key guard run anyway as defence (`:1201-1213`),
+   `agent_create/request.py:187-214`), class-key guard run anyway as defence (`:1201-1213`),
    `store.upsert_actor` (`:1216`).
 7. Any placement failure → `_agent_create_failure` compensates: `retire` through the same
    chokepoint the delete gesture uses; success → `rolled_back: true` + `4090`; a retire that
@@ -149,7 +149,7 @@ either the two-call dance or roster-only; **no door validates the persona id**.
 
 ## 3. Where the shared handler should live
 
-**Module:** `agent_runtime/agent_create.py` — it already exists, is imported by both lanes
+**Module:** `agent_runtime/agent_create/` — it already exists, is imported by both lanes
 today, and its own docstring records why `persona_commands.py` is not importable (exec'd
 into `harness.py` globals, `agent_create.py:26-37` READ; `harness.py:3667-3674` per that
 note). A new sibling (`agent_create_service.py`) is acceptable if the module grows past
@@ -199,7 +199,7 @@ profile owns nothing (`profile_persona_resolution` returns `None` matches withou
 
 **Which layer owns the refusal:** `normalize_agent_create` — the one function that already
 runs before any store write on the unified lane, whose docstring promises "a refusal here
-provably wrote nothing" (`agent_create.py:195-198`). A new branch: a **bare** persona id
+provably wrote nothing" (`agent_create/request.py:117-120`). A new branch: a **bare** persona id
 that `resolve_persona` cannot find → `AgentCreateInvalid("persona_not_found", …)`. A
 `profile:` id keeps the CLI's synthesize semantics in the first cut (decision **D-U1**,
 §8.2). The store (`add_instance`) stays permissive — it is also the restore/rebind
@@ -246,7 +246,7 @@ refusal message must name the cure (`harness agent list`, or re-add the persona)
 
 ### UC-H1 — hermes: hoist the orchestration into `agent_create.perform_agent_create`
 
-**Change surface.** `agent_runtime/agent_create.py` (or sibling): the §3 function, moved
+**Change surface.** `agent_runtime/agent_create/` (or sibling): the §3 function, moved
 verbatim from `serve_rpc.py:1083-1267` + `:975-1007`; `serve_rpc._runtime_agent_create`
 becomes the translation shim. No reply byte moves, no reason string moves, no event moves.
 
@@ -435,7 +435,7 @@ this program keeps getting burned by.
 | # | Fact | How established |
 |---|---|---|
 | U-R1 | `runtime.agent.create` full contract: params, ordering, reservation states, D-A3 burn, compensation honesty, reply shape | READ serve_rpc.py:975-1276; agent_create.py:1-319; agent_create_reservations.py:1-286 |
-| U-R2 | **No persona-roster refusal on the RPC lane**; `resolve_persona` feeds display-name only; no unknown-persona test exists | READ agent_create.py:94-150,200-220,285; serve_rpc.py:1086; RAN test listing of test_serve_rpc_agent_create.py |
+| U-R2 | **No persona-roster refusal on the RPC lane**; `resolve_persona` feeds display-name only; no unknown-persona test exists | READ agent_create/request.py:36-92,200-220,285; serve_rpc.py:1086; RAN test listing of test_serve_rpc_agent_create.py |
 | U-R3 | CLI create/open-chat handlers never write a placement; `_persona_by_id` → None goes unchecked; `--title`/`--message` argparse-required; display-name-less create refused | READ persona_commands.py:387-508,560-612,5908-5940; harness.py:905-946 |
 | U-R4 | `add_instance`/`open_chat`/`assert_bindable` validate placement/session/retirement, never persona existence | READ persona_assignments.py:1340-1404,1432-1469,1646-1685 |
 | U-R5 | Non-test `add_instance` callers: exactly two CLI handlers + the RPC handler | RAN grep |

@@ -1,7 +1,7 @@
 """Fork-owned tests moved out of ``tests/tools/test_local_env_blocklist.py`` (lane CARRY).
 
 The upstream file is byte-identical to upstream again; upstream's verbatim
-``Path`` equality is marked by id in ``tests/_downstream/id_markers.py``.
+``Path`` equality is marked by id in ``tests/_downstream/id_markers/``.
 """
 
 from unittest.mock import patch
@@ -10,7 +10,7 @@ import pytest
 
 
 class TestSanePathIncludesHomebrew:
-    @pytest.mark.windows_only
+    @pytest.mark.platforms("windows")
     def test_make_run_env_preserves_windows_mixed_case_path_key(self, monkeypatch):
         """The fork's real-host form of upstream's mixed-case ``Path`` test.
 

@@ -38,12 +38,12 @@ from agent_runtime.persona_chat_durability import (
 )
 from .chat_admission import (
     _bind_mission_chat_delivery_capability,
+    _bundle_cursor_after_plugin_discovery,
     _mission_chat_busy_outcome,
     _mission_chat_lease_provenance,
     _normalize_deferred_thread_policy,
     _registry_probe_rounds,
     _visibility_bundle_builds,
-    _visibility_bundle_diff_cursor,
     _within_admitted_turn,
 )
 from .chat_events import _mission_chat_emit, _publish_persona_chat_send_refused_event
@@ -110,7 +110,7 @@ def _cmd_mission_chat_message(args) -> int:
     # names are the tail since here. The counter says a rebuild HAPPENED; this
     # is what says which keyed input moved — the question fifteen live turns
     # since 2026-08-29 have carried a ``1`` for and never answered.
-    _bundle_diff_cursor = _visibility_bundle_diff_cursor()
+    _bundle_diff_cursor = _bundle_cursor_after_plugin_discovery()
     # Per-request capability binding, at the very top so every path below —
     # including the refusals — runs with the truthful answer bound.
     _bind_mission_chat_delivery_capability()

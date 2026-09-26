@@ -120,7 +120,9 @@ import pytest
 KEPT = {
     "agent_runtime.board_models": ("default_board_id",),
     "agent_runtime.cli_format": ("emit_json",),
-    "agent_runtime.repo_context": (
+    # The trio moved to the test seam as one unit (owner ruling 2026-09-25,
+    # lane SEAM); the keep holds there.
+    "tests._downstream._seams": (
         "isolated_repo_context_for_run",
         "_worktree_token",
         "_ensure_isolated_worktree",

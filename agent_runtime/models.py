@@ -7,6 +7,8 @@ from typing import Any
 
 from .states import RunState, WorkerSessionState
 
+__layer__ = "models"
+
 
 # The structural prefix every persona-instance id carries. Defined at this low
 # layer (no import back into persona_assignments, which would be a cycle) so the
@@ -702,9 +704,8 @@ class Incident:
     schema_version: int = 1
 
 
-#: ``Realm.agent_publish_mode``'s two values. Named because ``workspace`` is also
-#: a realm-sync family (``realm_sync.families.SyncFamily``), and W0-G5 refuses a
-#: bare literal compare against a declared vocabulary's word.
+#: ``Realm.agent_publish_mode``'s two values; :func:`validate_agent_publish_mode`
+#: is the one reader.
 REALM_AGENT_PUBLISH_MODES = ("workspace", "selected")
 
 
@@ -714,3 +715,14 @@ def validate_agent_publish_mode(mode: str) -> None:
 
     if mode not in REALM_AGENT_PUBLISH_MODES:
         raise ValueError(f"invalid agent_publish_mode: {mode!r}")
+
+
+REALM_SKILL_PUBLISH_MODES = ("all", "selected")
+
+
+def validate_skill_publish_mode(mode: str) -> None:
+    """Refuse a mode ``Realm.skill_publish_mode`` does not know — the agent
+    twin's exact shape, asked by ``RealmStore.set_skill_selection``."""
+
+    if mode not in REALM_SKILL_PUBLISH_MODES:
+        raise ValueError(f"invalid skill_publish_mode: {mode!r}")

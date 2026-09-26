@@ -1,5 +1,7 @@
 """Lean Hermes-native Agent Runtime Harness core."""
 
+__layer__ = "models"
+
 __version__ = "0.1.0"
 
 from .models import AgentPersona, AgentRun, Event, Incident

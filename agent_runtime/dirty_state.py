@@ -9,6 +9,8 @@ from .repo_context import resolve_affected_repo_workdir, safe_affected_repo_labe
 from .states import RunState
 from .store import ACTIVE_RUN_STATES
 
+__layer__ = "stores"
+
 
 DEFAULT_DIRTY_REPOS = ("EterniaBackend", "EterniaLauncher", "hermes-agent")
 _MAX_STATUS_LINES = 10

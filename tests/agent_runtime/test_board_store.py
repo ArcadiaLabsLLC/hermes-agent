@@ -263,6 +263,108 @@ def test_resolve_conflict_take_local_clears_sidecar():
     store.edit_card(card.card_id, title="ok now")
 
 
+def _event_rows(event_type: str) -> list[dict]:
+    return [evt.payload for _, evt in EventLog().iter_from_offset(0) if evt.type == event_type]
+
+
+def test_resolve_conflict_take_remote_adopts_the_sidecar_card():
+    """Positive control (sheet board_store.md §6.3, the REMOTE arm with a
+    ``remote_card``): the card is rewritten from the sidecar at ``revision+1``."""
+
+    ws = _make_workspace()
+    store = BoardStore()
+    card = store.add_card(workspace_id=ws, title="Contested")
+    board_id = board_models.default_board_id(ws)
+    remote = json.loads(paths.board_card_path(board_id, card.card_id).read_text(encoding="utf-8"))
+    remote.update(title="Remote title", revision=4)
+    conflict = paths.board_conflict_path(board_id, card.card_id)
+    conflict.parent.mkdir(parents=True, exist_ok=True)
+    conflict.write_text(json.dumps({"card_id": card.card_id, "remote_card": remote}), encoding="utf-8")
+
+    resolved = store.resolve_conflict(card.card_id, take="remote")
+
+    assert (resolved.title, resolved.revision, resolved.state) == ("Remote title", 5, "active")
+    assert store.get_card(card.card_id, board_id=board_id).title == "Remote title"
+    assert not conflict.exists()
+    assert [row["take"] for row in _event_rows("board.card.conflict_resolved")] == ["remote"]
+
+
+def test_resolve_conflict_take_remote_without_a_card_archives_local_silently():
+    """Positive control (§6.3, the edit-vs-remove arm): no ``remote_card`` →
+    the local card is archived ``remote_removed`` with NO ``board.card.archived``
+    event (the ``emit=False`` arm) — exactly one ``conflict_resolved``."""
+
+    ws = _make_workspace()
+    store = BoardStore()
+    card = store.add_card(workspace_id=ws, title="Removed remotely")
+    board_id = board_models.default_board_id(ws)
+    conflict = paths.board_conflict_path(board_id, card.card_id)
+    conflict.parent.mkdir(parents=True, exist_ok=True)
+    conflict.write_text(json.dumps({"card_id": card.card_id, "kind": "edit_vs_remove"}), encoding="utf-8")
+
+    assert store.resolve_conflict(card.card_id, take="remote") is None
+
+    assert not paths.board_card_path(board_id, card.card_id).exists()
+    archived = json.loads(paths.board_archived_card_path(board_id, card.card_id).read_text(encoding="utf-8"))
+    assert archived["state"] == "archived"
+    assert _event_rows("board.card.archived") == []
+    assert len(_event_rows("board.card.conflict_resolved")) == 1
+    assert card.card_id in store.get(board_id).archived_card_ids
+
+
+def test_update_board_renames_recolumns_and_refuses_a_stale_revision():
+    """Positive control (§6.2): ``update_board`` is live (the CLI's
+    ``board update`` verb) and was untested."""
+
+    ws = _make_workspace()
+    store = BoardStore()
+    board = store.ensure_default_board(ws)
+    columns = board.columns[:2]
+    updated = store.update_board(
+        board.board_id, title="Renamed", columns=columns, expect_revision=board.revision
+    )
+    assert updated.title == "Renamed"
+    assert [c.column_id for c in updated.columns] == [c.column_id for c in columns]
+    assert updated.revision == board.revision + 1
+    rows = _event_rows("board.updated")
+    assert rows[-1]["change"] == "title,columns"
+    assert rows[-1]["revision"] == updated.revision
+    with pytest.raises(StaleRevision):
+        store.update_board(board.board_id, title="Again", expect_revision=board.revision)
+
+
+def test_a_move_between_colliding_keys_rebalances_the_column():
+    """Positive control (§6.1): two neighbours with the SAME key leave no
+    midpoint (``allocate_between`` raises), so the move rebalances the column —
+    every key rewritten, one ``board.rebalanced`` carrying the card count."""
+
+    ws = _make_workspace()
+    store = BoardStore()
+    first = store.add_card(workspace_id=ws, title="First")
+    second = store.add_card(workspace_id=ws, title="Second")
+    mover = store.add_card(workspace_id=ws, title="Mover")
+    board_id = board_models.default_board_id(ws)
+    for card in (first, second):
+        path = paths.board_card_path(board_id, card.card_id)
+        row = json.loads(path.read_text(encoding="utf-8"))
+        row["order_key"] = "m"
+        path.write_text(json.dumps(row), encoding="utf-8")
+
+    moved = store.move_card(
+        mover.card_id, column_id=first.column_id, after=first.card_id, before=second.card_id
+    )
+
+    rebalanced = _event_rows("board.rebalanced")
+    assert len(rebalanced) == 1
+    assert rebalanced[0]["card_count"] == 3
+    keys = {
+        c.card_id: c.order_key for c in store.list_cards(board_id) if c.column_id == first.column_id
+    }
+    assert keys[first.card_id] != "m" and keys[second.card_id] != "m"
+    assert len(set(keys.values())) == len(keys)
+    assert keys[moved.card_id] == max(keys.values())
+
+
 # ── ML-8b/4: the board lister's two classes, split ────────────────────────
 #
 # ``_scan_card_dir`` skips a card file it cannot decode. Two different things

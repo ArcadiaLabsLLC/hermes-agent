@@ -21,6 +21,7 @@ import json
 import pytest
 
 from agent_runtime import paths
+from agent_runtime.gateway_endpoints import candidates as endpoint_candidates
 
 
 @pytest.fixture(autouse=True)
@@ -48,9 +49,10 @@ def gateway_configured(monkeypatch):
 
     from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
-    monkeypatch.setattr(
-        serve_gateway_listener, "gateway_listen_config", lambda: ("10.0.0.4", 8765)
-    )
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(
+            _home, "gateway_listen_config", lambda: ("10.0.0.4", 8765)
+        )
 
 
 def _dispatch(argv: list[str]) -> int:
@@ -139,7 +141,7 @@ def test_both_nested_payloads_carry_the_candidate_list_and_a_dialable_first_row(
 ):
     """R-D1 + R-D3 on the two payloads that are actually POSTed to the backend.
 
-    Before this, both were built from ``_endpoint(root)["host"]`` — the
+    Before this, both were built from ``listener_endpoint(root)["host"]`` — the
     listener's BIND — while the grant's own top-level ``endpoints`` list was
     already correct. So one envelope carried a good list and two payloads
     carrying ``0.0.0.0``, and the two things that get dialled were the wrong
@@ -147,15 +149,14 @@ def test_both_nested_payloads_carry_the_candidate_list_and_a_dialable_first_row(
     contract checkable in one assertion.
     """
 
-    from hermes_cli.harness_parts import gateway_commands
     from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(
+            _home, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
+        )
     monkeypatch.setattr(
-        serve_gateway_listener, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
-    )
-    monkeypatch.setattr(
-        gateway_commands,
-        "_machine_addresses",
+        "agent_runtime.gateway_endpoints.candidates.machine_addresses",
         lambda: ["192.168.1.203", "10.97.7.100"],
     )
 
@@ -188,7 +189,6 @@ def test_introduce_refuses_a_wildcard_bind_that_enumerates_no_address(
     sentence here would send an operator to a config key that is already set."""
 
     from agent_runtime.serve_gateway_auth import pairing_store_path
-    from hermes_cli.harness_parts import gateway_commands
     from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
     from hermes_cli.harness_parts.gateway_commands import (
         LISTENER_OFF_SENTENCE,
@@ -196,10 +196,11 @@ def test_introduce_refuses_a_wildcard_bind_that_enumerates_no_address(
     )
     from hermes_cli.harness_support import ERROR_EXIT_CODES
 
-    monkeypatch.setattr(
-        serve_gateway_listener, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
-    )
-    monkeypatch.setattr(gateway_commands, "_machine_addresses", lambda: [])
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(
+            _home, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
+        )
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates.machine_addresses", lambda: [])
 
     code = _dispatch(
         ["harness", "gateway", "introduce", "--for-install", "install-a", "--json"]
@@ -297,7 +298,8 @@ def test_introduce_refuses_when_the_listener_is_off_with_peers_pairs_sentence(
     from hermes_cli.harness_parts.gateway_commands import LISTENER_OFF_SENTENCE
     from hermes_cli.harness_support import ERROR_EXIT_CODES
 
-    monkeypatch.setattr(serve_gateway_listener, "gateway_listen_config", lambda: (None, 0))
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(_home, "gateway_listen_config", lambda: (None, 0))
 
     code = _dispatch(
         ["harness", "gateway", "introduce", "--for-install", "install-a", "--json"]
@@ -373,7 +375,7 @@ def test_three_introduces_for_one_requester_leave_one_pending_row_per_half(capsy
     """
 
     from agent_runtime.gateway_pairing_codes import KIND_DEVICE, KIND_PEER
-    from agent_runtime.serve_gateway_auth import _read_pairing
+    from agent_runtime.serve_gateway_auth import read_pairing
 
     for _ in range(3):
         code, payload = _introduce(
@@ -381,7 +383,7 @@ def test_three_introduces_for_one_requester_leave_one_pending_row_per_half(capsy
         )
         assert code == 0, payload
 
-    pending = _read_pairing(paths.store_root())["pending"]
+    pending = read_pairing(paths.store_root())["pending"]
     kinds = sorted(entry["kind"] for entry in pending.values())
     assert kinds == [KIND_DEVICE, KIND_PEER]
     assert {entry.get("for_install_id") for entry in pending.values()} == {
@@ -524,15 +526,14 @@ def test_gateway_id_names_the_dial_host_and_keeps_the_listener_block_on_the_bind
     to the first and never to the second.
     """
 
-    from hermes_cli.harness_parts import gateway_commands
     from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(
+            _home, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
+        )
     monkeypatch.setattr(
-        serve_gateway_listener, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
-    )
-    monkeypatch.setattr(
-        gateway_commands,
-        "_machine_addresses",
+        "agent_runtime.gateway_endpoints.candidates.machine_addresses",
         lambda: ["192.168.1.203", "10.97.7.100"],
     )
 
@@ -551,13 +552,13 @@ def test_gateway_id_says_null_rather_than_a_bind_when_there_is_nothing_to_dial(
     filled the hole with the bind would put ``0.0.0.0`` on a launcher label,
     which is the sentence the operator asked never to see again."""
 
-    from hermes_cli.harness_parts import gateway_commands
     from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
-    monkeypatch.setattr(
-        serve_gateway_listener, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
-    )
-    monkeypatch.setattr(gateway_commands, "_machine_addresses", lambda: [])
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(
+            _home, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
+        )
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates.machine_addresses", lambda: [])
 
     code, payload = _run(capsys, "id")
 
@@ -582,12 +583,12 @@ def test_a_wildcard_bind_enumerates_interfaces_and_a_concrete_host_is_one_row(
     be a test that fails on a laptop that changed networks.
     """
 
-    from hermes_cli.harness_parts import gateway_commands
     from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
-    monkeypatch.setattr(serve_gateway_listener, "gateway_listen_config", lambda: ("0.0.0.0", 8765))
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(_home, "gateway_listen_config", lambda: ("0.0.0.0", 8765))
     monkeypatch.setattr(
-        gateway_commands, "_machine_addresses", lambda: ["10.0.0.4", "10.0.0.5"]
+        "agent_runtime.gateway_endpoints.candidates.machine_addresses", lambda: ["10.0.0.4", "10.0.0.5"]
     )
 
     _code, payload = _run(capsys, "id")
@@ -596,7 +597,8 @@ def test_a_wildcard_bind_enumerates_interfaces_and_a_concrete_host_is_one_row(
         {"host": "10.0.0.5", "port": 8765},
     ]
 
-    monkeypatch.setattr(serve_gateway_listener, "gateway_listen_config", lambda: ("10.0.0.9", 8765))
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(_home, "gateway_listen_config", lambda: ("10.0.0.9", 8765))
     _code, payload = _run(capsys, "id")
     assert payload["endpoints"] == [{"host": "10.0.0.9", "port": 8765}]
 
@@ -610,7 +612,8 @@ def test_no_listener_means_an_empty_endpoint_list_not_an_error(
 
     from hermes_cli.harness_parts.serve import gateway_listener as serve_gateway_listener
 
-    monkeypatch.setattr(serve_gateway_listener, "gateway_listen_config", lambda: (None, 0))
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(_home, "gateway_listen_config", lambda: (None, 0))
 
     code, payload = _run(capsys, "id")
 
@@ -627,7 +630,7 @@ def test_the_enumerator_drops_loopback_link_local_and_wildcards(monkeypatch):
 
     import socket
 
-    from hermes_cli.harness_parts import gateway_commands
+    from agent_runtime import gateway_endpoints
 
     def _fake_getaddrinfo(host, port, family=0, *args, **kwargs):
         rows = {
@@ -652,9 +655,9 @@ def test_the_enumerator_drops_loopback_link_local_and_wildcards(monkeypatch):
     monkeypatch.setattr(
         socket, "socket", lambda *a, **k: (_ for _ in ()).throw(OSError("no socket"))
     )
-    monkeypatch.setattr(gateway_commands, "_default_route_address", lambda: None)
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates.default_route_address", lambda: None)
 
-    assert gateway_commands._machine_addresses() == ["10.0.0.4", "2001:db8::5"]
+    assert gateway_endpoints.machine_addresses() == ["10.0.0.4", "2001:db8::5"]
 
 
 def test_the_default_route_probe_asks_the_internet_and_its_answer_is_offered_first(
@@ -678,7 +681,7 @@ def test_the_default_route_probe_asks_the_internet_and_its_answer_is_offered_fir
 
     import socket
 
-    from hermes_cli.harness_parts import gateway_commands
+    from agent_runtime import gateway_endpoints
 
     asked: list[tuple] = []
 
@@ -709,9 +712,9 @@ def test_the_default_route_probe_asks_the_internet_and_its_answer_is_offered_fir
     monkeypatch.setattr(socket, "socket", lambda *a, **k: _Probe())
     # D1b: with the routing table silent this is still exactly D1's answer, so
     # the probe's own contract keeps being asserted on its own terms.
-    monkeypatch.setattr(gateway_commands, "_default_route_address", lambda: None)
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates.default_route_address", lambda: None)
 
-    assert gateway_commands._machine_addresses() == [
+    assert gateway_endpoints.machine_addresses() == [
         "192.168.1.203",
         "10.97.7.100",
         "25.3.92.221",
@@ -734,7 +737,7 @@ def test_a_second_address_on_the_default_routes_own_subnet_outranks_other_privat
 
     import socket
 
-    from hermes_cli.harness_parts import gateway_commands
+    from agent_runtime import gateway_endpoints
 
     class _Probe:
         def connect(self, address):
@@ -757,9 +760,9 @@ def test_a_second_address_on_the_default_routes_own_subnet_outranks_other_privat
 
     monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo)
     monkeypatch.setattr(socket, "socket", lambda *a, **k: _Probe())
-    monkeypatch.setattr(gateway_commands, "_default_route_address", lambda: None)
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates.default_route_address", lambda: None)
 
-    assert gateway_commands._machine_addresses() == [
+    assert gateway_endpoints.machine_addresses() == [
         "192.168.1.203",
         "192.168.1.77",
         "172.20.5.5",
@@ -779,7 +782,7 @@ def test_the_cap_is_applied_after_the_order_so_the_lan_address_survives_it(
 
     import socket
 
-    from hermes_cli.harness_parts import gateway_commands
+    from agent_runtime import gateway_endpoints
 
     class _Probe:
         def connect(self, address):
@@ -802,10 +805,10 @@ def test_the_cap_is_applied_after_the_order_so_the_lan_address_survives_it(
 
     monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo)
     monkeypatch.setattr(socket, "socket", lambda *a, **k: _Probe())
-    monkeypatch.setattr(gateway_commands, "_default_route_address", lambda: None)
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.candidates.default_route_address", lambda: None)
 
-    offered = gateway_commands._machine_addresses()
-    assert len(offered) == gateway_commands.MAX_CANDIDATE_ENDPOINTS
+    offered = gateway_endpoints.machine_addresses()
+    assert len(offered) == gateway_endpoints.MAX_CANDIDATE_ENDPOINTS
     assert offered[0] == "192.168.1.203"
 
 
@@ -891,11 +894,11 @@ def test_the_windows_table_names_the_lan_and_never_the_vpns_split_default():
     knows: exactly one row has netmask ``0.0.0.0``, and it is on Wi-Fi.
     """
 
-    from hermes_cli.harness_parts.gateway_commands import (
-        _windows_default_route_address,
+    from agent_runtime.gateway_endpoints import (
+        windows_default_route_address,
     )
 
-    assert _windows_default_route_address(_WINDOWS_ROUTE_PRINT) == "192.168.1.203"
+    assert windows_default_route_address(_WINDOWS_ROUTE_PRINT) == "192.168.1.203"
 
 
 def test_dropping_the_true_default_row_leaves_the_vpn_rows_unable_to_answer():
@@ -905,8 +908,8 @@ def test_dropping_the_true_default_row_leaves_the_vpn_rows_unable_to_answer():
     VPN-only machine falls back to R-D2 rather than being told a tunnel address
     is its router-granted one."""
 
-    from hermes_cli.harness_parts.gateway_commands import (
-        _windows_default_route_address,
+    from agent_runtime.gateway_endpoints import (
+        windows_default_route_address,
     )
 
     without_default = "\n".join(
@@ -916,7 +919,7 @@ def test_dropping_the_true_default_row_leaves_the_vpn_rows_unable_to_answer():
     )
 
     assert "128.0.0.0" in without_default
-    assert _windows_default_route_address(without_default) is None
+    assert windows_default_route_address(without_default) is None
 
 
 def test_two_default_rows_are_decided_by_the_lowest_metric():
@@ -924,8 +927,8 @@ def test_two_default_rows_are_decided_by_the_lowest_metric():
     kernel picks by Metric. Picking the first printed instead would hand out the
     address of whichever adapter Windows happened to enumerate first."""
 
-    from hermes_cli.harness_parts.gateway_commands import (
-        _windows_default_route_address,
+    from agent_runtime.gateway_endpoints import (
+        windows_default_route_address,
     )
 
     printed = (
@@ -935,7 +938,7 @@ def test_two_default_rows_are_decided_by_the_lowest_metric():
         "          0.0.0.0          0.0.0.0      192.168.1.1    192.168.1.203     35\n"
     )
 
-    assert _windows_default_route_address(printed) == "192.168.1.203"
+    assert windows_default_route_address(printed) == "192.168.1.203"
 
 
 def test_a_persistent_route_row_is_not_an_active_one():
@@ -945,8 +948,8 @@ def test_a_persistent_route_row_is_not_an_active_one():
     so the shape test rejects it — which is also what makes the reader safe on a
     Windows whose section headers are localised."""
 
-    from hermes_cli.harness_parts.gateway_commands import (
-        _windows_default_route_address,
+    from agent_runtime.gateway_endpoints import (
+        windows_default_route_address,
     )
 
     printed = (
@@ -955,20 +958,20 @@ def test_a_persistent_route_row_is_not_an_active_one():
         "          0.0.0.0          0.0.0.0     192.168.1.1  Default\n"
     )
 
-    assert _windows_default_route_address(printed) is None
+    assert windows_default_route_address(printed) is None
 
 
 def test_the_macos_arm_reads_an_interface_name_and_then_its_first_inet():
     """Two commands, because ``route -n get default`` on macOS names ``en0`` and a
     peer cannot dial an interface name."""
 
-    from hermes_cli.harness_parts.gateway_commands import (
-        _first_inet_address,
-        _macos_default_route_interface,
+    from agent_runtime.gateway_endpoints import (
+        first_inet_address,
+        macos_default_route_interface,
     )
 
-    assert _macos_default_route_interface(_MACOS_ROUTE_GET_DEFAULT) == "en0"
-    assert _first_inet_address(_MACOS_IFCONFIG_EN0) == "192.168.1.87"
+    assert macos_default_route_interface(_MACOS_ROUTE_GET_DEFAULT) == "en0"
+    assert first_inet_address(_MACOS_IFCONFIG_EN0) == "192.168.1.87"
 
 
 def test_the_linux_arm_prefers_src_and_falls_back_to_the_devices_address():
@@ -976,17 +979,17 @@ def test_the_linux_arm_prefers_src_and_falls_back_to_the_devices_address():
     route", so it is taken whole; ``dev`` is the fallback that costs a second
     command."""
 
-    from hermes_cli.harness_parts.gateway_commands import (
-        _first_inet_address,
-        _linux_default_route,
+    from agent_runtime.gateway_endpoints import (
+        first_inet_address,
+        linux_default_route,
     )
 
-    assert _linux_default_route(_LINUX_IP_ROUTE_WITH_SRC) == (
+    assert linux_default_route(_LINUX_IP_ROUTE_WITH_SRC) == (
         "192.168.1.42",
         "wlan0",
     )
-    assert _linux_default_route(_LINUX_IP_ROUTE_WITHOUT_SRC) == (None, "eth0")
-    assert _first_inet_address(_LINUX_IP_ADDR_ETH0) == "10.0.0.57"
+    assert linux_default_route(_LINUX_IP_ROUTE_WITHOUT_SRC) == (None, "eth0")
+    assert first_inet_address(_LINUX_IP_ADDR_ETH0) == "10.0.0.57"
 
 
 @pytest.mark.parametrize(
@@ -1033,7 +1036,7 @@ def test_each_platform_asks_its_own_command_and_stops_as_soon_as_it_can(
 
     import sys
 
-    from hermes_cli.harness_parts import gateway_commands
+    from agent_runtime import gateway_endpoints
 
     asked: list[list[str]] = []
     remaining = list(replies)
@@ -1043,28 +1046,28 @@ def test_each_platform_asks_its_own_command_and_stops_as_soon_as_it_can(
         return remaining.pop(0)
 
     monkeypatch.setattr(sys, "platform", platform)
-    monkeypatch.setattr(gateway_commands, "_run_route_command", _fake_run)
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.routes.run_route_command", _fake_run)
 
-    assert gateway_commands._default_route_address() == expected
+    assert gateway_endpoints.default_route_address() == expected
     assert asked == expected_argv
 
 
 def test_a_command_this_machine_does_not_have_answers_none_rather_than_raising(
     monkeypatch,
 ):
-    """Never raising is the contract ``_machine_addresses`` leans on: this runs
+    """Never raising is the contract ``machine_addresses`` leans on: this runs
     inside ``gateway id``, and an exception here would turn a ranking preference
     into a CLI that cannot print its own identity. Proved against a real spawn
     of a binary that does not exist, because the failure being defended against
     is ``FileNotFoundError`` out of the OS and not a mocked one."""
 
-    from hermes_cli.harness_parts import gateway_commands
+    from agent_runtime import gateway_endpoints
 
     argv = ["hermes-no-such-routing-tool", "--version"]
-    assert gateway_commands._run_route_command(argv) is None
+    assert gateway_endpoints.run_route_command(argv) is None
 
-    monkeypatch.setattr(gateway_commands, "_run_route_command", lambda argv: None)
-    assert gateway_commands._default_route_address() is None
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.routes.run_route_command", lambda argv: None)
+    assert gateway_endpoints.default_route_address() is None
 
 
 def _pia_getaddrinfo(family_module):
@@ -1115,7 +1118,7 @@ def test_the_table_outranks_the_probe_so_the_lan_address_is_offered_first(
     import socket
     import sys
 
-    from hermes_cli.harness_parts import gateway_commands
+    from agent_runtime import gateway_endpoints
 
     monkeypatch.setattr(socket, "getaddrinfo", _pia_getaddrinfo(socket))
     monkeypatch.setattr(socket, "socket", lambda *a, **k: _PiaProbe())
@@ -1124,10 +1127,10 @@ def test_the_table_outranks_the_probe_so_the_lan_address_is_offered_first(
     # above.
     monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.setattr(
-        gateway_commands, "_run_route_command", lambda argv: _WINDOWS_ROUTE_PRINT
+        "agent_runtime.gateway_endpoints.routes.run_route_command", lambda argv: _WINDOWS_ROUTE_PRINT
     )
 
-    assert gateway_commands._machine_addresses() == [
+    assert gateway_endpoints.machine_addresses() == [
         "192.168.1.203",
         "10.97.7.100",
         "25.3.92.221",
@@ -1146,13 +1149,13 @@ def test_a_table_that_declines_to_answer_leaves_d1s_order_exactly_as_it_was(
 
     import socket
 
-    from hermes_cli.harness_parts import gateway_commands
+    from agent_runtime import gateway_endpoints
 
     monkeypatch.setattr(socket, "getaddrinfo", _pia_getaddrinfo(socket))
     monkeypatch.setattr(socket, "socket", lambda *a, **k: _PiaProbe())
-    monkeypatch.setattr(gateway_commands, "_run_route_command", lambda argv: None)
+    monkeypatch.setattr("agent_runtime.gateway_endpoints.routes.run_route_command", lambda argv: None)
 
-    assert gateway_commands._machine_addresses() == [
+    assert gateway_endpoints.machine_addresses() == [
         "10.97.7.100",
         "192.168.1.203",
         "25.3.92.221",
@@ -1167,12 +1170,32 @@ def test_the_endpoints_gateway_id_prints_are_the_endpoints_a_join_payload_advert
     ends up advertising an address it does not print — which an operator debugs
     by comparing two commands that were never the same query."""
 
-    from hermes_cli.harness_parts.gateway_commands import (
-        _candidate_endpoints,
-        _self_endpoints,
-    )
+    from agent_runtime.gateway_endpoints import candidate_endpoints
 
     _code, payload = _run(capsys, "id")
+    _code, paired = _run(capsys, "peers", "pair")
 
     root = paths.store_root()
-    assert payload["endpoints"] == _candidate_endpoints(root) == _self_endpoints(root)
+    advertised = json.loads(paired["join_payload"])["endpoints"]
+    assert payload["endpoints"] == candidate_endpoints(root) == advertised
+
+
+def test_a_grant_payload_over_the_ceiling_is_refused_rather_than_posted(
+    capsys, monkeypatch
+):
+    """Positive control for the asserted ceiling (god-file sheet §6, Q6): its own
+    comment calls the arm unreachable at four endpoints, so the ceiling is
+    lowered to 16 bytes to reach it for real."""
+
+    from hermes_cli.harness_parts.gateway_commands import introduce
+    from hermes_cli.harness_support import ERROR_EXIT_CODES
+
+    monkeypatch.setattr(introduce, "GRANT_PAYLOAD_MAX_BYTES", 16)
+
+    code = _dispatch(
+        ["harness", "gateway", "introduce", "--for-install", "install-a", "--json"]
+    )
+    envelope = json.loads(capsys.readouterr().out)
+
+    assert code == ERROR_EXIT_CODES["invalid_payload"]
+    assert envelope["error"]["reason"] == "grant_payload_too_large"

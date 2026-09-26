@@ -19,15 +19,17 @@ from agent_runtime.mission_chat_phases import (
     mark_from_trace_payload as _mark_turn_phase_from_trace_payload,
 )
 from agent_runtime.mission_chat_steer import start_active_mission_chat_turn
-from agent_runtime.mission_chat_turns import (
+from agent_runtime.mission_chat_turns.journal import (
+    mark_stale_inflight_turns_interrupted,
+    persist_mission_chat_turn,
+    transition_mission_chat_turn,
+)
+from agent_runtime.mission_chat_turns.reads import mission_chat_turn_records
+from agent_runtime.mission_chat_turns.states import (
     MissionChatTurnPersistOutcome,
     TURN_STATE_ABANDONED,
     TURN_STATE_EXECUTING,
     TURN_STATE_PENDING,
-    mark_stale_inflight_turns_interrupted,
-    mission_chat_turn_records,
-    persist_mission_chat_turn,
-    transition_mission_chat_turn,
 )
 from agent_runtime.persona_assignments import safe_assignment_text, safe_assignment_token
 from agent_runtime.persona_chat_continuity import persona_chat_runtime_registry, safe_native_history

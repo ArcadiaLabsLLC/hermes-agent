@@ -83,7 +83,8 @@ class OfficeStore:
         # Function-local like every other ``state_patches`` reach in this
         # package, so the patch module's import weight stays off the store's
         # own import path.
-        from ..state_patches import CORRELATION_ID_KEY, normalize_correlation_id
+        from ..state_patches.models import CORRELATION_ID_KEY
+        from ..state_patches.payload import normalize_correlation_id
 
         token = normalize_correlation_id(correlation_id)
         if token is not None:

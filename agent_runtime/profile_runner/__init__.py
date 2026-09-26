@@ -15,7 +15,6 @@ module                     layer   owns
 =========================  ======  ============================================
 errors                     models  runner errors, provider-error capture
 models                     models  ``AgentRunRequest``, ``AgentRunResult``
-toolsets                   policy  blocked tools, enabled toolsets
 budget                     policy  wall budget, tool guard, result budgets
 status                     policy  timing, status callback, profile binding
 operator_redaction         policy  the operator-facing scrubbers
@@ -23,16 +22,17 @@ workdir                    stores  working directory, in-flight census
 tool_payloads              stores  tool/dev-work/todo payloads, safe labels
 dispatch_payloads          stores  dispatch payload fields (reads a persona label)
 progress                   stores  callback -> progress payloads
-runtime_resolve            stores  per-request runtime resolution memo
 model_input_observability  stores  compaction and model-input receipts
 resident_actor             lanes   the resident chat actor around a run
 mcp_lane                   lanes   MCP admission notices in a run
-execute                    lanes   ``AgentRunExecution`` (one run, phase by phase)
+execute                    lanes   ``AgentRunExecution`` (one run, phase by phase);
+                                   blocked tools, enabled toolsets; the per-request
+                                   runtime resolution memo
 runner                     lanes   ``ProfileAgentRunner`` (admit MCP, run, tear down)
 =========================  ======  ============================================
 
 Stores written: none of its own beyond the process memos (``workdir``,
-``runtime_resolve``); receipts ride the progress callback and the observability
+``execute``'s runtime-resolution memo); receipts ride the progress callback and the observability
 records. Never imported from here: ``hermes_cli.harness``.
 """
 
@@ -43,7 +43,6 @@ from hermes_cli.profiles import get_profile_dir, normalize_profile_name, profile
 from hermes_cli.runtime_provider import resolve_runtime_provider
 from agent_runtime.profile_context import persona_profile_context
 from agent_runtime.profile_runner import (  # noqa: F401 — every family, in the original definition order
-    toolsets,
     errors,
     models,
     budget,
@@ -53,15 +52,11 @@ from agent_runtime.profile_runner import (  # noqa: F401 — every family, in th
     mcp_lane,
     workdir,
     status,
-    runtime_resolve,
     progress,
     dispatch_payloads,
     tool_payloads,
     operator_redaction,
     model_input_observability,
-)
-from agent_runtime.profile_runner.toolsets import (
-    _blocked_tool_names_with_registry_hygiene,
 )
 from agent_runtime.profile_runner.errors import (
     ProfileRunnerError,
@@ -80,7 +75,14 @@ from agent_runtime.profile_runner.runner import (
     _default_agent_factory,
     _normalize_result,
 )
-from agent_runtime.profile_runner.execute import _run_conversation_with_usage_ledger
+from agent_runtime.profile_runner.execute import (
+    RUNTIME_RESOLVE_CACHE_TTL_SECONDS,
+    _blocked_tool_names_with_registry_hygiene,
+    _resolve_request_runtime,
+    _run_conversation_with_usage_ledger,
+    _runtime_resolve_cache_key,
+    reset_runtime_resolve_cache,
+)
 from agent_runtime.profile_runner.workdir import (
     _WORKDIR_LOCK,
     _agent_workdir,
@@ -90,12 +92,6 @@ from agent_runtime.profile_runner.workdir import (
 from agent_runtime.profile_runner.status import (
     _binding_for_profile,
     _profile_status_callback,
-)
-from agent_runtime.profile_runner.runtime_resolve import (
-    RUNTIME_RESOLVE_CACHE_TTL_SECONDS,
-    _resolve_request_runtime,
-    _runtime_resolve_cache_key,
-    reset_runtime_resolve_cache,
 )
 from agent_runtime.profile_runner.progress import _progress_adapter
 from agent_runtime.profile_runner.dispatch_payloads import _agent_chat_target_label
@@ -114,7 +110,7 @@ from agent_runtime.profile_runner.model_input_observability import (
     _system_prompt_section_receipts,
 )
 
-__layer__ = "wiring"
+__layer__ = "lanes"
 
 __all__ = [
     "AgentRunRequest",

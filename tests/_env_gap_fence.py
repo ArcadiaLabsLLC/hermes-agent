@@ -7,30 +7,18 @@ mechanism lives here once instead of being pasted three more times.
 
 What it is
 ----------
-A registry that gives a NAME to a pre-existing host/platform failure. It does
-**not** skip and does **not** xfail: every registered test still runs, still
-executes its real assertions, and still fails loudly on a plain
-``pytest tests/<dir>``. What the mark adds is the ability for a run that wants
-only the fork-owned signal to deselect it:
-
-    python -m pytest tests/agent -m "not windows_env_gap and not host_dependency_gap"
-
-Two marks, by cause:
-
-    windows_env_gap      The assertion encodes POSIX-only semantics that
-                         Windows cannot satisfy — `signal.SIGKILL`,
-                         `bash -c` / `setsid` spawn shapes, POSIX path
-                         separators, cp1252 console/file encoding, CRLF
-                         checkout normalization.
-
-    host_dependency_gap  A host package or capability is absent rather than a
-                         platform property — an uninstalled dependency, an
-                         unreachable service, a missing toolchain version.
+A probe-backed registry that gives a NAME and a live PROBE to a pre-existing
+host/platform gap, and really skips the test while the probe reports the gap.
+The older mark-only lane (``_ENV_GAPS`` plus the ``windows_env_gap`` /
+``host_dependency_gap`` marks, which left every registered test failing and
+only NAMED the gap) was emptied by the 2026-08-10 audits and deleted fork-wide
+by lane B5 on 2026-09-25 (program §9 Q30): a lane the registry gate itself
+forbade populating was not a reservation.
 
 PROBE-BACKED SKIPS — prefer these (2026-08-10)
 ----------------------------------------------
-The no-skip design above was built so gaps would stay visible instead of being
-quietly skipped. In practice it made ``main`` permanently red, which trained
+The retired mark-only design was built so gaps would stay visible instead of
+being quietly skipped. In practice it made ``main`` permanently red, which trained
 every reader to treat reds as scenery — and a standing red is the best possible
 camouflage. The 2026-08-09 audit of ``tests/tools`` found nine of ten rows were
 stale TESTS rather than gaps, and that the red was hiding a real frozen-home
@@ -41,8 +29,7 @@ that had drifted out of sync with its own declared sibling, and two host rows
 had silently gone stale (the disk they described was no longer full) with
 nothing failing to say so.
 
-So a genuine gap now registers in ``_ENV_GAP_SKIPS`` with a **live probe**
-instead of ``_ENV_GAPS`` with a mark:
+So a genuine gap registers in ``_ENV_GAP_SKIPS`` with a **live probe**:
 
     ('test_foo.py', [(lambda: not hasattr(os, "chown"), "os.chown does not "
                       "exist on Windows", {'test_bar'})])
@@ -103,10 +90,6 @@ from typing import Callable
 
 import pytest
 
-WINDOWS_ENV_GAP = "windows_env_gap"
-HOST_DEPENDENCY_GAP = "host_dependency_gap"
-
-
 # ── Ownership: a directory's registry may only reach that directory ─────────
 #
 # Every registry below is keyed by file BASENAME, and every conftest that owns
@@ -153,31 +136,6 @@ def _owner_prefix(registry_location: str) -> str:
 
     head, _, _ = registry_location.replace("\\", "/").rpartition("/")
     return f"{head}/" if head else ""
-
-# file basename -> [(mark, reason, {node ids within the file}), ...].
-#
-# A file can carry MORE THAN ONE group when its failures have more than one
-# cause. Every group is applied independently, so each node id keeps the mark
-# and the reason that actually explains it — a single-mark-per-file registry
-# would have forced one of the causes to be recorded as a lie.
-EnvGapRegistry = dict[str, list[tuple[str, str, set[str]]]]
-
-
-def register_marks(config) -> None:
-    """Register both env-gap marks on ``config`` (call from ``pytest_configure``)."""
-    config.addinivalue_line(
-        "markers",
-        f"{WINDOWS_ENV_GAP}: pre-existing failure caused by POSIX-only test "
-        "expectations that Windows cannot satisfy. Not a regression; deselect "
-        f"with -m 'not {WINDOWS_ENV_GAP}'.",
-    )
-    config.addinivalue_line(
-        "markers",
-        f"{HOST_DEPENDENCY_GAP}: pre-existing failure caused by a missing host "
-        "package, service or toolchain version. Not a regression; deselect with "
-        f"-m 'not {HOST_DEPENDENCY_GAP}'.",
-    )
-
 
 # file basename -> [(probe, reason, {node ids within the file}), ...].
 #
@@ -264,63 +222,49 @@ def firing_skip_rows(registry: EnvGapSkipRegistry) -> list[str]:
     return firing
 
 
-def apply_marks(items, registry: EnvGapRegistry, *, owner_dir) -> None:
-    """Attach the registered env-gap mark to every matching collected item.
+class KnownDefectTracker:
+    """The KNOWN DEFECTS banner: a directory's deliberately-unfenced (or strictly
+    xfailed) defects, named at the end of every run that ran them.
 
-    ``owner_dir`` scopes the registry to the directory that owns it — see
-    :func:`apply_skips` and the ownership block at the top of this module.
-    """
-    for item in items:
-        if not is_owned(item.path, owner_dir):
-            continue
-        groups = registry.get(item.path.name)
-        if groups is None:
-            continue
-        _, _, within_file = item.nodeid.partition("::")
-        for mark, reason, node_ids in groups:
-            if within_file in node_ids:
-                item.add_marker(getattr(pytest.mark, mark)(reason=reason))
-
-
-class StaleEntryTracker:
-    """Collect registered node ids that actually PASSED, and report them.
-
-    A registry row that no longer describes a real failure stops being a fence
-    while still reading like one, so it has to be loud.
+    ``record`` takes a report when it is a known defect's CALL-phase outcome and
+    it either FAILED or was an xfail (``wasxfail``): a strict ``xfail`` reports as
+    ``skipped`` + ``wasxfail``, so a classifier matching ``failed`` alone retires
+    the banner the moment the defect is fenced; a strict XPASS arrives as
+    ``failed`` with no ``wasxfail`` — the day the row must be deleted. Reports
+    outside the owning directory are not this tracker's (``pytest_runtest_logreport``
+    is a GLOBAL hook); the owner prefix is derived from ``registry_location``
+    exactly as the ownership block above derives it.
     """
 
-    def __init__(self, registry: EnvGapRegistry, registry_location: str) -> None:
-        self._registry = registry
-        self._location = registry_location
-        #: Reports outside the owning directory are not this registry's to
-        #: judge: ``pytest_runtest_logreport`` is a global hook, so in a combined
-        #: run this tracker sees every other directory's reports too, and a
-        #: same-named file there would be reported as a stale row of OURS.
+    def __init__(self, known: dict[str, str], registry_location: str) -> None:
+        self._known = known
         self._owner_prefix = _owner_prefix(registry_location)
-        self._passed: list[str] = []
+        self.failures: list[str] = []
 
-    def record(self, report) -> None:
-        """Feed one report in (call from ``pytest_runtest_logreport``)."""
-        if report.when != "call" or report.outcome != "passed":
-            return
+    def record(self, report) -> bool:
+        """Feed one report in; True when it was a known defect's (consumed)."""
+        if report.when != "call":
+            return False
         if not report.nodeid.replace("\\", "/").startswith(self._owner_prefix):
-            return
+            return False
         file_name = report.nodeid.split("::", 1)[0].rsplit("/", 1)[-1]
-        groups = self._registry.get(file_name)
-        if groups is None:
-            return
-        _, _, within_file = report.nodeid.partition("::")
-        if any(within_file in node_ids for _, _, node_ids in groups):
-            self._passed.append(report.nodeid)
+        if file_name not in self._known:
+            return False
+        if report.outcome != "failed" and not hasattr(report, "wasxfail"):
+            return False
+        self.failures.append(report.nodeid)
+        return True
 
-    def report(self, terminalreporter) -> None:
-        """Emit the stale section (call from ``pytest_terminal_summary``)."""
-        if not self._passed:
+    def report(self, terminalreporter, title: str) -> None:
+        """Emit the banner (call from ``pytest_terminal_summary``)."""
+        if not self.failures:
             return
-        terminalreporter.write_sep("=", "stale environment-gap registry entries")
-        terminalreporter.write_line(
-            f"These node ids are registered in _ENV_GAPS ({self._location}) but "
-            "PASSED. Delete their rows — a stale row hides a future regression."
-        )
-        for nodeid in sorted(set(self._passed)):
+        terminalreporter.write_sep("=", title)
+        seen: set[str] = set()
+        for nodeid in sorted(set(self.failures)):
+            file_name = nodeid.split("::", 1)[0].rsplit("/", 1)[-1]
             terminalreporter.write_line(f"  {nodeid}")
+            if file_name not in seen:
+                seen.add(file_name)
+                terminalreporter.write_line(f"  {self._known[file_name]}")
+                terminalreporter.write_line("")

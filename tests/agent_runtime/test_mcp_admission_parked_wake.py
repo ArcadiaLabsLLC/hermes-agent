@@ -60,6 +60,7 @@ from tests.agent_runtime.test_mcp_admission_r2 import (  # noqa: F401 - fixtures
     _registered_launcher_qa_tools,
     clean_registry,
 )
+from tests._downstream.split_package_source import patch_where_bound
 
 
 class _ParkedServer:
@@ -104,7 +105,7 @@ class _ParkedServer:
 def impatient_wake(monkeypatch):
     """Shrink the wake budget so the give-up case costs a moment, not seconds."""
 
-    monkeypatch.setattr(admission_module, "_PARKED_WAKE_TIMEOUT_SECONDS", 0.3)
+    patch_where_bound(monkeypatch, admission_module, "_PARKED_WAKE_TIMEOUT_SECONDS", 0.3)
 
 
 def test_connections_with_the_same_name_stay_in_the_owning_profile(monkeypatch):

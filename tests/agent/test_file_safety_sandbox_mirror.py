@@ -14,6 +14,7 @@ The agent reported success; the rule never took effect.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -41,12 +42,10 @@ class TestClassifySandboxMirrorTarget:
         result = classify_sandbox_mirror_target(str(target))
         assert result is not None
         assert result["target_path"] == str(target.resolve())
-        # Compare as paths: the classifier builds these with os.sep, so a
-        # literal POSIX spelling only ever tested the separator character.
-        assert Path(result["mirror_root"]).parts[-5:] == (
-            "sandboxes", "docker", "default", "home", ".hermes"
+        assert result["mirror_root"].endswith(
+            os.path.join("sandboxes", "docker", "default", "home", ".hermes")
         )
-        assert Path(result["inner_path"]) == Path("profiles/group1/SOUL.md")
+        assert result["inner_path"] == os.path.join("profiles", "group1", "SOUL.md")
 
     @pytest.mark.parametrize(
         "backend,inner",
@@ -70,7 +69,7 @@ class TestClassifySandboxMirrorTarget:
 
         result = classify_sandbox_mirror_target(str(target))
         assert result is not None
-        assert Path(result["inner_path"]) == Path(inner)
+        assert result["inner_path"] == str(Path(inner))
         assert backend in result["mirror_root"]
 
 
@@ -109,9 +108,9 @@ class TestGetSandboxMirrorWarning:
         warn = get_sandbox_mirror_warning(str(target))
         assert warn is not None
         # Must name the mirror root so the user can locate the sandbox.
-        assert str(Path("sandboxes/docker/default/home/.hermes")) in warn
+        assert os.path.join("sandboxes", "docker", "default", "home", ".hermes") in warn
         # Must hint at what the agent likely meant.
-        assert str(Path("profiles/group1/SOUL.md")) in warn
+        assert os.path.join("profiles", "group1", "SOUL.md") in warn
         # Must name the bypass kwarg shared with the cross-profile guard.
         assert "cross_profile=True" in warn
 

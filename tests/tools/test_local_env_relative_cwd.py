@@ -3,6 +3,7 @@
 import os
 from pathlib import Path
 
+import pytest
 from tools.environments.local import (
     LocalEnvironment,
     _msys_to_windows_path,
@@ -33,6 +34,7 @@ def test_relative_initial_cwd_resolves_from_parent(tmp_path, monkeypatch):
     assert _resolve_local_initial_cwd("hermes-agent") == str(project)
 
 
+@pytest.mark.platforms("linux")
 def test_local_environment_keeps_existing_relative_child_cwd(tmp_path, monkeypatch):
     project = tmp_path / "hermes-agent"
     project.mkdir()

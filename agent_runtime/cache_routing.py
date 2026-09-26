@@ -3,6 +3,8 @@ import hashlib
 import json
 from typing import Any, Dict, Optional, List
 
+__layer__ = "stores"
+
 def persona_content_cache_key(instructions: str, tools: Optional[List[Dict[str, Any]]]) -> Optional[str]:
     """Content-address the prompt cache key from the static request prefix.
 
@@ -145,10 +147,10 @@ def apply_persona_cache_routing(
     request is untouched. Either way the observability block describes the final bytes.
     """
 
-    from agent.transports.codex import (
-        _bounded_prompt_cache_key,
-        _cache_scope_from_session_id,
-        _content_cache_key,
+    from ._upstream_doors import (
+        codex_bounded_prompt_cache_key as _bounded_prompt_cache_key,
+        codex_cache_scope_from_session_id as _cache_scope_from_session_id,
+        codex_content_cache_key as _content_cache_key,
     )
 
     req = dict(request)

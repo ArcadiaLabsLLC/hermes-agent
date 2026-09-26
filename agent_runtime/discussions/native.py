@@ -143,8 +143,15 @@ class NativeContext:
 
 
 def _invoke_native(args: Any) -> int:
-    from hermes_cli.harness_parts.persona import chat_turn_message
-    return chat_turn_message._cmd_mission_chat_message(args)
+    """One turn through the mission-chat door (ruling Q10) — never the CLI
+    namespace. The door installs its own sink, so the last payload is handed
+    on to the worker's; an unbound door raises ``MissionChatDoorUnbound``."""
+    from agent_runtime.mission_chat_door import run_mission_chat_turn
+    sink = args.payload_sink
+    code, payload = run_mission_chat_turn(args)
+    if payload is not None:
+        sink(payload)
+    return code
 
 
 class NativeTurns:

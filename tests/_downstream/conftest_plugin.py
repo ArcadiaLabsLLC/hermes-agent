@@ -29,6 +29,17 @@ from tests._downstream.id_markers import (  # noqa: F401 — hook re-exports
     pytest_make_collect_report,
     pytest_runtest_setup,
 )
+# The mark NAMES the id table applies, spelled once (id_markers/reasons.py):
+# registered below, read by the consumer fixtures.
+from tests._downstream.id_markers.reasons import (
+    ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK as _ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK,
+    CLAUDE_HOME_IS_TMP_PATH_MARK as _CLAUDE_HOME_IS_TMP_PATH_MARK,
+    CONFIG_READS_THROUGH_LOAD_CONFIG_MARK as _CONFIG_READS_THROUGH_LOAD_CONFIG_MARK,
+    NO_OLLAMA_SHOW_PROBE_MARK as _NO_OLLAMA_SHOW_PROBE_MARK,
+    NO_REAL_ORPHAN_REAP_MARK as _NO_REAL_ORPHAN_REAP_MARK,
+    SCOPED_MONKEYPATCH_UNDO_MARK as _SCOPED_MONKEYPATCH_UNDO_MARK,
+    TIRITH_CONFIG_VALUE_UNDER_TEST_MARK as _TIRITH_CONFIG_VALUE_UNDER_TEST_MARK,
+)
 
 
 # ── Opt-in test-temp root (suite-perf Stage 7, ruled 2026-09-01) ─────────────
@@ -440,7 +451,6 @@ def _isolate_hermes_shim_dir(tmp_path, monkeypatch, _hermetic_environment):
     return shim_dir
 
 
-_ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK = "allow_claude_code_credentials_file"
 
 
 @pytest.fixture(autouse=True)
@@ -562,7 +572,6 @@ def tmp_path(request, tmp_path_factory):
     return path
 
 
-_CLAUDE_HOME_IS_TMP_PATH_MARK = "claude_home_is_tmp_path"
 
 
 @pytest.fixture(autouse=True)
@@ -572,7 +581,7 @@ def _claude_home_is_tmp_path(request, monkeypatch):
     The redirect ``allow_claude_code_credentials_file`` REQUIRES
     (``tests/test_claude_code_credentials_file_gate.py``), for an upstream file
     that exercises the real ``~/.claude/.credentials.json`` reader/writer and
-    carries no redirect of its own. ``tests/_downstream/id_markers.py`` applies
+    carries no redirect of its own. ``tests/_downstream/id_markers/`` applies
     both marks together; the gate accepts a table scope carrying this mark as
     redirected. ``tmp_path`` is resolved only for marked tests.
     """
@@ -584,7 +593,6 @@ def _claude_home_is_tmp_path(request, monkeypatch):
     monkeypatch.setattr(Path, "home", lambda: home)
 
 
-_CONFIG_READS_THROUGH_LOAD_CONFIG_MARK = "config_reads_through_load_config"
 
 
 @pytest.fixture(autouse=True)
@@ -595,7 +603,7 @@ def _config_reads_through_load_config(request, monkeypatch):
     ``tools.image_generation_tool``, ``plugins/dashboard_auth/_shared.py``) from
     ``hermes_cli.config.load_config`` to ``load_config_readonly`` so an import
     cannot scaffold the home. Upstream's tests patch ``load_config``; for the
-    ids ``tests/_downstream/id_markers.py`` marks, the readonly loader defers to
+    ids ``tests/_downstream/id_markers/`` marks, the readonly loader defers to
     it at call time, so upstream's patch reaches the reader and the upstream
     file carries no edit.
     """
@@ -606,7 +614,6 @@ def _config_reads_through_load_config(request, monkeypatch):
     monkeypatch.setattr(_config, "load_config_readonly", lambda: _config.load_config())
 
 
-_NO_REAL_ORPHAN_REAP_MARK = "no_real_orphan_reap"
 
 
 @pytest.fixture(autouse=True)
@@ -619,7 +626,7 @@ def _no_real_orphan_reap(request, monkeypatch):
     ``_ORPHAN_EXIT_GRACE_SECONDS`` (30 s) for every unsupervised gateway it
     found. Any such process on the box — an operator's, or a test-leaked
     ``gateway run --replace`` — turns the wait into the fork's 30 s per-test
-    timeout. For the ids ``tests/_downstream/id_markers.py`` marks, the reap
+    timeout. For the ids ``tests/_downstream/id_markers/`` marks, the reap
     finds nothing; the behaviour under test (the restart report, the ticker)
     is unchanged.
     """
@@ -630,7 +637,6 @@ def _no_real_orphan_reap(request, monkeypatch):
     monkeypatch.setattr(_gateway, "_reap_unsupervised_gateway_orphans", lambda *_a, **_k: False)
 
 
-_NO_OLLAMA_SHOW_PROBE_MARK = "no_ollama_show_probe"
 
 
 @pytest.fixture(autouse=True)
@@ -642,7 +648,7 @@ def _no_ollama_show_probe(request, monkeypatch):
     of it, so a slow resolver for a fixture host (``new.example.test``) hangs
     the test past the fork's 30 s cap (measured in the program-end gate of
     2026-09-24, stack ending in ``socket.getaddrinfo``). For the ids
-    ``tests/_downstream/id_markers.py`` marks, the probe answers "no Ollama
+    ``tests/_downstream/id_markers/`` marks, the probe answers "no Ollama
     metadata", which is what an unreachable fixture host answers anyway.
     """
     if request.node.get_closest_marker(_NO_OLLAMA_SHOW_PROBE_MARK) is None:
@@ -661,7 +667,6 @@ FORK_TEST_TIMEOUT_SECONDS = 30.0
 FORK_TEST_TIMEOUT_METHOD = "thread"
 
 
-_SCOPED_MONKEYPATCH_UNDO_MARK = "scoped_monkeypatch_undo"
 
 
 @pytest.hookimpl(wrapper=True)
@@ -671,7 +676,7 @@ def pytest_pyfunc_call(pyfuncitem):
     Upstream tests that drop a stub with ``monkeypatch.undo()`` unwind the shared
     per-test instance, fixtures' hermetic pins included, and redden
     ``_shared_monkeypatch_pin_tripwire``. For a test carrying the mark (applied by
-    id from ``tests/_downstream/id_markers.py``) ``undo`` is narrowed, for the call
+    id from ``tests/_downstream/id_markers/``) ``undo`` is narrowed, for the call
     only, to the entries the BODY pushed: the stack length is taken once every
     fixture has set up, and an undo replays only the tail above it. Upstream's
     bytes run unchanged; what they drop is exactly what they patched.
@@ -736,21 +741,21 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
     )
     config.addinivalue_line(
         "markers",
-        "tirith_config_value_under_test: the test pins tirith's config.yaml value, so "
+        f"{_TIRITH_CONFIG_VALUE_UNDER_TEST_MARK}: the test pins tirith's config.yaml value, so "
         "the fork's tools conftest drops the suite-wide TIRITH_* env for it "
-        "(applied by id from tests/_downstream/id_markers.py).",
+        "(applied by id from tests/_downstream/id_markers/).",
     )
     config.addinivalue_line(
         "markers",
         f"{_CONFIG_READS_THROUGH_LOAD_CONFIG_MARK}: the test patches "
         "hermes_cli.config.load_config for a reader the fork moved to "
         "load_config_readonly; the readonly loader defers to it (applied by id "
-        "from tests/_downstream/id_markers.py).",
+        "from tests/_downstream/id_markers/).",
     )
     config.addinivalue_line(
         "markers",
         f"{_CLAUDE_HOME_IS_TMP_PATH_MARK}: Path.home() is the test's tmp_path "
-        "(applied by id from tests/_downstream/id_markers.py, together with "
+        "(applied by id from tests/_downstream/id_markers/, together with "
         "allow_claude_code_credentials_file).",
     )
     config.addinivalue_line(
@@ -758,23 +763,41 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         f"{NO_LIVE_GATEWAY_MARK}: the test's premise is that no hermes gateway runs "
         "on this machine (it reads the real fleet process table); it skips, naming "
         "the live pids, where one does (applied by id from "
-        "tests/_downstream/id_markers.py).",
+        "tests/_downstream/id_markers/).",
     )
     config.addinivalue_line(
         "markers",
         f"{_NO_OLLAMA_SHOW_PROBE_MARK}: agent.model_metadata._ollama_show answers None, "
         "so a fixture endpoint never reaches DNS (applied by id from "
-        "tests/_downstream/id_markers.py).",
+        "tests/_downstream/id_markers/).",
     )
     config.addinivalue_line(
         "markers",
         f"{_NO_REAL_ORPHAN_REAP_MARK}: the gateway orphan reap finds nothing, so the "
         "test never waits on this machine's real unsupervised gateways (applied by "
-        "id from tests/_downstream/id_markers.py).",
+        "id from tests/_downstream/id_markers/).",
     )
     config.addinivalue_line(
         "markers",
         f"{_SCOPED_MONKEYPATCH_UNDO_MARK}: the upstream test calls monkeypatch.undo() "
         "mid-body; undo is narrowed to the body's own patches so the fixtures' hermetic "
-        "pins hold (applied by id from tests/_downstream/id_markers.py).",
+        "pins hold (applied by id from tests/_downstream/id_markers/).",
     )
+
+
+@pytest.fixture(autouse=True)
+def _mission_chat_door_bound():
+    """Every hermes process that runs a turn has the harness plugin registered,
+    and registration binds the mission-chat door (ruling Q10). A test process
+    has no registration, so the door is bound here the same way — to the
+    CLI handler, looked up at call time, so a test's stub on
+    ``chat_turn_message._cmd_mission_chat_message`` still reaches it. A test
+    that needs the door UNBOUND says so with ``bind_mission_chat_turn(None)``
+    under monkeypatch."""
+    from agent_runtime import mission_chat_door
+    from hermes_cli.harness_parts.mission_chat_door_binding import bind_mission_chat_door
+
+    previous = mission_chat_door._turn, mission_chat_door._open_chat
+    bind_mission_chat_door()
+    yield
+    mission_chat_door._turn, mission_chat_door._open_chat = previous

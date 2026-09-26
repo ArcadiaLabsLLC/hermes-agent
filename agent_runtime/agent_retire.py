@@ -74,6 +74,8 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+__layer__ = "lanes"
+
 #: The JSON-RPC error codes this service answers in. Re-spelled rather than
 #: imported from ``serve_rpc`` for the same reason ``agent_create`` re-spells
 #: them: importing that module would drag the whole method registry into every

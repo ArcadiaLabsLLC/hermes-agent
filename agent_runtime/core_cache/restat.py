@@ -161,7 +161,8 @@ def _self_perturbed_inputs() -> _SelfPerturbedInputs | None:
         from .. import event_rotation as _event_rotation
         from .. import paths as _paths
         from ..chat_session_scope import chat_session_db_path
-        from ..running_work import _STATE_DB_FILENAME, running_work_store_paths
+        from ..running_work.ownership import running_work_store_paths
+        from ..running_work.vocabulary import _STATE_DB_FILENAME
 
         # PINNED exactly as closure classes 2 and 3 are — an unpinned resolution
         # here would name ANOTHER profile's database and the set would cover a

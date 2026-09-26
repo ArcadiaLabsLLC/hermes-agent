@@ -33,7 +33,7 @@ def test_validate_runtime_config_warns_on_shadowing_override(tmp_path, monkeypat
         "  default_model: gpt-5.5\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr("agent_runtime.config.get_config_path", lambda: p)
+    monkeypatch.setattr("agent_runtime.config.loader.get_config_path", lambda: p)
 
     result = validate_runtime_config(AgentRuntimeConfig())
 
@@ -48,7 +48,7 @@ def test_validate_runtime_config_warns_on_shadowing_override(tmp_path, monkeypat
 def test_validate_runtime_config_no_warning_when_authority_is_clean(tmp_path, monkeypatch):
     p = tmp_path / "config.yaml"
     p.write_text("model:\n  default: gpt-5.6-luna\n", encoding="utf-8")
-    monkeypatch.setattr("agent_runtime.config.get_config_path", lambda: p)
+    monkeypatch.setattr("agent_runtime.config.loader.get_config_path", lambda: p)
 
     result = validate_runtime_config(AgentRuntimeConfig())
 

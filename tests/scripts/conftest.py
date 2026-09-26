@@ -19,12 +19,12 @@ from __future__ import annotations
 
 import pytest
 
-from scripts import changed_line_mutation_check as _gate
+from scripts.mutation_check import run as _run_lane
 
 
 @pytest.fixture(autouse=True)
 def mutation_gate_lock_in_tmp(tmp_path, monkeypatch):
-    monkeypatch.setattr(_gate, "LOCK_PATH", tmp_path / ".mutation_gate.lock")
+    monkeypatch.setattr(_run_lane, "LOCK_PATH", tmp_path / ".mutation_gate.lock")
 
 
 @pytest.fixture(autouse=True)
@@ -39,4 +39,4 @@ def no_changed_sources_by_default(monkeypatch):
     this with their own list.
     """
 
-    monkeypatch.setattr(_gate, "_changed_sources", lambda base: [])
+    monkeypatch.setattr(_run_lane, "_changed_sources", lambda base: [])

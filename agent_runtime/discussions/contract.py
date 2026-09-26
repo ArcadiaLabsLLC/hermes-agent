@@ -5,6 +5,8 @@ from typing import Any, Mapping
 from .definitions import CAPACITIES, TableStyle, DefinitionError, ParticipantRef, identifier, revision
 from .run_store import text
 
+__layer__ = "stores"
+
 CONTRACT_VERSION = 1
 PREFIX = "runtime.discussion."
 # Each method owns an exact parameter shape; body keys are not accepted by a

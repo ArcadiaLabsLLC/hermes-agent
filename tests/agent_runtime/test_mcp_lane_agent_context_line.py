@@ -38,6 +38,7 @@ from agent_runtime.mcp_lane import (
     set_entry_point_lane,
 )
 from tests.agent_runtime.persona_samples import sample_personas
+from tests._downstream.split_package_source import patch_where_bound
 
 
 def _persona(persona_id: str):
@@ -237,7 +238,7 @@ def test_the_flag_off_line_costs_no_root_config_load_and_no_profile_read(monkeyp
     def _never_profile(*_args, **_kwargs):
         raise AssertionError("the flag-off path must not read the persona profile")
 
-    monkeypatch.setattr(mcp_admission, "resolve_mcp_admission", _never_config)
+    patch_where_bound(monkeypatch, mcp_admission, "resolve_mcp_admission", _never_config)
     monkeypatch.setattr(persona_runtime, "resolve_mcp_admission", _never_config)
     monkeypatch.setattr(parse_cache, "cached_yaml_file", _never_profile)
     monkeypatch.setattr(profile_context, "resolve_persona_profile", _never_profile)
@@ -249,7 +250,7 @@ def test_the_flag_off_line_costs_no_root_config_load_and_no_profile_read(monkeyp
     assert MCP_NOT_REGISTERED_ON_LANE in line
 
 
-def test_the_line_never_fails_a_turn(monkeypatch):
+def test_the_line_never_fails_a_turn(monkeypatch, caplog):
     import agent_runtime.mcp_lane as mcp_lane
 
     def _boom(*_a, **_k):
@@ -257,11 +258,42 @@ def test_the_line_never_fails_a_turn(monkeypatch):
 
     monkeypatch.setattr(mcp_lane, "mcp_lane_requirement_failures", _boom)
 
-    assert mission_chat_mcp_lane_line(_qa_declaring("launcher_qa")) == ""
+    with caplog.at_level("WARNING", logger="agent_runtime.mcp_lane"):
+        assert mission_chat_mcp_lane_line(_qa_declaring("launcher_qa")) == ""
+    assert "mcp_lane_line_render_failed" in caplog.text
+    assert "RuntimeError" in caplog.text
+
+
+def test_a_broken_declaration_import_is_heard_not_read_as_no_declaration(
+    monkeypatch, caplog
+):
+    """Lane W3-C measured it: a renamed ``effective_required_mcp_servers`` made
+    the line go empty with no log — "this persona declares nothing" and "the
+    declaration could not be read" were one answer. The line still never fails
+    a turn, but the broken read now logs a WARNING naming the exception.
+
+    POSITIVE CONTROL (same persona, import intact): the line renders and
+    nothing is logged, so the warning arm cannot pass by always logging.
+    """
+
+    import agent_runtime.profile_readiness as profile_readiness
+
+    with caplog.at_level("WARNING", logger="agent_runtime.mcp_lane"):
+        assert MCP_NOT_REGISTERED_ON_LANE in mission_chat_mcp_lane_line(
+            _qa_declaring("launcher_qa")
+        )
+    assert "mcp_lane_line" not in caplog.text
+
+    monkeypatch.delattr(profile_readiness, "effective_required_mcp_servers")
+    caplog.clear()
+    with caplog.at_level("WARNING", logger="agent_runtime.mcp_lane"):
+        assert mission_chat_mcp_lane_line(_qa_declaring("launcher_qa")) == ""
+    assert "mcp_lane_line_declaration_unreadable" in caplog.text
+    assert "ImportError" in caplog.text
 
 
 def test_the_role_policy_is_imported_never_re_implemented():
-    """The design's standing rule: ``_effective_required_mcp_servers`` is THE
+    """The design's standing rule: ``effective_required_mcp_servers`` is THE
     role→server policy. A second copy in ``mcp_lane`` would be a parallel
     authority that drifts the day the first one changes."""
 
@@ -270,7 +302,7 @@ def test_the_role_policy_is_imported_never_re_implemented():
     import agent_runtime.mcp_lane as mcp_lane
 
     source = inspect.getsource(mcp_lane.mission_chat_mcp_lane_line)
-    assert "_effective_required_mcp_servers" in source
+    assert "effective_required_mcp_servers" in source
     assert "launcher_qa" not in source.split('"""')[2]
 
 

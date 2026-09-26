@@ -386,7 +386,7 @@ def assert_root_config_resolution_is_hermetic(tmp_path, _hermetic_environment):
     anywhere, that the pin is load-bearing for this package.
 
     That matters here specifically. ``ROOT_ONLY_CONFIG_KEYS``
-    (``agent_runtime/config.py:361``) names four readers —
+    (``agent_runtime/config/schema.py:109``) names four readers —
     ``state_patches.delta_patches_enabled``, ``mcp_admission.admission_config``,
     ``config.chat_lane_restore_toolsets``, ``config.mission_chat_workdir`` —
     that resolve ONLY through the root config. If the root pin ever regresses,

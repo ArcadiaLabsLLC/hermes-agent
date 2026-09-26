@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_runtime import mission_chat_turns
+from agent_runtime import file_locks, mission_chat_turns
 from agent_runtime.mission_chat_turns import (
     MissionChatTurnPersistOutcome,
     mark_stale_inflight_turns_interrupted,
@@ -309,7 +309,7 @@ print("done")
 
 
 def test_concurrent_processes_do_not_lose_writes(isolate_agent_runtime_root):
-    repo_root = str(Path(mission_chat_turns.__file__).resolve().parents[1])
+    repo_root = str(Path(mission_chat_turns.__file__).resolve().parents[2])
     script = _WORKER_SCRIPT.format(
         repo_root=repo_root,
         runtime_root=str(isolate_agent_runtime_root),
@@ -330,25 +330,33 @@ def test_concurrent_processes_do_not_lose_writes(isolate_agent_runtime_root):
 
     # Per-session isolation: the two concurrent writers land in DIFFERENT files
     # behind DIFFERENT locks, and neither loses a record.
-    path_a = mission_chat_turns._session_file_path("sess_a")
-    path_b = mission_chat_turns._session_file_path("sess_b")
+    path_a = mission_chat_turns.storage._session_file_path("sess_a")
+    path_b = mission_chat_turns.storage._session_file_path("sess_b")
     assert path_a != path_b
     assert path_a.exists() and path_b.exists()
     assert len(json.loads(path_a.read_text(encoding="utf-8"))) == 25
     assert len(json.loads(path_b.read_text(encoding="utf-8"))) == 25
     # Directory-enumeration reader parity: exactly the two session files exist.
-    assert {p.name for p in mission_chat_turns._iter_session_files()} == {
+    assert {p.name for p in mission_chat_turns.storage._iter_session_files()} == {
         path_a.name,
         path_b.name,
     }
 
 
-def test_persist_skips_with_typed_outcome_when_lock_is_held(monkeypatch):
-    monkeypatch.setattr(mission_chat_turns, "_LOCK_TIMEOUT_SECONDS", 0.05)
-    lock_path = mission_chat_turns._session_lock_path("s1")
+def _hold_lock(lock_path):
+    """Take a session's lock the way another process would: its own handle,
+    the store's byte-lock owner (``agent_runtime.file_locks``)."""
+
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR)
-    mission_chat_turns._lock_fd_exclusive_nonblocking(fd)
+    handle = os.fdopen(os.open(str(lock_path), os.O_CREAT | os.O_RDWR), "r+b")
+    file_locks.try_lock_exclusive(handle)
+    return handle
+
+
+def test_persist_skips_with_typed_outcome_when_lock_is_held(monkeypatch):
+    monkeypatch.setattr(mission_chat_turns.storage, "_LOCK_TIMEOUT_SECONDS", 0.05)
+    lock_path = mission_chat_turns.storage._session_lock_path("s1")
+    handle = _hold_lock(lock_path)
     try:
         outcome = persist_mission_chat_turn(
             session_id="s1",
@@ -369,8 +377,8 @@ def test_persist_skips_with_typed_outcome_when_lock_is_held(monkeypatch):
             == []
         )
     finally:
-        mission_chat_turns._unlock_fd(fd)
-        os.close(fd)
+        file_locks.unlock(handle)
+        handle.close()
 
     # Once the lock is released the same write goes through.
     outcome = persist_mission_chat_turn(
@@ -388,14 +396,12 @@ def test_lock_on_one_session_never_blocks_another_session(monkeypatch):
     # The whole point of one-file-per-chat: a stuck/held turn in session A must
     # not stall (or corrupt) a concurrent turn in session B. They take DIFFERENT
     # locks, so B proceeds while A's lock is held.
-    monkeypatch.setattr(mission_chat_turns, "_LOCK_TIMEOUT_SECONDS", 0.05)
-    assert mission_chat_turns._session_lock_path("sess_a") != mission_chat_turns._session_lock_path(
+    monkeypatch.setattr(mission_chat_turns.storage, "_LOCK_TIMEOUT_SECONDS", 0.05)
+    assert mission_chat_turns.storage._session_lock_path("sess_a") != mission_chat_turns.storage._session_lock_path(
         "sess_b"
     )
-    lock_path = mission_chat_turns._session_lock_path("sess_a")
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR)
-    mission_chat_turns._lock_fd_exclusive_nonblocking(fd)
+    lock_path = mission_chat_turns.storage._session_lock_path("sess_a")
+    handle = _hold_lock(lock_path)
     try:
         # Session A cannot be written — its lock is held.
         assert (
@@ -423,8 +429,8 @@ def test_lock_on_one_session_never_blocks_another_session(monkeypatch):
         )
         assert mission_chat_turn_record(session_id="sess_b", client_message_id="m1")["state"] == "running"
     finally:
-        mission_chat_turns._unlock_fd(fd)
-        os.close(fd)
+        file_locks.unlock(handle)
+        handle.close()
 
 
 # ---------------------------------------------------------------------------
@@ -433,7 +439,7 @@ def test_lock_on_one_session_never_blocks_another_session(monkeypatch):
 
 
 def test_safe_todo_state_bounds_and_validates():
-    long_content = "x" * (mission_chat_turns._TODO_STATE_MAX_CONTENT + 40)
+    long_content = "x" * (mission_chat_turns.records._TODO_STATE_MAX_CONTENT + 40)
     raw = [
         {"id": "1", "content": "verify lane", "status": "completed"},
         {"id": "", "content": "", "status": "weird"},
@@ -445,13 +451,13 @@ def test_safe_todo_state_bounds_and_validates():
     assert [item["id"] for item in result] == ["1", "?", "3"]  # non-dict dropped, empty→"?"
     assert result[1]["content"] == "(no description)"
     assert result[1]["status"] == "pending"  # unknown status normalised
-    assert len(result[2]["content"]) <= mission_chat_turns._TODO_STATE_MAX_CONTENT
+    assert len(result[2]["content"]) <= mission_chat_turns.records._TODO_STATE_MAX_CONTENT
 
 
 def test_safe_todo_state_caps_item_count():
-    raw = [{"id": str(i), "content": f"c{i}", "status": "pending"} for i in range(mission_chat_turns._TODO_STATE_MAX_ITEMS + 10)]
+    raw = [{"id": str(i), "content": f"c{i}", "status": "pending"} for i in range(mission_chat_turns.records._TODO_STATE_MAX_ITEMS + 10)]
     result = mission_chat_turns._safe_todo_state(raw)
-    assert len(result) == mission_chat_turns._TODO_STATE_MAX_ITEMS
+    assert len(result) == mission_chat_turns.records._TODO_STATE_MAX_ITEMS
 
 
 def test_safe_todo_state_returns_none_only_when_absent_or_non_list():
@@ -473,7 +479,7 @@ def test_safe_todo_state_preserves_explicit_empty_for_cleared_checklist():
 
 def test_safe_elements_preserves_todo_state_only_on_todo_tools():
     todo_items = [{"id": "1", "content": "do it", "status": "in_progress"}]
-    elements = mission_chat_turns._safe_elements(
+    elements = mission_chat_turns.records._safe_elements(
         [
             {
                 "kind": "tool",
@@ -502,7 +508,7 @@ def test_safe_elements_rebounds_patch_fields_only_where_present():
     """Defence in depth over the producer cap, and absent-when-absent so a
     reloaded non-patch element cannot grow a viewer affordance."""
 
-    elements = mission_chat_turns._safe_elements(
+    elements = mission_chat_turns.records._safe_elements(
         [
             {
                 "kind": "tool",
@@ -677,3 +683,20 @@ def test_no_other_text_field_grew_an_empty_value():
     record = mission_chat_turn_record(session_id="root_blanks", client_message_id="m1")
     for field in ("provider_request_id", "native_revision", "resolution"):
         assert field not in record, field
+
+
+def test_safe_provider_refusal_keeps_a_numeric_reset_at_bounds_text_and_drops_a_bool():
+    """Positive control (layout sheet ``mission_chat_turns.md`` §2): all three
+    ``reset_at`` arms in ONE fixture, so a coercion that answers ``None`` for a
+    number — or admits a bool as one — cannot stay green."""
+
+    from agent_runtime.mission_chat_turns import safe_provider_refusal
+
+    as_number = safe_provider_refusal({"status_code": 429, "reset_at": 1_900_000_000.5})
+    as_text = safe_provider_refusal({"status_code": 429, "reset_at": "2030-01-01T00:00:00Z" + "x" * 200})
+    as_bool = safe_provider_refusal({"status_code": 429, "reset_at": True})
+
+    assert as_number["reset_at"] == 1_900_000_000.5
+    assert as_text["reset_at"].startswith("2030-01-01T00:00:00Z")
+    assert len(as_text["reset_at"]) <= 80
+    assert "reset_at" not in as_bool

@@ -7,6 +7,11 @@ steps between the stdio swap and ``ready``), ``handle_message`` (the op table
 and the dispatcher), ``lanes`` (the pool), ``subscriptions`` (the stream hub and
 the socket lanes' plumbing) and ``drain``. ``serve_loop`` builds one and
 runs it; nothing else constructs one.
+
+``serve_loop`` — the entry point every caller and test drives — lives here,
+at the end of the module: it builds one session and runs it, and the loop's
+contract (transports, drain, service mode, the stdout discipline) is the
+class docstring.
 """
 
 from __future__ import annotations
@@ -56,7 +61,7 @@ from hermes_cli.harness_parts.serve.subscriptions import SubscriptionLanes
 
 __layer__ = "lanes"
 
-__all__ = ["ServeSession"]
+__all__ = ["ServeSession", "serve_loop"]
 
 
 class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, DrainLane):
@@ -262,7 +267,9 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
 
     def _boot_and_serve(self) -> int:
         """Everything between the stdio swap and the unwind, in boot order."""
+        from hermes_cli.harness_parts.mission_chat_door_binding import bind_mission_chat_door
 
+        bind_mission_chat_door()  # ruling Q10: bound before any request can run a turn
         self._boot_store_and_identity()
         exit_code = self._boot_socket_lane()
         if exit_code is not None:
@@ -1091,3 +1098,13 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
                     break
         finally:
             _restore_service_stop_signal(saved)
+
+
+def serve_loop(reader: TextIO, writer: TextIO, **options: Any) -> int:
+    """Serve NDJSON frames from *reader* to *writer* until EOF, shutdown or drain.
+
+    *options* are :class:`ServeSession`'s keyword arguments (pool size, the
+    injected seams, ``socket_lane``, ``service``, …) with the same defaults.
+    """
+
+    return ServeSession(reader, writer, **options).run()

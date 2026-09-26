@@ -3,8 +3,10 @@
 The fixture's ``origin`` is a local path, which ``_is_fork`` reads as a fork, and
 the fork never resets a diverged fork checkout: ``_reconcile_diverged_checkout``
 hands it to ``update_history.guard_fork_history``, which parks review refs and
-exits ``HISTORY_REVIEW_EXIT`` (adopted in 1487c101ee). The upstream id is a strict
-xfail in ``tests/_downstream/id_markers.py``; these two pin both branches.
+exits ``HISTORY_REVIEW_EXIT`` (adopted in 1487c101ee) -- when the checkout carries
+fork history (``update_history.has_fork_ancestry``, 2026-09-25 merge). Upstream's
+fixture has none, so upstream's own test runs upstream's path verbatim; these two
+pin both branches.
 """
 
 from __future__ import annotations
@@ -31,6 +33,9 @@ def _pull(checkout, monkeypatch):
 def test_a_diverged_fork_checkout_is_preserved_for_review(diverged_checkout, monkeypatch, capsys):
     """The fork branch: no reset, the local commit stays checked out, exit 2."""
     checkout, local_sha = diverged_checkout
+    # The fixture's history stands in for a fork checkout: its root is the fork root.
+    root = _git(checkout, "rev-list", "--max-parents=0", "HEAD").stdout.split()[0]
+    monkeypatch.setattr("hermes_cli.update_history.FORK_ROOT_COMMIT", root)
 
     with pytest.raises(SystemExit) as exc:
         _pull(checkout, monkeypatch)

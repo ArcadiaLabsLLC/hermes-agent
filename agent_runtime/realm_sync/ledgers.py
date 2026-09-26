@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from ..models import Realm
-from ..store import (
+from ..store.ledgers import (
     DELETED_WORKSPACE_LEDGER_CAP,
     SKILL_TOMBSTONE_LEDGER_CAP,
     active_skill_tombstones,

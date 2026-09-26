@@ -15,6 +15,8 @@ import json
 from .models import OfficeActor, OfficeItem, OfficeSurface
 from .serde import to_jsonable
 
+__layer__ = "models"
+
 
 #: The office projection's actor bound: the snapshot's office rows, the RPC
 #: ``runtime.office.get`` projection and the office delta patches all cut at the

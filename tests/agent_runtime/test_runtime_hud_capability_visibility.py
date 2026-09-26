@@ -405,7 +405,7 @@ def test_capability_block_for_persona_degrades_each_half_independently(monkeypat
     # Drops fault ⇒ envelope half survives.
     monkeypatch.setattr(persona_runtime, "chat_lane_capability_drops", _boom)
     monkeypatch.setattr(
-        terminal_envelope,
+        terminal_envelope.decision,
         "explain_terminal_envelope",
         lambda **_kwargs: explain_terminal_envelope(
             role="dev", lane=LANE_MISSION_CHAT, cfg=_cfg()
@@ -419,7 +419,7 @@ def test_capability_block_for_persona_degrades_each_half_independently(monkeypat
     monkeypatch.setattr(
         persona_runtime, "chat_lane_capability_drops", lambda *a, **k: _dev_drops()
     )
-    monkeypatch.setattr(terminal_envelope, "explain_terminal_envelope", _boom)
+    monkeypatch.setattr(terminal_envelope.decision, "explain_terminal_envelope", _boom)
     block = capability_block_for_persona(persona, session_id="chat-1")
     assert block["toolsets_dropped"] == ["file", "terminal"]
     assert "envelope" not in block

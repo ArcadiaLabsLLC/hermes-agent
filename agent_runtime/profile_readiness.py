@@ -104,7 +104,7 @@ def profile_readiness_for_persona(
     # a work description can no longer manufacture a `launcher_qa` requirement
     # (the policy S64 retired). Removing them would delete that regression pin's
     # only vector. The rest of the chain — `resolve_mcp_admission`,
-    # `_requested_servers`, `_effective_required_mcp_servers` — had no such pin
+    # `_requested_servers`, `effective_required_mcp_servers` — had no such pin
     # and lost the parameters at S66.
     binding = resolve_persona_profile(persona)
     issues: list[tuple[str, str]] = []
@@ -114,7 +114,7 @@ def profile_readiness_for_persona(
     skill_hash_absent: list[str] = []
     skill_resolutions: list[dict[str, Any]] = []
     machine_root_issues: list[dict[str, Any]] = []
-    effective_required_mcp = _effective_required_mcp_servers(persona)
+    effective_required_mcp = effective_required_mcp_servers(persona)
     machine_root_issues.extend(_persona_path_token_issues(persona))
 
     if binding.readiness != READINESS_READY:
@@ -176,7 +176,7 @@ def profile_readiness_for_persona(
                 machine_root_issues.extend(
                     issue.row()
                     for issue in mcp_server_issues(
-                        _configured_mcp_servers(raw or {}),
+                        configured_mcp_servers(raw or {}),
                         required=effective_required_mcp,
                     )
                 )
@@ -308,8 +308,8 @@ def _provider_issue_cache_clear() -> None:
 def _provider_issue(persona) -> tuple[str, str] | None:
     provider = getattr(persona, "provider", None)
     model = getattr(persona, "model", None)
-    from .local_llama_adapter import PROVIDER_ID
-    if provider == PROVIDER_ID:
+    from .local_llama_adapter import is_local_llama_provider
+    if is_local_llama_provider(provider):
         # Saved local identity is not an API-key credential. Live readiness is
         # checked at the model lease boundary; do not hide the configurable agent
         # merely because its local server is off or this probe is out of process.
@@ -436,7 +436,7 @@ def _safe_provider_summary(message: str) -> str:
     return text
 
 
-def _configured_mcp_servers(raw: dict[str, Any]) -> dict[str, Any]:
+def configured_mcp_servers(raw: dict[str, Any]) -> dict[str, Any]:
     """Merged ``mcp_servers`` map across the three accepted config spellings."""
 
     merged: dict[str, Any] = {}
@@ -451,7 +451,7 @@ def _configured_mcp_servers(raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def _configured_mcp_server_names(raw: dict[str, Any]) -> set[str]:
-    return set(_configured_mcp_servers(raw))
+    return set(configured_mcp_servers(raw))
 
 
 def declared_mcp_server_names(persona) -> list[str]:
@@ -475,7 +475,7 @@ def declared_mcp_server_names(persona) -> list[str]:
     visibility resolve.
     """
 
-    names = set(_effective_required_mcp_servers(persona))
+    names = set(effective_required_mcp_servers(persona))
     try:
         binding = resolve_persona_profile(persona)
         if binding.profile_home is not None:
@@ -619,7 +619,7 @@ def _missing_skill_ids(skill_resolutions: list[dict[str, Any]]) -> list[str]:
 # 10 (d89059dd7) landed in this file: that commit did not touch it, and the
 # canonical resolver pair it wrapped is what readiness actually calls.
 
-def _effective_required_mcp_servers(persona) -> list[str]:
+def effective_required_mcp_servers(persona) -> list[str]:
     """Return only servers declared by the persona/profile authority.
 
     S64 retired the role/work-description policy that once widened this set;

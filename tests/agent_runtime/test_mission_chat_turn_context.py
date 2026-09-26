@@ -36,11 +36,11 @@ from agent_runtime.mission_chat_turn_context import (
 )
 from agent_runtime.runtime_hud import (
     CAPABILITY_HUD_KEY,
+    HUD_FIELDS,
     RUNTIME_CONTEXT_DELIVERY_SNAPSHOT,
     extract_runtime_context_envelope,
     render_capability_block,
     render_situational_hud_block,
-    volatile_hud_keys,
 )
 from agent_runtime.turn_budget import render_turn_budget_line
 from agent_runtime.volatile_tail import STATUS_EMITTED, STATUS_EMPTY, STATUS_TRUNCATED
@@ -292,7 +292,7 @@ def test_wall_budget_and_capability_ride_the_tail_and_the_hud_but_never_the_body
 
     assert "turn_budget" in context.situational_hud
     assert CAPABILITY_HUD_KEY in context.situational_hud
-    assert volatile_hud_keys() == {"turn_budget", CAPABILITY_HUD_KEY}
+    assert {field.key for field in HUD_FIELDS if field.volatile} == {"turn_budget", CAPABILITY_HUD_KEY}
 
     body = context.situational_hud_body()
     assert "Wall budget" not in body

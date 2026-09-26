@@ -46,6 +46,7 @@ from agent_runtime.stream import (
     stream_frames,
 )
 from tests.agent_runtime.persona_instance_mint import mint_free_floating
+from tests._downstream.split_package_source import patch_where_bound
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "stream_frames"
 
@@ -68,8 +69,8 @@ def set_delta_patches(monkeypatch):
         # The producer flag reader (_delta_patches_enabled) is pinned to the
         # ROOT config via load_root_runtime_config(); patch that symbol so the
         # fixture still injects the flag through the reader's actual loader.
-        monkeypatch.setattr(sp, "load_root_runtime_config", _loader)
-        monkeypatch.setattr(st, "delta_patches_enabled", lambda config=None: enabled)
+        monkeypatch.setattr(sp.emit, "load_root_runtime_config", _loader)
+        patch_where_bound(monkeypatch, st, "delta_patches_enabled", lambda config=None: enabled)
 
     return _apply
 
@@ -770,7 +771,7 @@ def test_the_builder_guard_catches_what_a_dropped_caller_guard_would_ship(
 
     from agent_runtime import stream as st
 
-    monkeypatch.setattr(st, "batch_carries_patch_rows", lambda batch: True)
+    patch_where_bound(monkeypatch, st, "batch_carries_patch_rows", lambda batch: True)
 
     with pytest.raises(ValueError, match="at least one state.patched row"):
         list(

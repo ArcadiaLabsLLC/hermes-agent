@@ -24,6 +24,8 @@ rather than on the message text — and never as a traceback.
 
 from __future__ import annotations
 
+__layer__ = "models"
+
 
 class CharsheetRefusal(RuntimeError):
     """Base for a charsheet refusal an operator can act on.

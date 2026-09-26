@@ -875,21 +875,6 @@ def mission_chat_operating_skills(
     )
 
 
-def chat_runtime_tool_contract(
-    persona: AgentPersona, *, session_id: str | None
-) -> dict[str, list[str]]:
-    """Return the exact tool inputs used to construct an operator-chat actor."""
-
-    return {
-        "enabled_toolsets": _enabled_toolsets_for_chat(
-            persona, session_id=session_id
-        ),
-        "blocked_tool_names": _blocked_tool_names_for_chat(
-            persona, session_id=session_id
-        ),
-    }
-
-
 def apply_chat_lane_tool_scope(
     persona: AgentPersona,
     options: "ToolVisibilityOptions",

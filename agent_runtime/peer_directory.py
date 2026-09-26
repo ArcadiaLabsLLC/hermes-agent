@@ -32,7 +32,7 @@ already sendable, exactly as ``agent_chat_threads`` does locally.
 Why every row is REACHABLE and not merely present
 --------------------------------------------------
 
-Both projections filter through ``_resolve_mission_chat_persona_id`` for the
+Both projections filter through ``resolve_mission_chat_persona_id`` for the
 reason ``agent_chat_threads`` does: a row that cannot be sent to is worse than a
 missing row, because an agent will address it and lose a turn finding out. A
 roster is an offer, and an offer has to be honourable.
@@ -68,6 +68,8 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+
+__layer__ = "lanes"
 
 __all__ = [
     "HUD_INSTALL_CAP",
@@ -155,7 +157,7 @@ def peer_roster_projection(*, scope_workspace_id: str | None) -> dict[str, Any]:
     )
     from .persona_chat_history import persona_chat_history_summary
     from .workspace_scope import addressable_roster
-    from hermes_cli.harness_parts.persona import chat_target as _chat_target
+    from .mission_chat_persona import resolve_mission_chat_persona_id
 
     store = PersonaInstanceStore()
     store.ensure_for_personas(list(ensure_persisted_personas(load_agent_runtime_config())))
@@ -185,7 +187,7 @@ def peer_roster_projection(*, scope_workspace_id: str | None) -> dict[str, Any]:
         # and it matters more across a machine boundary: an agent that addresses
         # an unreachable row loses a turn AND a network round trip finding out.
         try:
-            reachable = _chat_target._resolve_mission_chat_persona_id(persona_id, persona_id)
+            reachable = resolve_mission_chat_persona_id(persona_id, persona_id)
         except ValueError:
             continue
         if len(rows) >= ROSTER_ROW_CAP:
@@ -233,7 +235,7 @@ def read_chat_lane_tail(
 
     Lifted out of ``agent_chat_open`` rather than reimplemented beside it, which
     is the whole reason it is a function: the lane guard
-    (``_session_belongs_to_chat_lane``) is the thing standing between "review
+    (``session_belongs_to_chat_lane``) is the thing standing between "review
     our thread" and "read any transcript on this machine", and a second copy of
     it for the peer door is a second place for that guard to be widened by
     accident. The local tool calls this; so does ``peer.thread.read``.
@@ -252,18 +254,16 @@ def read_chat_lane_tail(
         MAX_PERSONA_CHAT_MESSAGE_TAIL,
         persona_chat_session_messages,
     )
-    from tools.agent_chat_tool import (
-        _resolve_chat_lane_target,
-        _session_belongs_to_chat_lane,
-    )
+    from tools.agent_chat.lane import session_belongs_to_chat_lane
+    from tools.agent_chat.threads import resolve_chat_lane_target
 
-    target, refusal = _resolve_chat_lane_target(
+    target, refusal = resolve_chat_lane_target(
         persona_id, requested_by_session=requested_by_session, verb="agent_chat_open"
     )
     if refusal is not None:
         import json as _json
 
-        # ``_resolve_chat_lane_target`` answers in the tool's own refusal
+        # ``resolve_chat_lane_target`` answers in the tool's own refusal
         # ENVELOPE (a JSON string) because it predates this function. Decoded
         # here rather than changed there, so the local tool's bytes are
         # unchanged and the peer door gets a dict.
@@ -280,7 +280,7 @@ def read_chat_lane_tail(
 
     requested_session = (str(session_id).strip() or None) if session_id else None
     if requested_session is not None:
-        if not _session_belongs_to_chat_lane(
+        if not session_belongs_to_chat_lane(
             requested_session, handle=handle, default_session=default_session
         ):
             return {

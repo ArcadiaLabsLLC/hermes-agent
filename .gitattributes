@@ -1,5 +1,6 @@
 # Auto-generated files — collapse diffs and exclude from language stats
 web/package-lock.json linguist-generated=true
+uv.lock text eol=lf
 
 # LF is this repo's line ending, everywhere, in the object store and on disk.
 # Without it a Windows checkout with `core.autocrlf=true` rewrites text files to
@@ -29,6 +30,8 @@ docker/entrypoint.sh text eol=lf
 *.js    text eol=lf
 *.mjs   text eol=lf
 *.cjs   text eol=lf
+*.cts   text eol=lf
+*.mts   text eol=lf
 *.jsx   text eol=lf
 *.json  text eol=lf
 *.yaml  text eol=lf

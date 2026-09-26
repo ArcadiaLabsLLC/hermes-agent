@@ -7,7 +7,7 @@
 # false-GREEN when a symbol is deleted but a mention of it survives, and
 # false-RED when a refactor moves the line to a neighbouring function.
 #
-# grandfathered violations: 21
+# grandfathered violations: 19
 #
 # THIS REGISTER IS CLOSED TO ADDITIONS. The gate does not offer a way to
 # ledger a new violation: a new positive source grep is a red build, not a
@@ -30,12 +30,10 @@
 #
 tests/agent_runtime/test_mcp_admission_budget.py::test_the_dispatch_seam_the_budget_intercepts_still_exists::'entry.handler(args, **kwargs)' in source
 tests/agent_runtime/test_mcp_admission_budget.py::test_upstream_registers_mcp_tools_synchronously::'is_async=False' in source
-tests/agent_runtime/test_mcp_lane_agent_context_line.py::test_the_role_policy_is_imported_never_re_implemented::'_effective_required_mcp_servers' in source
+tests/agent_runtime/test_mcp_lane_agent_context_line.py::test_the_role_policy_is_imported_never_re_implemented::'effective_required_mcp_servers' in source
 tests/agent_runtime/test_persona_chat_wire_boundary.py::test_the_wire_bound_is_documented_as_a_wire_bound::'WIRE BOUND, NOT A PERSISTENCE BOUND' in header
 tests/agent_runtime/test_s27_tool_diff_task_goal_flags.py::test_the_live_task_goal_threading_is_kept::'"goal_id": visibility.get("goal_id")' in wire
 tests/agent_runtime/test_s27_tool_diff_task_goal_flags.py::test_the_live_task_goal_threading_is_kept::'"task_id": visibility.get("task_id")' in wire
-tests/agent_runtime/test_s27_tool_diff_task_goal_flags.py::test_the_live_task_goal_threading_is_kept::'goal_id=instance.goal_id' in source
-tests/agent_runtime/test_s27_tool_diff_task_goal_flags.py::test_the_live_task_goal_threading_is_kept::'task_id=instance.current_task_id' in source
 tests/agent_runtime/test_s29_agent_context_shape_retirement.py::test_the_contract_45_situational_hud_observability_field_survives_s39::'"situational_hud"' in source
 tests/agent_runtime/test_s30_retired_mission_chat_task_id_response.py::test_mission_chat_message_still_emits_every_key_the_launcher_reads::kept in source
 tests/agent_runtime/test_s32_persona_runtime_run_lane_residue.py::test_the_shared_progress_import_line_keeps_its_live_sibling::'ChatProgressSink(' in inspect.getsource(persona_runtime)

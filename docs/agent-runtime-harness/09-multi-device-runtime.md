@@ -72,7 +72,7 @@ another install.
   carrying that label.
 - **Paired peer** — `gateway/peers.json`, one row per INSTALL that may call
   this one as an agent's runtime rather than as an operator's cockpit
-  (`agent_runtime/gateway_peers.py`). Trust fields are written by a ceremony
+  (`agent_runtime/gateway_peers/`). Trust fields are written by a ceremony
   only; cache fields (`display_name`, `endpoints`, `cert_fingerprint`,
   `last_seen`) refresh from the network. A peer holds an ALLOWLIST, not a tier.
 - **Peer directory** — the per-install cache of what each paired install last

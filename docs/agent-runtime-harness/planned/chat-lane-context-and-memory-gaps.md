@@ -20,7 +20,7 @@ context, memory injection, and operator affordances.
 (`agent_runtime/models.py:266-267`), read once per turn into the run request:
 `skip_context_files=not include_core_context_files` (`persona_runtime.py:239`) and
 `skip_memory=not include_profile_memory` (`:248`). They are parsed from persona
-overrides at `agent_runtime/config.py:544-545` and `:594`, honoured by the profile
+overrides at `agent_runtime/config/persona_records.py:63-64` and `:166`, honoured by the profile
 binding (`persona_profile_binding.py:341-345`), reported to the operator read-only in
 the snapshot (`snapshot.py:2555`) and in prompt observability
 (`prompt_observability.py:34-36`, `:527`), and travel through realm sync as allowed

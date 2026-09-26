@@ -122,10 +122,12 @@ def _build_status_in_runtime_scope(run_store: RunStore | None = None, incident_s
     personas_by_id = {str(getattr(agent, "id", "") or ""): agent for agent in agents}
     data["agents"] = [
         *data["agents"],
-        *active_persona_instance_agent_summaries(instances, personas_by_id),
+        *active_persona_instance_agent_summaries(instances, personas_by_id, roster=ensure_persisted_personas),
     ]
     data["persona_instance_runtime"] = {"enabled": True}
-    data["persona_instances"] = [persona_instance_summary(instance) for instance in instances]
+    data["persona_instances"] = [
+        persona_instance_summary(instance, roster=ensure_persisted_personas) for instance in instances
+    ]
     # ADDITIVE, and accounting only: "what did the serve delivery drain last do,
     # and which gate bounced a completion". Imported lazily and wrapped, because
     # status must never fail — nor refuse to build — because a telemetry surface

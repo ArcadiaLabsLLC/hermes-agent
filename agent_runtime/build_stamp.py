@@ -64,6 +64,8 @@ from typing import Any
 from agent_runtime.build_identity import CodeTree, code_tree_for, code_tree_rule
 from agent_runtime.git_cmd import run_git
 
+__layer__ = "stores"
+
 __all__ = [
     "GIT_TIMEOUT_SECONDS",
     "SOURCE_BUILD_SHA_FILE",

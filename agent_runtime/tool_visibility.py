@@ -30,6 +30,7 @@ from .personas import (
     role_from_persona,
 )
 from .profile_readiness import declared_mcp_server_names, profile_readiness_for_persona
+from .serde import unique_texts
 from .tool_turn_history import load_tool_turn_history
 
 # The committed toolset manifest. Importing it imports NO registrar module and no
@@ -271,20 +272,20 @@ def resolve_tool_visibility(
     # for unbounded, so an unbounded preview claimed 17 tools the runtime would
     # strip — the count the plan corrects from 22 to 17 rather than to 0.
     persona_blocked = REGISTRY_HYGIENE_BLOCKED_TOOLS if unbounded else blocked_tool_names()
-    requested_blocked = frozenset(_clean_names(opts.blocked_tool_names or []))
+    requested_blocked = frozenset(unique_texts(opts.blocked_tool_names or []))
     if opts.chat_lane_blocked_tool_names is not None:
         # T9b chat-lane preview parity: use the chat-lane chokepoint's already
         # resolved block verbatim (see ToolVisibilityOptions). The generic
         # ``persona_blocked | requested_blocked`` union would re-add ``clarify``
         # (a PERSONA_BLOCKED_TOOLS member the chat lane deliberately unblocks) and
         # would miss the chat-lane cost cuts, so the preview would lie.
-        final_blocked = frozenset(_clean_names(opts.chat_lane_blocked_tool_names))
+        final_blocked = frozenset(unique_texts(opts.chat_lane_blocked_tool_names))
     else:
         final_blocked = persona_blocked | requested_blocked
     candidate_tools = _tool_names_for_toolsets(resolved_toolsets, blocked_tool_names=[])
     final_tools = _tool_names_for_toolsets(resolved_toolsets, blocked_tool_names=sorted(final_blocked))
     blocked_entries = _blocked_tool_entries(
-        sorted((set(candidate_tools) | set(_clean_names(final_blocked))) - set(final_tools)),
+        sorted((set(candidate_tools) | set(unique_texts(final_blocked))) - set(final_tools)),
         role_denies=frozenset(),
         persona_denies=PERSONA_BLOCKED_TOOLS,
         requested_denies=requested_blocked,
@@ -707,15 +708,6 @@ def _mutation_boundary(tool_names: list[str]) -> dict[str, Any]:
         "can_run_terminal": "terminal" in names,
         "mutating_tools": mutating,
     }
-
-
-def _clean_names(values) -> list[str]:
-    out: list[str] = []
-    for value in values or []:
-        text = str(value or "").strip()
-        if text and text not in out:
-            out.append(text)
-    return out
 
 
 def _resolved_toolsets(persona: AgentPersona, options: ToolVisibilityOptions, *, unbounded: bool) -> list[str]:

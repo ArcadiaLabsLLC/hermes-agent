@@ -34,6 +34,8 @@ import time
 from collections.abc import Mapping
 from typing import Any
 
+__layer__ = "stores"
+
 
 def _process_start_monotonic() -> float | None:
     """Best-effort ``time.monotonic`` reading of this process's creation.

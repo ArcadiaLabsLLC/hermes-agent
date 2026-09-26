@@ -1022,6 +1022,34 @@ def test_a_resolve_with_no_gesture_behind_it_omits_the_key_entirely():
     assert _conflict_resolved_tokens() == [None]
 
 
+def test_an_unreadable_actor_directory_names_the_actor_file_not_the_archive(monkeypatch):
+    """The subclass twin of the archive case above: ``ActorsUnreadable`` reaches
+    the ``ArchiveUnreadable`` row and must carry its OWN code, so the operator is
+    sent to the actor file that failed, not to the archive copy."""
+
+    from agent_runtime import office_store as office_store_module
+    from agent_runtime.errors import ActorsUnreadable
+
+    _seed()
+    _seed_conflict()
+
+    def _unreadable(self, *_args, **_kwargs):
+        raise ActorsUnreadable("office actors unreadable in ws: 1")
+
+    monkeypatch.setattr(office_store_module.OfficeStore, "resolve_conflict", _unreadable)
+    reply = _resolve(
+        "r-actors",
+        {"workspace_id": WORKSPACE, "actor_key": QA_INSTANCE, "take": "remote"},
+    )
+
+    assert reply["error"]["code"] == -32600
+    assert reply["error"]["data"] == {
+        "reason": "actors_unreadable",
+        "workspace_id": WORKSPACE,
+        "actor_key": QA_INSTANCE,
+    }
+
+
 def test_a_malformed_correlation_id_is_refused_before_the_store_is_touched(monkeypatch):
     """``-32602`` with THE shared reason, and the store never opened.
 
@@ -1151,7 +1179,7 @@ def _with_delta_patches(monkeypatch):
         cfg.read_model.delta_patches = True
         return cfg
 
-    monkeypatch.setattr(sp, "load_root_runtime_config", _loader)
+    monkeypatch.setattr(sp.emit, "load_root_runtime_config", _loader)
 
 
 def test_the_adopt_arm_emits_the_actor_patch_its_archive_sibling_always_did(monkeypatch):
@@ -1309,7 +1337,7 @@ def test_a_resolve_batch_demotes_for_todays_client_and_promotes_for_a_declaring_
         cfg.read_model.delta_patches = True
         return cfg
 
-    monkeypatch.setattr(sp, "load_root_runtime_config", _loader)
+    monkeypatch.setattr(sp.emit, "load_root_runtime_config", _loader)
 
     _seed()
     _seed_conflict()

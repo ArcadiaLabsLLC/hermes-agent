@@ -101,6 +101,8 @@ from typing import Any, Callable, Iterable, Iterator
 # one kind of reader. Everything else here stays content-agnostic.
 from .stream import resolve_fold_variant
 
+__layer__ = "lanes"
+
 __all__ = [
     "BOUND_BYTES",
     "BOUND_FRAMES",

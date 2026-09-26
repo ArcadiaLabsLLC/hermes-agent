@@ -12,7 +12,7 @@ import logging
 from types import MappingProxyType
 from typing import Mapping
 
-from agent_runtime.dispatch_delivery import DRAIN_STATE_FILENAME
+from agent_runtime.dispatch_delivery.vocabulary import DRAIN_STATE_FILENAME
 from agent_runtime.paths import (
     DELETED_ARCHIVE_DIRNAME,
     OFFICE_ARCHIVE_DIRNAME,

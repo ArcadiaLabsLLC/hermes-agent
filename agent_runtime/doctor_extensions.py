@@ -1,6 +1,10 @@
 """Downstream diagnostics."""
 from pathlib import Path
-from hermes_cli.doctor_report import _section, check_fail, check_info, check_ok, check_warn, doctor_check, Finding
+from hermes_cli.doctor_report import check_fail, check_info, check_ok, check_warn, doctor_check, Finding
+
+from ._upstream_doors import doctor_section as _section
+
+__layer__ = "stores"
 
 def _check_gateway_launcher_interpreter(issues: list[str]) -> None:
     """Fail when the autostart launcher names an interpreter updates don't sync.

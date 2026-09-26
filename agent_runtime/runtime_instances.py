@@ -7,6 +7,8 @@ from .events import EventLog
 from .models import GoalRuntimeInstance
 from .serde import from_jsonable
 
+__layer__ = "stores"
+
 class GoalRuntimeInstanceStore:
     def __init__(self, event_log: EventLog | None = None):
         self.event_log = event_log or EventLog()

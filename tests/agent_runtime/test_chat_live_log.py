@@ -13,7 +13,6 @@ from agent_runtime import chat_live_log
 from agent_runtime.chat_live_log import (
     LIVE_LOG_TEXT_LIMIT,
     capture_chat_live_log_root,
-    chat_live_log_failures,
     chat_live_log_path,
     chat_live_log_stats,
     ensure_chat_live_log,
@@ -21,6 +20,7 @@ from agent_runtime.chat_live_log import (
     record_chat_tool,
     reset_chat_live_log_state,
 )
+from tests._downstream._seams import chat_live_log_failures
 
 
 @pytest.fixture(autouse=True)
@@ -126,7 +126,7 @@ def test_per_line_text_is_capped_with_a_visible_marker(tmp_path, monkeypatch):
 
 def test_rotation_keeps_one_generation(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HEAD_HOME", str(tmp_path))
-    monkeypatch.setattr(chat_live_log, "LIVE_LOG_ROTATE_BYTES", 400)
+    monkeypatch.setattr(chat_live_log.files, "LIVE_LOG_ROTATE_BYTES", 400)
     for index in range(12):
         record_chat_message(
             session_id="persona_chat_s1",
@@ -184,7 +184,7 @@ def test_backfill_materializes_pre_feature_history_exactly_once(tmp_path, monkey
     db = _FakeDb(db_path=tmp_path / "state.db")
     db.append_message("persona_chat_s1", "user", "older question")
     db.append_message("persona_chat_s1", "assistant", "older answer")
-    monkeypatch.setattr(chat_live_log, "_backfill_rows", _backfill_from(db))
+    monkeypatch.setattr(chat_live_log.backfill, "_backfill_rows", _backfill_from(db))
 
     path = ensure_chat_live_log("persona_chat_s1", materialize=True)
     assert [row["text"] for row in _messages(path)] == ["older question", "older answer"]
@@ -222,7 +222,7 @@ def test_write_failure_is_counted_not_swallowed(tmp_path, monkeypatch):
     def _boom(*args, **kwargs):
         raise OSError("disk gone")
 
-    monkeypatch.setattr(chat_live_log, "open", _boom, raising=False)
+    monkeypatch.setattr(chat_live_log.files, "open", _boom, raising=False)
     assert record_chat_message(session_id="persona_chat_s1", role="user", text="hi") is False
     assert chat_live_log_failures() >= 1
 
@@ -267,7 +267,7 @@ def test_persist_lane_never_pays_the_curated_projection(tmp_path, monkeypatch):
         calls.append(session_id)
         return [], False
 
-    monkeypatch.setattr(chat_live_log, "_backfill_rows", _spy)
+    monkeypatch.setattr(chat_live_log.backfill, "_backfill_rows", _spy)
 
     record_chat_message(session_id="persona_chat_s1", role="user", text="go")
     record_chat_tool(session_id="persona_chat_s1", tool="terminal", status="started")
@@ -294,7 +294,7 @@ def test_completion_places_history_before_the_live_lines_it_already_holds(tmp_pa
     record_chat_tool(session_id="persona_chat_s1", tool="terminal", status="started")
 
     monkeypatch.setattr(
-        chat_live_log,
+        chat_live_log.backfill,
         "_backfill_rows",
         lambda session_id, session_db=None: (
             [
@@ -334,7 +334,7 @@ def test_completion_keeps_lines_appended_while_the_projection_was_read(tmp_path,
         )
         return [], False
 
-    monkeypatch.setattr(chat_live_log, "_backfill_rows", _slow_backfill)
+    monkeypatch.setattr(chat_live_log.backfill, "_backfill_rows", _slow_backfill)
     path = ensure_chat_live_log("persona_chat_s1", materialize=True)
     texts = [row["text"] for row in _messages(path)]
     assert texts == ["first", "arrived mid-materialization"]
@@ -347,7 +347,7 @@ def test_appender_never_writes_into_an_in_flight_materialization(tmp_path, monke
     may happen."""
 
     monkeypatch.setenv("HERMES_HEAD_HOME", str(tmp_path))
-    monkeypatch.setattr(chat_live_log, "_CLAIM_WAIT_SECONDS", 0.05)
+    monkeypatch.setattr(chat_live_log.files, "_CLAIM_WAIT_SECONDS", 0.05)
     path = chat_live_log_path("persona_chat_s1")
     path.parent.mkdir(parents=True, exist_ok=True)
     claim = path.with_name(path.name + ".materializing")
@@ -375,7 +375,7 @@ def test_appender_never_writes_into_an_in_flight_materialization(tmp_path, monke
 
 def test_a_stale_claim_does_not_strand_the_mirror_forever(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HEAD_HOME", str(tmp_path))
-    monkeypatch.setattr(chat_live_log, "_CLAIM_STALE_SECONDS", -1.0)
+    monkeypatch.setattr(chat_live_log.files, "_CLAIM_STALE_SECONDS", -1.0)
     path = chat_live_log_path("persona_chat_s1")
     path.parent.mkdir(parents=True, exist_ok=True)
     claim = path.with_name(path.name + ".materializing")
@@ -392,9 +392,9 @@ def test_dedupe_key_is_the_logical_turn_id_not_the_flush_suffix(tmp_path, monkey
     claim the same reply."""
 
     monkeypatch.setenv("HERMES_HEAD_HOME", str(tmp_path))
-    assert chat_live_log._logical_client_key("cm-1:assistant:3") == "cm-1"
+    assert chat_live_log.lines._logical_client_key("cm-1:assistant:3") == "cm-1"
     monkeypatch.setattr(
-        chat_live_log,
+        chat_live_log.backfill,
         "_backfill_rows",
         lambda session_id, session_db=None: (
             [
@@ -403,7 +403,7 @@ def test_dedupe_key_is_the_logical_turn_id_not_the_flush_suffix(tmp_path, monkey
                     "kind": "message",
                     "role": "agent",
                     "text": "the reply",
-                    "client_message_id": chat_live_log._logical_client_key("cm-1:assistant:3"),
+                    "client_message_id": chat_live_log.lines._logical_client_key("cm-1:assistant:3"),
                     "backfilled": True,
                 }
             ],
@@ -479,7 +479,7 @@ def test_dedupe_survives_rotation_across_a_generation_boundary(tmp_path, monkeyp
     must not re-append a resend whose line now lives in the ``.1`` sibling."""
 
     monkeypatch.setenv("HERMES_HEAD_HOME", str(tmp_path))
-    monkeypatch.setattr(chat_live_log, "LIVE_LOG_ROTATE_BYTES", 300)
+    monkeypatch.setattr(chat_live_log.files, "LIVE_LOG_ROTATE_BYTES", 300)
     for index in range(8):
         record_chat_message(
             session_id="persona_chat_s1",
@@ -495,7 +495,7 @@ def test_dedupe_survives_rotation_across_a_generation_boundary(tmp_path, monkeyp
 
     reset_chat_live_log_state()
     monkeypatch.setenv("HERMES_HEAD_HOME", str(tmp_path))
-    monkeypatch.setattr(chat_live_log, "LIVE_LOG_ROTATE_BYTES", 300)
+    monkeypatch.setattr(chat_live_log.files, "LIVE_LOG_ROTATE_BYTES", 300)
     resent = sorted(rotated_ids)[0]
     before = len(_messages(path))
     record_chat_message(
@@ -505,3 +505,60 @@ def test_dedupe_survives_rotation_across_a_generation_boundary(tmp_path, monkeyp
         client_message_id=resent,
     )
     assert len(_messages(path)) == before
+
+
+def test_every_role_alias_lands_as_its_conversation_role(tmp_path, monkeypatch):
+    """Positive control (layout sheet ``chat_live_log.md`` §6.1): all five
+    aliases in ONE file, each asserted on the role the line carries — so a
+    remapped alias (``assistant`` -> ``operator``) cannot stay green."""
+
+    monkeypatch.setenv("HERMES_HEAD_HOME", str(tmp_path))
+    for index, role in enumerate(("user", "operator", "assistant", "agent", "system", "Mystery")):
+        record_chat_message(session_id="persona_chat_roles", role=role, text=f"line {index}")
+    rows = _messages(chat_live_log_path("persona_chat_roles"))
+    assert [row["role"] for row in rows] == ["operator", "operator", "agent", "agent", "system", "mystery"]
+
+
+def test_a_recorded_line_carries_the_fork_clock_stamp(tmp_path, monkeypatch):
+    """Positive control (layout sheet ``chat_live_log.md`` §6.3, ruling Q22):
+    every ``ts`` is ``clock.now_iso``'s spelling — millisecond, ``Z`` — the one
+    clock spelling the fork writes. The header, a message and a tool line."""
+
+    import re
+
+    monkeypatch.setenv("HERMES_HEAD_HOME", str(tmp_path))
+    record_chat_message(session_id="persona_chat_ts", role="user", text="hi")
+    record_chat_tool(session_id="persona_chat_ts", tool="terminal", status="started")
+    stamps = [row["ts"] for row in _lines(chat_live_log_path("persona_chat_ts"))]
+    assert len(stamps) == 3
+    assert all(re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$", stamp) for stamp in stamps), stamps
+
+
+def test_the_backfill_walk_is_bounded_and_replays_oldest_first(monkeypatch):
+    """The projection walk stops at the row cap and SAYS so (``truncated``),
+    and the pages it read (newest first) land oldest first. Both halves of the
+    ``_backfill_rows`` split — the page walk and the row translation — in one
+    fixture: nothing else pins the bound or the order."""
+
+    from agent_runtime import persona_chat_history
+
+    calls: list[object] = []
+
+    def _pages(*, session_id, limit, before, session_db):
+        calls.append(before)
+        index = len(calls)
+        return {
+            "ok": True,
+            "messages": [{"role": "user", "text": f"page {index}", "client_message_id": f"cm-{index}"}],
+            "has_more": True,
+            "next_before": f"cursor-{index}",
+        }
+
+    monkeypatch.setattr(persona_chat_history, "persona_chat_session_messages", _pages)
+    monkeypatch.setattr(chat_live_log.backfill, "LIVE_LOG_BACKFILL_MESSAGE_CAP", 3)
+    rows, truncated = chat_live_log.backfill._backfill_rows("persona_chat_walk")
+
+    assert truncated is True
+    assert calls == [None, "cursor-1", "cursor-2"]
+    assert [row["text"] for row in rows] == ["page 3", "page 2", "page 1"]
+    assert all(row["backfilled"] and row["role"] == "operator" for row in rows)

@@ -62,7 +62,11 @@ def _cmd_persona_list(args) -> int:
     instances = store.ensure_for_personas(personas)
     data = {
         "persona_instances": [
-            persona_instance_summary(instance, personas_by_id.get(str(getattr(instance, "persona_id", "") or "")))
+            persona_instance_summary(
+                instance,
+                personas_by_id.get(str(getattr(instance, "persona_id", "") or "")),
+                roster=ensure_persisted_personas,
+            )
             for instance in instances
         ],
     }
@@ -91,7 +95,11 @@ def _cmd_persona_show(args) -> int:
     assignments = PersonaAssignmentStore().list_for_persona(instance.persona_id)
     data = {
         "ok": True,
-        "persona_instance": persona_instance_summary(instance, personas_by_id.get(str(getattr(instance, "persona_id", "") or ""))),
+        "persona_instance": persona_instance_summary(
+            instance,
+            personas_by_id.get(str(getattr(instance, "persona_id", "") or "")),
+            roster=ensure_persisted_personas,
+        ),
         "assignments": [persona_assignment_summary(item) for item in assignments[-25:]],
     }
     if args.json:

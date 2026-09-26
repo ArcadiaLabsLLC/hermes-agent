@@ -4,6 +4,8 @@ from pathlib import Path
 
 from .resolution import assert_probe_isolation, resolve_runtime
 
+__layer__ = "models"
+
 
 def store_root() -> Path:
     resolution = resolve_runtime()
@@ -645,3 +647,17 @@ def safe_mtime(path: Path) -> float:
         return path.stat().st_mtime
     except OSError:
         return 0.0
+
+
+def path_exists_safe(path: Path) -> bool:
+    """``path.exists()``, but an ``OSError`` while probing reads as "absent".
+
+    ONE owner (god-file program §5, the 09-21 ``_exists`` row): the mirror's
+    claim / publish / rotate probes must never raise out of a best-effort lane.
+    Lane 2B-B created it and folded ``chat_live_log``'s copy.
+    """
+
+    try:
+        return path.exists()
+    except OSError:  # pragma: no cover - defensive
+        return False

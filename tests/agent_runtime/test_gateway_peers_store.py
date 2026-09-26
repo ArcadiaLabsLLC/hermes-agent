@@ -716,7 +716,7 @@ def test_a_peer_code_scoped_to_an_install_refuses_any_other_install_and_charges_
     """
 
     from agent_runtime.gateway_pairing_codes import pending_codes
-    from agent_runtime.serve_gateway_auth import _read_pairing
+    from agent_runtime.serve_gateway_auth import read_pairing
 
     minted = mint_peer_code(tmp_path, for_install_id=PEER_B)
     assert isinstance(minted, PeerPairingCode)
@@ -726,7 +726,7 @@ def test_a_peer_code_scoped_to_an_install_refuses_any_other_install_and_charges_
     assert wrong.reason == "invalid_code"
     assert "no pending peer code matches" in wrong.detail
 
-    state = _read_pairing(tmp_path)
+    state = read_pairing(tmp_path)
     assert int(state.get("failed_redeems") or 0) == 1
     assert len(pending_codes(state)) == 1
     assert list_peers(tmp_path) == []
@@ -771,7 +771,7 @@ def test_a_requester_supersedes_its_own_earlier_peer_code_so_a_retry_is_free(
     """
 
     from agent_runtime.gateway_pairing_codes import pending_codes
-    from agent_runtime.serve_gateway_auth import _read_pairing
+    from agent_runtime.serve_gateway_auth import read_pairing
 
     first = mint_peer_code(tmp_path, for_install_id=PEER_B)
     second = mint_peer_code(tmp_path, for_install_id=PEER_B)
@@ -779,7 +779,7 @@ def test_a_requester_supersedes_its_own_earlier_peer_code_so_a_retry_is_free(
     for minted in (first, second, third):
         assert isinstance(minted, PeerPairingCode), minted
 
-    pending = pending_codes(_read_pairing(tmp_path))
+    pending = pending_codes(read_pairing(tmp_path))
     assert len(pending) == 1
     assert {entry["for_install_id"] for entry in pending.values()} == {PEER_B}
 
@@ -802,7 +802,7 @@ def test_superseding_is_scoped_to_the_requester_and_never_touches_a_strangers_co
     supersede."""
 
     from agent_runtime.gateway_pairing_codes import pending_codes
-    from agent_runtime.serve_gateway_auth import _read_pairing
+    from agent_runtime.serve_gateway_auth import read_pairing
 
     unscoped = mint_peer_code(tmp_path)
     other = mint_peer_code(tmp_path, for_install_id=PEER_A)
@@ -811,7 +811,7 @@ def test_superseding_is_scoped_to_the_requester_and_never_touches_a_strangers_co
     # still holds the unscoped one, A's, and B's newest.
     assert isinstance(mint_peer_code(tmp_path, for_install_id=PEER_B), PeerPairingCode)
 
-    pending = pending_codes(_read_pairing(tmp_path))
+    pending = pending_codes(read_pairing(tmp_path))
     assert len(pending) == 3
     assert sorted(
         str(entry.get("for_install_id") or "") for entry in pending.values()
@@ -971,7 +971,7 @@ def test_dial_peer_refuses_an_expired_row_before_it_opens_a_socket(tmp_path, mon
     def _explode(*args, **kwargs):
         raise AssertionError("dial_peer opened a socket for an expired row")
 
-    monkeypatch.setattr(serve_socket, "ServeSocketClient", _explode)
+    monkeypatch.setattr(serve_socket.client, "ServeSocketClient", _explode)
 
     with pytest.raises(ConnectionError) as raised:
         gateway_peers.dial_peer(tmp_path, PEER_A)
@@ -1127,7 +1127,7 @@ def test_dial_order_is_cache_endpoints_then_trust_and_the_pin_is_always_trust(
         def close(self):
             return None
 
-    monkeypatch.setattr(serve_socket, "ServeSocketClient", _Client)
+    monkeypatch.setattr(serve_socket.client, "ServeSocketClient", _Client)
 
     with pytest.raises(ConnectionError):
         gateway_peers.dial_peer(tmp_path, PEER_A)
@@ -1159,7 +1159,6 @@ def test_the_chat_dial_names_a_local_network_permission_rather_than_an_oserror(
 
     from agent_runtime import gateway_peers, serve_socket
     from agent_runtime.gateway_identity import set_display_name
-    from hermes_cli.harness_parts import gateway_commands
 
     set_display_name(tmp_path, "this install")
     record_peer(
@@ -1171,7 +1170,7 @@ def test_the_chat_dial_names_a_local_network_permission_rather_than_an_oserror(
         cert_fingerprint="ab" * 32,
     )
     monkeypatch.setattr(
-        gateway_commands, "_machine_addresses", lambda: ["192.168.1.39"]
+        "agent_runtime.gateway_endpoints.candidates.machine_addresses", lambda: ["192.168.1.39"]
     )
 
     class _Client:
@@ -1187,7 +1186,7 @@ def test_the_chat_dial_names_a_local_network_permission_rather_than_an_oserror(
         def close(self):
             return None
 
-    monkeypatch.setattr(serve_socket, "ServeSocketClient", _Client)
+    monkeypatch.setattr(serve_socket.client, "ServeSocketClient", _Client)
 
     with pytest.raises(ConnectionError) as raised:
         gateway_peers.dial_peer(tmp_path, PEER_A)
@@ -1206,7 +1205,6 @@ def test_a_chat_dial_that_is_merely_refused_keeps_the_word_it_had(
 
     from agent_runtime import gateway_peers, serve_socket
     from agent_runtime.gateway_identity import set_display_name
-    from hermes_cli.harness_parts import gateway_commands
 
     set_display_name(tmp_path, "this install")
     record_peer(
@@ -1218,7 +1216,7 @@ def test_a_chat_dial_that_is_merely_refused_keeps_the_word_it_had(
         cert_fingerprint="ab" * 32,
     )
     monkeypatch.setattr(
-        gateway_commands, "_machine_addresses", lambda: ["192.168.1.39"]
+        "agent_runtime.gateway_endpoints.candidates.machine_addresses", lambda: ["192.168.1.39"]
     )
 
     class _Client:
@@ -1231,7 +1229,7 @@ def test_a_chat_dial_that_is_merely_refused_keeps_the_word_it_had(
         def close(self):
             return None
 
-    monkeypatch.setattr(serve_socket, "ServeSocketClient", _Client)
+    monkeypatch.setattr(serve_socket.client, "ServeSocketClient", _Client)
 
     with pytest.raises(ConnectionError) as raised:
         gateway_peers.dial_peer(tmp_path, PEER_A)
@@ -1345,11 +1343,12 @@ def test_every_store_door_emits_its_event_with_ids_and_never_a_secret(
     from agent_runtime.decision_contract_registry import event_catalog
 
     seen: list = []
-    monkeypatch.setattr(
-        gateway_peers,
-        "_emit_peer_event",
-        lambda event_type, payload, **_kw: seen.append((event_type, payload)),
-    )
+    for _home in (gateway_peers.trust_store, gateway_peers.cache, gateway_peers.ceremony):
+        monkeypatch.setattr(
+            _home,
+            "_emit_peer_event",
+            lambda event_type, payload, **_kw: seen.append((event_type, payload)),
+        )
 
     credential = _pair(tmp_path)
     note_peer_seen(tmp_path, PEER_B)
@@ -1396,11 +1395,12 @@ def test_a_process_that_reads_a_revision_it_neither_wrote_nor_seeded_emits_exter
 
     _pair(tmp_path)
     seen: list = []
-    monkeypatch.setattr(
-        gateway_peers,
-        "_emit_peer_event",
-        lambda event_type, payload, **_kw: seen.append((event_type, payload)),
-    )
+    for _home in (gateway_peers.trust_store, gateway_peers.cache, gateway_peers.ceremony):
+        monkeypatch.setattr(
+            _home,
+            "_emit_peer_event",
+            lambda event_type, payload, **_kw: seen.append((event_type, payload)),
+        )
     gateway_peers._LAST_SEEN_REVISION.clear()
 
     gateway_peers.note_peer_store_read(tmp_path)  # seeds
@@ -1432,9 +1432,10 @@ def test_a_fresh_process_seeds_on_first_read_and_emits_nothing(tmp_path, monkeyp
     note_peer_seen(tmp_path, PEER_B)
 
     seen: list = []
-    monkeypatch.setattr(
-        gateway_peers, "_emit_peer_event", lambda t, p, **_kw: seen.append((t, p))
-    )
+    for _home in (gateway_peers.trust_store, gateway_peers.cache, gateway_peers.ceremony):
+        monkeypatch.setattr(
+            _home, "_emit_peer_event", lambda t, p, **_kw: seen.append((t, p))
+        )
     gateway_peers._LAST_SEEN_REVISION.clear()
 
     gateway_peers.note_peer_store_read(tmp_path)
@@ -1452,9 +1453,10 @@ def test_a_write_this_process_made_is_never_reported_as_external(tmp_path, monke
     gateway_peers.note_peer_store_read(tmp_path)
 
     seen: list = []
-    monkeypatch.setattr(
-        gateway_peers, "_emit_peer_event", lambda t, p, **_kw: seen.append((t, p))
-    )
+    for _home in (gateway_peers.trust_store, gateway_peers.cache, gateway_peers.ceremony):
+        monkeypatch.setattr(
+            _home, "_emit_peer_event", lambda t, p, **_kw: seen.append((t, p))
+        )
 
     note_peer_seen(tmp_path, PEER_B)
     gateway_peers.note_peer_store_read(tmp_path)
@@ -1481,7 +1483,7 @@ def test_a_write_the_disk_refuses_comes_back_as_a_typed_reason(tmp_path, monkeyp
             "[WinError 5] Access is denied: '.peers.json.x.tmp' -> 'peers.json'"
         )
 
-    monkeypatch.setattr(gateway_peers, "_write_peers", _denied)
+    monkeypatch.setattr(gateway_peers.trust_store, "_write_peers", _denied)
 
     outcome = record_peer(tmp_path, peer_install_id=PEER_B, secret="s" * 32)
 

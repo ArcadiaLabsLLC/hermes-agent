@@ -10,6 +10,7 @@ import re
 from typing import Any
 
 from ..serde import safe_assignment_text, safe_assignment_token
+from ..redaction import mask_secret_lines
 from ..redaction_mode import redaction_observe_enabled
 from .vocabulary import PERSONA_CHAT_MESSAGE_TEXT_LIMIT, _SECRET_RE
 
@@ -118,12 +119,7 @@ def _safe_display_body_text(
 
 
 def _mask_secret_lines(value: str, *, limit: int) -> str:
-    lines = [
-        "[redacted line — contained a secret]" if _SECRET_RE.search(line) else line
-        for line in str(value or "").split("\n")
-    ]
-    text = "\n".join(lines).strip()
-    return text[:limit].rstrip()
+    return mask_secret_lines(str(value or "")).strip()[:limit].rstrip()
 
 
 def _safe_chat_body_text(value: Any, *, limit: int) -> str:

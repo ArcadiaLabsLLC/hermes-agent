@@ -11,10 +11,7 @@
 #   * Env vars blanked (conftest.py also does this, but this
 #     is belt-and-suspenders for anyone running pytest outside our
 #     conftest path — e.g. on a single file)
-#   * Proper venv activation (probes .venv, venv, then the shared
-#     canonical test venv — $HERMES_TEST_VENV, ~/.venvs/hermes-test —
-#     then ~/.hermes/...). A worktree with no .venv of its own finds
-#     the shared one with no env vars set.
+#   * The activated checkout's test environment (activates when needed)
 #
 # Usage:
 #   scripts/run_tests.sh                            # full suite
@@ -47,19 +44,14 @@
 # prevent — so it is a fact about the interpreter, not a defect in those
 # tests, and it is not being chased (ML-7 / operator ruling R-e, 2026-08-18).
 #
-# If this script refuses with "no virtualenv with pytest found", it lists every
-# candidate it probed; each one either does not exist or has no pytest
-# INSTALLED — an empty `.venv/` directory counts as the former. The fix is to
-# build the shared canonical venv (recipe in the probe comment below) or point
-# the script at one you already have:
+# The fork's shared-venv probe (``$HERMES_TEST_VENV``, ``~/.venvs/hermes-test``)
+# retired at the 2026-09-25 upstream merge in favour of upstream's door: an
+# explicit ``HERMES_PYTHON`` that has pytest wins when nothing is activated.
+# On the workstation that is the shared canonical test venv:
 #
-#   HERMES_TEST_VENV=/path/to/venv scripts/run_tests.sh tests/hermes_cli
-#   HERMES_PYTHON=/c/Python312/python.exe scripts/run_tests.sh tests/hermes_cli
+#   HERMES_PYTHON=C:/Users/beast/.venvs/hermes-test/Scripts/python.exe #     scripts/run_tests.sh tests/hermes_cli
 #
-# Prefer HERMES_TEST_VENV: it takes a venv (so its pins are whatever that venv
-# pins), where HERMES_PYTHON takes any interpreter — including a system one
-# whose site-packages shadow this repo's pins. Refusing is deliberate; a venv
-# without pytest reports "0 tests passed", which reads green at a glance.
+# Without it the runner activates the checkout (upstream's supported path).
 
 set -euo pipefail
 
@@ -68,128 +60,45 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # ── Locate python ───────────────────────────────────────────────────────────
-# Probe local venvs first; fall back to the Nix devShell's editable venv
-# (HERMES_PYTHON is exported by the devShell hook and ships [dev] extras:
-# pytest, pytest-asyncio, pytest-timeout, ruff, ty).
+# The suite runs under the activated checkout's isolated test environment
+# (pm.testenv: `activate` builds it beside the checkout's install state, and CI
+# activates the same way). An inherited activation is re-checked against its
+# inputs (scripts/_activation.sh) and re-sourced when stale, so a branch switch
+# or lock edit never runs the suite against the previous dependency set.
 #
-# A candidate must have pytest INSTALLED, not merely exist. The release venv
-# at ~/.hermes/hermes-agent/venv has bin/activate but no pytest, so an
-# existence-only probe selected it in checkouts/worktrees without a local
-# .venv — every file then died with "No module named pytest" and the run
-# reported "0 tests passed" (which reads green at a glance even though the
-# exit code is 1). Skip such a venv and keep probing instead.
-#
-# ── The canonical SHARED test venv ────────────────────────────────────────
-#
-# A per-checkout ``.venv`` is the right answer for one checkout and the wrong
-# answer for a machine that carries several. This repo is worked in worktrees
-# (``git worktree add``), and a fresh worktree has no ``.venv`` — so every
-# wave that ran a suite from one had to hand-carry ``HERMES_PYTHON=`` pointed
-# at whatever interpreter happened to have pytest. On the workstation that
-# found this, that was the system ``C:\Python312``: a grab-bag with
-# ``packaging==26.2`` shadowing the repo's pinned ``26.0``, ``mcp==1.28.1``
-# against the pinned ``1.26.0`` and ``starlette==1.0.0`` against ``1.6.0``.
-# Different pins per wave is not a test environment, it is three of them.
-#
-# So the probe now also looks for a venv that lives OUTSIDE every checkout and
-# is therefore shared by all of them, in this order:
-#
-#   1. ``$HERMES_TEST_VENV``        — explicit, wins over the default
-#   2. ``$HOME/.venvs/hermes-test`` — the default
-#
-# Both are PORTABLE. No machine-specific path is spelled in this file, on
-# purpose: a site-local literal in a shared script is a fact about one
-# workstation that everyone else has to read past, and it rots silently when
-# that machine changes. A box whose venv lives elsewhere — on a different
-# volume, beside its checkouts, wherever — links it into place instead:
-#
-#   Windows: New-Item -ItemType Junction \
-#              -Path "$env:USERPROFILE\.venvs\hermes-test" -Target <real path>
-#   POSIX:   ln -s <real path> ~/.venvs/hermes-test
-#
-# ``$HOME/.venvs/hermes-test`` then resolves there with nothing set and nothing
-# site-local committed. ``$HERMES_TEST_VENV`` is the alternative for anyone who
-# would rather not link.
-#
-# Both are absent-safe: a candidate that does not exist, or that exists
-# without pytest, is skipped exactly like the release venv below. Nothing here
-# changes a checkout that HAS its own ``.venv`` — the local one still wins, and
-# CI (which creates one) is byte-for-byte unchanged. Build the shared one from
-# the pins the live install actually runs, not from a system interpreter:
-#
-#   <live venv>/Scripts/python.exe -m pip freeze  # minus the -e editable line
-#   python -m venv <shared>; <shared>/Scripts/python.exe -m pip install \
-#       -r <those pins> pytest pytest-asyncio setuptools
-# (coverage + pytest-timeout come from scripts/ensure_fork_dev_deps.py below.)
-#
-# The editable ``-e ...#egg=hermes_agent`` line is dropped ON PURPOSE: it
-# resolves to ONE checkout, and a shared venv that imports the primary
-# checkout's ``hermes_cli`` while you run a worktree's tests is a silent lie.
-# pytest's rootdir insertion (``tests/__init__.py`` makes the repo root the
-# import base) already puts the RUNNING tree on ``sys.path``.
-VENV=""
-VENV_PYTHON=""
-SKIPPED_VENVS=""
-VENV_CANDIDATES=("$REPO_ROOT/.venv" "$REPO_ROOT/venv")
-if [ -n "${HERMES_TEST_VENV:-}" ]; then
-  VENV_CANDIDATES+=("$HERMES_TEST_VENV")
-fi
-VENV_CANDIDATES+=("$HOME/.venvs/hermes-test")
-VENV_CANDIDATES+=("$HOME/.hermes/hermes-agent/venv")
-for candidate in "${VENV_CANDIDATES[@]}"; do
-  if [ -f "$candidate/bin/activate" ]; then
-    if "$candidate/bin/python" -c 'import pytest' 2>/dev/null; then
-      VENV="$candidate"
-      VENV_PYTHON="$candidate/bin/python"
-      break
-    fi
-    SKIPPED_VENVS="$SKIPPED_VENVS $candidate"
-  fi
-  # Native Windows venv layout: python.exe and activate live under
-  # Scripts/, and there is no bin/. Anyone running this script from
-  # Git Bash / MSYS with a `python -m venv`- or uv-created venv hits
-  # this branch — without it the canonical runner refuses to start.
-  if [ -f "$candidate/Scripts/activate" ]; then
-    if "$candidate/Scripts/python.exe" -c 'import pytest' 2>/dev/null; then
-      VENV="$candidate"
-      VENV_PYTHON="$candidate/Scripts/python.exe"
-      break
-    fi
-    SKIPPED_VENVS="$SKIPPED_VENVS $candidate"
-  fi
-done
-
-if [ -n "$SKIPPED_VENVS" ]; then
-  for skipped in $SKIPPED_VENVS; do
-    echo "▶ skipping venv without pytest: $skipped" >&2
-  done
-fi
-
-if [ -n "$VENV" ]; then
-  PYTHON="$VENV_PYTHON"
-  # Say WHICH venv won. With a shared candidate in the list, "the suite was
-  # green" is only a fact once you know which pins produced it — and a
-  # worktree's run now silently uses an environment that is not inside it.
-  echo "▶ venv: $VENV"
-elif [ -n "${HERMES_PYTHON:-}" ] && [ -x "$HERMES_PYTHON" ] \
-    && "$HERMES_PYTHON" -c 'import pytest' 2>/dev/null; then
-  # Guard with an import check: HERMES_PYTHON may point at the RELEASE
-  # venv (no pytest) when inherited from a wrapped `hermes` binary rather
-  # than the devShell hook.
+# Without an activation, an explicit HERMES_PYTHON that has pytest is honored:
+# the Nix devShell's editable venv and CI's minimal installer lanes provide
+# one on purpose. The import check matters: a wrapped `hermes` binary exports
+# HERMES_PYTHON pointing at a release venv without pytest.
+_has_pytest() { [ -n "$1" ] && [ -x "$1" ] && "$1" -c 'import pytest' 2>/dev/null; }
+# shellcheck source=scripts/_activation.sh
+. "$SCRIPT_DIR/_activation.sh"
+if [ -z "${__HERMES_ACTIVATED:-}" ] && _has_pytest "${HERMES_PYTHON:-}"; then
   PYTHON="$HERMES_PYTHON"
-  echo "▶ no local venv — using Nix dev venv via HERMES_PYTHON: $PYTHON"
+  echo "▶ not activated — using HERMES_PYTHON: $PYTHON"
 else
-  echo "error: no virtualenv with pytest found. Probed, in order:" >&2
-  for candidate in "${VENV_CANDIDATES[@]}"; do
-    echo "         $candidate" >&2
-  done
-  echo "       and HERMES_PYTHON is not a python with pytest (enter the Nix devShell," >&2
-  echo "       create $REPO_ROOT/.venv, or build the shared venv — see the comment" >&2
-  echo "       above the probe in this script)" >&2
-  if [ -n "$SKIPPED_VENVS" ]; then
-    echo "       (skipped for missing pytest:$SKIPPED_VENVS — install dev extras there, or create $REPO_ROOT/.venv)" >&2
+  test_stamp="${__HERMES_ACTIVATED:-}"
+  test_stamp="${test_stamp//\\//}"
+  if ! hermes_activation_current "$REPO_ROOT" ||
+     [ ! -f "${test_stamp%/*}/inputs/.test-environment" ] ||
+     ! _has_pytest "${__HERMES_TEST_PYTHON:-}"; then
+    echo "▶ activating $REPO_ROOT (environment missing or stale)" >&2
+    # activate is written for interactive shells, not errexit/nounset.
+    set +euo pipefail
+    # shellcheck source=/dev/null
+    . "$REPO_ROOT/activate" --
+    activated=$?
+    set -euo pipefail
+    if [ "$activated" != 0 ]; then
+      echo "error: activation failed (see above)" >&2
+      exit 1
+    fi
   fi
-  exit 1
+  PYTHON="${__HERMES_TEST_PYTHON:-}"
+  if ! _has_pytest "$PYTHON"; then
+    echo "error: activation provided no test interpreter with pytest (__HERMES_TEST_PYTHON=${PYTHON:-unset})" >&2
+    exit 1
+  fi
 fi
 
 # Fork-only test deps (requirements-fork-dev.txt): the one place they install.
@@ -210,16 +119,38 @@ fi
 # resolves Path.home() from USERPROFILE (or HOMEDRIVE+HOMEPATH), stdlib
 # platform paths come from LOCALAPPDATA/APPDATA, ssl/sockets need SYSTEMROOT,
 # and tempfile needs TEMP/TMP. Dropping them breaks collection on native
-# Windows (issues #67385, #70813). These are location variables, not
+# Windows (issues #67385, #70813). PATHEXT is also required: without .EXE,
+# PowerShell opens a native child as a document without waiting for its exit.
+# These are location variables, not
 # credentials, so forwarding them keeps the isolation intent intact. Each is
 # only forwarded when actually set, so POSIX runs are byte-for-byte unchanged.
 WIN_ENV=()
-for _win_var in USERPROFILE HOMEDRIVE HOMEPATH LOCALAPPDATA APPDATA SYSTEMROOT TEMP TMP; do
+for _win_var in USERPROFILE HOMEDRIVE HOMEPATH LOCALAPPDATA APPDATA SYSTEMROOT TEMP TMP \
+    ComSpec PATHEXT PROGRAMFILES ProgramFiles PROGRAMDATA ProgramData; do
   if [ -n "${!_win_var:-}" ]; then
     WIN_ENV+=("$_win_var=${!_win_var}")
   fi
 done
-if [ -n "${PATHEXT:-}" ]; then WIN_ENV+=("PATHEXT=$PATHEXT"); fi  # fork (PR candidate): without it pwsh resolves no bare `git`
+# Native build toolchain (Windows arm64 has no wheels for every pinned C extension, so
+# `uv sync` inside a PM test compiles ruamel-yaml-clib and friends). The MSVC developer
+# environment is exported by scripts/build/windows-deps.ps1 into the job env; without
+# INCLUDE/LIB/VSINSTALLDIR the build backend reports "Visual C++ 14.0 or greater is
+# required". These describe compiler locations, not credentials.
+for _tool_var in INCLUDE LIB LIBPATH VSINSTALLDIR VCINSTALLDIR VCToolsInstallDir VCToolsVersion \
+    VCToolsRedistDir WindowsSdkDir WindowsSDKVersion WindowsSdkBinPath WindowsSdkVerBinPath \
+    WindowsLibPath UCRTVersion UniversalCRTSdkDir VSCMD_ARG_HOST_ARCH VSCMD_ARG_TGT_ARCH VSCMD_VER \
+    DevEnvDir ExtensionSdkDir Platform CARGO_HOME RUSTUP_HOME RUSTUP_TOOLCHAIN \
+    CARGO_TARGET_AARCH64_PC_WINDOWS_MSVC_LINKER CC_aarch64_pc_windows_msvc CC CXX AR \
+    VCPKG_ROOT OPENSSL_DIR OPENSSL_STATIC OPENSSL_LIB_DIR OPENSSL_INCLUDE_DIR; do
+  if [ -n "${!_tool_var:-}" ]; then
+    WIN_ENV+=("$_tool_var=${!_tool_var}")
+  fi
+done
+# setuptools locates the compiler through vswhere under "%ProgramFiles(x86)%\Microsoft Visual
+# Studio\Installer"; without that variable a primed INCLUDE/LIB still reads as "Visual C++ 14.0
+# or greater is required". The parenthesised name cannot be read with ${!var}.
+_pf86="$(env | sed -n 's/^ProgramFiles(x86)=//p' | head -n1)"
+[ -z "$_pf86" ] || WIN_ENV+=("ProgramFiles(x86)=$_pf86")
 
 # ── Test-runner knobs (computed before we drop env) ────────────────────────
 # The runner's own documented environment knobs must survive the hermetic
@@ -242,12 +173,15 @@ if [ -n "${PATHEXT:-}" ]; then WIN_ENV+=("PATHEXT=$PATHEXT"); fi  # fork (PR can
 # These are test-infrastructure knobs, not credentials — same class as the
 # HERMES_RUN_SLOW_PET_TESTS / HERMES_E2E_BROWSER / HERMES_RUN_E2E opt-ins
 # forwarded below.
+# SSL_CERT_FILE/DIR are trust-store locations: the pinned interpreter's
+# OpenSSL has no compiled-in bundle path on NixOS, so network tests (PM
+# downloads, channel reads) need the host's pointer to verify TLS.
 # Keep this an explicit allowlist (no HERMES_TEST_* glob) so the "no
 # credential can leak" property stays auditable at a glance.
 TEST_ENV=()
 for _test_var in HERMES_TEST_IMAGE HERMES_TEST_WORKERS HERMES_TEST_PATHS \
   HERMES_TEST_FILE_TIMEOUT HERMES_TEST_FILE_RETRIES HERMES_TEST_SLICE \
-  HERMES_GATEWAY_LOCK_DIR HERMES_E2E_REQUIRE_TUI CI GITHUB_ACTIONS; do
+  SSL_CERT_FILE SSL_CERT_DIR HERMES_GATEWAY_LOCK_DIR HERMES_E2E_REQUIRE_TUI CI GITHUB_ACTIONS; do
   if [ -n "${!_test_var:-}" ]; then
     TEST_ENV+=("$_test_var=${!_test_var}")
   fi

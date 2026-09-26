@@ -58,6 +58,8 @@ from .errors import AgentRuntimeError
 from .events import EventLog
 from .models import AgentPersona, Event
 
+__layer__ = "lanes"
+
 #: Typed operation event. MUST stay registered in
 #: ``decision_contract_registry._EVENT_CONTRACTS`` — ``EventLog.append`` raises
 #: ``unknown event type`` for anything else, so an unregistered emit fails every

@@ -7,6 +7,9 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from agent_runtime.auth_extensions import read_pool_rotation_state, write_pool_rotation_state
+
+__layer__ = "stores"
+
 if TYPE_CHECKING:
     from agent.credential_pool import PooledCredential
 logger = logging.getLogger(__name__)

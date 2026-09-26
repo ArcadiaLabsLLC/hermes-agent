@@ -8,7 +8,7 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import Any, Callable, Final, Mapping
 from agent_runtime.cli_format import emit_json
-from agent_runtime.config import load_agent_runtime_config
+from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
 from agent_runtime.continuity import return_summary_to_parent_session
 from agent_runtime.coordinator_permissions import review_coordinator_budget
 from agent_runtime.persona_assignments import (
@@ -275,7 +275,7 @@ def _cmd_persona_instance_steer(args) -> int:
         "steered_by": after,
         "added": added,
         "removed": removed,
-        "instance": persona_instance_summary(updated, persona),
+        "instance": persona_instance_summary(updated, persona, roster=ensure_persisted_personas),
     }
     parents_label = ",".join(after) if after else "(none)"
     print(emit_json(data) if args.json else f"steered {persona_instance_id}: parents={parents_label} goal={updated.goal_id}")
@@ -371,7 +371,9 @@ def _cmd_persona_instance_update_profile(args) -> int:
         "persona_instance_id": updated.id,
         "persona_id": updated.persona_id,
         "backing_profile": updated.profile_id,
-        "updated_instance": persona_instance_summary(updated, persona),
+        "updated_instance": persona_instance_summary(
+            updated, persona, roster=ensure_persisted_personas
+        ),
         "next_expected": "refresh Harness snapshot; runtime instance overrides should be visible without modifying the backing Hermes profile",
     }
     print(emit_json(data) if args.json else f"updated runtime profile {updated.id}")

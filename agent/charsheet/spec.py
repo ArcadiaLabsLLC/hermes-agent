@@ -41,6 +41,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+__layer__ = "models"
+
 # Cell geometry, matching the petdex/Codex 192x208 cell the renderers already
 # assume. Duplicated as literals rather than imported from
 # ``agent.pet.constants`` so this module keeps zero coupling to the pet package

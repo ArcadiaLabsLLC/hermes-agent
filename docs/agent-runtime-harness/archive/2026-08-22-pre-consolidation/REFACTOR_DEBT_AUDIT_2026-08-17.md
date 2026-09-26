@@ -843,14 +843,14 @@ commits, independently revertable. **Perf.** None.
 2. **A roster fault answers the two create lanes differently** —
    `runtime.agent.create` refuses typed `persona_roster_unavailable`;
    `harness agent create` tracebacks (`persona_commands.py:6049` unwrapped, SWEPT;
-   the honest arm exists at `agent_create.py:161-177,413`). Fix: wrap the CLI's
+   the honest arm exists at `agent_create/outcome.py:39,413`). Fix: wrap the CLI's
    roster read into the same typed refusal. *Witness:* corrupt-roster fixture → CLI
    exit is the typed reason, stderr carries NO traceback marker; *mutation:* unwrap —
    the traceback marker appears and the reason token does not. *Second witness:* the
    RPC lane's existing typed-refusal test, byte-unchanged (parity means both name the
    SAME token — the probe compares the two lanes' reason strings for equality).
 3. **The roster-check bypass invariant is unenforced** — `_persona_is_unknown`
-   returns False for ANY non-None persona (`agent_create.py:278-279` SWEPT); safe
+   returns False for ANY non-None persona (`agent_create/request.py:173-174` SWEPT); safe
    today because every caller resolves via the strict roster, but nothing fences the
    seam. Fix: a contract test (the removal-contract pattern) pinning every
    `perform_agent_create` caller's resolver to the strict path — the fence is a test,
@@ -994,7 +994,7 @@ commits, independently revertable. **Perf.** None.
 | RD-R12 | BW-L6 hold: held entries pending ⇒ isSettled false; hold never discards; wholesale staging; terminal keep + retry re-entry; no remote-change-during-hold test | GIT 0f688d32f; READ :1803-1809; SWEPT controller/test cites §1.5 |
 | RD-R13 | Fence-incident on-disk tally 14+1+9 / 24 (11/13); park at 5-in-60s | READ Plan F §0 |
 | RD-R14 | Absence-means-delete inference deleted 2026-08-15; tripwire demoted to backstop deliberately | Plan E §0 Corr. 1; GIT 7623f99cf cited there |
-| RD-R15 | Agent-create: every minting lane validates via one strict roster predicate; the two residual gaps are the unenforced resolver invariant and the CLI traceback divergence | SWEPT agent_create.py:161-177,249-287,407-419; persona_commands.py:462-464,536,699,6049 |
+| RD-R15 | Agent-create: every minting lane validates via one strict roster predicate; the two residual gaps are the unenforced resolver invariant and the CLI traceback divergence | SWEPT agent_create/outcome.py:39,249-287,407-419; persona_commands.py:462-464,536,699,6049 |
 | RD-R16 | Sink test file has no office_surface case; persona-drop test pins a still-correct behaviour | RAN/READ test_serve_rpc_office_subscribe.py:374-386 |
 | RD-A1 | Folder-only batches promote un-coalesced in the field | ASSUMPTION — R0-a |
 | RD-A2 | argv write arms carry ordinary gestures only inside the laneAbsent window | ASSUMPTION — R0-b |

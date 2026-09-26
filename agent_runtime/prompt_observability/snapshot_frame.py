@@ -96,7 +96,7 @@ class SnapshotFrame:
         # Deferred import: runtime_hud pulls a sizeable dependency graph, and this
         # module is imported very early. A function-local import keeps module load
         # order robust while still resolving through the single HUD authority.
-        from ..runtime_hud import _installs_block
+        from ..runtime_hud.ambient import installs_block
 
         # S47: the ``tasks`` parameter and the ``tasks_by_id`` index built from it
         # are gone. Its only production caller seeded ``tasks = []``, so every lane
@@ -110,11 +110,11 @@ class SnapshotFrame:
         # Materialize once: the roster is reused for every lane's situational HUD
         # (thread count + on-level list) and the input may be a one-shot iterable.
         self.roster = list(self.persona_instances)
-        self.installs = _installs_block()
+        self.installs = installs_block()
 
     def situational_for(self, instance: Any) -> dict[str, Any]:
         from .. import workspace_scope
-        from ..runtime_hud import resolve_situational_hud
+        from ..runtime_hud.hud import resolve_situational_hud
 
         try:
             # Scope the ADDRESSABLE roster to this lane's own workspace so the

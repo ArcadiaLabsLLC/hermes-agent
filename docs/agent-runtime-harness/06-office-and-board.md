@@ -392,7 +392,7 @@ warned permanently and un-actionably — the canonical singleton refuses retire 
 design, and nothing mints that row shape any more (live evidence: the
 `neko_supervisor` canonical channel against its 2026-07-20 history row
 attributed to `personainst_neko_supervisor_agent_47a47348`). The predicate
-(`_source_instance_ids_conflict`, `operator_channels.py:1517`) now fires on
+(`_source_instance_ids_conflict`, `agent_runtime/operator_channels/instances.py::_instance_recency`) now fires on
 divergent sessions, divergent personas, or **two or more distinct LIVE instance
 rows** on one channel — the genuine collision, which the pre-existing
 true-collision test still pins.
@@ -882,7 +882,7 @@ demotes everything (`patch_coverage.py:25-40`).
 
 Promotion is **negotiated per client** by capability tokens, not decided by the
 server alone. The office surface's own fold is `office_surface`
-(`state_patches.py:1062`, `emit_office_surface_patch` at `:1218`), gated on
+(`state_patches/models.py:166`, `emit_office_surface_patch` at `state_patches/office.py:228`), gated on
 `OFFICE_SURFACE_FOLD_CAPABILITY = "office_surface_fold"`
 (`patch_coverage.py:179`), which is what lets `office.surface.updated` join the
 covered set (`patch_coverage.LIVE_COVERED_DOMAIN_EVENT_TYPES`). It is a
@@ -895,7 +895,7 @@ the `runtime.office.subscribe` request, so the two lanes cannot drift.
 
 Where a surface write is genuinely unfoldable, hermes emits an accounted
 **refresh** instead of pretending: `emit_office_surface_refresh`
-(`state_patches.py:1285`) exists because archiving an orphaned surface removes the
+(`state_patches/office.py:295`) exists because archiving an orphaned surface removes the
 office row and every actor under it in one move, and a covered event with no patch
 beside it would ship an EMPTY patch list — advancing the client's watermark having
 folded nothing, keeping the archived surface and its chip forever.
@@ -925,7 +925,7 @@ strip's conflict pill lit for the rest of the session: a conflict rendered on th
 row whose conflict that very gesture resolved.
 
 **The conflict ledger got its producer on 2026-09-04, and the event is now
-covered.** `OFFICE_CONFLICT_ENTITY = "office_conflict"` (`state_patches.py`) is a
+covered.** `OFFICE_CONFLICT_ENTITY = "office_conflict"` (`state_patches/models.py`) is a
 third office entity with exactly ONE op: a `remove` whose id is
 `office_actor_patch_id`'s `"<workspace_id>/<actor_key>"`, saying that one key has
 left `conflict_actor_keys`. `OfficeStore._emit_conflict_resolved_patch` emits it

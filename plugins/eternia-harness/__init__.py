@@ -12,6 +12,8 @@ from __future__ import annotations
 import os
 import time
 
+__layer__ = "wiring"
+
 _HARNESS_HELP = "Experimental Agent Runtime Harness"
 _POSTINSTALL_HELP = "Bootstrap non-Python deps for pip installs (node, browser, ripgrep, ffmpeg)"
 _POSTINSTALL_DESCRIPTION = (
@@ -222,6 +224,9 @@ def default_no_venv_lazy_installs() -> None:
 
 
 def register(ctx) -> None:
+    from hermes_cli.harness_parts.mission_chat_door_binding import bind_mission_chat_door
+
+    bind_mission_chat_door()  # ruling Q10: the runtime's door onto the CLI turn handler
     default_kanban_claim_ttl()
     default_no_venv_lazy_installs()
     ctx.register_system_prompt_section("eternia-harness.tool-guidance", render_tool_guidance)

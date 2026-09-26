@@ -69,6 +69,8 @@ from typing import Any
 
 from .errors import ActorsUnreadable, AgentRuntimeError
 
+__layer__ = "policy"
+
 #: Stage-42 error code for the refusal. ``duplicate_conflict`` (exit 4) rather
 #: than ``sync_conflict``: nothing is under realm-sync conflict, the write would
 #: simply place one agent twice.

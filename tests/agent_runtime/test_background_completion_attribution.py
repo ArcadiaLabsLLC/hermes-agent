@@ -34,6 +34,7 @@ from unittest.mock import patch
 import pytest
 
 from agent_runtime import dispatch_delivery
+from agent_runtime.dispatch_delivery import DrainPolicy
 from agent_runtime.persona_chat_continuity import chat_root_session_key_scope
 
 SENDER_ROOT = "persona_chat_personainst_neko_aaaaaaaaaaaa"
@@ -162,19 +163,17 @@ class _Forge:
 
 
 @pytest.fixture
-def resolvable_sender(monkeypatch):
-    monkeypatch.setattr(
-        dispatch_delivery,
-        "_sender_persona",
-        lambda root: ("neko_supervisor", "personainst_neko")
-        if root == SENDER_ROOT
-        else None,
-    )
+def resolvable_sender():
+    """A ``DrainPolicy.sender_persona`` owning only ``SENDER_ROOT``."""
+
+    return lambda root: ("neko_supervisor", "personainst_neko") if root == SENDER_ROOT else None
 
 
 @pytest.fixture
-def idle_sender(monkeypatch):
-    monkeypatch.setattr(dispatch_delivery, "_sender_is_idle", lambda root: True)
+def idle_sender():
+    """A ``DrainPolicy.sender_is_idle`` that always answers idle."""
+
+    return lambda root: True
 
 
 def _real_completion_event(session_key: str) -> dict:
@@ -231,7 +230,7 @@ def test_a_chat_rooted_terminal_completion_is_delivered_into_the_root(
     dispatch_delivery._background_attempts.clear()
 
     forge = _Forge(ok=True)
-    tally = dispatch_delivery.drain_background_completions(forge=forge)
+    tally = dispatch_delivery.drain_background_completions(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=forge)
 
     assert tally["delivered"] == 1
     assert len(forge.calls) == 1
@@ -264,7 +263,7 @@ def test_an_unkeyed_terminal_completion_is_requeued_never_forged(
 
     forge = _Forge(ok=True)
     try:
-        tally = dispatch_delivery.drain_background_completions(forge=forge)
+        tally = dispatch_delivery.drain_background_completions(policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=idle_sender), forge=forge)
 
         assert tally["delivered"] == 0
         assert tally["requeued"] == 1

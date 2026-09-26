@@ -89,6 +89,8 @@ from .core_cache import (
 from .dispatch_delivery import DRAIN_STATE_FILENAME
 from .serve_socket import SOCKET_LOCK_FILENAME, SOCKET_OWNER_FILENAME
 
+__layer__ = "wiring"
+
 #: The family token is this module's ONE literal, and it is the reason
 #: ``test_core_cache_demote_census`` drives a real ``_log_demote`` through this
 #: parser instead of a hand-typed line: a producer rename would otherwise leave

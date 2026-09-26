@@ -219,3 +219,17 @@ def test_a_real_client_completes_a_tls_handshake_and_sees_the_pinned_fingerprint
     finally:
         thread.join(10)
         listener.close()
+
+
+def test_the_server_context_is_the_stdlib_class_under_an_injected_truststore(tmp_path: Path):
+    """Upstream's process start injects truststore (2026-09-25 merge), whose context is
+    client-only; the gateway's pinned-certificate server must still get the stdlib class,
+    and the process-wide injection must be left exactly as it was found."""
+    truststore = pytest.importorskip("truststore")
+    truststore.inject_into_ssl()
+    try:
+        context = server_ssl_context(tmp_path)
+        assert not isinstance(context, truststore.SSLContext)
+        assert ssl.SSLContext is truststore.SSLContext  # still injected afterwards
+    finally:
+        truststore.extract_from_ssl()

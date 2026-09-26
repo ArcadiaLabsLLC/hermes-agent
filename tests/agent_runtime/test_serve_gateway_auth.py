@@ -133,7 +133,7 @@ def test_a_named_device_supersedes_its_own_pending_code_and_a_stranger_still_cap
     """
 
     from agent_runtime.gateway_pairing_codes import pending_codes
-    from agent_runtime.serve_gateway_auth import _read_pairing
+    from agent_runtime.serve_gateway_auth import read_pairing
 
     for _ in range(3):
         assert isinstance(
@@ -141,7 +141,7 @@ def test_a_named_device_supersedes_its_own_pending_code_and_a_stranger_still_cap
             PairingCode,
         )
 
-    pending = pending_codes(_read_pairing(tmp_path))
+    pending = pending_codes(read_pairing(tmp_path))
     assert len(pending) == 1
     assert [entry["for_device_id"] for entry in pending.values()] == ["dev-acct-1"]
 
@@ -171,13 +171,13 @@ def test_an_unscoped_pair_supersedes_nothing_because_no_requester_asked_for_it(
     would silently invalidate the first one they are still holding."""
 
     from agent_runtime.gateway_pairing_codes import pending_codes
-    from agent_runtime.serve_gateway_auth import _read_pairing
+    from agent_runtime.serve_gateway_auth import read_pairing
 
     first = mint_pairing_code(tmp_path, now=1000.0)
     second = mint_pairing_code(tmp_path, now=1000.0)
     assert isinstance(first, PairingCode) and isinstance(second, PairingCode)
 
-    assert len(pending_codes(_read_pairing(tmp_path))) == 2
+    assert len(pending_codes(read_pairing(tmp_path))) == 2
     assert isinstance(redeem_pairing_code(tmp_path, first.code, now=1000.0), DeviceCredential)
 
 

@@ -35,6 +35,8 @@ from contextlib import contextmanager
 
 import pytest
 
+from agent_runtime.gateway_endpoints import candidates as endpoint_candidates
+
 from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
 from agent_runtime.gateway_capabilities import GATEWAY_CAPABILITIES
 from agent_runtime.gateway_tls import certificate_path, read_certificate
@@ -177,9 +179,10 @@ def gateway_on(monkeypatch):
     port: the LAN bind is this same call with a different string.
     """
 
-    monkeypatch.setattr(
-        serve_gateway_listener, "gateway_listen_config", lambda: ("127.0.0.1", 0)
-    )
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(
+            _home, "gateway_listen_config", lambda: ("127.0.0.1", 0)
+        )
 
 
 def _store_root():
@@ -417,9 +420,10 @@ def test_the_no_listener_block_is_pure_and_answers_without_a_runtime(monkeypatch
     reading in one screen, and a table-driven test of them should not have to
     boot four runtimes."""
 
-    monkeypatch.setattr(
-        serve_gateway_listener, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
-    )
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(
+            _home, "gateway_listen_config", lambda: ("0.0.0.0", 8765)
+        )
     build = serve_module.gateway_block_when_no_listener
 
     # No root at all: the same word `auth` and `install` use for it, so one
@@ -454,7 +458,8 @@ def test_the_no_listener_block_is_pure_and_answers_without_a_runtime(monkeypatch
     # complete answer — an explanation with a hole in it is not an explanation.
     assert build({}, root_resolved=True)["reason"] == "unknown"
 
-    monkeypatch.setattr(serve_gateway_listener, "gateway_listen_config", lambda: (None, 0))
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(_home, "gateway_listen_config", lambda: (None, 0))
     assert build({"outcome": "lock_held_by"}, root_resolved=True) == {
         "outcome": "disabled"
     }
@@ -519,9 +524,10 @@ def test_the_loopback_lane_is_byte_identical_with_the_gateway_lane_up(
                 client.hello(token=read_token(_store_root()) or "", client="t")
             )
 
-    monkeypatch.setattr(
-        serve_gateway_listener, "gateway_listen_config", lambda: ("127.0.0.1", 0)
-    )
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(
+            _home, "gateway_listen_config", lambda: ("127.0.0.1", 0)
+        )
     with running_serve() as both:
         assert both.ready["gateway"]["outcome"] == "listening"
         both_ready = _stable(both.ready)

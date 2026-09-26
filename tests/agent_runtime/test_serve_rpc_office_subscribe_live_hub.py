@@ -80,6 +80,7 @@ from agent_runtime.serve_office_subscriptions import (
 )
 from agent_runtime.serve_stream_hub import StreamHub
 from tests.agent_runtime.office_seed import seed_workspace_record
+from tests._downstream.split_package_source import patch_where_bound
 
 WORKSPACE = "ws_live_hub_test"
 ACTOR = "personainst_qa_agent_9c8a382f"
@@ -1227,7 +1228,7 @@ def test_a_slow_boot_build_does_not_swallow_the_write_into_its_hydrate(
         assert gate.wait(_DEADLINE_SECONDS * 2), "the held boot build was never released"
         return real_build(*args, **kwargs)
 
-    monkeypatch.setattr(stream_mod, "build_snapshot", _held)
+    patch_where_bound(monkeypatch, stream_mod, "build_snapshot", _held)
 
     store = _seed_office()
     hub = live_hub(fold_entities=OFFICE_FOLD_ENTITIES)

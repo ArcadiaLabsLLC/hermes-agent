@@ -16,6 +16,7 @@ from hermes_time import now
 from agent_runtime import paths
 from agent_runtime.agent_create_phases import timed_create_subphase
 from agent_runtime.models import PersonaInstance
+from agent_runtime.config.roster import ensure_persisted_personas
 from agent_runtime.persona_assignments.errors import RetiredPersonaInstanceError
 from agent_runtime.persona_assignments.identity import (
     _display_name_for_template,
@@ -30,7 +31,7 @@ from agent_runtime.persona_assignments.identity import (
 )
 from agent_runtime.persona_assignments.vocabulary import _CHAT_MODES
 from agent_runtime.serde import safe_assignment_text, safe_assignment_token
-from agent_runtime.state_patches import (
+from agent_runtime.state_patches.persona_instance import (
     emit_persona_instance_create,
     emit_persona_instance_patch,
 )
@@ -655,6 +656,6 @@ def create_operator_chat(
             display_name=display_name,
         ),
         display_name=display_name,
-        profile_id=_profile_id_for_persona_or_template(normalized_persona),
+        profile_id=_profile_id_for_persona_or_template(normalized_persona, ensure_persisted_personas),
         kill_active=kill_active,
     )

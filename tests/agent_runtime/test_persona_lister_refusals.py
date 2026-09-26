@@ -445,11 +445,11 @@ def test_the_ticket_index_refuses_to_claim_completeness_it_does_not_have(
     store = PersonaChatClarifyTicketStore()
     _corrupt_ticket_files(store, corrupt_count)
 
-    assert store._rebuild_index() is False
+    assert store.index.rebuild() is False
     # The completeness CLAIM is the artifact that must not exist. Its absence is
     # what keeps every later lookup on the correct-by-construction full scan.
-    assert not store._index_state_path().exists()
-    assert store._ensure_index() is False
+    assert not store.index.state_path().exists()
+    assert store.index.ensure() is False
 
 
 def test_the_ticket_lookup_still_answers_while_the_index_is_refused(
@@ -457,7 +457,7 @@ def test_the_ticket_lookup_still_answers_while_the_index_is_refused(
 ):
     """Refusing the claim must not break the feature.
 
-    ``_ensure_index`` returning ``False`` is a contract this module already
+    ``ClarifyTicketIndex.ensure`` returning ``False`` is a contract this module already
     had — the caller falls back to the full scan, which reads the store directly.
     An unreadable neighbour therefore costs performance, never an answer, and
     that is the whole reason this fix can be a refusal rather than a repair.
@@ -480,8 +480,8 @@ def test_the_ticket_index_is_still_built_on_a_clean_store(isolate_agent_runtime_
 
     store = PersonaChatClarifyTicketStore()
     _clarify_ticket(store)
-    assert store._rebuild_index() is True
-    assert store._index_state_path().exists()
+    assert store.index.rebuild() is True
+    assert store.index.state_path().exists()
 
 
 @pytest.mark.parametrize("corrupt_count", [1, 2])

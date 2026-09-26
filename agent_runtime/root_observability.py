@@ -31,6 +31,8 @@ from __future__ import annotations
 
 from typing import Any
 
+__layer__ = "policy"
+
 __all__ = ["attach_root_observability"]
 
 

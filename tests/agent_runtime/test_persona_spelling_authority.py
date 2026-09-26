@@ -598,15 +598,15 @@ def _completed_dispatch(dispatch_id="dispatch-cap-hygiene", root="persona_chat_s
 def _drain_with(monkeypatch, forge_payload, *, root="persona_chat_sender"):
     from agent_runtime import dispatch_delivery
 
-    monkeypatch.setattr(
-        dispatch_delivery, "_sender_persona", lambda _root: ("profile:alice", "personainst_profile_alice")
+    policy = dispatch_delivery.DrainPolicy(
+        sender_persona=lambda _root: ("profile:alice", "personainst_profile_alice"),
+        sender_is_idle=lambda _root: True,
     )
-    monkeypatch.setattr(dispatch_delivery, "_sender_is_idle", lambda _root: True)
 
     def _forge(**kwargs):
         return False, dict(forge_payload)
 
-    return dispatch_delivery.drain_once(forge=_forge)
+    return dispatch_delivery.drain_once(forge=_forge, policy=policy)
 
 
 def test_a_deterministic_forge_rejection_is_terminal_on_the_first_attempt(

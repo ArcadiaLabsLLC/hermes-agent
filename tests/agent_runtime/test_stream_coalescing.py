@@ -20,6 +20,7 @@ from tests.agent_runtime.stream_liveness_helpers import drain_boot_liveness
 from agent_runtime.events import EventLog
 from agent_runtime.models import Event
 from agent_runtime.stream import stream_frames
+from tests._downstream.split_package_source import patch_where_bound
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "stream_frames"
 
@@ -46,7 +47,7 @@ class _SnapshotCallCounter:
             self.calls += 1
             return real(*args, **kwargs)
 
-        monkeypatch.setattr(stream_mod, "build_snapshot", counting)
+        patch_where_bound(monkeypatch, stream_mod, "build_snapshot", counting)
 
 
 def test_stream_coalesces_event_batch(isolate_agent_runtime_root, monkeypatch):
@@ -118,6 +119,75 @@ def test_stream_batch_cap_splits_frames(isolate_agent_runtime_root, monkeypatch)
     assert first["core"] == second["core"]
 
 
+
+def test_a_backlog_one_over_the_cap_flushes_mid_pass_and_chains_without_a_gap(
+    isolate_agent_runtime_root,
+):
+    """Positive control for the in-pass flush (``len(pending) >= _DELTA_BATCH_CAP``
+    inside the first drain loop; dead-code queue row ``stream_frames [if @1583]``,
+    KEEP): ``cap + 1`` events drain as a full ``cap`` batch flushed MID-pass and a
+    one-event batch flushed at the end, and the two watermarks are the cap-th and
+    the last offset after the hydrate — no event skipped, none repeated."""
+
+    cap = stream_mod._DELTA_BATCH_CAP
+    frames = stream_frames(
+        poll_interval_seconds=0.01,
+        heartbeat_interval_seconds=60,
+        delta_debounce_seconds=0,
+        max_frames=3,
+    )
+    hydrate = next(frames)
+    assert hydrate["type"] == "hydrate"
+
+    log = EventLog()
+    for index in range(cap + 1):
+        _append(log, index)
+    offsets = [offset for offset, _ in log.iter_from_offset(hydrate["watermark"]["event_offset"])]
+    assert len(offsets) == cap + 1
+
+    first = next(frames)
+    # Asserted before the second pull: without the mid-pass flush the whole
+    # backlog is ONE batch, and a second pull would wait on a log gone quiet.
+    assert first["coalesced_count"] == cap
+    assert first["watermark"]["event_offset"] == offsets[cap - 1]
+    second = next(frames)
+    assert second["coalesced_count"] == 1
+    assert second["watermark"]["event_offset"] == offsets[cap]
+
+
+def test_a_flush_marks_a_delta_but_never_a_heartbeat(monkeypatch, isolate_agent_runtime_root):
+    """Positive control for ``StreamSession.flush``'s bookkeeping: any frame but a
+    heartbeat marks the pass as having shipped a delta (which is what adopts the
+    fingerprint candidate); a liveness heartbeat alone never does."""
+
+    from agent_runtime.stream.session import StreamSession
+
+    session = StreamSession(
+        event_log=EventLog(),
+        poll_interval_seconds=0.01,
+        heartbeat_interval_seconds=60,
+        delta_debounce_seconds=0,
+        max_frames=None,
+        resync=False,
+        fold_entities=None,
+        promote_fold_entities=None,
+        fold_room=None,
+        caller="test",
+        wants_stale_first=False,
+    )
+    cases = (
+        ([{"type": "heartbeat"}], False),
+        ([{"type": "heartbeat"}, {"type": "delta"}], True),
+    )
+    for shipped, expected in cases:
+        patch_where_bound(
+            monkeypatch, stream_mod, "_batch_frames_with_liveness", lambda *a, _out=shipped, **k: iter(_out)
+        )
+        session.emitted_delta = False
+        session.pending = [(1, None)]
+        assert list(session.flush()) == shipped
+        assert session.emitted_delta is expected
+
 def test_stream_single_event_keeps_delta_batch_golden_shape(
     isolate_agent_runtime_root,
 ):
@@ -177,7 +247,7 @@ def test_slow_full_core_build_emits_applied_watermark_heartbeats(
         assert release.wait(10)
         return real_build(**kwargs)
 
-    monkeypatch.setattr(stream_mod, "build_snapshot", slow_build)
+    patch_where_bound(monkeypatch, stream_mod, "build_snapshot", slow_build)
     _append(EventLog(), 0)
 
     heartbeat = next(frames)

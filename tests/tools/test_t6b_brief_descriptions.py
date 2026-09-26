@@ -127,9 +127,16 @@ def test_tool_describe_returns_full_docs_and_live_params():
 
 
 def test_skill_manage_full_docs_stay_profile_aware():
-    """skill_manage's full docs resolve the profile-aware skills home live."""
+    """skill_manage's full docs name the profile-aware skills home.
+
+    Upstream stopped interpolating the resolved directory at the 2026-09-25
+    merge (``_skill_manage_description()`` takes no argument and says "the
+    profile's skills directory or configured skills.create_dir"); the full doc
+    follows upstream's live text rather than a path literal.
+    """
     full = full_tool_description("skill_manage")
-    assert "/skills/" in full
+    assert "profile's skills directory" in full
+    assert "skills.create_dir" in full
 
 
 def test_shell_policy_left_the_terminal_wire_but_stays_in_full_docs():

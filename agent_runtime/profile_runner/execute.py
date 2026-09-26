@@ -1,15 +1,22 @@
-"""The pieces of one agent run's execution around the conversation: agent-ready
-notification and cleanup, and the usage-ledger wrapper.
+"""The pieces of one agent run's execution around the conversation: which tools
+and toolsets the run may use (the blocked-tool set with the registry-hygiene
+names, the admitted toolsets), the per-request runtime resolution and its
+short-lived memo (one memo, one writer), agent-ready notification and cleanup,
+and the usage-ledger wrapper.
 """
 
 from __future__ import annotations
 
 from contextlib import ExitStack, contextmanager
-from threading import Event, Timer
+from pathlib import Path
+from threading import Event, RLock, Timer
 import time
 from typing import Any, Callable
 
+from hermes_cli.runtime_provider import resolve_runtime_provider
+
 from agent_runtime import turn_budget
+from agent_runtime.personas import REGISTRY_HYGIENE_BLOCKED_TOOLS
 from agent_runtime.profile_context import PersonaProfileBinding, persona_profile_context
 from agent_runtime.run_budget import (
     UNIT_CALLS,
@@ -21,10 +28,6 @@ from agent_runtime.run_budget import (
 )
 
 from agent_runtime.serde import positive_float, positive_int
-from agent_runtime.profile_runner.toolsets import (
-    _blocked_tool_names_for_run,
-    _enabled_toolsets_for_run,
-)
 from agent_runtime.profile_runner.errors import (
     RunBudgetExceeded,
     _NO_WALL_BUDGET_SECONDS,
@@ -54,7 +57,6 @@ from agent_runtime.profile_runner.status import (
     _emit_request_timing,
     _profile_status_callback,
 )
-from agent_runtime.profile_runner.runtime_resolve import _resolve_request_runtime
 from agent_runtime.profile_runner.progress import _progress_adapter
 from agent_runtime.profile_runner.model_input_observability import (
     _apply_chat_compaction_threshold,
@@ -65,11 +67,194 @@ __layer__ = "lanes"
 
 __all__ = [
     "AgentRunExecution",
+    "RUNTIME_RESOLVE_CACHE_TTL_SECONDS",
+    "_RUNTIME_RESOLVE_CACHE",
+    "_RUNTIME_RESOLVE_CACHE_LOCK",
+    "_RUNTIME_RESOLVE_STAMPED_FILES",
+    "_blocked_tool_names_for_run",
+    "_blocked_tool_names_with_registry_hygiene",
     "_cleanup_agent_ready",
     "_emit_agent_ready_callback_warning",
+    "_enabled_toolsets_for_run",
     "_notify_agent_ready",
+    "_resolve_request_runtime",
     "_run_conversation_with_usage_ledger",
+    "_runtime_resolve_cache_key",
+    "reset_runtime_resolve_cache",
 ]
+
+
+# ── which tools and toolsets a run may use ──────────────────────────────────
+
+def _blocked_tool_names_with_registry_hygiene(requested: list[str] | None) -> list[str]:
+    """Union the fork registry-hygiene block into a request's ``blocked_tool_names``.
+
+    This is the single fork-owned chokepoint that makes the deregistered upstream
+    toolsets (``kanban`` + ``feishu_doc`` / ``feishu_drive``) unresolvable on EVERY
+    agent-runtime lane — the persona chat/run lanes already carry them via
+    ``PERSONA_BLOCKED_TOOLS``, but the worker / root-node lanes construct their
+    request with ``blocked_tool_names=[]`` and would otherwise resolve them. Applied
+    here (agent construction) so no call site can opt out. Order-preserving; the
+    downstream tool-def cache keys on the set, so duplicates/order are harmless."""
+
+    names = list(requested or [])
+    seen = set(names)
+    for name in sorted(REGISTRY_HYGIENE_BLOCKED_TOOLS):
+        if name not in seen:
+            names.append(name)
+            seen.add(name)
+    return names
+
+
+def _blocked_tool_names_for_run(request: "AgentRunRequest") -> list[str]:
+    """Registry hygiene plus this run's admission-scoped MCP tool block."""
+
+    names = _blocked_tool_names_with_registry_hygiene(request.blocked_tool_names)
+    admission = request.mcp_admission
+    if admission is None:
+        return names
+    seen = set(names)
+    for name in admission.blocked_tool_names:
+        if name not in seen:
+            names.append(name)
+            seen.add(name)
+    return names
+
+
+def _enabled_toolsets_for_run(
+    request: "AgentRunRequest", admitted_servers: tuple[str, ...] = ()
+) -> list[str] | None:
+    """Scope this run's toolsets to the MCP servers it was ADMITTED.
+
+    The second fork-owned chokepoint at agent construction, and the one that
+    makes the cross-persona isolation property hold on every lane rather than
+    only on the chat lane: MCP registration is process-global, so in a warm
+    multi-persona harness process any run whose toolsets were resolved from the
+    live registry (``unbounded`` resolves ``all_registered_toolsets()``) would
+    otherwise inherit another persona's admitted ``mcp-*`` toolsets. Applied
+    here, no call site can opt out.
+
+    With no admission on the request — every lane today except an admitted
+    mission-chat turn — this strips any MCP toolset the run did not earn, which
+    is a no-op while the harness lane registers nothing at all.
+    ``enabled_toolsets=None`` (the "everything" sentinel) is passed through
+    untouched: narrowing it would change what a default run resolves.
+    """
+
+    from ..mcp_admission.resolve import scope_toolsets_to_admission
+
+    if request.enabled_toolsets is None:
+        return None
+    return scope_toolsets_to_admission(
+        request.enabled_toolsets, admitted_servers=admitted_servers
+    )
+
+
+# ── the per-request runtime resolution and its memo ─────────────────────────
+
+#: T6 (2026-08-09): how long a resolved runtime may be reused for an unchanged
+#: (profile, provider, model, config) tuple. 0.28-0.44 s of every send was spent
+#: re-resolving an identical answer.
+#:
+#: THE TTL IS A SAFETY BOUND, NOT A TUNING KNOB, and it is why it is 30 s rather
+#: than something generous. ``resolve_runtime_provider`` returns live OAuth
+#: credentials and refreshes any token within
+#: ``hermes_cli.auth.ACCESS_TOKEN_REFRESH_SKEW_SECONDS`` (120 s) of expiry. A
+#: memo handed out T seconds after resolution therefore carries a token with at
+#: least ``skew - T`` seconds of validity left: at 30 s that floor is 90 s,
+#: comfortably longer than the turn that is about to use it. Raising this past
+#: the skew would hand out expired credentials, so it must stay well under it —
+#: the invariant is pinned by
+#: ``tests/agent_runtime/test_send_path_runner_reuse.py`` (`:425-426`, which
+#: asserts this constant is positive AND below half the refresh skew). This
+#: line named ``test_runtime_resolve_cache.py``, a file that never existed;
+#: repointed MCF-78 2026-08-20.
+RUNTIME_RESOLVE_CACHE_TTL_SECONDS = 30.0
+
+
+#: Files whose content can change what ``resolve_runtime_provider`` returns for
+#: an otherwise identical request (default provider/model, base_url, a provider
+#: flipped to ``enabled: false``, a rotated key). Their (mtime_ns, size) join the
+#: cache key, so an operator edit invalidates the memo immediately instead of
+#: waiting out the TTL.
+_RUNTIME_RESOLVE_STAMPED_FILES = ("config.yaml", ".env")
+
+
+_RUNTIME_RESOLVE_CACHE: dict[tuple, tuple[float, dict[str, Any]]] = {}
+
+
+_RUNTIME_RESOLVE_CACHE_LOCK = RLock()
+
+
+def reset_runtime_resolve_cache() -> None:
+    """Drop every memoized runtime resolution (tests; profile teardown)."""
+
+    with _RUNTIME_RESOLVE_CACHE_LOCK:
+        _RUNTIME_RESOLVE_CACHE.clear()
+
+
+def _runtime_resolve_cache_key(request: AgentRunRequest) -> tuple:
+    """Everything that can change the answer, and nothing that cannot.
+
+    ``HERMES_HOME`` is in the key because this resolves INSIDE
+    ``persona_profile_context`` — two personas bound to different profiles must
+    never share a memo (the same reason profile-context memos key on it).
+    """
+
+    from hermes_constants import get_hermes_home
+
+    home = Path(get_hermes_home())
+    stamps = []
+    for name in _RUNTIME_RESOLVE_STAMPED_FILES:
+        try:
+            stat = (home / name).stat()
+            stamps.append((name, stat.st_mtime_ns, stat.st_size))
+        except OSError:
+            # An absent file is a stable fact about the config too; it becomes a
+            # different key the moment one is created.
+            stamps.append((name, None, None))
+    return (
+        str(home),
+        str(request.provider or ""),
+        str(request.model or ""),
+        tuple(stamps),
+    )
+
+
+def _resolve_request_runtime(
+    request: AgentRunRequest, timing: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    from ..local_llama_adapter import is_local_llama_provider
+    if is_local_llama_provider(request.provider):
+        from ..local_llama_adapter.provider import resolve
+        return resolve(request.model, root=request.runtime_root)
+    if not request.provider:
+        return {}
+    key = _runtime_resolve_cache_key(request)
+    now = time.monotonic()
+    with _RUNTIME_RESOLVE_CACHE_LOCK:
+        cached = _RUNTIME_RESOLVE_CACHE.get(key)
+        if cached is not None and now - cached[0] <= RUNTIME_RESOLVE_CACHE_TTL_SECONDS:
+            if timing is not None:
+                timing["runtime_resolve_cached"] = 1
+            return dict(cached[1])
+    runtime = resolve_runtime_provider(requested=request.provider, target_model=request.model)
+    resolved = {
+        key_name: value
+        for key_name, value in runtime.items()
+        if key_name in {"provider", "model", "api_mode", "base_url", "api_key"} and value
+    }
+    with _RUNTIME_RESOLVE_CACHE_LOCK:
+        # Bounded: one entry per live (profile, provider, model, config) tuple,
+        # and the set of those is small. Evict the oldest wholesale rather than
+        # keep an LRU — a cold re-resolve costs one turn 0.3 s, a leak costs the
+        # process.
+        if len(_RUNTIME_RESOLVE_CACHE) >= 64:
+            _RUNTIME_RESOLVE_CACHE.clear()
+        _RUNTIME_RESOLVE_CACHE[key] = (now, dict(resolved))
+    if timing is not None:
+        timing["runtime_resolve_cached"] = 0
+    return resolved
 
 
 def _notify_agent_ready(request: AgentRunRequest, agent: Any) -> Callable[[], None] | None:
@@ -214,7 +399,7 @@ class AgentRunExecution:
             chat_root_session_key_scope,
             tool_execution_scope,
         )
-        from ..terminal_envelope import terminal_envelope_scope
+        from ..terminal_envelope.records import terminal_envelope_scope
         from agent_runtime.skill_resolution import skill_runtime_scope
         from ..local_llama_adapter.provider import prewarm_scope
 

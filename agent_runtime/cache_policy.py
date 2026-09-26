@@ -23,6 +23,8 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any, Optional
 
+__layer__ = "stores"
+
 # OpenAI-wire model/provider families that get automatic server-side prefix
 # caching without cache_control markers. OpenAI clears these prefixes after
 # roughly 5-10 minutes of inactivity (and always within ~1h) and never reports

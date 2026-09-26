@@ -1,5 +1,6 @@
 from agent_runtime.models import AgentPersona
 from tests.agent_runtime.persona_samples import sample_personas
+from tests._downstream.split_package_source import patch_where_bound
 from agent_runtime.tool_visibility import (
     ToolVisibilityOptions,
     permission_state_for_persona,
@@ -500,7 +501,7 @@ def test_chat_lane_preview_matches_actual_lane_with_restore_config(
             "neko_supervisor": {"chat_lane_restore_toolsets": ["file"]},
         },
     )
-    monkeypatch.setattr(cfgmod, "load_agent_runtime_config", lambda *a, **k: fake)
+    patch_where_bound(monkeypatch, cfgmod, "load_agent_runtime_config", lambda *a, **k: fake)
 
     persona = _persona("neko_supervisor")
     session_id = bounded_chat_session(persona.id)

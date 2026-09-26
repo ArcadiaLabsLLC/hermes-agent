@@ -2,7 +2,7 @@
 contract the Launcher's Skills console consumes instead of scraping the human
 ``hermes skills list`` table (which has no ``--json`` lane).
 
-Mirrors the discipline of :func:`hermes_cli.harness.build_provider_visibility`:
+Mirrors the discipline of :func:`hermes_cli.harness_parts.provider_visibility.build_provider_visibility`:
 emit *structure*, not prose, and reuse the existing engine authorities so there
 is never a second source of truth. Specifically it reuses:
 

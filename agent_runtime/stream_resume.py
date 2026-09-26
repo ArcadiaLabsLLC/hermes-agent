@@ -80,7 +80,8 @@ from .models import Event
 from .parity import events_watermark
 from .patch_coverage import batch_required_fold_tokens, normalize_fold_entities
 from .state_patches import delta_patches_enabled
-from .stream import _DELTA_BATCH_CAP, batch_carries_patch_rows, patch_batch_frame
+from .stream import batch_carries_patch_rows, patch_batch_frame
+from .stream.vocabulary import _DELTA_BATCH_CAP
 
 __all__ = [
     "STREAM_RESUME_MAX_EVENTS",

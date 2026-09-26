@@ -14,6 +14,8 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+__layer__ = "stores"
+
 _log = logging.getLogger(__name__)
 
 router = APIRouter()

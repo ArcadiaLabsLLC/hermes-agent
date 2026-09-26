@@ -20,6 +20,8 @@ forever.
 
 from __future__ import annotations
 
+__layer__ = "models"
+
 
 def canonicalize_text_bytes(raw: bytes) -> bytes:
     """Normalize text bytes' line endings to LF — the ONE canonicalization

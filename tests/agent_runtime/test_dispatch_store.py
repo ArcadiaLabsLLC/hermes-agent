@@ -210,6 +210,94 @@ def test_restore_treats_an_unreadable_start_time_as_no_proof(store_home, monkeyp
     assert get_dispatch(dispatch_id)["state"] == STATE_RUNNING
 
 
+def test_restore_never_answers_for_a_dispatch_this_process_supervises(store_home, monkeypatch):
+    """Positive control (sheet dispatch_store.md §6.3): a ``running`` row whose
+    id a live supervisor in THIS process still answers for is not reclassified,
+    even with a dead PID — the window between the child exiting and the
+    supervisor's own ``record_completion``. The same row unsupervised IS."""
+
+    dispatch_id = _dispatch()
+    monkeypatch.setattr("gateway.status._pid_exists", lambda pid: False)
+    monkeypatch.setattr(
+        "agent_runtime.dispatch_store.supervision.supervised_dispatch_ids", lambda: {dispatch_id}
+    )
+    assert restore_undelivered_dispatches() == {"restored": 0, "checked": 1}
+    assert get_dispatch(dispatch_id)["state"] == STATE_RUNNING
+
+    monkeypatch.setattr("agent_runtime.dispatch_store.supervision.supervised_dispatch_ids", lambda: set())
+    assert restore_undelivered_dispatches()["restored"] == 1
+    assert get_dispatch(dispatch_id)["state"] == STATE_UNKNOWN
+
+
+def test_rearm_delivery_answers_each_delivery_state_by_name(store_home):
+    """Positive control (sheet dispatch_store.md §6.1) — ``rearm_delivery`` had
+    no test. A dropped row re-arms to ``pending`` with a zeroed counter and a
+    cleared reason; a delivered row and a pending row refuse by name and are
+    left exactly as they were; an unknown id is ``not_found``."""
+
+    dropped = _dispatch()
+    record_completion(dropped, state=STATE_COMPLETED, reply="done")
+    assert claim_delivery(dropped, "claim")
+    assert drop_delivery(dropped, reason="forge_rejected:foreign_root")
+    outcome, row = dispatch_store.rearm_delivery(dropped)
+    assert outcome == dispatch_store.REARM_REARMED
+    assert (row["delivery_state"], row["delivery_attempts"], row["delivery_error"]) == (
+        DELIVERY_PENDING,
+        0,
+        "",
+    )
+
+    delivered = _dispatch()
+    record_completion(delivered, state=STATE_COMPLETED, reply="done")
+    mark_delivered(delivered)
+    before = get_dispatch(delivered)
+    outcome, row = dispatch_store.rearm_delivery(delivered)
+    assert outcome == dispatch_store.REARM_ALREADY_DELIVERED
+    assert row == before
+
+    pending = _dispatch()
+    record_completion(pending, state=STATE_COMPLETED, reply="done")
+    before = get_dispatch(pending)
+    outcome, row = dispatch_store.rearm_delivery(pending)
+    assert outcome == dispatch_store.REARM_NOT_DROPPED
+    assert row == before
+
+    assert dispatch_store.rearm_delivery("dispatch-missing") == (dispatch_store.REARM_NOT_FOUND, None)
+
+
+def test_the_stored_texts_are_cut_to_their_bounds_verbatim(store_home):
+    """Control for ``serde.bounded_text`` (the fold of ``_text``): a field over
+    its bound is cut to EXACTLY the bound and otherwise kept verbatim — no
+    strip, no collapse — and ``None`` is stored as ``""``."""
+
+    from agent_runtime.dispatch_store import ASK_LIMIT, REPLY_LIMIT
+
+    ask = "  keep  the   spacing  " + "a" * ASK_LIMIT
+    dispatch_id = _dispatch(ask=ask, title=None)
+    row = get_dispatch(dispatch_id)
+    assert row["ask"] == ask[:ASK_LIMIT]
+    assert row["title"] == ""
+    record_completion(dispatch_id, state=STATE_COMPLETED, reply="r" * (REPLY_LIMIT + 7))
+    assert len(get_dispatch(dispatch_id)["result"]["reply"]) == REPLY_LIMIT
+
+
+def test_a_real_append_drops_the_absent_fields(store_home):
+    """Control for the ``emit_store_event`` fold, through the REAL EventLog
+    (every other event test patches ``_emit``): an untitled local dispatch's
+    ``dispatch.recorded`` carries no ``title`` and no ``remote_install_id``."""
+
+    from agent_runtime.events import EventLog
+
+    dispatch_id = _dispatch(title="")
+    rows = [
+        evt.payload
+        for _, evt in EventLog().iter_from_offset(0)
+        if evt.type == "dispatch.recorded" and (evt.payload or {}).get("dispatch_id") == dispatch_id
+    ]
+    assert len(rows) == 1
+    assert "title" not in rows[0] and "remote_install_id" not in rows[0]
+
+
 def test_listing_is_scoped_to_the_calling_session(store_home):
     """``agent_chat_dispatches`` must never show another agent's work."""
 
@@ -263,7 +351,10 @@ def test_every_mutation_emits_its_registered_event(store_home, monkeypatch):
     """Store rule: an event-less mutation is invisible to gated consumers."""
 
     seen = []
-    monkeypatch.setattr(dispatch_store, "_emit", lambda kind, **kw: seen.append(kind))
+    # One seam per module that binds ``_emit`` for the writes under test: the
+    # record_* writes in ``writes``, claim / mark_delivered in ``delivery``.
+    monkeypatch.setattr(dispatch_store.writes, "_emit", lambda kind, **kw: seen.append(kind))
+    monkeypatch.setattr(dispatch_store.delivery, "_emit", lambda kind, **kw: seen.append(kind))
 
     dispatch_id = _dispatch()
     record_completion(dispatch_id, state=STATE_COMPLETED, reply="done")
@@ -305,11 +396,11 @@ def test_a_real_completion_event_stays_inside_the_payload_cap(store_home):
         captured[kind] = payload
         return original(kind, **payload)
 
-    dispatch_store._emit = _capture
+    dispatch_store.writes._emit = _capture
     try:
         record_completion(dispatch_id, state=STATE_COMPLETED, reply="y" * 8000)
     finally:
-        dispatch_store._emit = original
+        dispatch_store.writes._emit = original
 
     encoded = json.dumps(captured["dispatch.completed"]).encode("utf-8")
     assert len(encoded) < EVENT_PAYLOAD_LIMIT_BYTES
@@ -464,7 +555,7 @@ def test_pruning_never_deletes_an_undelivered_answer(store_home, monkeypatch):
     a cap of one. Excess is four; only two delivered rows exist to absorb it.
     """
 
-    monkeypatch.setattr(dispatch_store, "_MAX_RETAINED_TERMINAL", 1)
+    monkeypatch.setattr(dispatch_store.writes, "_MAX_RETAINED_TERMINAL", 1)
     stranded = []
     for index in range(3):
         held = _dispatch(dispatch_id=f"dispatch-stranded-{index}")
@@ -489,7 +580,7 @@ def test_pruning_never_deletes_an_undelivered_answer(store_home, monkeypatch):
 def test_pruning_still_bounds_settled_history(store_home, monkeypatch):
     """Exempting pending rows must not turn the store into an append-only log."""
 
-    monkeypatch.setattr(dispatch_store, "_MAX_RETAINED_TERMINAL", 3)
+    monkeypatch.setattr(dispatch_store.writes, "_MAX_RETAINED_TERMINAL", 3)
     for index in range(12):
         settled = _dispatch(dispatch_id=f"dispatch-old-{index}")
         record_completion(settled, state=STATE_COMPLETED, reply="ok")
@@ -505,10 +596,10 @@ def test_an_undeliverable_backlog_is_reported_rather_than_trimmed(
 ):
     """Growth that cannot be deleted must at least be loud."""
 
-    monkeypatch.setattr(dispatch_store, "_MAX_RETAINED_TERMINAL", 1)
+    monkeypatch.setattr(dispatch_store.writes, "_MAX_RETAINED_TERMINAL", 1)
     events = []
     monkeypatch.setattr(
-        dispatch_store, "_emit", lambda event_type, **payload: events.append(event_type)
+        dispatch_store.writes, "_emit", lambda event_type, **payload: events.append(event_type)
     )
     for index in range(3):
         stuck = _dispatch(dispatch_id=f"dispatch-stuck-{index}")
@@ -606,7 +697,7 @@ def test_a_superseding_outcome_on_a_delivered_row_is_named(store_home, monkeypat
     record_completion(dispatch_id, state=STATE_COMPLETED, reply="done")
     mark_delivered(dispatch_id)
     monkeypatch.setattr(
-        dispatch_store, "_emit", lambda event_type, **payload: events.append(event_type)
+        dispatch_store.writes, "_emit", lambda event_type, **payload: events.append(event_type)
     )
 
     record_completion(dispatch_id, state=dispatch_store.STATE_UNKNOWN, error="sweep")
@@ -622,7 +713,7 @@ def test_the_same_outcome_re_landing_is_not_reported(store_home, monkeypatch):
     record_completion(dispatch_id, state=STATE_COMPLETED, reply="done")
     mark_delivered(dispatch_id)
     monkeypatch.setattr(
-        dispatch_store, "_emit", lambda event_type, **payload: events.append(event_type)
+        dispatch_store.writes, "_emit", lambda event_type, **payload: events.append(event_type)
     )
 
     record_completion(dispatch_id, state=STATE_COMPLETED, reply="done")
@@ -639,10 +730,10 @@ def test_the_backlog_report_does_not_storm(store_home, monkeypatch):
     something else.
     """
 
-    monkeypatch.setattr(dispatch_store, "_MAX_RETAINED_TERMINAL", 1)
+    monkeypatch.setattr(dispatch_store.writes, "_MAX_RETAINED_TERMINAL", 1)
     events = []
     monkeypatch.setattr(
-        dispatch_store, "_emit", lambda event_type, **payload: events.append(event_type)
+        dispatch_store.writes, "_emit", lambda event_type, **payload: events.append(event_type)
     )
     for index in range(3):
         stuck = _dispatch(dispatch_id=f"dispatch-stuck-{index}")
@@ -721,7 +812,7 @@ def test_the_prune_exemption_and_the_re_arm_guard_compose(store_home, monkeypatc
     delivered could become pending again a moment later.
     """
 
-    monkeypatch.setattr(dispatch_store, "_MAX_RETAINED_TERMINAL", 1)
+    monkeypatch.setattr(dispatch_store.writes, "_MAX_RETAINED_TERMINAL", 1)
     told = _dispatch(dispatch_id="dispatch-told")
     record_completion(told, state=STATE_COMPLETED, reply="first")
     mark_delivered(told)
@@ -757,7 +848,7 @@ def test_the_two_guards_hold_while_INTERLEAVED(store_home, monkeypatch):
     for a second delivery.
     """
 
-    monkeypatch.setattr(dispatch_store, "_MAX_RETAINED_TERMINAL", 2)
+    monkeypatch.setattr(dispatch_store.writes, "_MAX_RETAINED_TERMINAL", 2)
     owed = []
     told = []
 

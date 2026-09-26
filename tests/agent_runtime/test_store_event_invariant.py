@@ -7,7 +7,7 @@ offset. That class recurred three times (realm adopt → realm sync →
 realm/workspace use) while emission was left to caller convention.
 
 This test makes the convention structural: every function in
-``agent_runtime/store.py`` that writes store state must either couple an
+``agent_runtime/store/`` that writes store state must either couple an
 event append in its own body or be explicitly classified below with a
 written justification. A new write path fails CI until consciously
 classified. See docs/agent-runtime-harness/archive/2026-08-22-pre-consolidation/12-read-path-freshness-hardening.md.
@@ -23,7 +23,7 @@ import agent_runtime.store as store_module
 # Write primitives whose presence marks a function as a store writer.
 _WRITE_CALLS = {"_write_model", "atomic_json_write"}
 # Calls that count as coupling an event to the mutation.
-_EVENT_CALLS = {"append", "_append_store_event"}
+_EVENT_CALLS = {"append", "emit_store_event"}
 
 # Functions allowed to write WITHOUT appending an event, each with the reason
 # the exemption is sound. Adding a name here is a reviewed decision, not a
@@ -41,8 +41,9 @@ EXEMPT: dict[str, str] = {
 def _qualified_writers() -> dict[str, bool]:
     """Map '<Class>.<func>' → 'couples an event append' for every writer."""
 
-    source = Path(store_module.__file__).read_text(encoding="utf-8")
-    tree = ast.parse(source)
+    # The store is a package since lane 2B-A: every module in it is scanned,
+    # so a writer cannot leave the invariant by moving to a sibling file.
+    package = Path(store_module.__file__).parent
     writers: dict[str, bool] = {}
 
     def call_name(node: ast.Call) -> str | None:
@@ -71,7 +72,8 @@ def _qualified_writers() -> dict[str, bool]:
                     writers[f"{owner}.{child.name}"] = appends
                 visit(child, owner)
 
-    visit(tree, "<module>")
+    for path in sorted(package.glob("*.py")):
+        visit(ast.parse(path.read_text(encoding="utf-8")), "<module>")
     return writers
 
 
@@ -86,7 +88,7 @@ def test_every_store_writer_couples_an_event_or_is_classified():
         "Store writer(s) with NO event append and no reviewed exemption: "
         f"{unclassified}. An event-less store mutation is invisible to the "
         "watermark-gated stream/read-model pipeline (Stage 12). Either emit "
-        "via _append_store_event inside the mutator, or add a justified "
+        "via store_events.emit_store_event inside the mutator, or add a justified "
         "EXEMPT entry in this test."
     )
 

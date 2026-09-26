@@ -78,6 +78,8 @@ from utils import atomic_json_write
 from . import paths
 from .locks import HarnessLockUnavailable, agent_create_lock
 
+__layer__ = "stores"
+
 _SCHEMA_VERSION = 1
 
 STATE_INSTANCE_MINTED = "instance_minted"

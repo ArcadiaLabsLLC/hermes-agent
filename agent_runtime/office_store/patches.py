@@ -108,7 +108,7 @@ def _emit_actor_patch(
 
     try:
         from ..office_models import MAX_OFFICE_ACTORS_PROJECTED
-        from ..state_patches import emit_office_actor_patch, emit_office_actor_refresh
+        from ..state_patches.office import emit_office_actor_patch, emit_office_actor_refresh
 
         scan = store.scan_actors(actor.workspace_id)
         if scan.unreadable or len(scan.actors) > MAX_OFFICE_ACTORS_PROJECTED:
@@ -167,7 +167,7 @@ def _emit_surface_patch(
     """
 
     try:
-        from ..state_patches import emit_office_surface_patch
+        from ..state_patches.office import emit_office_surface_patch
 
         emit_office_surface_patch(
             store.event_log, surface, correlation_id=correlation_id
@@ -200,7 +200,7 @@ def _emit_actor_remove_patch(
     """
 
     try:
-        from ..state_patches import emit_office_actor_remove
+        from ..state_patches.office import emit_office_actor_remove
 
         emit_office_actor_remove(
             store.event_log,
@@ -245,7 +245,7 @@ def _emit_conflict_resolved_patch(
     """
 
     try:
-        from ..state_patches import emit_office_conflict_resolved_patch
+        from ..state_patches.office import emit_office_conflict_resolved_patch
 
         emit_office_conflict_resolved_patch(
             store.event_log,
@@ -273,7 +273,7 @@ def _emit_surface_refresh_patch(store: OfficeStore, workspace_id: str) -> None:
     did not declare ``office_surface``."""
 
     try:
-        from ..state_patches import emit_office_surface_refresh
+        from ..state_patches.office import emit_office_surface_refresh
 
         emit_office_surface_refresh(store.event_log, workspace_id)
     except Exception:

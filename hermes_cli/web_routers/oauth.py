@@ -559,9 +559,17 @@ async def _start_device_code_flow(provider_id: str, profile: Optional[str] = Non
     return await starter(profile)
 
 
-def _oauth_provider_disconnect_command(provider: Dict[str, Any]) -> Optional[str]:
+def _oauth_provider_disconnect_command(
+    provider: Dict[str, Any], platform: Optional[str] = None
+) -> Optional[str]:
+    """Shell command that clears an external provider's credentials, or None.
+
+    ``platform`` is the host the command will run on (default: this process). Pass it
+    explicitly in tests; do not fake ``sys.platform``. The one authority is
+    ``provider_catalog.disconnect_command_for``.
+    """
     from hermes_cli.provider_catalog import disconnect_command_for
-    return disconnect_command_for(provider.get("id", ""), provider.get("flow", ""))
+    return disconnect_command_for(provider.get("id", ""), provider.get("flow", ""), platform)
 
 
 def _oauth_provider_disconnect_hint(provider: Dict[str, Any], status: Dict[str, Any]) -> Optional[str]:
@@ -642,13 +650,23 @@ def _clear_anthropic_auth() -> bool:
             oauth_file.unlink()
             cleared = True
     except Exception:
-        pass
+        _log.exception("disconnect anthropic OAuth file failed")
+        raise
     try:
         from hermes_cli.auth import clear_provider_auth
         cleared = clear_provider_auth("anthropic") or cleared
     except Exception:
-        pass
+        _log.exception("disconnect anthropic auth store failed")
+        raise
     return cleared
+
+
+def _disconnect_http_error(status_code: int, provider_name: str) -> HTTPException:
+    if status_code == 409:
+        detail = f"No stored credentials were removed for {provider_name}."
+    else:
+        detail = f"Failed to remove stored credentials for {provider_name}."
+    return HTTPException(status_code=status_code, detail=detail)
 
 
 @router.delete("/api/providers/oauth/{provider_id}")
@@ -666,19 +684,31 @@ async def disconnect_oauth_provider(provider_id: str, request: Request, profile:
         _reject_if_not_disconnectable(provider, _resolve_provider_status(provider_id, provider.get("status_fn")))
 
         if provider_id == "anthropic":
-            cleared = _clear_anthropic_auth()
+            try:
+                cleared = _clear_anthropic_auth()
+            except HTTPException:
+                raise
+            except Exception:
+                _log.exception("disconnect %s failed", provider_id)
+                raise _disconnect_http_error(500, provider["name"])
+            if not cleared:
+                raise _disconnect_http_error(409, provider["name"])
             _log.info("oauth/disconnect: %s", provider_id)
-            return {"ok": bool(cleared), "provider": provider_id}
+            return {"ok": True, "provider": provider_id}
         try:
             from hermes_cli.auth import clear_provider_auth, invalidate_nous_auth_status_cache
             cleared = clear_provider_auth(provider_id)
             if provider_id == "nous":
                 invalidate_nous_auth_status_cache()
+            if not cleared:
+                raise _disconnect_http_error(409, provider["name"])
             _log.info("oauth/disconnect: %s (cleared=%s)", provider_id, cleared)
-            return {"ok": bool(cleared), "provider": provider_id}
-        except Exception as e:
+            return {"ok": True, "provider": provider_id}
+        except HTTPException:
+            raise
+        except Exception:
             _log.exception("disconnect %s failed", provider_id)
-            raise HTTPException(status_code=500, detail=str(e))
+            raise _disconnect_http_error(500, provider["name"])
 
     return await scoped_to_thread(profile, _run)
 

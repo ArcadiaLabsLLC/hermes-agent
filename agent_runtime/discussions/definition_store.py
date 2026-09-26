@@ -25,6 +25,8 @@ from .definitions import (
     apply_preset, fields, identifier, revision,
 )
 
+__layer__ = "stores"
+
 _SCHEMA_VERSION = 1
 _PARSERS = {"table": TableSpec.parse, "preset": PresetSpec.parse}
 

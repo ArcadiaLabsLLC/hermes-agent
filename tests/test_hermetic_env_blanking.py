@@ -81,10 +81,11 @@ LEAK_PRONE_VARS: dict[str, tuple[str, str]] = {
         "SIG_IGN for SIGINT/SIGBREAK and SetConsoleCtrlHandler(NULL, TRUE)",
     ),
     "HERMES_HEAD_HOME": (
-        "agent_runtime/profile_home.py",
-        ":104 returns it verbatim and it OUTRANKS the sandboxed HERMES_HOME; it "
-        "selects the SessionDB the transcript store WRITES to, and :127 flips "
-        "hermes_head_home_is_authoritative() with it",
+        "agent_runtime/chat_session_scope.py",
+        "`configured_head_home()` is the ONE reader since `73826a8152`; "
+        "`profile_home.get_hermes_head_home()` returns its value and it OUTRANKS "
+        "the sandboxed HERMES_HOME, it selects the SessionDB the transcript store "
+        "WRITES to, and `hermes_head_home_is_authoritative()` flips on it",
     ),
     "HERMES_PROFILE": (
         "agent_runtime/profile_context.py",

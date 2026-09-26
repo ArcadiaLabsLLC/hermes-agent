@@ -1,6 +1,8 @@
 from enum import StrEnum
 from typing import Final
 
+__layer__ = "models"
+
 
 class TaskState(StrEnum):
     CREATED = "created"

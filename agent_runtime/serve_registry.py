@@ -180,6 +180,8 @@ from typing import Any, Callable
 
 from .serde import write_json_atomic
 
+__layer__ = "models"
+
 __all__ = [
     "CLASSIFICATION_LIVE",
     "CLASSIFICATION_STALE_DEAD_PID",

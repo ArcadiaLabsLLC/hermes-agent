@@ -23,7 +23,9 @@ red is not a gate" failure this repo has already shipped once.
 
 from __future__ import annotations
 
-import agent_runtime.config as cfgmod
+import agent_runtime.config as cfgpkg
+import agent_runtime.config.loader as cfgmod
+from tests._downstream.split_package_source import patch_where_bound
 from agent_runtime.harness_doctor import (
     HEALTH_DEFECT,
     HEALTH_NOTICE,
@@ -46,7 +48,8 @@ def _arrange(tmp_path, monkeypatch, root_text: str, profile_text: str):
     profile_config.parent.mkdir(parents=True)
     profile_config.write_text(profile_text, encoding="utf-8")
 
-    monkeypatch.setattr(cfgmod, "harness_root_config_path", lambda: root_config)
+    # The doctor reads it through the package, config.knobs by its own binding.
+    patch_where_bound(monkeypatch, cfgpkg, "harness_root_config_path", lambda: root_config)
     monkeypatch.setattr(cfgmod, "_profile_config_paths", lambda: [profile_config])
     return _root_config_misplacement_report()
 
@@ -168,7 +171,8 @@ def _arrange_many(tmp_path, monkeypatch, root_text: str, profile_texts: dict[str
         path.write_text(body, encoding="utf-8")
         profile_configs.append(path)
 
-    monkeypatch.setattr(cfgmod, "harness_root_config_path", lambda: root_config)
+    # The doctor reads it through the package, config.knobs by its own binding.
+    patch_where_bound(monkeypatch, cfgpkg, "harness_root_config_path", lambda: root_config)
     monkeypatch.setattr(cfgmod, "_profile_config_paths", lambda: profile_configs)
     return _root_config_misplacement_report()
 

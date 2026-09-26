@@ -4,7 +4,7 @@ The fork's round-robin position is a typed cursor in a sidecar
 (``credential_rotation.json``, ``agent_runtime.pool_rotation``; MCF-44), so a runtime
 ``select()`` no longer rewrites ``auth.json`` and upstream's control
 (``_persisted_pool(home) != before``) cannot hold. The upstream id is a strict xfail in
-``tests/_downstream/id_markers.py``; this asks both halves of the claim of the sidecar.
+``tests/_downstream/id_markers/``; this asks both halves of the claim of the sidecar.
 """
 
 from __future__ import annotations

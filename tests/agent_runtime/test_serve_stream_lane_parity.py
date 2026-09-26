@@ -843,13 +843,23 @@ def test_a_fat_stream_frame_delays_the_method_lane_and_never_corrupts_it():
             what="every method-lane reply to land behind the fat frames",
         )
         # The fat lane has to have actually carried its batches, or the ordering
-        # assertions below would be describing an idle producer.
+        # assertions below would be describing an idle producer. Counted over
+        # STATE-BEARING frames: a heartbeat carries nothing, and until lane W3-D
+        # this count was met by the spurious ``state.reconciled`` delta the
+        # read-model build's own SessionDB writer open used to mint.
+        def _state_frames() -> list[dict]:
+            return [
+                frame
+                for frame in _stream_frames_from(sink)
+                if frame.get("type") != "heartbeat"
+            ]
+
         _until(
-            lambda: len(_stream_frames_from(sink)) >= 3,
+            lambda: any(frame.get("type") != "hydrate" for frame in _state_frames()),
             what="the fat lane to deliver its scripted batches",
         )
         replies = _replies()
-        stream_seen = _stream_frames_from(sink)
+        stream_seen = _state_frames()
         pipe.send({"op": "unsubscribe"})
         sink.wait_for("unsubscribed")
 
@@ -869,7 +879,7 @@ def test_a_fat_stream_frame_delays_the_method_lane_and_never_corrupts_it():
     assert offsets == sorted(offsets)
     # Anti-vacuity: the fat lane really was carrying traffic during the window,
     # and the frames really were the big ones (a heartbeat would prove nothing).
-    assert len(stream_seen) >= 3
+    assert len(stream_seen) >= 2
     assert all("core" in frame for frame in stream_seen)
 
 

@@ -28,8 +28,8 @@ Directories present in the live root, with the module that owns each:
 | `persona_instances/` + `_archive/` | `paths.py:20,24` | one `personainst_*.json` per instance |
 | `persona_assignments/` + `_archive/` | `paths.py:37,41` | persona↔channel bindings |
 | `persona_chat_mint_receipts/` | `paths.py:45` | durable idempotency receipts for server-minted chat roots |
-| `persona_chat_leases/`, `persona_chat_clarify_tickets/` | `persona_chat_continuity.py:815,1236` | per-chat leases and clarify tickets |
-| `mission_chat_turns/` + `_archive/` | `mission_chat_turns.py:37` | one `<safe_session_key>.json` + `.lock` per chat |
+| `persona_chat_leases/`, `persona_chat_clarify_tickets/` | `agent_runtime/persona_chat_continuity/mint_receipts.py::PersonaChatMintReceiptStore,1236` | per-chat leases and clarify tickets |
+| `mission_chat_turns/` + `_archive/` | `mission_chat_turns/storage.py:33-42` | one `<safe_session_key>.json` + `.lock` per chat |
 | `mission_chat_steer/` | `mission_chat_steer.py:328` | per-session steer drops |
 | `tool_turn_context/`, `queued_skills/` | `tool_turn_history.py:132`, `queued_skills.py:16` | per-turn tool context; skill inbox |
 | `prompt_observability/` | `paths.py:450` | one `ctx_<id>.json` per captured prompt context |
@@ -185,17 +185,17 @@ log is `tests/agent_runtime/test_serve_socket_child_e2e.py::test_a_service_boots
 
 One file per chat session, `mission_chat_turns/<safe_session_key>.json`, holding
 that session's `{client_message_id: record}` map, plus a co-located
-`.lock` (`mission_chat_turns.py:24-36`). Concurrent turns in *different* chats
+`.lock` (`mission_chat_turns/storage.py:30-41`). Concurrent turns in *different* chats
 never contend. The filename is a sanitized 80-char prefix plus a 12-char sha256
 suffix, keeping the total under the Windows `MAX_PATH` budget
-(`mission_chat_turns.py:47-52`). The pre-2026-07-17 single-file monolith is
+(`mission_chat_turns/storage.py:52-57`). The pre-2026-07-17 single-file monolith is
 split once on first read/write and renamed to `mission_chat_turns.legacy.json`,
 never deleted — that file is still on disk live. Retention is
 `_RETENTION_MAX_TURNS_PER_SESSION = 100` turns per session (`:72`, applied
 `:800-806` inside the per-session lock), which must stay comfortably above the
 projection's displayable tail — `MAX_PERSONA_CHAT_MESSAGE_TAIL = 40` in
 `agent_runtime/persona_chat_history/vocabulary.py` — or a displayable agent row loses its
-`turn_elements` (`:301`); plus an opportunistic session-file GC under
+`turn_elements` (`:320`); plus an opportunistic session-file GC under
 `mission_chat_turns.gc.lock`. `_MAX_ELEMENTS = 80` (`:65`) is a DIFFERENT bound:
 it caps the `elements` list inside ONE turn record (`_safe_elements`, `:1272`),
 not the turns a session keeps. Live counts (2026-08-22): 50
@@ -304,8 +304,8 @@ callers coalesce. The coalescer is deliberately strict — a caller arriving whi
 a build runs waits for the *next* build, never the in-flight one, because an
 in-flight build began earlier and may miss writes the caller already observed.
 `accept_inflight=True` opts out, and both non-test callers are the same
-boot-hydrate lane — `hydrate_frame` (`stream.py:471`) and the `stream_frames`
-boot job that drives it (`:1221`) — because the hydrate's payload carries its own
+boot-hydrate lane — `hydrate_frame` (`agent_runtime/stream/frames.py::hydrate_frame`) and the `stream_frames`
+boot job that drives it (`agent_runtime/stream/session.py::stream_frames`) — because the hydrate's payload carries its own
 watermark and the stream tails from exactly that offset
 (`snapshot/build.py:48-62`). Roles:
 `BUILD_ROLE_LED` / `RODE` / `SHARED_NEXT` / `CACHE` / `REUSED`

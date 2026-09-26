@@ -52,8 +52,8 @@ def test_missing_anthropic_is_reported_before_token_spend(monkeypatch):
     assert issue["kind"] == "runtime_dependency_missing"
     assert issue["package"] == "anthropic"
     # The summary is what the launcher copies to the clipboard — it has to
-    # carry the command, the interpreter, and the pinned version.
-    assert "pip install anthropic==" in issue["summary"]
+    # carry the command (upstream's locked-extra install) and the interpreter.
+    assert install_command_for("anthropic") in issue["summary"]
     assert status.executable in issue["summary"]
 
 
@@ -67,11 +67,17 @@ def test_missing_anthropic_reaches_readiness(monkeypatch):
 
 def test_install_command_carries_the_provisioned_pin():
     # An operator following the diagnostic must land on the version the
-    # provisioner would have installed, not on whatever PyPI serves today.
-    from tools.lazy_deps import LAZY_DEPS
+    # provisioner would have installed, not on whatever PyPI serves today:
+    # upstream's pm installs an extra from its lock, and that extra must be the
+    # one pyproject declares for the distribution.
+    import tomllib
+    from pathlib import Path
 
-    expected = LAZY_DEPS["provider.anthropic"][0]
-    assert install_command_for("anthropic") == f"pip install {expected}"
+    from pm.extras import install_hint
+
+    assert install_command_for("anthropic") == install_hint("anthropic")
+    pyproject = tomllib.loads((Path(__file__).resolve().parents[2] / "pyproject.toml").read_text(encoding="utf-8"))
+    assert any(spec.startswith("anthropic==") for spec in pyproject["project"]["optional-dependencies"]["anthropic"])
 
 
 def test_integrity_issues_ride_the_same_health_surface(monkeypatch):

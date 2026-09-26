@@ -5,7 +5,7 @@ backend-spawn arm that refuses ANY argv that would start a hermes backend,
 container-shaped included, with its own message. Upstream's
 ``test_gateway_start_inside_a_container_exec_is_not_blocked`` and
 ``test_gateway_start_on_the_host_is_still_blocked`` (which matches the older
-message) are strict xfail rows in ``tests/_downstream/id_markers.py``; these
+message) are strict xfail rows in ``tests/_downstream/id_markers/``; these
 are their fork halves.
 """
 

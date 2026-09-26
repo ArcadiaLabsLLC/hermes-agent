@@ -7,31 +7,26 @@ import math
 from datetime import datetime, timezone
 from typing import Optional
 
+from agent_runtime.clock import iso_timestamp
+
 from .detect import USAGE_SCHEMA, _usage_provider_label
 
 __layer__ = "policy"
 __all__ = [
     "_USAGE_LANE_SUPPRESSING_STAGES",
     "_empty_usage_envelope",
-    "_parse_usage_iso",
     "_serialize_usage_lane",
     "_serialize_usage_window",
     "_stamp_usage_degraded",
     "_unavailable_usage_lane",
-    "_usage_iso",
     "_usage_lanes_suppressed",
 ]
 
-
-def _usage_iso(dt) -> Optional[str]:
-    """Serialize a datetime as ISO-8601 UTC, or None. Fail-open → None."""
-    if dt is None:
-        return None
-    try:
-        aware = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-        return aware.astimezone(timezone.utc).isoformat()
-    except Exception:
-        return None
+# ``reset_at`` / ``fetched_at`` are written by the fork's one wall-clock
+# normalizer, ``agent_runtime.clock.iso_timestamp`` (naive read as UTC,
+# ``Z``-suffixed); the human render reads them back with ``clock.parse_iso``.
+# The launcher parses both with ``DateTime.tryParse``, which accepts ``Z``
+# (owner ruling 2026-09-25).
 
 
 def _serialize_usage_window(window) -> Optional[dict]:
@@ -61,7 +56,7 @@ def _serialize_usage_window(window) -> Optional[dict]:
         "label": window.label,
         # Raw float, not clamped — the console decides how to present overage.
         "used_percent": used,
-        "reset_at": _usage_iso(window.reset_at),
+        "reset_at": iso_timestamp(window.reset_at),
         "detail": window.detail,
     }
 
@@ -100,7 +95,7 @@ def _serialize_usage_lane(provider_id: str, snapshot, *, active: bool) -> dict:
         "available": bool(snapshot.available),
         "plan": snapshot.plan,
         "source": snapshot.source,
-        "fetched_at": _usage_iso(snapshot.fetched_at),
+        "fetched_at": iso_timestamp(snapshot.fetched_at),
         # A window whose percent is non-finite serializes to None and is dropped
         # here — an empty windows list on an otherwise-available lane is honest.
         "windows": [
@@ -168,15 +163,6 @@ def _usage_lanes_suppressed(payload: dict) -> Optional[str]:
         if found:
             return str(found)
     return None
-
-
-def _parse_usage_iso(value) -> Optional[datetime]:
-    if not value:
-        return None
-    try:
-        return datetime.fromisoformat(str(value))
-    except ValueError:
-        return None
 
 
 def _empty_usage_envelope(degraded: Optional[tuple[str, BaseException]] = None) -> dict:

@@ -2,36 +2,6 @@
  "functions": [
   {
    "depth": 2,
-   "lines": 151,
-   "unit": "agent/charsheet/draft.py|CharacterDraft.compose"
-  },
-  {
-   "depth": 3,
-   "lines": 504,
-   "unit": "agent/charsheet/pipeline.py|detect_mirrored_art"
-  },
-  {
-   "depth": 1,
-   "lines": 202,
-   "unit": "agent/charsheet/pipeline.py|mirrored_art_error"
-  },
-  {
-   "depth": 3,
-   "lines": 265,
-   "unit": "agent/charsheet/pipeline.py|validate_sheet"
-  },
-  {
-   "depth": 5,
-   "lines": 691,
-   "unit": "agent_runtime/agent_create.py|perform_agent_create"
-  },
-  {
-   "depth": 3,
-   "lines": 168,
-   "unit": "agent_runtime/agent_create.py|run_skills_phase"
-  },
-  {
-   "depth": 2,
    "lines": 152,
    "unit": "agent_runtime/call_authorization.py|authorize_call"
   },
@@ -56,59 +26,9 @@
    "unit": "agent_runtime/discussions/service.py|DiscussionService.bindings"
   },
   {
-   "depth": 3,
-   "lines": 258,
-   "unit": "agent_runtime/dispatch_delivery.py|drain_background_completions"
-  },
-  {
-   "depth": 2,
-   "lines": 155,
-   "unit": "agent_runtime/dispatch_store.py|record_completion"
-  },
-  {
    "depth": 5,
    "lines": 42,
    "unit": "agent_runtime/events.py|_archived_event_slices"
-  },
-  {
-   "depth": 3,
-   "lines": 172,
-   "unit": "agent_runtime/gateway_peers.py|dial_peer"
-  },
-  {
-   "depth": 2,
-   "lines": 255,
-   "unit": "agent_runtime/harness_doctor.py|_placement_census_report"
-  },
-  {
-   "depth": 2,
-   "lines": 161,
-   "unit": "agent_runtime/harness_doctor.py|run_harness_doctor"
-  },
-  {
-   "depth": 1,
-   "lines": 198,
-   "unit": "agent_runtime/mcp_admission.py|admit_mcp_servers"
-  },
-  {
-   "depth": 2,
-   "lines": 157,
-   "unit": "agent_runtime/mcp_admission.py|resolve_mcp_admission"
-  },
-  {
-   "depth": 5,
-   "lines": 45,
-   "unit": "agent_runtime/mission_chat_turns.py|_gc_session_files"
-  },
-  {
-   "depth": 1,
-   "lines": 203,
-   "unit": "agent_runtime/operator_channels.py|_OperatorChannelBuilder.build"
-  },
-  {
-   "depth": 2,
-   "lines": 170,
-   "unit": "agent_runtime/operator_channels.py|_conversation_history_message"
   },
   {
    "depth": 1,
@@ -117,23 +37,8 @@
   },
   {
    "depth": 4,
-   "lines": 232,
-   "unit": "agent_runtime/persona_chat_continuity.py|PersonaChatMintReceiptStore.mint"
-  },
-  {
-   "depth": 5,
-   "lines": 73,
-   "unit": "agent_runtime/persona_chat_continuity.py|persona_chat_root_lease"
-  },
-  {
-   "depth": 4,
    "lines": 265,
    "unit": "agent_runtime/persona_instance_identity.py|reconcile_persona_instances"
-  },
-  {
-   "depth": 3,
-   "lines": 273,
-   "unit": "agent_runtime/persona_instance_sync.py|apply_persona_instance_pull"
   },
   {
    "depth": 1,
@@ -177,21 +82,6 @@
   },
   {
    "depth": 5,
-   "lines": 233,
-   "unit": "agent_runtime/running_work.py|_collect_delegations"
-  },
-  {
-   "depth": 2,
-   "lines": 196,
-   "unit": "agent_runtime/running_work.py|_collect_dispatches"
-  },
-  {
-   "depth": 5,
-   "lines": 185,
-   "unit": "agent_runtime/running_work.py|_collect_terminal"
-  },
-  {
-   "depth": 5,
    "lines": 122,
    "unit": "agent_runtime/serve_gateway_auth.py|redeem_pairing_code"
   },
@@ -204,21 +94,6 @@
    "depth": 2,
    "lines": 173,
    "unit": "agent_runtime/skill_promotion.py|execute_promotion"
-  },
-  {
-   "depth": 6,
-   "lines": 425,
-   "unit": "agent_runtime/stream.py|stream_frames"
-  },
-  {
-   "depth": 2,
-   "lines": 266,
-   "unit": "hermes_cli/harness_parts/gateway_commands.py|cmd_gateway_introduce"
-  },
-  {
-   "depth": 3,
-   "lines": 443,
-   "unit": "hermes_cli/harness_parts/gateway_commands.py|cmd_gateway_peers_join"
   },
   {
    "depth": 2,
@@ -291,11 +166,6 @@
    "unit": "mobile_core/src/hermes_mobile_core/turn_runner.py|TurnRunner._attempt_responses"
   },
   {
-   "depth": 4,
-   "lines": 173,
-   "unit": "scripts/changed_line_mutation_check.py|run"
-  },
-  {
    "depth": 5,
    "lines": 84,
    "unit": "scripts/doc_cite_report.py|run"
@@ -309,21 +179,6 @@
    "depth": 3,
    "lines": 152,
    "unit": "scripts/run_tests_bundled.py|run"
-  },
-  {
-   "depth": 5,
-   "lines": 78,
-   "unit": "tests/_downstream/hermes_cli_conftest.py|_sys_modules_identity_is_restored"
-  },
-  {
-   "depth": 5,
-   "lines": 258,
-   "unit": "tools/agent_chat_dispatch.py|_run_remote_dispatch"
-  },
-  {
-   "depth": 3,
-   "lines": 422,
-   "unit": "tools/agent_chat_tool.py|agent_chat_send"
   }
  ],
  "max_depth": 4,

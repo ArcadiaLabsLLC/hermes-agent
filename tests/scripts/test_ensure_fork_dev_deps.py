@@ -10,8 +10,8 @@ from importlib.metadata import version
 from scripts.ensure_fork_dev_deps import REQUIREMENTS, main, pins, unmet
 
 
-def test_the_committed_file_names_the_two_fork_tools():
-    assert set(pins(REQUIREMENTS.read_text(encoding="utf-8"))) == {"coverage", "pytest-timeout"}
+def test_the_committed_file_names_the_fork_tools_and_the_acp_extra():
+    assert set(pins(REQUIREMENTS.read_text(encoding="utf-8"))) == {"coverage", "pytest-timeout", "agent-client-protocol"}
 
 
 def test_unmet_reports_missing_and_mismatched_pins_and_nothing_else():

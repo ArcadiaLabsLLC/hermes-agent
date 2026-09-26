@@ -2063,3 +2063,29 @@ def test_the_conversation_cap_reports_its_drop_to_the_accountant():
     )
     assert count == marker["refs"]["collapsed_count"]
     assert accountant.truncated is True
+
+
+def test_a_progress_row_renders_its_trace_status_as_handoff_final_or_update():
+    """Positive control for the trace-status table (god-file program ruling Q6).
+
+    Every other case here reaches ``handoff`` and ``agent_update``; none reached
+    ``final``, so a table that lost or swapped its FINAL row stayed green. One
+    progress row per status class, and the kind (and its title) each renders as.
+    """
+
+    from agent_runtime.operator_channels import _conversation_trace_message
+
+    def kind_of(status: str) -> tuple[str, str]:
+        message = _conversation_trace_message(
+            {"event": "progress", "status": status, "summary": f"step is {status}", "ts": "2026-09-25T00:00:00Z"},
+            channel_id="c",
+            index=0,
+            persona_id="dev",
+            persona_instance_id="personainst_dev",
+        )
+        return message["kind"], message["display_title"]
+
+    assert kind_of("completed") == ("final", "Final update")
+    assert kind_of("approved") == ("final", "Final update")
+    assert kind_of("ready_for_qa") == ("handoff", "Handoff")
+    assert kind_of("running") == ("agent_update", "Agent update")

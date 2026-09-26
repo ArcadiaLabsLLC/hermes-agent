@@ -12,6 +12,8 @@ import json
 from .models import Board, BoardCard, BoardColumn
 from .serde import to_jsonable
 
+__layer__ = "policy"
+
 # Fixed default-board column ids + deterministic content. Two machines lazily
 # creating the same default board must land on byte-identical semantic content
 # (see ``board_content_hash``) so the first realm sync converges instead of

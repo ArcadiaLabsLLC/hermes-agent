@@ -118,8 +118,9 @@ def _validated_set_model_request(args) -> dict:
         from providers import get_provider_profile, list_providers
 
         profile = get_provider_profile(provider_raw)
-        from agent_runtime.local_llama_adapter import PROVIDER_ID as LOCAL_LLAMA_PROVIDER_ID
-        if provider_raw == LOCAL_LLAMA_PROVIDER_ID:
+        from agent_runtime.local_llama_adapter import is_local_llama_provider
+        if is_local_llama_provider(provider_raw):
+            # Either id stores the launcher's ``local-llama-hermes`` (the profile's name).
             from agent_runtime.local_llama_adapter.provider import provider_profile
             profile = provider_profile()
         if profile is None:

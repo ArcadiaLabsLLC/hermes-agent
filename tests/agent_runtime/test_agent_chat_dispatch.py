@@ -20,7 +20,8 @@ from hermes_cli.harness_parts.persona import chat_turn_message
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
-from agent_runtime import dispatch_delivery
+from tests._downstream.split_package_source import patch_where_bound
+from agent_runtime import dispatch_delivery, subprocess_pumps
 from agent_runtime.dispatch_store import (
     DELIVERY_PENDING,
     STATE_ERROR,
@@ -69,9 +70,7 @@ def deliverable_lane(monkeypatch):
     # while the mechanism it is about went unexercised.
     token = _SESSION_ASYNC_DELIVERY.set(_SESSION_ASYNC_DELIVERY.get())
     declare_async_delivery_channel()
-    monkeypatch.setattr(
-        dispatch_delivery,
-        "_sender_persona",
+    patch_where_bound(monkeypatch, dispatch_delivery, "_sender_persona",
         lambda root: ("neko_supervisor", "personainst_neko") if root == SENDER_ROOT else None,
     )
     yield
@@ -190,8 +189,7 @@ def test_a_cold_cli_lane_refuses_instead_of_orphaning_the_work(store_home, monke
 
     token = _SESSION_ASYNC_DELIVERY.set(_SESSION_ASYNC_DELIVERY.get())
     declare_stateless_channel()
-    monkeypatch.setattr(
-        dispatch_delivery, "_sender_persona", lambda root: ("neko_supervisor", "personainst_neko")
+    patch_where_bound(monkeypatch, dispatch_delivery, "_sender_persona", lambda root: ("neko_supervisor", "personainst_neko")
     )
     try:
         result = _send()
@@ -219,7 +217,7 @@ def test_a_sender_root_the_drain_cannot_resolve_is_refused_before_running(
     from agent_runtime.delivery_capability import declare_async_delivery_channel
 
     declare_async_delivery_channel()
-    monkeypatch.setattr(dispatch_delivery, "_sender_persona", lambda root: None)
+    patch_where_bound(monkeypatch, dispatch_delivery, "_sender_persona", lambda root: None)
 
     result = _send()
 
@@ -500,8 +498,8 @@ def _spec(**overrides):
 def test_a_child_that_replies_is_recorded_as_completed(store_home, monkeypatch):
     dispatch_id = _armed_dispatch()
     proc = _FakeProc(stdout=json.dumps({"ok": True, "reply": "3 failures", "session_id": "s-dev"}))
-    monkeypatch.setattr(agent_chat_dispatch.subprocess, "Popen", lambda *a, **k: proc)
-    monkeypatch.setattr(agent_chat_dispatch, "_child_identity", lambda pid: 777)
+    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local, "_child_identity", lambda pid: 777)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
@@ -519,7 +517,7 @@ def test_a_child_that_replies_is_recorded_as_completed(store_home, monkeypatch):
 def test_a_child_that_prints_nothing_is_unknown_not_a_silent_success(store_home, monkeypatch):
     dispatch_id = _armed_dispatch()
     proc = _FakeProc(stdout="", stderr="Traceback: boom\n", returncode=1)
-    monkeypatch.setattr(agent_chat_dispatch.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
@@ -533,10 +531,10 @@ def test_a_child_that_overruns_its_budget_is_killed_and_recorded(store_home, mon
     dispatch_id = _armed_dispatch()
     proc = _FakeProc(hang=True)
     killed = []
-    monkeypatch.setattr(agent_chat_dispatch.subprocess, "Popen", lambda *a, **k: proc)
-    monkeypatch.setattr(agent_chat_dispatch, "_child_identity", lambda pid: 777)
+    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local, "_child_identity", lambda pid: 777)
     monkeypatch.setattr(
-        agent_chat_dispatch, "_kill_child", lambda pid, started: killed.append((pid, started))
+        agent_chat_dispatch.local, "_kill_child", lambda pid, started: killed.append((pid, started))
     )
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec(max_seconds=0.01))
@@ -556,7 +554,7 @@ def test_a_spawn_failure_settles_the_row(store_home, monkeypatch):
     def boom(*a, **k):
         raise OSError("no exec for you")
 
-    monkeypatch.setattr(agent_chat_dispatch.subprocess, "Popen", boom)
+    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", boom)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
@@ -580,7 +578,7 @@ def test_a_typed_chokepoint_refusal_still_reaches_the_sender(store_home, monkeyp
         ),
         returncode=2,
     )
-    monkeypatch.setattr(agent_chat_dispatch.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
@@ -635,7 +633,7 @@ def test_dispatches_lists_only_the_callers_own_work(
     store_home, deliverable_lane, queued, monkeypatch
 ):
     mine = _send()["dispatch_id"]
-    monkeypatch.setattr(dispatch_delivery, "_sender_persona", lambda root: ("qa", "personainst_qa"))
+    patch_where_bound(monkeypatch, dispatch_delivery, "_sender_persona", lambda root: ("qa", "personainst_qa"))
     _send(requested_by_session="persona_chat_personainst_qa_bbbbbbbbbbbb")
 
     listed = json.loads(agent_chat_dispatches(requested_by_session=SENDER_ROOT))
@@ -784,7 +782,7 @@ def test_an_over_cap_chatty_child_still_yields_its_payload(store_home, monkeypat
     stdout = noise * 3000 + payload  # ~600KB, well past the 512KB cap
     assert len(stdout) > agent_chat_dispatch._MAX_STREAM_CHARS
     proc = _FakeProc(stdout=stdout)
-    monkeypatch.setattr(agent_chat_dispatch.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
@@ -821,7 +819,7 @@ def test_trailing_json_after_the_payload_does_not_become_the_result(store_home, 
     )
     stdout = payload + '\n{"event":"mcp_shutdown","ok":false}\n'
     proc = _FakeProc(stdout=stdout)
-    monkeypatch.setattr(agent_chat_dispatch.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
@@ -855,7 +853,7 @@ def test_a_prespawn_failure_still_settles_the_row(store_home, monkeypatch):
 
     dispatch_id = _armed_dispatch()
     monkeypatch.setattr(
-        agent_chat_dispatch,
+        agent_chat_dispatch.local,
         "build_dispatch_argv",
         lambda spec, deadline_epoch: (_ for _ in ()).throw(KeyError("persona_id")),
     )
@@ -918,7 +916,7 @@ def test_the_supervisors_observed_outcome_beats_the_sweeps_guess(store_home, mon
             {"ok": True, "capability_id": "mission.chat.message", "reply": "3 failures"}
         )
     )
-    monkeypatch.setattr(agent_chat_dispatch.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
     row = get_dispatch(dispatch_id)
@@ -952,8 +950,8 @@ def test_a_child_that_answered_with_nothing_records_the_silence(store_home, monk
             }
         )
     )
-    monkeypatch.setattr(agent_chat_dispatch.subprocess, "Popen", lambda *a, **k: proc)
-    monkeypatch.setattr(agent_chat_dispatch, "_child_identity", lambda pid: 777)
+    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local, "_child_identity", lambda pid: 777)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
@@ -974,8 +972,8 @@ def test_a_child_from_an_older_runtime_still_gets_a_verdict(store_home, monkeypa
 
     dispatch_id = _armed_dispatch()
     proc = _FakeProc(stdout=json.dumps({"ok": True, "reply": "3 failures", "session_id": "s"}))
-    monkeypatch.setattr(agent_chat_dispatch.subprocess, "Popen", lambda *a, **k: proc)
-    monkeypatch.setattr(agent_chat_dispatch, "_child_identity", lambda pid: 777)
+    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local, "_child_identity", lambda pid: 777)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
@@ -992,8 +990,105 @@ def test_a_child_that_printed_no_payload_records_no_verdict(store_home, monkeypa
 
     dispatch_id = _armed_dispatch()
     proc = _FakeProc(stdout="", stderr="Traceback: boom\n", returncode=1)
-    monkeypatch.setattr(agent_chat_dispatch.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
     assert "visibility" not in get_dispatch(dispatch_id)["result"]
+
+
+class _QuickJoin:
+    """A pump thread whose joins are capped at 0.2 s, so the release's own
+    10 s/2 s joins cost a test a fraction of a second."""
+
+    def __init__(self, thread):
+        self.thread = thread
+        self.stop = thread.stop
+
+    def join(self, timeout=None):
+        self.thread.join(min(timeout or 0.2, 0.2))
+
+    def is_alive(self):
+        return self.thread.is_alive()
+
+
+def _piped_pumps():
+    out_r, out_w = os.pipe()
+    err_r, err_w = os.pipe()
+    proc = type("Proc", (), {})()
+    proc.stdout = os.fdopen(out_r, "r", encoding="utf-8")
+    proc.stderr = os.fdopen(err_r, "r", encoding="utf-8")
+    tail = agent_chat_dispatch._BoundedTail(1000)
+    threads = [
+        subprocess_pumps.drain(proc.stdout, tail),
+        subprocess_pumps.drain(proc.stderr, agent_chat_dispatch._BoundedTail(1000)),
+    ]
+    return proc, tail, threads, out_w, err_w
+
+
+def test_a_pump_hands_the_sink_whole_lines_across_split_writes():
+    """The sink contract: one append per line even when a line arrives in two
+    writes, CRLF folded to LF as the text-mode stream did, and an unterminated
+    tail flushed at EOF — the tail bound keeps a single chunk whole, so a
+    payload split across appends is a payload it can drop."""
+
+    import time
+
+    out_r, out_w = os.pipe()
+    stream = os.fdopen(out_r, "r", encoding="utf-8")
+    sink: list[str] = []
+    pump = subprocess_pumps.drain(stream, sink)
+    os.write(out_w, b'{"capability_')
+    time.sleep(0.2)
+    os.write(out_w, b'id": "x"}\r\nlast')
+    os.close(out_w)
+    subprocess_pumps.release_pumps(None, [_QuickJoin(pump)])
+    assert not pump.is_alive()
+    assert sink == ['{"capability_id": "x"}\n', "last"]
+
+
+def test_the_pumps_release_when_the_writers_close():
+    """Positive control for the pump pair (sheet agent_chat_dispatch.md §6.3),
+    the cooperative arm: every writer closes, both pumps end inside the join
+    bound, and nothing the child wrote is lost."""
+
+    import time
+
+    proc, tail, threads, out_w, err_w = _piped_pumps()
+    os.write(out_w, b'{"capability_id": "x"}\n')
+    os.close(out_w)
+    os.close(err_w)
+    started = time.monotonic()
+    subprocess_pumps.release_pumps(proc, [_QuickJoin(t) for t in threads])
+    assert time.monotonic() - started < 12
+    assert not any(t.is_alive() for t in threads)
+    assert tail.text() == '{"capability_id": "x"}\n'
+
+
+def test_the_pumps_are_forced_loose_when_a_survivor_holds_the_pipe():
+    """The forced arm: a grandchild still holds both write ends, so readline
+    never sees EOF; closing the parent's read handles must free both pumps."""
+
+    import time
+
+    import threading
+
+    proc, _tail, threads, out_w, err_w = _piped_pumps()
+    try:
+        # The release runs on its own daemon thread under a deadline, so a
+        # release that parks (the Windows close-under-a-blocked-reader hang)
+        # reds this case instead of wedging the run that holds it.
+        releaser = threading.Thread(
+            target=subprocess_pumps.release_pumps,
+            args=(proc, [_QuickJoin(t) for t in threads]),
+            daemon=True,
+        )
+        started = time.monotonic()
+        releaser.start()
+        releaser.join(15)
+        assert not releaser.is_alive(), "release_pumps parked on a pipe a survivor holds"
+        assert time.monotonic() - started < 12
+        assert not any(t.is_alive() for t in threads)
+    finally:
+        os.close(out_w)
+        os.close(err_w)

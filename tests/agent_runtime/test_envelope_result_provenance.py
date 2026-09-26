@@ -143,7 +143,7 @@ def test_a_config_granted_command_names_its_config_key_not_the_mode(monkeypatch,
     import agent_runtime.terminal_envelope as te
 
     monkeypatch.setattr(
-        te,
+        te.grants,
         "envelope_config",
         lambda cfg_arg=None: _cfg(dev={LANE_MISSION_CHAT: [GIT_PUSH]}).terminal_envelope,
     )
@@ -193,7 +193,7 @@ def test_a_refusal_is_unchanged_and_carries_no_grant_account(monkeypatch, tmp_pa
 
     import agent_runtime.terminal_envelope as te
 
-    monkeypatch.setattr(te, "envelope_config", lambda cfg_arg=None: _cfg().terminal_envelope)
+    monkeypatch.setattr(te.grants, "envelope_config", lambda cfg_arg=None: _cfg().terminal_envelope)
     payload = _run(
         "git push origin main",
         scope=_scope(runtime_root=tmp_path, permission_mode=""),

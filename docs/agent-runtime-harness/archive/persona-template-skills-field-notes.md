@@ -43,7 +43,7 @@ S1a, `serve_gateway_auth.py` — no overlap with this lane).
   claimed.
 - Inheritance arm actually lives in `agent_runtime/models.py:424-461`
   (`apply_instance_model_overrides`), not `agent_create.py` as dispatched;
-  `agent_create.py:1024` holds `_inherited_skills_ack` and `:1223` the
+  `agent_create/phases.py:190` holds `_inherited_skills_ack` and `:1223` the
   create-time split.
 - `agent_runtime/persona_config_sync.py` — `skills` is in
   `PERSONA_DEF_ALLOWED_KEYS`; `model_override_issued_at` is deliberately
@@ -219,7 +219,7 @@ write landed anyway.
 is RED and it is not this lane's. It names 14 unhonored registrations, every one
 of them `_cmd_gateway_pair` / `_cmd_gateway_devices_list` /
 `_cmd_gateway_devices_revoke`: the gateway session's S1e commit `28ec9e3180` put
-those verbs' readers in `hermes_cli/harness_parts/gateway_commands.py`, which is
+those verbs' readers in `hermes_cli/harness_parts/gateway_commands/`, which is
 not in that test's `_stage42_lane_sources()` tuple (and is still untracked on
 the primary). Proven pre-existing by running that one test in the clean HEAD
 worktree `X:/Eternia/.gwc` (`git status` empty, same sha `28ec9e3180`) — same

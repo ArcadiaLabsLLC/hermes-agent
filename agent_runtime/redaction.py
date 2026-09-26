@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import re
+from functools import singledispatch
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+
+__layer__ = "models"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -104,7 +107,8 @@ TEXT_SECRET_ASSIGNMENT_RE = re.compile(
 #: Two groups: (1) key, (2) value. Used where the redacted text must stay
 #: readable around the removed value — prompt capture and repo-context
 #: excerpts that are fed back to an agent. Consumers: ``profile_runner``,
-#: ``prompt_observability``, ``repo_context``.
+#: ``prompt_observability``, and the test seam's repo-context excerpts
+#: (``tests/_downstream/_seams.py``).
 TEXT_SECRET_VALUE_ASSIGNMENT_RE = re.compile(
     r"(?i)(" + TEXT_SECRET_KEYS + r")" + SECRET_KEY_SEPARATOR + r"([^\s,;]+)"
 )
@@ -155,3 +159,65 @@ def safe_file_labels(value: Any) -> list[str]:
             continue
         labels.append(label)
     return labels
+
+
+#: The in-band marker a masked line is replaced by. One spelling for the read
+#: projection (``persona_chat_history``) and the live mirror (``chat_live_log``).
+REDACTED_SECRET_LINE = "[redacted line — contained a secret]"
+
+
+def mask_secret_lines(text: str) -> str:
+    """``text`` with every line that carries a secret assignment
+    (:data:`TEXT_SECRET_ASSIGNMENT_RE`) replaced by :data:`REDACTED_SECRET_LINE`.
+
+    The ONE per-line masker: the whole line goes, never a surgical cut, so a
+    value the pattern half-matched cannot survive beside the key. Split and
+    joined on ``\n`` only; callers normalize line endings, strip and bound.
+    """
+
+    return "\n".join(
+        REDACTED_SECRET_LINE if TEXT_SECRET_ASSIGNMENT_RE.search(line) else line
+        for line in text.split("\n")
+    )
+
+
+def scrub_tree(
+    value: Any,
+    *,
+    scrub: Callable[[str], str],
+    list_cap: int,
+    leaf: Callable[[Any], Any] = lambda item: item,
+) -> Any:
+    """A JSON-shaped tree with every string passed through ``scrub``.
+
+    The ONE walk (program §3 / sheet ``stream.md``): a mapping keeps its keys
+    (as ``str``) and walks its values, a list or tuple becomes a list of at most
+    ``list_cap`` walked items, a string is scrubbed, anything else goes through
+    ``leaf``. The scrubber is the caller's — the patterns are single-homed here,
+    but which one applies is the reader's question. Dispatch is the standard
+    library's type table (``functools.singledispatch``), so a subclass takes its
+    base's arm exactly as the ``isinstance`` ladder it replaces did.
+    """
+
+    return _scrub(value, scrub, list_cap, leaf)
+
+
+@singledispatch
+def _scrub(value: Any, scrub: Callable[[str], str], list_cap: int, leaf: Callable[[Any], Any]) -> Any:
+    return leaf(value)
+
+
+@_scrub.register(dict)
+def _scrub_mapping(value: dict, scrub: Callable[[str], str], list_cap: int, leaf: Callable[[Any], Any]) -> Any:
+    return {str(key): _scrub(item, scrub, list_cap, leaf) for key, item in value.items()}
+
+
+@_scrub.register(list)
+@_scrub.register(tuple)
+def _scrub_sequence(value: Any, scrub: Callable[[str], str], list_cap: int, leaf: Callable[[Any], Any]) -> Any:
+    return [_scrub(item, scrub, list_cap, leaf) for item in value[:list_cap]]
+
+
+@_scrub.register(str)
+def _scrub_text(value: str, scrub: Callable[[str], str], list_cap: int, leaf: Callable[[Any], Any]) -> Any:
+    return scrub(value)

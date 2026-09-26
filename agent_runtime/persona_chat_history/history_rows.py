@@ -24,6 +24,7 @@ from .vocabulary import (
     CHAT_REDACTION_UNKNOWN,
     DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
     _CHAT_MODEL_OVERRIDE_CONFIG_KEY,
+    canonical_chat_persona_id,
 )
 
 __layer__ = "stores"
@@ -37,7 +38,6 @@ __all__ = [
     "_persisted_persona_instance_id",
     "_persona_chat_candidate_sort_key",
     "_infer_persona_id",
-    "_canonical_persona_id",
 ]
 
 
@@ -140,7 +140,7 @@ def _history_row(
     message_tail: int = DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
     kind: str = "chat",
 ) -> dict[str, Any]:
-    persona_id = _canonical_persona_id(getattr(instance, "persona_id", None)) or "unknown"
+    persona_id = canonical_chat_persona_id(getattr(instance, "persona_id", None)) or "unknown"
     raw_title = safe_assignment_text(raw.get("title"), limit=120)
     title_fallback = "Untitled persona chat" if raw_title else _fallback_title(raw, persona_id=persona_id)
     title, title_status = _safe_display_text(raw.get("title"), fallback=title_fallback, limit=120)
@@ -433,7 +433,7 @@ def _infer_persona_id(raw: dict[str, Any], *, session_id: str) -> str | None:
     system_prompt = safe_assignment_text(raw.get("system_prompt"), limit=240)
     marker = "Mission Control persona chat for "
     if marker in system_prompt:
-        return _canonical_persona_id(system_prompt.split(marker, 1)[1])
+        return canonical_chat_persona_id(system_prompt.split(marker, 1)[1])
     prefix = "persona_chat_personainst_"
     if session_id.startswith(prefix):
         return _persona_token_from_chat_session_tail(session_id[len(prefix) :])
@@ -453,20 +453,7 @@ def _persona_token_from_chat_session_tail(value: str) -> str | None:
     parts = token.rsplit("_", 1)
     if len(parts) == 2 and len(parts[1]) == 12 and all(ch in "0123456789abcdef" for ch in parts[1].lower()):
         token = parts[0]
-    return _canonical_persona_id(token)
-
-
-def _canonical_persona_id(value: Any) -> str | None:
-    raw = safe_assignment_text(value, limit=160)
-    if not raw:
-        return None
-    if raw.lower().startswith("profile:"):
-        profile = safe_assignment_token(raw.split(":", 1)[1])
-        return f"profile:{profile}" if profile else None
-    token = safe_assignment_token(raw)
-    if token.startswith("profile_") and len(token) > len("profile_"):
-        return f"profile:{token[len('profile_'):]}"
-    return token or None
+    return canonical_chat_persona_id(token)
 
 
 def _fallback_title(raw: dict[str, Any], *, persona_id: str) -> str:

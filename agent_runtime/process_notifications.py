@@ -8,6 +8,9 @@ from __future__ import annotations
 import logging
 import os
 import threading
+
+__layer__ = "wiring"
+
 logger = logging.getLogger("tools.process_registry")
 MISSION_CHAT_WAIT_MAX_SECONDS = 600
 

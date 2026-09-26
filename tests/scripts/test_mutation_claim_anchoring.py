@@ -26,6 +26,7 @@ from pathlib import Path
 import pytest
 
 from scripts import changed_line_mutation_check as gate
+from scripts.mutation_check import selection
 
 
 TWO_HOLDERS = '''\
@@ -86,7 +87,7 @@ def touched(monkeypatch):
         def _changed_lines(base: str, relative_path: str) -> set[int]:
             return set(mapping.get(Path(relative_path), set()))
 
-        monkeypatch.setattr(gate, "_changed_lines", _changed_lines)
+        monkeypatch.setattr(selection, "_changed_lines", _changed_lines)
 
     return _install
 
@@ -481,3 +482,43 @@ def test_a_re_anchored_claim_says_so_after_the_candidate_line(tmp_path, touched,
     assert code == 0
     assert lines[0].startswith("mutation candidates: 0 ")
     assert any(row.startswith("RE-ANCHORED: dedented") and "-8 columns" in row for row in lines)
+
+
+BINDINGS = '''\
+LIMIT: int = 3
+
+
+class Holder:
+    LIMIT = 4
+
+    def method(self):
+        return self.LIMIT
+'''
+
+
+def test_an_annotated_module_constant_is_anchorable_by_its_own_name(tmp_path):
+    """POSITIVE CONTROL for the definition walk's ``AnnAssign`` arm (lane B5).
+
+    ``LIMIT: int = 3`` has no def line; the only thing that makes ``LIMIT`` a
+    symbol is the walk recording an annotated binding. No other case in this
+    directory anchors on one, so a walk that confused the ``Assign`` and
+    ``AnnAssign`` arms stayed green until this test existed.
+    """
+
+    target = tmp_path / "bindings.py"
+    target.write_text(BINDINGS, encoding="utf-8")
+    claim = _claim("annotated", target, "LIMIT", "LIMIT: int = 3", "LIMIT: int = 30", [])
+
+    assert gate._anchor_claim(BINDINGS, claim).lines == {1}
+
+
+def test_a_class_level_binding_is_anchorable_by_its_qualified_name(tmp_path):
+    """POSITIVE CONTROL for the ``Assign`` arm INSIDE a class: ``Holder.LIMIT``
+    resolves to line 5 and not to the module's annotated ``LIMIT`` on line 1,
+    so the qualified name is doing the work."""
+
+    target = tmp_path / "bindings.py"
+    target.write_text(BINDINGS, encoding="utf-8")
+    claim = _claim("class-level", target, "Holder.LIMIT", "    LIMIT = 4", "    LIMIT = 40", [])
+
+    assert gate._anchor_claim(BINDINGS, claim).lines == {5}

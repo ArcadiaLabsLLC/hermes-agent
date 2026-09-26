@@ -19,20 +19,18 @@ from __future__ import annotations
 
 import re
 
-# --- Upstream reuse (the one intentional drift surface) ---------------------
+# --- Upstream reuse -----------------------------------------------------------
 # House policy: import upstream pieces, never copy them. `style_hint` is public
-# API of the pet prompt module; `_BACKGROUND`, `_spacing_spec`, and
-# `_ASSUMED_STRIP_WIDTH` are private to it and imported here on purpose — the
-# chroma-key wording and the proportional-containment spacing math were tuned
-# against a real provider, and a copy of them here would drift silently as
-# upstream retunes. Centralized in this ONE block so an upstream rename breaks
-# loudly, at import time, in a single place (plan §A-6).
-from agent.pet.generate.prompts import (
-    _ASSUMED_STRIP_WIDTH,
-    _BACKGROUND,
-    _spacing_spec,
-    style_hint,
+# API of the pet prompt module; its private `_BACKGROUND`, `_spacing_spec` and
+# `_ASSUMED_STRIP_WIDTH` — the chroma-key wording and the proportional-containment
+# spacing math, tuned against a real provider — are read through the package's
+# ONE drift surface, `agent/charsheet/_upstream_doors.py` (ruling Q5, lane W3-B).
+from agent.charsheet._upstream_doors import (
+    prompt_assumed_strip_width,
+    prompt_background,
+    prompt_spacing_spec,
 )
+from agent.pet.generate.prompts import style_hint
 
 # The frame floor this module ENFORCES, taken from the module that DECLARES it.
 # It used to be the literal 2 spelled here while `spec.parse_states` accepted 1,
@@ -40,6 +38,8 @@ from agent.pet.generate.prompts import (
 # declaration and die at generation. `spec` is pure stdlib and imports nothing
 # from this package, so reading it here cannot cycle.
 from agent.charsheet.spec import MIN_FRAMES_PER_ROW
+
+__layer__ = "models"
 
 # Camera-view phrasing per compass direction, walking the compass RING. The ring
 # order is load-bearing: `pipeline.turnaround_order` ranks each direction by its
@@ -251,7 +251,7 @@ def _strip_layout_spec(slot_count: int, *, unit: str) -> str:
     :func:`_spacing_spec` so charsheet strips slice with the same extractor
     tolerances the pet strips were tuned for.
     """
-    pose_px, gap_px = _spacing_spec(slot_count)
+    pose_px, gap_px = prompt_spacing_spec(slot_count)
     return (
         f"LAYOUT: arrange the {slot_count} {unit} in ONE horizontal row at equal "
         "spacing, left to right, each pose centered in its own imaginary equal "
@@ -259,7 +259,7 @@ def _strip_layout_spec(slot_count: int, *, unit: str) -> str:
         "divider/gutter lines, NO grid, NO frame outlines between poses — the "
         "backdrop is one unbroken flat field behind all of them. "
         f"SPACING (critical): draw each pose at a consistent, healthy, clearly "
-        f"visible size (roughly {pose_px}px wide on a {_ASSUMED_STRIP_WIDTH}px "
+        f"visible size (roughly {pose_px}px wide on a {prompt_assumed_strip_width()}px "
         "strip) — do NOT shrink it tiny — but keep its ENTIRE silhouette (cape, "
         "tail, hair, weapon, every appendage) fully INSIDE its own cell. Leave at "
         f"least {gap_px}px of empty chroma-key background between neighboring "
@@ -310,7 +310,7 @@ def build_turnaround_prompt(
         "toward the viewer to show more face. "
         f"{_strip_layout_spec(slot_count, unit='poses')}"
         f"{_REGISTRATION}"
-        f"{_SAME_BG_AS_REF}{_BACKGROUND}{style_hint(style)}"
+        f"{_SAME_BG_AS_REF}{prompt_background()}{style_hint(style)}"
     )
 
 
@@ -338,7 +338,7 @@ def build_direction_view_prompt(
         "an invisible conceptual baseline (draw NO ground line, platform, horizon, "
         "or contact shadow). Draw ONLY this one pose in this one view — no strip, "
         "no turnaround, no second pose, no inset or corner views, no panels. "
-        f"{_SAME_BG_AS_REF}{_BACKGROUND}{style_hint(style)}{_operator_note(note)}"
+        f"{_SAME_BG_AS_REF}{prompt_background()}{style_hint(style)}{_operator_note(note)}"
     )
 
 
@@ -377,5 +377,5 @@ def build_directional_row_prompt(
         "animation progresses. Only the action moves; the facing is frozen. "
         f"{_strip_layout_spec(frames, unit='frames')}"
         f"{_REGISTRATION}{_FRAME_HOLD}"
-        f"{_SAME_BG_AS_REF}{_BACKGROUND}{style_hint(style)}{_operator_note(note)}"
+        f"{_SAME_BG_AS_REF}{prompt_background()}{style_hint(style)}{_operator_note(note)}"
     )

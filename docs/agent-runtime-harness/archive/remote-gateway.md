@@ -534,7 +534,7 @@ integer moved.
 
 | sha | what |
 |---|---|
-| `dd8a8ad716` | `agent_runtime/gateway_peers.py` (the peer store) + `gateway_pairing_codes.py` (the code discipline both ceremonies share) + four more helpers hoisted into `store_file_io`. |
+| `dd8a8ad716` | `agent_runtime/gateway_peers/` (the peer store) + `gateway_pairing_codes.py` (the code discipline both ceremonies share) + four more helpers hoisted into `store_file_io`. |
 | `77768eea27` | 37 store tests. |
 | `6775911bbc` | `RpcCaller` grows a `peer` kind; `PEER_METHOD_ALLOWLIST`; `peer.ping`; five manifest-literal pins in the same commit. 18 + 122 passed. |
 | `db6bbdc899` | The peer hello on the gateway listener, `_credential_kind`, two client hellos, `_is_device` → `_is_gateway`. 49 passed across both lane suites. |
@@ -780,7 +780,7 @@ ride them, don't re-derive:
   Stage 0's critical path.
 - **Stage 3's dedupe hook has a shipped precedent.** `runtime.agent.create` carries
   `idempotency_key` reservations replaying the ack as `idempotent_replay: true`
-  (`agent_create.py:522`, `agent_create_reservations.py:248`); `already_retired: true`
+  (`agent_create/request.py:417`, `agent_create_reservations.py:248`); `already_retired: true`
   is the retire analogue. Copy this to mission-chat send.
   **ANSWERED 2026-08-27, and the premise underneath it was false.** Mission-chat
   send did NOT need this hook: `client_message_id` plus the per-session turn

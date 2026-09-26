@@ -156,7 +156,7 @@ class TestLoadMCPConfig:
         self, tmp_path, monkeypatch
     ):
         import json
-        import yaml
+        import hermes_yaml as yaml
         from hermes_cli.agent_plugins import MCP_SCHEMA_V1, PLUGIN_SCHEMA_V1
         from hermes_cli import plugins as plugins_mod
 
@@ -1558,9 +1558,9 @@ class TestBuildSafeEnv:
 
         fake_env = {
             "PATH": r"C:\Windows\System32",
-            "ProgramFiles": r"C:\Program Files",
-            "ProgramData": r"C:\ProgramData",
-            "ProgramW6432": r"C:\Program Files",
+            "PROGRAMFILES": r"C:\Program Files",
+            "PROGRAMDATA": r"C:\ProgramData",
+            "PROGRAMW6432": r"C:\Program Files",
             "LOCALAPPDATA": r"C:\Users\alice\AppData\Local",
             "APPDATA": r"C:\Users\alice\AppData\Roaming",
             "USERPROFILE": r"C:\Users\alice",
@@ -1570,23 +1570,14 @@ class TestBuildSafeEnv:
         with patch.dict("os.environ", fake_env, clear=True):
             result = _build_safe_env(None)
 
-        # Environment variable NAMES are case-insensitive on Windows, and
-        # ``os.environ`` upper-cases every key it stores there — so the same
-        # ``ProgramFiles`` this test writes comes back out of ``_build_safe_env``
-        # spelled ``PROGRAMFILES``. That is the platform being itself, not the
-        # allowlist failing (``_build_safe_env`` matches on ``key.upper()``
-        # precisely for this reason). Pin the guarantee — the variable is passed
-        # through with its value, the secrets are not — instead of the casing.
-        passed = {k.upper(): v for k, v in result.items()}
-
-        assert passed["PROGRAMFILES"] == r"C:\Program Files"
-        assert passed["PROGRAMDATA"] == r"C:\ProgramData"
-        assert passed["PROGRAMW6432"] == r"C:\Program Files"
-        assert passed["LOCALAPPDATA"].endswith("Local")
-        assert passed["APPDATA"].endswith("Roaming")
-        assert passed["USERPROFILE"] == r"C:\Users\alice"
-        assert "GITHUB_TOKEN" not in passed
-        assert "OPENAI_API_KEY" not in passed
+        assert result["PROGRAMFILES"] == r"C:\Program Files"
+        assert result["PROGRAMDATA"] == r"C:\ProgramData"
+        assert result["PROGRAMW6432"] == r"C:\Program Files"
+        assert result["LOCALAPPDATA"].endswith("Local")
+        assert result["APPDATA"].endswith("Roaming")
+        assert result["USERPROFILE"] == r"C:\Users\alice"
+        assert "GITHUB_TOKEN" not in result
+        assert "OPENAI_API_KEY" not in result
 
 
 # ---------------------------------------------------------------------------

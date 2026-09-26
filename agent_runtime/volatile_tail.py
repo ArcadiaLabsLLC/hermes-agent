@@ -54,6 +54,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Iterable, Sequence
 
+__layer__ = "policy"
+
 logger = logging.getLogger(__name__)
 
 #: Emitted whole, within budget.

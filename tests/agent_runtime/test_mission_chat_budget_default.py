@@ -101,7 +101,7 @@ def test_a_malformed_value_degrades_instead_of_failing_every_turn():
 
 
 def test_a_config_fault_degrades_to_the_built_in_default(monkeypatch):
-    import agent_runtime.config as config_module
+    import agent_runtime.config.knobs as config_module
 
     def _boom():
         raise RuntimeError("config unreadable")

@@ -261,7 +261,7 @@ than falling to the tunnel.
   by stubbing the helper this stage added: every routing command fails and the
   list comes back byte-for-byte D1's.
 * **DEVIATION: `_dial_host` now takes the candidate LIST, not the store root**
-  (`hermes_cli/harness_parts/gateway_commands.py`, and its two callers —
+  (`hermes_cli/harness_parts/gateway_commands/`, and its two callers —
   `_dial_target` and `gateway id` in `hermes_cli/harness.py`). D1's plan item 2
   spells it `_dial_host(store_root)`, which enumerates a second time. That was
   two socket calls before and is a process spawn now — `route print -4` costs
@@ -520,10 +520,10 @@ the far side for an edge that is already up.
 diagnosis in four lines:
 
 ```
-agent_runtime/gateway_peers.py:1181   note_dial_result(root, ..., ok=True)    <- dial_peer
-agent_runtime/gateway_peers.py:1184   note_dial_result(root, ..., ok=False)   <- dial_peer
+agent_runtime/gateway_peers/dial.py:151   note_dial_result(root, ..., ok=True)    <- dial_peer
+agent_runtime/gateway_peers/dial.py:154   note_dial_result(root, ..., ok=False)   <- dial_peer
 agent_runtime/gateway_announce.py:161 note_dial_result(root, ..., ok=ok)      <- the fan-out
-agent_runtime/gateway_peers.py:1518   def note_dial_result(...)
+agent_runtime/gateway_peers/models.py:446   def note_dial_result(...)
 ```
 
 The chat lane and the announce fan-out. No ceremony. `peers join` completes
@@ -728,9 +728,9 @@ resolved ARP entry was evidence of.
 ### 12.2 The classifier, and why it lives where it does
 
 `classify_dial_error(exc, host, *, addresses=None) -> "local_policy" |
-"unreachable"` is in `hermes_cli/harness_parts/gateway_commands.py`, beside
+"unreachable"` is in `agent_runtime/gateway_endpoints/`, beside
 `_machine_addresses` and the `ipaddress` helpers D1/D1b already grew. The
-alternative — `agent_runtime/gateway_peers.py`, the lower layer — would have
+alternative — `agent_runtime/gateway_peers/`, the lower layer — would have
 needed a second interface enumeration to answer the on-link question, and a
 second address model in this repo is the thing `_ipv4`'s own docstring is
 already arguing against.
@@ -920,7 +920,7 @@ sit above them.
 
 ## 13. redeem_peer_code lock fix
 
-`agent_runtime/gateway_peers.py::redeem_peer_code` called
+`agent_runtime/gateway_peers/::redeem_peer_code` called
 `_clear_revoked_you` from INSIDE its own `with _store_lock(store_root):`.
 That helper writes through `_touch_cache`, which opens the same lock
 (`with _CACHE_WRITE_LOCK, _store_lock(store_root):`), and the lock is not
@@ -999,7 +999,7 @@ bash scripts/run_tests.sh tests/agent_runtime/test_gateway_peer_two_roots_e2e.py
   --file-timeout 900
 === Summary: 1 files, 9 tests passed, 0 failed (100% complete) in 233.8s ===
 
-ruff check agent_runtime/gateway_peers.py tests/agent_runtime/test_gateway_peers_store.py
+ruff check agent_runtime/gateway_peers/ tests/agent_runtime/test_gateway_peers_store.py
 All checks passed!
 ```
 
@@ -1394,7 +1394,7 @@ bash scripts/run_tests.sh tests/agent_runtime/test_store_file_io_secure_write.py
 bash scripts/run_tests.sh tests/agent_runtime/test_serve_gateway_peer_lane.py --file-timeout 900
 === Summary: 1 files, 28 tests passed, 0 failed (100% complete) in 10.7s ===
 
-ruff check agent_runtime/store_file_io.py agent_runtime/gateway_peers.py \
+ruff check agent_runtime/store_file_io.py agent_runtime/gateway_peers/ \
   agent_runtime/serve_gateway_auth.py tests/agent_runtime/test_store_file_io_secure_write.py
 All checks passed!
 

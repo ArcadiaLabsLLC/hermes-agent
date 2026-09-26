@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from agent.charsheet.draft.installed import sheet_revision as _pet_sheet_revision
 from agent_runtime.cli_format import emit_json
 
 __layer__ = "lanes"
@@ -173,12 +174,6 @@ def _installed_pet_gallery_row(pet) -> dict:
     }
 
 
-def _pet_sheet_revision(path: Path) -> str:
-    try:
-        stat = path.stat()
-    except OSError:
-        return ""
-    return f"{stat.st_mtime_ns}:{stat.st_size}"
 
 
 def _pet_row_frame_counts(spritesheet: Path) -> dict[str, int]:

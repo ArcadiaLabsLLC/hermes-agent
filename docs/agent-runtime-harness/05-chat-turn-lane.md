@@ -196,7 +196,7 @@ chat-session override  >  instance override  >  persona default  >  config defau
 ```
 
 The chat-session override persists under `mission_control_chat_model_override`
-(`hermes_cli/harness_parts/persona/chat_session.py::_resolve_chat_model_override`, `agent_runtime/persona_chat_history/vocabulary.py:307`) via
+(`hermes_cli/harness_parts/persona/chat_session.py::_resolve_chat_model_override`, `agent_runtime/persona_chat_history/vocabulary.py:326`) via
 `_resolve_chat_model_override`. Its scope is literally
 `mission_control_chat_session` (`:7085`, inside `_chat_effective_model_payload`) — per-thread,
 not per-instance. Values validate against
@@ -227,7 +227,7 @@ Every consumer reads one answer, from `permission_options_for_chat` (`:285-301`)
 does on the lane (`agent_runtime/persona_runtime.py`):
 
 - `_blocked_tool_names_for_chat` returns `[]` outright (`:583-586`), so the pre-ruling
-  `PERSONA_BLOCKED_TOOLS` set (`personas.py:111-118`: `delegate_task`, `clarify`, `memory`,
+  `PERSONA_BLOCKED_TOOLS` set (`agent_runtime/personas.py:129-138`: `delegate_task`, `clarify`, `memory`,
   `send_message`, `cronjob`) does not apply to the default posture. Registry-hygiene names are still
   unioned at agent construction on every lane — hygiene is junk removal, not a permission tier
   (`:594-597`).
@@ -251,10 +251,10 @@ preview read 32 toolsets / 79 tools. It also carries the typed account of what t
 ### 4c. The declared toolset (S0a, 2026-09-03)
 
 The harness lane admits by the persona's BOUND PROFILE `toolsets:` key, read by
-`declared_lane_toolsets` (`agent_runtime/personas.py:224`) and handed to every caller through
-`effective_toolsets` (`:328`). A profile that declares nothing — or only the upstream default
+`declared_lane_toolsets` (`agent_runtime/personas.py:243-346`) and handed to every caller through
+`effective_toolsets` (`agent_runtime/personas.py:347-357`). A profile that declares nothing — or only the upstream default
 `["hermes-cli"]` that `hermes_cli/config_defaults.py` writes for an unset key — resolves
-`HARNESS_LANE_DEFAULT_TOOLSETS` (`agent_runtime/personas.py:170`) = `harness_core`, reported as
+`HARNESS_LANE_DEFAULT_TOOLSETS` (`agent_runtime/personas.py:189`) = `harness_core`, reported as
 `toolset_declaration.source: lane_default`; any other list is honored verbatim as `profile_config`;
 an unresolvable profile home resolves the same default as `profile_unresolved`. A YAML fault
 resolves narrow, never wide. `harness_core` (`toolsets.py:259`) is a composite of 15 member
@@ -357,7 +357,7 @@ admission. The invariants it holds (`:19-63`):
 1. **The lane blanket never flips.** `discover_mcp_tools()` is never called from here; admission is
    `register_mcp_servers({name: cfg})` over an explicitly resolved subset.
 2. **The profile declaration is the admission authority.** `_requested_servers` =
-   `declared_mcp_server_names` ∪ `_effective_required_mcp_servers` (`:786-812`). **There is no role
+   `declared_mcp_server_names` ∪ `effective_required_mcp_servers` (`:786-812`). **There is no role
    lane.** S64 made declaration the sole authority; S66 removed the residual `task`/`stage`
    parameters and the "role-admitted" wire text (`:130-132`, `:707-712`, `:789-791`). The `role` on
    the decision record (`:352`, `:382`) is REPORTING only.
@@ -400,7 +400,7 @@ manual burned the live 2026-07-29 QA turn.
 
 ## 6. Terminal envelope grants
 
-`agent_runtime/terminal_envelope.py` is the ONE deterministic answer to "may this command run on
+`agent_runtime/terminal_envelope/` is the ONE deterministic answer to "may this command run on
 this lane?". It exists because the same lane behaved two opposite ways on 2026-07-26: fail-CLOSED for
 a profile-bound persona (the legacy envelope fires on the mere presence of
 `HERMES_AGENT_RUNTIME_ROOT`, with no channel to obtain the demanded approval) and fail-OPEN for one
@@ -425,7 +425,7 @@ legacy behavior byte-for-byte" (`:616-628`) — callers must treat it as fall-th
 ## 7. Turn durability and the run budget
 
 **One file per chat session** — `mission_chat_turns/<safe_session_key>.json` with a co-located lock
-(`agent_runtime/mission_chat_turns.py:26-52`), so concurrent turns in different chats never contend;
+(`agent_runtime/mission_chat_turns/storage.py:31-57`), so concurrent turns in different chats never contend;
 the legacy monolith splits once on first read/write and is renamed aside, never deleted. Retention:
 100 turns per session, 50 session files, inside the per-session lock (`:72-73`).
 
@@ -452,11 +452,11 @@ deliberately distinct enforcement semantics (`:75-93`): `TRIPS_RUN` (raises `Run
 through, and `turn_run_budget_metadata` (`:419`) the one adapter turning "the run that just
 ended" into the journal fragment a settle point splices in (`run_budget.py:46`) — both
 absence-preserving. Neither is the only code that touches the block: two live consumers read it
-straight off the record they were handed (`operator_channels.py:927-929`,
+straight off the record they were handed (`agent_runtime/operator_channels/contract.py::_dedupe_conversation_messages`,
 `agent_runtime/persona_chat_history/curation.py:475`). Default wall budget is **240 s**
 (`runtime_config.py:150-164`), tunable at
 `agent_runtime.mission_chat.default_max_seconds` and clamped; an explicit `--max-seconds` always
-wins, including outside the clamp (`config.py:820-840`). The last `max(60s, 15%)` is reserved for
+wins, including outside the clamp (`agent_runtime/config/knobs.py:155-176`). The last `max(60s, 15%)` is reserved for
 the graceful checkpoint, so a default turn has ~180 s of tool-using time.
 
 **The volatile tail** is how the agent is told any of this. Contributors register by name with their
@@ -722,7 +722,7 @@ Mechanism exists in code; the NUMBER or live condition was not re-measured here.
   states no test asserts a millisecond and none can reproduce the magnitude; the enforced gate is
   the probe-round count. **Annotated 2026-08-23 (prep-cost 2026-08 text §3 H2, in that file's history): the 2,421 ms is the UNWARMED
   CREATE subphase (warm create: 859/15 ms) — never re-quote it as a per-turn cost.**
-- **The 1,762 ms hermes share of turn `c59ab99e`** (`mission_chat_phases.py:442-443`) and the live
+- **The 1,762 ms hermes share of turn `c59ab99e`** (`mission_chat_phases.py:435-436`) and the live
   phase-joined TTFT splits (alice 17.8 s, qa 9.2 s) — 2026-08-22 session receipts, read through the
   launcher's audit tooling; not reproducible from this repo.
 - **Tool-schema census** (62 core tools / 93,075 bytes vs 34 deferrable / 32,182; 74% core) —

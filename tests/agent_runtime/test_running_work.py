@@ -39,13 +39,36 @@ from agent_runtime.running_work import (
 )
 
 
+def _patch_bound(monkeypatch, name, value):
+    """Stub ``name`` in every ``running_work`` module that BINDS it.
+
+    The package re-exports ``_head_home`` / ``_module``, but each lane module
+    bound them by import, so a stub on the package attribute reaches no caller.
+    """
+
+    hits = [
+        module
+        for module in (
+            running_work.rows,
+            running_work.ownership,
+            running_work.lanes_process,
+            running_work.lanes_chat,
+            running_work.surface,
+        )
+        if name in vars(module)
+    ]
+    assert hits, f"no running_work module binds {name}"
+    for module in hits:
+        monkeypatch.setattr(module, name, value)
+
+
 @pytest.fixture
 def home(tmp_path, monkeypatch):
     """An isolated HERMES home that the head-home resolver will land on."""
 
     head = tmp_path / "home"
     head.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(running_work, "_head_home", lambda: (head, "test_home"))
+    _patch_bound(monkeypatch, "_head_home", lambda: (head, "test_home"))
     return head
 
 
@@ -406,7 +429,7 @@ def test_the_resolved_home_is_published_as_ambient_context_not_lost(home):
 
 
 def test_the_ambient_block_names_an_unresolvable_home_rather_than_lying(monkeypatch):
-    monkeypatch.setattr(running_work, "_head_home", lambda: (None, "unresolved"))
+    _patch_bound(monkeypatch, "_head_home", lambda: (None, "unresolved"))
 
     assert build_running_work()["ambient"] == {
         "home_provenance": "unresolved",
@@ -428,8 +451,8 @@ def test_a_failed_live_enrichment_is_a_typed_field_not_prose(home, monkeypatch):
             def list_sessions():
                 raise TypeError("registry exploded")
 
-    monkeypatch.setattr(
-        running_work,
+    _patch_bound(
+        monkeypatch,
         "_module",
         lambda name: _BrokenRegistry if name == "tools.process_registry" else None,
     )
@@ -485,7 +508,7 @@ def test_a_checkpoint_that_is_not_a_list_is_reported_rather_than_coerced(home):
 
 
 def test_an_unresolvable_home_is_reported_not_treated_as_no_work(monkeypatch):
-    monkeypatch.setattr(running_work, "_head_home", lambda: (None, "unresolved"))
+    _patch_bound(monkeypatch, "_head_home", lambda: (None, "unresolved"))
 
     payload = build_running_work()
 
@@ -531,9 +554,9 @@ def test_a_lane_that_explodes_cannot_break_the_frame(home, monkeypatch):
     def _boom(**_kwargs):
         raise RuntimeError("lane exploded")
 
-    monkeypatch.setattr(running_work, "_collect_chat_turns", _boom)
+    monkeypatch.setattr(running_work.lanes_chat, "_collect_chat_turns", _boom)
     monkeypatch.setattr(
-        running_work,
+        running_work.surface,
         "_COLLECTORS",
         tuple(
             (name, _boom if name == KIND_CHAT_TURN else fn, takes_now)
@@ -849,7 +872,7 @@ def _cold_build_subprocess(cold_home):
     import subprocess
     import sys
 
-    repo_root = Path(running_work.__file__).resolve().parent.parent
+    repo_root = Path(running_work.__file__).resolve().parents[2]
 
     env = dict(os.environ)
     env["HERMES_HOME"] = str(cold_home)
@@ -988,6 +1011,14 @@ def test_a_read_only_question_does_not_run_delegation_recovery(tmp_path):
         ({"status": "stalled"}, STATUS_STALLED),
         ({"status": "finalizing"}, "finalizing"),
         ({"status": "error"}, "error"),
+        # Every record word the delegation store may write, one row each, so a
+        # table standing in for the ladder cannot drop or swap a key unseen.
+        ({"status": "completed"}, "completed"),
+        ({"status": "ok"}, "completed"),
+        ({"status": "success"}, "completed"),
+        ({"status": "failed"}, "error"),
+        ({"status": "interrupted"}, "error"),
+        ({"state": " Running ", "seconds_since_progress": 900.0}, STATUS_STALLED),
         ({"status": "who-knows"}, STATUS_UNKNOWN),
     ],
 )
@@ -1087,6 +1118,45 @@ def test_an_outcome_unknown_turn_reports_unknown_not_running(
     assert [row["status"] for row in rows] == [STATUS_UNKNOWN]
 
 
+def test_a_chat_turn_ages_from_its_journal_stamp(home, monkeypatch):
+    """The journal's ``Z`` stamp is parsed (``clock.parse_iso_utc``) and aged.
+
+    Positive control for the fold: a turn started 90 s ago must say so. A
+    freshly persisted turn ages ~0 s either way, so it cannot tell a parsed
+    stamp from a dropped one.
+    """
+
+    started = (datetime.now(timezone.utc) - timedelta(seconds=90)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    monkeypatch.setattr(
+        "agent_runtime.mission_chat_turns.reads.inflight_turn_rows",
+        lambda: [{"turn_id": "turn-aged", "state": "executing", "started_at": started}],
+    )
+
+    rows = _rows_of_kind(build_running_work(), KIND_CHAT_TURN)
+
+    assert [row["work_id"] for row in rows] == ["chat_turn:turn-aged"]
+    assert 85 <= rows[0]["elapsed_seconds"] <= 600
+
+
+def test_a_lane_ships_its_rows_oldest_first(home):
+    """Every lane ends in ``LanePass.finish``, which orders by ``started_at``.
+
+    Positive control: the checkpoint lists the newer process first.
+    """
+
+    _write_checkpoint(
+        home,
+        [
+            {"session_id": "sess-newer", "command": "b", "pid": os.getpid(), "started_at": 2_000_000_000.0},
+            {"session_id": "sess-older", "command": "a", "pid": os.getpid(), "started_at": 1_900_000_000.0},
+        ],
+    )
+
+    rows = _rows_of_kind(build_running_work(), KIND_TERMINAL)
+
+    assert [row["work_id"] for row in rows] == ["terminal:sess-older", "terminal:sess-newer"]
+
+
 def test_chat_turn_rows_never_carry_message_content(home, isolate_agent_runtime_root):
     """The HUD needs identity + timing; chat text has no reader on this wire."""
 
@@ -1143,8 +1213,8 @@ def test_connected_mcp_transports_are_capabilities_not_running_work(home, monkey
             ]
 
     original_module = running_work._module
-    monkeypatch.setattr(
-        running_work,
+    _patch_bound(
+        monkeypatch,
         "_module",
         lambda name: _ConnectedMcp() if name == "tools.mcp_tool" else original_module(name),
     )
@@ -1181,8 +1251,8 @@ def test_a_broken_scheduler_is_unreadable_not_someone_elses_process(home, monkey
         def get_running_job_ids(self):
             raise RuntimeError("scheduler exploded")
 
-    monkeypatch.setattr(
-        running_work,
+    _patch_bound(
+        monkeypatch,
         "_module",
         lambda name: _Broken() if name == "cron.scheduler" else None,
     )
@@ -1319,8 +1389,8 @@ def test_every_started_at_on_the_wire_carries_a_utc_offset(home, monkeypatch):
         process_registry = _Registry()
 
     real_module = running_work._module
-    monkeypatch.setattr(
-        running_work,
+    _patch_bound(
+        monkeypatch,
         "_module",
         lambda name: _Module() if name == "tools.process_registry" else real_module(name),
     )
@@ -1481,7 +1551,7 @@ def test_cancel_never_reaches_for_a_bare_pid(home, monkeypatch):
             }
         ],
     )
-    monkeypatch.setattr(running_work, "_module", lambda name: None)
+    _patch_bound(monkeypatch, "_module", lambda name: None)
 
     result = cancel_work("terminal:sess-kill")
 
@@ -1520,8 +1590,8 @@ def test_cancel_routes_terminal_work_through_the_registry_kill_seam(home, monkey
         process_registry = _Registry()
 
     real_module = running_work._module
-    monkeypatch.setattr(
-        running_work,
+    _patch_bound(
+        monkeypatch,
         "_module",
         lambda name: _Module() if name == "tools.process_registry" else real_module(name),
     )
@@ -1533,6 +1603,126 @@ def test_cancel_routes_terminal_work_through_the_registry_kill_seam(home, monkey
     # A cancel is not the agent reading its output: consuming here would
     # suppress the completion notification the agent is waiting on.
     assert seen["consume_output"] is False
+
+
+def _live_registry_session(status: str) -> list[dict]:
+    """One registry row for ``sess-live``, shaped as ``list_sessions`` emits it."""
+    return [
+        {
+            "session_id": "sess-live",
+            "command": "npm run dev",
+            "pid": os.getpid(),
+            "started_at": "2026-08-03T10:00:00",
+            "uptime_seconds": 30,
+            "status": status,
+            "output_preview": "",
+        }
+    ]
+
+
+@pytest.mark.parametrize("live_status", ["running", "exited"])
+def test_the_registry_exited_word_is_the_one_the_live_registry_writes(
+    home, monkeypatch, live_status
+):
+    """``REGISTRY_EXITED`` pinned by what the surface DOES with the registry's word.
+
+    ``tools.process_registry.ProcessRegistry.list_sessions`` writes the literal
+    ``"exited" if s.exited else "running"``; the test feeds that literal, not the
+    constant, so a re-spelt constant stops matching the registry. POSITIVE
+    CONTROL: the same durable row with the registry saying ``running`` survives.
+    KILLING MUTATION: ``REGISTRY_EXITED = "finished"`` — the exited arm keeps the
+    row and records no drop.
+    """
+
+    _write_checkpoint(
+        home,
+        [
+            {
+                "session_id": "sess-live",
+                "command": "npm run dev",
+                "pid": os.getpid(),
+                "pid_scope": "host",
+                "host_start_time": _self_start_time(),
+                "started_at": 1_800_000_000.0,
+            }
+        ],
+    )
+
+    class _Registry:
+        def list_sessions(self):
+            return _live_registry_session(live_status)
+
+    class _Module:
+        process_registry = _Registry()
+
+    real_module = running_work._module
+    _patch_bound(
+        monkeypatch,
+        "_module",
+        lambda name: _Module() if name == "tools.process_registry" else real_module(name),
+    )
+    accountant = ProjectionAccountant("running_work")
+
+    rows = _rows_of_kind(build_running_work(accountant), KIND_TERMINAL)
+
+    if live_status == "running":
+        assert [row["work_id"] for row in rows] == ["terminal:sess-live"]
+        assert "process_exited" not in accountant.summary()["reasons"]
+    else:
+        assert rows == []
+        assert accountant.summary()["reasons"]["process_exited"] == 1
+
+
+def test_the_kill_not_found_word_is_the_one_the_kill_seam_answers(home, monkeypatch):
+    """``KILL_NOT_FOUND`` pinned against the kill seam's OWN answer.
+
+    The registry below answers with ``tools.process_registry._not_found`` — the
+    function ``kill_process`` returns for a session it does not hold — so the
+    word is the upstream's, not a copy. POSITIVE CONTROL: the sibling
+    ``test_cancel_routes_terminal_work_through_the_registry_kill_seam`` answers
+    ``killed`` through the same fixture and reports ``cancelled``. KILLING
+    MUTATION: ``KILL_NOT_FOUND = "missing"`` — a not-found kill reports
+    ``cancelled``.
+    """
+
+    from tools.process_registry import _not_found
+
+    _write_checkpoint(
+        home,
+        [
+            {
+                "session_id": "sess-kill",
+                "command": "long build",
+                "pid": os.getpid(),
+                "pid_scope": "host",
+                "host_start_time": _self_start_time(),
+                "started_at": 1_800_000_000.0,
+            }
+        ],
+    )
+
+    class _Registry:
+        def get(self, session_id):
+            return object() if session_id == "sess-kill" else None
+
+        def kill_process(self, session_id, *, source, consume_output):
+            return _not_found(session_id)
+
+    class _Module:
+        process_registry = _Registry()
+
+    real_module = running_work._module
+    _patch_bound(
+        monkeypatch,
+        "_module",
+        lambda name: _Module() if name == "tools.process_registry" else real_module(name),
+    )
+
+    result = cancel_work("terminal:sess-kill")
+
+    assert result["status"] == "error"
+    assert result["code"] == "not_found"
+    assert result["result"] == "not_found"
 
 
 def test_cancelling_work_owned_by_another_process_says_so(home, monkeypatch):
@@ -1568,8 +1758,8 @@ def test_cancelling_work_owned_by_another_process_says_so(home, monkeypatch):
         process_registry = _EmptyRegistry()
 
     real_module = running_work._module
-    monkeypatch.setattr(
-        running_work,
+    _patch_bound(
+        monkeypatch,
         "_module",
         lambda name: _Module() if name == "tools.process_registry" else real_module(name),
     )
@@ -1609,8 +1799,8 @@ def test_cancelling_a_delegation_this_process_does_not_hold_says_so(home, monkey
             raise AssertionError("must not reach the interrupt seam")
 
     real_module = running_work._module
-    monkeypatch.setattr(
-        running_work,
+    _patch_bound(
+        monkeypatch,
         "_module",
         lambda name: _Module if name == "tools.async_delegation" else real_module(name),
     )

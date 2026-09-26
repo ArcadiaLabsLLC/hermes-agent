@@ -847,11 +847,7 @@ class OpenAICompatRoutesMixin:
     ) -> "web.StreamResponse":
         """Open a prepared SSE StreamResponse with CORS + session headers (the CORS middleware
         can't inject headers after ``prepare()`` flushes them, so they are resolved here)."""
-        sse_headers = {
-            "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
-        origin = request.headers.get("Origin", "")
-        if origin:
-            sse_headers.update(self._cors_headers_for_origin(origin) or {})
+        sse_headers = self._sse_headers(request)
         if session_id:
             sse_headers["X-Hermes-Session-Id"] = session_id
         if gateway_session_key:
@@ -882,6 +878,8 @@ class OpenAICompatRoutesMixin:
                     break
                 if isinstance(delta, tuple) and len(delta) == 2 and delta[0] == "__tool_progress__":
                     # Custom event: tool lifecycle for frontends without markers in history.
+                    if not self._tool_progress_events:
+                        continue  # opted out for strict OpenAI clients (#12020)
                     await response.write(_sse_frame(delta[1], event="hermes.tool.progress"))
                 elif isinstance(delta, tuple) and len(delta) == 2 and delta[0] == "__reasoning__":
                     # DeepSeek-style ``delta.reasoning_content`` (#99552), the field Open WebUI,

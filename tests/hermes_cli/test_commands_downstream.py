@@ -128,7 +128,7 @@ class TestKnownDefectFence:
         fenced AND unexplained.
         """
         recorded: list[str] = []
-        monkeypatch.setattr(package_conftest, "_KNOWN_DEFECT_FAILURES", recorded)
+        monkeypatch.setattr(package_conftest._KNOWN_DEFECT_TRACKER, "failures", recorded)
         node = (
             "tests/hermes_cli/test_commands.py"
             "::TestSlackNativeSlashes::test_telegram_parity"

@@ -324,7 +324,7 @@ def test_generation_parameters_ride_the_factory_and_bust_the_resident_actor():
 
 def test_the_runner_resolves_a_local_persona_through_the_adapter_never_the_cloud(monkeypatch):
     from agent_runtime import profile_runner
-    monkeypatch.setattr(profile_runner.runtime_resolve, "resolve_runtime_provider", lambda **kw: pytest.fail("reached the cloud resolver"))
+    monkeypatch.setattr(profile_runner.execute, "resolve_runtime_provider", lambda **kw: pytest.fail("reached the cloud resolver"))
     calls = []
     monkeypatch.setattr(provider, "resolve", lambda model, *, root=None: calls.append(model) or runtime_row())
     request = profile_runner.AgentRunRequest(profile=None, provider=PROVIDER_ID, model="saved-id")
@@ -427,8 +427,8 @@ def test_the_engine_serves_one_resident_model_under_upstreams_supervisor(tmp_pat
     built = []
 
     class Supervisor:
-        def __init__(self, install_dir, models_dir, **kwargs):
-            self.install_dir, self.kwargs = install_dir, kwargs
+        def __init__(self, binary, models_dir, **kwargs):
+            self.binary, self.kwargs = binary, kwargs
             self.base_url, self.api_key, self.primary_model = ENDPOINT, SECRET, None
             self.proc = SimpleNamespace(poll=lambda: None)
             built.append(self)
@@ -456,7 +456,8 @@ def test_the_engine_serves_one_resident_model_under_upstreams_supervisor(tmp_pat
         free = port.getsockname()[1]
     engine.start({"executable_path": str(binary), "port": free})
     assert built[0].kwargs["models_max"] == 1 and built[0].kwargs["preset_path"] == engine.preset_path
-    assert built[0].install_dir == binary.parent
+    # Upstream's supervisor takes the exact binary (2026-09-25 merge), never its directory.
+    assert built[0].binary == binary
     model = {"model_id": str(uuid.uuid4()), "gguf_path": str(tmp_path / "m.gguf"), "load": deepcopy(LOAD_DEFAULTS)}
     assert engine.load(model)["default_generation_settings"]["n_ctx"] == 8192
     assert routes[0] == "/models?reload=1"
@@ -503,19 +504,25 @@ def test_an_unknown_caller_or_a_peer_reaches_no_console_verb(dispatched, monkeyp
 
 
 def test_an_install_runs_upstreams_installer_and_stays_inactive_until_activated(manager, tmp_path, monkeypatch):
+    """Setup asks upstream's PM-owned engine API: the release is the backend's PM pin, the
+    install is ``ensure_engine(backend)``, and the inventory row is ``installed_engine``."""
     from agent_runtime.local_llama_adapter import setup as module
     from hermes_cli.local_runtime import binaries
-    installs = []
+    installs, engines = [], {}
+    binary = tmp_path / "store" / "llamacpp-cpu" / "llama-server.exe"
 
-    def install(tag, backend, progress=None):
-        target = binaries.runtimes_root() / tag / backend
-        (target / "build" / "bin").mkdir(parents=True)
-        (target / "build" / "bin" / "llama-server.exe").write_bytes(b"fixture")
-        (target / "manifest.json").write_text('{"verified_version": "version: fixture"}')
+    def ensure_engine(backend, progress=None, **_kw):
+        binary.parent.mkdir(parents=True, exist_ok=True)
+        binary.write_bytes(b"fixture")
         progress("download", 1, 1, "")
-        installs.append((tag, backend))
-        return target
-    monkeypatch.setattr(binaries, "ensure_runtime_installed", install)
+        installs.append(backend)
+        engines[backend] = binaries.Engine(backend, "b9999", binary)
+        return engines[backend]
+    monkeypatch.setattr(binaries, "unavailable_reason", lambda backend, target=None: None if backend == "cpu" else "no")
+    monkeypatch.setattr(binaries, "pinned_tag", lambda backend: "b9999")
+    monkeypatch.setattr(binaries, "ensure_engine", ensure_engine)
+    monkeypatch.setattr(binaries, "installed_engine", lambda backend="auto", **_kw: engines.get(backend))
+    monkeypatch.setattr("pm.paths.store_root", lambda: tmp_path)
     monkeypatch.setattr(module, "probe", lambda p: {"executable_path": str(p), "sha256": "x", "version": "v",
                                                    "compatibility": "compatible", "capabilities": []})
     release = manager.setup.releases()["releases"][0]
@@ -528,7 +535,8 @@ def test_an_install_runs_upstreams_installer_and_stays_inactive_until_activated(
     manager.setup.worker.join(5)
     status = manager.setup.status(request_id=request["request_id"])
     assert status["requested_operation"]["state"] == "succeeded", status
-    assert installs == [(release["tag"], "cpu")] and manager.config["executable_path"] is None
+    assert release["tag"] == "b9999"
+    assert installs == ["cpu"] and manager.config["executable_path"] is None
     row = next(r for r in status["inventory"] if r["tag"] == release["tag"])
     activate = guards(manager, installation_id=row["installation_id"], expect_inventory_revision=status["inventory_revision"])
     manager.setup.submit("activate", activate)
@@ -542,3 +550,52 @@ def test_setup_mutations_pass_the_same_epoch_guard(manager):
         manager.setup.submit("activate", {**guards(manager), "expect_epoch": str(uuid.uuid4()),
                                           "validation_token": "t", "expect_inventory_revision": 0})
     assert caught.value.reason == "stale_epoch"
+
+
+# ── the upstream ``llamacpp`` provider id is an input alias (lane LLAMA-ALIAS) ──
+@pytest.mark.parametrize("provider_id", [PROVIDER_ID, "llamacpp"])
+def test_either_provider_id_takes_the_whole_turn_lease(provider_id, monkeypatch):
+    from contextlib import contextmanager, nullcontext
+    leases = []
+
+    class _Manager:
+        @contextmanager
+        def lease(self, model, turn, agent):
+            leases.append((model, turn, agent))
+            yield runtime_row()
+
+    monkeypatch.setattr(rpc, "get_manager", lambda root=None, create=False: _Manager())
+    monkeypatch.setattr(provider, "_routed", lambda runtime: nullcontext())
+    request = SimpleNamespace(provider=provider_id, model="preset-id", turn_id="turn-1", session_id=None,
+                              persona_instance_id="agent-1", runtime_root=None, prewarm_only=False)
+    with provider.turn_scope(request):
+        pass
+    assert leases == [("preset-id", "turn-1", "agent-1")]
+
+
+def test_a_cloud_provider_takes_no_lease(monkeypatch):
+    monkeypatch.setattr(rpc, "get_manager", lambda **kw: pytest.fail("a cloud turn reached the lease"))
+    with provider.turn_scope(SimpleNamespace(provider="anthropic", model="claude-x")):
+        pass
+
+
+@pytest.mark.parametrize("provider_id", [PROVIDER_ID, "llamacpp"])
+def test_either_provider_id_resolves_through_the_adapter(provider_id, monkeypatch):
+    from agent_runtime import profile_runner
+    monkeypatch.setattr(profile_runner.execute, "resolve_runtime_provider", lambda **kw: pytest.fail("reached the cloud resolver"))
+    calls = []
+    monkeypatch.setattr(provider, "resolve", lambda model, *, root=None: calls.append(model) or runtime_row())
+    request = profile_runner.AgentRunRequest(profile=None, provider=provider_id, model="preset-id")
+    assert profile_runner._resolve_request_runtime(request)["model"] == "hermes-local-example"
+    assert calls == ["preset-id"]
+
+
+@pytest.mark.parametrize("provider_id", [PROVIDER_ID, "llamacpp"])
+def test_either_provider_id_is_ready_on_the_local_catalog_not_a_credential(provider_id, monkeypatch):
+    from agent_runtime import profile_readiness
+    monkeypatch.setattr(provider, "catalog_visibility",
+                        lambda: {"models": [{"model_id": "preset-id", "selectable": True}]})
+    persona = SimpleNamespace(provider=provider_id, model="preset-id")
+    assert profile_readiness._provider_issue(persona) is None
+    missing = SimpleNamespace(provider=provider_id, model="other-id")
+    assert profile_readiness._provider_issue(missing)[0] == profile_readiness.READINESS_CONFIG_ERROR

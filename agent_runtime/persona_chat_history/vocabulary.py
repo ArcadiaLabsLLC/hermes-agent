@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from enum import StrEnum, auto
+from enum import StrEnum
 from types import MappingProxyType
 from typing import Any, Mapping
 
-from ..mission_chat_turns import TERMINAL_TURN_STATES
+from ..mission_chat_turns.states import TERMINAL_TURN_STATES
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..redaction import TEXT_SECRET_ASSIGNMENT_RE
 from ..turn_visibility import SILENT_REASONS, VisibilityReason
@@ -49,7 +49,29 @@ __all__ = [
     "_SECRET_RE",
     "logical_persona_chat_client_message_id",
     "canonical_persona_chat_turn_id",
+    "canonical_chat_persona_id",
 ]
+
+
+def canonical_chat_persona_id(value: Any) -> str | None:
+    """The persona id a chat-history row carries, in its one spelling.
+
+    A bounded token, with both profile spellings (``profile:x`` and the
+    token-safe ``profile_x``) folded to ``profile:x``. Not
+    ``personas.canonical_persona_id``: that one resolves ALIASES; this one only
+    spells. Pure, so every projection that keys on a history row's persona reads
+    it from here rather than from the SessionDB reader that first needed it.
+    """
+    raw = safe_assignment_text(value, limit=160)
+    if not raw:
+        return None
+    if raw.lower().startswith("profile:"):
+        profile = safe_assignment_token(raw.split(":", 1)[1])
+        return f"profile:{profile}" if profile else None
+    token = safe_assignment_token(raw)
+    if token.startswith("profile_") and len(token) > len("profile_"):
+        return f"profile:{token[len('profile_'):]}"
+    return token or None
 
 
 # Structural marker for the canned "I'll … then report back with …" pre-trace
@@ -270,17 +292,14 @@ CHAT_REDACTION_UNKNOWN = "unknown"
 # the fork's own ``operator`` / ``agent`` spellings); the transcript speaks in
 # three roles. ``WIRE_ROLES`` is the one lookup between them, and a wire role it
 # does not name (``tool``, ``function``, empty) has no transcript role at all.
-# Member values come from ``auto()`` (StrEnum: the lower-cased name), so the
-# words stay out of W0-G5's fork-wide vocabulary, where ``"agent"`` and
-# ``"system"`` are compared as unrelated words in more than a dozen other files.
 
 
 class MessageRole(StrEnum):
     """A transcript row's role; each member IS its string (``"operator"`` …)."""
 
-    OPERATOR = auto()
-    AGENT = auto()
-    SYSTEM = auto()
+    OPERATOR = "operator"
+    AGENT = "agent"
+    SYSTEM = "system"
 
     @classmethod
     def from_wire(cls, value: Any) -> "MessageRole | None":

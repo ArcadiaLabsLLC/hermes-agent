@@ -327,22 +327,23 @@ def _prewarm_provider_runtime() -> None:
     """Best-effort warmup of the per-process one-time costs a chat turn pays.
 
     Runs on a daemon thread right after the ready frame. Each step is
-    independent and failure-isolated: a broken CA bundle or missing provider
-    dependency surfaces on the first real turn with its normal typed error,
-    exactly as it would without prewarm.
+    independent and failure-isolated: a missing provider dependency surfaces on
+    the first real turn with its normal typed error, exactly as it would without
+    prewarm. TLS trust is upstream's one authority,
+    ``agent.ssl_verify.install_truststore()`` (idempotent, never raises; logs a
+    warning and returns ``False`` when truststore is unavailable) — there is no
+    CA-bundle preflight left to run.
     """
     try:
-        from agent.process_bootstrap import shared_ssl_context
         from hermes_cli.harness_parts._upstream_doors import load_openai_cls
 
         load_openai_cls()
-        shared_ssl_context()
     except Exception:
         pass
     try:
-        from agent.ssl_guard import verify_ca_bundle
+        from agent.ssl_verify import install_truststore
 
-        verify_ca_bundle()
+        install_truststore()
     except Exception:
         pass
     try:
@@ -361,7 +362,7 @@ def _prewarm_persona_chat_actors() -> None:
     THIRD on the one prewarm thread, behind the read-model build and the
     provider warmup, and the ordering is load-bearing in both directions: the
     launcher's canvas is waiting on the build, and an agent construction that
-    runs after ``_load_openai_cls``/``shared_ssl_context`` does not pay the SDK
+    runs after ``_load_openai_cls``/``install_truststore`` does not pay the SDK
     import itself (which is the single largest item in a cold construct).
 
     Inert unless the root config turns hot sessions on — with no resident

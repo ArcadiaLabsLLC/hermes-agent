@@ -19,6 +19,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 
+__layer__ = "policy"
+
 # ``max_iterations`` bounds an agent turn at 90 calls; the cap only guards a
 # ledger bound around something longer-lived.
 USAGE_LEDGER_MAX_ROWS = 256

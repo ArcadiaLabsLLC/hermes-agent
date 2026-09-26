@@ -85,20 +85,11 @@ _GRANDFATHERED: dict[tuple[str, ...], str] = {
     # ``persona_chat_history._safe_trace_int == profile_runner._safe_exit_code``
     # lost its row when lane R2 folded the first into ``serde.strict_int``;
     # ``profile_runner``'s copy folds in its own lane.
-    (
-        "agent_runtime/mission_chat_turns.py::_lock_fd_exclusive_nonblocking",
-        "agent_runtime/persona_chat_continuity.py::_try_lock",
-    ): (
-        "REFUSED, not deferred. These are OS file-lock primitives and their "
-        "home would be `locks.py`; one of the two files is on the audit's "
-        "exclusion list, and a careless fold of lock acquire/release is how "
-        "you ship a deadlock that only appears under contention. Wants its "
-        "own stage with concurrency proof, not a ride on a rename commit"
-    ),
-    (
-        "agent_runtime/mission_chat_turns.py::_unlock_fd",
-        "agent_runtime/persona_chat_continuity.py::_unlock",
-    ): "the release half of the pair above; same refusal",
+    # ``mission_chat_turns._lock_fd_exclusive_nonblocking == persona_chat_continuity
+    # ._try_lock`` and its ``_unlock_fd == _unlock`` release half lost their rows
+    # when lane 2B-B folded the first file onto ``file_locks`` (its
+    # ``storage.try_session_lock``, the lock-held typed-outcome tests re-proven);
+    # ``persona_chat_continuity``'s pair folds in its own lane.
     # ``board_content_hash == office_content_hash`` was grandfathered here at
     # this gate's first run and its row is GONE, per this file's own rule that a
     # pair which stops being duplicate loses its row in the same commit. They
@@ -109,24 +100,6 @@ _GRANDFATHERED: dict[tuple[str, ...], str] = {
     # folding the two onto one ``content_hash(payload)``, and the fold is now
     # further away rather than nearer, because the office lane has an exclusion
     # rule the board lane must not inherit silently.
-    (
-        "agent_runtime/default_scope.py::_get_realm",
-        "agent_runtime/default_scope.py::_get_workspace",
-    ): (
-        "KEPT, with a reason. Two typed wrappers over one body in the SAME "
-        "file: folding them to a generic would hand thirteen call sites an "
-        "untyped return where they currently get `Realm | None` / "
-        "`Workspace | None`. A TypeVar-parameterized `_get_unarchived` would "
-        "preserve both, and is the right shape if this is ever revisited — "
-        "but that is a design change, not a deduplication"
-    ),
-    (
-        "agent_runtime/mcp_lane.py::_clean",
-        "agent_runtime/tool_visibility.py::_clean_names",
-    ): (
-        "NEW at this gate's first run. Same normalize-a-name-list body under "
-        "a generic name and a specific one; deferred with the pair above"
-    ),
 }
 
 

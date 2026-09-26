@@ -84,7 +84,7 @@ def set_delta_patches(monkeypatch):
             cfg.read_model.delta_patches = enabled
             return cfg
 
-        monkeypatch.setattr(sp, "load_root_runtime_config", _loader)
+        monkeypatch.setattr(sp.emit, "load_root_runtime_config", _loader)
 
     return _apply
 
@@ -353,7 +353,7 @@ def test_unpublished_is_recomputed_and_omitted_without_a_realm(
 
     # A realm-bound workspace whose baseline does not know this actor → True.
     monkeypatch.setattr(
-        sp, "_office_actor_unpublished", lambda actor: True, raising=True
+        sp.office, "_office_actor_unpublished", lambda actor: True, raising=True
     )
     before = _log_end()
     seeded_office.upsert_actor(WORKSPACE, _actor_payload("qa", x=2.5, y=9.25))
@@ -1401,7 +1401,7 @@ def test_flag_off_does_not_even_run_the_projection(
         calls.append(actor)
         raise AssertionError("the projection must not run with the lane off")
 
-    monkeypatch.setattr(sp, "project_office_actor_wire_row", _tracked)
+    monkeypatch.setattr(sp.office, "project_office_actor_wire_row", _tracked)
     seeded_office.upsert_actor(WORKSPACE, _actor_payload("qa", x=1.5, y=9.25))
     assert calls == []
 
@@ -1420,7 +1420,7 @@ def test_a_patch_emit_failure_never_takes_the_office_write_down(
     def _boom(*args, **kwargs):
         raise RuntimeError("projection exploded")
 
-    monkeypatch.setattr(sp, "project_office_actor_wire_row", _boom)
+    monkeypatch.setattr(sp.office, "project_office_actor_wire_row", _boom)
     seeded_office.upsert_actor(WORKSPACE, _actor_payload("qa", x=7.5, y=7.5))
     # The write landed...
     stored = seeded_office.get_actor(WORKSPACE, "personainst_qa_agent_0001")
@@ -1753,6 +1753,22 @@ def test_a_conflict_row_is_placed_in_its_workspace_by_the_scope_authority():
     # guessing, and ``ws_pilot_2`` never lands in ``ws_pilot``'s scope.
     assert sp.office_patch_scope({**row, "id": "no_separator"}) is None
     assert sp.office_patch_scope({**row, "id": "ws_pilot_2/k"}) == "ws_pilot_2"
+
+
+def test_office_patch_scope_answers_every_entity_arm_in_one_place():
+    """Positive control for the scope rule (sheet ``state_patches.md`` §6.2):
+    every arm in ONE test, so a table that swaps two handlers reds here. The
+    actor and conflict rows split on the first ``/``; the surface row IS its
+    workspace; a ``persona_instance`` row moves nothing an office projection
+    holds and answers ``None`` whatever its id looks like."""
+
+    actor_id = office_actor_patch_id(WORKSPACE, "personainst_qa_agent_0001")
+    assert sp.office_patch_scope({"entity": sp.OFFICE_ACTOR_ENTITY, "id": actor_id}) == WORKSPACE
+    assert sp.office_patch_scope({"entity": sp.OFFICE_CONFLICT_ENTITY, "id": actor_id}) == WORKSPACE
+    assert sp.office_patch_scope({"entity": sp.OFFICE_SURFACE_ENTITY, "id": WORKSPACE}) == WORKSPACE
+    assert sp.office_patch_scope({"entity": sp.PERSONA_INSTANCE_ENTITY, "id": actor_id}) is None
+    assert sp.office_patch_scope({"entity": sp.PERSONA_INSTANCE_ENTITY, "id": WORKSPACE}) is None
+    assert sp.office_patch_scope({"entity": sp.SCOPE_ENTITY, "id": WORKSPACE}) is None
 
 
 def test_the_conflict_entity_is_not_folded_by_a_client_that_declares_the_actor_one(

@@ -844,7 +844,7 @@ def test_the_unreachable_age_is_rendered_from_the_stamp_and_not_stored():
     purpose: a phrase that moved every second would defeat the revision hash the
     stable block is delivered under."""
 
-    from agent_runtime.runtime_hud import _age_phrase
+    from agent_runtime.runtime_hud.hud import _age_phrase
 
     from datetime import datetime, timedelta, timezone
 
@@ -864,8 +864,64 @@ def test_the_installs_field_is_stable_so_it_rides_the_hashed_body():
     once per turn. So hashing it is cheap and correct — an agent whose paired
     installs did not move gets the cached body."""
 
-    from agent_runtime.runtime_hud import hud_field, stable_hud_fields
+    from agent_runtime.runtime_hud import HUD_FIELDS, stable_hud_fields
 
-    assert hud_field("installs").volatile is False
+    assert {field.key: field for field in HUD_FIELDS}["installs"].volatile is False
     hud = {"preview": True, "installs": [_install_row()]}
     assert "installs" in stable_hud_fields(hud)
+
+
+def test_residency_is_stamped_by_handle_and_never_by_display_name_in_one_roster():
+    """Positive control (layout sheet ``runtime_hud.md`` §6.3): BOTH arms in one
+    roster against one far install. The entry whose HANDLE is on the far roster
+    gains ``also_on``; the entry that shares only a DISPLAY NAME (and persona id)
+    with a far row gains nothing — so a stamp keyed on the name cannot stay
+    green, and neither can one that stamps nobody."""
+
+    from agent_runtime.runtime_hud import resolve_situational_hud
+
+    resident = _peer_instance(instance_id="personainst_dev_agent_2", display_name="Dev")
+    namesake = _peer_instance(instance_id="personainst_other", display_name="Twin", persona_id="twin")
+    hud = resolve_situational_hud(
+        resident,
+        roster=[resident, namesake],
+        installs=[
+            _install_row(
+                roster=[
+                    {"handle": "personainst_dev_agent_2", "persona_id": "dev"},
+                    {"handle": "personainst_far_twin", "persona_id": "twin", "display_name": "Twin"},
+                ]
+            )
+        ],
+    )
+
+    by_id = {entry["persona_instance_id"]: entry for entry in hud["roster"]}
+    assert by_id["personainst_dev_agent_2"]["also_on"] == [{"ref": "mac", "last_turn_at": None}]
+    assert "also_on" not in by_id["personainst_other"]
+
+
+def test_age_phrase_reads_a_naive_stamp_and_a_z_stamp_as_utc():
+    """The age phrase parses through ``clock.parse_iso_utc``: a naive stamp is
+    read as UTC (never a naive-minus-aware crash) and a ``Z`` stamp is accepted."""
+
+    from datetime import datetime, timedelta, timezone
+
+    from agent_runtime.runtime_hud.hud import _age_phrase
+
+    now = datetime.now(timezone.utc)
+    naive = (now - timedelta(minutes=12)).replace(tzinfo=None).isoformat()
+    zulu = (now - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S") + "Z"
+    assert _age_phrase(naive) == "12 min"
+    assert _age_phrase(zulu) == "3 h"
+
+
+def test_a_hud_that_predates_steering_renders_no_steering_line():
+    """Absent ``steering`` is "this HUD predates steering" and says nothing; an
+    EMPTY block is the honest "standalone" answer. Both arms, one test."""
+
+    from agent_runtime.runtime_hud import render_situational_hud_block
+
+    absent = render_situational_hud_block({"preview": True})
+    standalone = render_situational_hud_block({"preview": True, "steering": {"steered_by": [], "steers": []}})
+    assert "Steering" not in absent
+    assert "- Steering: standalone" in standalone

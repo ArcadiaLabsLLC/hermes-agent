@@ -8,6 +8,8 @@ from utils import atomic_json_write
 
 from . import paths
 
+__layer__ = "stores"
+
 MAX_TOOL_TURN_HISTORY = 25
 
 

@@ -25,7 +25,7 @@ def _persona() -> AgentPersona:
 def _write_config(monkeypatch, tmp_path, body: str):
     p = tmp_path / "config.yaml"
     p.write_text(body, encoding="utf-8")
-    monkeypatch.setattr("agent_runtime.config.get_config_path", lambda: p)
+    monkeypatch.setattr("agent_runtime.config.loader.get_config_path", lambda: p)
     return p
 
 
@@ -53,6 +53,24 @@ def test_harness_doctor_flags_shadowing_model_authority(isolate_agent_runtime_ro
     assert any("shadows the runtime default" in notice for notice in authority["notices"])
     # Informational only — a stale pin never turns the doctor into a fix job.
     assert report["summary"]["needs_fix"] is False
+
+
+def test_harness_doctor_flags_a_redundant_model_override(isolate_agent_runtime_root, tmp_path, monkeypatch):
+    """Positive control beside the shadowing case: the two notices are different
+    states of one vocabulary, so each needs its own fixture or a swap stays green."""
+
+    _write_config(
+        monkeypatch,
+        tmp_path,
+        "model:\n  default: gpt-5.6-luna\nagent_runtime:\n  default_model: gpt-5.6-luna\n",
+    )
+
+    report = run_harness_doctor(include_worktrees=False, snapshot_builder=lambda: {"runs": [], "tasks": []})
+
+    authority = report["model_authority"]
+    assert authority["harness_override"]["model_state"] == "redundant"
+    assert authority["notices"] == ["agent_runtime.default_model duplicates model.default and is unmaintained"]
+    assert not any("shadows" in notice for notice in authority["notices"])
 
 
 def test_harness_doctor_model_authority_clean_when_only_top_level(isolate_agent_runtime_root, tmp_path, monkeypatch):
@@ -213,7 +231,7 @@ def test_harness_doctor_reports_an_unexamined_section_instead_of_an_all_clear(
     def _boom():
         raise OSError(13, "share violation")
 
-    monkeypatch.setattr("agent_runtime.harness_doctor.event_log_health", _boom)
+    monkeypatch.setattr("agent_runtime.harness_doctor.probes.event_log_health", _boom)
 
     report = run_harness_doctor(include_worktrees=False, snapshot_builder=lambda: {})
 
@@ -342,8 +360,9 @@ def test_one_table_row_is_the_whole_cost_of_a_new_doctor_section(
 
     from agent_runtime import harness_doctor
 
+    # The runner reads THE table from its own module (harness_doctor.run).
     monkeypatch.setattr(
-        harness_doctor,
+        harness_doctor.run,
         "DOCTOR_SECTIONS",
         (*harness_doctor.DOCTOR_SECTIONS, _synthetic_section()),
     )
@@ -384,8 +403,9 @@ def test_an_unexamined_section_counts_none_from_the_same_table_row(
     unknown = _synthetic_section(
         probe=lambda _context: {"health": "unknown", "error": "probe raised", "widgets": None}
     )
+    # The runner reads THE table from its own module (harness_doctor.run).
     monkeypatch.setattr(
-        harness_doctor,
+        harness_doctor.run,
         "DOCTOR_SECTIONS",
         (*harness_doctor.DOCTOR_SECTIONS, unknown),
     )
@@ -542,6 +562,26 @@ def test_placement_census(isolate_agent_runtime_root):
     assert report["ok"] is False
     assert report["summary"]["finding_counts"]["orphan_actors"] == 1
     assert report["summary"]["finding_counts"]["unplaced_rows"] == 1
+
+
+def test_an_unplaced_row_alone_raises_the_census_to_notice_and_no_further(isolate_agent_runtime_root):
+    """Positive control for the census verdict's notice arm: the roster-only
+    shape ALONE (no orphan, no duplicate) is ``notice`` and moves no flag."""
+
+    workspace = "ws_census_unplaced_alone"
+    _qa_persona_saved()
+    store = _seed_office(workspace)
+    unplaced = _create(workspace, "qa_unplaced_alone_agent_2")
+    store.remove_actor(workspace, unplaced["actor_key"], reason="census fixture")
+
+    report, census = _census()
+
+    assert [row["persona_instance_id"] for row in census["unplaced_rows"]] == [
+        unplaced["persona_instance_id"]
+    ]
+    assert census["orphan_actors"] == [] and census["duplicate_placements"] == []
+    assert census["health"] == "notice"
+    assert report["summary"]["needs_fix"] is False
 
 
 def test_the_orphan_remediation_names_the_verb_that_works_for_a_pulled_orphan(
@@ -1410,6 +1450,9 @@ def test_the_census_names_a_retire_that_left_its_desk_standing(
     _report, census = _census()
 
     reasons = {row["actor_key"]: row["reason"] for row in census["orphan_actors"]}
+    # ORPHAN_ACTOR_REASONS is the vocabulary's one enumeration: every reason a
+    # row can carry is a member (sheet harness_doctor.md §6.3).
+    assert set(reasons.values()) <= set(harness_doctor.ORPHAN_ACTOR_REASONS)
     assert reasons == {
         wedged["actor_key"]: harness_doctor.ORPHAN_ACTOR_RETIRE_INCOMPLETE,
         never_here["actor_key"]: harness_doctor.ORPHAN_ACTOR_INSTANCE_UNKNOWN,

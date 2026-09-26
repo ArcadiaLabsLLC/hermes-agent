@@ -52,6 +52,8 @@ from . import paths
 from .events import EventLog
 from .parity import events_watermark
 
+__layer__ = "stores"
+
 CHECKPOINT_VERSION = 1
 
 

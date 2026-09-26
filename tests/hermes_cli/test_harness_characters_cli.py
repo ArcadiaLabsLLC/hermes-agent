@@ -107,7 +107,7 @@ def fake(tmp_path, monkeypatch):
         square_px=SQUARE_PX,
         glyph_px=GLYPH_PX,
     )
-    monkeypatch.setattr(pipeline, "_generate_image", provider)
+    monkeypatch.setattr(pipeline.provider, "_generate_image", provider)
     return provider
 
 
@@ -350,7 +350,7 @@ def fake_unsliceable_walk_e(fake, monkeypatch, tmp_path):
             provider=provider,
         )
 
-    monkeypatch.setattr(pipeline, "_generate_image", draftsman)
+    monkeypatch.setattr(pipeline.provider, "_generate_image", draftsman)
     return draftsman
 
 

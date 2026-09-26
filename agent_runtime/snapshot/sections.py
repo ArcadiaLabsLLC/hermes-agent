@@ -9,7 +9,7 @@ from collections.abc import Callable
 from hermes_time import now
 from agent_runtime.board_store import BoardStore
 from agent_runtime.office_store import OfficeStore
-from agent_runtime.config import load_agent_runtime_config
+from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
 from agent_runtime.decision_contract_registry import (
     CONTRACT_SCHEMA_VERSION,
     contract_hash,
@@ -216,7 +216,10 @@ class SnapshotFrameBuild:
         self.agent_summaries = [
             *self.agent_summaries,
             *active_persona_instance_agent_summaries(
-                self.persona_instances, self.personas_by_id, self.readiness_by_persona_id
+                self.persona_instances,
+                self.personas_by_id,
+                self.readiness_by_persona_id,
+                roster=ensure_persisted_personas,
             ),
         ]
         self.migration = migration_status()
@@ -346,6 +349,7 @@ class SnapshotFrameBuild:
                 profile_readiness=self.readiness_by_persona_id.get(
                     str(getattr(instance, "persona_id", "") or "")
                 ),
+                roster=ensure_persisted_personas,
             )
             for instance in self.persona_instances
         ]

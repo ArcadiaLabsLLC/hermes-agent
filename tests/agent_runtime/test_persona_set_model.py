@@ -792,3 +792,21 @@ def test_store_persisted_model_survives_config_persona_override(monkeypatch, cap
     cfg_with_override.personas = {"base": {"model": "cfg-clobber-model", "role": "profile"}}
     merged = {persona.id: persona for persona in ensure_persisted_personas(cfg_with_override)}
     assert merged["base"].model == "claude-x", "store tier must win over config catalog tier"
+
+
+def test_cli_instance_set_model_accepts_upstream_llamacpp_and_stores_the_launcher_id(monkeypatch, capsys):
+    # Lane LLAMA-ALIAS: input accepts upstream's ``llamacpp``; the row keeps publishing
+    # ``local-llama-hermes`` and the preset model id, until the launcher switches.
+    import uuid
+    _patched_harness(monkeypatch)
+    store = PersonaInstanceStore()
+    _, second = _two_instances(store, _persona())
+    model = str(uuid.uuid4())
+    code = model_and_skills_commands._cmd_persona_instance_set_model(
+        _instance_args(second.id, provider="llamacpp", model=model))
+    assert code == 0
+    data = json.loads(capsys.readouterr().out)
+    assert (data["provider"], data["api_mode"]) == ("local-llama-hermes", "chat_completions")
+    stored = store.get(second.id)
+    assert (stored.provider, stored.model) == ("local-llama-hermes", model)
+    assert not any(w["code"] == "provider_credentials_not_detected" for w in data["warnings"])

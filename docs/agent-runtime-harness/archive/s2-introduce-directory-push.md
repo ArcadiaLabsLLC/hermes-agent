@@ -85,7 +85,7 @@ Cross-process discipline every writer obeys: `store_root` is an INPUT
 `hermes_cli/harness.py:333-461` declares the `gateway` subtree: `id`, `rename`,
 `pair`, `devices list|revoke`, `peers pair|join|list|revoke`; each
 `set_defaults(func=_cmd_gateway_*)`, thin wrappers at `:2072`, `:2163-2190`
-that import `hermes_cli/harness_parts/gateway_commands.py`. Every verb takes
+that import `hermes_cli/harness_parts/gateway_commands/`. Every verb takes
 `_add_stage42_global_args` (`:189`) and prints through `_object_envelope` /
 `_list_envelope` + `attach_root_observability` + `_print_stage42`
 (`gateway_commands.py:74-79`). Refusal codes are a `StoreRefusal.reason →
@@ -343,9 +343,9 @@ is named beside the change that moves it.
 ### S2 · `introduce`, expiry, attested `join`, `capabilities`, `gateway id` endpoints
 
 **Files:** `agent_runtime/gateway_capabilities.py` (new),
-`agent_runtime/serve_gateway_auth.py`, `agent_runtime/gateway_peers.py`,
+`agent_runtime/serve_gateway_auth.py`, `agent_runtime/gateway_peers/`,
 `agent_runtime/gateway_pairing_codes.py` (docstring only),
-`hermes_cli/harness_parts/serve.py`, `hermes_cli/harness_parts/gateway_commands.py`,
+`hermes_cli/harness_parts/serve.py`, `hermes_cli/harness_parts/gateway_commands/`,
 `hermes_cli/harness.py`, `agent_runtime/serve_socket.py` (docstring of
 `peer_join_hello` for the new `peered.expires_at`),
 `tests/fixtures/hermes_cli_contract.json` (regenerated).
@@ -485,12 +485,12 @@ is named beside the change that moves it.
 
 ### S2c · the cache sidecar, the events, `peer.announce`, `usable_peers`
 
-**Files:** `agent_runtime/gateway_peers.py`, `agent_runtime/gateway_announce.py`
+**Files:** `agent_runtime/gateway_peers/`, `agent_runtime/gateway_announce.py`
 (new), `agent_runtime/gateway_targets.py`, `agent_runtime/decision_contract_registry.py`,
 `agent_runtime/serve_rpc.py`, `agent_runtime/call_authorization.py`,
 `agent_runtime/serve_socket.py` (`peer_hello` optional fields),
-`hermes_cli/harness_parts/serve.py`, `hermes_cli/harness_parts/gateway_commands.py`,
-`hermes_cli/harness.py` (`rename` → announce), `agent_runtime/agent_create.py`
+`hermes_cli/harness_parts/serve.py`, `hermes_cli/harness_parts/gateway_commands/`,
+`hermes_cli/harness.py` (`rename` → announce), `agent_runtime/agent_create/`
 / `agent_runtime/agent_retire.py` (roster-changed hook), `tools/agent_chat_tool.py`,
 `tools/agent_chat_dispatch.py` (`note_dial_result`), `agent_runtime/peer_directory.py`,
 `tests/fixtures/stream_frames/*` (regenerated), `tests/agent_runtime/test_s15_event_contract_pruning.py`.

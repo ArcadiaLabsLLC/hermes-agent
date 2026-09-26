@@ -25,7 +25,7 @@ loop. The entry point is `_cmd_mission_chat_message` — defined at
 Turn ingress has one path. Asynchronous agent-to-agent delivery
 (`agent_chat_send(wait=false)`) does not inject a message: a serve-hosted drain
 forges a real turn through **the same handler an operator message goes through**
-(`agent_runtime/dispatch_delivery.py:1072`, docstring `:12-19`), which is what
+(`agent_runtime/dispatch_delivery/forge.py::forge_delivery_turn`), which is what
 keeps transcript, live log, turn journal and projection consistent for free.
 Two narrower append seams do exist and are deliberate, turn-less writes — the
 bounded child-summary mirror (`agent_runtime/continuity.py:52-62`, posted by
@@ -36,7 +36,7 @@ contract; neither runs a turn or reaches the provider.
 
 MCP tool admission is data-owned, not role-owned: a persona may admit only the
 servers its backing profile declares, and "role names do not narrow or widen
-that data-owned set" (`mcp_admission.py:26-29`). `R1_ADMISSIBLE_ROLES` returns
+that data-owned set" (`agent_runtime/mcp_admission/__init__.py`). `R1_ADMISSIBLE_ROLES` returns
 zero hits in production source (its only survivors are quotes in the archived
 removal doc).
 
@@ -47,9 +47,9 @@ Four things, in one chain, each with a distinct lifetime.
 **1 — Persona template.** `AgentPersona` (`agent_runtime/models.py:403`) — the
 definition: display name, role, model/provider/api_mode, toolsets, skills,
 `hermes_profile`, budgets, readiness. Personas are **data**, from the config
-block (`config.persona_records_from_config`, `agent_runtime/config.py:552`)
-merged with persisted store rows (`ensure_persisted_personas`, `:651`, over
-`store.AgentStore` at `store.py:152`). Nothing in code declares them — S11 left
+block (`config.persona_records_from_config`, `agent_runtime/config/persona_records.py:43`)
+merged with persisted store rows (`ensure_persisted_personas`, `:142`, over
+`store.AgentStore` at `store/base.py:234`). Nothing in code declares them — S11 left
 `DEFAULT_PERSONA_IDS`, `BASE_PERSONA_ID`, `DEFAULT_SUPERVISOR_PERSONA_ID`,
 `ALLOWED_TOOLSETS_BY_ROLE` and `PER_ROLE_TOOL_DENIES` as scoped tombstone rows
 against `agent_runtime.personas` (`tests/agent_runtime/test_tombstone_registry.py`,
@@ -107,7 +107,7 @@ order is instance-first and that is not arbitrary: a placement written first
 would be a half-state naming an instance the runtime never minted, and the
 launcher's codec refuses on principle to derive a binding for an actor that has
 none — the function's own docstring is the long form. (This paragraph carried
-`agent_create.py:692` from consolidation until 2026-08-27, when the correction
+`agent_create/phases.py:25` from consolidation until 2026-08-27, when the correction
 recorded that the function "was at `:1205`". By 2026-08-31 it was at `:1271`:
 the correction rotted the same way the citation it corrected did, which is the
 whole case for naming symbols instead of lines and is why this note no longer
@@ -247,10 +247,10 @@ empty canvas whose owner is live is intended, not garbage
 
 What the graph does *not* do: schedule, gate, or execute. It feeds the agent's
 `## Runtime Situation` block, whose declared field roster
-(`runtime_hud.py:151` `HUD_FIELDS`) is `preview · scope · lane · mission ·
+(`runtime_hud/fields.py:72` `HUD_FIELDS`) is `preview · scope · lane · mission ·
 roster · steering · board` plus two volatile rows (`turn_budget`, capability).
 Steering is the one block always emitted, because an explicit empty block is
-the honest "standalone" answer (`runtime_hud.py:721-725`).
+the honest "standalone" answer (`runtime_hud/hud.py:199-203`).
 
 ## Realms and workspaces
 
@@ -260,7 +260,7 @@ the honest "standalone" answer (`runtime_hud.py:721-725`).
 travels with it, so a member holding a stale local copy neither republishes nor
 re-adopts a deleted workspace. Since 2026-08-28 the same idea guards skill
 packages: `skill_tombstones` (`SkillTombstone`, `models.py:104`), a per-realm
-ledger capped at `SKILL_TOMBSTONE_LEDGER_CAP = 200` (`store.py:34`), serialized
+ledger capped at `SKILL_TOMBSTONE_LEDGER_CAP = 200` (`store/ledgers.py:31`), serialized
 additively at the existing schema version — the delete lane it powers is
 documented under [Skills](#skills).
 
@@ -268,7 +268,7 @@ Realms own what publishes: `skill_publish_mode`
 (`all` | `selected`) and `agent_publish_mode` (`workspace` | `selected`), with
 personas required by a roster or an Office placement pinned regardless, so a
 pulled workspace can never point at an absent persona definition. Stores:
-`WorkspaceStore` (`store.py:173`), `RealmStore` (`:472`); active pointers are
+`WorkspaceStore` (`store/workspaces.py:36`), `RealmStore` (`store/realms.py:42`); active pointers are
 single files (`paths.active_workspace_path()` / `active_realm_path()`).
 Server-bound realms authorize every sync action against the Eternia backend and
 **fail closed** (`realm_membership.py:1-12`) — which half of which verb that
@@ -635,7 +635,7 @@ instance family's pattern rather than beside it:
 
 Workspace-scoped kanban, and **planning state only**: "Cards are planning
 state. They do not carry or mutate mission records"
-(`agent_runtime/board_store.py:8-15`). `Board` / `BoardColumn` / `BoardCard`
+(`agent_runtime/board_store/__init__.py:3-7`). `Board` / `BoardColumn` / `BoardCard`
 are at `models.py:135` / `:92` / `:108`. `BoardStore` is the single write
 chokepoint and emits a typed event on every mutation.
 
@@ -786,7 +786,7 @@ naming the slug even with no local copy), prunes the slug from
 `skill_selection` (R-F), and unlinks the per-realm inbox mirror (a cache the
 next pull rebuilds). The match rule is single and one-to-many: a bare `foo`
 tombstone covers top-level `foo` AND categorized `<cat>/foo`
-(`store.skill_tombstone_matches`, `store.py:451`) — which is why the delete
+(`store.skill_tombstone_matches`, `store/ledgers.py:69`) — which is why the delete
 receipt's `archived` array is the truth and its scalar fields are only the
 single-package convenience. Enforcement is entirely client-side, because a
 GitHub-App push has no pre-receive hook, and it closes at three points in
@@ -921,7 +921,7 @@ continuity, scope and evidence.
 Two things were deliberately kept: `agent_runtime/blueprints/resolve.py`, a
 permanent re-export of `promote_profile_to_persona` for the upstream
 profile-promotion endpoint, and `task_store_stub.TaskStoreStub` (re-exported as
-`TaskStore` at `store.py:149`) under ruling R-3 — though its stated cause has
+`TaskStore` at `store/__init__.py:79`) under ruling R-3 — though its stated cause has
 since changed; see Open rows. Personas and profiles were **not** deleted:
 nothing under `.hermes/profiles/` was touched, only the hardcoded logic that
 declared them.

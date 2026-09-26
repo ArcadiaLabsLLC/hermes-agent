@@ -1209,3 +1209,93 @@ def test_the_directory_and_the_resolver_agree_on_which_installs_exist(
             assert outcome.install_id == record.peer_install_id
         else:
             assert isinstance(outcome, TargetRefusal), record.peer_install_id
+
+
+# ── the Q10 door ─────────────────────────────────────────────────────────────
+
+
+def test_the_inline_relay_runs_through_the_mission_chat_door(monkeypatch):
+    """Positive control for the refusal below: with the door bound (the harness
+    plugin binds it at registration; the test plugin does the same), a stub on
+    the CLI handler is reached through the door and its payload comes back."""
+    from agent_runtime import mission_chat_door
+
+    assert mission_chat_door.mission_chat_turn_bound()
+
+    def fake_handler(args):
+        _reply(args, {"ok": True, "reply": "through the door"})
+        return 0
+
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
+    data = json.loads(agent_chat_send(persona_id="dev", message="hi"))
+
+    assert data["ok"] is True
+    assert data["reply"] == "through the door"
+
+
+def test_an_unbound_door_is_a_typed_refusal_not_a_silent_no_op(monkeypatch):
+    from agent_runtime import mission_chat_door
+
+    monkeypatch.setattr(mission_chat_door, "_turn", None)
+    data = json.loads(agent_chat_send(persona_id="dev", message="hi"))
+
+    assert data["ok"] is False
+    assert data["error_kind"] == "mission_chat_door_unbound"
+
+
+def test_the_tool_package_never_imports_the_cli_turn_handler():
+    """Ruling Q10's other half, a NEGATIVE guarantee (a source walk is the right
+    instrument): no module of the tool imports the CLI's turn-handler module.
+    (``threads`` still reads ``chat_target``'s resolver — sheet §4 names that
+    reach and leaves it; the Q10 row records it.)"""
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    files = [root / "tools" / "agent_chat_tool.py", *sorted((root / "tools" / "agent_chat").glob("*.py"))]
+    offenders = []
+    for path in files:
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if not isinstance(node, ast.ImportFrom):
+                continue
+            module = node.module or ""
+            names = {alias.name for alias in node.names}
+            if module.endswith("chat_turn_message") or (
+                module == "hermes_cli.harness_parts.persona" and "chat_turn_message" in names
+            ):
+                offenders.append(f"{path.name}:{node.lineno}")
+    assert len(files) >= 7
+    assert offenders == []
+
+
+def test_every_agent_chat_registration_reaches_its_handler():
+    """Each registered ``agent_chat`` entry is CALLED once with a refusing payload.
+
+    The six registrations wrap their handler in a lambda (the args-dict to
+    keyword adapter), so a handler name missing from ``tools/agent_chat_tool``'s
+    imports registers fine and fails only when a model calls the tool — a
+    ``NameError`` no import-time check sees. The entries are enumerated from the
+    live registry (never typed here), the handler is called DIRECTLY (not
+    through ``registry.dispatch``, which turns every exception into an error
+    string), and each payload is empty: no persona, no session, so every
+    handler answers with its own refusal or an empty read and nothing is sent.
+    """
+
+    import ast
+    import inspect
+
+    import tools.agent_chat_tool as entry_module
+
+    names = registry.get_tool_names_for_toolset("agent_chat")
+    registered = sum(
+        1
+        for node in ast.walk(ast.parse(inspect.getsource(entry_module)))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "register"
+    )
+    assert len(names) == registered == 6, (names, registered)
+    for name in names:
+        result = registry.get_entry(name).handler({})
+        payload = json.loads(result) if isinstance(result, str) else result
+        assert isinstance(payload, dict) and "ok" in payload, (name, result)

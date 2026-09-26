@@ -5,6 +5,7 @@ sanitizers every summary field passes through.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import replace
 from typing import Any
 
@@ -30,6 +31,10 @@ from agent_runtime.tool_visibility import (
 )
 
 __layer__ = "policy"
+
+#: Reads the persona roster on demand — ``config.ensure_persisted_personas``,
+#: passed by a ``stores``-or-higher caller.
+PersonaRoster = Callable[[], Iterable[AgentPersona]]
 
 __all__ = [
     "active_persona_instance_agent_summaries",
@@ -64,9 +69,10 @@ def persona_instance_summary(
     persona: AgentPersona | None = None,
     *,
     profile_readiness: dict[str, Any] | None = None,
+    roster: PersonaRoster | None = None,
 ) -> dict[str, Any]:
     state = instance.state.value if hasattr(instance.state, "value") else str(instance.state)
-    visibility_persona = persona or _profile_visibility_persona(instance)
+    visibility_persona = persona or _profile_visibility_persona(instance, roster)
     profile_id = instance.profile_id or getattr(visibility_persona, "hermes_profile", None)
     skills = (
         list(instance.skill_overrides)
@@ -232,7 +238,10 @@ def persona_instance_visibility_ref(entity_id: str) -> dict[str, Any]:
 
 
 def persona_instance_tool_detail(
-    instance: PersonaInstance, persona: AgentPersona | None = None
+    instance: PersonaInstance,
+    persona: AgentPersona | None = None,
+    *,
+    roster: PersonaRoster | None = None,
 ) -> dict[str, Any] | None:
     """The evicted tool-detail payloads for one persona instance, rebuilt from the
     same tool-visibility resolution ``persona_instance_summary`` used before R2.
@@ -242,7 +251,7 @@ def persona_instance_tool_detail(
     (an honest "unavailable" the launcher surfaces, never a fake-empty payload).
     ``agent_hud_state`` is intentionally NOT rebuilt here (retired)."""
 
-    visibility_persona = persona or _profile_visibility_persona(instance)
+    visibility_persona = persona or _profile_visibility_persona(instance, roster)
     if visibility_persona is None:
         return None
     tool_options = permission_options_for_chat(
@@ -279,6 +288,8 @@ def active_persona_instance_agent_summaries(
     instances: list[PersonaInstance],
     personas_by_id: dict[str, AgentPersona] | None = None,
     readiness_by_persona_id: dict[str, dict[str, Any]] | None = None,
+    *,
+    roster: PersonaRoster | None = None,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -295,6 +306,7 @@ def active_persona_instance_agent_summaries(
             instance,
             personas_by_id.get(persona_id),
             profile_readiness=readiness_by_persona_id.get(persona_id),
+            roster=roster,
         )
         row["runtime_agent_kind"] = "persona_instance"
         row["source_persona_id"] = persona_id
@@ -319,7 +331,18 @@ def _persona_instance_is_active_lane(instance: PersonaInstance) -> bool:
     )
 
 
-def _profile_visibility_persona(instance: PersonaInstance) -> AgentPersona | None:
+def _profile_visibility_persona(
+    instance: PersonaInstance, roster: PersonaRoster | None
+) -> AgentPersona | None:
+    """The persona a ``profile:``-backed instance with no persona row is shown as.
+
+    The configured persona binding its profile when ``roster`` (the ``stores``
+    caller's ``config.ensure_persisted_personas``) names one, else a standin
+    built from the instance. ``roster=None`` is the standin by construction:
+    this module is ``policy`` and never reads the store itself, so a caller that
+    wants the configured persona passes the roster.
+    """
+
     profile_id = (instance.profile_id or "").strip()
     persona_id = (instance.persona_id or "").strip()
     if not profile_id and not persona_id.lower().startswith("profile:"):
@@ -329,9 +352,7 @@ def _profile_visibility_persona(instance: PersonaInstance) -> AgentPersona | Non
     resolved_persona_id = persona_id or (f"profile:{profile_id}" if profile_id else "profile:unknown")
     display_name = instance.display_name or _display_name_for_template(profile_id or resolved_persona_id)
     try:
-        from ..config import ensure_persisted_personas, load_agent_runtime_config
-
-        persisted_personas = list(ensure_persisted_personas(load_agent_runtime_config()))
+        persisted_personas = list(roster()) if roster is not None else []
     except Exception:
         persisted_personas = []
     configured = next(

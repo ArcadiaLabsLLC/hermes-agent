@@ -22,6 +22,7 @@ import json
 import pytest
 
 from agent_runtime import paths
+from agent_runtime.gateway_endpoints import candidates as endpoint_candidates
 
 
 @pytest.fixture(autouse=True)
@@ -39,9 +40,10 @@ def hermetic_runtime_root(tmp_path, monkeypatch):
 def gateway_configured(monkeypatch):
     from hermes_cli.harness_parts import serve as serve_module
 
-    monkeypatch.setattr(
-        serve_module, "gateway_listen_config", lambda: ("10.0.0.4", 8765)
-    )
+    for _home in (serve_module, endpoint_candidates):
+        monkeypatch.setattr(
+            _home, "gateway_listen_config", lambda: ("10.0.0.4", 8765)
+        )
 
 
 @pytest.fixture
@@ -69,7 +71,7 @@ def no_dial_allowed(monkeypatch):
     # too — belt and braces, and the one that actually fires.
     from agent_runtime import serve_socket
 
-    monkeypatch.setattr(serve_socket, "ServeSocketClient", _explode)
+    monkeypatch.setattr(serve_socket.client, "ServeSocketClient", _explode)
 
 
 def _dispatch(argv: list[str]) -> int:
@@ -260,4 +262,4 @@ def _stub_successful_join(monkeypatch, *, expires_at: str | None = None):
         def close(self) -> None:
             self.closed = True
 
-    monkeypatch.setattr(serve_socket, "ServeSocketClient", _Client)
+    monkeypatch.setattr(serve_socket.client, "ServeSocketClient", _Client)

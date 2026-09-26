@@ -3,7 +3,7 @@
 Upstream's test spawns ``python -m hermes_cli.main dashboard --no-open --tui ... --status``.
 The fork's live-system guard (``tests/conftest.py``) refuses that spawn: ``--status``
 walks the OS process table and a real ``hermes dashboard`` child is a backend boot.
-The upstream test is a strict xfail by id (``tests/_downstream/id_markers.py``);
+The upstream test is a strict xfail by id (``tests/_downstream/id_markers/``);
 the claim it makes — an old app shell's argv parses — is pinned here in-process,
 on the SAME parser the CLI wires in (:func:`build_dashboard_parser`), fed the SAME
 argv. What is not pinned is that ``python -m hermes_cli.main`` is runnable as a

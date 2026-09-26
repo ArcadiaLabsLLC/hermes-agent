@@ -16,6 +16,9 @@ def test_dry_run_warns_git_history_not_backed_up(monkeypatch, tmp_path, capsys):
 
     monkeypatch.setattr(uninstall, "_is_default_hermes_home", lambda home: False)
     monkeypatch.setattr(uninstall, "_discover_named_profiles", lambda: [])
+    # Upstream (2026-09-25 merge) refuses code removal for a steward-owned install
+    # before the banner; this checkout is not one.
+    monkeypatch.setattr(uninstall, "code_removal_refusal", lambda: None)
 
     uninstall._print_uninstall_dry_run(
         project_root=project_root, hermes_home=hermes_home, full_uninstall=False
@@ -38,6 +41,9 @@ def test_interactive_preamble_warns_git_history_not_backed_up(
     monkeypatch.setattr(uninstall, "get_hermes_home", lambda: hermes_home)
     monkeypatch.setattr(uninstall, "_is_default_hermes_home", lambda home: False)
     monkeypatch.setattr(uninstall, "_discover_named_profiles", lambda: [])
+    # Upstream (2026-09-25 merge) refuses code removal for a steward-owned install
+    # before the banner; this checkout is not one.
+    monkeypatch.setattr(uninstall, "code_removal_refusal", lambda: None)
 
     # Cancel at the very first prompt (option select) so nothing destructive
     # runs; we only care that the banner already printed the warning.

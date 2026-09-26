@@ -91,6 +91,8 @@ from .resolution import (
     resolve_runtime,
 )
 
+__layer__ = "stores"
+
 __all__ = [
     "HeadAnchorReport",
     "RootAnchorOutcome",

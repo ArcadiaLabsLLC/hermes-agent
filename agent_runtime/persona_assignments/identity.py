@@ -8,6 +8,7 @@ never a store (the answers that need the roster are in ``lookups``).
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable, Iterable
 from typing import Any
 
 from agent_runtime.agent_create_phases import timed_create_subphase
@@ -315,7 +316,9 @@ def _coerce_travel_value(name: str, value: Any) -> Any:
         return value
 
 
-def _role_for_persona_or_template(persona_or_template_id: str) -> str | None:
+def _role_for_persona_or_template(
+    persona_or_template_id: str, roster: Callable[[], Iterable[Any]]
+) -> str | None:
     """The ROLE a replica should be stamped with — from the local persona
     definition, never from the wire.
 
@@ -326,15 +329,16 @@ def _role_for_persona_or_template(persona_or_template_id: str) -> str | None:
     the definition that landed beside it. Unresolvable personas yield ``None``
     and the caller stamps ``""`` — a replica with no role is honest, where a
     replica with a wrong one is not.
+
+    ``roster`` reads the persona roster (``config.ensure_persisted_personas``),
+    passed in by the ``stores`` caller: this module never reads a store.
     """
 
     raw = str(persona_or_template_id or "").strip()
     if not raw:
         return None
     try:
-        from ..config import ensure_persisted_personas, load_agent_runtime_config
-
-        for candidate in ensure_persisted_personas(load_agent_runtime_config()):
+        for candidate in roster():
             if safe_assignment_token(getattr(candidate, "id", None)) == safe_assignment_token(raw):
                 return str(getattr(candidate, "role", "") or "") or None
     except Exception:
@@ -342,7 +346,9 @@ def _role_for_persona_or_template(persona_or_template_id: str) -> str | None:
     return None
 
 
-def _profile_id_for_persona_or_template(persona_or_template_id: str) -> str | None:
+def _profile_id_for_persona_or_template(
+    persona_or_template_id: str, roster: Callable[[], Iterable[Any]]
+) -> str | None:
     """The profile an instance projection should be stamped with at creation.
 
     B-4. This function used to answer ``None`` for every id that was not a
@@ -365,7 +371,8 @@ def _profile_id_for_persona_or_template(persona_or_template_id: str) -> str | No
     instead of leaving a reader to re-derive it.
 
     Unresolvable personas still yield ``None`` — a null binding remains
-    supported and is not an error.
+    supported and is not an error. ``roster`` as in
+    :func:`_role_for_persona_or_template`.
     """
     raw = str(persona_or_template_id or "").strip()
     if raw.lower().startswith("profile:"):
@@ -373,9 +380,7 @@ def _profile_id_for_persona_or_template(persona_or_template_id: str) -> str | No
     if not raw:
         return None
     try:
-        from ..config import ensure_persisted_personas, load_agent_runtime_config
-
-        for candidate in ensure_persisted_personas(load_agent_runtime_config()):
+        for candidate in roster():
             if safe_assignment_token(getattr(candidate, "id", None)) == safe_assignment_token(raw):
                 return safe_assignment_token(getattr(candidate, "hermes_profile", None)) or None
     except Exception:

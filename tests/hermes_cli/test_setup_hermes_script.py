@@ -27,5 +27,3 @@ def test_setup_hermes_script_is_valid_shell():
         [bash, "-n", SETUP_SCRIPT.as_posix()], capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
-
-

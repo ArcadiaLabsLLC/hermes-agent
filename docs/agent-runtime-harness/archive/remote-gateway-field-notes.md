@@ -21,7 +21,7 @@ legacy-marking. Docs only.
   `hermes_cli/harness_parts/persona_commands.py` (`:688`, `:837`, `:854`,
   `:4827`, `:4864`, `:5013`, `:5088`, `:5258`). No other module calls it.
 - The shared service functions the doors collapse onto:
-  `agent_runtime/agent_retire.py:219` and `agent_runtime/agent_create.py:1205`.
+  `agent_runtime/agent_retire.py:219` and `agent_runtime/agent_create/phases.py:371`.
 - The RPC dispatch layer: `agent_runtime/serve_rpc.py` — `_METHODS` (`:141`),
   the `method` decorator (`:234`), `RpcContext` (`:186-215`), `handle_request`
   (`:317`), and the two agent handlers (`:1992`, `:2078`).

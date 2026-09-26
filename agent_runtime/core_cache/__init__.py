@@ -232,7 +232,7 @@ from agent_runtime.core_cache.shadow import (
     shadow_validate,
 )
 
-__layer__ = "wiring"
+__layer__ = "lanes"
 
 __all__ = [
     "BUILD_SELF_PERTURBED_CLASSES",

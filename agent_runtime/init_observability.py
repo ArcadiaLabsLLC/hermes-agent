@@ -2,6 +2,9 @@
 import logging
 import time
 from typing import Any, Callable, Dict, Optional
+
+__layer__ = "stores"
+
 logger = logging.getLogger(__name__)
 
 def _tool_defs_cache_misses() -> Optional[int]:

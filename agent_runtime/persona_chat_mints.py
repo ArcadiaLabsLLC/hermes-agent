@@ -16,6 +16,8 @@ from .locks import (
     persona_chat_mint_lock,
 )
 
+__layer__ = "stores"
+
 
 _SCHEMA_VERSION = 1
 _VALID_STATES = frozenset({"reserved", "bound"})

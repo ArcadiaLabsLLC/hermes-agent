@@ -161,7 +161,7 @@ def _agent_create_into(workspace_id: str, monkeypatch) -> object:
 
     _backend_dev_persona()
     monkeypatch.setattr(
-        agent_create,
+        agent_create.perform,
         "placement_actor_payload",
         # ``position`` joined the real signature in S2 (the resolved slot is
         # passed in rather than re-read off the request). Accepted and ignored:
@@ -391,7 +391,10 @@ def test_no_lane_holds_a_second_copy_of_the_predicate():
     lanes = {
         # The RPC lane is the handler AND the translation table it reads.
         "rpc": serve_rpc.office_actor_writes,
-        "agent_create": agent_create.perform_agent_create,
+        # The create lane answers the store's refusal in its placement-fault
+        # table (``agent_create.placement_faults.PLACEMENT_FAULTS``), so the pin
+        # reads the module that holds the table and its translators.
+        "agent_create": agent_create.placement_faults,
         "cli": office_cli._cmd_office_actor_upsert,
         "template": workspace_template._copy_office,
     }

@@ -24,14 +24,17 @@ import pytest
 from agent_runtime.runtime_hud import (
     CAPABILITY_HUD_KEY,
     HUD_FIELDS,
-    hud_field,
     is_volatile_hud_key,
     render_situational_hud_block,
     resolve_situational_hud,
     situational_hud_revision,
     stable_hud_fields,
-    volatile_hud_keys,
 )
+
+#: The declaration read directly (the hud_field / volatile_hud_keys accessors were
+#: test-only and left production in lane 2B-B).
+_DECLARED = {field.key: field for field in HUD_FIELDS}
+_VOLATILE = frozenset(field.key for field in HUD_FIELDS if field.volatile)
 
 
 def _instance(**overrides):
@@ -61,7 +64,7 @@ def test_the_declared_volatile_set_is_exactly_the_two_tail_riders():
     """Widening this set is a product decision (a new fact that must be true
     every turn), never an incidental edit — so it is stated here."""
 
-    assert volatile_hud_keys() == {"turn_budget", CAPABILITY_HUD_KEY}
+    assert _VOLATILE == {"turn_budget", CAPABILITY_HUD_KEY}
 
 
 def test_an_undeclared_key_is_treated_as_stable():
@@ -69,7 +72,7 @@ def test_an_undeclared_key_is_treated_as_stable():
     case is an extra re-snapshot; defaulting the other way would silently drop a
     new fact out of the revision and let a cached body go stale."""
 
-    assert hud_field("something_new") is None
+    assert _DECLARED.get("something_new") is None
     assert is_volatile_hud_key("something_new") is False
     assert stable_hud_fields({"something_new": 1}) == {"something_new": 1}
 
@@ -92,14 +95,14 @@ def test_every_key_the_resolver_can_emit_is_declared():
         turn_budget={"total_seconds": 240.0, "remaining_seconds": 100.0},
         capability={"toolsets_dropped": ["terminal"]},
     )
-    undeclared = {key for key in hud if hud_field(key) is None}
+    undeclared = {key for key in hud if _DECLARED.get(key) is None}
     assert not undeclared, f"undeclared HUD keys: {sorted(undeclared)}"
 
 
 # ── both consumers derive from the one declaration ──────────────────────────
 
 
-@pytest.mark.parametrize("key", sorted(volatile_hud_keys()))
+@pytest.mark.parametrize("key", sorted(_VOLATILE))
 def test_a_volatile_field_never_moves_the_revision(key):
     base = {"preview": True, "lane": {"role": "dev"}}
     assert situational_hud_revision(base) == situational_hud_revision(
@@ -107,7 +110,7 @@ def test_a_volatile_field_never_moves_the_revision(key):
     )
 
 
-@pytest.mark.parametrize("key", sorted(volatile_hud_keys()))
+@pytest.mark.parametrize("key", sorted(_VOLATILE))
 def test_a_volatile_field_is_absent_from_the_dict_the_body_renderer_reads(key):
     """Structural, not conventional. The body renderer receives
     ``stable_hud_fields(hud)``, so it CANNOT render a volatile field even if a
@@ -136,6 +139,6 @@ def test_a_hud_carrying_only_volatile_fields_is_unavailable_on_both_lanes():
     no delivery would ever carry.
     """
 
-    volatile_only = {key: {"x": 1} for key in volatile_hud_keys()}
+    volatile_only = {key: {"x": 1} for key in _VOLATILE}
     assert situational_hud_revision(volatile_only) == "hud_unavailable"
     assert render_situational_hud_block(volatile_only) == ""

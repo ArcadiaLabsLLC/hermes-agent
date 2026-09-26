@@ -6,9 +6,10 @@ watermark-gated snapshot/serve pipeline. The append itself is best-effort BY
 CONTRACT: the file write has already happened, so a failed append is logged and
 swallowed rather than turned into a failed write the caller would retry.
 
-Owners today: ``office_store`` (through ``OfficeStore._emit``, which adds the
-gesture token first). ``board_store._emit`` and ``dispatch_store._emit`` are the
-same shape and fold here in their own lanes. ``serve``'s ``_emit`` is a FRAME
+Callers: ``office_store`` (through ``OfficeStore._emit``, which adds the
+gesture token first), ``store`` (every workspace / realm / persona write),
+``board_store`` (``BoardStore._emit``) and ``dispatch_store`` (``db._emit``,
+over a fresh ``EventLog()``). ``serve``'s ``_emit`` is a FRAME
 writer, not this — it is named here so nobody folds it.
 """
 

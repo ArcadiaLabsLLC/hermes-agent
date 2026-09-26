@@ -16,10 +16,16 @@ from types import MappingProxyType
 from typing import Any, Mapping, Protocol
 
 from ..clock import iso_timestamp
-from ..mission_chat_turns import mission_chat_turn_elements, mission_chat_turn_records
+from ..mission_chat_turns.reads import (
+    mission_chat_turn_elements,
+    mission_chat_turn_records,
+)
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..relay_policy import parse_harness_delivery_marker, parse_relay_sender_marker
-from ..runtime_hud import extract_runtime_context_envelope, extract_skill_preload_envelope
+from ..runtime_hud.envelopes import (
+    extract_runtime_context_envelope,
+    extract_skill_preload_envelope,
+)
 from ..transcript_order import TURN_SEQ_OPERATOR, TURN_SEQ_TERMINAL
 from .markers import (
     _carry_run_budget,
@@ -45,7 +51,7 @@ from .vocabulary import (
     logical_persona_chat_client_message_id,
 )
 
-__layer__ = "policy"
+__layer__ = "stores"
 __all__ = [
     "CurationState",
     "ROLE_CURATORS",
@@ -453,7 +459,7 @@ def _history_revision(
 
     if session_db is not None:
         try:
-            from ..persona_chat_continuity import native_history_revision
+            from ..persona_chat_continuity.wire import native_history_revision
 
             return native_history_revision(session_db, session_id)
         except Exception:

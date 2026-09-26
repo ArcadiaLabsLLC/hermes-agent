@@ -22,6 +22,8 @@ from hermes_cli.sqlite_util import transaction
 from .definition_store import DefinitionStore, _encode, _expect, _required, _key, DefinitionKind
 from .definitions import DefinitionError, ParticipantRef, TableSpec, identifier, revision, plan_seats
 
+__layer__ = "stores"
+
 MAX_CATALOG_MEMBERS = 128
 MAX_OPEN_RUNS = 128
 MAX_PENDING_COMMANDS = 64

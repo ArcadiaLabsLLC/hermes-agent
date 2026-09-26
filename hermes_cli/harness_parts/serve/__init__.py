@@ -5,7 +5,7 @@ Entry points (what calls in):
 * ``commands._cmd_serve`` / ``commands._cmd_serve_connect`` — the two CLI verbs
   the parser wires through ``harness_parts.parser.machine``'s trampolines (lazily,
   so no other verb pays serve's import).
-* ``loop.serve_loop`` — the dispatch loop over explicit streams; every serve test
+* ``session.serve_loop`` — the dispatch loop over explicit streams; every serve test
   and the two field tools drive it directly.
 * ``argv_lane.dispatch_argv`` — one argv request through the harness parser,
   which the ``serve`` trampoline binds (``bind_harness_parser``) so no part of
@@ -31,8 +31,8 @@ drain               lanes   ``_DrainState``, deadline policy, ``DrainLane``
 lanes               lanes   ``ArgvLanes``: ``_run`` and the two pool seams
 subscriptions       lanes   ``SubscriptionLanes``: stream hub, fold room, sockets
 handle_message      lanes   ``MessageHandling`` and the ``OP_HANDLERS`` table
-session             lanes   ``ServeSession``: fields, boot order, liveness
-loop                lanes   ``serve_loop`` (builds a session, runs it)
+session             lanes   ``ServeSession``: fields, boot order, liveness;
+                            ``serve_loop`` (builds a session, runs it)
 commands            lanes   ``_cmd_serve``, ``_cmd_serve_connect``, pipe claim
 ==================  ======  ====================================================
 
@@ -113,8 +113,6 @@ from hermes_cli.harness_parts.serve.handle_message import (
 )
 from hermes_cli.harness_parts.serve.session import (
     ServeSession,
-)
-from hermes_cli.harness_parts.serve.loop import (
     serve_loop,
 )
 from hermes_cli.harness_parts.serve.commands import (

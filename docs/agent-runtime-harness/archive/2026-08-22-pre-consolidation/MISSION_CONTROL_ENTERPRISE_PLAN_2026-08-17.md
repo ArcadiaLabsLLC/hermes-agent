@@ -460,7 +460,7 @@ still reaped. **Property:** 7, 6.
   hover, not a database dig). **Property:** 4.
 - **EG-6.6 — the class-key fence becomes one fence** (NEW — property 8's own named example,
   staged with teeth). Today `class_key_collision` is guarded at THREE call sites
-  (`serve_rpc.py:928`, `agent_create.py:794`, `office.py`) around one store, and the rekey
+  (`serve_rpc.py:928`, `agent_create/phases.py:127`, `office.py`) around one store, and the rekey
   script itself warns that any new writer reaching `_write_actor` directly is unfenced
   (SCOUT-H §3). **Change:** hoist the guard into the `OfficeStore` write chokepoint
   (`upsert_actor` / the `_write_actor` gate); the three callers keep only their

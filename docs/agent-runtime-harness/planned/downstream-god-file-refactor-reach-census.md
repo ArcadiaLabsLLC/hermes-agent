@@ -117,3 +117,44 @@ tools/agent_chat_dispatch.py:188-215 _get_executor function 28 lines, 0 hits
 tools/agent_chat_dispatch.py:489-503 _kill_child function 15 lines, 0 hits
 tools/agent_chat_dispatch.py:1074-1097 dispatch_detached_turn function 24 lines, 0 hits
 ```
+
+## Re-run 2026-09-25 (lane Q-DEAD-B) — with the static-reach pre-filter (`a8f33b836c`)
+
+Same instrument, traced once on base `13602d97fc` before the lane rebased onto `5e60ed0d1c` (population now 41 files, 657 traced test files, suite exit 1 — 14 red test files, none of them this lane's), then read twice from the one coverage document:
+
+- **Before** (`--no-static-reach`, the unfiltered census): **62 rows** — 40 functions, 22 arms.
+- **After** (default): **25 rows filed** — 3 functions, 22 arms — and **36 struck**, each listed with the production reference that reaches it (own-file call, a value passed or tabled, a registration, an import). One function row fewer in total because `chat_runtime_tool_contract` was deleted between the two reads (`48b1b2887d`).
+- The 3 function rows left are the honest kind: `existing_run_worktrees` and `remove_harness_worktree_for_repo` (tests-only, DESIGN verdict on their queue rows) and `PersonaChatRuntimeRegistry.finish` (a method; cross-file attribute calls are outside the pre-filter by design).
+- Arms are never struck (they are not symbols); rows in a child-process file say so (`serve/`, the MCP servers, any `__main__`-guarded script).
+
+Known gap, filed on arrival in `fork-hygiene-queue.md`: the suite is chosen by substring, so a test that spells `from scripts import <module>` is not traced — `tests/scripts/` reaches `_claims_for` and still read 0 hits.
+
+Filed rows after the filter:
+
+```
+agent/charsheet/pipeline.py:1706-1716 detect_mirrored_art [if @1705] arm 11 lines, 0 hits
+agent/charsheet/pipeline.py:1643-1654 detect_mirrored_art [if @1642] arm 12 lines, 0 hits
+agent/charsheet/pipeline.py:2098-2138 mirrored_art_error [if @2097] arm 41 lines, 0 hits
+agent/charsheet/pipeline.py:2059-2095 mirrored_art_error [if @2058] arm 37 lines, 0 hits
+agent/charsheet/pipeline.py:2343-2367 validate_sheet [if @2342] arm 25 lines, 0 hits
+agent_runtime/persona_chat_continuity.py:2139-2154 PersonaChatRuntimeRegistry.finish function 16 lines, 0 hits
+agent_runtime/repo_context.py:109-119 isolated_repo_context_for_run [if @108] arm 11 lines, 0 hits
+agent_runtime/repo_context.py:379-398 existing_run_worktrees function 20 lines, 0 hits
+agent_runtime/repo_context.py:484-494 remove_harness_worktree_for_repo function 11 lines, 0 hits
+agent_runtime/skill_promotion.py:351-362 classify_promotion [if @350] arm 12 lines, 0 hits
+agent_runtime/stream.py:1584-1603 stream_frames [if @1583] arm 20 lines, 0 hits
+hermes_cli/harness_parts/gateway_commands.py:365-376 cmd_gateway_pair [if @361] arm 12 lines, 0 hits
+hermes_cli/harness_parts/gateway_commands.py:546-557 _install_and_certificate [if @545] arm 12 lines, 0 hits
+hermes_cli/harness_parts/gateway_commands.py:532-543 _install_and_certificate [if @531] arm 12 lines, 0 hits
+hermes_cli/harness_parts/gateway_commands.py:1524-1535 cmd_gateway_introduce [if @1520] arm 12 lines, 0 hits
+hermes_cli/harness_parts/gateway_commands.py:2025-2035 cmd_gateway_peers_join [if @2024] arm 11 lines, 0 hits
+hermes_cli/harness_parts/gateway_commands.py:2012-2023 cmd_gateway_peers_join [if @2011] arm 12 lines, 0 hits
+hermes_cli/harness_parts/gateway_commands.py:1993-2006 cmd_gateway_peers_join [if @1992] arm 14 lines, 0 hits
+hermes_cli/harness_parts/gateway_commands.py:1830-1840 cmd_gateway_peers_join [if @1829] arm 11 lines, 0 hits
+hermes_cli/harness_parts/runtime_commands.py:451-467 _cmd_verify [if @450] arm 17 lines, 0 hits
+hermes_cli/harness_parts/serve/handle_message.py:479-490 MessageHandling._join_stream [if @453] arm 12 lines, 0 hits — runs under serve child process (`hermes harness serve`)
+scripts/doc_cite_adjacency.py:888-903 run [if @887] arm 16 lines, 0 hits — runs under script entry (`__main__` guard, run as a process)
+scripts/doc_cite_adjacency.py:866-884 run [if @865] arm 19 lines, 0 hits — runs under script entry (`__main__` guard, run as a process)
+tests/_downstream/hermes_cli_conftest.py:349-364 _sys_modules_identity_is_restored [if @348] arm 16 lines, 0 hits
+tests/_downstream/hermes_cli_conftest.py:1280-1290 pytest_terminal_summary [if @1279] arm 11 lines, 0 hits
+```

@@ -2,6 +2,9 @@
 import logging
 import time
 from typing import Any, Optional
+
+__layer__ = "policy"
+
 CONVERSATION_REQUEST_ASSEMBLED_STEP = "conversation_request_assembled"
 logger = logging.getLogger(__name__)
 
@@ -69,9 +72,9 @@ def _emit_request_assembled_marker(agent: Any, **extra: Any) -> None:
 
 def _dispatch_streams(agent: Any) -> bool:
     try:
-        from agent.turn_api_call import _should_stream
+        from ._upstream_doors import dispatch_streams
 
-        return bool(_should_stream(agent))
+        return dispatch_streams(agent)
     except Exception:
         return False
 

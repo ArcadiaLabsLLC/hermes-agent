@@ -41,6 +41,7 @@ from agent_runtime.serve_rpc.office_read import log_office_write
 from agent_runtime.serve_rpc.office_errors import (
     OfficeWriteScope,
     Translation,
+    own_code,
     refusal,
     translate,
 )
@@ -376,7 +377,7 @@ UPSERT_ERRORS: Mapping[type[BaseException], Translation] = {
     # could only partly read), and its own code names the different FILE the
     # operator has to repair. A hard-coded constant here would have told them
     # to go fix the archive copy.
-    ArchiveUnreadable: refusal(ERR_INVALID_REQUEST, lambda exc: exc.code),
+    ArchiveUnreadable: refusal(ERR_INVALID_REQUEST, own_code),
     # Every ``invalid_request: …`` the store raises while normalizing the
     # payload — a missing persona_id, an unparseable position, a
     # secret-shaped display name. One reason, because the client's response
@@ -408,14 +409,13 @@ REMOVE_ERRORS: Mapping[type[BaseException], Translation] = {
     # that revision as the token a later guarded write must present. A decode
     # failure there is the token going missing, so the refusal is typed with
     # the same reason the upsert leg spends — one string per condition, not
-    # one per verb.
+    # one per verb — and, like the upsert row, the exception's OWN code, so an
+    # ``ActorsUnreadable`` names the actor file rather than the archive copy.
     #
     # What it replaced was worse than an untyped crash: ``JSONDecodeError``
     # is a ``ValueError``, so the bare read fell into the ``actor_invalid``
     # row below and told the client to FIX ITS PAYLOAD for a corrupt file on
     # the server. The mutation test for this arm still shows ``-32602``.
-    ArchiveUnreadable: refusal(
-        ERR_INVALID_REQUEST, ArchiveUnreadable.code, carry=("actor_key",)
-    ),
+    ArchiveUnreadable: refusal(ERR_INVALID_REQUEST, own_code, carry=("actor_key",)),
     ValueError: refusal(ERR_INVALID_PARAMS, "actor_invalid"),
 }

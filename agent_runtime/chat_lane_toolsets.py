@@ -83,6 +83,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Callable
 
+__layer__ = "policy"
+
 
 #: ``requirement_failures[].code`` for a whole toolset this policy removed from a
 #: chat lane. Subject key: ``toolset``.

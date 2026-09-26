@@ -6,10 +6,12 @@ import tempfile
 from dataclasses import fields, is_dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from functools import lru_cache
+from functools import lru_cache, singledispatch
 from pathlib import Path
 from types import NoneType, UnionType
 from typing import Any, get_args, get_origin, get_type_hints
+
+__layer__ = "models"
 
 
 def to_jsonable(value: Any) -> Any:
@@ -147,6 +149,20 @@ def optional_text(value: Any) -> str | None:
     return text or None
 
 
+def optional_str(value: Any) -> str | None:
+    """A stripped non-empty ``str``, else ``None`` — a non-string is NOT coerced.
+
+    The config spelling of :func:`optional_text`: a YAML value that is not a
+    string (a number, a list, a mapping) is an absent opinion here, never its
+    ``str()``. Lane 2B-C folded ``config._clean_config_str`` onto it;
+    ``mission_chat_outcome._text`` folds in its lane.
+    """
+
+    if not isinstance(value, str):
+        return None
+    return value.strip() or None
+
+
 def safe_text(value: Any, *, limit: int) -> str | None:
     """``value`` as ONE bounded line: NULs dropped, whitespace collapsed, cut to
     ``limit``; ``None`` when nothing is left.
@@ -157,6 +173,21 @@ def safe_text(value: Any, *, limit: int) -> str | None:
     """
 
     return " ".join(str(value or "").replace("\x00", " ").split())[:limit] or None
+
+
+def bounded_text(value: Any, limit: int) -> str:
+    """``str(value)`` cut to ``limit``; ``None`` is ``""``. No strip, no collapse.
+
+    The bound for a field stored VERBATIM (a dispatch's ask and reply, a peer's
+    media reference): unlike :func:`safe_text` it keeps the text exactly as
+    written, only shorter. ``chat_turn``, ``mission_chat_outcome`` and
+    ``persona_open_chat`` carry the same body as ``_text`` and fold here in
+    their lanes.
+    """
+
+    if value is None:
+        return ""
+    return str(value)[:limit]
 
 
 def safe_block(value: Any, *, limit: int) -> str | None:
@@ -200,6 +231,37 @@ def strict_int(value: Any) -> int | None:
     """:func:`safe_int`, but a ``bool`` is not a number here (``True`` is not exit code 1)."""
 
     return None if isinstance(value, bool) else safe_int(value)
+
+
+@singledispatch
+def number_or_bounded_text(value: Any, *, limit: int) -> int | float | str | None:
+    """A foreign field that may be a NUMBER or a TEXT: the number as given, the
+    text as :func:`safe_text` bounds it, anything else ``None``.
+
+    ``bool`` is not a number here (``True`` is not a timestamp). One owner for
+    the three-arm coercion the provider-refusal block carried inline
+    (``reset_at``: an epoch or an ISO string, from a provider's error body).
+    One implementation per input type (``functools.singledispatch`` — the
+    standard library's type table, as :func:`agent_runtime.clock.iso_timestamp`).
+    """
+
+    return None
+
+
+@number_or_bounded_text.register(bool)
+def _number_or_text_from_bool(value: bool, *, limit: int) -> None:
+    return None
+
+
+@number_or_bounded_text.register(int)
+@number_or_bounded_text.register(float)
+def _number_or_text_from_number(value: float, *, limit: int) -> int | float:
+    return value
+
+
+@number_or_bounded_text.register(str)
+def _number_or_text_from_text(value: str, *, limit: int) -> str | None:
+    return safe_text(value, limit=limit)
 
 
 def positive_int(value: Any, *, default: int | None = None) -> int | None:
@@ -325,6 +387,29 @@ def dedupe_tokens(values: list[str] | None) -> list[str]:
     return result
 
 
+def unique_texts(values: Any) -> list[str]:
+    """``str(v).strip()`` of each value, empties dropped, first-seen order, no repeats.
+
+    ONE authority (lane W3-B): ``mcp_lane`` and ``tool_visibility`` each carried a
+    byte-identical private copy (W0-G3 duplicate-body row).
+    """
+    out: list[str] = []
+    for value in values or []:
+        text = str(value or "").strip()
+        if text and text not in out:
+            out.append(text)
+    return out
+
+
 def safe_assignment_text(value: Any, *, limit: int) -> str:
     """:func:`safe_text`, spelled ``""`` for an empty value (store rows persist ``""``)."""
     return safe_text(value, limit=limit) or ""
+
+
+def is_hex(text: str, length: int) -> bool:
+    """Is ``text`` exactly ``length`` LOWERCASE hex digits? The one spelling.
+
+    Lowercase only, because every caller has already lowered (or must not
+    accept an upper-case spelling of an id it will compare byte-for-byte).
+    """
+    return len(text) == length and all(ch in "0123456789abcdef" for ch in text)

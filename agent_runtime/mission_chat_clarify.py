@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+__layer__ = "models"
+
 # Mirror tools.clarify_tool.MAX_CHOICES: the UI appends its own "Other" row.
 MAX_CHOICES = 4
 

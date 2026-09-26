@@ -3550,6 +3550,19 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         scope=HARNESS_NAMESPACE,
     ),
     *rows(
+        # Lane 2B-A (god-file program Wave 2 batch two, 2026-09-25): dead-code
+        # queue row `active_workspace_lifts`, sheet
+        # god-file-layout-sheets/store.md §5 (TEST SEAM).
+        "s-2ba",
+        "HEAD",
+        Form.CODE,
+        "a tests-only filter over a realm's live workspace lifts with no "
+        "production caller; it lives in tests/_downstream/_seams.py and asks "
+        "store.ledgers.workspace_lift_is_active the same way",
+        "active_workspace_lifts",
+        scope=_AR,
+    ),
+    *rows(
         # Lane R1 (god-file program Wave 2, 2026-09-25): dead-code queue row
         # `reset_unreadable_instance_rows`, sheet
         # god-file-layout-sheets/persona_assignments.md §5 (TEST SEAM).
@@ -3575,6 +3588,65 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "passes cap=ARCHIVED_LEDGER_CAP to the rule directly",
         "merge_archived_ledgers",
         scope=("agent_runtime.office_store", "agent_runtime.office_store.models"),
+    ),
+    *rows(
+        # Lane Q-DEAD-B (2026-09-25): dead-code queue row
+        # `chat_runtime_tool_contract` (reach census W0-D), DELETE.
+        "s-qdb",
+        "HEAD",
+        Form.CODE,
+        "composed the chat actor's two tool lists with no production caller; "
+        "chat_lane_bundle composes the same two lists once, from the resolve "
+        "the actor request uses",
+        "chat_runtime_tool_contract",
+        scope=_AR,
+    ),
+    *rows(
+        # Lane Q-DEAD-B (2026-09-25): dead-code queue row
+        # `chat_live_log_failures` (sheet chat_live_log.md §7), TEST SEAM.
+        "s-qdb",
+        "HEAD",
+        Form.CODE,
+        "a tests-only reader of the live-log failure tally with no production "
+        "caller; the tally stays in chat_live_log.files, the reader lives in "
+        "tests/_downstream/_seams.py",
+        "chat_live_log_failures",
+        scope=_AR,
+    ),
+    *rows(
+        # Lane SEAM (2026-09-25): dead-code queue rows
+        # `repo_execution_context_for_task` / `isolated_repo_context_for_run` /
+        # `existing_run_worktrees` / `remove_harness_worktree_for_repo`, owner
+        # ruling TEST SEAM as one unit. The two dataclasses went with them:
+        # only the creator chain ever constructed either.
+        "s-seam",
+        "HEAD",
+        Form.CODE,
+        "the run-worktree creator lane had no production caller since S5/S8; "
+        "it lives in tests/_downstream/_seams.py as the constructor the "
+        "worktree suites build real worktrees with, while the reaper "
+        "(remove_orphan_worktree) stays in agent_runtime.repo_context",
+        "repo_execution_context_for_task",
+        "isolated_repo_context_for_run",
+        "existing_run_worktrees",
+        "remove_harness_worktree_for_repo",
+        "RepoExecutionContext",
+        "RepoContextExcerpt",
+        scope=_AR,
+    ),
+    # -- the 2026-09-25 upstream merge ------------------------------------
+    *rows(
+        "s-merge-2026-09-25",
+        "2aa09594c5",
+        Form.ATTR,
+        "the fork's Git Bash discovery helpers lost their only caller when the "
+        "merge took upstream's tools/environments/local.py (bash discovery is "
+        "upstream pm.shell.windows_bash_candidates, which drops the System32 / "
+        "WindowsApps stubs itself); a second resolver beside pm.shell would be "
+        "the duplicate authority rule 9 retires",
+        "_bash_from_git",
+        "_is_windows_system_shim",
+        scope=("tools.environments.local",),
     ),
 )
 

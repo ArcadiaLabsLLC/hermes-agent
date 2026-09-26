@@ -2,7 +2,7 @@
 
 ``plugins/dashboard_auth/_shared.py`` reads ``load_config_readonly`` in the fork;
 upstream's ``patch_config`` stubs ``load_config``, and the
-``config_reads_through_load_config`` row in ``tests/_downstream/id_markers.py``
+``config_reads_through_load_config`` row in ``tests/_downstream/id_markers/``
 routes one to the other. This is the anti-vacuity check for that route: the stub
 must reach the plugin's own read path. ``patch_config`` is upstream's.
 """

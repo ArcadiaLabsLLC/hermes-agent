@@ -52,6 +52,8 @@ import threading
 from pathlib import Path
 from typing import Any, Callable
 
+from .gateway_peers import unusable_reason
+
 __all__ = [
     "PEER_DIRECTORY_CONTRACT",
     "PEER_DIRECTORY_CHANGED_METHOD",
@@ -97,7 +99,7 @@ def peer_directory_row(record: Any, cache: Any, *, usable_ref: str | None) -> di
         row["last_seen"] = cache.last_seen
     row["usable"] = usable_ref is not None
     row["ref"] = usable_ref
-    row["unusable_reason"] = None if usable_ref is not None else _unusable_reason(
+    row["unusable_reason"] = None if usable_ref is not None else unusable_reason(
         record, cache
     )
     return row
@@ -124,24 +126,6 @@ def peer_directory_rows(store_root: Any) -> list[dict]:
         )
         for record in list_peers(store_root)
     ]
-
-
-def _unusable_reason(record: Any, cache: Any) -> str:
-    """The resolver's own vocabulary, so one condition has one word everywhere."""
-
-    from .gateway_targets import (
-        REASON_PEER_EXPIRED,
-        REASON_PEER_REVOKED,
-        REASON_PEER_REVOKED_YOU,
-    )
-
-    if record.revoked:
-        return REASON_PEER_REVOKED
-    if record.expired:
-        return REASON_PEER_EXPIRED
-    if cache is not None and cache.revoked_you:
-        return REASON_PEER_REVOKED_YOU
-    return ""
 
 
 class PeerDirectorySubscriptions:

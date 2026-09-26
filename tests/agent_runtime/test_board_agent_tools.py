@@ -12,7 +12,8 @@ import pytest
 from agent_runtime import board_models
 from agent_runtime.board_store import BoardStore
 from agent_runtime.persona_runtime import _CHAT_CAPABILITY_TOOLSETS
-from agent_runtime.runtime_hud import _board_digest_for_workspace, render_situational_hud_block
+from agent_runtime.runtime_hud import render_situational_hud_block
+from agent_runtime.runtime_hud.ambient import _board_digest_for_workspace
 from agent_runtime.store import TaskStore, WorkspaceStore
 from tools.registry import discover_builtin_tools, registry
 

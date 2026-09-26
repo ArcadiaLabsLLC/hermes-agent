@@ -75,6 +75,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
+__layer__ = "stores"
+
 __all__ = [
     "CODE_TREE_TIMEOUT_SECONDS",
     "NON_RUNTIME_PREFIXES",

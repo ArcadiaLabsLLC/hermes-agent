@@ -31,6 +31,7 @@ import pytest
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
+from tests._downstream.split_package_source import patch_where_bound
 from agent_runtime import dispatch_delivery, dispatch_store
 from agent_runtime.dispatch_store import (
     MAX_DELIVERY_ATTEMPTS,
@@ -80,9 +81,7 @@ def deliverable_lane(monkeypatch):
 
     token = _SESSION_ASYNC_DELIVERY.set(_SESSION_ASYNC_DELIVERY.get())
     declare_async_delivery_channel()
-    monkeypatch.setattr(
-        dispatch_delivery,
-        "_sender_persona",
+    patch_where_bound(monkeypatch, dispatch_delivery, "_sender_persona",
         lambda root: ("neko_supervisor", "personainst_neko") if root == SENDER_ROOT else None,
     )
     yield
@@ -356,7 +355,7 @@ def test_the_stdout_event_name_is_taken_from_serve_rather_than_guessed():
 
 @pytest.fixture
 def no_sleep(monkeypatch):
-    monkeypatch.setattr(agent_chat_dispatch.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(agent_chat_dispatch.remote.time, "sleep", lambda _s: None)
 
 
 @pytest.fixture
@@ -643,12 +642,12 @@ def test_a_local_spec_never_takes_the_remote_leg(monkeypatch):
 
     taken = []
     monkeypatch.setattr(
-        agent_chat_dispatch,
+        agent_chat_dispatch.local,
         "_run_remote_dispatch",
         lambda *args: taken.append("remote"),
     )
     monkeypatch.setattr(
-        agent_chat_dispatch.subprocess,
+        agent_chat_dispatch.local.subprocess,
         "Popen",
         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("spawned")),
     )

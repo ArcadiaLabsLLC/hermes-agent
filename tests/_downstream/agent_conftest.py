@@ -28,9 +28,9 @@ Two independent mechanisms live here. Neither weakens an assertion.
    the reason. When the probe says otherwise the test runs, and
    ``tests/test_env_gap_registry.py`` fails on the stale row.
 
-   ``_ENV_GAPS`` (the older mark-only form, which left the tests failing) is
-   now empty here: the 2026-08-10 audit found twenty of its twenty-four rows
-   were stale tests or a real defect. See the block comment above 
+   The older mark-only form (``_ENV_GAPS``, which left the tests failing) was
+   emptied here by the 2026-08-10 audit — twenty of its twenty-four rows were
+   stale tests or a real defect — and deleted fork-wide by lane B5 (Q30). See the block comment above 
 Fork-owned half of ``tests/agent/conftest.py`` (seam Stage 5): the root
 ``conftest.py`` registers it when pytest registers that conftest, under a
 ``tests/agent/_downstream_conftest.py`` name (directory scope); that upstream
@@ -44,14 +44,7 @@ import os
 
 import pytest
 
-from tests._env_gap_fence import (
-    EnvGapRegistry,
-    EnvGapSkipRegistry,
-    StaleEntryTracker,
-    apply_marks,
-    apply_skips,
-    register_marks,
-)
+from tests._env_gap_fence import EnvGapSkipRegistry, apply_skips
 
 # Per-test ceiling for the AIAgent-constructing tests described above. Sized so
 # the slowest measured run (38.7s on this host) has ~3x headroom while the sum
@@ -102,8 +95,7 @@ _SLOW_LOOPBACK_TIMEOUT_NODE_IDS: dict[str, frozenset[str]] = {
 #     The stated reason was simply wrong; the real mechanism is that Git Bash
 #     answers in MSYS form, which `pwd -W` fixes.
 #
-# Nothing is left in _ENV_GAPS. What remains is one genuine, probe-backed gap.
-_ENV_GAPS: EnvGapRegistry = {}
+# What remains is one genuine, probe-backed gap.
 
 
 def _shell_hook_scripts_are_not_directly_executable() -> bool:
@@ -142,16 +134,9 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
 #: reach a same-named file in another directory. See tests/_env_gap_fence.py.
 _OWNER_DIR = pathlib.Path(__file__).resolve().parents[1] / "agent"
 
-_STALE = StaleEntryTracker(_ENV_GAPS, "tests/agent/conftest.py")
-
-
-def pytest_configure(config):  # noqa: D401 — pytest hook
-    """Register the environment-gap marks."""
-    register_marks(config)
-
 
 def pytest_collection_modifyitems(items):  # noqa: D401 — pytest hook
-    """Raise the watchdog ceiling for the slow-probe tests, then apply the marks."""
+    """Raise the watchdog ceiling for the slow-probe tests, then apply the skips."""
     for item in items:
         node_ids = _SLOW_LOOPBACK_TIMEOUT_NODE_IDS.get(item.path.name)
         if node_ids is None:
@@ -159,30 +144,14 @@ def pytest_collection_modifyitems(items):  # noqa: D401 — pytest hook
         _, _, within_file = item.nodeid.partition("::")
         if within_file in node_ids:
             item.add_marker(pytest.mark.timeout(_SLOW_LOOPBACK_TIMEOUT_SECONDS))
-    apply_marks(items, _ENV_GAPS, owner_dir=_OWNER_DIR)
     apply_skips(items, _ENV_GAP_SKIPS, owner_dir=_OWNER_DIR)
-
-
-def pytest_runtest_logreport(report):  # noqa: D401 — pytest hook
-    """Record registered environment-gap node ids that actually passed."""
-    _STALE.record(report)
-
-
-def pytest_terminal_summary(terminalreporter):  # noqa: D401 — pytest hook
-    """Surface registry rows that no longer describe a real failure."""
-    _STALE.report(terminalreporter)
 
 
 __all__ = [
     "_SLOW_LOOPBACK_TIMEOUT_SECONDS",
     "_SLOW_LOOPBACK_TIMEOUT_NODE_IDS",
-    "_ENV_GAPS",
     "_shell_hook_scripts_are_not_directly_executable",
     "_ENV_GAP_SKIPS",
     "_OWNER_DIR",
-    "_STALE",
-    "pytest_configure",
     "pytest_collection_modifyitems",
-    "pytest_runtest_logreport",
-    "pytest_terminal_summary",
 ]

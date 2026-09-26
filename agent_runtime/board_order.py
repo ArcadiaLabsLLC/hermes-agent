@@ -11,6 +11,8 @@ column is rebalanced in a single sweep.
 
 from __future__ import annotations
 
+__layer__ = "policy"
+
 DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz"
 BASE = len(DIGITS)  # 36
 

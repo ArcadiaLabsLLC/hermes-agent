@@ -349,7 +349,7 @@ def rounds_per_projection_read(monkeypatch):
         _billing("chat_lane_scope", persona_runtime.apply_chat_lane_tool_scope),
     )
     monkeypatch.setattr(
-        persona_assignments,
+        persona_assignments.summary,
         "resolve_tool_visibility",
         _billing("tool_visibility", persona_assignments.resolve_tool_visibility),
     )

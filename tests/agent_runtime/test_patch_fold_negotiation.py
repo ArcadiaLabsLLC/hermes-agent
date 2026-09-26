@@ -48,6 +48,7 @@ from agent_runtime.state_patches import (
 )
 from agent_runtime.stream import hydrate_frame, stream_frames
 from tests.agent_runtime.persona_instance_mint import mint_free_floating
+from tests._downstream.split_package_source import patch_where_bound
 
 #: An entity NO client folds today. Every "undeclared" case below uses it, so a
 #: test can never accidentally pass by naming something the historical default
@@ -71,8 +72,8 @@ def set_delta_patches(monkeypatch):
             cfg.read_model.delta_patches = enabled
             return cfg
 
-        monkeypatch.setattr(sp, "load_root_runtime_config", _loader)
-        monkeypatch.setattr(st, "delta_patches_enabled", lambda config=None: enabled)
+        monkeypatch.setattr(sp.emit, "load_root_runtime_config", _loader)
+        patch_where_bound(monkeypatch, st, "delta_patches_enabled", lambda config=None: enabled)
 
     return _apply
 

@@ -454,7 +454,7 @@ def test_the_method_lane_inherits_WS1s_scope_patch_for_free(scope, monkeypatch):
         cfg.read_model.delta_patches = True
         return cfg
 
-    monkeypatch.setattr(sp, "load_root_runtime_config", _loader)
+    monkeypatch.setattr(sp.emit, "load_root_runtime_config", _loader)
 
     log = EventLog()
     before = len(log.tail(200))
@@ -549,7 +549,7 @@ def test_a_realm_switch_emits_a_scope_patch_whose_LAST_row_carries_both_new_poin
         cfg.read_model.delta_patches = True
         return cfg
 
-    monkeypatch.setattr(sp, "load_root_runtime_config", _loader)
+    monkeypatch.setattr(sp.emit, "load_root_runtime_config", _loader)
 
     WorkspaceStore().set_active(scope["ws_a"].id)
     log = EventLog()

@@ -290,7 +290,7 @@ def _available_persona_summary(agents) -> list[dict]:
         return []
     # Local import: ``agent_create`` reaches into the CLI's persona resolver,
     # and snapshot builds must not pay that import when there are no templates.
-    from ..agent_create import accepted_persona_spellings
+    from ..agent_create.request import accepted_persona_spellings
 
     roster = list(agents or [])
     owners_by_profile: dict[str, list] = {}

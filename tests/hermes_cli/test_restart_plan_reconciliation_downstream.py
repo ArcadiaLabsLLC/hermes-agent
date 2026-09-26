@@ -15,7 +15,7 @@ from tests.hermes_cli.test_restart_plan_reconciliation import (  # noqa: F401 â€
 )
 
 
-@pytest.mark.linux_only
+@pytest.mark.platforms("linux")
 def test_unaccounted_serve_report_names_the_systemd_unit_on_linux(capsys):
     """The Linux half of the remedy above: a unit-managed serve is named by its unit.
 

@@ -13,13 +13,14 @@ module they need.
 Modules, by layer (lowest first; a module imports only its own layer or lower):
 
 * stores — ``chat_session`` (session rows, chat model override, native history
-  tip), ``chat_history_writes`` (the ONE write path for a persona chat row),
-  ``chat_events`` (event-log publishes and the protocol-v2 chat frame emitter),
+  tip), ``chat_events`` (event-log publishes and the protocol-v2 chat frame emitter),
   ``chat_request`` (mission-chat request validation and refusal payloads; reads
   the clarify-ticket store), ``chat_target`` (persona resolution and the
   mission-chat target decision).
 * policy — ``chat_reply_stamps`` (visibility and media stamps on a reply payload).
-* lanes — ``inspect_commands`` (persona list/show/tool-diff/permission/assignments),
+* lanes — ``chat_history_writes`` (the ONE write path for a persona chat row;
+  a lane because it drives the live-log mirror's write lane),
+  ``inspect_commands`` (persona list/show/tool-diff/permission/assignments),
   ``lifecycle_commands`` (agent create/retire, instance create),
   ``instance_commands`` (instance close/retire/steer/return/update-profile),
   ``model_and_skills_commands`` (set-model and set-skills),
@@ -37,5 +38,5 @@ from here: ``hermes_cli.harness`` (W0-G6).
 
 from __future__ import annotations
 
-__layer__ = "wiring"
+__layer__ = "models"
 __all__: list[str] = []

@@ -25,7 +25,8 @@ from pathlib import Path
 
 import pytest
 
-from scripts import changed_line_mutation_check as module
+from scripts.mutation_check import run as module
+from scripts.mutation_check import schema
 
 
 @pytest.fixture()
@@ -55,7 +56,7 @@ def gate(tmp_path, monkeypatch):
         "find": "VALUE = 1",
         "replace": "VALUE = 2",
         "test": ["stub-test"],
-        module.ANCHOR_KEY: module.ClaimAnchor(
+        module.ANCHOR_KEY: schema.ClaimAnchor(
             offset=0, lines={1}, find="VALUE = 1", replace="VALUE = 2", shift=0
         ),
     }

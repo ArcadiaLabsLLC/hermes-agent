@@ -54,8 +54,11 @@ from __future__ import annotations
 
 import threading
 import time
-from datetime import datetime, timezone
 from typing import Any, Callable
+
+from agent_runtime.clock import now_iso_micro
+
+__layer__ = "policy"
 
 #: The one key this whole module adds to a turn record.
 TURN_PHASES_KEY = "phases"
@@ -160,14 +163,6 @@ _ANCHORED_AT_KEY = "anchored_at"
 _ANCHORED_AT_MAX_CHARS = 80
 
 
-def _utc_now_iso() -> str:
-    return (
-        datetime.now(timezone.utc)
-        .isoformat(timespec="microseconds")
-        .replace("+00:00", "Z")
-    )
-
-
 class TurnPhaseMarks:
     """The turn's monotonic timeline. Created ONCE, at command-handler entry.
 
@@ -193,7 +188,7 @@ class TurnPhaseMarks:
         self,
         *,
         monotonic: Callable[[], float] = time.monotonic,
-        wall_now: Callable[[], str] = _utc_now_iso,
+        wall_now: Callable[[], str] = now_iso_micro,
     ) -> None:
         self._monotonic = monotonic
         self._anchor = float(monotonic())

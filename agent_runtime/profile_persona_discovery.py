@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING
 from .models import AgentPersona
 from .personas import AutonomyLevel, PROFILE_ROLE_SENTINEL
 
+__layer__ = "stores"
+
 if TYPE_CHECKING:
     from .config import AgentRuntimeConfig
     from .store import AgentStore

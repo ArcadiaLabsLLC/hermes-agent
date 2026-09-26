@@ -1,101 +1,37 @@
 {
- "kinds": "ladder = >=3 arms comparing one subject to strings; isinstance = >=3 isinstance arms on one subject; vocab = compares against a declared Final/Enum vocabulary member (arms = count)",
+ "kinds": "ladder = >=3 arms comparing one subject to strings (literals, names bound to one, Enum members); isinstance = >=3 isinstance arms on one subject; vocab = compares re-spelling a Final/Enum vocabulary member in the module's REACH (arms = count)",
  "sites": [
   {
-   "arms": 3,
-   "site": "agent_runtime/chat_live_log.py|_normalized_role|ladder|role"
+   "arms": 5,
+   "site": "agent_runtime/board_sync.py|apply_board_pull|ladder|decision.action"
   },
   {
    "arms": 3,
-   "site": "agent_runtime/chat_live_log.py|chat_live_log_stats|ladder|kind"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/coordinator_permissions.py|scope_for_persona|vocab|propose_only"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/discussions/attempt_store.py|AttemptStore.update|vocab|running"
+   "site": "agent_runtime/chat_turn.py|perform_chat_turn|ladder|verb"
   },
   {
    "arms": 1,
    "site": "agent_runtime/discussions/definition_store.py|_assert_table_editable|vocab|table"
   },
   {
-   "arms": 1,
-   "site": "agent_runtime/discussions/native.py|NativeSessionRPC.info|vocab|running"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/discussions/native.py|NativeTurns.recover|vocab|budget_exhausted"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/discussions/native.py|NativeTurns.recover|vocab|failed"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/discussions/rpc.py|_record|vocab|table"
-  },
-  {
    "arms": 6,
    "site": "agent_runtime/discussions/rpc.py|execute|ladder|action"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/discussions/rpc.py|execute|vocab|preset"
-  },
-  {
-   "arms": 2,
-   "site": "agent_runtime/discussions/rpc.py|execute|vocab|table"
   },
   {
    "arms": 3,
    "site": "agent_runtime/discussions/run_store.py|RunStore.request|ladder|operation"
   },
   {
-   "arms": 1,
-   "site": "agent_runtime/discussions/run_store.py|RunStore.request|vocab|failed"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/discussions/service.py|DiscussionService._cancel|vocab|cancelled"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/discussions/service.py|DiscussionService._cancel|vocab|failed"
-  },
-  {
    "arms": 4,
    "site": "agent_runtime/discussions/service.py|DiscussionService._process_commands|ladder|op"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/discussions/service.py|DiscussionService.prepare|vocab|failed"
   },
   {
    "arms": 6,
    "site": "agent_runtime/local_llama_adapter/manager.py|LocalLlamaManager._execute|ladder|kind"
   },
   {
-   "arms": 1,
-   "site": "agent_runtime/local_llama_adapter/manager.py|LocalLlamaManager._execute|vocab|running"
-  },
-  {
    "arms": 3,
    "site": "agent_runtime/local_llama_adapter/manager.py|LocalLlamaManager._precheck|ladder|kind"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/local_llama_adapter/manager.py|LocalLlamaManager._precheck|vocab|running"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/local_llama_adapter/manager.py|LocalLlamaManager._ready|vocab|running"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/local_llama_adapter/manager.py|LocalLlamaManager._server_view|vocab|running"
   },
   {
    "arms": 3,
@@ -138,10 +74,6 @@
    "site": "agent_runtime/mission_chat_outcome.py|_reset_delta_seconds|isinstance|value"
   },
   {
-   "arms": 3,
-   "site": "agent_runtime/mission_chat_turns.py|safe_provider_refusal|isinstance|reset_at"
-  },
-  {
    "arms": 5,
    "site": "agent_runtime/observability.py|_event_display_kind|ladder|event_type"
   },
@@ -154,48 +86,40 @@
    "site": "agent_runtime/observability.py|_safe_event_payload|isinstance|value"
   },
   {
-   "arms": 6,
-   "site": "agent_runtime/operator_channels.py|_conversation_history_message|ladder|role"
+   "arms": 5,
+   "site": "agent_runtime/office_sync.py|_reconcile_actors|ladder|decision.action"
   },
   {
    "arms": 1,
-   "site": "agent_runtime/operator_channels.py|_conversation_kind_from_status|vocab|completed"
+   "site": "agent_runtime/persona_chat_history/markers.py|_silent_turn_marker_row|vocab|agent"
   },
   {
    "arms": 1,
-   "site": "agent_runtime/operator_channels.py|_conversation_kind_from_status|vocab|done"
+   "site": "agent_runtime/persona_chat_history/text.py|_curate_chat_message_text|vocab|agent"
   },
   {
    "arms": 1,
-   "site": "agent_runtime/operator_channels.py|_conversation_trace_message|vocab|blocked"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/operator_channels.py|_conversation_trace_message|vocab|failed"
-  },
-  {
-   "arms": 3,
-   "site": "agent_runtime/operator_channels.py|_dedupe_conversation_messages|ladder|message.get('kind')"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/operator_channels.py|_settle_terminal_tool_calls|vocab|running"
-  },
-  {
-   "arms": 2,
-   "site": "agent_runtime/persona_chat_continuity.py|PersonaChatRuntimeRegistry.transition|vocab|failed"
+   "site": "agent_runtime/persona_chat_history/text.py|_curate_chat_message_text|vocab|operator"
   },
   {
    "arms": 3,
    "site": "agent_runtime/persona_config_sync.py|_plain|isinstance|value"
   },
   {
-   "arms": 4,
-   "site": "agent_runtime/persona_instance_sync.py|_wire_value|isinstance|value"
+   "arms": 5,
+   "site": "agent_runtime/persona_config_sync.py|apply_persona_config_pull|ladder|decision.action"
+  },
+  {
+   "arms": 3,
+   "site": "agent_runtime/pool_rotation.py|PoolRotationMixin._select_with_rotation|ladder|self._strategy"
   },
   {
    "arms": 3,
    "site": "agent_runtime/profile_artifact_sync.py|_legacy_destination|ladder|segment"
+  },
+  {
+   "arms": 5,
+   "site": "agent_runtime/profile_artifact_sync.py|apply_profile_artifact_pull|ladder|decision.action"
   },
   {
    "arms": 3,
@@ -214,28 +138,12 @@
    "site": "agent_runtime/progress.py|_safe_progress_payload|ladder|key"
   },
   {
-   "arms": 1,
-   "site": "agent_runtime/realm_revert.py|_install_skill_from_inbox|vocab|noop"
+   "arms": 3,
+   "site": "agent_runtime/realm_revert.py|classify_revert|ladder|kind"
   },
   {
-   "arms": 1,
-   "site": "agent_runtime/running_work.py|_collect_chat_turns|vocab|running"
-  },
-  {
-   "arms": 6,
-   "site": "agent_runtime/running_work.py|_delegation_status|ladder|raw"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/running_work.py|_delegation_status|vocab|completed"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/running_work.py|_delegation_status|vocab|failed"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/running_work.py|_delegation_status|vocab|running"
+   "arms": 3,
+   "site": "agent_runtime/realm_sync/skill_inbox.py|_admit_inbox_package|ladder|bucket"
   },
   {
    "arms": 6,
@@ -248,10 +156,6 @@
   {
    "arms": 4,
    "site": "agent_runtime/store_file_io.py|os_error_reason|isinstance|exc"
-  },
-  {
-   "arms": 4,
-   "site": "agent_runtime/stream.py|_redaction_safe_json|isinstance|value"
   },
   {
    "arms": 4,
@@ -275,19 +179,7 @@
   },
   {
    "arms": 1,
-   "site": "hermes_cli/harness_parts/board.py|_board_active_card_count|vocab|done"
-  },
-  {
-   "arms": 1,
-   "site": "hermes_cli/harness_parts/gateway_commands.py|cmd_gateway_introduce|vocab|unknown"
-  },
-  {
-   "arms": 1,
    "site": "hermes_cli/harness_parts/persona/chat_delete.py|_cmd_persona_chat_delete|vocab|blocked"
-  },
-  {
-   "arms": 1,
-   "site": "hermes_cli/harness_parts/persona/chat_delete.py|_cmd_persona_chat_delete|vocab|cancelled"
   },
   {
    "arms": 1,
@@ -295,27 +187,11 @@
   },
   {
    "arms": 1,
-   "site": "hermes_cli/harness_parts/persona/chat_events.py|_ChatProtocolV2Emitter.finish|vocab|completed"
-  },
-  {
-   "arms": 1,
    "site": "hermes_cli/harness_parts/persona/chat_target.py|_close_free_floating_assignments|vocab|blocked"
   },
   {
    "arms": 1,
-   "site": "hermes_cli/harness_parts/persona/chat_target.py|_close_free_floating_assignments|vocab|cancelled"
-  },
-  {
-   "arms": 1,
    "site": "hermes_cli/harness_parts/persona/chat_target.py|_close_free_floating_assignments|vocab|completed"
-  },
-  {
-   "arms": 1,
-   "site": "hermes_cli/harness_parts/runtime_commands.py|_cmd_work_cancel|vocab|cancelled"
-  },
-  {
-   "arms": 1,
-   "site": "hermes_cli/harness_parts/skills_promotion_commands.py|_cmd_skills_promote|vocab|refused"
   },
   {
    "arms": 7,
@@ -324,10 +200,6 @@
   {
    "arms": 4,
    "site": "hermes_cli/harness_support.py|emit_harness_error|isinstance|exc"
-  },
-  {
-   "arms": 1,
-   "site": "hermes_cli/kanban_blocked_pm.py|handle_blocked_event|vocab|blocked"
   },
   {
    "arms": 3,
@@ -370,24 +242,12 @@
    "site": "mobile_core/src/hermes_mobile_core/turn_runner.py|classify_error|isinstance|item"
   },
   {
-   "arms": 1,
-   "site": "mobile_core/tests/test_turn_runner.py|test_missing_api_key_is_a_typed_failed_turn|vocab|invalid_request"
-  },
-  {
    "arms": 3,
    "site": "mobile_core/tools/import_gate.py|scan|isinstance|node"
   },
   {
-   "arms": 1,
-   "site": "scripts/_bundle_plugin/hermes_bundle_report.py|_Recorder.pytest_runtest_logreport|vocab|failed"
-  },
-  {
    "arms": 4,
-   "site": "scripts/changed_line_mutation_check.py|_qualified_definitions.walk|isinstance|child"
-  },
-  {
-   "arms": 1,
-   "site": "scripts/doc_cite_report.py|run|vocab|unknown"
+   "site": "scripts/doc_cite_adjacency.py|_judge_one|ladder|outcome"
   },
   {
    "arms": 1,
@@ -404,22 +264,6 @@
   {
    "arms": 4,
    "site": "scripts/run_tests_bundled.py|tally_events|ladder|kind"
-  },
-  {
-   "arms": 1,
-   "site": "tests/_downstream/hermes_cli_conftest.py|pytest_runtest_logreport|vocab|failed"
-  },
-  {
-   "arms": 1,
-   "site": "tests/_downstream/tools_conftest.py|pytest_runtest_logreport|vocab|failed"
-  },
-  {
-   "arms": 1,
-   "site": "tools/agent_chat_tool.py|agent_chat_dispatches|vocab|done"
-  },
-  {
-   "arms": 1,
-   "site": "tools/agent_chat_tool.py|agent_chat_dispatches|vocab|running"
   },
   {
    "arms": 5,

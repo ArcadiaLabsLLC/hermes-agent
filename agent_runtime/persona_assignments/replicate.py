@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 from hermes_time import now
 
 from agent_runtime import paths
+from agent_runtime.config.roster import ensure_persisted_personas
 from agent_runtime.models import PersonaInstance
 from agent_runtime.persona_assignments.errors import PersonaInstanceRetireError
 from agent_runtime.persona_assignments.identity import (
@@ -26,7 +27,7 @@ from agent_runtime.persona_assignments.identity import (
     persona_chat_session_id_for,
 )
 from agent_runtime.serde import dedupe_tokens, safe_assignment_text, safe_optional_token
-from agent_runtime.state_patches import (
+from agent_runtime.state_patches.persona_instance import (
     emit_persona_instance_create,
     emit_persona_instance_patch,
     emit_persona_instance_remove,
@@ -160,9 +161,9 @@ def _replica_row(store: PersonaInstanceStore, instance_id: str, persona_id: str,
     return PersonaInstance(
         id=instance_id,
         persona_id=persona_id,
-        role=str(_role_for_persona_or_template(persona_id) or ""),
+        role=str(_role_for_persona_or_template(persona_id, ensure_persisted_personas) or ""),
         display_name=display_name,
-        profile_id=_profile_id_for_persona_or_template(persona_id),
+        profile_id=_profile_id_for_persona_or_template(persona_id, ensure_persisted_personas),
         runtime_root=str(paths.store_root()),
         state=WorkerSessionState.IDLE,
         default_chat_session_id=_durable_chat_root(

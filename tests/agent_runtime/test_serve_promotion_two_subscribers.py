@@ -44,6 +44,7 @@ from tests.agent_runtime.test_serve_socket_lane import (
     client,
     running_serve,
 )
+from tests._downstream.split_package_source import patch_where_bound
 
 #: What a Stage 5 phone declares: chat + roster + readiness, and nothing about an
 #: office canvas it does not render.
@@ -72,8 +73,8 @@ def patch_lane_on(monkeypatch):
         cfg.read_model.delta_patches = True
         return cfg
 
-    monkeypatch.setattr(sp, "load_root_runtime_config", _loader)
-    monkeypatch.setattr(st, "delta_patches_enabled", lambda config=None: True)
+    monkeypatch.setattr(sp.emit, "load_root_runtime_config", _loader)
+    patch_where_bound(monkeypatch, st, "delta_patches_enabled", lambda config=None: True)
 
 
 def _append_office_move(index: int = 0) -> None:

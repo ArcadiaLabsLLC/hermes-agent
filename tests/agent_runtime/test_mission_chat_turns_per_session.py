@@ -56,14 +56,14 @@ def test_atomic_journal_retry_preserves_committed_file(tmp_path, monkeypatch, fa
         return original(source, destination)
 
     monkeypatch.setattr(Path, 'replace', replace)
-    monkeypatch.setattr(mission_chat_turns.time, 'sleep', lambda _: None)
+    monkeypatch.setattr(mission_chat_turns.storage.time, 'sleep', lambda _: None)
     if failures == 5:
         with pytest.raises(PermissionError):
-            mission_chat_turns._write_session_file(path, {'new': True})
+            mission_chat_turns.storage._write_session_file(path, {'new': True})
         assert json.loads(path.read_text(encoding='utf-8')) == {'old': True}
         assert len(calls) == 5
     else:
-        mission_chat_turns._write_session_file(path, {'new': True})
+        mission_chat_turns.storage._write_session_file(path, {'new': True})
         assert json.loads(path.read_text(encoding='utf-8')) == {'new': True}
         assert len(calls) == 2
 
@@ -74,34 +74,34 @@ def test_atomic_journal_retry_preserves_committed_file(tmp_path, monkeypatch, fa
 
 
 def test_session_filename_is_deterministic():
-    stem = mission_chat_turns._session_filename_stem("session-alpha")
-    assert stem == mission_chat_turns._session_filename_stem("session-alpha")
+    stem = mission_chat_turns.storage._session_filename_stem("session-alpha")
+    assert stem == mission_chat_turns.storage._session_filename_stem("session-alpha")
 
 
 def test_session_filename_is_filesystem_safe():
-    stem = mission_chat_turns._session_filename_stem("a/b\\c:d*e?f|g")
+    stem = mission_chat_turns.storage._session_filename_stem("a/b\\c:d*e?f|g")
     assert all(ch.isalnum() or ch in "_.-" for ch in stem)
 
 
 def test_session_filename_is_collision_free_for_same_sanitized_prefix():
     # Two distinct keys that sanitize to the SAME human-readable prefix must
     # still land in different files — the sha256 suffix disambiguates.
-    a = mission_chat_turns._session_filename_stem("weird/key::with*chars")
-    b = mission_chat_turns._session_filename_stem("weird_key__with_chars")
+    a = mission_chat_turns.storage._session_filename_stem("weird/key::with*chars")
+    b = mission_chat_turns.storage._session_filename_stem("weird_key__with_chars")
     assert a.rsplit("_", 1)[0] == b.rsplit("_", 1)[0]  # same sanitized prefix
     assert a != b  # different hash suffix
-    assert len(a.rsplit("_", 1)[1]) == mission_chat_turns._SESSION_KEY_HASH_LEN
+    assert len(a.rsplit("_", 1)[1]) == mission_chat_turns.storage._SESSION_KEY_HASH_LEN
 
 
 def test_session_filename_is_length_bounded_for_long_keys():
-    stem = mission_chat_turns._session_filename_stem("x" * 500)
+    stem = mission_chat_turns.storage._session_filename_stem("x" * 500)
     assert len(stem) <= (
-        mission_chat_turns._SESSION_KEY_PREFIX_MAX + 1 + mission_chat_turns._SESSION_KEY_HASH_LEN
+        mission_chat_turns.storage._SESSION_KEY_PREFIX_MAX + 1 + mission_chat_turns.storage._SESSION_KEY_HASH_LEN
     )
 
 
 def test_all_special_char_key_still_yields_a_usable_stem():
-    stem = mission_chat_turns._session_filename_stem("////")
+    stem = mission_chat_turns.storage._session_filename_stem("////")
     assert stem.startswith("session_")
 
 
@@ -115,22 +115,22 @@ def test_write_touches_only_its_own_session_file(monkeypatch):
     _persist_completed("sB", "m1")
 
     written: list[Path] = []
-    original = mission_chat_turns._write_session_file
+    original = mission_chat_turns.journal._write_session_file
 
     def _spy(path, data):
         written.append(Path(path))
         original(path, data)
 
-    monkeypatch.setattr(mission_chat_turns, "_write_session_file", _spy)
+    monkeypatch.setattr(mission_chat_turns.journal, "_write_session_file", _spy)
     _persist_completed("sB", "m2")
 
     # No cross-file rewrite: only sB's file was written; sA's file was untouched.
-    assert written == [mission_chat_turns._session_file_path("sB")]
+    assert written == [mission_chat_turns.storage._session_file_path("sB")]
 
 
 def test_sessions_use_distinct_files_and_locks():
-    assert mission_chat_turns._session_file_path("sA") != mission_chat_turns._session_file_path("sB")
-    assert mission_chat_turns._session_lock_path("sA") != mission_chat_turns._session_lock_path("sB")
+    assert mission_chat_turns.storage._session_file_path("sA") != mission_chat_turns.storage._session_file_path("sB")
+    assert mission_chat_turns.storage._session_lock_path("sA") != mission_chat_turns.storage._session_lock_path("sB")
 
 
 # ---------------------------------------------------------------------------
@@ -146,15 +146,15 @@ def test_directory_enumeration_matches_per_session_reads():
     # Enumerating the directory yields exactly the live session files, and each
     # file's decoded map matches what the per-session reader returns — the
     # union across files is the whole store, same as the old monolith read.
-    files = mission_chat_turns._iter_session_files()
+    files = mission_chat_turns.storage._iter_session_files()
     assert {p.name for p in files} == {
-        mission_chat_turns._session_file_path("s1").name,
-        mission_chat_turns._session_file_path("s2").name,
+        mission_chat_turns.storage._session_file_path("s1").name,
+        mission_chat_turns.storage._session_file_path("s2").name,
     }
 
     for session_key in ("s1", "s2"):
         on_disk = json.loads(
-            mission_chat_turns._session_file_path(session_key).read_text(encoding="utf-8")
+            mission_chat_turns.storage._session_file_path(session_key).read_text(encoding="utf-8")
         )
         via_reader = {
             record["client_message_id"]
@@ -194,8 +194,8 @@ def test_migration_splits_monolith_into_per_session_files(isolate_agent_runtime_
     assert record["state"] == "completed"
 
     # Per-session files exist; monolith renamed aside (kept, not deleted).
-    assert mission_chat_turns._session_file_path("sA").exists()
-    assert mission_chat_turns._session_file_path("sB").exists()
+    assert mission_chat_turns.storage._session_file_path("sA").exists()
+    assert mission_chat_turns.storage._session_file_path("sB").exists()
     assert not legacy.exists()
     assert (isolate_agent_runtime_root / "mission_chat_turns.legacy.json").exists()
 
@@ -206,16 +206,16 @@ def test_migration_splits_monolith_into_per_session_files(isolate_agent_runtime_
 
 def test_migration_is_idempotent_on_rerun(isolate_agent_runtime_root):
     _write_legacy_monolith(isolate_agent_runtime_root, _LEGACY_PAYLOAD)
-    mission_chat_turns._migrate_legacy_if_present()
-    first = mission_chat_turns._session_file_path("sA").read_text(encoding="utf-8")
+    mission_chat_turns.storage._migrate_legacy_if_present()
+    first = mission_chat_turns.storage._session_file_path("sA").read_text(encoding="utf-8")
 
     # Re-running with the monolith already gone is a no-op and leaves the split
     # files untouched.
-    mission_chat_turns._migrate_legacy_if_present()
-    assert mission_chat_turns._session_file_path("sA").read_text(encoding="utf-8") == first
-    assert {p.name for p in mission_chat_turns._iter_session_files()} == {
-        mission_chat_turns._session_file_path("sA").name,
-        mission_chat_turns._session_file_path("sB").name,
+    mission_chat_turns.storage._migrate_legacy_if_present()
+    assert mission_chat_turns.storage._session_file_path("sA").read_text(encoding="utf-8") == first
+    assert {p.name for p in mission_chat_turns.storage._iter_session_files()} == {
+        mission_chat_turns.storage._session_file_path("sA").name,
+        mission_chat_turns.storage._session_file_path("sB").name,
     }
 
 
@@ -224,7 +224,7 @@ def test_migration_converges_from_half_migrated_state(isolate_agent_runtime_root
     # wrote a NEWER record into it), while the monolith still lingers with sB
     # unsplit. A re-run must NOT clobber sA's authoritative file and must finish
     # splitting sB.
-    live_sa = mission_chat_turns._session_file_path("sA")
+    live_sa = mission_chat_turns.storage._session_file_path("sA")
     live_sa.parent.mkdir(parents=True, exist_ok=True)
     live_sa.write_text(
         json.dumps(
@@ -241,7 +241,7 @@ def test_migration_converges_from_half_migrated_state(isolate_agent_runtime_root
     )
     _write_legacy_monolith(isolate_agent_runtime_root, _LEGACY_PAYLOAD)
 
-    mission_chat_turns._migrate_legacy_if_present()
+    mission_chat_turns.storage._migrate_legacy_if_present()
 
     # sA's pre-existing (authoritative) file was preserved, not overwritten by
     # the stale legacy sA payload.
@@ -261,7 +261,7 @@ def test_migration_of_corrupt_monolith_still_converges(isolate_agent_runtime_roo
 
     # A corrupt monolith must not wedge migration into an infinite retry — it is
     # renamed aside so the store converges to the (empty) per-session layout.
-    mission_chat_turns._migrate_legacy_if_present()
+    mission_chat_turns.storage._migrate_legacy_if_present()
     assert not legacy.exists()
     assert (isolate_agent_runtime_root / "mission_chat_turns.legacy.json").exists()
 
@@ -322,3 +322,82 @@ def test_serve_fingerprint_flips_on_turn_flushes(isolate_agent_runtime_root):
     )
     fp3 = _runtime_state_fingerprint()
     assert fp2 != fp3
+
+
+def test_one_record_keeps_each_element_kinds_own_fields():
+    """Positive control (layout sheet ``mission_chat_turns.md`` §7.1): a
+    ``segment`` and a ``tool`` element in ONE fixture, each asserted on the
+    fields only its own kind carries — so swapping the two per-kind builders
+    cannot stay green."""
+
+    outcome = persist_mission_chat_turn(
+        session_id="s_kinds",
+        client_message_id="m1",
+        turn_id="t1",
+        elements=[
+            {
+                "kind": "segment",
+                "id": "t1_seg_1",
+                "turn_id": "t1",
+                "seq": 1,
+                "seg_type": "answer",
+                "text": "hello",
+                "ttft_ms": 42,
+            },
+            {
+                "kind": "tool",
+                "id": "t1_tool_1",
+                "turn_id": "t1",
+                "seq": 2,
+                "name": "terminal",
+                "command": "git status",
+                "exit_code": -9,
+                "files": ["notes.md", "api_key.txt"],
+            },
+        ],
+        state="completed",
+    )
+    assert outcome is MissionChatTurnPersistOutcome.PERSISTED
+
+    segment, tool = mission_chat_turn_record(session_id="s_kinds", client_message_id="m1")["elements"]
+    assert (segment["kind"], segment["seg_type"], segment["text"], segment["ttft_ms"]) == (
+        "segment",
+        "answer",
+        "hello",
+        42,
+    )
+    assert "name" not in segment and "command" not in segment
+    assert (tool["kind"], tool["name"], tool["command"], tool["exit_code"], tool["files"]) == (
+        "tool",
+        "terminal",
+        "git status",
+        -9,
+        ["notes.md"],
+    )
+    assert "seg_type" not in tool and "text" not in tool
+
+
+def test_two_turns_started_in_one_millisecond_replay_in_start_order():
+    """Positive control (layout sheet ``mission_chat_turns.md`` §7.3, the C8
+    replay contract): ``started_at`` is a MICROSECOND ``Z`` stamp, so two turns
+    started back to back order by when they started, not by the client-id
+    tie-break (chosen here to sort the other way). A millisecond stamp would
+    collapse both into one key and hand the order to the tie-break."""
+
+    stamp = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$"
+    for message_id in ("m_z_first", "m_a_second"):
+        outcome = persist_mission_chat_turn(
+            session_id="s_order",
+            client_message_id=message_id,
+            turn_id=message_id,
+            elements=[],
+            state="running",
+            write_ahead=True,
+        )
+        assert outcome is MissionChatTurnPersistOutcome.PERSISTED
+
+    records = mission_chat_turn_records(session_id="s_order")
+    import re
+
+    assert all(re.match(stamp, record["started_at"]) for record in records), [r["started_at"] for r in records]
+    assert [record["client_message_id"] for record in records] == ["m_z_first", "m_a_second"]

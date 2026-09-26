@@ -66,6 +66,7 @@
     "kanban_request_review": "kanban",
     "kanban_show": "kanban",
     "kanban_unblock": "kanban",
+    "manage_catalog": "setup",
     "manage_connections": "connections",
     "memory": "memory",
     "patch": "file",
@@ -158,6 +159,7 @@
       "computer_use"
     ],
     "connectors.tool": [
+      "manage_catalog",
       "manage_connections"
     ],
     "cronjob_tools": [

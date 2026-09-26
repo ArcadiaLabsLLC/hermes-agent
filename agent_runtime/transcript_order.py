@@ -35,6 +35,8 @@ from __future__ import annotations
 
 from typing import Any, Callable, Sequence
 
+__layer__ = "policy"
+
 TURN_SEQ_OPERATOR = 0
 TURN_SEQ_CONTENT = 500_000
 TURN_SEQ_TERMINAL = 1_000_000

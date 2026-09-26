@@ -85,7 +85,7 @@ def test_every_persona_instance_field_is_classified():
     assert unclassified == set(), (
         f"unclassified PersonaInstance field(s): {sorted(unclassified)} — decide "
         "whether each travels, is re-derived on mint, or is local-only, and add "
-        "it to the matching set in agent_runtime/persona_instance_sync.py"
+        "it to the matching set in agent_runtime/persona_instance_sync/contract.py"
     )
 
     invented = (
@@ -482,3 +482,25 @@ def test_the_allowlist_is_total_over_what_the_door_admits():
     assert refuse_persona_instance(_placement_instance().id, dict.fromkeys(
         PERSONA_INSTANCE_ALLOWED_KEYS - {"id", "persona_id", "steered_by"}, "x"
     ) | {"id": _placement_instance().id, "persona_id": "dev"}) is None
+
+
+def test_the_wire_value_of_every_shape_and_the_refusal_of_an_exotic_one():
+    """Positive control for the wire-value strategy (sheet persona_instance_sync.md
+    §6.2): each registered shape travels as its own shape, and an exotic value is
+    DROPPED with accounting rather than stringified."""
+
+    from agent_runtime.persona_instance_sync.projection import _wire_value
+
+    issued = datetime(2026, 8, 31, 12, 0, 0, tzinfo=timezone.utc)
+    assert _wire_value(issued) == "2026-08-31T12:00:00.000000Z"
+    assert _wire_value(("a", 1, None, True, 2.5)) == ["a", 1, None, True, 2.5]
+    nested = _wire_value({"b": [issued], "a": {"d": 1, "c": (2,)}})
+    assert nested == {"a": {"c": [2], "d": 1}, "b": ["2026-08-31T12:00:00.000000Z"]}
+    assert list(nested) == ["a", "b"] and list(nested["a"]) == ["c", "d"]
+    with pytest.raises(TypeError):
+        _wire_value({"x"})
+
+    dropped: list[str] = []
+    body = project_persona_instance(_placement_instance(skill_overrides={"odd"}), dropped=dropped)
+    assert "skill_overrides" not in body
+    assert "instances.personainst_dev_agent_9682caf4.skill_overrides" in dropped

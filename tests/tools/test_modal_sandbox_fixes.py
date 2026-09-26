@@ -97,6 +97,7 @@ class TestCwdHandling:
         assert config["host_cwd"] is None
         assert config["docker_mount_cwd_to_workspace"] is False
 
+    @pytest.mark.platforms("linux")
     def test_users_path_maps_to_workspace_for_docker_when_enabled(self, monkeypatch):
         """Docker should map the host cwd into /workspace only when explicitly enabled."""
         host_cwd = _native_host_cwd("/Users/someone/projects",
@@ -147,6 +148,7 @@ class TestCwdHandling:
             f"Backend {backend}: expected /root default, got {config['cwd']}"
         )
 
+    @pytest.mark.platforms("linux")
     def test_docker_default_cwd_maps_current_directory_when_enabled(self, monkeypatch):
         """Docker should use /workspace when cwd mounting is explicitly enabled."""
         host_cwd = _native_host_cwd("/home/user/project", r"C:\Users\user\project")

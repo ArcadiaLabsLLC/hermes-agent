@@ -17,7 +17,8 @@ Every arm below is a pure function of that population, and each gate under
   size       W0-G1  files over 800 CODE lines (non-blank, not ``#``-led;
                     docstrings count — ruling Q1)
   ladders    W0-G5  routing ladders on a string / an ``isinstance`` subject,
-                    and compares against a declared vocabulary's members
+                    and compares against the members of a declared vocabulary
+                    IN REACH (the declaring module and its importers)
   floor      W0-G7  functions over 150 lines or nested deeper than 4
   duplicates W0-G3  byte-identical bodies (alpha-renamed) and private helper
                     NAME collisions across modules
@@ -51,6 +52,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Iterable, Iterator
 
+try:  # imported as ``scripts.god_file_probe`` (the gates)
+    from scripts import god_file_scope as _scope
+except ImportError:  # run as a script: ``scripts/`` is sys.path[0]
+    import god_file_scope as _scope
+
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / "tests" / "fixtures" / "upstream_manifest.txt"
 FIXTURES = ROOT / "tests" / "fixtures"
@@ -61,8 +67,15 @@ MAX_NESTING = 4
 MIN_DUPLICATE_BODY_LINES = 4
 #: Rule 16's layers, lowest first. A module may import its own layer or lower.
 LAYERS = ("models", "policy", "stores", "lanes", "wiring")
-#: The trees W0-G6 walks (every module must declare its layer, or be grandfathered).
+#: The trees W0-G6 walks (every module must declare its layer, or be grandfathered);
+#: :func:`layered_roots` adds every fork-only tree it DISCOVERS under
+#: ``FORK_ONLY_PARENTS`` (``agent/charsheet/``, ``tools/agent_chat_dispatch/`` …).
 LAYERED_ROOTS = ("agent_runtime/", "hermes_cli/harness_parts/", "plugins/eternia-harness/")
+FORK_ONLY_PARENTS = ("agent/", "tools/")
+#: Q31 (ruled 2026-09-24, landed by lane B5): under these parents only PACKAGES are
+#: walked — a package the program creates is born declared, while the flat scripts
+#: and conftests stay outside until their own lane opens them.
+PACKAGE_PARENTS = ("scripts/", "tests/_downstream/")
 HARNESS_PARTS = "hermes_cli/harness_parts/"
 
 SIZE_FIXTURE = FIXTURES / "size_ceiling_grandfathered.json"
@@ -109,17 +122,8 @@ def fork_production_files(root: Path = ROOT, manifest: Path = MANIFEST) -> tuple
     )
 
 
-@lru_cache(maxsize=None)
-def _source(root: Path, path: str) -> str:
-    return (root / path).read_text(encoding="utf-8", errors="replace")
-
-
-@lru_cache(maxsize=None)
-def _tree(root: Path, path: str) -> ast.Module | None:
-    try:
-        return ast.parse(_source(root, path), filename=path)
-    except SyntaxError:
-        return None
+_source = _scope.source
+_tree = _scope.tree
 
 
 def raw_lines(source: str) -> int:
@@ -206,12 +210,8 @@ def nesting_depth(node: ast.FunctionDef | ast.AsyncFunctionDef) -> int:
 # ── Appendix A: the §0.2 table ──────────────────────────────────────────────
 
 
-def _is_str(node: ast.AST) -> bool:
-    return isinstance(node, ast.Constant) and isinstance(node.value, str)
-
-
-def _is_str_collection(node: ast.AST) -> bool:
-    return isinstance(node, (ast.Tuple, ast.Set, ast.List)) and any(_is_str(e) for e in node.elts)
+_is_str = _scope.is_str
+_is_str_collection = _scope.is_str_collection
 
 
 def routed(test: ast.AST) -> bool:
@@ -291,6 +291,10 @@ def size_ledger_line(root: Path = ROOT) -> str:
 
 
 # ── W0-G5: ladder routing ───────────────────────────────────────────────────
+#
+# What a file BINDS — the names it holds to strings and Enums, own and imported,
+# re-exports followed — is ``scripts/god_file_scope.py`` (split out for the size
+# ceiling). Which vocabularies are in its reach is :func:`visible_vocabularies`.
 
 
 def _subject(node: ast.AST) -> str | None:
@@ -299,18 +303,34 @@ def _subject(node: ast.AST) -> str | None:
     return None
 
 
-def _string_subjects(test: ast.AST) -> set[str]:
-    """Names a test compares against a string constant (either side, ==/!=/in/not in)."""
+def _literal(node: ast.AST) -> bool:
+    """The Wave 0 comparator: a string constant, or a collection holding one."""
+    return _is_str(node) or _is_str_collection(node)
+
+
+def _is_membership_compare(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Compare)
+        and len(node.ops) == 1
+        and isinstance(node.ops[0], (ast.Eq, ast.NotEq, ast.In, ast.NotIn))
+    )
+
+
+def _string_subjects(test: ast.AST, strlike: Callable[[ast.AST], bool] = _literal) -> set[str]:
+    """Names a test compares against a string (either side, ==/!=/in/not in).
+
+    ``strlike`` is what counts as "a string": a literal by default; in the census
+    :meth:`god_file_scope.FileScope.strlike` — a literal, a NAME bound to one, or
+    an Enum member — so a ladder spelled over named constants is still a ladder.
+    """
     subjects = set()
     for node in ast.walk(test):
-        if not isinstance(node, ast.Compare) or len(node.ops) != 1:
-            continue
-        if not isinstance(node.ops[0], (ast.Eq, ast.NotEq, ast.In, ast.NotIn)):
+        if not _is_membership_compare(node):
             continue
         left, right = node.left, node.comparators[0]
-        if _is_str(right) or _is_str_collection(right):
+        if strlike(right) and not strlike(left):
             name = _subject(left)
-        elif _is_str(left) and isinstance(node.ops[0], (ast.Eq, ast.NotEq)):
+        elif strlike(left) and not strlike(right) and isinstance(node.ops[0], (ast.Eq, ast.NotEq)):
             name = _subject(right)
         else:
             name = None
@@ -346,7 +366,9 @@ def _chain(node: ast.If) -> tuple[list[ast.expr], list[list[ast.stmt]]]:
     return tests, bodies
 
 
-def _ladders_in(body: list[ast.stmt]) -> Iterator[tuple[str, str, int]]:
+def _ladders_in(
+    body: list[ast.stmt], strlike: Callable[[ast.AST], bool] = _literal
+) -> Iterator[tuple[str, str, int]]:
     """``(kind, subject, arms)`` for every ladder whose arms are siblings in ``body``.
 
     Arms are counted across sibling ``If`` statements (return-terminated guards)
@@ -364,7 +386,7 @@ def _ladders_in(body: list[ast.stmt]) -> Iterator[tuple[str, str, int]]:
             continue
         tests, bodies = _chain(stmt)
         for test in tests:
-            for name in _string_subjects(test):
+            for name in _string_subjects(test, strlike):
                 counts[("ladder", name)] += 1
             for name in _isinstance_subjects(test):
                 counts[("isinstance", name)] += 1
@@ -373,36 +395,12 @@ def _ladders_in(body: list[ast.stmt]) -> Iterator[tuple[str, str, int]]:
         if arms >= 3:
             yield kind, name, arms
     for child in nested:
-        yield from _ladders_in(child)
+        yield from _ladders_in(child, strlike)
 
 
-def _vocabulary_strings(tree: ast.Module) -> set[str]:
-    """Strings a module declares as a vocabulary: ``Final`` str collections and str Enum members."""
-    found: set[str] = set()
-    for node in tree.body:
-        found |= _final_strings(node) | _enum_strings(node)
-    return found
-
-
-def _final_strings(node: ast.stmt) -> set[str]:
-    """``NAME: Final[...] = ("a", "b")`` (or ``frozenset({...})``) -> its strings."""
-    if not (isinstance(node, ast.AnnAssign) and node.value is not None and "Final" in ast.unparse(node.annotation)):
-        return set()
-    value = node.value
-    if isinstance(value, ast.Call) and value.args:  # frozenset((...)) / tuple([...])
-        value = value.args[0]
-    if not isinstance(value, (ast.Tuple, ast.Set, ast.List)):
-        return set()
-    return {e.value for e in value.elts if _is_str(e)}
-
-
-def _enum_strings(node: ast.stmt) -> set[str]:
-    """A ``class X(str, Enum)`` / ``StrEnum`` -> its string member values."""
-    if not isinstance(node, ast.ClassDef):
-        return set()
-    if not {ast.unparse(b).rsplit(".", 1)[-1] for b in node.bases} & {"Enum", "StrEnum"}:
-        return set()
-    return {stmt.value.value for stmt in node.body if isinstance(stmt, ast.Assign) and _is_str(stmt.value)}
+_vocabulary_strings = _scope.vocabulary_strings
+_final_strings = _scope.final_strings
+_enum_strings = _scope.enum_strings
 
 
 def vocabulary(root: Path = ROOT) -> frozenset[str]:
@@ -415,16 +413,40 @@ def vocabulary(root: Path = ROOT) -> frozenset[str]:
     return frozenset(w for w in words if w)
 
 
-def _vocab_compares(node: ast.AST, words: frozenset[str]) -> Iterator[str]:
+def visible_vocabularies(root: Path = ROOT) -> dict[str, frozenset[str]]:
+    """``{path: words}`` in reach of each fork production module — :func:`god_file_scope.visible_vocabularies`."""
+    return _scope.visible_vocabularies(root, fork_production_files(root))
+
+
+def _compared_elements(node: ast.AST) -> Iterator[ast.AST]:
+    """Every operand of an ==/!=/in compare under ``node``, collections unpacked."""
     for child in ast.walk(node):
-        if isinstance(child, ast.Compare) and len(child.ops) == 1 and isinstance(
-            child.ops[0], (ast.Eq, ast.NotEq, ast.In, ast.NotIn)
-        ):
+        if _is_membership_compare(child):
             for side in (child.left, *child.comparators):
-                if _is_str(side) and side.value in words:
-                    yield side.value
-                elif isinstance(side, (ast.Tuple, ast.Set, ast.List)):
-                    yield from (e.value for e in side.elts if _is_str(e) and e.value in words)
+                yield from side.elts if isinstance(side, (ast.Tuple, ast.Set, ast.List)) else (side,)
+
+
+def _respelled_word(elt: ast.AST, words: frozenset[str], scope: _scope.FileScope | None) -> str | None:
+    """The in-reach vocabulary word ``elt`` re-spells, or None.
+
+    A literal counts when its word is in ``words``. So does a NAME the file binds
+    to that word ITSELF (``_RUNNING = "running"`` beside an import of the
+    declaring module) — the name-compare dodge is the same re-spelling — unless
+    the file declares the word (a table reading its own vocabulary by name).
+    """
+    if _is_str(elt):
+        return elt.value if elt.value in words else None
+    alias = scope.local_alias(elt) if scope is not None else None
+    if alias is None or alias[0] not in words or alias[0] in scope.declares:
+        return None
+    return alias[0]
+
+
+def _vocab_compares(node: ast.AST, words: frozenset[str], scope: _scope.FileScope | None = None) -> Iterator[str]:
+    for elt in _compared_elements(node):
+        word = _respelled_word(elt, words, scope)
+        if word is not None:
+            yield word
 
 
 def _own_statements(node: ast.FunctionDef | ast.AsyncFunctionDef) -> Iterator[ast.AST]:
@@ -441,28 +463,35 @@ def _own_statements(node: ast.FunctionDef | ast.AsyncFunctionDef) -> Iterator[as
 
 
 def ladder_census(root: Path = ROOT) -> dict[tuple[str, str, str, str], int]:
-    """``{(path, function, kind, subject): arms}`` — kinds ``ladder`` / ``isinstance`` / ``vocab``."""
-    words = vocabulary(root)
+    """``{(path, function, kind, subject): arms}`` — kinds ``ladder`` / ``isinstance`` / ``vocab``.
+
+    A ``vocab`` row counts only the vocabularies the module can see
+    (:func:`visible_vocabularies`), never the fork-wide union. Ladders and the
+    alias arm read the file's :func:`god_file_scope.file_scope`.
+    """
+    visible = visible_vocabularies(root)
     out: dict[tuple[str, str, str, str], int] = {}
     for path in fork_production_files(root):
         tree = _tree(root, path)
         if tree is None:
             continue
+        words = visible.get(path, frozenset())
+        scope = _scope.file_scope(root, path)
         for unit in iter_units(path, tree):
-            for kind, subject, arms in _ladders_in(unit.node.body):
+            for kind, subject, arms in _ladders_in(unit.node.body, scope.strlike):
                 key = (path, unit.qualname, kind, subject)
                 out[key] = max(out.get(key, 0), arms)
-            for word, hits in _unit_vocab(unit, words).items():
+            for word, hits in _unit_vocab(unit, words, scope).items():
                 out[(path, unit.qualname, "vocab", word)] = hits
     return out
 
 
-def _unit_vocab(unit: Unit, words: frozenset[str]) -> dict[str, int]:
+def _unit_vocab(unit: Unit, words: frozenset[str], scope: _scope.FileScope | None = None) -> dict[str, int]:
     """How often one function compares against each vocabulary member (nested defs excluded)."""
     hits: dict[str, int] = defaultdict(int)
     exprs = (e for stmt in _own_statements(unit.node) for e in ast.iter_child_nodes(stmt) if isinstance(e, ast.expr))
     for expr in exprs:
-        for word in _vocab_compares(expr, words):
+        for word in _vocab_compares(expr, words, scope):
             hits[word] += 1
     return hits
 
@@ -589,33 +618,11 @@ def duplicate_census(root: Path = ROOT) -> tuple[set[tuple[str, ...]], dict[str,
 # ── W0-G6: import layers ────────────────────────────────────────────────────
 
 
-def module_name(path: str) -> str:
-    stem = path[:-3]
-    if stem.endswith("/__init__"):
-        stem = stem[: -len("/__init__")]
-    return stem.replace("/", ".")
+module_name = _scope.module_name
+_resolve_from = _scope.resolve_from
 
 
-def _resolve_from(path: str, node: ast.ImportFrom) -> str:
-    if not node.level:
-        return node.module or ""
-    package = module_name(path).split(".")
-    if not path.endswith("__init__.py"):
-        package = package[:-1]
-    package = package[: len(package) - (node.level - 1)] if node.level > 1 else package
-    return ".".join([*package, *([node.module] if node.module else [])])
-
-
-def imports_of(path: str, tree: ast.Module) -> Iterator[tuple[str, str | None, int]]:
-    """``(module, imported name or None, line)`` for every import, module-level or deferred."""
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                yield alias.name, None, node.lineno
-        elif isinstance(node, ast.ImportFrom):
-            base = _resolve_from(path, node)
-            for alias in node.names:
-                yield base, alias.name, node.lineno
+imports_of = _scope.imports_of
 
 
 def _top_assignment(tree: ast.Module, name: str) -> ast.expr | None:
@@ -710,6 +717,43 @@ def is_private_upstream_import(root: Path, upstream: frozenset[str], module: str
     return not _upstream_module_path(f"{module}.{name}", upstream)
 
 
+def fork_only_tree(path: str, upstream: frozenset[str]) -> str | None:
+    """The top-most directory above ``path`` (below its top-level parent) holding no upstream file."""
+    parts = path.split("/")
+    for depth in range(2, len(parts)):
+        prefix = "/".join(parts[:depth]) + "/"
+        if not any(u.startswith(prefix) for u in upstream):
+            return prefix
+    return None
+
+
+def package_roots(root: Path = ROOT, manifest: Path = MANIFEST) -> tuple[str, ...]:
+    """Every package directory under ``PACKAGE_PARENTS`` — a directory whose ``__init__.py``
+    is in the fork population — enumerated from the tree (Q31)."""
+    found = {
+        path.rsplit("/", 1)[0] + "/"
+        for path in fork_production_files(root, manifest)
+        if path.startswith(PACKAGE_PARENTS) and path.endswith("/__init__.py")
+    }
+    # A package strictly BELOW its parent: ``tests/_downstream/`` is itself a package
+    # (``tests/_downstream/__init__.py``), and walking it whole would pull in every flat
+    # conftest and helper there — exactly what the ruling leaves outside.
+    return tuple(sorted(found - set(PACKAGE_PARENTS)))
+
+
+@lru_cache(maxsize=None)
+def layered_roots(root: Path = ROOT, manifest: Path = MANIFEST) -> tuple[str, ...]:
+    """``LAYERED_ROOTS``, every fork-only tree under ``FORK_ONLY_PARENTS`` and every package
+    under ``PACKAGE_PARENTS``, enumerated from the tree."""
+    upstream = upstream_paths(manifest)
+    trees = {
+        fork_only_tree(path, upstream)
+        for path in fork_production_files(root, manifest)
+        if path.startswith(FORK_ONLY_PARENTS)
+    }
+    return LAYERED_ROOTS + tuple(sorted(t for t in trees if t)) + package_roots(root, manifest)
+
+
 def layer_census(root: Path = ROOT, manifest: Path = MANIFEST) -> dict[str, list]:
     """The three W0-G6 populations, as sorted lists of rows.
 
@@ -724,7 +768,7 @@ def layer_census(root: Path = ROOT, manifest: Path = MANIFEST) -> dict[str, list
         tree = _tree(root, path)
         if tree is None:
             continue
-        if path.startswith(LAYERED_ROOTS) and not declares_layer(root, path):
+        if path.startswith(layered_roots(root, manifest)) and not declares_layer(root, path):
             undeclared.add(path)
         for module, name, _line in imports_of(path, tree):
             full = f"{module}.{name}" if name else module
@@ -768,7 +812,7 @@ def declared_modules(root: Path = ROOT) -> dict[str, str]:
     return {
         path: module_name(path)
         for path in fork_production_files(root)
-        if path.startswith(LAYERED_ROOTS) and declares_layer(root, path)
+        if path.startswith(layered_roots(root)) and declares_layer(root, path)
     }
 
 
@@ -895,8 +939,9 @@ def write_fixtures(root: Path = ROOT, *, bootstrap: bool = False) -> int:
         "files": dict(sorted(size_census(root).items())),
     })
     _write(LADDER_FIXTURE, {
-        "kinds": "ladder = >=3 arms comparing one subject to strings; isinstance = >=3 isinstance arms on one "
-                 "subject; vocab = compares against a declared Final/Enum vocabulary member (arms = count)",
+        "kinds": "ladder = >=3 arms comparing one subject to strings (literals, names bound to one, Enum "
+                 "members); isinstance = >=3 isinstance arms on one subject; vocab = compares re-spelling a "
+                 "Final/Enum vocabulary member in the module's REACH (arms = count)",
         "sites": [{"site": k, "arms": v[0]} for k, v in sorted(ladder_live(root).items())],
     })
     _write(FLOOR_FIXTURE, {

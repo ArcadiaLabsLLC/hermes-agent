@@ -545,6 +545,8 @@ class TestMediaDeliveryPathValidation:
         secret = ssh_dir / "id_rsa.txt"
         secret.write_bytes(b"-----BEGIN ...")  # mtime = now
         monkeypatch.setenv("HOME", str(fake_home))
+        # On Windows os.path.expanduser("~") reads USERPROFILE, not HOME.
+        monkeypatch.setenv("USERPROFILE", str(fake_home))
 
         assert BasePlatformAdapter.validate_media_delivery_path(str(secret)) is None
 
@@ -751,14 +753,9 @@ class TestMediaDeliveryDefaultMode:
         workdir.mkdir(parents=True)
         doc = workdir / "proposal.docx"
         doc.write_bytes(b"PK\x03\x04")
-        # point_home_at, not a bare HOME setenv: the carve-out under test lives
-        # in _path_under_denied_prefix, which resolves home with
-        # os.path.expanduser("~") — and ntpath.expanduser prefers USERPROFILE,
-        # so a HOME-only patch never moved the home the carve-out compares
-        # against, and the exemption simply never fired.
-        from tests._home_env import point_home_at
-
-        point_home_at(monkeypatch, fake_home)
+        monkeypatch.setenv("HOME", str(fake_home))
+        # On Windows os.path.expanduser("~") reads USERPROFILE, not HOME.
+        monkeypatch.setenv("USERPROFILE", str(fake_home))
         # $HOME is itself on the denied-prefix list, mirroring /root.
         monkeypatch.setattr(
             "gateway.platforms.base._MEDIA_DELIVERY_DENIED_PREFIXES",
@@ -808,6 +805,7 @@ class TestMediaDeliveryDefaultMode:
         )
 
 
+    @pytest.mark.require_symlinks
     def test_root_home_workdir_symlink_to_credential_blocked(self, tmp_path, monkeypatch):
         """A symlink in the workdir pointing at a credential is rejected on its
         resolved target, even under the $HOME exception.
@@ -832,6 +830,7 @@ class TestMediaDeliveryDefaultMode:
         assert BasePlatformAdapter.validate_media_delivery_path(str(link)) is None
 
 
+@pytest.mark.platforms("linux")
 class TestDockerContainerMediaPathTranslation:
     """MEDIA:/workspace (and configured mounts) must resolve to host paths."""
 
@@ -1391,6 +1390,7 @@ class TestMediaFallbackDoesNotLeakHostPath:
         assert self.SENSITIVE_PATH not in sent_text
 
 
+@pytest.mark.platforms("linux")
 class TestDockerProfileSandboxMediaTranslation:
     """MEDIA from persistent Docker sandboxes must resolve to the host
     directory the profile's container actually bind-mounts (#93950).

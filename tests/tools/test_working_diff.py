@@ -31,18 +31,8 @@ def repo(tmp_path):
     d = tmp_path / "repo"
     d.mkdir()
     _git(d, "init", "-q")
-    # The fixture drives git with HOME=<repo> (above) while the code under
-    # test runs git with the AMBIENT environment. Any line-ending setting
-    # that differs between those two views makes a freshly committed file
-    # look modified: on this workstation the SYSTEM gitconfig ships
-    # core.autocrlf=true (the Git-for-Windows installer default, seen by the
-    # fixture) and the user's global sets false (seen by collect_working_diff),
-    # so the index was normalized to LF while the worktree kept CRLF.
-    # Repo-local config outranks both and is visible to every git invocation
-    # regardless of HOME, so pin it here; and write the file's bytes
-    # explicitly rather than letting write_text apply os.linesep.
     _git(d, "config", "core.autocrlf", "false")
-    (d / "tracked.py").write_bytes(b"print('hello')\n")
+    (d / "tracked.py").write_text("print('hello')\n")
     _git(d, "add", "-A")
     _git(d, "commit", "-q", "-m", "init")
     return d
@@ -107,3 +97,30 @@ def test_cp932_content_is_lossy_but_never_raises(repo):
 
     assert result["success"] is True
     assert "legacy.txt" in result["diff"]
+
+
+def test_external_differ_is_ignored(repo):
+    # A user-configured external differ (diff.external in gitconfig, e.g.
+    # difftastic) replaces the unified-diff output of every plain "git
+    # diff". collect_working_diff must force the internal engine
+    # (--no-ext-diff) so the collected output stays parseable unified diff.
+    _git(repo, "config", "diff.external", "echo EXTERNAL-DIFF-GARBAGE")
+    (repo / "tracked.py").write_text("print('changed')\n")
+    (repo / "brand_new.py").write_text("print('new')\n")
+
+    result = collect_working_diff(str(repo))
+
+    assert result["success"] is True
+    assert "EXTERNAL-DIFF-GARBAGE" not in result["diff"]
+    # tracked change comes through the plain-diff call site
+    assert "-print('hello')" in result["diff"]
+    assert "+print('changed')" in result["diff"]
+    # untracked file comes through the --no-index call site
+    assert "+print('new')" in result["diff"]
+
+    # staged call site (--cached) is covered too
+    _git(repo, "add", "tracked.py")
+    staged = collect_working_diff(str(repo), mode="staged")
+    assert staged["success"] is True
+    assert "EXTERNAL-DIFF-GARBAGE" not in staged["diff"]
+    assert "+print('changed')" in staged["diff"]

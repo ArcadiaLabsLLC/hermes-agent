@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+__layer__ = "stores"
+
 
 def resolve_persona_system_prompt_path(persona: Any) -> Path | None:
     """Resolve ``system_prompt_path`` once for execution and realm sync.

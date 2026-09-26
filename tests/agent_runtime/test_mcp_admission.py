@@ -57,6 +57,7 @@ from agent_runtime.mcp_admission import (
 )
 from agent_runtime.machine_roots import ISSUE_PLATFORM_UNSUPPORTED
 from tests.agent_runtime.persona_samples import sample_persona, sample_personas
+from tests._downstream.split_package_source import patch_where_bound
 from agent_runtime.runtime_config import McpAdmissionConfig
 
 
@@ -1018,11 +1019,10 @@ def _enable_root_admission(monkeypatch, **kwargs):
 
     from agent_runtime import config as agent_config
 
-    monkeypatch.setattr(
-        agent_config,
-        "load_root_runtime_config",
-        lambda: _cfg(enabled=True, **kwargs),
-    )
+    fake = lambda: _cfg(enabled=True, **kwargs)  # noqa: E731
+    # Admission reads the loader's own binding (config.loader, policy — lane B4);
+    # patched wherever the config package binds it, the package attribute included.
+    patch_where_bound(monkeypatch, agent_config, "load_root_runtime_config", fake)
 
 
 def test_tool_visibility_stops_reporting_the_drop_once_admission_works(
@@ -1486,7 +1486,10 @@ def test_no_admission_code_branches_on_an_elapsed_millisecond_count():
 
     from agent_runtime import mcp_admission
 
-    source = pathlib.Path(mcp_admission.__file__).read_text(encoding="utf-8")
+    from tests._downstream.split_package_source import package_source
+
+    # Every module of the package, read as one text (lane B4 split the file).
+    source = package_source(mcp_admission)
     tree = ast.parse(source)
     offenders = []
     for node in ast.walk(tree):

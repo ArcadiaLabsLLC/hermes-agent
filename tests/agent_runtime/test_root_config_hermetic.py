@@ -1,7 +1,7 @@
 """ROOT-scope config resolution must never reach the operator's live runtime.
 
 ``agent_runtime`` has a whole class of policy — ``config.ROOT_ONLY_CONFIG_KEYS``
-(``agent_runtime/config.py:361``) — that is read ONLY through
+(``agent_runtime/config/schema.py:109``) — that is read ONLY through
 ``config.harness_root_config_path()``, i.e. through ``HERMES_HOME`` as resolved
 by ``hermes_constants.get_default_hermes_root()``. Four live readers hang off
 it: ``state_patches.delta_patches_enabled``, ``mcp_admission.admission_config``,

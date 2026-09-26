@@ -60,9 +60,19 @@ def _registry_module_path(directory: str) -> Path:
     root ``conftest.py``); a directory without one still reads its own
     conftest. Reading only the upstream conftest after that move made every
     check here SKIP — green by blindness (fork-hygiene 2026-09-24).
+
+    A fence may also be a PACKAGE (``tests/_downstream/<directory>_conftest/``,
+    lane B5): its ``__init__.py`` is the object the root conftest registers and
+    binds the registry, so it is the file to exec. Without this arm a packaged
+    fence fell back to the upstream conftest and went blind the same way.
     """
     downstream = TESTS_ROOT / "_downstream" / f"{directory}_conftest.py"
-    return downstream if downstream.is_file() else TESTS_ROOT / directory / "conftest.py"
+    if downstream.is_file():
+        return downstream
+    package = TESTS_ROOT / "_downstream" / f"{directory}_conftest" / "__init__.py"
+    if package.is_file():
+        return package
+    return TESTS_ROOT / directory / "conftest.py"
 
 
 def _exec_registry_module(directory: str, prefix: str):
@@ -104,6 +114,23 @@ def _this_host_carries_the_gaps() -> bool:
         if loaded is not None and firing_skip_rows(loaded[0]):
             return True
     return False
+
+
+@pytest.mark.parametrize("directory", _FENCED_DIRS)
+def test_every_fenced_directory_is_found(directory: str) -> None:
+    """POSITIVE CONTROL for the two checks below: a directory with a fork fence
+    — a flat ``<dir>_conftest.py`` or a ``<dir>_conftest/`` package — is READ
+    from it, and one that carries a registry yields it. A ``skip`` in the checks
+    below is otherwise indistinguishable from a fence nobody looked at."""
+
+    flat = TESTS_ROOT / "_downstream" / f"{directory}_conftest.py"
+    package = TESTS_ROOT / "_downstream" / f"{directory}_conftest" / "__init__.py"
+    if not (flat.is_file() or package.is_file()):
+        pytest.skip(f"tests/{directory} has no fork fence")
+    assert _registry_module_path(directory) in {flat, package}
+    if directory == "hermes_cli":
+        # The one fence that carries a probe-backed registry today.
+        assert _load_registry(directory) is not None
 
 
 @pytest.mark.parametrize("directory", _FENCED_DIRS)
@@ -291,33 +318,55 @@ def test_a_directorys_registry_cannot_reach_another_directorys_file():
     )
 
 
-def test_the_stale_row_tracker_does_not_claim_another_directorys_pass():
+def test_the_known_defect_tracker_does_not_claim_another_directorys_report():
     """The same interaction on the reporting half.
 
     ``pytest_runtest_logreport`` is global too, so in a combined run the tracker
-    sees every other directory's reports. A pass one directory over, in a
-    same-named file, would be printed as a stale row of OURS — and the operator's
-    instruction for a stale row is to DELETE it, which would retire a fence that
-    was never stale.
+    sees every other directory's reports. A failure one directory over, in a
+    same-named file, would be printed in OUR known-defects banner — an account of
+    a defect that is not ours. (The tracker this pinned before lane B5 was the
+    mark-only lane's StaleEntryTracker, deleted with that lane (Q30); the owner
+    prefix it derived lives on in KnownDefectTracker, and so does this check.)
     """
 
-    from tests._env_gap_fence import StaleEntryTracker
+    from types import SimpleNamespace
 
-    class _Report:
-        def __init__(self, nodeid: str) -> None:
-            self.nodeid = nodeid
-            self.when = "call"
-            self.outcome = "passed"
+    from tests._env_gap_fence import KnownDefectTracker
 
-    registry = {
-        "test_update_command.py": [("windows_env_gap", "reason", {"test_a"})],
-    }
-    tracker = StaleEntryTracker(registry, "tests/gateway/conftest.py")
-    tracker.record(_Report("tests/cli/test_update_command.py::test_a"))
-    assert not tracker._passed, (
-        "tests/gateway's tracker claimed a tests/cli pass as its own stale row"
+    tracker = KnownDefectTracker({"test_update_command.py": "banner"}, "tests/gateway/conftest.py")
+    theirs = SimpleNamespace(
+        nodeid="tests/cli/test_update_command.py::test_a", when="call", outcome="failed"
     )
-    tracker.record(_Report("tests/gateway/test_update_command.py::test_a"))
-    assert tracker._passed == ["tests/gateway/test_update_command.py::test_a"], (
-        "the tracker stopped seeing its own directory's rows"
+    mine = SimpleNamespace(
+        nodeid="tests/gateway/test_update_command.py::test_a", when="call", outcome="failed"
     )
+    assert tracker.record(theirs) is False
+    assert not tracker.failures, (
+        "tests/gateway's tracker claimed a tests/cli failure as its own known defect"
+    )
+    assert tracker.record(mine) is True
+    assert tracker.failures == ["tests/gateway/test_update_command.py::test_a"], (
+        "the tracker stopped seeing its own directory's reports"
+    )
+
+
+def test_the_known_defect_tracker_records_an_xfail_and_a_strict_xpass():
+    """Both arms of the classifier, the one tools_conftest's copy lacked.
+
+    A strict xfail reports ``skipped`` + ``wasxfail`` — never ``failed`` — so a
+    classifier matching ``failed`` alone retires the banner the moment the defect
+    is fenced. A strict XPASS arrives as ``failed`` with no ``wasxfail``. An
+    ordinary pass in the same file is neither.
+    """
+
+    from types import SimpleNamespace
+
+    from tests._env_gap_fence import KnownDefectTracker
+
+    tracker = KnownDefectTracker({"test_x.py": "banner"}, "tests/tools/conftest.py")
+    node = "tests/tools/test_x.py::test_a"
+    tracker.record(SimpleNamespace(nodeid=node, when="call", outcome="skipped", wasxfail="r"))
+    tracker.record(SimpleNamespace(nodeid=node, when="call", outcome="failed"))
+    tracker.record(SimpleNamespace(nodeid=node, when="call", outcome="passed"))
+    tracker.record(SimpleNamespace(nodeid=node, when="setup", outcome="failed"))
+    assert tracker.failures == [node, node]

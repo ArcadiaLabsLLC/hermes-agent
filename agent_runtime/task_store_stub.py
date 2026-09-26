@@ -42,6 +42,8 @@ from typing import Any, NoReturn
 
 from .errors import NotFound
 
+__layer__ = "models"
+
 
 class TaskStoreStub:
     """Permanent no-op stand-in for the deleted ``TaskStore`` (see module docstring)."""

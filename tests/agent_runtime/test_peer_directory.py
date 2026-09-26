@@ -82,7 +82,7 @@ def test_the_roster_is_capped_and_says_truncated(monkeypatch):
         lambda instances, **kwargs: [_Instance(i) for i in range(ROSTER_ROW_CAP + 5)],
     )
     monkeypatch.setattr(
-        "hermes_cli.harness_parts.persona.chat_turn_message._resolve_mission_chat_persona_id",
+        "agent_runtime.mission_chat_persona.resolve_mission_chat_persona_id",
         lambda a, b: "dev",
     )
 
@@ -139,14 +139,14 @@ def test_the_scope_for_a_resident_handle_is_that_instances_own_workspace(monkeyp
 
 def test_thread_read_refuses_an_unknown_target_with_unsupported_persona(monkeypatch):
     """The tool's own refusal ENVELOPE (a JSON string, because
-    ``_resolve_chat_lane_target`` predates this function) is decoded here rather
+    ``resolve_chat_lane_target`` predates this function) is decoded here rather
     than changed there — so the local tool's bytes are unchanged and the peer
     door gets a dict with the same word in it."""
 
     from agent_runtime import peer_directory
 
     monkeypatch.setattr(
-        "tools.agent_chat_tool._resolve_chat_lane_target",
+        "tools.agent_chat.threads.resolve_chat_lane_target",
         lambda persona_id, **kwargs: (
             None,
             json.dumps(
@@ -178,7 +178,7 @@ def test_thread_read_applies_the_same_lane_guard_as_agent_chat_open(monkeypatch)
     from agent_runtime import peer_directory
 
     monkeypatch.setattr(
-        "tools.agent_chat_tool._resolve_chat_lane_target",
+        "tools.agent_chat.threads.resolve_chat_lane_target",
         lambda persona_id, **kwargs: (
             SimpleNamespace(
                 persona="dev",
@@ -209,7 +209,7 @@ def test_thread_read_clamps_limit_to_forty(monkeypatch):
 
     seen: list[int] = []
     monkeypatch.setattr(
-        "tools.agent_chat_tool._resolve_chat_lane_target",
+        "tools.agent_chat.threads.resolve_chat_lane_target",
         lambda persona_id, **kwargs: (
             SimpleNamespace(
                 persona="dev",
@@ -249,7 +249,7 @@ def test_thread_read_surfaces_a_scope_refusal_and_never_sets_the_env(monkeypatch
     from agent_runtime import peer_directory
 
     monkeypatch.setattr(
-        "tools.agent_chat_tool._resolve_chat_lane_target",
+        "tools.agent_chat.threads.resolve_chat_lane_target",
         lambda persona_id, **kwargs: (
             SimpleNamespace(
                 persona="dev",
@@ -285,7 +285,7 @@ def test_a_teammate_with_no_thread_answers_honestly_and_mints_nothing(monkeypatc
     from agent_runtime import peer_directory
 
     monkeypatch.setattr(
-        "tools.agent_chat_tool._resolve_chat_lane_target",
+        "tools.agent_chat.threads.resolve_chat_lane_target",
         lambda persona_id, **kwargs: (
             SimpleNamespace(
                 persona="dev",
@@ -420,7 +420,7 @@ def test_installs_hud_block_reads_two_files_and_dials_nothing(tmp_path, monkeypa
     apply_peer_announce(tmp_path, "inst_mac", {"display_name": "the mac"})
 
     monkeypatch.setattr(
-        serve_socket,
+        serve_socket.client,
         "ServeSocketClient",
         lambda *a, **k: (_ for _ in ()).throw(AssertionError("the HUD dialled")),
     )

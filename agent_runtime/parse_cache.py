@@ -18,6 +18,8 @@ import hashlib
 from pathlib import Path
 from typing import Any, Callable
 
+__layer__ = "models"
+
 _MISSING = object()
 _MAX_ENTRIES = 4096
 

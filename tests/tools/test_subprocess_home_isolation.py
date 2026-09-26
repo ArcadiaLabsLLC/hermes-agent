@@ -141,6 +141,8 @@ class TestGetSubprocessHome:
         assert home_a == str(base / "alpha" / "home")
         assert home_b == str(base / "beta" / "home")
         assert home_a != home_b
+        assert Path(home_a).parts[-2:] == ("alpha", "home")
+        assert Path(home_b).parts[-2:] == ("beta", "home")
 
 
 

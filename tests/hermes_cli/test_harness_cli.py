@@ -431,8 +431,8 @@ def test_the_doctor_detail_line_derives_from_the_section_table(tmp_path, monkeyp
         publish=(("findings.synthetic_probe", None),),
         detail_source="findings.synthetic_probe",
     )
-    monkeypatch.setattr(
-        harness_doctor,
+    monkeypatch.setattr(  # the table's home module is what doctor_detail_sources reads
+        harness_doctor.run,
         "DOCTOR_SECTIONS",
         (*harness_doctor.DOCTOR_SECTIONS, synthetic),
     )

@@ -4,7 +4,7 @@ The fork's ``tools.process_registry.ProcessRegistry.restore_durable_completions`
 is an EXPLICIT startup step, not an import side effect, so upstream's
 ``test_real_process_restart_restores_owned_completion_once`` (which drains the
 queue straight after the import) cannot pass and is a strict xfail row in
-``tests/_downstream/id_markers.py``. This is the same restart E2E with each
+``tests/_downstream/id_markers/``. This is the same restart E2E with each
 child doing what a real entry point does. Upstream's autouse ``_clean_state``
 is imported by name.
 """

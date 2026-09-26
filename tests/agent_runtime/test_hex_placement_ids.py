@@ -79,14 +79,14 @@ def test_session_belongs_to_chat_lane_excludes_hex_sibling_from_primary_lane():
     # agent_chat_open's lane check: the primary's lane must NOT swallow the hex
     # placement's session (its tail after the primary prefix is not a bare
     # 12-hex block); the placement's own lane owns it.
-    from tools.agent_chat_tool import _session_belongs_to_chat_lane
+    from tools.agent_chat_tool import session_belongs_to_chat_lane
 
     placement_session = persona_chat_session_id_for(PLACEMENT_ID)
 
-    assert not _session_belongs_to_chat_lane(
+    assert not session_belongs_to_chat_lane(
         placement_session, handle=PRIMARY_ID, default_session=None
     )
-    assert _session_belongs_to_chat_lane(
+    assert session_belongs_to_chat_lane(
         placement_session, handle=PLACEMENT_ID, default_session=None
     )
 

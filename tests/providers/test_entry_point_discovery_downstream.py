@@ -4,7 +4,7 @@ The fork split plugin discovery into ``hermes_cli.plugins_discovery``, which is
 where ``_get_enabled_plugins`` / ``_get_disabled_plugins`` are read now.
 Upstream's ``_enable`` patches them on ``hermes_cli.plugins``, so the two tests
 that need an entry point ENABLED are strict xfail rows in
-``tests/_downstream/id_markers.py``; these are the same tests with ``_enable``
+``tests/_downstream/id_markers/``; these are the same tests with ``_enable``
 patching the module discovery reads. The fakes and the autouse
 ``_restore_real_discovery`` are upstream's, imported by name.
 """

@@ -44,6 +44,7 @@ from pathlib import Path
 import pytest
 
 from scripts import changed_line_mutation_check as gate
+from scripts.mutation_check import anchor as anchor_policy
 
 
 #: Floors, not exact counts: the registry grows, and a gate that has to be
@@ -104,9 +105,9 @@ def anchoring():
             definitions[key] = real_definitions(tree)
         return definitions[key]
 
-    original_ast = gate.ast
-    gate.ast = memo
-    gate._qualified_definitions = memo_definitions
+    original_ast = anchor_policy.ast
+    anchor_policy.ast = memo
+    anchor_policy._qualified_definitions = memo_definitions
     try:
         rows = json.loads(gate.DEFAULT_CLAIMS.read_text(encoding="utf-8"))["claims"]
         assert isinstance(rows, list) and rows
@@ -133,8 +134,8 @@ def anchoring():
 
         yield rows, anchor_failures
     finally:
-        gate.ast = original_ast
-        gate._qualified_definitions = real_definitions
+        anchor_policy.ast = original_ast
+        anchor_policy._qualified_definitions = real_definitions
 
 
 def test_every_registered_claim_anchors_where_it_says_it_does(anchoring) -> None:

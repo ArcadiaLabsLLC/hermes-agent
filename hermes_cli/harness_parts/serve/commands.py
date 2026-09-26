@@ -17,7 +17,7 @@ from hermes_cli.harness_parts.serve.boot import (
     _prewarm_read_model_snapshot,
     install_harness_skills_at_boot,
 )
-from hermes_cli.harness_parts.serve.loop import (
+from hermes_cli.harness_parts.serve.session import (
     serve_loop,
 )
 
@@ -125,7 +125,8 @@ def _cmd_serve(args, *, harness_parser: Callable[[Any], None] | None = None) -> 
         bind_harness_parser(harness_parser)
     protocol_in, protocol_out = _claim_protocol_pipes()
     writer = os.fdopen(protocol_out, "w", encoding="utf-8", newline="\n")
-    # Function-local on purpose: this file is exec'd into harness.py's globals.
+    # Deferred to the one serve that publishes the anchor. (This used to say the file was exec'd into
+    # harness.py's globals; that stopped at H4 `d567f07f62` — it is an ordinary module now.)
     from agent_runtime.root_anchor import publish_store_root_anchor
 
     def _wake_reader() -> None:

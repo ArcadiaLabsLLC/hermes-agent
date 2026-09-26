@@ -3,6 +3,9 @@ import logging
 import os
 import re
 from typing import Dict
+
+__layer__ = "policy"
+
 logger = logging.getLogger("tools.mcp_tool")
 _ENV_VAR_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _MCP_ENV_OVERRIDE_PREFIX = "HERMES_MCP_ENV_"

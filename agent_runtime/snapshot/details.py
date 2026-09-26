@@ -53,10 +53,13 @@ __all__ = [
 
 def _default_persona_session_db():
     # Same acquisition as the projection lane it feeds — see
-    # ``chat_session_scope`` for the resolution ladder.
+    # ``chat_session_scope`` for the resolution ladder. The READ door: an
+    # existing store is attached read-only, because a writer open here ran
+    # upstream's data migration inside the build, moving the ``state.db`` the
+    # stream watchdog fingerprints (``open_chat_session_db``'s docstring).
     from ..chat_session_scope import open_chat_session_db
 
-    return open_chat_session_db()
+    return open_chat_session_db(read_only=True)
 
 
 @contextmanager
@@ -136,6 +139,7 @@ def persona_instance_detail_for_id(entity_id: str, *, event_log=None) -> dict | 
     token = str(entity_id or "").strip()
     if not token:
         return None
+    from ..config import ensure_persisted_personas
     from ..persona_assignments import persona_instance_tool_detail
 
     event_log = event_log or CachedEventLog()
@@ -144,7 +148,7 @@ def persona_instance_detail_for_id(entity_id: str, *, event_log=None) -> dict | 
     for instance in PersonaInstanceStore(event_log=event_log).ensure_for_personas(agents):
         if str(getattr(instance, "id", "") or "") == token:
             persona = personas_by_id.get(str(getattr(instance, "persona_id", "") or ""))
-            return persona_instance_tool_detail(instance, persona)
+            return persona_instance_tool_detail(instance, persona, roster=ensure_persisted_personas)
     persona = personas_by_id.get(token)
     if persona is not None:
         return _agent_tool_detail(persona)

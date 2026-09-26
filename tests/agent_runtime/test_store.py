@@ -176,3 +176,35 @@ def test_incident_store_reads_open_and_closed_history():
     assert not hasattr(store, "close")
     assert not hasattr(store, "list_open_with_closed_count")
 
+
+def test_set_active_refuses_a_superseded_intent_and_a_duplicate_one():
+    """Positive control for the active-pointer compare-and-set (sheet
+    ``store.md`` §6.1), for BOTH pointers: a strictly older intent is
+    ``superseded`` and leaves the pointer; the same basis and the same target
+    is ``duplicate``; the same basis and a different target applies."""
+
+    from agent_runtime.store import RealmStore, WorkspaceStore
+
+    newer, older = "2026-09-25T12:00:00+00:00", "2026-09-25T11:00:00+00:00"
+    workspaces = WorkspaceStore()
+    alpha, beta = workspaces.create(name="Alpha"), workspaces.create(name="Beta")
+    assert workspaces.set_active(beta.id, issued_at=newer) == {"workspace_id": beta.id, "applied": True}
+    assert workspaces.set_active(alpha.id, issued_at=older) == {
+        "workspace_id": beta.id,
+        "applied": False,
+        "reason": "superseded",
+        "requested_workspace_id": alpha.id,
+    }
+    assert workspaces.active_id() == beta.id
+    assert workspaces.set_active(beta.id, issued_at=newer)["reason"] == "duplicate"
+    assert workspaces.set_active(alpha.id, issued_at=newer)["applied"] is True
+    assert workspaces.active_id() == alpha.id
+
+    realms = RealmStore()
+    red, blue = realms.create(name="Red"), realms.create(name="Blue")
+    assert realms.set_active(blue.id, issued_at=newer) == {"realm_id": blue.id, "applied": True}
+    stale = realms.set_active(red.id, issued_at=older)
+    assert (stale["applied"], stale["reason"], stale["realm_id"]) == (False, "superseded", blue.id)
+    assert realms.active_id() == blue.id
+    assert realms.set_active(blue.id, issued_at=newer)["reason"] == "duplicate"
+    assert workspaces.active_id() == alpha.id

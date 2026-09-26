@@ -29,9 +29,14 @@ and here is why."
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from typing import Any, Iterable, Sequence
+
+from .serde import unique_texts
+
+logger = logging.getLogger(__name__)
 
 #: ``requirement_failures[].code`` for the drop this module accounts for.
 MCP_NOT_REGISTERED_ON_LANE = "mcp_not_registered_on_lane"
@@ -179,7 +184,7 @@ def mcp_lane_requirement_failures(
     once you know WHERE it was not registered.
     """
 
-    declared = _clean(declared_servers)
+    declared = unique_texts(declared_servers)
     if not declared:
         return []
     resolved_lane = str(lane or "").strip() or current_entry_point_lane()
@@ -188,7 +193,7 @@ def mcp_lane_requirement_failures(
     registered = (
         registered_mcp_server_names()
         if registered_servers is None
-        else frozenset(_clean(registered_servers))
+        else frozenset(unique_texts(registered_servers))
     )
     return [
         {
@@ -284,7 +289,7 @@ def mission_chat_mcp_lane_line(persona: Any, *, lane: str | None = None) -> str:
     Deliberately narrower than the operator's rows, in both directions that
     matter:
 
-    * **Declaration source.** Reads ``_effective_required_mcp_servers`` — the
+    * **Declaration source.** Reads ``effective_required_mcp_servers`` — the
       persona's own ``required_mcp_servers`` plus the existing role policy — and
       NOT ``declared_mcp_server_names``, which additionally parses the profile's
       ``config.yaml``. Two reasons, and the cheapness is the lesser one: the
@@ -297,18 +302,27 @@ def mission_chat_mcp_lane_line(persona: Any, *, lane: str | None = None) -> str:
       ``launcher_qa``) is imported, never re-implemented — the design's standing
       "do not write a second copy" rule.
 
-    Never raises: a context line must not be able to fail a turn.
+    Never raises: a context line must not be able to fail a turn. But it is
+    never SILENT either: "declares no MCP server" is only ever answered by a
+    declaration read that succeeded. A read or render that failed (a broken
+    import, a malformed persona, a wedged registry) logs a WARNING naming the
+    exception and renders nothing — the turn proceeds, the defect is heard.
     """
 
     try:
         # Local import: ``profile_readiness`` pulls in ``hermes_cli`` and this
-        # module is imported by every visibility resolve. Private-but-canonical
-        # is the deliberate trade — a second copy of the role policy is worse
-        # than reaching across for the first one.
-        from .profile_readiness import _effective_required_mcp_servers
+        # module is imported by every visibility resolve. A second copy of the
+        # role policy would be worse than reaching across for the first one.
+        from .profile_readiness import effective_required_mcp_servers
 
-        declared = _effective_required_mcp_servers(persona)
-    except Exception:  # pragma: no cover - defensive; a declaration probe is best-effort
+        declared = effective_required_mcp_servers(persona)
+    except Exception as exc:  # noqa: BLE001 — never fail a turn; never silent
+        logger.warning(
+            "mcp_lane_line_declaration_unreadable persona=%s error=%s: %s",
+            getattr(persona, "id", None),
+            type(exc).__name__,
+            exc,
+        )
         return ""
     if not declared:
         return ""
@@ -316,14 +330,13 @@ def mission_chat_mcp_lane_line(persona: Any, *, lane: str | None = None) -> str:
         return render_mcp_lane_line(
             mcp_lane_requirement_failures(declared_servers=declared, lane=lane)
         )
-    except Exception:  # pragma: no cover - defensive
+    except Exception as exc:  # noqa: BLE001 — never fail a turn; never silent
+        logger.warning(
+            "mcp_lane_line_render_failed persona=%s error=%s: %s",
+            getattr(persona, "id", None),
+            type(exc).__name__,
+            exc,
+        )
         return ""
 
 
-def _clean(values: Iterable[str] | None) -> list[str]:
-    out: list[str] = []
-    for value in values or []:
-        text = str(value or "").strip()
-        if text and text not in out:
-            out.append(text)
-    return out

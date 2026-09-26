@@ -31,6 +31,8 @@ import time
 from contextvars import ContextVar
 from dataclasses import dataclass
 
+__layer__ = "models"
+
 DEFAULT_MAX_RELAY_DEPTH = 3
 _MAX_DEPTH_FLOOR = 1
 _MAX_DEPTH_CEILING = 8

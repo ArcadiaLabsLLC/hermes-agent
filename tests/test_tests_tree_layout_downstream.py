@@ -1,7 +1,7 @@
 """Fork half of ``tests/test_tests_tree_layout.py``.
 
 Upstream's ``test_every_test_directory_mirrors_a_source_directory_or_is_declared``
-is a strict xfail row in ``tests/_downstream/id_markers.py``: the fork's own test
+is a strict xfail row in ``tests/_downstream/id_markers/``: the fork's own test
 directories mirror no source package and the fork does not edit upstream's
 ``_NON_MIRROR_DIRS``. This runs the same check with the fork's directories
 declared beside upstream's table.

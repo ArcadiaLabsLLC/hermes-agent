@@ -508,7 +508,7 @@ def _rel(path: Path) -> str:
 
 
 def _table_ids() -> set[str]:
-    """Ids the fork marks with the opt-in BY ID (``tests/_downstream/id_markers.py``).
+    """Ids the fork marks with the opt-in BY ID (``tests/_downstream/id_markers/``).
 
     Read from the table the collection hook applies, not from a source walk,
     so a scope marked there is held to the same redirect rule as a decorator.
@@ -696,7 +696,7 @@ def test_pre_filter_selects_a_file_by_the_marker_token_alone():
 
 def test_gate_sees_every_scope_the_id_table_marks():
     """The table arm must not census nothing: every id the fork marks with the
-    opt-in in ``tests/_downstream/id_markers.py`` resolves to a scope here, so
+    opt-in in ``tests/_downstream/id_markers/`` resolves to a scope here, so
     the redirect rule above is actually applied to it."""
     ids = _table_ids()
     assert ids, "the id table marks nothing with the opt-in; the table arm is vacuous"
@@ -714,10 +714,28 @@ def test_gate_sees_every_scope_the_id_table_marks():
 
 
 def test_gate_marker_is_registered():
-    """An unregistered marker silently does nothing under ``--strict-markers``."""
+    """An unregistered marker silently does nothing under ``--strict-markers``.
+
+    Asked of the REGISTRAR, not of its source: the name is spelled once in
+    ``tests/_downstream/id_markers/reasons.py`` (lane B5) and conftest_plugin
+    registers it by reference, so a source grep for the literal would be a
+    question about a spelling.
+    """
+    from types import SimpleNamespace
+
+    from tests._downstream import conftest_plugin
+
+    registered: list[str] = []
+    conftest_plugin.pytest_configure(SimpleNamespace(
+        pluginmanager=SimpleNamespace(hasplugin=lambda name: False),
+        option=SimpleNamespace(),
+        addinivalue_line=lambda key, line: registered.append(line) if key == "markers" else None,
+    ))
+    assert any(line.startswith(f"{_MARKER}:") for line in registered), (
+        f"{_MARKER} is not registered by tests/_downstream/conftest_plugin.pytest_configure"
+    )
     conftest = Path(__file__).resolve().parent / "_downstream" / "conftest_plugin.py"
     source = conftest.read_text(encoding="utf-8")
-    assert f'"{_MARKER}"' in source, f"{_MARKER} is not defined in tests/_downstream/conftest_plugin.py"
     for surface in _SURFACE:
         assert f'"{surface}"' in source, (
             f"tests/_downstream/conftest_plugin.py no longer patches {surface} — the "

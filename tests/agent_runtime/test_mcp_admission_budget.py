@@ -46,6 +46,7 @@ from agent_runtime.mcp_admission import (
 )
 from tests.agent_runtime.persona_samples import sample_personas
 from agent_runtime.runtime_config import McpAdmissionConfig
+from tests._downstream.split_package_source import patch_where_bound
 
 _QA_ALLOW = {"qa": {LANE_MISSION_CHAT: ["launcher_qa"]}}
 _TOOLSET = "mcp-launcher_qa"
@@ -631,7 +632,8 @@ def test_the_runner_records_the_run_s_call_accounting(monkeypatch):
     for _ in range(9):
         budget.consume("launcher_qa", "kill_launcher")
 
-    monkeypatch.setattr(
+    patch_where_bound(
+        monkeypatch,
         mcp_admission,
         "teardown_mcp_admission",
         lambda servers, **kwargs: McpTeardownOutcome(servers=tuple(servers)),
@@ -656,7 +658,7 @@ def test_the_runner_reports_the_bound_it_armed(monkeypatch, clean_registry):
     stub = _StubTools(clean_registry)
     import agent_runtime.mcp_admission as mcp_admission
 
-    monkeypatch.setattr(mcp_admission, "_default_registrar", stub.register)
+    patch_where_bound(monkeypatch, mcp_admission, "_default_registrar", stub.register)
 
     result = ProfileAgentRunner(agent_factory=_Agent).run(_request())
 
@@ -669,7 +671,7 @@ def test_the_runner_emits_one_operator_row_when_the_budget_trips(monkeypatch, cl
     from agent_runtime.profile_runner import ProfileAgentRunner
 
     stub = _StubTools(clean_registry)
-    monkeypatch.setattr(mcp_admission, "_default_registrar", stub.register)
+    patch_where_bound(monkeypatch, mcp_admission, "_default_registrar", stub.register)
     events: list[dict] = []
 
     class _DispatchingAgent(_Agent):

@@ -146,8 +146,8 @@ def test_09a_a_failed_byte_unlock_is_reported_and_release_still_works(
 
     with pytest.MonkeyPatch.context() as broken_unlock:
         broken_unlock.setattr(
-            persona_chat_continuity,
-            "_unlock",
+            persona_chat_continuity.lease,
+            "unlock_fd",
             lambda fd: (_ for _ in ()).throw(OSError("unlock refused")),
         )
 
@@ -159,7 +159,7 @@ def test_09a_a_failed_byte_unlock_is_reported_and_release_still_works(
     assert any("root_unlock_fail" in message and "unlock" in message.lower() for message in warnings), warnings
 
     # Behaviour unchanged: the handle close still released the lock, so the
-    # very next acquisition of the same root succeeds — with the real `_unlock`
+    # very next acquisition of the same root succeeds — with the real `unlock_fd`
     # back, because the context above has exited.
     with persona_chat_root_lease("root_unlock_fail"):
         assert True
@@ -682,11 +682,11 @@ def test_a_pre_existing_ticket_store_is_indexed_on_first_use(isolate_agent_runti
 
     store = PersonaChatClarifyTicketStore()
     token = _clarify_ticket(store)
-    for path in store._index_dir().glob("*.json"):
+    for path in store.index.directory().glob("*.json"):
         path.unlink()
 
     assert store.open_ticket_for_session(_CLARIFY_ROOT)["clarify_token"] == token
-    assert store._index_state_path().exists()
+    assert store.index.state_path().exists()
 
 
 def test_a_stale_index_entry_degrades_to_a_miss_never_a_wrong_binding(
@@ -709,7 +709,7 @@ def test_a_stale_index_entry_degrades_to_a_miss_never_a_wrong_binding(
     # Forge the index: a token for ANOTHER session, plus one that resolves to
     # nothing, both ranked newer than the real ticket.
     now = time.time()
-    store._write_index(
+    store.index.write(
         _CLARIFY_ROOT,
         [
             {"clarify_token": "clarify-deadbeefdead", "created_at": now + 20},
@@ -723,7 +723,7 @@ def test_a_stale_index_entry_degrades_to_a_miss_never_a_wrong_binding(
     assert found["clarify_token"] == live
     # …and the two entries that failed verification are gone, so the index
     # converges without a repair pass.
-    assert [entry["clarify_token"] for entry in store._index_entries(_CLARIFY_ROOT)] == [live]
+    assert [entry["clarify_token"] for entry in store.index.entries(_CLARIFY_ROOT)] == [live]
 
 
 def test_settling_a_ticket_takes_it_out_of_the_index(isolate_agent_runtime_root):
@@ -733,9 +733,9 @@ def test_settling_a_ticket_takes_it_out_of_the_index(isolate_agent_runtime_root)
 
     store.settle(newer, client_message_id="cm-answer", bound_via="session_id")
 
-    assert [entry["clarify_token"] for entry in store._index_entries(_CLARIFY_ROOT)] == [older]
+    assert [entry["clarify_token"] for entry in store.index.entries(_CLARIFY_ROOT)] == [older]
     store.settle(older, client_message_id="cm-answer-2", bound_via="session_id")
-    assert store._index_entries(_CLARIFY_ROOT) == []
+    assert store.index.entries(_CLARIFY_ROOT) == []
     assert store.open_ticket_for_session(_CLARIFY_ROOT) is None
 
 
@@ -754,11 +754,11 @@ def _age_clarify_store(store, token: str, seconds: float) -> None:
     record["created_at"] = aged
     path.write_text(json.dumps(record), encoding="utf-8")
     root = str(record["chat_session_id"])
-    store._write_index(
+    store.index.write(
         root,
         [
             {**entry, "created_at": aged if entry["clarify_token"] == token else entry["created_at"]}
-            for entry in store._index_entries(root)
+            for entry in store.index.entries(root)
         ],
     )
 
@@ -774,7 +774,7 @@ def test_the_sweep_reclaims_index_files_it_can_prove_are_dead(isolate_agent_runt
     store = PersonaChatClarifyTicketStore()
     token = _clarify_ticket(store)
     _age_clarify_store(store, token, CLARIFY_TICKET_TTL_SECONDS * 2)
-    index_path = store._index_path(_CLARIFY_ROOT)
+    index_path = store.index.path(_CLARIFY_ROOT)
 
     assert store.sweep() == 1
     assert not index_path.exists()
@@ -788,7 +788,7 @@ def test_the_sweep_reclaims_index_files_it_can_prove_are_dead(isolate_agent_runt
 def test_the_index_file_records_the_newest_ticket_it_names(isolate_agent_runtime_root):
     """The recorded fact the sweep reads, written by BOTH writers.
 
-    ``_write_index`` (the add/drop path) and ``_rebuild_index`` (the migration
+    ``ClarifyTicketIndex.write`` (the add/drop path) and ``.rebuild`` (the migration
     and crash-recovery path) used to hand-build the same dict in two places.
     One of them gaining a field the other did not is precisely how the sweep
     would end up reading ``None`` off half the store."""
@@ -796,7 +796,7 @@ def test_the_index_file_records_the_newest_ticket_it_names(isolate_agent_runtime
     store = PersonaChatClarifyTicketStore()
     older = _clarify_ticket(store)
     newer = _clarify_ticket(store)
-    index_path = store._index_path(_CLARIFY_ROOT)
+    index_path = store.index.path(_CLARIFY_ROOT)
 
     written = json.loads(index_path.read_text(encoding="utf-8"))
     entries = {entry["clarify_token"]: entry["created_at"] for entry in written["open_tokens"]}
@@ -805,8 +805,8 @@ def test_the_index_file_records_the_newest_ticket_it_names(isolate_agent_runtime
 
     # …and the rebuild agrees, field for field, because there is one writer of
     # the shape now.
-    store._invalidate_index()
-    assert store._rebuild_index() is True
+    store.index.invalidate()
+    assert store.index.rebuild() is True
     rebuilt = json.loads(index_path.read_text(encoding="utf-8"))
     assert rebuilt["newest_created_at"] == written["newest_created_at"]
     assert rebuilt["schema_version"] == written["schema_version"]
@@ -826,7 +826,7 @@ def test_a_fresh_mtime_cannot_keep_a_dead_index_file_alive(isolate_agent_runtime
     store = PersonaChatClarifyTicketStore()
     token = _clarify_ticket(store)
     _age_clarify_store(store, token, CLARIFY_TICKET_TTL_SECONDS * 2)
-    index_path = store._index_path(_CLARIFY_ROOT)
+    index_path = store.index.path(_CLARIFY_ROOT)
     os.utime(index_path, None)  # the copy tool's fingerprint: mtime = now
 
     assert store.sweep() == 1
@@ -848,7 +848,7 @@ def test_a_stale_mtime_cannot_delete_a_live_index_file(isolate_agent_runtime_roo
 
     store = PersonaChatClarifyTicketStore()
     token = _clarify_ticket(store)
-    index_path = store._index_path(_CLARIFY_ROOT)
+    index_path = store.index.path(_CLARIFY_ROOT)
     aged = time.time() - (CLARIFY_TICKET_TTL_SECONDS * 2)
     os.utime(index_path, (aged, aged))
 
@@ -871,7 +871,7 @@ def test_an_index_file_that_predates_the_recorded_field_still_sweeps(
     store = PersonaChatClarifyTicketStore()
     token = _clarify_ticket(store)
     _age_clarify_store(store, token, CLARIFY_TICKET_TTL_SECONDS * 2)
-    index_path = store._index_path(_CLARIFY_ROOT)
+    index_path = store.index.path(_CLARIFY_ROOT)
 
     legacy = json.loads(index_path.read_text(encoding="utf-8"))
     legacy.pop("newest_created_at")
@@ -896,7 +896,7 @@ def test_an_unreadable_index_file_is_never_swept(isolate_agent_runtime_root):
 
     store = PersonaChatClarifyTicketStore()
     _clarify_ticket(store)
-    index_path = store._index_path(_CLARIFY_ROOT)
+    index_path = store.index.path(_CLARIFY_ROOT)
     index_path.write_text("{not json", encoding="utf-8")
     aged = time.time() - (CLARIFY_TICKET_TTL_SECONDS * 2)
     os.utime(index_path, (aged, aged))
@@ -904,7 +904,7 @@ def test_an_unreadable_index_file_is_never_swept(isolate_agent_runtime_root):
     store.sweep()
 
     assert index_path.exists()
-    assert store._index_newest_created_at(index_path) is None
+    assert store.index.newest_created_at(index_path) is None
 
 
 def test_the_ticket_loop_and_the_index_sweep_share_one_cutoff(
@@ -920,7 +920,7 @@ def test_the_ticket_loop_and_the_index_sweep_share_one_cutoff(
     store = PersonaChatClarifyTicketStore()
     token = _clarify_ticket(store)
     _age_clarify_store(store, token, 1_000.0)
-    index_path = store._index_path(_CLARIFY_ROOT)
+    index_path = store.index.path(_CLARIFY_ROOT)
 
     # A TTL longer than the ticket's age: neither is expired.
     assert store.sweep(ttl_seconds=5_000.0) == 0
@@ -950,27 +950,67 @@ def test_a_pointer_that_could_not_be_written_retracts_the_marker(
 
     store = PersonaChatClarifyTicketStore()
     _clarify_ticket(store)  # establishes the index + marker
-    index_dir = store._index_dir()
-    real_atomic = continuity._atomic_json
+    index_dir = store.index.directory()
+    real_atomic = continuity.clarify_index._atomic_json
 
     def failing_pointer_write(path, value):
         if path.parent == index_dir and path.name != "_index_state.json":
             raise OSError(32, "the process cannot access the file")
         return real_atomic(path, value)
 
-    monkeypatch.setattr(continuity, "_atomic_json", failing_pointer_write)
+    monkeypatch.setattr(continuity.clarify_index, "_atomic_json", failing_pointer_write)
     lost = _clarify_ticket(store)
-    monkeypatch.setattr(continuity, "_atomic_json", real_atomic)
+    monkeypatch.setattr(continuity.clarify_index, "_atomic_json", real_atomic)
 
     # The ticket itself was never in doubt — only the pointer to it.
     assert store.resolve(lost)["state"] == "open"
     # The completeness claim is gone, so the next lookup rebuilds instead of
     # answering "no open tickets" from an index that silently lost one…
-    assert not store._index_state_path().exists()
+    assert not store.index.state_path().exists()
     assert store.open_ticket_for_session(_CLARIFY_ROOT)["clarify_token"] == lost
     # …and having healed once, it is back on the O(1) path.
-    assert store._index_state_path().exists()
-    assert store._index_entries(_CLARIFY_ROOT)[0]["clarify_token"] == lost
+    assert store.index.state_path().exists()
+    assert store.index.entries(_CLARIFY_ROOT)[0]["clarify_token"] == lost
+
+
+def test_an_index_that_cannot_be_established_answers_from_the_full_scan(
+    isolate_agent_runtime_root, monkeypatch
+):
+    """Positive control for the index-miss fallback (god-file program ruling Q6).
+
+    ``open_ticket_for_session`` answers from the by-session index only when the
+    index may be trusted as complete; a store whose index directory refuses every
+    write never earns that claim, and the lookup must then read the ticket files
+    themselves — "correctness must never depend on the index existing". The
+    census counted ``_scan_open_ticket_for_session`` as unreached; this reaches
+    it, and asks for the NEWEST open ticket so a scan that answered with any
+    open ticket would not pass."""
+
+    import json as _json
+
+    import agent_runtime.persona_chat_continuity as continuity
+
+    store = PersonaChatClarifyTicketStore()
+    index_dir = store.index.directory()
+    real_atomic = continuity.clarify_index._atomic_json
+
+    def no_index_writes(path, value):
+        if path.parent == index_dir:
+            raise OSError(28, "no space left on device")
+        return real_atomic(path, value)
+
+    monkeypatch.setattr(continuity.clarify_index, "_atomic_json", no_index_writes)
+    older = _clarify_ticket(store)
+    older_path = store._path(older)
+    record = _json.loads(older_path.read_text(encoding="utf-8"))
+    record["created_at"] = float(record["created_at"]) - 60.0
+    real_atomic(older_path, record)
+    newer = _clarify_ticket(store)
+
+    assert not store.index.state_path().exists()
+    assert store.open_ticket_for_session(_CLARIFY_ROOT)["clarify_token"] == newer
+    # Still no completeness claim: the answer came from the scan, not the index.
+    assert not store.index.state_path().exists()
 
 
 def test_a_pointer_read_that_failed_cannot_erase_the_pointers_it_missed(
@@ -996,7 +1036,7 @@ def test_a_pointer_read_that_failed_cannot_erase_the_pointers_it_missed(
     store = PersonaChatClarifyTicketStore()
     first = _clarify_ticket(store)
     second = _clarify_ticket(store)
-    index_path = store._index_path(_CLARIFY_ROOT)
+    index_path = store.index.path(_CLARIFY_ROOT)
     real_read = pathlib.Path.read_text
 
     def locked_index(self, *args, **kwargs):
@@ -1010,7 +1050,7 @@ def test_a_pointer_read_that_failed_cannot_erase_the_pointers_it_missed(
 
     # Unreadable is not empty: the earlier pointers were not overwritten with
     # a list built from a read that never happened.
-    assert not store._index_state_path().exists(), (
+    assert not store.index.state_path().exists(), (
         "an unreadable index was treated as an empty one and written back"
     )
     for token in (first, second, third):
@@ -1019,7 +1059,7 @@ def test_a_pointer_read_that_failed_cannot_erase_the_pointers_it_missed(
     # The retracted claim heals on the next lookup, and every ticket is back —
     # including the two the blank-slate write would have erased for good.
     assert store.open_ticket_for_session(_CLARIFY_ROOT)["clarify_token"] == third
-    recorded = {entry["clarify_token"] for entry in store._index_entries(_CLARIFY_ROOT)}
+    recorded = {entry["clarify_token"] for entry in store.index.entries(_CLARIFY_ROOT)}
     assert recorded == {first, second, third}
 
     # …and settling the newest still finds the next one down, which is the
@@ -1047,7 +1087,7 @@ def test_a_rebuild_cannot_drop_a_pointer_minted_while_it_scanned(
     earlier = _clarify_ticket(store)
     # A store with no marker: first use after this code arrives, or any crash
     # that left a rebuild unfinished.
-    store._invalidate_index()
+    store.index.invalidate()
 
     concurrent: list[str] = []
     fired: list[bool] = []
@@ -1070,12 +1110,12 @@ def test_a_rebuild_cannot_drop_a_pointer_minted_while_it_scanned(
 
     PersonaChatClarifyTicketStore.scan_records = scan_then_let_a_mint_land
     try:
-        assert PersonaChatClarifyTicketStore()._rebuild_index() is True
+        assert PersonaChatClarifyTicketStore().index.rebuild() is True
     finally:
         PersonaChatClarifyTicketStore.scan_records = real_scan
 
     minted = concurrent[0]
-    tokens = [entry["clarify_token"] for entry in store._index_entries(_CLARIFY_ROOT)]
+    tokens = [entry["clarify_token"] for entry in store.index.entries(_CLARIFY_ROOT)]
     assert minted in tokens, "the rebuild replaced a pointer it never scanned"
     assert earlier in tokens
     # …and the lookup answers with the NEWEST open ticket, which is what the

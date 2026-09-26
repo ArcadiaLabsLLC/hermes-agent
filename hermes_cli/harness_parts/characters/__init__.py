@@ -22,5 +22,5 @@ Never imported from here: ``hermes_cli.harness`` (W0-G6).
 
 from __future__ import annotations
 
-__layer__ = "wiring"
+__layer__ = "models"
 __all__: list[str] = []

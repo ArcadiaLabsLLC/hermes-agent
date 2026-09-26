@@ -78,6 +78,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+__layer__ = "models"
+
 __all__ = [
     "TIER_READ",
     "TIER_CONSOLE",

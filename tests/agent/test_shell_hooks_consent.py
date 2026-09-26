@@ -144,6 +144,7 @@ class TestAllowlistOps:
 
 
 
+    @pytest.mark.platforms("linux")
     def test_tilde_path_approval_records_resolvable_mtime(self, tmp_path, monkeypatch):
         """If the command uses ~ the approval must still find the file."""
         # point_home_at, not a bare HOME setenv: ntpath.expanduser prefers

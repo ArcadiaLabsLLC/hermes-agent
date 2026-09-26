@@ -79,7 +79,7 @@ Measured before→after, each with the commit that carries the proof in its body
 | **Coalesced concurrent builds** | archived doc 14 §Slice 2 | three concurrent builds were 8.8 s EACH; boot-storm first response 8.2 → 3.6 s |
 | **Build-scoped batch skill resolver** | archived doc 14 §first-message hardening | full core **36.622 s → 5.949 s** on the same live store (~84%); 502 exhaustive `resolve_skill` calls collapsed to one walk |
 | **Event-log rotation with sidecar `base_offset`** | `agent_runtime/event_rotation.py` | logical offsets stay monotonic across archive rotation; live slice is 8.6 MB against an 81 MB archive base |
-| **Delta patches on the wire** | `agent_runtime/state_patches.py`, `schema_version: 2` | stops shipping a full core per event |
+| **Delta patches on the wire** | `agent_runtime/state_patches/`, `schema_version: 2` | stops shipping a full core per event |
 | **`parse_cache`** — `(path, mtime_ns, size)` keyed leaf loads | `agent_runtime/parse_cache.py` | archived doc 14's item 1 as applied to YAML/frontmatter leaves (the JSON store models are still uncached — open row 4) |
 | **Serve read-model response cache** — status/snapshot `--json` replayed on a runtime-state fingerprint, 20 s TTL | `hermes_cli/harness_parts/serve/constants.py:35-40,605-611` | a replayed response stamps `served_from_cache` + `cache_age_ms`; it caches the *payload*, not the parsed models |
 
@@ -422,7 +422,7 @@ plan at the canon fold; lane shipped as `45abf82803` + `32f41be19f` +
 
 - Two of its six defect classes were re-checked and are **LANDED, so they are dropped
   rather than carried**: RD-H3's empty-patch-frame promotion now has a non-empty guard
-  (`agent_runtime/stream.py:612`, with the mechanism written out at `:932`), and RD-H1's
+  (`agent_runtime/stream/build.py::_is_one_shot`, with the mechanism written out at `:932`), and RD-H1's
   office push scope predicate is now a documented union over the patch-coverage
   vocabulary rather than a private `office_actor`-only restatement
   (`agent_runtime/serve_office_subscriptions.py:140-163,285`).

@@ -101,7 +101,7 @@ def _payload(command, *, scope, cfg=None, monkeypatch=None):
         import agent_runtime.terminal_envelope as te
 
         monkeypatch.setattr(
-            te, "envelope_config", lambda cfg_arg=None: cfg.terminal_envelope
+            te.grants, "envelope_config", lambda cfg_arg=None: cfg.terminal_envelope
         )
     with terminal_envelope_scope(scope):
         return terminal_tool_module._harness_envelope_block(command)
@@ -319,10 +319,9 @@ def test_config_load_fault_grants_nothing(monkeypatch, tmp_path):
     def _boom():
         raise RuntimeError("config unreadable")
 
-    monkeypatch.setattr(te, "load_root_runtime_config", _boom, raising=False)
-    monkeypatch.setattr(
-        "agent_runtime.config.load_root_runtime_config", _boom, raising=False
-    )
+    # grants imports it from the policy submodule inside the reader (the package
+    # door is ``stores``), so the loader's attribute is the one it looks up.
+    monkeypatch.setattr("agent_runtime.config.loader.load_root_runtime_config", _boom)
     decision = envelope_decision("git push origin main", scope=_dev_scope(tmp_path))
     assert decision.outcome == OUTCOME_REFUSE
     assert decision.failure_class == ENVELOPE_COMMAND_REQUIRES_GRANT
@@ -895,3 +894,94 @@ def test_supervisor_role_alias_is_honored():
     assert grants.config_key == (
         "agent_runtime.terminal_envelope.grants.alice_supervisor.mission_chat"
     )
+
+
+def test_a_config_grant_and_a_mode_grant_carry_their_own_provenance(tmp_path):
+    """Positive control (layout sheet ``terminal_envelope.md`` §6.1): BOTH grant
+    arms of ``envelope_decision`` in one test, each on the fields only its own
+    arm sets — a config grant names ``config_grant`` and its ROOT-config key; a
+    permission-mode grant names ``permission_mode`` and carries NO config key."""
+
+    by_config = envelope_decision(
+        "git push origin main",
+        scope=_dev_scope(tmp_path),
+        cfg=_cfg(dev={LANE_MISSION_CHAT: [GIT_PUSH]}),
+    )
+    by_mode = envelope_decision(
+        "git push origin main",
+        scope=TerminalEnvelopeScope(
+            lane=LANE_MISSION_CHAT,
+            role="dev",
+            persona_id="dev",
+            session_id="chat-1",
+            runtime_root=str(tmp_path),
+            permission_mode="unbounded",
+        ),
+        cfg=_cfg(),
+    )
+
+    assert (by_config.outcome, by_config.grant_source) == (OUTCOME_GRANTED, "config_grant")
+    assert by_config.config_key == "agent_runtime.terminal_envelope.grants.dev.mission_chat"
+    assert (by_mode.outcome, by_mode.grant_source) == (OUTCOME_GRANTED, "permission_mode")
+    assert by_mode.config_key is None
+    assert by_mode.granted_by == "permission_mode=unbounded"
+    for decision, mode in ((by_config, ""), (by_mode, "unbounded")):
+        assert (decision.lane, decision.role, decision.persona_id, decision.session_id) == (
+            LANE_MISSION_CHAT,
+            "dev",
+            "dev",
+            "chat-1",
+        )
+        assert decision.permission_mode == mode
+
+
+def test_a_grant_for_a_hard_floor_class_is_a_typed_issue_that_grants_nothing(monkeypatch):
+    """The grants table's half of the hard-floor contract (the decision's half is
+    test_unbounded_default_posture::test_permission_mode_never_lifts_a_hard_floor).
+    R-2 leaves the floor empty, so the floor is narrowed here; a config grant
+    naming a floor class must come back as ``GRANT_CLASS_NOT_GRANTABLE`` and
+    must not reach ``classes``."""
+
+    import agent_runtime.terminal_envelope as te
+
+    monkeypatch.setattr(te.grants, "GRANTABLE_COMMAND_CLASSES", frozenset({NETWORK_EGRESS}))
+    grants = resolve_terminal_envelope_grants(
+        role="dev",
+        lane=LANE_MISSION_CHAT,
+        cfg=_cfg(dev={LANE_MISSION_CHAT: [GIT_PUSH, NETWORK_EGRESS]}),
+    )
+
+    assert grants.classes == frozenset({NETWORK_EGRESS})
+    assert [(issue.code, issue.subject) for issue in grants.issues] == [
+        (te.GRANT_CLASS_NOT_GRANTABLE, GIT_PUSH)
+    ]
+
+
+def test_the_ruled_supervisor_alias_resolves_one_way_through_its_owner():
+    """``canonical_role`` reads the ONE alias owner (``personas``): the ruled
+    alias canonicalizes, the canonical spelling stays, an un-ruled near-miss
+    (bare ``neko``, removed at S66) does not widen."""
+
+    from agent_runtime.personas import persona_id_aliases
+    from agent_runtime.terminal_envelope import canonical_role
+
+    assert canonical_role(" Neko_Supervisor ") == "alice_supervisor"
+    assert canonical_role("alice_supervisor") == "alice_supervisor"
+    assert canonical_role("neko") == "neko"
+    assert persona_id_aliases("neko_supervisor") == ("alice_supervisor",)
+    assert persona_id_aliases("dev") == ()
+
+
+def test_role_or_attr_reads_the_role_vocabulary_and_never_raises():
+    """The one owner both envelope callers (``scope_for_persona``, the HUD's
+    capability account) read: the role vocabulary's spelling (whitespace
+    trimmed by the coercion), and an empty role — never a raise — for a persona
+    that carries none."""
+
+    import types
+
+    from agent_runtime.personas import role_or_attr
+
+    assert role_or_attr(types.SimpleNamespace(role=" dev ")) == "dev"
+    assert role_or_attr(types.SimpleNamespace()) == ""
+
