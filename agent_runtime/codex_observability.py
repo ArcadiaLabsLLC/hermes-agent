@@ -23,6 +23,15 @@ The observers run on the dispatcher thread, where the turn's ContextVar binding
 (``persona_turn_binding``) is not visible, so the plugin's ``llm_execution``
 middleware — which runs in the turn's thread — names the bound agent for its
 session first (``remember_stream_agent``). An unbound session gets no receipt.
+
+The observers are registered only while a persona turn runs
+(``stream_observers_armed``, entered by the profile runner around the bound turn).
+Upstream reads "any ``on_stream_*`` callback registered" as "this agent has a stream
+consumer" (``_has_stream_consumers``), which flips its streaming, spinner and
+post-response-mute decisions; registered at plugin load, the observers made every
+agent in the process a streaming consumer. The plugin hands its ``register_hook``
+over at load (``install_stream_observers``); the first armed turn registers the
+three, the last one out disposes them.
 """
 
 from __future__ import annotations
@@ -32,8 +41,9 @@ import threading
 import time
 import weakref
 from collections import OrderedDict
+from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Callable, Dict, Iterator
 
 __layer__ = "stores"
 
@@ -158,7 +168,49 @@ def on_stream_end(
     _emit_provider_timing(agent, "stream_consume", _ms(now - consume_from), status=status, timing_values=values)
 
 
+_ARM_LOCK = threading.Lock()
+_ARM: Dict[str, Any] = {"register_hook": None, "turns": 0, "leases": []}
+
+
+def install_stream_observers(register_hook: Callable[[str, Callable[..., Any]], Any]) -> None:
+    """The plugin's ``ctx.register_hook``, kept for the persona lane to arm with; nothing
+    is registered here. A reload hands a fresh one; turns already armed keep their leases."""
+    with _ARM_LOCK:
+        _ARM["register_hook"] = register_hook
+
+
+@contextmanager
+def stream_observers_armed() -> Iterator[None]:
+    """Register the three observers for as long as at least one persona turn is inside."""
+    with _ARM_LOCK:
+        _ARM["turns"] += 1
+        if _ARM["turns"] == 1 and _ARM["register_hook"] is not None:
+            register = _ARM["register_hook"]
+            for name, observer in (("on_stream_start", on_stream_start), ("on_stream_delta", on_stream_delta),
+                                   ("on_stream_end", on_stream_end)):
+                try:
+                    _ARM["leases"].append(register(name, observer))
+                except Exception:  # a turn without receipts still runs
+                    logger.warning("stream observer %s could not be registered", name, exc_info=True)
+    try:
+        yield
+    finally:
+        with _ARM_LOCK:
+            _ARM["turns"] -= 1
+            leases = _ARM["leases"] if _ARM["turns"] == 0 else []
+            if _ARM["turns"] == 0:
+                _ARM["leases"] = []
+        for lease in leases:
+            dispose = getattr(lease, "dispose", None)
+            if dispose is not None:
+                dispose()
+
+
 def reset_for_tests() -> None:
     with _LOCK:
         _AGENTS.clear()
         _STREAMS.clear()
+    with _ARM_LOCK:
+        leases, _ARM["leases"], _ARM["turns"] = _ARM["leases"], [], 0
+    for lease in leases:
+        getattr(lease, "dispose", lambda: None)()
