@@ -23,6 +23,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-09-26 (lane PF-1, filed by the orchestrator)
+
+- [ ] **Ten tests red on main after PF-2/PF-3, green at `b0580d4a16`: `test_verification_continuation_budget` ×5, `test_fallback_429_after_timeout`, `test_image_corrupt_recovery` ×2, `test_turn_completion_explainer`, `test_system_prompt::test_coding_prompt_orders_shared_context_before_workspace` — the likely levers are PF-3's stream observers (`_has_stream_consumers()` now True for every agent) and PF-2's Safety-sentence rewrite / prompt section** · `fork / plugin` · a landing-caused red is fixed before anything else lands · evidence: `X:/wt/pf1/.lane-logs/base-new.log` (copied to `X:/wt/_holds/pf-fix-0926/`), lane PF-1 report · filed 2026-09-26 (orchestrator) **TAKEN 2026-09-26 lane PF-FIX**
+- [ ] **Tool blocks: a mid-session registry refresh (`tools/mcp_tool_agent.py` re-derives `agent.tools` via `get_tool_definitions`) brings blocked names back into `agent.tools` / `valid_tool_names`; the wire filter and `pre_tool_call` still hold, but guidance and review nudges can re-see them — re-apply `prune_agent_tools` after a refresh** · `fork / plugin` · evidence: `agent_runtime/tool_blocks.py`, commit `859d68a1b4` · filed 2026-09-26 (lane PF-1) **UNCLAIMED**
+
 ### Filed on arrival — 2026-09-26 (lane PF-3, filed by the orchestrator)
 
 - [ ] **`mission_chat_phases.TURN_TIMING_ORDER` still maps `responses_create_ms` ← `profile_provider_responses_create_ms`, which no receipt writes after PF-3 (§4 Q4 dropped client_resolve): the launcher's turn-timing key is permanently empty — retire the key or map it to the dispatch span** · `fork / observability` · evidence: plugin-fit sheet §4, `agent_runtime/codex_observability.py`, lane PF-3 report (landed 5c24dd925d) · filed 2026-09-26 (lane PF-3) **UNCLAIMED**
@@ -199,6 +204,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 ## Seams — fork edits inside upstream files (additive only)
+### Filed on arrival — 2026-09-26 (lane PF-1, seams; filed by the orchestrator)
+
+- [ ] **`terminal_tool.py` (b), the persona chat container scope, is NOT plugin-movable: the key is the dispatch kwarg `task_id` (`model_tools._execute_tool`) and no `tool_request` rewrite reaches it — owner call: pass `run_conversation(task_id=<chat root>)` and adopt upstream's session-key branch (the runner already binds `chat_root_session_key_scope`); the two differ only for persistent docker (per-profile vs per-chat)** · `fork / seams` · evidence: commit `6c7ec1f257` · filed 2026-09-26 (lane PF-1) **UNCLAIMED**
+
 ### Filed on arrival — 2026-09-26 (lane AUTH-PR, filed by the orchestrator)
 
 - [ ] **Fork `hermes_cli/main.py::_attach_declared_plugin_cli_commands` materialises EVERY declared plugin per invocation (each stub's `setup_fn` runs at attach), not the one the docstring claims** · `fork / seams` · retires when `up/plugin-cli-commands` merges (it attaches only the command argv names) · evidence: `X:/wt/_holds/pr-bodies/plugin-cli-commands-logs/` · filed 2026-09-26 (lane AUTH-PR) **UNCLAIMED**
