@@ -112,3 +112,15 @@ def test_the_plugin_hook_refuses_on_the_model_dispatch_path(tmp_path, monkeypatc
     assert _call(surface="mission_chat")["reason"] == "surface_not_supported"
     served = _call(surface="mission_worker", root_node_mode=True)
     assert served["success"] is True and len(served["content_hash"]) == 64
+
+
+def test_a_direct_caller_in_a_lane_is_served(tmp_path):
+    """plugin-fit §4 Q3, recorded: after lane PF-3 skill_view itself no longer refuses,
+    so an in-process caller inside a lane gets the skill; only the model path is gated."""
+    from tools.skills_tool import skill_view
+
+    _make_skill(tmp_path, "root-only", frontmatter_extra=_ROOT_ONLY)
+    with patch("tools.skills_tool.SKILLS_DIR", tmp_path), skill_runtime_scope(surface="mission_chat"):
+        served = json.loads(skill_view("root-only"))
+    assert served["success"] is True
+    assert not set(_STAMPS) & set(served)

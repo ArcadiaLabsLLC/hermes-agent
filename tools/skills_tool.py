@@ -31,8 +31,7 @@ from tools.skill_provenance import is_background_review
 
 from agent.skill_utils import get_all_skills_dirs
 from agent_runtime.skill_resolution import (
-    current_skill_runtime_context, resolve_skill, skill_package_content_hash,
-    skill_frontmatter_runtime_compatibility, skill_source_kind,
+    current_skill_runtime_context, resolve_skill, skill_frontmatter_runtime_compatibility,
 )
 
 logger = logging.getLogger(__name__)
@@ -573,15 +572,6 @@ def skill_view(
             return _fail(f"Failed to read skill '{name}': {e}")
         _log_security_warnings(name, skill_md, content, all_dirs, active_skills_dir)
         frontmatter = _safe_frontmatter(content=content)
-        active_surface, root_node_mode = current_skill_runtime_context()
-        if active_surface:
-            compatibility = skill_frontmatter_runtime_compatibility(
-                frontmatter, surface=active_surface, root_node_mode=root_node_mode)
-            if not compatibility.get("compatible"):
-                return _fail(f"Skill '{name}' is not available on the active {active_surface} surface.",
-                             reason=compatibility.get("reason"), surface=active_surface,
-                             mode="root_node" if root_node_mode else "standard",
-                             readiness_status=SkillReadinessStatus.UNSUPPORTED.value)
         if not skill_matches_platform(frontmatter):
             return _fail(f"Skill '{name}' is not supported on this platform.", readiness_status=SkillReadinessStatus.UNSUPPORTED.value)
         resolved_name = frontmatter.get("name", skill_md.parent.name)
@@ -640,9 +630,6 @@ def skill_view(
                 )
 
         result = {
-            "resolution_status": "resolved",
-            "source_kind": next((skill_source_kind(root) for root in all_dirs if _under_any(skill_md, [root])), None),
-            "content_hash": skill_package_content_hash(skill_dir, skill_md),
             "success": True, "name": skill_name, "description": frontmatter.get("description", ""),
             "tags": tags, "related_skills": related_skills, "content": header + rendered_content,
             "path": rel_path, "skill_dir": str(skill_dir) if skill_dir else None,

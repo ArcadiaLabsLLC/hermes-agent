@@ -23,6 +23,7 @@ class TestSkillView:
     # resolve-by-dir-name case above.
     def test_view_rejects_root_node_only_skill_in_mission_chat(self, tmp_path):
         from agent_runtime.skill_resolution import skill_runtime_scope
+        from agent_runtime.skill_view_result import transform_skill_view_result
 
         with patch("tools.skills_tool.SKILLS_DIR", tmp_path):
             _make_skill(
@@ -35,8 +36,13 @@ class TestSkillView:
             )
             with skill_runtime_scope(surface="mission_chat", root_node_mode=False):
                 raw = skill_view("root-only")
+                refused = transform_skill_view_result(
+                    tool_name="skill_view", args={"name": "root-only"}, result=raw)
 
-        result = json.loads(raw)
+        # Lane PF-3: the refusal is the plugin's transform_tool_result hook, so it holds on
+        # the MODEL path; a direct in-process caller is served (plugin-fit §4 Q3).
+        assert json.loads(raw)["success"] is True
+        result = json.loads(refused)
         assert result["success"] is False
         assert result["reason"] == "surface_not_supported"
 
