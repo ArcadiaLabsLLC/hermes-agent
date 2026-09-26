@@ -13,6 +13,8 @@ from .definitions import DefinitionError, plan_seats
 from .run_store import DiscussionError, digest
 from .service import DiscussionService, get_service
 
+__layer__ = "lanes"
+
 logger = logging.getLogger(__name__)
 
 
