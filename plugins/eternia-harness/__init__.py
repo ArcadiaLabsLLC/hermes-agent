@@ -157,33 +157,48 @@ def _check_skill_search() -> bool:
 
 
 def brief_tool_descriptions(request=None, **_context):
-    """``llm_request`` middleware: the fork's short tool descriptions on the wire, the fork's
-    execution-guidance Safety sentence in the system text
+    """``llm_request`` middleware: the run's blocked tools off the wire, the fork's short tool
+    descriptions on it, the fork's execution-guidance Safety sentence in the system text
     (``agent_runtime.prompt_guidance.rewrite_request_safety_sentence``), then the persona
     prompt-cache routing (``agent_runtime.cache_routing.route_persona_cache``).
 
-    The registry keeps upstream's full text (``tool_describe`` serves it); this swaps
+    The block is the one the run bound for this session (``agent_runtime.tool_blocks``).
+    The registry keeps upstream's full text (``tool_describe`` serves it); the briefs swap
     ``description`` by tool name in the final provider kwargs, for the chat, Responses
     and Anthropic payload shapes. Parameters are never touched.
     """
     from agent_runtime.cache_routing import route_persona_cache
     from agent_runtime.prompt_guidance import rewrite_request_safety_sentence
+    from agent_runtime.tool_blocks import drop_blocked_request_tools
     from tools.downstream_schema import brief_request_tools
 
     # ONE callback, every rewrite: upstream feeds every llm_request callback the same
     # original request and keeps the LAST result, so two callbacks would drop the first.
-    # Briefs and the Safety sentence first, so the persona cache key hashes the final wire.
-    briefed = brief_request_tools(request)
-    safety = rewrite_request_safety_sentence(briefed if briefed is not None else request)
-    staged = safety if safety is not None else briefed
-    routed = route_persona_cache(staged if staged is not None else request, **_context)
-    rewritten = routed if routed is not None else staged
-    if rewritten is None:
+    # Block, briefs and the Safety sentence first, so the persona cache key hashes the final wire.
+    unblocked = drop_blocked_request_tools(request, session_id=_context.get("session_id"))
+    current = unblocked if unblocked is not None else request
+    briefed = brief_request_tools(current)
+    current = briefed if briefed is not None else current
+    safety = rewrite_request_safety_sentence(current)
+    current = safety if safety is not None else current
+    routed = route_persona_cache(current, **_context)
+    current = routed if routed is not None else current
+    steps = (
+        ("blocked tools dropped", unblocked), ("tool wire briefs", briefed),
+        ("execution-guidance Safety sentence", safety), ("persona cache routing", routed),
+    )
+    reasons = [reason for reason, done in steps if done is not None]
+    if not reasons:
         return None
-    reasons = [r for r, done in (
-        ("tool wire briefs", briefed is not None), ("execution-guidance Safety sentence", safety is not None),
-        ("persona cache routing", routed is not None)) if done]
-    return {"request": rewritten, "source": "eternia-harness", "reason": " + ".join(reasons)}
+    return {"request": current, "source": "eternia-harness", "reason": " + ".join(reasons)}
+
+
+def refuse_blocked_tool(tool_name=None, session_id="", **_context):
+    """``pre_tool_call`` hook: refuse a tool the run blocked, ``tool_call``-unwrapped names included."""
+    from agent_runtime.tool_blocks import blocked_call_message
+
+    message = blocked_call_message(tool_name, session_id=session_id)
+    return None if message is None else {"action": "block", "message": message}
 
 
 def default_background_notify(tool_name=None, args=None, **_context):
@@ -308,6 +323,7 @@ def register(ctx) -> None:
     ctx.register_middleware("tool_request", default_background_notify)
     ctx.register_middleware("llm_execution", time_provider_dispatch)
     ctx.register_hook("on_session_start", restore_cli_durable_completions)
+    ctx.register_hook("pre_tool_call", refuse_blocked_tool)
     ctx.register_hook("post_api_request", record_usage_ledger_row)
     ctx.register_hook("on_stream_start", provider_stream_start)
     ctx.register_hook("on_stream_delta", provider_stream_delta)
