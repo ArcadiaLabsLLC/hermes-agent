@@ -308,6 +308,7 @@ agent/retry_utils.py
 agent/review_engine.py
 agent/review_idle_queue.py
 agent/runtime_cwd.py
+agent/runtime_self_protection.py
 agent/sdk_transform_bypass.py
 agent/search_policy.py
 agent/secret_scope.py
@@ -495,6 +496,7 @@ apps/desktop/e2e/core/README.md
 apps/desktop/e2e/core/boot-lifecycle.spec.ts
 apps/desktop/e2e/core/harness.ts
 apps/desktop/e2e/core/interactive-prompts.spec.ts
+apps/desktop/e2e/core/interrupted-reply.spec.ts
 apps/desktop/e2e/core/known.ts
 apps/desktop/e2e/core/lineage-compaction-prompt.spec.ts
 apps/desktop/e2e/core/lineage-rotation.spec.ts
@@ -615,6 +617,8 @@ apps/desktop/electron/cloud-boot-cascade.test.ts
 apps/desktop/electron/cloud-boot-cascade.ts
 apps/desktop/electron/cloud-discovery.test.ts
 apps/desktop/electron/cloud-discovery.ts
+apps/desktop/electron/cloud-session-recovery.test.ts
+apps/desktop/electron/cloud-session-recovery.ts
 apps/desktop/electron/command-screenshot-capture.test.ts
 apps/desktop/electron/command-screenshot-capture.ts
 apps/desktop/electron/command-screenshot-monitor.test.ts
@@ -693,6 +697,7 @@ apps/desktop/electron/first-run-setup-gate.test.ts
 apps/desktop/electron/first-run-setup-gate.ts
 apps/desktop/electron/first-run-setup-main-process.test.ts
 apps/desktop/electron/fixtures/source-backend.py
+apps/desktop/electron/fixtures/system-ca.ts
 apps/desktop/electron/fixtures/windows-system-ca.ts
 apps/desktop/electron/fs-ipc.test.ts
 apps/desktop/electron/fs-ipc.ts
@@ -710,6 +715,8 @@ apps/desktop/electron/gateway-version.ts
 apps/desktop/electron/gateway-ws-probe.test.ts
 apps/desktop/electron/gateway-ws-probe.ts
 apps/desktop/electron/get-windows.d.ts
+apps/desktop/electron/git-binary-candidates.test.ts
+apps/desktop/electron/git-binary-candidates.ts
 apps/desktop/electron/git-ipc.ts
 apps/desktop/electron/git-repo-scan.test.ts
 apps/desktop/electron/git-repo-scan.ts
@@ -777,6 +784,8 @@ apps/desktop/electron/linux-nvidia-egl-fallback.test.ts
 apps/desktop/electron/linux-nvidia-egl-fallback.ts
 apps/desktop/electron/local-backend-lifecycle.test.ts
 apps/desktop/electron/local-backend-lifecycle.ts
+apps/desktop/electron/local-read-path.test.ts
+apps/desktop/electron/local-read-path.ts
 apps/desktop/electron/local-skin.test.ts
 apps/desktop/electron/local-skin.ts
 apps/desktop/electron/log-rotation.test.ts
@@ -940,6 +949,8 @@ apps/desktop/electron/renderer-log.ts
 apps/desktop/electron/renderer-manifest.test.ts
 apps/desktop/electron/roster-source-fetch.test.ts
 apps/desktop/electron/roster-source-fetch.ts
+apps/desktop/electron/roster-source-status.test.ts
+apps/desktop/electron/roster-source-status.ts
 apps/desktop/electron/secret-storage-policy.test.ts
 apps/desktop/electron/secret-storage-policy.ts
 apps/desktop/electron/select-paths-dialog.test.ts
@@ -969,6 +980,8 @@ apps/desktop/electron/ssh-teardown.test.ts
 apps/desktop/electron/ssh-teardown.ts
 apps/desktop/electron/stream-throttle.test.ts
 apps/desktop/electron/stream-throttle.ts
+apps/desktop/electron/system-ca.test.ts
+apps/desktop/electron/system-ca.ts
 apps/desktop/electron/terminal-ipc.test.ts
 apps/desktop/electron/terminal-ipc.ts
 apps/desktop/electron/terminal-lc-ctype.test.ts
@@ -1550,6 +1563,7 @@ apps/desktop/src/app/chat/new-session-drag.ts
 apps/desktop/src/app/chat/pane-mirror.ts
 apps/desktop/src/app/chat/perf-probe.tsx
 apps/desktop/src/app/chat/pr-tag.tsx
+apps/desktop/src/app/chat/preview-error-close.test.tsx
 apps/desktop/src/app/chat/preview-tile.test.ts
 apps/desktop/src/app/chat/preview-tile.tsx
 apps/desktop/src/app/chat/profile-tag.tsx
@@ -1584,6 +1598,7 @@ apps/desktop/src/app/chat/right-rail/preview-reader.test.ts
 apps/desktop/src/app/chat/right-rail/preview-reader.ts
 apps/desktop/src/app/chat/right-rail/preview-script-runner.ts
 apps/desktop/src/app/chat/right-rail/preview-tour.ts
+apps/desktop/src/app/chat/right-rail/preview-typing-abort.ts
 apps/desktop/src/app/chat/right-rail/preview.tsx
 apps/desktop/src/app/chat/right-rail/real-profile-consent-dialog.test.tsx
 apps/desktop/src/app/chat/right-rail/real-profile-consent-dialog.tsx
@@ -1678,6 +1693,7 @@ apps/desktop/src/app/chat/sidebar/session-actions-menu.test.tsx
 apps/desktop/src/app/chat/sidebar/session-actions-menu.tsx
 apps/desktop/src/app/chat/sidebar/session-index.test.ts
 apps/desktop/src/app/chat/sidebar/session-index.ts
+apps/desktop/src/app/chat/sidebar/session-row-actions.test.tsx
 apps/desktop/src/app/chat/sidebar/session-row-details.test.ts
 apps/desktop/src/app/chat/sidebar/session-row-details.ts
 apps/desktop/src/app/chat/sidebar/session-row-gesture.test.ts
@@ -1739,6 +1755,8 @@ apps/desktop/src/app/contrib/hooks/folded-tool-turn-refresh.test.tsx
 apps/desktop/src/app/contrib/hooks/live-status-reap.test.ts
 apps/desktop/src/app/contrib/hooks/live-status-spinner.test.ts
 apps/desktop/src/app/contrib/hooks/notification-focus.test.tsx
+apps/desktop/src/app/contrib/hooks/remembered-session.test.ts
+apps/desktop/src/app/contrib/hooks/remembered-session.ts
 apps/desktop/src/app/contrib/hooks/restore-late-plugin-route.test.tsx
 apps/desktop/src/app/contrib/hooks/use-background-sync.test.ts
 apps/desktop/src/app/contrib/hooks/use-background-sync.test.tsx
@@ -1941,6 +1959,7 @@ apps/desktop/src/app/session/hooks/use-hermes-config.test.ts
 apps/desktop/src/app/session/hooks/use-hermes-config.ts
 apps/desktop/src/app/session/hooks/use-message-stream/agent-init-error.test.tsx
 apps/desktop/src/app/session/hooks/use-message-stream/approval-mode-event.test.tsx
+apps/desktop/src/app/session/hooks/use-message-stream/background-complete-event.test.tsx
 apps/desktop/src/app/session/hooks/use-message-stream/background-review-interrupt.test.tsx
 apps/desktop/src/app/session/hooks/use-message-stream/btw-complete-event.test.tsx
 apps/desktop/src/app/session/hooks/use-message-stream/clarify-hydration.test.tsx
@@ -1978,6 +1997,8 @@ apps/desktop/src/app/session/hooks/use-message-stream/heartbeat-complete-reorder
 apps/desktop/src/app/session/hooks/use-message-stream/index.ts
 apps/desktop/src/app/session/hooks/use-message-stream/interim-history.test.tsx
 apps/desktop/src/app/session/hooks/use-message-stream/interim-sealing.test.tsx
+apps/desktop/src/app/session/hooks/use-message-stream/interrupted-reply.test.tsx
+apps/desktop/src/app/session/hooks/use-message-stream/interrupted-reply.ts
 apps/desktop/src/app/session/hooks/use-message-stream/late-tool-events.test.tsx
 apps/desktop/src/app/session/hooks/use-message-stream/moa-progress-event.test.tsx
 apps/desktop/src/app/session/hooks/use-message-stream/moa-reference-event.test.tsx
@@ -2321,6 +2342,7 @@ apps/desktop/src/components/assistant-ui/markdown-text.filelinks.test.tsx
 apps/desktop/src/components/assistant-ui/markdown-text.media-md.test.tsx
 apps/desktop/src/components/assistant-ui/markdown-text.media.test.tsx
 apps/desktop/src/components/assistant-ui/markdown-text.overflow.test.tsx
+apps/desktop/src/components/assistant-ui/markdown-text.prose-safety.test.tsx
 apps/desktop/src/components/assistant-ui/markdown-text.reasoning.test.tsx
 apps/desktop/src/components/assistant-ui/markdown-text.session.test.tsx
 apps/desktop/src/components/assistant-ui/markdown-text.test.ts
@@ -2416,6 +2438,7 @@ apps/desktop/src/components/assistant-ui/tool/approval.test.tsx
 apps/desktop/src/components/assistant-ui/tool/approval.tsx
 apps/desktop/src/components/assistant-ui/tool/delegate-model.test.ts
 apps/desktop/src/components/assistant-ui/tool/delegate-model.ts
+apps/desktop/src/components/assistant-ui/tool/delegate.test.tsx
 apps/desktop/src/components/assistant-ui/tool/delegate.tsx
 apps/desktop/src/components/assistant-ui/tool/fallback-model.test.ts
 apps/desktop/src/components/assistant-ui/tool/fallback-model/format.ts
@@ -3780,6 +3803,7 @@ apps/desktop/src/store/wake-word.ts
 apps/desktop/src/store/windows.test.ts
 apps/desktop/src/store/windows.ts
 apps/desktop/src/store/workspace-events.ts
+apps/desktop/src/store/zoom.test.ts
 apps/desktop/src/store/zoom.ts
 apps/desktop/src/styles.css
 apps/desktop/src/test/deferred.ts
@@ -3887,14 +3911,17 @@ contributors/README.md
 contributors/emails/.gitkeep
 contributors/emails/0301chris@gmail.com
 contributors/emails/0genlab@users.noreply.github.com
+contributors/emails/0x7s0lt1@protonmail.com
 contributors/emails/0xarkstar@users.noreply.github.com
 contributors/emails/0xprincess@nuconstruct.xyz
 contributors/emails/100132710+Zeus-Deus@users.noreply.github.com
+contributors/emails/100yenadmin@users.noreply.github.com
 contributors/emails/101180447+cryptoworlldz@users.noreply.github.com
 contributors/emails/10288501+helingjun@users.noreply.github.com
 contributors/emails/1051445024@qq.com
 contributors/emails/109447498+Baophan00@users.noreply.github.com
 contributors/emails/110846601+sy0u1ti@users.noreply.github.com
+contributors/emails/1114149@qq.com
 contributors/emails/112681813+PuvaanRaaj@users.noreply.github.com
 contributors/emails/11388531+Lei-k@users.noreply.github.com
 contributors/emails/114367649+knoal@users.noreply.github.com
@@ -3924,13 +3951,17 @@ contributors/emails/1393268817@qq.com
 contributors/emails/1396641434@qq.com
 contributors/emails/141555468+salch-cred@users.noreply.github.com
 contributors/emails/1457368987@qq.com
+contributors/emails/150129844+andyst-dev@users.noreply.github.com
 contributors/emails/15167896+2001Y@users.noreply.github.com
 contributors/emails/153183032+lesterlxt@users.noreply.github.com
+contributors/emails/1542452647@qq.com
 contributors/emails/154926636+AdamPlatin123@users.noreply.github.com
 contributors/emails/155116265+psam-717@users.noreply.github.com
 contributors/emails/155588579+spiky02plateau@users.noreply.github.com
 contributors/emails/158643445@qq.com
 contributors/emails/1600332149@qq.com
+contributors/emails/163799701+ryrenz@users.noreply.github.com
+contributors/emails/164521089+rainbowgits@users.noreply.github.com
 contributors/emails/165616139+YuYigeng@users.noreply.github.com
 contributors/emails/165816600+finn763@users.noreply.github.com
 contributors/emails/16833782+Fatmylin@users.noreply.github.com
@@ -3942,6 +3973,7 @@ contributors/emails/189606558+GoldenLoaf24h@users.noreply.github.com
 contributors/emails/1908937833@qq.com
 contributors/emails/1940428933@qq.com
 contributors/emails/195337306+0xGr1mm@users.noreply.github.com
+contributors/emails/19623185@std.stei.itb.ac.id
 contributors/emails/19729650+djsanchezsuarez@users.noreply.github.com
 contributors/emails/1littlecoder@gmail.com
 contributors/emails/2025hcsmile2010@gmail.com
@@ -3994,6 +4026,7 @@ contributors/emails/32961153+gauravsaxena1997@users.noreply.github.com
 contributors/emails/355847+Frozen@users.noreply.github.com
 contributors/emails/3605840+Diaspar4u@users.noreply.github.com
 contributors/emails/387700378@qq.com
+contributors/emails/39646042+tarkilhk@users.noreply.github.com
 contributors/emails/3Nya3@users.noreply.github.com
 contributors/emails/4083812+apoapostolov@users.noreply.github.com
 contributors/emails/41980420+d31tcjg@users.noreply.github.com
@@ -4007,6 +4040,7 @@ contributors/emails/46404230+peetteerr@users.noreply.github.com
 contributors/emails/4663659+orcunulutas@users.noreply.github.com
 contributors/emails/4669583+badiyee85@users.noreply.github.com
 contributors/emails/47825603+kokhlo@users.noreply.github.com
+contributors/emails/48111293+larrypang@users.noreply.github.com
 contributors/emails/48635783+ennheng@users.noreply.github.com
 contributors/emails/48723787+chuenchen309@users.noreply.github.com
 contributors/emails/50810385+tigercraft4@users.noreply.github.com
@@ -4024,6 +4058,7 @@ contributors/emails/60716910+DECRUX9812@users.noreply.github.com
 contributors/emails/6115107+686f6c61@users.noreply.github.com
 contributors/emails/61507425+Julientalbot@users.noreply.github.com
 contributors/emails/619963502@qq.com
+contributors/emails/6306739+s905060@users.noreply.github.com
 contributors/emails/65798732+1052326311@users.noreply.github.com
 contributors/emails/68141859@qq.com
 contributors/emails/6892567+josephsellers@users.noreply.github.com
@@ -4047,6 +4082,7 @@ contributors/emails/92573950+RelaxJonh@users.noreply.github.com
 contributors/emails/92574114+JonthanaHanh@users.noreply.github.com
 contributors/emails/93056348+Markgatcha@users.noreply.github.com
 contributors/emails/95100522+Jaiminp007@users.noreply.github.com
+contributors/emails/97578200+MongLong0214@users.noreply.github.com
 contributors/emails/98612348+jwilson411@users.noreply.github.com
 contributors/emails/98722191+33hodl@users.noreply.github.com
 contributors/emails/99405975+snipecoder@users.noreply.github.com
@@ -4055,6 +4091,7 @@ contributors/emails/Agi-Asi@users.noreply.github.com
 contributors/emails/Axmr1@users.noreply.github.com
 contributors/emails/B0on@users.noreply.github.com
 contributors/emails/BonesGit@local
+contributors/emails/BrokeSkill@users.noreply.github.com
 contributors/emails/BrunoBza@users.noreply.github.com
 contributors/emails/Cheri8014@163.com
 contributors/emails/Christopher-Schulze@users.noreply.github.com
@@ -4068,9 +4105,11 @@ contributors/emails/EAbaracus@users.noreply.github.com
 contributors/emails/Enough1122@users.noreply.github.com
 contributors/emails/Fernstaedtmarco@gmail.com
 contributors/emails/Finn763@users.noreply.github.com
+contributors/emails/Founder@adecubed.com
 contributors/emails/HaisamAbbas@outlook.com
 contributors/emails/HoneyTyagii@users.noreply.github.com
 contributors/emails/JLHunzicker@gmail.com
+contributors/emails/JiaDe-Wu@users.noreply.github.com
 contributors/emails/KHALIDagara@users.noreply.github.com
 contributors/emails/LauraGPT@users.noreply.github.com
 contributors/emails/Lesnak1@users.noreply.github.com
@@ -4083,6 +4122,7 @@ contributors/emails/PavelTajdus@users.noreply.github.com
 contributors/emails/PixelAlchemist4@users.noreply.github.com
 contributors/emails/RaviTharuma@users.noreply.github.com
 contributors/emails/RichardGuan1@users.noreply.github.com
+contributors/emails/Rolf_greger@web.de
 contributors/emails/RyderFreeman4Logos@gmail.com
 contributors/emails/StanleyStetson@users.noreply.github.com
 contributors/emails/Steven.Leath@gmail.com
@@ -4119,6 +4159,7 @@ contributors/emails/ada.a0uew@56.pt
 contributors/emails/adam@adamking.me
 contributors/emails/adam@exo.ai
 contributors/emails/adamfortuna1324@gmail.com
+contributors/emails/aditya@cybersapien.xyz
 contributors/emails/adleapnet@users.noreply.github.com
 contributors/emails/admin@diaoan.xyz
 contributors/emails/admin@hankookdnt.com
@@ -4320,12 +4361,14 @@ contributors/emails/cjenkins@scacpa.org
 contributors/emails/cjwang@sowork.tw
 contributors/emails/ckorhonen@gmail.com
 contributors/emails/claude@hanamizuki.tw
+contributors/emails/claudio@integra.com
 contributors/emails/claudioorjunior@gmail.com
 contributors/emails/claw.8op8q@8alias.com
 contributors/emails/cloimism@gmail.com
 contributors/emails/cluster2@Cluster2s-Mac-Studio.local
 contributors/emails/clyu168@126.com
 contributors/emails/cmoiccool@users.noreply.github.com
+contributors/emails/codemastermilos@gmail.com
 contributors/emails/coder@trevhome.local
 contributors/emails/codexbt1@gmail.com
 contributors/emails/coe0718+tuck@gmail.com
@@ -4395,6 +4438,7 @@ contributors/emails/dev@mikesoft.it
 contributors/emails/dev@redeyesolutions.dev
 contributors/emails/dev@solovision.local
 contributors/emails/developer.kj@gmail.com
+contributors/emails/developer@pranab.co.in
 contributors/emails/devin@cognition.ai
 contributors/emails/devops@77hub.com
 contributors/emails/devops@sycamore.group
@@ -4406,6 +4450,7 @@ contributors/emails/dhruvkejri9@gmail.com
 contributors/emails/diamantejc87@gmail.com
 contributors/emails/diatche@gmail.com
 contributors/emails/dickson.neoh@gmail.com
+contributors/emails/dido.dim@gmail.com
 contributors/emails/diegomarino@users.noreply.github.com
 contributors/emails/dillontownsel@gmail.com
 contributors/emails/dimar@wiseconnex.com
@@ -4584,6 +4629,7 @@ contributors/emails/harp@hermz580.dev
 contributors/emails/harrison@medmetricsrx.com
 contributors/emails/harrison@succession.bio
 contributors/emails/harrylabsj@gmail.com
+contributors/emails/harrylabsj@users.noreply.github.com
 contributors/emails/harsha@usethread.io
 contributors/emails/harshkamdar67@gmail.com
 contributors/emails/hass.khalife@gmail.com
@@ -4682,6 +4728,7 @@ contributors/emails/jake.tracey@noice.net.au
 contributors/emails/jakobbjelver@gmail.com
 contributors/emails/jakobdylanc@gmail.com
 contributors/emails/jakub.wolniewicz@gmail.com
+contributors/emails/james@keppylab.com
 contributors/emails/james@terminaloutcomes.com
 contributors/emails/jamesmatheson35@gmail.com
 contributors/emails/jan.hranicky@seznam.cz
@@ -4691,6 +4738,7 @@ contributors/emails/jasmine@smfworks.com
 contributors/emails/jason.mow@gmail.com
 contributors/emails/jason@runninwithitmarketing.com
 contributors/emails/jason@webdevtoday.com
+contributors/emails/jasoncornell76@gmail.com
 contributors/emails/jasonfang1993@users.noreply.github.com
 contributors/emails/jazzwu@163.com
 contributors/emails/jdgg777@users.noreply.github.com
@@ -4867,6 +4915,7 @@ contributors/emails/m.varnskuehler@gmail.com
 contributors/emails/m296064@rohpccpu21.mayo.edu
 contributors/emails/maartendormenatteysen@hotmail.com
 contributors/emails/macd@google.com
+contributors/emails/madpower2000@gmail.com
 contributors/emails/magnus.lundstedt@infidyne.com
 contributors/emails/magnus919@pm.me
 contributors/emails/mail.liangyang@gmail.com
@@ -4946,6 +4995,7 @@ contributors/emails/moisesvs84@gmail.com
 contributors/emails/mojomast@users.noreply.github.com
 contributors/emails/moken627-hub@users.noreply.github.com
 contributors/emails/mollusk@users.noreply.github.com
+contributors/emails/moonlight-lupin@users.noreply.github.com
 contributors/emails/motoblurr@users.noreply.github.com
 contributors/emails/mozi@askaconsult.com
 contributors/emails/mpetrelli@gmail.com
@@ -4992,6 +5042,7 @@ contributors/emails/nicochase@users.noreply.github.com
 contributors/emails/nicolasdmolina76@gmail.com
 contributors/emails/nikita.barkov@jetbrains.com
 contributors/emails/nikkoxgonzales@users.noreply.github.com
+contributors/emails/nitishagar@users.noreply.github.com
 contributors/emails/niudakok@users.noreply.github.com
 contributors/emails/nkreadly@gmail.com
 contributors/emails/nmediaie@gmail.com
@@ -5003,6 +5054,7 @@ contributors/emails/nolanchic@gmail.com
 contributors/emails/noname666666666@ya.ru
 contributors/emails/noreply@anthropic.com
 contributors/emails/noreply@codebuff.com
+contributors/emails/noreply@pacificcloudsolutions.example
 contributors/emails/normanking@me.com
 contributors/emails/nsovipgl@gmail.com
 contributors/emails/nwadwa@gmail.com
@@ -5011,6 +5063,7 @@ contributors/emails/nypyouxiang@163.com
 contributors/emails/obtitus@gmail.com
 contributors/emails/octaviomagaia@hotmail.com
 contributors/emails/octopustank@foxmail.com
+contributors/emails/octy@octys.local
 contributors/emails/ofer@openclaw.ai
 contributors/emails/officialasishkumar@gmail.com
 contributors/emails/ohs2251@naver.com
@@ -5056,6 +5109,7 @@ contributors/emails/phm543@gmail.com
 contributors/emails/phull@phullcutz.de
 contributors/emails/pink@macmini-hermes.local
 contributors/emails/piyushbag4@gmail.com
+contributors/emails/plntrprotocol@gmail.com
 contributors/emails/pooyan6@gmail.com
 contributors/emails/poponline63@gmail.com
 contributors/emails/portavales@gmail.com
@@ -5093,6 +5147,7 @@ contributors/emails/razultull@gmail.com
 contributors/emails/rborkows@gmail.com
 contributors/emails/rcarratalasanchez@gmail.com
 contributors/emails/redpiggy-cyber@users.noreply.github.com
+contributors/emails/regardv4life@gmail.com
 contributors/emails/reinbeumer@gmail.com
 contributors/emails/reinelt@rt-experts.de
 contributors/emails/reneisaipa@gmail.com
@@ -5414,6 +5469,7 @@ contributors/emails/yl.tilly.everhome@gmail.com
 contributors/emails/yongliabc888@gmail.com
 contributors/emails/yozamono@gmail.com
 contributors/emails/yu_zhengbo@foxmail.com
+contributors/emails/yubingz@users.noreply.github.com
 contributors/emails/yukinomon@users.noreply.github.com
 contributors/emails/yunke98888@gmail.com
 contributors/emails/yuntianqing@yahoo.com
@@ -5438,6 +5494,7 @@ contributors/emails/zhangyingliang@outlook.com
 contributors/emails/zhangyswx@163.com
 contributors/emails/zhaomengfan44@sina.com
 contributors/emails/zhjay@stu.xjtu.edu.cn
+contributors/emails/zhongshengyuan@tju.edu.cn
 contributors/emails/zhou.he3@xydigit.com
 contributors/emails/zhouou6@users.noreply.github.com
 contributors/emails/zhu2mu@qq.com
@@ -7468,16 +7525,21 @@ plugin-catalog/afterforge.yaml
 plugin-catalog/agent-analytics.yaml
 plugin-catalog/agent-log.yaml
 plugin-catalog/agentchat.yaml
+plugin-catalog/agentplaybooks-memory.yaml
 plugin-catalog/agentplaybooks-portable.yaml
+plugin-catalog/agentplaybooks-tools.yaml
 plugin-catalog/agentplaybooks.yaml
 plugin-catalog/ai-usage-tracker.yaml
 plugin-catalog/aihubmix.yaml
+plugin-catalog/antigravity-agy.yaml
 plugin-catalog/antigravity-subscription-directsdk.yaml
 plugin-catalog/anysearch.yaml
 plugin-catalog/apify.yaml
 plugin-catalog/ard-kit.yaml
 plugin-catalog/artifact-relay.yaml
+plugin-catalog/better-session-appearance.yaml
 plugin-catalog/billing.yaml
+plugin-catalog/biomimetic-brain.yaml
 plugin-catalog/blender.yaml
 plugin-catalog/blinkenbar.yaml
 plugin-catalog/boardstate.yaml
@@ -7514,7 +7576,9 @@ plugin-catalog/dashscope-video.yaml
 plugin-catalog/davinci-resolve.yaml
 plugin-catalog/debug-desk.yaml
 plugin-catalog/deepgram-voice.yaml
+plugin-catalog/deepinfra-sandbox.yaml
 plugin-catalog/deepseek-whale.yaml
+plugin-catalog/desensitize.yaml
 plugin-catalog/deskrpg.yaml
 plugin-catalog/diff-review.yaml
 plugin-catalog/document-reader.yaml
@@ -7528,10 +7592,14 @@ plugin-catalog/filebox.yaml
 plugin-catalog/financial-datasets.yaml
 plugin-catalog/fluxer-platform.yaml
 plugin-catalog/fmsg-platform.yaml
+plugin-catalog/foresee.yaml
+plugin-catalog/freight-reconciliation.yaml
 plugin-catalog/fusion.yaml
 plugin-catalog/gbrain-plugin.yaml
 plugin-catalog/gemini-live-bridge.yaml
+plugin-catalog/gigamail.yaml
 plugin-catalog/githermes.yaml
+plugin-catalog/github_app.yaml
 plugin-catalog/glasser.yaml
 plugin-catalog/gondola-provider.yaml
 plugin-catalog/gonogo.yaml
@@ -7542,16 +7610,20 @@ plugin-catalog/ha-sidebar-navigator.yaml
 plugin-catalog/hades-coding-workflows.yaml
 plugin-catalog/handflow.yaml
 plugin-catalog/health-data.yaml
+plugin-catalog/healthcare.yaml
 plugin-catalog/herdr-auto-reconcile.yaml
 plugin-catalog/hermes-auto-titler.yaml
+plugin-catalog/hermes-codex-resets.yaml
 plugin-catalog/hermes-desktop-camera.yaml
 plugin-catalog/hermes-discord-rpc.yaml
 plugin-catalog/hermes-evolve.yaml
 plugin-catalog/hermes-herald.yaml
 plugin-catalog/hermes-impossibl.yaml
+plugin-catalog/hermes-insight.yaml
 plugin-catalog/hermes-iroh-interconnect.yaml
 plugin-catalog/hermes-jailbreak-kernel.yaml
 plugin-catalog/hermes-kame-api-rotation.yaml
+plugin-catalog/hermes-lcm-x.yaml
 plugin-catalog/hermes-ledgerline.yaml
 plugin-catalog/hermes-live-voice.yaml
 plugin-catalog/hermes-loadout.yaml
@@ -7583,6 +7655,7 @@ plugin-catalog/hermes-speech.yaml
 plugin-catalog/hermes-ssh.yaml
 plugin-catalog/hermes-structured-aux-models.yaml
 plugin-catalog/hermes-subscription-meter.yaml
+plugin-catalog/hermes-switchyard.yaml
 plugin-catalog/hermes-t3-control.yaml
 plugin-catalog/hermes-tag.yaml
 plugin-catalog/hermes-tailscale.yaml
@@ -7613,6 +7686,7 @@ plugin-catalog/jackal-verified.yaml
 plugin-catalog/jekyll-hyde.yaml
 plugin-catalog/jev-agent-router.yaml
 plugin-catalog/jev-approvals.yaml
+plugin-catalog/jev-cron-gate.yaml
 plugin-catalog/jev-curator.yaml
 plugin-catalog/jev-effort-router.yaml
 plugin-catalog/jev-judge.yaml
@@ -7631,13 +7705,16 @@ plugin-catalog/kimi-code-delegate.yaml
 plugin-catalog/kiro-acp.yaml
 plugin-catalog/kiro-provider.yaml
 plugin-catalog/kiwi.yaml
+plugin-catalog/kuma.yaml
 plugin-catalog/lancedb-suite.yaml
 plugin-catalog/lancedb.yaml
 plugin-catalog/lib-docs.yaml
 plugin-catalog/little-canary.yaml
 plugin-catalog/live-time.yaml
+plugin-catalog/local-system-one-hermes.yaml
 plugin-catalog/local_knowledge.yaml
 plugin-catalog/localsend.yaml
+plugin-catalog/lumberroom.yaml
 plugin-catalog/markifact.yaml
 plugin-catalog/meeting-overlay.yaml
 plugin-catalog/mem-os.yaml
@@ -7677,6 +7754,7 @@ plugin-catalog/openrouter-voice.yaml
 plugin-catalog/openspec.yaml
 plugin-catalog/orbit-desktop.yaml
 plugin-catalog/parallel-search.yaml
+plugin-catalog/pcs-security-tls-posture.yaml
 plugin-catalog/pixel-worlds.yaml
 plugin-catalog/plan-mode.yaml
 plugin-catalog/pocket-watch.yaml
@@ -7706,9 +7784,11 @@ plugin-catalog/removed.yaml
 plugin-catalog/replaid.yaml
 plugin-catalog/rocketchat-platform.yaml
 plugin-catalog/rss-reader.yaml
+plugin-catalog/rtk-rewrite.yaml
 plugin-catalog/s3.yaml
 plugin-catalog/sabi-metadata.yaml
 plugin-catalog/search1api.yaml
+plugin-catalog/secret-drop.yaml
 plugin-catalog/secure-env-ingress.yaml
 plugin-catalog/self-wake.yaml
 plugin-catalog/sendblue.yaml
@@ -7716,7 +7796,10 @@ plugin-catalog/session-dashboard.yaml
 plugin-catalog/session-ref.yaml
 plugin-catalog/session-styler.yaml
 plugin-catalog/shodan.yaml
+plugin-catalog/sidebar-manager.yaml
+plugin-catalog/sigrex.yaml
 plugin-catalog/sketch-pad.yaml
+plugin-catalog/skill-retrieval.yaml
 plugin-catalog/skill-router.yaml
 plugin-catalog/snyk.yaml
 plugin-catalog/source-tray.yaml
@@ -7728,7 +7811,10 @@ plugin-catalog/sugar.yaml
 plugin-catalog/supermemory.yaml
 plugin-catalog/tailgate.yaml
 plugin-catalog/tamahermes.yaml
+plugin-catalog/telegram-notify.yaml
+plugin-catalog/telegram_dashboard_probe.yaml
 plugin-catalog/telnyx-provider.yaml
+plugin-catalog/thomas.yaml
 plugin-catalog/time-gap.yaml
 plugin-catalog/titanos-mcp.yaml
 plugin-catalog/tokenwatch.yaml
@@ -7738,6 +7824,7 @@ plugin-catalog/touchdesigner.yaml
 plugin-catalog/twenty-crm.yaml
 plugin-catalog/typesafe-skill-router.yaml
 plugin-catalog/umt.yaml
+plugin-catalog/unitares.yaml
 plugin-catalog/usage-stats.yaml
 plugin-catalog/vaultknox.yaml
 plugin-catalog/vaultwarden.yaml
@@ -7755,6 +7842,7 @@ plugin-catalog/web-search-plus.yaml
 plugin-catalog/web-serply.yaml
 plugin-catalog/web-venice.yaml
 plugin-catalog/wechat-social-assistant.yaml
+plugin-catalog/whatsapp-agent-platform.yaml
 plugin-catalog/xmemo.yaml
 plugin-catalog/yantrikdb-hermes-dashboard.yaml
 plugin-catalog/yantrikdb.yaml
@@ -9042,6 +9130,7 @@ tests/agent/test_compression_interrupt_protection.py
 tests/agent/test_compression_last_assistant_anchor.py
 tests/agent/test_compression_lock_defer.py
 tests/agent/test_compression_logging_session_context.py
+tests/agent/test_compression_marker.py
 tests/agent/test_compression_max_attempts_config.py
 tests/agent/test_compression_orphan_recovery.py
 tests/agent/test_compression_persistence.py
@@ -9148,6 +9237,7 @@ tests/agent/test_curator_activity.py
 tests/agent/test_curator_backup.py
 tests/agent/test_curator_classification.py
 tests/agent/test_curator_reports.py
+tests/agent/test_curator_rollback_staging.py
 tests/agent/test_curator_run_hygiene.py
 tests/agent/test_cursor_optimizations_parity.py
 tests/agent/test_custom_pool_mismatch_guard.py
@@ -9461,6 +9551,7 @@ tests/agent/test_pydantic_dump_warning_leak.py
 tests/agent/test_rate_limit_reset_hint.py
 tests/agent/test_rate_limit_tracker.py
 tests/agent/test_reactions.py
+tests/agent/test_read_dedup_rewrite_boundaries.py
 tests/agent/test_reasoning_disable_recovery.py
 tests/agent/test_reasoning_echo_resolver_e2e.py
 tests/agent/test_reasoning_effort_labels.py
@@ -9513,6 +9604,7 @@ tests/agent/test_run_agent_codex_responses.py
 tests/agent/test_run_agent_multimodal_prologue.py
 tests/agent/test_run_budget.py
 tests/agent/test_runtime_cwd.py
+tests/agent/test_runtime_self_protection.py
 tests/agent/test_salvage_grown_transcript.py
 tests/agent/test_sanitiser_escalation.py
 tests/agent/test_save_url_image.py
@@ -9534,6 +9626,7 @@ tests/agent/test_session_id_env.py
 tests/agent/test_session_meta_filtering.py
 tests/agent/test_session_reset_fix.py
 tests/agent/test_session_rotation_flush_cold_resume.py
+tests/agent/test_session_row_under_live_agent_persist.py
 tests/agent/test_session_snapshot_removal.py
 tests/agent/test_session_source.py
 tests/agent/test_set_runtime_main_custom_provider.py
@@ -9843,6 +9936,7 @@ tests/cron/test_cron_thread_seed_dm_keying.py
 tests/cron/test_cron_tick_stale_yield.py
 tests/cron/test_cron_ticker_drift.py
 tests/cron/test_cron_timezone_migration_catchup.py
+tests/cron/test_cron_windows_venv_abi.py
 tests/cron/test_cron_workdir.py
 tests/cron/test_cronjob_gateway_liveness.py
 tests/cron/test_dead_owner_claim_reclaim.py
@@ -10022,6 +10116,16 @@ tests/e2e/core/parity/fixture_mcp_server.py
 tests/e2e/core/parity/test_boot_contract.py
 tests/e2e/core/parity/test_entrypoint_parity.py
 tests/e2e/core/parity/test_mcp_lifecycle.py
+tests/e2e/core/platforms/__init__.py
+tests/e2e/core/platforms/_contract.py
+tests/e2e/core/platforms/_drv_discord.py
+tests/e2e/core/platforms/_drv_slack.py
+tests/e2e/core/platforms/_drv_telegram.py
+tests/e2e/core/platforms/_helpers.py
+tests/e2e/core/platforms/_suite.py
+tests/e2e/core/platforms/test_discord_contract.py
+tests/e2e/core/platforms/test_slack_contract.py
+tests/e2e/core/platforms/test_telegram_contract.py
 tests/e2e/core/providers/__init__.py
 tests/e2e/core/providers/_anthropic_helpers.py
 tests/e2e/core/providers/_catalog_helpers.py
@@ -10121,6 +10225,13 @@ tests/evals/__init__.py
 tests/evals/test_codebase_navigability.py
 tests/evals/test_compaction_jev_arm.py
 tests/fakes/fake_llm_provider.py
+tests/fakes/platforms/__init__.py
+tests/fakes/platforms/_standin.py
+tests/fakes/platforms/discord_shim/sitecustomize.py
+tests/fakes/platforms/discord_standin.py
+tests/fakes/platforms/slack_shim/sitecustomize.py
+tests/fakes/platforms/slack_standin.py
+tests/fakes/platforms/telegram_standin.py
 tests/fakes/providers/__init__.py
 tests/fakes/providers/anthropic_messages.py
 tests/fakes/providers/bedrock_converse.py
@@ -10477,6 +10588,7 @@ tests/gateway/test_fresh_reset_skill_injection.py
 tests/gateway/test_gateway_command_dispatch_minimal.py
 tests/gateway/test_gateway_command_help.py
 tests/gateway/test_gateway_command_line_matcher.py
+tests/gateway/test_gateway_history_persistence_stamp.py
 tests/gateway/test_gateway_liveness_home_guard.py
 tests/gateway/test_gateway_mcp_oauth_unattended.py
 tests/gateway/test_gateway_platform_event_hook.py
@@ -10872,6 +10984,7 @@ tests/gateway/test_slack_peer_agent_smoke.py
 tests/gateway/test_slack_plugin_action_handlers.py
 tests/gateway/test_slack_plugin_setup.py
 tests/gateway/test_slack_relay_parent_command.py
+tests/gateway/test_slack_reply_expected.py
 tests/gateway/test_slack_require_mention_channels.py
 tests/gateway/test_slack_runner_ignored_channels.py
 tests/gateway/test_slack_sdk_response.py
@@ -11112,6 +11225,7 @@ tests/gateway/test_whatsapp_reply_prefix.py
 tests/gateway/test_whatsapp_stale_bridge.py
 tests/gateway/test_whatsapp_text_batching.py
 tests/gateway/test_whatsapp_to_jid.py
+tests/gateway/test_windows_venv_import_guard.py
 tests/gateway/test_ws_auth_retry.py
 tests/gateway/test_ws_auth_retry_verifier_probe.py
 tests/gateway/test_ws_dial_happy_eyeballs.py
@@ -11469,6 +11583,7 @@ tests/hermes_cli/test_desktop_install_after_update.py
 tests/hermes_cli/test_desktop_lifecycle_windows_live.py
 tests/hermes_cli/test_desktop_local_flag.py
 tests/hermes_cli/test_desktop_native_deps_stale.py
+tests/hermes_cli/test_desktop_repo_discovery_config.py
 tests/hermes_cli/test_desktop_slash_registry.py
 tests/hermes_cli/test_desktop_source_build.py
 tests/hermes_cli/test_desktop_startup_cost.py
@@ -11725,6 +11840,8 @@ tests/hermes_cli/test_local_context_resolution.py
 tests/hermes_cli/test_local_download_jobs.py
 tests/hermes_cli/test_local_growth.py
 tests/hermes_cli/test_local_job_registry.py
+tests/hermes_cli/test_local_legacy_engine.py
+tests/hermes_cli/test_local_legacy_models_dir.py
 tests/hermes_cli/test_local_models_activate_rescan.py
 tests/hermes_cli/test_local_models_routes.py
 tests/hermes_cli/test_local_picker_identity.py
@@ -11803,6 +11920,7 @@ tests/hermes_cli/test_model_cost_guard.py
 tests/hermes_cli/test_model_data_policy_guard.py
 tests/hermes_cli/test_model_flow_external_process_setup.py
 tests/hermes_cli/test_model_flow_pooled_credentials.py
+tests/hermes_cli/test_model_info_probe_timeout.py
 tests/hermes_cli/test_model_normalize.py
 tests/hermes_cli/test_model_options_read_path_catalogs.py
 tests/hermes_cli/test_model_persist_one_shape.py
@@ -12059,6 +12177,7 @@ tests/hermes_cli/test_resolve_turn_limit.py
 tests/hermes_cli/test_resource_limits.py
 tests/hermes_cli/test_restart_plan_reconciliation.py
 tests/hermes_cli/test_restore_own_holder_guard.py
+tests/hermes_cli/test_restore_source_integrity.py
 tests/hermes_cli/test_resume_display.py
 tests/hermes_cli/test_resume_latest_and_in_dir.py
 tests/hermes_cli/test_resume_model_restore.py
@@ -12191,6 +12310,7 @@ tests/hermes_cli/test_slash_command_interrupt.py
 tests/hermes_cli/test_slash_confirm_windows.py
 tests/hermes_cli/test_slash_dispatch_table.py
 tests/hermes_cli/test_slash_undo_title_robustness.py
+tests/hermes_cli/test_smart_app_control_block.py
 tests/hermes_cli/test_source_build.py
 tests/hermes_cli/test_source_channel_integration.py
 tests/hermes_cli/test_source_check.py
@@ -12282,6 +12402,7 @@ tests/hermes_cli/test_tui_resume_flow.py
 tests/hermes_cli/test_tui_terminal_reset_on_exit.py
 tests/hermes_cli/test_unified_pool_quirk.py
 tests/hermes_cli/test_uninstall_dry_run.py
+tests/hermes_cli/test_uninstall_full_wipe_sweep.py
 tests/hermes_cli/test_uninstall_gateway_service.py
 tests/hermes_cli/test_uninstall_install_kind.py
 tests/hermes_cli/test_uninstall_node_symlinks.py
@@ -12566,6 +12687,7 @@ tests/hermes_state/test_retired_wal_generation_capture.py
 tests/hermes_state/test_rewind_surfaces_invariant.py
 tests/hermes_state/test_schema_read_probe.py
 tests/hermes_state/test_search_or_relaxed_fallback.py
+tests/hermes_state/test_session_archived_round_trip.py
 tests/hermes_state/test_session_archiving.py
 tests/hermes_state/test_session_db_acp_cwd_backfill.py
 tests/hermes_state/test_session_db_context_manager.py
@@ -13634,6 +13756,7 @@ tests/tools/test_mcp_schema_cache.py
 tests/tools/test_mcp_schema_cache_ttl.py
 tests/tools/test_mcp_server_log_notifications.py
 tests/tools/test_mcp_server_reconnecting_predicate.py
+tests/tools/test_mcp_shared_connection_resolved_identity.py
 tests/tools/test_mcp_sse_fallback.py
 tests/tools/test_mcp_sse_transport.py
 tests/tools/test_mcp_stability.py
@@ -13713,6 +13836,7 @@ tests/tools/test_read_unicode_filename_retry.py
 tests/tools/test_read_window_tool.py
 tests/tools/test_refresh_agent_mcp_tools.py
 tests/tools/test_registry.py
+tests/tools/test_remote_binary_write_guard.py
 tests/tools/test_removed_backend_migration.py
 tests/tools/test_request_tool_approval.py
 tests/tools/test_resolve_path.py
@@ -13791,6 +13915,7 @@ tests/tools/test_spill_safety.py
 tests/tools/test_spotify_client.py
 tests/tools/test_ssh_bulk_upload.py
 tests/tools/test_ssh_environment.py
+tests/tools/test_ssh_remote_cwd.py
 tests/tools/test_stage2_hook_api_server_keygen.py
 tests/tools/test_stage2_hook_nous_routing_env.py
 tests/tools/test_stage2_hook_seed_one_symlinks.py
@@ -13974,6 +14099,7 @@ tests/tui_gateway/test_bot_live_owner_delivery.py
 tests/tui_gateway/test_bot_mode_silence_delivery.py
 tests/tui_gateway/test_bot_relay_methods.py
 tests/tui_gateway/test_branch_system_prompt.py
+tests/tui_gateway/test_busy_compression_demotion.py
 tests/tui_gateway/test_change_watcher.py
 tests/tui_gateway/test_codex_app_server_live_events.py
 tests/tui_gateway/test_cold_start_gil_stall.py
@@ -13999,6 +14125,7 @@ tests/tui_gateway/test_credit_producer_suppression.py
 tests/tui_gateway/test_cross_process_orphan_ownership.py
 tests/tui_gateway/test_custom_provider_session_persistence.py
 tests/tui_gateway/test_default_profile_session_name.py
+tests/tui_gateway/test_deferred_lease_reaper.py
 tests/tui_gateway/test_deferred_model_history.py
 tests/tui_gateway/test_deferred_model_switch_confirm.py
 tests/tui_gateway/test_delegation_session_lifecycle.py
@@ -14022,6 +14149,7 @@ tests/tui_gateway/test_failed_turn_retention.py
 tests/tui_gateway/test_fallback_chain_hot_reload.py
 tests/tui_gateway/test_fast_session_scope.py
 tests/tui_gateway/test_finalize_session_persist.py
+tests/tui_gateway/test_first_contact_onboarding.py
 tests/tui_gateway/test_foreground_notification_snapshot.py
 tests/tui_gateway/test_free_tier_rpc.py
 tests/tui_gateway/test_gateway_owned_session_reap.py
@@ -14101,6 +14229,8 @@ tests/tui_gateway/test_project_tree.py
 tests/tui_gateway/test_projects_rpc.py
 tests/tui_gateway/test_prompt_accept_logging.py
 tests/tui_gateway/test_protocol.py
+tests/tui_gateway/test_queued_prompt_persistence.py
+tests/tui_gateway/test_readiness_singleflight.py
 tests/tui_gateway/test_reaper_flush_profile_scope.py
 tests/tui_gateway/test_reasoning_config_per_model.py
 tests/tui_gateway/test_reasoning_session_scope.py
@@ -14117,6 +14247,7 @@ tests/tui_gateway/test_rollback_container_refusal.py
 tests/tui_gateway/test_routing_provenance_reopen.py
 tests/tui_gateway/test_runtime_identity.py
 tests/tui_gateway/test_secondary_profile_model_and_key.py
+tests/tui_gateway/test_secret_capture_session.py
 tests/tui_gateway/test_seeded_branch_title_routing.py
 tests/tui_gateway/test_seeded_session_create.py
 tests/tui_gateway/test_serve_exit_flush.py
@@ -14144,6 +14275,7 @@ tests/tui_gateway/test_slash_fuzzy.py
 tests/tui_gateway/test_slash_review_owner.py
 tests/tui_gateway/test_slash_worker_ansi.py
 tests/tui_gateway/test_slash_worker_mcp_discovery.py
+tests/tui_gateway/test_slash_worker_provider.py
 tests/tui_gateway/test_slash_worker_sys_path.py
 tests/tui_gateway/test_slash_worker_watchdog.py
 tests/tui_gateway/test_spawn_tree_records.py
@@ -14804,6 +14936,7 @@ ui-tui/packages/hermes-ink/text-input.d.ts
 ui-tui/packages/hermes-ink/text-input.js
 ui-tui/packages/hermes-ink/tsconfig.json
 ui-tui/scripts/bench-history-scroll.tsx
+ui-tui/scripts/bench-native-history.tsx
 ui-tui/scripts/bench-streaming-md.tsx
 ui-tui/scripts/billing-fixtures.tsx
 ui-tui/scripts/profile-tui.mjs
