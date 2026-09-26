@@ -47,7 +47,8 @@ import pytest
 
 from agent_runtime import state_patches as sp
 from agent_runtime.config import load_agent_runtime_config
-from agent_runtime.events import EVENT_PAYLOAD_LIMIT_BYTES, EventLog
+from agent_runtime.events import EventLog
+from agent_runtime.models import EVENT_PAYLOAD_LIMIT_BYTES
 from agent_runtime.office_store import OfficeStore
 from agent_runtime.patch_coverage import (
     HISTORICAL_FOLD_ENTITIES,

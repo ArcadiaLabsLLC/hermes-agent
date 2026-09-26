@@ -361,7 +361,7 @@ pre-push gate compares, so a file here is a file the gate reinstalls.)
   `spritesheetBase64` from the sheet
   bytes and returned no path or directory for it. Measured on the installed CHAR8 `anime-girl`:
   438,972 base64 chars = **428.7 KiB**, in a 441,694-byte payload — 107x the 4,096-byte
-  event-payload cap (`agent_runtime/events.EVENT_PAYLOAD_LIMIT_BYTES`) that the "images travel
+  event-payload cap (`agent_runtime/models.EVENT_PAYLOAD_LIMIT_BYTES`) that the "images travel
   as paths" rule is written against. It is also 8.8x the terminal tool's own output cap
   (`tools/tool_output_limits.DEFAULT_MAX_BYTES = 50_000`, unset in `profiles/base`), and
   `tools/terminal_tool.py` truncates by splicing a notice between a 40% head and a 60% tail —

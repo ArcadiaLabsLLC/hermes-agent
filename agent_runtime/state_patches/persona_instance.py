@@ -8,7 +8,8 @@ import logging
 from typing import Any, Iterable
 
 from ..config import AgentRuntimeConfig, ensure_persisted_personas
-from ..events import EVENT_PAYLOAD_LIMIT_BYTES, EventLog
+from ..events import EventLog
+from ..models import EVENT_PAYLOAD_LIMIT_BYTES
 from .emit import delta_patches_enabled, emit_state_patch
 from .models import (
     _PERSONA_INSTANCE_STORE_TO_WIRE,

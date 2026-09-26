@@ -24,7 +24,8 @@ from pathlib import Path
 
 import pytest
 
-from agent_runtime.events import EVENT_PAYLOAD_LIMIT_BYTES, EventLog
+from agent_runtime.events import EventLog
+from agent_runtime.models import EVENT_PAYLOAD_LIMIT_BYTES
 from agent_runtime.models import Event
 from agent_runtime.patch_coverage import (
     batch_is_patch_coverable,

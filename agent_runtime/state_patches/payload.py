@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Mapping
 
-from ..events import EVENT_PAYLOAD_LIMIT_BYTES, payload_bytes
+from ..models import EVENT_PAYLOAD_LIMIT_BYTES, payload_bytes
 from .models import (
     _CORRELATION_ID_RE,
     CORRELATION_ID_KEY,

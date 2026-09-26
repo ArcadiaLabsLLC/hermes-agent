@@ -460,7 +460,7 @@ def test_the_token_is_accounted_inside_the_four_kilobyte_shrink_loop():
     assertion reds with a payload past 4096 bytes.
     """
 
-    from agent_runtime.events import EVENT_PAYLOAD_LIMIT_BYTES
+    from agent_runtime.models import EVENT_PAYLOAD_LIMIT_BYTES
 
     def size(payload: dict) -> int:
         return len(json.dumps(payload, ensure_ascii=False).encode("utf-8"))

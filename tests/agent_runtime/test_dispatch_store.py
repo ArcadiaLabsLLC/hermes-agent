@@ -385,7 +385,7 @@ def test_a_real_completion_event_stays_inside_the_payload_cap(store_home):
     completion into a swallowed append failure.
     """
 
-    from agent_runtime.events import EVENT_PAYLOAD_LIMIT_BYTES
+    from agent_runtime.models import EVENT_PAYLOAD_LIMIT_BYTES
     import json
 
     dispatch_id = _dispatch(ask="x" * 4000)

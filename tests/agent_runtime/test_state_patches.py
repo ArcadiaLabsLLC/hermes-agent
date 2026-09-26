@@ -33,7 +33,8 @@ from hermes_time import now
 from agent_runtime import state_patches as sp
 from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.decision_contract_registry import allowed_event_types, validate_event_payload
-from agent_runtime.events import EVENT_PAYLOAD_LIMIT_BYTES, EventLog
+from agent_runtime.events import EventLog
+from agent_runtime.models import EVENT_PAYLOAD_LIMIT_BYTES
 from agent_runtime.models import AgentPersona, Event
 from agent_runtime.persona_profiles import effective_toolsets
 from types import SimpleNamespace
@@ -159,7 +160,7 @@ def test_build_state_patch_remove_and_refresh_carry_no_changed():
 
 
 def test_the_shrink_ladder_measures_utf8_bytes_exactly_as_the_append_does():
-    """The ladder and the cap share ONE ruler (``events.payload_bytes``).
+    """The ladder and the cap share ONE ruler (``models.payload_bytes``).
 
     A non-ASCII value is the case where two rulers disagree: 1,000 ``é`` are
     2,002 bytes as UTF-8 but 6,002 once ASCII-escaped. Under the append's
@@ -167,7 +168,7 @@ def test_the_shrink_ladder_measures_utf8_bytes_exactly_as_the_append_does():
     that measured with ``ensure_ascii=True`` would mark it oversize and ship a
     marker for a field the cap would have carried."""
 
-    from agent_runtime.events import payload_bytes
+    from agent_runtime.models import payload_bytes
 
     value = "é" * 1000
     patch = sp.build_state_patch(
@@ -508,7 +509,7 @@ def test_open_chat_create_row_fits_the_payload_cap_with_headroom(
 
     import json
 
-    from agent_runtime.events import EVENT_PAYLOAD_LIMIT_BYTES
+    from agent_runtime.models import EVENT_PAYLOAD_LIMIT_BYTES
     from agent_runtime.serde import to_jsonable
 
     set_delta_patches(True)

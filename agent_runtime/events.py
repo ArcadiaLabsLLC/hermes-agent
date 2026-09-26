@@ -14,19 +14,8 @@ from . import event_rotation, paths
 from .decision_contract_registry import allowed_event_types, validate_event_payload
 from .errors import EventPayloadTooLarge
 from .locks import events_lock
-from .models import Event
+from .models import EVENT_PAYLOAD_LIMIT_BYTES, Event, payload_bytes
 from .serde import from_jsonable, to_jsonable
-
-EVENT_PAYLOAD_LIMIT_BYTES = 4096
-
-
-def payload_bytes(value: Any) -> int:
-    """The serialized byte size of ``value`` under the ONE encoding the payload
-    cap is measured with (:meth:`EventLog.append`) — the cap and its ruler in one
-    file, so a producer that sizes a payload ahead of the append (the patch
-    lane's shrink ladder) can never measure it differently from the gate."""
-
-    return len(json.dumps(to_jsonable(value), ensure_ascii=False).encode("utf-8"))
 
 # Match compact-JSON top-level id tokens while still treating the parsed event
 # as authoritative. Payload copies may add candidates, but never false results.

@@ -342,7 +342,7 @@ def test_rebind_emits_a_registered_event_naming_every_moved_row(profiles):
 
 
 def test_rebind_event_stays_inside_the_payload_cap(profiles):
-    from agent_runtime.events import EVENT_PAYLOAD_LIMIT_BYTES
+    from agent_runtime.models import EVENT_PAYLOAD_LIMIT_BYTES
 
     _seed(_persona(), placements=tuple(f"agent_{index:04d}" for index in range(120)))
 
@@ -734,7 +734,7 @@ def test_rerunning_after_a_partial_apply_repairs_only_the_stranded_row(profiles,
 
 
 def test_partial_failure_event_stays_inside_the_payload_cap(profiles, monkeypatch):
-    from agent_runtime.events import EVENT_PAYLOAD_LIMIT_BYTES
+    from agent_runtime.models import EVENT_PAYLOAD_LIMIT_BYTES
     from agent_runtime.persona_assignments import PersonaInstanceStore
 
     _seed(_persona(), placements=tuple(f"agent_{index:04d}" for index in range(60)))

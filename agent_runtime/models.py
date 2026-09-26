@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from datetime import datetime
+import json
 import re
 from typing import Any
 
+from .serde import to_jsonable
 from .states import RunState, WorkerSessionState
 
 __layer__ = "models"
@@ -688,6 +690,21 @@ class Event:
     # same turn — it is minted once at the send boundary and never re-derived.
     # Task-run events leave this ``None`` (their identity is ``run_id``).
     turn_id: str | None = None
+
+
+#: The one cap on an :class:`Event` payload, and :func:`payload_bytes` its one
+#: ruler. Beside ``Event`` (lane L1) so a ``models`` module can size a payload
+#: without reaching the EventLog store that enforces it.
+EVENT_PAYLOAD_LIMIT_BYTES = 4096
+
+
+def payload_bytes(value: Any) -> int:
+    """The serialized byte size of ``value`` under the ONE encoding the payload
+    cap is measured with (:meth:`EventLog.append`) — the cap and its ruler in one
+    file, so a producer that sizes a payload ahead of the append (the patch
+    lane's shrink ladder) can never measure it differently from the gate."""
+
+    return len(json.dumps(to_jsonable(value), ensure_ascii=False).encode("utf-8"))
 
 
 @dataclass(slots=True)

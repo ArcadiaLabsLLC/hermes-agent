@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-from ..events import EVENT_PAYLOAD_LIMIT_BYTES
+from ..models import EVENT_PAYLOAD_LIMIT_BYTES
 
 __layer__ = "models"
 
