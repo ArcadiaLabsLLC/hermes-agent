@@ -128,7 +128,8 @@ def test_no_module_level_name_is_unreachable_from_the_external_surface():
     roots = {
         "GPTPersonaRuntime",
     }
-    kept_with_cause: set[str] = set()
+    # ``__layer__`` is read by the W0-G6 gate at runtime, never by this module (lane L5).
+    kept_with_cause: set[str] = {"__layer__"}
 
     tree = ast.parse(inspect.getsource(persona_runtime))
     defs: dict[str, ast.AST] = {}

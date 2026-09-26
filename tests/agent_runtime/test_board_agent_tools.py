@@ -68,9 +68,9 @@ def test_board_and_agent_chat_are_unconditional_for_unknown_roles():
     Unknown role values are persona data and must not strip board or agent chat.
     """
 
-    from agent_runtime import persona_runtime as PR
+    from agent_runtime import chat_lane_bundle as CLB
 
-    augmented = PR._augment_chat_capabilities(_chat_persona("custom-reviewer"), ["search"])
+    augmented = CLB._augment_chat_capabilities(_chat_persona("custom-reviewer"), ["search"])
     assert "board" in augmented
     assert "agent_chat" in augmented
     assert "clarify" in augmented
@@ -78,23 +78,23 @@ def test_board_and_agent_chat_are_unconditional_for_unknown_roles():
 
 def test_retired_mission_goal_is_not_restored_for_unknown_roles():
 
-    from agent_runtime import persona_runtime as PR
+    from agent_runtime import chat_lane_bundle as CLB
 
-    assert "mission_goal" not in PR._augment_chat_capabilities(_chat_persona("custom-reviewer"), ["search"])
+    assert "mission_goal" not in CLB._augment_chat_capabilities(_chat_persona("custom-reviewer"), ["search"])
 
 
 def test_supervisor_no_longer_gets_the_retired_mission_goal_toolset():
-    from agent_runtime import persona_runtime as PR
+    from agent_runtime import chat_lane_bundle as CLB
 
-    augmented = PR._augment_chat_capabilities(_chat_persona("alice_supervisor"), ["search"])
+    augmented = CLB._augment_chat_capabilities(_chat_persona("alice_supervisor"), ["search"])
     assert augmented == ["search", "agent_chat", "board", "clarify"]
 
 
 def test_dev_chat_lane_augmentation_is_unchanged_for_a_known_role():
-    from agent_runtime import persona_runtime as PR
+    from agent_runtime import chat_lane_bundle as CLB
 
     # The removed mission capability stays absent without a role table.
-    augmented = PR._augment_chat_capabilities(_chat_persona("dev"), ["search"])
+    augmented = CLB._augment_chat_capabilities(_chat_persona("dev"), ["search"])
     assert augmented == ["search", "agent_chat", "board", "clarify"]
 
 

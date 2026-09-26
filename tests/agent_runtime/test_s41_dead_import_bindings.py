@@ -124,7 +124,9 @@ RETAINED_BINDINGS = {
     # Its only reader is the turn commit's settle phase, which imports it itself
     # (lanes H1, H3 — H3 moved the line out of the package ``__init__``).
     "hermes_cli/harness_parts/persona/chat_turn_commit/settle.py": {"WorkerSessionState"},
-    "agent_runtime/persona_runtime.py": {"Callable", "TYPE_CHECKING"},
+    # ``TYPE_CHECKING`` left with ``apply_chat_lane_tool_scope`` (lane L5 moved the
+    # chat-lane scope family to ``chat_lane_bundle``; its annotation was the only reader).
+    "agent_runtime/persona_runtime.py": {"Callable"},
     "agent_runtime/observability.py": {"datetime"},
     "agent_runtime/parity.py": {"event_rotation"},
     # ``Mapping`` left with ``_ROLE_ALIASES`` (lane 2B-B moved the alias pair to its
