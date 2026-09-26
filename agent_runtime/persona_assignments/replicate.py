@@ -16,10 +16,10 @@ from hermes_time import now
 from agent_runtime import paths
 from agent_runtime.config.roster import ensure_persisted_personas
 from agent_runtime.models import PersonaInstance
+from agent_runtime.persona_assignments.chat_binding import _durable_chat_root
 from agent_runtime.persona_assignments.errors import PersonaInstanceRetireError
 from agent_runtime.persona_assignments.identity import (
     _coerce_travel_value,
-    _durable_chat_root,
     _MISSING_TRAVEL_FIELD,
     _profile_id_for_persona_or_template,
     _role_for_persona_or_template,

@@ -11,7 +11,6 @@ import uuid
 from collections.abc import Callable, Iterable
 from typing import Any
 
-from agent_runtime.agent_create_phases import timed_create_subphase
 from agent_runtime.models import PERSONA_INSTANCE_ID_PREFIX, PersonaInstance
 from agent_runtime.serde import safe_assignment_text, safe_assignment_token
 
@@ -32,7 +31,6 @@ __all__ = [
     "_CHAT_SESSION_HEX_SUFFIX_LEN",
     "_coerce_travel_value",
     "_display_name_for_template",
-    "_durable_chat_root",
     "_MISSING_TRAVEL_FIELD",
     "_normalize_instance_source_persona",
     "_PERSONA_CHAT_SESSION_PREFIX",
@@ -131,55 +129,6 @@ def canonical_persona_instance_id(raw_id: Any, *, persona_id: str | None = None)
 def persona_chat_session_id_for(persona_instance_id: str) -> str:
     normalized = safe_assignment_token(persona_instance_id) or "persona"
     return f"persona_chat_{normalized}_{uuid.uuid4().hex[:12]}"
-
-
-def _durable_chat_root(
-    session_id: str,
-    *,
-    persona_id: str,
-    display_name: str | None = None,
-) -> str:
-    """The chat root, PERSISTED, on its way into the bind — or nothing binds.
-
-    ``persona_chat_session_id_for`` returns a bare ``uuid4`` string; it creates
-    nothing. Until 2026-08-20 the two mint fallbacks above handed that string
-    straight to :meth:`PersonaInstanceStore.open_chat`, and only the argv
-    handlers in ``hermes_cli`` ever made the row durable afterwards. The
-    one-call create lane (``agent_runtime.agent_create``, which is what the
-    launcher's drag-drop reaches over RPC) had no such step and could not have
-    one — the durability helper lived in a CLI part ``agent_runtime`` must not
-    import. So a dragged-in agent got a pointer to a transcript root that
-    existed in the instance row, the create reservation and the read-model, and
-    in no SessionDB at all; every send was then refused forever with
-    ``unknown_chat_session``, because
-    :func:`resolve_default_chat_session_id_for_instance` re-offers a
-    chat-shaped own-instance pointer without ever checking that it resolves.
-
-    Wrapping the id at the bind ARGUMENT (rather than calling an ensure step
-    beside it) is deliberate: the pointer cannot be bound without this function
-    having returned, so the ordering is structural rather than remembered.
-
-    Raises :class:`PersonaChatPersistenceError` when the transcript store
-    cannot be reached or the row cannot be written — the mint fails loudly and
-    binds nothing, which is what the argv lane's ``chat_session_persist_failed``
-    frame has always meant and what ``perform_agent_create`` now compensates.
-
-    Lazy import: ``persona_chat_durability`` imports this module, so a
-    module-level import here would close the cycle.
-    """
-
-    from ..persona_chat_durability import ensure_durable_persona_chat_root
-
-    title = safe_assignment_text(display_name, limit=120)
-    # Timed HERE rather than around the call site, because the call site is an
-    # ARGUMENT expression and hoisting it into a local to wrap it would undo the
-    # structural ordering this function's docstring is about.
-    with timed_create_subphase("chat_root_ms"):
-        return ensure_durable_persona_chat_root(
-            session_id,
-            persona_id=persona_id,
-            title=f"{title} chat" if title else None,
-        )
 
 
 # A chat session id is, by construction, ``persona_chat_<instance>_<hex>`` (see

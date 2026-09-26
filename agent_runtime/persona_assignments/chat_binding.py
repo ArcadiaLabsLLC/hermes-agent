@@ -20,7 +20,6 @@ from agent_runtime.config.roster import ensure_persisted_personas
 from agent_runtime.persona_assignments.errors import RetiredPersonaInstanceError
 from agent_runtime.persona_assignments.identity import (
     _display_name_for_template,
-    _durable_chat_root,
     _normalize_instance_source_persona,
     _profile_id_for_persona_or_template,
     canonical_persona_instance_id,
@@ -43,12 +42,62 @@ if TYPE_CHECKING:
 __layer__ = "stores"
 
 __all__ = [
+    "_durable_chat_root",
     "assert_bindable",
     "clear_chat_session_binding",
     "create_operator_chat",
     "open_chat",
     "rollback_chat_root_bind",
 ]
+
+
+def _durable_chat_root(
+    session_id: str,
+    *,
+    persona_id: str,
+    display_name: str | None = None,
+) -> str:
+    """The chat root, PERSISTED, on its way into the bind — or nothing binds.
+
+    ``persona_chat_session_id_for`` returns a bare ``uuid4`` string; it creates
+    nothing. Until 2026-08-20 the two mint fallbacks above handed that string
+    straight to :meth:`PersonaInstanceStore.open_chat`, and only the argv
+    handlers in ``hermes_cli`` ever made the row durable afterwards. The
+    one-call create lane (``agent_runtime.agent_create``, which is what the
+    launcher's drag-drop reaches over RPC) had no such step and could not have
+    one — the durability helper lived in a CLI part ``agent_runtime`` must not
+    import. So a dragged-in agent got a pointer to a transcript root that
+    existed in the instance row, the create reservation and the read-model, and
+    in no SessionDB at all; every send was then refused forever with
+    ``unknown_chat_session``, because
+    :func:`resolve_default_chat_session_id_for_instance` re-offers a
+    chat-shaped own-instance pointer without ever checking that it resolves.
+
+    Wrapping the id at the bind ARGUMENT (rather than calling an ensure step
+    beside it) is deliberate: the pointer cannot be bound without this function
+    having returned, so the ordering is structural rather than remembered.
+
+    Raises :class:`PersonaChatPersistenceError` when the transcript store
+    cannot be reached or the row cannot be written — the mint fails loudly and
+    binds nothing, which is what the argv lane's ``chat_session_persist_failed``
+    frame has always meant and what ``perform_agent_create`` now compensates.
+
+    Lazy import: ``persona_chat_durability`` imports this module, so a
+    module-level import here would close the cycle.
+    """
+
+    from ..persona_chat_durability import ensure_durable_persona_chat_root
+
+    title = safe_assignment_text(display_name, limit=120)
+    # Timed HERE rather than around the call site, because the call site is an
+    # ARGUMENT expression and hoisting it into a local to wrap it would undo the
+    # structural ordering this function's docstring is about.
+    with timed_create_subphase("chat_root_ms"):
+        return ensure_durable_persona_chat_root(
+            session_id,
+            persona_id=persona_id,
+            title=f"{title} chat" if title else None,
+        )
 
 
 def clear_chat_session_binding(

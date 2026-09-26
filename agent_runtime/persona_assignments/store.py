@@ -25,8 +25,8 @@ from agent_runtime.persona_assignments import (
     retire as retire_lane,
     steering as steering_lane,
 )
+from agent_runtime.persona_assignments.chat_binding import _durable_chat_root
 from agent_runtime.persona_assignments.identity import (
-    _durable_chat_root,
     _normalize_instance_source_persona,
     _profile_id_for_persona_or_template,
     canonical_persona_instance_id,
