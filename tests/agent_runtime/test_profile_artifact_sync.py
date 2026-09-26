@@ -22,18 +22,20 @@ import pytest
 import agent_runtime.realm_sync as realm_sync
 from agent_runtime import paths
 from agent_runtime.profile_artifact_sync import (
-    CORE_CONTEXT_FILENAMES,
-    MEMORY_DESTINATION,
-    PROFILE_FILES_ROOT,
     ProfileArtifactResolveError,
     apply_profile_artifact_pull,
-    classify_destination,
-    content_hash,
-    entity_key,
     read_profile_artifact_baseline,
     read_remote_profile_files,
     resolve_profile_artifact,
     write_profile_artifact_baseline,
+)
+from agent_runtime.realm_sync.families import (
+    CORE_CONTEXT_FILENAMES,
+    MEMORY_DESTINATION,
+    PROFILE_FILES_ROOT,
+    classify_destination,
+    content_hash,
+    entity_key,
 )
 
 REALM = "realm_test"
@@ -564,7 +566,7 @@ def test_old_member_pulling_a_new_publisher_skips_the_family(homes, tmp_path):
     their accumulated ``MEMORY.md`` survives (the point).
     """
 
-    from agent_runtime.profile_artifact_sync import published_relative_path
+    from agent_runtime.realm_sync.families import published_relative_path
 
     home = homes / "alice"
     legacy = "profiles/alice/personas/dev/memories/MEMORY.md"

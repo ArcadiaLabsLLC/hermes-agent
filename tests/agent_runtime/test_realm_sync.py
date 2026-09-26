@@ -1467,7 +1467,7 @@ def test_publish_no_diff_second_run_is_graceful_noop(isolate_agent_runtime_root,
 
 
 def _publish_profile_file(repo: Path, realm_id: str, profile: str, dest_rel: str, body: str) -> None:
-    from agent_runtime.profile_artifact_sync import PROFILE_FILES_ROOT
+    from agent_runtime.realm_sync.families import PROFILE_FILES_ROOT
     from agent_runtime.realm_sync import _realm_subtree
 
     path = _realm_subtree(repo, realm_id).joinpath(*PROFILE_FILES_ROOT.split("/"), profile, *dest_rel.split("/"))
@@ -1487,7 +1487,7 @@ def test_held_profile_file_is_listed_and_resolvable_and_honors_dry_run(
     (the store-level chokepoint is pinned in ``test_profile_artifact_sync.py``).
     """
 
-    from agent_runtime.profile_artifact_sync import entity_key
+    from agent_runtime.realm_sync.families import entity_key
     from agent_runtime.paths import safe_path_token
     from agent_runtime.profile_context import active_profile_name
 

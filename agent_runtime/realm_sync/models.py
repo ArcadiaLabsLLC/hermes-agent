@@ -173,7 +173,7 @@ class RealmMembershipProvider:
 #: :mod:`agent_runtime.sync_text` on 2026-09-12
 #: (``EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md``
 #: §4.1). This name stays as the alias every call site in this module — and
-#: ``profile_artifact_sync.content_hash`` — already spells, so the lift changed
+#: ``realm_sync.families.content_hash`` — already spells, so the lift changed
 #: no behaviour anywhere. It moved because the SKILL lane needs the same rule for
 #: its package hash and ``skill_promotion`` may not import this module (the pull
 #: pipeline imports the promotion door; the dependency is one-directional).

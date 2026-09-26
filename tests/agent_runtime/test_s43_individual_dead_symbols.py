@@ -133,7 +133,7 @@ KEPT = {
         "REASON_EXTERNAL_DIR_ONLY",
         "REASON_UNKNOWN_ROOT",
     ),
-    "agent_runtime.profile_artifact_sync": (
+    "agent_runtime.realm_sync.families": (
         "KIND_PROFILE_MEMORY",
         "KIND_CORE_CONTEXT",
         "KIND_PERSONA_PROMPT",

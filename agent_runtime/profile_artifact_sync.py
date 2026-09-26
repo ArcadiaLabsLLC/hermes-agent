@@ -78,116 +78,23 @@ Version tolerance is bidirectional and explicit — see
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .realm_sync.families import (
+    CORE_CONTEXT_FILENAMES,
+    KIND_PERSONA_PROMPT,
+    LEGACY_PROFILES_ROOT,
+    MEMORY_DESTINATION,
+    PERSONA_PROMPT_DIR,
+    PROFILE_FILES_ROOT,
+    classify_destination,
+    content_hash,
+    entity_key,
+    split_entity_key,
+)
 from .sync_merge import PullAction, classify_three_way_pull
-
-# --- contract ---------------------------------------------------------------
-
-#: Root of the published profile-file family. Unknown to every older client.
-PROFILE_FILES_ROOT = "store/profile_files"
-
-#: Legacy published root (an older publisher). Read on pull, never written.
-LEGACY_PROFILES_ROOT = "profiles"
-
-KIND_PROFILE_MEMORY = "profile_memory"
-KIND_CORE_CONTEXT = "core_context"
-KIND_PERSONA_PROMPT = "persona_prompt"
-
-MEMORY_DESTINATION = "memories/MEMORY.md"
-CORE_CONTEXT_FILENAMES: tuple[str, ...] = ("AGENTS.md", "CLAUDE.md", "GEMINI.md")
-PERSONA_PROMPT_DIR = "personas"
-
-#: Bound on an untrusted remote destination depth (a realm cannot make a member
-#: materialize an arbitrarily deep tree).
-_MAX_DESTINATION_DEPTH = 8
-
-#: A prompt/overlay destination must be a text document. This — not a directory
-#: prefix — is what keeps the prompt lane from reaching anything dangerous in a
-#: profile home: ``config.yaml``, ``.env``, ``*.db``, ``plugins/**/*.py``,
-#: ``skins/*.yaml`` all fail it. Restricting prompts to ``personas/**`` instead
-#: was WRONG and shipped a silent one-way loss: ``soul_overlay_path`` and
-#: ``system_prompt_path`` are profile-relative to ANYWHERE in the home
-#: (``soul.md`` at the root is a real, supported shape — see
-#: ``realm_sync._profile_relative_file``), so publish emitted ``soul.md`` and
-#: pull refused it as ``destination_not_allowed``. Caught 2026-07-25 by the
-#: rebind-delta suite; ``test_publish_and_pull_agree_on_every_destination`` is
-#: the standing guard that the two sides can never disagree again.
-_PROMPT_SUFFIXES: frozenset[str] = frozenset({".md", ".txt"})
-
-
-def classify_destination(dest_rel: str) -> str | None:
-    """The artifact kind a profile-relative destination denotes, or ``None`` when
-    the destination is not admissible.
-
-    This is the whole safety story for an untrusted remote path: without it a
-    realm could publish ``config.yaml`` or ``.env`` into a member's profile home
-    — the exact clobber class this module retires.
-
-    Member-accumulated state is a CLOSED set of exactly four destinations
-    (``memories/MEMORY.md`` + the three core-context files at the profile root),
-    which is what makes the classification unambiguous without a kind marker in
-    the path. Everything else is a prompt/overlay, admitted only as a text
-    document (:data:`_PROMPT_SUFFIXES`) that is not shadowing a member-state
-    destination and carries no hidden/dot component.
-    """
-
-    text = str(dest_rel or "").replace("\\", "/").strip("/")
-    if not text:
-        return None
-    parts = tuple(text.split("/"))
-    if len(parts) > _MAX_DESTINATION_DEPTH:
-        return None
-    if any(not part or part.startswith(".") for part in parts):
-        return None
-    if text == MEMORY_DESTINATION:
-        return KIND_PROFILE_MEMORY
-    if len(parts) == 1 and parts[0] in CORE_CONTEXT_FILENAMES:
-        return KIND_CORE_CONTEXT
-    # A prompt may not shadow a member-state destination: ``memories/anything``
-    # and a core-context filename at the root belong to the closed set above, and
-    # a prompt-kind write must never be able to reach them.
-    if parts[0] == "memories" or (len(parts) == 1 and parts[0] in CORE_CONTEXT_FILENAMES):
-        return None
-    if Path(parts[-1]).suffix.lower() in _PROMPT_SUFFIXES:
-        return KIND_PERSONA_PROMPT
-    return None
-
-
-def entity_key(profile_token: str, dest_rel: str) -> str:
-    """The merge unit: one DESTINATION on one profile home.
-
-    Keyed on the destination — not on the persona — on purpose. Several personas
-    on one profile publish the SAME ``MEMORY.md``/``AGENTS.md`` file; they must
-    reconcile as one entity, not race each other. And two personas whose prompts
-    would land on one path are then structurally visible as a collision rather
-    than a silent last-write-wins.
-    """
-
-    return f"{profile_token}:{str(dest_rel).replace(chr(92), '/')}"
-
-
-def split_entity_key(key: str) -> tuple[str, str] | None:
-    profile, sep, dest = str(key or "").partition(":")
-    if not sep or not profile or not dest:
-        return None
-    return profile, dest
-
-
-def published_relative_path(profile_token: str, dest_rel: str) -> str:
-    return f"{PROFILE_FILES_ROOT}/{profile_token}/{str(dest_rel).replace(chr(92), '/')}"
-
-
-def content_hash(data: bytes) -> str:
-    """Semantic content hash: EOL-canonical so a member's CRLF file and a
-    publisher's LF artifact converge instead of conflicting forever."""
-
-    from agent_runtime.realm_sync.models import _canonicalize_text_bytes
-
-    return hashlib.sha256(_canonicalize_text_bytes(data)).hexdigest()
 
 
 # --- baseline sidecar (never synced, never published) ------------------------

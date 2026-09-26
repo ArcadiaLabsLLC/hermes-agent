@@ -455,7 +455,7 @@ def _projected_artifact_delta(
     moves exactly one segment and the tail is invariant. The projection stays a
     transform on the measured ``relative_path``s, never a re-derivation of the
     grammar (which would drift from ``realm_sync._persona_artifacts``), and both
-    prefixes come from ``profile_artifact_sync.published_relative_path`` so the
+    prefixes come from ``realm_sync.families.published_relative_path`` so the
     grammar is spelled in ONE place. It used to be hard-coded here as
     ``profiles/<profile>/``; when the layout moved, that produced an empty
     projection — the same silent-blank defect as the selector above, one layer up.
@@ -467,7 +467,7 @@ def _projected_artifact_delta(
     and always reappear.
     """
 
-    from .profile_artifact_sync import published_relative_path
+    from .realm_sync.families import published_relative_path
 
     old_prefix = published_relative_path(paths.safe_path_token(old_profile), "") if old_profile else None
     new_prefix = published_relative_path(paths.safe_path_token(new_profile), "")

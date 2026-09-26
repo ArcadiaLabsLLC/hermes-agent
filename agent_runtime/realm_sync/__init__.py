@@ -20,8 +20,9 @@ models             models  ``RealmSyncError``, ``RealmSyncArtifact``, membership
                            boundary, secret/state path sets, the LF pin
 families           policy  ``SyncFamily`` (the ONE family vocabulary) and
                            ``SYNC_PATH_FAMILIES`` (path -> family, kind,
-                           generic destination, owning applier); profile
-                           homes; secret / hard-excluded predicates
+                           generic destination, owning applier); the
+                           profile-file destination vocabulary; secret /
+                           hard-excluded predicates
 ledgers            policy  the RD-11 ledger unions and the tombstone receipt rows
 git                stores  authorization, the sync repo, ``_git`` (over
                            ``agent_runtime.git_cmd.run_git``), redaction

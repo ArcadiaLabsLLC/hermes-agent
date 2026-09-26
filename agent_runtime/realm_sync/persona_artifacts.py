@@ -62,7 +62,7 @@ def _published_profile_file_hashes(artifacts: list[RealmSyncArtifact]) -> dict[s
     Feeds the publish-side baseline update so a member who publishes then pulls
     sees local == baseline (no self-inflicted hold)."""
 
-    from ..profile_artifact_sync import (
+    from .families import (
         PROFILE_FILES_ROOT,
         classify_destination,
         content_hash,
@@ -96,7 +96,7 @@ def _profile_files_row(
     repository-bundled prompts, which already ship with every member's hermes.
     """
 
-    from ..profile_artifact_sync import PROFILE_FILES_ROOT
+    from .families import PROFILE_FILES_ROOT
 
     prefix = f"{PROFILE_FILES_ROOT}/"
     published = sorted(
@@ -138,7 +138,7 @@ def _persona_artifacts(persona: AgentPersona) -> tuple[list[RealmSyncArtifact], 
     profile home that no persona definition addresses.
     """
 
-    from ..profile_artifact_sync import (
+    from .families import (
         CORE_CONTEXT_FILENAMES,
         MEMORY_DESTINATION,
         classify_destination,
