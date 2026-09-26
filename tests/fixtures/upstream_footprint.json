@@ -300,6 +300,12 @@
       "files": "177 -> 172: .github/workflows/tests.yml, tests-os.yml, js-tests.yml, nix.yml, rust-tests.yml byte-identical to 067fa1a257 again",
       "deleted_lines": "923 -> 915 (tests 3, tests-os 2, js-tests 1, nix 1, rust-tests 1); heavy unchanged at 4",
       "reason": "the owner disabled upstream's ci.yaml, nix.yml and docker.yml in the fork's Actions on 2026-09-26, so nothing on the fork runs the five runner files and their fork-only conditionals retire; fork-gates.yml gains a history-gates job for the two history-reading tests that ran inside tests.yml; contributor-check stays a PR candidate"
+    },
+    {
+      "change": "lane AUTH-MOVE (lane/auth-move): auth sheet L1, hunks H1 H2 H5 H7 H8 H10",
+      "files": "177 unchanged: every source file keeps a fork hunk (auth.py the HOME hook; auth_codex/auth_codex_browser/auth_minimax/auth_xai the PR-1 on_verification kwargs; auth_nous the G6 row; provider_catalog the launcher roster)",
+      "deleted_lines": "923 unchanged; only ADDED lines fall: auth.py 18 -> 13, auth_codex.py 11 -> 3, auth_minimax.py 14 -> 7, auth_nous.py 22 -> 2, auth_xai.py 13 -> 6, provider_catalog.py 199 -> 196; heavy unchanged at 4",
+      "reason": "the four login_* callers, persist_provider_login and the browser_login* catalog keys moved into the fork-only hermes_cli/provider_browser_login.py and harness_parts/provider_visibility.py; the ratchet counts files and deletions, and neither moves until PR-1 (up/auth-on-verification) merges. docs/agent-runtime-harness/planned/auth-transport-plugin-2026-09-26.md section 3"
     }
   ]
 }
