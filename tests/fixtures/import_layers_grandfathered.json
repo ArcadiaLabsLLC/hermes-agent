@@ -70,7 +70,6 @@
  ],
  "undeclared": [
   "agent_runtime/board_sync.py",
-  "agent_runtime/chat_lane_bundle.py",
   "agent_runtime/mission_chat_steer.py",
   "agent_runtime/mission_chat_turn_context.py",
   "agent_runtime/mission_chat_workdir.py",

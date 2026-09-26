@@ -159,6 +159,8 @@ from .tool_permissions import (
 if TYPE_CHECKING:
     from .tool_visibility import ToolVisibilityOptions
 
+__layer__ = "stores"
+
 logger = logging.getLogger(__name__)
 
 #: Bumped by hand when the COMPOSITION changes shape (a field added, a component
