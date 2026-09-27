@@ -263,3 +263,61 @@ Verdicts over 169 rows: **DROP 19 · PLUGIN 8 · KEEP-PR 58 · KEEP-HELD 71 (29 
 - Held branches carry each class's fork tests where one exists upstream-shaped (`test_path_identity.py`, `test_update_history.py`, `test_bytecode_sweep*.py`, `test_config_readonly_no_scaffold.py`); `feat/kanban-crash-evidence` carries a 485-line module with no test in either tree — its body says so.
 - Every branch's test line was taken on this box (Windows 10 19045); where a class reddened, the SAME targets were run on a pristine `upstream/main` worktree and the failure sets diffed — the §2 column records "introduced: N", and N is 0 for every branch.
 - The eight `up/*` fix PRs #121640–#121646 are open upstream and absent from `Harness_Brain/10 — Programs/Upstream Sync.md` § Open upstream PRs (queue row filed by the parent).
+
+## 6. Drop re-triage 2026-09-27 (upstream/main ad4e4496c2)
+
+Lane DROP-RETRIAGE, docs only. Question: since the held branches were cut from `upstream/main` **77a799e2f9c**,
+upstream reached **ad4e4496c2** (800 commits). Of the fork's footprint (`scripts/upstream_footprint.py --json` at
+fork `main` **1504b30f91**: 152 rows), `git diff --name-only 77a799e2f9c ad4e4496c2 -- <paths>` names **33** files.
+Per file: the upstream commits in range and their diff; the fork's own delta (`git diff 067fa1a257 origin/main`)
+replayed with `git apply --cached --check` onto a `read-tree ad4e4496c2` index; and every held branch / open PR that
+§1 names for the path, merged with `git merge-tree --write-tree ad4e4496c2 <ref>` (PR heads fetched from
+`pull/<n>/head`; #125259–#125266 are the held branches of §2, opened since, byte-identical tips). A CONFLICTS
+verdict is a conflict NEW in the range — each was re-run against 77a799e2f9c and was clean there. The pin is the
+brief's; `upstream/main` had moved 21 commits further (758ad514eb) at sitting time and those are not triaged here.
+
+Vocabulary. **DROP-NOW** — upstream now carries the fork's lines (commit named). **SUPERSEDES** — one of our open
+PRs / held branches is now redundant. **CONFLICTS** — our branch needs a rebase against this change (hunk named).
+**KEEP** — upstream's change is unrelated; the fork lines are still needed.
+
+| path | §1 verdict | upstream commits (n) | new verdict | why |
+|---|---|---|---|---|
+| `agent/agent_init.py` | PLUGIN (PF-1) | 1 | KEEP | 516535b542 names an exhausted (402) pool in `_routed_client_kwargs`; the init receipts and the `local-llama-hermes` floor exemption are elsewhere and apply clean |
+| `agent/conversation_compression.py` | KEEP-ISSUE `configurable-context-floor` | 8 | KEEP | f807217ff1…e81be5b66a are compression-child prompt adoption and seeded-prompt retention; the aux-floor exemption and `child_model_config` hunks are untouched and apply clean |
+| `agent/conversation_loop.py` | KEEP-PR #124210 | 2 | KEEP | a4db03cee9 (empty live Model/Provider is a stale route) and f762b96bfd (one return shape); `reuse_current_user_message` and the timing marks not carried; #124210 merges clean |
+| `agent/prompt_builder.py` | PLUGIN (PF-2) | 3 | KEEP | c1685027af names the Skill Safety heading, d9ef15dd3c/0d9329bd95 add `ASYNC_HANDOFF_GUIDANCE`; upstream still loads ONE context file (first found wins) and has no runtime-compat skill filter; #124191 merges clean |
+| `agent/system_prompt.py` | KEEP-HELD `feat/plugin-session-info-tool-names` | 1 | KEEP | 96a8cecd39 appends the async-handoff guidance keyed on `valid_tool_names`; `session_info["tool_names"]` still absent; branch merges clean |
+| `agent/turn_context.py` | KEEP-PR #124210 | 1 | KEEP | b90b7ae7ed titles subagent sessions without a model call; unrelated to the reuse hunks; #124210 merges clean |
+| `apps/shared/src/gateway-contract.generated.ts` | — (joined the footprint after §1) | 4 | KEEP | upstream regenerated for `FailedDelegation` / `continuation_kind` / `hermes_not_connected`; the fork's `reject_if_busy` on `PromptSubmitParams` is untouched and applies clean — regenerate at the merge |
+| `apps/shared/src/gateway-contract.openrpc.json` | — (joined the footprint after §1) | 4 | KEEP | same four commits (0f15d80a02, 42d70d29ac, da4a1ffd08, a30bd337e5); the `reject_if_busy` property applies clean |
+| `gateway/run.py` | KEEP-PR #121646 | 7 | KEEP | 24758cf4b8…d915436657 unbound the turn executor, 556b8427b7 retains the hygiene seeded prompt; the approvals heads-up and `restore_durable_completions` hunks apply clean; #121646's only conflict is `cli.py`, pre-existing at 77a |
+| `gateway/run_notifications.py` | KEEP-HELD `fix/watcher-reply-to` (now PR #125266) | 1 | CONFLICTS #125266 (`fix/watcher-reply-to`) | semantic, not textual (merges clean): 10938a7cf9 (#52694) rules the watch-arming `message_id` a STALE reply anchor and strips it from the synthetic completion event; #125266 adds exactly that anchor (`reply_to=watcher.get("message_id")`) on `_send_watcher_message` — reconcile against upstream's stated direction, or close, before review |
+| `hermes_cli/auth.py` | KEEP-PR #124190 | 2 | KEEP | b085de8e3c/c1edc9f1b5 stop routing a real OpenAI key to OpenRouter; `_auth_file_path` untouched; #124190 merges clean |
+| `hermes_cli/doctor_platform.py` | KEEP-HELD `fix/doctor-call-time-home` (now PR #125260) | 1 | KEEP | 3ddf06867f adds the Windows autostart doctor check; the module-constant `HERMES_HOME` import is unchanged; branch merges clean |
+| `hermes_cli/gateway.py` | KEEP-PR #119069 | 2 | KEEP | 029445545c/5a0225dfff make the restart watcher stdlib-only; the `pwd`/`getuid` guards and the `resolve_managed_python` parallel are untouched; #119069 merges clean |
+| `hermes_cli/gateway_windows.py` | KEEP-HELD `fix/win-gateway-task-console` | 3 | KEEP | 33f45ca30b/a1d2a5bd57 reconcile Startup-folder entries, 46fba4c9a4 scopes the readiness poll to this install; upstream still never inspects the REGISTERED task's action, so the console-task warning is not carried; this file merges clean (the branch's conflict is `update_cmd_windows.py`) |
+| `hermes_cli/main.py` | KEEP-HELD `refactor/profile-bootstrap-extraction` | 2 | CONFLICTS `refactor/profile-bootstrap-extraction` | 8684bf3ddc adds the `_explicit_cli_profile` global + `explicit_cli_profile()` and edits `_apply_profile_override` inside the block the branch moves to `_profile_bootstrap.py` (merge-tree conflict over main.py:464–677); the rebase must carry the global into the extracted module. The fork's own main.py delta no longer applies either. `feat/plugin-cli-commands` merges clean |
+| `hermes_cli/mcp_config.py` | KEEP-HELD `feat/mcp-test-env` | 1 | KEEP | b148d97602 changes two hint strings to name `/reload-mcp`; branch merges clean |
+| `hermes_cli/uninstall.py` | KEEP-PR #121640 | 6 | CONFLICTS #121640 | 0fec10a3ce…c437bab069 insert the desktop-userData lines at both print sites where #121640 adds its git-history line (`run_uninstall` summary and `_print_uninstall_dry_run`); textual — upstream still names no git history, so the content stays. The fork's own hunk conflicts at the same sites |
+| `hermes_cli/update_cmd.py` | KEEP-HELD `fix/updater-fork-history` (now PR #125265) | 5 | KEEP | ff46826872 parks a detached HEAD behind a rescue ref — a different hazard from the fork-history guard; the rest are channel retries, PM git and Desktop rebuild; branch merges clean |
+| `hermes_cli/update_cmd_git.py` | KEEP-ISSUE `updater-fork-sync-no-force` | 1 | KEEP | ff46826872 adds `_park_detached_head`; `_sync_fork_with_upstream` still pushes `--force-with-lease`, so the issue's question stands |
+| `hermes_cli/update_cmd_windows.py` | KEEP-HELD `fix/win-gateway-task-console` | 4 | CONFLICTS `fix/win-gateway-task-console` | 3ddf06867f inserts `reconcile_autostart_launchers()` directly after "Refreshed Windows gateway launcher scripts" in `_refresh_windows_gateway_launchers` — the line the branch's `_warn_legacy_console_gateway_task()` call follows; the fork's `ManagedPythonUnavailable` carry hunk conflicts at the same site |
+| `hermes_state_messages.py` | KEEP-HELD `fix/state-db-small-fixes` | 2 | KEEP | 3d7058fc83 re-folds display orders, e0bc2c1ce9 adds `get_latest_todo_result`; `finish_reason` is still assistant-only; branch merges clean |
+| `hermes_state_sessions.py` | KEEP-HELD `fix/state-db-small-fixes` | 9 | KEEP | `created_source`, `show_subagents`, route writers stop nulling the prompt; the list `ORDER BY started_at DESC` still has no `id` tie-break; branch merges clean |
+| `scripts/run_tests.sh` | KEEP-HELD `fix/test-runner` (now PR #125263) | 2 | KEEP | 22fe26db2a/16da7f1b38 forward the Windows e2e knobs; branch merges clean |
+| `tests/hermes_cli/test_backup.py` | KEEP-PR #121224 | 5 | KEEP | a71ff10071…6125c0c707 append failed-zip-member tests; the fork's Windows-spelling hunks apply clean; #121224's conflicts are in other files and predate 77a |
+| `tests/hermes_cli/test_linux_desktop_entry.py` | KEEP-HELD `test/platform-markers-linux` | 1 | CONFLICTS `test/platform-markers-linux` | a6686cc396 appends four install tests after :641 where the branch adds markers; rebase, and decide markers for the four new unmarked tests (they drive the same `install_desktop_entry`) |
+| `tools/async_delegation.py` | KEEP-PR #124190 | 1 | KEEP | a30bd337e5's `failed_delegations_for_session` reads through `_db_path()`, so the background-work home still governs it; #124190 merges clean |
+| `tools/credential_files.py` | KEEP-PR #121643 | 1 | KEEP | a164569429 adds the `composer-pastes` cache dir; the `as_posix()` hunk is untouched |
+| `tools/file_tools.py` | KEEP-PR #121645 | 2 | CONFLICTS #121645 | b9d5e4d17f/0a99750128 add `_resolve_entry_for_task` to the `tools.file_tools_paths` import line (file_tools.py:31) that the PR edits to add `_posix_match_forms`; a second rebase point beside the known `file_tools_write_guards.py` one |
+| `tools/mcp_tool_transport.py` | KEEP-PR #124210 (CONFLICTS on 77a) | 1 | KEEP | 0cd93f0268 attaches a Windows kill-on-close job before the stdio spawn; unrelated. §1's conflict is RETIRED: #124210 (re-cut, merge-base f077152871) merges clean on ad4e4496c2. The fork's own hunk still does not apply, as at 77a |
+| `tools/process_registry.py` | KEEP-PR #124190 | 3 | KEEP | 8cb4fdc925 heartbeats only on new output, 7550800d8b/627bf49baa recovered-PID fate; `checkpoint_path` and the mixin hunks apply clean; #124190 and `fix/win-runtime-fixes` merge clean |
+| `tools/process_registry_notifications.py` | KEEP-HELD `fix/process-notification-redaction` | 1 | KEEP | 8cb4fdc925 adds the hidden heartbeat display; upstream still interpolates raw command/output, so redaction is still needed; branch merges clean |
+| `tools/terminal_tool.py` | KEEP-PR #123977 | 5 | KEEP | b9d5e4d17f…b686f1b40b docker mounted-cwd remap, 4317ed0e71/e6f0966b01 heartbeat schema; #123977 merges clean |
+| `tui_gateway/server.py` | KEEP-HELD `test/test-hygiene` | 5 | KEEP | answer-only chrome gate and prefill; the docstring still names the deleted test and the branch merges clean. The fork's `skill_view` hunk no longer applies: c0f1ed114c/f41c6517ea turned the tuple into `_TOOL_LIFECYCLE_UI_TOOLS` — re-author as a set member at the merge |
+
+Counts over the 33 upstream-touched footprint files: **DROP-NOW 0 · SUPERSEDES 0 · CONFLICTS 6 · KEEP 27.**
+- No upstream commit in the range carries a fork line: nothing becomes droppable and no open PR or held branch is redundant.
+- CONFLICTS: 4 held branches (`fix/watcher-reply-to` #125266 semantic; `refactor/profile-bootstrap-extraction`, `fix/win-gateway-task-console`, `test/platform-markers-linux` textual) and 2 PRs (#121640, #121645) — each clean against 77a799e2f9c.
+- Retired: §1's #124210 conflict on `tools/mcp_tool_transport.py` (the re-cut PR merges clean).
+- The fork's own delta no longer applies on 6 files (`hermes_cli/main.py`, `hermes_cli/uninstall.py`, `hermes_cli/update_cmd_windows.py`, `tests/hermes_cli/test_linux_desktop_entry.py`, `tools/mcp_tool_transport.py` as at 77a, `tui_gateway/server.py`) — merge-time work, not a verdict change.
