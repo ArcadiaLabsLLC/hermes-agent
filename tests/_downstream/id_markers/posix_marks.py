@@ -1,4 +1,7 @@
-"""Rows (win32 only) whose PREMISE is POSIX -- retired by upstream ``linux_only`` marks.
+"""Rows whose PREMISE is POSIX -- retired by upstream ``linux_only`` marks.
+
+The unconditional block is the fork's own ``platforms("linux")`` marks (they gate
+themselves on every host); every other row is win32 only.
 
 ``_posix_only`` skips and ``_posix_xfail`` strict xfails, the WSL-premise skips, the
 tirith no-build skips, the TCC POSIX-venv rows, and ``IMPORT_TIME_POSIX_SHIMS``. Every
@@ -25,7 +28,56 @@ from tests._downstream.id_markers.reasons import (
 
 __layer__ = "models"
 
+_LINUX_ONLY = pytest.mark.platforms("linux")
+
 ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
+    # Lane FOOTPRINT-DROP (2026-09-27): the fork's own `platforms("linux")` marks, moved
+    # out of upstream's files by test id. On every host: the mark gates itself. Retires
+    # with an upstream linux-only marks PR (each test pins a Linux-only behaviour).
+    **{
+        f"{path}::{test}": (_LINUX_ONLY,)
+        for path, tests in (
+            ("tests/hermes_cli/test_gateway_migrate_multiplex.py", (
+                "test_unresolvable_system_unit_user_is_unknown_principal_not_directory_owner",
+                "test_known_bringup_refusal_is_rejected_before_any_secondary_is_touched",
+                "test_unknown_default_system_principal_blocks_the_update_hook",
+            )),
+            ("tests/hermes_cli/test_kanban_worktree_teardown.py", (
+                "test_cleanup_proceeds_when_cwd_was_deleted",
+            )),
+            ("tests/hermes_cli/test_linux_desktop_entry.py", (
+                "test_install_writes_entry_with_absolute_exec_and_icon",
+                "test_install_prefers_themed_icon_from_hicolor",
+                "test_install_icon_copy_failure_falls_back_to_absolute",
+                "test_installed_entry_is_executable",
+                "test_exec_falls_back_to_interpreter_module",
+                "test_exec_prefixes_interpreter_for_env_shebang_python_script",
+                "test_exec_leaves_shell_wrapper_launchers_alone",
+                "test_exec_leaves_venv_shebang_scripts_alone",
+                "test_exec_converges_from_repo_script_argv0_to_installed_wrapper",
+                "test_exec_never_persists_a_bare_interpreter_command",
+                "test_exec_keeps_resolver_fallback_when_no_wrapper_on_path",
+                "test_exec_uses_known_wrapper_when_path_lookup_misses",
+                "test_exec_never_persists_a_checkout_internal_path_hit",
+                "test_exec_finds_known_wrapper_when_resolver_has_no_candidate",
+                "test_exec_rejects_known_wrapper_from_another_checkout",
+                "test_known_wrapper_candidates_cover_installer_layouts",
+                "test_install_is_idempotent_and_skips_cache_refresh",
+                "test_install_without_source_icon_uses_themed_name",
+                "test_exec_falls_back_to_running_interpreter_when_probe_fails",
+                "test_probe_accepts_shell_launcher_wrapper",
+            )),
+            ("tests/hermes_cli/test_node_runtime_npm_resolution.py", (
+                "test_resolve_node_runtime_npm_rescans_past_windows_drive_to_native_mount",
+            )),
+            ("tests/hermes_cli/test_orphan_desktop_serve_reap.py", (
+                "test_reap_only_kills_ppid1_local_serves",
+                "test_reap_spare_lock_owned_ssh_remote_backend_of_foreign_client",
+                "test_reap_age_boundary_makes_180_second_orphan_eligible",
+            )),
+        )
+        for test in tests
+    },
 }
 
 if _WIN:
