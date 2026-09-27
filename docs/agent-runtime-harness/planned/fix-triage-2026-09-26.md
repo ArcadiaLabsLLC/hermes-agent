@@ -321,3 +321,49 @@ Counts over the 33 upstream-touched footprint files: **DROP-NOW 0 · SUPERSEDES 
 - CONFLICTS: 4 held branches (`fix/watcher-reply-to` #125266 semantic; `refactor/profile-bootstrap-extraction`, `fix/win-gateway-task-console`, `test/platform-markers-linux` textual) and 2 PRs (#121640, #121645) — each clean against 77a799e2f9c.
 - Retired: §1's #124210 conflict on `tools/mcp_tool_transport.py` (the re-cut PR merges clean).
 - The fork's own delta no longer applies on 6 files (`hermes_cli/main.py`, `hermes_cli/uninstall.py`, `hermes_cli/update_cmd_windows.py`, `tests/hermes_cli/test_linux_desktop_entry.py`, `tools/mcp_tool_transport.py` as at 77a, `tui_gateway/server.py`) — merge-time work, not a verdict change.
+
+## 7. Open-PR staleness 2026-09-27 (upstream/main 062dc1e7f0)
+
+Lane PR-STALE, docs only. Question: has upstream made any of our 15 open upstream PRs stale? Per PR: merge-base
+with `upstream/main` **062dc1e7f0**; the PR's files (`git diff --name-only <mb> origin/<branch>`); the upstream
+commits on them (`git log <mb>..upstream/main -- <files>`, union count below) and their diffs at the PR's hunks
+(`git log -L`); `git merge-tree --write-tree upstream/main origin/<branch>`; and each file's PR diff checked with
+`git apply --cached --check` (and `-R`) against a `read-tree upstream/main` index. For the Windows test PRs each
+touched test was also read on `upstream/main` for a `platforms(...)` gate. Nothing was published.
+
+Vocabulary as brief. **FRESH** — no upstream change on the PR's lines, or unrelated. **REBASE** — textual conflict
+only. **OVERTAKEN** — upstream fixed the same thing; close. **REVERSED** — upstream ruled the opposite way; owner
+call. **PARTIAL** — some hunks are upstream; survivors named. One pattern dominates: upstream **bd258480d3**
+("make the test suite pass on Windows", 2026-08-27; its `linux_only` marks renamed to `platforms("linux")` by
+9b8ad35ee6) fixed some of the same tests and GATED others as Linux-only instead of fixing them. A gated test is
+not a fixed one: our hunk would make it run on Windows, so un-gating it is an owner call (listed as "gated"
+below), never a silent re-open.
+
+| PR | branch | files | upstream commits on them | merge | verdict | why |
+|---|---|---|---|---|---|---|
+| #121646 | `up/tirith-env-overrides` | 8 | 96 | CONFLICT `cli.py` | REBASE | df1b647b42 rewrote the `_ensure_tirith_security` warning block (`missing_is_expected()`) the PR's `tirith_enabled(self.config)` hunk sits in; upstream still has no shared reader, `approval_context._tirith_fail_open` still ignores `TIRITH_*`, and quoted config flags still parse raw — the fix stands |
+| #121645 | `up/win-posix-guard-forms` | 4 | 15 | CONFLICT `tools/file_tools.py`, `tools/file_tools_write_guards.py` | REBASE | 0a99750128 (file_tools.py import line :31) and 641c49f841 (write_guards import line) moved the lines the PR edits; `_is_blocked_device_path` and `_check_sensitive_path` still compare only the `os.path.normpath` form, so the POSIX-form guard is still needed |
+| #121644 | `up/win-python-snippet-verbatim` | 2 | 25 | clean | OVERTAKEN | bd258480d3 added `_exec_python_snippet` (base64 through every quoting layer) and moved both `_run_python_snippet` callers — the UTF-16 reader included — onto it; `_run_python_snippet`, which the PR patches, has no caller on `upstream/main` |
+| #121643 | `up/win-remote-posix-paths` | 7 | 30 | CONFLICT `tests/tools/test_credential_files.py`, `tools/environments/daytona.py` | PARTIAL | upstream: `iter_skills_files` `.as_posix()` (92686159d1), Daytona parent via `PurePosixPath` (bd258480d3). Survive: `iter_cache_files` as_posix, Modal + SSH `posixpath.dirname`, `OptionalSkillSource` bundle keys, both tests |
+| #121642 | `up/nous-login-inference-url` | 4 | 46 | clean | FRESH | `_nous_device_code_login` still persists `token_data["inference_base_url"]` unvalidated (auth_nous.py:1401) and no store-load heal exists; the upstream commits on these files are unrelated |
+| #121641 | `up/win-drive-image-paths` | 2 | 14 | CONFLICT `agent/image_routing.py` | OVERTAKEN | bd258480d3 carries the same `_LOCAL_IMAGE_PATH_RE` (`~/`, `/`, `[A-Za-z]:[\\/]`, either separator) plus a `normpath`; only our extra pattern test is not upstream |
+| #121640 | `up/doc-accuracy` | 5 | 22 | CONFLICT `hermes_cli/uninstall.py` | REBASE | as §6: 0fec10a3ce…c437bab069 (desktop userData lines) at both print sites; the `test_puid_pgid_remap.py` cite (service_manager.py:310) and the "pre-push stale-base gate" docstring (worktree_ops.py:216) are still wrong upstream |
+| #121226 | `up/win-shell-invocation` | 10 | 14 | CONFLICT `tests/tools/test_file_tools_live.py`, `tests/tools/test_local_env_relative_cwd.py` | PARTIAL | none fixed upstream. Survive (untouched, ungated): `test_completion`, `test_setup_hermes_script`, `test_execution_flag_detection`, `test_file_tools_live` (conflict = upstream blank-line removal). Gated `platforms("linux")` by bd258480d3: `test_skill_commands`, `test_prompt_compose_command`, `test_approved_command_clean_slate`, `test_local_background_child_hang`, `test_local_env_relative_cwd`, `test_terminal_output_transform_hook` |
+| #121225 | `up/win-posix-only-apis` | 4 | 60 | CONFLICT `tests/hermes_cli/test_doctor_journal_modes.py` | PARTIAL | upstream: the `os.geteuid` collection-time guard (`hasattr(os, "geteuid")`, bd258480d3); the missing-file strerror test gated Linux-only. Survive: `test_auth_nous_provider` mode spy, `test_backup` chmod spy, `test_process_registry` getpgid + taskkill seam |
+| #121224 | `up/win-path-spelling` | 13 | 53 | CONFLICT in 7 test files | PARTIAL | upstream fixed the same asserts in 7 (bd258480d3; 427d4936c2 for subprocess-home): `test_file_safety_sandbox_mirror`, `test_save_url_image`, `test_media_resend_dedup`, `test_post_stream_media_delivery`, `test_projects_db`, `test_checkpoint_manager`, `test_subprocess_home_isolation`. Gated: `test_file_tools_tilde_profile`, `test_local_env_cwd_recovery`. Survive: `test_runtime_footer`, `test_backup` (kanban `endswith`), `test_deleted_profile_tombstone` (`re.escape`), `test_computer_use` (`json.dumps`) |
+| #121222 | `up/win-tilde-home` | 5 | 9 | CONFLICT `tests/agent/lsp/test_workspace.py`, `tests/agent/test_image_routing.py`, `tests/gateway/test_media_spaced_paths_and_history_dedupe.py` | PARTIAL | upstream: `USERPROFILE` in `test_image_routing` and `test_media_spaced_paths_and_history_dedupe` (bd258480d3). Gated: `lsp/test_workspace` (3d12e86ef1 also added a win32 branch, then gated it), `test_shell_hooks_consent`. Survive: `test_runtime_footer` only |
+| #121221 | `up/win-line-endings` | 5 | 24 | CONFLICT in all 5 files | OVERTAKEN | `test_debug`, `test_tui_resume_flow`, `test_skills_hub` (bd258480d3), `test_diff_command` (3c08d16ba7) take the same byte-exact writes / CRLF-tolerant assert; `test_working_diff` has `core.autocrlf false` (92686159d1) — our remaining `write_bytes` there is redundant under it |
+| #121218 | `up/import-guard-relative-imports` | 1 | 3 | CONFLICT `tests/hermes_cli/test_early_recovery.py` | OVERTAKEN | 8b7eae99ef deleted `test_early_recovery_module_is_stdlib_only`, the guard the PR edits; the file now proves stdlib-only startup with a `python -S` run instead |
+| #124210 | `up/persisted-row-hooks` | 12 | 4 | clean | FRESH | a4db03cee9/f762b96bfd (conversation_loop), b90b7ae7ed (turn_context), 0cd93f0268 (mcp_tool_transport) are unrelated; no `transform_persisted_row` / `transform_mcp_*` / `reuse_current_user_message` upstream |
+| #123978 | `widen/per-call-usage-record` | 9 | 10 | clean | FRESH | `post_api_request` still carries no per-call `cost` and nothing keeps `api_call_records`; the turn_finalizer / conversation_loop / test_run_agent commits are interrupt, compaction and todo work |
+
+Counts over the 15 PRs: **FRESH 3 · REBASE 3 · OVERTAKEN 4 · REVERSED 0 · PARTIAL 5.**
+- FRESH: #121642, #124210, #123978. REBASE: #121646, #121645, #121640.
+- OVERTAKEN (close, citing the commit): #121644 and #121641 (bd258480d3), #121221 (bd258480d3 / 3c08d16ba7 / 92686159d1), #121218 (8b7eae99ef).
+- PARTIAL (rebase down to the survivors named above): #121643, #121226, #121225, #121224, #121222.
+- No REVERSED verdict; the nearest is the gated tests: upstream chose Linux-only gating where we fixed.
+
+To close: **#121644, #121641, #121221, #121218.** For the owner: (1) the PARTIAL PRs' gated tests — 6 files in #121226,
+2 in #121224, 2 in #121222 — cut them (accept upstream's Linux-only gate) or keep them and remove the gate in the
+same PR (more Windows coverage, a harder review); (2) #121222 and #121224 now both reduce to hunks in
+`tests/gateway/test_runtime_footer.py`, so one PR can carry both.
