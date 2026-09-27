@@ -27,12 +27,8 @@ from agent_runtime.terminal_envelope import (
     TerminalEnvelopeScope,
     terminal_envelope_scope,
 )
-from tools.process_registry import (
-    MISSION_CHAT_WAIT_MAX_SECONDS,
-    ProcessRegistry,
-    ProcessSession,
-    wait_ceiling_seconds,
-)
+from agent_runtime.process_notifications import MISSION_CHAT_WAIT_MAX_SECONDS, wait_ceiling_seconds
+from tools.process_registry import ProcessRegistry, ProcessSession
 
 
 def _exited_session(registry: ProcessRegistry, sid: str = "proc_clamp") -> str:

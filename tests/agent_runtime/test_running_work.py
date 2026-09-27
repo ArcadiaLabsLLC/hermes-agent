@@ -278,9 +278,8 @@ def test_a_recorded_head_survives_a_persona_profile_flip(tmp_path, monkeypatch):
 # ambient state — whether `state.db` exists — was CREATED by this projection's
 # own lazy `from . import mission_chat_turns`, which reaches
 # `tools.process_registry`'s module-scope singleton — whose constructor, at the
-# time, ran `async_delegation.restore_undelivered_completions()` (constructor
-# I/O retired; restore now runs only via restore_durable_completions() at
-# drain-owning entry points). The chat-turn lane runs AFTER the delegation
+# time, ran `async_delegation.restore_undelivered_completions()` (it still does
+# since 2026-09-27; the projection no longer imports that chain). The chat-turn lane runs AFTER the delegation
 # lane, so the first build in a process said "; no state.db" and every later
 # build did not, for identical work. Under pytest, which answer you got
 # depended on whether some other test module had already dragged that chain in.
@@ -937,7 +936,7 @@ def test_a_read_only_question_does_not_run_delegation_recovery(tmp_path):
     delivery_state='pending'`` — which re-queues an "outcome unknown" delivery
     into the owning chat. That is a mutation only a process that OWNS a
     completion drain may perform (gateway, interactive CLI, TUI, harness
-    serve — via ``process_registry.restore_durable_completions()``). A
+    serve — upstream's ``ProcessRegistry`` constructor restores). A
     read-only verb reaching it was the projection-with-teeth half of the
     eager-tool-discovery audit.
 

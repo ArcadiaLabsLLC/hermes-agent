@@ -137,16 +137,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/tools/test_vision_tools.py::TestVisionCpuBurstCap",
         )
     },
-    # Fork behaviour replaces upstream's; the fork assertion is the _downstream sibling.
-    "tests/tools/test_async_delegation.py::"
-    "test_real_process_restart_restores_owned_completion_once": (
-        pytest.mark.xfail(strict=True, reason=(
-            "the fork's tools.process_registry.ProcessRegistry."
-            "restore_durable_completions is an explicit startup step, not an "
-            "import side effect; fork half: "
-            "tests/tools/test_async_delegation_downstream.py"
-        )),
-    ),
     "tests/gateway/test_api_server_active_work_drain.py::TestShutdownSettleWindow::"
     "test_api_work_still_live_at_settle_exit_is_reinterrupted": (_SCOPED_UNDO,),
     "tests/gateway/test_mirror.py::TestSessionsIndexProfileScoping::"

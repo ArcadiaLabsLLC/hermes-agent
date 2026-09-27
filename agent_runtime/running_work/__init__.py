@@ -153,10 +153,9 @@ writer could be waiting on. That invariant used to hold only for the stores
 this file reads DIRECTLY: ``_collect_chat_turns``'s import chain reached a
 tool singleton whose CONSTRUCTOR ran delegation recovery — creating
 ``state.db`` and reclassifying owner-dead delegations as an import side
-effect. That constructor I/O is retired: the restore now runs only through
-``process_registry.restore_durable_completions()``, called explicitly by the
-entry points that own a completion drain, so the invariant holds for the
-whole build in a cold process. It is pinned behaviourally (fresh-interpreter
+effect. The build no longer imports that chain at all (upstream's constructor
+restore is back since 2026-09-27, lane CARRY-DELETE), so the invariant holds
+for the whole build in a cold process. It is pinned behaviourally (fresh-interpreter
 subprocess: no ``state.db`` appears, and a seeded ownerless ``running``
 delegation is not reclassified) in ``tests/agent_runtime/test_running_work.py``.
 ``model_tools``' module-scope ``discover_builtin_tools()`` call itself remains

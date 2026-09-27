@@ -607,14 +607,8 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         try:
             from agent_runtime.dispatch_delivery import start_delivery_drain
 
-            # Rehydrate durable delegation completions BEFORE the drain that
-            # will deliver them starts — explicit at serve boot, never as an
-            # import side effect (same #16856 class as module-scope MCP
-            # discovery; see
-            # docs/agent-runtime-harness/archive/2026-08-22-pre-consolidation/eager-tool-discovery-audit-2026-08-09.md).
-            from tools.process_registry import process_registry
-
-            process_registry.restore_durable_completions()
+            # Durable delegation completions are restored by upstream's
+            # ProcessRegistry constructor, at the singleton's first import.
             start_delivery_drain(stop_event=self.liveness_stop)
         except Exception:
             # Function-local: parts files are exec'd into harness.py's globals,

@@ -231,22 +231,6 @@ def time_provider_dispatch(**kwargs):
     return _time(**kwargs)
 
 
-_cli_completions_restored = False
-
-
-def restore_cli_durable_completions(platform=None, **_kwargs) -> None:
-    """``on_session_start`` hook: the interactive CLI owns a completion drain, so its first
-    session restores the durable delegation completions — once per process, CLI only (the
-    gateway, TUI gateway and harness serve restore at their own startup)."""
-    global _cli_completions_restored
-    if platform != "cli" or _cli_completions_restored:
-        return
-    _cli_completions_restored = True
-    from tools.process_registry import process_registry
-
-    process_registry.restore_durable_completions()
-
-
 def skill_view_result(**kwargs):
     """``transform_tool_result`` hook: the runtime-compat refusal and the three stamps on ``skill_view``."""
     from agent_runtime.skill_view_result import transform_skill_view_result
@@ -305,7 +289,6 @@ def register(ctx) -> None:
     ctx.register_middleware("llm_request", brief_tool_descriptions)
     ctx.register_middleware("tool_request", default_background_notify)
     ctx.register_middleware("llm_execution", time_provider_dispatch)
-    ctx.register_hook("on_session_start", restore_cli_durable_completions)
     ctx.register_hook("pre_tool_call", refuse_blocked_tool)
     ctx.register_hook("post_api_request", record_usage_ledger_row)
     # The on_stream_* receipt observers register only while a persona turn runs: any

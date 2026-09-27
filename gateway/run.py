@@ -5938,12 +5938,6 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
         logger.debug("MCP tool discovery failed: %s", e)
 
     try:
-        from tools.process_registry import process_registry as _pr_restore
-        await asyncio.get_running_loop().run_in_executor(None, _pr_restore.restore_durable_completions)
-    except Exception as exc:
-        logger.debug("Delegation completion restore failed: %s", exc)
-
-    try:
         success = await runner.start()
     except BaseException:
         _shutdown_gateway_health_export(runner)

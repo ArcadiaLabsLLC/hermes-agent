@@ -34,9 +34,7 @@ from hermes_cli.config import get_hermes_home
 
 from tools.process_registry_notifications import format_process_notification
 from tools.process_registry_checkpoint import ProcessCheckpointMixin
-from agent_runtime.process_notifications import (
-    ProcessNotificationMixin, checkpoint_path, wait_ceiling_seconds,
-)
+from agent_runtime.process_notifications import checkpoint_path, wait_ceiling_seconds
 from tools.process_registry_results import load_completed_results, save_completed_result
 
 logger = logging.getLogger(__name__)
@@ -625,7 +623,7 @@ _CHECKPOINT_DEFAULTS = {
 }
 
 
-class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
+class ProcessRegistry(ProcessCheckpointMixin):
     """In-memory registry of running and finished background processes.
     Thread-safe: accessed from executor threads (terminal_tool, process handlers),
     the gateway asyncio loop (watchers, reset checks) and the cleanup thread."""
@@ -644,8 +642,12 @@ class ProcessRegistry(ProcessNotificationMixin, ProcessCheckpointMixin):
         # process_loop and the gateway drain it after each agent turn to trigger new turns.
         import queue as _queue_mod
         self.completion_queue: _queue_mod.Queue = _queue_mod.Queue()
-        self._durable_restore_lock = threading.Lock()
-        self._durable_completions_restored = False
+        # Rehydrate durable delegation completions once, at registry startup.
+        try:
+            from tools.async_delegation import restore_undelivered_completions
+            restore_undelivered_completions(self.completion_queue)
+        except Exception as exc:
+            logger.warning("Could not restore async delegation completions: %s", exc)
         # Completions the agent already consumed via wait()/read_log() (output in
         # hand): drain loops AND gateway/tui watchers skip them.
         self._completion_consumed: set = set()
