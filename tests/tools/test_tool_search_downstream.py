@@ -189,9 +189,8 @@ class TestRegression_ToolsetScoping:
     _register = staticmethod(_UpstreamToolsetScoping._register)
 
     def test_search_hits_include_parameters_for_top_hits(self):
-        from tools.tool_search import (
-            ToolSearchConfig, dispatch_tool_search, _SEARCH_HIT_SCHEMA_TOP_N,
-        )
+        from tools.tool_search import ToolSearchConfig, dispatch_tool_search
+        from tools.tool_search_downstream import _SEARCH_HIT_SCHEMA_TOP_N
 
         props: Dict[str, Any] = {}
         defs: List[Dict[str, Any]] = []
@@ -224,9 +223,8 @@ class TestRegression_ToolsetScoping:
                 "cutoff and must stay schema-less"
             )
     def test_search_hit_schema_cap_omits_oversized(self):
-        from tools.tool_search import (
-            ToolSearchConfig, dispatch_tool_search, _SEARCH_HIT_SCHEMA_MAX_CHARS,
-        )
+        from tools.tool_search import ToolSearchConfig, dispatch_tool_search
+        from tools.tool_search_downstream import _SEARCH_HIT_SCHEMA_MAX_CHARS
 
         name = "mcp_oversized_sch_tool"
         self._register(name, "mcp-oversized-sch")

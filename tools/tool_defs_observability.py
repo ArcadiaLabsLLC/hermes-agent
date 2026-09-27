@@ -44,7 +44,7 @@ def with_tool_describe(filtered_tools, skip_tool_search_assembly: bool):
     if skip_tool_search_assembly or not filtered_tools:
         return filtered_tools
     try:
-        from tools.tool_search import ensure_tool_describe_present
+        from tools.tool_search_downstream import ensure_tool_describe_present
 
         return ensure_tool_describe_present(filtered_tools)
     except Exception as exc:
