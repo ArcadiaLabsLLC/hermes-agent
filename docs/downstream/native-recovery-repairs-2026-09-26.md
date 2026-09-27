@@ -1,6 +1,7 @@
 # Native recovery repairs
 
-Status: implementation in progress; not qualified or landed on main.
+Status: repair qualified; final results and repository limits are at the end.
+Earlier checkpoints preserve their then-open findings, not the current status.
 
 The owner approved the full [repair plan](native-hermes-lifecycle-audit-2026-09-26.md),
 including compute-host answer acknowledgements. Stateful native RPC remains the
@@ -270,3 +271,23 @@ streams independently on the same serve owner; stopping Compare leaves it live.
 Its eventual wall-budget terminal is its own policy. Discuss reopens the exact
 question, accepts the answer, advances one participant, then confirms Stop.
 Launcher evidence: `EterniaLauncher/docs/companion/planned/NATIVE_RECOVERY_REPAIR_PROGRESS_2026-09-27.md`.
+
+The additional boundary run passes 46 tests, with two existing failing gates:
+frozen-home assertions and stale test citations. Both reproduce on unchanged
+main `b25aca3cafd4` (seven passed, two failed). Five additional stale citations
+arrived with later main; their source text is unchanged from `5e0875e5c2`, including
+the gateway registration comment. They remain in the existing fork-hygiene rows.
+Import layers, thin namespace, upstream refactor fence, duplicate helpers,
+table routing and docket claims all pass. No allowance or baseline expanded.
+
+The approved recovery, cancellation, answer acknowledgement, replay, retention,
+ownership and client reconstruction claims are closed. Whole-repository green
+is not claimed. Initial native history materialization is not constant-memory;
+the bounded delivery/cache measurements above are not an hours-long RSS soak.
+
+Final contract checks pass 13 tests (native generated contracts, CLI and character
+payload). Doc-cite adjacency retains eight failures and one stale waiver, all
+reproduced on unchanged `b25aca3cafd4`; its existing queue row is updated.
+QA cleanup first demonstrated refusal while Discuss was paused. Explicitly ending
+only that test run then allowed `drain_if_idle` to confirm `drain_complete`.
+The isolated Launcher exited gracefully; its loopback provider was stopped.

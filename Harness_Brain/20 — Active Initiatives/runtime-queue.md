@@ -25,8 +25,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Native conversation lifecycle audit — 2026-09-26
 
-- [ ] **Repair native conversation recovery, exact-execution cancellation and acknowledged pending-request answers using existing native owners; then Launcher restores typed state.** · [Audit](../../docs/downstream/native-hermes-lifecycle-audit-2026-09-26.md#native-owner-repairs); preserve admission fingerprints/one-unsettled constraint and prohibit automatic prompt replay. **TAKEN 2026-09-26 native-recovery**
-- [ ] **Bound aggregate conversation projection memory and retire only safely settled, unobserved native sessions through owner-side eligibility rechecks.** · [Retention evidence and owner](../../docs/downstream/native-hermes-lifecycle-audit-2026-09-26.md#reproductions-and-limits); no worker kill or history deletion for cache eviction. **TAKEN 2026-09-26 native-recovery**
 
 
 ### Filed on arrival — 2026-09-26 (lane PF-1, filed by the orchestrator)
@@ -190,7 +188,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
-- [ ] **Expose a coherent observation-only native recovery checkpoint and execution-fenced interrupt through an additive owner seam, reusing live state/history/pending requests.** · [Native seam hazards](../../docs/downstream/native-hermes-lifecycle-audit-2026-09-26.md#native-seam-hazards); coordinate the conversation repair above and retain Desktop/MC policy. **TAKEN 2026-09-26 native-recovery**
 ### Filed on arrival — 2026-09-26 (lane FIX-TRIAGE, filed by the orchestrator)
 
 ### Filed on arrival — 2026-09-26 (lane PF-1, seams; filed by the orchestrator)
@@ -259,7 +256,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - [ ] **`tests/tools/test_file_write_surrogate_roundtrip.py` litters the cwd on Windows: line 23 runs `bash -c "cat > C:\…\out.bin"` through whichever `bash` PATH finds, and a WSL bash creates a file named with PUA-mapped `:`/`\`** · `upstream / suite` · 8 untracked `C<U+F03A><U+F05C>Users…out.bin` files per run · fix: hand bash the POSIX spelling, or write from Python · evidence: `X:/wt/heldtests/.lane-logs/B-winrt-*.log` · filed 2026-09-26
 - [ ] **`tests/tools/test_file_read_guards.py::TestDedupStubLoopGuard` / `TestFileDedup` flake on Windows: 1–3 different tests fail per run of one tree (e.g. `test_file_modification_clears_block`: the stub-loop `_warning` comes back where `error` is expected)** · `upstream / suite` · 2 reruns per side on the win-posix-guard-forms branch (#121645) and its base · evidence: `X:/wt/heldtests/.lane-logs/wpgf-rr-*.log` · filed 2026-09-26
 
-- [ ] **Native replay ring eviction resets a still-live session's sequence without changing epoch; upstream the fix or hold an explicitly reviewed seam before relying on canonical replay for Launcher recovery.** · [Reproduced sequence reset](../../docs/downstream/native-hermes-lifecycle-audit-2026-09-26.md#native-seam-hazards); `tui_gateway/event_replay.py` is unchanged from recorded upstream `ea0c2b820b`. **TAKEN 2026-09-26 native-recovery**
 
 ### Filed on arrival — 2026-09-26 (lane FIX-TRIAGE, filed by the orchestrator)
 

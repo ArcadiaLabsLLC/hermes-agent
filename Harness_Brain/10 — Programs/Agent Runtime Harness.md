@@ -16,8 +16,10 @@ Shared service authority does not mean a shared conversation identity.
 `native_cursor::` 2026-09-26 — native conversation workers and non-spatial discussion
 admission; [wire contracts](../../docs/agent-runtime-harness/03-transport-and-wire.md#native-conversation-methods),
 [qualification and repository limits](../../docs/downstream/native-hermes-qualification-2026-09-26.md).
-The [lifecycle audit](../../docs/downstream/native-hermes-lifecycle-audit-2026-09-26.md)
-reproduces recovery/cancellation/replay gaps; full lifecycle qualification remains open.
+`recovery_cursor::` 2026-09-27 — [native recovery repairs](../../docs/downstream/native-recovery-repairs-2026-09-26.md)
+qualify recovery, exact Stop, compute answer acknowledgement, bounded delivery,
+retirement and concurrent Launcher surfaces. Baseline repository gate failures
+remain explicit; no duplicate native state owner was introduced.
 
 > [!info] Cursor
 > `cursor::` see frontmatter — the last landed program and what it still owes.
