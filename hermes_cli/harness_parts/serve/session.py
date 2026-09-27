@@ -852,6 +852,8 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
             self.end_reason.write(reason)
 
     def _busy_frame(self) -> dict[str, Any]:
+        from .idle_drain import native_pending_count
+
         with self.inflight_lock:
             pending = len(self.inflight)
             chat_turns = sum(1 for item in self.inflight.values() if item.is_chat_turn)
@@ -875,13 +877,17 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         # only "is it working?" test the frame offered — was true on a service
         # doing nothing at all. ``work`` is the number that goes back to zero,
         # and it is what the liveness pump keys on.
+        native = native_pending_count(self.conversation_owner)
+        discussions = native_pending_count(self.discussion_owner)
         return {
             "event": "busy",
             "chat_turns": chat_turns,
             "long_runs": long_runs,
             "pending": pending,
             "subscriptions": subscriptions,
-            "work": pending - subscriptions,
+            "work": pending - subscriptions + native + discussions,
+            "native_conversations": native,
+            "discussions": discussions,
         }
 
     def _report_quiet_requests(self, pending: list[_ArgvRequest]) -> None:

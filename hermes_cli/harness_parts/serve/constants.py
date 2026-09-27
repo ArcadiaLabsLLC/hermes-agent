@@ -411,6 +411,7 @@ OPS_EVERY_TRANSPORT: Final[tuple[str, ...]] = (
     "cancel",
     "connections",
     "drain",
+    "drain_if_idle",
     "ping",
     "stacks",
     "subscribe",
@@ -456,7 +457,7 @@ GATEWAY_TRANSPORT = "gateway"
 #: operator wanted to restart the runtime from their phone" is a verb somebody
 #: can add deliberately later. The refusal mirrors ``shutdown``'s
 #: (``op_not_available_on_socket``) rather than inventing a shape.
-OPS_GATEWAY_DENIED: tuple[str, ...] = ("drain",)
+OPS_GATEWAY_DENIED: tuple[str, ...] = ("drain", "drain_if_idle")
 
 #: The push lanes ``{"op":"subscribe","lane":…}`` accepts. ONE today, and the
 #: value EG-4.2's launcher gate reads: the argv stream stays the backstop until

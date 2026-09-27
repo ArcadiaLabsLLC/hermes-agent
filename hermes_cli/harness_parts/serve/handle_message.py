@@ -553,13 +553,7 @@ class MessageHandling:
                 }
             )
             return None
-        # The EFFECTIVE deadline is decided here, server-side, from the
-        # client's ask floored by the minimum for the TRANSPORT it came
-        # in on. Over stdio the asker owns this process outright and the
-        # ask stands as given (the pre-socket contract, untouched); over
-        # the socket it is floored, because that asker is any local
-        # process holding the root's secret and it is shortening a
-        # promise made to work it cannot see.
+        # Socket clients cannot shorten the service's promised grace period.
         effective_minimum = (
             self.drain_socket_minimum_deadline_seconds
             if connection is not None
@@ -570,19 +564,17 @@ class MessageHandling:
             self.drain_deadline_seconds,
             minimum=effective_minimum,
         )
-        # ONE critical section for the whole transition. The guard and
-        # the install used to be a bare read-modify-write on a closure
-        # variable, which was harmless while the only caller was the
-        # single stdio reader and became a genuine race the moment N
-        # connection threads could ask: two of them could both observe
-        # ``None``, both install a ``_DrainState``, and the process
-        # would then run two monitors, publish two terminal frames, and
-        # split its counters across two objects. The "already draining"
-        # answer is decided INSIDE the section that would have
-        # installed it, so it cannot be decided against a state a
-        # sibling thread is mid-way through replacing.
+        # Claim admission and drain together; concurrent clients share one monitor.
         with self.inflight_lock:
             existing = self.drain_state
+            if existing is None and message.get("op") == "drain_if_idle":
+                from .idle_drain import claim_idle_drain
+
+                reason = claim_idle_drain(self)
+                if reason is not None:
+                    sink.emit({"event": "drain_deferred", "id": message.get("id"),
+                               "reason": reason})
+                    return None
             if existing is None:
                 if self.conversation_owner is not None:
                     self.conversation_owner.begin_drain()
@@ -593,6 +585,7 @@ class MessageHandling:
             sink.emit(
                 {
                     "event": "drain_in_progress",
+                    "id": message.get("id"),
                     "drain_ms": existing.elapsed_ms(),
                     **existing.counters(),
                 }
@@ -607,7 +600,7 @@ class MessageHandling:
         self.liveness_stop.set()
         draining_frame = {
             "event": "draining",
-            "id": None,
+            "id": message.get("id") if message.get("op") == "drain_if_idle" else None,
             "pid": os.getpid(),
             "boot_id": self.boot_id,
             "pending": len(pending_at_start),
@@ -1125,6 +1118,7 @@ OP_HANDLERS: Final[Mapping[str, Callable[..., str | None]]] = MappingProxyType(
         "cancel": MessageHandling._op_cancel,
         "connections": MessageHandling._op_connections,
         "drain": MessageHandling._op_drain,
+        "drain_if_idle": MessageHandling._op_drain,
         "hello": MessageHandling._op_hello,
         "ping": MessageHandling._op_ping,
         "shutdown": MessageHandling._op_shutdown,

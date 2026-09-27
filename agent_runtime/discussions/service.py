@@ -80,6 +80,11 @@ class DiscussionService:
     def accepting(self) -> bool:
         return self._started and not self._closed
 
+    def pending_count(self) -> int:
+        # Open rooms may schedule another round between native turns.
+        with self._lock:
+            return len(self.runs.owned())
+
     def begin(self, workspace_id: str, table_id: str, *, expect_revision: int,
               key: str, topic: str, actor_id: str) -> dict[str, Any]:
         if not self.accepting:

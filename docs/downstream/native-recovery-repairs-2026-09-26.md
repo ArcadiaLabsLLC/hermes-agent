@@ -214,3 +214,32 @@ interruption and queued prompts inheriting the active execution.
 The reconciled gateway run passes 667 tests with four SSH workspace-resolution
 failures. The identical four fail on unchanged main `b25aca3cafd4`; they are not
 classified from the focused green results. Full qualification remains open.
+
+## Automatic maintenance protects shared work
+
+Concurrent desktop acceptance reproduced a separate shutdown defect: Mission
+Control's network setup drained the shared service during a streaming Chat turn.
+The response survived, but new connections failed; Launcher then mistook an
+unconfirmed drain for exit and spawned a competing stdio runtime.
+
+`drain_if_idle` reuses serve's drain and admission locks. Native conversation
+receipts protect running/uncertain turns; the discussion owner protects open
+rooms between rounds. Standing subscriptions do not count as work. The busy
+projection includes these owners, without introducing another work registry.
+Gateway clients cannot request this local lifecycle operation. Explicit drain
+retains its existing contract. Launcher must still prove exit before replacement.
+
+The nine-file focused run passes 197 tests. Removing idle admission in memory
+fails five new cases (running, unknown, Mission Control, Discussion, unreadable
+ownership). Size and duplicate-helper checks pass. The initial handler edit
+exceeded the function floor; shortened rationale and flatter guards restore all
+four legibility checks without an allowance. Desktop requalification is pending.
+
+The full fork gate at `ff53b0716c66` ran 797 files: 11,648 passed, 84 failed,
+nine errors and 169 skipped. Rechecking its failing files on unchanged main
+`b25aca3cafd4` reproduced 78 failures and the existing collection/teardown errors.
+Six branch-specific manifest assertions across the three office-RPC files were
+stale after adding history/inflight recovery; the producer regenerated their one
+shared fixture and all three now pass. The profile-override collection error is
+fixed by a newer main test helper, not by recovery code; reconciliation remains
+owed. The full gate is not green.

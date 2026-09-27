@@ -187,6 +187,17 @@ class ConversationService:
             return [row["turn_id"] for row in self.store.unsettled_workers()
                     if execution_possible(row["worker_pid"], row["worker_created"])]
 
+    def begin_idle_drain(self) -> bool:
+        """Claim idle atomically with admission; uncertainty is protected work."""
+        with self._lock:
+            if self.store.unsettled():
+                return False
+            self._draining = True
+            return True
+
+    def pending_count(self) -> int:
+        return len(self.store.unsettled())
+
     def close(self) -> None:
         with self._lock:
             self._draining = True
