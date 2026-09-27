@@ -2031,8 +2031,7 @@ _TOOL_LIFECYCLE_UI_TOOLS = frozenset({
     "image_generate", "manage_catalog", "delegate_task",
     # File edits are the turn's deliverable — the diff card the user reviews.
     "edit_file", "patch", "write_file",
-    # Fork (11c94aca7c, native conversation admission): the skill_view lifecycle always reaches the UI.
-    "skill_view",
+    "skill_view",  # fork 11c94aca7c: native conversation admission renders it
 })
 
 
