@@ -332,6 +332,10 @@ def test_bypass_marker_disables_guard():
     We use it harmlessly here by signaling our own PID 0 (own group) so we
     don't actually kill anything — but the call goes through real os.kill.
     """
+    if os.name == "nt":
+        # Zero sends CTRL_C_EVENT on Windows. Check the bypass without delivery.
+        assert not _live_system_guard_is_active()
+        return
     # With bypass, the guard yields without installing the monkeypatch,
     # so we get the real os.kill. Calling os.kill(os.getpid(), 0) just
     # checks that the PID exists — harmless.

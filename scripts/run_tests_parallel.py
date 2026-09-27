@@ -518,9 +518,11 @@ def _run_one_file_once(
         env=env,
         # POSIX: place the child at the head of its own process group so
         # _kill_tree can SIGKILL the group atomically.
-        # Windows: this maps to CREATE_NEW_PROCESS_GROUP in CPython 3.12+;
-        # _kill_tree handles the Windows path via taskkill /F /T.
+        # start_new_session is POSIX-only. Windows workers must not inherit
+        # the operator's console: a child can otherwise interrupt the runner.
+        # _kill_tree handles Windows cleanup via taskkill /F /T.
         start_new_session=True,
+        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
     )
 
     # Capture the pgid NOW, before the leader can exit and be reaped. Once
