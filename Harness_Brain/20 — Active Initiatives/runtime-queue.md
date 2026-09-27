@@ -23,6 +23,12 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Native conversation lifecycle audit — 2026-09-26
+
+- [ ] **Repair native conversation recovery, exact-execution cancellation and acknowledged pending-request answers using existing native owners; then Launcher restores typed state.** · [Audit](../../docs/downstream/native-hermes-lifecycle-audit-2026-09-26.md#native-owner-repairs); preserve admission fingerprints/one-unsettled constraint and prohibit automatic prompt replay.
+- [ ] **Bound aggregate conversation projection memory and retire only safely settled, unobserved native sessions through owner-side eligibility rechecks.** · [Retention evidence and owner](../../docs/downstream/native-hermes-lifecycle-audit-2026-09-26.md#reproductions-and-limits); no worker kill or history deletion for cache eviction.
+
+
 ### Filed on arrival — 2026-09-26 (lane PF-1, filed by the orchestrator)
 
 - [ ] **Tool blocks: a mid-session registry refresh (`tools/mcp_tool_agent.py` re-derives `agent.tools` via `get_tool_definitions`) brings blocked names back into `agent.tools` / `valid_tool_names`; the wire filter and `pre_tool_call` still hold, but guidance and review nudges can re-see them — re-apply `prune_agent_tools` after a refresh** · `fork / plugin` · evidence: `agent_runtime/tool_blocks.py`, commit `859d68a1b4` · filed 2026-09-26 (lane PF-1) **UNCLAIMED**
@@ -183,6 +189,8 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 ## Seams — fork edits inside upstream files (additive only)
+
+- [ ] **Expose a coherent observation-only native recovery checkpoint and execution-fenced interrupt through an additive owner seam, reusing live state/history/pending requests.** · [Native seam hazards](../../docs/downstream/native-hermes-lifecycle-audit-2026-09-26.md#native-seam-hazards); coordinate the conversation repair above and retain Desktop/MC policy.
 ### Filed on arrival — 2026-09-26 (lane FIX-TRIAGE, filed by the orchestrator)
 
 ### Filed on arrival — 2026-09-26 (lane PF-1, seams; filed by the orchestrator)
@@ -241,6 +249,8 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - [ ] **Upstream `_apply_request_chain` hands every `llm_request` callback the ORIGINAL request and keeps only the LAST result, so a second callback silently drops the first's rewrite; the eternia-harness plugin therefore composes the wire-brief rewrite and the Codex cache-key rewrite in ONE callback** · `hermes / seams` · widening PR candidate (HELD while PRs are paused): chain the callbacks (each sees the previous result) — a one-line upstream change; until then every fork `llm_request` rewrite must join the single composed callback in `plugins/eternia-harness/` · evidence: lane DOORS-A 2026-09-24 (`seam/doors-a-2026-09-24`, the cache-key commit) **UNCLAIMED**
 
 ## Upstream-owned
+
+- [ ] **Native replay ring eviction resets a still-live session's sequence without changing epoch; upstream the fix or hold an explicitly reviewed seam before relying on canonical replay for Launcher recovery.** · [Reproduced sequence reset](../../docs/downstream/native-hermes-lifecycle-audit-2026-09-26.md#native-seam-hazards); `tui_gateway/event_replay.py` is unchanged from recorded upstream `ea0c2b820b`.
 
 ### Filed on arrival — 2026-09-26 (lane FIX-TRIAGE, filed by the orchestrator)
 
