@@ -1,4 +1,4 @@
-"""The fork derives ``_OAUTH_PROVIDER_CATALOG`` from ``provider_catalog.OAUTH_FLOW_OVERRIDES``.
+"""The fork derives ``_OAUTH_PROVIDER_CATALOG`` from ``provider_login_catalog.OAUTH_FLOW_OVERRIDES``.
 
 Upstream keeps the rows inline in ``hermes_cli/web_server_oauth.py``. The derived tuple must equal
 upstream's field-for-field (``status_fn`` aside, which the fork attaches by id). ``_UPSTREAM_ROWS``

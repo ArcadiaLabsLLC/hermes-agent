@@ -1,7 +1,7 @@
 """Display labels never become provider routing identities."""
 
 from hermes_cli.harness_parts.provider_visibility import _provider_visibility_auth_logins
-from hermes_cli.provider_catalog import provider_login_catalog
+from hermes_cli.provider_login_catalog import provider_login_catalog
 
 
 def test_login_health_joins_the_runtime_catalog_by_stable_id(monkeypatch):

@@ -32,7 +32,7 @@ def test_catalog_advertises_only_real_machine_methods():
 
 def test_upstream_catalog_rows_carry_no_sign_in_methods():
     """Positive control: the visibility block is what adds the two keys."""
-    from hermes_cli.provider_catalog import provider_login_catalog
+    from hermes_cli.provider_login_catalog import provider_login_catalog
 
     rows = provider_login_catalog()
     assert {row["id"] for row in rows} >= {"openai-codex", "xai-oauth", "minimax-oauth", "nous"}
