@@ -102,6 +102,10 @@ Held on the owner's word ("we have too many today", 2026-09-26). Bodies at `X:/w
 
 CONTRIBUTING pass 2026-09-26 DONE (lane HELD-TESTS + orchestrator): the 11 template-less open PRs (#124190–95, #124210, #123976–79) carry the full PR template; the 30 held branches were renamed `up/` → `fix|feat|test|refactor|chore|perf/` on origin, their bodies carry the full checklist, and every one was re-run through `scripts/run_tests.sh` on the branch and on pristine upstream (introduced 0); 11 fix branches (10 held + #121645) gained a red-first test. Report `X:/wt/_holds/fix-triage-0926/held-tests-report.md`; sheet §2 has the per-branch counts. Not done: manual exercise in a live `hermes`, and the seven multi-fix branches were not split.
 
+Review replies 2026-09-27: #121642 P1 (durable Nous inference URL must heal/refuse at load_pool, restart-path regression), #121225 (dead `os.open` mode assertion → spy `atomic_json_write` mode), #121646 (non-blocking: coerce the config default through the same truthy set) — code on the PR branches, reply texts drafted to `X:/wt/_holds/pr-replies-0927/`, not posted. **TAKEN 2026-09-27 lane PR-REPLIES**
+
+Drop re-triage 2026-09-27: upstream/main ad4e4496c2 (800 commits past 77a799e2f9c) touched 33 of the 152 footprint files — per-file verdict DROP-NOW / KEEP / RE-PR into the fix-triage sheet §6. **TAKEN 2026-09-27 lane DROP-RETRIAGE**
+
 Merge note (lane AUTH-PR): the fork's own `tests/hermes_cli/test_plugin_declared_cli_commands.py` shares a path with the branch's — at the merge take upstream's file.
 
 ## Related
