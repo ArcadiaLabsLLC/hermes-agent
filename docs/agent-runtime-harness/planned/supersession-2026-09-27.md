@@ -101,6 +101,7 @@ is KEEP. Two of the three findings predate the base and came from the AST scan, 
    Tests: `tests/agent_runtime/test_tombstone_registry.py::test_deleted_test_coverage_follows_defining_module_not_plugin_pointer`
    asserts the opposite liveness and flips with the swap; drop `install_method.py` from `Harness_Brain/00 — Maps/Fork Boundary Map.md`.
    The adoption lane names the postinstall test that covers `_downstream_cli.py:58`, then records its red against the deleted module.
+   **REFUTED (lane ADOPT 2026-09-27).** `hermes_cli.config.stamp_install_method` lives inside config.py's `PLUGIN-COMPAT` block (revert-scheduled; upstream deleted the def and has no caller). Repointing `_downstream_cli.py:58` there reds `scripts/check_compat_pointers.py` ("1 site(s)… `from hermes_cli.config import stamp_install_method`"), and the tombstone assertion the sheet would flip already records exactly this: coverage follows the defining module, not the plugin pointer. `install_method.py` is the fork's owner and stays.
 2. **U06 — adopt upstream's continuation predicate in `delete_compression_lineage` (PARTIAL).**
    Goes: the Python marker check in `agent_runtime/session_extensions.py::delete_compression_lineage` (the `parent["end_reason"] == "compression"`
    plus the `_branched_from`/`_delegate_from` presence test).
