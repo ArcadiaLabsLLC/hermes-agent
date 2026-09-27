@@ -230,7 +230,8 @@ class ComputeHost:
     def _handle_observe(self, frame: dict[str, Any]) -> None:
         def body(server, sid, request_id):
             method = frame.get("method")
-            if method not in {"session.recover", "session.recovery.history", "session.recovery.inflight", "session.events.since"}:
+            if method not in {"session.recover", "session.recovery.history", "session.recovery.inflight",
+                              "session.events.since", "session.retire"}:
                 raise ValueError("Unsupported observation")
             response = server.handle_request({"jsonrpc": "2.0", "id": request_id,
                 "method": method, "params": {**(frame.get("params") or {}), "session_id": sid}})

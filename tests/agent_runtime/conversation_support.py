@@ -54,6 +54,7 @@ class NativeWorker:
                     "open_requests": [q for q in self.questions.values() if q["params"]["session_id"] == sid]}
         if method == "session.recover":
             return {"session_id": sid, "execution": self.executions.get(sid), "epoch": "worker",
+                    "info": {"model": self.models[sid], "provider": "local", "usage": {}},
                     "latest_seq": len(self.events.get(sid, [])), "history": {
                         "session_key": sid, "through_row": 0, "version": 0}}
         if method == "request.answer":

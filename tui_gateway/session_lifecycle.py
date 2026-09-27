@@ -19,7 +19,7 @@ def _session_turn_admission(session: dict):
     from tui_gateway.session_execution import control
 
     with retirement.work() as admitted, control(session), session["history_lock"]:
-        yield admitted
+        yield admitted and not session.get("_closing")
 
 
 def _start_session_work(target, *, name: str, session: dict | None = None):

@@ -513,6 +513,10 @@ def _run_after_agent_ready(
         if session.get("_turn_cancel_requested") or not session.get("running"):
             session["running"] = False
             _clear_inflight_turn(session)
+            if session.get("native_execution"):
+                _emit("message.complete", sid, {"text": "", "usage": {},
+                    "status": "interrupted" if session.get("_turn_cancel_requested") else "error"})
+                return
             # Without this emit the turn vanishes silently after {"status": "streaming"}.
             _emit("error", sid, {"message": (
                 "Turn cancelled before the agent was ready"
@@ -536,6 +540,8 @@ def _lock_in_submit_turn(
     with _session_turn_admission(session) as admitted:
         if not admitted:
             return _err(rid, 5035, "backend is retiring; reconnect to continue"), fields
+        if params.get("execution_id") and session.get("running"):
+            return _err(rid, 4091, "session is busy"), fields
         # A watch session's run lives in the PARENT turn (own running flag False); typing
         # mid-run would build a second agent racing the child on the same stored session.
         if session.get("lazy") and _child_run_active(str(session.get("session_key") or "")):

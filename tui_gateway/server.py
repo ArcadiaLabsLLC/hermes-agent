@@ -3441,3 +3441,5 @@ del _m
 
 from . import session_recovery as _session_recovery  # noqa: E402
 _session_recovery.register(sys.modules[__name__])
+from . import session_retirement as _session_retirement  # noqa: E402
+_session_retirement.register(sys.modules[__name__])

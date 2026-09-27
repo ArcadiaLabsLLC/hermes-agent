@@ -60,8 +60,10 @@ class ConversationService:
             live = self._live.get(route.id)
             if live is None or not live.peer.alive:
                 live = self._attach(route, home, created=created)
+            recovered = live.recover()
+            inventory = live.peer.call("model.options", {"session_id": live.native_id})
             return {"session_id": route.id, "install_id": self.install_id,
-                    "facts": self.facts(scope, route.id), **live.recover()}
+                    "facts": session_facts.facts(route.id, recovered["recovery"], inventory), **recovered}
 
     def _attach(self, route, home: Path, *, created: bool) -> LiveConversation:
         if (any(turn.conversation_id == route.id for turn in self.store.unsettled()) and
@@ -170,7 +172,7 @@ class ConversationService:
 
     def facts(self, scope: ConversationScope, session_id: str) -> dict:
         live = self._session(scope, session_id)
-        snapshot = live.peer.call("session.activate", {"session_id": live.native_id, "omit_messages": True})
+        snapshot = live.peer.call("session.recover", {"session_id": live.native_id})
         inventory = live.peer.call("model.options", {"session_id": live.native_id})
         return session_facts.facts(session_id, snapshot, inventory)
 

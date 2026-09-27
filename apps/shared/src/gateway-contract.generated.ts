@@ -3421,6 +3421,9 @@ export interface RecoveryInflightPage {
   more?: boolean
   reset?: boolean
 }
+export interface RetirementResult {
+  status: 'retired' | 'protected'
+}
 export interface SystemBatteryParams {
   profile?: string | null
 }
@@ -5132,6 +5135,8 @@ export interface RpcMethods {
   'session.redirect': { params: SessionCorrectionParams; result: SessionCorrectionResult }
   /** Attach to a stored session: reuse it if live here, else lazy / deferred / cold / eager rebuild. */
   'session.resume': { params: SessionResumeParams; result: SessionResumeResult }
+  /** Release only a settled session after native eligibility checks; preserve durable history. */
+  'session.retire': { params: RecoveryParams; result: RetirementResult }
   /** Export the transcript to ~/.hermes/sessions/saved (classic /save). */
   'session.save': { params: SessionSaveParams; result: SessionSaveResult }
   /** Set/clear hidden (out of the default list, still resumable by its owner) on a session + lineage. */
@@ -5425,6 +5430,7 @@ export const RPC_METHODS = [
   'session.recovery.inflight',
   'session.redirect',
   'session.resume',
+  'session.retire',
   'session.save',
   'session.set_hidden',
   'session.status',

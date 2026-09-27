@@ -214,7 +214,7 @@ def _transport_is_dead(transport) -> bool:
     return getattr(transport, "_closed", None) is True
 
 
-def _session_is_lru_evictable(sid: str, session: dict) -> bool:
+def _session_is_lru_evictable(sid: str, session: dict, *, require_dead_transport: bool = True) -> bool:
     """Shared hard exemptions for both reapers (the LRU cap applies them WITHOUT the age gate: eligible the moment
     it loses its client): never evict a session mid-turn, awaiting input, still building, owning live delegated
     work, or on a live transport. Lazy watch sessions never start a build, so their unset agent_ready must not
@@ -224,7 +224,7 @@ def _session_is_lru_evictable(sid: str, session: dict) -> bool:
     ready = session.get("agent_ready")
     if ready is not None and not ready.is_set() and not session.get("lazy"):
         return False
-    return _transport_is_dead(session.get("transport"))
+    return not require_dead_transport or _transport_is_dead(session.get("transport"))
 
 
 def _sessions_quiescent(exclude: str | None = None) -> bool:

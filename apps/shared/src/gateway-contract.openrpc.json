@@ -3427,6 +3427,24 @@
       }
     },
     {
+      "name": "session.retire",
+      "summary": "Release only a settled session after native eligibility checks; preserve durable history.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/RecoveryParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/RetirementResult"
+        }
+      }
+    },
+    {
       "name": "session.save",
       "summary": "Export the transcript to ~/.hermes/sessions/saved (classic /save).",
       "params": [
@@ -26752,6 +26770,24 @@
         ],
         "title": "ResumePhaseStatus",
         "type": "string"
+      },
+      "RetirementResult": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "enum": [
+              "retired",
+              "protected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "RetirementResult",
+        "type": "object"
       },
       "ReviewSummaryPayload": {
         "additionalProperties": false,

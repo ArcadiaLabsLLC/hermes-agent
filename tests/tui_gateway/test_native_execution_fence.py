@@ -106,3 +106,34 @@ def test_interrupt_fences_next_admission_without_holding_history(owner, monkeypa
         if starter.ident:
             starter.join(2)
     assert admitted.is_set()
+
+
+def test_stop_while_agent_builds_settles_the_exact_execution(owner, monkeypatch):
+    session, _ = owner
+    execution.admit(session, "building")
+    server._start_inflight_turn(session, "hello")
+    session["_turn_cancel_requested"] = True
+    monkeypatch.setattr(server, "_wait_agent_for_prompt", lambda *args: None)
+    emitted = []
+
+    def emit(kind, sid, payload):
+        frame = {"method": "event", "params": {
+            "type": kind, "session_id": sid, "payload": payload}}
+        execution.stamp(session, frame)
+        emitted.append(frame)
+
+    monkeypatch.setattr(server, "_emit", emit)
+    monkeypatch.setattr(server, "_run_prompt_submit", lambda *a, **k: pytest.fail("cancelled turn ran"))
+    server._run_after_agent_ready("rpc", "live", session, "hello", None, None, None)
+    assert execution.snapshot(session, "building")["status"] == "interrupted"
+    assert emitted[-1]["params"]["execution_id"] == "building"
+    assert emitted[-1]["params"]["type"] == "message.complete"
+
+
+def test_native_admission_rechecks_running_inside_the_claim(owner):
+    session, _ = owner
+    execution.admit(session, "already-running")
+    error, _ = server._lock_in_submit_turn(
+        "rpc", "live", session, "second", {"execution_id": "second"}, False, None, None, None)
+    assert error["error"]["code"] == 4091
+    assert execution.snapshot(session, None)["id"] == "already-running"

@@ -54,3 +54,21 @@ Measured focused checks:
 Not complete: client/Compare restoration, native retirement, compressed-history
 recovery, broader regression qualification and native UI acceptance. No main
 landing or claim closure is justified by these focused results.
+
+## Startup cancellation and native retirement boundary
+
+Two added execution tests failed before the repair: cancellation during agent
+startup left a running receipt, and a competing native admission replaced the
+current execution. The fenced cases now pass (7 execution tests total).
+
+`session.retire` reuses native reaper eligibility and teardown. It requires exact
+settled execution evidence, refuses queued/pending/building/delegated work, checks
+again after child retirement, and removes only disposable replay metadata. A
+stale session reference cannot admit work after the native owner removes it.
+Eleven focused cases pass; the stale-execution test also caught and corrected an
+initial guard that accepted an older completed execution while a newer one existed.
+
+The service's bounded open/facts reads pass its 9 focused cases. Generated
+contracts and focused Ruff checks pass. **The retirement operation is not yet
+wired to observation/retention policy.** Aggregate retention, real child retirement,
+client reconstruction, compressed history and full acceptance remain unqualified.

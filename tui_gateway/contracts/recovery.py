@@ -69,9 +69,15 @@ class RecoveryInflightPage(Result):
     reset: bool = False
 
 
+class RetirementResult(Result):
+    status: Literal["retired", "protected"]
+
+
 method("session.recover", params=RecoveryParams, result=RecoverySnapshot,
        doc="Observe native state and its replay checkpoint without starting a turn.")
 method("session.recovery.history", params=RecoveryHistoryParams, result=RecoveryHistoryPage,
        doc="Read bounded transcript chunks through a recovery checkpoint's durable watermark.")
 method("session.recovery.inflight", params=RecoveryInflightParams, result=RecoveryInflightPage,
        doc="Read an append-only prefix of the exact live execution; reset if it has settled or changed.")
+method("session.retire", params=RecoveryParams, result=RetirementResult,
+       doc="Release only a settled session after native eligibility checks; preserve durable history.")
