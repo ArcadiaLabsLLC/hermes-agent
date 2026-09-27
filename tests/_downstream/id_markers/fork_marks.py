@@ -72,6 +72,12 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # budget; this upstream test needs the headroom.
     "tests/scripts/desktop_update/test_desktop_update_windows_retry_policy.py::"
     "test_retry_policy_distinguishes_self_lock_deferral": (pytest.mark.timeout(45),),
+    # Upstream's stub never marks an unloaded model unloaded, so production's unload
+    # confirmation waits out its 15 s deadline once per model: two models, ~30.2 s
+    # measured 2026-09-27. Lane FOOTPRINT-DROP moved the fork's stub fix out of the file.
+    "tests/hermes_cli/test_local_runtime.py::test_idle_sweep_unloads_idle_models": (
+        pytest.mark.timeout(90),
+    ),
     # MCF-66: reads the real ~/.claude/.credentials.json via the fixture's
     # redirected Path.home() (gate: tests/test_claude_code_credentials_file_gate.py).
     "tests/hermes_cli/test_codex_cli_model_picker.py::"
