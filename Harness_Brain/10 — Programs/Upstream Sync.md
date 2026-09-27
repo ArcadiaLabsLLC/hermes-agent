@@ -131,6 +131,8 @@ Dedupe sweep 2026-09-27: all 38 open PRs + 20 held branches against upstream's O
 
 Door-fit sitting 2026-09-27 (owner: 'elsewhere in the code we could extract the data we need'): every feature ask of ours — the 11 feature/widen PRs, issues #125255–#125258, the 4 issue drafts, the held feat/ branches — against upstream's CURRENT tree: does an existing hook, event, field, config key or public function already yield it? Verdict EXISTS (name the door + how the plugin reads it) / PARTIAL / NONE into `docs/agent-runtime-harness/planned/door-fit-2026-09-27.md`. **TAKEN 2026-09-27 lane DOOR-FIT (design)**
 
+PR rework 2026-09-27 (owner: take the recommendations): PARTIAL five trimmed to the surviving hunks (gated tests dropped), #121222+#121224 collapsed into #121224, REBASE three replayed (#121646 #121645 #121640) — all on `lane/rebased/<branch>` refs, force-push script for the owner. **TAKEN 2026-09-27 lane PR-REWORK**
+
 Merge note (lane AUTH-PR): the fork's own `tests/hermes_cli/test_plugin_declared_cli_commands.py` shares a path with the branch's — at the merge take upstream's file.
 
 ## Related
