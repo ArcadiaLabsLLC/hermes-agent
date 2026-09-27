@@ -148,3 +148,40 @@ def print_console_task_warning() -> None:
         print("  ⚠ Task launches a VISIBLE console window (legacy .cmd action).")
         print("    Closing that window kills the gateway; nothing restarts it")
         print("    until the next login. Re-register with: hermes gateway install")
+
+
+def write_task_script_or_warn() -> bool:
+    """``hermes update``'s launcher refresh: rewrite the task script, or say why not.
+
+    A launcher is persisted, so an unresolvable managed interpreter leaves the one on
+    disk unchanged (and says so) rather than stamping a guess into it."""
+    from hermes_cli.gateway import ManagedPythonUnavailable
+
+    try:
+        _gw()._write_task_script()
+    except ManagedPythonUnavailable as exc:
+        print(f"  ⚠ Left the Windows gateway launcher unchanged: {exc}")
+        print("    Re-run from the Hermes environment: hermes gateway install")
+        return False
+    return True
+
+
+def warn_legacy_console_task() -> None:
+    """Tell the operator when the registered task still runs a visible console.
+
+    Re-registering the action requires ``schtasks /Create`` (elevation), which
+    the update path deliberately avoids — so a pre-#45610 install cannot heal
+    itself here. What it *can* do is stop being silent: a gateway launched
+    through the ``.cmd`` dies with ``STATUS_CONTROL_C_EXIT`` (0xC000013A) the
+    moment its console window is closed, and the ONLOGON-only trigger means it
+    stays down until the next login.
+    """
+    gateway_windows = _gw()
+    if gateway_windows.task_action_is_console_less() is not False:
+        return
+    task_name = gateway_windows.get_task_name()
+    print(f"  ⚠ Scheduled Task {task_name!r} still launches the gateway in a VISIBLE console window.")
+    print("    Closing that window (or a stray console-control broadcast) kills the")
+    print("    gateway outright, and nothing restarts it until the next login.")
+    print("    Re-register it on the console-less launcher — approve the UAC prompt:")
+    print("      hermes gateway install")
