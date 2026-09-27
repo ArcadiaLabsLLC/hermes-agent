@@ -36,11 +36,15 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-#: Paths whose committed CRLF is DELIBERATE. Empty, and that is the finding —
-#: see the module docstring. Adding one means adding a `-text` rule to
-#: `.gitattributes` too, and writing the reason here: a keeper without a reason
-#: is indistinguishable from the accident this gate exists to catch.
-DELIBERATE_CRLF: frozenset[str] = frozenset()
+#: Paths whose committed CRLF is DELIBERATE. Adding one means adding a `-text`
+#: rule to a `.gitattributes` too, and writing the reason here: a keeper without
+#: a reason is indistinguishable from the accident this gate exists to catch.
+DELIBERATE_CRLF: frozenset[str] = frozenset({
+    # Upstream's own bytes (CRLF as upstream committed them); the fork stopped
+    # carrying a normalising edit in an upstream file (lane FOOTPRINT-DROP,
+    # 2026-09-27). Keeper: contributors/emails/.gitattributes.
+    "contributors/emails/uperLu@users.noreply.github.com",
+})
 
 #: `git ls-files --eol` index states that mean "this blob carries CR".
 #: `i/none` is a file with no line endings at all (a one-line file with no
