@@ -87,7 +87,7 @@ Counts: a 14, a/step3 19, b 0, c 67, d 35, e 16.
 | `hermes_cli/subcommands/mcp.py` | 10 | 0 | d | `--env` flag, 10 lines |
 | `hermes_cli/uninstall.py` | 3 | 1 | c | rides open upstream PR #121640 |
 | `hermes_cli/update_cmd.py` | 11 | 0 | c | rides open upstream PR #125265 |
-| `hermes_cli/update_cmd_git.py` | 5 | 2 | d | push flag + message, inline (not in #125265 file list) |
+| `hermes_cli/update_cmd_git.py` | 5 | 2 | d | never-force guard, owner keep 2026-09-27 |
 | `hermes_cli/update_cmd_windows.py` | 30 | 1 | e | launcher refresh tolerance (30) |
 | `hermes_cli/update_inventory.py` | 15 | 0 | c | rides open upstream PR #125265 |
 | `hermes_cli/web_routers/oauth.py` | 4 | 26 | d | already a call into `provider_catalog.disconnect_command_for`; the 26 are the upstream helper it replaces |
