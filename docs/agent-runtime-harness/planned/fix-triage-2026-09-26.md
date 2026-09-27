@@ -135,7 +135,7 @@ and names the rest in `why`.
 | `tests/hermes_cli/test_deleted_profile_tombstone.py` | upstream | KEEP-PR #121224 | win-path-spelling | — |
 | `tests/hermes_cli/test_doctor.py` | upstream | KEEP-PR #125260 (`fix/doctor-call-time-home`) | doctor-home | the three `setenv` sites, test half of the class |
 | `tests/hermes_cli/test_doctor_journal_modes.py` | upstream | KEEP-PR #121225 | win-posix-only-apis | the linux-marker rest → `test/platform-markers-linux` |
-| `tests/hermes_cli/test_early_recovery.py` | upstream | KEEP-PR #121218 | import-guard | — |
+| `tests/hermes_cli/test_early_recovery.py` | upstream | DROP-AT-MERGE (was KEEP-PR #121218, closed 2026-09-27 as overtaken) | import-guard | — |
 | `tests/hermes_cli/test_gateway_migrate_multiplex.py` | upstream | KEEP-HELD `test/platform-markers-linux` | platform-markers | `@pytest.mark.platforms("linux")` is upstream's own marker (`tests/test_hermes_constants.py` uses it at base) |
 | `tests/hermes_cli/test_kanban_worktree_teardown.py` | upstream | KEEP-HELD `test/platform-markers-linux` | platform-markers | — |
 | `tests/hermes_cli/test_linux_desktop_entry.py` | upstream | KEEP-HELD `test/platform-markers-linux` | platform-markers | 20 markers on `.desktop`-entry tests |
@@ -162,7 +162,7 @@ and names the rest in `why`.
 | `tests/tools/test_local_env_relative_cwd.py` | upstream | KEEP-PR #121226 | win-shell-invocation | — |
 | `tests/tools/test_local_env_windows_msys.py` | upstream | KEEP-HELD `test/win-test-fixes-2` | win-tests-2 | `os.path.join`; REVERT the duplicated S5 banner |
 | `tests/tools/test_modal_sandbox_fixes.py` | hook | KEEP-HELD `test/win-test-fixes-2` | win-tests-2 | the `_native_host_cwd` fixture spelling; the `tool_describe`-injected expectation is CARRY (7b) |
-| `tests/tools/test_skills_hub.py` | upstream | KEEP-PR #121221 | win-line-endings | the `jo.txt` R10 hunk — DROP that hunk |
+| `tests/tools/test_skills_hub.py` | upstream | DROP-AT-MERGE (was KEEP-PR #121221, closed 2026-09-27 as overtaken) | win-line-endings | the `jo.txt` R10 hunk — DROP that hunk |
 | `tests/tools/test_subprocess_home_isolation.py` | upstream | KEEP-PR #121224 | win-path-spelling | — |
 | `tests/tools/test_terminal_output_transform_hook.py` | upstream | KEEP-PR #121226 | win-shell-invocation | — |
 | `tools/approval_context.py` | upstream | KEEP-PR #121646 | tirith-config | — |
