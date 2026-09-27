@@ -36,8 +36,10 @@ def rig(tmp_path):
 
 def request(rig, *, connection=None):
     session, *_, frames = rig
-    MessageHandling._op_drain(session, {"op": "drain_if_idle", "id": "maintenance", "force": True},
-                              SimpleNamespace(emit=frames.append), connection)
+    MessageHandling._handle_message(
+        session, {"op": "drain_if_idle", "id": "maintenance", "force": True},
+        SimpleNamespace(emit=frames.append), connection=connection,
+    )
     return frames[-1]
 
 

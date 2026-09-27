@@ -510,6 +510,16 @@ class MessageHandling:
     def _op_drain(
         self, message: dict[str, Any], sink: Any, connection: Any
     ) -> str | None:
+        return self._request_drain(message, sink, connection, only_if_idle=False)
+
+    def _op_drain_if_idle(
+        self, message: dict[str, Any], sink: Any, connection: Any
+    ) -> str | None:
+        return self._request_drain(message, sink, connection, only_if_idle=True)
+
+    def _request_drain(
+        self, message: dict[str, Any], sink: Any, connection: Any, *, only_if_idle: bool
+    ) -> str | None:
         if _is_gateway(connection):
             # A paired device does not get to end a runtime other
             # clients are using — not even at `console` tier, because
@@ -567,7 +577,7 @@ class MessageHandling:
         # Claim admission and drain together; concurrent clients share one monitor.
         with self.inflight_lock:
             existing = self.drain_state
-            if existing is None and message.get("op") == "drain_if_idle":
+            if existing is None and only_if_idle:
                 from .idle_drain import claim_idle_drain
 
                 reason = claim_idle_drain(self)
@@ -600,7 +610,7 @@ class MessageHandling:
         self.liveness_stop.set()
         draining_frame = {
             "event": "draining",
-            "id": message.get("id") if message.get("op") == "drain_if_idle" else None,
+            "id": message.get("id") if only_if_idle else None,
             "pid": os.getpid(),
             "boot_id": self.boot_id,
             "pending": len(pending_at_start),
@@ -1118,7 +1128,7 @@ OP_HANDLERS: Final[Mapping[str, Callable[..., str | None]]] = MappingProxyType(
         "cancel": MessageHandling._op_cancel,
         "connections": MessageHandling._op_connections,
         "drain": MessageHandling._op_drain,
-        "drain_if_idle": MessageHandling._op_drain,
+        "drain_if_idle": MessageHandling._op_drain_if_idle,
         "hello": MessageHandling._op_hello,
         "ping": MessageHandling._op_ping,
         "shutdown": MessageHandling._op_shutdown,

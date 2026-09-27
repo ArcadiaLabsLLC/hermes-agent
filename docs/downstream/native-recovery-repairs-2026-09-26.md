@@ -245,3 +245,28 @@ absent on that older baseline: subsequent main cleanup removed `_pin_hermes_root
 but left its downstream import. Both files are identical to main `5e0875e5c2`;
 this collection defect is filed in the fork-hygiene queue. The full gate is not
 green. The final idle-admission/Discussion/legibility check passes 26 tests.
+
+## Final wire qualification — 2026-09-27
+
+The final fork run at `aa5d78b8` covers 798 files: 11,657 passed, 82 failed,
+nine errors and 170 skipped (557.8 seconds). Its failure-name comparison against
+unchanged main `b25aca3cafd4` isolates four new failures: the idle-drain handler
+convention and three advertised-operation assertions. All other 78 failures
+match that baseline; the newer profile-import collection defect is classified
+above, not attributed to the older baseline.
+
+Idle drain now has its own table entry point over the shared drain mechanism;
+an explicit boolean replaces re-reading the operation name. The wire test sends
+both drain operations, observes their correlated acknowledgement and waits for
+completion. The idle-admission cases now enter through the dispatcher. All 49
+dispatch, real-wire, idle, size and function-legibility tests pass; Ruff passes.
+The four gate failures supply the before-fix control. No thresholds were relaxed.
+
+Native desktop proof uses the existing Hermes service, a loopback model fixture
+and real compute children. Chat and Compare recover questions and partial output
+after client process exit; answering and Stop address the original execution
+without replay. Compare tolerates a second unavailable route. Mission Control
+streams independently on the same serve owner; stopping Compare leaves it live.
+Its eventual wall-budget terminal is its own policy. Discuss reopens the exact
+question, accepts the answer, advances one participant, then confirms Stop.
+Launcher evidence: `EterniaLauncher/docs/companion/planned/NATIVE_RECOVERY_REPAIR_PROGRESS_2026-09-27.md`.

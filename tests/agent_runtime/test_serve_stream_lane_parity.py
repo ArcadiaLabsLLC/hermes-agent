@@ -306,6 +306,7 @@ def test_stdio_learns_the_op_set_from_ready_and_can_re_ask_version():
             "cancel",
             "connections",
             "drain",
+            "drain_if_idle",
             "ping",
             "shutdown",
             "stacks",
@@ -353,6 +354,7 @@ def test_the_socket_greeting_advertises_the_ops_it_will_actually_answer():
                     "cancel",
                     "connections",
                     "drain",
+                    "drain_if_idle",
                     "ping",
                     "stacks",
                     "subscribe",
@@ -418,15 +420,17 @@ def test_every_advertised_op_is_answered_by_the_dispatcher():
     finally:
         gate.set()
 
-    # ``drain`` ends the process, so it gets its own runtime rather than a
-    # position in the sequence above.
-    with _stdio_serve() as (pipe, sink):
-        pipe.send({"op": "drain", "deadline_seconds": 5})
-        assert sink.wait_for("draining")["deadline_seconds"] == 5
-        sink.wait_for("drain_complete")
+    # Each lifecycle operation ends its own runtime.
+    for op in ("drain", "drain_if_idle"):
+        with _stdio_serve() as (pipe, sink):
+            pipe.send({"op": op, "id": "maintenance", "deadline_seconds": 5})
+            draining = sink.wait_for("draining")
+            assert draining["deadline_seconds"] == 5
+            assert draining["id"] == ("maintenance" if op == "drain_if_idle" else None)
+            sink.wait_for("drain_complete")
 
     advertised = set(serve_module.ops_manifest(transport="stdio")["ops"])
-    assert advertised == set(answers) | {"shutdown", "drain"}
+    assert advertised == set(answers) | {"shutdown", "drain", "drain_if_idle"}
 
 
 def test_no_op_the_dispatcher_answers_is_left_off_the_advertisement():
