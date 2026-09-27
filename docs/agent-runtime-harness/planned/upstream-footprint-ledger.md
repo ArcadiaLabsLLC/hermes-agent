@@ -197,6 +197,22 @@ without touching the ratchet. Each carries the PR that retires the import.
 | `tools/terminal_tool_guards.py` | `_looks_like_help_or_version_command`, `_strip_quotes` | `agent_runtime/_upstream_doors.py::looks_like_help_or_version_command` / `::strip_quotes`, read by `agent_runtime/terminal_policy.py` (lane W3-B, ruling Q7) | held widening PR: publish both |
 | `hermes_state_sessions.py` | `SessionSessionsMixin._NON_CONTINUATION_CHILD_FILTER_SQL` | `agent_runtime/_upstream_doors.py::non_continuation_child_filter` (call-time), read by `agent_runtime/session_extensions.py::delete_compression_lineage` (lane ADOPT 2026-09-27, supersession U06) | upstream 2759f0fe97 builds it from `hermes_state_common._non_continuation_child_sql` and keeps the constant; a widening PR publishing that predicate retires the private read |
 
+## Windows console signal safety carry — 2026-09-27
+
+Upstream snapshot `2f14d5e6e4e` has the unsafe Windows signal-zero checks and
+test-console inheritance. The operator-requested repair is a small upstream
+bug-fix candidate, not a fork-owned replacement. No PR has been submitted.
+
+| touched upstream paths | carry | retirement |
+|---|---|---|
+| `tui_gateway/host_supervisor.py`, `tests/conftest.py` | Windows PID probes call existing `gateway.status._pid_exists`; POSIX checks stay in place | upstream non-signalling Windows probes |
+| `tests/_fixtures/live_system_guard.py`, `tests/test_live_system_guard_self_test.py` | refuse console-wide Windows events; bypass self-test avoids firing one | upstream guard with the same guarantee |
+| `scripts/run_tests_parallel.py`, `tests/scripts/test_run_tests_parallel.py` | Windows workers use `CREATE_NO_WINDOW`; a regression queries console membership | upstream worker console isolation |
+
+The new `tests/test_windows_process_safety.py` covers the probes and guard.
+Evidence and four killing mutations:
+`Harness_Brain/60 — Operations/Windows console signal safety.md`.
+
 ## Fork modules that shadow an upstream symbol (recorded parallels, no diff row)
 
 The rule of record (owner 2026-09-23): adopt upstream's, or record the parallel with the

@@ -13,6 +13,13 @@ mechanism below were independently reproduced without firing a real signal.
 
 ## Mechanism and repair
 
+All four unsafe behaviors below are present in upstream snapshot
+`2f14d5e6e4e`, including the compute-host supervisor introduced by upstream
+`7d27a31ce7` (#65895). They were not introduced by the native-recovery work.
+This is a Windows compatibility carry, using upstream's existing PID helper;
+it adds no alternative runtime, supervisor or configuration. Retire the carry
+when upstream adopts an equivalent repair. No upstream submission was made.
+
 - Native Windows `os.kill(pid, 0)` sends `CTRL_C_EVENT`; it is not a POSIX
   liveness query. `tui_gateway/host_supervisor.py::_pid_alive` and the import-time
   stale-lock sweep in `tests/conftest.py` now use `gateway.status._pid_exists`
@@ -48,3 +55,21 @@ operator session to prove a regression.
 
 References: [Python os.kill](https://docs.python.org/3/library/os.html#os.kill),
 [Windows console events](https://learn.microsoft.com/en-us/windows/console/generateconsolectrlevent).
+
+## Broader validation limits
+
+The validated-scope run on `277580092a` reached 13,831 passing tests before
+the external one-hour limit stopped it; it was incomplete and not green.
+Failures occurred in 35 files. Runs of those files on unmodified primary
+`f82a9fe6bf` reproduced failures in 33; `test_cmd_update_docker.py` and
+`test_fleet_matrix_down_state.py` did not reproduce there. Both remain red
+in the worktree: the shared venv is identified as an external checkout.
+These residuals remain with the existing fork-hygiene validation row.
+No unrelated runtime code or test expectations were changed for those reds.
+
+After merging current main (`24ea6872a5`), the focused repair tests still
+passed: process safety 2, compute host 18, runner 19, live-system guard 37.
+The gate run reported 1,300 passed, 3 failed, 6 skipped; the separate
+duplicate-helper gate passed. Reds name the existing frozen-home entries
+(`gateway/mirror.py`, `tui_gateway/server.py`), the stale parity tombstone
+and unavailable historical revision `4a21f0779`. Ruff and diff checks passed.

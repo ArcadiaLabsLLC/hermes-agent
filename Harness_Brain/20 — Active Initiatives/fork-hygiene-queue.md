@@ -11,9 +11,13 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Release validation — 2026-09-23
 
+### Filed on arrival — 2026-09-27 (Windows console signal safety)
+
+- [ ] **Retire the Windows signal-safety carry when upstream adopts an equivalent fix.** · [[Windows console signal safety]]; held upstream candidate recorded in `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md`; no parallel supervisor or PID helper added, no PR submitted.
+
 ### Filed on arrival — 2026-09-26 (native Hermes qualification)
 
-- [ ] **Finish classifying the validated-suite residuals, including the two worktree-only fleet identity assertions and baseline gateway certificate mismatch blocking registered mutations.** · [Native qualification evidence](../../docs/downstream/native-hermes-qualification-2026-09-26.md); no baseline expansion or unrelated runtime repair was made.
+- [ ] **Finish classifying the validated-suite residuals, including the two worktree-only fleet identity assertions and baseline gateway certificate mismatch blocking registered mutations.** · [Native qualification evidence](../../docs/downstream/native-hermes-qualification-2026-09-26.md); [[Windows console signal safety]] adds an incomplete one-hour run and failures reproduced on primary in 33 of 35 files; no baseline expansion or unrelated runtime repair was made.
 - [ ] **Re-anchor seven runtime-canon citations and remove the stale boot waiver after the upstream refactor.** · [Native qualification evidence](../../docs/downstream/native-hermes-qualification-2026-09-26.md); extends the earlier two-citation finding.
 - [ ] **Resolve the baseline gateway mirror and TUI server frozen-home assertions without creating a second profile resolver.** · [Native qualification evidence](../../docs/downstream/native-hermes-qualification-2026-09-26.md).
 
