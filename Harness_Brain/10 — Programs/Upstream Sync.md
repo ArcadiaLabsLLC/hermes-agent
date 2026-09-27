@@ -127,6 +127,8 @@ PR staleness sweep 2026-09-27: 12 open PRs conflict with upstream 062dc1e7f0 (#1
 
 Codebase supersession sweep 2026-09-27: every fork-only module added since 067fa1a257 against what upstream grew in 067fa1a257..062dc1e7f0 — verdict SUPERSEDED (adopt upstream's) / PARTIAL / KEEP into a new sheet `docs/agent-runtime-harness/planned/supersession-2026-09-27.md`. **TAKEN 2026-09-27 lane SUPERSEDE**
 
+Dedupe sweep 2026-09-27: all 38 open PRs + 20 held branches against upstream's OPEN PRs by others and merged commits since each base (the CONTRIBUTING search-first rule, never run for the whole set) — verdict UNIQUE / OVERLAPS #N / DUPLICATE-OF #N into sheet §8. **TAKEN 2026-09-27 lane DEDUPE**
+
 Merge note (lane AUTH-PR): the fork's own `tests/hermes_cli/test_plugin_declared_cli_commands.py` shares a path with the branch's — at the merge take upstream's file.
 
 ## Related
