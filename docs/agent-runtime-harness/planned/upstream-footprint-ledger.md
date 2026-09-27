@@ -218,6 +218,10 @@ provides an atomic read/transform/write for native execution receipts.
 `compute_host_bridge.py` retains their child route, and `methods_prompt.py`
 refuses inline fallback for an identified native execution. Existing legacy
 behavior is unchanged. Evidence: the downstream native recovery repair note.
+`inflight_recovery.py` augments the existing native inflight owner with segment
+offsets/revision and reasoning; `session_workdir.py` stamps its execution identity
+in existing display metadata. Both apply only to explicitly identified native
+executions. The downstream note records their mutation controls.
 
 The rule of record (owner 2026-09-23): adopt upstream's, or record the parallel with the
 symbol it shadows, why it cannot be adopted, and what retires it. These live in fork-owned

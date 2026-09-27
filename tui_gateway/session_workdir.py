@@ -359,6 +359,8 @@ def _persist_submit_user_row(session: dict, text: Any, display_kind: str | None)
     from agent.context_compressor import _DB_PERSISTED_MARKER
     from agent.message_metadata import stamp_message_timestamp
     staged = stamp_message_timestamp({"role": "user", "content": text})
+    if execution := session.get("native_execution"):
+        staged["display_metadata"] = {"execution_id": execution["id"]}
     if display_kind:
         staged["display_kind"] = display_kind
     with _session_db(session) as db:
@@ -366,7 +368,8 @@ def _persist_submit_user_row(session: dict, text: Any, display_kind: str | None)
             return
         try:
             staged["_row_id"] = db.append_message(
-                key, "user", content=text, display_kind=display_kind, timestamp=staged["timestamp"])
+                key, "user", content=text, display_kind=display_kind, timestamp=staged["timestamp"],
+                display_metadata=staged.get("display_metadata"))
         except Exception as exc:
             _workdir_reraise_disk_full(exc, "submit-time user row persist failed")
             return

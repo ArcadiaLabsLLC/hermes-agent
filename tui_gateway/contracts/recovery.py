@@ -27,10 +27,18 @@ class HistoryPosition(Result):
     version: int
 
 
+class SegmentEnd(Result):
+    assistant: int
+    reasoning: int
+
+
 class InflightPosition(Result):
     execution_id: str
     user: int
     assistant: int
+    reasoning: int
+    revision: int
+    segment_ends: list[SegmentEnd]
 
 
 class RecoverySnapshot(LiveSessionSnapshot):
@@ -64,7 +72,8 @@ class RecoveryHistoryPage(Result):
 
 class RecoveryInflightParams(SessionParams):
     execution_id: str
-    field: Literal["user", "assistant"]
+    field: Literal["user", "assistant", "reasoning"]
+    revision: int = Field(default=0, ge=0)
     through: int = Field(ge=0)
     offset: int = Field(default=0, ge=0)
 

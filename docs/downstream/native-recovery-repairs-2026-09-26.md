@@ -93,3 +93,18 @@ Stop test. Restored code passes 3 dispatch and 9 execution cases. Existing
 compression watermark tests pass 16 cases; compute phase-one tests pass 8.
 Gateway contracts were regenerated. These checks do not qualify client recovery,
 retention, cold restart or the complete UI path; the repair remains in progress.
+
+## Native inflight continuation checkpoint
+
+The existing inflight record now retains segment boundaries and reasoning text
+for identified native executions. Prefix reads carry a revision: an authoritative
+interim rewrite invalidates an older read, while appended streaming remains
+readable at its captured bound. User-row metadata preserves execution identity
+through compression copies; no text matching is used.
+
+Eight snapshot tests pass, including branch isolation. Disabling segment tracking
+and the durable execution link produced two targeted failures; restoring them
+passed. Generated contract checks pass (2 tests), as does focused Ruff analysis.
+Launcher has a typed, awaited restoration path, qualified with a controlled RPC
+peer. Real-service/compute restart, aggregate retention, large-history cost and
+native desktop acceptance still prevent declaring the full repair complete.

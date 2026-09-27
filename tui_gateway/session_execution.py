@@ -92,6 +92,8 @@ def stamp(session: dict, frame: dict) -> None:
         return
     params["execution_id"] = record["id"]
     payload = params.get("payload") or {}
+    from tui_gateway.inflight_recovery import record as record_inflight
+    record_inflight(session, params.get("type"), payload)
     status = payload.get("status")
     if params.get("type") == "message.complete" and status in _TERMINAL:
         record = {**record, "status": status}

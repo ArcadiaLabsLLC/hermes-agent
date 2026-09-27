@@ -3392,6 +3392,13 @@ export interface InflightPosition {
   execution_id: string
   user: number
   assistant: number
+  reasoning: number
+  revision: number
+  segment_ends: SegmentEnd[]
+}
+export interface SegmentEnd {
+  assistant: number
+  reasoning: number
 }
 export interface RecoveryHistoryParams {
   session_id: string
@@ -3417,7 +3424,8 @@ export interface RecoveryInflightParams {
   session_id: string
   profile?: string | null
   execution_id: string
-  field: 'user' | 'assistant'
+  field: 'user' | 'assistant' | 'reasoning'
+  revision?: number
   through: number
   offset?: number
 }

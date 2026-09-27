@@ -15,8 +15,11 @@ def recover(server, sid, session, execution_id=None):
         page = event_replay.checkpoint(sid, 0, include_events=False)
         inflight = state.get("inflight")
         if inflight and receipt and (session.get("native_execution") or {}).get("id") == receipt["id"]:
+            turn = session["inflight_turn"]
             state["inflight_position"] = {"execution_id": receipt["id"],
-                **{field: len(inflight.get(field) or "") for field in ("user", "assistant")}}
+                "revision": turn.get("revision", 0),
+                "segment_ends": list(turn.get("segment_ends") or []),
+                **{field: len(turn.get(field) or "") for field in ("user", "assistant", "reasoning")}}
             state["inflight"] = {**inflight, "user": "", "assistant": ""}
         return {**state, "execution": receipt, "epoch": page["epoch"],
                 "latest_seq": page["latest_seq"], "history": {
@@ -28,7 +31,8 @@ def inflight_page(server, session, params):
     with session["history_lock"]:
         turn = session.get("inflight_turn")
         identity = (session.get("native_execution") or {}).get("id")
-        if not turn or identity != params["execution_id"]:
+        if (not turn or identity != params["execution_id"]
+                or turn.get("revision", 0) != params.get("revision", 0)):
             return {"reset": True}
         text = str(turn.get(params["field"]) or "")
         through, offset = params["through"], params.get("offset", 0)

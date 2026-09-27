@@ -15558,12 +15558,30 @@
           "assistant": {
             "title": "Assistant",
             "type": "integer"
+          },
+          "reasoning": {
+            "title": "Reasoning",
+            "type": "integer"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "segment_ends": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentEnd"
+            },
+            "title": "Segment Ends",
+            "type": "array"
           }
         },
         "required": [
           "execution_id",
           "user",
-          "assistant"
+          "assistant",
+          "reasoning",
+          "revision",
+          "segment_ends"
         ],
         "title": "InflightPosition",
         "type": "object"
@@ -25976,10 +25994,17 @@
           "field": {
             "enum": [
               "user",
-              "assistant"
+              "assistant",
+              "reasoning"
             ],
             "title": "Field",
             "type": "string"
+          },
+          "revision": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Revision",
+            "type": "integer"
           },
           "through": {
             "minimum": 0,
@@ -27974,6 +27999,25 @@
           "role"
         ],
         "title": "SeedMessage",
+        "type": "object"
+      },
+      "SegmentEnd": {
+        "additionalProperties": false,
+        "properties": {
+          "assistant": {
+            "title": "Assistant",
+            "type": "integer"
+          },
+          "reasoning": {
+            "title": "Reasoning",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "assistant",
+          "reasoning"
+        ],
+        "title": "SegmentEnd",
         "type": "object"
       },
       "SessionActivateParams": {

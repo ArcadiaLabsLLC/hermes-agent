@@ -155,7 +155,7 @@ class ConversationService:
     def inflight(self, scope: ConversationScope, session_id: str, params: dict) -> dict:
         live = self._session(scope, session_id)
         return live.peer.call("session.recovery.inflight", {"session_id": live.native_id,
-            **{key: params[key] for key in ("execution_id", "field", "through", "offset")}})
+            **{key: params[key] for key in ("execution_id", "field", "through", "offset", "revision")}})
 
     def stop(self, scope: ConversationScope, session_id: str, turn_id: str) -> dict:
         live = self._session(scope, session_id)

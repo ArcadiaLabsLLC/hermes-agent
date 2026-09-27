@@ -41,7 +41,8 @@ def test_snapshot_restores_the_exact_live_question_and_execution(owner):
     assert result["execution"]["user_row_id"] == row
     assert result["execution"]["id"] == "execution"
     assert result["open_requests"][0]["id"] == request.id
-    assert result["inflight_position"] == {"execution_id": "execution", "user": 5, "assistant": 8}
+    assert result["inflight_position"] == {"execution_id": "execution", "user": 5, "assistant": 8,
+        "reasoning": 0, "revision": 0, "segment_ends": []}
     server_requests.resolve_response({"id": request.id, "result": {"answer": "yes"}}, session_id="live")
     again = session_recovery.recover(server, "live", session, "execution")
     assert not again.get("open_requests")
@@ -148,3 +149,57 @@ def test_recovery_uses_native_compacted_lineage_and_display_visibility(owner):
     position = session_recovery.recover(server, "live", session)["history"]
     assert [row["text"] for row in read_history(session, position)] == [
         "original question", "original answer", "follow-up", "new answer"]
+
+
+def test_checkpoint_preserves_segment_boundaries_and_invalidates_rewritten_prefix(owner):
+    session, _ = owner
+    session_execution.admit(session, "execution")
+    server._start_inflight_turn(session, "hello")
+    server._append_inflight_delta(session, "draft")
+    stale = session_recovery.recover(server, "live", session)["inflight_position"]
+
+    def emit(kind, text):
+        session_execution.stamp(session, {"method": "event", "params": {
+            "type": kind, "payload": {"text": text}}})
+
+    emit("reasoning.delta", "reason")
+    emit("message.interim", "Polished🌍")
+    server._append_inflight_delta(session, "final prefix")
+    emit("reasoning.available", "next thought")
+    position = session_recovery.recover(server, "live", session)["inflight_position"]
+    assert position["segment_ends"] == [{"assistant": 9, "reasoning": 6}]
+    assert position["assistant"] == len("Polished🌍final prefix")
+    assert position["reasoning"] == len("reasonnext thought")
+    assert session_recovery.inflight_page(server, session, {
+        "execution_id": "execution", "field": "assistant", "through": stale["assistant"],
+        "revision": stale["revision"]})["reset"]
+    current = session_recovery.inflight_page(server, session, {
+        "execution_id": "execution", "field": "assistant", "through": position["assistant"],
+        "revision": position["revision"]})
+    assert current["text"] == "Polished🌍final prefix"
+
+
+def test_native_execution_link_survives_compaction_copy(owner):
+    session, db = owner
+    session_execution.admit(session, "execution")
+    server._persist_submit_user_row(session, "question", None)
+    session_execution.submitted(session)
+    original = session_execution.snapshot(session, "execution")["user_row_id"]
+    history = db.get_messages_as_conversation("stored", include_row_ids=True)
+    db.archive_and_compact("stored", history)
+    position = session_recovery.recover(server, "live", session)["history"]
+    rows = read_history(session, position)
+    assert len(rows) == 1
+    assert rows[0]["row_id"] != original
+    assert rows[0]["display_metadata"]["execution_id"] == "execution"
+
+
+def test_explicit_branch_recovery_never_reads_its_parent(owner):
+    session, db = owner
+    db.append_message("stored", "user", "not in this branch")
+    db.create_session("branch", source="eternia_intelligence", parent_session_id="stored",
+        model_config={"_branched_from": "stored"})
+    db.append_message("branch", "user", "branch input")
+    session["session_key"] = "branch"
+    position = session_recovery.recover(server, "live", session)["history"]
+    assert [row["text"] for row in read_history(session, position)] == ["branch input"]
