@@ -482,12 +482,7 @@ def _resolve_container_task_id(task_id: Optional[str]) -> str:
        keys its own home (``profile:<name>`` under persistent Docker, matching branch 3);
        else ``"default"``, which subagent ids collapse onto to share the parent's container.
     """
-    try:
-        from agent_runtime.persona_chat_continuity import current_tool_execution_scope
-        chat_scope = current_tool_execution_scope()
-    except Exception:
-        chat_scope = None
-    if chat_scope:
+    if chat_scope := chat_container_scope():  # fork: agent_runtime/terminal_policy.py
         return chat_scope
     if task_id and _has_isolation_overrides(task_id):
         return task_id
@@ -1344,9 +1339,7 @@ def _degraded_result(e: EnvironmentConnectionError, task_id: Optional[str]) -> s
     }, ensure_ascii=False)
 
 
-from agent_runtime.terminal_policy import (
-    _harness_safety_block, _harness_network_block_reason, _harness_envelope_gate, _harness_envelope_block, _with_envelope_provenance, _log_harness_blocked_attempt, _interactive_cli_guidance
-)
+from agent_runtime.terminal_policy import _harness_envelope_block, _harness_envelope_gate, _harness_network_block_reason, _harness_safety_block, _interactive_cli_guidance, _log_harness_blocked_attempt, _with_envelope_provenance, chat_container_scope, gated_terminal_call  # noqa: E402,F401 — fork
 
 def terminal_tool(
     command: str,
@@ -1364,64 +1357,15 @@ def terminal_tool(
     heartbeat: int = 0,
     persist_on_release: bool = False,
 ) -> str:
-    """Execute a command, gated by the envelope and accounted for in the result.
-
-    Thin by design. The envelope decision happens ONCE, here, and the grant's
-    provenance is merged ONCE, here — which is the whole reason this wrapper
-    exists rather than the gate living inside :func:`_terminal_tool_run`. That
-    body has well over a dozen ``return json.dumps(...)`` exits (timeouts,
-    backend failures, background handoffs, PTY paths); attaching provenance at
-    each of them would be a hand-maintained list that a new exit silently falls
-    out of, and a granted command whose result quietly lost its audit account is
-    exactly the invisible-fact class this change was made to retire. One
-    chokepoint means a new exit inherits the behaviour for free.
-
-    Argument and return contract: see :func:`_terminal_tool_run`. The model-facing
-    schema is ``TERMINAL_SCHEMA``/``TERMINAL_TOOL_DESCRIPTION``, not this
-    docstring, so the tool the model sees is unchanged.
-    """
-
-    try:
-        block, provenance = _harness_envelope_gate(command)
-    except Exception as exc:  # pragma: no cover - the gate is defensive throughout
-        # Fail CLOSED, in the same shape the body's own handler returns. Moving
-        # the gate out of ``_terminal_tool_run`` moved it out of that
-        # ``except Exception`` too; without this, a gate fault would stop being
-        # a typed tool error and start propagating into the tool executor — and
-        # a command whose safety decision crashed must not run on the way there.
-        logger.error("Terminal envelope gate failed; refusing command", exc_info=True)
-        return json.dumps({
-            "output": "",
-            "exit_code": -1,
-            "error": f"Failed to execute command: {exc}",
-            "status": "error",
-        }, ensure_ascii=False)
-    if block is not None:
-        return json.dumps(block, ensure_ascii=False)
-    if not background and not pty and isinstance(command, str):
-        guidance = _interactive_cli_guidance(command)
-        if guidance:
-            return json.dumps({"output": "", "exit_code": -1, "error": guidance,
-                               "status": "error"}, ensure_ascii=False)
-    return _with_envelope_provenance(
-        _terminal_tool_run(
-            command,
-            background=background,
-            timeout=timeout,
-            task_id=task_id,
-            session_id=session_id,
-            force=force,
-            workdir=workdir,
-            pty=pty,
-            notify_on_complete=notify_on_complete,
-            watch_patterns=watch_patterns,
-            _host_local=_host_local,
-            _completion_output_chars=_completion_output_chars,
-            heartbeat=heartbeat,
-            persist_on_release=persist_on_release,
-        ),
-        provenance,
+    """Execute a command through the harness envelope (``agent_runtime.terminal_policy.gated_terminal_call``)."""
+    return gated_terminal_call(
+        _terminal_tool_run, command, background=background, timeout=timeout, task_id=task_id,
+        session_id=session_id, force=force, workdir=workdir, pty=pty,
+        notify_on_complete=notify_on_complete, watch_patterns=watch_patterns, _host_local=_host_local,
+        _completion_output_chars=_completion_output_chars, heartbeat=heartbeat,
+        persist_on_release=persist_on_release,
     )
+
 
 def _terminal_tool_run(
     command: str,
