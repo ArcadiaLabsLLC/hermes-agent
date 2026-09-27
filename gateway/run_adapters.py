@@ -473,7 +473,7 @@ class GatewayAdapterLifecycleMixin:
         """Process pending CLI→gateway session handoffs from ``state.db``: claim atomically (pending
         → running), re-bind the home channel to the CLI session_id, dispatch a synthetic event, mark
         ``completed``/``failed``."""
-        from gateway.run import _async_profile_runtime_scope, _handoff_watch_scopes, _reclaim_stale
+        from gateway.run import _async_profile_runtime_scope, _reclaim_stale, _resolve_handoff_watch_scopes
         from gateway.run_idle_gates import off_loop_gate, profile_has_pending_handoff
         await asyncio.sleep(5)  # let platforms connect before dispatching through them
         # Does _process_handoff accept the profile argument? Test stand-ins bind a one-arg callable.
@@ -534,14 +534,16 @@ class GatewayAdapterLifecycleMixin:
         def _scope(profile_home):  # local: tests bind this watcher onto bare SimpleNamespace runners
             return GatewayAdapterLifecycleMixin._async_scope_or_null(_async_profile_runtime_scope, profile_home)
 
-        for _pname, _phome in _handoff_watch_scopes(self):
+        # Multiplex scope resolution walks the filesystem (profiles_to_serve) off the loop, so a
+        # stalled walk cannot trip the liveness probe — startup reclaim and every tick alike.
+        for _pname, _phome in await _resolve_handoff_watch_scopes(self):
             with _log_suppressed(logging.DEBUG, "Stale-handoff reclaim failed", exc_info=True):
                 async with _scope(_phome):
                     await _reclaim_stale(self)
         try:
             while self._running:
                 try:
-                    for profile_name, profile_home in _handoff_watch_scopes(self):
+                    for profile_name, profile_home in await _resolve_handoff_watch_scopes(self):
                         # Idle gate (run_idle_gates): skip the scope entry when the profile's store
                         # holds no pending handoff. The root poll (None) is unscoped and stays cheap.
                         if profile_home is not None and not await off_loop_gate(
@@ -1788,10 +1790,17 @@ class GatewayAdapterLifecycleMixin:
         is consulted while allowlist reads stay under the transport home.
 
         Without this an inline-button caller approved only in the routed profile's pairing store was denied
-        (#86296), because the adapter's callback source was never route-stamped.
+        (#86296), because the adapter's callback source was never route-stamped. A secondary-owned bot's
+        callback fires outside the profile runtime scope (straight off the adapter's event loop), so the
+        check re-enters the owning profile's scope per call — the gate's scoped env read otherwise falls
+        back to os.environ (the default profile's env) and denies the secondary's own allowlisted
+        callers (#120639).
         """
         from gateway.run import get_hermes_home
         transport_home = Path(get_hermes_home()) if self._multiplex_on() and profile_name is None else None
+        # Resolved once; the scope is entered per call so an ``.env`` allowlist edit reaches the next
+        # tap, matching the message path's per-message re-read.
+        profile_home = self._routed_profile_home(profile_name) if profile_name else None
 
         def check(
             user_id: str, chat_type: Optional[str] = None, chat_id: Optional[str] = None, *,
@@ -1812,7 +1821,13 @@ class GatewayAdapterLifecycleMixin:
             if adapter is not None:
                 source._transport_adapter_ref = _weakref.ref(adapter)
             if transport_home is None:
-                return self._is_user_authorized(source)
+                # Sync, on the adapter's event loop (per tap, per inline-query keystroke): never
+                # hydrate external secret sources here — that takes the process-global source lock
+                # (#99519). Startup and the message path hydrate off-loop; this reads their cache.
+                from gateway.run import _profile_runtime_scope
+                with self._scope_or_null(
+                        functools.partial(_profile_runtime_scope, hydrate_secrets=False), profile_home):
+                    return self._is_user_authorized(source)
             # Canonicalize FIRST (callback sources never went through ``build_source``): the routed
             # profile's pairing store is consulted, allowlists read under the transport home.
             if self._canonicalize(source, primary_home=transport_home) is None:

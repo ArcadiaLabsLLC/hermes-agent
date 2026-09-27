@@ -292,7 +292,7 @@ def _wants_tui_early(argv: "list[str] | None" = None) -> bool:
         argv = sys.argv[1:]
     if "--cli" in argv:
         return False
-    if os.environ.get("HERMES_TUI") == "1" or "--tui" in argv:
+    if os.environ.get("HERMES_TUI") == "1" or any(flag in argv for flag in ("--tui", "--native", "--tui-native")):
         return True
     try:
         if not (sys.stdin.isatty() and sys.stdout.isatty()):
@@ -429,6 +429,9 @@ _startup_fast.ensure_project_root_on_path()
 # HERMES_HOME set, and the flag stripped so argparse never sees it. Falls back
 # to ~/.hermes/active_profile for the sticky default.
 _PROFILE_NAME_RE = r"^[a-z0-9][a-z0-9_-]{0,63}$"  # mirrors hermes_cli.profiles._PROFILE_ID_RE
+# Set only when -p/--profile was on argv. Sticky active_profile must not count:
+# `hermes desktop` with no flag must not overwrite Desktop's stored profile.
+_explicit_cli_profile: str | None = None
 
 
 from hermes_cli._profile_bootstrap import _inside_mcp_add_args
@@ -449,7 +452,22 @@ from hermes_cli._profile_bootstrap import _under_gateway_supervisor
 from hermes_cli._profile_bootstrap import _desktop_ssh_backend
 
 
-from hermes_cli._profile_bootstrap import apply_profile_override as _apply_profile_override
+from hermes_cli._profile_bootstrap import apply_profile_override as _bootstrap_profile_override
+
+
+def explicit_cli_profile() -> str | None:
+    """Profile named by a consumed ``-p``/``--profile`` flag, else None.
+
+    Sticky ``active_profile`` is not explicit. Desktop launch must not overwrite
+    its stored profile when the user omitted the flag.
+    """
+    return _explicit_cli_profile
+
+
+def _apply_profile_override() -> None:
+    """Pre-parse --profile/-p and set HERMES_HOME before imports (``_profile_bootstrap``)."""
+    global _explicit_cli_profile
+    _explicit_cli_profile = _bootstrap_profile_override()
 
 
 from hermes_cli._profile_bootstrap import is_hermes_cli_entrypoint as _is_hermes_cli_entrypoint
@@ -682,6 +700,7 @@ from hermes_cli.main_desktop import (  # frozen updater surface: update_cmd*.py 
     _desktop_macos_relaunchable_fixup,
     _desktop_packaged_executable,
     _install_rebuilt_desktop_app,
+    _installed_desktop_apps,
 )
 from hermes_cli.main_web_build import (
     _sweep_stale_bytecode_if_checkout_changed,
@@ -1668,6 +1687,7 @@ def cmd_chat(args):
         _launch_tui(
             passthrough.pop("resume"),
             tui_dev=getattr(args, "tui_dev", False),
+            native_mode=getattr(args, "tui_native", False) or None,
             model=getattr(args, "model", None),
             accept_hooks=getattr(args, "accept_hooks", False),
             **passthrough,
@@ -2467,6 +2487,28 @@ def _dashboard_sanitize_desktop_env(headless_backend) -> None:
         os.environ.pop("HERMES_SERVE_HEADLESS", None)
 
 
+def _require_dashboard_web_deps() -> None:
+    """Exit with the right message when the dashboard's web-server packages can't import.
+
+    A plain missing-package ImportError gets the standard repair guidance; the
+    ``DLL load failed ... _ssl`` signature of Windows Smart App Control blocking the
+    embedded runtime gets the policy guidance instead, so users stop looping on
+    repair for a block repair can never lift (#63796)."""
+    try:
+        import fastapi  # noqa: F401
+        import uvicorn  # noqa: F401
+    except ImportError as e:
+        from hermes_cli.main_dep_hints import (
+            missing_optional_deps_message,
+            smart_app_control_block_message,
+        )
+
+        print(smart_app_control_block_message(e) or missing_optional_deps_message(
+            "dashboard", "its web-server packages (fastapi, uvicorn)", "all"))
+        print(f"Details: {e}")
+        sys.exit(1)
+
+
 def _dashboard_prepare_runtime(args, headless_backend) -> bool:
     """Deps check, skills seed, terminal env bridge, plugins, MCP discovery.
 
@@ -2480,15 +2522,7 @@ def _dashboard_prepare_runtime(args, headless_backend) -> bool:
     except Exception:
         pass
 
-    try:
-        import fastapi  # noqa: F401
-        import uvicorn  # noqa: F401
-    except ImportError as e:
-        from hermes_cli.main_dep_hints import missing_optional_deps_message
-
-        print(missing_optional_deps_message("dashboard", "its web-server packages (fastapi, uvicorn)", "all"))
-        print(f"Details: {e}")
-        sys.exit(1)
+    _require_dashboard_web_deps()
 
     # Seed bundled skills on first dashboard launch so the desktop GUI's
     # skills picker / agent skill discovery sees the bundled library.

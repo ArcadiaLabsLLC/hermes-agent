@@ -41,7 +41,7 @@ def _token_status(source: str, source_label: str, creds: Dict[str, Any]) -> Dict
 
 
 def _anthropic_oauth_status() -> Dict[str, Any]:
-    """Status for the "Anthropic API Key" card: Hermes-managed PKCE file first, then the
+    """Status for the "Anthropic Account" card: Hermes-managed PKCE file first, then the
     registry-ordered env vars (process env — where Bitwarden-sourced secrets land — then .env).
 
     Claude Code's ``~/.claude/.credentials.json`` is deliberately NOT read here; it has its own

@@ -1,7 +1,15 @@
 import { SLASH_COMMAND_RE } from '@hermes/shared'
 import { atom } from 'nanostores'
 
-import type { ComposerAttachment } from './composer'
+import { type ComposerAttachment, revokeAttachmentPreviewUrls, revokeDiscardedAttachmentPreviews } from './composer'
+
+export interface RemoveQueuedPromptOptions {
+  /**
+   * When true, leave blob: preview URLs alive because submit/optimistic now
+   * owns the snapshot (drain handoff). Default false = entry discarded.
+   */
+  retainPreviewUrls?: boolean
+}
 
 export interface QueuedPromptEntry {
   id: string
@@ -13,6 +21,12 @@ export interface QueuedPromptEntry {
   /** A hidden note (a setup line for the model) parked while the turn ran. The panel
    *  shows a neutral label and the drain submits it hidden again. */
   displayKind?: 'hidden'
+  /** Consecutive auto-drain attempts that rejected this entry, persisted with
+   *  the queue so a restart does not replay the whole retry ladder (and its
+   *  exhaustion notice) for a session that is just as dead as before (#98015).
+   *  A user gesture — manual send, redirect, queueing a fresh prompt — clears
+   *  it, exactly like the composer's in-process counter. */
+  drainFailures?: number
   attachments: ComposerAttachment[]
   queuedAt: number
 }
@@ -166,7 +180,13 @@ export const enqueueQueuedPrompt = (
     queuedAt: Date.now()
   }
 
-  writeSession(sid, [...queueFor(sid), entry])
+  writeSession(
+    sid,
+    // Queueing a fresh prompt is fresh intent to keep the conversation
+    // moving — lift the persisted drain-failure budget off the entries
+    // already waiting there, exactly like the park (#98015).
+    [...queueFor(sid).map(e => (e.drainFailures ? { ...e, drainFailures: undefined } : e)), entry]
+  )
   // Queueing a new prompt is fresh intent to keep the conversation moving —
   // a park from an earlier Stop must not hold this (or the entries ahead of
   // it) back.
@@ -188,12 +208,17 @@ export const dequeueQueuedPrompt = (key: string | null | undefined): null | Queu
     return null
   }
 
+  // Caller takes ownership of head.attachments (including any blob: previews).
   writeSession(sid, rest)
 
   return head
 }
 
-export const removeQueuedPrompt = (key: string | null | undefined, id: string): boolean => {
+export const removeQueuedPrompt = (
+  key: string | null | undefined,
+  id: string,
+  options?: RemoveQueuedPromptOptions
+): boolean => {
   const sid = sidOf(key)
 
   if (!sid) {
@@ -201,15 +226,66 @@ export const removeQueuedPrompt = (key: string | null | undefined, id: string): 
   }
 
   const queue = queueFor(sid)
+  const removed = queue.find(e => e.id === id)
   const next = queue.filter(e => e.id !== id)
 
-  if (next.length === queue.length) {
+  if (!removed || next.length === queue.length) {
     return false
   }
 
   writeSession(sid, next)
 
+  if (!options?.retainPreviewUrls) {
+    revokeAttachmentPreviewUrls(removed.attachments)
+  }
+
   return true
+}
+
+/** Count one more rejected auto-drain attempt against a queued entry and
+ *  persist it with the queue (#98015). The in-process retry ladder stays
+ *  identical; only its budget survives restarts, so a session that is dead in
+ *  this process is not retried four more times on every future launch. */
+export const noteQueuedPromptDrainFailure = (key: string | null | undefined, id: string): void => {
+  const sid = sidOf(key)
+
+  if (!sid) {
+    return
+  }
+
+  const queue = queueFor(sid)
+
+  if (!queue.some(e => e.id === id)) {
+    return
+  }
+
+  writeSession(
+    sid,
+    queue.map(e => (e.id === id ? { ...e, drainFailures: (e.drainFailures ?? 0) + 1 } : e))
+  )
+}
+
+/** Clear a queued entry's persisted drain-failure budget — the queue-panel
+ *  sibling of the composer's in-process counter reset. Called on the user
+ *  gestures that express fresh intent to send (manual send, redirect, and
+ *  implicitly by removal on success). */
+export const clearQueuedPromptDrainFailures = (key: string | null | undefined, id: string): void => {
+  const sid = sidOf(key)
+
+  if (!sid) {
+    return
+  }
+
+  const queue = queueFor(sid)
+
+  if (!queue.some(e => e.id === id && e.drainFailures)) {
+    return
+  }
+
+  writeSession(
+    sid,
+    queue.map(e => (e.id === id ? { ...e, drainFailures: undefined } : e))
+  )
 }
 
 export const promoteQueuedPrompt = (key: string | null | undefined, id: string): boolean => {
@@ -257,6 +333,10 @@ export const updateQueuedPrompt = (
       return entry
     }
 
+    if (update.attachments) {
+      revokeDiscardedAttachmentPreviews(entry.attachments, attachments)
+    }
+
     changed = true
 
     // The user rewrote the text, so any display projection it carried (a
@@ -284,6 +364,10 @@ export const clearQueuedPrompts = (key: string | null | undefined) => {
 
   if (!sid || !(sid in $queuedPromptsBySession.get())) {
     return
+  }
+
+  for (const entry of queueFor(sid)) {
+    revokeAttachmentPreviewUrls(entry.attachments)
   }
 
   writeSession(sid, [])
