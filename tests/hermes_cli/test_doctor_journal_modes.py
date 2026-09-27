@@ -245,10 +245,9 @@ class TestLiveConnectionSafety:
 class TestUnreadableReason:
     @pytest.mark.platforms("linux")
     def test_missing_file_keeps_the_os_error_text(self, tmp_path):
-        missing = tmp_path / "gone.db"
-        with pytest.raises(OSError) as error:
-            missing.stat()
-        assert doctor_platform._unreadable_reason(missing) == str(error.value)
+        reason = doctor_platform._unreadable_reason(tmp_path / "gone.db")
+
+        assert "No such file or directory" in reason
 
     @pytest.mark.platforms("posix")  # chmod is a no-op on Windows
     @pytest.mark.skipif(

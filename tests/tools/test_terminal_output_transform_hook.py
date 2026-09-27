@@ -1,7 +1,5 @@
 import json
 import os
-import shlex
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -132,11 +130,8 @@ def test_large_process_output_is_bounded_before_sudo_and_plugin_hooks(
     monkeypatch.setitem(terminal_tool_module._active_environments, "default", env)
     monkeypatch.setitem(terminal_tool_module._last_activity, "default", 0.0)
     try:
-        # ``python3`` is not the interpreter's name on Windows (it is
-        # ``python``), so hardcoding it made the child exit 127 and the
-        # bounding behaviour under test never produced any output to bound.
         command = (
-            f"{shlex.quote(sys.executable)} -c \"import sys; "
+            "python3 -c \"import sys; "
             "sys.stdout.write('HEAD-SENTINEL\\n' + 'x' * 2000000 + "
             "'\\nTAIL-SENTINEL')\""
         )
