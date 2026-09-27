@@ -1,9 +1,9 @@
 {
-  "measured_at": "2026-09-26",
-  "base": "067fa1a257",
-  "files": 148,
-  "deleted_lines": 839,
-  "heavy": 4,
+  "measured_at": "2026-09-27",
+  "base": "2f14d5e6e4",
+  "files": 117,
+  "deleted_lines": 766,
+  "heavy": 3,
   "reasons": [
     {
       "change": "ACP named-provider identity correction (owner requested 2026-09-24)",
@@ -318,6 +318,30 @@
       "files": "167 -> 148: 19 files byte-identical to 067fa1a257 again (contributor-check.yml, audit_pr_attribution.py, releases/authors.py; the two desktop uninstall-section files; commands_platforms.py, slack_cli.py; nix/checks.nix; the Feishu adapter and test_feishu.py; tests/docker/test_dashboard.py; test_base_environment.py, test_file_ops_cwd_tracking.py, test_file_tools.py; five website/docs pages); tools/environments/local.py stays on the list (only its callerless _shell_arg_safe_path was deleted; added lines only)",
       "deleted_lines": "876 -> 839 (the 19 reverted files' 37); heavy unchanged at 4",
       "reason": "each file serves a surface the fork does not run (desktop app, website, nix, docker tier, the Slack and Feishu adapters, the contributors case-variants lookup) or carried a hunk that does not do what it claims (two R10 test hunks, one unused import); the fork's case-variants/ directory and the fork tests of the dropped hunks left with them. docs/agent-runtime-harness/planned/fix-triage-2026-09-26.md section 1"
+    },
+    {
+      "change": "merge upstream/main 2f14d5e6e4 (lane MERGE-0927, 1,347 commits, 8 conflicts); manifest re-based 067fa1a257 -> 2f14d5e6e4",
+      "files": "148 -> 152: four files of 11c94aca7c (native conversation admission, 2026-09-26: gateway-contract.generated.ts, gateway-contract.openrpc.json, tui_gateway/contracts/prompt_voice.py, tui_gateway/methods_prompt.py) joined the footprint before the merge without a fixture row; first measured here",
+      "deleted_lines": "839 -> 841: tools/mcp_tool_transport.py 1 -> 3 (upstream folded the stdio spawn into one _stdio_launch path; the fork's server_name/runtime_env carry now replaces its signature, its _build_safe_env call and its caller); heavy unchanged at 4",
+      "reason": "the carries are the fork's own lines re-seated on upstream's new shape, never a third version: #124210 (HERMES_HOME / process MCP env for stdio children) is still open upstream; the reject_if_busy rows are dispositioned carry in the ledger with their retirement. docs/agent-runtime-harness/planned/fix-triage-2026-09-26.md section 6"
+    },
+    {
+      "change": "lane CARRY-DELETE (lane/carry-delete): door-fit EXISTS carries + the DROP-AT-MERGE residue",
+      "files": "152 -> 148: utils.py (the newline kwarg; callers moved to atomic_write_bytes), tui_gateway/entry.py (explicit completion restore; upstream's ProcessRegistry constructor restores), tests/hermes_cli/test_early_recovery.py (lifecycle tests upstream deleted at 8b7eae99ef, #121218), tests/agent/test_image_routing.py (#121641) byte-identical to 2f14d5e6e4 again; gateway/run.py and tools/process_registry.py shrink (restore half of #125256; the lane-scoped wait_ceiling_seconds line stays), tests/tools/test_skills_hub.py loses a stale docstring (#121221; the #121643 bundle-key hunk stays)",
+      "deleted_lines": "841 -> 829: process_registry.py 13 -> 6, utils.py 4 -> 0, test_image_routing.py 1 -> 0; heavy unchanged at 4",
+      "reason": "an upstream door already yields the behaviour (utils.atomic_write_bytes; restore at the singleton's first construction) or upstream overtook the PR (bd258480d3, 8b7eae99ef); each move's red is in its commit message. docs/agent-runtime-harness/planned/door-fit-2026-09-27.md Closures"
+    },
+    {
+      "change": "277580092a (Windows console signal safety, landed 2026-09-27 by another session without a fixture row)",
+      "files": "148 -> 151: tests/conftest.py (+7/-1), tests/test_live_system_guard_self_test.py (+4), tui_gateway/host_supervisor.py (+5/-1)",
+      "deleted_lines": "829 -> 834: the -1s above plus scripts/run_tests_parallel.py and tests/_fixtures/live_system_guard.py hunks; heavy unchanged at 4",
+      "reason": "recorded so main is green again; the three files are in FOOTPRINT-DROP's scope (conftest/self-test edits -> fork-owned conftest plugin, host_supervisor hook -> plugin wrap)"
+    },
+    {
+      "change": "lane FOOTPRINT-DROP (lane/footprint-drop): sort-and-drop of the 151 footprint files (table: docs/agent-runtime-harness/planned/footprint-drop-2026-09-27.md)",
+      "files": "151 -> 117: 34 files back at 2f14d5e6e4 bytes — 32 upstream test files (5 linux marks moved to id_markers; 6 doc pointers / an unused import; 16 Windows respellings upstream's own platforms marks already skip; 2 respellings moved to *_downstream.py siblings with win32 strict xfails; the local-runtime stub, now a timeout mark by id; the redundant test_hermes_constants pin; the bypass self-test, now a win32 skip by id plus a sibling), the CRLF contributor file (a -text keeper), and hermes_cli/provider_catalog.py (its block is hermes_cli/provider_login_catalog.py)",
+      "deleted_lines": "834 -> 766: the reverted files' deletions; heavy 4 -> 3 (agent/pet/generate/atlas.py 199 -> 109). Twelve kept files shrank into fork modules (each move's red is in its commit message): gateway.py 169 -> 20, gateway_windows.py 123 -> 5, tool_search.py 117 -> 37, terminal_tool.py 86 -> 30, plugins/memory 69 -> 2, subcommands/auth.py 37 -> 2, model_tools.py 31 -> 4, update_cmd_windows.py 30 -> 4, process_registry_notifications.py 29 -> 3, plugins_manifest.py 20 -> 5, live_system_guard.py 169 -> 39",
+      "reason": "footprint moves to fork-owned modules, id marks and siblings; no behaviour change (bucket b found no load-time-safe wrap)"
     }
   ]
 }

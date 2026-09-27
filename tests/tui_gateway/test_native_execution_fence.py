@@ -37,6 +37,18 @@ def test_old_stop_cannot_cancel_new_execution(owner, monkeypatch):
     assert execution.snapshot(session, "new")["cancel_requested"]
 
 
+def test_fenced_rpc_stop_does_not_change_process_wide_voice(owner, monkeypatch):
+    session, _ = owner
+    execution.admit(session, "current")
+    monkeypatch.setattr(server, "_sess_nowait", lambda *args: (session, None))
+    monkeypatch.setattr(server, "_interrupt_session_turn", lambda *args, **kwargs: None)
+    monkeypatch.setattr(server, "_tts_stream_stop", lambda: pytest.fail("unrelated speech stopped"))
+    monkeypatch.setattr(server, "_resume_wake_after_interrupt", lambda: pytest.fail("unrelated wake changed"))
+    result = server._methods["session.interrupt"]("rpc", {
+        "session_id": "live", "expected_execution_id": "current"})
+    assert result["result"]["interrupted"]
+
+
 def test_completion_wins_and_uncertain_receipt_is_not_replayed(owner, monkeypatch):
     session, _ = owner
     execution.admit(session, "turn")

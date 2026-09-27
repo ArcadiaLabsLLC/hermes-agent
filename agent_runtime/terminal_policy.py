@@ -223,3 +223,59 @@ def _interactive_cli_guidance(command: str) -> str | None:
             "only when interactive input is actually required."
         )
     return None
+
+
+def chat_container_scope() -> str | None:
+    """The persona chat's tool-execution scope, or ``None`` outside one (or on any failure).
+
+    ``tools.terminal_tool._resolve_container_task_id`` returns it first, so a chat's
+    commands share one container. Lane FOOTPRINT-DROP (2026-09-27) moved it here."""
+    try:
+        from agent_runtime.persona_chat_continuity import current_tool_execution_scope
+
+        return current_tool_execution_scope()
+    except Exception:
+        return None
+
+
+def gated_terminal_call(run, command, **kwargs) -> str:
+    """Execute a command, gated by the envelope and accounted for in the result.
+
+    Thin by design. The envelope decision happens ONCE, here, and the grant's
+    provenance is merged ONCE, here — which is the whole reason this wrapper
+    exists rather than the gate living inside :func:`_terminal_tool_run`. That
+    body has well over a dozen ``return json.dumps(...)`` exits (timeouts,
+    backend failures, background handoffs, PTY paths); attaching provenance at
+    each of them would be a hand-maintained list that a new exit silently falls
+    out of, and a granted command whose result quietly lost its audit account is
+    exactly the invisible-fact class this change was made to retire. One
+    chokepoint means a new exit inherits the behaviour for free.
+
+    Argument and return contract: see ``tools.terminal_tool._terminal_tool_run`` (*run*). The model-facing
+    schema is ``TERMINAL_SCHEMA``/``TERMINAL_TOOL_DESCRIPTION``, not this
+    docstring, so the tool the model sees is unchanged.
+    """
+
+    try:
+        block, provenance = _harness_envelope_gate(command)
+    except Exception as exc:  # pragma: no cover - the gate is defensive throughout
+        # Fail CLOSED, in the same shape the body's own handler returns. Moving
+        # the gate out of ``_terminal_tool_run`` moved it out of that
+        # ``except Exception`` too; without this, a gate fault would stop being
+        # a typed tool error and start propagating into the tool executor — and
+        # a command whose safety decision crashed must not run on the way there.
+        logger.error("Terminal envelope gate failed; refusing command", exc_info=True)
+        return json.dumps({
+            "output": "",
+            "exit_code": -1,
+            "error": f"Failed to execute command: {exc}",
+            "status": "error",
+        }, ensure_ascii=False)
+    if block is not None:
+        return json.dumps(block, ensure_ascii=False)
+    if not kwargs.get("background") and not kwargs.get("pty") and isinstance(command, str):
+        guidance = _interactive_cli_guidance(command)
+        if guidance:
+            return json.dumps({"output": "", "exit_code": -1, "error": guidance,
+                               "status": "error"}, ensure_ascii=False)
+    return _with_envelope_provenance(run(command, **kwargs), provenance)

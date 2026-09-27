@@ -31,6 +31,7 @@ import pytest
 import agent.agent_init as agent_init_mod
 import agent.conversation_loop as loop_mod
 import model_tools
+from tools import tool_defs_observability
 from agent.conversation_loop import (
     _emit_conversation_timing,
     _restore_or_build_system_prompt,
@@ -189,16 +190,16 @@ class TestToolSchemaMemoReceipt:
 
         monkeypatch.setattr(model_tools, "_compute_tool_definitions", _fake_compute)
 
-        misses0 = model_tools.tool_defs_cache_misses_this_thread()
-        hits0 = model_tools.tool_defs_cache_hits_this_thread()
+        misses0 = tool_defs_observability.tool_defs_cache_misses_this_thread()
+        hits0 = tool_defs_observability.tool_defs_cache_hits_this_thread()
 
         model_tools.get_tool_definitions(enabled_toolsets=["files"], quiet_mode=True)
-        assert model_tools.tool_defs_cache_misses_this_thread() == misses0 + 1
-        assert model_tools.tool_defs_cache_hits_this_thread() == hits0
+        assert tool_defs_observability.tool_defs_cache_misses_this_thread() == misses0 + 1
+        assert tool_defs_observability.tool_defs_cache_hits_this_thread() == hits0
 
         model_tools.get_tool_definitions(enabled_toolsets=["files"], quiet_mode=True)
-        assert model_tools.tool_defs_cache_misses_this_thread() == misses0 + 1
-        assert model_tools.tool_defs_cache_hits_this_thread() == hits0 + 1
+        assert tool_defs_observability.tool_defs_cache_misses_this_thread() == misses0 + 1
+        assert tool_defs_observability.tool_defs_cache_hits_this_thread() == hits0 + 1
         assert len(computed) == 1, "the serializer must run once across two builds"
 
     def test_a_registry_epoch_change_rebuilds_rather_than_pinning_a_stale_surface(
@@ -226,7 +227,7 @@ class TestToolSchemaMemoReceipt:
         model_tools.get_tool_definitions(enabled_toolsets=["files"], quiet_mode=True)
         assert len(computed) == 1
 
-        misses_before = model_tools.tool_defs_cache_misses_this_thread()
+        misses_before = tool_defs_observability.tool_defs_cache_misses_this_thread()
         model_tools.registry._generation += 1
         try:
             model_tools.get_tool_definitions(
@@ -235,7 +236,7 @@ class TestToolSchemaMemoReceipt:
         finally:
             model_tools.registry._generation -= 1
         assert len(computed) == 2, "a registration change must rebuild the schemas"
-        assert model_tools.tool_defs_cache_misses_this_thread() == misses_before + 1
+        assert tool_defs_observability.tool_defs_cache_misses_this_thread() == misses_before + 1
 
     def test_the_hatch_drops_the_memo_and_keeps_the_receipt(self, monkeypatch):
         """An invalidation does not un-perform the work that was already done."""
@@ -246,13 +247,13 @@ class TestToolSchemaMemoReceipt:
             lambda *a, **k: [{"function": {"name": "read_file"}}],
         )
         model_tools.get_tool_definitions(enabled_toolsets=["files"], quiet_mode=True)
-        misses = model_tools.tool_defs_cache_misses_this_thread()
-        hits = model_tools.tool_defs_cache_hits_this_thread()
+        misses = tool_defs_observability.tool_defs_cache_misses_this_thread()
+        hits = tool_defs_observability.tool_defs_cache_hits_this_thread()
 
         model_tools._clear_tool_defs_cache()
 
-        assert model_tools.tool_defs_cache_misses_this_thread() == misses
-        assert model_tools.tool_defs_cache_hits_this_thread() == hits
+        assert tool_defs_observability.tool_defs_cache_misses_this_thread() == misses
+        assert tool_defs_observability.tool_defs_cache_hits_this_thread() == hits
 
     def test_a_miss_reports_a_build_and_a_hit_reports_a_cached_read(self):
         payloads: list[dict] = []

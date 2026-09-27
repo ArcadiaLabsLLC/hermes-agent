@@ -4,7 +4,7 @@ Launcher Mission Control and Intelligence consume the same typed provider
 service. Intelligence is the AI umbrella; Chat is one client. Neither surface
 owns a provider catalog, credentials, OAuth engine or a second runtime manager.
 
-`provider_catalog.provider_login_catalog()` reports `browser_login` and
+`provider_login_catalog.provider_login_catalog()` reports `browser_login` and
 `browser_login_methods`. `auth login <provider> --json --flow browser|device_code`
 emits code/pending followed by exactly one confirmed done or error, naming the
 resolved home. No token payload or raw helper error enters this stream.

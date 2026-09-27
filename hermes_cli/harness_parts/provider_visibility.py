@@ -145,11 +145,11 @@ def _provider_visibility_catalog() -> list[dict]:
     """The `catalog` block: every CONNECTABLE provider, credential or not.
 
     Failure-isolated by its caller like every other v2 block. See
-    `hermes_cli.provider_catalog.provider_login_catalog` for why this exists —
+    `hermes_cli.provider_login_catalog.provider_login_catalog` for why this exists —
     in one line: without it a client cannot distinguish "never configured" from
     "configured and dead", because both render as an absence of usable models.
     """
-    from hermes_cli.provider_catalog import provider_login_catalog
+    from hermes_cli.provider_login_catalog import provider_login_catalog
     from hermes_cli.provider_browser_login import supports_browser_login, browser_login_methods
 
     # The machine sign-in methods are the transport's to advertise, so they are

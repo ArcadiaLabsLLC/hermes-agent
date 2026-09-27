@@ -41,7 +41,7 @@ def _token_status(source: str, source_label: str, creds: Dict[str, Any]) -> Dict
 
 
 def _anthropic_oauth_status() -> Dict[str, Any]:
-    """Status for the "Anthropic API Key" card: Hermes-managed PKCE file first, then the
+    """Status for the "Anthropic Account" card: Hermes-managed PKCE file first, then the
     registry-ordered env vars (process env — where Bitwarden-sourced secrets land — then .env).
 
     Claude Code's ``~/.claude/.credentials.json`` is deliberately NOT read here; it has its own
@@ -141,7 +141,7 @@ def _external_process_cli_command(provider_id: str, default: str) -> str:
 # providers appear automatically. Also carries two non-catalog rows the Accounts tab needs:
 # the Anthropic credential-status card and the synthetic ``claude-code`` row.
 # ``flow``: ``device_code`` = show code + URL + poll; ``external`` = delegated to a terminal/CLI.
-from hermes_cli.provider_catalog import OAUTH_FLOW_OVERRIDES
+from hermes_cli.provider_login_catalog import OAUTH_FLOW_OVERRIDES
 _OAUTH_STATUS_FNS = {
     "copilot-acp": _copilot_acp_status,
     "anthropic": _anthropic_oauth_status,

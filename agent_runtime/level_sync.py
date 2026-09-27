@@ -302,21 +302,21 @@ class LevelStore:
     def write(self, workspace_id: str, raw: bytes) -> dict[str, Any]:
         """Store ``raw`` VERBATIM after validating it, and report what happened.
 
-        ``newline=""`` on the write is load-bearing rather than tidy: the default
+        Writing BYTES is load-bearing rather than tidy: a text-mode write
         translates ``\\n`` to the host's line ending, which on Windows would make
         hermes rewrite every line of a document it promised not to touch — and
         the publish lane's own EOL canonicalisation would then report a change on
         a no-op set.
         """
 
-        from utils import atomic_write_text
+        from utils import atomic_write_bytes
 
         validate_level_document(raw)
         path = paths.level_path(workspace_id)
         before = self.read(workspace_id)
         if before == raw:
             return {"path": path, "changed": False}
-        atomic_write_text(path, raw.decode("utf-8"), newline="")
+        atomic_write_bytes(path, raw)
         return {"path": path, "changed": True}
 
     def clear(self, workspace_id: str) -> dict[str, Any]:

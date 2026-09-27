@@ -64,20 +64,7 @@ class ToolSearchConfig:
             raw = {"enabled": "off" if raw is False else "auto"}
         max_search_limit = _clamped_int(raw.get("max_search_limit"), 25, 1, 50)
         defer_raw = raw.get("defer")
-        never_defer_raw = raw.get("never_defer")
-        never_defer_names: set[str] = set()
-        if isinstance(never_defer_raw, (list, tuple)):
-            for item in never_defer_raw:
-                try:
-                    cleaned = str(item).strip()
-                except Exception:
-                    continue
-                if not cleaned or cleaned in BRIDGE_TOOL_NAMES:
-                    continue
-                never_defer_names.add(cleaned)
-        never_defer = tuple(sorted(never_defer_names))
-
-
+        never_defer = parse_never_defer(raw.get("never_defer"))
         if defer_raw is not None and not isinstance(defer_raw, (list, tuple, set)):
             # Loud, then the curated default: a scalar here means the user tried to shrink the
             # tool surface and got nothing — never silently ignore it (#116404).
@@ -487,14 +474,7 @@ def dispatch_tool_search(args: Dict[str, Any], *, current_tool_defs: List[Dict[s
         corpus = catalog + remote_entries[position]
         hits = search_catalog(corpus, query, limit=limit)
         for i, h in enumerate(hits):
-            record = tools_map.setdefault(h.name, _shared_tool_record(h))
-            if i < _SEARCH_HIT_SCHEMA_TOP_N:
-                params = (_fn(h.schema).get("parameters")) or {}
-                try:
-                    if len(json.dumps(params, ensure_ascii=False)) <= _SEARCH_HIT_SCHEMA_MAX_CHARS:
-                        record["parameters"] = params
-                except (TypeError, ValueError):
-                    pass
+            attach_hit_parameters(tools_map.setdefault(h.name, _shared_tool_record(h)), i, _fn(h.schema).get("parameters"))
         matches = [h.name for h in hits]
         group: Dict[str, Any] = {"query": query, "matches": matches}
         if not matches and available_sources:
@@ -666,64 +646,4 @@ def build_catalog_listing(
 # ---- END PLUGIN-COMPAT ----
 
 
-_NEVER_DEFER_TOOLS = frozenset({"agent_chat_send", "agent_chat_dispatches"})
-_SEARCH_HIT_SCHEMA_TOP_N = 3
-_SEARCH_HIT_SCHEMA_MAX_CHARS = 6000
-
-
-def never_defer_tool_names(config: Optional[ToolSearchConfig] = None) -> frozenset[str]:
-    """Hardcoded promotions unioned with the operator's config extension.
-
-    Config EXTENDS the set; nothing in config can remove a hardcoded name.
-    """
-    if config is None:
-        config = load_config_readonly()  # no write on discovery
-    if not config.never_defer:
-        return _NEVER_DEFER_TOOLS
-    return _NEVER_DEFER_TOOLS | frozenset(config.never_defer)
-
-
-def tool_describe_schema() -> Dict[str, Any]:
-    """Return the fixed, always-available ``tool_describe`` schema.
-
-    Injected into every resolved lane by ``model_tools`` independent of
-    tool-search deferral so the model can always pull a brief-trimmed tool's
-    full documentation. Bridge dispatch in ``model_tools.handle_function_call``
-    routes it (``is_bridge_tool`` already recognizes the name), and
-    ``dispatch_tool_describe`` serves the full registry-held docs + live
-    parameter schema.
-    """
-    return {
-        "type": "function",
-        "function": {
-            "name": TOOL_DESCRIBE_NAME,
-            "description": (
-                "Load a tool's full documentation and parameter reference by "
-                "name. Tool descriptions in this list are brief; call "
-                "tool_describe before the first use of an unfamiliar tool."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "Exact tool name to describe.",
-                    },
-                },
-                "required": ["name"],
-            },
-        },
-    }
-
-
-def ensure_tool_describe_present(tool_defs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Ensure ``tool_describe`` is in the model-facing tool list.
-
-    No-op when it is already present (e.g. tool-search deferral already injected
-    the full bridge trio, which includes ``tool_describe``). Otherwise appends
-    the fixed standalone schema. Returns a new list; never mutates the input.
-    """
-    for td in tool_defs:
-        if (td.get("function") or {}).get("name") == TOOL_DESCRIBE_NAME:
-            return tool_defs
-    return list(tool_defs) + [tool_describe_schema()]
+from tools.tool_search_downstream import attach_hit_parameters, ensure_tool_describe_present, never_defer_tool_names, parse_never_defer, tool_describe_schema  # noqa: E402,F401 — fork

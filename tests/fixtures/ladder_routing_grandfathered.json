@@ -262,6 +262,10 @@
    "site": "scripts/run_tests_bundled.py|tally_events|ladder|kind"
   },
   {
+   "arms": 3,
+   "site": "tests/_downstream/live_guard_classify.py|_without_python_c_argv|ladder|token"
+  },
+  {
    "arms": 5,
    "site": "tools/toolset_scan.py|registration_rows.value|isinstance|node"
   }

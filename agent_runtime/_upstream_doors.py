@@ -35,6 +35,7 @@ __all__ = [
     "mcp_server_map",
     "mcp_signal_reconnect",
     "mcp_wait_for_session",
+    "non_continuation_child_filter",
     "default_hermes_home",
     "dispatch_streams",
     "doctor_section",
@@ -316,3 +317,16 @@ def strip_quotes(text: str) -> str:
     from tools.terminal_tool_guards import _strip_quotes
 
     return _strip_quotes(text)
+
+
+def non_continuation_child_filter(alias: str = "") -> str:
+    """``hermes_state_sessions.SessionSessionsMixin._NON_CONTINUATION_CHILD_FILTER_SQL``
+    for column prefix *alias* (``""``, ``"c."``) — upstream's one owner of "this
+    child is NOT a compression continuation" (branch / delegate / reset forks,
+    tool sessions; markers bound to the parent id). Every ``?`` in the clause
+    binds the parent id. Read by
+    ``agent_runtime/session_extensions.py::delete_compression_lineage``; upstream
+    2759f0fe97 keeps the constant, built by ``hermes_state_common._non_continuation_child_sql``."""
+    from hermes_state_sessions import SessionSessionsMixin
+
+    return SessionSessionsMixin._NON_CONTINUATION_CHILD_FILTER_SQL.format(alias=alias)

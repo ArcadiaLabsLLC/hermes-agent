@@ -4,9 +4,9 @@ watch_match, watch_disabled, watch_overflow_*, async_delegation) into the
 TUI inject into the agent conversation."""
 
 import time
-from typing import Any
 from dataclasses import dataclass
 from contextlib import suppress
+from tools.process_notification_safety import redacted_command_line, sanitize_notification_event
 
 _DONE = ("completed", "success")
 _REASON_STATUS = {"lost": "marked lost because the process backend disappeared", "failed_start": "failed to start"}
@@ -329,11 +329,7 @@ PROCESS_COMPLETE_DISPLAY_KIND = "process_complete"
 
 
 def _short_command(command) -> str:
-    from agent.redact import redact_sensitive_text
-    from tools.ansi_strip import strip_ansi
-
-    # Redact before shortening: clipping a credential can hide its recognizable prefix.
-    cmd = " ".join(redact_sensitive_text(strip_ansi(str(command or ""))).split())
+    cmd = redacted_command_line(command)
     return cmd[:77] + "..." if len(cmd) > 80 else cmd
 
 
@@ -352,6 +348,16 @@ def process_completion_display_text(events: list) -> str:
     cmd = _short_command(evt.get("command"))
     detail = f" (exit {exit_code})" if reason not in ("killed", *_REASON_STATUS) and exit_code != 0 else ""
     return f"Background Process {outcome}{detail}: {cmd}" if cmd else f"Background Process {outcome}{detail}"
+
+
+HEARTBEAT_DISPLAY_KIND = "hidden"  # a wake, not a message: no surface paints the row
+
+
+def heartbeat_display_text(evt: dict) -> str:
+    """One-line CLI receipt for a heartbeat wake; the row itself is hidden (``HEARTBEAT_DISPLAY_KIND``)."""
+    cmd = _short_command(evt.get("command"))
+    age = _format_age(float(evt.get("elapsed") or 0))
+    return f"Background Process Output after {age}: {cmd}" if cmd else f"Background Process Output after {age}"
 
 
 class TimelineNotification(str):
@@ -405,29 +411,7 @@ def _completion_status(evt: dict) -> str:
 
 def format_process_notification(evt: dict) -> "str | None":
     """Format a completion_queue event into an ``[IMPORTANT: ...]`` message."""
-    try:
-        from agent.redact import redact_sensitive_text
-    except Exception:
-        redact_sensitive_text = lambda text: ""  # fail closed for UI notifications
-    try:
-        from tools.ansi_strip import strip_ansi
-    except Exception:
-        strip_ansi = lambda text: str(text or "")
-
-    def _safe(value: Any, *, limit: int = 2000) -> str:
-        text = strip_ansi(str(value or ""))
-        if len(text) > limit:
-            tail = text[-limit:]
-            nl = tail.find("\n")
-            tail = tail[nl + 1:] if nl != -1 else tail
-            text = f"[… output truncated — showing last {len(tail)} chars]\n{tail}"
-        return redact_sensitive_text(text)
-
-    evt = dict(evt)
-    for key, limit in (("command", 500), ("message", 1000), ("pattern", 200),
-                       ("output", 2000), ("handoff_note", 1000)):
-        if key in evt:
-            evt[key] = _safe(evt[key], limit=limit)
+    evt = sanitize_notification_event(evt)
     evt_type = evt.get("type", "completion")
     # watch_disabled and overflow events carry their own human-readable `message`;
     # otherwise overflow events would fall through to the completion formatter as a
@@ -442,12 +426,11 @@ def format_process_notification(evt: dict) -> "str | None":
         _attribution = f"Handed off to you by a subagent before it finished. Purpose: {evt['handoff_note']}"
     attribution = f"{_attribution}\n" if _attribution else ""
     if evt_type == "heartbeat":
-        _out = evt.get("output") or "(no new output since the last heartbeat)"
         return (
             f"[Background process {_sid} heartbeat #{evt.get('seq', '?')} — still running after "
-            f"{_format_age(float(evt.get('elapsed') or 0))} (next in {evt.get('interval', '?')}s; "
-            f"you will also be told when it exits).\n"
-            f"{attribution}Command: {_cmd}\nOutput since last heartbeat:\n{_out}]")
+            f"{_format_age(float(evt.get('elapsed') or 0))} (next in {evt.get('interval', '?')}s when there "
+            f"is new output; you will also be told when it exits).\n"
+            f"{attribution}Command: {_cmd}\nOutput since last heartbeat:\n{evt.get('output', '')}]")
     if evt_type == "watch_match":
         _sup = evt.get("suppressed", 0)
         return (

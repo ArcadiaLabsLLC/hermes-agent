@@ -21,7 +21,9 @@ from typing import Dict, Any, List, Optional, Tuple
 from tools.registry import CHECK_FN_CACHE_BYPASS, check_fn_cache_scope, discover_builtin_tools, registry, tool_error
 from tools.registry import _MAX_TOOL_ERROR_CHARS as _TOOL_ERROR_MAX_LEN
 from toolsets import resolve_toolset, validate_toolset
+from tools.tool_defs_observability import bump_tool_defs_counter as _bump_tool_defs_counter, with_tool_describe
 from tools.arg_coercion import coerce_tool_args
+from tools.todo_tool import TODO_LEGACY_ALIASES, TODO_SCHEMA
 from utils import file_signature
 
 logger = logging.getLogger(__name__)
@@ -545,12 +547,7 @@ def _compute_tool_definitions(enabled_toolsets: Optional[List[str]] = None, disa
     except Exception as e:  # pragma: no cover — never break tool loading
         logger.warning("Tool search assembly skipped: %s", e)
 
-    if not skip_tool_search_assembly and filtered_tools:
-        try:
-            from tools.tool_search import ensure_tool_describe_present
-            filtered_tools = ensure_tool_describe_present(filtered_tools)
-        except Exception as exc:
-            logger.warning("tool_describe injection skipped: %s", exc)
+    filtered_tools = with_tool_describe(filtered_tools, skip_tool_search_assembly)
     return filtered_tools
 
 
@@ -622,7 +619,7 @@ _AGENT_LOOP_TOOLS = {"todo_list", "memory", "session_search", "delegate_task"}
 # Legacy tool-name aliases accepted at every dispatch seam (old sessions/saved
 # prompts keep working); schemas advertise only new names.
 _LEGACY_TOOL_ALIASES = {
-    "todo": "todo_list", "cronjob": "cronjob_manage", "process": "process_manage",
+    **dict.fromkeys(TODO_LEGACY_ALIASES, TODO_SCHEMA["name"]), "cronjob": "cronjob_manage", "process": "process_manage",
     "tour": "gui_tour", "tip": "show_tip",
 }
 _READ_SEARCH_TOOLS = {"read_file", "search_files"}
@@ -998,26 +995,3 @@ def check_toolset_requirements() -> Dict[str, bool]:
 def check_tool_availability(quiet: bool = False) -> Tuple[List[str], List[dict]]:
     """(available_toolsets, unavailable_info)."""
     return registry.check_tool_availability(quiet=quiet)
-
-
-_tool_defs_counters = threading.local()
-
-
-def _bump_tool_defs_counter(name: str) -> None:
-    setattr(_tool_defs_counters, name, getattr(_tool_defs_counters, name, 0) + 1)
-
-
-def tool_defs_cache_hits_this_thread() -> int:
-    """This thread's cumulative ``get_tool_definitions`` memo HITS."""
-
-    return int(getattr(_tool_defs_counters, "hits", 0))
-
-
-def tool_defs_cache_misses_this_thread() -> int:
-    """This thread's cumulative ``get_tool_definitions`` memo MISSES.
-
-    A miss is a real schema recomputation: the registry walk, the per-tool
-    schema filter and the ``check_fn`` sweep behind ``registry.get_definitions``.
-    """
-
-    return int(getattr(_tool_defs_counters, "misses", 0))

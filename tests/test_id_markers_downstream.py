@@ -86,7 +86,8 @@ def test_every_applied_mark_name_is_registered(request):
     reads. Without ``--strict-markers`` this is the only check that says so."""
 
     applied = {mark.name for marks in hooks.ID_MARKS.values() for mark in marks}
-    ini = {line.split(":", 1)[0].strip() for line in request.config.getini("markers")}
+    # A registration line is `name(signature): help` or `name: help`; the name is before both.
+    ini = {line.split(":", 1)[0].split("(", 1)[0].strip() for line in request.config.getini("markers")}
     registered = _registered_by_the_fork() | ini | _BUILTIN_MARKS | _UPSTREAM_UNREGISTERED
 
     assert applied - registered == set()

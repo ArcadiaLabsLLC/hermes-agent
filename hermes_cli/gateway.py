@@ -9,7 +9,6 @@ from hermes_cli.cli_output import line_input  # noqa: F401 — resolved lazily b
 import json
 import logging
 import os
-import re
 import shutil
 import signal
 import socket
@@ -265,8 +264,8 @@ def _graceful_restart_via_sigusr1(pid: int, drain_timeout: float, *, on_progress
     """SIGUSR1 (drain-aware restart) a gateway PID and wait for exit; False if unsent or it outlived the timeout.
 
     gateway/run.py maps SIGUSR1 to ``request_restart(via_service=True)``: refuse new turns, drain,
-    ``stop()``, exit; the supervisor relaunches. ``drain_timeout`` must cover after-turn wait + drain
-    — pass ``resolve_restart_exit_wait_budget(...)``. ``on_progress`` (zero-arg) runs on every poll so
+    ``stop()``, exit; the supervisor relaunches. ``drain_timeout`` must cover after-turn wait + the full stop
+    envelope — pass ``resolve_restart_exit_wait_budget(...)``. ``on_progress`` (zero-arg) runs on every poll so
     a long wait can report what the gateway is still holding for (``update_cmd_drain_report``).
     """
     if not hasattr(signal, "SIGUSR1") or pid <= 0:
@@ -1061,8 +1060,13 @@ def _spawn_gateway_restart_watcher(old_pid: int, run_argv: list[str], *, host: b
         import subprocess
         import sys
         import time
+        # Stdlib-only imports: the watcher runs on the updater's interpreter, which after the
+        # package-manager handoff is the bare store Python without the dependency environment.
+        # ``-c`` only puts the cwd on sys.path, so name the checkout explicitly.
+        sys.path.insert(0, {project_root_literal})
         from hermes_cli._subprocess_compat import (
-            _WINDOWS_GATEWAY_BREAKAWAY_ENV, windows_detach_flags, windows_detach_flags_without_breakaway,
+            _WINDOWS_GATEWAY_BREAKAWAY_ENV, pid_exists_stdlib, windows_detach_flags,
+            windows_detach_flags_without_breakaway,
         )
 
         pid = int(sys.argv[1])
@@ -1072,8 +1076,7 @@ def _spawn_gateway_restart_watcher(old_pid: int, run_argv: list[str], *, host: b
         deadline = time.monotonic() + {watcher_timeout_literal}
         while time.monotonic() < deadline:
             # ``os.kill(pid, 0)`` is not a no-op on Windows — use the cross-platform existence check.
-            from gateway.status import _pid_exists
-            if not _pid_exists(pid):
+            if not pid_exists_stdlib(pid):
                 break
             time.sleep(0.2)
 
@@ -1083,7 +1086,7 @@ def _spawn_gateway_restart_watcher(old_pid: int, run_argv: list[str], *, host: b
         _stdio_target = subprocess.DEVNULL
         _stdio_fh = None
         try:
-            from hermes_cli.config import get_hermes_home
+            from hermes_constants import get_hermes_home
             from pathlib import Path
             _log_dir = Path(get_hermes_home()) / "logs"
             _log_dir.mkdir(parents=True, exist_ok=True)
@@ -1130,7 +1133,8 @@ def _spawn_gateway_restart_watcher(old_pid: int, run_argv: list[str], *, host: b
                     pass
         """
     ).strip().format(respawn_cwd_literal=json.dumps(respawn_cwd), respawn_env_literal=json.dumps(respawn_env_overlay),
-                     watcher_timeout_literal=json.dumps(GATEWAY_RESTART_WATCHER_TIMEOUT_S))
+                     watcher_timeout_literal=json.dumps(GATEWAY_RESTART_WATCHER_TIMEOUT_S),
+                     project_root_literal=json.dumps(str(PROJECT_ROOT)))
 
     watcher_argv = [sys.executable, "-c", watcher, str(old_pid), *run_argv]
     devnull = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
@@ -1748,11 +1752,22 @@ def _reaper_candidate_is_supervisor_owned(pid: int) -> bool:
     return False
 
 
-def _reap_unsupervised_gateway_orphans(extra_exclude: set | None = None) -> bool:
+def _reap_unsupervised_gateway_orphans(
+    extra_exclude: set | None = None, *, min_age_s: float = 0.0,
+) -> bool:
     """Kill no-supervisor gateway orphans the pidfile/runtime record can't see. On WSL/no-systemd hosts
     the restart fallback runs the gateway in-process under a ``gateway restart`` argv; a stale pidfile
     then lets a live orphan keep the webhook port while a restart stacks a duplicate. No-op where a
-    supervisor exists (there ``gateway restart`` is a transient command). ``extra_exclude``: already killed."""
+    supervisor exists (there ``gateway restart`` is a transient command). ``extra_exclude``: already killed.
+
+    ``min_age_s`` spares a candidate younger than the grace: a gateway claims
+    ``gateway.pid``/``gateway.lock`` only after imports + runner setup, so a process
+    that a previous Desktop generation (or a concurrent ``gateway start``) just launched
+    is scan-visible but not yet record-visible, and the argv sweep cannot tell it from
+    a corpse. Reaping it writes a planned-stop marker it consumes seconds later — a clean
+    exit 0 with no supervisor to revive it (#122533). The Desktop boot sweep passes a
+    grace; stop/restart keep reaping at once.
+    """
     try:
         supervised_host = supports_systemd_services()
     except Exception:
@@ -1784,6 +1799,16 @@ def _reap_unsupervised_gateway_orphans(extra_exclude: set | None = None) -> bool
         ]
     except Exception:
         return False
+    if min_age_s > 0:
+        from hermes_cli.dashboard_procs import _process_age_seconds
+
+        def _old_enough(pid: int) -> bool:
+            try:  # an undeterminable age must never widen the reap
+                return _process_age_seconds(pid) >= min_age_s
+            except Exception:
+                return False
+
+        orphans = [p for p in orphans if _old_enough(p)]
     if not orphans:
         return False
 
@@ -3556,14 +3581,11 @@ def _get_cron_drain_timeout() -> float:
 def _get_restart_exit_wait_budget() -> float:
     """CLI wait for gateway exit after SIGUSR1 / self-restart (#77184)."""
     return resolve_restart_exit_wait_budget(
-        # TimeoutStopSec must cover the full stop budget, not just restart_drain_timeout. Cron work can
-        # legally wait cron_drain_timeout plus cleanup reserve before interrupt/teardown, and systemd
-        # SIGKILLs if the unit's deadline is shorter (#94759). 30s of post-drain headroom is preserved on
-        # top, with a 60s floor.
         _get_restart_drain_timeout(),
         _agent_timeout_setting(
             "HERMES_RESTART_AFTER_TURN_TIMEOUT", "restart_after_turn_timeout", parse_restart_after_turn_timeout
         ),
+        _get_cron_drain_timeout(),
     )
 
 
@@ -5637,155 +5659,7 @@ def __getattr__(name):  # PEP 562 — lazy so no import cycles
 # ---- END PLUGIN-COMPAT ----
 
 
-def _detect_venv_dir() -> Path | None:
-    """Active virtualenv dir: ``sys.prefix``, then ``VIRTUAL_ENV`` (uv sets it without changing
-    sys.prefix), then .venv/venv under PROJECT_ROOT; None if none found.
-
-    RECORDED PARALLEL (upstream merge 2026-09-25, design note §5 Q4): upstream deleted this in
-    favour of :func:`_pm_runtime_venv_dir` (``pm.environments.selected_venv``). The launcher's
-    install is a venv OUTSIDE the checkout (``.hermes/venvs/hermes-agent``), which pm's
-    committed-environment contract does not find, and ``hermes update`` was not exercised on the
-    merged tree. Retire condition: the launcher's install moves onto pm bundles.
-    """
-    candidates: list[Path] = []
-    if sys.prefix != sys.base_prefix:
-        candidates.append(Path(sys.prefix))
-    if os.environ.get("VIRTUAL_ENV"):
-        candidates.append(Path(os.environ["VIRTUAL_ENV"]))
-    candidates += [PROJECT_ROOT / ".venv", PROJECT_ROOT / "venv"]
-    return next((venv for venv in candidates if venv.is_dir()), None)
-
-
-def _venv_interpreter(venv: Path) -> Path:
-    """The interpreter path inside ``venv`` for this platform."""
-    from hermes_constants import venv_python_path
-
-    return venv_python_path(venv, windows=is_windows())
-
-
-class ManagedPythonUnavailable(RuntimeError):
-    """No interpreter could be resolved as the one Hermes is installed into."""
-
-
-def resolve_managed_python() -> str:
-    """Return the interpreter Hermes is INSTALLED INTO — the one updates sync.
-
-    Same layout knowledge as :func:`_detect_venv_dir` (this process's venv via
-    ``sys.prefix``, then ``$VIRTUAL_ENV``, then the ``.venv``/``venv``
-    checkout layouts that ``_venv_core_imports_healthy`` and
-    ``managed_uv._default_live_venv`` already treat as the install). It
-    deliberately does NOT introduce a second notion of "the managed
-    environment" — there was no accessor for it at all, which is why the
-    launcher renderer had nothing better to ask.
-
-    The difference from :func:`get_python_path` is the fallback, and it is the
-    whole point: ``get_python_path`` ends in ``sys.executable``, which is
-    right for ephemeral work in a dev checkout and wrong for anything
-    persisted. Stamped into a launcher artifact, that fallback silently pins
-    whichever interpreter happened to run the install — the gateway then boots
-    for months against a package set nobody maintains, and the failure only
-    surfaces as a missing-module traceback at some later boot.
-
-    Raises :class:`ManagedPythonUnavailable` with a single-line reason naming
-    what was looked for. Callers persisting an artifact must let it propagate
-    rather than degrade to a guess.
-    """
-    venv = _detect_venv_dir()
-    if venv is None:
-        raise ManagedPythonUnavailable(
-            "no Hermes virtualenv found (looked at sys.prefix, $VIRTUAL_ENV, "
-            f"{PROJECT_ROOT / '.venv'}, {PROJECT_ROOT / 'venv'})"
-        )
-    interpreter = _venv_interpreter(venv)
-    if not interpreter.exists():
-        raise ManagedPythonUnavailable(
-            f"virtualenv {venv} has no interpreter at {interpreter}"
-        )
-    return str(interpreter)
-
-
-def _posix_uid_or_zero() -> int:
-    getuid = getattr(os, "getuid", None)
-    return int(getuid()) if callable(getuid) else 0
-
-
-def _emit_gateway_home_receipt(emit_diag) -> dict:
-    """Build and emit this boot's home-resolution receipt. Returns the receipt.
-
-    Split out of :func:`run_gateway` so it is testable without booting a
-    gateway — ``run_gateway`` guards a live process and cannot be called in a
-    unit test.
-    """
-    from hermes_constants import get_default_hermes_root, get_hermes_home
-
-    from hermes_cli.gateway_home_receipt import (
-        RESOLUTION_DEFAULT,
-        RESOLUTION_ENV_VAR,
-        build_gateway_home_receipt,
-        env_key_names,
-        suspicious_home_row,
-        wrapper_profiles,
-    )
-
-    home = Path(get_hermes_home())
-    receipt = build_gateway_home_receipt(
-        hermes_home=home,
-        resolution=os.environ.get(RESOLUTION_ENV_VAR) or RESOLUTION_DEFAULT,
-        env_keys=env_key_names(home / ".env"),
-    )
-    emit_diag("gateway.home_resolution", **receipt)
-    logger.info("Gateway home resolution: %s", receipt["summary"])
-
-    suspicious = suspicious_home_row(
-        receipt,
-        installed_wrapper_profiles=wrapper_profiles(
-            Path(get_default_hermes_root()) / "profiles"
-        ),
-    )
-    if suspicious is not None:
-        emit_diag("gateway.home_suspicious", **suspicious)
-        logger.warning(
-            "%s — %s", suspicious["summary"], suspicious["fix_hint"]
-        )
-    return receipt
-
-
-def _command_matches_profile(command: str, *, profile_name: str, hermes_home: str) -> bool:
-    """Return whether a process command belongs to the requested profile.
-
-    Use token/boundary-aware profile matching so ``--profile alice`` does not
-    accidentally match ``--profile aliceimagecron`` in Windows process scans.
-
-    Windows command lines and ``HERMES_HOME`` values mix separators freely, so
-    normalize both sides to forward slashes *first* (upstream's normalization)
-    and only then apply the boundary-aware matching. Callers may pass an
-    already-normalized home; normalizing again is idempotent. The matching
-    itself is upstream's (``profile_flag_value`` /
-    ``command_line_names_hermes_home`` / ``hermes_home_assignments``); this
-    function is the fork's named seam over it.
-    """
-    from gateway.status import (
-        command_line_names_hermes_home, hermes_home_assignments, profile_flag_value)
-    command_lc = command.lower().replace("\\", "/")
-    profile_name = (profile_name or "").lower()
-    hermes_home = (hermes_home or "").lower().replace("\\", "/").rstrip('/')
-
-    if profile_name:
-        # Token equality, not substring: `-p ops` must not claim (or SIGTERM) an `-p ops-2` gateway.
-        if profile_flag_value(command_lc) == profile_name:
-            return True
-        return bool(hermes_home) and command_line_names_hermes_home(command_lc, hermes_home)
-
-    # Default-profile case: no profile flag in argv. Accept as long as the command doesn't
-    # advertise *some other* profile in any spelling the CLI pre-parser accepts
-    # (``--profile=ops`` slipped past a substring test, so a default-profile fallback stop could
-    # SIGTERM the named gateway). HERMES_HOME may be passed via env (not visible in wmic/CIM
-    # command line) so its absence is NOT disqualifying — only a non-matching explicit
-    # HERMES_HOME= in argv is.
-    if profile_flag_value(command_lc) is not None:
-        return False
-    return (not hermes_home_assignments(command_lc)
-            or command_line_names_hermes_home(command_lc, hermes_home))
+from hermes_cli.gateway_downstream import ManagedPythonUnavailable, _command_matches_profile, _detect_venv_dir, _emit_gateway_home_receipt, _posix_uid_or_zero, _venv_interpreter, resolve_managed_python  # noqa: E402,F401 — fork
 
 
 def _pm_runtime_venv_dir(project_root: Path | None = None) -> Path | None:

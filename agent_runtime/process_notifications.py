@@ -1,4 +1,8 @@
-"""Downstream process-registry policy: checkpoint home, mission-chat wait ceiling, durable restore.
+"""Downstream process-registry policy: checkpoint home and the mission-chat wait ceiling.
+
+The durable-completion restore that used to live here was deleted 2026-09-27 (lane
+CARRY-DELETE, door-fit #125256): upstream's ``ProcessRegistry.__init__`` restores at the
+singleton's first construction.
 
 The late ``process notify`` request that used to live here was deleted 2026-09-24 (owner
 ruling): completion is decided once at spawn, where the eternia-harness plugin turns
@@ -7,7 +11,6 @@ ruling): completion is decided once at spawn, where the eternia-harness plugin t
 from __future__ import annotations
 import logging
 import os
-import threading
 
 __layer__ = "wiring"
 
@@ -65,38 +68,3 @@ def wait_ceiling_seconds() -> int:
         return ceiling
     return max(ceiling, MISSION_CHAT_WAIT_MAX_SECONDS) if on_lane else ceiling
 
-
-class ProcessNotificationMixin:
-    def restore_durable_completions(self) -> int:
-        """Rehydrate durable pending delegation completions into the queue.
-
-        Called explicitly, once, by the entry points that OWN a completion
-        drain (the gateway, the interactive CLI, the TUI gateway, harness
-        serve) — the same explicit-at-startup contract MCP discovery moved to
-        for #16856. It used to run inside ``__init__``, which made it an
-        IMPORT side effect of the module-scope singleton: any module that
-        touched the tool tree — including read-only projections — opened (and
-        created) ``state.db`` and ran ``recover_abandoned_delegations()``, a
-        real mutation, before a single verb executed. See
-        ``docs/agent-runtime-harness/archive/2026-08-22-pre-consolidation/eager-tool-discovery-audit-2026-08-09.md``.
-
-        Idempotent per process: a second call returns 0 without touching the
-        store, because re-running the restore would re-enqueue every pending
-        completion (delivery attempts are only deduped at claim time). The
-        guard is set before the restore runs, so a failed restore is warned
-        about and NOT retried — the same once-at-startup semantics the
-        constructor provided.
-
-        Returns the number of completions enqueued (0 on the guarded or
-        failed path).
-        """
-        with self._durable_restore_lock:
-            if self._durable_completions_restored:
-                return 0
-            self._durable_completions_restored = True
-        try:
-            from tools.async_delegation import restore_undelivered_completions
-            return restore_undelivered_completions(self.completion_queue)
-        except Exception as exc:
-            logger.warning("Could not restore async delegation completions: %s", exc)
-            return 0

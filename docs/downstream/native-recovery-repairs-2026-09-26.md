@@ -178,3 +178,17 @@ loaded 10 MiB run exceeded the small-case 30-second wait; its isolated run took
 20.73 seconds overall. The large case now allows 90 seconds within its existing
 180-second test deadline; the final loaded run passes without retry. Focused Ruff
 and diff checks pass. Native UI and the remaining acceptance matrix are still open.
+
+## Current-main reconciliation
+
+The repair now includes main `74490fa89a`, including the September 27 upstream
+merge. The shared submit-row writer retains upstream queue persistence; only
+the admitted prompt receives its native execution metadata. Execution-fenced
+Stop stays session-local; legacy Stop retains upstream's voice-wake repair.
+Generated gateway contracts were regenerated, not hand-merged.
+
+The six-file merge check passes 36 tests. Two additional cases verify queued-row
+identity isolation and the absence of process-wide voice effects from fenced
+Stop; both pass with the native snapshot/fence files (21 tests). The broader
+gateway run and final qualification are still pending. This is a branch
+checkpoint, not permission to land the incomplete repair.

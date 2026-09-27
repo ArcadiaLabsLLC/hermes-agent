@@ -10,19 +10,12 @@ of the backgrounded service (indefinitely for a uvicorn server).
 The fix switches ``_drain()`` to select()-based non-blocking reads and
 stops draining shortly after bash exits even if the pipe hasn't EOF'd.
 """
-import shlex
 import subprocess
-import sys
 import time
 
 import pytest
 
 from tools.environments.local import LocalEnvironment
-
-# The interpreter that is actually running these tests. Hardcoding ``python3``
-# names a binary that does not exist on Windows (it is ``python`` there), so
-# the shell child exited 127 and the drain behaviour under test never ran.
-PY = shlex.quote(sys.executable)
 
 
 def _pkill(pattern: str) -> None:
@@ -91,7 +84,7 @@ class TestBackgroundChildDoesNotHang:
         """
         # ~200 KB — four times the default 50 KB cap.
         command = (
-            f"{PY} -c \"import sys; "
+            "python3 -c \"import sys; "
             "sys.stdout.write('START-MARK\\n' + ('y' * 200000) + '\\nEND-MARK')\""
         )
 
@@ -116,7 +109,7 @@ class TestBackgroundChildDoesNotHang:
         # read boundaries, and most boundaries will land in the middle of the
         # 3-byte UTF-8 encoding of U+65E5.
         cmd = (
-            f'{PY} -c \'import sys; '
+            'python3 -c \'import sys; '
             'sys.stdout.buffer.write(chr(0x65e5).encode("utf-8") * 10000); '
             'sys.stdout.buffer.write(b"\\n")\''
         )
@@ -138,7 +131,7 @@ class TestBackgroundChildDoesNotHang:
         """
         # Write a deliberate invalid UTF-8 lead byte sandwiched between valid ASCII
         cmd = (
-            f'{PY} -c \'import sys; '
+            'python3 -c \'import sys; '
             'sys.stdout.buffer.write(b"before "); '
             'sys.stdout.buffer.write(b"\\xff\\xfe"); '
             'sys.stdout.buffer.write(b" after\\n")\''

@@ -240,6 +240,15 @@ def _hermes_holder_subcommand(cmdline: str) -> str | None:
         tokens = shlex.split(cmdline, posix=False)
     except Exception:
         tokens = cmdline.split()
+    # ``python -c <src> … -m hermes_cli.main <subcommand>``: the entry token belongs to the argv the
+    # inline source carries for a LATER spawn, not to this holder (#107002) -- unless the source is a
+    # Hermes bootstrap running the entry point in this process (#124318).
+    from gateway.status import command_line_runs_inline_source, inline_bootstrap_argv
+    normalized = [t.strip('"').replace("\\", "/") for t in tokens]
+    if command_line_runs_inline_source(normalized):
+        tokens = inline_bootstrap_argv(normalized)
+        if tokens is None:
+            return None
 
     def _is_entry(i: int, token: str) -> bool:
         low = token.lower().strip('"')
@@ -248,11 +257,6 @@ def _hermes_holder_subcommand(cmdline: str) -> str | None:
 
     entry_idx = next((i for i, token in enumerate(tokens) if _is_entry(i, token)), None)
     if entry_idx is None:
-        return None
-    # ``python -c <src> … -m hermes_cli.main <subcommand>``: the entry token belongs to the argv the
-    # inline source carries for a LATER spawn, not to this holder (#107002).
-    from gateway.status import command_line_runs_inline_source
-    if command_line_runs_inline_source([t.strip('"').replace("\\", "/") for t in tokens]):
         return None
     value_flags = _holder_value_flags()
     i = entry_idx + 1
@@ -833,6 +837,15 @@ def _pause_windows_gateway_services(service_gateways, token: dict, profiles: dic
         raise RuntimeError(detail) from exc
 
 
+def _owned_gateway_pids(pids, *, keep=(), quiet: bool = True) -> list[int]:
+    """*pids* whose live home this update owns, plus *keep* (PIDs mapped to this install's profile
+    PID files / services). The same home scope the POSIX fleet restart uses (#93349): a gateway of
+    another Hermes install, or one whose home cannot be read, is named (unless *quiet*) and left
+    running, never paused, force-killed or replayed (#124659)."""
+    from hermes_cli.update_cmd_fleet import _scoped_manual_gateway_pids
+    return _scoped_manual_gateway_pids(list(pids), keep=keep, quiet=quiet)
+
+
 def _discover_windows_gateways():
     """``(profile_processes, service_gateways, service_gateway_pids, running_pids)`` for the pause; any indeterminate probe aborts."""
     from hermes_cli.gateway import find_gateway_pids, find_profile_gateway_processes, find_windows_gateway_services
@@ -843,9 +856,10 @@ def _discover_windows_gateways():
         service_gateways = find_windows_gateway_services(profile_processes=profile_process_list)
     service_gateway_pids = {int(service.gateway_pid) for service in service_gateways}
     with _abort_on_error("Could not discover Windows gateway PIDs before update"):
-        running_pids = list(dict.fromkeys(
+        # find_gateway_pids(all_profiles=True) is a HOST-wide scan; only this install's fleet is paused.
+        running_pids = _owned_gateway_pids(dict.fromkeys(
             [*find_gateway_pids(all_profiles=True), *sorted(profile_processes), *sorted(service_gateway_pids)]
-        ))
+        ), keep=set(profile_processes) | service_gateway_pids, quiet=False)
     return profile_processes, service_gateways, service_gateway_pids, running_pids
 
 
@@ -1037,7 +1051,8 @@ def _cold_start_windows_gateway_after_update(token: dict | None = None) -> bool:
         from hermes_cli import gateway_windows
         from hermes_cli.gateway import find_gateway_pids
     with _abort_on_error("Could not re-check gateway liveness before cold-start"):
-        if list(find_gateway_pids(all_profiles=True)):
+        # Another install's live gateway must not suppress this install's cold start (#124659).
+        if _owned_gateway_pids(find_gateway_pids(all_profiles=True)):
             return True
     token = token or {}
     generation = token.get("attested_generation")
@@ -1086,15 +1101,17 @@ def _refresh_windows_gateway_launchers() -> None:
     with _best_effort('Could not refresh Windows gateway launchers after update: %s'):
         from hermes_cli import gateway_windows
         if gateway_windows.is_installed():
-            from hermes_cli.gateway import ManagedPythonUnavailable
-            try:
-                gateway_windows._write_task_script()
-            except ManagedPythonUnavailable as exc:
-                print(f"  ⚠ Left the Windows gateway launcher unchanged: {exc}")
-                print("    Re-run from the Hermes environment: hermes gateway install")
+            from hermes_cli.gateway_windows_launcher import warn_legacy_console_task, write_task_script_or_warn
+            if not write_task_script_or_warn():
                 return
             print("  ✓ Refreshed Windows gateway launcher scripts")
-            _warn_legacy_console_gateway_task()
+            # Installs from before #80569 can carry a Startup entry beside the task: both fire at logon.
+            done, warnings = gateway_windows.reconcile_autostart_launchers()
+            for message in done:
+                print(f"  ✓ {message}")
+            for message in warnings:
+                print(f"  ⚠ {message}")
+            warn_legacy_console_task()
             if gateway_windows.is_task_registered():
                 # A task registered by an older build never picks up template hardening otherwise (#113670).
                 gateway_windows.reconcile_scheduled_task(gateway_windows.get_task_name())
@@ -1253,7 +1270,9 @@ def _verify_relaunched_gateways_alive(token: dict, profiles: dict, unmapped: lis
         from gateway.status import _pid_exists
         from hermes_cli import gateway_windows
     timeout_s = _relaunch_verify_timeout_s(profiles, unmapped, _pid_exists)
-    ready_pids = gateway_windows._wait_for_gateway_ready(timeout_s=timeout_s, all_profiles=True)
+    ready_pids = gateway_windows._wait_for_gateway_ready(
+        timeout_s=timeout_s, all_profiles=True, pid_filter=_owned_gateway_pids
+    )
     if not ready_pids:
         token["profiles"] = dict(profiles)
         token["unmapped"] = list(unmapped)
@@ -1347,25 +1366,3 @@ def _resume_windows_gateways_and_merge_outcome(outcome, _windows_gateway_resume,
             failed_units=outcome.failed_or_stale_units, incomplete=outcome.incomplete or bool(outcome.failed_or_stale_units),
             phase_error="; ".join(outcome.phase_errors) or None,
         )
-
-
-def _warn_legacy_console_gateway_task() -> None:
-    """Tell the operator when the registered task still runs a visible console.
-
-    Re-registering the action requires ``schtasks /Create`` (elevation), which
-    the update path deliberately avoids — so a pre-#45610 install cannot heal
-    itself here. What it *can* do is stop being silent: a gateway launched
-    through the ``.cmd`` dies with ``STATUS_CONTROL_C_EXIT`` (0xC000013A) the
-    moment its console window is closed, and the ONLOGON-only trigger means it
-    stays down until the next login.
-    """
-    from hermes_cli import gateway_windows
-
-    if gateway_windows.task_action_is_console_less() is not False:
-        return
-    task_name = gateway_windows.get_task_name()
-    print(f"  ⚠ Scheduled Task {task_name!r} still launches the gateway in a VISIBLE console window.")
-    print("    Closing that window (or a stray console-control broadcast) kills the")
-    print("    gateway outright, and nothing restarts it until the next login.")
-    print("    Re-register it on the console-less launcher — approve the UAC prompt:")
-    print("      hermes gateway install")

@@ -16,7 +16,7 @@ def _tool_defs_cache_misses() -> Optional[int]:
     """
 
     try:
-        from model_tools import tool_defs_cache_misses_this_thread
+        from tools.tool_defs_observability import tool_defs_cache_misses_this_thread
 
         return int(tool_defs_cache_misses_this_thread())
     except Exception:

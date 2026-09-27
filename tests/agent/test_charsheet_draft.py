@@ -983,7 +983,7 @@ def test_the_default_crop_is_one_frame_and_not_the_whole_strip(fake, base):
     """
     # Named through `atlas` on purpose: the point of the 2026-08-28 fix is that
     # the frame boundary has ONE authority and the charsheet package is not it.
-    from agent.pet.generate.atlas import frame_x_bounds
+    from agent.charsheet.frame_bounds import frame_x_bounds
 
     draft = run_to_rows(base)
     draft.run_rows(only=["walk-e"])

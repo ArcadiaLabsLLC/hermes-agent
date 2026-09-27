@@ -184,11 +184,11 @@ def record_patch_diff(result: Any) -> dict[str, Any] | None:
         root = paths.patch_diffs_dir()
         root.mkdir(parents=True, exist_ok=True)
         target = root / _artifact_name(diff)
-        from utils import atomic_write_text
+        from utils import atomic_write_bytes
 
-        # newline="" keeps the artifact LF on every platform: the line ending is
-        # part of a unified diff's grammar, not the host's convention.
-        atomic_write_text(target, _bounded_diff(diff), newline="")
+        # Bytes keep the artifact LF on every platform: the line ending is part of
+        # a unified diff's grammar, not the host's convention.
+        atomic_write_bytes(target, _bounded_diff(diff).encode("utf-8"))
         _retain_after_write(root)
         return {
             "patch_artifact": str(target),

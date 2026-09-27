@@ -3,7 +3,7 @@ import base64
 import json
 from pathlib import Path
 
-from hermes_cli import auth, auth_codex, model_picker_policy, provider_catalog
+from hermes_cli import auth, auth_codex, model_picker_policy, provider_catalog, provider_login_catalog
 from hermes_cli.model_picker_policy import model_picker_policy_for
 
 
@@ -20,7 +20,7 @@ def test_descriptor_projection_matches_shared_wire_fixture(monkeypatch):
     monkeypatch.setattr(auth_codex, "_read_codex_tokens", lambda: {"tokens": {"access_token": token}})
     monkeypatch.setattr(model_picker_policy, "get_verified_codex_model_ids", lambda value: list(ids))
     monkeypatch.setattr(provider_catalog, "provider_catalog", lambda: [])
-    rows = {row["id"]: row for row in provider_catalog.provider_login_catalog()}
+    rows = {row["id"]: row for row in provider_login_catalog.provider_login_catalog()}
     for slug, policy in fixture["policies"].items():
         assert rows[slug]["model_picker"] == policy
     assert token not in json.dumps(rows)
@@ -44,7 +44,7 @@ def test_failure_isolation_and_secret_redaction(monkeypatch):
     monkeypatch.setattr(auth_codex, "_read_codex_tokens", fail)
     monkeypatch.setattr(auth_codex, "_pool_codex_credential", lambda: ("", ""))
     monkeypatch.setattr(provider_catalog, "provider_catalog", lambda: [])
-    rows = {row["id"]: row for row in provider_catalog.provider_login_catalog()}
+    rows = {row["id"]: row for row in provider_login_catalog.provider_login_catalog()}
     assert rows["openai-codex"]["model_picker"]["catalog_mode"] == "unavailable"
     assert "secret-token" not in json.dumps(rows)
     assert rows["anthropic"]["model_picker"]["catalog_mode"] == "reference"

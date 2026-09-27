@@ -72,6 +72,12 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # budget; this upstream test needs the headroom.
     "tests/scripts/desktop_update/test_desktop_update_windows_retry_policy.py::"
     "test_retry_policy_distinguishes_self_lock_deferral": (pytest.mark.timeout(45),),
+    # Upstream's stub never marks an unloaded model unloaded, so production's unload
+    # confirmation waits out its 15 s deadline once per model: two models, ~30.2 s
+    # measured 2026-09-27. Lane FOOTPRINT-DROP moved the fork's stub fix out of the file.
+    "tests/hermes_cli/test_local_runtime.py::test_idle_sweep_unloads_idle_models": (
+        pytest.mark.timeout(90),
+    ),
     # MCF-66: reads the real ~/.claude/.credentials.json via the fixture's
     # redirected Path.home() (gate: tests/test_claude_code_credentials_file_gate.py).
     "tests/hermes_cli/test_codex_cli_model_picker.py::"
@@ -137,16 +143,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/tools/test_vision_tools.py::TestVisionCpuBurstCap",
         )
     },
-    # Fork behaviour replaces upstream's; the fork assertion is the _downstream sibling.
-    "tests/tools/test_async_delegation.py::"
-    "test_real_process_restart_restores_owned_completion_once": (
-        pytest.mark.xfail(strict=True, reason=(
-            "the fork's tools.process_registry.ProcessRegistry."
-            "restore_durable_completions is an explicit startup step, not an "
-            "import side effect; fork half: "
-            "tests/tools/test_async_delegation_downstream.py"
-        )),
-    ),
     "tests/gateway/test_api_server_active_work_drain.py::TestShutdownSettleWindow::"
     "test_api_work_still_live_at_settle_exit_is_reinterrupted": (_SCOPED_UNDO,),
     "tests/gateway/test_mirror.py::TestSessionsIndexProfileScoping::"
@@ -308,6 +304,8 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/hermes_cli/test_update_zip_two_phase.py::test_staging_restores_backup_when_dst_is_missing",
             "tests/hermes_cli/test_update_zip_two_phase.py::"
             "test_commit_failure_plus_discard_leaves_no_staging_litter",
+            "tests/agent/test_session_row_under_live_agent_persist.py::"
+            "test_flush_fails_closed_when_row_cannot_be_recreated",
         )
     },
 }

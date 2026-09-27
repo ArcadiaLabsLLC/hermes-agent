@@ -566,9 +566,9 @@ def _oauth_provider_disconnect_command(
 
     ``platform`` is the host the command will run on (default: this process). Pass it
     explicitly in tests; do not fake ``sys.platform``. The one authority is
-    ``provider_catalog.disconnect_command_for``.
+    ``provider_login_catalog.disconnect_command_for``.
     """
-    from hermes_cli.provider_catalog import disconnect_command_for
+    from hermes_cli.provider_login_catalog import disconnect_command_for
     return disconnect_command_for(provider.get("id", ""), provider.get("flow", ""), platform)
 
 

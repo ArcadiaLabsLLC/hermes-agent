@@ -3,7 +3,6 @@
 A free function over upstream's ``SessionDB`` (its ``_execute_write`` and
 ``_remove_session_files``), not a mixin: ``hermes_state.py`` stays stock.
 """
-import json
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -17,39 +16,33 @@ def delete_compression_lineage(
 ) -> List[str]:
     """Delete a root and only its native compression continuation chain.
 
-    Explicit branches, delegate sessions, and tool children are preserved
-    and detached, matching ``delete_session``'s public child semantics.
+    A child is lineage when its parent ended in ``'compression'`` and upstream's
+    non-continuation predicate (``_upstream_doors.non_continuation_child_filter``)
+    does not reject it: branch, delegate and reset forks of THAT parent, and
+    ``source='tool'`` children, are preserved and detached, matching
+    ``delete_session``'s public child semantics.
     """
+    from agent_runtime._upstream_doors import non_continuation_child_filter
 
+    child_filter = non_continuation_child_filter("c.")
+    parent_binds = child_filter.count("?")
+    continuation_sql = (
+        "SELECT c.id FROM sessions c JOIN sessions p ON p.id = c.parent_session_id"
+        " WHERE c.parent_session_id = ? AND p.end_reason = 'compression'\n" + child_filter
+    )
     removed: List[str] = []
 
     def _do(conn):
-        rows = conn.execute(
-            "SELECT id, parent_session_id, end_reason, model_config FROM sessions"
-        ).fetchall()
-        by_id = {row["id"]: row for row in rows}
-        if root_session_id not in by_id:
+        if conn.execute("SELECT 1 FROM sessions WHERE id = ?", (root_session_id,)).fetchone() is None:
             return []
         lineage = {root_session_id}
-        changed = True
-        while changed:
-            changed = False
-            for row in rows:
-                if row["id"] in lineage or row["parent_session_id"] not in lineage:
-                    continue
-                parent = by_id.get(row["parent_session_id"])
-                try:
-                    meta = json.loads(row["model_config"] or "{}")
-                except Exception:
-                    meta = {}
-                if (
-                    parent is not None
-                    and parent["end_reason"] == "compression"
-                    and not meta.get("_branched_from")
-                    and not meta.get("_delegate_from")
-                ):
-                    lineage.add(row["id"])
-                    changed = True
+        frontier = [root_session_id]
+        while frontier:
+            parent_id = frontier.pop()
+            for row in conn.execute(continuation_sql, (parent_id, *([parent_id] * parent_binds))).fetchall():
+                if row[0] not in lineage:
+                    lineage.add(row[0])
+                    frontier.append(row[0])
         ids = sorted(lineage)
         placeholders = ",".join("?" for _ in ids)
         conn.execute(

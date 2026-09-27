@@ -14,7 +14,6 @@ Covers the follow-up wave after PR #72170:
 """
 
 import os
-from pathlib import Path
 
 
 from gateway.platforms.base import (

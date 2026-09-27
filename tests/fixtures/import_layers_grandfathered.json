@@ -9,7 +9,10 @@
  ],
  "private_upstream_imports": [
   "agent/charsheet/_upstream_doors.py|agent.pet.generate.atlas|_clear_transparent_rgb",
+  "agent/charsheet/_upstream_doors.py|agent.pet.generate.atlas|_erase_long_axis_lines",
   "agent/charsheet/_upstream_doors.py|agent.pet.generate.atlas|_fit_to_cell",
+  "agent/charsheet/_upstream_doors.py|agent.pet.generate.atlas|_frame_x_ranges",
+  "agent/charsheet/_upstream_doors.py|agent.pet.generate.atlas|_sever_expected_gutters",
   "agent/charsheet/_upstream_doors.py|agent.pet.generate.prompts|_ASSUMED_STRIP_WIDTH",
   "agent/charsheet/_upstream_doors.py|agent.pet.generate.prompts|_BACKGROUND",
   "agent/charsheet/_upstream_doors.py|agent.pet.generate.prompts|_spacing_spec",

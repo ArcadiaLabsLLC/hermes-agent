@@ -194,6 +194,17 @@ def test_native_execution_link_survives_compaction_copy(owner):
     assert rows[0]["display_metadata"]["execution_id"] == "execution"
 
 
+def test_queued_prompt_does_not_inherit_the_active_execution(owner):
+    session, db = owner
+    session_execution.admit(session, "active")
+    server._persist_submit_user_row(session, "active input", None)
+    queued = server._write_submit_user_row(session, "queued input", None)
+    assert queued and "display_metadata" not in queued
+    rows = db.get_messages_as_conversation("stored")
+    assert rows[0]["display_metadata"]["execution_id"] == "active"
+    assert "display_metadata" not in rows[1]
+
+
 def test_explicit_branch_recovery_never_reads_its_parent(owner):
     session, db = owner
     db.append_message("stored", "user", "not in this branch")

@@ -91,3 +91,14 @@ def test_gateway_lookalike_marker_allows_only_gateway_shape(tmp_path):
     for subcommand in ("serve", "dashboard"):
         with pytest.raises(RuntimeError, match="live-system guard"):
             subprocess.run([_absent_hermes(tmp_path), subcommand])
+
+
+@pytest.mark.live_system_guard_bypass
+def test_bypass_marker_disables_guard_without_delivery():
+    """Fork half of upstream's ``test_bypass_marker_disables_guard``, which is skipped by id on
+    win32 (``tests/_downstream/id_markers/upstream_reds.py``): its ``os.kill(os.getpid(), 0)``
+    is CTRL_C_EVENT to the whole console group on Windows. The bypass is checked here without
+    delivering anything, on every host."""
+    from tests.test_live_system_guard_self_test import _live_system_guard_is_active
+
+    assert not _live_system_guard_is_active()
