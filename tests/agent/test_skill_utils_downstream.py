@@ -535,3 +535,41 @@ def test_shared_resolver_excludes_package_markdown_but_keeps_legacy_skills(tmp_p
     assert batch["research"].candidates[0].skill_md == tmp_path / "research" / "SKILL.md"
     assert batch["character/prompts/research"].status == "missing"
     assert batch["legacy/standalone"].status == "resolved"
+
+
+# Lane FOOTPRINT-DROP (2026-09-27): the fork's Windows spelling of upstream's
+# test_skill_config_home_vars_use_subprocess_home (compares as Path; upstream compares
+# str(), red on win32 by id in tests/_downstream/id_markers/upstream_reds.py).
+def test_skill_config_home_vars_use_subprocess_home_as_paths(tmp_path, monkeypatch):
+    """``~`` / ``$HOME`` / ``${HOME}`` defaults resolve against the HOME tools receive, not the
+    control process HOME; other variables keep normal expansion (#12260)."""
+    from pathlib import Path
+
+    from agent import skill_utils
+    from agent.skill_utils import resolve_skill_config_values
+
+    # A backslash in the home path must not be read as a regex-replacement escape.
+    hermes_home = tmp_path / "da\\ta"
+    subprocess_home = hermes_home / "home"
+    subprocess_home.mkdir(parents=True)
+    (hermes_home / "config.yaml").write_text("", encoding="utf-8")
+    monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+    monkeypatch.setenv("HOME", str(hermes_home))
+    monkeypatch.setenv("TERMINAL_HOME_MODE", "profile")
+    monkeypatch.setenv("PROJECT_ROOT", "/proj")
+    monkeypatch.setenv("LEAF", "leaf")
+    getattr(skill_utils, "_raw_config_cache_clear", lambda: None)()
+
+    resolved = resolve_skill_config_values([
+        {"key": "wiki.home_var", "default": "$HOME/wiki"},
+        {"key": "wiki.braced_home", "default": "${HOME}/notes"},
+        {"key": "wiki.tilde", "default": "~/scratch"},
+        {"key": "wiki.other_var", "default": "${PROJECT_ROOT}/cache"},
+        {"key": "wiki.tilde_var", "default": "~/$LEAF"},
+    ])
+
+    assert Path(resolved["wiki.home_var"]) == subprocess_home / "wiki"
+    assert Path(resolved["wiki.braced_home"]) == subprocess_home / "notes"
+    assert Path(resolved["wiki.tilde"]) == subprocess_home / "scratch"
+    assert resolved["wiki.other_var"] == "/proj/cache"
+    assert Path(resolved["wiki.tilde_var"]) == subprocess_home / "leaf"

@@ -468,6 +468,22 @@ if _WIN:
                 "test_bypass_marker_disables_guard_without_delivery"
             )),
         ),
+        "tests/agent/test_skill_utils.py::test_skill_config_home_vars_use_subprocess_home": (
+            _up_red(
+                "compares a resolved path as str() against str(Path): the resolver spells it with "
+                "forward slashes on win32; fork half: tests/agent/test_skill_utils_downstream.py::"
+                "test_skill_config_home_vars_use_subprocess_home_as_paths"
+            ),
+        ),
+        "tests/tools/test_skills_hub.py::TestOptionalSkillSourceBinaryAssets::"
+        "test_fetch_preserves_binary_assets": (
+            pytest.mark.xfail(strict=True, reason=(
+                "the fork's tools/skills_hub_official.py keys bundles by POSIX path (open PR "
+                "#121643); upstream looks them up with os.path.join, a different string on win32; "
+                "fork half: tests/tools/test_skills_hub_downstream.py::"
+                "test_fetch_keys_binary_assets_by_posix_path"
+            )),
+        ),
     })
 
 if _WIN and not sys.flags.utf8_mode:
