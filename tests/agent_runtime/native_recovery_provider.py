@@ -6,11 +6,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 class RecoveryProvider(ThreadingHTTPServer):
-    def __init__(self):
+    def __init__(self, *, text="Recovered prefix 🌍"):
         super().__init__(("127.0.0.1", 0), _Handler)
         self.partial = threading.Event()
         self.release = threading.Event()
         self.requests = []
+        self.text = text
         self.thread = threading.Thread(target=self.serve_forever, daemon=True)
         self.thread.start()
 
@@ -61,7 +62,7 @@ class _Handler(BaseHTTPRequestHandler):
                         "question": "Continue the isolated recovery test?", "choices": ["Yes", "No"]})}}]})
                 self.chunk({}, "tool_calls")
             else:
-                self.chunk({"role": "assistant", "content": "Recovered prefix 🌍"})
+                self.chunk({"role": "assistant", "content": self.server.text})
                 self.server.partial.set()
                 if not self.server.release.wait(30):
                     return

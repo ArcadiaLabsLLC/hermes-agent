@@ -145,3 +145,20 @@ Focused Ruff and changed Dart analysis pass. This is not a full-suite verdict.
 Large-history cost, full service-restart qualification, concurrent Mission Control
 and Discuss acceptance, broader baseline comparison and native desktop acceptance
 remain open. This checkpoint does not close the repair claims.
+
+## Oversized native output
+
+A 10 MiB answer reproduced `conversation_worker_lost`: the bounded reader
+treated one oversized event as a dead connection. It now drains that frame in
+bounded chunks. Native replay's existing gap watermark directs readers to the
+checkpoint and durable history; no buffer increase or second history store.
+
+Inline and compute-child tests both recover after eviction and after rebuilding
+the service/worker, with unchanged execution identity and exactly two model calls
+(question, answer). Restoring the old disconnect makes the inline test fail.
+The final file-isolated run passes 13 tests across large recovery, live recovery,
+snapshot and replay. Reading 10 MiB takes 41 pages, measured at 2.32/2.34 seconds
+after reopening. This bounds wire delivery, not native history materialization:
+the current projection is still rebuilt per page, so larger-history scaling is
+not yet qualified. The non-repeating fixture avoids Hermes's repetition guard;
+that guard correctly rejected the first repeated-text fixture.

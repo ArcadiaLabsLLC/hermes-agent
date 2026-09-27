@@ -6,6 +6,7 @@ pipe, and disconnecting a Launcher connection never closes it.
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
 import threading
 import uuid
@@ -17,6 +18,25 @@ from .model import ConversationError, Refusal
 
 __layer__ = "lanes"
 MAX_FRAME_BYTES = 8 * 1024 * 1024
+_log = logging.getLogger(__name__)
+
+
+def _frames(stream):
+    while raw := stream.readline(MAX_FRAME_BYTES + 1):
+        if len(raw) > MAX_FRAME_BYTES:
+            # Replay's gap watermark redirects omitted events to native recovery.
+            while raw and not raw.endswith(b"\n"):
+                raw = stream.readline(64 * 1024)
+            _log.warning("Oversized native frame omitted; recover through the native checkpoint")
+            continue
+        if not raw.endswith(b"\n"):
+            return
+        try:
+            frame = json.loads(raw)
+        except (ValueError, UnicodeDecodeError):
+            continue  # Startup diagnostics are not protocol frames.
+        if isinstance(frame, dict):
+            yield frame
 
 
 class NativePeer:
@@ -86,16 +106,7 @@ class NativePeer:
 
     def _read(self) -> None:
         try:
-            while raw := self.process.stdout.readline(MAX_FRAME_BYTES + 1):
-                if len(raw) > MAX_FRAME_BYTES or not raw.endswith(b"\n"):
-                    break
-                try:
-                    frame = json.loads(raw)
-                except (ValueError, UnicodeDecodeError):
-                    # Native startup diagnostics do not become protocol frames.
-                    continue
-                if not isinstance(frame, dict):
-                    continue
+            for frame in _frames(self.process.stdout):
                 with self._lock:
                     rid = frame.get("id")
                     pending = self._pending.get(rid) if isinstance(rid, str) and "method" not in frame else None
