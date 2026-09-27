@@ -1,17 +1,19 @@
 """Loopback provider that asks once, then holds a real streaming response."""
 import json
 import threading
+import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 class RecoveryProvider(ThreadingHTTPServer):
-    def __init__(self, *, text="Recovered prefix 🌍"):
+    def __init__(self, *, text="Recovered prefix 🌍", hold_seconds=30):
         super().__init__(("127.0.0.1", 0), _Handler)
         self.partial = threading.Event()
         self.release = threading.Event()
         self.requests = []
         self.text = text
+        self.hold_seconds = hold_seconds
         self.thread = threading.Thread(target=self.serve_forever, daemon=True)
         self.thread.start()
 
@@ -27,6 +29,16 @@ class RecoveryProvider(ThreadingHTTPServer):
             f"providers:\n  recovery:\n    api: http://127.0.0.1:{self.server_port}/v1\n    api_key: isolated-recovery\n"
             f"dashboard:\n  turn_isolation: {str(compute).lower()}\n"
             "mcp_servers: {}\n", encoding="utf-8")
+
+
+def until(read, predicate, timeout=30):
+    deadline = time.monotonic() + timeout
+    while True:
+        value = read()
+        if predicate(value):
+            return value
+        assert time.monotonic() < deadline, value
+        time.sleep(.05)
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -64,7 +76,7 @@ class _Handler(BaseHTTPRequestHandler):
             else:
                 self.chunk({"role": "assistant", "content": self.server.text})
                 self.server.partial.set()
-                if not self.server.release.wait(30):
+                if not self.server.release.wait(self.server.hold_seconds):
                     return
                 self.chunk({"content": " after release"})
                 self.chunk({}, "stop")

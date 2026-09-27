@@ -1,23 +1,11 @@
 """Real native and compute execution: reopen questions/streaming, answer, exact Stop."""
-import time
-
 import pytest
 
 from agent_runtime.conversations.model import ConversationError, ConversationScope, Refusal
 from agent_runtime.conversations.service import ConversationService
-from tests.agent_runtime.native_recovery_provider import RecoveryProvider
+from tests.agent_runtime.native_recovery_provider import RecoveryProvider, until
 
 pytestmark = pytest.mark.timeout(120)
-
-
-def until(read, predicate, timeout=30):
-    deadline = time.monotonic() + timeout
-    while True:
-        value = read()
-        if predicate(value):
-            return value
-        assert time.monotonic() < deadline, value
-        time.sleep(.05)
 
 
 @pytest.mark.parametrize("compute", [False, True], ids=["inline", "compute-child"])

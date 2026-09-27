@@ -72,6 +72,22 @@ def test_active_unknown_and_native_protected_work_survives(runtime):
     assert len([m for m, _ in worker.calls if m == "session.retire"]) == 1
 
 
+def test_missed_terminal_event_retires_only_after_native_outcome_is_read(runtime):
+    service, factory, now, scope, open_ = runtime
+    sid = open_("missed-completion")
+    worker = factory.workers[0]
+    service.send(scope, sid, "turn", PROMPT)
+    worker.receive = lambda _: None
+    worker.event("native-0", "message.complete", text="preserved", status="complete")
+    route = service.store.get(sid, scope)
+    assert service.store.latest(route).state == TurnState.RUNNING
+    now[0] += 101
+    service._bindings.sweep()
+    assert sid not in service._bindings._entries
+    assert service.store.latest(route).state == TurnState.COMPLETED
+    assert worker.closed
+
+
 def test_observed_and_borrowed_sessions_cannot_be_retired(runtime):
     service, factory, now, scope, open_ = runtime
     sid = open_("observed")

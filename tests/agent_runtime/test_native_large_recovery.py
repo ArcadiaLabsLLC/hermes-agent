@@ -7,8 +7,7 @@ import pytest
 
 from agent_runtime.conversations.model import ConversationScope
 from agent_runtime.conversations.service import ConversationService
-from tests.agent_runtime.native_recovery_provider import RecoveryProvider
-from tests.agent_runtime.test_native_recovery_roundtrip import until
+from tests.agent_runtime.native_recovery_provider import RecoveryProvider, until
 
 
 @pytest.mark.timeout(180)
@@ -36,7 +35,8 @@ def test_large_terminal_response_reopens_after_worker_and_service_restart(tmp_pa
             return {"turn": page["turn"], "execution": page["recovery"].get("execution"),
                     "inflight": page["recovery"].get("inflight_position"),
                     "messages": page["recovery"].get("message_count")}
-        until(outcome, lambda p: p["turn"]["state"] == "completed")
+        # Native rendering/persistence of 10 MiB takes longer under suite CPU load.
+        until(outcome, lambda p: p["turn"]["state"] == "completed", timeout=90)
         recovered = service.read(scope, sid, 0, "original", epoch=epoch)
         assert recovered["recovery"]["execution"]["status"] == "complete"
         assert recovered["turn"]["state"] == "completed"

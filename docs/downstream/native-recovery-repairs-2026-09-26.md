@@ -162,3 +162,19 @@ after reopening. This bounds wire delivery, not native history materialization:
 the current projection is still rebuilt per page, so larger-history scaling is
 not yet qualified. The non-repeating fixture avoids Hermes's repetition guard;
 that guard correctly rejected the first repeated-text fixture.
+
+## Missed terminal delivery and structural gates
+
+An unobserved route with a missed terminal push previously retained its stale
+running receipt forever. Retirement now reads native execution evidence before
+deciding; unknown/running outcomes remain protected, and native retirement still
+rechecks eligibility. The new regression failed before the change and passes now.
+
+The inflight event vocabulary uses a handler table; the history chunk helper has
+a distinct name. Routing and duplicate-helper gates pass without new allowances.
+The final six-file run passes 31 tests, including inline/compute large recovery,
+live question/Stop, retention, snapshot and both structural gates. One earlier
+loaded 10 MiB run exceeded the small-case 30-second wait; its isolated run took
+20.73 seconds overall. The large case now allows 90 seconds within its existing
+180-second test deadline; the final loaded run passes without retry. Focused Ruff
+and diff checks pass. Native UI and the remaining acceptance matrix are still open.

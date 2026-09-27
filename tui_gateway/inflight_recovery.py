@@ -3,16 +3,23 @@
 
 def record(session, kind, payload):
     turn = session.get("inflight_turn")
-    if not turn:
-        return
-    if kind in {"reasoning.delta", "thinking.delta"}:
-        turn["reasoning"] = turn.get("reasoning", "") + str(payload.get("text") or "")
-    elif kind == "reasoning.available":
-        _replace_tail(turn, "reasoning", payload.get("text"))
-    elif kind == "message.interim":
-        _replace_tail(turn, "assistant", payload.get("text"))
-        turn.setdefault("segment_ends", []).append({
-            field: len(turn.get(field) or "") for field in ("assistant", "reasoning")})
+    handler = _RECORDERS.get(kind)
+    if turn and handler:
+        handler(turn, payload.get("text"))
+
+
+def _append_reasoning(turn, text):
+    turn["reasoning"] = turn.get("reasoning", "") + str(text or "")
+
+
+def _finish_reasoning(turn, text):
+    _replace_tail(turn, "reasoning", text)
+
+
+def _finish_segment(turn, text):
+    _replace_tail(turn, "assistant", text)
+    turn.setdefault("segment_ends", []).append({
+        field: len(turn.get(field) or "") for field in ("assistant", "reasoning")})
 
 
 def _replace_tail(turn, field, text):
@@ -23,3 +30,11 @@ def _replace_tail(turn, field, text):
     if not value.startswith(current):
         turn["revision"] = turn.get("revision", 0) + 1
     turn[field] = value
+
+
+_RECORDERS = {
+    "reasoning.delta": _append_reasoning,
+    "thinking.delta": _append_reasoning,
+    "reasoning.available": _finish_reasoning,
+    "message.interim": _finish_segment,
+}

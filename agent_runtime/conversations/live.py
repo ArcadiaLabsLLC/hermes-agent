@@ -23,6 +23,9 @@ class LiveConversation:
     def retire(self):
         receipt = self.store.latest(self.route)
         if receipt and receipt.state in UNSETTLED:
+            self._checkpoint()
+            receipt = self.store.latest(self.route)
+        if receipt and receipt.state in UNSETTLED:
             return False
         self.retirement_pending = True
         result = self.peer.call("session.retire", {"session_id": self.native_id,
@@ -95,11 +98,15 @@ class LiveConversation:
                                 "id": request_id, "result": result})
         return answer.get("status") == "ok"
 
-    def recover(self):
+    def _checkpoint(self):
         receipt = self.store.latest(self.route)
         native = self.peer.call("session.recover", {"session_id": self.native_id,
             **({"execution_id": receipt.execution_id} if receipt and receipt.execution_id else {})})
         self.reconcile(native.get("execution"))
+        return native
+
+    def recover(self):
+        native = self._checkpoint()
         self.retry_stop()
         return {"recovery": native, "epoch": native["epoch"], "cursor": native["latest_seq"],
                 "offset": 0, "events": [], "more": False, "truncated": False,

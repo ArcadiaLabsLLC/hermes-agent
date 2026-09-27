@@ -28,10 +28,10 @@ def history_page(server, session, params):
     with session["history_lock"]:
         if not _matches(session, position):
             return reset
-    return _page(messages, index, offset)
+    return _history_chunks(messages, index, offset)
 
 
-def _page(messages, index, offset):
+def _history_chunks(messages, index, offset):
     chunks, size = [], 0
     if index > len(messages) or (index == len(messages) and offset):
         raise ValueError("Invalid history position")
