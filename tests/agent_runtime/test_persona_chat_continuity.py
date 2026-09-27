@@ -308,6 +308,25 @@ def test_26_delete_root_removes_compression_lineage_but_preserves_branch(tmp_pat
     assert db.get_session("branch")["parent_session_id"] is None
 
 
+def test_26b_delete_root_keeps_reset_and_tool_children_and_follows_inherited_markers(tmp_path):
+    """The lineage edge is upstream's non-continuation predicate: a reset fork and a
+    ``source='tool'`` child of a compression-ended root survive, while a continuation
+    whose inherited marker names ANOTHER row is still lineage, two links deep."""
+    db = SessionDB(tmp_path / "state.db")
+    db.create_session("root", "agent_runtime_persona_chat")
+    db.end_session("root", "compression")
+    db.create_session("reset", "agent_runtime_persona_chat", parent_session_id="root", model_config={"_reset_from": "root"})
+    db.create_session("tool", "tool", parent_session_id="root")
+    db.create_session("tip", "agent_runtime_persona_chat", parent_session_id="root", model_config={"_branched_from": "elsewhere"})
+    db.end_session("tip", "compression")
+    db.create_session("tip2", "agent_runtime_persona_chat", parent_session_id="tip", model_config={"_branched_from": "elsewhere"})
+    from agent_runtime.session_extensions import delete_compression_lineage
+
+    assert delete_compression_lineage(db, "root") == ["root", "tip", "tip2"]
+    assert db.get_session("reset")["parent_session_id"] is None
+    assert db.get_session("tool")["parent_session_id"] is None
+
+
 def test_27_json_shaped_tool_secret_is_redacted():
     row = safe_native_message(
         {

@@ -191,6 +191,7 @@ without touching the ratchet. Each carries the PR that retires the import.
 | `hermes_cli/profiles.py` | `_PROFILE_ID_RE`, `_iter_named_profile_dirs` | `agent_runtime/_upstream_doors.py::profile_id_pattern` / `::iter_named_profile_dirs`, read by `agent_runtime/profile_home.py::available_profile_template_summaries` (lane W3-B, ruling Q7) | held widening PR: publish both |
 | `tools/skills_sync.py` | `_dir_hash`, `_read_skill_name` | `agent_runtime/_upstream_doors.py::skills_sync_primitives`, read by `agent_runtime/skill_publishability.py::_sync_primitives` (fail-closed; lane W3-B, ruling Q7) | held widening PR: publish both |
 | `tools/terminal_tool_guards.py` | `_looks_like_help_or_version_command`, `_strip_quotes` | `agent_runtime/_upstream_doors.py::looks_like_help_or_version_command` / `::strip_quotes`, read by `agent_runtime/terminal_policy.py` (lane W3-B, ruling Q7) | held widening PR: publish both |
+| `hermes_state_sessions.py` | `SessionSessionsMixin._NON_CONTINUATION_CHILD_FILTER_SQL` | `agent_runtime/_upstream_doors.py::non_continuation_child_filter` (call-time), read by `agent_runtime/session_extensions.py::delete_compression_lineage` (lane ADOPT 2026-09-27, supersession U06) | upstream 2759f0fe97 builds it from `hermes_state_common._non_continuation_child_sql` and keeps the constant; a widening PR publishing that predicate retires the private read |
 
 ## Fork modules that shadow an upstream symbol (recorded parallels, no diff row)
 
