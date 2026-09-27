@@ -46,6 +46,8 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-24 (lane CARRY2A)
 
+- [ ] **Profile-override downstream tests cannot collect after helper removal** · `tests/hermes_cli/test_apply_profile_override_downstream.py` still imports `_pin_hermes_root` from the upstream test where main cleanup removed it. Reproduced during native recovery qualification; both files match main `5e0875e5c2`. Restore a fork-owned fixture seam, not an upstream test carry. Evidence: `docs/downstream/native-recovery-repairs-2026-09-26.md` §Automatic maintenance protects shared work. **UNCLAIMED**
+
 
 ## Filed on arrival — 2026-09-24 (lanes UPPR2, REDS)
 

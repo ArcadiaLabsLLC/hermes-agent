@@ -241,5 +241,7 @@ nine errors and 169 skipped. Rechecking its failing files on unchanged main
 Six branch-specific manifest assertions across the three office-RPC files were
 stale after adding history/inflight recovery; the producer regenerated their one
 shared fixture and all three now pass. The profile-override collection error is
-fixed by a newer main test helper, not by recovery code; reconciliation remains
-owed. The full gate is not green.
+absent on that older baseline: subsequent main cleanup removed `_pin_hermes_root`
+but left its downstream import. Both files are identical to main `5e0875e5c2`;
+this collection defect is filed in the fork-hygiene queue. The full gate is not
+green. The final idle-admission/Discussion/legibility check passes 26 tests.
