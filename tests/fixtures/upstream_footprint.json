@@ -1,9 +1,9 @@
 {
   "measured_at": "2026-09-27",
   "base": "2f14d5e6e4",
-  "files": 151,
-  "deleted_lines": 834,
-  "heavy": 4,
+  "files": 117,
+  "deleted_lines": 766,
+  "heavy": 3,
   "reasons": [
     {
       "change": "ACP named-provider identity correction (owner requested 2026-09-24)",
@@ -336,6 +336,12 @@
       "files": "148 -> 151: tests/conftest.py (+7/-1), tests/test_live_system_guard_self_test.py (+4), tui_gateway/host_supervisor.py (+5/-1)",
       "deleted_lines": "829 -> 834: the -1s above plus scripts/run_tests_parallel.py and tests/_fixtures/live_system_guard.py hunks; heavy unchanged at 4",
       "reason": "recorded so main is green again; the three files are in FOOTPRINT-DROP's scope (conftest/self-test edits -> fork-owned conftest plugin, host_supervisor hook -> plugin wrap)"
+    },
+    {
+      "change": "lane FOOTPRINT-DROP (lane/footprint-drop): sort-and-drop of the 151 footprint files (table: docs/agent-runtime-harness/planned/footprint-drop-2026-09-27.md)",
+      "files": "151 -> 117: 34 files back at 2f14d5e6e4 bytes — 32 upstream test files (5 linux marks moved to id_markers; 6 doc pointers / an unused import; 16 Windows respellings upstream's own platforms marks already skip; 2 respellings moved to *_downstream.py siblings with win32 strict xfails; the local-runtime stub, now a timeout mark by id; the redundant test_hermes_constants pin; the bypass self-test, now a win32 skip by id plus a sibling), the CRLF contributor file (a -text keeper), and hermes_cli/provider_catalog.py (its block is hermes_cli/provider_login_catalog.py)",
+      "deleted_lines": "834 -> 766: the reverted files' deletions; heavy 4 -> 3 (agent/pet/generate/atlas.py 199 -> 109). Twelve kept files shrank into fork modules (each move's red is in its commit message): gateway.py 169 -> 20, gateway_windows.py 123 -> 5, tool_search.py 117 -> 37, terminal_tool.py 86 -> 30, plugins/memory 69 -> 2, subcommands/auth.py 37 -> 2, model_tools.py 31 -> 4, update_cmd_windows.py 30 -> 4, process_registry_notifications.py 29 -> 3, plugins_manifest.py 20 -> 5, live_system_guard.py 169 -> 39",
+      "reason": "footprint moves to fork-owned modules, id marks and siblings; no behaviour change (bucket b found no load-time-safe wrap)"
     }
   ]
 }

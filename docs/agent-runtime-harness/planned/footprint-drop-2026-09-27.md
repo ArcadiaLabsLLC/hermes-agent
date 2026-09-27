@@ -177,3 +177,29 @@ Counts: a 14, a/step3 19, b 0, c 67, d 35, e 16.
 | `tui_gateway/hosted_room_driver.py` | 15 | 2 | d | Group Chat host-surface widening, 15 lines |
 | `tui_gateway/methods_prompt.py` | 2 | 0 | d | `reject_if_busy` branch in the busy path |
 | `tui_gateway/server.py` | 2 | 1 | d | `skill_view` in a module frozenset; the docstring half is upstream rot the gate scopes out - revert that line |
+
+## Outcome (lane tip)
+
+**151 / 834 / 4 -> 117 / 766 / 3.** Each move's red is in its commit message.
+
+- **a** (14): all executed. Linux marks by id (5); doc pointers + an unused import (6, plus
+  the `tui_gateway/server.py` docstring line); `test_hermes_constants` was already gated by
+  upstream's own `platforms("linux")` (pure revert); the bypass self-test is a win32 skip by
+  id plus a sibling; the CRLF contributor file carries upstream's bytes under a `-text` keeper.
+- **a/step3** (19): the tree differed from the sort. 16 were Windows respellings of tests
+  upstream itself now marks `platforms("linux"/"posix")` — identical skip set before and
+  after, pure reverts. 2 (`test_skill_utils`, `test_skills_hub`) moved to `*_downstream.py`
+  siblings with win32 strict xfails. `test_local_runtime`'s stub fix became a
+  `timeout(90)` mark by id (upstream's test passes in 30.2 s). Siblings follow the tree's
+  `tests/<area>/*_downstream.py` convention, not `tests/_downstream/` (plumbing only).
+- **b**: none (see above).
+- **e** executed (12): `subcommands/auth.py`, `plugins/memory/__init__.py`,
+  `process_registry_notifications.py`, `plugins_manifest.py`, `live_system_guard.py`,
+  `model_tools.py`, `agent/pet/generate/atlas.py` (fork-only half), `provider_catalog.py`
+  (full revert), `gateway_windows.py`, `gateway.py`, `update_cmd_windows.py`,
+  `tool_search.py`, `terminal_tool.py`.
+- **e not executed** (3), now (d): `gateway/hosted_room_discussion.py`,
+  `gateway/hosted_rooms.py` — the bodies call six-plus upstream privates (`_transaction`,
+  `_room_row`, `_require_authority`, ...), so a move needs a door per private for a seam
+  that is a single widening PR; `hermes_cli/main.py` — its own staged plan (seam 0.3,
+  S1 + P1), not lane-sized.
