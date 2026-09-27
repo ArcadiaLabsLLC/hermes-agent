@@ -120,3 +120,4 @@ is KEEP. Two of the three findings predate the base and came from the AST scan, 
    declines a non-PM venv (`no-store-python`).
    Call site: `hermes_cli/path_setup.py:280-282`. Return contract differs: upstream returns `'present'|'added'` and raises `OSError`,
    while the fork returns `bool` and logs, so the door wraps the call.
+   **Recorded parallel (lane ADOPT 2026-09-27).** The adaptation changes behaviour: upstream's `_merge_user_path(r'C:\hermes\bin;C:\Windows', 'C:/hermes/bin')` returns `C:/hermes/bin;C:\hermes\bin;C:\Windows` (a duplicate segment the fork's `ntpath.normcase` rule refuses). Row in `upstream-footprint-ledger.md` § Fork modules that shadow an upstream symbol.
