@@ -172,7 +172,7 @@ if _WIN:
             _up_red("calls os.getuid, which Windows does not have"),
         ),
         "tests/tools/test_file_write_safety.py::TestBomHandling::test_a_dangling_symlink_destination_is_occupied": (
-            _up_red("readlink hands back the extended-length \\?\ spelling (class c-D)"),
+            _up_red(r"readlink hands back the extended-length \\?\ spelling (class c-D)"),
         ),
         # Red on pure upstream/main 067fa1a257 on this box too (coordinator's
         # pure_upstream_rerun.log): upstream Windows reds, byte-identical files.
