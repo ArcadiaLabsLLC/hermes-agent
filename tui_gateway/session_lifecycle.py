@@ -524,6 +524,9 @@ def _teardown_popped_session(session: dict | None, *, end_reason: str = "tui_clo
     if end_reason != "tui_shutdown":
         _settle_isolated_turn_before_close(session)
     _teardown_session(session, end_reason=end_reason)
+    from tui_gateway.event_replay import forget_session
+    if sid := session.get("_sid"):
+        forget_session(sid)
     return True
 
 

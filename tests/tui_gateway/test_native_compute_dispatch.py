@@ -1,11 +1,33 @@
 """An uncertain pipe write keeps the original compute owner and completion path."""
 from contextlib import nullcontext
+from concurrent.futures import ThreadPoolExecutor
+import threading
 
 import pytest
 
 from hermes_state import SessionDB
 from tui_gateway import server, session_execution
 from tui_gateway.host_supervisor import HostSupervisor
+
+
+def test_observation_waits_for_exact_child_start_ack_without_blocking_controls(tmp_path, monkeypatch):
+    supervisor = HostSupervisor(registry_path=tmp_path / "host.json", autostart=False)
+    monkeypatch.setattr(supervisor, "start", lambda: None)
+    monkeypatch.setattr(supervisor, "_send_frame", lambda _: None)
+    observed = threading.Event()
+    def reply(*args):
+        observed.set()
+        return {"type": "observe.ack", "response": {"result": {"running": True}}}
+    monkeypatch.setattr(supervisor, "_await_reply", reply)
+    supervisor.submit_turn({"sid": "session", "request_id": "dispatch"})
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        read = pool.submit(supervisor.observe, "session", "session.recover", {}, timeout=2)
+        assert not observed.wait(.03)
+        supervisor.interrupt("session", expected_execution_id="native-turn")
+        supervisor._handle_host_frame({"type": "turn.started", "request_id": "wrong"})
+        assert not observed.wait(.03)
+        supervisor._handle_host_frame({"type": "turn.started", "request_id": "dispatch"})
+        assert read.result() == {"result": {"running": True}}
 
 
 @pytest.mark.parametrize("native", [True, False])

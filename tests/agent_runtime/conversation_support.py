@@ -14,6 +14,8 @@ class NativeWorker:
         self.events, self.executions, self.questions, self.answers = {}, {}, {}, {}
         self.on_submit = None
         self.closed = False
+        self.retired = set()
+        self.protected = set()
 
     def call(self, method, params, **_):
         self.calls.append((method, params))
@@ -24,7 +26,15 @@ class NativeWorker:
             self.events[sid] = []
             return {"session_id": sid, "stored_session_id": sid}
         if method == "session.resume":
+            self.models.setdefault(sid, "model-a")
+            self.retired.discard(sid)
             return {"session_id": sid, "stored_session_id": sid}
+        if method == "session.retire":
+            current = self.executions.get(sid)
+            if sid in self.protected or (current and current["status"] in {"running", "unknown"}):
+                return {"status": "protected"}
+            self.retired.add(sid)
+            return {"status": "retired"}
         if method == "session.activate":
             return {"info": {"model": self.models[sid], "provider": "local", "usage": {}}}
         if method == "model.options":

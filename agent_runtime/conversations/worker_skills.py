@@ -60,7 +60,7 @@ def _inspect(operation: str, snapshot: dict, skill_id: str | None) -> dict:
             if not isinstance(skill_id, str) or not skill_id or len(skill_id) > 512:
                 raise ValueError("invalid skill")
             return {"skill": reader.detail(skill_id, can_load=can_load)}
-        key = info.get("stored_session_id") or snapshot.get("stored_session_id")
+        key = snapshot.get("session_key") or info.get("stored_session_id") or snapshot.get("stored_session_id")
         if not key:
             return {"loaded": [], "historyComplete": False}
         db = acquire(get_hermes_home() / "state.db")

@@ -155,6 +155,33 @@ def test_native_admission_rechecks_running_inside_the_claim(owner):
     assert execution.snapshot(session, None)["id"] == "already-running"
 
 
+def test_storage_rejection_settles_admitted_execution_without_starting_work(owner, monkeypatch):
+    session, _ = owner
+    execution.admit(session, "rejected")
+    server._start_inflight_turn(session, "hello")
+    monkeypatch.setattr(server, "_ensure_session_db_row", lambda _: False)
+    monkeypatch.setattr(server, "_release_active_session_slot", lambda _: None)
+    response = server._persist_session_row_for_submit("rpc", session, "hello")
+    assert response["error"]["code"] == 5072
+    assert not session["running"]
+    session.pop("native_execution")
+    assert execution.snapshot(session, "rejected")["status"] == "error"
+
+
+def test_unwritable_rejection_receipt_remains_uncertain(owner, monkeypatch):
+    session, db = owner
+    execution.admit(session, "rejected")
+    monkeypatch.setattr(server, "_ensure_session_db_row", lambda _: False)
+    monkeypatch.setattr(server, "_release_active_session_slot", lambda _: None)
+    def unavailable(*args):
+        raise OSError("isolated storage fault")
+    monkeypatch.setattr(db, "update_meta", unavailable)
+    assert server._persist_session_row_for_submit("rpc", session, "hello")["error"]["code"] == 5072
+    assert not session["running"]
+    session.pop("native_execution")
+    assert execution.snapshot(session, "rejected")["status"] == "unknown"
+
+
 def test_uncertain_compute_dispatch_never_falls_back_to_an_inline_execution(owner, monkeypatch):
     session, _ = owner
     session["running"] = False

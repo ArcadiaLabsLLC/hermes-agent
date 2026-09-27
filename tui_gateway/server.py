@@ -178,6 +178,9 @@ _LONG_HANDLERS = frozenset({
     "wake.status", "session.active_list", "session.branch", "session.compress", "session.list",
     "session.resume", "session.workspace.move", "shell.exec", "skills.manage", "slash.exec",
     "command.dispatch",  # /goal draft invokes the auxiliary model; never block the RPC reader
+    # Recovery, retirement and answers can await the compute owner. Stop must remain readable.
+    "session.recover", "session.recovery.history", "session.recovery.inflight",
+    "session.events.since", "session.retire", "request.answer",
 })
 
 _rpc_pool_workers = max(2, env_int("HERMES_TUI_RPC_POOL_WORKERS", 8))
@@ -2711,6 +2714,12 @@ def _finalize_superseded_runtimes(stale: list[tuple[str, dict]]) -> None:
 
 def _schedule_agent_build(sid: str, delay: float = 0.05) -> None:
     """Pre-warm a deferred session's agent off the response path (session.create + cold resume; _sess() also builds on demand)."""
+
+    if (session := _sessions.get(sid)) is not None:
+        with _session_profile_runtime_scope(session, hydrate_secrets=False):
+            if _session_uses_compute_host(session):
+                session["lazy"] = True
+                return
 
     def _run():
         if (session := _sessions.get(sid)) is not None:

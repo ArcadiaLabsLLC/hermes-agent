@@ -18,7 +18,8 @@ def owner(tmp_path, monkeypatch):
         "stored", cols=80, cwd=str(tmp_path), history=[], lease=None, lazy=True)
     monkeypatch.setitem(server._sessions, "live", session)
     monkeypatch.setattr(server, "_session_db", lambda _: nullcontext(db))
-    monkeypatch.setattr(server, "_teardown_popped_session", Mock(return_value=True))
+    monkeypatch.setattr(server, "_teardown_session", Mock())
+    monkeypatch.setattr(server, "_teardown_popped_session", Mock(wraps=server._teardown_popped_session))
     event_replay.reset_replay_state()
     session_execution.admit(session, "execution")
     session_execution.stamp(session, {"method": "event", "params": {
@@ -62,6 +63,30 @@ def test_uncertain_and_replaced_executions_are_not_retired(owner):
     session.pop("native_execution")
     assert session_retirement.retire(server, "live", session, "new") == {"status": "protected"}
     assert session_retirement.retire(server, "live", session, None) == {"status": "protected"}
+
+
+def test_generic_native_reapers_also_protect_uncertain_and_queued_work(owner):
+    session, _ = owner
+    session_execution.admit(session, "uncertain")
+    session_execution.uncertain(session, "uncertain")
+    assert not server._session_is_lru_evictable("live", session, require_dead_transport=False)
+    session_execution.rejected(session)
+    session["queued_prompt"] = {"text": "later"}
+    assert not server._session_is_lru_evictable("live", session, require_dead_transport=False)
+
+
+def test_retirement_retry_acknowledges_an_already_removed_session(owner):
+    assert retire() == {"status": "retired"}
+    assert server._methods["session.retire"]("retry", {
+        "session_id": "live", "execution_id": "execution"})["result"] == {"status": "retired"}
+
+
+def test_ordinary_native_teardown_releases_replay_identity_too(owner):
+    event_replay._stamp_event({"method": "event", "params": {
+        "session_id": "live", "type": "message.delta", "payload": {"text": "old"}}})
+    server._teardown_popped_session(server._pop_session_by_id("live"))
+    assert "live" not in event_replay._replay_next_seq
+    assert not event_replay.events_since("live", 0)
 
 
 def test_retirement_releases_replay_not_transcript_or_execution_evidence(owner):

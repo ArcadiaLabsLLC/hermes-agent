@@ -108,3 +108,40 @@ passed. Generated contract checks pass (2 tests), as does focused Ruff analysis.
 Launcher has a typed, awaited restoration path, qualified with a controlled RPC
 peer. Real-service/compute restart, aggregate retention, large-history cost and
 native desktop acceptance still prevent declaring the full repair complete.
+
+## Retention and real-process checkpoint
+
+Route bindings now retire through `session.retire`, with a 64-binding pressure
+target and 15-minute idle threshold. Borrowed, recently observed and unsettled
+bindings stay protected; native eligibility remains the final decision. The
+profile worker closes only after its last retired binding releases it. No
+transcript, draft or dispatch receipt is deleted. Lost retirement replies are
+reconciled before reuse. Fixed-size lock stripes replace growing lock maps.
+
+Real inline and compute A/B/A tests verify isolation, process retirement and
+durable reopening without submission. A one-second pause after opening exposed
+prewarming bypassing configured compute isolation; removing its guard reproduces
+the failure. Existing `turn.started` acknowledgements now order child observations;
+the child's canonical `session_key` also restores completed skill-history reads.
+
+The real question/stream test reopens both inline and compute sessions, drops an
+answer acknowledgement, retries the exact question, and confirms repeated Stop
+without resending. Launcher additionally passes two cross-repository tests using
+real handlers/workers: fresh file-backed Chat engines and independent Compare
+members with an unavailable route. The model and storage cipher are test doubles;
+these are not native UI or encryption acceptance.
+
+Positive controls: removing the borrowed-session guard fails retention; removing
+pre-dispatch rejection settlement changes the expected error to unknown. Seven
+input-thread responsiveness cases failed before repair and pass afterward:
+native recovery/retirement/answer waits, including raw compute answer frames, use
+the existing RPC pool and retirement reservation. Stop remains on the input path.
+
+Final checkpoint verification: 703 passed across 13 file-isolated service/gateway
+files, with one existing expected failure in the gateway suite. The two Launcher
+real-process cases also pass after dropped submission/Stop replies were added.
+Focused Ruff and changed Dart analysis pass. This is not a full-suite verdict.
+
+Large-history cost, full service-restart qualification, concurrent Mission Control
+and Discuss acceptance, broader baseline comparison and native desktop acceptance
+remain open. This checkpoint does not close the repair claims.

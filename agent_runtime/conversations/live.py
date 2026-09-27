@@ -13,10 +13,22 @@ _OUTCOMES = {"complete": TurnState.COMPLETED, "interrupted": TurnState.STOPPED,
 
 
 class LiveConversation:
-    def __init__(self, route, native_id, peer, store):
-        self.route, self.native_id, self.peer, self.store = route, native_id, peer, store
+    def __init__(self, route, native_id, worker, store):
+        self.route, self.native_id, self.worker, self.store = route, native_id, worker, store
+        self.peer = worker.peer
         self.operations = threading.Lock()
         self._cancel_ack = None
+        self.retirement_pending = False
+
+    def retire(self):
+        receipt = self.store.latest(self.route)
+        if receipt and receipt.state in UNSETTLED:
+            return False
+        self.retirement_pending = True
+        result = self.peer.call("session.retire", {"session_id": self.native_id,
+            "execution_id": receipt.execution_id if receipt else None})
+        self.retirement_pending = False
+        return result.get("status") == "retired"
 
     @property
     def turn_id(self):

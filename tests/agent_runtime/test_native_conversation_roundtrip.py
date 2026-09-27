@@ -2,6 +2,7 @@
 import json
 import threading
 import time
+import psutil
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
@@ -50,7 +51,8 @@ class Provider(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
 
-def test_real_profile_a_b_a_native_turns_and_persistent_sessions(tmp_path):
+@pytest.mark.parametrize("compute", [False, True], ids=["inline", "compute-child"])
+def test_real_profile_a_b_a_native_turns_and_persistent_sessions(tmp_path, compute):
     Provider.requests = []
     provider = ThreadingHTTPServer(("127.0.0.1", 0), Provider)
     thread = threading.Thread(target=provider.serve_forever, daemon=True)
@@ -63,11 +65,14 @@ def test_real_profile_a_b_a_native_turns_and_persistent_sessions(tmp_path):
         (home / "config.yaml").write_text(
             "model:\n  default: test-model\n  provider: custom:local-test\n"
             f"providers:\n  local-test:\n    api: http://127.0.0.1:{provider.server_port}/v1\n    api_key: isolated-{profile}\n"
+            f"dashboard:\n  turn_isolation: {str(compute).lower()}\n"
             "mcp_servers: {}\n", encoding="utf-8")
         skill = home / "skills" / f"review-{profile}" / "SKILL.md"
         skill.parent.mkdir(parents=True)
         skill.write_text(f"---\nname: review-{profile}\ndescription: Profile review\n---\nRead only {profile}.\n", encoding="utf-8")
-    service = ConversationService(root, "isolated-install", profile_home=lambda p: tmp_path / p)
+    now = [0.0]
+    service = ConversationService(root, "isolated-install", profile_home=lambda p: tmp_path / p,
+                                  retention_options={"clock": lambda: now[0]})
     sessions = {}
     try:
         for number, profile in enumerate(("a", "b", "a")):
@@ -77,6 +82,8 @@ def test_real_profile_a_b_a_native_turns_and_persistent_sessions(tmp_path):
             if profile in sessions:
                 assert sessions[profile] == sid
             sessions[profile] = sid
+            # Give native prewarming time to run, as when a user waits before typing.
+            time.sleep(1)
             turn = f"turn-{number}"
             service.send(scope, sid, turn, {"text": f"Reply to marker-{profile}-{number}", "images": []})
             deadline = time.monotonic() + 45
@@ -95,7 +102,10 @@ def test_real_profile_a_b_a_native_turns_and_persistent_sessions(tmp_path):
             assert any(row["id"] == f"review-{profile}" for row in catalog["skills"])
             detail = service.skills(scope, sid, "detail", f"review-{profile}")
             assert f"Read only {profile}." in detail["skill"]["content"]
-            assert service.skills(scope, sid, "history") == {"loaded": [], "historyComplete": True}
+            deadline = time.monotonic() + 10
+            while service.skills(scope, sid, "history") != {"loaded": [], "historyComplete": True}:
+                assert time.monotonic() < deadline, "skill history did not settle"
+                time.sleep(.05)
         assert len(set(sessions.values())) == 2
         # The real agents reached the stub using only their own profile credentials/history.
         chat = [(auth, body) for auth, body in Provider.requests if any(
@@ -108,6 +118,32 @@ def test_real_profile_a_b_a_native_turns_and_persistent_sessions(tmp_path):
             assert f"marker-{other}-" not in json.dumps(body)
         assert (tmp_path / "a" / "state.db").is_file()
         assert (tmp_path / "b" / "state.db").is_file()
+        peers = [entry.live.peer for entry in service._bindings._entries.values()]
+        children = [child for peer in peers for child in psutil.Process(peer.process.pid).children(recursive=True)]
+        compute_children = [child for child in children if "tui_gateway.compute_host" in child.cmdline()]
+        assert bool(compute_children) == compute, [child.cmdline() for child in children]
+        # Native turn.done can follow message.complete; retirement must wait for it.
+        now[0] = 1000
+        deadline = time.monotonic() + 15
+        while service._bindings._entries:
+            service._bindings.sweep()
+            assert time.monotonic() < deadline, "settled sessions did not retire"
+            time.sleep(.05)
+        assert all(not peer.execution_possible for peer in peers)
+        assert not any(child.is_running() for child in compute_children)
+        assert not service._workers._workers
+        requests_before = len(Provider.requests)
+        scope = ConversationScope("operator", "isolated-account", "a")
+        reopened = service.open(scope, key="chat", cwd=str(tmp_path),
+            expected_home=str(tmp_path / "a"), resume=sessions["a"])
+        assert reopened["session_id"] == sessions["a"]
+        assert reopened["turn"]["state"] == "completed"
+        assert reopened["recovery"]["execution"]["status"] == "complete"
+        page = service.history(scope, sessions["a"], reopened["recovery"]["history"], 0, 0)
+        recovered = "".join(chunk["data"] for chunk in page["chunks"])
+        assert "marker-a-0" in recovered and "marker-a-2" in recovered
+        assert "Local native answer" in recovered and "marker-b-" not in recovered
+        assert len(Provider.requests) == requests_before, "reopening must never execute a turn"
     finally:
         service.close()
         provider.shutdown()

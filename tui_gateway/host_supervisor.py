@@ -16,6 +16,7 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +46,13 @@ _CONTROL_REPLY_TYPES = frozenset({
     "observe.ack", "observe.error",
     "control.ack", "control.error", "respond.ack", "respond.error", "interrupt.ack",
     "reload_mcp.ack", "shutdown.ack"})
+
+
+@dataclass
+class _PendingTurn:
+    sid: str
+    complete: Callable[[dict], None] | None
+    ready: threading.Event = field(default_factory=threading.Event)
 
 
 def append_log_record(path: str | Path, record: str) -> None:
@@ -168,7 +176,7 @@ class HostSupervisor:
         self._closing = False
         self._stopped_respawning = False
         self._restart_times: list[float] = []
-        self._pending_turns: dict[str, tuple[str, Callable[[dict], None] | None]] = {}
+        self._pending_turns: dict[str, _PendingTurn] = {}
         self._pending_controls: dict[str, queue.Queue[dict]] = {}
         # request_id -> (registered_at, handler) for control waiters that timed out while their
         # host work still runs, so the eventual control.ack is not silently dropped.
@@ -242,7 +250,7 @@ class HostSupervisor:
         sid = str(frame.get("sid") or "")
         payload = {**frame, "type": "turn.start", "request_id": request_id}
         with self._lock:
-            self._pending_turns[request_id] = (sid, on_complete)
+            self._pending_turns[request_id] = _PendingTurn(sid, on_complete)
         try:
             self._send_frame(payload)
         except Exception as exc:
@@ -286,10 +294,16 @@ class HostSupervisor:
 
     def observe(self, sid: str, method: str, params: dict, *, timeout: float = 15.0) -> dict:
         """Read the existing child. Observation must never start or replace compute."""
+        deadline = time.monotonic() + timeout
+        with self._lock:
+            starting = next((turn for turn in self._pending_turns.values() if turn.sid == sid), None)
+        if starting is not None and not starting.ready.wait(timeout):
+            raise RuntimeError("Native execution is still starting")
         request_id = uuid.uuid4().hex
         try:
             reply = self._await_reply({"type": "observe", "sid": sid, "method": method,
-                "params": dict(params), "request_id": request_id}, request_id, timeout)
+                "params": dict(params), "request_id": request_id}, request_id,
+                max(0.0, deadline - time.monotonic()))
         except queue.Empty as exc:
             raise RuntimeError("Native execution is unavailable") from exc
         if reply.get("type") != "observe.ack" or not isinstance(reply.get("response"), dict):
@@ -441,11 +455,18 @@ class HostSupervisor:
         elif ftype == "rpc":
             if isinstance(frame.get("message"), dict):
                 self.rpc_sink(frame["message"])
+        elif ftype == "turn.started":
+            with self._lock:
+                pending = self._pending_turns.get(request_id)
+            if pending is not None:
+                pending.ready.set()
         elif ftype in ("turn.end", "turn.error"):
             with self._lock:
                 pending = self._pending_turns.pop(request_id, None)
-            if pending is not None and pending[1] is not None:
-                _call_logged(pending[1], frame, "compute host turn completion callback failed")
+            if pending is not None:
+                if pending.complete is not None:
+                    _call_logged(pending.complete, frame, "compute host turn completion callback failed")
+                pending.ready.set()
 
     def _wait_for_exit(self, proc: subprocess.Popen[str]) -> None:
         code = proc.wait()
@@ -464,12 +485,14 @@ class HostSupervisor:
             pending = self._pending_turns
             self._pending_turns = {}
         failure = {"reason": reason, "message": message}
-        for request_id, (sid, cb) in pending.items():
+        for request_id, turn in pending.items():
+            sid, cb = turn.sid, turn.complete
             self.rpc_sink({"jsonrpc": "2.0", "method": "event",
                            "params": {"type": "error", "session_id": sid, "payload": dict(failure)}})
             if cb is not None:
                 frame = {"type": "turn.error", "sid": sid, "request_id": request_id, **failure}
                 _call_logged(cb, frame, "compute host error callback failed")
+            turn.ready.set()
         # A crashed host never emits the late acks timed-out control waiters still expect; fail
         # them too so the client's "still running" notice can't hang.
         with self._lock:

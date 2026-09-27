@@ -1,7 +1,7 @@
 """Release a settled native session, never infer that uncertain work has ended."""
 from __future__ import annotations
 
-from tui_gateway import event_replay, session_execution
+from tui_gateway import session_execution
 
 
 def eligible(server, sid, session, execution_id):
@@ -42,12 +42,14 @@ def retire(server, sid, session, execution_id):
                 return {"status": "protected"}
             claimed = server._pop_session_by_id(sid)
     server._teardown_popped_session(claimed, end_reason="idle_timeout")
-    event_replay.forget_session(sid)
     return {"status": "retired"}
 
 
 def register(server):
     def call(rid, params):
+        with server._sessions_lock:
+            if params["session_id"] not in server._sessions:
+                return server._ok(rid, {"status": "retired"})
         session, error = server._sess_nowait(params, rid)
         if error:
             return error

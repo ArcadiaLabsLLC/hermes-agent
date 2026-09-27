@@ -481,6 +481,11 @@ def _persist_session_row_for_submit(rid, session, text=None, display_kind=None):
     # No turn thread will start, so neither resume nor the busy queue may see
     # this rejected prompt as live. Release the slot a turn would normally own.
     with session["history_lock"]:
+        try:
+            from tui_gateway.session_execution import rejected
+            rejected(session)
+        except Exception:
+            logger.warning("Could not persist rejected execution outcome", exc_info=True)
         session["running"] = False
         session["last_active"] = time.time()
         session.pop("_hosted_room_task", None)

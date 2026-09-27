@@ -81,6 +81,13 @@ def uncertain(session: dict, execution_id: str) -> None:
         session["native_execution"] = _store(session, record)
 
 
+def rejected(session: dict) -> None:
+    """Settle a known pre-dispatch rejection, only if its evidence can be saved."""
+    record = session.get("native_execution")
+    if record is not None:
+        session["native_execution"] = _store(session, {**record, "status": "error"})
+
+
 def stamp(session: dict, frame: dict) -> None:
     """The native event and terminal receipt share the history lock."""
     record = session.get("native_execution")

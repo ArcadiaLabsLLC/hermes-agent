@@ -53,41 +53,51 @@ def dispatch(req: dict, transport: Optional[Transport] = None) -> dict | None:
         from tui_gateway import server_requests
         if server_requests.is_response_frame(req):
             # The renderer answering one of OUR requests (clarify, approval, …): no response frame goes back.
-            if not server_requests.resolve_response(req) and not _relay_compute_host_response(req):
-                logger.debug("dropping response for unknown server request id=%r", req.get("id"))
+            if not server_requests.resolve_response(req):
+                _enqueue_rpc(lambda: _relay_response(req), contextvars.copy_context())
             return None
         normalized = _normalize_request(req)
         if isinstance(normalized, dict):
             return normalized
         if normalized[1] not in _LONG_HANDLERS:
             return handle_request(req)
-        from hermes_cli.backend_retirement import retirement
+        ctx = contextvars.copy_context()
+        owner = normalized[2].get("owner")
+        if normalized[1] in _CONNECTOR_RPC_METHODS and isinstance(owner, dict) and owner.get("type") == "session":
+            ctx.run(_capture_connector_rpc_owner, normalized[2])
 
-        # Reserve BEFORE enqueueing: a queued handler has accepted work even though no worker runs yet.
-        if not retirement.acquire():
+        def run():
+            try:
+                resp = _handle_admitted_request(req)
+            except Exception as exc:
+                resp = _err(req.get("id"), -32000, f"handler error: {exc}")
+            if resp is not None:
+                t.write(resp)
+        if not _enqueue_rpc(run, ctx):
             return _err(req.get("id"), 5035, "backend is retiring; reconnect to continue")
-        try:
-            ctx = contextvars.copy_context()  # the pool worker must see the bound transport
-            owner = normalized[2].get("owner")
-            if normalized[1] in _CONNECTOR_RPC_METHODS and isinstance(owner, dict) and owner.get("type") == "session":
-                ctx.run(_capture_connector_rpc_owner, normalized[2])
-
-            def run():
-                try:
-                    resp = _handle_admitted_request(req)
-                except Exception as exc:
-                    resp = _err(req.get("id"), -32000, f"handler error: {exc}")
-                if resp is not None:
-                    t.write(resp)
-            future = _pool.submit(lambda: ctx.run(run))
-        except BaseException:
-            retirement.release()
-            raise
-        # Also releases cancelled queued futures; the worker's own finally would never execute.
-        future.add_done_callback(lambda _: retirement.release())
         return None
     finally:
         reset_transport(token)
+
+
+def _relay_response(req):
+    if not _relay_compute_host_response(req):
+        logger.debug("dropping response for unknown server request id=%r", req.get("id"))
+
+
+def _enqueue_rpc(run, ctx):
+    from hermes_cli.backend_retirement import retirement
+
+    # Queued work holds retirement too; cancellation must release the reservation.
+    if not retirement.acquire():
+        return False
+    try:
+        future = _pool.submit(lambda: ctx.run(run))
+    except BaseException:
+        retirement.release()
+        raise
+    future.add_done_callback(lambda _: retirement.release())
+    return True
 
 
 def register(server):

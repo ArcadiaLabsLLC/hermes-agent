@@ -171,8 +171,9 @@ state manager. [Scope and positive controls](../../downstream/native-recovery-re
 | `event_replay.py` | Preserve live sequence identity across cache eviction; coherent replay reads; owner-driven retirement cleanup. |
 | `session_execution.py`, `session_lifecycle.py`, `prompt_turn.py`, `server.py`, `contracts/prompt_voice.py`, `contracts/sessions.py` | Native execution receipt, submit/event identity and fenced interruption; existing native SessionDB owns evidence. |
 | `session_recovery.py`, `contracts/recovery.py`, `contracts/__init__.py`, `methods_session.py`, `session_auto_continue.py` | Observation-only recovery and bounded live-prefix reads; no automatic dispatch on resume. |
-| `host_supervisor.py`, `compute_host.py` | Route observation to the actual compute owner without starting a replacement. |
-| `session_retirement.py`, `session_reaper.py`, `session_lifecycle.py`, `contracts/recovery.py` | Exact-execution retirement reuses native eligibility and teardown; refuse stale admissions after removal. Observation/retention scheduling is not yet qualified. |
+| `host_supervisor.py`, `compute_host.py` | Route observation to the actual compute owner without starting a replacement; await the existing exact `turn.started` acknowledgement. |
+| `session_retirement.py`, `session_reaper.py`, `session_lifecycle.py`, `contracts/recovery.py` | Exact-execution retirement reuses native eligibility and teardown; protect unsettled native receipts and reconcile lost retirement replies. Real inline/compute retirement and reopen tests pass. |
+| `server.py`, `rpc_dispatch.py` | Preserve configured compute isolation during prewarming; pool recovery and child-answer waits using existing retirement reservations so the input path can read Stop. |
 
 ## Stock files a fork module reads by private name (no diff row, recorded here)
 

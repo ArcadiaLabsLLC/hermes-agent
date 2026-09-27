@@ -219,6 +219,10 @@ def _session_is_lru_evictable(sid: str, session: dict, *, require_dead_transport
     it loses its client): never evict a session mid-turn, awaiting input, still building, owning live delegated
     work, or on a live transport. Lazy watch sessions never start a build, so their unset agent_ready must not
     make them immortal."""
+    execution = session.get("native_execution")
+    if execution and (execution.get("status") not in {"complete", "interrupted", "error"}
+                      or session.get("queued_prompt") or session.get("queued_prompts")):
+        return False
     if session.get("running") or _session_pending_kind(sid) or _session_has_active_delegations(sid, session):
         return False
     ready = session.get("agent_ready")

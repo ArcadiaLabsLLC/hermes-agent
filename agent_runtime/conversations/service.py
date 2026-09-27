@@ -6,10 +6,12 @@ The existing native gateway runs each profile's sessions in its own process.
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from . import session_facts
+from .bindings import Bindings
 from .live import LiveConversation
 from .model import (UNSETTLED, ConversationError, ConversationScope, Refusal, TurnState,
                     identifier)
@@ -23,16 +25,16 @@ __layer__ = "lanes"
 
 class ConversationService:
     def __init__(self, root: Path, install_id: str, *, profile_home: Callable[[str], Path],
-                 worker_factory=start_worker):
+                 worker_factory=start_worker, retention_options=None):
         self.root, self.install_id = root.resolve(), install_id
         self.store = ConversationStore(self.root / "native_conversation_routes.db")
         self.store.recover()
         self.profile_home = profile_home
         self._lock = threading.RLock()
-        self._opening = tuple(threading.Lock() for _ in range(64))
-        self._workers = Workers(worker_factory, self._receive, self._lost)
-        self._live: dict[str, LiveConversation] = {}
-        self._sessions: dict[tuple[str, str], LiveConversation] = {}
+        self._workers = Workers(worker_factory,
+            lambda generation, frame: self._bindings.receive(generation, frame),
+            lambda generation: self._bindings.lost(generation))
+        self._bindings = Bindings(self._attach, self._release, **(retention_options or {}))
         self._draining = False
 
     def capabilities(self) -> dict:
@@ -53,77 +55,58 @@ class ConversationService:
             self._admit()
             route, created = (self.store.get(resume, scope), False) if resume else self.store.reserve(
                 scope, identifier(key), str(directory.resolve()), str(home))
-            opening = self._opening[hash(route.id) % len(self._opening)]
-        with opening:
-            if (route.cwd, route.home) != (str(directory.resolve()), str(home)):
-                raise ConversationError(Refusal.WRONG_OWNER)
-            live = self._live.get(route.id)
-            if live is None or not live.peer.alive:
-                live = self._attach(route, home, created=created)
+        if (route.cwd, route.home) != (str(directory.resolve()), str(home)):
+            raise ConversationError(Refusal.WRONG_OWNER)
+        with self._bindings.borrow(route, created=created) as live:
             recovered = live.recover()
             inventory = live.peer.call("model.options", {"session_id": live.native_id})
             return {"session_id": route.id, "install_id": self.install_id,
                     "facts": session_facts.facts(route.id, recovered["recovery"], inventory), **recovered}
 
-    def _attach(self, route, home: Path, *, created: bool) -> LiveConversation:
-        if (any(turn.conversation_id == route.id for turn in self.store.unsettled()) and
+    def _attach(self, route, *, created: bool) -> LiveConversation:
+        receipt = self.store.latest(route)
+        if (receipt and receipt.state in UNSETTLED and
                 execution_possible(route.worker_pid, route.worker_created)):
             # A still-live owner cannot be replaced by another profile worker.
             raise ConversationError(Refusal.UNKNOWN)
         # Native sessions intentionally acquire durable history on first send.
         # A lost, provably unused session can be recreated without replaying work.
         created = created or not self.store.has_turns(route)
-        worker = self._workers.get(route.profile, home)
+        worker = self._workers.acquire(route.profile, Path(route.home))
         peer = worker.peer
         params = ({"cwd": route.cwd, "source": "eternia_intelligence"} if created else
                   {"session_id": route.native_id, "observe_only": True, "omit_messages": True,
                    "source": "eternia_intelligence"})
-        result = peer.call("session.create" if created else "session.resume", params)
-        native_id = identifier(result["session_id"])
-        stored_id = result.get("stored_session_id") or result.get("session_key")
-        if created:
-            route = self.store.replace_unused(route, identifier(stored_id))
-        elif stored_id and stored_id != route.native_id and result.get("resumed") != route.native_id:
-            raise ConversationError(Refusal.WRONG_OWNER)
-        live = LiveConversation(route, native_id, peer, self.store)
-        self.store.worker(route, *peer.process_identity)
-        with self._lock:
-            self._live[route.id] = live
-            self._sessions[(worker.generation, native_id)] = live
-        return live
+        try:
+            result = peer.call("session.create" if created else "session.resume", params)
+            native_id = identifier(result["session_id"])
+            stored_id = result.get("stored_session_id") or result.get("session_key")
+            if created:
+                route = self.store.replace_unused(route, identifier(stored_id))
+            elif stored_id and stored_id != route.native_id and result.get("resumed") != route.native_id:
+                raise ConversationError(Refusal.WRONG_OWNER)
+            self.store.worker(route, *peer.process_identity)
+            return LiveConversation(route, native_id, worker, self.store)
+        except Exception:
+            self._workers.release(route.profile, worker)
+            raise
 
-    def _receive(self, generation: str, frame: dict) -> None:
-        params = frame.get("params") or {}
-        if not isinstance(params, dict):
-            return
-        with self._lock:
-            native_id = params.get("session_id")
-            live = self._sessions.get((generation, native_id)) if isinstance(native_id, str) else None
-        if live is not None:
-            live.receive(frame)
+    def _release(self, live):
+        self._workers.release(live.route.profile, live.worker)
 
-    def _lost(self, generation: str) -> None:
-        with self._lock:
-            sessions = [live for (owner, _), live in self._sessions.items() if owner == generation]
-        for live in sessions:
-            live.lost()
-
-    def _session(self, scope: ConversationScope, session_id: str) -> LiveConversation:
+    @contextmanager
+    def _session(self, scope: ConversationScope, session_id: str) -> Iterator[LiveConversation]:
         route = self.store.get(session_id, scope)
         if self.profile_home(scope.profile).resolve(strict=True) != Path(route.home):
             raise ConversationError(Refusal.WRONG_OWNER)
-        with self._lock:
-            live = self._live.get(session_id)
-        if live is None:
-            raise ConversationError(Refusal.UNAVAILABLE)
-        return live
+        with self._bindings.borrow(route) as live:
+            yield live
 
     def send(self, scope: ConversationScope, session_id: str, turn_id: str, prompt: dict) -> dict:
         from .prompt import submit, validate
 
         validate(prompt)
-        live = self._session(scope, session_id)
-        with live.operations:
+        with self._session(scope, session_id) as live, live.operations:
             with self._lock:
                 self._admit()
                 if not live.peer.alive:
@@ -143,42 +126,40 @@ class ConversationService:
 
     def read(self, scope: ConversationScope, session_id: str, cursor: int,
              turn_id: str | None = None, *, epoch: str | None = None, offset: int = 0) -> dict:
-        live = self._session(scope, session_id)
-        return live.snapshot(cursor, turn_id, epoch=epoch, offset=offset)
+        with self._session(scope, session_id) as live:
+            return live.snapshot(cursor, turn_id, epoch=epoch, offset=offset)
 
     def history(self, scope: ConversationScope, session_id: str, position: dict,
                 message_index: int, offset: int) -> dict:
-        live = self._session(scope, session_id)
-        return live.peer.call("session.recovery.history", {"session_id": live.native_id,
-            "position": position, "message_index": message_index, "offset": offset})
+        with self._session(scope, session_id) as live:
+            return live.peer.call("session.recovery.history", {"session_id": live.native_id,
+                "position": position, "message_index": message_index, "offset": offset})
 
     def inflight(self, scope: ConversationScope, session_id: str, params: dict) -> dict:
-        live = self._session(scope, session_id)
-        return live.peer.call("session.recovery.inflight", {"session_id": live.native_id,
-            **{key: params[key] for key in ("execution_id", "field", "through", "offset", "revision")}})
+        with self._session(scope, session_id) as live:
+            return live.peer.call("session.recovery.inflight", {"session_id": live.native_id,
+                **{key: params[key] for key in ("execution_id", "field", "through", "offset", "revision")}})
 
     def stop(self, scope: ConversationScope, session_id: str, turn_id: str) -> dict:
-        live = self._session(scope, session_id)
-        receipt = self.store.turn(live.route, turn_id)
-        if receipt.state in UNSETTLED:
-            live.stop(turn_id)
-        # Never wait behind provider admission to request Stop. Native completion
-        # alone settles it; a transport write is not confirmation.
-        return live.receipt(turn_id)["turn"]
+        with self._session(scope, session_id) as live:
+            receipt = self.store.turn(live.route, turn_id)
+            if receipt.state in UNSETTLED:
+                live.stop(turn_id)
+            # Stop bypasses provider admission. Only native completion settles it.
+            return live.receipt(turn_id)["turn"]
 
     def respond(self, scope: ConversationScope, session_id: str, request_id: str, result: dict) -> dict:
-        live = self._session(scope, session_id)
-        return {"accepted": live.answer(identifier(request_id), result)}
+        with self._session(scope, session_id) as live:
+            return {"accepted": live.answer(identifier(request_id), result)}
 
     def facts(self, scope: ConversationScope, session_id: str) -> dict:
-        live = self._session(scope, session_id)
-        snapshot = live.peer.call("session.recover", {"session_id": live.native_id})
-        inventory = live.peer.call("model.options", {"session_id": live.native_id})
-        return session_facts.facts(session_id, snapshot, inventory)
+        with self._session(scope, session_id) as live:
+            snapshot = live.peer.call("session.recover", {"session_id": live.native_id})
+            inventory = live.peer.call("model.options", {"session_id": live.native_id})
+            return session_facts.facts(session_id, snapshot, inventory)
 
     def select_model(self, scope: ConversationScope, session_id: str, model_id: str) -> dict:
-        live = self._session(scope, session_id)
-        with live.operations:
+        with self._session(scope, session_id) as live, live.operations:
             if live.turn_id is not None:
                 raise ConversationError(Refusal.BUSY)
             inventory = live.peer.call("model.options", {"session_id": live.native_id})
@@ -190,9 +171,9 @@ class ConversationService:
 
     def skills(self, scope: ConversationScope, session_id: str, operation: str,
                skill_id: str | None = None) -> dict:
-        live = self._session(scope, session_id)
-        return live.peer.call("eternia.skills." + operation,
-            {"session_id": live.native_id, "skill_id": skill_id})["data"]
+        with self._session(scope, session_id) as live:
+            return live.peer.call("eternia.skills." + operation,
+                {"session_id": live.native_id, "skill_id": skill_id})["data"]
 
     def _admit(self) -> None:
         if self._draining:
@@ -209,6 +190,7 @@ class ConversationService:
     def close(self) -> None:
         with self._lock:
             self._draining = True
+        self._bindings.close()
         self._workers.close()
 
     def drain_pending(self, *, close_idle: bool) -> list[str]:

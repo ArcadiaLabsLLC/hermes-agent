@@ -1,4 +1,4 @@
-"""Profile-bound worker ownership; unrelated profiles never share a boot lock."""
+"""Profile worker leases. Only the last retired binding releases its process."""
 from __future__ import annotations
 
 import threading
@@ -12,24 +12,24 @@ from .model import ConversationError, Refusal
 __layer__ = "lanes"
 
 
-@dataclass(frozen=True)
+@dataclass
 class Worker:
     generation: str
     home: Path
     peer: object
+    leases: int = 0
 
 
 class Workers:
     def __init__(self, factory, receive, lost):
         self.factory, self.receive, self.lost = factory, receive, lost
         self._lock = threading.Lock()
-        self._boots: dict[str, threading.Lock] = {}
+        self._boots = tuple(threading.Lock() for _ in range(64))
         self._workers: dict[str, Worker] = {}
         self._closed = False
 
-    def get(self, profile: str, home: Path) -> Worker:
-        with self._lock:
-            boot = self._boots.setdefault(profile, threading.Lock())
+    def acquire(self, profile: str, home: Path) -> Worker:
+        boot = self._boots[hash(profile) % len(self._boots)]
         with boot:
             with self._lock:
                 if self._closed:
@@ -39,6 +39,7 @@ class Workers:
                 if prior.home != home:
                     raise ConversationError(Refusal.WRONG_OWNER)
                 if prior.peer.alive:
+                    prior.leases += 1
                     return prior
                 if prior.peer.execution_possible:
                     raise ConversationError(Refusal.UNKNOWN)
@@ -47,7 +48,7 @@ class Workers:
             peer = self.factory(home,
                 receive=lambda frame: self.receive(generation, frame),
                 lost=lambda: self.lost(generation))
-            worker = Worker(generation, home, peer)
+            worker = Worker(generation, home, peer, leases=1)
             with self._lock:
                 closed = self._closed
                 if not closed:
@@ -56,6 +57,17 @@ class Workers:
                 peer.close()
                 raise ConversationError(Refusal.WORKER_LOST)
             return worker
+
+    def release(self, profile: str, worker: Worker) -> None:
+        with self._boots[hash(profile) % len(self._boots)]:
+            worker.leases -= 1
+            if worker.leases:
+                return
+            # Keep the entry on failure: a live process must not be replaced.
+            worker.peer.close()
+            with self._lock:
+                if self._workers.get(profile) is worker:
+                    self._workers.pop(profile)
 
     def close(self) -> None:
         with self._lock:
