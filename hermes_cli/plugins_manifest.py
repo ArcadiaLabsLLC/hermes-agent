@@ -16,6 +16,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Set, Union
 
 from utils import fast_safe_load
 from hermes_cli.plugin_capabilities import parse_declared_capabilities as _parse_declared_capabilities
+from hermes_cli.plugins_manifest_cli_commands import parse_cli_commands
 
 try:
     import hermes_yaml as yaml
@@ -108,17 +109,6 @@ def _manifest_list(data: Mapping, key: str, field_name: str, what: str, coerce: 
     return out
 
 
-_CLI_COMMAND_NAME_RE = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
-
-
-def _cli_command_entry(item: object) -> Optional[Dict[str, str]]:
-    """``{name, help, description}`` from a cli_commands item; None when the name is missing/invalid."""
-    name = item.get("name") if isinstance(item, Mapping) else None
-    if not isinstance(name, str) or not _CLI_COMMAND_NAME_RE.fullmatch(name):
-        return None
-    return {"name": name, "help": str(item.get("help") or ""), "description": str(item.get("description") or "")}
-
-
 def _dependency_entry(item: object) -> Optional[Dict[str, Any]]:
     """``{id, version_range}`` from a requires_plugins item (str shorthand ok); None when malformed."""
     if isinstance(item, str):
@@ -182,11 +172,7 @@ def _parse_manifest_v2_fields(data: Mapping, key: str) -> Dict[str, Any]:
             )
         schema[str(skey)] = dict(spec)
     tags = [str(t) for t in (_manifest_field_of_type(data, key, "tags", list, "a list") or [])]
-    # cli_commands — top-level ``hermes <name>`` commands the CLI attaches WITHOUT importing the plugin.
-    cli_commands = _manifest_list(
-        data, key, "cli_commands", "a list", _cli_command_entry,
-        "Plugin %s: cli_commands entry %r needs a name matching [a-z0-9][a-z0-9_-]{0,63}; skipping",
-    )
+    cli_commands = parse_cli_commands(data, key, _manifest_list)
     # Forward compat: unknown fields warn (never fail); v1 manifests only at debug.
     unknown = sorted(set(data.keys()) - _KNOWN_MANIFEST_FIELDS)
     if unknown:
@@ -405,8 +391,7 @@ class PluginManifest:
     # ``<key>:``; ``listens`` fully-qualified ``<plugin>:<event>`` names.
     emits: List[str] = field(default_factory=list)
     listens: List[str] = field(default_factory=list)
-    # Declared top-level CLI commands [{"name", "help", "description"}], attached before discovery.
-    cli_commands: List[Dict[str, str]] = field(default_factory=list)
+    cli_commands: List[Dict[str, str]] = field(default_factory=list)  # fork: plugins_manifest_cli_commands
 
 
 # ── requires_hermes version gate ─────────────────────────────────────────────
