@@ -308,6 +308,8 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/hermes_cli/test_update_zip_two_phase.py::test_staging_restores_backup_when_dst_is_missing",
             "tests/hermes_cli/test_update_zip_two_phase.py::"
             "test_commit_failure_plus_discard_leaves_no_staging_litter",
+            "tests/agent/test_session_row_under_live_agent_persist.py::"
+            "test_flush_fails_closed_when_row_cannot_be_recreated",
         )
     },
 }
