@@ -192,3 +192,25 @@ identity isolation and the absence of process-wide voice effects from fenced
 Stop; both pass with the native snapshot/fence files (21 tests). The broader
 gateway run and final qualification are still pending. This is a branch
 checkpoint, not permission to land the incomplete repair.
+
+## Disposable history delivery
+
+Native display projection now runs once per captured history position, not once
+per page. A seekable, delete-on-close payload retains no transcript in RAM between
+reads. At most 16 deliveries remain; completion, native teardown, pressure or
+60 seconds idle close them. The existing native reaper handles idle cleanup.
+Eviction rebuilds from SessionDB; no new durable history or lifecycle owner.
+Initial projection still materializes native history once; this does not claim
+bounded peak memory for arbitrarily large histories.
+
+Eight file-isolated checks pass 53 tests, including 10 MiB inline/compute restart,
+Unicode, retries, native rewrite/retirement races and existing structure gates.
+Sixty-four abandoned reads retain two entries and less than 1 MiB traced memory
+under the test budget. Ruff passes. Mutation controls fail when projection reloads
+per page (12 calls instead of 1), pruning is removed (64 entries instead of 2),
+or teardown retains files. The merge controls also fail for process-wide speech
+interruption and queued prompts inheriting the active execution.
+
+The reconciled gateway run passes 667 tests with four SSH workspace-resolution
+failures. The identical four fail on unchanged main `b25aca3cafd4`; they are not
+classified from the focused green results. Full qualification remains open.

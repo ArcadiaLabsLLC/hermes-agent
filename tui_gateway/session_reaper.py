@@ -258,6 +258,11 @@ def _reap_idle_sessions() -> None:
         _flush_dirty_sessions()
     except Exception:
         logger.debug("periodic incremental session flush failed", exc_info=True)
+    try:
+        from tui_gateway.recovery_history import prune_history
+        prune_history()
+    except Exception:
+        logger.debug("history delivery cleanup failed", exc_info=True)
     with _sessions_lock:
         victims = [sid for sid, s in _sessions.items() if _session_is_evictable(sid, s, now)]
     for sid in victims:
