@@ -123,6 +123,10 @@ Review replies 2026-09-27 DONE (code pushed, comments posted 2026-09-27 on the o
 
 Drop re-triage 2026-09-27 DONE (sheet §6, upstream ad4e4496c2): upstream took over NONE of the fork's lines — DROP-NOW 0, SUPERSEDES 0, CONFLICTS 6, KEEP 27. Conflicts to carry: #125266 watcher-reply-to is SEMANTICALLY reversed by upstream 10938a7cf9 (the arming message_id is ruled a stale anchor) — CLOSED 2026-09-27 as overtaken (owner's word); #121640 and #121645 gain a second textual rebase point; `refactor/profile-bootstrap-extraction`, `fix/win-gateway-task-console`, `test/platform-markers-linux` need a rebase before opening. The fork's own hunks no longer apply on six files (main.py, uninstall.py, update_cmd_windows.py, test_linux_desktop_entry.py, mcp_tool_transport.py, tui_gateway/server.py) — next-merge work. 21 further upstream commits (to 758ad514eb) untriaged.
 
+PR staleness sweep 2026-09-27: 12 open PRs conflict with upstream 062dc1e7f0 (#121646 #121645 #121643 #121641 #121640 #121226 #121225 #121224 #121222 #121221 #121218 and the files-touched ones #124210 #123978 #121642 #121644); per-PR verdict FRESH / REBASE / OVERTAKEN / REVERSED into sheet §7. **TAKEN 2026-09-27 lane PR-STALE**
+
+Codebase supersession sweep 2026-09-27: every fork-only module added since 067fa1a257 against what upstream grew in 067fa1a257..062dc1e7f0 — verdict SUPERSEDED (adopt upstream's) / PARTIAL / KEEP into a new sheet `docs/agent-runtime-harness/planned/supersession-2026-09-27.md`. **TAKEN 2026-09-27 lane SUPERSEDE**
+
 Merge note (lane AUTH-PR): the fork's own `tests/hermes_cli/test_plugin_declared_cli_commands.py` shares a path with the branch's — at the merge take upstream's file.
 
 ## Related
