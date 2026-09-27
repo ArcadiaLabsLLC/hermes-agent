@@ -297,8 +297,12 @@ def _s6_supervised_gateway_run(argv: list) -> bool:
     from hermes_cli.service_manager import _s6_running
     return _s6_running()
 
-def apply_profile_override() -> None:
-    """Pre-parse --profile/-p and set HERMES_HOME before imports."""
+def apply_profile_override() -> str | None:
+    """Pre-parse --profile/-p and set HERMES_HOME before imports.
+
+    Returns the profile an explicit ``-p``/``--profile`` flag named (the flag was consumed), else
+    None: sticky ``active_profile`` is not explicit (``hermes_cli.main.explicit_cli_profile``).
+    """
     argv = sys.argv[1:]
     profile_name, consume, profile_index = _scan_profile_flag(argv)
 
@@ -313,7 +317,7 @@ def apply_profile_override() -> None:
     hermes_home_env = os.environ.get("HERMES_HOME", "")
     if profile_name is None and hermes_home_env and Path(hermes_home_env).parent.name == "profiles":
         os.environ["HERMES_PROFILE_RESOLUTION"] = "env_profile_dir"
-        return
+        return None
 
     if (profile_name is None and not _under_gateway_supervisor(argv)
             and not _desktop_ssh_backend(argv)
@@ -331,7 +335,7 @@ def apply_profile_override() -> None:
             pass  # corrupted file, skip
 
     if profile_name is None:
-        return
+        return None
     try:
         from hermes_cli.profiles import resolve_profile_env
 
@@ -347,10 +351,11 @@ def apply_profile_override() -> None:
     except Exception as exc:
         # A bug in profiles.py must NEVER prevent hermes from starting
         print(f"Warning: profile override failed ({exc}), using default", file=sys.stderr)
-        return
+        return None
     os.environ["HERMES_HOME"] = hermes_home
     os.environ["HERMES_PROFILE_RESOLUTION"] = resolution
     # Strip the flag from argv so argparse doesn't choke
     if consume > 0 and profile_index is not None:
         start = profile_index + 1  # +1 because argv is sys.argv[1:]
         sys.argv = sys.argv[:start] + sys.argv[start + consume :]
+    return profile_name if consume > 0 else None

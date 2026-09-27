@@ -30,6 +30,7 @@ import {
 import { markReasoningEffortPending } from '@/lib/chat-runtime'
 import { isMissingRpcMethod } from '@/lib/gateway-rpc'
 import { recoverInFlightTurnJournal } from '@/lib/inflight-turn-journal'
+import { latestSessionTodoSnapshot } from '@/lib/todos'
 import { setSessionYolo } from '@/lib/yolo-session'
 import { $clarifyRequests } from '@/store/clarify'
 import { announceGoneSessionDraft, announceNewSessionDraftKey, migrateSessionDraft } from '@/store/composer'
@@ -67,6 +68,7 @@ import {
   $activeSessionStoredIdRotation,
   $connection,
   $currentCwd,
+  $currentCwdExplicit,
   $currentFastMode,
   $currentModel,
   $currentProvider,
@@ -86,6 +88,7 @@ import {
   setBusy,
   setCurrentBranch,
   setCurrentCwd,
+  setCurrentCwdExplicit,
   setCurrentCwdTransient,
   setCurrentServiceTier,
   setCurrentUsage,
@@ -358,6 +361,9 @@ async function desktopSessionCreateParams(
     cols: 96,
     source: 'desktop',
     ...(cwd && { cwd }),
+    // #52589: explicit provenance for the shipped cwd — an inherited app-global
+    // workspace must not override the target profile's configured terminal.cwd.
+    ...(cwd && { cwd_explicit: $currentCwdExplicit.get() }),
     ...(profile ? { profile: capturedRoute?.targetProfile || profile } : {}),
     ...(includeComposerSelection
       ? {
@@ -596,6 +602,10 @@ export function useSessionActions({
       setCurrentServiceTier('')
       setYoloActive(false)
       setNewChatWorkspaceTarget(hasWorkspaceTarget ? workspaceTarget : undefined)
+      // #52589 provenance: only a deliberate string workspace target is an explicit
+      // cwd choice. A plain new chat (or a detached `null`) is not — its inherited
+      // launch/project workspace must yield to a named profile's configured cwd.
+      setCurrentCwdExplicit(typeof workspaceTarget === 'string')
 
       if (!hasWorkspaceTarget) {
         // In a project → the repo's default-branch checkout; not in a project →
@@ -788,13 +798,16 @@ export function useSessionActions({
         setNewChatWorkspaceTarget(undefined)
         setActiveSessionId(created.session_id)
         setSelectedStoredSessionId(stored)
-        setSessionStartedAt(Date.now())
+        const runtimeStartedAt = Date.now()
+        setSessionStartedAt(runtimeStartedAt)
         const yoloArmed = $yoloActive.get()
         const runtimeInfo = applyRuntimeInfo(created.info)
 
-        if (runtimeInfo) {
-          updateSessionState(created.session_id, state => ({ ...state, ...runtimeInfo }), stored)
-        }
+        updateSessionState(
+          created.session_id,
+          state => ({ ...state, ...(runtimeInfo ?? {}), runtimeStartedAt }),
+          stored
+        )
 
         // User may have armed YOLO on the new-chat draft before the runtime
         // session existed — apply it to the freshly created session.
@@ -911,6 +924,10 @@ export function useSessionActions({
 
         const cwd =
           options?.cwd === null ? '' : typeof options?.cwd === 'string' ? options.cwd.trim() : resolveNewSessionCwd()
+
+        // #52589 provenance for the tile path: an explicitly-passed cwd is a
+        // deliberate workspace pick; a resolved default is inherited.
+        setCurrentCwdExplicit(typeof options?.cwd === 'string')
 
         // Bot-workspace tabs target an agent profile without switching the
         // window's ambient composer. Do not leak that unrelated session's
@@ -1349,7 +1366,7 @@ export function useSessionActions({
           // un-owned for the life of the session (#71254).
           setWorkspaceCwdOwner(storedSessionId)
           setCurrentBranch(cachedViewState.branch)
-          setSessionStartedAt(Date.now())
+          setSessionStartedAt(cachedViewState.runtimeStartedAt)
 
           try {
             const replay = pendingSessionReplay(cachedRuntimeId)
@@ -1696,6 +1713,14 @@ export function useSessionActions({
                 clearedClarifyProjection?.messages ??
                 activatedMessages
 
+              if (!running) {
+                restoreSessionTodosFromSnapshot(
+                  cachedRuntimeId,
+                  latestSessionTodoSnapshot(visibleActivatedMessages),
+                  false
+                )
+              }
+
               releaseTranscriptView()
 
               const reconcileActivatedState = (state: ClientSessionState): ClientSessionState => {
@@ -1818,7 +1843,8 @@ export function useSessionActions({
       clearNotifications()
       setSelectedStoredSessionId(storedSessionId)
       selectedStoredSessionIdRef.current = storedSessionId
-      setSessionStartedAt(Date.now())
+      const runtimeStartedAt = Date.now()
+      setSessionStartedAt(runtimeStartedAt)
 
       const stored =
         $sessions.get().find(session => sessionMatchesStoredId(session, storedSessionId)) ?? storedForProfile
@@ -2047,6 +2073,14 @@ export function useSessionActions({
 
         restoreSessionTodosFromSnapshot(resumed.session_id, resumed.todo_state, resumedRunning)
 
+        if (!resumedRunning && prefetchApplied && prefetchMatchesResumedSession && prefetchedTranscriptMessages) {
+          restoreSessionTodosFromSnapshot(
+            resumed.session_id,
+            latestSessionTodoSnapshot(prefetchedTranscriptMessages),
+            false
+          )
+        }
+
         // Crash-survivable turn progress: fold a journaled in-flight tail
         // (persisted by use-session-state-cache while the turn streamed;
         // survives renderer/app death) back onto the restored transcript. The
@@ -2070,11 +2104,28 @@ export function useSessionActions({
         // must not mask a lost transcript (a retry that reloads real history
         // is safer than surfacing the in-flight turn alone). Recovery only
         // ever appends, so this matches the final transcript's emptiness.
-        if (sessionShouldHaveTranscript(stored) && preferredMessages.length === 0) {
+        //
+        // "Should have a transcript" is not the cached sessions-list row alone.
+        // That row is a cache of backend truth and lags the two flows that
+        // report a vanished thread: after a wake/reconnect the list can still
+        // carry the respawned backend's session at message_count 0, and a
+        // compression tip can show 0 rows while the stored transcript is
+        // intact. Conditioning the latch on it alone paints a blank thread
+        // UNLATCHED — no retry, no error, just an empty chat that looks like
+        // lost history. The resume RPC is authoritative and always reports the
+        // stored size (`message_count`, filled from state.db even when
+        // `messages_omitted`), so treat it — and a non-empty REST page — as the
+        // other rungs of the same ladder.
+        const saidToHaveTranscript =
+          sessionShouldHaveTranscript(stored) ||
+          (resumed.message_count || 0) > 0 ||
+          Boolean(prefetchedResult?.messages.length)
+
+        if (saidToHaveTranscript && preferredMessages.length === 0) {
           // Roll back a provisional cached-tail paint and drop its entry: the
-          // authoritative sources say this session has no transcript, so the
-          // cache no longer reflects backend truth and must not survive to
-          // mislead the retry (or the next wake).
+          // latched attempt painted no history from any source, so the
+          // display-only cache must not survive to mask the retry (or the next
+          // wake) as a transcript that loaded.
           if (cachedTailPaint !== null && $messages.get() === cachedTailPaint) {
             setMessages([])
             dropTranscriptTail(storedSessionId, sessionRestScope)
@@ -2159,6 +2210,7 @@ export function useSessionActions({
           state => ({
             // The deferred build reports the session's own effort later (#79807).
             ...markReasoningEffortPending({ ...state, ...(runtimeInfo ?? {}) }),
+            runtimeStartedAt,
             messages: visibleMessagesForView,
             transcriptProvenance,
             busy: resumedRunning,
@@ -2526,6 +2578,7 @@ export function useSessionActions({
 
         const effectiveBranchMessages = responseBranchMessages.length ? responseBranchMessages : branchMessages
         const routedSessionId = branched.stored_session_id ?? branched.session_id
+        const runtimeStartedAt = Date.now()
         const preview = effectiveBranchMessages.map(({ content }) => content).find(Boolean) ?? null
 
         // Record the exact owner and pin its socket THE MOMENT the create
@@ -2573,6 +2626,7 @@ export function useSessionActions({
           branched.session_id,
           state => ({
             ...state,
+            runtimeStartedAt,
             messages: effectiveBranchMessages.map(({ source }) => source),
             busy: false,
             awaitingResponse: false

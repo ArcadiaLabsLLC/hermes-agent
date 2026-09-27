@@ -172,7 +172,7 @@ if _WIN:
             _up_red("calls os.getuid, which Windows does not have"),
         ),
         "tests/tools/test_file_write_safety.py::TestBomHandling::test_a_dangling_symlink_destination_is_occupied": (
-            _up_red("readlink hands back the extended-length \\?\ spelling (class c-D)"),
+            _up_red(r"readlink hands back the extended-length \\?\ spelling (class c-D)"),
         ),
         # Red on pure upstream/main 067fa1a257 on this box too (coordinator's
         # pure_upstream_rerun.log): upstream Windows reds, byte-identical files.
@@ -402,6 +402,58 @@ if _WIN:
                          "teardown and gets StopIteration. Test passes, teardown errors; "
                          "PR candidate: an unbounded tick source"),
         ),
+    })
+
+if _WIN:
+    # Upstream's own Windows reds that arrived with the 2026-09-27 merge (upstream 2f14d5e6e4):
+    # red on a pure upstream tree on this box, green on fork main before the merge (or new with it).
+    ROWS.update({
+        **{
+            f"tests/agent/test_curator_rollback_staging.py::test_retain_staging_never_raises[{case}]": (
+                _up_red(r"asserts the POSIX spelling 'alpha/.git' in a message that carries alpha\.git "
+                        "(class c-D)"),
+            )
+            for case in ("collision", "rename_fails")
+        },
+        **{
+            f"tests/agent/test_runtime_self_protection.py::{test}": (
+                _up_red("the self-protection detector returns None for the Windows venv / uv spellings"),
+            )
+            for test in (
+                "test_rm_of_whole_uv_install_dir_is_detected",
+                "test_rm_rf_of_own_venv_is_detected",
+                "test_windows_del_and_powershell_spellings",
+            )
+        },
+        **{
+            f"tests/hermes_cli/test_uninstall_leftovers.py::{test}": (
+                _up_red("_remove_launchd_gateway calls os.getuid, absent on Windows (hermes_cli/uninstall.py:326)"),
+            )
+            for test in (
+                "test_remove_launchd_gateway_returns_false_when_no_plists",
+                "test_remove_launchd_gateway_sweeps_both_label_patterns",
+            )
+        },
+        **{
+            f"tests/hermes_cli/test_desktop_profile_launch.py::{test}": (
+                _up_red("patches Path.home but the Windows default root is not ~/.hermes, so the "
+                        "profile the test creates is not the one resolve_profile_env looks up"),
+            )
+            for test in (
+                "test_dash_p_desktop_appends_profile_to_packaged_launch",
+                "test_profile_equals_spelling_is_forwarded",
+                "test_missing_flag_does_not_forward_sticky_profile",
+            )
+        },
+        **{
+            f"tests/tui_gateway/test_status_profile_home.py::{test}": (
+                _up_red("expects the absolute Path: line; a home under the user profile renders as ~/..."),
+            )
+            for test in (
+                "test_session_status_path_uses_owning_profile_home",
+                "test_session_status_path_without_profile_home_keeps_launch_home",
+            )
+        },
     })
 
 if _WIN and not sys.flags.utf8_mode:

@@ -8,7 +8,7 @@ process just quietly has no ``TELEGRAM_*`` keys.
 
 Two facts make that possible today:
 
-1. ``hermes_cli/_profile_bootstrap.py:apply_profile_override`` (aliased onto
+1. ``hermes_cli/_profile_bootstrap.py:apply_profile_override`` (wrapped by
    ``hermes_cli.main._apply_profile_override``) resolves the home through a
    FOUR-rung ladder (explicit flag → an inherited ``HERMES_HOME`` whose parent
    directory is literally named ``profiles`` → the sticky ``active_profile``
