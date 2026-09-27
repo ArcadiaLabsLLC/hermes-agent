@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-09-27",
   "base": "2f14d5e6e4",
-  "files": 152,
-  "deleted_lines": 841,
+  "files": 148,
+  "deleted_lines": 829,
   "heavy": 4,
   "reasons": [
     {
@@ -324,6 +324,12 @@
       "files": "148 -> 152: four files of 11c94aca7c (native conversation admission, 2026-09-26: gateway-contract.generated.ts, gateway-contract.openrpc.json, tui_gateway/contracts/prompt_voice.py, tui_gateway/methods_prompt.py) joined the footprint before the merge without a fixture row; first measured here",
       "deleted_lines": "839 -> 841: tools/mcp_tool_transport.py 1 -> 3 (upstream folded the stdio spawn into one _stdio_launch path; the fork's server_name/runtime_env carry now replaces its signature, its _build_safe_env call and its caller); heavy unchanged at 4",
       "reason": "the carries are the fork's own lines re-seated on upstream's new shape, never a third version: #124210 (HERMES_HOME / process MCP env for stdio children) is still open upstream; the reject_if_busy rows are dispositioned carry in the ledger with their retirement. docs/agent-runtime-harness/planned/fix-triage-2026-09-26.md section 6"
+    },
+    {
+      "change": "lane CARRY-DELETE (lane/carry-delete): door-fit EXISTS carries + the DROP-AT-MERGE residue",
+      "files": "152 -> 148: utils.py (the newline kwarg; callers moved to atomic_write_bytes), tui_gateway/entry.py (explicit completion restore; upstream's ProcessRegistry constructor restores), tests/hermes_cli/test_early_recovery.py (lifecycle tests upstream deleted at 8b7eae99ef, #121218), tests/agent/test_image_routing.py (#121641) byte-identical to 2f14d5e6e4 again; gateway/run.py and tools/process_registry.py shrink (restore half of #125256; the lane-scoped wait_ceiling_seconds line stays), tests/tools/test_skills_hub.py loses a stale docstring (#121221; the #121643 bundle-key hunk stays)",
+      "deleted_lines": "841 -> 829: process_registry.py 13 -> 6, utils.py 4 -> 0, test_image_routing.py 1 -> 0; heavy unchanged at 4",
+      "reason": "an upstream door already yields the behaviour (utils.atomic_write_bytes; restore at the singleton's first construction) or upstream overtook the PR (bd258480d3, 8b7eae99ef); each move's red is in its commit message. docs/agent-runtime-harness/planned/door-fit-2026-09-27.md Closures"
     }
   ]
 }
