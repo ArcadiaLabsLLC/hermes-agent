@@ -133,6 +133,8 @@ Door-fit sitting 2026-09-27 (owner: 'elsewhere in the code we could extract the 
 
 PR rework 2026-09-27 (owner: take the recommendations): PARTIAL five trimmed to the surviving hunks (gated tests dropped), #121222+#121224 collapsed into #121224, REBASE three replayed (#121646 #121645 #121640) — all on `lane/rebased/<branch>` refs, force-push script for the owner. **TAKEN 2026-09-27 lane PR-REWORK**
 
+Upstream merge 2026-09-27 (owner: pull latest now, the Monday slot pulled forward): upstream/main 2f14d5e6e4e, 1,347 commits, 8 content conflicts (main.py, uninstall.py, update_cmd_windows.py, web_server_oauth.py, test_linux_desktop_entry.py, file_tools_write_guards.py, mcp_tool_transport.py, tui_gateway/server.py) — worktree `X:/wt/upmerge`, branch `merge/upstream-2026-09-27`; resolve, seams re-seated, full inherited set once (the weekly-merge run), fixture deltas. **TAKEN 2026-09-27 lane MERGE-0927**
+
 Merge note (lane AUTH-PR): the fork's own `tests/hermes_cli/test_plugin_declared_cli_commands.py` shares a path with the branch's — at the merge take upstream's file.
 
 ## Related
