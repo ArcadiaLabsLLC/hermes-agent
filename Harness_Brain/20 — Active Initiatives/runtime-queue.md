@@ -23,6 +23,12 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-09-27 (lane SUPERSEDE, filed by the orchestrator)
+
+- [ ] **`agent_runtime/session_extensions.delete_compression_lineage` deletes reset-fork and `source='tool'` children of a compression-ended root as lineage (presence-matched `_branched_from`/`_delegate_from` markers), and leaves behind a continuation whose marker names another row** · `fork-owned / chat delete` · adopt upstream's `hermes_state_common._non_continuation_child_sql` (2759f0fe97, one owner for the predicate) through `_upstream_doors` in a recursive CTE; call site `chat_delete.py:162-166`; red-first: a reset child and a tool child must survive the delete · evidence: `docs/agent-runtime-harness/planned/supersession-2026-09-27.md` § Adoption lanes 2 · filed 2026-09-27
+- [ ] **`hermes_cli/install_method.py` is byte-identical (AST-equal) to upstream's `hermes_cli.config.stamp_install_method` + `_install_method_project_root`, which the fork's `config.py` also carries** · `fork-owned / duplicate` · repoint the one caller `_downstream_cli.py:58` to `hermes_cli.config`, delete the module, flip the liveness assertion in `test_tombstone_registry.py:4757-4759` · evidence: supersession sheet § Adoption lanes 1 · filed 2026-09-27
+- [ ] **`agent_runtime/windows_env.add_user_path_entry` + `broadcast_environment_change` parallel upstream's private `_launchers._register_windows_user_path` / `_merge_user_path` / `_broadcast_environment_change`** · `fork-owned / recorded parallel` · reach upstream's through a door (adapt present/added-and-raises to bool-and-log) at `path_setup.py:280-282`, or record the parallel in the ledger; `set_user_env` and the pip shim stay (no upstream equivalent) · evidence: supersession sheet § Adoption lanes 3 · filed 2026-09-27
+
 ### Native conversation lifecycle audit — 2026-09-26
 
 - [ ] **Repair native conversation recovery, exact-execution cancellation and acknowledged pending-request answers using existing native owners; then Launcher restores typed state.** · [Audit](../../docs/downstream/native-hermes-lifecycle-audit-2026-09-26.md#native-owner-repairs); preserve admission fingerprints/one-unsettled constraint and prohibit automatic prompt replay. **TAKEN 2026-09-26 native-recovery**
