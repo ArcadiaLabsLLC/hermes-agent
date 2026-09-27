@@ -25,8 +25,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Native conversation lifecycle audit — 2026-09-26
 
-- [ ] **Repair native conversation recovery, exact-execution cancellation and acknowledged pending-request answers using existing native owners; then Launcher restores typed state.** · [Audit](../../docs/downstream/native-hermes-lifecycle-audit-2026-09-26.md#native-owner-repairs); preserve admission fingerprints/one-unsettled constraint and prohibit automatic prompt replay.
-- [ ] **Bound aggregate conversation projection memory and retire only safely settled, unobserved native sessions through owner-side eligibility rechecks.** · [Retention evidence and owner](../../docs/downstream/native-hermes-lifecycle-audit-2026-09-26.md#reproductions-and-limits); no worker kill or history deletion for cache eviction.
+- [ ] **Repair native conversation recovery, exact-execution cancellation and acknowledged pending-request answers using existing native owners; then Launcher restores typed state.** · [Audit](../../docs/downstream/native-hermes-lifecycle-audit-2026-09-26.md#native-owner-repairs); preserve admission fingerprints/one-unsettled constraint and prohibit automatic prompt replay. **TAKEN 2026-09-26 native-recovery**
+- [ ] **Bound aggregate conversation projection memory and retire only safely settled, unobserved native sessions through owner-side eligibility rechecks.** · [Retention evidence and owner](../../docs/downstream/native-hermes-lifecycle-audit-2026-09-26.md#reproductions-and-limits); no worker kill or history deletion for cache eviction. **TAKEN 2026-09-26 native-recovery**
 
 
 ### Filed on arrival — 2026-09-26 (lane PF-1, filed by the orchestrator)
@@ -190,7 +190,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
-- [ ] **Expose a coherent observation-only native recovery checkpoint and execution-fenced interrupt through an additive owner seam, reusing live state/history/pending requests.** · [Native seam hazards](../../docs/downstream/native-hermes-lifecycle-audit-2026-09-26.md#native-seam-hazards); coordinate the conversation repair above and retain Desktop/MC policy.
+- [ ] **Expose a coherent observation-only native recovery checkpoint and execution-fenced interrupt through an additive owner seam, reusing live state/history/pending requests.** · [Native seam hazards](../../docs/downstream/native-hermes-lifecycle-audit-2026-09-26.md#native-seam-hazards); coordinate the conversation repair above and retain Desktop/MC policy. **TAKEN 2026-09-26 native-recovery**
 ### Filed on arrival — 2026-09-26 (lane FIX-TRIAGE, filed by the orchestrator)
 
 ### Filed on arrival — 2026-09-26 (lane PF-1, seams; filed by the orchestrator)
@@ -250,7 +250,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Upstream-owned
 
-- [ ] **Native replay ring eviction resets a still-live session's sequence without changing epoch; upstream the fix or hold an explicitly reviewed seam before relying on canonical replay for Launcher recovery.** · [Reproduced sequence reset](../../docs/downstream/native-hermes-lifecycle-audit-2026-09-26.md#native-seam-hazards); `tui_gateway/event_replay.py` is unchanged from recorded upstream `ea0c2b820b`.
+- [ ] **Native replay ring eviction resets a still-live session's sequence without changing epoch; upstream the fix or hold an explicitly reviewed seam before relying on canonical replay for Launcher recovery.** · [Reproduced sequence reset](../../docs/downstream/native-hermes-lifecycle-audit-2026-09-26.md#native-seam-hazards); `tui_gateway/event_replay.py` is unchanged from recorded upstream `ea0c2b820b`. **TAKEN 2026-09-26 native-recovery**
 
 ### Filed on arrival — 2026-09-26 (lane FIX-TRIAGE, filed by the orchestrator)
 
