@@ -71,6 +71,37 @@ def _pid_alive(pid: int) -> bool:
     return True
 
 
+@pytest.mark.platforms("windows")
+@pytest.mark.timeout(75)
+def test_windows_worker_does_not_inherit_runner_console(tmp_path):
+    """A worker's console must exclude the runner, including venv launchers."""
+    repo_root = _probe_root(tmp_path)
+    probe = repo_root / "test_console.py"
+    probe.write_text(
+        "import ctypes, os\n"
+        "def test_no_console():\n"
+        "    pids = (ctypes.c_ulong * 32)()\n"
+        "    count = ctypes.windll.kernel32.GetConsoleProcessList(pids, 32)\n"
+        "    assert count <= 32\n"
+        "    assert int(os.environ['PROBE_RUNNER_PID']) not in pids[:count]\n",
+        encoding="utf-8",
+    )
+    (repo_root / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    startup = subprocess.STARTUPINFO()
+    startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startup.wShowWindow = subprocess.SW_HIDE
+    result = subprocess.run(
+        [sys.executable, "-c",
+         "import os, runpy, sys; os.environ['PROBE_RUNNER_PID'] = str(os.getpid()); "
+         "sys.argv = sys.argv[1:]; runpy.run_path(sys.argv[0], run_name='__main__')",
+         str(repo_root / "scripts" / "run_tests_parallel.py"),
+         "--paths", str(probe), "-j", "1", "--file-timeout", "30", "--file-retries", "0"],
+        cwd=repo_root, capture_output=True, text=True, encoding="utf-8",
+        timeout=60, creationflags=subprocess.CREATE_NEW_CONSOLE, startupinfo=startup,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_progress_output_tolerates_legacy_stdout_encoding(tmp_path: Path) -> None:
     """Progress glyphs must not crash the runner on non-UTF-8 consoles."""
     repo_root = _probe_root(tmp_path)

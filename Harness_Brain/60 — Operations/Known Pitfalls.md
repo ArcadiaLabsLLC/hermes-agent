@@ -24,6 +24,7 @@ Each entry is a measured incident, its mechanism, and the rule that retires it. 
 | pitfall | mechanism | rule |
 |---|---|---|
 | **A module-level `get_hermes_home()` writes fixtures into the live `state.db`** | under pytest the override is gated off, the module imports at collection, the fixture moves `HERMES_HOME` afterwards | resolve at call time; `test_no_frozen_hermes_home.py` ledger only shrinks |
+| **Windows PID probes interrupt the operator's console** (2026-09-27) | `os.kill(pid, 0)` sends Ctrl+C; `start_new_session` does not isolate Windows workers | use the existing non-signalling PID query, refuse console events in the guard, isolate workers; [[Windows console signal safety]] records the four red controls |
 | **A test with a > 30 s wait "hangs" instead of failing** | `addopts --timeout=30`; pytest-timeout kills it and prints a thread dump where its message would be | `@pytest.mark.timeout(N)` above the bound |
 | **The whole-tree suite reads ~142 reds on a green `main`** | provider-network hangs, WSL bash shadowing Git Bash on `PATH`, `acp`/`ripgrep` holes | the validated scope is four directories; whole-tree is a different scope |
 | **`tests/acp` will not collect from a worktree** | the editable install resolves to the primary checkout | run it from the primary or name lanes |

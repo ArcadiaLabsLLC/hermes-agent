@@ -208,8 +208,14 @@ if not HOST_LOCK_DIR_AT_CONFTEST_IMPORT:
             _stale_pid = int(_stale.name[len(_LOCK_DIR_PREFIX):])
         except ValueError:
             continue
+        if os.name == "nt":
+            # This sweep runs before fixtures can intercept console signals.
+            from gateway.status import _pid_exists
+            if not _pid_exists(_stale_pid):
+                shutil.rmtree(_stale, ignore_errors=True)
+            continue
         try:
-            os.kill(_stale_pid, 0)
+            os.kill(_stale_pid, 0)  # windows-footgun: ok — Windows continues above
         except OSError:
             shutil.rmtree(_stale, ignore_errors=True)
     _SESSION_LOCK_DIR = str(_LOCK_DIR_ROOT / f"{_LOCK_DIR_PREFIX}{os.getpid()}")

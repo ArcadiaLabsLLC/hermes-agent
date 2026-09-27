@@ -77,6 +77,7 @@ def _live_system_guard(request, monkeypatch):
         return
 
     import os as _os
+    import signal as _signal
     import shlex as _shlex
     import subprocess as _subprocess
 
@@ -142,7 +143,15 @@ def _live_system_guard(request, monkeypatch):
     real_kill = _os.kill
 
     def _guarded_kill(pid, sig, *args, **kwargs):
-        # Signal 0 is a pure liveness probe — it cannot terminate anything.
+        # Windows console events can reach the test runner and its operator;
+        # a PID in our subtree does not establish a separate console group.
+        if _os.name == "nt" and int(sig) in (_signal.CTRL_C_EVENT, _signal.CTRL_BREAK_EVENT):
+            raise RuntimeError(
+                "tests/conftest.py live-system guard: blocked Windows console event "
+                f"os.kill({pid}, {sig}) — use a non-signalling PID query, or mock "
+                "signal delivery; isolated signal tests need live_system_guard_bypass."
+            )
+        # On POSIX signal 0 is a pure liveness probe.
         # psutil.pid_exists() uses os.kill(pid, 0) on POSIX, and probing a
         # just-killed grandchild that was reparented to init (zombie with a
         # foreign parent chain) must not trip the guard. Flaked in CI on

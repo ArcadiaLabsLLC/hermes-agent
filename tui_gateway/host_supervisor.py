@@ -102,8 +102,12 @@ def _call_logged(cb: Callable[[dict], None], frame: dict, failure: str) -> None:
 def _pid_alive(pid: int) -> bool:
     if pid <= 0:
         return False
+    if os.name == "nt":
+        # Signal zero is CTRL_C_EVENT on Windows, not a read-only probe.
+        from gateway.status import _pid_exists
+        return _pid_exists(pid)
     try:
-        os.kill(pid, 0)
+        os.kill(pid, 0)  # windows-footgun: ok — Windows returns above
         return True
     except Exception as exc:
         return isinstance(exc, PermissionError)
