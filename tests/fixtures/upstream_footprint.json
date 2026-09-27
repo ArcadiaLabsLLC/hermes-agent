@@ -1,8 +1,8 @@
 {
-  "measured_at": "2026-09-26",
-  "base": "067fa1a257",
-  "files": 148,
-  "deleted_lines": 839,
+  "measured_at": "2026-09-27",
+  "base": "2f14d5e6e4",
+  "files": 152,
+  "deleted_lines": 841,
   "heavy": 4,
   "reasons": [
     {
@@ -318,6 +318,12 @@
       "files": "167 -> 148: 19 files byte-identical to 067fa1a257 again (contributor-check.yml, audit_pr_attribution.py, releases/authors.py; the two desktop uninstall-section files; commands_platforms.py, slack_cli.py; nix/checks.nix; the Feishu adapter and test_feishu.py; tests/docker/test_dashboard.py; test_base_environment.py, test_file_ops_cwd_tracking.py, test_file_tools.py; five website/docs pages); tools/environments/local.py stays on the list (only its callerless _shell_arg_safe_path was deleted; added lines only)",
       "deleted_lines": "876 -> 839 (the 19 reverted files' 37); heavy unchanged at 4",
       "reason": "each file serves a surface the fork does not run (desktop app, website, nix, docker tier, the Slack and Feishu adapters, the contributors case-variants lookup) or carried a hunk that does not do what it claims (two R10 test hunks, one unused import); the fork's case-variants/ directory and the fork tests of the dropped hunks left with them. docs/agent-runtime-harness/planned/fix-triage-2026-09-26.md section 1"
+    },
+    {
+      "change": "merge upstream/main 2f14d5e6e4 (lane MERGE-0927, 1,347 commits, 8 conflicts); manifest re-based 067fa1a257 -> 2f14d5e6e4",
+      "files": "148 -> 152: four files of 11c94aca7c (native conversation admission, 2026-09-26: gateway-contract.generated.ts, gateway-contract.openrpc.json, tui_gateway/contracts/prompt_voice.py, tui_gateway/methods_prompt.py) joined the footprint before the merge without a fixture row; first measured here",
+      "deleted_lines": "839 -> 841: tools/mcp_tool_transport.py 1 -> 3 (upstream folded the stdio spawn into one _stdio_launch path; the fork's server_name/runtime_env carry now replaces its signature, its _build_safe_env call and its caller); heavy unchanged at 4",
+      "reason": "the carries are the fork's own lines re-seated on upstream's new shape, never a third version: #124210 (HERMES_HOME / process MCP env for stdio children) is still open upstream; the reject_if_busy rows are dispositioned carry in the ledger with their retirement. docs/agent-runtime-harness/planned/fix-triage-2026-09-26.md section 6"
     }
   ]
 }
