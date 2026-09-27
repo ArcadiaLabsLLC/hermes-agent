@@ -456,6 +456,20 @@ if _WIN:
         },
     })
 
+if _WIN:
+    # Lane FOOTPRINT-DROP (2026-09-27): upstream test files back at upstream's bytes; the
+    # fork's Windows version of each marked test lives in the named ``*_downstream.py``
+    # sibling beside it.
+    ROWS.update({
+        "tests/test_live_system_guard_self_test.py::test_bypass_marker_disables_guard": (
+            pytest.mark.skip(reason=(
+                "win32: os.kill(pid, 0) is CTRL_C_EVENT to the console group, not a probe; "
+                "fork half: tests/test_live_system_guard_self_test_downstream.py::"
+                "test_bypass_marker_disables_guard_without_delivery"
+            )),
+        ),
+    })
+
 if _WIN and not sys.flags.utf8_mode:
     # Probe, not platform: the red is the cp1252 locale, so it does not occur under
     # scripts/run_tests.sh / run_tests_bundled.sh, which export PYTHONUTF8=1 — there
