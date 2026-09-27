@@ -375,7 +375,7 @@ class TestExtractImageRefs:
         img = tmp_path / "foo.png"
         img.write_bytes(_png_bytes())
         paths, urls = extract_image_refs("see ~/foo.png please")
-        assert [Path(p) for p in paths] == [img]
+        assert paths == [str(img)]
         assert urls == []
 
 

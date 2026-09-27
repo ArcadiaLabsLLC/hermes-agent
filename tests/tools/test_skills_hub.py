@@ -633,17 +633,6 @@ Complex cases are documented under `{glob_reference}`.
 
 class TestCheckForSkillUpdates:
     def test_bundle_content_hash_matches_installed_content_hash(self, tmp_path):
-        """A clean install must not be reported as drifted.
-
-        The tree is materialized by the PRODUCTION writer (quarantine_bundle)
-        instead of being hand-written with Path.write_text. Hand-writing made
-        the fixture the author of the on-disk bytes, so it could agree with the
-        bundle by construction while the real install path disagreed: on
-        Windows Path.write_text translates "\\n" to "\\r\\n" and content_hash
-        hashes exact bytes. This version pins the seam that actually decides
-        whether check_for_skill_updates flags a fresh install.
-        """
-        import tools.skills_hub as hub
         from tools.skills_guard import content_hash
 
         bundle = SkillBundle(
@@ -1083,8 +1072,8 @@ class TestOptionalSkillSourceBinaryAssets:
         bundle = src.fetch("official/mlops/models/neutts")
 
         assert bundle is not None
-        # Bundle keys are POSIX-relative on every host; carry of fork PR #121221
-        # (up/win-line-endings) - upstream's os.path.join keys are red on Windows.
+        # Bundle keys are POSIX-relative on every host; carry of fork PR #121643
+        # (up/win-remote-posix-paths) - upstream's os.path.join keys are red on Windows.
         assert bundle.files["assets/neutts-cli/samples/jo.wav"] == wav_bytes
         assert bundle.files["assets/neutts-cli/samples/jo.txt"] == b"hello\n"
         assert "assets/neutts-cli/src/neutts_cli/__pycache__/cli.cpython-312.pyc" not in bundle.files
