@@ -46,6 +46,14 @@ After the conflicts are resolved and before the suite: for every upstream commit
 
 | PR | what | carried on `main` as | opened |
 |---|---|---|---|
+| NousResearch/hermes-agent#125259 | `fix(config)`: read-only config loads never scaffold the home; read-only sites use `load_config_readonly` (`fix/readonly-config-reads`, cut from upstream 77a799e2f9c; body `X:/wt/_holds/fix-triage-0926/pr-readonly-config-reads.md`) | the fork's own lines in the ledger rows the body names | 2026-09-27 |
+| NousResearch/hermes-agent#125260 | `fix(doctor)`: resolve `HERMES_HOME` / `_DHH` at call time, load dotenv per run (`fix/doctor-call-time-home`, cut from upstream 77a799e2f9c; body `X:/wt/_holds/fix-triage-0926/pr-doctor-call-time-home.md`) | the fork's own lines in the ledger rows the body names | 2026-09-27 |
+| NousResearch/hermes-agent#125261 | `fix(tools)`: Windows terminal runtime — system tooling on the child PATH, PTY EOF as Ctrl-Z (`fix/win-runtime-fixes`, cut from upstream 77a799e2f9c; body `X:/wt/_holds/fix-triage-0926/pr-win-runtime-fixes.md`) | the fork's own lines in the ledger rows the body names | 2026-09-27 |
+| NousResearch/hermes-agent#125262 | `fix(tools)`: compare paths by file identity on Windows (`tools/path_identity`) (`fix/win-path-identity`, cut from upstream 77a799e2f9c; body `X:/wt/_holds/fix-triage-0926/pr-win-path-identity.md`) | the fork's own lines in the ledger rows the body names | 2026-09-27 |
+| NousResearch/hermes-agent#125263 | `fix(scripts)`: runner — Windows path splitting, bounded timeout retry, adaptive workers, node-id selectors (`fix/test-runner`, cut from upstream 77a799e2f9c; body `X:/wt/_holds/fix-triage-0926/pr-test-runner.md`) | the fork's own lines in the ledger rows the body names | 2026-09-27 |
+| NousResearch/hermes-agent#125264 | `fix(gateway)`: media delivery hardening — `$HOME` denylist root, backslash terminator, NUL paths dropped (`fix/media-path-hardening`, cut from upstream 77a799e2f9c; body `X:/wt/_holds/fix-triage-0926/pr-media-path-hardening.md`) | the fork's own lines in the ledger rows the body names | 2026-09-27 |
+| NousResearch/hermes-agent#125265 | `fix(update)`: a fork's failed fast-forward never resets the checkout; cached history assessment in the plan (`fix/updater-fork-history`, cut from upstream 77a799e2f9c; body `X:/wt/_holds/fix-triage-0926/pr-updater-fork-history.md`) | the fork's own lines in the ledger rows the body names | 2026-09-27 |
+| NousResearch/hermes-agent#125266 | `fix(gateway)`: watcher sends reply to the watcher's own message (`fix/watcher-reply-to`, cut from upstream 77a799e2f9c; body `X:/wt/_holds/fix-triage-0926/pr-watcher-reply-to.md`) | the fork's own lines in the ledger rows the body names | 2026-09-27 |
 | NousResearch/hermes-agent#119069 | `fix(gateway)`: guard the POSIX-only `pwd` import in `legacy_launchd_labels_for_install` — `hermes update` crashed on Windows | `743277a3d5` (cherry-pick -x) | 2026-09-22 |
 | NousResearch/hermes-agent#119071 | `test(kanban)`: the dispatcher fakes answer `poll()` so the Windows zombie-reaper branch runs under the tests | `801c24abcd` (cherry-pick -x) | 2026-09-22 |
 | NousResearch/hermes-agent#121023 | `refactor(plugins)`: `disable_reason` states the bundled-skip invariant locally — retitled 2026-09-26 after review, the AST-walk claim withdrawn (`up/plugin-compat-bundled-skip`) | `e858df653a` via `seam/s1-proof` (in `709a3d6eba`) | 2026-09-24 |
@@ -91,9 +99,18 @@ After the conflicts are resolved and before the suite: for every upstream commit
 
 Rules used: branch cut from `upstream/main` (never from the fork), `fix/…` / `test/…` branch names, Conventional Commit subject, upstream's PR template filled in full, `scripts/check-windows-footguns.py` on the staged diff, platform named (this box: Windows 10 Home 22H2, build 19045 — read it from `winver`/`[System.Environment]::OSVersion`, never assume), the affected test files run before and after with the counts in the body. Rebase a PR only on request. The next seam PR is Stage 1's fallback: manifest-declared deferred CLI entries (`cli_commands:` in `plugin.yaml`), after Stage 1 measures the discovery cost on the merged tree.
 
+## Open upstream issues (hook / design asks; the PR follows the answer)
+
+| issue | what | opened |
+|---|---|---|
+| NousResearch/hermes-agent#125255 | observer hooks for turn/init phase timings (`on_turn_phase`, `on_agent_init_phase`) (draft `X:/wt/_holds/fix-triage-0926/issue-turn-phase-observer.md`) | 2026-09-27 |
+| NousResearch/hermes-agent#125256 | restore durable delegation completions explicitly at process start, not in `ProcessRegistry.__init__` (draft `X:/wt/_holds/fix-triage-0926/issue-durable-completion-restore.md`) | 2026-09-27 |
+| NousResearch/hermes-agent#125257 | a skill-visibility hook (`filter_skill_visible`) for runtime-compat gating (draft `X:/wt/_holds/fix-triage-0926/issue-skill-visibility-hook.md`) | 2026-09-27 |
+| NousResearch/hermes-agent#125258 | widen the Group Chat host surface (limits, active members, history pinning, reconciliation) (draft `X:/wt/_holds/fix-triage-0926/issue-group-chat-host-surface.md`) | 2026-09-27 |
+
 ## Held branches
 
-Held on the owner's word ("we have too many today", 2026-09-26). Bodies at `X:/wt/_holds/pr-bodies/<name>.md` (these two) and `X:/wt/_holds/fix-triage-0926/pr-<class>.md` (the 28 fix-triage branches, listed in the fix-triage sheet §2).
+Held on the owner's word ("we have too many today", 2026-09-26). Wave 1 opened 2026-09-27: eight fix branches became #125259–#125266 and four drafts became issues #125255–#125258 (tables above); 20 branches and 4 drafts remain held. `test/platform-markers-linux` needs a rebase first (conflict in `tests/hermes_cli/test_linux_desktop_entry.py`); `fix/process-notification-redaction` overlaps open upstream #124217 and needs a dedupe read. Bodies at `X:/wt/_holds/pr-bodies/<name>.md` (these two) and `X:/wt/_holds/fix-triage-0926/pr-<class>.md` (the 28 fix-triage branches, listed in the fix-triage sheet §2).
 
 | branch | tip | what it carries | retires | filed |
 |---|---|---|---|---|
