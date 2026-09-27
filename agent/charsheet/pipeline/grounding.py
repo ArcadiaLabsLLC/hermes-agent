@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from agent.charsheet._upstream_doors import frame_x_bounds, remove_background
+from agent.charsheet._upstream_doors import remove_background
+from agent.charsheet.frame_bounds import frame_x_bounds
 from agent.charsheet.palette import as_rgba
 
 from .geometry import MAGENTA, MAX_THUMB_PIXELS, QA_BACKDROP, require_scale
@@ -41,7 +42,7 @@ def frame_cell(image_or_path, *, frame: int, frames: int):
     strip identity means a defect is looked for frame by frame.
 
     Frame geometry is NOT this module's to invent: the x-range comes from
-    :func:`atlas.frame_x_bounds`, the same content-aware rule the real frame
+    :func:`agent.charsheet.frame_bounds.frame_x_bounds`, the same content-aware rule the real frame
     extraction uses (gutters between poses, merged down to the frame count;
     thin severs at the expected boundaries when the poses touch; even columns
     ONLY as the last resort, when there is no content to read at all). This

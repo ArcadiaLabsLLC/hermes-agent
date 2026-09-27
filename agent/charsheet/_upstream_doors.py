@@ -18,14 +18,15 @@ from __future__ import annotations
 # validator enforces, so a local copy of either would drift silently as upstream
 # retunes. `CELL_WIDTH`/`CELL_HEIGHT` come along because `_fit_to_cell` hardcodes
 # that cell geometry: a spec with a different frame size must be refused rather
-# than silently re-fitted to 192x208. `frame_x_bounds` is here for the same
-# reason under a sharper lesson: this module HAD a local copy of frame geometry
+# than silently re-fitted to 192x208. The three `atlas_*` doors are here for the
+# same reason under a sharper lesson: this package HAD a local copy of frame geometry
 # (width / frames), it disagreed with upstream's content-aware rule on the first
-# real strip, and it shipped a QA crop with half a character in it (2026-08-28).
+# real strip, and it shipped a QA crop with half a character in it (2026-08-28);
+# `agent/charsheet/frame_bounds.py` composes upstream's own helpers instead.
 # Centralized in this ONE block so an upstream rename breaks loudly, at import
 # time, in a single place (plan §A-6).
 from agent.pet.generate import imagegen
-from agent.pet.generate.atlas import CELL_HEIGHT, CELL_WIDTH, extract_strip_frames, frame_x_bounds, normalize_cells, remove_background
+from agent.pet.generate.atlas import CELL_HEIGHT, CELL_WIDTH, extract_strip_frames, normalize_cells, remove_background
 from agent.pet.generate.encoding import atlas_to_webp_bytes
 
 __layer__ = "models"
@@ -38,7 +39,9 @@ __all__ = [
     "clear_transparent_rgb",
     "extract_strip_frames",
     "fit_to_cell",
-    "frame_x_bounds",
+    "atlas_erase_long_axis_lines",
+    "atlas_frame_x_ranges",
+    "atlas_sever_expected_gutters",
     "imagegen",
     "normalize_cells",
     "prompt_assumed_strip_width",
@@ -102,3 +105,27 @@ def charsheet_setting(key: str, default):
     from hermes_cli.config import cfg_get, load_config_readonly
 
     return cfg_get(load_config_readonly(), "charsheet", key, default=default)
+
+
+def atlas_erase_long_axis_lines(image):
+    """``agent.pet.generate.atlas._erase_long_axis_lines`` — strip-scale floor/divider
+    erasure. Private upstream; held widening row (``upstream-footprint-ledger.md``)."""
+    from agent.pet.generate.atlas import _erase_long_axis_lines
+
+    return _erase_long_axis_lines(image)
+
+
+def atlas_frame_x_ranges(image, frame_count: int):
+    """``agent.pet.generate.atlas._frame_x_ranges`` — the gutter-merged pose ranges, or
+    ``None``. Private upstream; held widening row as above."""
+    from agent.pet.generate.atlas import _frame_x_ranges
+
+    return _frame_x_ranges(image, frame_count)
+
+
+def atlas_sever_expected_gutters(image, frame_count: int):
+    """``agent.pet.generate.atlas._sever_expected_gutters`` — thin cuts at the expected
+    boundaries for touching poses. Private upstream; held widening row as above."""
+    from agent.pet.generate.atlas import _sever_expected_gutters
+
+    return _sever_expected_gutters(image, frame_count)

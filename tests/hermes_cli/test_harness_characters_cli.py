@@ -707,7 +707,7 @@ def test_thumb_writes_the_crop_its_payload_describes(fake, base_image, capsys, t
         # ONE frame cell of the strip, then upscaled — not the whole strip. The
         # width is the content-aware frame boundary's, not `source.width / 2`:
         # that arithmetic IS the 2026-08-28 half-a-character defect.
-        from agent.pet.generate.atlas import frame_x_bounds
+        from agent.charsheet.frame_bounds import frame_x_bounds
 
         left, right = frame_x_bounds(source, payload["frames"])[payload["frame"]]
         assert (crop.width, crop.height) == ((right - left) * 2, source.height * 2)
