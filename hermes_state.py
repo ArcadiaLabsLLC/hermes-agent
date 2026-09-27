@@ -1611,6 +1611,15 @@ class SessionDB(
         else:
             self._write_sql(sql, (key, value))
 
+    def update_meta(self, key: str, update) -> str:
+        """Atomically transform one metadata value across threads and processes."""
+        def apply(conn):
+            row = conn.execute("SELECT value FROM state_meta WHERE key = ?", (key,)).fetchone()
+            value = update(row[0] if row else None)
+            self.set_meta(key, value, cursor=conn.cursor())
+            return value
+        return self._execute_write(apply)
+
     def retag_kanban_worker_sessions(self, workspaces_root: str) -> int:
         """Retag legacy kanban worker rows from ``cli`` to ``kanban`` by cwd under the board's workspaces
         root; gated once per root via state_meta. Returns rows retagged."""

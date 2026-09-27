@@ -288,6 +288,8 @@ def _submit_prompt_to_compute_host(
     with session["history_lock"]:
         session["_compute_host_turn_id"] = turn_id
         session.pop("_compute_host_activity_ns", None)
+        if frame.get("native_execution"):
+            session["_compute_host_active"] = True
 
     def _complete(done: dict) -> None:
         # submit_turn reports a synchronous pipe failure via the callback before re-raising;
@@ -303,7 +305,7 @@ def _submit_prompt_to_compute_host(
         _get_compute_host_supervisor(cfg).submit_turn(frame, on_complete=_complete)
     except Exception as exc:
         with session["history_lock"]:
-            if session.get("_compute_host_turn_id") == turn_id:
+            if not frame.get("native_execution") and session.get("_compute_host_turn_id") == turn_id:
                 session.pop("_compute_host_turn_id", None)
                 session.pop("_compute_host_activity_ns", None)
         return _err(rid, 5019, f"compute-host dispatch failed: {exc}")

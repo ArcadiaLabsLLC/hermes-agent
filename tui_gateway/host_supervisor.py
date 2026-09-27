@@ -246,6 +246,10 @@ class HostSupervisor:
         try:
             self._send_frame(payload)
         except Exception as exc:
+            # A partial write may have dispatched native work. Keep its completion
+            # waiter; only a child outcome or confirmed child exit can settle it.
+            if frame.get("native_execution"):
+                raise
             with self._lock:
                 self._pending_turns.pop(request_id, None)
             if on_complete is not None:

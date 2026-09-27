@@ -35,7 +35,7 @@ def _read_conversation(service, scope, params):
 
 def _history(service, scope, params):
     return service.history(scope, identifier(params["session_id"]), params["position"],
-                           params.get("after_row", 0), params.get("offset", 0))
+                           params.get("message_index", 0), params.get("offset", 0))
 
 
 def _inflight(service, scope, params):

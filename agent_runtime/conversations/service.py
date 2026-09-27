@@ -147,10 +147,10 @@ class ConversationService:
         return live.snapshot(cursor, turn_id, epoch=epoch, offset=offset)
 
     def history(self, scope: ConversationScope, session_id: str, position: dict,
-                after_row: int, offset: int) -> dict:
+                message_index: int, offset: int) -> dict:
         live = self._session(scope, session_id)
         return live.peer.call("session.recovery.history", {"session_id": live.native_id,
-            "position": position, "after_row": after_row, "offset": offset})
+            "position": position, "message_index": message_index, "offset": offset})
 
     def inflight(self, scope: ConversationScope, session_id: str, params: dict) -> dict:
         live = self._session(scope, session_id)

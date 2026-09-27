@@ -72,3 +72,24 @@ The service's bounded open/facts reads pass its 9 focused cases. Generated
 contracts and focused Ruff checks pass. **The retirement operation is not yet
 wired to observation/retention policy.** Aggregate retention, real child retirement,
 client reconstruction, compressed history and full acceptance remain unqualified.
+
+## Durable history and uncertain child dispatch
+
+Recovery now reads the existing native display projection through a durable
+watermark, including compressed ancestors and visibility rules. Bounded JSON
+chunks preserve Unicode, reasoning and tool fields without a second history
+store. The compressed-lineage test failed before this correction; all 5 native
+snapshot tests pass. Projection is currently rebuilt per page; large-history
+cost still needs qualification before this repair can be called complete.
+
+An uncertain native compute write no longer falls back inline. Its original
+supervisor waiter and child observation route survive until a native outcome.
+Atomic SessionDB metadata updates preserve Stop intent and terminal evidence
+across parent/child writes. The scoped receipt lookup now has an execution index.
+
+Positive controls: removing the retained waiter produced 2 failures (1 legacy
+case still passed); removing monotonic receipt merging failed the parent/child
+Stop test. Restored code passes 3 dispatch and 9 execution cases. Existing
+compression watermark tests pass 16 cases; compute phase-one tests pass 8.
+Gateway contracts were regenerated. These checks do not qualify client recovery,
+retention, cold restart or the complete UI path; the repair remains in progress.

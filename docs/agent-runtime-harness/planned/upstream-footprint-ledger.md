@@ -209,6 +209,16 @@ without touching the ratchet. Each carries the PR that retires the import.
 
 ## Fork modules that shadow an upstream symbol (recorded parallels, no diff row)
 
+Native recovery additions (2026-09-27, held widening):
+`hermes_state_messages.py` exposes a lineage watermark and an optional upper-row
+bound on the existing display projection; `tui_gateway/recovery_history.py`
+delivers that projection in bounded chunks. `hermes_state.py::update_meta`
+provides an atomic read/transform/write for native execution receipts.
+`host_supervisor.py::submit_turn` retains native waiters after uncertain writes;
+`compute_host_bridge.py` retains their child route, and `methods_prompt.py`
+refuses inline fallback for an identified native execution. Existing legacy
+behavior is unchanged. Evidence: the downstream native recovery repair note.
+
 The rule of record (owner 2026-09-23): adopt upstream's, or record the parallel with the
 symbol it shadows, why it cannot be adopted, and what retires it. These live in fork-owned
 files, so no row above counts them.

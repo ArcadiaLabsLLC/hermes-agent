@@ -25815,19 +25815,47 @@
         "title": "RecordRepoItem",
         "type": "object"
       },
+      "RecoveryHistoryChunk": {
+        "additionalProperties": false,
+        "properties": {
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "data": {
+            "title": "Data",
+            "type": "string"
+          },
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "index",
+          "offset",
+          "data",
+          "complete"
+        ],
+        "title": "RecoveryHistoryChunk",
+        "type": "object"
+      },
       "RecoveryHistoryPage": {
         "additionalProperties": false,
         "properties": {
-          "rows": {
+          "chunks": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/RecoveryHistoryChunk"
             },
-            "title": "Rows",
+            "title": "Chunks",
             "type": "array"
           },
-          "after_row": {
-            "title": "After Row",
+          "message_index": {
+            "title": "Message Index",
             "type": "integer"
           },
           "offset": {
@@ -25845,8 +25873,8 @@
           }
         },
         "required": [
-          "rows",
-          "after_row",
+          "chunks",
+          "message_index",
           "offset",
           "more"
         ],
@@ -25875,10 +25903,10 @@
           "position": {
             "$ref": "#/components/schemas/HistoryPosition"
           },
-          "after_row": {
+          "message_index": {
             "default": 0,
             "minimum": 0,
-            "title": "After Row",
+            "title": "Message Index",
             "type": "integer"
           },
           "offset": {

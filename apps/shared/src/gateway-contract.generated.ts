@@ -3397,15 +3397,21 @@ export interface RecoveryHistoryParams {
   session_id: string
   profile?: string | null
   position: HistoryPosition
-  after_row?: number
+  message_index?: number
   offset?: number
 }
 export interface RecoveryHistoryPage {
-  rows: Record<string, unknown>[]
-  after_row: number
+  chunks: RecoveryHistoryChunk[]
+  message_index: number
   offset: number
   more: boolean
   reset?: boolean
+}
+export interface RecoveryHistoryChunk {
+  index: number
+  offset: number
+  data: string
+  complete: boolean
 }
 export interface RecoveryInflightParams {
   session_id: string

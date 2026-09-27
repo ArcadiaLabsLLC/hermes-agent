@@ -32,6 +32,8 @@ class ConversationStore:
             db.execute("""CREATE UNIQUE INDEX IF NOT EXISTS conversation_unsettled
                 ON conversation_turns(conversation_id)
                 WHERE state IN ('dispatching','running','unknown')""")
+            db.execute("""CREATE INDEX IF NOT EXISTS conversation_execution
+                ON conversation_turns(conversation_id,execution_id)""")
 
     def connect(self):
         return open_db(self.path, db_label="native conversation receipts", synchronous_full=True)

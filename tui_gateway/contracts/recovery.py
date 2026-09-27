@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import Field
 
-from .base import JsonValue, Result
+from .base import Result
 from .common import SessionParams
 from .registry import method
 from .sessions import LiveSessionSnapshot
@@ -43,13 +43,20 @@ class RecoverySnapshot(LiveSessionSnapshot):
 
 class RecoveryHistoryParams(SessionParams):
     position: HistoryPosition
-    after_row: int = Field(default=0, ge=0)
+    message_index: int = Field(default=0, ge=0)
     offset: int = Field(default=0, ge=0)
 
 
+class RecoveryHistoryChunk(Result):
+    index: int
+    offset: int
+    data: str
+    complete: bool
+
+
 class RecoveryHistoryPage(Result):
-    rows: list[dict[str, JsonValue]]
-    after_row: int
+    chunks: list[RecoveryHistoryChunk]
+    message_index: int
     offset: int
     more: bool
     reset: bool = False

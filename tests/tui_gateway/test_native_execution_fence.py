@@ -61,6 +61,22 @@ def test_cancel_before_compute_adoption_survives_lost_ack(owner):
     assert execution.snapshot(child, "turn")["cancel_requested"]
 
 
+def test_parent_and_child_updates_cannot_erase_stop_or_terminal_evidence(owner):
+    parent, _ = owner
+    execution.admit(parent, "turn")
+    child = {"session_key": "stored", "history_lock": threading.RLock()}
+    assert execution.adopt(child, {"id": "turn"})
+    assert execution.request_stop(parent, "turn")
+    child["_submit_user_row"] = {"_row_id": 7}
+    execution.submitted(child)
+    assert execution.snapshot(child, "turn")["cancel_requested"]
+    complete(child)
+    execution.uncertain(parent, "turn")
+    assert execution.snapshot(parent, "turn")["status"] == "complete"
+    assert execution.snapshot(parent, "turn")["user_row_id"] == 7
+    assert not execution.request_stop(parent, "turn")
+
+
 def test_delayed_compute_completion_keeps_its_original_identity(owner):
     session, _ = owner
     execution.admit(session, "old")
@@ -137,3 +153,24 @@ def test_native_admission_rechecks_running_inside_the_claim(owner):
         "rpc", "live", session, "second", {"execution_id": "second"}, False, None, None, None)
     assert error["error"]["code"] == 4091
     assert execution.snapshot(session, None)["id"] == "already-running"
+
+
+def test_uncertain_compute_dispatch_never_falls_back_to_an_inline_execution(owner, monkeypatch):
+    session, _ = owner
+    session["running"] = False
+    monkeypatch.setitem(server._sessions, "live", session)
+    monkeypatch.setattr(server, "_sess_nowait", lambda *args: (session, None))
+    monkeypatch.setattr(server, "_legacy_group_fence_error", lambda *args: None)
+    monkeypatch.setattr(server, "_ensure_active_session_slot", lambda *args: None)
+    monkeypatch.setattr(server, "_reattach_refusal", lambda *args: None)
+    monkeypatch.setattr(server, "current_transport", lambda: None)
+    monkeypatch.setattr(server, "_session_uses_compute_host", lambda *args: True)
+    monkeypatch.setattr(server, "_load_dashboard_process_isolation_config", lambda: {})
+    monkeypatch.setattr(server, "_submit_prompt_to_compute_host",
+        lambda *a, **k: server._err("rpc", 5019, "dispatch acknowledgement lost"))
+    monkeypatch.setattr(server, "_persist_session_row_for_submit",
+        lambda *a, **k: pytest.fail("uncertain child execution was dispatched inline"))
+    response = server._methods["prompt.submit"]("rpc", {
+        "session_id": "live", "text": "hello", "execution_id": "native-turn", "reject_if_busy": True})
+    assert response["error"]["code"] == 5019
+    assert execution.snapshot(session, "native-turn")["status"] == "unknown"

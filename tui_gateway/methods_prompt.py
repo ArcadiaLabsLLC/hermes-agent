@@ -685,6 +685,10 @@ def _(rid, params: dict) -> dict:
             # The truncation already happened inline above (memory + DB).
             isolated_response["result"].update(survivor_fields)
             return isolated_response
+        if execution_id := params.get("execution_id"):
+            from tui_gateway.session_execution import uncertain
+            uncertain(session, execution_id)
+            return isolated_response
         # An ordinal/id alone is not consent. A client that carries a leftover ordinal into an ORDINARY
         # submit sends a request that is indistinguishable, field by field, from a real rewind — same
         # method, same shape, an in-range target — and the cut it asks for is a destructive

@@ -1251,18 +1251,28 @@ class SessionMessagesMixin:
                 seen.add(current)
             return best if best is not None else session_id
 
-    def _fetch_conversation_rows(self, session_ids: List[str], active_clause: str, *, with_session_id: bool):
+    def _fetch_conversation_rows(self, session_ids: List[str], active_clause: str, *, with_session_id: bool,
+                                 through_row_id: Optional[int] = None):
         """``_CONVERSATION_ROW_COLUMNS`` rows for *session_ids* ORDER BY id (timestamps are not monotonic
         and would break tool-call adjacency)."""
         return self._read_all(
             f"SELECT {'session_id, ' if with_session_id else ''}{self._CONVERSATION_ROW_COLUMNS} "
             f"FROM messages WHERE session_id IN ({_placeholders(session_ids)})"
-            f"{active_clause} ORDER BY id", tuple(session_ids))
+            f"{active_clause}{' AND id <= ?' if through_row_id is not None else ''} ORDER BY id",
+            (*session_ids, *((through_row_id,) if through_row_id is not None else ())))
+
+    def get_resume_message_watermark(self, session_id: str) -> int:
+        """Durable upper bound for a display read, including compression ancestors."""
+        session_ids = self._resume_lineage_ids(session_id)
+        return int(self._read_one(
+            f"SELECT COALESCE(MAX(id), 0) FROM messages WHERE session_id IN ({_placeholders(session_ids)})",
+            tuple(session_ids))[0])
 
     def get_messages_as_conversation(self, session_id: str, include_ancestors: bool = False,
                                      include_inactive: bool = False, repair_alternation: bool = False,
                                      include_row_ids: bool = False,
-                                     include_compacted: bool = False) -> List[Dict[str, Any]]:
+                                     include_compacted: bool = False,
+                                     through_row_id: Optional[int] = None) -> List[Dict[str, Any]]:
         """Load messages in OpenAI format. ``include_compacted`` (deduped display history) is for DISPLAY reads
         only: the model-fed restore must not regrow what compaction summarized away. ``repair_alternation``
         repairs the loaded list for LIVE REPLAY callers (a durable ``user;user`` pair would re-trigger the
@@ -1270,7 +1280,8 @@ class SessionMessagesMixin:
         cannot merge with an original user turn; the stored transcript is never mutated."""
         rows = self._fetch_conversation_rows(
             self._resume_lineage_ids(session_id) if include_ancestors else [session_id],
-            self._active_clause(include_inactive, include_compacted), with_session_id=False)
+            self._active_clause(include_inactive, include_compacted), with_session_id=False,
+            through_row_id=through_row_id)
         if include_compacted:
             rows = self._dedupe_display_generations(rows)
         return self._rows_to_conversation(rows, session_id=session_id, include_ancestors=include_ancestors,

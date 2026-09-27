@@ -7,7 +7,7 @@ import pytest
 
 from hermes_state import SessionDB
 from tui_gateway import event_replay, server, server_requests, session_execution, session_recovery
-from tui_gateway.contracts.recovery import RecoverySnapshot
+from tui_gateway.contracts.recovery import RecoveryHistoryPage, RecoverySnapshot
 
 
 @pytest.fixture
@@ -75,7 +75,8 @@ def test_checkpoint_cannot_split_partial_text_from_its_event_position(owner):
     session, _ = owner
     session_execution.admit(session, "execution")
     server._start_inflight_turn(session, "hello")
-    entered, finish = threading.Event(), threading.Event()
+    entered, finish, recovered = threading.Event(), threading.Event(), threading.Event()
+    snapshots = []
 
     def publish():
         with session_execution.checkpoint_guard(session):
@@ -86,11 +87,21 @@ def test_checkpoint_cannot_split_partial_text_from_its_event_position(owner):
                 "session_id": "live", "type": "message.delta", "payload": {"text": "delta"}}})
 
     thread = threading.Thread(target=publish)
+    def recover():
+        snapshots.append(session_recovery.recover(server, "live", session, "execution"))
+        recovered.set()
+    reader = threading.Thread(target=recover)
     thread.start()
     assert entered.wait(2)
-    finish.set()
-    snapshot = session_recovery.recover(server, "live", session, "execution")
-    thread.join(2)
+    reader.start()
+    try:
+        assert not recovered.wait(.05)
+    finally:
+        finish.set()
+        thread.join(2)
+        reader.join(2)
+    assert recovered.is_set()
+    snapshot = snapshots[0]
     assert snapshot["inflight_position"]["assistant"] == 5
     assert snapshot["latest_seq"] == 1
 
@@ -102,16 +113,38 @@ def test_history_pages_reconstruct_large_rows_and_exclude_future_output(owner):
     db.append_message("stored", "assistant", text)
     position = session_recovery.recover(server, "live", session)["history"]
     db.append_message("stored", "user", "future")
-    after, offset, rows = 0, 0, {}
-    while True:
-        page = session_recovery.history_page(server, session, {
-            "position": position, "after_row": after, "offset": offset})
-        assert len(json.dumps(page)) < 1024 * 1024
-        for row in page["rows"]:
-            rows[row["row_id"]] = rows.get(row["row_id"], "") + row["text"]
-        after, offset = page["after_row"], page["offset"]
-        if not page["more"]:
-            break
-    assert list(rows.values()) == ["question", text]
+    rows = read_history(session, position)
+    assert [row["text"] for row in rows] == ["question", text]
     session["history_version"] += 1
     assert session_recovery.history_page(server, session, {"position": position})["reset"]
+
+
+def read_history(session, position):
+    index, offset, rows = 0, 0, {}
+    while True:
+        page = session_recovery.history_page(server, session, {
+            "position": position, "message_index": index, "offset": offset})
+        RecoveryHistoryPage.model_validate(page)
+        assert len(json.dumps(page)) < 1024 * 1024
+        for row in page["chunks"]:
+            prior = rows.get(row["index"], "")
+            assert len(prior) == row["offset"]
+            rows[row["index"]] = prior + row["data"]
+        index, offset = page["message_index"], page["offset"]
+        if not page["more"]:
+            break
+    return [json.loads(text) for text in rows.values()]
+
+
+def test_recovery_uses_native_compacted_lineage_and_display_visibility(owner):
+    session, db = owner
+    db.append_message("stored", "user", "original question")
+    db.append_message("stored", "assistant", "original answer")
+    db.archive_and_compact("stored", [{"role": "user", "content": "model scaffold", "display_kind": "hidden"}])
+    db.create_session("tip", source="eternia_intelligence", parent_session_id="stored")
+    db.append_message("tip", "user", "follow-up")
+    db.append_message("tip", "assistant", "new answer")
+    session["session_key"] = "tip"
+    position = session_recovery.recover(server, "live", session)["history"]
+    assert [row["text"] for row in read_history(session, position)] == [
+        "original question", "original answer", "follow-up", "new answer"]

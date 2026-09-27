@@ -33,7 +33,14 @@ def _store(session, record):
     with server._session_db(session) as db:
         if db is None:
             raise RuntimeError("Execution storage is unavailable")
-        db.set_meta("native_execution:" + record["id"], json.dumps(record, separators=(",", ":")))
+        def merge(raw):
+            prior = json.loads(raw) if raw else {}
+            value = {**prior, **record}
+            if prior.get("status") in _TERMINAL:
+                value["status"] = prior["status"]
+            value["cancel_requested"] = bool(prior.get("cancel_requested") or record["cancel_requested"])
+            return json.dumps(value, separators=(",", ":"))
+        return json.loads(db.update_meta("native_execution:" + record["id"], merge))
 
 
 def admit(session: dict, execution_id: str | None) -> None:
@@ -47,11 +54,13 @@ def admit(session: dict, execution_id: str | None) -> None:
         if db is None:
             raise RuntimeError("Execution storage is unavailable")
         key = "native_execution:" + execution_id
-        if db.get_meta(key) is not None:
-            raise ValueError("Execution already admitted; recover its outcome instead of replaying it")
         record = {"id": execution_id, "session_key": session["session_key"],
                   "status": "running", "cancel_requested": False}
-        db.set_meta(key, json.dumps(record, separators=(",", ":")))
+        def create(raw):
+            if raw is not None:
+                raise ValueError("Execution already admitted; recover its outcome instead of replaying it")
+            return json.dumps(record, separators=(",", ":"))
+        db.update_meta(key, create)
     session["native_execution"] = record
 
 
@@ -60,8 +69,16 @@ def submitted(session: dict) -> None:
     user = session.get("_submit_user_row") or {}
     if record is not None and isinstance(user.get("_row_id"), int):
         record = {**record, "user_row_id": user["_row_id"]}
-        _store(session, record)
-        session["native_execution"] = record
+        session["native_execution"] = _store(session, record)
+
+
+def uncertain(session: dict, execution_id: str) -> None:
+    with session["history_lock"]:
+        record = session.get("native_execution")
+        if record is None or record["id"] != execution_id or record["status"] in _TERMINAL:
+            return
+        record = {**record, "status": "unknown"}
+        session["native_execution"] = _store(session, record)
 
 
 def stamp(session: dict, frame: dict) -> None:
@@ -78,8 +95,7 @@ def stamp(session: dict, frame: dict) -> None:
     status = payload.get("status")
     if params.get("type") == "message.complete" and status in _TERMINAL:
         record = {**record, "status": status}
-        _store(session, record)
-        session["native_execution"] = record
+        session["native_execution"] = _store(session, record)
 
 
 def snapshot(session: dict, execution_id: str | None) -> dict | None:
@@ -111,9 +127,8 @@ def request_stop(session: dict, expected: str) -> bool:
     if record is None or record["id"] != expected or record["status"] in _TERMINAL:
         return False
     record = {**record, "cancel_requested": True}
-    _store(session, record)
-    session["native_execution"] = record
-    return True
+    session["native_execution"] = _store(session, record)
+    return session["native_execution"]["status"] not in _TERMINAL
 
 
 def interrupt(sid: str, session: dict, expected: str) -> bool:
