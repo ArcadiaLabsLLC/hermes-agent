@@ -129,6 +129,8 @@ Codebase supersession sweep 2026-09-27: every fork-only module added since 067fa
 
 Dedupe sweep 2026-09-27: all 38 open PRs + 20 held branches against upstream's OPEN PRs by others and merged commits since each base (the CONTRIBUTING search-first rule, never run for the whole set) — verdict UNIQUE / OVERLAPS #N / DUPLICATE-OF #N into sheet §8. **TAKEN 2026-09-27 lane DEDUPE**
 
+Door-fit sitting 2026-09-27 (owner: 'elsewhere in the code we could extract the data we need'): every feature ask of ours — the 11 feature/widen PRs, issues #125255–#125258, the 4 issue drafts, the held feat/ branches — against upstream's CURRENT tree: does an existing hook, event, field, config key or public function already yield it? Verdict EXISTS (name the door + how the plugin reads it) / PARTIAL / NONE into `docs/agent-runtime-harness/planned/door-fit-2026-09-27.md`. **TAKEN 2026-09-27 lane DOOR-FIT (design)**
+
 Merge note (lane AUTH-PR): the fork's own `tests/hermes_cli/test_plugin_declared_cli_commands.py` shares a path with the branch's — at the merge take upstream's file.
 
 ## Related
