@@ -3337,6 +3337,60 @@
       }
     },
     {
+      "name": "session.recover",
+      "summary": "Observe native state and its replay checkpoint without starting a turn.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/RecoveryParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/RecoverySnapshot"
+        }
+      }
+    },
+    {
+      "name": "session.recovery.history",
+      "summary": "Read bounded transcript chunks through a recovery checkpoint's durable watermark.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/RecoveryHistoryParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/RecoveryHistoryPage"
+        }
+      }
+    },
+    {
+      "name": "session.recovery.inflight",
+      "summary": "Read an append-only prefix of the exact live execution; reset if it has settled or changed.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/RecoveryInflightParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/RecoveryInflightPage"
+        }
+      }
+    },
+    {
       "name": "session.redirect",
       "summary": "Redirect the active turn (queued for the next turn while the agent is still building).",
       "params": [
@@ -13092,6 +13146,47 @@
         "title": "ErrorSurface",
         "type": "object"
       },
+      "ExecutionEvidence": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "session_key": {
+            "title": "Session Key",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "cancel_requested": {
+            "title": "Cancel Requested",
+            "type": "boolean"
+          },
+          "user_row_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "User Row Id"
+          }
+        },
+        "required": [
+          "id",
+          "session_key",
+          "status",
+          "cancel_requested"
+        ],
+        "title": "ExecutionEvidence",
+        "type": "object"
+      },
       "FileAttachParams": {
         "additionalProperties": false,
         "description": "``path`` when the file is gateway-visible, else ``data_url`` carries the bytes; ``name`` labels\nan uploaded file.",
@@ -15135,6 +15230,30 @@
         "title": "HeartbeatSnapshot",
         "type": "object"
       },
+      "HistoryPosition": {
+        "additionalProperties": false,
+        "properties": {
+          "session_key": {
+            "title": "Session Key",
+            "type": "string"
+          },
+          "through_row": {
+            "title": "Through Row",
+            "type": "integer"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_key",
+          "through_row",
+          "version"
+        ],
+        "title": "HistoryPosition",
+        "type": "object"
+      },
       "ImageAttachBytesParams": {
         "additionalProperties": false,
         "description": "``content_base64`` (or the ``data`` alias) carries the bytes; ``filename`` / ``ext`` only hint\nthe extension \u2014 magic bytes decide.",
@@ -15405,6 +15524,30 @@
           "available"
         ],
         "title": "ImageGenerateResult",
+        "type": "object"
+      },
+      "InflightPosition": {
+        "additionalProperties": false,
+        "properties": {
+          "execution_id": {
+            "title": "Execution Id",
+            "type": "string"
+          },
+          "user": {
+            "title": "User",
+            "type": "integer"
+          },
+          "assistant": {
+            "title": "Assistant",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "execution_id",
+          "user",
+          "assistant"
+        ],
+        "title": "InflightPosition",
         "type": "object"
       },
       "InflightTurn": {
@@ -25312,6 +25455,20 @@
             "default": null,
             "title": "Reject If Busy"
           },
+          "execution_id": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Execution Id"
+          },
           "surface": {
             "anyOf": [
               {
@@ -25638,6 +25795,459 @@
           "root"
         ],
         "title": "RecordRepoItem",
+        "type": "object"
+      },
+      "RecoveryHistoryPage": {
+        "additionalProperties": false,
+        "properties": {
+          "rows": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "after_row": {
+            "title": "After Row",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "more": {
+            "title": "More",
+            "type": "boolean"
+          },
+          "reset": {
+            "default": false,
+            "title": "Reset",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "rows",
+          "after_row",
+          "offset",
+          "more"
+        ],
+        "title": "RecoveryHistoryPage",
+        "type": "object"
+      },
+      "RecoveryHistoryParams": {
+        "additionalProperties": false,
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Profile"
+          },
+          "position": {
+            "$ref": "#/components/schemas/HistoryPosition"
+          },
+          "after_row": {
+            "default": 0,
+            "minimum": 0,
+            "title": "After Row",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Offset",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_id",
+          "position"
+        ],
+        "title": "RecoveryHistoryParams",
+        "type": "object"
+      },
+      "RecoveryInflightPage": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "default": "",
+            "title": "Text",
+            "type": "string"
+          },
+          "offset": {
+            "default": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "more": {
+            "default": false,
+            "title": "More",
+            "type": "boolean"
+          },
+          "reset": {
+            "default": false,
+            "title": "Reset",
+            "type": "boolean"
+          }
+        },
+        "title": "RecoveryInflightPage",
+        "type": "object"
+      },
+      "RecoveryInflightParams": {
+        "additionalProperties": false,
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Profile"
+          },
+          "execution_id": {
+            "title": "Execution Id",
+            "type": "string"
+          },
+          "field": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Field",
+            "type": "string"
+          },
+          "through": {
+            "minimum": 0,
+            "title": "Through",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Offset",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_id",
+          "execution_id",
+          "field",
+          "through"
+        ],
+        "title": "RecoveryInflightParams",
+        "type": "object"
+      },
+      "RecoveryParams": {
+        "additionalProperties": false,
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Profile"
+          },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Execution Id"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "RecoveryParams",
+        "type": "object"
+      },
+      "RecoverySnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "message_count": {
+            "title": "Message Count",
+            "type": "integer"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptMessage"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "info": {
+            "$ref": "#/components/schemas/SessionLiveInfo"
+          },
+          "stored_session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Stored Session Id"
+          },
+          "resumed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resumed"
+          },
+          "session_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Key"
+          },
+          "messages_omitted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Messages Omitted"
+          },
+          "hydrating": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Hydrating"
+          },
+          "running": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Running"
+          },
+          "turn_started_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Turn Started At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Started At"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          },
+          "inflight": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InflightTurn"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "queued": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QueuedPrompt"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "pending_approval": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PendingApproval"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "open_requests": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OpenRequestEntry"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Open Requests"
+          },
+          "pending_connection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConnectionRequestPayload"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "todo_state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TodoState"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "auto_continue": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutoContinue"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "epoch": {
+            "title": "Epoch",
+            "type": "string"
+          },
+          "latest_seq": {
+            "title": "Latest Seq",
+            "type": "integer"
+          },
+          "history": {
+            "$ref": "#/components/schemas/HistoryPosition"
+          },
+          "inflight_position": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InflightPosition"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "session_id",
+          "message_count",
+          "messages",
+          "info",
+          "epoch",
+          "latest_seq",
+          "history"
+        ],
+        "title": "RecoverySnapshot",
         "type": "object"
       },
       "RelayAgentRow": {
@@ -26076,6 +26686,18 @@
             ],
             "default": null,
             "title": "Profile"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Id"
           }
         },
         "required": [
@@ -29142,6 +29764,11 @@
             ],
             "default": null,
             "title": "Last Seen"
+          },
+          "include_events": {
+            "default": true,
+            "title": "Include Events",
+            "type": "boolean"
           }
         },
         "required": [
@@ -29525,6 +30152,18 @@
             ],
             "default": null,
             "title": "Expected Hosted Task Id"
+          },
+          "expected_execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Execution Id"
           }
         },
         "required": [
@@ -30142,6 +30781,11 @@
           "close_on_disconnect": {
             "default": false,
             "title": "Close On Disconnect",
+            "type": "boolean"
+          },
+          "observe_only": {
+            "default": false,
+            "title": "Observe Only",
             "type": "boolean"
           }
         },

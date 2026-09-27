@@ -42,6 +42,7 @@ _LATE_CONTROL_TTL_SECS = 1800.0
 _LATE_CONTROL_MAX = 64
 # Host frames whose ``request_id`` resolves a pending/late control waiter.
 _CONTROL_REPLY_TYPES = frozenset({
+    "observe.ack", "observe.error",
     "control.ack", "control.error", "respond.ack", "respond.error", "interrupt.ack",
     "reload_mcp.ack", "shutdown.ack"})
 
@@ -249,10 +250,12 @@ class HostSupervisor:
             raise
         return request_id
 
-    def interrupt(self, sid: str, *, request_id: str | None = None) -> None:
+    def interrupt(self, sid: str, *, request_id: str | None = None,
+                  expected_execution_id: str | None = None) -> None:
         self.start()
         self._send_frame(
-            {"type": "interrupt", "sid": sid, "request_id": request_id or uuid.uuid4().hex})
+            {"type": "interrupt", "sid": sid, "request_id": request_id or uuid.uuid4().hex,
+             **({"expected_execution_id": expected_execution_id} if expected_execution_id else {})})
 
     def _await_reply(self, frame: dict[str, Any], request_id: str, timeout: float) -> dict:
         """Send ``frame`` and block for the host reply carrying ``request_id``."""
@@ -272,6 +275,18 @@ class HostSupervisor:
         request_id = uuid.uuid4().hex
         frame = {"type": "respond", "sid": sid, "request_id": request_id, "params": dict(params)}
         return self._await_reply(frame, request_id, timeout)
+
+    def observe(self, sid: str, method: str, params: dict, *, timeout: float = 15.0) -> dict:
+        """Read the existing child. Observation must never start or replace compute."""
+        request_id = uuid.uuid4().hex
+        try:
+            reply = self._await_reply({"type": "observe", "sid": sid, "method": method,
+                "params": dict(params), "request_id": request_id}, request_id, timeout)
+        except queue.Empty as exc:
+            raise RuntimeError("Native execution is unavailable") from exc
+        if reply.get("type") != "observe.ack" or not isinstance(reply.get("response"), dict):
+            raise RuntimeError("Native execution is unavailable")
+        return reply["response"]
 
     def reload_mcp(self, sid: str, *, request_id: str | None = None) -> dict:
         payload = {"type": "reload_mcp", "sid": sid, "request_id": request_id or uuid.uuid4().hex}

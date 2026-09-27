@@ -2440,6 +2440,7 @@ export interface PromptSubmitParams {
   interrupted?: boolean | null
   queued?: boolean | null
   reject_if_busy?: boolean | null
+  execution_id?: string | null
   surface?: string | null
   voice_context?: string | null
   title_preview?: string | null
@@ -2593,6 +2594,7 @@ export interface RequestAnswerParams {
   id: string
   result: Record<string, unknown>
   profile?: string | null
+  session_id?: string | null
 }
 export interface RequestAnswerResult {
   status: ClarifyLockStatus
@@ -2843,6 +2845,7 @@ export interface SessionResumeParams {
   omit_messages?: boolean
   eager_build?: boolean
   close_on_disconnect?: boolean
+  observe_only?: boolean
 }
 export interface SessionResumeResult {
   session_id: string
@@ -3230,6 +3233,7 @@ export interface SessionInterruptParams {
   session_id: string
   profile?: string | null
   expected_hosted_task_id?: string | null
+  expected_execution_id?: string | null
 }
 export interface SessionInterruptResult {
   status: InterruptStatus
@@ -3303,6 +3307,7 @@ export interface SessionEventsSinceParams {
   session_id: string
   profile?: string | null
   last_seen?: number | null
+  include_events?: boolean
 }
 export interface SessionEventsSinceResult {
   events: Record<string, unknown>[]
@@ -3338,6 +3343,83 @@ export interface LlmOneshotParams {
 }
 export interface LlmOneshotResult {
   text: string
+}
+export interface RecoveryParams {
+  session_id: string
+  profile?: string | null
+  execution_id?: string | null
+}
+export interface RecoverySnapshot {
+  session_id: string
+  message_count: number
+  messages: TranscriptMessage[]
+  info: SessionLiveInfo
+  stored_session_id?: string | null
+  resumed?: string | null
+  session_key?: string | null
+  messages_omitted?: boolean | null
+  hydrating?: boolean | null
+  running?: boolean | null
+  turn_started_at?: number | null
+  started_at?: number | null
+  status?: string | null
+  inflight?: InflightTurn | null
+  queued?: QueuedPrompt | null
+  pending_approval?: PendingApproval | null
+  open_requests?: OpenRequestEntry[] | null
+  pending_connection?: ConnectionRequestPayload | null
+  todo_state?: TodoState | null
+  auto_continue?: AutoContinue | null
+  execution?: ExecutionEvidence | null
+  epoch: string
+  latest_seq: number
+  history: HistoryPosition
+  inflight_position?: InflightPosition | null
+}
+export interface ExecutionEvidence {
+  id: string
+  session_key: string
+  status: string
+  cancel_requested: boolean
+  user_row_id?: number | null
+}
+export interface HistoryPosition {
+  session_key: string
+  through_row: number
+  version: number
+}
+export interface InflightPosition {
+  execution_id: string
+  user: number
+  assistant: number
+}
+export interface RecoveryHistoryParams {
+  session_id: string
+  profile?: string | null
+  position: HistoryPosition
+  after_row?: number
+  offset?: number
+}
+export interface RecoveryHistoryPage {
+  rows: Record<string, unknown>[]
+  after_row: number
+  offset: number
+  more: boolean
+  reset?: boolean
+}
+export interface RecoveryInflightParams {
+  session_id: string
+  profile?: string | null
+  execution_id: string
+  field: 'user' | 'assistant'
+  through: number
+  offset?: number
+}
+export interface RecoveryInflightPage {
+  text?: string
+  offset?: number
+  more?: boolean
+  reset?: boolean
 }
 export interface SystemBatteryParams {
   profile?: string | null
@@ -5040,6 +5122,12 @@ export interface RpcMethods {
   'session.list': { params: SessionListParams; result: SessionListResult }
   /** Most recent human-facing session; errors fold into a null session_id. */
   'session.most_recent': { params: SessionMostRecentParams; result: SessionMostRecentResult }
+  /** Observe native state and its replay checkpoint without starting a turn. */
+  'session.recover': { params: RecoveryParams; result: RecoverySnapshot }
+  /** Read bounded transcript chunks through a recovery checkpoint's durable watermark. */
+  'session.recovery.history': { params: RecoveryHistoryParams; result: RecoveryHistoryPage }
+  /** Read an append-only prefix of the exact live execution; reset if it has settled or changed. */
+  'session.recovery.inflight': { params: RecoveryInflightParams; result: RecoveryInflightPage }
   /** Redirect the active turn (queued for the next turn while the agent is still building). */
   'session.redirect': { params: SessionCorrectionParams; result: SessionCorrectionResult }
   /** Attach to a stored session: reuse it if live here, else lazy / deferred / cold / eager rebuild. */
@@ -5332,6 +5420,9 @@ export const RPC_METHODS = [
   'session.interrupt',
   'session.list',
   'session.most_recent',
+  'session.recover',
+  'session.recovery.history',
+  'session.recovery.inflight',
   'session.redirect',
   'session.resume',
   'session.save',

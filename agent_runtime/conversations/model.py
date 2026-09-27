@@ -81,3 +81,5 @@ class TurnReceipt:
     turn_id: str
     digest: str
     state: TurnState
+    execution_id: str = ""
+    cancel_requested: bool = False

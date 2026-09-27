@@ -73,6 +73,9 @@ class ServerRequest:
 
 _lock = threading.Lock()
 _open: dict[str, ServerRequest] = {}
+from tui_gateway.answer_receipts import AnswerReceipts
+
+_answer_receipts = AnswerReceipts()  # Guarded by the pending-request owner's lock.
 
 # Frame sinks, bound by ``bind_sinks`` from server.py at import time (like the method_ctx split
 # modules): importing server back from here would pick a different module object under the test
@@ -198,7 +201,7 @@ def send_async(method: str, sid: str, params: dict, on_result: Callable[[dict | 
     return settle
 
 
-def resolve_response(frame: dict) -> bool:
+def resolve_response(frame: dict, *, session_id: str | None = None) -> bool:
     """Route one client response frame to its open request. False when nothing is waiting for that id
     (already timed out / cancelled, or owned by another process — see the compute-host bridge)."""
     rid = frame.get("id")
@@ -207,9 +210,13 @@ def resolve_response(frame: dict) -> bool:
     with _lock:
         req = _open.get(rid)
         if req is None:
+            if "error" not in frame and _answer_receipts.accepted(frame, session_id):
+                return True
             # Already settled (timed out, cancelled, answered from another surface) or owned by
             # another process; say so — a dropped answer used to vanish without a trace.
             logger.debug("server request %s: response dropped, request no longer open", rid)
+            return False
+        if session_id and req.sid != session_id:
             return False
         # Removing the request and committing its outcome are one settlement.
         # ``cancel()`` also settles under this lock, so the first side to get
@@ -230,6 +237,7 @@ def resolve_response(frame: dict) -> bool:
                     merged.update(answers)
                 req.result = {**req.result, "answers": merged}
             req.answered = True
+            _answer_receipts.remember(rid, req.sid, frame)
     if req.on_result is not None:
         req.on_result(req.result)
     req.event.set()
@@ -303,3 +311,4 @@ def reset_for_tests() -> None:
     with _lock:
         _open.clear()
         _answering_clients.clear()
+        _answer_receipts.clear()

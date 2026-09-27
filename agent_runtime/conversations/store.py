@@ -24,6 +24,11 @@ class ConversationStore:
                 conversation_id TEXT NOT NULL, turn_id TEXT NOT NULL,
                 digest TEXT NOT NULL, state TEXT NOT NULL,
                 PRIMARY KEY(conversation_id,turn_id))""")
+            columns = {row[1] for row in db.execute("PRAGMA table_info(conversation_turns)")}
+            for name, declaration in (("execution_id", "TEXT NOT NULL DEFAULT ''"),
+                                      ("cancel_requested", "INTEGER NOT NULL DEFAULT 0")):
+                if name not in columns:
+                    db.execute(f"ALTER TABLE conversation_turns ADD COLUMN {name} {declaration}")
             db.execute("""CREATE UNIQUE INDEX IF NOT EXISTS conversation_unsettled
                 ON conversation_turns(conversation_id)
                 WHERE state IN ('dispatching','running','unknown')""")
@@ -67,9 +72,11 @@ class ConversationStore:
             if db.execute("SELECT 1 FROM conversation_turns WHERE conversation_id=? AND state IN (?,?,?)",
                           (route.id, *UNSETTLED)).fetchone():
                 raise ConversationError(Refusal.BUSY)
-            db.execute("INSERT INTO conversation_turns VALUES(?,?,?,?)",
-                       (route.id, turn_id, signature, TurnState.DISPATCHING))
-        return TurnReceipt(route.id, turn_id, signature, TurnState.DISPATCHING), True
+            execution_id = "native-turn-" + digest([route.id, turn_id])
+            db.execute("""INSERT INTO conversation_turns
+                (conversation_id,turn_id,digest,state,execution_id) VALUES(?,?,?,?,?)""",
+                       (route.id, turn_id, signature, TurnState.DISPATCHING, execution_id))
+        return TurnReceipt(route.id, turn_id, signature, TurnState.DISPATCHING, execution_id), True
 
     def turn(self, route: ConversationRoute, turn_id: str) -> TurnReceipt:
         with closing(self.connect()) as db:
@@ -79,14 +86,32 @@ class ConversationStore:
             raise ConversationError(Refusal.UNAVAILABLE)
         return _receipt(row)
 
-    def settle(self, conversation_id: str, turn_id: str, state: TurnState) -> None:
+    def settle(self, conversation_id: str, turn_id: str, state: TurnState, *, authoritative=False) -> None:
         with transaction(self.connect(), immediate=True) as db:
             # A late admission reply proves neither recovery nor completion.
-            allowed = (TurnState.DISPATCHING,) if state == TurnState.RUNNING else UNSETTLED
+            allowed = (TurnState.DISPATCHING,) if state == TurnState.RUNNING and not authoritative else UNSETTLED
             slots = ",".join("?" for _ in allowed)
             db.execute(f"""UPDATE conversation_turns SET state=?
                 WHERE conversation_id=? AND turn_id=? AND state IN ({slots})""",
                        (state, conversation_id, turn_id, *allowed))
+
+    def latest(self, route: ConversationRoute) -> TurnReceipt | None:
+        with closing(self.connect()) as db:
+            row = db.execute("SELECT * FROM conversation_turns WHERE conversation_id=? ORDER BY rowid DESC LIMIT 1",
+                             (route.id,)).fetchone()
+        return _receipt(row) if row is not None else None
+
+    def execution(self, route: ConversationRoute, execution_id: str) -> TurnReceipt | None:
+        with closing(self.connect()) as db:
+            row = db.execute("SELECT * FROM conversation_turns WHERE conversation_id=? AND execution_id=?",
+                             (route.id, execution_id)).fetchone()
+        return _receipt(row) if row is not None else None
+
+    def request_cancel(self, route: ConversationRoute, turn_id: str) -> TurnReceipt:
+        with transaction(self.connect(), immediate=True) as db:
+            db.execute("""UPDATE conversation_turns SET cancel_requested=1
+                WHERE conversation_id=? AND turn_id=? AND state IN (?,?,?)""", (route.id, turn_id, *UNSETTLED))
+        return self.turn(route, turn_id)
 
     def has_turns(self, route: ConversationRoute) -> bool:
         with closing(self.connect()) as db:
@@ -121,4 +146,5 @@ class ConversationStore:
 
 
 def _receipt(row) -> TurnReceipt:
-    return TurnReceipt(row["conversation_id"], row["turn_id"], row["digest"], TurnState(row["state"]))
+    return TurnReceipt(row["conversation_id"], row["turn_id"], row["digest"], TurnState(row["state"]),
+                       row["execution_id"], bool(row["cancel_requested"]))

@@ -89,6 +89,7 @@ def test_real_profile_a_b_a_native_turns_and_persistent_sessions(tmp_path):
             assert result["turn"]["state"] == "completed", result
             terminal = [e["frame"]["params"]["payload"] for e in result["events"]
                         if e["turn_id"] == turn and e["frame"].get("params", {}).get("type") == "message.complete"]
+            assert terminal, json.dumps(result)
             assert terminal[-1]["text"] == "Local native answer"
             catalog = service.skills(scope, sid, "list")
             assert any(row["id"] == f"review-{profile}" for row in catalog["skills"])

@@ -26,9 +26,20 @@ def _send(service, scope, params):
 
 def _read_conversation(service, scope, params):
     cursor = params.get("cursor", 0)
-    if type(cursor) is not int or cursor < 0:
+    offset = params.get("offset", 0)
+    if type(cursor) is not int or cursor < 0 or type(offset) is not int or offset < 0:
         raise ConversationError(Refusal.INVALID_REQUEST)
-    return service.read(scope, identifier(params["session_id"]), cursor, params.get("turn_id"))
+    return service.read(scope, identifier(params["session_id"]), cursor, params.get("turn_id"),
+                        epoch=params.get("epoch"), offset=offset)
+
+
+def _history(service, scope, params):
+    return service.history(scope, identifier(params["session_id"]), params["position"],
+                           params.get("after_row", 0), params.get("offset", 0))
+
+
+def _inflight(service, scope, params):
+    return service.inflight(scope, identifier(params["session_id"]), params)
 
 
 def _stop(service, scope, params):
@@ -55,6 +66,7 @@ def _skills(action, service, scope, params):
 
 
 OPERATIONS = {"open": _open, "send": _send, "read": _read_conversation, "stop": _stop,
+              "history": _history, "inflight": _inflight,
               "respond": _respond, "facts": _facts, "model": _model,
               **{"skills." + action: partial(_skills, action) for action in ("list", "detail", "history")}}
 
@@ -86,7 +98,7 @@ def register(method, ok, err) -> None:
                     logger.warning("Native conversation operation failed: %s", operation)
                     return err(rid, -32000, "The conversation could not be verified.",
                                {"reason": Refusal.UNKNOWN})
-            if operation in {"capabilities", "read", "stop", "respond"}:
+            if operation == "capabilities":
                 return run()
             if context.spawn_reply is None or not context.spawn_reply(run):
                 return err(rid, 4090, "The runtime cannot accept this request.",

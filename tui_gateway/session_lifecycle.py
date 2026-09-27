@@ -16,8 +16,9 @@ from .method_ctx import bind_module
 def _session_turn_admission(session: dict):
     """Hold process admission until the history-locked running claim is visible to idle probes."""
     from hermes_cli.backend_retirement import retirement
+    from tui_gateway.session_execution import control
 
-    with retirement.work() as admitted, session["history_lock"]:
+    with retirement.work() as admitted, control(session), session["history_lock"]:
         yield admitted
 
 
@@ -587,7 +588,8 @@ def _ws_session_is_orphaned(session: dict | None) -> bool:
     return bool(_ws_session_is_detached(session) and not session.get("running"))
 
 
-def _interrupt_session_turn(sid: str, session: dict, *, request_id: str | None = None) -> bool:
+def _interrupt_session_turn(sid: str, session: dict, *, request_id: str | None = None,
+                            expected_execution_id: str | None = None) -> bool:
     """Apply the shared ``session.interrupt`` contract to one claimed session; returns whether the compute-host control
     channel was used. The WS orphan reaper reuses this so a dead client gets the same partial-history/queue semantics."""
     use_compute_host = _session_uses_compute_host(session)
@@ -597,7 +599,8 @@ def _interrupt_session_turn(sid: str, session: dict, *, request_id: str | None =
         # The host owns the live turn (parent `running` can lag a blocked tool), so let it decide. Gate on
         # `_compute_host_active`: HostSupervisor.interrupt() calls start(), so a lazy session would spawn a child to interrupt.
         if should_interrupt or session.get("_compute_host_active"):
-            _get_compute_host_supervisor().interrupt(sid, request_id=request_id)
+            _get_compute_host_supervisor().interrupt(sid, request_id=request_id,
+                **({"expected_execution_id": expected_execution_id} if expected_execution_id else {}))
     else:
         run_thread_alive = (rt := session.get("_run_thread")) is not None and rt.is_alive()
     with session["history_lock"]:

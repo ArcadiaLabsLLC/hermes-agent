@@ -74,8 +74,8 @@ def _stamp_event(obj: dict) -> None:
             while len(_replay_buffers) > _REPLAY_SESSIONS_MAX:
                 oldest_sid, oldest_buf = _replay_buffers.popitem(last=False)
                 _replay_total_bytes -= _replay_buffer_bytes.pop(oldest_sid, 0)
-                _replay_next_seq.pop(oldest_sid, None)
-                _replay_evicted_through.pop(oldest_sid, None)
+                # Cache eviction is not session retirement or a new sequence epoch.
+                _replay_evicted_through[oldest_sid] = _replay_next_seq[oldest_sid]
         if size > _REPLAY_BUFFER_BYTES_MAX or size > _REPLAY_PROCESS_BYTES_MAX:
             _replay_evicted_through[sid] = seq
             return
@@ -130,6 +130,25 @@ def reset_replay_state() -> None:
         _replay_evicted_through.clear()
         _replay_next_seq.clear()
         _replay_total_bytes = 0
+
+
+def forget_session(sid: str) -> None:
+    """The session owner calls this only after retirement; live counters outlast rings."""
+    with _replay_lock:
+        global _replay_total_bytes
+        _replay_buffers.pop(sid, None)
+        _replay_total_bytes -= _replay_buffer_bytes.pop(sid, 0)
+        _replay_next_seq.pop(sid, None)
+        _replay_evicted_through.pop(sid, None)
+
+
+def checkpoint(sid: str, last_seen: int, *, include_events: bool = True) -> dict:
+    """Read one replay position and page under the same lock."""
+    with _replay_lock:
+        events = [event for seq, event, _ in _replay_buffers.get(sid, ()) if seq > last_seen] if include_events else []
+        return {"events": events, "latest_seq": _replay_next_seq.get(sid, 0),
+                "epoch": _REPLAY_EPOCH,
+                "truncated": last_seen < _replay_evicted_through.get(sid, 0)}
 
 
 def replay_stats() -> dict:

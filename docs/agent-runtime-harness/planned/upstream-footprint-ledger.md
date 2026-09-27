@@ -159,6 +159,20 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 | `tui_gateway/server.py` | 1 | 1 | upstream | KEPT (lane MECH 2026-09-24): the REVERT re-reds tests/test_coverage_claims_resolve.py - base's docstring names `test_generated.py::test_every_method_has_a_contract`, which upstream deleted too (NAMED arm). PR candidate: upstream's own stale test name | S3 |
 | `utils.py` | 4 | 4 | upstream | PR candidate: `newline=` passthrough on `atomic_write_text`/`_atomic_write` (3 fork callers). `_replace_with_windows_contention_retry` retired (lane MECH; upstream dcbe175423) | S3 |
 
+## Native recovery repair seams — 2026-09-26
+
+Owner-approved repairs, held for upstream rather than copied into a fork-side
+state manager. [Scope and positive controls](../../downstream/native-recovery-repairs-2026-09-26.md).
+
+| Native owner | Held repair |
+|---|---|
+| `compute_host_bridge.py`, `compute_host.py`, `methods_prompt.py`, `contracts/prompt_voice.py` | End-to-end answer acknowledgement and exact-session retries; preserve pending questions on uncertain delivery. |
+| `server_requests.py`, `answer_receipts.py` | Bounded native acceptance receipts for lost replies; no persisted answers or secrets. |
+| `event_replay.py` | Preserve live sequence identity across cache eviction; coherent replay reads; owner-driven retirement cleanup. |
+| `session_execution.py`, `session_lifecycle.py`, `prompt_turn.py`, `server.py`, `contracts/prompt_voice.py`, `contracts/sessions.py` | Native execution receipt, submit/event identity and fenced interruption; existing native SessionDB owns evidence. |
+| `session_recovery.py`, `contracts/recovery.py`, `contracts/__init__.py`, `methods_session.py`, `session_auto_continue.py` | Observation-only recovery and bounded live-prefix reads; no automatic dispatch on resume. |
+| `host_supervisor.py`, `compute_host.py` | Route observation to the actual compute owner without starting a replacement. |
+
 ## Stock files a fork module reads by private name (no diff row, recorded here)
 
 A file that is byte-identical to upstream has no row above; these fork modules

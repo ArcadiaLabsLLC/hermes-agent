@@ -60,6 +60,7 @@ _CONTROL_FAILURES = {
 class ComputeHost:
     # frame ``type`` -> handler method name (resolved per call so monkeypatches take effect).
     _FRAME_HANDLERS: dict[str, str] = {
+        "observe": "_handle_observe",
         "turn.start": "_handle_turn_start", "interrupt": "_handle_interrupt",
         "respond": "_handle_respond", "reload_mcp": "_handle_reload_mcp",
         "control": "_handle_control", "shutdown": "_handle_shutdown"}
@@ -194,6 +195,11 @@ class ComputeHost:
             if session is None:
                 self._reply("interrupt.ack", sid, request_id, applied=False)
                 return
+            if expected := frame.get("expected_execution_id"):
+                from tui_gateway.session_execution import interrupt
+                applied = interrupt(sid, session, expected)
+                self._reply("interrupt.ack", sid, request_id, applied=applied, applied_ns=now_ns())
+                return
             # In the child the shared helper interrupts the local agent and releases this
             # process's pending clarify Event (the parent only has a metadata mirror).
             server._interrupt_session_turn(sid, session)
@@ -216,10 +222,20 @@ class ComputeHost:
                 response = server._methods["clarify.lock"](request_id, params["lock"])
             else:
                 response_frame = params.get("frame") if isinstance(params.get("frame"), dict) else params
-                resolved = server_requests.resolve_response(response_frame)
+                resolved = server_requests.resolve_response(response_frame, session_id=sid)
                 response = {"jsonrpc": "2.0", "id": request_id, "result": {"status": "ok" if resolved else "expired"}}
             self._reply("respond.ack", sid, request_id, response=response)
         self._guarded(frame, "respond.error", body)
+
+    def _handle_observe(self, frame: dict[str, Any]) -> None:
+        def body(server, sid, request_id):
+            method = frame.get("method")
+            if method not in {"session.recover", "session.recovery.history", "session.recovery.inflight", "session.events.since"}:
+                raise ValueError("Unsupported observation")
+            response = server.handle_request({"jsonrpc": "2.0", "id": request_id,
+                "method": method, "params": {**(frame.get("params") or {}), "session_id": sid}})
+            self._reply("observe.ack", sid, request_id, response=response)
+        self._guarded(frame, "observe.error", body)
 
     def _run_real_turn(self, frame: dict[str, Any]) -> None:
         sid = str(frame.get("sid") or "")
@@ -238,7 +254,8 @@ class ComputeHost:
             server._install_borrowed_lease(sid, session, frame)
             text = frame["text"] if "text" in frame else frame.get("prompt", "")
             inflight = frame["text"] if "text" in frame else frame.get("prompt")
-            with session["history_lock"]:
+            from tui_gateway.session_execution import adopt, control
+            with control(session), session["history_lock"]:
                 queued_gen = frame.get("queued_prompt_generation")
                 current_gen = int(session.get("_queued_prompt_generation", 0))
                 if queued_gen is not None and current_gen != int(queued_gen):
@@ -247,10 +264,21 @@ class ComputeHost:
                 if session.get("running"):
                     self._reply("turn.error", sid, request_id, message="session busy")
                     return
+                if not adopt(session, frame.get("native_execution")):
+                    server._emit("message.complete", sid, {"text": "", "status": "interrupted"})
+                    self._reply("turn.end", sid, request_id, interrupted=True, ended_ns=now_ns())
+                    return
                 session.update(running=True, _turn_cancel_requested=False, last_active=time.time())
                 server._start_inflight_turn(session, inflight)
                 turn_started_at = time.time()
             self._reply("turn.started", sid, request_id, started_ns=now_ns())
+            if session.get("native_execution"):
+                refusal = server._persist_session_row_for_submit(request_id, session, text, frame.get("display_kind"))
+                if refusal is not None:
+                    message = refusal["error"]["message"]
+                    server._emit("message.complete", sid, {"text": message, "status": "error"})
+                    self._reply("turn.error", sid, request_id, message=message)
+                    return
             with contextlib.suppress(Exception):
                 server._ensure_session_db_row(session)
             with contextlib.suppress(Exception):
@@ -383,7 +411,7 @@ class ComputeHost:
             # minimal host-owned session rather than failing after the expensive agent build.
             server._sessions[sid] = {
                 "agent": agent, "session_key": key, "history": list(history),
-                "history_lock": threading.Lock(),
+                "history_lock": threading.RLock(),
                 "history_version": int(frame.get("history_version") or 0), "inflight_turn": None,
                 "created_at": time.time(), "last_active": time.time(), "running": False,
                 "attached_images": [], "image_counter": 0,

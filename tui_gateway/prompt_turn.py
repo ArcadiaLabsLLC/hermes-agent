@@ -138,6 +138,10 @@ def _admit_prompt_turn(
             session["running"] = False
             session.pop("_submit_user_row", None)
             return None
+        if (session.get("native_execution") or {}).get("cancel_requested"):
+            session["running"] = False
+            _emit("message.complete", sid, {"text": "", "status": "interrupted"})
+            return None
         images = list(session.get("attached_images", []) if image_paths is None else image_paths)
         if image_paths is None:
             session["attached_images"] = []
@@ -640,14 +644,16 @@ def _invoke_agent(
                 hold["held"] += delta
                 return
             delta, hold["held"] = hold["held"] + delta, ""
-        with session["history_lock"]:
-            _append_inflight_delta(session, delta)
-        payload = {"text": delta}
-        if streamer and (r := streamer.feed(delta)) is not None:
-            payload["rendered"] = r
-        if st.tts_queue is not None and isinstance(delta, str):
-            st.tts_queue.put(delta)
-        _emit("message.delta", sid, payload)
+        from tui_gateway.session_execution import checkpoint_guard
+        with checkpoint_guard(session):
+            with session["history_lock"]:
+                _append_inflight_delta(session, delta)
+            payload = {"text": delta}
+            if streamer and (r := streamer.feed(delta)) is not None:
+                payload["rendered"] = r
+            if st.tts_queue is not None and isinstance(delta, str):
+                st.tts_queue.put(delta)
+            _emit("message.delta", sid, payload)
 
     # Interim assistant text (commentary beside tool calls, pre-nudge final answer) is sealed
     # by the desktop as its own segment instead of being lost to message.complete.
@@ -1036,7 +1042,8 @@ def _run_prompt_submit(
         st = _TurnRun(
             session["agent"], session.pop("one_turn_model_restore", None), terminal_callback,
             receipt_committed=terminal_callback is None)
-        st.marker_key = _record_turn_marker(session, text, auto_continue=terminal_callback is None,
+        st.marker_key = _record_turn_marker(session, text,
+            auto_continue=terminal_callback is None and not session.get("native_execution"),
             notification_category=(display_metadata or {}).get("notification_category"))
         goal_followup = None
         try:
@@ -1052,10 +1059,12 @@ def _run_prompt_submit(
             _invoke_agent(
                 sid, session, st, prompt, run_message, streamer, images, display_kind,
                 display_metadata, turn_author, text)
-            status_note = _absorb_turn_result(
-                sid, session, st, text, display_kind, display_metadata)
-            payload, raw, status = _complete_turn_payload(session, st, status_note, cols)
-            _emit("message.complete", sid, payload)
+            from tui_gateway.session_execution import checkpoint_guard
+            with checkpoint_guard(session):
+                status_note = _absorb_turn_result(
+                    sid, session, st, text, display_kind, display_metadata)
+                payload, raw, status = _complete_turn_payload(session, st, status_note, cols)
+                _emit("message.complete", sid, payload)
             goal_followup = _goal_followup_after_turn(sid, session, st.result, status, raw)
             if status == "complete":
                 _after_complete_turn(sid, session, st, raw)
@@ -1063,7 +1072,9 @@ def _run_prompt_submit(
             # structured control snapshot now so the Desktop card never paints the pre-judge turn count.
             _publish_session_control_snapshot(sid, session, only_if_present=True)
         except Exception as e:
-            _recover_turn_exception(sid, session, st, e)
+            from tui_gateway.session_execution import checkpoint_guard
+            with checkpoint_guard(session):
+                _recover_turn_exception(sid, session, st, e)
         finally:
             _finish_turn(sid, session, st)
             _current_runtime_session_record.reset(runtime_session_token)

@@ -387,7 +387,7 @@ def _create_session(rid, params: dict, *, copy_parent_history: bool = False) -> 
             "active_session_lease": None,  # claimed lazily on the first turn (_ensure_active_session_slot)
             "cols": int(params.get("cols", 80)), "created_at": now, "edit_snapshots": {},
             "explicit_cwd": explicit_cwd,
-            "history": history, "history_lock": threading.Lock(), "history_version": 0, "image_counter": 0,
+            "history": history, "history_lock": threading.RLock(), "history_version": 0, "image_counter": 0,
             "seeded": bool(history),  # gates _persist_branch_seed: only create-time history is unpersisted
             "cwd": _completion_cwd(params), "inflight_turn": None, "last_active": now,
             "model_override": session_model_override,
@@ -572,7 +572,7 @@ class _Resume:
         # ``profile`` (app-global remote mode): resume from another local profile's state.db.
         self.profile = (params.get("profile") or "").strip() or None
         self.profile_home = _profile_home(self.profile)
-        self.lazy, self.defer_history = _flag(params, "lazy"), _flag(params, "defer_history")
+        self.lazy, self.defer_history = _flag(params, "lazy") or _flag(params, "observe_only"), _flag(params, "defer_history")
         # Desktop hydrates over REST; suppress the duplicate WS copy only when asked.
         self.omit_messages, self.eager_build = _flag(params, "omit_messages"), _flag(params, "eager_build")
 
@@ -596,6 +596,7 @@ class _Resume:
             self.target, cols=self.cols, cwd=cwd, history=history, lease=None, source=source,
             close_on_disconnect=_flag(self.params, "close_on_disconnect"),
             profile_home=self.profile_home, explicit_cwd=bool(self.profile_resume_cwd), **extra)
+        record["observe_only"] = _flag(self.params, "observe_only")
         if follows_profile:
             record.update(
                 follow_profile_config=True,
@@ -810,9 +811,11 @@ def _resume_lazy(ctx: _Resume) -> dict:
     inside the parent's turn, so the window needs stored history + a transport; prompt.submit upgrades it."""
     sid, source, cwd = ctx.mint(prompts=False)
     try:
-        ctx.db.reopen_session(ctx.target)
+        observing = _flag(ctx.params, "observe_only")
+        if not observing:
+            ctx.db.reopen_session(ctx.target)
         # repair_alternation heals a durable ``user;user`` once here.
-        history = ctx.child_history(repair=True)
+        history = ctx.child_history(repair=not observing)
     except Exception as e:
         return _err(ctx.rid, 5000, resume_failed_message(e))
     record = ctx.record(source, cwd, history, lazy=True, todo_state=_todo_state_from_history(history))
@@ -2145,10 +2148,14 @@ def _(rid, params: dict, session: dict) -> dict:
 # ── interrupt / steer / redirect ─────────────────────────────────────
 @method("session.interrupt")
 def _(rid, params: dict) -> dict:
-    _tts_stream_stop()  # keypress barge-in also silences streaming TTS (voice is process-global)
     session, err = _sess_nowait(params, rid)
     if err:
         return err
+    if expected := _str_param(params, "expected_execution_id"):
+        from tui_gateway.session_execution import interrupt
+        applied = interrupt(str(params.get("session_id") or ""), session, expected)
+        return _ok(rid, {"status": "interrupted" if applied else "not_interrupted", "interrupted": applied})
+    _tts_stream_stop()  # Legacy keypress barge-in; an execution-fenced Stop is session-local.
     if expected := _str_param(params, "expected_hosted_task_id"):
         with session["history_lock"]:
             task = session.get("_hosted_room_task")
@@ -2347,17 +2354,23 @@ def _(rid, params: dict, session: dict) -> dict:
 def _(rid, params: dict) -> dict:
     """Replay events after ``last_seen`` (WS reconnect); ``truncated`` past the ring window → client refetches."""
     sid = str(params.get("session_id") or "")
+    session = _sessions.get(sid)
+    if session and session.get("_compute_host_active") and _session_uses_compute_host(session):
+        try:
+            reply = _get_compute_host_supervisor().observe(sid, "session.events.since", params)
+            return {**reply, "id": rid}
+        except RuntimeError:
+            return _err(rid, 5019, "Native execution is unavailable")
     try:
         last_seen = int(params.get("last_seen", 0))
     except (TypeError, ValueError):
         return _err(rid, -32602, "invalid params: last_seen must be an integer")
     from tui_gateway import event_replay as er
-    frames = er.events_since(sid, last_seen)
+    page = er.checkpoint(sid, last_seen, include_events=params.get("include_events", True))
     # ``epoch``: in-process seq — clients reset watermarks when this differs from gateway.ready's.
     # ``open_requests``: server→client requests still unanswered — the ring cannot carry "a question still
     # waiting", so the reconnecting client re-delivers these to its request handlers.
-    return _ok(rid, {"events": frames, "latest_seq": er.latest_seq(sid), "truncated": er.is_truncated(sid, last_seen),
-                     "count": len(frames), "epoch": er.replay_epoch(), "open_requests": _open_requests(sid)})
+    return _ok(rid, {**page, "count": len(page["events"]), "open_requests": _open_requests(sid)})
 
 
 @method("session.events.stats")

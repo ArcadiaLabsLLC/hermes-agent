@@ -637,6 +637,11 @@ def _default_session_cwd() -> str:
 
 
 def write_json(obj: dict) -> bool:
+    from tui_gateway.session_execution import publish
+    return publish(_sessions, obj, _write_json_frame)
+
+
+def _write_json_frame(obj: dict) -> bool:
     """Emit one JSON frame via the most-specific transport: (1) event frames with a session id → that
     session's transport (async events reach the owner even from threads with no contextvar binding);
     (2) the context-bound transport (:func:`dispatch`); (3) module stdio (tests monkey-patch ``_real_stdout``).
@@ -2559,7 +2564,7 @@ def _init_session(
     now = time.time()
     with _sessions_lock:
         _sessions[sid] = {
-            "agent": agent, "session_key": key, "history": history, "history_lock": threading.Lock(),
+            "agent": agent, "session_key": key, "history": history, "history_lock": threading.RLock(),
             "history_version": 0, "inflight_turn": None, "created_at": now, "last_active": now,
             "running": False, "attached_images": [], "image_counter": 0, "cwd": cwd or _completion_cwd(),
             "explicit_cwd": bool(explicit_cwd), "cols": cols, "slash_worker": None,
@@ -2628,7 +2633,7 @@ def _deferred_session_record(
         "close_on_disconnect": close_on_disconnect, "active_session_lease": lease, "cols": cols,
         "created_at": now, "cwd": cwd, "display_history_prefix": display_history_prefix or [],
         "edit_snapshots": {}, "explicit_cwd": bool(explicit_cwd), "history": history,
-        "history_lock": threading.Lock(), "history_version": 0, "image_counter": 0,
+        "history_lock": threading.RLock(), "history_version": 0, "image_counter": 0,
         "inflight_turn": None, "last_active": now, "lazy": lazy, "model_override": model_override,
         "pending_title": None,
         "profile_home": str(profile_home) if profile_home is not None else None,
@@ -3433,3 +3438,6 @@ for _m in (
     _methods_connectors_account, _methods_display, _methods_display_watch, _methods_onboarding):
     _m.register(sys.modules[__name__])
 del _m
+
+from . import session_recovery as _session_recovery  # noqa: E402
+_session_recovery.register(sys.modules[__name__])

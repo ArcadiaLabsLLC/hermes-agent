@@ -11,7 +11,7 @@ from pathlib import Path
 
 from . import session_facts
 from .live import LiveConversation
-from .model import (ConversationError, ConversationScope, Refusal, TurnState,
+from .model import (UNSETTLED, ConversationError, ConversationScope, Refusal, TurnState,
                     identifier)
 from .store import ConversationStore
 from .worker import start_worker
@@ -29,14 +29,14 @@ class ConversationService:
         self.store.recover()
         self.profile_home = profile_home
         self._lock = threading.RLock()
-        self._opening: dict[str, threading.Lock] = {}
+        self._opening = tuple(threading.Lock() for _ in range(64))
         self._workers = Workers(worker_factory, self._receive, self._lost)
         self._live: dict[str, LiveConversation] = {}
         self._sessions: dict[tuple[str, str], LiveConversation] = {}
         self._draining = False
 
     def capabilities(self) -> dict:
-        return {"version": 1, "install_id": self.install_id, "accepting": not self._draining,
+        return {"version": 2, "install_id": self.install_id, "accepting": not self._draining,
                 "execution_identity_guard": True,
                 "images": True, "models": True, "skills": True,
                 "independent_sessions": True, "disconnect_keeps_work": True}
@@ -53,7 +53,7 @@ class ConversationService:
             self._admit()
             route, created = (self.store.get(resume, scope), False) if resume else self.store.reserve(
                 scope, identifier(key), str(directory.resolve()), str(home))
-            opening = self._opening.setdefault(route.id, threading.Lock())
+            opening = self._opening[hash(route.id) % len(self._opening)]
         with opening:
             if (route.cwd, route.home) != (str(directory.resolve()), str(home)):
                 raise ConversationError(Refusal.WRONG_OWNER)
@@ -61,11 +61,12 @@ class ConversationService:
             if live is None or not live.peer.alive:
                 live = self._attach(route, home, created=created)
             return {"session_id": route.id, "install_id": self.install_id,
-                    "facts": self.facts(scope, route.id), **live.snapshot(0)}
+                    "facts": self.facts(scope, route.id), **live.recover()}
 
     def _attach(self, route, home: Path, *, created: bool) -> LiveConversation:
-        if any(turn.conversation_id == route.id for turn in self.store.unsettled()):
-            # A dead worker cannot be made safe by silently replaying/resuming.
+        if (any(turn.conversation_id == route.id for turn in self.store.unsettled()) and
+                execution_possible(route.worker_pid, route.worker_created)):
+            # A still-live owner cannot be replaced by another profile worker.
             raise ConversationError(Refusal.UNKNOWN)
         # Native sessions intentionally acquire durable history on first send.
         # A lost, provably unused session can be recreated without replaying work.
@@ -73,7 +74,7 @@ class ConversationService:
         worker = self._workers.get(route.profile, home)
         peer = worker.peer
         params = ({"cwd": route.cwd, "source": "eternia_intelligence"} if created else
-                  {"session_id": route.native_id, "lazy": True, "omit_messages": True,
+                  {"session_id": route.native_id, "observe_only": True, "omit_messages": True,
                    "source": "eternia_intelligence"})
         result = peer.call("session.create" if created else "session.resume", params)
         native_id = identifier(result["session_id"])
@@ -127,9 +128,8 @@ class ConversationService:
                     raise ConversationError(Refusal.WORKER_LOST)
                 receipt, admitted = self.store.admit(live.route, identifier(turn_id), prompt)
             if admitted:
-                live.start(turn_id)
                 try:
-                    submit(live.peer, live.native_id, prompt)
+                    submit(live.peer, live.native_id, prompt, receipt.execution_id)
                     live.dispatched(turn_id)
                     self.store.settle(session_id, turn_id, TurnState.RUNNING)
                 except ConversationError as exc:
@@ -140,23 +140,33 @@ class ConversationService:
             return {"turn_id": turn_id, "state": receipt.state}
 
     def read(self, scope: ConversationScope, session_id: str, cursor: int,
-             turn_id: str | None = None) -> dict:
+             turn_id: str | None = None, *, epoch: str | None = None, offset: int = 0) -> dict:
         live = self._session(scope, session_id)
-        return live.snapshot(cursor, turn_id)
+        return live.snapshot(cursor, turn_id, epoch=epoch, offset=offset)
+
+    def history(self, scope: ConversationScope, session_id: str, position: dict,
+                after_row: int, offset: int) -> dict:
+        live = self._session(scope, session_id)
+        return live.peer.call("session.recovery.history", {"session_id": live.native_id,
+            "position": position, "after_row": after_row, "offset": offset})
+
+    def inflight(self, scope: ConversationScope, session_id: str, params: dict) -> dict:
+        live = self._session(scope, session_id)
+        return live.peer.call("session.recovery.inflight", {"session_id": live.native_id,
+            **{key: params[key] for key in ("execution_id", "field", "through", "offset")}})
 
     def stop(self, scope: ConversationScope, session_id: str, turn_id: str) -> dict:
         live = self._session(scope, session_id)
         receipt = self.store.turn(live.route, turn_id)
-        if receipt.state in (TurnState.DISPATCHING, TurnState.RUNNING):
+        if receipt.state in UNSETTLED:
             live.stop(turn_id)
         # Never wait behind provider admission to request Stop. Native completion
         # alone settles it; a transport write is not confirmation.
-        return {"turn_id": turn_id, "state": self.store.turn(live.route, turn_id).state}
+        return live.receipt(turn_id)["turn"]
 
     def respond(self, scope: ConversationScope, session_id: str, request_id: str, result: dict) -> dict:
         live = self._session(scope, session_id)
-        live.answer(identifier(request_id), result)
-        return {"accepted": True}
+        return {"accepted": live.answer(identifier(request_id), result)}
 
     def facts(self, scope: ConversationScope, session_id: str) -> dict:
         live = self._session(scope, session_id)

@@ -70,6 +70,7 @@ def _compute_host_turn_frame(
         "source": _session_source(session), "attached_images": attached_images,
         "auth_user_id": _session_auth_user_id(session),
         "queued_prompt_generation": queued_prompt_generation,
+        "native_execution": session.get("native_execution"),
         # #101416: vouch that this process already holds the registry lease for this session, so
         # the child adopts it as an inert token instead of re-claiming and being fenced out by
         # our own entry ("Session ... already has a live owner"). No lease held = no vouch, and
@@ -174,17 +175,37 @@ def _compute_host_request_session(request_id: str) -> tuple[str, dict] | None:
 def _relay_compute_host_response(frame: dict) -> bool:
     """Forward a client's response frame to the compute-host child that owns the request. False when no
     child owns that id."""
-    located = _compute_host_request_session(str(frame.get("id") or ""))
-    if located is None or not _session_uses_compute_host(located[1]):
-        return False
-    sid, session = located
-    with _history_lock(session):
-        session.pop("_compute_host_open_request", None)
     try:
-        _get_compute_host_supervisor().respond(sid, {"frame": dict(frame)})
-    except Exception:
+        response = _answer_compute_host_request(frame)
+    except (RuntimeError, ValueError):
+        return False
+    return response is not None and response.get("status") == "ok"
+
+
+def _answer_compute_host_request(frame: dict, session_id: str = "") -> dict | None:
+    """Only the child can acknowledge its pending request. A timeout leaves it reconcilable."""
+    located = _compute_host_request_session(str(frame.get("id") or ""))
+    if session_id:
+        if located is not None and located[0] != session_id:
+            return {"status": "expired"}
+        if located is None and (session := _sessions.get(session_id)) is not None:
+            located = session_id, session
+    if located is None or not _session_uses_compute_host(located[1]):
+        return None
+    sid, session = located
+    try:
+        ack = _get_compute_host_supervisor().respond(sid, {"frame": dict(frame)})
+    except Exception as exc:
         logger.debug("compute-host response relay failed sid=%s", sid, exc_info=True)
-    return True
+        raise RuntimeError("Answer acknowledgement unavailable") from exc
+    response = ack.get("response") or {}
+    result = response.get("result") or {}
+    if ack.get("type") != "respond.ack" or result.get("status") not in ("ok", "expired"):
+        raise RuntimeError("Answer acknowledgement unavailable")
+    with _history_lock(session):
+        if _open_request_matches(session, frame.get("id")):
+            session.pop("_compute_host_open_request", None)
+    return result
 
 
 def _lock_compute_host_clarify(rid: str, request_id: str, question_id: str, answer: str) -> dict | None:

@@ -178,6 +178,7 @@ class SessionResumeParams(SessionParams):
     omit_messages: bool = False
     eager_build: bool = False
     close_on_disconnect: bool = False
+    observe_only: bool = False
 
 
 class SessionResumeResult(LiveSessionSnapshot):
@@ -553,6 +554,7 @@ method("session.compress", params=SessionCompressParams, result=SessionCompressR
 
 class SessionInterruptParams(SessionParams):
     expected_hosted_task_id: str | None = None  # only interrupt if this hosted task is the running one
+    expected_execution_id: str | None = None
 
 
 class InterruptStatus(WireEnum):
@@ -672,6 +674,7 @@ method("terminal.resize", params=TerminalResizeParams, result=TerminalResizeResu
 
 class SessionEventsSinceParams(SessionParams):
     last_seen: int | None = None
+    include_events: bool = True
 
 
 class SessionEventsSinceResult(Result):

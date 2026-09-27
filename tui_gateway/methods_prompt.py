@@ -460,6 +460,8 @@ def _persist_session_row_for_submit(rid, session, text=None, display_kind=None):
         else:
             _persist_branch_seed(session)
             _persist_submit_user_row(session, text, display_kind)
+            from tui_gateway.session_execution import submitted
+            submitted(session)
             return None
     except Exception as exc:
         failure = describe_storage_failure(exc)
@@ -548,6 +550,11 @@ def _lock_in_submit_turn(
                 rid, sid, session, params, requested_rebind_ids)
             if err is not None:
                 return err, {}
+        from tui_gateway.session_execution import admit
+        try:
+            admit(session, params.get("execution_id"))
+        except (ValueError, RuntimeError) as exc:
+            return _err(rid, 4091, str(exc)), {}
         session["running"] = True
         session["_turn_cancel_requested"] = False
         session["last_active"] = time.time()
@@ -1045,8 +1052,16 @@ def _(rid, params: dict) -> dict:
         return _err(rid, 4002, "id and an object result required")
     from tui_gateway import server_requests
     frame = {"jsonrpc": "2.0", "id": request_id, "result": result}
-    if server_requests.resolve_response(frame) or _relay_compute_host_response(frame):
-        return _ok(rid, {"status": "ok"})
+    try:
+        session_id = str(params.get("session_id") or "")
+        if server_requests.resolve_response(frame, session_id=session_id):
+            return _ok(rid, {"status": "ok"})
+        if (result := _answer_compute_host_request(frame, session_id)) is not None:
+            return _ok(rid, result)
+    except ValueError:
+        return _err(rid, 4002, "This question was already answered differently.")
+    except RuntimeError:
+        return _err(rid, 5019, "Answer acknowledgement unavailable; reconnect to check the question.")
     return _ok(rid, {"status": "expired"})
 
 

@@ -87,7 +87,10 @@ def test_stop_during_admission_waits_for_exact_native_terminal(runtime):
         finally:
             release.set()
         assert sending.result()["state"] == "running"
-    assert [frame["method"] for frame in worker.writes] == ["session.interrupt", "session.interrupt"]
+    stops = [params for method, params in worker.calls if method == "session.interrupt"]
+    assert len(stops) == 2
+    assert stops[0] == stops[1]
+    assert stops[0]["expected_execution_id"] == worker.executions["native-0"]["id"]
     worker.event("native-other", "message.complete", status="interrupted")
     assert service.read(scope, sid, 0, "turn")["turn"]["state"] == "running"
     worker.event("native-0", "message.complete", status="interrupted")
@@ -153,3 +156,46 @@ def test_models_are_session_scoped_and_drain_holds_active_work(runtime):
     factory.workers[0].event("native-0", "message.complete", status="complete", text="done")
     assert service.drain_pending(close_idle=True) == []
     assert factory.workers[0].closed
+
+
+def test_uncertain_stop_survives_lost_ack_and_completion_wins(runtime):
+    service, factory, _ = runtime
+    scope, sid = opened(runtime)
+    service.send(scope, sid, "turn", PROMPT)
+    service.store.settle(sid, "turn", TurnState.UNKNOWN)
+    worker = factory.workers[0]
+    original = worker.call
+    dropped = False
+
+    def lose_first_ack(method, params, **kwargs):
+        nonlocal dropped
+        result = original(method, params, **kwargs)
+        if method == "session.interrupt" and not dropped:
+            from agent_runtime.conversations.model import Refusal
+            dropped = True
+            raise ConversationError(Refusal.UNKNOWN)
+        return result
+
+    worker.call = lose_first_ack
+    with pytest.raises(ConversationError):
+        service.stop(scope, sid, "turn")
+    read = service.read(scope, sid, 0, "turn")
+    assert read["turn"]["state"] == "unknown"
+    assert read["turn"]["cancel_requested"]
+    stops = [p for m, p in worker.calls if m == "session.interrupt"]
+    assert len(stops) == 2 and stops[0] == stops[1]
+    worker.event("native-0", "message.complete", status="complete", text="won the race")
+    assert service.stop(scope, sid, "turn")["state"] == "completed"
+    assert len([m for m, _ in worker.calls if m == "prompt.submit"]) == 1
+
+
+def test_reopening_restores_native_evidence_without_dispatch(runtime):
+    service, factory, root = runtime
+    scope, sid = opened(runtime)
+    service.send(scope, sid, "turn", PROMPT)
+    service.store.settle(sid, "turn", TurnState.UNKNOWN)
+    result = service.open(scope, key="thread", cwd=str(root / "work"),
+                          expected_home=str(root / "a"), resume=sid)
+    assert result["turn"]["state"] == "running"
+    assert result["recovery"]["execution"]["id"] == result["turn"]["execution_id"]
+    assert len([m for m, _ in factory.workers[0].calls if m == "prompt.submit"]) == 1
