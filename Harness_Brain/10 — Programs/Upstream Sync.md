@@ -121,7 +121,7 @@ CONTRIBUTING pass 2026-09-26 DONE (lane HELD-TESTS + orchestrator): the 11 templ
 
 Review replies 2026-09-27: #121642 P1 (durable Nous inference URL must heal/refuse at load_pool, restart-path regression), #121225 (dead `os.open` mode assertion → spy `atomic_json_write` mode), #121646 (non-blocking: coerce the config default through the same truthy set) — code on the PR branches, reply texts drafted to `X:/wt/_holds/pr-replies-0927/`, not posted. **TAKEN 2026-09-27 lane PR-REPLIES**
 
-Drop re-triage 2026-09-27: upstream/main ad4e4496c2 (800 commits past 77a799e2f9c) touched 33 of the 152 footprint files — per-file verdict DROP-NOW / KEEP / RE-PR into the fix-triage sheet §6. **TAKEN 2026-09-27 lane DROP-RETRIAGE**
+Drop re-triage 2026-09-27 DONE (sheet §6, upstream ad4e4496c2): upstream took over NONE of the fork's lines — DROP-NOW 0, SUPERSEDES 0, CONFLICTS 6, KEEP 27. Conflicts to carry: #125266 watcher-reply-to is SEMANTICALLY reversed by upstream 10938a7cf9 (the arming message_id is ruled a stale anchor) — OWNER CALL: close #125266 or argue it; #121640 and #121645 gain a second textual rebase point; `refactor/profile-bootstrap-extraction`, `fix/win-gateway-task-console`, `test/platform-markers-linux` need a rebase before opening. The fork's own hunks no longer apply on six files (main.py, uninstall.py, update_cmd_windows.py, test_linux_desktop_entry.py, mcp_tool_transport.py, tui_gateway/server.py) — next-merge work. 21 further upstream commits (to 758ad514eb) untriaged.
 
 Merge note (lane AUTH-PR): the fork's own `tests/hermes_cli/test_plugin_declared_cli_commands.py` shares a path with the branch's — at the merge take upstream's file.
 
