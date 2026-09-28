@@ -111,3 +111,8 @@ measurements, native revisions and explicit release/layout limits:
 No broad-suite or host-freeze resolution claim is made. The contained continuation
 exposed an updater isolation gap; its remaining population is not rerun on the
 operator desktop. The fork-hygiene queue owns isolated completion.
+
+Final reconciliation includes main `211bed8aa1` (bundled release gates and queue
+claims). Its four affected bundle script test files passed through the canonical
+single-worker runner. Discussion runtime code and native wire fixtures are
+unchanged by that merge.
