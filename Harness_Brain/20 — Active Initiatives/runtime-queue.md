@@ -32,7 +32,11 @@ Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2
 - [ ] **D1 — profile manifest (enabled toolsets + packaged modules from the import closure) and the bundled-desktop wheel build.** · plan D1 items 1–2; bundled service lifetime bound to the Launcher, item 8. **TAKEN 2026-09-28 wave1 w1-hprof**
 - [ ] **D3 — speech service in bundled Hermes: load STT/TTS from the Launcher's models folder via explicit local paths (faster-whisper, Piper), serve recognize/synthesize over new `runtime.*` methods, one GPU admission authority (reserve/release, refuse or evict).** · plan D3 items 1–2.
 - [ ] **Stage 2 — split `serve_rpc` dispatch from the daemon shell; in-memory pipe as a third serve transport; phone profile over the real wheel; profile gate replacing `mobile_core/tools/import_gate.py`.** · plan Stage 2.
-- [ ] **Stage 2 — in-process conversation worker behind the existing `runtime.conversation.*` / `NativePeer` (no subprocess on phones); re-home `turn_runner.py` as the SDK-free client under `agent.transports.*`; agent-loop seam so upstream's loop loads without desktop tool lifecycles; history storage seam (encrypted DB/WAL/FTS/transcripts).** · plan Stage 2 steps; never a second loop or session store.
+- [ ] **Stage 2 — in-process conversation worker behind the existing `runtime.conversation.*` / `NativePeer` (no subprocess on phones); re-home `turn_runner.py` as the SDK-free client under `agent.transports.*`; agent-loop seam so upstream's loop loads without desktop tool lifecycles; history storage seam (encrypted DB/WAL/FTS/transcripts).** · plan Stage 2 steps; never a second loop or session store. `mobile_core/turn_runner.py` and its two tests import modules D0 deleted, so they cannot load until this re-home (lane w1-hclean).
+
+### Filed on arrival — 2026-09-28 (lane w1-hclean, filed by the launcher orchestrator)
+
+- [ ] **Tombstone registry s72 row `parity.ProjectionAccountant.dropped_by_design` is red on main — the class moved to `agent_runtime/projection_accountant.py`; retarget the row or add an ATTR row.** · `tests/agent_runtime/test_tombstone_registry.py`; red at the lane's base, not caused by it.
 
 ### Native conversation lifecycle audit — 2026-09-26
 
@@ -201,7 +205,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
 
-- [ ] **Credentials seam: back `hermes_cli/auth.py` `_load_auth_store` / `_save_auth_store` (and the other stores the D0 census finds) with the host's secure store on phones and bundled profiles; exact auth/profile scope, no plaintext, no cross-install discovery.** · `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2026-09-28.md` Stage 2 step 5; additive seam only.
+- [ ] **Credentials seam: back `hermes_cli/auth.py` `_load_auth_store` / `_save_auth_store` (and the other stores the D0 census finds) with the host's secure store on phones and bundled profiles; exact auth/profile scope, no plaintext, no cross-install discovery.** · `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2026-09-28.md` Stage 2 step 5; additive seam only. Scope facts (which stores follow `HERMES_AUTH_HOME` vs `HERMES_HOME`, the three writers to the global root, the machine-wide borrowed stores so bundled Hermes runs with `adopt_external_logins` off): `docs/downstream/credential-store-census-2026-09-28.md`.
 
 ### Filed on arrival — 2026-09-26 (lane FIX-TRIAGE, filed by the orchestrator)
 
