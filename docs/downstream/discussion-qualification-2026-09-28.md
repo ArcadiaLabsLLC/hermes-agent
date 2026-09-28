@@ -122,3 +122,23 @@ statically, then reproduce in a disposable isolated Windows environment with
 process/commit limits and persisted per-file diagnostics. No reproduction or
 system-settings change was attempted after the restart. Qualification and joint
 landing remain open.
+
+## Contained continuation
+
+The resumed canonical runner excluded the wrapper-publication file and ran one
+worker inside a Windows Job with 3 GB commit and 24-process limits. The process
+limit was exercised by a control; resource samples were persisted every two
+seconds. These bounds are not filesystem isolation or driver-failure protection.
+
+The release-channel fixture reached `update_owning_install`, which started a child
+in the primary installation. That child rejected the pytest arguments (exit 2);
+it did not execute an update. Both encodings failed. The stale PID-guard file also
+refused collection because its marker names a removed test. Neither failure is
+classified by rerunning this unsafe boundary on the desktop.
+
+The batch was deliberately stopped after its last completed result showed 152
+passes and two failures, plus the collection refusal. The verified runner was
+terminated; closing its owning Job reaped descendants. Primary Git remained clean.
+No full-population pass is claimed. The remaining broad updater/lifecycle tests
+belong in an isolated environment, not another desktop retry. Discussion's 131
+native regressions and incoming runtime checks had already passed separately.

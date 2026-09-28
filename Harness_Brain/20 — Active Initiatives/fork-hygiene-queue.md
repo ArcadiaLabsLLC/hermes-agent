@@ -11,6 +11,8 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Release validation — 2026-09-23
 
+- [ ] **Fence test updater retargeting from the real owning installation.** · The contained canonical runner reached `update_owning_install` from a temporary release-channel fixture; its child entered the primary checkout and rejected pytest arguments. No update ran, but process limits are not filesystem isolation. Finish residual qualification in an isolated environment; also resolve the newly observed stale PID-marker collection refusal. [Contained continuation](../../docs/downstream/discussion-qualification-2026-09-28.md#contained-continuation). Filed 2026-09-28 Discussion qualification.
+
 - [ ] **Isolate wrapper-publication tests before resuming interrupted desktop qualification.** · Whole-PC freeze during the single-worker continuation; running-wrapper publication is the last surviving fixture, not a proven cause. Preserve evidence; use contained off-desktop reproduction, not an unbounded rerun. [Incident boundary](../../docs/downstream/discussion-qualification-2026-09-28.md#host-freeze--qualification-interrupted). Filed 2026-09-28 Discussion qualification.
 
 - [ ] **Reconcile the upstream-footprint ledger with main's unrecorded growth.** · Executed measurement of `08ee5074cb`: `files=141 deleted_lines=900 heavy=4`, fixture `117/766/3`. Discussion's separately recorded conclusion allowance adds four deleted lines only; it does not absorb this baseline drift. Audit and disposition the changed upstream files rather than raising the aggregate silently. `scripts/upstream_footprint.py`, `tests/fixtures/upstream_footprint.json` · filed 2026-09-28 Discussion qualification.
