@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Dict, Tuple
 
+from utils import is_truthy_value
 from tools.tts_tool_delivery import _finalize_wav_output, _origin, _section, _wav_sidecar_path
 
 logger = logging.getLogger("tools.tts_tool")
@@ -84,9 +85,10 @@ def _get_piper_voices_dir() -> Path:
     return root
 
 
-def _resolve_piper_voice_path(voice: str, download_dir: Path) -> str:
+def _resolve_piper_voice_path(voice: str, download_dir: Path, *, allow_download: bool = True) -> str:
     """Resolve *voice* (an .onnx path or a name like ``en_US-lessac-medium``, downloaded into
-    *download_dir* on first use) to a concrete .onnx file; RuntimeError when it can't be."""
+    *download_dir* on first use) to a concrete .onnx file; RuntimeError when it can't be.
+    ``allow_download=False`` (config ``tts.piper.download_voices``) never fetches a missing voice."""
     voice = voice or DEFAULT_PIPER_VOICE
     candidate = Path(voice).expanduser()
     if candidate.suffix.lower() == ".onnx" and candidate.exists():
@@ -94,6 +96,10 @@ def _resolve_piper_voice_path(voice: str, download_dir: Path) -> str:
     cached = download_dir / f"{voice}.onnx"
     if cached.exists() and (download_dir / f"{voice}.onnx.json").exists():
         return str(cached)
+    if not allow_download:
+        raise RuntimeError(
+            f"Piper voice '{voice}' is not in {download_dir} and voice downloads are off "
+            f"(tts.piper.download_voices: false); install the voice there or set tts.piper.voice to an .onnx path")
     import os  # fork seam (embedded-hermes D3): voices are huggingface.co files — honour the Hub's offline switch
     if os.environ.get("HF_HUB_OFFLINE", "").strip().upper() in {"1", "ON", "YES", "TRUE"}:
         raise RuntimeError(f"Piper voice '{voice}' is not in {download_dir} and HF_HUB_OFFLINE is set")
@@ -124,7 +130,8 @@ def _load_piper_voice_for_config(tts_config: Dict[str, Any]) -> Tuple[Any, Dict[
     download_dir = Path(piper_config.get("voices_dir") or _get_piper_voices_dir()).expanduser()
     download_dir.mkdir(parents=True, exist_ok=True)
     use_cuda = bool(piper_config.get("use_cuda", False))
-    model_path = _resolve_piper_voice_path(voice_name, download_dir)
+    allow_download = is_truthy_value(piper_config.get("download_voices", True), default=True)
+    model_path = _resolve_piper_voice_path(voice_name, download_dir, allow_download=allow_download)
 
     def _load_piper_voice():
         logger.info("[Piper] Loading voice: %s", model_path)

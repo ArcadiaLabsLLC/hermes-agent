@@ -15,7 +15,10 @@ from hermes_cli.config import (
     read_raw_config,
 )
 from hermes_cli.web_server_memory import _normalize_memory_provider_name
-from tools.wake_word import _PROVIDER_PREFERENCE
+try:
+    from tools.wake_word import _PROVIDER_PREFERENCE
+except ImportError:  # a distribution that does not package wake word offers only "auto"
+    _PROVIDER_PREFERENCE = ()
 
 if TYPE_CHECKING:
     from hermes_cli.model_switch import ModelSwitchResult

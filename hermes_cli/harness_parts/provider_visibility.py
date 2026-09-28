@@ -178,8 +178,12 @@ def build_provider_visibility() -> dict:
     provider_ids = sorted(
         {*PROVIDER_REGISTRY.keys(), "openrouter", *list_custom_pool_providers()}
     )
+    from hermes_cli.provider_login_catalog import provider_disabled
+
     providers_out = []
     for provider in provider_ids:
+        if provider_disabled(provider):
+            continue  # never even read a switched-off provider's credential source
         pool = load_pool(provider)
         entries = pool.entries()
         if not entries:

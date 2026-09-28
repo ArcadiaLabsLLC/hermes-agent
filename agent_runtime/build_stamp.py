@@ -73,6 +73,7 @@ __all__ = [
     "SOURCE_UNKNOWN",
     "BuildStamp",
     "build_stamp",
+    "checkout_bound_enabled",
     "reset_build_stamp_cache",
 ]
 
@@ -91,6 +92,9 @@ SOURCE_BUILD_SHA_FILE = "build_sha_file"
 SOURCE_UNKNOWN = "unknown"
 
 _BUILD_SHA_FILENAME = ".hermes_build_sha"
+
+#: ``reason`` when config ``updates.checkout_bound`` is off: git was deliberately not consulted.
+REASON_CHECKOUT_BOUND_OFF = "checkout_bound_off"
 
 # Captured at import — as close to process start as this module can observe.
 # The pair is the point: the epoch value is what a human reads, the monotonic
@@ -226,8 +230,35 @@ def repo_root_for(start: Path | None = None) -> Path | None:
     return None
 
 
+def checkout_bound_enabled() -> bool:
+    """Config ``updates.checkout_bound`` (default on): may this Hermes consult a git checkout about
+    ITSELF or the repos it works in (git build stamp, repo dirty state)? A distribution that ships
+    as a wheel (the bundled desktop profile) turns it off and is identified by its baked stamp.
+    An unreadable config keeps today's behaviour (on); never raises."""
+    try:
+        from hermes_cli.config import config_switch
+    except Exception:  # pragma: no cover - a stamp must never raise
+        return True
+    return config_switch("updates", "checkout_bound")
+
+
 def _resolve() -> BuildStamp:
     resolved_at = _iso(time.time())
+    if not checkout_bound_enabled():
+        # No git, ever: the build is what was baked in at packaging time, or unmeasured.
+        baked_root = _fallback_repo_root()
+        commit = _baked_sha(baked_root)
+        source = SOURCE_BUILD_SHA_FILE if commit else SOURCE_UNKNOWN
+        return BuildStamp(
+            commit=commit,
+            dirty=None,
+            source=source,
+            reason=REASON_CHECKOUT_BOUND_OFF,
+            repo_root=str(baked_root or "") if commit else None,
+            resolved_at=resolved_at,
+            code_tree=None,
+            code_tree_reason=f"not_git:{source}",
+        )
     try:
         root = repo_root_for()
     except Exception:  # pragma: no cover - defensive; must never raise

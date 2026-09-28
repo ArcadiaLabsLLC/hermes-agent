@@ -71,7 +71,7 @@ def _params(params: Any) -> dict:
     return params if isinstance(params, dict) else {}
 
 
-def _answer(rid: Any, method_name: str, work: Callable[[], Any]) -> dict:
+def _speech_answer(rid: Any, method_name: str, work: Callable[[], Any]) -> dict:
     from agent_runtime.speech_service import SpeechRefused
 
     try:
@@ -87,7 +87,7 @@ def _answer(rid: Any, method_name: str, work: Callable[[], Any]) -> dict:
 
 def _deferred(rid: Any, method_name: str, context: RpcContext, future: Future) -> dict:
     """Answer a worker-run result on the same ``id``: on the transport's pool when it has one."""
-    build = lambda: _answer(rid, method_name, lambda: future)  # noqa: E731
+    build = lambda: _speech_answer(rid, method_name, lambda: future)  # noqa: E731
     if context.spawn_reply is not None and context.spawn_reply(deferred_reply(rid, method_name, build)):
         return DEFERRED
     return build()
@@ -101,7 +101,7 @@ def _emitter(context: RpcContext) -> Callable[[str, dict], bool] | None:
 def _runtime_speech_status(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """Both models' state (``unavailable`` + reason, ``available``, ``loading``, ``loaded``) and the
     admission budget. Params (optional): ``models_dir``, ``stt_model``, ``tts_voice`` to inspect."""
-    return _answer(rid, "runtime.speech.status", lambda: _service().status(_params(params)))
+    return _speech_answer(rid, "runtime.speech.status", lambda: _service().status(_params(params)))
 
 
 @method("runtime.speech.load", tier=TIER_CONSOLE)
@@ -110,7 +110,7 @@ def _runtime_speech_load(rid: Any, params: dict, context: RpcContext | None = No
     context = context or RpcContext()
     service = _service()
     work = lambda: service.load(_params(params))  # noqa: E731
-    build = lambda: _answer(rid, "runtime.speech.load", work)  # noqa: E731
+    build = lambda: _speech_answer(rid, "runtime.speech.load", work)  # noqa: E731
     if context.spawn_reply is not None and context.spawn_reply(deferred_reply(rid, "runtime.speech.load", build)):
         return DEFERRED
     return build()
@@ -119,14 +119,14 @@ def _runtime_speech_load(rid: Any, params: dict, context: RpcContext | None = No
 @method("runtime.speech.unload", tier=TIER_CONSOLE)
 def _runtime_speech_unload(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """Unload and release the reservation. Params: ``which`` (``stt`` | ``tts`` | ``both``)."""
-    return _answer(rid, "runtime.speech.unload", lambda: _service().unload(_params(params)))
+    return _speech_answer(rid, "runtime.speech.unload", lambda: _service().unload(_params(params)))
 
 
 @method("runtime.speech.recognize.begin", tier=TIER_CONSOLE)
 def _runtime_speech_recognize_begin(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """Open a stream. Params: ``sample_rate`` (16000), ``encoding`` (``pcm_s16le``), ``language`` (``en``)."""
     context = context or RpcContext()
-    return _answer(rid, "runtime.speech.recognize.begin", lambda: _service().recognize_begin(
+    return _speech_answer(rid, "runtime.speech.recognize.begin", lambda: _service().recognize_begin(
         _params(params), connection_key=context.connection_key, emit=_emitter(context)))
 
 
@@ -134,7 +134,7 @@ def _runtime_speech_recognize_begin(rid: Any, params: dict, context: RpcContext 
 def _runtime_speech_recognize_push(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """Append one chunk. Params: ``stream_id``, ``seq`` (0, 1, …), ``audio`` (base64 PCM)."""
     context = context or RpcContext()
-    return _answer(rid, "runtime.speech.recognize.push", lambda: _service().recognize_push(
+    return _speech_answer(rid, "runtime.speech.recognize.push", lambda: _service().recognize_push(
         _params(params), connection_key=context.connection_key))
 
 
@@ -155,7 +155,7 @@ def _runtime_speech_recognize_end(rid: Any, params: dict, context: RpcContext | 
 def _runtime_speech_recognize_cancel(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """Drop a stream without a result. Params: ``stream_id``."""
     context = context or RpcContext()
-    return _answer(rid, "runtime.speech.recognize.cancel", lambda: _service().recognize_cancel(
+    return _speech_answer(rid, "runtime.speech.recognize.cancel", lambda: _service().recognize_cancel(
         _params(params), connection_key=context.connection_key))
 
 

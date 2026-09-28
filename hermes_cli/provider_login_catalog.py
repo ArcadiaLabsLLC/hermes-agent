@@ -14,6 +14,22 @@ from __future__ import annotations
 from hermes_cli import provider_catalog as _catalog
 
 
+def provider_disabled(slug: str) -> bool:
+    """``providers.<slug>.enabled: false`` in this home's config — the existing switch that hides a
+    provider from the picker and refuses it in the runtime resolver. The login catalog, the
+    credential visibility snapshot and the machine sign-in honour it too, so a distribution
+    profile can take a provider out whole (bundled desktop: ``qwen-oauth``). Never raises."""
+    try:
+        from hermes_cli.config import load_config_readonly
+        from hermes_cli.config_providers import is_provider_enabled
+
+        providers = (load_config_readonly() or {}).get("providers")
+        block = providers.get(slug) if isinstance(providers, dict) else None
+    except Exception:
+        return False
+    return isinstance(block, dict) and not is_provider_enabled(block)
+
+
 # ---------------------------------------------------------------------------
 # Login-flow metadata (hoisted 2026-08-16, plan PL-1)
 # ---------------------------------------------------------------------------
@@ -161,6 +177,8 @@ def provider_login_catalog() -> list[dict]:
         if slug in seen:
             return
         seen.add(slug)
+        if provider_disabled(slug):
+            return
         override = overrides.get(slug)
         flow = (override or {}).get("flow") or default_flow
         # `flows` is a LIST because a lane can legitimately offer more than one

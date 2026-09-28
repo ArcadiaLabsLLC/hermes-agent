@@ -371,13 +371,14 @@ class SpeechService:
         with self._lock:
             if slot.state == "loading":
                 return {"state": "loading", "reason": "load_in_progress"}
-            if slot.state == "loaded" and slot.path == path:
+            already_loaded = slot.state == "loaded"
+            if already_loaded and slot.path == path:
                 return {"state": "loaded", "reason": None}
             view = self._inspect(slot, path, note)
             if view["state"] != "available":
                 return {"state": "unavailable", "reason": view["reason"], **{k: v for k, v in view.items()
                                                                           if k in ("missing", "engine")}}
-            if slot.state == "loaded":
+            if already_loaded:
                 self._drop(slot, "replaced")
             slot.state, slot.path, slot.error = "loading", path, None
         estimate = self._estimate(slot.kind, view["disk_bytes"])

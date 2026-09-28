@@ -12,7 +12,8 @@ switch Hermes already has:
 * ``environment`` -> variables an existing dependency already honours;
 * ``refused_routes`` -> upstream routes refused caller-side
   (:mod:`agent_runtime.bundle_profiles.route_gate`);
-* ``packaging`` -> the import-closure walk's roots and switched-off modules
+* ``packaging`` -> the import-closure walk's roots and switched-off modules,
+  the optional extras the bundle ships, and the base distributions it omits
   (``scripts/bundle_profile_closure.py``).
 
 ``unswitched`` records the matrix rows that have no existing switch, so the gap
@@ -34,9 +35,21 @@ PROFILES_DIR = Path(__file__).resolve().parent
 SCHEMA_VERSION = 1
 
 #: Config keys Hermes reads with an in-code default and no DEFAULT_CONFIG entry.
-#: Each names its reader, so the exception is checkable.
+#: Each names its reader, so the exception is checkable. The distribution switches
+#: (default on = today's behaviour) are read through ``hermes_cli.config.config_switch``
+#: and live here rather than in upstream's DEFAULT_CONFIG, so the fork adds no lines
+#: to that file.
 KEYS_READ_OUTSIDE_DEFAULTS = {
     "delegation.worktree_isolation": "tools/delegate_tool_config.py::_get_worktree_isolation",
+    "mcp.stdio_servers": "tools/mcp_tool_common.py::mcp_stdio_servers_allowed",
+    "tts.piper.download_voices": "tools/tts_tool_local.py::_load_piper_voice_for_config",
+    "terminal.external_backends": "tools/terminal_tool_backends.py::external_backends_allowed",
+    "gateway.platform_adapters": "gateway/run_adapters.py::platform_adapters_allowed",
+    "updates.checkout_bound": "agent_runtime/build_stamp.py::checkout_bound_enabled",
+    "voice.mode_enabled": "tui_gateway/methods_voice.py::_voice_mode_available",
+    # ``providers.<slug>.enabled`` is upstream's per-provider switch (DEFAULT_CONFIG's ``providers``
+    # is an empty mapping, so no slug is a default key).
+    "providers.qwen-oauth.enabled": "hermes_cli/config_providers.py::is_provider_enabled",
 }
 
 
@@ -60,6 +73,8 @@ class ProfileManifest:
     unswitched: tuple[Mapping[str, str], ...]
     packaging_roots: tuple[str, ...]
     switched_off_modules: tuple[str, ...]
+    packaging_extras: tuple[str, ...] = ()
+    omitted_distributions: tuple[Mapping[str, Any], ...] = ()
 
 
 def manifest_path(profile: str) -> Path:
@@ -90,6 +105,17 @@ def _mapping(value: Any, where: str) -> dict:
     return dict(value)
 
 
+def _omitted(row: Any) -> dict:
+    row = _mapping(row, "packaging.omitted_distributions[]")
+    name, degrades = row.get("distribution"), row.get("degrades")
+    if not isinstance(name, str) or not name or not isinstance(degrades, str) or not degrades:
+        raise ProfileManifestError("packaging.omitted_distributions[] needs a distribution and what it degrades")
+    imports = _strings(row.get("imports"), "packaging.omitted_distributions[].imports")
+    if not imports:
+        raise ProfileManifestError(f"omitted distribution {name!r} must name its import names")
+    return {"distribution": name, "imports": imports, "degrades": degrades}
+
+
 def parse_manifest(data: Any, *, validate: bool = True) -> ProfileManifest:
     """Build a :class:`ProfileManifest` from parsed YAML."""
     data = _mapping(data, "manifest")
@@ -115,6 +141,8 @@ def parse_manifest(data: Any, *, validate: bool = True) -> ProfileManifest:
         unswitched=tuple(_mapping(row, "unswitched[]") for row in (data.get("unswitched") or [])),
         packaging_roots=_strings(packaging.get("roots"), "packaging.roots"),
         switched_off_modules=_strings(packaging.get("switched_off_modules"), "packaging.switched_off_modules"),
+        packaging_extras=_strings(packaging.get("extras"), "packaging.extras"),
+        omitted_distributions=tuple(_omitted(row) for row in (packaging.get("omitted_distributions") or [])),
     )
     if validate:
         validate_manifest(manifest)

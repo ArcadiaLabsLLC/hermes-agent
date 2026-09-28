@@ -1007,6 +1007,8 @@ def resolve_runtime_provider(*, requested: Optional[str] = None, explicit_api_ke
     requested_provider, explicit_base_url = expand_direct_api_alias(requested_provider, explicit_base_url)
     _raise_if_local_alias_missing_endpoint(requested_provider, explicit_base_url)
     runtime = next(r for r in _ladder_rungs(requested_provider, explicit_api_key, explicit_base_url, target_model) if r)
+    if runtime.get("provider") != requested_provider:
+        _raise_if_provider_disabled(str(runtime.get("provider") or ""))  # "auto" landed on a disabled one
     _raise_for_credentialless_bare_custom(requested_provider, runtime)
     # model.openai_runtime is applied ONCE, after the ladder: every rung (pool, OAuth store,
     # explicit --api-key/--base-url, env key) hardcodes the wire api_mode for openai/openai-codex,
