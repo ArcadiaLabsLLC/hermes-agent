@@ -27,7 +27,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2026-09-28.md` (stages named per row) and `ARCHITECTURE_2026-09-28.md` §4. Rule: one Python implementation, universal — enable existing Hermes code, never reimplement; bundle only what is needed.
 
-- [ ] **D0 — `runtime.provider.*` methods (sign-in, usage, provider list) wrapping upstream auth/usage, `hermes_cli/provider_browser_login.py` and the real catalog; add an Anthropic PKCE driver over `agent/anthropic_credentials`.** · plan D0 item 3; no new logic. **TAKEN 2026-09-28 wave1 w1-hprov**
 - [ ] **Messaging platforms (Telegram, Discord, …) as fork work for the headless toolset (full Hermes as a service); off in bundled profiles.** · spec ruling 8.
 - [ ] **D1 — bundled-desktop wheel build + the packaging step that bundles only the profile manifest's import closure (`agent_runtime/bundle_profiles/`, `scripts/bundle_profile_closure.py`), and the bundled service lifetime bound to the Launcher.** · plan D1 items 2 and 8; the manifest (item 1) landed in lane w1-hprof.
 - [ ] **Import seams so switched-off bundle features are excludable: pinned modules (`tools.terminal_tool`, `gateway.platforms.base`, `tools.voice_mode`, …) and on-feature paths into off features (`cron.scheduler → gateway.code_skew → hermes_cli.main`; messaging SDKs via cron delivery and `gateway.run`).** · evidence: `docs/downstream/bundled-desktop-closure-2026-09-28.md` § "Why the excludable list is short".
