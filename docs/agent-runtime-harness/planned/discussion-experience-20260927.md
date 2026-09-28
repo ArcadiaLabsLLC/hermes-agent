@@ -93,3 +93,5 @@ reproduces all 60 residual red files on detached main `6ebde5afa3`, including
 setup/collection errors omitted by the runner's headline. The remaining test
 population and incoming main `8110944532` are still being qualified; this is not
 a whole-suite pass. Launcher also includes packaged-runtime main `6d578f0e3`.
+The continuation stopped during a whole-PC freeze requiring manual restart;
+the qualification note records the last fixture and the no-blind-rerun boundary.
