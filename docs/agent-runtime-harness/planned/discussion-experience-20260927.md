@@ -39,3 +39,23 @@ Focused checkpoint: 13 tests passed. Removing the two locked drain checks and
 the discussion admission fence produced three expected failures (method, argv,
 and native Room admission); the three positive controls passed. Restored guards
 passed again. Broader integration verification is pending.
+
+## September 28 checkpoint
+
+Reconciled packaged-Hermes main through `3455422a17`. Setup uses the existing
+persona catalog, agent creation service, WorkspaceStore and OfficeStore. The
+workspace-create receipt only fences replay; it is not another workspace store.
+Presets retain revisioned native storage. Scheduled synthesis extends the existing
+hosted-room planner and worker, not a parallel orchestrator.
+
+The post-merge focused batch passed 134 tests in 88 seconds: definitions, native
+rooms, retention, wire decoding, operator-channel isolation, shutdown admission,
+shared setup and conclusion lifecycle. It ran in one test process. Earlier
+mutations disabling synthesis/preset ACK replay and changing workspace selection
+produced four expected failures; synthesis-off controls passed.
+
+Launcher now uses one neutral Discussion client for both surfaces; native
+authority and protocol are unchanged. See
+`EterniaLauncher/docs/companion/planned/DISCUSSION_EXPERIENCE_2026-09-27.md`.
+The original native UI acceptance and broader gates are still owed. The earlier
+interrupted full suite is not a passing result or a baseline classification.
