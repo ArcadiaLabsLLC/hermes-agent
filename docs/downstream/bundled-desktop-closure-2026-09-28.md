@@ -6,7 +6,7 @@ What the **bundled-desktop** profile (`agent_runtime/bundle_profiles/bundled-des
 python scripts/bundle_profile_closure.py --profile bundled-desktop --json <out.json> --markdown <out.md>
 ```
 
-The script exits 1 (`REFUSED: …`) when an omitted distribution is imported unguarded, when an omitted distribution is a requirement of a shipped one, or when `packaging.extras` names no pyproject extra.
+The script exits 1 (`REFUSED: …`) when an omitted distribution is imported unguarded, when an omitted distribution is a requirement of a shipped one, when `packaging.extras` names no pyproject extra, when `packaging.dynamic_distributions` names no base dependency, or when a `packaging.placeholder_distributions` entry is imported by kept first-party code or is a base dependency.
 
 ## Method, and which numbers are estimates
 
@@ -93,8 +93,20 @@ CPython **3.14.7**, the python-build-standalone `install_only` build PM already 
 |---|---:|---:|---:|
 | core: interpreter + app + site-packages, source only | **173.11** | 61.53 | **38.71** |
 | core, bytecode baked (`unchecked-hash`, stdlib included) | 274.05 | 106.27 | 61.46 |
-| speech pack, source only | **225.59** | 78.23 | **49.32** |
-| speech pack, bytecode baked | 244.21 | 85.78 | 53.43 |
+| speech pack, source only | ~~225.59~~ **159.51** | ~~78.23~~ **52.02** | ~~49.32~~ **31.30** |
+| speech pack, bytecode baked (pre-w3-hfix, with PyAV) | 244.21 | 85.78 | 53.43 |
+| core app + site-packages only, source only (w3-hfix: + tzdata, socksio) | 141.22 | 51.02 | 31.61 |
+
+**Re-measured by lane w3-hfix (2026-09-28)** against this tree: the speech pack without PyAV
+(15 distributions, 1,657 files) is 159.51 MiB installed, 52.02 MiB zip -9, **31.30 MiB LZMA2 -9**
+— PyAV's 66.07 MiB is exactly the drop. The core now also carries `tzdata` (0.56 MiB) and
+`socksio` (0.04 MiB); its app + site-packages measure 141.22 / 51.02 / 31.61 MiB (the rows above
+that include the interpreter were not re-taken; add the pruned interpreter's 35.8 MiB installed).
+`--verify` on the core and `--verify-pack` both read 0 problems, and the core's verify now also
+resolves `America/New_York` with `zoneinfo` from the bundle's site-packages alone
+(`named_timezone_problems`: `-I -S`, TZPATH cleared). Live under CPython 3.14.5 with core + pack
+on the path and no PyAV: `find_spec("av")` is None, the placeholder registers,
+`import faster_whisper` succeeds, and a file decode answers `file_decode_unavailable`.
 
 7-Zip is not installed on the build machine; the LZMA2 column is Python's `lzma` (preset 9, the codec 7z and Inno Setup use). Against the D4 ceiling (installer delta ≤ ~80 MB, excluding models): the core is ~39–61 MiB compressed depending on bytecode; the speech pack is a first-use download.
 
@@ -108,11 +120,15 @@ CPython **3.14.7**, the python-build-standalone `install_only` build PM already 
 
 ### PyAV
 
-faster-whisper 1.2.1 takes a float32 numpy array (`transcribe()` calls `decode_audio` only for a non-array), but `faster_whisper/audio.py` imports `av` at module top, so `import faster_whisper` fails without PyAV. Proved: with `av` blocked, the import raises `ModuleNotFoundError: av`; with an `av` placeholder in `sys.modules` it imports and transcribes a 13 s clip passed as a 16 kHz float32 array (tiny.en, 1.7 s). PyAV (66.07 MiB, the pack's largest distribution) therefore stays in the pack for now: dropping it needs that placeholder in the speech loader, and `tools/transcription_local.py`'s file-path path (voice notes) still decodes through it.
+faster-whisper 1.2.1 takes a float32 numpy array (`transcribe()` calls `decode_audio` only for a non-array), but `faster_whisper/audio.py` imports `av` at module top, so `import faster_whisper` fails without PyAV. Proved: with `av` blocked, the import raises `ModuleNotFoundError: av`; with an `av` placeholder in `sys.modules` it imports and transcribes a 13 s clip passed as a 16 kHz float32 array (tiny.en, 1.7 s).
+
+**Dropped (lane w3-hfix).** `packaging.placeholder_distributions: {av: …}` — the closure never follows `av` under faster-whisper (refused if kept first-party code imports it or it is a base dependency). `agent_runtime/speech_decode.py` registers the placeholder in `SpeechEngines.load_stt` before upstream's loader imports faster_whisper (a no-op when PyAV is installed). No second decode path is bundled, so a voice-note FILE through upstream's `_transcribe_local` answers `{success: false, state: "unavailable", reason: "file_decode_unavailable"}` before any model loads (fork seam, `tools/transcription_tools.py`); the Launcher sends raw PCM, which never needs it.
 
 ### Piper's pronunciation data
 
 All of `piper/espeak-ng-data` (18.2 MiB, 125 languages) is left out (`packaging.excluded_data`), as are the Hebrew and Arabic diacritizer models and Piper's training code. **English needs seven files**, measured identical in output to the full directory: `phontab`, `phonindex`, `phondata`, `intonations`, `en_dict`, and under `lang/gmw/` the voice's own file (`en-US` for `en-us` voices, `en` for `en`; a voice's `espeak.voice` in its `.onnx.json` names it) — 0.84 MiB. Piper is told where they are only through `PiperVoice.load(model, espeak_data_dir=<dir>)` (default `piper/espeak-ng-data`; no environment variable); the first voice loaded fixes the phonemizer's directory for the process. A missing `lang/…` file fails loudly (`RuntimeError: Failed to set voice`); a missing `en_dict` does NOT — it prints a warning and returns empty phonemes, so the catalog must verify the set.
+
+**Wired (lane w3-hfix).** The speech service passes the voice folder's `espeak-ng-data/` (the Launcher's layout) through upstream's loader (`piper.espeak_data_dir`, additive seam in `tools/tts_tool_local.py`). `inspect_tts` checks the set BEFORE the loader — the four tables, `<lang>_dict` and the `espeak.voice` language file anywhere under `lang/` — and an incomplete set reads `unavailable`, reason `espeak_data_partial`, `missing` naming the files; no data beside the voice and none installed with piper reads `espeak_data_missing`.
 
 ### Every package, and which output it lands in
 
@@ -120,7 +136,7 @@ Installed MiB, source only (no bytecode), Windows x64.
 
 | package | version | MiB | output |
 |---|---|---:|---|
-| av | 18.1.0 | 66.07 | speech pack |
+| av | 18.1.0 | 66.07 | **dropped** (w3-hfix: placeholder, arrays only) |
 | ctranslate2 | 4.8.1 | 59.68 | speech pack |
 | hermes-agent (first-party app/, skills, locales, plugins) | — | 45.35 | core |
 | onnxruntime | 1.29.0 | 39.27 | speech pack |
@@ -146,6 +162,7 @@ Installed MiB, source only (no bytecode), Windows x64.
 | rich | 14.3.3 | 1.19 | core |
 | mcp | 2.0.0 | 1.14 | core |
 | pytz | 2026.3.post1 | 0.96 | core |
+| tzdata | 2025.3 | 0.56 | core (w3-hfix: `packaging.dynamic_distributions`, stdlib `zoneinfo`) |
 | piper-tts | 1.8.0 | 0.82 | speech pack |
 | snowballstemmer | 3.1.1 | 0.74 | core |
 | fastapi | 0.133.1 | 0.74 | core |
@@ -207,6 +224,7 @@ Installed MiB, source only (no bytecode), Windows x64.
 | zipp | 4.1.0 | 0.02 | core |
 | mdurl | 0.1.2 | 0.02 | core |
 | sniffio | 1.3.1 | 0.02 | core |
+| socksio | 1.0.0 | 0.04 | core (w3-hfix: `httpx[socks]`'s requested extra, now followed) |
 | httpx-sse | 0.4.3 | 0.02 | core |
 | termcolor | 3.3.0 | 0.02 | core |
 | tomli-w | 1.2.0 | 0.01 | core |
