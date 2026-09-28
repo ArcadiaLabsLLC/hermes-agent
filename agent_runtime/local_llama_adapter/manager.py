@@ -31,6 +31,28 @@ _LOG_TAIL_BYTES = 256 * 1024
 _ACTIVE = ("queued", "running")
 
 
+def _admission_holder(model_id):
+    return "llm:" + model_id
+
+
+def _admission_request(model):
+    """(resource, bytes) for one load: upstream's footprint estimate (weights + context at the
+    requested window), never below the file size. ``gpu_layers: 0`` is a RAM load."""
+    path = Path(model["gguf_path"])
+    try:
+        from hermes_cli.local_runtime.estimator import footprint_bytes, profile_from_gguf
+        from hermes_cli.local_runtime.gguf import read_gguf_header
+        estimate = footprint_bytes(profile_from_gguf(read_gguf_header(path)), model["load"]["context_size"],
+                                   flash_attention=model["load"]["flash_attention"] != "off")
+    except Exception:  # an unreadable header prices at the file size
+        estimate = 0
+    try:
+        estimate = max(estimate, path.stat().st_size)
+    except OSError:
+        pass
+    return ("ram" if model["load"]["gpu_layers"] == 0 else "vram"), int(estimate)
+
+
 class LocalLlamaManager:
     def __init__(self, root: Path, config_path: Path, install_id: str, *, engine_factory=Engine):
         self.directory = root / "local_llama"
@@ -319,6 +341,7 @@ class LocalLlamaManager:
             raise LocalLlamaError("invalid_parameter", "Context exceeds the model metadata maximum")
         if self.loaded:
             self._unload(self.loaded)
+        self._admit(model)
         self._transition(model=model["model_id"], state="loading")
         props = self.engine.load(model)
         caps = props.get("chat_template_caps", {})
@@ -331,6 +354,25 @@ class LocalLlamaManager:
             self.loaded = model["model_id"]
         self._transition(model=self.loaded, state="ready", parameters={**wanted, "effective_context_size": context})
         return True
+
+    def _admit(self, model):
+        """Reserve this load in the one model-memory authority (speech and LLMs share it)."""
+        from agent_runtime.model_admission import AdmissionRefused, admission
+        resource, estimate = _admission_request(model)
+        try:
+            admission().reserve(_admission_holder(model["model_id"]), kind="llm", resource=resource, bytes=estimate)
+        except AdmissionRefused as refusal:
+            raise LocalLlamaError("admission_refused", "Not enough memory for this model beside the other "
+                                  "loaded local models; unload one and retry", code=4090,
+                                  pool=refusal.details.get("pool"),
+                                  requested_bytes=refusal.details.get("requested_bytes"),
+                                  capacity_bytes=refusal.details.get("capacity_bytes"),
+                                  reserved_bytes=refusal.details.get("reserved_bytes")) from None
+
+    @staticmethod
+    def _release_admission(model_id):
+        from agent_runtime.model_admission import admission
+        admission().release(_admission_holder(model_id))
 
     def _execute(self, kind, params, op):
         with self.lock:
@@ -356,8 +398,10 @@ class LocalLlamaManager:
                 finally:
                     self.engine.stop()
                 with self.lock:
-                    self.loaded = None
+                    released, self.loaded = self.loaded, None
                     self.model_states.clear()
+                if released:
+                    self._release_admission(released)
                 self._transition(server="off")
             elif kind == "load":
                 self._load(params)
@@ -381,6 +425,8 @@ class LocalLlamaManager:
             "operation_failed", "Local llama operation failed; verify configuration and available memory", code=-32000)
         router_failed = kind in ("start", "stop", "unload")
         loading = kind == "load" and self.model_states.get(params["model_id"], {}).get("state") == "loading"
+        if kind == "load" and self.loaded != params["model_id"]:
+            self._release_admission(params["model_id"])
         if loading:
             try:
                 self.engine.unload(params["model_id"])
@@ -391,6 +437,8 @@ class LocalLlamaManager:
         with self.lock:
             if router_failed:
                 self.server, self.server_error = "failed", error.as_error()
+                if self.loaded:
+                    self._release_admission(self.loaded)
                 self.loaded = None
                 self.model_states.clear()
             elif loading:
@@ -405,6 +453,7 @@ class LocalLlamaManager:
         self.engine.unload(model_id)
         with self.lock:
             self.loaded = None
+        self._release_admission(model_id)
         self._transition(model=model_id, state="unloaded")
 
     @contextmanager
@@ -456,6 +505,8 @@ class LocalLlamaManager:
                                       error=LocalLlamaError("interrupted", "Hermes service stopped").as_error())
             self._persist()
         self.engine.close()
+        if self.loaded:
+            self._release_admission(self.loaded)
         self.setup.close()
         if self._worker is not None:
             self._worker.join(timeout=5)

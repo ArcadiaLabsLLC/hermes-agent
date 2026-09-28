@@ -94,6 +94,9 @@ def _resolve_piper_voice_path(voice: str, download_dir: Path) -> str:
     cached = download_dir / f"{voice}.onnx"
     if cached.exists() and (download_dir / f"{voice}.onnx.json").exists():
         return str(cached)
+    import os  # fork seam (embedded-hermes D3): voices are huggingface.co files — honour the Hub's offline switch
+    if os.environ.get("HF_HUB_OFFLINE", "").strip().upper() in {"1", "ON", "YES", "TRUE"}:
+        raise RuntimeError(f"Piper voice '{voice}' is not in {download_dir} and HF_HUB_OFFLINE is set")
     logger.info("[Piper] Downloading voice '%s' to %s (first use)", voice, download_dir)
     try:
         result = _run_helper(

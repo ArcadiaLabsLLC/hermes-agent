@@ -71,6 +71,16 @@ class FakeEngine:
         return SECRET
 
 
+@pytest.fixture(autouse=True)
+def fixed_admission():
+    """A fixed budget, so no test here runs the real hardware probe."""
+    from agent_runtime import model_admission
+    authority = model_admission.ModelAdmission({"vram": 1 << 40, "ram": 1 << 40})
+    model_admission.set_admission(authority)
+    yield authority
+    model_admission.set_admission(None)
+
+
 @pytest.fixture
 def manager(tmp_path):
     m = LocalLlamaManager(tmp_path / "runtime", tmp_path / "config.yaml", "install-test", engine_factory=FakeEngine)
@@ -237,6 +247,31 @@ def test_a_failed_replacement_keeps_the_loaded_model(manager, tmp_path):
     assert settle(manager, request)["error"]["reason"] == "missing_file"
     assert manager.loaded == old and manager.server == "running"
     assert manager.engine.unloads == []
+
+
+def test_a_load_is_admitted_through_the_one_model_budget_and_released_on_unload(manager, tmp_path, fixed_admission):
+    """Speech and LLMs share one authority (architecture §5.1). Mutation: drop ``self._admit(model)``
+    from ``_load`` -> the over-budget load reaches the engine."""
+    from agent_runtime.model_admission import ModelAdmission, set_admission
+    model_id = ready(manager, tmp_path)
+    request = guards(manager, model_id=model_id, preset_revision=0, load=deepcopy(LOAD_DEFAULTS) | {"context_size": 8192},
+                     generation=deepcopy(GENERATION_DEFAULTS))
+    tight = ModelAdmission({"vram": 10, "ram": 1 << 30})
+    tight.reserve("speech:stt", kind="stt", resource="vram", bytes=10)
+    set_admission(tight)
+    manager.submit("load", request)
+    assert settle(manager, request)["error"]["reason"] == "admission_refused"
+    assert manager.engine.loads == [] and manager.loaded is None
+    set_admission(fixed_admission)
+    request = guards(manager, model_id=model_id, preset_revision=0, load=deepcopy(LOAD_DEFAULTS) | {"context_size": 8192},
+                     generation=deepcopy(GENERATION_DEFAULTS))
+    manager.submit("load", request)
+    assert settle(manager, request)["state"] == "succeeded"
+    assert fixed_admission.holds("llm:" + model_id)
+    request = guards(manager, model_id=model_id)
+    manager.submit("unload", request)
+    assert settle(manager, request)["state"] == "succeeded"
+    assert not fixed_admission.holds("llm:" + model_id)
 
 
 def test_status_and_config_never_carry_host_paths_or_the_engine_credential(manager):

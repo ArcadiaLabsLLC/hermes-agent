@@ -36,6 +36,8 @@ __all__ = [
     "mcp_signal_reconnect",
     "mcp_wait_for_session",
     "non_continuation_child_filter",
+    "piper_engine_importable",
+    "piper_voice_for_config",
     "default_hermes_home",
     "dispatch_streams",
     "doctor_section",
@@ -53,6 +55,8 @@ __all__ = [
     "skills_walker",
     "strip_quotes",
     "terminate_host_pid",
+    "whisper_confident_text",
+    "whisper_load_model",
 ]
 
 
@@ -330,3 +334,40 @@ def non_continuation_child_filter(alias: str = "") -> str:
     from hermes_state_sessions import SessionSessionsMixin
 
     return SessionSessionsMixin._NON_CONTINUATION_CHILD_FILTER_SQL.format(alias=alias)
+
+
+def whisper_load_model(model_path: str, *, device: str, compute_type: str):
+    """``tools.transcription_local._load_local_whisper_model`` — upstream's faster-whisper
+    loader (CUDA -> CPU fallback, Apple Silicon pinning). Read by ``speech_service``, which
+    hands it a validated local model DIRECTORY, so faster-whisper never resolves a Hub name."""
+    from tools.transcription_local import _load_local_whisper_model
+
+    return _load_local_whisper_model(model_path, device=device, compute_type=compute_type)
+
+
+def whisper_confident_text(segments, local_cfg: dict) -> str:
+    """``tools.transcription_local._join_confident_segments`` — upstream's silence-hallucination
+    gate over faster-whisper segments. Read by ``speech_service``."""
+    from tools.transcription_local import _join_confident_segments
+
+    return _join_confident_segments(segments, local_cfg)
+
+
+def piper_voice_for_config(tts_config: dict):
+    """``tools.tts_tool_local._load_piper_voice_for_config`` — upstream's Piper resolve + load
+    into the shared LRU slot the ``speak`` tool also reads. Read by ``speech_service`` with an
+    explicit ``.onnx`` path. Returns ``(voice, piper_config)``."""
+    from tools.tts_tool_local import _load_piper_voice_for_config
+
+    return _load_piper_voice_for_config(tts_config)
+
+
+def piper_engine_importable() -> bool:
+    """``tools.tts_tool._import_piper`` answers — the same probe upstream's provider table uses."""
+    from tools.tts_tool import _import_piper
+
+    try:
+        _import_piper()
+    except ImportError:
+        return False
+    return True
