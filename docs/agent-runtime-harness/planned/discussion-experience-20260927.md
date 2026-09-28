@@ -85,3 +85,11 @@ interrupted validated suite into a pass.
 The optional conclusion widens the existing upstream Group Chat host seam; its
 retirement path is recorded in `upstream-footprint-ledger.md`. No parallel
 orchestration or lifecycle implementation was introduced.
+
+## Broad qualification
+
+[Executed baseline comparison](../../downstream/discussion-qualification-2026-09-28.md)
+reproduces all 60 residual red files on detached main `6ebde5afa3`, including
+setup/collection errors omitted by the runner's headline. The remaining test
+population and incoming main `8110944532` are still being qualified; this is not
+a whole-suite pass. Launcher also includes packaged-runtime main `6d578f0e3`.
