@@ -37,6 +37,9 @@ def adopt_external_logins_enabled() -> bool:
     out. When the user opts out, Hermes never reads or refreshes those files and says so once per
     process (INFO) the first time it would have."""
     global _notice_logged
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    if _host_secrets.external_logins_refused():
+        return False
     try:
         from hermes_cli.config import load_config_readonly
         auth_cfg = (load_config_readonly() or {}).get("auth")
@@ -142,6 +145,8 @@ def _remove_hermes_pkce(provider: str, removed) -> RemovalResult:
 
     result = RemovalResult()
     oauth_file = get_hermes_home() / ".anthropic_oauth.json"
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    oauth_file = _host_secrets.view(oauth_file)
     if oauth_file.exists():
         try:
             oauth_file.unlink()

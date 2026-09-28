@@ -341,6 +341,10 @@ def load_env_file(env_path: Path) -> Dict[str, str]:
     returns a fresh dict: callers mutate what they get back (``build_profile_secret_scope`` layers
     external secrets over it).
     """
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    if _host_secrets.bound():
+        held = _host_secrets.read_bytes(_host_secrets.view(env_path).path)
+        return _parse_env_text(_decode_env_bytes(held)) if held else {}
     key = str(env_path)
     try:
         with open(env_path, "rb") as handle:

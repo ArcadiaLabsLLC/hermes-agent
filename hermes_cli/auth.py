@@ -686,6 +686,9 @@ def _empty_auth_store() -> Dict[str, Any]:
 
 def _load_auth_store(auth_file: Optional[Path] = None) -> Dict[str, Any]:
     auth_file = auth_file or _auth_file_path()
+    # Fork seam — phone credentials seam: bound to a host secure store, the store answers (no disk).
+    from agent_runtime.host_store import secret_files as _host_secrets
+    auth_file = _host_secrets.view(auth_file)
     if not auth_file.exists():
         return _empty_auth_store()
     try:
@@ -735,6 +738,9 @@ def _load_auth_store(auth_file: Optional[Path] = None) -> Dict[str, Any]:
 def _save_private_json(target: Path, data: Any, *, fsync_dir: bool = False, **dump_kwargs: Any) -> None:
     """0600 credential JSON under a 0700 parent (``secure_parent_dir`` refuses ``/``, top-level dirs
     and the install tree). ``atomic_json_write`` creates the temp file 0600 before any byte lands."""
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    if _host_secrets.bound():
+        return _host_secrets.write_json(target, data, **dump_kwargs)
     from hermes_constants import mkdir_under_hermes_home
     mkdir_under_hermes_home(target.parent)
     secure_parent_dir(target)

@@ -101,6 +101,8 @@ class CredentialPersistError(RuntimeError):
 
 def _load_json_if_exists(path: Path, what: str) -> Optional[Any]:
     """Parsed JSON from *path*, or None when missing/unreadable/corrupt (debug-logged)."""
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    path = _host_secrets.view(path)
     if not path.exists():
         return None
     try:
@@ -113,6 +115,9 @@ def _load_json_if_exists(path: Path, what: str) -> Optional[Any]:
 def _atomic_write_private_json(path: Path, payload: Any) -> None:
     """0600-from-creation temp file + fsync + atomic replace (the token is never briefly umask-readable).
     The parent dir's mode is left alone (~/.claude/ is owned by Claude Code)."""
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    if _host_secrets.bound():
+        return _host_secrets.write_json(path, payload)
     atomic_json_write(path, payload, mode=0o600)
 
 

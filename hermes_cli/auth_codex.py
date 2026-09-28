@@ -565,6 +565,9 @@ def _import_codex_cli_tokens() -> Optional[Dict[str, str]]:
     from hermes_cli.auth import _codex_access_token_is_expiring
     codex_home = os.getenv("CODEX_HOME", "").strip() or str(Path.home() / ".codex")
     auth_path = Path(codex_home).expanduser() / "auth.json"
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: borrowed store refused when bound
+    if _host_secrets.external_logins_refused():
+        return None
     if not auth_path.is_file():
         return None
     try:

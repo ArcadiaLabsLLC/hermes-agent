@@ -321,6 +321,9 @@ def _sanitize_env_file_if_needed(path: Path) -> None:
     """Pre-sanitize a .env file before python-dotenv reads it. Sniffs a leading BOM *before* any text
     decode: UTF-16 (Notepad "Unicode") is rewritten as clean UTF-8; UTF-32 is refused (left untouched) so
     we never fall through to the errors=replace corruption path."""
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    if _host_secrets.is_view(path):
+        return
     if not path.exists():
         return
     try:
@@ -422,6 +425,8 @@ def load_hermes_dotenv(
 
     loaded: list[Path] = []
     user_env = home_path / ".env"
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    user_env = _host_secrets.view(user_env)
     project_env_path = Path(project_env) if project_env else None
     load_pass = next(_DOTENV_PASSES)  # one pass: later layers below see the earlier layers' output
 
