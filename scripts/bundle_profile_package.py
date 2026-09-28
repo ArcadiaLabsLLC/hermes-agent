@@ -11,6 +11,11 @@ version, it writes::
                            dist-info (upstream's ``scripts/build/agent.write_metadata``)
       site-packages/       only the third-party distributions the closure needs
       bundle-manifest.json what was packaged, from which commit, for which target
+      licenses.json        every shipped component's licence, licence files, wheel
+                           SHA-256 and review flag (``scripts/bundle_licenses.py``)
+      sbom.cdx.json        the same components as a CycloneDX 1.5 SBOM
+
+Each engine pack directory gets its own ``licenses.json`` and ``sbom.cdx.json``.
 
 Phases:
 
@@ -60,6 +65,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts.bundle_licenses import copy_first_party_licence, licence_problems, write_licence_records  # noqa: E402
 from scripts.bundle_profile_closure import _imports, _norm, _owner, module_index, profile_walk  # noqa: E402
 
 #: pm/lock.json target name -> (uv --python-platform, PEP 508 marker environment)
@@ -405,6 +411,7 @@ def write_pack(manifest, pack: str, names: set[str], dists: dict[str, Dist], sta
               "extras": list(manifest.packaging_packs[pack]), "env": ENGINE_PACKS_ENV,
               "distributions": {n: dists[n].version for n in sorted(names)}, "files": copied}
     (out / PACK_MANIFEST).write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+    write_licence_records(out, pack, names, target, commit, core=False)
     return record
 
 
@@ -418,7 +425,7 @@ def verify_pack(pack_dir: Path, core_dir: Path, manifest) -> list[str]:
                 first_party=set(), pinned=set(), distributions=names, refusals=refused)
     site_files = {p.relative_to(site).as_posix() for p in site.rglob("*") if p.is_file()}
     return compare(plan, set(), read_site(site), site_files, manifest.excluded_data,
-                   baked=(pack_dir / BAKED_MARKER).is_file())
+                   baked=(pack_dir / BAKED_MARKER).is_file()) + licence_problems(pack_dir, names)
 
 
 def write_bundle(plan: Plan, manifest, dists: dict[str, Dist], stage: Path, out: Path,
@@ -433,6 +440,7 @@ def write_bundle(plan: Plan, manifest, dists: dict[str, Dist], stage: Path, out:
     from scripts.build.agent import write_metadata
 
     write_metadata(ROOT / "pyproject.toml", app)
+    copy_first_party_licence(app)
     commit = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True,
                             text=True, check=True).stdout.strip()
     dirty = bool(subprocess.run(["git", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=no"],
@@ -452,6 +460,7 @@ def write_bundle(plan: Plan, manifest, dists: dict[str, Dist], stage: Path, out:
         "excluded_data": dict(manifest.excluded_data),
     }
     (out / BUNDLE_MANIFEST).write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+    write_licence_records(out, "core", plan.distributions, plan.target, commit, core=True)
     return record
 
 
@@ -523,6 +532,7 @@ def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None) -> 
     app_modules = set(module_index(app, plugins=manifest.packaging_plugins))
     problems = compare(plan, app_modules, read_site(site), site_files, manifest.excluded_data,
                        baked=(out / BAKED_MARKER).is_file(), app_files=app_files)
+    problems += licence_problems(out, plan.distributions)
     if record["target"].startswith("win32"):  # other targets read the system zone database
         problems += named_timezone_problems(site)
     return problems

@@ -230,6 +230,39 @@ Installed MiB, source only (no bytecode), Windows x64.
 | tomli-w | 1.2.0 | 0.01 | core |
 | annotated-doc | 0.0.5 | 0.01 | core |
 
+## Release gates (plan D4, lane w4-hd4, 2026-09-28)
+
+Built for real against `8110944532b` (win32-x64, baked with CPython 3.14.5 — the pinned PBS 3.14.7 is not on the build machine); `--verify` of the core and `--verify-pack` both read 0 problems with the licence checks below in them.
+
+**Licences + SBOM — every output, written by the packager.** Each output directory (the core, and each engine pack `<out>-<pack>-pack/`) gets `licenses.json` and `sbom.cdx.json` (`scripts/bundle_licenses.py`):
+
+- `licenses.json` — `{schema: 1, output, target, commit, review_required: [names], components: [...]}`; one component per shipped distribution with `distribution`, `version`, `licence` (PEP 639 `License-Expression`, else a short `License`, else the trove classifiers mapped to SPDX), `licence_files` (output-relative paths — the dist-info's `License-File` entries, else licence-named files in it, else licence-named files its RECORD installs one or two levels deep), `source_url` (the uv.lock wheel URL), `homepage`, `wheel_sha256` (the uv.lock wheel whose tag set equals the dist-info `WHEEL` tags — the one `uv pip install` took), `review`, `review_reasons`, and `embedded` where a copyleft component is compiled in. The core adds `kind: "interpreter"` (CPython from `interpreters.lock.json`: archive URL + SHA-256, `PSF-2.0`, `LICENSE.txt` placed by the installer at the interpreter root, and its embedded OpenSSL / SQLite / libffi / zlib / bzip2 / xz / mpdecimal / expat / vcruntime140) and `kind: "first-party"` (`hermes-agent`, MIT, `app/hermes_agent-0.0.0.dist-info/licenses/LICENSE`, which the packager now copies from `license-files`).
+- `sbom.cdx.json` — CycloneDX 1.5 JSON: one `components[]` entry per row (`purl` `pkg:pypi/<name>@<version>`, the interpreter as `pkg:generic/python-build-standalone/cpython@<version>`), licence expression, `SHA-256` hash, distribution/website references, embedded components nested; the serial number is a uuid5 of output + commit, so a rebuild at one commit is byte-stable.
+- Verify (both outputs) fails when `licenses.json` names a distribution the output does not ship or misses one it does, when a licence file it cites is not in the output, or when the SBOM's component set differs.
+
+**Flagged for review** (`review: true`; nothing removed — what ships is the closure's decision):
+
+| output | component | why |
+|---|---|---|
+| speech pack | piper-tts 1.8.0 | `GPL-3.0-or-later` itself, and espeak-ng (GPL-3.0-or-later) compiled into its phonemizer — the open GPL decision |
+| core | fal-client 0.13.1 | no licence metadata at all (no expression, field or classifier) and no licence text in the wheel |
+| core | firecrawl-anydoc 0.2.4 | MIT, but the wheel carries no licence text |
+| speech pack | ctranslate2 4.8.1, flatbuffers 25.12.19, tokenizers 0.23.1 | MIT / Apache-2.0, but the wheels carry no licence text |
+| core | cpython (embedded vcruntime140) | Microsoft's redistributable C runtime: confirm the redistribution terms |
+
+**`sherpa-onnx` ships in no output.** It is only in the `wake` / `wake-sherpa` extras, which the profile neither ships (`packaging.extras`) nor packs (`packaging.packs`); `tools.wake_word*` are switched off. Measured: absent from the win32-x64 pool (core + every pack's extras, 107 distributions) and from the exported pins of every target (the union of all markers, 108 pins). The espeak-ng in bundled desktop is piper-tts's, flagged above. `EMBEDDED_COMPONENTS` still names sherpa-onnx, so the day it ships its record is flagged.
+
+**Vulnerability scan** — `python scripts/bundle_vuln_scan.py [--bundle <core> --bundle <pack>] [--target T] [--osv-db PyPI-all.zip] [--json out]`: OSV (online `api.osv.dev`, or offline from OSV's PyPI export), GHSA/PYSEC twins folded into one finding, waivers in `agent_runtime/bundle_profiles/vulnerability-waivers.json` (`id`, `distribution`, `reason`, `expires`; expired covers nothing). Exit 0 clean, 1 an unwaived vulnerability, 2 the scan could not run. **Today it exits 1**: the core ships `httpx2==2.7.0` (5 advisories, fixed in 2.10.0–2.12.0: CVE-2026-84378, -84379, -84380, -84381, -84382) and `httpcore2==2.7.0` (CVE-2026-84381, fixed in 2.10.0); nothing else in the 91 shipped or 108 exported pins.
+
+**Ceilings probe** — `python scripts/bundle_ceilings.py --core <core> --python <target python> [--pack <pack>] [--interpreter-dir <dir>] [--stt-model <dir>] [--json out]` prints `{schema, profile, target, commit, baked, python, python_version, size: {core, core_with_interpreter?, "pack:<name>": {installed_bytes, lzma_bytes, installed_mib, lzma_mib}}, ready: {cold_s, warm_s[], warm_median_s}, stt: {measured, reason?, load_s, first_words_s, final_s, …}}`; exit 1 when serve never reports ready. Measured on this build (baked; LZMA2 preset 9 over a deterministic tar):
+
+| | installed MiB | LZMA MiB |
+|---|---:|---:|
+| core app + site-packages, baked | 233.22 | 52.08 |
+| speech pack, baked | 177.45 | 35.21 |
+
+Ready: cold 2.45 s, warm 1.89 / 1.82 s (empty `HERMES_HOME`, OS file cache not flushed). STT: not measured — no Whisper `tiny.en` (the default tier) snapshot with `model.bin` on this machine (`reason: model_not_present`). Every serve start logged `skill install FAILED — FileNotFoundError: app/docs/agent-runtime-harness/harness-skills/…/SKILL.md` and booted anyway: the bundle does not package the harness skills `agent_runtime.skill_install` installs (filed).
+
 ## Tables (generated)
 
 | | distributions | size |
