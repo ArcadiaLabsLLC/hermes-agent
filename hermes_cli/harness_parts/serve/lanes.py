@@ -300,20 +300,6 @@ class ArgvLanes:
 
         from agent_runtime.chat_turn import ChatTurnSpawnRefused
 
-        if self.drain_state is not None:
-            # And ACCOUNTED, exactly as an argv refusal is: a drain that
-            # turned a remote turn away is a number on the terminal
-            # frame rather than an inference. The method lane keeps
-            # answering during a drain for handlers that cannot be cut
-            # off half-done; a chat turn is the work that CAN be, which
-            # is what the drain is for.
-            self.drain_state.note_refused()
-            raise ChatTurnSpawnRefused(
-                "draining",
-                "serve is draining and is not accepting new chat turns; "
-                "reconnect to the replacement runtime and retry with the "
-                "same turn_request_id",
-            )
         chat_request = _ArgvRequest(
             request_id,
             [str(item) for item in argv],
@@ -322,6 +308,12 @@ class ArgvLanes:
             turn_request_id=turn_request_id,
         )
         with self.inflight_lock:
+            if self.drain_state is not None:
+                self.drain_state.note_refused()
+                raise ChatTurnSpawnRefused(
+                    "draining",
+                    "serve is draining; reconnect and retry with the same turn_request_id",
+                )
             # The id is server-minted and random, so a collision here is
             # not a client behaviour — it is a bug, and it refuses
             # rather than silently replacing a live request's entry.

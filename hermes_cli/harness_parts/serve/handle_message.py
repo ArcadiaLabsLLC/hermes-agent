@@ -586,8 +586,11 @@ class MessageHandling:
                                "reason": reason})
                     return None
             if existing is None:
-                if self.conversation_owner is not None:
-                    self.conversation_owner.begin_drain()
+                if not only_if_idle:
+                    if self.discussion_owner is not None:
+                        self.discussion_owner.begin_drain()
+                    if self.conversation_owner is not None:
+                        self.conversation_owner.begin_drain()
                 self.drain_state = _DrainState(effective_deadline)
                 started = self.drain_state
                 pending_at_start = sorted(self.inflight)
@@ -897,9 +900,6 @@ class MessageHandling:
                 }
             )
             return
-        if self.drain_state is not None:
-            self._refuse_while_draining(rid.strip(), sink)
-            return
         self._submit_request(
             _ArgvRequest(
                 rid.strip(),
@@ -940,6 +940,9 @@ class MessageHandling:
 
     def _submit_request(self, request: _ArgvRequest, sink: Any) -> None:
         with self.inflight_lock:
+            if self.drain_state is not None:
+                self._refuse_while_draining(request.rid, sink)
+                return
             if request.key in self.inflight:
                 sink.emit(
                     {

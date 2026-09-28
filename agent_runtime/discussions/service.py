@@ -47,7 +47,7 @@ class DiscussionService:
         self.checkpoints = HostedRoomPolicyCheckpoint(self.db_path, max_active_events=256)
         self.turns = NativeTurns(context, self.attempts)
         self._lock = threading.RLock()
-        self._started, self._closed = False, False
+        self._started, self._closed, self._draining = False, False, False
         self._processing: set[str] = set()
         self.runtime = HostedRoomRuntime(
             db_path=self.db_path, rooms=self.bindings, turn_lock=self._turn_lock,
@@ -78,7 +78,20 @@ class DiscussionService:
 
     @property
     def accepting(self) -> bool:
-        return self._started and not self._closed
+        return self._started and not self._closed and not self._draining
+
+    def begin_drain(self) -> None:
+        with self._lock:
+            self._draining = True
+
+    @contextmanager
+    def idle_drain(self) -> Iterator[None]:
+        """Fence admission only if every owner accepts the idle claim."""
+        with self._lock:
+            if self.runs.owned():
+                raise DiscussionError("busy")
+            yield
+            self._draining = True
 
     def pending_count(self) -> int:
         # Open rooms may schedule another round between native turns.
@@ -262,11 +275,11 @@ class DiscussionService:
 
     def command(self, workspace_id: str, run_id: str, operation: str, *, key: str,
                 expect_revision: int, body: Mapping[str, Any], actor_id: str) -> dict[str, Any]:
-        if not self.accepting:
-            raise DiscussionError("runtime_stopping")
         self.context.workspace(workspace_id)
         with self._lock:
-            if not self.accepting:
+            # Existing work must still accept answers and exact cancellation.
+            continuation = operation in {"answer", "stop", "end", "remove", "abandon"}
+            if self._closed or not self._started or (self._draining and not continuation):
                 raise DiscussionError("runtime_stopping")
             self.runs.request(run_id, workspace_id, key=key, operation=operation,
                 expect_revision=expect_revision, body={**body, "actor_id": actor_id})

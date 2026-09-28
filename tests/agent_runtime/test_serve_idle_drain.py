@@ -11,6 +11,7 @@ from hermes_cli.harness_parts.serve.handle_message import MessageHandling
 from hermes_cli.harness_parts.serve.manifest import ops_manifest
 from hermes_cli.harness_parts.serve.session import ServeSession
 from tests.agent_runtime.conversation_support import WorkerFactory
+from tests.agent_runtime.test_discussion_runtime import engine, begin
 
 
 @pytest.fixture
@@ -69,9 +70,10 @@ def test_mission_control_work_blocks_but_standing_subscriptions_do_not(rig):
     assert request(rig)["event"] == "draining"
 
 
-def test_open_discussion_blocks_maintenance_between_rounds(rig):
+def test_open_discussion_blocks_maintenance_between_rounds(rig, engine):
     session, owner, *_ = rig
-    session.discussion_owner = SimpleNamespace(pending_count=lambda: 1)
+    session.discussion_owner = engine[0]
+    begin(engine[0])
     assert request(rig)["reason"] == "busy"
     assert owner.capabilities()["accepting"]
     assert session._busy_frame()["work"] == 1
