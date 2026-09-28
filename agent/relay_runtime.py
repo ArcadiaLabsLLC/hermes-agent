@@ -810,6 +810,9 @@ class RelayHostRegistry:
                 return host
             try:
                 host = RelayRuntime(profile_key=key)
+            except RelayUnavailable as exc:
+                logger.info("Hermes Relay runtime not available: %s", exc)
+                host = NoopRelayRuntime(profile_key=key, reason=str(exc))
             except Exception as exc:
                 logger.warning("Hermes Relay runtime initialization failed", exc_info=True)
                 host = NoopRelayRuntime(profile_key=key, reason=str(exc))
@@ -1265,9 +1268,18 @@ def current_profile_key() -> str:
     return _PROFILE_KEY_CACHE.get(str(home)) or _PROFILE_KEY_CACHE.setdefault(str(home), str(home.resolve()))
 
 
+class RelayUnavailable(RuntimeError):
+    """The ``nemo_relay`` binding is not installed (a distribution that omits it): Noop host."""
+
+
 def _load_nemo_relay() -> Any:
     """Load the binding only when a producer or consumer needs Relay."""
-    return importlib.import_module("nemo_relay")
+    try:
+        return importlib.import_module("nemo_relay")
+    except ModuleNotFoundError as exc:
+        if exc.name != "nemo_relay":
+            raise
+        raise RelayUnavailable("nemo-relay is not installed in this Hermes") from exc
 
 
 def _configured_plugin_inputs(relay: Any) -> tuple[dict[str, Any], list[Any]] | None:

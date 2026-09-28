@@ -172,6 +172,10 @@ class ProviderSignIns:
         self._lock = threading.Lock()
 
     def begin(self, provider: str, flow: str | None = None, profile: str | None = None) -> dict:
+        from hermes_cli.provider_login_catalog import provider_disabled
+
+        if provider_disabled(provider):
+            raise SignInRefused("provider_disabled", "invalid_params", provider=provider)
         methods = _advertised_methods(provider)
         if not methods:
             raise SignInRefused("provider_unsupported", "invalid_params", provider=provider)

@@ -14,6 +14,10 @@ Killing mutations (applied, red recorded, reverted — see the commit message):
 * ``build_stamp._resolve`` drops the ``checkout_bound_enabled`` branch  -> checkout test red.
 * ``_voice_toggle_mode`` drops the ``_voice_mode_available`` check      -> voice test red.
 * the profile drops ``auth.adopt_external_logins: false``               -> external-logins test red.
+* ``_load_nemo_relay`` drops its ``ModuleNotFoundError`` branch          -> nemo-relay test red.
+* ``provider_login_catalog`` / ``build_provider_visibility`` /
+  ``ProviderSignIns.begin`` / the post-ladder guard each drop their
+  ``provider_disabled`` check                                            -> qwen test red.
 """
 
 from __future__ import annotations
@@ -219,3 +223,55 @@ def test_dashboard_config_schema_loads_without_wake_word():
 
     assert providers(block_wake_word=False)  # positive control: the engines are offered
     assert providers(block_wake_word=True) == []
+
+
+def test_without_nemo_relay_the_relay_host_is_noop(monkeypatch):
+    from agent import relay_runtime
+
+    monkeypatch.setitem(sys.modules, "nemo_relay", types.SimpleNamespace(tag="relay"))
+    assert relay_runtime._load_nemo_relay().tag == "relay"  # positive control: present -> loaded
+
+    monkeypatch.setitem(sys.modules, "nemo_relay", None)  # the bundle omits the distribution
+    with pytest.raises(relay_runtime.RelayUnavailable):
+        relay_runtime._load_nemo_relay()
+    host = relay_runtime.RelayHostRegistry().for_profile("bundled-profile-key")
+    assert isinstance(host, relay_runtime.NoopRelayRuntime)
+    assert host.reason == "nemo-relay is not installed in this Hermes"
+    assert host.managed_execution_enabled() is False
+
+
+def test_qwen_oauth_is_refused_on_every_surface(monkeypatch):
+    import agent.credential_pool as credential_pool
+    import hermes_cli.runtime_provider as runtime_provider
+    from agent_runtime.provider_signin import ProviderSignIns, SignInRefused
+    from hermes_cli.harness_parts.provider_visibility import build_provider_visibility
+    from hermes_cli.provider_login_catalog import provider_login_catalog
+
+    pools_read: list[str] = []
+    monkeypatch.setattr(credential_pool, "load_pool",
+                        lambda provider: pools_read.append(provider) or types.SimpleNamespace(entries=lambda: []))
+    # The ladder is stubbed: "auto" lands on qwen-oauth without touching any credential file.
+    monkeypatch.setattr(runtime_provider, "_ladder_rungs",
+                        lambda *a, **k: iter([{"provider": "qwen-oauth", "api_mode": "chat_completions"}]))
+
+    def sign_in_reason() -> str:
+        with pytest.raises(SignInRefused) as refused:
+            ProviderSignIns(spawn=lambda *a: None).begin("qwen-oauth")
+        return refused.value.reason
+
+    # Positive controls: by default qwen-oauth is offered, read, reached by sign-in and resolved.
+    assert "qwen-oauth" in [row["id"] for row in provider_login_catalog()]
+    build_provider_visibility()
+    assert "qwen-oauth" in pools_read
+    assert sign_in_reason() == "provider_unsupported"
+    assert runtime_provider.resolve_runtime_provider()["provider"] == "qwen-oauth"
+
+    _install_profile()
+    pools_read.clear()
+    assert "qwen-oauth" not in [row["id"] for row in provider_login_catalog()]
+    build_provider_visibility()
+    assert "qwen-oauth" not in pools_read and pools_read  # other providers still read
+    assert sign_in_reason() == "provider_disabled"
+    for requested in ("qwen-oauth", None):  # named, and "auto" landing on it
+        with pytest.raises(ValueError, match="providers.qwen-oauth.enabled: false"):
+            runtime_provider.resolve_runtime_provider(requested=requested)

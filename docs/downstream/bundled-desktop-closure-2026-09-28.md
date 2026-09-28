@@ -17,15 +17,22 @@ The script exits 1 (`REFUSED: …`) when an omitted distribution is imported ung
 - **Excludable** = reached only through a switched-off module.
 - **Measured** sizes: on-disk bytes of each installed distribution's RECORD files in the live Hermes venv (CPython 3.12.14, win_amd64). **Estimated**: distributions the live venv does not have (the speech stack) are sized by their uv.lock wheel. **Wheels (compressed)**: every shipped distribution's uv.lock wheel (cp314, else cp312/abi3 win_amd64, else `none-any`) — the number comparable to the installer ceiling.
 
+## Owner rulings (2026-09-28)
+
+1. **`nemo-relay` is dropped from bundled desktop.** Bundled runs `NoopRelayRuntime`: no managed execution, no Relay plugins, no shared metrics. Mechanism: `packaging.omitted_distributions` (the one import site, `agent.relay_runtime._load_nemo_relay`, now raises a typed `RelayUnavailable` that `RelayHostRegistry.for_profile` turns into the Noop host); the profile also pins `telemetry.shared_metrics.enabled: false`. Full Hermes unchanged.
+2. **No Qwen OAuth in bundled.** The profile sets upstream's existing per-provider switch `providers.qwen-oauth.enabled: false`. The runtime resolver refuses it (named, and now also when "auto" lands on it), the machine sign-in refuses with reason `provider_disabled`, and the login catalog and credential-visibility snapshot leave it out (the Qwen CLI's token file is never read). Qwen models stay reachable through OpenRouter or an API-key provider.
+3. **Bedrock, Vertex, Azure identity and Mistral stay out of bundled** (their extras are not shipped).
+4. **HEIC decoding stays out** (`pillow-heif` omitted); the Launcher handles image formats.
+
 ## Before → after (lane w2-hslim)
 
 | | before | after |
 |---|---:|---:|
-| distributions shipped | 121 (89 measured + 32 estimated) | 92 (72 + 20) |
-| installed, measured | 222.3 MiB | 154.5 MiB |
+| distributions shipped | 121 (89 measured + 32 estimated) | 91 (71 + 20) |
+| installed, measured | 222.3 MiB | 130.2 MiB |
 | not installed, wheel estimate | ~124.6 MiB | ~113.6 MiB |
-| **all shipped, as compressed wheels** | ~192.8 MiB | **~158.7 MiB** |
-| — core only (no speech extras / speech roots) | — | **~45.6 MiB** |
+| **all shipped, as compressed wheels** | ~192.8 MiB | **~149.5 MiB** |
+| — core only (no speech extras / speech roots) | — | **~36.3 MiB** |
 | boot set (third-party loaded at import) | 26 dists, 39.6 MiB | 25 dists, 39.2 MiB |
 | first-party modules kept by the walk | 2161 | 2135 |
 | pinned switched-off modules | 12 | 9 |
@@ -33,6 +40,7 @@ The script exits 1 (`REFUSED: …`) when an omitted distribution is imported ung
 What moved it:
 
 - **Extras are not base.** `discord-py`, `python-telegram-bot`, `boto3`/`botocore` (Bedrock), `google-auth` (Vertex), `azure-identity`, `mistralai`, `elevenlabs`, `ddgs`, `qrcode`, `pip`, `soundfile`, `pilk`, `agent-client-protocol`, `aiohttp` are optional extras the walk reaches; the profile ships only `anthropic`, `mcp`, `fal`, `piper`, `stt-whisper`. Bedrock, Vertex, Azure identity and Mistral are therefore **unavailable** in bundled Hermes (their providers raise their own "install the extra" error; lazy installs are off). The messaging SDKs reached via `cron.scheduler → cron.scheduler_delivery → tools.send_message_tool → tools.send_message_senders` and `gateway.run → gateway.channel_directory` are extras, so they no longer count.
+- **`nemo-relay` omitted** (24.3 MiB installed, 9.2 MiB wheel) — ruling 1.
 - **`pillow-heif` omitted** (27.6 MiB installed): both import sites (`agent.image_routing`, `tools.vision_tools_image_prep`) are guarded; HEIC/HEIF photos cannot be decoded, AVIF still decodes (native in Pillow 12).
 - **Switched off, not packaged** (matrix "—"): voice mode glue `hermes_cli.voice`; checkout-bound `gateway.code_skew`, `hermes_cli.update_cmd*` / `update_completion` / `update_inventory` / `worktree_cmd` / `relay_plugin_migrate`; dev tooling `agent_runtime.doctor_extensions`. `cron.scheduler → gateway.code_skew → hermes_cli.main` is cut at `code_skew` (both cron call sites are `try/except Exception → None`, the right answer for a wheel).
 - **Seam:** `hermes_cli.web_server_config` imports `tools.wake_word._PROVIDER_PREFERENCE` guarded, so the dashboard schema loads without wake word (offers only "auto").
@@ -41,7 +49,6 @@ What moved it:
 ## What stayed, and why
 
 - **Speech (~113 MiB compressed)**: `piper-tts` 32.5 (all-language espeak data), `av` 26.3 (PyAV, via faster-whisper), `ctranslate2` 18.6, `onnxruntime` 13.7, `numpy` 11.9, `hf-xet` 3.9, `tokenizers` 2.7. Owner ruling D4 expects ~25–35 MB once PyAV and non-English Piper data are dropped — that is the speech lane's work, not an import seam.
-- **`nemo-relay`** (9.2 MiB wheel, 24.3 installed): loaded by the agent core on every turn (`agent.relay_runtime._load_nemo_relay`, via `importlib`); a `NoopRelayRuntime` fallback exists (managed execution and Relay plugins off). Dropping it is an owner decision, not a packaging fact.
 - **`pywin32`** (9.2 MiB wheel): `portalocker` requires it on Windows (`concurrent-log-handler` → Hermes logging; MCP loop), and `tui_gateway.host_supervisor` imports `win32con`/`win32file`/`ntsecuritycon`. Only a few of its modules are used; stripping the rest is a packaging-step (wheel build) job.
 - **Shell family and messaging adapters are pinned**: `tools.terminal_tool` (by `tools.delegate_tool`), `tools.terminal_tool_lifecycle` (by `run_agent`, `agent.tool_executor`, `agent.chat_completion_helpers`), `tools.environments.local` (`hermes_subprocess_env`, used by `tui_gateway.server`, `host_supervisor`, `codex_app_server`, `process_registry`), `gateway.platforms.*` (by the `gateway.run` family and `gateway.relay`). The matrix says these features are **present, off** on bundled desktop, so their code ships; moving the helpers out of those upstream modules is a non-additive upstream refactor. Tool discovery still imports the shell-family tool modules at boot (disabled toolsets are subtracted after registration).
 - **Unguarded imports into switched-off modules: 442** (`unguarded_switched_off_imports` in the JSON) — lazy imports that would raise if the bundle omitted the module and the line ran. Most target the pinned shell/messaging modules above (they ship); the rest are behind the new switches or in off features.
@@ -57,18 +64,18 @@ What moved it:
 | `updates.checkout_bound` | `agent_runtime.build_stamp._resolve`, `agent_runtime.dirty_state.repo_dirty_states` | no git: the stamp comes from `.hermes_build_sha` beside the package (the wheel build must bake it), repos report `checkout_bound_off` |
 | `voice.mode_enabled` | `tui_gateway.methods_voice` (`voice.toggle on`, `wake.start`), `hermes_cli.cli_voice_mixin._enable_voice_mode` | voice mode and wake word are refused |
 
-All read through one helper, `hermes_cli.config.config_switch`. The profile also sets the existing `auth.adopt_external_logins: false` (Claude Code / Codex CLI logins never borrowed); **Qwen OAuth is not covered by that key** — its only token store is the Qwen CLI's own file. Still unswitched: `agent_runtime.repo_context` (affected-repo resolution and harness worktree inventory consult git).
+All read through one helper, `hermes_cli.config.config_switch`. The profile also sets the existing `auth.adopt_external_logins: false` (Claude Code / Codex CLI logins never borrowed) and, for Qwen (whose only token store is the Qwen CLI's own file), the existing `providers.qwen-oauth.enabled: false` — ruling 2. Still unswitched: `agent_runtime.repo_context` (affected-repo resolution and harness worktree inventory consult git).
 
 ## Tables (generated)
 
 | | distributions | size |
 |---|---:|---:|
-| Shipped, installed (measured) | 72 | **154.46 MiB** |
+| Shipped, installed (measured) | 71 | **130.22 MiB** |
 | — of which loaded at boot | 25 | 39.21 MiB |
 | Shipped, not installed locally (uv.lock wheel bytes, **estimate**) | 20 | ~113.58 MiB |
-| **All shipped, as uv.lock wheels (compressed — the installer-ceiling view)** | 92 | **~158.73 MiB** |
+| **All shipped, as uv.lock wheels (compressed — the installer-ceiling view)** | 91 | **~149.51 MiB** |
 | Optional extras reached but not shipped | 15 | 49.76 MiB (direct only) |
-| Omitted base distributions | 1 | 27.55 MiB |
+| Omitted base distributions | 2 | 51.80 MiB |
 | Excludable (reached only by switched-off features) | 25 | 5.73 MiB |
 
 ### Shipped, installed (measured)
@@ -107,7 +114,6 @@ All read through one helper, `hermes_cli.config.config_switch`. The profile also
 | mcp | 2.0.0 | extra mcp | pure | 2.42 | no |
 | mcp-types | 2.0.0 | requirement | pure | 0.62 | no |
 | mdurl | 0.1.2 | requirement | pure | 0.04 | yes |
-| nemo-relay | 0.8.4 | base | native | 24.25 | no |
 | openai | 2.24.0 | base | pure | 7.01 | no |
 | opentelemetry-api | 1.39.1 (venv 1.44.0) | requirement | pure | 0.40 | no |
 | packaging | 26.0 | base | pure | 0.53 | no |
@@ -197,7 +203,8 @@ All read through one helper, `hermes_cli.config.config_switch`. The profile also
 
 | distribution | MiB | what degrades |
 |---|---:|---|
-| pillow-heif | 27.55 | HEIC/HEIF images (iPhone photos) cannot be decoded — vision_analyze returns its no-decoder message and image routing skips the image; AVIF still decodes (native in Pillow 12) |
+| nemo-relay | 24.25 | bundled runs NoopRelayRuntime (owner ruling 2026-09-28) — no managed execution, no Relay plugins, no shared metrics |
+| pillow-heif | 27.55 | (owner-confirmed 2026-09-28; the Launcher handles image formats) HEIC/HEIF images (iPhone photos) cannot be decoded — vision_analyze returns its no-decoder message and image routing skips the image; AVIF still decodes (native in Pillow 12) |
 
 ### Excludable
 

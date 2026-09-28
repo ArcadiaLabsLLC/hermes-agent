@@ -66,6 +66,13 @@ config:
   # family and log each other out (credential census §4). Qwen OAuth is NOT
   # covered by this key: its only store is the Qwen CLI's own file.
   auth.adopt_external_logins: false
+  # Qwen OAuth is out (owner ruling 2026-09-28): its only token store is the
+  # Qwen CLI's own file, which bundled and full Hermes would share. Refused in
+  # the runtime resolver, sign-in and the provider catalog. Qwen models stay
+  # reachable through OpenRouter or an API-key provider.
+  providers.qwen-oauth.enabled: false
+  # No shared metrics (nemo-relay is omitted; bundled runs NoopRelayRuntime).
+  telemetry.shared_metrics.enabled: false
 
 environment:
   # Speech loaders' download-if-missing fallbacks (faster-whisper, KittenTTS,
@@ -111,6 +118,7 @@ packaging:
   # import sites tolerate absence; this profile turns lazy installs off, so an
   # unshipped extra is an unavailable feature, never a download.
   extras:
+    # Owner-confirmed 2026-09-28: bedrock, vertex, azure-identity and mistral stay out.
     - anthropic     # Anthropic provider (core agent: providers On)
     - mcp           # MCP over HTTP (On); stdio servers are switched off by config
     - fal           # image generation (On)
@@ -119,9 +127,12 @@ packaging:
   # Base dependencies the bundle omits. Refused by the closure script unless
   # every import site in the kept modules is guarded (try/suppress ImportError).
   omitted_distributions:
+    - distribution: nemo-relay
+      imports: [nemo_relay]
+      degrades: bundled runs NoopRelayRuntime (owner ruling 2026-09-28) — no managed execution, no Relay plugins, no shared metrics
     - distribution: pillow-heif
       imports: [pillow_heif]
-      degrades: HEIC/HEIF images (iPhone photos) cannot be decoded — vision_analyze returns its no-decoder message and image routing skips the image; AVIF still decodes (native in Pillow 12)
+      degrades: (owner-confirmed 2026-09-28; the Launcher handles image formats) HEIC/HEIF images (iPhone photos) cannot be decoded — vision_analyze returns its no-decoder message and image routing skips the image; AVIF still decodes (native in Pillow 12)
   # First-party modules of switched-off / not-packaged features. The walk does
   # not follow an import into these; a third-party distribution reached only
   # through them is "excludable".
