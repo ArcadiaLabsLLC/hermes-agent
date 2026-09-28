@@ -74,3 +74,14 @@ used the UI through Launcher QA; native records corroborated their outcomes.
 The runtime remained isolated from operator profiles and external providers.
 Launcher is repairing full-inspector scaling before restart/history acceptance.
 Broader gates and joint landing remain open.
+
+Stamped Launcher `8ed07ac60` subsequently reopened the table and its stopped
+transcript against the same Hermes code. Its QA window closed gracefully without
+stopping that full-Hermes service. Canonical single-worker verification on Hermes
+`3b7e425d20` passed 131 tests in 12 focused Discussion/setup/admission files,
+103 seconds, 269 MB peak process-tree memory. This does not turn the earlier
+interrupted validated suite into a pass.
+
+The optional conclusion widens the existing upstream Group Chat host seam; its
+retirement path is recorded in `upstream-footprint-ledger.md`. No parallel
+orchestration or lifecycle implementation was introduced.

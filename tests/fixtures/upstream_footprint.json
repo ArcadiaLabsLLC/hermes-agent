@@ -2,9 +2,15 @@
   "measured_at": "2026-09-27",
   "base": "2f14d5e6e4",
   "files": 117,
-  "deleted_lines": 766,
+  "deleted_lines": 770,
   "heavy": 3,
   "reasons": [
+    {
+      "change": "Owner-approved optional Discussion conclusion, 2026-09-28",
+      "files": "unchanged; gateway/hosted_room_discussion.py already carries the host seam",
+      "deleted_lines": "+4 (766 -> 770 allowance); heavy unchanged",
+      "reason": "Extend the existing Group Chat planner and turn-coordinate validation for one opt-in ordinary conclusion turn, instead of creating a second scheduler. Relative to main 08ee5074cb, this file changes from +85/-33 to +143/-37. Retires through the held generic host-surface PR recorded in upstream-footprint-ledger.md. Main already measures 141/900/4 against 117/766/3; that unrelated drift is not absorbed by this allowance. Conclusion-off controls and restart, approval, Stop and failure tests preserve the existing behavior."
+    },
     {
       "change": "ACP named-provider identity correction (owner requested 2026-09-24)",
       "files": "214 -> 216: acp_adapter/session.py and server.py",

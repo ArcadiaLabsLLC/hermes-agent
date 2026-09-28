@@ -11,6 +11,8 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Release validation — 2026-09-23
 
+- [ ] **Reconcile the upstream-footprint ledger with main's unrecorded growth.** · Executed measurement of `08ee5074cb`: `files=141 deleted_lines=900 heavy=4`, fixture `117/766/3`. Discussion's separately recorded conclusion allowance adds four deleted lines only; it does not absorb this baseline drift. Audit and disposition the changed upstream files rather than raising the aggregate silently. `scripts/upstream_footprint.py`, `tests/fixtures/upstream_footprint.json` · filed 2026-09-28 Discussion qualification.
+
 ### Filed on arrival — 2026-09-27 (Windows console signal safety)
 
 - [ ] **Retire the Windows signal-safety carry when upstream adopts an equivalent fix.** · [[Windows console signal safety]]; held upstream candidate recorded in `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md`; no parallel supervisor or PID helper added, no PR submitted.
