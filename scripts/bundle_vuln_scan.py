@@ -100,7 +100,7 @@ def exported_pins(profile: str, target: str | None, uv: str = "uv") -> dict[str,
 # -- matching an OSV record -----------------------------------------------------------------------
 
 
-def _version(text: str):
+def _parse_version(text: str):
     from packaging.version import InvalidVersion, Version
 
     try:
@@ -114,7 +114,7 @@ def affects(record: dict, name: str, version: str) -> bool:
     (``introduced`` inclusive, ``fixed`` exclusive, ``last_affected`` inclusive)."""
     if record.get("withdrawn"):
         return False
-    target = _version(version)
+    target = _parse_version(version)
     for affected in record.get("affected", []):
         package = affected.get("package", {})
         if package.get("ecosystem") != "PyPI" or _norm(package.get("name", "")) != name:
@@ -129,14 +129,14 @@ def affects(record: dict, name: str, version: str) -> bool:
             low = None
             for event in rng.get("events", []):
                 if "introduced" in event:
-                    low = _version("0") if event["introduced"] == "0" else _version(event["introduced"])
+                    low = _parse_version("0") if event["introduced"] == "0" else _parse_version(event["introduced"])
                 elif low is not None and "fixed" in event:
-                    fixed = _version(event["fixed"])
+                    fixed = _parse_version(event["fixed"])
                     if fixed is not None and low <= target < fixed:
                         return True
                     low = None
                 elif low is not None and "last_affected" in event:
-                    last = _version(event["last_affected"])
+                    last = _parse_version(event["last_affected"])
                     if last is not None and low <= target <= last:
                         return True
                     low = None

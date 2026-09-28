@@ -17,6 +17,8 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 - [ ] **Reconcile the upstream-footprint ledger with main's unrecorded growth.** · Executed measurement of `08ee5074cb`: `files=141 deleted_lines=900 heavy=4`, fixture `117/766/3`. Discussion's separately recorded conclusion allowance adds four deleted lines only; it does not absorb this baseline drift. Audit and disposition the changed upstream files rather than raising the aggregate silently. `scripts/upstream_footprint.py`, `tests/fixtures/upstream_footprint.json` · filed 2026-09-28 Discussion qualification.
 
+### Filed on arrival — 2026-09-28 (lane w4-hfix2)
+- [ ] **36 reds on this Windows box at `687f1fbe70e`, identical before and after the httpx2 2.12.0 bump: `tests/tools/test_mcp_{cimd,client_cert,oauth,oauth_integration,oauth_user_agent,oauth_manager,sse_transport,multiplex_connection_keys,startup_summary_names_failures,shared_connection_resolved_identity,tool_issue_948,windows_orphan_fix}.py` (mostly `OAuthNonInteractiveError`, `npx` path resolution, SSE `auth=`/`sse_read_timeout` not forwarded) and `tests/scripts/test_bundle_native.py` — triage environment vs code.** · runner logs of lane w4-hfix2 (base vs branch, same 36). **UNCLAIMED**
 ### Filed on arrival — 2026-09-27 (Windows console signal safety)
 
 - [ ] **Retire the Windows signal-safety carry when upstream adopts an equivalent fix.** · [[Windows console signal safety]]; held upstream candidate recorded in `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md`; no parallel supervisor or PID helper added, no PR submitted.

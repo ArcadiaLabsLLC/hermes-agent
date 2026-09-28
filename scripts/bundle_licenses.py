@@ -193,7 +193,7 @@ def installed_wheel(info_dir: Path, name: str, version: str, wheels: dict) -> di
 # -- one output ---------------------------------------------------------------------------------
 
 
-def _row(name: str, version: str, expression: str, files: list[str], url: str | None,
+def _component(name: str, version: str, expression: str, files: list[str], url: str | None,
          wheel: dict | None, homepage: str | None, components: list[dict[str, str]] = (),
          **extra) -> dict:
     reasons = review_reasons(expression, list(components))
@@ -222,7 +222,7 @@ def distribution_rows(out: Path, names, wheels: dict | None = None) -> list[dict
     for name in sorted(names):
         info, meta = by_name[name]
         files = [p.relative_to(out).as_posix() for p in licence_files(info, meta)]
-        rows.append(_row(name, meta["Version"], licence_expression(meta), files,
+        rows.append(_component(name, meta["Version"], licence_expression(meta), files,
                          source_url(meta), installed_wheel(info, name, meta["Version"], wheels),
                          source_url(meta), EMBEDDED_COMPONENTS.get(name, [])))
     return rows
@@ -233,7 +233,7 @@ def interpreter_row(target: str, lock: Path = INTERPRETER_LOCK) -> dict:
     artifact = data["artifacts"][target]
     components = [c for c in INTERPRETER_COMPONENTS
                   if target.startswith("win32") or c["name"] != "vcruntime140"]
-    return _row("cpython", data["version"], "PSF-2.0", ["LICENSE.txt"], artifact["url"],
+    return _component("cpython", data["version"], "PSF-2.0", ["LICENSE.txt"], artifact["url"],
                 {"url": artifact["url"], "hash": f"sha256:{artifact['sha256']}"},
                 "https://github.com/astral-sh/python-build-standalone", components,
                 licence_files_placed_by="installer (interpreter root)", kind="interpreter")
@@ -243,7 +243,7 @@ def first_party_row(out: Path, commit: str) -> dict:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     files = sorted(p.relative_to(out).as_posix() for p in (out / "app").glob("*.dist-info/licenses/*")
                    if p.is_file())
-    return _row(project["name"], f"{project['version']}+g{commit[:12]}", project.get("license", "UNKNOWN"),
+    return _component(project["name"], f"{project['version']}+g{commit[:12]}", project.get("license", "UNKNOWN"),
                 files, None, None, None, kind="first-party",
                 commit=commit)
 
