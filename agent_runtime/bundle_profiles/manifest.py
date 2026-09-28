@@ -77,7 +77,8 @@ class ProfileManifest:
     packaging_extras: tuple[str, ...] = ()
     omitted_distributions: tuple[Mapping[str, Any], ...] = ()
     # The packaging step (scripts/bundle_profile_package.py).
-    #: agent resources (``scripts/build/inputs.py`` RESOURCE_ENV names) shipped beside the code
+    #: agent resources shipped beside the code: a ``scripts/build/inputs.py`` RESOURCE_ENV name
+    #: (``skills``) or a repo-relative directory (the harness skills); ``--verify`` checks each ships
     packaging_resources: tuple[str, ...] = ()
     #: bundled plugin directories (``plugins/<dir>``) that ship; an unlisted one is not packaged
     packaging_plugins: tuple[str, ...] = ()

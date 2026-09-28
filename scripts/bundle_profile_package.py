@@ -355,10 +355,10 @@ def first_party_files(plan: Plan, index: dict[str, Path], tracked: list[str],
     all_package_dirs = {p.relative_to(ROOT).as_posix().rsplit("/", 1)[0]
                         for p in index.values() if p.name == "__init__.py"}
     for rel in tracked:
-        if rel.endswith(".py") or _is_noise(rel) or _is_test(rel) or _excluded(f"app/{rel}", excluded or {}):
+        if not _data_file(rel, excluded or {}):
             continue
         parts = rel.split("/")
-        if parts[0] in resources:
+        if _in_resource(rel, resources):
             rels.add(rel)
             continue
         # Package data: the nearest enclosing Python package must be shipped.
@@ -369,6 +369,31 @@ def first_party_files(plan: Plan, index: dict[str, Path], tracked: list[str],
                     rels.add(rel)
                 break
     return sorted(rels)
+
+
+def _data_file(rel: str, excluded: dict[str, str]) -> bool:
+    """A tracked non-module file the packager may ship (package data or a resource)."""
+    return not (rel.endswith(".py") or _is_noise(rel) or _is_test(rel) or _excluded(f"app/{rel}", excluded))
+
+
+def _in_resource(rel: str, resources: tuple[str, ...]) -> bool:
+    """``rel`` lies under a ``packaging.resources`` entry: a top-level resource
+    (``skills``) or a repo-relative directory (``docs/agent-runtime-harness/harness-skills``,
+    the harness skills :mod:`agent_runtime.skill_install` copies at serve start)."""
+    return any(rel.startswith(resource.rstrip("/") + "/") for resource in resources)
+
+
+def resource_problems(app_files: set[str], tracked: list[str], resources: tuple[str, ...],
+                      excluded: dict[str, str]) -> list[str]:
+    """Every ``packaging.resources`` entry ships, file for file, what the packager selects for it."""
+    problems = []
+    for resource in resources:
+        wanted = {rel for rel in tracked if _in_resource(rel, (resource,)) and _data_file(rel, excluded)}
+        if not wanted:
+            problems.append(f"resource selects no tracked file: {resource}")
+        for rel in sorted(wanted - app_files):
+            problems.append(f"missing resource file ({resource}): app/{rel}")
+    return problems
 
 
 def _excluded(rel: str, excluded: dict[str, str]) -> bool:
@@ -533,6 +558,8 @@ def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None) -> 
     problems = compare(plan, app_modules, read_site(site), site_files, manifest.excluded_data,
                        baked=(out / BAKED_MARKER).is_file(), app_files=app_files)
     problems += licence_problems(out, plan.distributions)
+    problems += resource_problems(app_files, tracked_files(), manifest.packaging_resources,
+                                  manifest.excluded_data)
     if record["target"].startswith("win32"):  # other targets read the system zone database
         problems += named_timezone_problems(site)
     return problems

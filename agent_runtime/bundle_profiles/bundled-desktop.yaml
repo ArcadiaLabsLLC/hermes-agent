@@ -205,6 +205,9 @@ packaging:
   resources:
     - skills
     - locales
+    # The harness skills agent_runtime.skill_install copies into the shared skills
+    # root at serve start (it reads them from app/docs/..., beside agent_runtime/).
+    - docs/agent-runtime-harness/harness-skills
   # Bundled plugin directories (plugins/<dir>) that ship; the loader finds
   # plugins by directory, so an unlisted one is simply not packaged. Left out:
   # platforms (messaging, off), browser (shell family, switched off),

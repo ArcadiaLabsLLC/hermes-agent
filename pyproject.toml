@@ -395,9 +395,14 @@ pty = []
 # resolution. Hermes' own `httpx[socks]==0.28.1` in [dependencies] is
 # unaffected — the two distributions install side by side under different
 # module names.
+# FORK CARRY (2026-09-28, bundled-desktop vulnerability gate): 2.12.0, not
+# upstream's 2.7.0 — httpx2 < 2.12.0 carries CVE-2026-84378..84382 and its
+# httpcore2==2.7.0 carries CVE-2026-84381 (fixed in 2.10.0; httpx2 2.12.0
+# pins httpcore2==2.12.0). On an upstream merge keep the HIGHER pin;
+# tests/agent_runtime/test_bundle_vuln_floors.py reds if a merge takes 2.7.0.
 mcp = [
   "mcp==2.0.0",
-  "httpx2==2.7.0",
+  "httpx2==2.12.0",
   "starlette==1.3.1",
 ] # starlette: CVE-2026-48710
 # Backwards-compatible no-op alias. Relay is a core dependency on supported
@@ -413,7 +418,7 @@ teams = [
 # provides the MCP client, independently of the native driver package.
 computer-use = [
   "mcp==2.0.0",
-  "httpx2==2.7.0",
+  "httpx2==2.12.0",
   "starlette==1.3.1",
 ] # starlette: CVE-2026-48710
 acp = ["agent-client-protocol==0.9.0"]
@@ -539,7 +544,7 @@ dev = [
   "pytest==9.1.1",
   "pytest-asyncio==1.3.0",
   "mcp==2.0.0",
-  "httpx2==2.7.0",
+  "httpx2==2.12.0",
   "starlette==1.3.1",
   "ty==0.0.82",
   "ruff==0.15.10",

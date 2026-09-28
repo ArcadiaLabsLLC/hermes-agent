@@ -19,6 +19,7 @@ from scripts.bundle_profile_package import (
     first_party_plan,
     marker_env,
     named_timezone_problems,
+    resource_problems,
 )
 
 
@@ -164,3 +165,28 @@ def test_a_named_timezone_resolves_only_from_a_site_holding_tzdata(tmp_path: Pat
     assert named_timezone_problems(with_tz) == []  # positive control
     problems = named_timezone_problems(without)
     assert len(problems) == 1 and "America/New_York" in problems[0]
+
+
+SKILLS = "docs/agent-runtime-harness/harness-skills"
+TRACKED = [f"{SKILLS}/harness-qa-verdict/SKILL.md", f"{SKILLS}/harness-qa-verdict/references/x.md",
+           "docs/other.md", "skills/a/SKILL.md"]
+
+
+def test_a_nested_resource_ships_file_for_file_or_verify_names_the_gap():
+    """``--verify`` holds a repo-relative ``packaging.resources`` entry (the harness skills
+    ``agent_runtime.skill_install`` reads from ``app/docs/...``) to every tracked file under it."""
+    resources = (SKILLS, "skills")
+    shipped = {f"{SKILLS}/harness-qa-verdict/SKILL.md", f"{SKILLS}/harness-qa-verdict/references/x.md",
+               "skills/a/SKILL.md"}
+    assert resource_problems(shipped, TRACKED, resources, {}) == []  # positive control
+    problems = resource_problems(shipped - {f"{SKILLS}/harness-qa-verdict/SKILL.md"}, TRACKED, resources, {})
+    assert problems == [f"missing resource file ({SKILLS}): app/{SKILLS}/harness-qa-verdict/SKILL.md"]
+    assert resource_problems(shipped, TRACKED, (*resources, "docs/typo"), {}) == [
+        "resource selects no tracked file: docs/typo"]
+
+
+def test_the_packager_selects_a_nested_resource_and_nothing_beside_it():
+    from scripts.bundle_profile_package import first_party_files
+
+    plan = _plan(set(), set())
+    assert first_party_files(plan, {}, TRACKED, (SKILLS,)) == sorted(TRACKED[:2])
