@@ -87,6 +87,8 @@ def realm_sync_status(
     state = _sync_state(git)
     store_drift = _status_store_drift(realm.id, workspaces)
     profile_artifacts_held = _held_profile_artifacts(realm, repo)
+    level_row = _level_status_row(realm.id, workspaces)
+    map_row = _map_status_row(realm.id)
     _write_sync_sidecar(
         realm,
         repo=repo,
@@ -134,7 +136,15 @@ def realm_sync_status(
         # ``state``/``ahead``/``behind`` are UNCHANGED — other consumers key off
         # them — this only ADDS store-vs-baseline drift accounting on top.
         "store_drift": store_drift,
-        "unpublished_changes": _any_store_drift(store_drift),
+        # The level and map families are top-level rows, not ``store_drift``
+        # families (neither has a revert arm yet), so the flag asks them
+        # directly. Reading ``store_drift`` alone answered False over a map the
+        # launcher had just saved, and every consumer of this flag — the
+        # launcher's sheet, its chip, its auto-publish gate — then said there
+        # was nothing to publish.
+        "unpublished_changes": bool(
+            _any_store_drift(store_drift) or level_row["unpublished"] or map_row["unpublished"]
+        ),
         # Held profile FILES (MEMORY.md / core context / persona prompts whose
         # member copy diverged from the realm's). A hold the operator cannot see
         # is the same as a loss, so it is surfaced here and resolvable with
@@ -147,12 +157,12 @@ def realm_sync_status(
         "flow_graphs": _flow_graph_status_row(realm.id, workspaces),
         # The workspace LEVEL family's accounting, same shape and same
         # absent-tolerant contract as the row above it.
-        "levels": _level_status_row(realm.id, workspaces),
+        "levels": level_row,
         # The MAP CATALOGUE family's accounting. Same shape and same
         # absent-tolerant contract as the row above it, minus the workspace
         # argument: a map id is not addressed by a workspace, so the scan has no
         # realm filter to take.
-        "maps": _map_status_row(realm.id),
+        "maps": map_row,
     }
 
 

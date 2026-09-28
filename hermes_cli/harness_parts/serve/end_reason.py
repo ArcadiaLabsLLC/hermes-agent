@@ -123,6 +123,7 @@ class EndReason(StrEnum):
     CTRL_CLOSE = "ctrl_close"
     CTRL_C = "ctrl_c"
     SIGTERM = "sigterm"
+    PARENT_EXITED = "parent_exited"  # --parent-pid: the owning Launcher exited; serve drained itself
     LOGOFF = "logoff"
     # the fallback
     UNKNOWN_EXIT = "unknown_exit"

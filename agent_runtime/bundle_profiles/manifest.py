@@ -85,6 +85,12 @@ class ProfileManifest:
     excluded_data: Mapping[str, str] = dataclasses.field(default_factory=dict)
     #: engine pack name -> the extras it carries OUTSIDE the core bundle (downloaded on first use)
     packaging_packs: Mapping[str, tuple[str, ...]] = dataclasses.field(default_factory=dict)
+    #: base distribution -> how it is reached with no static import (stdlib ``zoneinfo`` loads
+    #: ``tzdata``); the closure ships it, and refuses a name that is not a base dependency
+    dynamic_distributions: Mapping[str, str] = dataclasses.field(default_factory=dict)
+    #: requirement of a shipped distribution -> why a placeholder module stands in for it
+    #: (``av`` under faster-whisper: arrays only); the closure never follows into it
+    placeholder_distributions: Mapping[str, str] = dataclasses.field(default_factory=dict)
 
 
 def manifest_path(profile: str) -> Path:
@@ -167,6 +173,9 @@ def parse_manifest(data: Any, *, validate: bool = True) -> ProfileManifest:
         packaging_packs={name: _strings(_mapping(pack, f"packaging.packs.{name}").get("extras"),
                                         f"packaging.packs.{name}.extras")
                          for name, pack in _mapping(packaging.get("packs"), "packaging.packs").items()},
+        dynamic_distributions=_reasons(packaging.get("dynamic_distributions"), "packaging.dynamic_distributions"),
+        placeholder_distributions=_reasons(packaging.get("placeholder_distributions"),
+                                           "packaging.placeholder_distributions"),
     )
     if validate:
         validate_manifest(manifest)

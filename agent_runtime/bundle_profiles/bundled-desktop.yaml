@@ -132,6 +132,16 @@ packaging:
     - distribution: pillow-heif
       imports: [pillow_heif]
       degrades: (owner-confirmed 2026-09-28; the Launcher handles image formats) HEIC/HEIF images (iPhone photos) cannot be decoded — vision_analyze returns its no-decoder message and image routing skips the image; AVIF still decodes (native in Pillow 12)
+  # Base dependencies no static import reaches, shipped by name (the walk sees only
+  # imports). A requested extra of a base declaration (httpx[socks] -> socksio) is
+  # followed by the closure itself and needs no entry here.
+  dynamic_distributions:
+    tzdata: "stdlib zoneinfo loads it: Windows has no system timezone database, so hermes_time and cron named timezones need it"
+  # Requirements of a shipped distribution that a placeholder module stands in for:
+  # the closure never follows into them. Refused when kept first-party code imports
+  # one or when it is a base dependency.
+  placeholder_distributions:
+    av: "PyAV (66 MiB, the speech pack's largest distribution): faster-whisper imports it at module top but decodes only FILES; the speech service passes arrays (the Launcher sends raw PCM) and registers an av placeholder first (agent_runtime.speech_decode). A voice-note FILE reads unavailable, reason file_decode_unavailable"
   # First-party modules of switched-off / not-packaged features. The walk does
   # not follow an import into these; a third-party distribution reached only
   # through them is "excludable".

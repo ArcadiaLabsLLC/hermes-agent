@@ -331,6 +331,7 @@ def test_every_word_the_runtime_can_write_is_in_the_ruled_vocabulary() -> None:
             "ctrl_close",
             "ctrl_c",
             "sigterm",
+            "parent_exited",
             "logoff",
             "unknown_exit",
         }

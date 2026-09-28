@@ -121,6 +121,12 @@ def _cmd_serve(args, *, harness_parser: Callable[[Any], None] | None = None) -> 
             )
         )
         return 2
+    parent_pid = getattr(args, "parent_pid", None)
+    if parent_pid is not None and (isinstance(parent_pid, bool) or not isinstance(parent_pid, int)
+                                   or parent_pid <= 0):
+        print(json.dumps({"ok": False, "error": "invalid_parent_pid",
+                          "detail": "--parent-pid must be a positive process id"}))
+        return 2
     if harness_parser is not None:
         bind_harness_parser(harness_parser)
     protocol_in, protocol_out = _claim_protocol_pipes()
@@ -181,6 +187,7 @@ def _cmd_serve(args, *, harness_parser: Callable[[Any], None] | None = None) -> 
             # default serve is still the launcher's stdio child and still dies
             # with the pipe it was born on.
             service=getattr(args, "service", False),
+            parent_pid=parent_pid,
             # RL-16. ON here and nowhere else, the same contract as
             # ``root_anchor`` and ``skill_install`` beside it: arming it
             # registers an atexit hook and signal handlers on THIS process, and

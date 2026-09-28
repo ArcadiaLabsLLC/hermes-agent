@@ -181,6 +181,7 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         stream_source_factory: Callable[[], Any] | None = None,
         stream_buffer_limit: int | None = None,
         stream_byte_limit: int | None = None,
+        parent_pid: int | None = None,
     ) -> None:
         self.reader = reader
         self.writer = writer
@@ -206,6 +207,10 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         self.stream_source_factory = stream_source_factory
         self.stream_buffer_limit = stream_buffer_limit
         self.stream_byte_limit = stream_byte_limit
+        #: ``--parent-pid``: the process that owns this runtime (a bundled Launcher). When it
+        #: exits — a crash included — the runtime drains itself. ``None``: nothing is watched.
+        self.parent_pid = parent_pid
+        self.parent_watch: Any = None
 
     def run(self) -> int:
         """Boot, serve until the reader ends, unwind. The process's exit code."""
@@ -291,7 +296,36 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         self._start_background_workers()
         self._bind_subscription_lanes()
         self._start_pool_and_accepting()
+        self._arm_parent_watch()
         return self._serve_until_eof()
+
+    def _arm_parent_watch(self) -> None:
+        """``--parent-pid``: drain when the owning process exits (after the pool exists)."""
+        if self.parent_pid is None:
+            return
+        from agent_runtime.parent_watch import start_parent_watch
+
+        self.parent_watch = start_parent_watch(self.parent_pid, self._on_parent_gone)
+
+    def _on_parent_gone(self) -> None:
+        """The owner is gone: the same drain a stdio ``drain`` asks for, named for why."""
+        self._note_end(EndReason.PARENT_EXITED)
+        gone = {"event": "parent_exited", "pid": os.getpid(), "boot_id": self.boot_id,
+                "parent_pid": self.parent_pid}
+        try:
+            self.frames.emit(gone)
+        except Exception:
+            pass  # the owner's pipe went with it
+        self._broadcast_lanes(gone)
+        try:
+            self._request_drain({"op": "drain"}, _SafeSink(self.frames), None, only_if_idle=False)
+        except Exception:
+            # A drain that cannot even start must not leave an ownerless runtime running.
+            self._write_end()
+            if self.hard_exit is not None:
+                self.hard_exit(DRAIN_TIMEOUT_EXIT_CODE)
+            else:
+                self.service_stop.set()
 
     def _boot_prelude(self) -> None:
         from agent_runtime.boot_timeline import BootTimeline

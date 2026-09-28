@@ -140,13 +140,21 @@ stricter), page limits 1–100, user labels 120 chars and lists at documented ca
 | `installations.detect` / console | `{}` | `complete:bool`, `checked_scopes:string[]`, `issues:Issue[]`, `installations:Installation[]`, `observed_at` |
 | `installations.validate` / console | `executable_path:string` | `installation:Installation`, `validation_token:UUID`, `expires_at` |
 | `host_paths.validate` / console | `path:string`, `purpose:installation_parent|model_root|offline_archive` | `normalized_path:string`, `exists:bool`, `readable:bool`, `writable:bool|null`, `free_bytes:int|null`, `issues:Issue[]`, `observed_at` |
-| `hardware.get` / console | `{}` | `os:string`, `architecture:string`, `cpu_features:string[]`, `ram_bytes:int|null`, `gpus:Gpu[]`, `issues:Issue[]`, `observed_at` |
+| `hardware.get` / console | `{}` | `os:string`, `architecture:string`, `cpu_features:string[]`, `ram_bytes:int|null`, `vram_bytes:int|null`, `gpus:Gpu[]`, `issues:Issue[]`, `observed_at` |
 | `releases.list` / console | `channel:stable|prerelease`, `cursor?:string`, `limit?:int=20` | `releases:Release[]`, `next_cursor:string|null`, `cached:bool`, `fetched_at`, `stale:bool`, `retry_after_seconds:int|null` |
 | `installation.plan` / console | `release_id:string`, `variant_id:string`, `destination_parent:string`, `source:official_download|offline_cached`, `offline_paths?:string[]` | `plan:InstallPlan` |
 | `installation.apply` / console | Guard + `plan_id:UUID`, `plan_revision:int`, `acknowledged_warning_ids:string[]` | `operation:Operation`, `active_operation:Operation|null` |
 | `operations.cancel` / console | `request_id:UUID`, `operation_id:UUID` | `target:Operation`, `cancel_disposition:requested|already_requested|already_terminal` |
 | `installations.activate` / console | Guard + `installation_id?:UUID` OR `validation_token?:UUID`, `expect_inventory_revision:int`, `expect_active_installation_id:UUID|null` | `operation:Operation`, `active_operation:Operation|null` |
 | `setup.logs.get` / console | `operation_id:UUID`, `cursor?:string`, `limit?:int=100` | `lines:LogLine[]`, `next_cursor:string|null`, `truncated:bool`, `cursor_reset:bool` |
+
+`hardware.get` as served today (`agent_runtime/local_llama_adapter/setup.py`
+`hardware()`): `os`, `architecture`, `ram_bytes`, `available_ram_bytes`,
+`vram_bytes`, `gpu_compatibility`, `recommended_backend`, `recommendation`.
+`vram_bytes` (2026-09-28) is upstream's `probe_budget(planning=True).total_device_bytes`
+for a discrete card — the device's total memory, for the Launcher's GPU-fit model
+pick — and `null` when no GPU is seen or the memory is unified (the device total
+is then system RAM, already in `ram_bytes`).
 
 Guard = required `request_id:UUID`, `expect_epoch:UUID`, `expect_revision:int`,
 `expect_config_revision:int`, using authoritative current runtime state. A plan's

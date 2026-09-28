@@ -143,3 +143,34 @@ def test_the_status_envelope_carries_the_row(tmp_path):
         envelope["store_drift"]["flow_graphs"]["canvases_added"]
         + envelope["store_drift"]["flow_graphs"]["canvases_changed"]
     )
+
+
+def test_an_unpublished_map_lights_unpublished_changes(tmp_path):
+    """A map saved from the launcher is publishable, and the realm-sync sheet,
+    its chip and the auto-publish gate all read ``unpublished_changes`` to know
+    there is something to share. The map family is a top-level row rather than
+    a ``store_drift`` family (no revert arm yet), so the flag must ask it
+    directly — it used to read ``store_drift`` alone and said ``False`` over a
+    map that was waiting to publish."""
+    from agent_runtime.map_sync import MapStore
+
+    # A realm with NOTHING local to share — no desk, no canvas — so the flag's
+    # baseline is honestly False and the map is the one variable changed.
+    realm = RealmStore().create(name="Map Realm")
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "init", "realm-sync-repo"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    realm.sync_manifest_ref = str(tmp_path / "realm-sync-repo")
+    realm = RealmStore().save(realm)
+    before = realm_sync_status(realm.id)
+    assert before["maps"]["unpublished"] == 0
+    assert before["unpublished_changes"] is False, "the positive control's baseline"
+
+    MapStore().write("map-flag-test", b'{"version": 1, "name": "flag test"}')
+
+    envelope = realm_sync_status(realm.id)
+    assert envelope["maps"]["unpublished"] == 1
+    assert envelope["unpublished_changes"] is True

@@ -77,8 +77,8 @@ the same `write_json_atomic` helper the row uses:
 
 Four keys, no `schema_version`: a fifth would be a fact about a process that no
 longer exists to be asked about it. The vocabulary is CLOSED — `drained`,
-`shutdown_op`, `stdin_eof`, `ctrl_close`, `ctrl_c`, `sigterm`, `logoff`,
-`unknown_exit`, plus the one open-ended `uncaught:<ExceptionTypeName>` — because
+`shutdown_op`, `stdin_eof`, `ctrl_close`, `ctrl_c`, `sigterm`, `parent_exited`,
+`logoff`, `unknown_exit`, plus the one open-ended `uncaught:<ExceptionTypeName>` — because
 the launcher's runtime sheet switches on it; a word the recorder does not
 recognise is written as `unknown_exit` rather than passed through to an
 operator's screen. Which ending writes which word is tabulated in

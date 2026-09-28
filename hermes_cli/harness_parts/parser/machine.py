@@ -500,6 +500,17 @@ def add_serve(subs) -> None:
             "Incompatible with --no-socket (a drain would have no lane to arrive on)."
         ),
     )
+    serve.add_argument(
+        "--parent-pid",
+        type=int,
+        default=None,
+        metavar="PID",
+        help=(
+            "The process that owns this runtime (a bundled Launcher passes its own pid). When it "
+            "exits — a crash included — the runtime drains itself and exits; the sidecar reads "
+            "`parent_exited`. Omitted: nothing is watched."
+        ),
+    )
     serve.set_defaults(func=_cmd_serve)
     # Sub-verbs under `serve`. The subparser is NOT required, so a bare
     # `harness serve --ndjson` keeps parsing exactly as it always has and still
