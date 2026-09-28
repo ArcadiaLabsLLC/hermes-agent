@@ -23,6 +23,20 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
+
+Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2026-09-28.md` (stages named per row) and `ARCHITECTURE_2026-09-28.md` §4. Rule: one Python implementation, universal — enable existing Hermes code, never reimplement; bundle only what is needed.
+
+- [ ] **D0 — delete the July `mobile_core/` duplicates** (`core.py`, `auth.py`, `providers.py`, `events.py`, `exceptions.py`, `provider_catalog.json`, `_vendor/`, `tools/vendor_upstream.py`, `generate_provider_catalog.py`, `wheel_smoke.py`, their tests, `dist/`/`build/`/egg-info, `DEPENDENCY_CERTIFICATION.md`/`README.md`); drop `mobile_core` rows from the two grandfathered fixtures and three test scan-root tuples; hold `turn_runner.py`, `redact.py`, golden tests, `import_gate.py`. · plan D0 item 2.
+- [ ] **D0 — `runtime.provider.*` methods (sign-in, usage, provider list) wrapping upstream auth/usage, `hermes_cli/provider_browser_login.py` and the real catalog; add an Anthropic PKCE driver over `agent/anthropic_credentials`.** · plan D0 item 3; no new logic.
+- [ ] **D0 — census every credential read/write/refresh/delete path (auth store, Anthropic OAuth, API keys, `HERMES_AUTH_HOME`) for the secure-store seam.** · plan D0 item 6.
+- [ ] **D0 — amend canon 09 (`docs/agent-runtime-harness/09-multi-device-runtime.md`) to add "bundled Hermes, mobile profile" as a supported tier; update the ledger, supersession U50 row and Fork Boundary Map for the `mobile_core` change.** · spec ruling 5.
+- [ ] **Messaging platforms (Telegram, Discord, …) as fork work for the headless toolset (full Hermes as a service); off in bundled profiles.** · spec ruling 8.
+- [ ] **D1 — profile manifest (enabled toolsets + packaged modules from the import closure) and the bundled-desktop wheel build.** · plan D1 items 1–2; bundled service lifetime bound to the Launcher, item 8.
+- [ ] **D3 — speech service in bundled Hermes: load STT/TTS from the Launcher's models folder via explicit local paths (faster-whisper, Piper), serve recognize/synthesize over new `runtime.*` methods, one GPU admission authority (reserve/release, refuse or evict).** · plan D3 items 1–2.
+- [ ] **Stage 2 — split `serve_rpc` dispatch from the daemon shell; in-memory pipe as a third serve transport; phone profile over the real wheel; profile gate replacing `mobile_core/tools/import_gate.py`.** · plan Stage 2.
+- [ ] **Stage 2 — in-process conversation worker behind the existing `runtime.conversation.*` / `NativePeer` (no subprocess on phones); re-home `turn_runner.py` as the SDK-free client under `agent.transports.*`; agent-loop seam so upstream's loop loads without desktop tool lifecycles; history storage seam (encrypted DB/WAL/FTS/transcripts).** · plan Stage 2 steps; never a second loop or session store.
+
 ### Native conversation lifecycle audit — 2026-09-26
 
 
@@ -188,6 +202,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
+### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
+
+- [ ] **Credentials seam: back `hermes_cli/auth.py` `_load_auth_store` / `_save_auth_store` (and the other stores the D0 census finds) with the host's secure store on phones and bundled profiles; exact auth/profile scope, no plaintext, no cross-install discovery.** · `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2026-09-28.md` Stage 2 step 5; additive seam only.
+
 ### Filed on arrival — 2026-09-26 (lane FIX-TRIAGE, filed by the orchestrator)
 
 ### Filed on arrival — 2026-09-26 (lane PF-1, seams; filed by the orchestrator)
@@ -246,6 +264,11 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - [ ] **Upstream `_apply_request_chain` hands every `llm_request` callback the ORIGINAL request and keeps only the LAST result, so a second callback silently drops the first's rewrite; the eternia-harness plugin therefore composes the wire-brief rewrite and the Codex cache-key rewrite in ONE callback** · `hermes / seams` · widening PR candidate (HELD while PRs are paused): chain the callbacks (each sees the previous result) — a one-line upstream change; until then every fork `llm_request` rewrite must join the single composed callback in `plugins/eternia-harness/` · evidence: lane DOORS-A 2026-09-24 (`seam/doors-a-2026-09-24`, the cache-key commit) **UNCLAIMED**
 
 ## Upstream-owned
+
+### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
+
+- [ ] **Bundled profiles must not download models themselves: switch off `hermes_cli/web_routers/local_models.py` download/catalog routes and the "download if missing" fallbacks in `tools/tts_tool_local.py` / `tools/transcription_local.py` by profile config or a caller-side gate — never by editing those files.** · `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2026-09-28.md` D1 item 1, D2, D3 item 1; the Launcher is the one downloader.
+- [ ] **Offer the SDK-free httpx client (re-homed `turn_runner`) upstream as a transport "client" door, after the fork polish.** · architecture §4; ask the owner before opening the PR.
 
 ### Filed on arrival — 2026-09-27 (lane PR-REPLIES, filed by the orchestrator)
 
