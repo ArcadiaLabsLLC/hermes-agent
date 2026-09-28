@@ -59,3 +59,18 @@ authority and protocol are unchanged. See
 `EterniaLauncher/docs/companion/planned/DISCUSSION_EXPERIENCE_2026-09-27.md`.
 The original native UI acceptance and broader gates are still owed. The earlier
 interrupted full suite is not a passing result or a baseline classification.
+
+## Native acceptance continuation
+
+Launcher `39e5b0b80` / Hermes `f3c0654b80`: client restart restored the exact
+pending question without another provider request. Both participants answered;
+the configured moderator conclusion settled as a third ordinary attempt with
+`conclusion_completed`. The local provider proves lifecycle, not answer quality.
+
+Launcher `9e5654b5b` / Hermes `6d7074f438`: Mission Control reopened a saved table,
+started a run using the shared preset, answered its native question, confirmed
+Stop while execution was held, removed a member and ended the run. All actions
+used the UI through Launcher QA; native records corroborated their outcomes.
+The runtime remained isolated from operator profiles and external providers.
+Launcher is repairing full-inspector scaling before restart/history acceptance.
+Broader gates and joint landing remain open.
