@@ -1,0 +1,83 @@
+"""The bundle closure's shipping rules: extras ship only when the profile names them, and a base
+distribution may be omitted only when every import site of it tolerates its absence.
+
+Killing mutations (applied, red recorded, reverted — see the commit message):
+
+* ``classify`` ships every extra (``set(homes) & set(selected)`` -> ``homes``)
+  -> ``test_an_extra_ships_only_when_the_profile_names_it`` red.
+* ``_guarded_ids`` returns an empty set (no import is ever guarded)
+  -> ``test_omitting_a_distribution_needs_every_import_site_guarded`` red (its positive control).
+* ``_catches_import_error`` returns True for any handler
+  -> ``test_omitting_a_distribution_needs_every_import_site_guarded`` red (a ``ValueError`` guard passes).
+"""
+
+from __future__ import annotations
+
+import textwrap
+import types
+
+from scripts.bundle_profile_closure import Walk, classify, module_index, omitted_import_sites, refusals
+
+
+def test_an_extra_ships_only_when_the_profile_names_it():
+    base, extras = {"httpx"}, {"bedrock": {"boto3", "botocore"}, "anthropic": {"anthropic"}}
+    direct = {"httpx": ["a"], "botocore": ["b"], "anthropic": ["c"], "pip": ["d"], "pillow-heif": ["e"]}
+
+    rows = classify(direct, base, extras, selected=("anthropic",), omitted={"pillow-heif"})
+
+    assert {d: r["status"] for d, r in rows.items()} == {
+        "httpx": "ship", "anthropic": "ship", "botocore": "optional", "pip": "ship-undeclared",
+        "pillow-heif": "omitted"}
+    assert rows["botocore"]["extras"] == ["bedrock"]
+    # Positive control: name the extra and the same distribution ships.
+    assert classify(direct, base, extras, selected=("anthropic", "bedrock"), omitted=set())["botocore"]["status"] \
+        == "ship"
+
+
+def _tree(tmp_path, **modules):
+    root = tmp_path / "pkg"
+    root.mkdir(parents=True)
+    (root / "__init__.py").write_text("", encoding="utf-8")
+    for name, body in modules.items():
+        (root / f"{name}.py").write_text(textwrap.dedent(body), encoding="utf-8")
+    return module_index(tmp_path)
+
+
+def _unguarded(tmp_path, **modules):
+    index = _tree(tmp_path, **modules)
+    walk = Walk(("pkg",), (), index, {"pkg"})
+    manifest = types.SimpleNamespace(omitted_distributions=(
+        {"distribution": "heavy", "imports": ("heavy",), "degrades": "x"},))
+    sites = omitted_import_sites(manifest, walk)
+    result = {"omitted_unguarded_import_sites": {d: [s for s in ss if not s["guarded"]] for d, ss in sites.items()},
+              "omitted_but_required": [], "unknown_extras": []}
+    return sites["heavy"], refusals(result)
+
+
+def test_omitting_a_distribution_needs_every_import_site_guarded(tmp_path):
+    guarded = """
+        from contextlib import suppress
+
+        def a():
+            try:
+                import heavy
+            except ImportError:
+                return None
+
+        def b():
+            with suppress(Exception):
+                import heavy.sub
+    """
+    sites, problems = _unguarded(tmp_path / "ok", guarded=guarded)
+    assert len(sites) == 2 and problems == []  # positive control: both sites seen, both guarded
+
+    wrong_guard = """
+        def c():
+            try:
+                import heavy
+            except ValueError:
+                return None
+    """
+    sites, problems = _unguarded(tmp_path / "bad", guarded=guarded, wrong=wrong_guard)
+    assert len(sites) == 3
+    assert len(problems) == 1 and "pkg.wrong" in problems[0]

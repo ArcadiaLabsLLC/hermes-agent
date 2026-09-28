@@ -46,6 +46,26 @@ config:
   security.allow_lazy_installs: false
   # Local LLM engine supervision: on.
   local_runtime.enabled: true
+  # MCP stdio servers (local processes): present, off; an agent's profile may
+  # turn them on, with approvals. HTTP servers are unaffected.
+  mcp.stdio_servers: false
+  # Piper: never fetch a voice by name; the Launcher downloads voice files.
+  tts.piper.download_voices: false
+  # Execution backends: only `local` may be created (Docker, SSH, Modal,
+  # Daytona, Singularity, Vercel and plugin backends are refused).
+  terminal.external_backends: false
+  # Messaging platforms: the messaging gateway starts no platform adapter.
+  gateway.platform_adapters: false
+  # Checkout-bound: no git build stamp or repo dirty-state probes; identity is
+  # the baked build stamp (.hermes_build_sha beside the installed package).
+  updates.checkout_bound: false
+  # Hermes's own voice mode and wake word: the Launcher owns mic and speaker.
+  voice.mode_enabled: false
+  # Never borrow Claude Code / Codex CLI logins: a borrowed OAuth refresh token
+  # is single-use, so bundled and full Hermes (or the CLI) would share one token
+  # family and log each other out (credential census §4). Qwen OAuth is NOT
+  # covered by this key: its only store is the Qwen CLI's own file.
+  auth.adopt_external_logins: false
 
 environment:
   # Speech loaders' download-if-missing fallbacks (faster-whisper, KittenTTS,
@@ -68,18 +88,12 @@ refused_routes:
     - /api/local-models/search/files
     - /api/local-models/download-browsed
 
-# Matrix rows with NO existing switch. Reported, not invented.
+# Matrix rows with NO switch. Reported, not invented. (Stdio MCP, Piper voice
+# download, execution backends, messaging adapters, git build stamp / dirty
+# state and voice mode gained their switches in lane w2-hslim, above.)
 unswitched:
-  - area: MCP stdio servers
-    gap: no transport-level switch; mcp_servers entries are enabled per server only
-  - area: Execution backends (Docker, SSH, Modal, Daytona, Singularity)
-    gap: terminal.backend is pinned, not refused; a profile can still select one once terminal is enabled
-  - area: Messaging platforms (gateway adapters)
-    gap: no deny switch; adapters start only when a platform is configured
-  - area: Checkout-bound (Update/Repair from git, git build stamp, dirty state, repo context)
-    gap: no switch; agent_runtime build_stamp / dirty_state / repo_context always consult git
-  - area: Hermes voice mode
-    gap: no config switch; excluded by packaging only
+  - area: Checkout-bound repo context
+    gap: agent_runtime.repo_context (affected-repo resolution for delivery directives, harness worktree inventory) still consults git; harness worktrees are only created with worktree isolation, which is off
 
 # Packaging: the import-closure walk (scripts/bundle_profile_closure.py).
 packaging:
@@ -92,6 +106,22 @@ packaging:
     - hermes_cli.local_runtime
     - tools.tts_tool_local
     - tools.transcription_local
+  # Optional extras (pyproject [project.optional-dependencies]) the bundle ships.
+  # Every other extra is absent: full Hermes installs extras lazily and their
+  # import sites tolerate absence; this profile turns lazy installs off, so an
+  # unshipped extra is an unavailable feature, never a download.
+  extras:
+    - anthropic     # Anthropic provider (core agent: providers On)
+    - mcp           # MCP over HTTP (On); stdio servers are switched off by config
+    - fal           # image generation (On)
+    - piper         # speech service: TTS (On)
+    - stt-whisper   # speech service: STT (On)
+  # Base dependencies the bundle omits. Refused by the closure script unless
+  # every import site in the kept modules is guarded (try/suppress ImportError).
+  omitted_distributions:
+    - distribution: pillow-heif
+      imports: [pillow_heif]
+      degrades: HEIC/HEIF images (iPhone photos) cannot be decoded — vision_analyze returns its no-decoder message and image routing skips the image; AVIF still decodes (native in Pillow 12)
   # First-party modules of switched-off / not-packaged features. The walk does
   # not follow an import into these; a third-party distribution reached only
   # through them is "excludable".
@@ -113,13 +143,30 @@ packaging:
     - tools.feishu_doc_tool
     - tools.feishu_drive_tool
     - tools.yuanbao_tools
+    # Hermes's own mic/speaker features (matrix: "—" on bundled desktop).
     - tools.voice_mode
     - tools.voice_live
     - tools.wake_word
     - tools.wake_word_engines
+    - hermes_cli.voice
     - gateway.platforms
     - plugins.platforms
-    - hermes_cli.web_routers.local_models
+    # Checkout-bound (matrix: "—"): git revision skew, git update/repair, the
+    # `hermes worktree` command, and the `hermes migrate` relay cut-over.
+    # (hermes_cli.worktree_ops stays: kanban's worktree workspaces import it.)
+    - gateway.code_skew
+    - hermes_cli.update_cmd
+    - hermes_cli.update_cmd_fleet
+    - hermes_cli.update_cmd_maint
+    - hermes_cli.update_cmd_windows
+    - hermes_cli.update_completion
+    - hermes_cli.update_inventory
+    - hermes_cli.worktree_cmd
+    - hermes_cli.relay_plugin_migrate
+    # Dev and QA tooling (matrix: "—").
+    # (agent_runtime.harness_doctor stays: the harness parser registers
+    # `harness doctor` at import.)
+    - agent_runtime.doctor_extensions
     - tests
     - scripts
     - evals

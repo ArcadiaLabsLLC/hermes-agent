@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from .build_stamp import checkout_bound_enabled
 from .repo_context import resolve_affected_repo_workdir, safe_affected_repo_labels
 from .states import RunState
 from .store import ACTIVE_RUN_STATES
@@ -48,6 +49,21 @@ def build_dirty_state(*, runs=None, incidents=None, repos=None, runtime_instance
 
 
 def repo_dirty_states(repos) -> list[dict[str, Any]]:
+    if not checkout_bound_enabled():
+        # Checkout-bound features are off (config ``updates.checkout_bound``): no repo is probed,
+        # and each is reported unmeasured rather than clean.
+        return [
+            {
+                "label": (safe_affected_repo_labels([str(raw)])[0] if str(raw).strip() else "repo")[:80],
+                "resolved": False,
+                "dirty": None,
+                "dirty_count": 0,
+                "status_excerpt": [],
+                "error": "checkout_bound_off",
+                "message": "Checkout-bound features are off in this Hermes; repository state is not measured.",
+            }
+            for raw in repos or []
+        ]
     seen: set[str] = set()
     states: list[dict[str, Any]] = []
     for raw_repo in repos or []:

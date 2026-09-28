@@ -157,8 +157,20 @@ def _parse_boolish(value: Any, default: bool = True) -> bool:
 def mcp_server_enabled(cfg: dict) -> bool:
     """Whether ``mcp_servers.<name>`` is on. The ONE reader of the ``enabled`` key: the MCP client,
     the toolset resolver, the profile editor, and every list/status surface call it, so a value
-    can never be on for one surface and off for another. Absent, ``null`` or unparseable = on."""
-    return _parse_boolish(cfg.get("enabled", True), default=True)
+    can never be on for one surface and off for another. Absent, ``null`` or unparseable = on.
+    A stdio server (no ``url``) is also off while :func:`mcp_stdio_servers_allowed` says no."""
+    if not _parse_boolish(cfg.get("enabled", True), default=True):
+        return False
+    return "url" in cfg or mcp_stdio_servers_allowed()
+
+
+def mcp_stdio_servers_allowed() -> bool:
+    """Config ``mcp.stdio_servers`` (default on): may this Hermes start stdio MCP servers (local
+    processes)? A distribution that starts none (the bundled desktop profile) turns it off; HTTP
+    servers are unaffected. An unreadable config keeps today's behaviour (on)."""
+    from hermes_cli.config import config_switch
+
+    return config_switch("mcp", "stdio_servers")
 
 
 def _get_lifecycle_seconds(config: dict, key: str) -> Optional[float]:
