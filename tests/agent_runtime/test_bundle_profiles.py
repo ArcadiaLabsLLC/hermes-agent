@@ -80,6 +80,21 @@ def test_invented_config_key_is_refused():
         parse_manifest(_raw(config={"updates.invented_switch": False}))
 
 
+def test_every_bundle_exclusion_states_its_reason():
+    parse_manifest(_raw(packaging={"excluded_data": {"site-packages/x/data": "why"}}))  # positive control
+    with pytest.raises(ProfileManifestError, match="non-empty reasons"):
+        parse_manifest(_raw(packaging={"excluded_data": {"site-packages/x/data": " "}}))
+
+
+def test_bundled_plugins_name_real_plugin_directories():
+    from pathlib import Path
+
+    manifest = load_profile(PROFILE)
+    plugins = Path(__file__).resolve().parents[2] / "plugins"
+    assert manifest.packaging_plugins
+    assert [p for p in manifest.packaging_plugins if not (plugins / p).is_dir()] == []
+
+
 def test_packaging_modules_name_real_modules():
     """Every closure root and switched-off prefix names a first-party module in this tree."""
     from scripts.bundle_profile_closure import module_index

@@ -81,3 +81,15 @@ def test_omitting_a_distribution_needs_every_import_site_guarded(tmp_path):
     sites, problems = _unguarded(tmp_path / "bad", guarded=guarded, wrong=wrong_guard)
     assert len(sites) == 3
     assert len(problems) == 1 and "pkg.wrong" in problems[0]
+
+
+def test_a_target_excluded_or_guard_only_distribution_is_optional_not_undeclared():
+    """``ptyprocess; sys_platform != 'win32'`` on Windows, and ``distlib`` behind try/except ImportError."""
+    direct = {"ptyprocess": ["a"], "distlib": ["b"], "mystery": ["c"]}
+    rows = classify(direct, set(), {}, selected=(), omitted=set(),
+                    not_for_target={"ptyprocess"}, guarded_only={"distlib"})
+    assert {d: r["status"] for d, r in rows.items()} == {
+        "ptyprocess": "optional", "distlib": "optional", "mystery": "ship-undeclared"}
+    # Positive control: without the two facts the same inputs ship undeclared.
+    assert {r["status"] for r in classify(direct, set(), {}, selected=(), omitted=set()).values()} \
+        == {"ship-undeclared"}

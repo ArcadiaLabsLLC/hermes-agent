@@ -87,19 +87,42 @@ def _norm(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def module_index(root: Path = ROOT) -> dict[str, Path]:
-    """Dotted first-party module name -> file."""
+def module_index(root: Path = ROOT, plugins=()) -> dict[str, Path]:
+    """Dotted first-party module name -> file.
+
+    ``plugins`` names bundled plugin directories (``plugins/<dir>``). The plugin
+    loader imports them by PATH, so a hyphenated directory (``eternia-harness``)
+    has no import name; it is indexed as ``plugins.<dir with _>`` so the walk
+    can follow its imports, relative ones included.
+    """
     index: dict[str, Path] = {}
     for path in root.rglob("*.py"):
         rel = path.relative_to(root)
         if _SKIP_DIRS.intersection(rel.parts[:-1]):
             continue
         parts = list(rel.with_suffix("").parts)
+        if plugins and parts[0] == "plugins" and len(parts) > 2 and parts[1] in plugins:
+            if {"tests", "test"}.intersection(parts[2:-1]):
+                continue  # a plugin's own tests: the loader never imports them
+            parts = [p.replace("-", "_") for p in parts]
         if parts[-1] == "__init__":
             parts = parts[:-1]
         if parts and all(p.isidentifier() for p in parts):
-            index[".".join(parts)] = path
+            index.setdefault(".".join(parts), path)
     return index
+
+
+def plugin_roots(manifest) -> tuple[str, ...]:
+    """Walk roots for the manifest's bundled plugin directories."""
+    return tuple(f"plugins.{name.replace('-', '_')}" for name in getattr(manifest, "packaging_plugins", ()))
+
+
+def profile_walk(manifest, index: dict[str, Path] | None = None) -> tuple["Walk", dict[str, Path]]:
+    """The profile's one walk: its roots plus its bundled plugins, never into switched-off modules."""
+    index = index if index is not None else module_index(plugins=getattr(manifest, "packaging_plugins", ()))
+    first_party = {m.split(".")[0] for m in index}
+    roots = (*manifest.packaging_roots, *plugin_roots(manifest))
+    return Walk(roots, manifest.switched_off_modules, index, first_party), index
 
 
 def _catches_import_error(handler_type) -> bool:
@@ -298,6 +321,14 @@ def declared(path: Path = ROOT / "pyproject.toml") -> tuple[set[str], dict[str, 
     return base, extras
 
 
+def declared_anywhere(path: Path = ROOT / "pyproject.toml") -> set[str]:
+    """Every distribution ``[project]`` declares (base + extras), markers NOT evaluated."""
+    project = tomllib.loads(path.read_text(encoding="utf-8"))["project"]
+    raws = [*project.get("dependencies", []), *(r for reqs in project.get("optional-dependencies", {}).values()
+                                                 for r in reqs)]
+    return {_norm(_req(raw).name) for raw in raws} - {_norm(project["name"])}
+
+
 def _lock(path: Path = ROOT / "uv.lock") -> dict[str, dict]:
     return {_norm(p["name"]): p for p in tomllib.loads(path.read_text(encoding="utf-8")).get("package", [])}
 
@@ -401,11 +432,16 @@ def omitted_import_sites(manifest, walk_result: Walk) -> dict[str, list[dict]]:
             for row in manifest.omitted_distributions}
 
 
-def classify(direct: dict[str, list[str]], base, extras, selected, omitted) -> dict[str, dict]:
+def classify(direct: dict[str, list[str]], base, extras, selected, omitted,
+             not_for_target=(), guarded_only=()) -> dict[str, dict]:
     """Direct distribution -> {status, extras, via}; status is ship / ship-undeclared / optional / omitted.
 
     ``base`` and ``extras`` are dependency CLOSURES, so a distribution that arrives only as a
     requirement of an extra (botocore under ``bedrock``'s boto3) is classified with that extra.
+    ``not_for_target``: declared, but every declaration's marker is false for the target
+    (``ptyprocess; sys_platform != 'win32'`` on Windows) — optional, not undeclared.
+    ``guarded_only``: undeclared, and every import site in the kept modules is guarded
+    (``hermes_cli._launchers`` tries ``distlib`` then pip's copy) — optional.
     """
     rows = {}
     for dist, via in direct.items():
@@ -414,25 +450,28 @@ def classify(direct: dict[str, list[str]], base, extras, selected, omitted) -> d
             status = "omitted"
         elif dist in base or set(homes) & set(selected):
             status = "ship"
-        elif homes:
+        elif homes or dist in not_for_target or dist in guarded_only:
             status = "optional"
         else:
             status = "ship-undeclared"
         declared_as = ("base" if dist in base else
                        "extra " + ",".join(sorted(set(homes) & set(selected))) if set(homes) & set(selected) else
-                       "extra " + ",".join(homes) if homes else "undeclared")
+                       "extra " + ",".join(homes) if homes else
+                       "declared for other targets" if dist in not_for_target else
+                       "undeclared, every import guarded" if dist in guarded_only else "undeclared")
         rows[dist] = {"status": status, "extras": homes, "declared": declared_as, "via": via}
     return rows
 
 
-def closure(profile: str, *, boot: bool = True) -> dict:
+def closure(profile: str, *, boot: bool = True, extra_extras=()) -> dict:
+    """``extra_extras``: extras shipped on top of ``packaging.extras`` (an engine pack's)."""
     from agent_runtime.bundle_profiles.manifest import load_profile
 
     manifest = load_profile(profile, validate=False)
-    index = module_index()
+    selected = (*manifest.packaging_extras, *extra_extras)
+    result, index = profile_walk(manifest)
     first_party = {m.split(".")[0] for m in index}
-    roots, pruned = manifest.packaging_roots, manifest.switched_off_modules
-    result = Walk(roots, pruned, index, first_party)
+    roots, pruned = (*manifest.packaging_roots, *plugin_roots(manifest)), manifest.switched_off_modules
     tops = dict(result.tops)
     for top in eager_tops(result.pinned, index, first_party):
         tops.setdefault(top, ["(pinned module)"])
@@ -450,18 +489,23 @@ def closure(profile: str, *, boot: bool = True) -> dict:
             unresolved[top] = via
         else:
             direct.setdefault(dist, via)
-    classes = classify(direct, base, extras, manifest.packaging_extras, omitted)
+    not_for_target = declared_anywhere() - declared_base - set().union(*declared_extras.values())
+    unguarded = {graph.dist_for_top(top) for top, sites in result.import_sites.items()
+                 if any(not site["guarded"] for site in sites)}
+    unguarded |= {graph.dist_for_top(top) for top in eager_tops(result.pinned, index, first_party)}
+    guarded_only = set(direct) - unguarded
+    classes = classify(direct, base, extras, selected, omitted, not_for_target, guarded_only)
     shipped = graph.closure(d for d, row in classes.items() if row["status"].startswith("ship"))
 
     # Excludable: what the switched-off modules alone would add.
     everything = Walk(tuple(roots) + tuple(pruned), (), index, first_party)
     all_direct = {d for d in (graph.dist_for_top(t) for t in everything.tops) if d}
-    all_classes = classify({d: [] for d in all_direct}, base, extras, manifest.packaging_extras, omitted)
+    all_classes = classify({d: [] for d in all_direct}, base, extras, selected, omitted)
     reachable = graph.closure(d for d, row in all_classes.items() if row["status"].startswith("ship"))
 
     booted: set[str] = set()
     if boot:
-        booted = graph.closure({d for d in (graph.dist_for_top(t) for t in boot_tops(roots, first_party)) if d})
+        booted = graph.closure({d for d in (graph.dist_for_top(t) for t in boot_tops(manifest.packaging_roots, first_party)) if d})
 
     rows = [{**graph.facts(n), "loaded_at_boot": n in booted,
              "direct": classes.get(n, {}).get("status", "requirement"),
@@ -475,8 +519,8 @@ def closure(profile: str, *, boot: bool = True) -> dict:
     sites = omitted_import_sites(manifest, result)
     return {
         "profile": manifest.profile, "interpreter": sys.version.split()[0], "venv": sys.prefix,
-        "target": TARGET_ENV, "extras_shipped": list(manifest.packaging_extras),
-        "unknown_extras": sorted(set(manifest.packaging_extras) - set(declared_extras)),
+        "target": TARGET_ENV, "extras_shipped": list(selected),
+        "unknown_extras": sorted(set(selected) - set(declared_extras)),
         "first_party_modules_kept": len(result.kept),
         "pinned_switched_off_modules": sorted(result.pinned),
         "unguarded_switched_off_imports": sorted(result.unguarded_into_pruned,

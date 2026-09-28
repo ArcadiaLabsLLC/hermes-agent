@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "comment": "The CPython every bundled-desktop target ships (plan D1 item 3). It is PM's own pin (pm/lock.json packages.python, python-build-standalone install_only), copied so the Launcher installer reads one file; tests/agent_runtime/test_bundle_interpreters_lock.py fails when the two disagree. Why this build and not python.org's embeddable zip, and the measured sizes: docs/downstream/bundled-desktop-closure-2026-09-28.md, 'Measured bundle'.",
+  "version": "3.14.7+20260901",
+  "artifacts": {
+    "win32-x64": {
+      "sha256": "5d9242012dded591d723a3a572dda265173ad58d8a3e6fdbc6dac8f94f36c80a",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260901/cpython-3.14.7+20260901-x86_64-pc-windows-msvc-install_only.tar.gz"
+    },
+    "win32-arm64": {
+      "sha256": "5efa2548bf1248ca07ed6f8afb0cb52b83d4869d533ea5be919a989c8ee1b17c",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260901/cpython-3.14.7+20260901-aarch64-pc-windows-msvc-install_only.tar.gz"
+    },
+    "darwin-arm64": {
+      "sha256": "30daa970c7d223530120f1693cd3c6fa4c0c0d31ef158710b0dd77f286a5b23e",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260901/cpython-3.14.7+20260901-aarch64-apple-darwin-install_only.tar.gz"
+    },
+    "darwin-x64": {
+      "sha256": "dd8841a2e8ef94bd1a02b52f92843120942140f112145d4e0199abab56f120b1",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260901/cpython-3.14.7+20260901-x86_64-apple-darwin-install_only.tar.gz"
+    },
+    "linux-x64": {
+      "sha256": "0ab3305457051cd3e7c031857e005f1bda17c218a1990567dacaaac6dd1d14f0",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260901/cpython-3.14.7+20260901-x86_64-unknown-linux-gnu-install_only.tar.gz"
+    },
+    "linux-arm64": {
+      "sha256": "30f1cc489be654477d895b441e196bb080738bf0456da82080ad4ab66a22d80f",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260901/cpython-3.14.7+20260901-aarch64-unknown-linux-gnu-install_only.tar.gz"
+    }
+  },
+  "layout": {
+    "site_packages": {
+      "win32": "Lib/site-packages",
+      "posix": "lib/python3.14/site-packages"
+    },
+    "app_path_file": "hermes-agent.pth",
+    "start": [
+      "-I",
+      "-m",
+      "hermes_cli.main",
+      "harness",
+      "serve",
+      "--ndjson"
+    ],
+    "engine_packs_env": "HERMES_ENGINE_PACKS",
+    "comment": "site_packages receives the core bundle's site-packages; app_path_file (in site_packages) holds the relative path to the bundle's app/ directory; engine_packs_env lists installed engine pack site-packages directories (os.pathsep), read by the core's hermes-engine-packs.pth; start runs under -I so no PYTHON* variable or user site reaches the bundle."
+  },
+  "prune": {
+    "win32": [
+      "**/*.pdb",
+      "Lib/site-packages/pip",
+      "Lib/site-packages/pip-*.dist-info",
+      "Lib/ensurepip",
+      "Lib/idlelib",
+      "Lib/tkinter",
+      "Lib/turtledemo",
+      "Lib/turtle.py",
+      "DLLs/_tkinter.pyd",
+      "DLLs/tcl*.dll",
+      "DLLs/_test*.pyd",
+      "DLLs/xxlimited*.pyd",
+      "DLLs/_ctypes_test.pyd",
+      "include",
+      "libs",
+      "Scripts"
+    ]
+  }
+}

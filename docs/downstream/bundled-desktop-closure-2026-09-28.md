@@ -66,6 +66,152 @@ What moved it:
 
 All read through one helper, `hermes_cli.config.config_switch`. The profile also sets the existing `auth.adopt_external_logins: false` (Claude Code / Codex CLI logins never borrowed) and, for Qwen (whose only token store is the Qwen CLI's own file), the existing `providers.qwen-oauth.enabled: false` — ruling 2. Still unswitched: `agent_runtime.repo_context` (affected-repo resolution and harness worktree inventory consult git).
 
+## Measured bundle (lane w2-hwheel, 2026-09-28)
+
+Built for real on Windows x64 with `scripts/bundle_profile_package.py` (the packaging step) against this tree, then started. Scratch outputs only; nothing downloaded into the tree.
+
+The generated tables further down predate this lane's changes to the closure (bundled plugin roots, the target-excluded / guard-only classification, the speech pack split); the per-package table at the end of this section is the measured one.
+
+```
+python scripts/bundle_profile_package.py --profile bundled-desktop --target win32-x64 --out <dir> [--bake-with <target python>]
+python scripts/bundle_profile_package.py --verify <core dir> [--verify-pack <pack dir>]
+```
+
+**How it builds.** (1) *Pool*: `uv export --frozen` of the base dependencies plus `packaging.extras` and every engine pack's extras, markers evaluated by the packager for the target (uv 0.11.14's cross-target environment reports no `platform_machine == 'AMD64'` for `x86_64-pc-windows-msvc`), installed `--no-deps --require-hashes --only-binary :all:` into a staging `--target`: uv.lock's pins and hashes, nothing resolved. (2) *Plan*: this script's closure decides every distribution (it runs in a child `-I -S -B` interpreter whose only site directory is the pool, target environment set); first-party modules are the closure walk's kept modules plus its bundled plugin directories (`packaging.plugins`, hyphenated ones indexed as `plugins.<dir_>`) plus every switched-off module kept code imports unguarded (pinned or lazy), with its module-level imports and parent packages. (3) *Copy*: tracked files only (`git ls-files`); distribution RECORD files minus `__pycache__`, test directories and `packaging.excluded_data`; `app/.hermes_build_sha` (the stamp `agent_runtime.build_stamp` reads when `updates.checkout_bound` is off — measured: the ready frame's `build.source` is `build_sha_file`). (4) *Verify* (plan D4): the plan is recomputed from the source tree and the bundle's OWN site-packages; any extra or missing first-party module or distribution, closure refusal, file no distribution owns, test file, stray bytecode or excluded data fails the build (exit 1). It caught one real miss while this lane ran (three `plugins.platforms.telegram` modules loaded through a package `__init__`).
+
+**No wheel.** `setup.py` refuses `bdist_wheel` outside Nix (upstream's guard), and upstream's own assembler (`scripts/build/agent.py`) ships source layouts with a PEP 621 dist-info rather than a wheel. The packaging step does the same (`write_metadata`), so the "wheel" is the reproducible `app/` tree at a commit.
+
+**Two outputs (owner, 2026-09-28): speech engines download on first use.** `packaging.packs.speech` holds the `piper` and `stt-whisper` extras; the core bundle ships the profile's closure without them, the speech pack ships only what the closure adds with them. Bundled Hermes finds an installed pack through `HERMES_ENGINE_PACKS` (os.pathsep list of pack `site-packages` directories), read by `hermes-engine-packs.pth`, which the packager writes into the core `site-packages`: `site` runs its one `import` line at every interpreter start (conversation workers included) and adds only directories that exist. No pack: `faster_whisper` / `piper` are not importable and both providers report unavailable (measured, `find_spec` / `_importable` → False); pack present: STT transcribes from the pack (measured below).
+
+### Interpreter
+
+CPython **3.14.7**, the python-build-standalone `install_only` build PM already pins (`pm/lock.json`), for every desktop target, recorded in `agent_runtime/bundle_profiles/interpreters.lock.json` (URL + SHA-256 per target, the Windows prune list, the layout; a test fails if it drifts from PM's pin). Not 3.12: `uv.lock` resolves only for Python ≥ 3.14 and every base dependency carries `python_version >= '3.14'`, so a 3.12 bundle would install no core dependencies (the 3.12 figures above are the live venv's). Not python.org's embeddable zip on Windows, although it is smaller (12.7 MB zip vs 49.5 MB): its SQLite is **3.50.4**, which Hermes flags as vulnerable to the WAL-reset corruption bug and downgrades to journal_mode=DELETE on every store (measured: five warnings per start); the PBS build links SQLite **3.53.1** and OpenSSL 3.5.8. Windows prune (in the lock): PDBs, pip, ensurepip, idlelib, tkinter/tcl, turtledemo, `_test*` modules, include, libs, Scripts — 147.3 → **35.8 MiB** installed. Start: `python -I -m hermes_cli.main harness serve --ndjson` (`-I` keeps PYTHON* and the user site out).
+
+### Sizes (Windows x64, installed interpreter + bundle)
+
+| output | installed MiB | zip -9 MiB | LZMA2 -9 (xz) MiB |
+|---|---:|---:|---:|
+| core: interpreter + app + site-packages, source only | **173.11** | 61.53 | **38.71** |
+| core, bytecode baked (`unchecked-hash`, stdlib included) | 274.05 | 106.27 | 61.46 |
+| speech pack, source only | **225.59** | 78.23 | **49.32** |
+| speech pack, bytecode baked | 244.21 | 85.78 | 53.43 |
+
+7-Zip is not installed on the build machine; the LZMA2 column is Python's `lzma` (preset 9, the codec 7z and Inno Setup use). Against the D4 ceiling (installer delta ≤ ~80 MB, excluding models): the core is ~39–61 MiB compressed depending on bytecode; the speech pack is a first-use download.
+
+### Time to ready (serve's `{"event":"ready"}` frame, empty `HERMES_HOME`)
+
+| install | 1st start | 2nd | 3rd |
+|---|---:|---:|---:|
+| core, source only (1st start compiles bytecode) | 9.10 s | 1.96 s | 1.85 s |
+| core, baked | **2.54 s** | 1.69 s | 1.58 s |
+| core, baked, speech pack on the path | 2.20 s | 1.71 s | — |
+
+### PyAV
+
+faster-whisper 1.2.1 takes a float32 numpy array (`transcribe()` calls `decode_audio` only for a non-array), but `faster_whisper/audio.py` imports `av` at module top, so `import faster_whisper` fails without PyAV. Proved: with `av` blocked, the import raises `ModuleNotFoundError: av`; with an `av` placeholder in `sys.modules` it imports and transcribes a 13 s clip passed as a 16 kHz float32 array (tiny.en, 1.7 s). PyAV (66.07 MiB, the pack's largest distribution) therefore stays in the pack for now: dropping it needs that placeholder in the speech loader, and `tools/transcription_local.py`'s file-path path (voice notes) still decodes through it.
+
+### Piper's pronunciation data
+
+All of `piper/espeak-ng-data` (18.2 MiB, 125 languages) is left out (`packaging.excluded_data`), as are the Hebrew and Arabic diacritizer models and Piper's training code. **English needs seven files**, measured identical in output to the full directory: `phontab`, `phonindex`, `phondata`, `intonations`, `en_dict`, and under `lang/gmw/` the voice's own file (`en-US` for `en-us` voices, `en` for `en`; a voice's `espeak.voice` in its `.onnx.json` names it) — 0.84 MiB. Piper is told where they are only through `PiperVoice.load(model, espeak_data_dir=<dir>)` (default `piper/espeak-ng-data`; no environment variable); the first voice loaded fixes the phonemizer's directory for the process. A missing `lang/…` file fails loudly (`RuntimeError: Failed to set voice`); a missing `en_dict` does NOT — it prints a warning and returns empty phonemes, so the catalog must verify the set.
+
+### Every package, and which output it lands in
+
+Installed MiB, source only (no bytecode), Windows x64.
+
+| package | version | MiB | output |
+|---|---|---:|---|
+| av | 18.1.0 | 66.07 | speech pack |
+| ctranslate2 | 4.8.1 | 59.68 | speech pack |
+| hermes-agent (first-party app/, skills, locales, plugins) | — | 45.35 | core |
+| onnxruntime | 1.29.0 | 39.27 | speech pack |
+| numpy | 2.4.3 | 32.68 | speech pack |
+| pywin32 | 311 | 19.05 | core |
+| pillow | 12.3.0 | 14.07 | core |
+| cryptography | 50.0.1 | 10.02 | core |
+| hf-xet | 1.6.0 | 9.35 | speech pack |
+| firecrawl-anydoc | 0.2.4 | 8.29 | core |
+| tokenizers | 0.23.1 | 7.57 | speech pack |
+| pywinpty | 3.0.5 | 6.61 | core |
+| pydantic-core | 2.46.4 | 5.35 | core |
+| pygments | 2.21.0 | 4.45 | core |
+| openai | 2.24.0 | 3.88 | core |
+| huggingface-hub | 1.24.0 | 3.01 | speech pack |
+| setuptools | 83.0.0 | 2.64 | speech pack |
+| pydantic | 2.13.4 | 1.81 | core |
+| wcwidth | 0.8.2 | 1.72 | core |
+| protobuf | 6.33.6 | 1.57 | speech pack |
+| anthropic | 0.87.0 | 1.47 | core |
+| prompt-toolkit | 3.0.52 | 1.33 | core |
+| faster-whisper | 1.2.1 | 1.32 | speech pack |
+| rich | 14.3.3 | 1.19 | core |
+| mcp | 2.0.0 | 1.14 | core |
+| pytz | 2026.3.post1 | 0.96 | core |
+| piper-tts | 1.8.0 | 0.82 | speech pack |
+| snowballstemmer | 3.1.1 | 0.74 | core |
+| fastapi | 0.133.1 | 0.74 | core |
+| fsspec | 2026.7.0 | 0.64 | speech pack |
+| websockets | 15.0.1 | 0.64 | core |
+| cffi | 2.1.1 | 0.59 | core |
+| charset-normalizer | 3.5.1 | 0.58 | core |
+| rpds-py | 2026.6.3 | 0.56 | core |
+| ruamel-yaml | 0.18.16 | 0.54 | core |
+| anyio | 4.14.2 | 0.49 | core |
+| jiter | 0.16.0 | 0.48 | core |
+| pyyaml | 6.0.3 | 0.46 | speech pack |
+| psutil | 7.2.2 | 0.43 | core |
+| python-dateutil | 2.9.0.post0 | 0.42 | core |
+| httpx2 | 2.7.0 | 0.42 | core |
+| urllib3 | 2.7.0 | 0.41 | core |
+| click | 8.4.2 | 0.41 | core |
+| idna | 3.19 | 0.37 | core |
+| fire | 0.7.1 | 0.36 | core |
+| mcp-types | 2.0.0 | 0.35 | core |
+| filelock | 3.32.4 | 0.34 | speech pack |
+| httpx | 0.28.1 | 0.33 | core |
+| jsonschema | 4.26.0 | 0.32 | core |
+| httpcore2 | 2.7.0 | 0.28 | core |
+| markdown-it-py | 4.2.0 | 0.28 | core |
+| httpcore | 1.0.9 | 0.27 | core |
+| tqdm | 4.70.0 | 0.27 | core |
+| packaging | 26.0 | 0.26 | core |
+| uvicorn | 0.41.0 | 0.26 | core |
+| starlette | 1.3.1 | 0.25 | core |
+| certifi | 2026.5.20 | 0.23 | core |
+| attrs | 26.1.0 | 0.22 | core |
+| opentelemetry-api | 1.39.1 | 0.20 | core |
+| requests | 2.33.0 | 0.20 | core |
+| pycparser | 3.0 | 0.19 | core |
+| typing-extensions | 4.16.0 | 0.17 | core |
+| msgpack | 1.2.1 | 0.17 | core |
+| distro | 1.9.0 | 0.11 | core |
+| pyjwt | 2.13.0 | 0.11 | core |
+| python-dotenv | 1.2.2 | 0.10 | core |
+| python-multipart | 0.0.32 | 0.10 | core |
+| h11 | 0.16.0 | 0.10 | core |
+| concurrent-log-handler | 0.9.29 | 0.10 | core |
+| fal-client | 0.13.1 | 0.09 | core |
+| flatbuffers | 25.12.19 | 0.08 | speech pack |
+| croniter | 6.0.0 | 0.08 | core |
+| pathvalidate | 3.3.1 | 0.08 | speech pack |
+| importlib-metadata | 8.7.1 | 0.07 | core |
+| docstring-parser | 0.18.0 | 0.07 | core |
+| portalocker | 3.2.0 | 0.06 | core |
+| truststore | 0.10.4 | 0.06 | core |
+| referencing | 0.37.0 | 0.06 | core |
+| typing-inspection | 0.4.4 | 0.05 | core |
+| colorama | 0.4.6 | 0.05 | core |
+| jsonschema-specifications | 2025.9.1 | 0.04 | core |
+| sse-starlette | 3.4.8 | 0.04 | core |
+| six | 1.17.0 | 0.04 | core |
+| annotated-types | 0.8.0 | 0.03 | core |
+| zipp | 4.1.0 | 0.02 | core |
+| mdurl | 0.1.2 | 0.02 | core |
+| sniffio | 1.3.1 | 0.02 | core |
+| httpx-sse | 0.4.3 | 0.02 | core |
+| termcolor | 3.3.0 | 0.02 | core |
+| tomli-w | 1.2.0 | 0.01 | core |
+| annotated-doc | 0.0.5 | 0.01 | core |
+
 ## Tables (generated)
 
 | | distributions | size |
