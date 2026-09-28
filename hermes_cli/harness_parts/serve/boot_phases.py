@@ -708,6 +708,8 @@ class BootPhases:
             # the one it started itself.
             "service": self.service,
             "starter_pid": self.starter_pid,
+            # ``--parent-pid``: the owner this runtime drains itself after; null = unwatched.
+            "parent_pid": getattr(self, "parent_pid", None),
             "build": self.build_block,
             "auth": self.auth_block,
             # WHICH INSTALL this is, by the same "always present, states its own

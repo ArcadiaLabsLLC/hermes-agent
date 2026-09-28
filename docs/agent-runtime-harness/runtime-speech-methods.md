@@ -33,6 +33,27 @@ A model is named by an **absolute path**, or by a bare name under `models_dir`:
   faster-whisper never resolves a directory against the Hub.
 - TTS: a Piper voice `<name>.onnx` with its `<name>.onnx.json` beside it.
   Upstream's resolver returns an existing `.onnx` before its download branch.
+- TTS pronunciation data: the voice's own `espeak-ng-data/` folder beside the
+  `.onnx` (the speech pack ships none; the Launcher downloads the language
+  subset with the voice). Required: `phontab`, `phonindex`, `phondata`,
+  `intonations`, `<lang>_dict` (`en_dict`) and the language file named by the
+  voice's `espeak.voice` anywhere under `lang/` (`en-us` is `lang/gmw/en-US`).
+  The service passes that folder to `PiperVoice.load(model, espeak_data_dir=…)`
+  (through upstream's loader, fork seam in `tools/tts_tool_local.py`). The set
+  is checked BEFORE the loader because a missing `en_dict` does not fail — espeak
+  prints a warning and phonemizes to nothing, i.e. silent audio. The first voice
+  loaded fixes espeak's data directory for the process. With no folder beside
+  the voice, piper-tts's own `piper/espeak-ng-data` is used when it is installed
+  (full Hermes); otherwise the voice reads `espeak_data_missing`.
+
+**No PyAV** (bundled speech pack). faster-whisper imports `av` at module top but
+decodes only FILES; this service passes arrays (the Launcher sends raw PCM), so
+`agent_runtime/speech_decode.py` registers an `av` placeholder before the loader
+imports `faster_whisper` (a no-op when PyAV is installed). A voice-note FILE —
+upstream's `_transcribe_local`, which hands faster-whisper a path — has no decode
+path in the bundle and answers `{success: false, state: "unavailable", reason:
+"file_decode_unavailable"}` before any model loads (fork seam in
+`tools/transcription_tools.py`).
 
 With no param, the existing config keys are read: `stt.local.model` and
 `tts.piper.voice` — used only when they hold an absolute path. A bare Hub name
@@ -82,7 +103,8 @@ when it has one (`RpcContext.spawn_reply`); the reply arrives on the same `id`.
 
 ```
 {state, reason, model_path, engine, reserved_bytes, unloaded_reason,
- missing?,                       # model_partial: the absent/empty/unparseable files
+ missing?,                       # model_partial / espeak_data_*: the absent/empty/unparseable files
+ espeak_data_dir?,               # tts available: the voice folder's espeak-ng-data, or null (piper's own)
  disk_bytes?,                    # available
  device, compute_type, input_sample_rate, input_encoding,   # stt
  sample_rate}                    # tts (from the voice's .onnx.json)
@@ -90,7 +112,7 @@ when it has one (`RpcContext.spawn_reply`); the reply arrives on the same `id`.
 
 | state | meaning |
 |---|---|
-| `unavailable` | `reason` ∈ `model_unset`, `model_not_local`, `model_missing`, `model_partial`, `engine_missing`, `load_failed` |
+| `unavailable` | `reason` ∈ `model_unset`, `model_not_local`, `model_missing`, `model_partial`, `espeak_data_partial` (tts; `missing` names the `espeak-ng-data/…` files), `espeak_data_missing` (tts; no data beside the voice and none installed with piper), `engine_missing`, `load_failed` |
 | `available` | files complete, engine importable, not loaded |
 | `loading` | a load is running |
 | `loaded` | ready; `reserved_bytes` is its admission reservation |

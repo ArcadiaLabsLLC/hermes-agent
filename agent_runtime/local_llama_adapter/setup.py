@@ -258,6 +258,9 @@ class SetupManager:
         backend = select_backend("nvidia" if discrete else None)
         return self.envelope(os=platform.system(), architecture=platform.machine(),
                              ram_bytes=memory.total or None, available_ram_bytes=memory.available or None,
+                             # A discrete card's total memory; null with no GPU or unified memory
+                             # (probe_budget's device total is then system RAM, not VRAM).
+                             vram_bytes=budget.total_device_bytes if discrete else None,
                              gpu_compatibility="compatible" if discrete else "unknown", recommended_backend=backend,
                              recommendation="CUDA uses the detected NVIDIA device." if backend == "cuda"
                              else "CPU needs no GPU driver. Choose CUDA only with a compatible NVIDIA driver.")

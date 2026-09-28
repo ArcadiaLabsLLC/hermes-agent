@@ -634,3 +634,17 @@ def test_either_provider_id_is_ready_on_the_local_catalog_not_a_credential(provi
     assert profile_readiness._provider_issue(persona) is None
     missing = SimpleNamespace(provider=provider_id, model="other-id")
     assert profile_readiness._provider_issue(missing)[0] == profile_readiness.READINESS_CONFIG_ERROR
+
+
+@pytest.mark.parametrize("budget, vram", [
+    (dict(usable_vram_bytes=7 << 30, total_device_bytes=8 << 30, ram_available_bytes=32 << 30, uma=False), 8 << 30),
+    # No NVIDIA device: probe_budget answers RAM as a unified pool — that is not VRAM.
+    (dict(usable_vram_bytes=16 << 30, total_device_bytes=32 << 30, ram_available_bytes=0, uma=True), None),
+])
+def test_hardware_reports_the_discrete_cards_vram_and_null_without_one(manager, monkeypatch, budget, vram):
+    """Mutation: drop ``vram_bytes`` from ``hardware()`` (or report it on a unified budget) -> red."""
+    from hermes_cli.local_runtime import hardware
+    from hermes_cli.local_runtime.hardware import HardwareBudget
+
+    monkeypatch.setattr(hardware, "probe_budget", lambda planning=False: HardwareBudget(**budget))
+    assert manager.setup.hardware()["vram_bytes"] == vram

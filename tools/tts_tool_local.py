@@ -132,15 +132,18 @@ def _load_piper_voice_for_config(tts_config: Dict[str, Any]) -> Tuple[Any, Dict[
     use_cuda = bool(piper_config.get("use_cuda", False))
     allow_download = is_truthy_value(piper_config.get("download_voices", True), default=True)
     model_path = _resolve_piper_voice_path(voice_name, download_dir, allow_download=allow_download)
+    # Fork seam (bundled desktop): a voice that carries its own espeak-ng data names it here.
+    espeak_data_dir = piper_config.get("espeak_data_dir")
+    load_kwargs = {"espeak_data_dir": str(espeak_data_dir)} if espeak_data_dir else {}
 
     def _load_piper_voice():
         logger.info("[Piper] Loading voice: %s", model_path)
-        v = PiperVoice.load(model_path, use_cuda=use_cuda)
+        v = PiperVoice.load(model_path, use_cuda=use_cuda, **load_kwargs)
         logger.info("[Piper] Voice loaded")
         return v
 
     # speaker_id is applied per call via syn_config, so one instance serves every speaker.
-    cache_key = f"{model_path}::cuda={use_cuda}"
+    cache_key = f"{model_path}::cuda={use_cuda}" + (f"::espeak={espeak_data_dir}" if espeak_data_dir else "")
     return _tts_cache_get_or_load(_piper_voice_cache, cache_key, _load_piper_voice), piper_config
 
 

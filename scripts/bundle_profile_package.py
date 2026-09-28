@@ -494,6 +494,24 @@ def compare(plan: Plan, app_modules: set[str], site_dists: dict[str, Dist], site
     return problems
 
 
+#: A named zone the bundle must resolve. Windows has no system timezone database, so stdlib
+#: ``zoneinfo`` reads the ``tzdata`` distribution (``hermes_time``, cron's named timezones).
+NAMED_TIMEZONE = "America/New_York"
+_TIMEZONE_PROBE = (
+    "import sys, zoneinfo; sys.path.insert(0, sys.argv[1]); zoneinfo.reset_tzpath(()); "
+    "zoneinfo.ZoneInfo(sys.argv[2])")
+
+
+def named_timezone_problems(site: Path, python: Path | str = sys.executable) -> list[str]:
+    """``zoneinfo`` resolves :data:`NAMED_TIMEZONE` from ``site`` alone (``-I -S``, no TZPATH)."""
+    done = subprocess.run([str(python), "-I", "-S", "-B", "-c", _TIMEZONE_PROBE, str(site), NAMED_TIMEZONE],
+                          capture_output=True, text=True, timeout=120)
+    if done.returncode == 0:
+        return []
+    last = (done.stderr.strip().splitlines() or ["(no output)"])[-1]
+    return [f"named timezone {NAMED_TIMEZONE} does not resolve inside the bundle: {last}"]
+
+
 def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None) -> list[str]:
     """Recompute the plan from the source tree and the bundle's OWN site-packages; compare."""
     record = json.loads((out / BUNDLE_MANIFEST).read_text(encoding="utf-8"))
@@ -503,8 +521,11 @@ def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None) -> 
     app_files = {p.relative_to(app).as_posix() for p in app.rglob("*") if p.is_file()}
     # The bundle's modules, named by the same indexer the walk uses.
     app_modules = set(module_index(app, plugins=manifest.packaging_plugins))
-    return compare(plan, app_modules, read_site(site), site_files, manifest.excluded_data,
-                   baked=(out / BAKED_MARKER).is_file(), app_files=app_files)
+    problems = compare(plan, app_modules, read_site(site), site_files, manifest.excluded_data,
+                       baked=(out / BAKED_MARKER).is_file(), app_files=app_files)
+    if record["target"].startswith("win32"):  # other targets read the system zone database
+        problems += named_timezone_problems(site)
+    return problems
 
 
 def bake_dir(directory: Path, python: Path) -> None:

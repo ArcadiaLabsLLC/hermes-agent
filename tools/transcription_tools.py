@@ -350,6 +350,10 @@ def _transcribe_local(
     """Transcribe using faster-whisper (local, free)."""
     if not _HAS_FASTER_WHISPER and not _try_lazy_install_stt():
         return _error_result("faster-whisper not installed")
+    # Fork seam (bundled desktop): no PyAV means no file decoder — a typed unavailable, not a crash.
+    from agent_runtime.speech_decode import file_decode_unavailable
+    if (_no_decoder := file_decode_unavailable()) is not None:
+        return _error_result(_no_decoder["message"], state=_no_decoder["state"], reason=_no_decoder["reason"])
     try:
         stt_config = _load_stt_config()
         local_cfg = stt_config.get("local") or {}

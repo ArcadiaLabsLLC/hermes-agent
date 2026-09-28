@@ -16,7 +16,16 @@ from __future__ import annotations
 import textwrap
 import types
 
-from scripts.bundle_profile_closure import Walk, classify, module_index, omitted_import_sites, refusals
+from scripts.bundle_profile_closure import (
+    Graph,
+    Walk,
+    classify,
+    module_index,
+    omitted_import_sites,
+    refusals,
+    requested_extras,
+    shipped_distributions,
+)
 
 
 def test_an_extra_ships_only_when_the_profile_names_it():
@@ -93,3 +102,70 @@ def test_a_target_excluded_or_guard_only_distribution_is_optional_not_undeclared
     # Positive control: without the two facts the same inputs ship undeclared.
     assert {r["status"] for r in classify(direct, set(), {}, selected=(), omitted=set()).values()} \
         == {"ship-undeclared"}
+
+
+def test_a_requested_extra_of_a_base_declaration_ships_its_requirements():
+    """``httpx[socks]``: ``socksio`` is loaded only for a SOCKS proxy, so no static import reaches it."""
+    assert requested_extras()["httpx"] == {"socks"}
+    lock = {"fakehttpx": {"dependencies": [{"name": "anyio"}],
+                          "optional-dependencies": {"socks": [{"name": "fakesocksio"}]}}}
+    assert "fakesocksio" in Graph(lock, {"fakehttpx": {"socks"}}).closure({"fakehttpx"})
+    # Positive control: the same lock without the requested extra leaves it out.
+    assert "fakesocksio" not in Graph(lock).closure({"fakehttpx"})
+    # The installed-metadata path (the packager reads the pool's dist-info): the same rule.
+    graph = Graph({}, {"httpx": {"socks"}})
+    if "httpx" in graph.installed:
+        assert "socksio" in graph.requires("httpx")
+        assert "socksio" not in Graph({}).requires("httpx")
+
+
+class _Graph:
+    def __init__(self, requires):
+        self._requires = requires
+
+    def closure(self, roots):
+        found, stack = set(), list(roots)
+        while stack:
+            name = stack.pop()
+            if name not in found:
+                found.add(name)
+                stack.extend(self._requires.get(name, ()))
+        return found
+
+
+def test_a_dynamically_reached_base_distribution_ships():
+    """``tzdata``: stdlib ``zoneinfo`` loads it, so the walk never reaches it."""
+    classes = {"httpx": {"status": "ship"}, "botocore": {"status": "optional"}}
+    graph = _Graph({"httpx": ["anyio"]})
+    assert shipped_distributions(graph, classes, {"tzdata"}, {"httpx", "tzdata"}) == {"httpx", "anyio", "tzdata"}
+    # Positive control: undeclared as a dynamic distribution, it does not ship.
+    assert "tzdata" not in shipped_distributions(graph, classes, set(), {"httpx", "tzdata"})
+    # A name that is not a base dependency never ships through this door, and is refused.
+    assert "left-pad" not in shipped_distributions(graph, classes, {"left-pad"}, {"httpx"})
+    result = {"omitted_unguarded_import_sites": {}, "omitted_but_required": [], "unknown_extras": [],
+              "dynamic_not_base": ["left-pad"]}
+    assert refusals(result) == ["packaging.dynamic_distributions names no base dependency: left-pad"]
+
+
+def test_the_bundled_desktop_profile_ships_tzdata():
+    from agent_runtime.bundle_profiles.manifest import load_profile
+
+    assert "tzdata" in load_profile("bundled-desktop", validate=False).dynamic_distributions
+
+
+def test_a_placeholder_requirement_is_never_followed_or_shipped():
+    """``av`` under ``faster-whisper``: the speech service registers a placeholder module instead."""
+    lock = {"fw": {"dependencies": [{"name": "fakeav"}, {"name": "numpy"}]}}
+    assert Graph(lock, placeholders={"fakeav"}).closure({"fw"}) == {"fw", "numpy"}
+    # Positive control: without the declaration the requirement ships.
+    assert "fakeav" in Graph(lock).closure({"fw"})
+    result = {"omitted_unguarded_import_sites": {}, "omitted_but_required": [], "unknown_extras": [],
+              "placeholder_imported": ["fakeav"], "placeholder_is_base": ["httpx"]}
+    assert refusals(result) == ["placeholder distribution fakeav is imported by kept first-party code",
+                                "placeholder distribution httpx is a base dependency"]
+
+
+def test_the_bundled_desktop_profile_stands_a_placeholder_in_for_pyav():
+    from agent_runtime.bundle_profiles.manifest import load_profile
+
+    assert "av" in load_profile("bundled-desktop", validate=False).placeholder_distributions

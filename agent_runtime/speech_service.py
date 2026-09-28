@@ -45,8 +45,10 @@ __all__ = [
     "SpeechEngines",
     "SpeechRefused",
     "SpeechService",
+    "espeak_required_files",
     "inspect_stt",
     "inspect_tts",
+    "voice_espeak_dir",
     "service",
     "set_service",
 ]
@@ -85,6 +87,13 @@ _TTS_OVERHEAD = 64 * 1024 * 1024
 
 _WHISPER_REQUIRED = ("model.bin", "config.json", "tokenizer.json")
 _WHISPER_VOCABULARY = ("vocabulary.txt", "vocabulary.json")
+
+#: A Piper voice's espeak-ng pronunciation data, in the voice's own folder (the Launcher downloads
+#: the language subset with the voice; the speech pack ships none). The phoneme tables every
+#: language needs; the language's dictionary (``en_dict``) and its ``lang/…`` file are added from
+#: the voice's ``espeak.voice`` (closure doc § "Piper's pronunciation data").
+ESPEAK_DIR = "espeak-ng-data"
+_ESPEAK_TABLES = ("phontab", "phonindex", "phondata", "intonations")
 
 STT_HOLDER = "speech:stt"
 TTS_HOLDER = "speech:tts"
@@ -151,10 +160,68 @@ def inspect_tts(path: Path | None, *, engine_ok: bool) -> dict:
         return _unavailable("model_partial", path, missing=[sidecar.name])
     if type(rate) is not int or rate <= 0:
         return _unavailable("model_partial", path, missing=[sidecar.name])
+    config = json.loads(sidecar.read_text(encoding="utf-8"))
+    required = espeak_required_files(config)
+    if required is None:
+        return _unavailable("model_partial", path, missing=[sidecar.name])
+    local = voice_espeak_dir(path)
+    if local is not None:
+        # Checked BEFORE the loader: a missing ``en_dict`` makes espeak-ng print a warning and
+        # phonemize to nothing — silent empty audio, never an error.
+        missing = [f"{ESPEAK_DIR}/{rel}" for rel in required if not _espeak_file(local, rel)]
+        if missing:
+            return _unavailable("espeak_data_partial", path, missing=missing)
     if not engine_ok:
         return _unavailable("engine_missing", path, engine="piper")
+    if local is None and required and not _packaged_espeak_data():
+        return _unavailable("espeak_data_missing", path, missing=[f"{ESPEAK_DIR}/{rel}" for rel in required])
     return {"state": "available", "reason": None, "model_path": str(path),
-            "disk_bytes": path.stat().st_size + sidecar.stat().st_size, "sample_rate": rate}
+            "disk_bytes": path.stat().st_size + sidecar.stat().st_size, "sample_rate": rate,
+            "espeak_data_dir": None if local is None else str(local)}
+
+
+def espeak_required_files(voice_config: dict) -> tuple[str, ...] | None:
+    """The espeak-ng files a voice needs, relative to the data directory.
+
+    ``()`` for a voice that does not phonemize through espeak-ng; ``None`` when an espeak voice
+    names no ``espeak.voice`` (its ``.onnx.json`` is incomplete). ``lang/<voice>`` stands for the
+    language file, found by name anywhere under ``lang/`` (``en-us`` is ``lang/gmw/en-US``).
+    """
+    if voice_config.get("phoneme_type", "espeak") != "espeak":
+        return ()
+    espeak = voice_config.get("espeak")
+    voice = espeak.get("voice") if isinstance(espeak, dict) else None
+    if not isinstance(voice, str) or not voice.strip():
+        return None
+    voice = voice.strip()
+    return (*_ESPEAK_TABLES, f"{voice.split('-')[0].lower()}_dict", f"lang/{voice}")
+
+
+def _espeak_file(data_dir: Path, rel: str) -> bool:
+    if not rel.startswith("lang/"):
+        return _nonempty(data_dir / rel)
+    wanted = rel[len("lang/"):].lower()
+    lang = data_dir / "lang"
+    try:
+        return any(p.name.lower() == wanted and _nonempty(p) for p in lang.rglob("*"))
+    except OSError:
+        return False
+
+
+def voice_espeak_dir(voice: Path) -> Path | None:
+    """``<voice folder>/espeak-ng-data`` when the voice carries its own pronunciation data."""
+    candidate = voice.parent / ESPEAK_DIR
+    return candidate if candidate.is_dir() else None
+
+
+def _packaged_espeak_data() -> bool:
+    """piper-tts's own ``piper/espeak-ng-data`` (full installs; the bundled speech pack excludes it)."""
+    try:
+        spec = importlib.util.find_spec("piper")
+    except (ImportError, ValueError):
+        return False
+    origin = getattr(spec, "origin", None) if spec is not None else None
+    return bool(origin) and _nonempty(Path(origin).parent / ESPEAK_DIR / "phontab")
 
 
 def _nonempty(path: Path) -> bool:
@@ -180,6 +247,11 @@ class SpeechEngines:
 
     def load_stt(self, path: Path, *, device: str, compute_type: str) -> Any:
         from agent_runtime._upstream_doors import whisper_load_model
+        from agent_runtime.speech_decode import ensure_av_placeholder
+
+        # The speech pack ships no PyAV: faster-whisper imports ``av`` at module top but decodes
+        # only files, and this service passes arrays (the Launcher sends raw PCM).
+        ensure_av_placeholder()
 
         return whisper_load_model(str(path), device=device, compute_type=compute_type)
 
@@ -202,8 +274,12 @@ class SpeechEngines:
     def load_tts(self, path: Path) -> Any:
         from agent_runtime._upstream_doors import piper_voice_for_config
 
-        voice, _config = piper_voice_for_config(
-            {"piper": {"voice": str(path), "voices_dir": str(path.parent), "use_cuda": False}})
+        piper = {"voice": str(path), "voices_dir": str(path.parent), "use_cuda": False}
+        espeak = voice_espeak_dir(path)
+        if espeak is not None:
+            # espeak-ng fixes its data directory at the first voice loaded in the process.
+            piper["espeak_data_dir"] = str(espeak)
+        voice, _config = piper_voice_for_config({"piper": piper})
         return voice
 
     def unload_tts(self) -> None:

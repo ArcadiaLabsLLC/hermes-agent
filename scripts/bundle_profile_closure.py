@@ -321,6 +321,21 @@ def declared(path: Path = ROOT / "pyproject.toml") -> tuple[set[str], dict[str, 
     return base, extras
 
 
+def requested_extras(path: Path = ROOT / "pyproject.toml") -> dict[str, set[str]]:
+    """Base distribution -> the extras its declaration requests (``httpx[socks]`` -> {"socks"}).
+
+    A requested extra's requirements ship with the distribution: ``httpx`` loads
+    ``socksio`` only when a SOCKS proxy is configured, so no static import reaches it.
+    """
+    project = tomllib.loads(path.read_text(encoding="utf-8"))["project"]
+    out: dict[str, set[str]] = {}
+    for raw in project.get("dependencies", []):
+        req = _req(raw)
+        if req.extras and (req.marker is None or req.marker.evaluate(TARGET_ENV)):
+            out.setdefault(_norm(req.name), set()).update(req.extras)
+    return out
+
+
 def declared_anywhere(path: Path = ROOT / "pyproject.toml") -> set[str]:
     """Every distribution ``[project]`` declares (base + extras), markers NOT evaluated."""
     project = tomllib.loads(path.read_text(encoding="utf-8"))["project"]
@@ -346,8 +361,13 @@ def _wheel_size(package: dict) -> int | None:
 class Graph:
     """Distribution facts: installed metadata first, uv.lock second."""
 
-    def __init__(self, lock: dict[str, dict]):
+    def __init__(self, lock: dict[str, dict], extras: dict[str, set[str]] | None = None,
+                 placeholders=()):
         self.lock = lock
+        #: requirements a placeholder module stands in for: never followed, never shipped
+        self.placeholders = {_norm(p) for p in placeholders}
+        #: distribution -> extras a declaration requests; their requirements are followed too
+        self.extras = extras or {}
         self.installed = {_norm(d.metadata["Name"]): d for d in md.distributions()}
         self.mapping = md.packages_distributions()
 
@@ -361,20 +381,25 @@ class Graph:
         return None
 
     def requires(self, name: str) -> list[str]:
+        envs = [TARGET_ENV, *({**TARGET_ENV, "extra": e} for e in sorted(self.extras.get(name, ())))]
         dist = self.installed.get(name)
         if dist is not None:
             out = []
             for raw in dist.requires or []:
                 req = _req(raw)
-                if req.marker is None or req.marker.evaluate(TARGET_ENV):
+                if req.marker is None or any(req.marker.evaluate(env) for env in envs):
                     out.append(_norm(req.name))
             return out
         from packaging.markers import Marker
 
         out = []
-        for dep in self.lock.get(name, {}).get("dependencies", []):
+        lock = self.lock.get(name, {})
+        deps = [(dep, TARGET_ENV) for dep in lock.get("dependencies", [])]
+        for extra in sorted(self.extras.get(name, ())):
+            deps += [(dep, TARGET_ENV) for dep in lock.get("optional-dependencies", {}).get(extra, [])]
+        for dep, env in deps:
             marker = dep.get("marker")
-            if marker is None or Marker(marker).evaluate(TARGET_ENV):
+            if marker is None or Marker(marker).evaluate(env):
                 out.append(_norm(dep["name"]))
         return out
 
@@ -382,7 +407,7 @@ class Graph:
         found, queue = set(), deque(roots)
         while queue:
             name = queue.popleft()
-            if name in found:
+            if name in found or name in self.placeholders:
                 continue
             found.add(name)
             queue.extend(self.requires(name))
@@ -463,6 +488,13 @@ def classify(direct: dict[str, list[str]], base, extras, selected, omitted,
     return rows
 
 
+def shipped_distributions(graph, classes: dict[str, dict], dynamic, declared_base) -> set[str]:
+    """The shipped rows plus the base distributions no static import reaches (stdlib ``zoneinfo``
+    loads ``tzdata``), with every requirement — requested extras included — followed."""
+    return graph.closure({*(d for d, row in classes.items() if row["status"].startswith("ship")),
+                          *(set(dynamic) & set(declared_base))})
+
+
 def closure(profile: str, *, boot: bool = True, extra_extras=()) -> dict:
     """``extra_extras``: extras shipped on top of ``packaging.extras`` (an engine pack's)."""
     from agent_runtime.bundle_profiles.manifest import load_profile
@@ -476,7 +508,8 @@ def closure(profile: str, *, boot: bool = True, extra_extras=()) -> dict:
     for top in eager_tops(result.pinned, index, first_party):
         tops.setdefault(top, ["(pinned module)"])
 
-    graph = Graph(_lock())
+    placeholders = {_norm(d) for d in manifest.placeholder_distributions}
+    graph = Graph(_lock(), requested_extras(), placeholders)
     declared_base, declared_extras = declared()
     omitted = {_norm(r["distribution"]) for r in manifest.omitted_distributions}
     base = graph.closure(declared_base - omitted)
@@ -495,7 +528,8 @@ def closure(profile: str, *, boot: bool = True, extra_extras=()) -> dict:
     unguarded |= {graph.dist_for_top(top) for top in eager_tops(result.pinned, index, first_party)}
     guarded_only = set(direct) - unguarded
     classes = classify(direct, base, extras, selected, omitted, not_for_target, guarded_only)
-    shipped = graph.closure(d for d, row in classes.items() if row["status"].startswith("ship"))
+    dynamic = {_norm(d) for d in manifest.dynamic_distributions}
+    shipped = shipped_distributions(graph, classes, dynamic, declared_base)
 
     # Excludable: what the switched-off modules alone would add.
     everything = Walk(tuple(roots) + tuple(pruned), (), index, first_party)
@@ -508,9 +542,10 @@ def closure(profile: str, *, boot: bool = True, extra_extras=()) -> dict:
         booted = graph.closure({d for d in (graph.dist_for_top(t) for t in boot_tops(manifest.packaging_roots, first_party)) if d})
 
     rows = [{**graph.facts(n), "loaded_at_boot": n in booted,
-             "direct": classes.get(n, {}).get("status", "requirement"),
+             "direct": classes.get(n, {}).get("status", "dynamic" if n in dynamic else "requirement"),
              "extras": classes.get(n, {}).get("extras", []),
-             "declared": classes.get(n, {}).get("declared", "requirement")} for n in sorted(shipped)]
+             "declared": classes.get(n, {}).get("declared", "base, reached dynamically" if n in dynamic
+                                                else "requirement")} for n in sorted(shipped)]
     optional = [{**graph.facts(d), "extras": row["extras"], "via": row["via"]}
                 for d, row in sorted(classes.items()) if row["status"] == "optional"]
     omitted_rows = [{**graph.facts(_norm(r["distribution"])), "degrades": r.get("degrades", "")}
@@ -527,6 +562,12 @@ def closure(profile: str, *, boot: bool = True, extra_extras=()) -> dict:
                                                  key=lambda r: (r["target"], r["module"], r["line"])),
         "needed": rows, "optional_not_shipped": optional, "omitted": omitted_rows,
         "omitted_but_required": sorted(omitted & shipped),
+        # A dynamic distribution declared for other targets only (tzdata off Windows) is skipped.
+        "dynamic_not_base": sorted(dynamic - declared_base - not_for_target),
+        # A placeholder stands in for a REQUIREMENT only: kept code importing it, or base code
+        # (which may assume a base dependency), would get the placeholder.
+        "placeholder_imported": sorted(placeholders & set(direct)),
+        "placeholder_is_base": sorted(placeholders & declared_base),
         "omitted_unguarded_import_sites": {d: [s for s in ss if not s["guarded"]] for d, ss in sites.items()},
         "excludable": excl,
         "needed_measured_bytes": sum(r.get("size_bytes", 0) for r in rows),
@@ -547,6 +588,11 @@ def refusals(result: dict) -> list[str]:
            for d, sites in result["omitted_unguarded_import_sites"].items() if sites]
     out += [f"omitted {d} is required by a shipped distribution" for d in result["omitted_but_required"]]
     out += [f"packaging.extras names no pyproject extra: {e}" for e in result["unknown_extras"]]
+    out += [f"packaging.dynamic_distributions names no base dependency: {d}"
+            for d in result.get("dynamic_not_base", [])]
+    out += [f"placeholder distribution {d} is imported by kept first-party code"
+            for d in result.get("placeholder_imported", [])]
+    out += [f"placeholder distribution {d} is a base dependency" for d in result.get("placeholder_is_base", [])]
     return out
 
 

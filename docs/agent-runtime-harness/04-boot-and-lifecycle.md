@@ -552,6 +552,19 @@ frame exists — a stdio loser still serves stdio, but a service loser would be 
 executor against one store that nothing discovers and nothing can stop.
 `--service --no-socket` is refused: the socket is the only lane a drain can arrive on.
 
+**Owned (`--parent-pid <pid>`, 2026-09-28).** A bundled runtime belongs to its Launcher
+(embedded-hermes D1: a Launcher crash leaves no bundled Hermes running), and a crash runs no
+stop verb. So the Launcher passes its OWN pid as `harness serve --ndjson [--service]
+--parent-pid <pid>`; after the pool starts, `agent_runtime/parent_watch.py` watches it (Windows:
+a `SYNCHRONIZE` handle opened at arm time, so a reused pid is never mistaken for the owner;
+POSIX: `kill(pid, 0)` plus reparenting, polled every second). When it exits the runtime emits
+`{"event":"parent_exited","pid":…,"boot_id":…,"parent_pid":…}` (stdio, if anyone is left, and
+every socket client), notes the end reason `parent_exited`, and starts the same drain a stdio
+`{"op":"drain"}` does — work in flight finishes under the drain deadline, then the process
+exits. An owner already gone at boot drains at once. A non-positive pid is refused
+(`invalid_parent_pid`, exit 2). The `ready` frame carries `parent_pid` (null when unwatched).
+Without the flag nothing is watched: full Hermes is unchanged.
+
 **Drained.** When a drain is in flight the DRAIN owns the terminal frame (`drain_complete` /
 `drain_timeout`); emitting `shutdown` too would tell a consumer that a TIMED-OUT drain ended
 cleanly. If the reader gets there first it waits `_DRAIN_ABANDON_GRACE_SECONDS = 5.0` for the
@@ -580,6 +593,7 @@ written, and why there:
 | the console window closed | `ctrl_close` | the console handler (`CTRL_CLOSE_EVENT`) |
 | logoff or machine shutdown | `logoff` | the console handler (`CTRL_LOGOFF`/`CTRL_SHUTDOWN`), and `SIGHUP` on POSIX |
 | `SIGTERM` | `sigterm` | the boot handler, or the `--service` park's own handler while it holds the disposition |
+| the `--parent-pid` owner exited | `parent_exited` | the parent watch, BEFORE it starts the drain (the latch is first-wins, so the drain's `drained` does not overwrite it) |
 | an uncaught exception | `uncaught:<Type>` | `serve_loop`'s `except Exception`, which records, writes the TRACEBACK into the service stderr log (RL-19) and re-raises |
 | anything else that unwound the interpreter | `unknown_exit` | the `atexit` hook |
 | `TerminateProcess` / `taskkill /F` / a Job kill | **nothing** | nothing runs in the target; the ABSENCE is the reading, and the launcher words it `ended=absent` |

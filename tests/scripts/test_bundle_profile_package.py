@@ -18,6 +18,7 @@ from scripts.bundle_profile_package import (
     evaluate_markers,
     first_party_plan,
     marker_env,
+    named_timezone_problems,
 )
 
 
@@ -148,3 +149,18 @@ def test_the_engine_pack_path_file_adds_only_installed_packs(tmp_path: Path, mon
 def test_the_engine_pack_path_file_is_not_a_stray_file():
     shipped = {"x/__init__.py", "hermes-engine-packs.pth"}
     assert compare(_plan({"a"}, {"x"}), {"a"}, SITE, shipped, {}) == []
+
+
+def test_a_named_timezone_resolves_only_from_a_site_holding_tzdata(tmp_path: Path):
+    """The built-bundle check: ``zoneinfo`` with no system TZPATH, only the bundle's site-packages."""
+    import shutil
+
+    import pytest
+
+    tzdata = pytest.importorskip("tzdata")
+    with_tz, without = tmp_path / "with", tmp_path / "without"
+    shutil.copytree(Path(tzdata.__file__).parent, with_tz / "tzdata")
+    without.mkdir()
+    assert named_timezone_problems(with_tz) == []  # positive control
+    problems = named_timezone_problems(without)
+    assert len(problems) == 1 and "America/New_York" in problems[0]
