@@ -9,6 +9,7 @@
     "peer.thread.read",
     "runtime.agent.create",
     "runtime.agent.retire",
+    "runtime.agent.templates",
     "runtime.chat.message",
     "runtime.chat.steer",
     "runtime.conversation.capabilities",
@@ -93,6 +94,7 @@
     "runtime.persona.instance.open_chat",
     "runtime.persona.prewarm",
     "runtime.realm.use",
+    "runtime.workspace.create",
     "runtime.workspace.use"
   ],
   "params": {
@@ -134,6 +136,7 @@
     "peer.thread.read": "console",
     "runtime.agent.create": "console",
     "runtime.agent.retire": "console",
+    "runtime.agent.templates": "console",
     "runtime.chat.message": "console",
     "runtime.chat.steer": "console",
     "runtime.conversation.capabilities": "console",
@@ -218,6 +221,7 @@
     "runtime.persona.instance.open_chat": "console",
     "runtime.persona.prewarm": "read",
     "runtime.realm.use": "console",
+    "runtime.workspace.create": "console",
     "runtime.workspace.use": "console"
   }
 }

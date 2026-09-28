@@ -18,6 +18,22 @@ __all__ = [
 ]
 
 
+@method("runtime.agent.templates", tier=TIER_CONSOLE)
+def _runtime_agent_templates(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """The same persisted persona catalog that validates agent.create."""
+    from agent_runtime.agent_create.request import persona_roster, honest_default_display_name
+    from agent_runtime.agent_create.outcome import PersonaRosterUnavailable
+    from agent_runtime.serve_rpc.protocol import ERR_INVALID_PARAMS, ERR_HANDLER_FAILED
+
+    if params:
+        return err(rid, ERR_INVALID_PARAMS, "No parameters expected.")
+    try:
+        templates = [{"id": p.id, "name": honest_default_display_name(p.id, p)} for p in persona_roster()]
+    except PersonaRosterUnavailable:
+        return err(rid, ERR_HANDLER_FAILED, "Agent templates are unavailable.", {"reason": "persona_roster_unavailable"})
+    return ok(rid, {"templates": templates})
+
+
 # ── runtime.agent.create ─────────────────────────────────────────────────────
 
 

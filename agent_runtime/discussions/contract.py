@@ -85,6 +85,7 @@ def contract_descriptor() -> dict[str, Any]:
         "methods": {PREFIX + name: {"tier": tier, "required": list(required), "optional": list(optional)}
                     for name, (tier, required, optional) in sorted(METHODS.items())},
         "features": {"local_instances": True, "same_profile_instances": True, "presets": True,
+                     "scheduled_conclusion": True,
                      "non_spatial_discussions": True,
                      "exact_stop": True, "human_input": True, "instance_presence": True,
                      "history": True, "remote_members": False, "realm_replication": False,

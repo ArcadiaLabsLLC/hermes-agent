@@ -258,6 +258,12 @@ class DefinitionStore:
         expected = revision(expect_revision)
         spec = PresetSpec.parse(value.to_dict() if isinstance(value, PresetSpec) else value)
         with transaction(self._connect(), immediate=True) as conn:
+            existing = _raw(conn, key)
+            if existing is not None:
+                current = _record(existing)
+                # A lost save acknowledgement may replay this exact transition.
+                if current.revision == expected + 1 and current.spec == spec:
+                    return current
             return _write(conn, key, spec, expected=expected)
 
     def delete(self, kind: DefinitionKind | str, workspace_id: str, definition_id: str,

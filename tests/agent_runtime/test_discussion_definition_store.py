@@ -22,6 +22,20 @@ def preset_value(count=2):
     return {"name":"Engineering recipe", "preferred_capacity":"auto", "configuration":table_value(count)["configuration"]}
 
 
+def test_preset_save_ack_replay_is_scoped_exact_and_cannot_resurrect(store):
+    spec = preset_value()
+    first = store.save_preset("ws", "recipe", spec, expect_revision=0)
+    assert store.save_preset("ws", "recipe", spec, expect_revision=0) == first
+    changed = {**spec, "name": "Changed"}
+    with pytest.raises(DefinitionError, match="stale_revision"):
+        store.save_preset("ws", "recipe", changed, expect_revision=0)
+    second = store.save_preset("ws", "recipe", changed, expect_revision=1)
+    assert store.save_preset("ws", "recipe", changed, expect_revision=1) == second
+    store.delete("preset", "ws", "recipe", expect_revision=second.revision)
+    with pytest.raises(DefinitionError, match="definition_deleted"):
+        store.save_preset("ws", "recipe", changed, expect_revision=1)
+
+
 def test_constructor_and_rejected_requests_do_not_create_storage(tmp_path):
     store = DefinitionStore(tmp_path / "not-created" / "state.db")
     assert not store.db_path.exists()

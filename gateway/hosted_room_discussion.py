@@ -47,7 +47,7 @@ _MEMBER_CONTROL_FRAME_RE = re.compile(
 )
 _MEMBER_CONTROL_FRAME_RELABEL = "[member-quoted "
 _TURN_ID_RE = re.compile(
-    r"^d(?P<source>[1-9][0-9]*)\.r(?P<round>[0-2])\."
+    r"^d(?P<source>[1-9][0-9]*)\.r(?P<round>[0-3])\."
     r"p(?P<position>0|[1-9][0-9]*)\.s(?P<seen>[1-9][0-9]*)\."
     r"m(?P<member>[0-9a-f]{24})$")
 
@@ -99,6 +99,11 @@ class DiscussionLimits:
     prompt_bytes: int = driver.MAX_PROMPT_BYTES
     shared_profiles: bool = False
     guidance: str = ""
+    conclusion_member_id: str | None = None
+
+    @property
+    def last_round_index(self) -> int:
+        return self.max_rounds if self.conclusion_member_id is not None else self.max_rounds - 1
 
     def __post_init__(self) -> None:
         for name, low, high in (("max_members", 2, hosted_rooms.MAX_MEMBERS),
@@ -112,6 +117,8 @@ class DiscussionLimits:
             raise DiscussionValidationError("shared_profiles must be a boolean")
         if not isinstance(self.guidance, str) or len(self.guidance.encode("utf-8")) > 1000:
             raise DiscussionValidationError("invalid Discussion guidance")
+        if self.conclusion_member_id is not None:
+            _identifier(self.conclusion_member_id, label="conclusion_member_id")
 
 
 DEFAULT_LIMITS = DiscussionLimits()
@@ -387,7 +394,7 @@ def _member_by_id(room: DiscussionRoom, member_id: Any) -> DiscussionMember:
 def _validate_turn_coordinates(payload: Mapping[str, Any], room: DiscussionRoom) -> None:
     _member_by_id(room, payload.get("member_id"))
     _zero_based_int(payload.get("member_index"), label="member_index", maximum=room.limits.max_members - 1)
-    _zero_based_int(payload.get("round_index"), label="round_index", maximum=room.limits.max_rounds - 1)
+    _zero_based_int(payload.get("round_index"), label="round_index", maximum=room.limits.last_round_index)
     for field in ("thread_id", "task_id", "turn_id", "discussion_event_id"):
         _identifier(payload.get(field), label=field)
 
@@ -555,7 +562,8 @@ def _truncate_utf8_text(value: Any, *, max_bytes: int, suffix: str = "") -> str:
 
 def _build_prompt(
     *, room: DiscussionRoom, member: DiscussionMember, messages: Sequence[_ValidatedEvent], watermark: int,
-    seen_through_seq: int, active_members: Sequence[DiscussionMember] | None = None) -> str:
+    seen_through_seq: int, active_members: Sequence[DiscussionMember] | None = None,
+    conclusion: bool = False) -> str:
     delta = [event for event in messages if watermark < event.seq <= seen_through_seq][- MAX_DISCUSSION_DELTA_LINES:]
     peers = ", ".join(f"@{candidate.handle}" for candidate in (room.members if active_members is None else active_members) if candidate.member_id != member.member_id)
     opening = [
@@ -570,6 +578,11 @@ def _build_prompt(
         "- Never reveal content from private conversations. Your reply is published verbatim."]
     if room.limits.guidance:
         rules.append(room.limits.guidance)
+    if conclusion:
+        rules = ["", "This is the scheduled final synthesis, not another discussion round.",
+            "Summarize the supported conclusions, disagreements, uncertainties and useful next steps.",
+            "Do not invent consensus or claim work was verified. Do not request another peer turn.",
+            "Use only this public discussion; never reveal private conversations."]
     fixed_bytes = len("\n".join([*opening, *rules]).encode("utf-8"))
     available = max(0, room.limits.prompt_bytes - fixed_bytes - 1)
     selected: list[str] = []
@@ -675,8 +688,13 @@ def plan_next_task(
         DiscussionDecision, discussion_event_id=discussion.event_id, source_event_seq=discussion.seq,
         thread_id=thread_id)
     thread_messages, discussion_messages, member_messages = _thread_messages(validated, discussion)
+    finish = partial(_conclude, room, validated, discussion, active)
+    if room.limits.conclusion_member_id and any(
+            e.kind in _TERMINAL_EVENT_KINDS and e.payload.get("discussion_event_id") == discussion.event_id
+            and e.payload["round_index"] == room.limits.max_rounds for e in validated):
+        return finish(decide("settled", "conclusion_finished"))
     if len(member_messages) >= room.limits.max_messages:
-        return decide("bounded", "max_messages")
+        return finish(decide("bounded", "max_messages"))
     terminals = {
         (int(event.payload["round_index"]), str(event.payload["member_id"])) for event in validated
         if event.kind in _TERMINAL_EVENT_KINDS and event.payload.get("discussion_event_id") == discussion.event_id}
@@ -704,10 +722,46 @@ def plan_next_task(
                 room=room, discussion_event=discussion, member=member, member_index=member_index,
                 round_index=round_index, seen_through_seq=seen_through_seq, prompt=prompt))
         if not any(int(event.payload["round_index"]) == round_index for event in member_messages):
-            return decide("settled", "silent_round")
+            return finish(decide("settled", "silent_round"))
         if round_index == room.limits.max_rounds - 1:
-            return decide("bounded", "max_rounds")
+            return finish(decide("bounded", "max_rounds"))
     raise AssertionError("bounded Discussion loop exhausted unexpectedly")
+
+
+def _conclude(room, events, discussion, active, decision) -> DiscussionDecision:
+    """One optional ordinary driver turn; the same journal owns Stop and replay."""
+    member_id = room.limits.conclusion_member_id
+    if member_id is None:
+        return decision
+    decide = partial(DiscussionDecision, discussion_event_id=discussion.event_id,
+        source_event_seq=discussion.seq, thread_id=discussion.payload["thread_id"])
+    terminal = next((e for e in reversed(events) if e.kind in _TERMINAL_EVENT_KINDS
+        and e.payload.get("discussion_event_id") == discussion.event_id
+        and e.payload["round_index"] == room.limits.max_rounds), None)
+    if terminal is not None:
+        reason = {"turn.settled": "conclusion_completed", "turn.failed": "conclusion_failed",
+                  "turn.cancelled": "conclusion_cancelled", "turn.deferred": "conclusion_deferred"}[terminal.kind]
+        if terminal.kind == "turn.settled" and terminal.payload["passed"]:
+            reason = "conclusion_empty"
+        return decide("settled", reason)
+    member = next((m for m in active if m.member_id == member_id), None)
+    if member is None:
+        return decide("settled", "conclusion_member_unavailable")
+    _, messages, _ = _thread_messages(events, discussion)
+    seen = max(e.seq for e in messages)
+    prompt = _build_prompt(room=room, member=member, messages=messages, watermark=0,
+        seen_through_seq=seen, active_members=active, conclusion=True)
+    return decide("task", "conclusion_turn", task=_make_task_plan(room=room,
+        discussion_event=discussion, member=member, member_index=0,
+        round_index=room.limits.max_rounds, seen_through_seq=seen, prompt=prompt))
+
+
+def task_round_index(identity: driver.TaskIdentity, *, limits: DiscussionLimits = DEFAULT_LIMITS) -> int:
+    """Read a durable task coordinate, including after the room has ended."""
+    match = _TURN_ID_RE.fullmatch(identity.turn_id)
+    if match is None:
+        raise DiscussionReconstructionError("turn_id is not a Discussion coordinate")
+    return _zero_based_int(int(match.group("round")), label="round_index", maximum=limits.last_round_index)
 
 
 def reconstruct_task_plan(
@@ -727,7 +781,7 @@ def reconstruct_task_plan(
     if (match := _TURN_ID_RE.fullmatch(identity.turn_id)) is None:
         raise DiscussionReconstructionError("turn_id is not a Discussion coordinate")
     _zero_based_int(int(match.group("position")), label="member_index", maximum=room.limits.max_members - 1)
-    _zero_based_int(int(match.group("round")), label="round_index", maximum=room.limits.max_rounds - 1)
+    task_round_index(identity, limits=room.limits)
     source_event_seq = int(match.group("source"))
     if payload.get("source_event_seq") != source_event_seq:
         raise DiscussionReconstructionError("task source event does not match turn_id")

@@ -190,6 +190,13 @@ def agent_create_lock(key_digest: str) -> Iterator[None]:
 
 
 @contextlib.contextmanager
+def workspace_create_lock(key_digest: str) -> Iterator[None]:
+    """Serialize one non-activating workspace creation gesture."""
+    with _file_lock(paths.lock_dir() / "workspace_creates" / f"{paths.safe_path_token(key_digest)}.lock"):
+        yield
+
+
+@contextlib.contextmanager
 def chat_turn_reservation_lock(key_digest: str) -> Iterator[None]:
     """Serialize one ``turn_request_id``'s ACCEPT decision across processes.
 

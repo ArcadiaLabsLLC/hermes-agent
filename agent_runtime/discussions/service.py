@@ -139,6 +139,7 @@ class DiscussionService:
         spec = execution_spec(run)
         settings = spec.settings
         guidance = ""
+        conclusion_member = None
         moderator = settings["moderator"]
         if moderator is not None:
             members = self.runs.members(run["run_id"])
@@ -146,9 +147,12 @@ class DiscussionService:
                            (moderator["install_id"], moderator["instance_id"])), None)
             if member is not None:
                 guidance = f"- @{member['handle']} coordinates this discussion and should synthesize conclusions; this grants no extra tool permissions."
+                if settings.get("synthesize", False):
+                    conclusion_member = member["member_id"]
         return policy.DiscussionLimits(max_members=128, max_rounds=settings["rounds"],
             max_messages=spec.capacity * settings["rounds"],
-            shared_profiles=True, prompt_bytes=12000, guidance=guidance)
+            shared_profiles=True, prompt_bytes=12000, guidance=guidance,
+            conclusion_member_id=conclusion_member)
 
     def _policy_args(self, run: Mapping[str, Any]) -> dict[str, Any]:
         return {"local_profiles": {m["profile"] for m in self.runs.members(run["run_id"])}, "limits": self._limits(run)}
@@ -215,8 +219,7 @@ class DiscussionService:
             if status not in _TERMINAL or self.checkpoints.publication_exists(
                     room_id=rid, task_id=task["identity"].task_id, status=status, execution_generation=generation):
                 continue
-            events = self.checkpoints.events_for_task(room_id=rid, source_event_seq=task["payload"]["source_event_seq"])
-            plan = policy.reconstruct_task_plan(room, events, task, **self._policy_args(run))
+            events, plan = self._task_plan(run, room, task)
             publication = policy.plan_publication(room, events, plan, status=status,
                 result=task.get("result"), execution_generation=generation if status == "deferred" else None,
                 **self._policy_args(run))
@@ -472,16 +475,24 @@ class DiscussionService:
 
     def _task_rows(self, run_id: str) -> list[dict[str, Any]]:
         tasks = []
+        limits = self._limits(self.runs.get(run_id))
         for task in driver.list_tasks(self.db_path, room_id=run_id):
             row = self.attempts.get(run_id, task["identity"].task_id, task["execution_generation"])
             if row is not None:
                 row = self.turns.recover(row)
             tasks.append({"task_id": task["identity"].task_id, "member_id": task["payload"]["target_member_id"],
+                "round_index": policy.task_round_index(task["identity"], limits=limits),
+                "source_event_seq": task["payload"]["source_event_seq"],
                 "generation": task["execution_generation"], "status": task["status"],
                 "attempt_stage": row["stage"] if row else None, "native_id": row["native_id"] if row else None,
                 "question": row["question"] if row else None,
                 "error": (row["receipt"] or {}).get("error") if row else None})
         return tasks
+
+    def _task_plan(self, run, room, task):
+        events = self.checkpoints.events_for_task(
+            room_id=run["run_id"], source_event_seq=task["payload"]["source_event_seq"])
+        return events, policy.reconstruct_task_plan(room, events, task, **self._policy_args(run))
 
 
 _owner_lock = threading.RLock()

@@ -134,21 +134,30 @@ class DiscussionSettings:
     user_participates: bool
     allow_invitations: bool
     moderator: ParticipantRef | None
+    synthesize: bool = False
 
     @classmethod
     def parse(cls, value: Any) -> DiscussionSettings:
-        value = fields(value, {"rounds", "user_participates", "allow_invitations", "moderator"}, field="settings")
+        required = {"rounds", "user_participates", "allow_invitations", "moderator"}
+        if isinstance(value, Mapping) and "synthesize" in value:
+            required.add("synthesize")
+        value = fields(value, required, field="settings")
+        synthesize = _boolean(value.get("synthesize", False), "synthesize")
+        if synthesize and value["moderator"] is None:
+            raise DefinitionError("moderator_required", "synthesize")
         return cls(
             _integer(value["rounds"], 1, 3, "rounds"),
             _boolean(value["user_participates"], "user_participates"),
             _boolean(value["allow_invitations"], "allow_invitations"),
             ParticipantRef.parse(value["moderator"]) if value["moderator"] is not None else None,
+            synthesize,
         )
 
     def to_dict(self) -> dict[str, Any]:
         return {"rounds": self.rounds, "user_participates": self.user_participates,
                 "allow_invitations": self.allow_invitations,
-                "moderator": self.moderator.to_dict() if self.moderator is not None else None}
+                "moderator": self.moderator.to_dict() if self.moderator is not None else None,
+                **({"synthesize": True} if self.synthesize else {})}
 
 
 @dataclass(frozen=True, slots=True)
