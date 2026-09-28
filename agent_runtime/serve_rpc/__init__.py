@@ -35,6 +35,8 @@ media                    lanes   ``runtime.media.index/get``
 peer                     lanes   the ``peer.*`` verbs
 gateway_peers            lanes   ``runtime.gateway.peers.*``
 provider                 lanes   ``runtime.provider.*`` (catalog, sign-in, usage)
+speech                   lanes   ``runtime.speech.*`` (load, recognize, synthesize)
+admission                lanes   ``runtime.admission.*`` (the model memory budget)
 =======================  ======  ================================================
 
 Each verb family registers its handlers on import; the family import below is
@@ -66,6 +68,8 @@ from agent_runtime.serve_rpc import (  # noqa: F401 — every family, in the ori
     peer,
     gateway_peers,
     provider,
+    speech,
+    admission,
 )
 from agent_runtime.serve_rpc.protocol import (
     DEFERRED,

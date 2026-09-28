@@ -49,8 +49,9 @@ config:
 
 environment:
   # Speech loaders' download-if-missing fallbacks (faster-whisper, KittenTTS,
-  # NeuTTS all fetch through huggingface_hub): offline, so a missing model is
-  # an error, never a download. The Launcher downloads every model file.
+  # NeuTTS all fetch through huggingface_hub; Piper's voice download honours it
+  # through the fork seam in tools/tts_tool_local.py): offline, so a missing
+  # model is an error, never a download. The Launcher downloads every model file.
   HF_HUB_OFFLINE: "1"
 
 refused_routes:
@@ -71,8 +72,6 @@ refused_routes:
 unswitched:
   - area: MCP stdio servers
     gap: no transport-level switch; mcp_servers entries are enabled per server only
-  - area: Piper voice download fallback
-    gap: tools/tts_tool_local.py fetches a voice NAME through piper.download_voices (not huggingface_hub); only a configured .onnx path avoids it
   - area: Execution backends (Docker, SSH, Modal, Daytona, Singularity)
     gap: terminal.backend is pinned, not refused; a profile can still select one once terminal is enabled
   - area: Messaging platforms (gateway adapters)
