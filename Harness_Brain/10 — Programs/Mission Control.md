@@ -2,7 +2,7 @@
 type: program
 program: mission-control
 status: active
-cursor: "2026-09-22 — the hermes half of the queue moved here (runtime-queue, 27 rows) by ADR 0012. 2026-09-21 — the SURFACE program is the launcher's; this note is the runtime-side pointer. The launcher's own refactor program (wave 4) is at 4 grandfathered units; its chat-panel tranche merged 2026-09-21."
+cursor: "2026-09-28 — shared Discussion setup, optional conclusion and atomic shutdown admission are implemented and native-qualified with Launcher. Hermes remains authoritative; one neutral client serves both Launcher surfaces. Broad suite and isolated host-safety investigations remain in fork-hygiene."
 tags: [program/mission-control, program]
 ---
 

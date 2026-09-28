@@ -1,6 +1,7 @@
 # Shared Discussion experience — approved 2026-09-27
 
-Status: implementation in progress; not a closeout.
+Status: implementation and scoped native acceptance complete. Joint landing uses
+the Launcher closeout; broader repository qualification remains safety-limited.
 
 Extend the existing discussion owner, stores and hosted-room worker. Mission
 Control and Intelligence remain independent consumers of focused contracts.
@@ -95,3 +96,18 @@ population and incoming main `8110944532` are still being qualified; this is not
 a whole-suite pass. Launcher also includes packaged-runtime main `6d578f0e3`.
 The continuation stopped during a whole-PC freeze requiring manual restart;
 the qualification note records the last fixture and the no-blind-rerun boundary.
+
+## Final native recheck
+
+Stamped Launcher `c4f3bcbda` with Hermes `9cd5551115` reopened saved Discussion
+history across Mission Control and Intelligence and loaded the shared preset.
+The runtime code is unchanged from `b02479f843`; newer commits record evidence.
+The isolated window closed gracefully and its service drained with zero pending
+requests. Producer/consumer fixtures still match byte-for-byte.
+
+The Launcher closeout maps the original eight acceptance steps, structural
+measurements, native revisions and explicit release/layout limits:
+`EterniaLauncher/docs/companion/planned/DISCUSSION_CLOSEOUT_2026-09-28.md`.
+No broad-suite or host-freeze resolution claim is made. The contained continuation
+exposed an updater isolation gap; its remaining population is not rerun on the
+operator desktop. The fork-hygiene queue owns isolated completion.

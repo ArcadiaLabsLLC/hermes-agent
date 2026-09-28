@@ -1,6 +1,9 @@
 # Discussion Tables — runtime checkpoint handoff (2026-09-16)
 
-Status: **checkpointed on `feat/discussion-tables-20260916`; do not merge to `main` yet.**
+Historical checkpoint, subsequently implemented and refactored. Current shared
+experience and scoped acceptance: [September 27 implementation](discussion-experience-20260927.md).
+The original requirements below remain evidence obligations, not a claim that
+the implementation is still stranded on the September 16 branch.
 
 This note is the continuation point for the Discussion Tables program. Read the root `AGENTS.md`, applicable nested instructions, `docs/agent-runtime-harness/00-index.md`, the existing `upstream-bot-mode-peer-integration.md`, and `discussion-tables-local-handoff.md` before changing code.
 
