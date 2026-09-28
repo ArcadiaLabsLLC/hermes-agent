@@ -23,6 +23,23 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
+
+Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2026-09-28.md` (stages named per row) and `ARCHITECTURE_2026-09-28.md` §4. Rule: one Python implementation, universal — enable existing Hermes code, never reimplement; bundle only what is needed.
+
+- [ ] **Messaging platforms (Telegram, Discord, …) as fork work for the headless toolset (full Hermes as a service); off in bundled profiles.** · spec ruling 8.
+- [ ] **D1 — bundled-desktop wheel build + the packaging step that bundles only the profile manifest's import closure (`agent_runtime/bundle_profiles/`, `scripts/bundle_profile_closure.py`), and the bundled service lifetime bound to the Launcher.** · plan D1 items 2 and 8; the manifest (item 1) landed in lane w1-hprof. **TAKEN 2026-09-28 wave2 w2-hwheel**
+- [ ] **Import seams so switched-off bundle features are excludable: pinned modules (`tools.terminal_tool`, `gateway.platforms.base`, `tools.voice_mode`, …) and on-feature paths into off features (`cron.scheduler → gateway.code_skew → hermes_cli.main`; messaging SDKs via cron delivery and `gateway.run`).** · evidence: `docs/downstream/bundled-desktop-closure-2026-09-28.md` § "Why the excludable list is short". **TAKEN 2026-09-28 wave2 w2-hslim**
+- [ ] **Existing-switch gaps for the bundled profile: stdio MCP transport, checkout-bound features (build stamp / dirty state / repo context), Piper voice-name download — build each switch once in Hermes, then enable per profile.** · evidence: `unswitched` in `agent_runtime/bundle_profiles/bundled-desktop.yaml`. **TAKEN 2026-09-28 wave2 w2-hslim**
+- [ ] **D3 — speech service in bundled Hermes: load STT/TTS from the Launcher's models folder via explicit local paths (faster-whisper, Piper), serve recognize/synthesize over new `runtime.*` methods, one GPU admission authority (reserve/release, refuse or evict).** · plan D3 items 1–2. **TAKEN 2026-09-28 wave2 w2-hspeech**
+- [ ] **Stage 2 — split `serve_rpc` dispatch from the daemon shell; in-memory pipe as a third serve transport; phone profile over the real wheel; profile gate replacing `mobile_core/tools/import_gate.py`.** · plan Stage 2.
+- [ ] **Stage 2 — in-process conversation worker behind the existing `runtime.conversation.*` / `NativePeer` (no subprocess on phones); re-home `turn_runner.py` as the SDK-free client under `agent.transports.*`; agent-loop seam so upstream's loop loads without desktop tool lifecycles; history storage seam (encrypted DB/WAL/FTS/transcripts).** · plan Stage 2 steps; never a second loop or session store. `mobile_core/turn_runner.py` and its two tests import modules D0 deleted, so they cannot load until this re-home (lane w1-hclean). Provider sign-in spawns `hermes auth login` today; phones need an in-process runner through the `ProviderSignIns(spawn=…)` seam (lane w1-hprov).
+- [ ] **Stage 5 — phone agents are told their limits: a phone entry in `PLATFORM_HINTS` (`agent/prompt_builder.py`) saying no shell, terminal, file system beyond the sandbox or background processes, derived from the phone profile's enabled toolsets; the agent says when a task needs the desktop.** · `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2026-09-28.md` Stage 5; owner ruling 2026-09-28.
+
+### Filed on arrival — 2026-09-28 (lane w1-hclean, filed by the launcher orchestrator)
+
+- [ ] **Tombstone registry s72 row `parity.ProjectionAccountant.dropped_by_design` is red on main — the class moved to `agent_runtime/projection_accountant.py`; retarget the row or add an ATTR row.** · `tests/agent_runtime/test_tombstone_registry.py`; red at the lane's base, not caused by it.
+
 ### Native conversation lifecycle audit — 2026-09-26
 
 
@@ -188,6 +205,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
+### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
+
+- [ ] **Credentials seam: back `hermes_cli/auth.py` `_load_auth_store` / `_save_auth_store` (and the other stores the D0 census finds) with the host's secure store on phones and bundled profiles; exact auth/profile scope, no plaintext, no cross-install discovery.** · `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2026-09-28.md` Stage 2 step 5; additive seam only. Scope facts (which stores follow `HERMES_AUTH_HOME` vs `HERMES_HOME`, the three writers to the global root, the machine-wide borrowed stores so bundled Hermes runs with `adopt_external_logins` off): `docs/downstream/credential-store-census-2026-09-28.md`.
+
 ### Filed on arrival — 2026-09-26 (lane FIX-TRIAGE, filed by the orchestrator)
 
 ### Filed on arrival — 2026-09-26 (lane PF-1, seams; filed by the orchestrator)
@@ -246,6 +267,11 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - [ ] **Upstream `_apply_request_chain` hands every `llm_request` callback the ORIGINAL request and keeps only the LAST result, so a second callback silently drops the first's rewrite; the eternia-harness plugin therefore composes the wire-brief rewrite and the Codex cache-key rewrite in ONE callback** · `hermes / seams` · widening PR candidate (HELD while PRs are paused): chain the callbacks (each sees the previous result) — a one-line upstream change; until then every fork `llm_request` rewrite must join the single composed callback in `plugins/eternia-harness/` · evidence: lane DOORS-A 2026-09-24 (`seam/doors-a-2026-09-24`, the cache-key commit) **UNCLAIMED**
 
 ## Upstream-owned
+
+### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
+
+- [ ] **Bundled profiles must not download models themselves: switch off `hermes_cli/web_routers/local_models.py` download/catalog routes and the "download if missing" fallbacks in `tools/tts_tool_local.py` / `tools/transcription_local.py` by profile config or a caller-side gate — never by editing those files.** · `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2026-09-28.md` D1 item 1, D2, D3 item 1; the Launcher is the one downloader.
+- [ ] **Offer the SDK-free httpx client (re-homed `turn_runner`) upstream as a transport "client" door, after the fork polish.** · architecture §4; ask the owner before opening the PR.
 
 ### Filed on arrival — 2026-09-27 (lane PR-REPLIES, filed by the orchestrator)
 

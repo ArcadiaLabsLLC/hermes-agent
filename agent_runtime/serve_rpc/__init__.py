@@ -34,6 +34,7 @@ scope                    lanes   ``runtime.workspace.use`` / ``runtime.realm.use
 media                    lanes   ``runtime.media.index/get``
 peer                     lanes   the ``peer.*`` verbs
 gateway_peers            lanes   ``runtime.gateway.peers.*``
+provider                 lanes   ``runtime.provider.*`` (catalog, sign-in, usage)
 =======================  ======  ================================================
 
 Each verb family registers its handlers on import; the family import below is
@@ -64,6 +65,7 @@ from agent_runtime.serve_rpc import (  # noqa: F401 — every family, in the ori
     media,
     peer,
     gateway_peers,
+    provider,
 )
 from agent_runtime.serve_rpc.protocol import (
     DEFERRED,

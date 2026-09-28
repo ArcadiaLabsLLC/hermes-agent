@@ -47,6 +47,20 @@ published through the account), NAT traversal, a lite mobile runtime, and any
 WRITE joining the peer allowlist — agents never mint or retire agents on
 another install.
 
+**Supported install tier: bundled Hermes, mobile profile** (amended 2026-09-28,
+embedded-hermes spec ruling 5). Besides the Launcher-managed and custom
+checkouts, a runtime may be the real Hermes wheel shipped inside the Launcher
+and run under a profile manifest that enables a subset of toolsets — on desktop
+beside or instead of a full install, and on phones in-process. It is the same
+codebase, not the "lite mobile runtime" excluded above: one implementation of
+every capability, no vendored copies, gaps closed by fork seams or upstream
+doors. Within this domain it is an ordinary install — its own store root, its
+own durable identity, the same tiers 1 and 2 — and it never discovers a full
+install's credentials on the same machine (the D0 credential census,
+`docs/downstream/credential-store-census-2026-09-28.md`). The program, its
+profile matrix and its stages are
+`EterniaLauncher/docs/embedded_hermes/planned/README.md`.
+
 ## The entities a runtime holds
 
 - **Install** — `<store_root>/gateway/install.json`, `{install_id,

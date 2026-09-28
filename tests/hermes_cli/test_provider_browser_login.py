@@ -19,13 +19,15 @@ def events(capsys):
 
 
 def test_catalog_advertises_only_real_machine_methods():
+    """Killing mutation: drop the ``anthropic`` arm of ``browser_login_methods`` -> device_code, red."""
     from hermes_cli.harness_parts.provider_visibility import _provider_visibility_catalog
 
     catalog = {row["id"]: row for row in _provider_visibility_catalog()}
     supported = {key for key, row in catalog.items() if row["browser_login"]}
-    assert supported == {"openai-codex", "xai-oauth", "minimax-oauth", "nous"}
+    assert supported == {"openai-codex", "xai-oauth", "minimax-oauth", "nous", "anthropic"}
     assert catalog["openai-codex"]["browser_login_methods"] == ["browser", "device_code"]
-    for provider in supported - {"openai-codex"}:
+    assert catalog["anthropic"]["browser_login_methods"] == ["paste_code"]
+    for provider in supported - {"openai-codex", "anthropic"}:
         assert catalog[provider]["browser_login_methods"] == ["device_code"]
     assert not catalog["qwen-oauth"]["browser_login_methods"]
 
@@ -151,3 +153,71 @@ def test_nous_guest_uses_canonical_upgrade_not_a_second_login(monkeypatch):
     monkeypatch.setattr(anon_auth, "run_sign_in", lambda: iter([SimpleNamespace(terminal=True, ok=True)]))
     monkeypatch.setattr(auth_nous, "_nous_device_code_login", lambda **_: pytest.fail("Guest bypassed canonical upgrade"))
     wire._nous(lambda *_: pytest.fail("No code emitted by fixture"), "device_code")
+
+
+class _PastedCode:
+    """Stdin for the Anthropic driver: answers with the code the authorize page would show."""
+
+    def __init__(self, seen: list, state=None):
+        self.seen, self.state = seen, state
+
+    def readline(self):
+        from urllib.parse import parse_qs, urlparse
+        state = self.state or parse_qs(urlparse(self.seen[0]).query)["state"][0]
+        return f"SENTINEL-CODE#{state}" + "\n"
+
+
+def _anthropic_home(tmp_path, monkeypatch):
+    (tmp_path / "auth.json").write_text(json.dumps({"version": 1, "active_provider": "openrouter", "providers": {}}))
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setenv("HERMES_AUTH_HOME", str(tmp_path))
+    for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
+
+
+def test_anthropic_pkce_driver_surfaces_the_link_and_saves_through_upstream_add(tmp_path, monkeypatch, capsys):
+    """Killing mutation: drop the ``verify(match.group(0), "")`` call in ``shown`` -> no code event, red."""
+    import webbrowser
+    from agent import anthropic_credentials as anthropic_mod
+    from hermes_cli import auth as auth_mod
+    from hermes_cli.auth_noninteractive import auth_login_command
+
+    _anthropic_home(tmp_path, monkeypatch)
+    seen, exchanged = [], []
+    real_can_open = auth_mod._can_open_graphical_browser
+
+    def post(data, **_):
+        exchanged.append(json.loads(data))
+        return {"access_token": "SENTINEL-access", "refresh_token": "SENTINEL-refresh", "expires_in": 3600}
+
+    monkeypatch.setattr(anthropic_mod, "_post_oauth_token", post)
+    monkeypatch.setattr(webbrowser, "open", lambda *_a, **_k: pytest.fail("driver opened a browser"))
+    monkeypatch.setattr("sys.stdin", _PastedCode(seen))
+    original = wire._DRIVERS["anthropic"]
+    monkeypatch.setitem(wire._DRIVERS, "anthropic", lambda verify, flow: original(
+        lambda url, code: (seen.append(url), verify(url, code)), flow))
+    assert auth_login_command(SimpleNamespace(provider="anthropic", flow=None, profile=None, json=True)) == 0
+    rows = events(capsys)
+    assert [row["event"] for row in rows] == ["code", "pending", "done"]
+    assert rows[0]["verification_uri"].startswith("https://claude.ai/oauth/authorize?")
+    assert rows[0]["user_code"] == ""
+    assert exchanged and exchanged[0]["code"] == "SENTINEL-CODE"
+    stored = json.loads((tmp_path / "auth.json").read_text())
+    assert stored["active_provider"] == "openrouter"
+    assert [e["access_token"] for e in stored["credential_pool"]["anthropic"]] == ["SENTINEL-access"]
+    assert "print" not in anthropic_mod.__dict__ and "input" not in anthropic_mod.__dict__
+    assert auth_mod._can_open_graphical_browser is real_can_open
+
+
+def test_anthropic_pkce_driver_refuses_a_foreign_state(tmp_path, monkeypatch, capsys):
+    """Killing mutation: ``pasted`` re-stamping the link's own state onto the code -> exchange runs, red."""
+    from agent import anthropic_credentials as anthropic_mod
+
+    _anthropic_home(tmp_path, monkeypatch)
+    monkeypatch.setattr(anthropic_mod, "_post_oauth_token", lambda *_a, **_k: pytest.fail("exchanged a CSRF code"))
+    monkeypatch.setattr("sys.stdin", _PastedCode([], state="not-the-state"))
+    assert wire.browser_login_command("anthropic", home=str(tmp_path)) == 1
+    rows = events(capsys)
+    assert [row["event"] for row in rows] == ["code", "pending", "error"]
+    assert rows[-1]["code"] == "login_failed"
+    assert "credential_pool" not in json.loads((tmp_path / "auth.json").read_text())

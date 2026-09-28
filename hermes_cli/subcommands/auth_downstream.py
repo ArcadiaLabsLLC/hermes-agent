@@ -37,7 +37,7 @@ def add_noninteractive_auth_parsers(auth_subparsers) -> None:
         help="Non-interactive provider login as an NDJSON event stream",
     )
     auth_login.add_argument("provider", help="Provider id")
-    auth_login.add_argument("--flow", choices=["browser", "device_code"],
+    auth_login.add_argument("--flow", choices=["browser", "device_code", "paste_code"],
                             help="A browser login method advertised by the provider catalog")
     auth_login.add_argument(
         "--json",

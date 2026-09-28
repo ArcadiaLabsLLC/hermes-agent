@@ -328,7 +328,13 @@ Executed history stays archived. The duplicate-implementation retirement's rows
   rationale.
 - Pet-gallery empty keys — keep for shape parity, comment why.
 - `task_store_stub.py` retirement, after H-P2, with its four pinning tests.
-- `mobile_core/` — CI tier or archived (operator).
+- `mobile_core/` — RULED 2026-09-28 (embedded-hermes plan D0 item 2, lane w1-hclean): the
+  July duplicates (`core`, `auth`, `providers`, `events`, `exceptions`, `_vendor/`, the
+  provider catalog, three tools, five tests, the README and dependency certification) are
+  deleted; phones run the real Hermes wheel under a profile. 14 files are HELD for
+  re-homing: `turn_runner.py` (the SDK-free client, plan Stage 2; it no longer imports
+  until then), `redact.py` (its rules folded into `agent_runtime/redaction.py`), the golden
+  tests, and `tools/import_gate.py` (replaced by the Stage 2 profile gate).
 - `F401` in `pyproject.toml` with upstream per-file-ignores — **still not enabled**
   (`select = ["PLW1514", "F821"]`), and R11 already refused the naive form: F401 cannot
   model an exec namespace, and `harness.py` imports ~100 names *so the exec'd parts can

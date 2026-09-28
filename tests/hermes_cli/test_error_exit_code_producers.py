@@ -63,7 +63,7 @@ SUPPORT = HERMES_ROOT / "hermes_cli" / "harness_support.py"
 
 _PACKAGES = (
     "agent_runtime", "hermes_cli", "tools", "agent", "acp_adapter", "gateway",
-    "scripts", "cron", "providers", "tui_gateway", "apps", "mobile_core",
+    "scripts", "cron", "providers", "tui_gateway", "apps",
 )
 _SKIP = {"__pycache__", ".venv", "venvs", "node_modules", ".git"}
 
