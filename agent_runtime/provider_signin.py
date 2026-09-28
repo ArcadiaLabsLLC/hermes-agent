@@ -259,20 +259,29 @@ class ProviderSignIns:
             return
         if not isinstance(event, dict):
             return
-        kind = event.get("event")
+        handler = self._EVENT_HANDLERS.get(event.get("event"))
+        if handler is None:
+            return
         with session.lock:
-            if session.state not in ACTIVE_STATES:
-                return
-            if kind == "code":
-                session.verification_uri = str(event.get("verification_uri") or "")
-                session.user_code = str(event.get("user_code") or "")
-                session.state = "awaiting_code" if session.flow == "paste_code" else "awaiting_user"
-                session.updated_at = self._clock()
-            elif kind == "done" and event.get("ok") is True:
-                self._finish(session, "succeeded", None)
-            elif kind == "error":
-                code = event.get("code")
-                self._finish(session, "failed", code if code in CHILD_ERROR_CODES else "login_failed")
+            if session.state in ACTIVE_STATES:
+                handler(self, session, event)
+
+    def _on_code(self, session: _Session, event: dict) -> None:
+        session.verification_uri = str(event.get("verification_uri") or "")
+        session.user_code = str(event.get("user_code") or "")
+        session.state = "awaiting_code" if session.flow == "paste_code" else "awaiting_user"
+        session.updated_at = self._clock()
+
+    def _on_done(self, session: _Session, event: dict) -> None:
+        if event.get("ok") is True:
+            self._finish(session, "succeeded", None)
+
+    def _on_error(self, session: _Session, event: dict) -> None:
+        code = event.get("code")
+        self._finish(session, "failed", code if code in CHILD_ERROR_CODES else "login_failed")
+
+    # The child's event vocabulary, one handler per kind; unknown kinds are ignored.
+    _EVENT_HANDLERS = {"code": _on_code, "done": _on_done, "error": _on_error}
 
 
 _REGISTRY: ProviderSignIns | None = None

@@ -190,7 +190,7 @@ def _under(module: str, prefixes) -> bool:
     return any(module == p or module.startswith(p + ".") for p in prefixes)
 
 
-def _chain(module: str, parent: dict[str, str]) -> list[str]:
+def _import_chain(module: str, parent: dict[str, str]) -> list[str]:
     """Root -> ... -> ``module``: the first import path the walk found."""
     chain = [module]
     while parent.get(chain[-1]):
@@ -221,7 +221,7 @@ class Walk:
                 if owner is None:
                     top = dotted.split(".")[0]
                     if top and top not in first_party_tops and top not in sys.stdlib_module_names:
-                        self.tops.setdefault(top, _chain(module, parent))
+                        self.tops.setdefault(top, _import_chain(module, parent))
                         self.import_sites.setdefault(top, []).append(
                             {"module": module, "line": line, "guarded": guarded, "eager": eager})
                     continue
