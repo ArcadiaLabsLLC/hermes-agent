@@ -105,6 +105,7 @@ unswitched:
 # Packaging: the import-closure walk (scripts/bundle_profile_closure.py).
 packaging:
   roots:
+    - hermes_cli.main           # the serve entry: python -m hermes_cli.main harness serve --ndjson
     - hermes_cli.harness
     - run_agent
     - model_tools
@@ -122,8 +123,6 @@ packaging:
     - anthropic     # Anthropic provider (core agent: providers On)
     - mcp           # MCP over HTTP (On); stdio servers are switched off by config
     - fal           # image generation (On)
-    - piper         # speech service: TTS (On)
-    - stt-whisper   # speech service: STT (On)
   # Base dependencies the bundle omits. Refused by the closure script unless
   # every import site in the kept modules is guarded (try/suppress ImportError).
   omitted_distributions:
@@ -181,3 +180,48 @@ packaging:
     - tests
     - scripts
     - evals
+  # --- the packaging step (scripts/bundle_profile_package.py) ---
+  # Engine packs: extras the core bundle does NOT carry. Each is built as its
+  # own output (only the distributions the core lacks) and downloaded on first
+  # use (owner, 2026-09-28); bundled Hermes finds an installed pack through
+  # HERMES_ENGINE_PACKS (site-packages/hermes-engine-packs.pth). No pack = the
+  # engine's imports fail = that speech provider reports unavailable.
+  packs:
+    speech:
+      extras:
+        - piper         # speech service: TTS (On)
+        - stt-whisper   # speech service: STT (On)
+  # Agent resources (scripts/build/inputs.py RESOURCE_ENV) shipped beside the code.
+  resources:
+    - skills
+    - locales
+  # Bundled plugin directories (plugins/<dir>) that ship; the loader finds
+  # plugins by directory, so an unlisted one is simply not packaged. Left out:
+  # platforms (messaging, off), browser (shell family, switched off),
+  # google_meet (meeting bot, needs playwright), teams_pipeline (Teams messaging, off).
+  plugins:
+    - eternia-harness     # `harness serve` — the Launcher's wire
+    - model-providers
+    - memory
+    - context_engine
+    - web
+    - image_gen
+    - video_gen
+    - kanban
+    - cron_providers
+    - observability
+    - dashboard_auth
+    - security-guidance
+    - disk-cleanup
+    - hermes-achievements
+    - spotify
+  # Left out of the bundle, each with its reason (bundle-root-relative:
+  # app/... or site-packages/...; a trailing path or an fnmatch glob).
+  excluded_data:
+    site-packages/piper/espeak-ng-data: "pronunciation data, not code: the Launcher downloads the language data a voice needs with that voice (owner, 2026-09-28); English needs 7 files, see docs/downstream/bundled-desktop-closure-2026-09-28.md"
+    site-packages/piper/hebrew/nakdimon.onnx: "Hebrew diacritizer model (20 MiB): no models in the installer; loaded only for a Hebrew voice"
+    site-packages/piper/tashkeel/model.onnx: "Arabic diacritizer model: no models in the installer; loaded only for an Arabic voice"
+    site-packages/piper/train: "Piper's voice-training code: dev code, never imported by synthesis"
+    app/tools/neutts_samples: "NeuTTS reference clips: NeuTTS is not in the bundled speech set"
+    app/tools/wakewords: "Hermes wake-word models: wake_word.enabled is false, the Launcher owns the mic"
+    app/plugins/*/docs/*: "plugin documentation and screenshots"

@@ -1,0 +1,150 @@
+"""The bundle packaging step: the bundle matches its manifest's closure (plan D1/D4).
+
+The heavy phases (uv pool, closure over the pool, file copy) are exercised by
+the measured build in ``docs/downstream/bundled-desktop-closure-2026-09-28.md``;
+these pin the pure decisions — how a bundle is compared with its plan, which
+first-party modules the plan ships, and which locked requirements a target keeps.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from types import SimpleNamespace
+
+from scripts.bundle_profile_package import (
+    Dist,
+    Plan,
+    compare,
+    evaluate_markers,
+    first_party_plan,
+    marker_env,
+)
+
+
+def _dist(name, files):
+    return Dist(name=name, version="1", info=f"{name}-1.dist-info", files=list(files))
+
+
+def _plan(first_party, distributions, missing=(), refusals=()):
+    return Plan(profile="p", target="win32-x64", python_version="3.14.7", first_party=set(first_party),
+                pinned=set(), distributions=set(distributions), missing=set(missing), refusals=list(refusals))
+
+
+SITE = {"x": _dist("x", ["x/__init__.py"])}
+
+
+def test_a_bundle_equal_to_its_plan_has_no_problems():
+    """Positive control: the same inputs as the checks below, nothing extra or missing."""
+    assert compare(_plan({"a", "a.b"}, {"x"}), {"a", "a.b"}, SITE, {"x/__init__.py"}, {}) == []
+
+
+def test_an_extra_or_missing_first_party_module_fails():
+    problems = compare(_plan({"a", "a.b"}, {"x"}), {"a", "a.c"}, SITE, {"x/__init__.py"}, {})
+    assert problems == ["extra first-party module (outside the closure): a.c",
+                        "missing first-party module (the closure needs it): a.b"]
+
+
+def test_an_extra_or_missing_distribution_fails():
+    site = {**SITE, "y": _dist("y", ["y.py"])}
+    problems = compare(_plan({"a"}, {"x", "z"}, missing={"w"}), {"a"}, site, {"x/__init__.py", "y.py"}, {})
+    assert problems == ["extra distribution (outside the closure): y",
+                        "missing distribution (the closure needs it): w",
+                        "missing distribution (the closure needs it): z"]
+
+
+def test_a_closure_refusal_fails_the_bundle():
+    problems = compare(_plan({"a"}, {"x"}, refusals=["omitted pillow-heif is imported unguarded"]),
+                       {"a"}, SITE, {"x/__init__.py"}, {})
+    assert problems == ["closure refuses the profile's packaging: omitted pillow-heif is imported unguarded"]
+
+
+def test_stray_tests_noise_and_excluded_data_fail():
+    files = ["x/__init__.py", "x/data/big.bin"]
+    shipped = {*files, "x/tests/test_x.py", "x/__pycache__/m.cpython-314.pyc", "loose.py"}
+    problems = compare(_plan({"a"}, {"x"}), {"a"}, {"x": _dist("x", files)}, shipped,
+                       {"site-packages/x/data": "model", "app/tools/samples": "clips"},
+                       app_files={"a.py", "tools/samples/jo.wav"})
+    assert sorted(problems) == [
+        "bytecode noise in site-packages: x/__pycache__/m.cpython-314.pyc",
+        "excluded data shipped: app/tools/samples/jo.wav",
+        "excluded data shipped: site-packages/x/data/big.bin",
+        "file owned by no bundled distribution: loose.py",
+        "test file in site-packages: x/tests/test_x.py",
+    ]
+
+
+def test_baked_bytecode_is_not_noise():
+    shipped = {"x/__init__.py", "x/__pycache__/__init__.cpython-314.pyc"}
+    assert compare(_plan({"a"}, {"x"}), {"a"}, SITE, shipped, {}, baked=True) == []
+
+
+def _write(root: Path, rel: str, text: str) -> None:
+    path = root / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+def test_switched_off_code_kept_code_imports_unguarded_still_ships(tmp_path: Path):
+    """A lazy unguarded import into a switched-off module must not become a runtime ImportError."""
+    _write(tmp_path, "keep.py", "def f():\n    import off.lazy\n")
+    _write(tmp_path, "off/__init__.py", "")
+    _write(tmp_path, "off/lazy.py", "import off.helper\n")
+    _write(tmp_path, "off/helper.py", "")
+    _write(tmp_path, "off/unused.py", "")
+    _write(tmp_path, "guarded.py", "try:\n    import off.unused\nexcept ImportError:\n    pass\n")
+    from scripts.bundle_profile_closure import module_index
+
+    manifest = SimpleNamespace(packaging_roots=("keep", "guarded"), switched_off_modules=("off",),
+                               packaging_plugins=())
+    shipped, forced, _ = first_party_plan(manifest, module_index(tmp_path))
+    assert forced == {"off.lazy", "off.helper", "off"}
+    assert shipped == {"keep", "guarded", "off", "off.lazy", "off.helper"}
+
+
+def test_a_hyphenated_bundled_plugin_is_walked(tmp_path: Path):
+    _write(tmp_path, "plugins/__init__.py", "")
+    _write(tmp_path, "plugins/my-plugin/__init__.py", "from . import impl\n")
+    _write(tmp_path, "plugins/my-plugin/impl.py", "")
+    _write(tmp_path, "plugins/other-plugin/__init__.py", "")
+    from scripts.bundle_profile_closure import module_index
+
+    manifest = SimpleNamespace(packaging_roots=(), switched_off_modules=(), packaging_plugins=("my-plugin",))
+    shipped, _, _ = first_party_plan(manifest, module_index(tmp_path, plugins=("my-plugin",)))
+    assert shipped == {"plugins", "plugins.my_plugin", "plugins.my_plugin.impl"}
+
+
+def test_markers_are_evaluated_for_the_target_not_by_uv():
+    exported = (
+        "nemo-relay==0.8.4 ; (platform_machine == 'AMD64' and sys_platform == 'win32') \\\n"
+        "    --hash=sha256:aa\n"
+        "ptyprocess==0.7.0 ; sys_platform != 'win32' \\\n"
+        "    --hash=sha256:bb\n"
+        "idna==3.19 \\\n"
+        "    --hash=sha256:cc\n"
+    )
+    win = evaluate_markers(exported, marker_env("win32-x64", "3.14.7"))
+    assert "nemo-relay==0.8.4 \\\n    --hash=sha256:aa" in win
+    assert "ptyprocess" not in win and "idna==3.19" in win
+    linux = evaluate_markers(exported, marker_env("linux-x64", "3.14.7"))
+    assert "nemo-relay" not in linux and "ptyprocess==0.7.0" in linux
+
+
+def test_the_engine_pack_path_file_adds_only_installed_packs(tmp_path: Path, monkeypatch):
+    import os
+    import sys
+
+    from scripts.bundle_profile_package import ENGINE_PACKS_ENV, ENGINE_PACKS_PTH_LINE
+
+    pack, missing = tmp_path / "speech" / "site-packages", tmp_path / "absent" / "site-packages"
+    pack.mkdir(parents=True)
+    monkeypatch.setenv(ENGINE_PACKS_ENV, os.pathsep.join([str(pack), str(missing)]))
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    assert ENGINE_PACKS_PTH_LINE.startswith("import ")  # site only executes .pth lines that do
+    exec(ENGINE_PACKS_PTH_LINE)  # noqa: S102 — exactly what site.addpackage runs
+    assert str(pack) in sys.path
+    assert str(missing) not in sys.path
+
+
+def test_the_engine_pack_path_file_is_not_a_stray_file():
+    shipped = {"x/__init__.py", "hermes-engine-packs.pth"}
+    assert compare(_plan({"a"}, {"x"}), {"a"}, SITE, shipped, {}) == []

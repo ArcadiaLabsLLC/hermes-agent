@@ -23,6 +23,7 @@ is data a reader can see rather than a flag somebody invented.
 from __future__ import annotations
 
 import copy
+import dataclasses
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -75,6 +76,15 @@ class ProfileManifest:
     switched_off_modules: tuple[str, ...]
     packaging_extras: tuple[str, ...] = ()
     omitted_distributions: tuple[Mapping[str, Any], ...] = ()
+    # The packaging step (scripts/bundle_profile_package.py).
+    #: agent resources (``scripts/build/inputs.py`` RESOURCE_ENV names) shipped beside the code
+    packaging_resources: tuple[str, ...] = ()
+    #: bundled plugin directories (``plugins/<dir>``) that ship; an unlisted one is not packaged
+    packaging_plugins: tuple[str, ...] = ()
+    #: bundle-root-relative path or glob (``app/...``, ``site-packages/...``) -> why it is left out
+    excluded_data: Mapping[str, str] = dataclasses.field(default_factory=dict)
+    #: engine pack name -> the extras it carries OUTSIDE the core bundle (downloaded on first use)
+    packaging_packs: Mapping[str, tuple[str, ...]] = dataclasses.field(default_factory=dict)
 
 
 def manifest_path(profile: str) -> Path:
@@ -116,6 +126,14 @@ def _omitted(row: Any) -> dict:
     return {"distribution": name, "imports": imports, "degrades": degrades}
 
 
+def _reasons(value: Any, where: str) -> dict[str, str]:
+    """A path -> non-empty reason mapping: every entry says why it exists."""
+    value = _mapping(value, where)
+    if not all(isinstance(k, str) and k and isinstance(v, str) and v.strip() for k, v in value.items()):
+        raise ProfileManifestError(f"{where} must map names to non-empty reasons")
+    return value
+
+
 def parse_manifest(data: Any, *, validate: bool = True) -> ProfileManifest:
     """Build a :class:`ProfileManifest` from parsed YAML."""
     data = _mapping(data, "manifest")
@@ -143,6 +161,12 @@ def parse_manifest(data: Any, *, validate: bool = True) -> ProfileManifest:
         switched_off_modules=_strings(packaging.get("switched_off_modules"), "packaging.switched_off_modules"),
         packaging_extras=_strings(packaging.get("extras"), "packaging.extras"),
         omitted_distributions=tuple(_omitted(row) for row in (packaging.get("omitted_distributions") or [])),
+        packaging_resources=_strings(packaging.get("resources"), "packaging.resources"),
+        packaging_plugins=_strings(packaging.get("plugins"), "packaging.plugins"),
+        excluded_data=_reasons(packaging.get("excluded_data"), "packaging.excluded_data"),
+        packaging_packs={name: _strings(_mapping(pack, f"packaging.packs.{name}").get("extras"),
+                                        f"packaging.packs.{name}.extras")
+                         for name, pack in _mapping(packaging.get("packs"), "packaging.packs").items()},
     )
     if validate:
         validate_manifest(manifest)
