@@ -1,0 +1,188 @@
+"""A bundle profile manifest: which toolsets and features one Hermes distribution switches off.
+
+One fork-owned YAML file per profile (``<profile>.yaml`` beside this module).
+The manifest adds no switch of its own — every entry is applied through a
+switch Hermes already has:
+
+* ``toolsets.disabled`` -> config ``agent.disabled_toolsets``, which
+  ``model_tools._select_tool_names`` subtracts LAST from every selection;
+* ``config`` -> existing config keys (validated against
+  ``hermes_cli.config_defaults.DEFAULT_CONFIG`` plus the few keys read with an
+  in-code default, named in :data:`KEYS_READ_OUTSIDE_DEFAULTS`);
+* ``environment`` -> variables an existing dependency already honours;
+* ``refused_routes`` -> upstream routes refused caller-side
+  (:mod:`agent_runtime.bundle_profiles.route_gate`);
+* ``packaging`` -> the import-closure walk's roots and switched-off modules
+  (``scripts/bundle_profile_closure.py``).
+
+``unswitched`` records the matrix rows that have no existing switch, so the gap
+is data a reader can see rather than a flag somebody invented.
+"""
+
+from __future__ import annotations
+
+import copy
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Mapping
+
+from agent_runtime import yaml_io
+
+__layer__ = "policy"
+
+PROFILES_DIR = Path(__file__).resolve().parent
+SCHEMA_VERSION = 1
+
+#: Config keys Hermes reads with an in-code default and no DEFAULT_CONFIG entry.
+#: Each names its reader, so the exception is checkable.
+KEYS_READ_OUTSIDE_DEFAULTS = {
+    "delegation.worktree_isolation": "tools/delegate_tool_config.py::_get_worktree_isolation",
+}
+
+
+class ProfileManifestError(ValueError):
+    """The manifest names something Hermes does not have, or is malformed."""
+
+
+@dataclass(frozen=True)
+class RefusedRoutes:
+    feature: str
+    paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ProfileManifest:
+    profile: str
+    disabled_toolsets: tuple[str, ...]
+    config: Mapping[str, Any]
+    environment: Mapping[str, str]
+    refused_routes: RefusedRoutes
+    unswitched: tuple[Mapping[str, str], ...]
+    packaging_roots: tuple[str, ...]
+    switched_off_modules: tuple[str, ...]
+
+
+def manifest_path(profile: str) -> Path:
+    return PROFILES_DIR / f"{profile}.yaml"
+
+
+def load_profile(profile: str, *, validate: bool = True) -> ProfileManifest:
+    """Read ``<profile>.yaml``; with ``validate`` every name is checked against Hermes."""
+    path = manifest_path(profile)
+    if not path.is_file():
+        raise ProfileManifestError(f"no bundle profile manifest at {path}")
+    return parse_manifest(yaml_io.load(path.read_text(encoding="utf-8")), validate=validate)
+
+
+def _strings(value: Any, where: str) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list) or not all(isinstance(v, str) and v for v in value):
+        raise ProfileManifestError(f"{where} must be a list of non-empty strings")
+    return tuple(value)
+
+
+def _mapping(value: Any, where: str) -> dict:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ProfileManifestError(f"{where} must be a mapping")
+    return dict(value)
+
+
+def parse_manifest(data: Any, *, validate: bool = True) -> ProfileManifest:
+    """Build a :class:`ProfileManifest` from parsed YAML."""
+    data = _mapping(data, "manifest")
+    if data.get("schema_version") != SCHEMA_VERSION:
+        raise ProfileManifestError(f"schema_version must be {SCHEMA_VERSION}")
+    profile = data.get("profile")
+    if not isinstance(profile, str) or not profile:
+        raise ProfileManifestError("profile must be a non-empty string")
+    routes = _mapping(data.get("refused_routes"), "refused_routes")
+    packaging = _mapping(data.get("packaging"), "packaging")
+    environment = _mapping(data.get("environment"), "environment")
+    if not all(isinstance(v, str) for v in environment.values()):
+        raise ProfileManifestError("environment values must be strings")
+    manifest = ProfileManifest(
+        profile=profile,
+        disabled_toolsets=_strings(_mapping(data.get("toolsets"), "toolsets").get("disabled"), "toolsets.disabled"),
+        config=_mapping(data.get("config"), "config"),
+        environment=environment,
+        refused_routes=RefusedRoutes(
+            feature=str(routes.get("feature") or ""),
+            paths=_strings(routes.get("paths"), "refused_routes.paths"),
+        ),
+        unswitched=tuple(_mapping(row, "unswitched[]") for row in (data.get("unswitched") or [])),
+        packaging_roots=_strings(packaging.get("roots"), "packaging.roots"),
+        switched_off_modules=_strings(packaging.get("switched_off_modules"), "packaging.switched_off_modules"),
+    )
+    if validate:
+        validate_manifest(manifest)
+    return manifest
+
+
+def known_toolset_names() -> set[str]:
+    """Static toolsets plus every toolset a builtin registers into (no registrar import)."""
+    from toolsets import TOOLSETS
+    from tools.toolset_manifest import builtin_toolset_names
+
+    return set(TOOLSETS) | set(builtin_toolset_names())
+
+
+def _default_has(dotted: str) -> bool:
+    from hermes_cli.config_defaults import DEFAULT_CONFIG
+
+    node: Any = DEFAULT_CONFIG
+    for part in dotted.split("."):
+        if not isinstance(node, dict) or part not in node:
+            return False
+        node = node[part]
+    return True
+
+
+def validate_manifest(manifest: ProfileManifest) -> None:
+    """Fail loud on a toolset or config key Hermes does not have — no invented switches."""
+    unknown = sorted(set(manifest.disabled_toolsets) - known_toolset_names())
+    if unknown:
+        raise ProfileManifestError(f"unknown toolsets in toolsets.disabled: {unknown}")
+    bad_keys = sorted(
+        key for key in manifest.config
+        if "." not in key or not (_default_has(key) or key in KEYS_READ_OUTSIDE_DEFAULTS)
+    )
+    if bad_keys:
+        raise ProfileManifestError(f"config keys Hermes does not read: {bad_keys}")
+    if manifest.refused_routes.paths and not manifest.refused_routes.feature:
+        raise ProfileManifestError("refused_routes.feature must name the switched-off feature")
+
+
+def apply_to_config(manifest: ProfileManifest, config: Mapping[str, Any]) -> dict:
+    """Return a copy of ``config`` with the profile's switches applied.
+
+    ``agent.disabled_toolsets`` becomes the union of what the config already
+    disables and what the profile disables (order kept, config first); each
+    ``config`` entry overwrites its dotted key.
+    """
+    result = copy.deepcopy(dict(config))
+    agent = result.setdefault("agent", {})
+    if not isinstance(agent, dict):
+        raise ProfileManifestError("config.agent must be a mapping")
+    existing = agent.get("disabled_toolsets") or []
+    if isinstance(existing, str):
+        existing = [existing]
+    merged = list(dict.fromkeys([*existing, *manifest.disabled_toolsets]))
+    agent["disabled_toolsets"] = merged
+    for dotted, value in manifest.config.items():
+        *parents, leaf = dotted.split(".")
+        node = result
+        for part in parents:
+            child = node.setdefault(part, {})
+            if not isinstance(child, dict):
+                raise ProfileManifestError(f"config key {dotted!r} crosses a non-mapping at {part!r}")
+            node = child
+        node[leaf] = copy.deepcopy(value)
+    return result
+
+
+def process_environment(manifest: ProfileManifest, base: Mapping[str, str]) -> dict[str, str]:
+    """``base`` plus the profile's environment (the profile wins)."""
+    return {**dict(base), **dict(manifest.environment)}

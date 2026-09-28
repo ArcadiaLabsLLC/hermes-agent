@@ -1,0 +1,126 @@
+# Bundled desktop profile — the Hermes that ships inside the Launcher.
+#
+# Source: the "Bundled desktop" column of the launcher's profile matrix
+# (`EterniaLauncher/docs/embedded_hermes/planned/PROFILE_MATRIX_2026-09-28.md`).
+# Standing rules: enable, never reimplement; bundle only what is needed.
+#
+# Every switch below is an EXISTING Hermes switch. Nothing here adds a flag:
+#   toolsets.disabled  -> config `agent.disabled_toolsets` (the end-of-pipeline
+#                         subtraction in model_tools._select_tool_names)
+#   config             -> existing keys of hermes_cli.config_defaults.DEFAULT_CONFIG
+#   environment        -> variables an existing dependency already honours
+#   refused_routes     -> upstream dashboard routes, refused caller-side by
+#                         agent_runtime.bundle_profiles.route_gate
+# "Present but off" (shell family) means the code ships and a single agent's
+# profile may drop the toolset from its own `agent.disabled_toolsets`, with
+# approvals, when a feature needs it.
+schema_version: 1
+profile: bundled-desktop
+
+toolsets:
+  disabled:
+    # Shell family — present, off by default.
+    - terminal          # terminal + process_manage
+    - code_execution    # execute_code
+    - browser
+    - browser-cdp
+    - browser-use
+    - computer_use
+    # Messaging platform tools — off in bundled.
+    - discord
+    - discord_admin
+    - yuanbao
+    - feishu_doc
+    - feishu_drive
+
+config:
+  # Sub-agent git worktrees: off (needs a checkout and git).
+  delegation.worktree_isolation: false
+  # Execution backends: pinned to the local backend (terminal itself is off).
+  terminal.backend: local
+  # Hermes's own wake word (Python audio capture): the Launcher owns the mic.
+  wake_word.enabled: false
+  # Checkout-bound passive update checks: bundled updates with the Launcher.
+  updates.check: false
+  # No PyPI installs at runtime — bundle only what is needed.
+  security.allow_lazy_installs: false
+  # Local LLM engine supervision: on.
+  local_runtime.enabled: true
+
+environment:
+  # Speech loaders' download-if-missing fallbacks (faster-whisper, KittenTTS,
+  # NeuTTS all fetch through huggingface_hub): offline, so a missing model is
+  # an error, never a download. The Launcher downloads every model file.
+  HF_HUB_OFFLINE: "1"
+
+refused_routes:
+  # Upstream's local-model download surface (hermes_cli/web_routers/local_models.py).
+  # The engine install (/runtime/install) and server control stay: Local LLM is On.
+  feature: model_downloads
+  paths:
+    - /api/local-models/catalog
+    - /api/local-models/download
+    - /api/local-models/download/pause
+    - /api/local-models/download/resume
+    - /api/local-models/quickstart
+    - /api/local-models/search
+    - /api/local-models/search/files
+    - /api/local-models/download-browsed
+
+# Matrix rows with NO existing switch. Reported, not invented.
+unswitched:
+  - area: MCP stdio servers
+    gap: no transport-level switch; mcp_servers entries are enabled per server only
+  - area: Piper voice download fallback
+    gap: tools/tts_tool_local.py fetches a voice NAME through piper.download_voices (not huggingface_hub); only a configured .onnx path avoids it
+  - area: Execution backends (Docker, SSH, Modal, Daytona, Singularity)
+    gap: terminal.backend is pinned, not refused; a profile can still select one once terminal is enabled
+  - area: Messaging platforms (gateway adapters)
+    gap: no deny switch; adapters start only when a platform is configured
+  - area: Checkout-bound (Update/Repair from git, git build stamp, dirty state, repo context)
+    gap: no switch; agent_runtime build_stamp / dirty_state / repo_context always consult git
+  - area: Hermes voice mode
+    gap: no config switch; excluded by packaging only
+
+# Packaging: the import-closure walk (scripts/bundle_profile_closure.py).
+packaging:
+  roots:
+    - hermes_cli.harness
+    - run_agent
+    - model_tools
+    - agent_runtime
+    - cron.scheduler
+    - hermes_cli.local_runtime
+    - tools.tts_tool_local
+    - tools.transcription_local
+  # First-party modules of switched-off / not-packaged features. The walk does
+  # not follow an import into these; a third-party distribution reached only
+  # through them is "excludable".
+  switched_off_modules:
+    - tools.terminal_tool
+    - tools.terminal_tool_backends
+    - tools.terminal_tool_lifecycle
+    - tools.code_execution_tool
+    - tools.browser_tool
+    - tools.browser_cdp_tool
+    - tools.browser_dialog_tool
+    - tools.browser_use_cli
+    - tools.browser_vault_tool
+    - tools.computer_use_tool
+    - tools.computer_use
+    - tools.environments
+    - tools.subagent_worktree
+    - tools.discord_tool
+    - tools.feishu_doc_tool
+    - tools.feishu_drive_tool
+    - tools.yuanbao_tools
+    - tools.voice_mode
+    - tools.voice_live
+    - tools.wake_word
+    - tools.wake_word_engines
+    - gateway.platforms
+    - plugins.platforms
+    - hermes_cli.web_routers.local_models
+    - tests
+    - scripts
+    - evals
