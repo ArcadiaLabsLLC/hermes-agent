@@ -227,7 +227,6 @@ PRODUCTION_PACKAGES = (
     "gateway",
     "scripts",
     "cron",
-    "mobile_core",
     "providers",
     "tui_gateway",
     "apps",

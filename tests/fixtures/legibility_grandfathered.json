@@ -131,26 +131,6 @@
    "unit": "hermes_cli/harness_parts/persona/lifecycle_commands.py|_cmd_persona_instance_create"
   },
   {
-   "depth": 4,
-   "lines": 233,
-   "unit": "mobile_core/src/hermes_mobile_core/_vendor/agent/transports/chat_completions.py|ChatCompletionsTransport.build_kwargs"
-  },
-  {
-   "depth": 5,
-   "lines": 92,
-   "unit": "mobile_core/src/hermes_mobile_core/_vendor/agent/transports/chat_completions.py|ChatCompletionsTransport.convert_messages"
-  },
-  {
-   "depth": 5,
-   "lines": 114,
-   "unit": "mobile_core/src/hermes_mobile_core/_vendor/agent/transports/chat_completions.py|ChatCompletionsTransport.normalize_response"
-  },
-  {
-   "depth": 5,
-   "lines": 64,
-   "unit": "mobile_core/src/hermes_mobile_core/auth.py|MobileAuthManager.rate_limits"
-  },
-  {
    "depth": 5,
    "lines": 106,
    "unit": "mobile_core/src/hermes_mobile_core/turn_runner.py|TurnRunner._attempt"

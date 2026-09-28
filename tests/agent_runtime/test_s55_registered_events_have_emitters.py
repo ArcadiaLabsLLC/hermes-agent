@@ -117,7 +117,6 @@ PRODUCTION_PACKAGES = (
     "acp_adapter",
     "tools",
     "cron",
-    "mobile_core",
     "providers",
     "tui_gateway",
     "scripts",

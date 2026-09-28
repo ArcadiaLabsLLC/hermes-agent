@@ -4,6 +4,7 @@ import re
 from functools import singledispatch
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 __layer__ = "models"
 
@@ -221,3 +222,112 @@ def _scrub_sequence(value: Any, scrub: Callable[[str], str], list_cap: int, leaf
 @_scrub.register(str)
 def _scrub_text(value: str, scrub: Callable[[str], str], list_cap: int, leaf: Callable[[Any], Any]) -> Any:
     return scrub(value)
+
+
+# ── transport diagnostics (folded in from ``mobile_core``'s ``redact.py``) ────
+#
+# The July mobile core carried three rules the patterns above do not cover,
+# and embedded-hermes plan D0 folds them here before that copy is re-homed:
+# a ``Bearer <token>`` credential written with a SPACE (the assignment patterns
+# need ``:``/``=``), a credential HEADER whose vocabulary includes cookies, and
+# signed URL query values (``X-Amz-Signature=…``, ``?key=…``). Plus the mapping
+# rule: a value under a credential-named key is masked whatever its shape.
+
+#: The in-band marker for a surgically removed transport credential.
+REDACTED_VALUE = "[REDACTED]"
+
+BEARER_TOKEN_RE = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+")
+
+#: Two groups: (1) header name, (2) value.
+CREDENTIAL_HEADER_RE = re.compile(
+    r"(?i)\b(authorization|proxy-authorization|x-api-key|api-key|cookie|set-cookie)"
+    r"\s*[:=]\s*([^\s,;]+)"
+)
+
+#: Query-parameter name fragments whose value is a signature or credential.
+SIGNED_QUERY_MARKERS = (
+    "signature", "credential", "security-token", "access_token",
+    "api_key", "apikey", "token", "sig", "key",
+)
+
+#: Mapping keys whose value is a credential, spelled with ``-`` (``_`` folds).
+CREDENTIAL_KEYS = frozenset({
+    "authorization", "proxy-authorization", "api-key", "apikey", "x-api-key",
+    "cookie", "set-cookie", "access-token", "refresh-token",
+})
+
+_URL_RE = re.compile(r"https?://[^\s\]\[<>{}\"']+")
+
+
+def is_credential_key(key: Any) -> bool:
+    """Is ``key`` a credential-bearing header or field name (``_`` and ``-`` alike)?"""
+
+    return str(key).strip().lower().replace("_", "-") in CREDENTIAL_KEYS
+
+
+def _signed_query_name(name: str) -> bool:
+    lowered = name.lower()
+    return lowered.startswith("x-amz-") or any(marker in lowered for marker in SIGNED_QUERY_MARKERS)
+
+
+def redact_url(url: str) -> str:
+    """``url`` with userinfo dropped and signed query values masked; shape kept."""
+
+    try:
+        parts = urlsplit(url)
+        port = parts.port
+    except ValueError:
+        return REDACTED_VALUE
+    if not parts.scheme or not parts.netloc:
+        return url
+    host = f"{parts.hostname or ''}:{port}" if port else parts.hostname or ""
+    query = [
+        (name, REDACTED_VALUE if _signed_query_name(name) else value)
+        for name, value in parse_qsl(parts.query, keep_blank_values=True)
+    ]
+    return urlunsplit((parts.scheme, host, parts.path, urlencode(query), parts.fragment))
+
+
+def redact_transport_text(value: str, *, secrets: tuple[str, ...] = ()) -> str:
+    """Transport diagnostic text with bearer tokens, credential headers, signed
+    URLs and each exact ``secrets`` value masked."""
+
+    text = BEARER_TOKEN_RE.sub(f"Bearer {REDACTED_VALUE}", str(value))
+    text = CREDENTIAL_HEADER_RE.sub(lambda match: f"{match.group(1)}: {REDACTED_VALUE}", text)
+    text = _URL_RE.sub(lambda match: redact_url(match.group(0)), text)
+    for secret in filter(None, secrets):
+        text = text.replace(secret, REDACTED_VALUE)
+    return text
+
+
+def redact_transport_tree(value: Any) -> Any:
+    """A JSON-safe copy of ``value``: credential-keyed values masked, every other
+    string through :func:`redact_transport_text`, scalars kept, anything else
+    stringified and redacted."""
+
+    return _transport(value)
+
+
+@singledispatch
+def _transport(value: Any) -> Any:
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    return redact_transport_text(str(value))
+
+
+@_transport.register(dict)
+def _transport_mapping(value: dict) -> Any:
+    return {str(key): REDACTED_VALUE if is_credential_key(key) else _transport(item) for key, item in value.items()}
+
+
+@_transport.register(list)
+@_transport.register(tuple)
+@_transport.register(set)
+@_transport.register(frozenset)
+def _transport_sequence(value: Any) -> Any:
+    return [_transport(item) for item in value]
+
+
+@_transport.register(str)
+def _transport_text(value: str) -> Any:
+    return redact_transport_text(value)

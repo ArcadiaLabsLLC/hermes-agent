@@ -198,22 +198,6 @@
    "site": "hermes_cli/harness_support.py|emit_harness_error|isinstance|exc"
   },
   {
-   "arms": 3,
-   "site": "mobile_core/src/hermes_mobile_core/_vendor/agent/moonshot_schema.py|_fill_missing_type|isinstance|sample"
-  },
-  {
-   "arms": 4,
-   "site": "mobile_core/src/hermes_mobile_core/auth.py|MobileAuthManager.begin_login|ladder|provider.id"
-  },
-  {
-   "arms": 3,
-   "site": "mobile_core/src/hermes_mobile_core/auth.py|MobileAuthManager.poll_login|ladder|login.flow"
-  },
-  {
-   "arms": 4,
-   "site": "mobile_core/src/hermes_mobile_core/auth.py|MobileAuthManager.refresh|ladder|provider_id"
-  },
-  {
    "arms": 4,
    "site": "mobile_core/src/hermes_mobile_core/redact.py|redact|isinstance|value"
   },
