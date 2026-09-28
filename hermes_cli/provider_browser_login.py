@@ -6,7 +6,9 @@ from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
 import logging
+import re
 import sys
+from types import SimpleNamespace
 from typing import Callable
 
 
@@ -59,7 +61,59 @@ def _nous(verify: Callable[[str, str], None], flow: str) -> None:
     _sync_nous_pool_from_auth_store()
 
 
-_DRIVERS = {"openai-codex": _codex, "xai-oauth": _xai, "minimax-oauth": _minimax, "nous": _nous}
+#: Anthropic's PKCE page shows the operator a ``code#state`` string to paste back.
+_ANTHROPIC_AUTHORIZE_URL = re.compile(r"https://claude\.ai/oauth/authorize\?\S+")
+
+
+def _anthropic(verify: Callable[[str, str], None], flow: str) -> None:
+    """Upstream's own ``hermes auth add anthropic --type oauth``, with its terminal swapped.
+
+    ``run_hermes_oauth_login_pure`` prints the authorize link and ``input()``s the
+    pasted code; both names are shadowed on that one module for this one call,
+    so the link reaches ``verify`` and the code comes from this child's stdin
+    (``runtime.provider.signin.complete`` writes it). PKCE, the state check, the
+    exchange and the pool write stay upstream's. The browser is not auto-opened,
+    matching every other driver's ``open_browser=False``.
+    """
+    from agent import anthropic_credentials as anthropic_mod
+    from hermes_cli import auth as auth_mod
+    from hermes_cli.auth_commands import auth_add_command
+
+    seen: list[str] = []
+
+    def shown(*values, **_kwargs) -> None:
+        for match in _ANTHROPIC_AUTHORIZE_URL.finditer(" ".join(str(v) for v in values)):
+            if not seen:
+                seen.append(match.group(0))
+                verify(match.group(0), "")
+
+    def pasted(_prompt: str = "") -> str:
+        if not seen:
+            raise RuntimeError("anthropic_authorize_url_missing")
+        line = sys.stdin.readline()
+        if not line:
+            raise EOFError
+        return line
+
+    swaps = {(anthropic_mod, "print"): shown, (anthropic_mod, "input"): pasted,
+             (auth_mod, "_can_open_graphical_browser"): lambda: False}
+    saved = {key: key[0].__dict__.get(key[1], _ABSENT) for key in swaps}
+    try:
+        for (module, name), value in swaps.items():
+            setattr(module, name, value)
+        auth_add_command(SimpleNamespace(provider="anthropic", auth_type="oauth", label=None, priority=None))
+    finally:
+        for (module, name), value in saved.items():
+            if value is _ABSENT:
+                delattr(module, name)
+            else:
+                setattr(module, name, value)
+
+
+_ABSENT = object()
+
+_DRIVERS = {"openai-codex": _codex, "xai-oauth": _xai, "minimax-oauth": _minimax, "nous": _nous,
+            "anthropic": _anthropic}
 
 
 def supports_browser_login(provider: str) -> bool:
@@ -69,7 +123,15 @@ def supports_browser_login(provider: str) -> bool:
 def browser_login_methods(provider: str) -> list[str]:
     if provider == "openai-codex":
         return ["browser", "device_code"]
+    if provider == "anthropic":
+        return ["paste_code"]
     return ["device_code"] if supports_browser_login(provider) else []
+
+
+def default_login_method(provider: str) -> str:
+    """``device_code`` where offered, else the provider's only method."""
+    methods = browser_login_methods(provider)
+    return "device_code" if "device_code" in methods or not methods else methods[0]
 
 
 class _Discard(io.TextIOBase):
@@ -94,7 +156,7 @@ def browser_login_command(provider: str, *, home: str, flow: str | None = None) 
         emit({"event": "pending"})
 
     methods = browser_login_methods(provider)
-    chosen = flow or "device_code"
+    chosen = flow or default_login_method(provider)
     if chosen not in methods:
         emit({"event": "error", "ok": False, "code": "unsupported_flow"})
         return 1
