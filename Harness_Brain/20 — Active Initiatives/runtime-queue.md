@@ -37,6 +37,10 @@ Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2
 - [ ] **Stage 5 — phone agents are told their limits: a phone entry in `PLATFORM_HINTS` (`agent/prompt_builder.py`) saying no shell, terminal, file system beyond the sandbox or background processes, derived from the phone profile's enabled toolsets; the agent says when a task needs the desktop.** · `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2026-09-28.md` Stage 5; owner ruling 2026-09-28.
 
 ### Filed on arrival — 2026-09-28 (lane w1-hclean, filed by the launcher orchestrator)
+- [ ] **`runtime.local_llama.hardware.get` reports no VRAM although `probe_budget()` measures `total_device_bytes` — add `vram_bytes` so the Launcher's model pick can use GPU fit.** · `agent_runtime/local_llama_adapter/setup.py` `hardware()` (launcher lane w2-lmodels).
+- [ ] **A bundled service must exit when its owning Launcher process dies (parent-death watch); today a Launcher crash leaves it running until the next Launcher start reaps it — D1 exit says crashing leaves no bundled Hermes running.** · `EterniaLauncher/lib/core/services/hermes/runtime/data/serve/mission_serve_lifetime.dart` (lane w2-lhost).
+- [ ] **W0-G3 red on main: private helper `_chain` defined in both `scripts/bundle_profile_closure.py` (wave-1 lane w1-hprof) and `scripts/god_file_probe.py` — fold or rename.** · `tests/agent_runtime/test_duplicate_helper_bodies.py`; found by lane w2-hspeech; fixed at the wave-2 landing.
+- [ ] **W0-G5 red on main: new routing ladder `agent_runtime/provider_signin.py` `ProviderSignIns._apply` (wave-1 lane w1-hprov) — make it a dispatch table.** · `tests/tooling/test_no_ladder_routing.py`; found by lane w2-hspeech; fixed at the wave-2 landing.
 
 - [ ] **Tombstone registry s72 row `parity.ProjectionAccountant.dropped_by_design` is red on main — the class moved to `agent_runtime/projection_accountant.py`; retarget the row or add an ATTR row.** · `tests/agent_runtime/test_tombstone_registry.py`; red at the lane's base, not caused by it.
 
