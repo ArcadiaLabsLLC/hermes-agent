@@ -215,12 +215,12 @@ def _downloads(value):
     import os
     from pathlib import Path
 
-    import yaml
+    from agent_runtime import yaml_io
 
     home = Path(os.environ["HERMES_HOME"])
     home.mkdir(parents=True, exist_ok=True)
     data = {} if value is None else {"local_models": {"downloads": value}}
-    (home / "config.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
+    (home / "config.yaml").write_text(yaml_io.dump(data), encoding="utf-8")
 
 
 @pytest.mark.parametrize("profile", ["bundled-desktop", "bundled-phone"])
