@@ -44,6 +44,11 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 - [ ] **Move the phone lanes' edits out of upstream files first: 25 files raised `[up-fp]` 155 → 177 with no reasons rows — `7d80bad505` (p2-hphone, 13), `aae4d60d02` (p2-hsdk, 9), `dbf8257326` (h7-phone, 3). Per file: move the fork behaviour into a fork-owned module or seam and restore upstream's bytes; ONLY an edit that cannot move becomes an upstream-PR candidate (one clean commit on `upstream/main`); keep-with-reasons-row is the last resort. Ratchet the fixture down as files leave.** · `fork / upstream sync` · owner ruling 2026-09-29: "only PR it if it can't move out of upstream files" · the p2-hsdk PR half is also gated on the runtime-queue row "Offer the SDK-free httpx client … ask the owner" · filed 2026-09-29 **UNCLAIMED**
 
+## Filed on arrival — 2026-09-29 (lane h10-fhrel, filed by the orchestrator)
+
+- [ ] **`tests/scripts/test_bundle_native.py::test_bundle_stages_git_tree_and_runs_native_children_before_manifest` red: `uv sync` rejects the suite's Python 3.12 interpreter against `requires-python ==3.14.*` in its fixture payload** · `fork / suite` · evidence: lane h10-fhrel · filed 2026-09-29 **UNCLAIMED**
+- [ ] **Unused imports (ruff F401): `tests/_downstream/hermes_cli_conftest/registry.py` (`TELEGRAM_PARITY_DEFECT_REASON`), `tests/_downstream/tools_conftest.py` (`importlib`)** · `fork / tests` · evidence: lane h10-fhrel · filed 2026-09-29 **UNCLAIMED**
+
 ## Filed on the move — 2026-09-22 (fork rows the launcher queue had carried since 2026-09-02)
 
 Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`; they are about the repository as a fork, not about the surface. Upstream-owned ones are tagged so: never patched here, a marker or an upstream issue.
