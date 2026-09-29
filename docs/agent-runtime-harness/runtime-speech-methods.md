@@ -248,6 +248,18 @@ resident growth at +0.83 GiB; the cold whole-take pass took 5.0–5.9 s and the
 next pass over the same take 0.44–0.55 s (every finished chunk cached). WER
 8 / 304: all eight are the same dropped "of" in "instant of panic", none at a cut.
 
+**The speech pack, re-measured 2026-09-28 (lane w5-hstt, win32-x64, packager
+`--verify` 0 problems, `scripts/bundle_ceilings.py`'s `lzma_size`):** before
+(`312103de32`) 15 distributions, 159.51 MiB installed, 31.29 MiB LZMA; after,
+16 distributions (onnx-asr added, 0.19 MiB installed with its excluded
+preprocessor graphs left out; `cudnn64_9.dll` stripped, 0.25 MiB), 159.49 MiB
+installed, **31.24 MiB LZMA**. Both engines decode from the built pack on the
+pinned 3.14 interpreter: Parakeet transcribed clip `1272-135031-0004` exactly,
+Whisper tiny.en ran on CPU int8 with no cuDNN present. Licences: the pack's
+`review_required` is `ctranslate2` (embedded `intel-openmp`, `libiomp5md.dll`,
+`review: true`) and `piper-tts`; the core's is empty (the interpreter's
+`vcruntime140` carries `accepted`, owner ruling item 8).
+
 Piper `en_US-lessac-medium`: load 4.7–5.1 s (+85 MiB), first chunk 0.26–0.28 s (2.0 s on the very first run after install)
 for the sentence, whole sentence (3.5 s of audio) 0.26–0.28 s warm.
 
