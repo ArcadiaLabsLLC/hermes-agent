@@ -236,7 +236,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-26 (lane AUTH-PR, filed by the orchestrator)
 
-- [ ] **Fork `hermes_cli/main.py::_attach_declared_plugin_cli_commands` materialises EVERY declared plugin per invocation (each stub's `setup_fn` runs at attach), not the one the docstring claims** · `fork / seams` · retires when `up/plugin-cli-commands` merges (it attaches only the command argv names) · evidence: `X:/wt/_holds/pr-bodies/plugin-cli-commands-logs/` · filed 2026-09-26 (lane AUTH-PR) **UNCLAIMED** **TAKEN 2026-09-29 h10-rtseam**
+- [ ] **Fork `hermes_cli/main.py::_attach_declared_plugin_cli_commands` materialises EVERY declared plugin per invocation (each stub's `setup_fn` runs at attach), not the one the docstring claims** · `fork / seams` · retires when `up/plugin-cli-commands` merges (it attaches only the command argv names) · evidence: `X:/wt/_holds/pr-bodies/plugin-cli-commands-logs/` · filed 2026-09-26 (lane AUTH-PR) **UNCLAIMED** **TAKEN 2026-09-29 h10-rtseam** · VERDICT 2026-09-29 h10-rtseam: still true at the tip (`hermes_cli/main.py:3221` runs every declared stub's setup_fn). The upstream PR is already drafted as `origin/feat/plugin-cli-commands` (df624d82cc, one commit over upstream/main, not merged, not opened by this lane). Owed: the owner opens it; the row retires on the merge that carries it
 
 ### Filed on arrival — 2026-09-26 (owner ask: the fix-shaped footprint)
 
