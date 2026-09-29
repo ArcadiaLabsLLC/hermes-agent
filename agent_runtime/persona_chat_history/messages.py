@@ -31,7 +31,8 @@ __all__ = [
 ]
 
 
-def existing_persona_chat_messages(*, session_id: str, before: str | None = None) -> dict[str, Any]:
+def existing_persona_chat_messages(*, session_id: str, before: str | None = None,
+                                  check_only: bool = False) -> dict[str, Any]:
     """Attach to an existing transcript without creating a database or session."""
     bounded = _bounded_message_tail(40)
     scope, refusal = _resolve_scope(session_id, bounded)
@@ -45,6 +46,8 @@ def existing_persona_chat_messages(*, session_id: str, before: str | None = None
     with closing(db):
         if db.get_session(session_id) is None:
             return {"ok": False, "error_kind": "session_not_found"}
+        if check_only:
+            return {"ok": True, "session_id": session_id}
         return _with_chat_scope(persona_chat_session_messages(
             session_id=session_id, before=before, limit=bounded, session_db=db), scope)
 

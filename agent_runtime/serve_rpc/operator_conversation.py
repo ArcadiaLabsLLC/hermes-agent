@@ -3,6 +3,7 @@ from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
 from agent_runtime.chat_turn import CHAT_MESSAGE_METHOD, perform_chat_turn
 from agent_runtime.operator_conversation import (
     OperatorConversationRefused, read_operator_conversation,
+    validate_operator_conversation,
 )
 from agent_runtime.operator_execution import stop_operator_execution
 from agent_runtime.chat_turn_reservations import ChatTurnReservationError
@@ -31,7 +32,7 @@ def _read(rid, params: dict, context: RpcContext | None) -> dict:
 @method("runtime.operator.conversation.message", tier=TIER_CONSOLE)
 def message(rid, params: dict, context: RpcContext | None = None) -> dict:
     try:
-        read_operator_conversation(params)
+        validate_operator_conversation(params)
     except OperatorConversationRefused as exc:
         return err(rid, 4090, "The conversation changed. Nothing was sent.", {"reason": exc.reason})
     # Never accept a request to replace the conversation behind the attachment.
@@ -50,7 +51,7 @@ def stop(rid, params: dict, context: RpcContext | None = None) -> dict:
     if context is None or context.interrupt_operator is None:
         return err(rid, 4090, "Stop is unavailable on this connection.", {"reason": "control_unavailable"})
     try:
-        read_operator_conversation(params)
+        validate_operator_conversation(params)
         return ok(rid, stop_operator_execution(params["session_id"], params.get("turn_request_id"),
                                                context.interrupt_operator))
     except (OperatorConversationRefused, ChatTurnReservationError) as exc:

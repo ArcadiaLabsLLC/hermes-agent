@@ -90,3 +90,11 @@ def read_operator_conversation(params: dict[str, Any], *, can_interrupt: bool = 
         "requested_execution": execution_status(session, requested) if requested else None,
         "can_interrupt": can_interrupt,
     }
+
+
+def validate_operator_conversation(params: dict[str, Any]) -> None:
+    """Control-path validation must not scan transcript or admission history."""
+    exact_operator_target(params)
+    history = existing_persona_chat_messages(session_id=params["session_id"], check_only=True)
+    if not history.get("ok"):
+        raise OperatorConversationRefused(str(history.get("error_kind") or "history_unavailable"))

@@ -1,5 +1,6 @@
 """Exact Stop crosses clients without replacing the operator execution owner."""
 from types import SimpleNamespace
+import pytest
 
 from agent.interrupt_scope import track_in_interrupt_scope
 from agent_runtime.chat_turn_reservations import read_chat_turn_receipt
@@ -16,6 +17,8 @@ STOP = "runtime.operator.conversation.stop"
 
 def test_queued_stop_lost_ack_repeated_stop_and_newer_turn_are_isolated(tmp_path, monkeypatch):
     target = fixture(tmp_path / "home", monkeypatch, "Amelia")
+    monkeypatch.setattr("agent_runtime.persona_chat_history.messages._safe_curated_messages",
+                       lambda *a, **kw: pytest.fail("Control must not load transcript history"))
     calls = []
     lane = OperatorLane(tmp_path / "home", lambda argv: calls.append(argv) or 0)
     old = {**target, "turn_request_id": "old", "message": "First"}

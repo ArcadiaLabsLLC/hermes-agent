@@ -52,10 +52,21 @@ workspace refusal, completion racing Stop and restart with uncertain work.
 Killing mutation: acknowledging Stop without calling upstream interruption makes
 the running test fail (`stop_requested` instead of `finished`); restored.
 
+## Post-merge verification
+
+Merged current main `312103de32`, retaining the embedded serve-shell seams.
+Selected operator and existing RPC admission checks: 23 passed; four daemon
+checks deliberately excluded. Final operator checks: 5 passed. Launcher's
+native-backed handoff and Discussion checks also pass against the final code.
+
+Send/Stop validate an existing session without reading its transcript or
+scanning admission history. Mutation restoring that scan failed the control-path
+test; restored. No upstream-owned implementation changed.
+
 ## Still required before closing the queue row
 
-- Reconcile with current main and run the focused compatibility checks.
 - Native desktop acceptance. The required Launcher QA tools are unavailable;
   automated native-store fixtures are not a desktop or real-provider smoke test.
+- Coordinated main landing and Launcher bundled-Hermes pin update after acceptance.
 
 Do not replace these with another worker, replay authority or copied transcript.
