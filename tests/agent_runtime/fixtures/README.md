@@ -43,3 +43,22 @@ admitted the day it shipped.
    the divergence in
    `docs/agent-runtime-harness/mission-chat-mcp-admission.md`. Never silently
    widen the include list to make a test pass.
+
+## `round4_base_test_references.json`
+
+| | |
+| --- | --- |
+| Source | this repo, pre-fold commit `4a21f0779` (absent from `main`'s history) |
+| Snapshot sha256 | `7714caec75881a47ef52524f851d250e34eab8c03b4f99127048158e2da8b41c` |
+| Snapshot taken | 2026-09-29, lane h10b-ci, after CI run 36621081725 failed `bad revision` on a fresh clone |
+| Consumed by | `tests/agent_runtime/test_tombstone_registry.py` (`test_round4_deleted_tests_left_no_live_production_subject_uncovered`) |
+
+Not cross-repo, but the same problem: the round-4 coverage audit's base is a
+commit a fresh clone cannot resolve. The file freezes every top-level `test_*`
+that existed at the base together with the `(module, symbol)` production
+subjects it referenced; the audit reports any such test that no longer exists
+whose live subject no current test references. The generator is
+`_base_test_references` + `_serialise_base_test_references` in the consuming
+test, and it needs a clone that still holds the pre-fold objects. The snapshot
+is final — its base does not move — so a refresh should only ever fix a
+generator defect, never absorb a coverage loss.
