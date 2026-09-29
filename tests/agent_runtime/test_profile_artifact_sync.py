@@ -54,10 +54,20 @@ def homes(monkeypatch, tmp_path):
     # Every realm_sync module that reads either name as a global.
     import agent_runtime.profile_context as profile_context  # _profile_home_for_token's home (lane LAYERS L4)
 
-    for module in (realm_sync.models, realm_sync.families, realm_sync.git, realm_sync.persona_artifacts, profile_context):
-        for name, value in (("active_profile_name", lambda: "alice"), ("get_hermes_home", lambda: active_home)):
-            if hasattr(module, name):
-                monkeypatch.setattr(module, name, value)
+    # An explicit table, patched with ``raising=True`` (monkeypatch's default): a
+    # global that moves out of one of these modules fails the fixture by name
+    # instead of silently no longer being patched. ``realm_sync.families`` reads
+    # neither name, so it is not listed.
+    values = {"active_profile_name": lambda: "alice", "get_hermes_home": lambda: active_home}
+    for module, name in (
+        (realm_sync.models, "get_hermes_home"),
+        (realm_sync.git, "get_hermes_home"),
+        (realm_sync.persona_artifacts, "active_profile_name"),
+        (realm_sync.persona_artifacts, "get_hermes_home"),
+        (profile_context, "active_profile_name"),
+        (profile_context, "get_hermes_home"),
+    ):
+        monkeypatch.setattr(module, name, values[name])
     import hermes_cli.profiles as profiles_mod
 
     monkeypatch.setattr(
