@@ -205,3 +205,106 @@ def test_the_closure_report_walks_enclosing_packages(monkeypatch):
     with pytest.raises(SystemExit):
         closure_script.main(["--no-boot"])
     assert seen == {"boot": False, "parents": True}
+
+
+# -- local_models.downloads: the Launcher is the one model downloader --------------------------------
+
+
+def _downloads(value):
+    """Write ``local_models.downloads`` into the hermetic home's config (None = absent)."""
+    import os
+    from pathlib import Path
+
+    import yaml
+
+    home = Path(os.environ["HERMES_HOME"])
+    home.mkdir(parents=True, exist_ok=True)
+    data = {} if value is None else {"local_models": {"downloads": value}}
+    (home / "config.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
+
+
+@pytest.mark.parametrize("profile", ["bundled-desktop", "bundled-phone"])
+def test_both_bundled_profiles_switch_model_downloads_off(profile):
+    from agent_runtime.bundle_profiles.model_downloads import FEATURE, MODEL_DOWNLOAD_ROUTES
+
+    manifest = load_profile(profile)
+    assert manifest.config["local_models.downloads"] is False
+    assert manifest.refused_routes.feature == FEATURE
+    assert frozenset(manifest.refused_routes.paths) == MODEL_DOWNLOAD_ROUTES
+
+
+def test_the_serve_loop_goes_offline_when_downloads_are_off(monkeypatch):
+    import io
+
+    from hermes_cli.harness_parts.serve.session import serve_loop
+
+    monkeypatch.setenv("HF_HUB_OFFLINE", "set-so-teardown-restores-absence")
+    monkeypatch.delenv("HF_HUB_OFFLINE")
+    _downloads(None)  # positive control: absent = today's behaviour, the Hub stays reachable
+    assert serve_loop(iter(()), io.StringIO(), dispatch=lambda *_a, **_k: None) == 0
+    assert "HF_HUB_OFFLINE" not in __import__("os").environ
+    _downloads(False)
+    assert serve_loop(iter(()), io.StringIO(), dispatch=lambda *_a, **_k: None) == 0
+    assert __import__("os").environ["HF_HUB_OFFLINE"] == "1"
+
+
+def test_a_host_chosen_offline_value_is_kept(monkeypatch):
+    from agent_runtime.bundle_profiles.model_downloads import apply_model_download_switch
+
+    _downloads(False)
+    environ = {"HF_HUB_OFFLINE": "0"}
+    assert apply_model_download_switch(environ) is True
+    assert environ == {"HF_HUB_OFFLINE": "0"}
+    environ = {}
+    assert apply_model_download_switch(environ) is True and environ == {"HF_HUB_OFFLINE": "1"}
+
+
+def _harness_dashboard_app(monkeypatch):
+    """Mount the harness plugin's dashboard API module the way upstream's
+    ``_mount_plugin_api_routes`` does: imported while ``hermes_cli.web_server.app`` exists."""
+    import importlib.util
+    import sys
+    import types
+    from pathlib import Path
+
+    from fastapi import FastAPI
+    from hermes_cli.web_routers import local_models
+
+    app = FastAPI()
+    app.include_router(local_models.router)
+    monkeypatch.setitem(sys.modules, "hermes_cli.web_server", types.SimpleNamespace(app=app))
+    path = Path(__file__).resolve().parents[2] / "plugins/eternia-harness/dashboard/plugin_api.py"
+    spec = importlib.util.spec_from_file_location("eternia_harness_plugin_api_under_test", path)
+    spec.loader.exec_module(importlib.util.module_from_spec(spec))
+    return app
+
+
+def test_the_harness_dashboard_refuses_model_downloads_when_they_are_off(monkeypatch):
+    from starlette.testclient import TestClient
+
+    _downloads(True)  # positive control: on, the same request reaches upstream's handler
+    with TestClient(_harness_dashboard_app(monkeypatch)) as client:
+        assert _code(client.get("/api/local-models/catalog")) != "disabled_by_profile"
+
+    _downloads(False)
+    with TestClient(_harness_dashboard_app(monkeypatch)) as client:
+        for method, path in (("get", "/api/local-models/catalog"), ("post", "/api/local-models/download"),
+                             ("get", "/api/local-models/search"), ("post", "/api/local-models/quickstart")):
+            response = getattr(client, method)(path, json={}) if method == "post" else client.get(path)
+            assert response.status_code == 404, path
+            assert response.json()["code"] == "disabled_by_profile", path
+            assert response.json()["key"] == "local_models.downloads"
+        # The engine install / job status the Launcher still drives is not refused.
+        assert _code(client.get("/api/local-models/jobs")) != "disabled_by_profile"
+
+
+def test_the_model_download_gate_refuses_to_install_over_a_renamed_route(monkeypatch):
+    from fastapi import FastAPI
+
+    from agent_runtime.bundle_profiles import model_downloads
+    from agent_runtime.bundle_profiles.route_gate import RouteGateError
+
+    _downloads(False)
+    monkeypatch.setattr(model_downloads, "MODEL_DOWNLOAD_ROUTES", model_downloads.MODEL_DOWNLOAD_ROUTES | {"/api/local-models/gone"})
+    with pytest.raises(RouteGateError, match="name no mounted route"):
+        model_downloads.gate_model_download_routes(FastAPI())

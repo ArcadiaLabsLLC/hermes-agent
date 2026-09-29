@@ -52,6 +52,9 @@ config:
   # connects to no MCP server. The per-turn tool snapshot (tools.mcp_tool_agent) stays on.
   mcp.client: false
   tts.piper.download_voices: false
+  # The Launcher is the one model downloader: the dashboard's model download routes refuse and the
+  # serve loop sets HF_HUB_OFFLINE (agent_runtime/bundle_profiles/model_downloads.py).
+  local_models.downloads: false
   terminal.external_backends: false
   gateway.platform_adapters: false
   updates.checkout_bound: false

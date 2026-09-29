@@ -83,7 +83,12 @@ to those tables at run time by `tests/scripts/test_bundle_profile_closure.py`. A
 and `plugins.web.ddgs.provider` were already imported on the phone at run time, and the gate now
 sees them; lazy unguarded sites 702 -> 704 into 112 modules.
 
-Profile `bundled-phone`, targets android_arm64, ios_arm64; 1685 first-party modules kept. Verdict: **REFUSED** (164 findings).
+Same lane, `local_models.downloads`: kept 1685 -> 1687 (`agent_runtime.bundle_profiles.model_downloads`,
+read by the serve loop, and `route_gate`), lazy sites 704 -> 706 into 113 modules (the dashboard route
+gate's `hermes_cli.web_routers.local_models` import — reached only when a dashboard app exists, which a
+phone never builds); findings unchanged at 164.
+
+Profile `bundled-phone`, targets android_arm64, ios_arm64; 1687 first-party modules kept. Verdict: **REFUSED** (164 findings).
 
 | kind | distinct subjects | subjects |
 |---|---:|---|
@@ -103,4 +108,4 @@ How each shipped distribution is first reached (first target):
 
 Switched-off modules kept code imports at module level that the loop's placeholders (`agent_runtime/loop_tool_lifecycles.py`) answer — proven at run time, not pinned: `tools.browser_tool_lifecycle` (`cleanup_browser`); `tools.terminal_tool_lifecycle` (`cleanup_vm`, `get_active_env`, `is_persistent_env`).
 
-Lazy, unguarded imports into switched-off modules (an ImportError if the line runs on a phone; each must sit behind its feature's own switch or a seam): 704 sites, into 112 modules.
+Lazy, unguarded imports into switched-off modules (an ImportError if the line runs on a phone; each must sit behind its feature's own switch or a seam): 706 sites, into 113 modules.
