@@ -17,7 +17,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ### Filed on arrival — 2026-09-29 (lane h7-phone)
 
-- [ ] **Phone e2e `[full]` case flakes under load (2 of ~11 runs): CPython's `platform` module spawns `ver` on Windows and the call times out when the box is busy — the `[phone]` case never flaked. Stub or pre-seed the platform probe in that case, or read the version without a subprocess.** · `tests/agent_runtime/test_embedded_phone_session.py` (lane h7-phone e2e loop, 2026-09-29) · UNCLAIMED **TAKEN 2026-09-29 h10-fhrel**
 
 ### Filed on arrival — 2026-09-28 (lane w5-hstt)
 
