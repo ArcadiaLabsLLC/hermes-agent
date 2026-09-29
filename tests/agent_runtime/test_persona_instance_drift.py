@@ -33,6 +33,7 @@ from agent_runtime.persona_instance_sync import (
 )
 from agent_runtime.realm_revert import (
     OUTCOME_ARCHIVED_LOCAL_ONLY,
+    OUTCOME_BASELINE_DROPPED,
     OUTCOME_RESTORED,
     OUTCOME_REVERTED,
     REFUSED_UNKNOWN_ITEM,
@@ -265,6 +266,27 @@ def test_reverting_an_edited_replica_restores_the_upstream_body(tmp_path):
     assert PersonaInstanceStore().get(INSTANCE_ID).display_name == "Neko"
     # ... and the row stops counting, because the baseline was realigned from
     # the store's own post-write content.
+    assert _drift(realm_id, ws) == []
+
+
+def test_a_stale_instance_baseline_entry_is_dropped_from_the_instance_baseline(tmp_path):
+    """The DROP arm realigns THIS family's baseline file, not the board's: the
+    pull recorded the replica, then both the local row and the subtree artifact
+    went, so the baseline entry is the only thing left claiming it."""
+
+    realm_id, ws = _realm_workspace(tmp_path / "sync_repo")
+    subtree = _subtree(realm_id, tmp_path)
+    _write_remote(subtree, _body(ws))
+    apply_persona_instance_pull(realm_id, subtree)
+    assert instance_baseline_key(INSTANCE_ID) in read_persona_instance_baseline(realm_id)
+    paths.persona_instance_path(INSTANCE_ID).unlink()
+    _write_remote(subtree)
+
+    # A vanished row carries a blank container (drift.py): address it by id.
+    result = revert_realm_sync(realm_id, item_specs=[f"{DRIFT_FAMILY_PERSONA_INSTANCE}::{INSTANCE_ID}"])
+
+    assert [row["outcome"] for row in result["items"]] == [OUTCOME_BASELINE_DROPPED]
+    assert instance_baseline_key(INSTANCE_ID) not in read_persona_instance_baseline(realm_id)
     assert _drift(realm_id, ws) == []
 
 

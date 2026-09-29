@@ -2127,7 +2127,7 @@
     },
     {
       "id": "realm-revert-never-mints-an-office-tombstone",
-      "path": "agent_runtime/realm_revert.py",
+      "path": "agent_runtime/realm_revert_writes.py",
       "symbol": "_archive_local_only",
       "operator": "record-the-realm-visible-tombstone-anyway",
       "find": "            reason=\"revert_local_only\",\n            updated_by=REVERT_ACTOR_REF,\n            record_tombstone=False,\n",
@@ -3705,7 +3705,7 @@
     },
     {
       "id": "sh-revert-card-arm-writes-past-the-store",
-      "path": "agent_runtime/realm_revert.py",
+      "path": "agent_runtime/realm_revert_writes.py",
       "symbol": "_adopt_from_upstream",
       "operator": "restore-the-raw-atomic-write",
       "find": "    board_store.adopt_remote_card(\n        entity, board_id=item.container, updated_by=REVERT_ACTOR_REF\n    )",
@@ -4492,10 +4492,10 @@
     {
       "id": "w18hd-a-blank-container-is-not-a-wildcard",
       "path": "agent_runtime/realm_revert.py",
-      "symbol": "revert_realm_sync",
+      "symbol": "_select_items",
       "operator": "let-a-blank-container-match-any-container",
-      "find": "            item = by_spec.get(f\"{family}:{container}:{item_key}\")",
-      "replace": "            item = by_spec.get(f\"{family}:{container}:{item_key}\") or next(\n                (d for d in drift if not container and d.family == family and d.item_key == item_key),\n                None,\n            )",
+      "find": "        item = by_spec.get(f\"{family}:{container}:{item_key}\")",
+      "replace": "        item = by_spec.get(f\"{family}:{container}:{item_key}\") or next(\n                (d for d in drift if not container and d.family == family and d.item_key == item_key),\n                None,\n            )",
       "test": [
         "{python}",
         "-m",

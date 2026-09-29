@@ -23,7 +23,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ### Filed on arrival — 2026-09-28 (lane w5-hstt)
 
-- [ ] **`test_function_legibility_floor` red on main: `agent_runtime/realm_revert.py` `_revert_one` NEW, `revert_realm_sync` 159→167 lines** · fork-hygiene · evidence: red on 312103de32 (lane w5-hstt) · UNCLAIMED **TAKEN 2026-09-29 h7-reds**
 - [ ] **`tests/scripts/test_bundle_native.py` times out at 30 s in `pm/store.py` `tree_digest` (home_io_guard) — no test reports** · fork-hygiene · evidence: red on 312103de32 via run_tests.sh (lane w5-hstt) · UNCLAIMED **TAKEN 2026-09-29 h7-reds**
 
 ### Filed on arrival — 2026-09-28 (lane w4-hfix2)
