@@ -163,7 +163,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-26 (lane ACP-DROP, filed by the orchestrator)
 
-- [ ] **Tombstone row s72 `parity.ProjectionAccountant.dropped_by_design` reds on `main`: lane L2 (`8bdd62399d`) moved the class to `projection_accountant`; retarget the row's scope to `agent_runtime.projection_accountant`** · `fork / tests` · evidence: `X:/wt/_holds/acpdrop-logs/gates2.log` · filed by lane ACP-DROP 2026-09-26 **UNCLAIMED** **TAKEN 2026-09-29 h10-fhrest**
 
 ## Filed on arrival — 2026-09-25 (program-end suite on `7df3bee189`, filed by the orchestrator)
 
