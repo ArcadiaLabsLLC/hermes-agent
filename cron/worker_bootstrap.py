@@ -42,11 +42,9 @@ def worker_bootstrap() -> None:
         return
     from pm.environments import activate_dependencies
 
-    root = Path(__file__).resolve().parent.parent
-    # A generation built for another Python loses its compiled modules on this interpreter
-    # (openai -> pydantic_core, 2026-09-29); refuse before activating it. See
-    # hermes_cli/interpreter_abi.py.
+    # Fork seam: a generation built for another Python loses its compiled modules on this
+    # interpreter (openai -> pydantic_core, 2026-09-29); refuse before activating it.
     from hermes_cli.interpreter_abi import refuse_foreign_generation
 
-    refuse_foreign_generation(root)
-    activate_dependencies(root)
+    refuse_foreign_generation(Path(__file__).resolve().parent.parent)
+    activate_dependencies(Path(__file__).resolve().parent.parent)

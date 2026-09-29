@@ -308,21 +308,6 @@ def _migrate_split_pairing_dirs(*, home: Optional[Path] = None, active: Optional
             _save_json_file(active / src.name, merged)
 
 
-def _known_platform_names() -> set:
-    """Every platform value this process can name: the built-in ``Platform`` members, the bundled
-    platform plugins and the plugins registered at run time. The bound pairing store lists by
-    asking the host store for each (a user plugin never loaded here is listed by name only)."""
-    from gateway.config import Platform
-
-    names = {member.value for member in Platform}
-    with contextlib.suppress(Exception):  # no plugins/platforms tree (the phone wheel): built-ins only
-        names |= Platform._scan_bundled_plugin_platforms()[0]
-    with contextlib.suppress(Exception):
-        from gateway.platform_registry import platform_registry
-        names |= {entry.name for entry in platform_registry.plugin_entries()}
-    return names
-
-
 def _is_hashed_entry(entry) -> bool:
     return isinstance(entry, dict) and "salt" in entry and "hash" in entry
 
@@ -653,11 +638,7 @@ class PairingStore:
     def _all_platforms(self, suffix: str) -> list:
         """Platforms that have a ``-<suffix>.json`` data file (``_``-prefixed files are shared state)."""
         tail = f"-{suffix}.json"
-        platforms = [f.name.replace(tail, "") for f in self._dir.iterdir() if f.name.endswith(tail)]
+        platforms = (f.name.replace(tail, "") for f in self._dir.iterdir() if f.name.endswith(tail))
         from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
-        if _host_secrets.bound():
-            # Bound, the files live in host-store slots and a slot has no directory listing: ask
-            # the store for each platform this process can name instead.
-            platforms += [p for p in sorted(_known_platform_names() - set(platforms))
-                          if _host_secrets.exists(self._dir / f"{p}{tail}")]
+        platforms = _host_secrets.with_slotted_platforms(platforms, self._dir, tail)
         return [p for p in platforms if not p.startswith("_")]

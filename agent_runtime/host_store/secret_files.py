@@ -158,3 +158,34 @@ def is_view(path: Any) -> bool:
 def external_logins_refused() -> bool:
     """Bound: the machine-wide borrowed CLI logins (Claude Code, Codex, Qwen, gh) are refused."""
     return _binding.bound()
+
+
+def _known_platform_names() -> set:
+    """Every platform value this process can name: the built-in ``Platform`` members, the bundled
+    platform plugins and the plugins registered at run time (a user plugin never loaded here is
+    listed by name only)."""
+    import contextlib
+
+    from gateway.config import Platform
+
+    names = {member.value for member in Platform}
+    with contextlib.suppress(Exception):  # no plugins/platforms tree (the phone wheel): built-ins only
+        names |= Platform._scan_bundled_plugin_platforms()[0]
+    with contextlib.suppress(Exception):
+        from gateway.platform_registry import platform_registry
+        names |= {entry.name for entry in platform_registry.plugin_entries()}
+    return names
+
+
+def with_slotted_platforms(platforms: Any, directory: PathLike, tail: str) -> Any:
+    """``gateway.pairing.PairingStore._all_platforms``'s seam: *platforms* itself when unbound.
+
+    Bound, the pairing files live in host-store slots and a slot has no directory listing, so
+    each platform this process can name is asked of the store and the ones held there join the
+    disk listing *platforms*.
+    """
+    if not _binding.bound():
+        return platforms
+    listed = list(platforms)
+    return listed + [p for p in sorted(_known_platform_names() - set(listed))
+                     if exists(Path(os.fspath(directory)) / f"{p}{tail}")]
