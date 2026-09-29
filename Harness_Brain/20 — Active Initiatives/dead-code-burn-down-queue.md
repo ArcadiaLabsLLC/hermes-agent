@@ -46,7 +46,6 @@ Delete it. When the last row of an instalment closes, the program ledger (`god-f
 
 ## Filed on arrival — 2026-09-25, lane B3
 
-- [ ] **`persona_chat_continuity.bounds._safe_text`** · `agent_runtime/persona_chat_continuity/bounds.py` · 2 · DELETE (0 callers: `git grep -nw _safe_text agent_runtime/persona_chat_continuity` → the def and one docstring mention in `_bounded_free_text`; the census missed it by size) · the sheet drew a rename to a public `bounded_text`, which would now collide by name with `serde.bounded_text` (lane 2B-A) — deletion is the answer, under "Working a slice" · lane B3 CHANGE 2026-09-25 · R1 **UNCLAIMED** **TAKEN 2026-09-29 h10-fhrel**
 
 ## Filed on arrival — 2026-09-26, lane ACP-DROP
 

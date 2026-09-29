@@ -3695,6 +3695,19 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "_default_session_db",
         scope=_AR,
     ),
+    *rows(
+        # Lane h10-fhrel (2026-09-29): dead-code queue row
+        # `persona_chat_continuity.bounds._safe_text` (lane B3, DELETE). Scoped
+        # to the package: six other modules keep live `_safe_text`s of their own.
+        "s-h10",
+        "HEAD",
+        Form.CODE,
+        "the flat, unaccounted truncation the per-role accounting replaced "
+        "(_bounded_free_text says when it cuts); a public rename would collide "
+        "with serde.bounded_text",
+        "_safe_text",
+        scope=("agent_runtime.persona_chat_continuity",),
+    ),
     # -- the 2026-09-25 upstream merge ------------------------------------
     *rows(
         "s-merge-2026-09-25",
