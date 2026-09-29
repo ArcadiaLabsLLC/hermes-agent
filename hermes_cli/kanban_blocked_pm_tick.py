@@ -11,6 +11,10 @@ DOORS-A): latency is now ``kanban.dispatch_interval_seconds``.
 Enablement is unchanged: ``kanban.pm_blocked_hook.enabled`` (default off), overridden by
 ``HERMES_KANBAN_PM_BLOCKED_HOOK``. Best-effort throughout — upstream swallows observer
 failures, and this logs them.
+
+It lives in the kanban lane beside the router it drives, not in ``agent_runtime``:
+the runtime imports no kanban module (``tests/agent_runtime/test_no_kanban_dependency.py``),
+and this tick is kanban code through and through (moved 2026-09-29, lane h9-serve).
 """
 
 from __future__ import annotations
@@ -20,8 +24,6 @@ import os
 import threading
 from pathlib import Path
 from typing import Any, Optional
-
-__layer__ = "stores"
 
 logger = logging.getLogger(__name__)
 

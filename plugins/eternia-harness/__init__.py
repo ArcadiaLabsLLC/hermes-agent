@@ -254,7 +254,7 @@ async def answer_queue_status(**kwargs):
 
 def route_blocked_kanban_cards(**kwargs):
     """``on_kanban_dispatch_tick`` hook: route the ticking board's new ``blocked`` cards to PM."""
-    from agent_runtime.kanban_blocked_pm_tick import on_kanban_dispatch_tick
+    from hermes_cli.kanban_blocked_pm_tick import on_kanban_dispatch_tick
 
     on_kanban_dispatch_tick(**kwargs)
 
