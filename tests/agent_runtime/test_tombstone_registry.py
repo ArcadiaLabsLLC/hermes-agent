@@ -2325,6 +2325,10 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "Round 2 removed the only agent_busy producer; the exit-code consumer "
         "and its cross-stack parser retired together while chat_busy remains live",
         "agent_busy",
+        # Upstream's own CLI (``hermes_cli/cli_commands_mixin.py``) ships an i18n key
+        # ``shared.agent_busy`` since ee5f49b943; the fence is the fork's producer, so
+        # hermes_cli is scanned through the fork's harness namespace only.
+        scope=tuple(p for p in PRODUCTION_PACKAGES if p != "hermes_cli") + HARNESS_NAMESPACE,
     ),
     *rows(
         "s60",
