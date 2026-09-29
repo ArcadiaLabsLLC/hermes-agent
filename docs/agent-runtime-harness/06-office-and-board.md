@@ -884,7 +884,7 @@ Promotion is **negotiated per client** by capability tokens, not decided by the
 server alone. The office surface's own fold is `office_surface`
 (`state_patches/models.py:166`, `emit_office_surface_patch` at `state_patches/office.py:228`), gated on
 `OFFICE_SURFACE_FOLD_CAPABILITY = "office_surface_fold"`
-(`patch_coverage.py:179`), which is what lets `office.surface.updated` join the
+(`agent_runtime/patch_coverage.py::OFFICE_SURFACE_FOLD_CAPABILITY`), which is what lets `office.surface.updated` join the
 covered set (`patch_coverage.LIVE_COVERED_DOMAIN_EVENT_TYPES`). It is a
 **subset merge** of
 `{folders, revision, updated_at}`, not a row replace, because the office row also

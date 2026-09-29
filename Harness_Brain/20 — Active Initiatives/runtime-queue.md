@@ -23,7 +23,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
-- [ ] **Exact operator-conversation handoff for Launcher:** expose observation-only history/recovery and execution-scoped Stop through the existing operator owner; retain its journal, clarify tickets and send path, with no second session worker. Checkpoint and remaining acceptance: `docs/agent-runtime-harness/planned/operator-conversation-handoff.md`. Launcher tracking: `EterniaLauncher/docs/companion/planned/CROSS_INTERFACE_RECOVERY_2026-09-28.md`. **TAKEN 2026-09-28 cross-interface-recovery**
 
 ### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
 

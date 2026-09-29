@@ -1,6 +1,9 @@
 # Exact operator conversation attachment
 
-In progress. This checkpoint is not the full handoff acceptance.
+Implementation: `454ed7a69a`, `088d8f30fa`, `359849b0d2`.
+Latest-main reconciliation: `105195343c`, including `0cf918c853`.
+Owner authorized coordinated main landing on 2026-09-28 after automated checks.
+This record does not claim native desktop acceptance.
 Launcher tracking: `EterniaLauncher/docs/companion/planned/CROSS_INTERFACE_RECOVERY_2026-09-28.md`.
 
 ## Implemented boundary
@@ -63,10 +66,22 @@ Send/Stop validate an existing session without reading its transcript or
 scanning admission history. Mutation restoring that scan failed the control-path
 test; restored. No upstream-owned implementation changed.
 
-## Still required before closing the queue row
+## Landing verification
 
-- Native desktop acceptance. The required Launcher QA tools are unavailable;
-  automated native-store fixtures are not a desktop or real-provider smoke test.
-- Coordinated main landing and Launcher bundled-Hermes pin update after acceptance.
+After the secure-store merge: **69 tests passed**, covering operator recovery,
+RPC admission, host-store isolation and bundle profiles; four daemon-starting
+checks remained excluded. Packaging/closure checks: **22 passed**. Launcher ran
+**201 focused tests**, including native-backed reconstruction and both surfaces,
+against this merged runtime. No model, serve or operator profile was started.
+
+The citation gate failed identically on clean main `0cf918c853`: eight stale
+line references and one obsolete waiver. Replaced the references with verified
+symbols and removed that waiver; the unchanged gate passes. No waiver was added.
+
+The native implementation claim is closed by the coordinated landing. Native
+desktop acceptance remains a separate Launcher queue item because the required
+QA tools are unavailable. Full-suite, real-provider, signed-installer and desktop
+smoke qualification are not claimed. Launcher pins the landed Hermes revision
+in `EterniaLauncher/installer/hermes/bundled-hermes.lock.json`.
 
 Do not replace these with another worker, replay authority or copied transcript.

@@ -24,6 +24,26 @@ discussion participants. The same executor serves office and non-spatial rooms;
 the operator root remains independent. Launcher Compare instead fans out to
 independent native conversations, with failure and queues scoped per participant.
 
+## Existing operator conversations
+
+`agent_runtime/operator_conversation.py` attaches another view to an exact
+operator session, without minting history or changing its default pointer.
+Reads reuse SessionDB, `mission_chat_turns`, admission receipts and clarify
+tickets. Send and Stop validate ownership without loading transcript history.
+Launcher observes live journal output every two seconds while visible; this is
+not token-by-token fan-out and does not replace the original frame consumer.
+
+`agent_runtime/operator_execution.py` persists Stop intent on the original
+admission receipt. `hermes_cli/harness_parts/serve/operator_interrupt.py` reaches
+that turn's existing worker through upstream `InterruptScope`. Queued Stop
+prevents dispatch; missing or uncertain owners remain unconfirmed. Completion
+wins a late Stop, and an old turn ID cannot interrupt a newer turn. Receipt
+fingerprints reject changed payloads; old receipts remain replay-only evidence.
+
+Automated recovery and isolation evidence is in the
+[landing record](archive/operator-conversation-handoff-2026-09-28.md).
+Native desktop acceptance remains open in the Launcher queue.
+
 ## 1. Send admission — the turn's identity and its thread
 
 **One id, minted launcher-side, echoed byte-equal.** The launcher mints `agent-chat-send-<uuid4>` as
@@ -221,7 +241,7 @@ not per-instance. Values validate against
 rather than folding them, so `model_is_default` and `model_is_instance_override` are answerable from
 one record. Chat-lane compaction has its own cap:
 `agent_runtime.mission_chat.compaction_threshold_tokens`, default **150,000**
-(`agent_runtime/runtime_config.py:270`), applied so it can only make compaction fire *earlier* than
+(`agent_runtime/runtime_config.py::MissionChatConfig.compaction_threshold_tokens`), applied so it can only make compaction fire *earlier* than
 the compressor's own `ratio × window` derivation.
 
 ## 4. Tool access posture — unbounded by default, restriction by exception
@@ -270,7 +290,7 @@ The harness lane admits by the persona's BOUND PROFILE `toolsets:` key, read by
 `declared_lane_toolsets` (`agent_runtime/personas.py:243-346`) and handed to every caller through
 `effective_toolsets` (`agent_runtime/personas.py:347-357`). A profile that declares nothing — or only the upstream default
 `["hermes-cli"]` that `hermes_cli/config_defaults.py` writes for an unset key — resolves
-`HARNESS_LANE_DEFAULT_TOOLSETS` (`agent_runtime/personas.py:189`) = `harness_core`, reported as
+`agent_runtime/personas.py::HARNESS_LANE_DEFAULT_TOOLSETS` = `harness_core`, reported as
 `toolset_declaration.source: lane_default`; any other list is honored verbatim as `profile_config`;
 an unresolvable profile home resolves the same default as `profile_unresolved`. A YAML fault
 resolves narrow, never wide. `harness_core` (`toolsets.py:259`) is a composite of 15 member

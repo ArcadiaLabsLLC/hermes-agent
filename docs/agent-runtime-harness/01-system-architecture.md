@@ -44,7 +44,7 @@ removal doc).
 
 Four things, in one chain, each with a distinct lifetime.
 
-**1 — Persona template.** `AgentPersona` (`agent_runtime/models.py:403`) — the
+**1 — Persona template.** `agent_runtime/models.py::AgentPersona` — the
 definition: display name, role, model/provider/api_mode, toolsets, skills,
 `hermes_profile`, budgets, readiness. Personas are **data**, from the config
 block (`config.persona_records_from_config`, `agent_runtime/config/persona_records.py:43`)
@@ -711,7 +711,7 @@ root-relative, not per-profile, so every persona references one copy and realm
 sync publishes it (`skill_install.py:38-43`). Never edit the installed copy.
 
 The directories present match `agent_runtime.profile_home.CANONICAL_SHARED_SKILL_IDS`
-(`agent_runtime/profile_home.py:33`) exactly — four since 2026-08-28:
+(`agent_runtime/profile_home.py::CANONICAL_SHARED_SKILL_IDS`) exactly — four since 2026-08-28:
 `harness-dev-delivery`, `harness-qa-verdict`, `harness-runtime-model` and
 `harness-charsheet-authoring`. `harness-continuity` folded into
 `harness-runtime-model` the same day (lean-preload rule: the digest in

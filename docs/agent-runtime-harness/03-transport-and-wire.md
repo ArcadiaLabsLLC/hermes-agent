@@ -27,6 +27,16 @@ bounded event projections, not provider credentials or raw diagnostics.
 consumers. Non-spatial room admission uses explicit workspace and persona-instance
 identities; spatial placement remains separate.
 
+## Existing operator conversation attachment
+
+`agent_runtime/serve_rpc/operator_conversation.py` registers three exact-target
+methods: `runtime.operator.conversation.read` at read tier, and `.message` and
+`.stop` at console tier. All validate installation, workspace, instance and
+existing session; none selects a default or creates a conversation worker.
+Read projects SessionDB, the turn journal, admission receipts and clarify tickets.
+Message calls the existing `perform_chat_turn`; Stop targets its exact admitted
+execution. See [turn ownership](05-chat-turn-lane.md#existing-operator-conversations).
+
 ## 1. The serve process model
 
 `hermes harness serve --ndjson` is one warm process replacing the per-call CLI
@@ -1008,8 +1018,8 @@ emit time the changed entity goes through the exact per-entity projection
 re-derives. One authority, no per-field allowlist (`:1-32`).
 
 The lane ships ON — `SHIPPED_DELTA_PATCHES = True`
-(`agent_runtime/runtime_config.py:73`). A config FAULT lands on
-`FALLBACK_DELTA_PATCHES = False` (`:82`), off AND loud, because "emit a new
+(`agent_runtime/runtime_config.py::SHIPPED_DELTA_PATCHES`). A config FAULT lands on
+`FALLBACK_DELTA_PATCHES = False` (same module), off AND loud, because "emit a new
 class of event from every store chokepoint" is not what a runtime should infer
 from silence it could not read. Sizing is capped by
 `EVENT_PAYLOAD_LIMIT_BYTES = 4096`: an oversized `changed` value becomes an
