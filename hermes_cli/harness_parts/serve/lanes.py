@@ -19,6 +19,7 @@ from agent_runtime.launcher_app_functions import (
     ORIGIN_LOCAL,
     ORIGIN_PAIRED_DEVICE,
     LauncherLink,
+    answers_launcher_requests,
     bind_launcher_link,
     refresh_app_function_tools,
     reset_launcher_link,
@@ -99,21 +100,24 @@ class ArgvLanes:
     def _bind_launcher_link(self, request: _ArgvRequest, sink: Any) -> Any:
         """A chat turn's app-function link (Stage 7): refresh the tools, bind the link.
 
-        The Launcher that answers app functions is the local client. A turn it
-        started gets its own sink; a turn a paired device started over the
-        gateway gets the stdio starter's pipe, and none when that pipe is
-        detached (the Launcher is then attached over the local socket, which a
-        gateway turn has no handle on).
+        The Launcher that answers app functions is the local client, and only a
+        connection that declared it answers ``launcher.`` requests is asked. A
+        turn it started gets its own sink; a turn a paired device started over
+        the gateway gets the stdio starter's pipe, and none when that pipe is
+        detached or undeclared (a socket-attached Launcher is out of a gateway
+        turn's reach).
         """
 
         if not request.is_chat_turn:
             return None
         if request.from_gateway:
-            if getattr(self.frames, "detached", False):
+            if getattr(self.frames, "detached", False) or not answers_launcher_requests("stdio"):
                 return None
             link = LauncherLink(self.frames, ORIGIN_PAIRED_DEVICE)
-        else:
+        elif answers_launcher_requests(request.owner):
             link = LauncherLink(sink, ORIGIN_LOCAL)
+        else:
+            return None
         try:
             refresh_app_function_tools(link)
         except Exception:  # a tool list must never cost the turn

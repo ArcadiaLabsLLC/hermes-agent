@@ -71,6 +71,7 @@ from agent_runtime.serve_rpc import (  # noqa: F401 — every family, in the ori
     provider,
     speech,
     admission,
+    client,
 )
 from agent_runtime.serve_rpc.protocol import (
     DEFERRED,

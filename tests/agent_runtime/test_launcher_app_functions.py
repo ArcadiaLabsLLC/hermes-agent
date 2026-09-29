@@ -235,10 +235,38 @@ class _Lanes:
 _CHAT_ARGV = ["harness", "mission-chat", "message", "--persona", "p", "--message", "hi"]
 
 
+def _declare(owner: str, answers=("launcher.",)) -> dict:
+    from agent_runtime.serve_rpc.client import _runtime_client_capabilities
+    from agent_runtime.serve_rpc.protocol import RpcContext
+
+    return _runtime_client_capabilities(
+        "c1", {"answers": list(answers)}, RpcContext(connection_key=None if owner == "stdio" else owner))
+
+
+def test_an_undeclared_connection_never_sees_a_launcher_request():
+    client = _Launcher()
+    request = _ArgvRequest("r", _CHAT_ARGV, owner="sock-1", sink=client)
+    assert ArgvLanes._bind_launcher_link(_Lanes(_Launcher()), request, client) is None
+    assert client.sent == []
+    assert _declare("sock-1")["result"]["answers"] == ["launcher."]  # positive control: declared, asked
+    token = ArgvLanes._bind_launcher_link(_Lanes(_Launcher()), request, client)
+    laf.reset_launcher_link(token)
+    assert client.sent[0]["method"] == laf.LIST_METHOD
+
+
+def test_a_declaration_can_be_withdrawn():
+    _declare("stdio")
+    assert laf.answers_launcher_requests("stdio")
+    _declare("stdio", answers=())
+    assert not laf.answers_launcher_requests("stdio")
+
+
 def test_a_local_chat_turn_binds_its_own_connection_as_local():
     assert _ArgvRequest("r", _CHAT_ARGV).is_chat_turn
     stdio, socket_client = _Launcher(), _Launcher()
-    token = ArgvLanes._bind_launcher_link(_Lanes(stdio), _ArgvRequest("r", _CHAT_ARGV), socket_client)
+    _declare("sock-1")
+    request = _ArgvRequest("r", _CHAT_ARGV, owner="sock-1", sink=socket_client)
+    token = ArgvLanes._bind_launcher_link(_Lanes(stdio), request, socket_client)
     try:
         link = laf.current_launcher_link()
         assert (link.sink, link.origin) == (socket_client, laf.ORIGIN_LOCAL)
@@ -250,6 +278,7 @@ def test_a_local_chat_turn_binds_its_own_connection_as_local():
 
 def test_a_gateway_turn_reaches_the_launcher_on_stdio_as_paired_device():
     stdio, device = _Launcher(), _Launcher()
+    _declare("stdio")
     request = _ArgvRequest("r", _CHAT_ARGV, owner="gw-1", sink=device, from_gateway=True)
     token = ArgvLanes._bind_launcher_link(_Lanes(stdio), request, device)
     try:
@@ -262,6 +291,7 @@ def test_a_gateway_turn_reaches_the_launcher_on_stdio_as_paired_device():
 
 def test_a_non_chat_request_binds_nothing():
     stdio = _Launcher()
+    _declare("stdio")
     assert ArgvLanes._bind_launcher_link(_Lanes(stdio), _ArgvRequest("r", ["harness", "status"]), stdio) is None
     assert stdio.sent == []
 

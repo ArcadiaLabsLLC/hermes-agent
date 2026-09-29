@@ -24,9 +24,11 @@ serve NDJSON wire, each answered by a response frame with the same ``id``
 (``handle_message`` routes those frames to :func:`resolve_response`). Ids are
 ``lrq-<12 hex>`` strings, so they never collide with the Launcher's own ids.
 
-A connection that never answers the list (an older Launcher, a CLI client)
-is latched as ``unanswered`` after one probe and not asked again, so a turn
-pays that probe once per connection, not once per turn.
+Only a connection that declared it answers ``launcher.`` requests
+(``runtime.client.capabilities {answers: ["launcher."]}``, keyed by the serve
+owner — ``stdio`` or the socket connection's key) is ever asked; any other
+client never sees the frame. A declared connection that still never answers
+the list is latched ``unanswered`` after one probe and not asked again.
 """
 
 from __future__ import annotations
@@ -52,6 +54,8 @@ __all__ = [
     "ORIGIN_LOCAL",
     "ORIGIN_PAIRED_DEVICE",
     "AppFunctionEntry",
+    "answers_launcher_requests",
+    "declare_answerer",
     "app_function_tools_registered",
     "ClientRequestFailed",
     "ClientRequests",
@@ -262,15 +266,33 @@ def call_app_function(entry: AppFunctionEntry, args: Mapping[str, Any]) -> str:
 
 
 class _ToolsetState:
-    """What the registry holds for the toolset, and which sinks never answered."""
+    """What the registry holds for the toolset, which serve owners declared they answer
+    ``launcher.`` requests, and which sinks never answered."""
 
     def __init__(self) -> None:
         self.lock = threading.Lock()
         self.registered: dict[str, AppFunctionEntry] = {}
+        self.answerers: set[str] = set()
         self.unanswered: dict[int, Any] = {}
 
 
 _state = _ToolsetState()
+
+
+def declare_answerer(owner: str, answers: bool) -> None:
+    """Record whether the serve owner *owner* (``stdio`` or a connection key) answers
+    ``launcher.`` requests (``runtime.client.capabilities``)."""
+
+    with _state.lock:
+        if answers:
+            _state.answerers.add(owner)
+        else:
+            _state.answerers.discard(owner)
+
+
+def answers_launcher_requests(owner: str) -> bool:
+    with _state.lock:
+        return owner in _state.answerers
 
 
 def app_function_tools_registered() -> bool:
@@ -356,4 +378,5 @@ def _reset_for_tests() -> None:
         for name in _state.registered:
             registry.deregister(name)
         _state.registered = {}
+        _state.answerers.clear()
         _state.unanswered.clear()
