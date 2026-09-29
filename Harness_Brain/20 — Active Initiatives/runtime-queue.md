@@ -23,6 +23,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+- [ ] **Exact operator-conversation handoff for Launcher:** expose observation-only history/recovery and execution-scoped Stop through the existing operator owner; retain its journal, clarify tickets and send path, with no second session worker. Launcher tracking: `EterniaLauncher/docs/companion/planned/CROSS_INTERFACE_RECOVERY_2026-09-28.md`. **TAKEN 2026-09-28 cross-interface-recovery**
+
 ### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
 
 Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2026-09-28.md` (stages named per row) and `ARCHITECTURE_2026-09-28.md` §4. Rule: one Python implementation, universal — enable existing Hermes code, never reimplement; bundle only what is needed.
