@@ -161,28 +161,6 @@ def _no_posix_exec_bit() -> bool:
         return not os.stat(probe).st_mode & stat.S_IXUSR
 
 
-@_cached
-def _no_unwritable_dir_via_chmod() -> bool:
-    """True where chmod cannot make a directory unwritable.
-
-    Windows ignores the read-only attribute on directories for the purpose of
-    creating children, so a test that chmods a target 0o555 and expects the
-    write to be REFUSED gets a successful write and no error to assert on.
-    """
-    with tempfile.TemporaryDirectory() as tmp:
-        target = os.path.join(tmp, "ro_dir")
-        os.mkdir(target)
-        os.chmod(target, 0o555)
-        try:
-            with open(os.path.join(target, "probe"), "w", encoding="utf-8"):
-                pass
-        except OSError:
-            return False
-        finally:
-            os.chmod(target, 0o755)
-        return True
-
-
 def _no_af_unix() -> bool:
     """True where socket.AF_UNIX is absent, so no unix socket can be bound."""
     return not hasattr(socket, "AF_UNIX")
@@ -245,19 +223,6 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             'the tree builder correctly reports "file"',
             {
                 'TestObjectBuilding::test_build_tree_blob_and_exec',
-            },
-        ),
-    ],
-    # ── chmod cannot revoke write on a directory ───────────────────────────
-    'test_lazy_deps_durable_target.py': [
-        (
-            _no_unwritable_dir_via_chmod,
-            'chmods the ABI-stamp target 0o555 and asserts the write reports an '
-            'error; this platform ignores the read-only attribute on '
-            'directories when creating children, so the write SUCCEEDS and '
-            'there is no error to assert on',
-            {
-                'TestAbiStamp::test_readonly_target_reports_error',
             },
         ),
     ],
@@ -368,7 +333,6 @@ __all__ = [
     "_cached",
     "_no_posix_file_modes",
     "_no_posix_exec_bit",
-    "_no_unwritable_dir_via_chmod",
     "_no_af_unix",
     "_no_process_groups",
     "_ENV_GAP_SKIPS",
