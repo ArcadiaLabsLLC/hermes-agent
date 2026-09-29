@@ -365,7 +365,8 @@ if _WIN:
             )
             for test in (
                 "test_symlink_alias_compares_equal",
-                "test_missing_path_keeps_lexical_normalization",
+                # test_missing_path_keeps_lexical_normalization XPASSes (strict) on
+                # cce73ee553 — upstream's fix landed; row retired (lane h10-fhrest).
                 "test_list_sessions_matches_symlink_alias_cwd",
             )
         },
