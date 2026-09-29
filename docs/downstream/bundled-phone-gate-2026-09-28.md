@@ -13,7 +13,19 @@ the upstream agent loop's import closure (`run_agent` → terminal, browser and 
 which is plan Stage 2 step 7's agent-loop seam; `openai` → `pydantic-core` / `jiter` is the
 SDK-free provider client of step 6.
 
-Profile `bundled-phone`, targets android_arm64, ios_arm64; 2033 first-party modules kept. Verdict: **REFUSED** (391 findings).
+**Re-taken at the phone-P1 landing tip (lane p1-hint, 2026-09-28)** — `feat/p1-hsplit` with
+p1-hsec and p1-hloop on `origin/main` `48ec00999a`, the phone switches set in the profile
+(`agent.provider_sdks`, `conversations.subprocess_worker`, `auth.subprocess_signin`,
+`agent.environment_probe: false`, `logging.level: WARNING`). Still **391 findings, the same
+subjects in every row**: the switches choose the in-process worker, the in-process sign-in and the
+SDK-free client at run time, but the desktop paths they replace (`openai`, the worker's
+subprocess spawn, `spawn_login_child`) are still imported at module level, so the closure still
+reaches them. What changed is only the kept-module count (2033 -> 2046: main's growth plus the
+lanes' new modules). The end-to-end run through the embedded entry
+(`tests/agent_runtime/test_embedded_phone_session.py`) records what the turn path itself still
+needs from the switched-off tree.
+
+Profile `bundled-phone`, targets android_arm64, ios_arm64; 2046 first-party modules kept. Verdict: **REFUSED** (391 findings).
 
 | kind | distinct subjects | subjects |
 |---|---:|---|
