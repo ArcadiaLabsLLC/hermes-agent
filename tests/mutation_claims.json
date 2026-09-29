@@ -5050,7 +5050,7 @@
     {
       "id": "w0-g2-the-fence-stops-intersecting-upstream",
       "path": "scripts/god_file_fences.py",
-      "symbol": "fence_violations",
+      "symbol": "fence_crossings",
       "operator": "empty-intersection",
       "find": "for path in sorted(set(touched) & upstream)]",
       "replace": "for path in sorted(set(touched) & set())]",
