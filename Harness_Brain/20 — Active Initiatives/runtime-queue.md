@@ -220,7 +220,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-29 (lane fix-cron-openai)
 
-- [ ] **`pm.environments.activate_dependencies` has no interpreter-version gate and `venv_python_version` misses uv's `version_info`: upstream PR to refuse/re-enter a generation built for another Python, then retire the fork seams `hermes_cli/interpreter_abi.py` + its calls in `hermes_bootstrap.py` and `cron/worker_bootstrap.py`** · `seams` · evidence: branch `fix/cron-openai` commit messages (alice cron, 2026-09-29 04:32–11:39) · filed 2026-09-29 (lane fix-cron-openai) **UNCLAIMED** **TAKEN 2026-09-29 h10-rtseam**
+- [ ] **`pm.environments.activate_dependencies` has no interpreter-version gate and `venv_python_version` misses uv's `version_info`: upstream PR to refuse/re-enter a generation built for another Python, then retire the fork seams `hermes_cli/interpreter_abi.py` + its calls in `hermes_bootstrap.py` and `cron/worker_bootstrap.py`** · `seams` · evidence: branch `fix/cron-openai` commit messages (alice cron, 2026-09-29 04:32–11:39) · filed 2026-09-29 (lane fix-cron-openai) **UNCLAIMED** **TAKEN 2026-09-29 h10-rtseam** · VERDICT 2026-09-29 h10-rtseam: upstream PR, not a lane edit. Drafted `up/venv-version-info` (ba3bd4fe19, pushed to origin, NOT opened): venv_python_version reads `version_info`, red→green in `tests/hermes_cli/test_runtime_paths.py`. Still owed: the refuse/re-enter gate inside `activate_dependencies` as a second PR (owner opens both); `interpreter_abi.py` + its two calls retire only after both merge
 
 ### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
 
