@@ -131,6 +131,11 @@ for _win_var in USERPROFILE HOMEDRIVE HOMEPATH LOCALAPPDATA APPDATA SYSTEMROOT T
     WIN_ENV+=("$_win_var=${!_win_var}")
   fi
 done
+# Fork: SYSTEMDRIVE too. Without it the Git-Bash `sleep.exe` grandchild of a
+# process-registry test survives `taskkill /T /F`, its stdout pipe never reaches
+# EOF, and tests/hermes_cli/test_process_dock.py hangs in `stream.close()` to
+# the per-test timeout (fork-hygiene-queue, 2026-09-26 row).
+[ -z "${SYSTEMDRIVE:-}" ] || WIN_ENV+=("SYSTEMDRIVE=$SYSTEMDRIVE")
 # Native build toolchain (Windows arm64 has no wheels for every pinned C extension, so
 # `uv sync` inside a PM test compiles ruamel-yaml-clib and friends). The MSVC developer
 # environment is exported by scripts/build/windows-deps.ps1 into the job env; without

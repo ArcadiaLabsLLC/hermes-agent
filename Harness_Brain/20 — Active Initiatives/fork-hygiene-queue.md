@@ -134,7 +134,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-24 (lane MERGE)
 
-- [ ] **`tests/hermes_cli/test_process_dock.py::test_monitor_controls_stop_processes_and_never_steer_them` hangs to the pytest-timeout in `process_registry._release_finished_handles` → `stream.close()` under `scripts/run_tests_bundled.sh` (alone too, 108 s, identically on `f6cb75f2de`) but passes in 2 s under plain pytest, with or without PYTHONUTF8=1** · `fork / tests` · bisect the runner's `env -i` environment for the variable that makes the pipe close block. **TAKEN 2026-09-29 h10-fhrest**
 
 ## Filed on arrival — 2026-09-24 (lane H1)
 ## Filed on arrival — 2026-09-25 (lane R4)
