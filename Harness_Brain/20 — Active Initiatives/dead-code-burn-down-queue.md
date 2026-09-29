@@ -17,11 +17,11 @@ Row grammar: `- [ ] **symbol** · file · lines · class · evidence · lane`. C
 
 ## First instalment — filed 2026-09-24 by lane GOD-D (census over the 62 files; struck: 24 `@method`-registered `serve_rpc` handlers, false positives by construction)
 
-- [ ] **`fingerprint_home_capture`, `iter_fingerprint_paths`, `BUILD_SELF_PERTURBED_CLASSES`, `reset_fingerprint_home`** · `agent_runtime/core_cache/` · 23 + 5 + 5 + 21 · TEST SEAM · the `core-cache-home-capture-timing.md` instrument; 0 production callers, 2–3 test files each · R3 · `reset_fingerprint_home` joined 2026-09-25 (R3 CHANGE): its one production caller `lane.reset_process_state` is itself test/script-only, and `tests/agent_runtime/conftest.py` resets the home around every test through it — a deletion needs that sandbox re-plumbed first, so the row stays a TEST SEAM, not a DELETE
-- [ ] **`reset_runtime_resolve_cache`** · `agent_runtime/profile_runner/` · 5 · TEST SEAM · 0 production, 2 tests · R3
+- [ ] **`fingerprint_home_capture`, `iter_fingerprint_paths`, `BUILD_SELF_PERTURBED_CLASSES`, `reset_fingerprint_home`** · `agent_runtime/core_cache/` · 23 + 5 + 5 + 21 · TEST SEAM · the `core-cache-home-capture-timing.md` instrument; 0 production callers, 2–3 test files each · R3 · `reset_fingerprint_home` joined 2026-09-25 (R3 CHANGE): its one production caller `lane.reset_process_state` is itself test/script-only, and `tests/agent_runtime/conftest.py` resets the home around every test through it — a deletion needs that sandbox re-plumbed first, so the row stays a TEST SEAM, not a DELETE **TAKEN 2026-09-29 h10-fhrel**
+- [ ] **`reset_runtime_resolve_cache`** · `agent_runtime/profile_runner/` · 5 · TEST SEAM · 0 production, 2 tests · R3 **TAKEN 2026-09-29 h10-fhrel**
 - [ ] **`READ_ONLY_ALLOWLIST_PROFILE`** · `agent_runtime/mcp_admission/vocabulary.py` · 1 · TEST SEAM · 09-21 §4.1 row, unchanged · R3 · VERDICT 2026-09-25 lane B4: TEST SEAM confirmed — `git grep -n READ_ONLY_ALLOWLIST_PROFILE -- agent_runtime hermes_cli tools plugins` = the def + the package re-export, 0 readers; 6 reads in `tests/agent_runtime/test_mcp_admission_r2.py`. Per sheet `mcp_admission.md` §5 the move to `tests/_downstream/_seams.py` (+ tombstone) lands under "Working a slice", not in B4's two commits; claim released
-- [ ] **`_split_discovery_roots`** · `scripts/run_tests_parallel.py` · 3 · TEST SEAM · 0 callers in the script, 1 test · S2
-- [ ] **`_default_session_db`** · `agent_runtime/persona_chat_history/history_rows.py` 91-100 · 10 · DELETE (sheet persona_chat_history.md §5) once `agent_runtime/persona_assignments` (scan.py, R1's CHANGE) stops importing it: lane R2's CHANGE retargeted every package-internal reader to `chat_session_scope.open_chat_session_db`, so R1's lazy import is its last reader · R2
+- [ ] **`_split_discovery_roots`** · `scripts/run_tests_parallel.py` · 3 · TEST SEAM · 0 callers in the script, 1 test · S2 **TAKEN 2026-09-29 h10-fhrel**
+- [ ] **`_default_session_db`** · `agent_runtime/persona_chat_history/history_rows.py` 91-100 · 10 · DELETE (sheet persona_chat_history.md §5) once `agent_runtime/persona_assignments` (scan.py, R1's CHANGE) stops importing it: lane R2's CHANGE retargeted every package-internal reader to `chat_session_scope.open_chat_session_db`, so R1's lazy import is its last reader · R2 **TAKEN 2026-09-29 h10-fhrel**
 
 ## Second instalment — the reach census (W0-D), filed 2026-09-24 by lane W0
 
@@ -31,7 +31,7 @@ Row grammar: `- [ ] **symbol** · file · lines · class · evidence · lane`. C
 
 ## Owed censuses (rows arrive when they run)
 
-- [ ] **The argv census (09-21 plan §4.2)** · `fork / refactor` · which `_cmd_*` the launcher still lowers to argv; rows where "method exists, launcher no longer lowers" are deletions with their parser family entry and tests · H1 builder runs it; the launcher-side read is the launcher queue's
+- [ ] **The argv census (09-21 plan §4.2)** · `fork / refactor` · which `_cmd_*` the launcher still lowers to argv; rows where "method exists, launcher no longer lowers" are deletions with their parser family entry and tests · H1 builder runs it; the launcher-side read is the launcher queue's **TAKEN 2026-09-29 h10-fhrel**
 
 ## Working a slice
 
@@ -49,8 +49,8 @@ Delete it. When the last row of an instalment closes, the program ledger (`god-f
 
 ## Filed on arrival — 2026-09-25, lane B3
 
-- [ ] **`persona_chat_continuity.bounds._safe_text`** · `agent_runtime/persona_chat_continuity/bounds.py` · 2 · DELETE (0 callers: `git grep -nw _safe_text agent_runtime/persona_chat_continuity` → the def and one docstring mention in `_bounded_free_text`; the census missed it by size) · the sheet drew a rename to a public `bounded_text`, which would now collide by name with `serde.bounded_text` (lane 2B-A) — deletion is the answer, under "Working a slice" · lane B3 CHANGE 2026-09-25 · R1 **UNCLAIMED**
+- [ ] **`persona_chat_continuity.bounds._safe_text`** · `agent_runtime/persona_chat_continuity/bounds.py` · 2 · DELETE (0 callers: `git grep -nw _safe_text agent_runtime/persona_chat_continuity` → the def and one docstring mention in `_bounded_free_text`; the census missed it by size) · the sheet drew a rename to a public `bounded_text`, which would now collide by name with `serde.bounded_text` (lane 2B-A) — deletion is the answer, under "Working a slice" · lane B3 CHANGE 2026-09-25 · R1 **UNCLAIMED** **TAKEN 2026-09-29 h10-fhrel**
 
 ## Filed on arrival — 2026-09-26, lane ACP-DROP
 
-- [ ] **the session-skill inspection chain lost its only production reader with `agent_runtime/acp_skills.py`: `tools/skills_tool.skill_inspection_reader`, `agent_runtime/skill_inspection.py`, `agent_runtime/skill_activity.skill_load_history`** · 3 names · DECIDE (delete with tombstones vs keep for a non-ACP consumer) · `git grep -n "skill_inspection_reader\|skill_load_history" -- '*.py'` after the ACP drop = the defs plus `tests/agent_runtime/test_skill_inspection.py`; `skill_inspection_reader` is a fork edit inside upstream-owned `tools/skills_tool.py` · lane ACP-DROP 2026-09-26 **UNCLAIMED**
+- [ ] **the session-skill inspection chain lost its only production reader with `agent_runtime/acp_skills.py`: `tools/skills_tool.skill_inspection_reader`, `agent_runtime/skill_inspection.py`, `agent_runtime/skill_activity.skill_load_history`** · 3 names · DECIDE (delete with tombstones vs keep for a non-ACP consumer) · `git grep -n "skill_inspection_reader\|skill_load_history" -- '*.py'` after the ACP drop = the defs plus `tests/agent_runtime/test_skill_inspection.py`; `skill_inspection_reader` is a fork edit inside upstream-owned `tools/skills_tool.py` · lane ACP-DROP 2026-09-26 **UNCLAIMED** **TAKEN 2026-09-29 h10-fhrel**
