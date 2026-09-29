@@ -126,7 +126,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-24 (lane DOORS-A)
 
-- [ ] **`tests/tools/test_tirith_config_call_sites.py::TestApprovalCronLane::test_fail_open_override_reaches_the_cron_lane` passes alone but fails in a combined gateway/tui run, identically on `origin/main`: order-dependent** · `fork / tests` · bisect pairwise (REDS2 method, `016a6cd71e`); fix the leak or add the observed pair to `scripts/test_bundles_unbundled.txt` · evidence: lane DOORS-A report, `X:/wt/_holds/seam-s1-green-2026-09-23.md` § DOORS-A **UNCLAIMED** **TAKEN 2026-09-29 h10-fhrest**
 
 ## Filed on arrival — 2026-09-24 (lane W0)
 
