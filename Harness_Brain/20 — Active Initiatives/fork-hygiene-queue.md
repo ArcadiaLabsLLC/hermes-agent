@@ -33,7 +33,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 ### Filed on arrival — 2026-09-26 (native Hermes qualification)
 
 - [ ] **Finish classifying the validated-suite residuals, including the two worktree-only fleet identity assertions and baseline gateway certificate mismatch blocking registered mutations.** · [Native qualification evidence](../../docs/downstream/native-hermes-qualification-2026-09-26.md); [[Windows console signal safety]] adds an incomplete one-hour run and failures reproduced on primary in 33 of 35 files; no baseline expansion or unrelated runtime repair was made. **TAKEN 2026-09-29 h10-fhrel**
-- [ ] **Re-anchor eight runtime-canon citations and remove the stale boot waiver after the upstream refactor.** · [Native recovery gate comparison](../../docs/downstream/native-recovery-repairs-2026-09-26.md#final-wire-qualification--2026-09-27); all eight and the waiver reproduce on unchanged main `b25aca3cafd4`. **TAKEN 2026-09-29 h10-fhrel**
 - [ ] **Resolve the baseline gateway mirror and TUI server frozen-home assertions without creating a second profile resolver.** · [Native qualification evidence](../../docs/downstream/native-hermes-qualification-2026-09-26.md). **TAKEN 2026-09-29 h10-fhrel**
 
 ### Filed on arrival — 2026-09-26 (lane FIX-TRIAGE, filed by the orchestrator)
