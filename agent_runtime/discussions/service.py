@@ -18,6 +18,7 @@ from gateway import hosted_room_discussion as policy
 from gateway import hosted_room_driver as driver
 from gateway import hosted_rooms as rooms
 from gateway.hosted_room_policy_checkpoint import HostedRoomPolicyCheckpoint
+from gateway.hosted_room_message_intent import response_from_payload
 from tui_gateway.hosted_room_driver import HostedRoomBinding, HostedRoomRuntime
 
 from .attempt_store import AttemptStore
@@ -261,7 +262,8 @@ class DiscussionService:
             decision = policy.plan_next_task(room, list(snapshot.events), initial_watermarks=snapshot.watermarks,
                 active_member_ids=active, **self._policy_args(run))
             if decision.status == "task" and decision.task is not None:
-                driver.admit_task(self.db_path, decision.task.identity, payload=decision.task.payload, clock=time.time)
+                for task in decision.ready_tasks or (decision.task,):
+                    driver.admit_task(self.db_path, task.identity, payload=task.payload, clock=time.time)
             elif decision.status in {"settled", "bounded"}:
                 rooms.append_event(self.db_path, room_id=run["run_id"],
                     event_id=f"dactivity:{decision.discussion_event_id}:{decision.reason}", kind="room.activity",
@@ -284,6 +286,9 @@ class DiscussionService:
             continuation = operation in {"answer", "stop", "end", "remove", "abandon"}
             if self._closed or not self._started or (self._draining and not continuation):
                 raise DiscussionError("runtime_stopping")
+            if operation == "send" and (response := response_from_payload(body)) is not None:
+                response.validate_audience((m["member_id"] for m in self.runs.members(run_id) if m["status"] == "active"),
+                                           error=lambda _: DiscussionError("member_not_found"))
             self.runs.request(run_id, workspace_id, key=key, operation=operation,
                 expect_revision=expect_revision, body={**body, "actor_id": actor_id})
             self._commands(self.runs.get(run_id))
@@ -298,10 +303,12 @@ class DiscussionService:
             raise DiscussionError("stale_attempt")
         return task
 
-    def _append_user(self, run: Mapping[str, Any], key: str, message: str, *, actor_id: str) -> None:
+    def _append_user(self, run: Mapping[str, Any], key: str, message: str, *, actor_id: str,
+                     response: Mapping[str, Any] | None = None) -> None:
         rooms.append_event(self.db_path, room_id=run["run_id"], event_id="user:" + digest({"key": key})[:40],
             kind="message.user", actor={"kind": "user", "id": actor_id},
-            payload={"text": message, "thread_id": "discussion"},
+            payload={"text": message, "thread_id": "discussion",
+                     **({"response": response} if response is not None else {})},
             authority_gateway_id=self.context.install_id, authority_epoch=1)
 
     def _cancel(self, run: Mapping[str, Any], key: str, member_id: str | None = None) -> None:
@@ -401,7 +408,8 @@ class DiscussionService:
                 elif op == "send":
                     if self._unresolved(rid):
                         continue
-                    self._append_user(run, key, body["message"], actor_id=body["actor_id"])
+                    self._append_user(run, key, body["message"], actor_id=body["actor_id"],
+                                      response=body.get("response"))
                     self.runs.finish_command(rid, key, phase="open")
                 elif op == "invite":
                     if not execution_spec(run).settings["allow_invitations"]:

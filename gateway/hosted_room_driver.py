@@ -35,7 +35,7 @@ TASK_STATUSES = frozenset(get_args(TaskStatus))
 TERMINAL_STATUSES = frozenset({"settled", "failed", "cancelled"})
 
 _TASK_PAYLOAD_REQUIRED_FIELDS = frozenset({"target_profile", "prompt", "source_event_seq"})
-_TASK_PAYLOAD_OPTIONAL_FIELDS = frozenset({"target_member_id"})
+_TASK_PAYLOAD_OPTIONAL_FIELDS = frozenset({"target_member_id", "independent"})
 _LEASE_COLUMNS = frozenset({
     "room_id", "gateway_id", "authority_epoch", "process_generation", "lease_generation", "expires_at", "acquired_at",
     "updated_at", "released_at"})
@@ -158,6 +158,10 @@ def _task_payload(value: Any) -> tuple[dict[str, Any], str, str]:
     normalized = {"target_profile": target_profile, "prompt": prompt, "source_event_seq": source_event_seq}
     if "target_member_id" in value:
         normalized["target_member_id"] = _identifier(value["target_member_id"], label="target_member_id")
+    if "independent" in value:
+        if value["independent"] is not True or "target_member_id" not in value:
+            raise DriverValidationError("independent tasks require an explicit member")
+        normalized["independent"] = True
     encoded = compact_json(normalized)
     return normalized, encoded, hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
@@ -617,10 +621,12 @@ def start_task(
         _require_cancel_generation(row, expected_cancel_generation)
         if row["status"] != "queued":
             raise InvalidTaskTransitionError(f"cannot start task in state '{row['status']}'")
-        if conn.execute(
-            f"""SELECT task_id, status FROM hosted_room_driver_tasks
-               WHERE room_id=? AND status IN ('running', 'indeterminate', 'stopping') {_TASK_ORDER} LIMIT 1""",
-            (identity.room_id,)).fetchone() is not None:
+        active = conn.execute(
+            f"""SELECT * FROM hosted_room_driver_tasks
+               WHERE room_id=? AND status IN ('running', 'indeterminate', 'stopping') {_TASK_ORDER}""",
+            (identity.room_id,)).fetchall()
+        from gateway.hosted_room_parallel_admission import independent_members as permits_overlap
+        if active and not permits_overlap(row, active):
             raise InvalidTaskTransitionError("room recovery must resolve the prior task before starting new work")
         next_queued = conn.execute(
             f"SELECT task_id FROM hosted_room_driver_tasks WHERE room_id=? AND status='queued' {_TASK_ORDER} LIMIT 1",

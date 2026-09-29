@@ -5,6 +5,7 @@ from typing import Any, Mapping
 from .definitions import CAPACITIES, TableStyle, DefinitionError, ParticipantRef, identifier, revision
 from .run_store import text
 from .room_definition import RoomSpec, ROOM_MEMBER_LIMIT
+from gateway.hosted_room_message_intent import MessageResponse
 
 __layer__ = "stores"
 
@@ -40,7 +41,8 @@ _COMMAND_FIELDS = {
     "abandon": ("task_id", "generation", "native_id", "confirm"),
 }
 for _operation, _fields in _COMMAND_FIELDS.items():
-    METHODS["run." + _operation] = ("console", ("workspace_id", "run_id", "expect_revision", "idempotency_key", *_fields), ())
+    METHODS["run." + _operation] = ("console", ("workspace_id", "run_id", "expect_revision", "idempotency_key", *_fields),
+                                   ("response",) if _operation == "send" else ())
 
 
 def validate_params(method: str, value: Any) -> dict[str, Any]:
@@ -65,13 +67,19 @@ def validate_params(method: str, value: Any) -> dict[str, Any]:
             result[key] = text(result[key], field=key, max_bytes=8000 if key == "answer" else 12000)
     if "participant" in result:
         result["participant"] = ParticipantRef.parse(result["participant"]).to_dict()
+    if "response" in result:
+        try:
+            result["response"] = MessageResponse.parse(result["response"]).to_dict()
+        except ValueError as exc:
+            raise DefinitionError("invalid_response", "response") from exc
     if method == "run.start_room":
         result["spec"] = RoomSpec.parse(result["spec"])
     return result
 
 
 def command_body(operation: str, params: Mapping[str, Any]) -> dict[str, Any]:
-    return {key: params[key] for key in _COMMAND_FIELDS[operation]}
+    fields = (*_COMMAND_FIELDS[operation], *METHODS["run." + operation][2])
+    return {key: params[key] for key in fields if key in params}
 
 
 def contract_descriptor() -> dict[str, Any]:
@@ -85,6 +93,7 @@ def contract_descriptor() -> dict[str, Any]:
         "methods": {PREFIX + name: {"tier": tier, "required": list(required), "optional": list(optional)}
                     for name, (tier, required, optional) in sorted(METHODS.items())},
         "features": {"local_instances": True, "same_profile_instances": True, "presets": True,
+                     "message_response_policy": True,
                      "scheduled_conclusion": True,
                      "non_spatial_discussions": True,
                      "exact_stop": True, "human_input": True, "instance_presence": True,

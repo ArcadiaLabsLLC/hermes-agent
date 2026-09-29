@@ -251,8 +251,12 @@ class NativeTurns:
                 payload = payloads[-1] if payloads else {}
                 uncertain = payload.get("turn_resolution_required") or payload.get("execution_state") == "outcome_unknown"
                 if code and not uncertain:
-                    self.attempts.update(row, stage="terminal", receipt={"status": "failed", "text": "",
-                        "error": str(payload.get("error_kind") or "native_turn_refused"), "message_id": row["native_id"]})
+                    # Returning from the exact interrupted worker confirms exit; requesting Stop did not.
+                    stopped = scope.reason is not None
+                    self.attempts.update(row, stage="terminal", receipt={
+                        "status": "cancelled" if stopped else "failed", "text": "",
+                        "error": None if stopped else str(payload.get("error_kind") or "native_turn_refused"),
+                        "message_id": row["native_id"]})
                 else:
                     self.attempts.update(row, stage="uncertain")
         except DiscussionError as exc:

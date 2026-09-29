@@ -521,12 +521,14 @@ class HostedRoomRuntime:
         if (lease.room_id, lease.lease_generation) not in self._recovered_leases:
             state.recover_room(self.db_path, lease, clock=self.clock)
             self._recovered_leases.add((lease.room_id, lease.lease_generation))
+        self._observe_independent_members(binding, lease)
         if self._retry_stopping_tasks(binding, lease):
             self._set_blocked(binding.room_id, True)
             return
-        if self._reconcile_indeterminate(binding, lease):
-            return
+        blocked = self._reconcile_indeterminate(binding, lease)
         for task in self._tasks(binding, "queued"):
+            if blocked and not task["payload"].get("independent", False):
+                return
             retry = self._unavailable_route_retries.get(
                 (task["identity"].room_id, _member_id(task)))
             if self._stop.is_set() or (
@@ -538,7 +540,7 @@ class HostedRoomRuntime:
                 expected_cancel_generation=task["cancel_generation"], clock=self.clock)
             self._execute_attempt(binding, task, attempt)
             current = state.get_task(self.db_path, task["identity"])
-            if current["status"] not in state.TERMINAL_STATUSES:
+            if current["status"] not in state.TERMINAL_STATUSES and not task["payload"].get("independent", False):
                 return
 
     def _defer_unavailable_route(self, task: Mapping[str, Any]) -> float:
@@ -594,6 +596,7 @@ class HostedRoomRuntime:
     ) -> None:
         profile, submit_attempted = task["payload"]["target_profile"], False
         transport = self._transport_for(binding, task)
+        independent = task["payload"].get("independent", False)
         with self._status_lock:
             self._current_tasks[binding.room_id] = attempt.identity
         try:
@@ -610,6 +613,8 @@ class HostedRoomRuntime:
                     member_id=_member_id(task))
                 self._unavailable_route_retries.pop(
                     (task["identity"].room_id, _member_id(task)), None)
+                if independent:
+                    return  # Existing room scans observe; native sessions own execution.
                 receipt = self._wait_for_terminal(
                     binding, profile=profile, session_id=session_id, attempt=attempt,
                     transport=transport, deadline_monotonic=deadline_monotonic)
@@ -643,6 +648,24 @@ class HostedRoomRuntime:
                 # thread held its slot: schedule exactly one follow-up after it leaves
                 # (idle room scans never set this marker).
                 self._rooms_needing_reschedule.add(binding.room_id)
+
+    def _observe_independent_members(self, binding: HostedRoomBinding, lease: state.DriverLease) -> None:
+        """Observe the same task receipts without parking a room on one member."""
+        for task in self._tasks(binding, "running"):
+            if not task["payload"].get("independent", False):
+                continue
+            lease = self._renew_lease_if_needed(lease)
+            if self.clock() >= float(task["started_at"]) + self.turn_timeout_seconds:
+                self._expire_attempt_deadline(binding, task, lease)
+                continue
+            inspection = self._inspect_recovery_session(binding, task)
+            if inspection.terminal is not None:
+                attempt = state.TaskAttempt(identity=task["identity"], lease=lease,
+                    execution_generation=task["execution_generation"],
+                    cancel_generation=task["cancel_generation"])
+                with suppress(state.StaleTaskError):
+                    self._publish(binding, state.settle_task(self.db_path, attempt,
+                        **asdict(inspection.terminal), clock=self.clock))
 
     def _mark_ambiguous(self, binding: HostedRoomBinding, attempt: state.TaskAttempt) -> None:
         self._drop_lease(binding.room_id)
