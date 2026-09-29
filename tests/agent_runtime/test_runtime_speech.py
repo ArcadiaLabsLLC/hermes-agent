@@ -17,6 +17,7 @@ import struct
 import subprocess
 import threading
 import time
+import zipfile
 
 import pytest
 
@@ -67,11 +68,17 @@ def _piper_voice(root, *, sidecar=True, empty_onnx=False, phonemizer=True, phone
     return onnx
 
 
+KOKORO_TEST_PRESETS = ("af_heart", "af_nicole", "am_michael")
+
+
 def _kokoro(root, *, voices=True, phonemizer_drop=()):
     model = root / "kokoro-v1.0.onnx"
     model.write_bytes(b"\1" * 64)
     if voices:
-        (root / "voices-v1.0.bin").write_bytes(b"\3" * 32)
+        # An .npz: one ``<preset>.npy`` per Kokoro voice preset.
+        with zipfile.ZipFile(root / "voices-v1.0.bin", "w") as archive:
+            for preset in KOKORO_TEST_PRESETS:
+                archive.writestr(f"{preset}.npy", b"\3" * 32)
     _phonemizer(root, "kokoro", phonemizer_drop)
     return model
 
@@ -97,8 +104,8 @@ class FakeEngines:
         self.passes.append((len(pcm), final))
         return f"{'final' if final else 'partial'} {len(pcm) // 2} samples"
 
-    def load_tts(self, path):
-        self.loads.append(("tts", str(path)))
+    def load_tts(self, path, *, preset=None):
+        self.loads.append(("tts", str(path)) if preset is None else ("tts", str(path), preset))
         return object()
 
     def unload_tts(self):
@@ -846,3 +853,76 @@ def test_a_growing_take_is_decoded_chunk_by_chunk_and_each_chunk_once():
     # Only the chunk the new audio closed and the open tail; the finished chunks come from cache.
     assert lengths == [cuts[-1] - cuts[-2], len(samples) - cuts[-1]]
     assert text.split()[:len(first_pass) - 1] == [f"w{i}" for i in range(1, len(first_pass))]
+
+
+# ── Kokoro voice presets (owner ruling 2026-09-29: a separate ``tts_preset``) ─────
+
+
+def _kokoro_folder(tmp_path):
+    folder = tmp_path / "kokoro"
+    folder.mkdir()
+    return _kokoro(folder)
+
+
+def test_status_lists_the_kokoro_presets_and_the_one_a_load_would_use(fakes):
+    """Mutation: drop ``"presets": presets`` from ``inspect_tts``'s available view -> red here."""
+    engines, tmp_path = fakes
+    model = _kokoro_folder(tmp_path)
+    tts = Wire().result("runtime.speech.status", {"tts_voice": str(model)})["tts"]
+    assert (tts["presets"], tts["preset"]) == (list(KOKORO_TEST_PRESETS), "af_heart")
+    # Positive control: a Piper voice has no presets.
+    piper = Wire().result("runtime.speech.status", {"tts_voice": str(_piper_voice(tmp_path))})["tts"]
+    assert (piper["state"], piper["presets"], piper["preset"]) == ("available", [], None)
+
+
+def test_tts_preset_reaches_the_loader_and_a_new_preset_reloads(fakes):
+    """Mutation: pass no ``preset`` to ``engines.load_tts`` -> the loader sees none and red here."""
+    engines, tmp_path = fakes
+    model = _kokoro_folder(tmp_path)
+    wire = Wire()
+    params = {"which": "tts", "tts_voice": str(model), "tts_preset": "am_michael"}
+    loaded = wire.result("runtime.speech.load", params)
+    assert loaded["results"]["tts"]["state"] == "loaded"
+    assert (loaded["tts"]["preset"], loaded["tts"]["presets"]) == ("am_michael", list(KOKORO_TEST_PRESETS))
+    assert engines.loads == [("tts", str(model), "am_michael")]
+    wire.result("runtime.speech.load", params)  # same preset: no reload
+    wire.result("runtime.speech.load", {**params, "tts_preset": None})  # omitted: keeps the loaded one
+    assert len(engines.loads) == 1
+    wire.result("runtime.speech.load", {**params, "tts_preset": "af_nicole"})
+    assert engines.loads[-1] == ("tts", str(model), "af_nicole")
+    assert wire.result("runtime.speech.status")["tts"]["preset"] == "af_nicole"
+
+
+def test_an_unknown_preset_is_typed_and_never_reaches_the_loader(fakes):
+    engines, tmp_path = fakes
+    model = _kokoro_folder(tmp_path)
+    result = Wire().result("runtime.speech.load", {"which": "tts", "tts_voice": str(model), "tts_preset": "zz_none"})
+    tts = result["results"]["tts"]
+    assert (tts["state"], tts["reason"], tts["presets"]) == ("unavailable", "preset_unknown", list(KOKORO_TEST_PRESETS))
+    assert engines.loads == []
+
+
+def test_a_preset_on_a_piper_voice_is_unsupported(fakes):
+    engines, tmp_path = fakes
+    voice = _piper_voice(tmp_path)
+    tts = Wire().result("runtime.speech.load", {"which": "tts", "tts_voice": str(voice),
+                                                "tts_preset": "am_michael"})["results"]["tts"]
+    assert (tts["state"], tts["reason"]) == ("unavailable", "preset_unsupported")
+    assert engines.loads == []
+
+
+@pytest.mark.parametrize("bad", [5, "", "a\0b"])
+def test_a_malformed_tts_preset_is_invalid_params(fakes, bad):
+    engines, tmp_path = fakes
+    frame = Wire().call("runtime.speech.load", {"which": "tts", "tts_voice": str(_kokoro_folder(tmp_path)),
+                                                "tts_preset": bad})
+    assert frame["error"]["data"]["reason"] == "tts_preset_invalid"
+
+
+def test_load_voice_hands_the_preset_to_kokoro(tmp_path, monkeypatch):
+    from agent_runtime import speech_onnx_voice
+
+    model = _kokoro_folder(tmp_path)
+    monkeypatch.setattr(speech_onnx_voice, "KokoroVoice", lambda voice, preset: ("kokoro", preset))
+    assert speech_onnx_voice.load_voice(model, preset="am_michael") == ("kokoro", "am_michael")
+    assert speech_onnx_voice.load_voice(model) == ("kokoro", speech_onnx_voice.KOKORO_DEFAULT_PRESET)

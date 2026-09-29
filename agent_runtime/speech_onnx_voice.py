@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import unicodedata
+import zipfile
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -32,7 +33,7 @@ from agent_runtime.speech_text import sentences
 __layer__ = "stores"
 
 __all__ = ["KOKORO_DEFAULT_PRESET", "KOKORO_SAMPLE_RATE", "KOKORO_VOICES", "KokoroVoice", "PiperVoice",
-           "load_voice", "voice_family"]
+           "kokoro_presets", "load_voice", "voice_family"]
 
 KOKORO_VOICES = "voices-v1.0.bin"
 KOKORO_SAMPLE_RATE = 24000
@@ -47,6 +48,20 @@ def voice_family(voice: Path) -> str | None:
     if (voice.parent / KOKORO_VOICES).exists():
         return "kokoro"
     return None
+
+
+def kokoro_presets(voices: Path) -> list[str] | None:
+    """The preset names a Kokoro voices file carries, sorted; ``None`` when it is not one.
+
+    The file is an ``.npz`` — a zip of one ``<preset>.npy`` per voice — so the names come from its
+    directory, without numpy and without reading a style tensor.
+    """
+    try:
+        with zipfile.ZipFile(voices) as archive:
+            names = archive.namelist()
+    except (OSError, zipfile.BadZipFile):
+        return None
+    return sorted(name[:-4] for name in names if name.endswith(".npy") and "/" not in name)
 
 
 def _to_int16(audio: Any, *, normalize: bool) -> bytes:
@@ -123,11 +138,13 @@ class KokoroVoice:
                 yield self.sample_rate, _to_int16(self._model.run(feed), normalize=False)
 
 
-_LOADERS = {"piper": PiperVoice, "kokoro": KokoroVoice}
-
-
-def load_voice(voice: Path) -> PiperVoice | KokoroVoice:
+def load_voice(voice: Path, *, preset: str | None = None) -> PiperVoice | KokoroVoice:
+    """The voice in ``voice``; ``preset`` picks a Kokoro voice (a Piper voice has none)."""
     family = voice_family(voice)
     if family is None:
         raise FileNotFoundError(f"{voice}: neither a Piper .onnx.json nor {KOKORO_VOICES} beside it")
-    return _LOADERS[family](voice)
+    if family == "kokoro":
+        return KokoroVoice(voice, preset=preset or KOKORO_DEFAULT_PRESET)
+    if preset is not None:
+        raise ValueError("a Piper voice has no presets")
+    return PiperVoice(voice)

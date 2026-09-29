@@ -100,13 +100,13 @@ def _emitter(context: RpcContext) -> Callable[[str, dict], bool] | None:
 @method("runtime.speech.status", tier=TIER_READ)
 def _runtime_speech_status(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """Both models' state (``unavailable`` + reason, ``available``, ``loading``, ``loaded``) and the
-    admission budget. Params (optional): ``models_dir``, ``stt_model``, ``tts_voice`` to inspect."""
+    admission budget. Params (optional): ``models_dir``, ``stt_model``, ``tts_voice``, ``tts_preset`` to inspect."""
     return _speech_answer(rid, "runtime.speech.status", lambda: _service().status(_params(params)))
 
 
 @method("runtime.speech.load", tier=TIER_CONSOLE)
 def _runtime_speech_load(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
-    """Load from explicit local paths. Params: ``models_dir``, ``stt_model``, ``tts_voice``, ``which``."""
+    """Load from explicit local paths. Params: ``models_dir``, ``stt_model``, ``tts_voice``, ``tts_preset``, ``which``."""
     context = context or RpcContext()
     service = _service()
     work = lambda: service.load(_params(params))  # noqa: E731
