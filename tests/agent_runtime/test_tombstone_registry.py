@@ -3681,6 +3681,20 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "_split_discovery_roots",
         scope=("scripts.run_tests_parallel",),
     ),
+    *rows(
+        # Dead-code queue row `_default_session_db` (R2, sheet
+        # persona_chat_history.md §5 DELETE). The deletion itself landed in
+        # a7fead6520 (every SessionDB acquisition declares READ or WRITE)
+        # without a tombstone; lane h10-fhrel (2026-09-29) adds it.
+        "s-h10",
+        "a7fead6520",
+        Form.CODE,
+        "the untyped writer-open door for persona chat history; every reader "
+        "now acquires through chat_session_scope.open_chat_session_db with an "
+        "explicit SessionDbAccess, so a second door would be a second authority",
+        "_default_session_db",
+        scope=_AR,
+    ),
     # -- the 2026-09-25 upstream merge ------------------------------------
     *rows(
         "s-merge-2026-09-25",
