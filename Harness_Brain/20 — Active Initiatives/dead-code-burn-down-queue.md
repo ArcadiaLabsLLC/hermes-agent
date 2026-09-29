@@ -28,7 +28,7 @@ Row grammar: `- [ ] **symbol** · file · lines · class · evidence · lane`. C
 
 ## Owed censuses (rows arrive when they run)
 
-- [ ] **The argv census (09-21 plan §4.2)** · `fork / refactor` · which `_cmd_*` the launcher still lowers to argv; rows where "method exists, launcher no longer lowers" are deletions with their parser family entry and tests · H1 builder runs it; the launcher-side read is the launcher queue's **TAKEN 2026-09-29 h10-fhrel**
+- [ ] **The argv census (09-21 plan §4.2)** · `fork / refactor` · which `_cmd_*` the launcher still lowers to argv; rows where "method exists, launcher no longer lowers" are deletions with their parser family entry and tests · H1 builder runs it; the launcher-side read is the launcher queue's **TAKEN 2026-09-29 h10-fhrel** · VERDICT 2026-09-29 h10-fhrel: the census is two-sided and the hermes half alone cannot rule a deletion: which `_cmd_*` the launcher still lowers to argv is read in `EterniaLauncher` (the launcher queue owns that read), and a "no longer lowered" verdict also needs the operator-CLI and script callers checked. Owed: the H1 builder lane runs both halves at once and files one DELETE row per handler with its parser-family entry and tests
 
 ## Working a slice
 
