@@ -463,6 +463,8 @@ def _read_shared_nous_state() -> Optional[Dict[str, Any]]:
         path = _nous_shared_store_path()
     except RuntimeError:
         return None  # Test seat belt tripped — treat as missing
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    path = _host_secrets.view(path)
     if not path.is_file():
         return None
     try:
@@ -481,6 +483,9 @@ def _clear_shared_nous_state(reason: str) -> None:
     """Remove the shared Nous OAuth store after a terminal token failure."""
     try:
         with _nous_shared_store_lock():
+            from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+            if _host_secrets.bound():
+                _host_secrets.delete(_nous_shared_store_path())
             _nous_shared_store_path().unlink(missing_ok=True)
         _oauth_trace("nous_shared_store_cleared", reason=reason)
     except Exception as exc:

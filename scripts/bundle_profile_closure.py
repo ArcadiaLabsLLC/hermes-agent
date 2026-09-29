@@ -71,6 +71,17 @@ TARGET_ENV = {
     "platform_release": "10", "extra": "",
 }
 
+#: Every target a profile may name in ``packaging.targets`` -> its marker environment. A profile
+#: naming none is packaged for :data:`TARGET_ENV` (the desktop installer's interpreter). The phone
+#: targets are CPython 3.14's own mobile platforms (``sys.platform`` ``android`` / ``ios``).
+TARGETS = {
+    "win_amd64": TARGET_ENV,
+    "android_arm64": {**TARGET_ENV, "sys_platform": "android", "platform_system": "Android",
+                      "platform_machine": "aarch64", "os_name": "posix", "platform_release": ""},
+    "ios_arm64": {**TARGET_ENV, "sys_platform": "ios", "platform_system": "iOS",
+                  "platform_machine": "arm64", "os_name": "posix", "platform_release": ""},
+}
+
 #: Import names whose distribution name is not derivable from the import name.
 IMPORT_ALIASES = {
     "piper": "piper-tts", "PIL": "pillow", "faster_whisper": "faster-whisper", "acp": "agent-client-protocol",
@@ -117,12 +128,13 @@ def plugin_roots(manifest) -> tuple[str, ...]:
     return tuple(f"plugins.{name.replace('-', '_')}" for name in getattr(manifest, "packaging_plugins", ()))
 
 
-def profile_walk(manifest, index: dict[str, Path] | None = None) -> tuple["Walk", dict[str, Path]]:
+def profile_walk(manifest, index: dict[str, Path] | None = None, *,
+                 parents: bool = False) -> tuple["Walk", dict[str, Path]]:
     """The profile's one walk: its roots plus its bundled plugins, never into switched-off modules."""
     index = index if index is not None else module_index(plugins=getattr(manifest, "packaging_plugins", ()))
     first_party = {m.split(".")[0] for m in index}
     roots = (*manifest.packaging_roots, *plugin_roots(manifest))
-    return Walk(roots, manifest.switched_off_modules, index, first_party), index
+    return Walk(roots, manifest.switched_off_modules, index, first_party, parents=parents), index
 
 
 def _catches_import_error(handler_type) -> bool:
@@ -224,7 +236,10 @@ def _import_chain(module: str, parent: dict[str, str]) -> list[str]:
 class Walk:
     """One closure walk: kept modules, third-party tops reached, and the edges into switched-off code."""
 
-    def __init__(self, roots, pruned, index, first_party_tops):
+    def __init__(self, roots, pruned, index, first_party_tops, *, parents: bool = False):
+        """``parents``: importing ``a.b.c`` runs ``a/__init__`` and ``a/b/__init__`` first, so a
+        kept module's enclosing packages are reached too (at module level: their imports are
+        eager). Off by default — the desktop closure's recorded figures were taken without it."""
         self.kept: set[str] = set()
         self.tops: dict[str, list[str]] = {}
         self.pinned: set[str] = set()
@@ -239,6 +254,15 @@ class Walk:
                 continue
             self.kept.add(module)
             path = index[module]
+            if parents:
+                package = module.rpartition(".")[0]
+                while package:
+                    if package in index and package not in parent and not _under(package, pruned):
+                        parent[package] = module
+                        queue.append(package)
+                    elif package in index and _under(package, pruned) and not _under(module, pruned):
+                        self.pinned.add(package)
+                    package = package.rpartition(".")[0]
             for dotted, eager, guarded, line in _imports(path, module, path.name == "__init__.py"):
                 owner = _owner(dotted, index)
                 if owner is None:
@@ -288,16 +312,17 @@ def _req(raw: str):
     return Requirement(raw)
 
 
-def declared(path: Path = ROOT / "pyproject.toml") -> tuple[set[str], dict[str, set[str]]]:
+def declared(path: Path = ROOT / "pyproject.toml", env: dict | None = None) -> tuple[set[str], dict[str, set[str]]]:
     """-> (base distribution names, extra -> distribution names), markers evaluated for the target."""
     project = tomllib.loads(path.read_text(encoding="utf-8"))["project"]
     self_name = _norm(project["name"])
+    env = TARGET_ENV if env is None else env
 
     def names(raws):
         out, refs = set(), set()
         for raw in raws:
             req = _req(raw)
-            if req.marker is not None and not req.marker.evaluate(TARGET_ENV):
+            if req.marker is not None and not req.marker.evaluate(env):
                 continue
             if _norm(req.name) == self_name:
                 refs.update(req.extras)
@@ -321,17 +346,18 @@ def declared(path: Path = ROOT / "pyproject.toml") -> tuple[set[str], dict[str, 
     return base, extras
 
 
-def requested_extras(path: Path = ROOT / "pyproject.toml") -> dict[str, set[str]]:
+def requested_extras(path: Path = ROOT / "pyproject.toml", env: dict | None = None) -> dict[str, set[str]]:
     """Base distribution -> the extras its declaration requests (``httpx[socks]`` -> {"socks"}).
 
     A requested extra's requirements ship with the distribution: ``httpx`` loads
     ``socksio`` only when a SOCKS proxy is configured, so no static import reaches it.
     """
     project = tomllib.loads(path.read_text(encoding="utf-8"))["project"]
+    env = TARGET_ENV if env is None else env
     out: dict[str, set[str]] = {}
     for raw in project.get("dependencies", []):
         req = _req(raw)
-        if req.extras and (req.marker is None or req.marker.evaluate(TARGET_ENV)):
+        if req.extras and (req.marker is None or req.marker.evaluate(env)):
             out.setdefault(_norm(req.name), set()).update(req.extras)
     return out
 
@@ -362,8 +388,10 @@ class Graph:
     """Distribution facts: installed metadata first, uv.lock second."""
 
     def __init__(self, lock: dict[str, dict], extras: dict[str, set[str]] | None = None,
-                 placeholders=()):
+                 placeholders=(), env: dict | None = None):
         self.lock = lock
+        #: the marker environment requirements are evaluated for (the bundle target)
+        self.env = TARGET_ENV if env is None else env
         #: requirements a placeholder module stands in for: never followed, never shipped
         self.placeholders = {_norm(p) for p in placeholders}
         #: distribution -> extras a declaration requests; their requirements are followed too
@@ -381,7 +409,7 @@ class Graph:
         return None
 
     def requires(self, name: str) -> list[str]:
-        envs = [TARGET_ENV, *({**TARGET_ENV, "extra": e} for e in sorted(self.extras.get(name, ())))]
+        envs = [self.env, *({**self.env, "extra": e} for e in sorted(self.extras.get(name, ())))]
         dist = self.installed.get(name)
         if dist is not None:
             out = []
@@ -394,9 +422,9 @@ class Graph:
 
         out = []
         lock = self.lock.get(name, {})
-        deps = [(dep, TARGET_ENV) for dep in lock.get("dependencies", [])]
+        deps = [(dep, self.env) for dep in lock.get("dependencies", [])]
         for extra in sorted(self.extras.get(name, ())):
-            deps += [(dep, TARGET_ENV) for dep in lock.get("optional-dependencies", {}).get(extra, [])]
+            deps += [(dep, self.env) for dep in lock.get("optional-dependencies", {}).get(extra, [])]
         for dep, env in deps:
             marker = dep.get("marker")
             if marker is None or Marker(marker).evaluate(env):
@@ -495,13 +523,20 @@ def shipped_distributions(graph, classes: dict[str, dict], dynamic, declared_bas
                           *(set(dynamic) & set(declared_base))})
 
 
-def closure(profile: str, *, boot: bool = True, extra_extras=()) -> dict:
-    """``extra_extras``: extras shipped on top of ``packaging.extras`` (an engine pack's)."""
+def closure(profile: str, *, boot: bool = True, extra_extras=(), target: str | None = None,
+            parents: bool = False) -> dict:
+    """``extra_extras``: extras shipped on top of ``packaging.extras`` (an engine pack's).
+
+    ``target``: a :data:`TARGETS` key; markers are evaluated for it (default: the desktop
+    installer's :data:`TARGET_ENV`). ``parents``: the walk also enters every kept module's
+    enclosing packages (their ``__init__`` runs on import) — see :class:`Walk`.
+    """
     from agent_runtime.bundle_profiles.manifest import load_profile
 
+    env = TARGETS[target] if target is not None else TARGET_ENV
     manifest = load_profile(profile, validate=False)
     selected = (*manifest.packaging_extras, *extra_extras)
-    result, index = profile_walk(manifest)
+    result, index = profile_walk(manifest, parents=parents)
     first_party = {m.split(".")[0] for m in index}
     roots, pruned = (*manifest.packaging_roots, *plugin_roots(manifest)), manifest.switched_off_modules
     tops = dict(result.tops)
@@ -509,8 +544,8 @@ def closure(profile: str, *, boot: bool = True, extra_extras=()) -> dict:
         tops.setdefault(top, ["(pinned module)"])
 
     placeholders = {_norm(d) for d in manifest.placeholder_distributions}
-    graph = Graph(_lock(), requested_extras(), placeholders)
-    declared_base, declared_extras = declared()
+    graph = Graph(_lock(), requested_extras(env=env), placeholders, env=env)
+    declared_base, declared_extras = declared(env=env)
     omitted = {_norm(r["distribution"]) for r in manifest.omitted_distributions}
     base = graph.closure(declared_base - omitted)
     extras = {extra: graph.closure(dists) for extra, dists in declared_extras.items()}
@@ -554,7 +589,7 @@ def closure(profile: str, *, boot: bool = True, extra_extras=()) -> dict:
     sites = omitted_import_sites(manifest, result)
     return {
         "profile": manifest.profile, "interpreter": sys.version.split()[0], "venv": sys.prefix,
-        "target": TARGET_ENV, "extras_shipped": list(selected),
+        "target": env, "extras_shipped": list(selected),
         "unknown_extras": sorted(set(selected) - set(declared_extras)),
         "first_party_modules_kept": len(result.kept),
         "pinned_switched_off_modules": sorted(result.pinned),

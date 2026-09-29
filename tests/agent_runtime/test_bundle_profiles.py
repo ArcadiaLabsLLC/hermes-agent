@@ -86,21 +86,23 @@ def test_every_bundle_exclusion_states_its_reason():
         parse_manifest(_raw(packaging={"excluded_data": {"site-packages/x/data": " "}}))
 
 
-def test_bundled_plugins_name_real_plugin_directories():
+@pytest.mark.parametrize("profile", [PROFILE, "bundled-phone"])
+def test_bundled_plugins_name_real_plugin_directories(profile):
     from pathlib import Path
 
-    manifest = load_profile(PROFILE)
+    manifest = load_profile(profile)
     plugins = Path(__file__).resolve().parents[2] / "plugins"
     assert manifest.packaging_plugins
     assert [p for p in manifest.packaging_plugins if not (plugins / p).is_dir()] == []
 
 
-def test_packaging_modules_name_real_modules():
+@pytest.mark.parametrize("profile", [PROFILE, "bundled-phone"])
+def test_packaging_modules_name_real_modules(profile):
     """Every closure root and switched-off prefix names a first-party module in this tree."""
     from scripts.bundle_profile_closure import module_index
 
     index = module_index()
-    manifest = load_profile(PROFILE)
+    manifest = load_profile(profile)
     missing = [
         name for name in (*manifest.packaging_roots, *manifest.switched_off_modules)
         if not any(m == name or m.startswith(name + ".") for m in index)

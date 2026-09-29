@@ -26,6 +26,8 @@ def _subscriptions_path() -> Path:
 
 def _load_subscriptions() -> Dict[str, dict]:
     path = _subscriptions_path()
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    path = _host_secrets.view(path)
     if not path.exists():
         return {}
     try:
@@ -38,6 +40,9 @@ def _load_subscriptions() -> Dict[str, dict]:
 def _save_subscriptions(subs: Dict[str, dict]) -> None:
     # The file holds per-route HMAC secrets: atomic_json_write fchmods the temp file 0o600 BEFORE the
     # rename (no umask window) and re-asserts the mode on the destination afterwards.
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    if _host_secrets.bound():
+        return _host_secrets.write_json(_subscriptions_path(), subs)
     atomic_json_write(_subscriptions_path(), subs, mode=_SUBSCRIPTIONS_FILE_MODE)
 
 

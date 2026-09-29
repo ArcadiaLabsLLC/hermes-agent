@@ -1452,6 +1452,10 @@ def dump_api_request_debug(
         from agent.redact import redact_sensitive_text
         _serialized = json.dumps(dump_payload, ensure_ascii=False, indent=2, default=str)
         _redacted_payload = json.loads(redact_sensitive_text(_serialized, force=True))
+        from agent_runtime.host_store import history as _host_history  # fork seam: phone history storage seam
+        if _host_history.bound():
+            _host_history.write_blob(dump_file, json.dumps(_redacted_payload, default=str).encode("utf-8"))
+            return dump_file
         atomic_json_write(dump_file, _redacted_payload, default=str)
         agent._vprint(f"{agent.log_prefix}🧾 Request debug dump written to: {dump_file}")
         if env_var_enabled("HERMES_DUMP_REQUEST_STDOUT"):
@@ -1936,6 +1940,13 @@ def create_openai_client(agent, client_kwargs: dict, *, reason: str, shared: boo
         client_kwargs, access_token=client_kwargs.get("api_key", ""),
         base_url=str(client_kwargs.get("base_url", "")),
     )
+    # Fork seam (embedded Hermes): a profile that ships no provider SDK gets the raw-httpx client.
+    from agent.transports.httpx_client import sdk_free_client
+    sdk_free = sdk_free_client(client_kwargs, api_mode=getattr(agent, "api_mode", None))
+    if sdk_free is not None:
+        from agent.served_model import install_served_model_capture
+        install_served_model_capture(agent, sdk_free)
+        return sdk_free
     # ``process_bootstrap.OpenAI`` is a lazy SDK proxy; resolved at call time so tests can patch it.
     from agent import process_bootstrap
     client = process_bootstrap.OpenAI(**client_kwargs)

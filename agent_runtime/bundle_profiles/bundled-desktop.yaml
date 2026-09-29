@@ -237,4 +237,5 @@ packaging:
     site-packages/piper/train: "Piper's voice-training code: dev code, never imported by synthesis"
     app/tools/neutts_samples: "NeuTTS reference clips: NeuTTS is not in the bundled speech set"
     app/tools/wakewords: "Hermes wake-word models: wake_word.enabled is false, the Launcher owns the mic"
+    app/agent_runtime/bundle_profiles/licence-texts: "vetted licence texts: the packager copies the ones a wheel lacks to the output's licence-texts/, which licenses.json cites; the runtime never reads them"
     app/plugins/*/docs/*: "plugin documentation and screenshots"

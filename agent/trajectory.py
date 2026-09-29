@@ -41,6 +41,10 @@ def save_trajectory(trajectory: List[Dict[str, Any]], model: str, completed: boo
     entry = {"conversations": trajectory, "timestamp": datetime.now().isoformat(), "model": model, "completed": completed}
     try:
         line = json.dumps(entry, ensure_ascii=False) + "\n"  # serialize before taking the lock
+        from agent_runtime.host_store import history as _host_history  # fork seam: phone history storage seam
+        if _host_history.bound():
+            _host_history.append_record(filename, line.rstrip())
+            return
         with open(filename, "a", encoding="utf-8") as f:
             # Gateway sessions and batch workers append to the SAME default file; without an
             # exclusive lock around write+flush, entries larger than one write() interleave and the

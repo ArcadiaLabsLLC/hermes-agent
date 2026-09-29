@@ -339,10 +339,40 @@ def _is_test(rel: str) -> bool:
     return bool(TEST_DIRS.intersection(rel.split("/")[:-1]))
 
 
+def skill_ships(rel: str, skill_platforms: tuple[str, ...], root: Path = ROOT,
+                 _cache: dict | None = None) -> bool:
+    """Does a file under ``skills/`` ship? Always, unless the profile names ``skill_platforms``:
+    then only when its skill's ``SKILL.md`` frontmatter ``platforms:`` names one of them — the
+    existing per-skill OS switch (``agent.skill_utils``), read by the same parser. A file outside
+    any skill directory (a category README) ships only for an unfiltered profile."""
+    if not skill_platforms:
+        return True
+    from agent.skill_utils import parse_frontmatter
+
+    cache = _cache if _cache is not None else {}
+    parts = rel.split("/")
+    for i in range(len(parts) - 1, 0, -1):
+        skill_dir = "/".join(parts[:i])
+        if skill_dir not in cache:
+            md = root / skill_dir / "SKILL.md"
+            if not md.is_file():
+                cache[skill_dir] = None
+            else:
+                front, _ = parse_frontmatter(md.read_text(encoding="utf-8"))
+                listed = front.get("platforms") or []
+                listed = listed if isinstance(listed, list) else [listed]
+                cache[skill_dir] = {str(p).strip().lower() for p in listed}
+        if cache[skill_dir] is not None:
+            return bool(cache[skill_dir] & {p.lower() for p in skill_platforms})
+    return False
+
+
 def first_party_files(plan: Plan, index: dict[str, Path], tracked: list[str],
-                      resources: tuple[str, ...], excluded: dict[str, str] | None = None) -> list[str]:
+                      resources: tuple[str, ...], excluded: dict[str, str] | None = None,
+                      skill_platforms: tuple[str, ...] = ()) -> list[str]:
     """Repo-relative files: shipped modules, their packages' data files, and resources."""
     tracked_set = set(tracked)
+    skill_cache: dict = {}
     rels: set[str] = set()
     package_dirs: set[str] = set()
     for module in plan.first_party:
@@ -359,7 +389,8 @@ def first_party_files(plan: Plan, index: dict[str, Path], tracked: list[str],
             continue
         parts = rel.split("/")
         if _in_resource(rel, resources):
-            rels.add(rel)
+            if parts[0] != "skills" or skill_ships(rel, skill_platforms, _cache=skill_cache):
+                rels.add(rel)
             continue
         # Package data: the nearest enclosing Python package must be shipped.
         for i in range(len(parts) - 1, 0, -1):
@@ -384,11 +415,14 @@ def _in_resource(rel: str, resources: tuple[str, ...]) -> bool:
 
 
 def resource_problems(app_files: set[str], tracked: list[str], resources: tuple[str, ...],
-                      excluded: dict[str, str]) -> list[str]:
-    """Every ``packaging.resources`` entry ships, file for file, what the packager selects for it."""
+                      excluded: dict[str, str], skill_platforms: tuple[str, ...] = ()) -> list[str]:
+    """Every ``packaging.resources`` entry ships, file for file, what the packager selects for it
+    (``skills/`` narrowed by the profile's ``skill_platforms``, as :func:`first_party_files` does)."""
     problems = []
+    cache: dict = {}
     for resource in resources:
-        wanted = {rel for rel in tracked if _in_resource(rel, (resource,)) and _data_file(rel, excluded)}
+        wanted = {rel for rel in tracked if _in_resource(rel, (resource,)) and _data_file(rel, excluded)
+                  and (not rel.startswith("skills/") or skill_ships(rel, skill_platforms, _cache=cache))}
         if not wanted:
             problems.append(f"resource selects no tracked file: {resource}")
         for rel in sorted(wanted - app_files):
@@ -459,7 +493,8 @@ def write_bundle(plan: Plan, manifest, dists: dict[str, Dist], stage: Path, out:
         shutil.rmtree(out)
     app, site = out / "app", out / "site-packages"
     tracked = tracked_files()
-    rels = first_party_files(plan, index, tracked, manifest.packaging_resources, manifest.excluded_data)
+    rels = first_party_files(plan, index, tracked, manifest.packaging_resources, manifest.excluded_data,
+                             manifest.packaging_skill_platforms)
     for rel in rels:
         _copy_file(ROOT / rel, app / rel)
     from scripts.build.agent import write_metadata
@@ -559,7 +594,7 @@ def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None) -> 
                        baked=(out / BAKED_MARKER).is_file(), app_files=app_files)
     problems += licence_problems(out, plan.distributions)
     problems += resource_problems(app_files, tracked_files(), manifest.packaging_resources,
-                                  manifest.excluded_data)
+                                  manifest.excluded_data, manifest.packaging_skill_platforms)
     if record["target"].startswith("win32"):  # other targets read the system zone database
         problems += named_timezone_problems(site)
     return problems

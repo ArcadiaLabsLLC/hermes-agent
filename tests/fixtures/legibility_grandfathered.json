@@ -132,21 +132,6 @@
   },
   {
    "depth": 5,
-   "lines": 106,
-   "unit": "mobile_core/src/hermes_mobile_core/turn_runner.py|TurnRunner._attempt"
-  },
-  {
-   "depth": 7,
-   "lines": 98,
-   "unit": "mobile_core/src/hermes_mobile_core/turn_runner.py|TurnRunner._attempt_anthropic"
-  },
-  {
-   "depth": 7,
-   "lines": 119,
-   "unit": "mobile_core/src/hermes_mobile_core/turn_runner.py|TurnRunner._attempt_responses"
-  },
-  {
-   "depth": 5,
    "lines": 84,
    "unit": "scripts/doc_cite_report.py|run"
   },

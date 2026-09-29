@@ -45,3 +45,19 @@ def start_worker(home: Path, *, receive: Callable[[dict], None],
         peer.close()
         raise
     return peer
+
+
+def subprocess_worker_enabled() -> bool:
+    """``conversations.subprocess_worker`` — off in a profile that may start no subprocess."""
+    from hermes_cli.config import config_switch
+
+    return config_switch("conversations", "subprocess_worker", default=True)
+
+
+def select_worker_factory():
+    """The worker factory the profile allows: this subprocess worker, or its in-process twin."""
+    if subprocess_worker_enabled():
+        return start_worker
+    from .in_process_peer import start_in_process_worker
+
+    return start_in_process_worker

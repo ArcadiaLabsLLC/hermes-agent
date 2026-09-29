@@ -175,9 +175,7 @@ class MessageHandling:
         # its own install is how "the service is stale" becomes a
         # measurement instead of a theory.
         try:
-            from agent_runtime.build_stamp import build_stamp
-
-            version_build = build_stamp().payload()
+            version_build = self.shell.version_build()
         except Exception as exc:
             version_build = {
                 "commit": None,

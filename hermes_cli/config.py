@@ -2563,6 +2563,9 @@ def sanitize_env_file() -> int:
 def _read_env_lines(env_path: Path) -> list:
     """Read ``.env`` lines, normalized. Explicit UTF-8 (Windows defaults to cp1252) with BOM
     tolerance (Notepad adds one)."""
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    if _host_secrets.is_view(env_path):
+        return _sanitize_env_lines(env_path.read_text("utf-8-sig", "replace").splitlines(keepends=True))
     with open(env_path, encoding="utf-8-sig", errors="replace") as f:
         return _sanitize_env_lines(f.readlines())
 
@@ -2571,6 +2574,9 @@ def _write_env_lines(env_path: Path, lines: list, *, preserve_mode: bool) -> Non
     """Atomically replace ``.env`` (tmp file + fsync + rename).
     ``preserve_mode`` keeps the original file mode (e.g. 0640 for Docker volume mounts) instead of
     letting ``_secure_file`` tighten to 0600; a new file is always secured."""
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    if _host_secrets.is_view(env_path):
+        return _host_secrets.write_text(env_path.path, "".join(lines))
     original_mode = None
     try:
         original_mode = stat.S_IMODE(env_path.stat().st_mode) if preserve_mode else None
@@ -2713,6 +2719,8 @@ def save_env_value(key: str, value: str):
     value = _check_non_ascii_credential(key, value)
     ensure_hermes_home()
     env_path = get_env_path()
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    env_path = _host_secrets.view(env_path)
 
     lines = _read_env_lines(env_path) if env_path.exists() else []
     serialized_value = _quote_env_value(value)
@@ -2746,6 +2754,8 @@ def remove_env_value(key: str) -> bool:
     if not _ENV_VAR_NAME_RE.match(key):
         raise ValueError(f"Invalid environment variable name: {key!r}")
     env_path = get_env_path()
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    env_path = _host_secrets.view(env_path)
     if not env_path.exists():
         _publish_env_value(key, None)
         return False

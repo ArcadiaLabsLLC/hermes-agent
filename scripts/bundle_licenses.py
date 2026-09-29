@@ -21,12 +21,21 @@ a known copyleft component compiled into a permissively-labelled wheel
 (:data:`EMBEDDED_COMPONENTS`), or a distribution whose licence text is not in
 the output. Flagging never removes anything: what ships is the closure's
 decision, not this module's.
+
+A wheel that ships no licence text gets a vetted one from
+``agent_runtime/bundle_profiles/licence-texts/`` (:func:`licence_overrides`):
+``<distribution>/<version>/<file>``, copied to the output's ``licence-texts/``
+and cited like any other licence file. An override names the version it was
+vetted at; a different shipped version does not get it, and
+:func:`licence_problems` fails until someone re-vets the text.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
+import shutil
 import tomllib
 import uuid
 from email.parser import HeaderParser
@@ -36,6 +45,9 @@ ROOT = Path(__file__).resolve().parents[1]
 LICENSES_JSON = "licenses.json"
 SBOM_JSON = "sbom.cdx.json"
 INTERPRETER_LOCK = ROOT / "agent_runtime" / "bundle_profiles" / "interpreters.lock.json"
+LICENCE_TEXTS = ROOT / "agent_runtime" / "bundle_profiles" / "licence-texts"
+#: Where an output carries the override texts it cites (output-relative).
+OUTPUT_LICENCE_TEXTS = "licence-texts"
 
 #: Copyleft code compiled into a wheel whose own metadata names a permissive licence
 #: (or none). Keyed by normalized distribution name.
@@ -159,6 +171,38 @@ def source_url(meta) -> str | None:
     return (meta.get("Home-page") or "").strip() or None
 
 
+# -- vetted licence texts for wheels that ship none ----------------------------------------------
+
+
+def licence_overrides(root: Path = LICENCE_TEXTS) -> dict[str, dict]:
+    """normalized distribution name -> its vetted override (``index.json``'s ``overrides``)."""
+    index = root / "index.json"
+    if not index.is_file():
+        return {}
+    return json.loads(index.read_text(encoding="utf-8"))["overrides"]
+
+
+def _same_licence(a: str, b: str) -> bool:
+    """``Apache 2.0`` and ``Apache-2.0`` name one licence."""
+    return re.sub(r"[\s_-]+", "", a).lower() == re.sub(r"[\s_-]+", "", b).lower()
+
+
+def place_override(out: Path, name: str, override: dict, root: Path = LICENCE_TEXTS) -> list[str]:
+    """Copy ``override``'s texts into ``out/licence-texts/<name>/<version>/``; output-relative paths.
+    A text whose bytes no longer match the SHA-256 it was vetted with is refused, loudly."""
+    placed = []
+    for filename, digest in sorted(override["files"].items()):
+        source = root / name / override["version"] / filename
+        actual = hashlib.sha256(source.read_bytes()).hexdigest()
+        if actual != digest:
+            raise ValueError(f"vetted licence text {source} changed: sha256 {actual}, vetted {digest}")
+        rel = f"{OUTPUT_LICENCE_TEXTS}/{name}/{override['version']}/{filename}"
+        (out / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, out / rel)
+        placed.append(rel)
+    return placed
+
+
 # -- the wheel each distribution was installed from ----------------------------------------------
 
 
@@ -195,8 +239,8 @@ def installed_wheel(info_dir: Path, name: str, version: str, wheels: dict) -> di
 
 def _component(name: str, version: str, expression: str, files: list[str], url: str | None,
          wheel: dict | None, homepage: str | None, components: list[dict[str, str]] = (),
-         **extra) -> dict:
-    reasons = review_reasons(expression, list(components))
+         more_reasons: list[str] = (), **extra) -> dict:
+    reasons = review_reasons(expression, list(components)) + list(more_reasons)
     if not files and not extra.get("licence_files_placed_by"):
         reasons.append("no licence text in the output")
     sha = (wheel or {}).get("hash", "")
@@ -210,10 +254,13 @@ def _component(name: str, version: str, expression: str, files: list[str], url: 
     return row
 
 
-def distribution_rows(out: Path, names, wheels: dict | None = None) -> list[dict]:
-    """A row for each of ``names`` installed in ``out/site-packages``."""
+def distribution_rows(out: Path, names, wheels: dict | None = None, overrides: dict | None = None,
+                      override_root: Path = LICENCE_TEXTS) -> list[dict]:
+    """A row for each of ``names`` installed in ``out/site-packages``; a wheel with no licence text
+    gets its vetted override when the override names the shipped version."""
     site = out / "site-packages"
     wheels = lock_wheels() if wheels is None else wheels
+    overrides = licence_overrides(override_root) if overrides is None else overrides
     by_name = {}
     for info in site.glob("*.dist-info"):
         meta = _metadata(info)
@@ -222,9 +269,19 @@ def distribution_rows(out: Path, names, wheels: dict | None = None) -> list[dict
     for name in sorted(names):
         info, meta = by_name[name]
         files = [p.relative_to(out).as_posix() for p in licence_files(info, meta)]
-        rows.append(_component(name, meta["Version"], licence_expression(meta), files,
+        expression, more, extra = licence_expression(meta), [], {}
+        override = overrides.get(name)
+        if not files and override and override["version"] == meta["Version"]:
+            files = place_override(out, name, override, override_root)
+            extra["licence_text_override"] = {k: override[k] for k in ("source_url", "tag", "commit")}
+            if expression.upper() in {"UNKNOWN", "NONE", ""}:
+                expression = override["licence"]
+            elif not _same_licence(expression, override["licence"]):
+                more.append(f"vetted licence text is {override['licence']}; the wheel metadata says "
+                            f"{expression}")
+        rows.append(_component(name, meta["Version"], expression, files,
                          source_url(meta), installed_wheel(info, name, meta["Version"], wheels),
-                         source_url(meta), EMBEDDED_COMPONENTS.get(name, [])))
+                         source_url(meta), EMBEDDED_COMPONENTS.get(name, []), more, **extra))
     return rows
 
 
@@ -298,10 +355,11 @@ def cyclonedx(output: str, commit: str, rows: list[dict]) -> dict:
 
 
 def write_licence_records(out: Path, output: str, names, target: str, commit: str,
-                          *, core: bool, wheels: dict | None = None) -> dict:
+                          *, core: bool, wheels: dict | None = None, overrides: dict | None = None,
+                          override_root: Path = LICENCE_TEXTS) -> dict:
     """``licenses.json`` + ``sbom.cdx.json`` in ``out`` for ``names`` (and, for the core, the
     interpreter and first-party app). Returns the licences record."""
-    rows = distribution_rows(out, names, wheels)
+    rows = distribution_rows(out, names, wheels, overrides, override_root)
     if core:
         rows = [interpreter_row(target), first_party_row(out, commit), *rows]
     record = {"schema": 1, "output": output, "target": target, "commit": commit,
@@ -312,9 +370,11 @@ def write_licence_records(out: Path, output: str, names, target: str, commit: st
     return record
 
 
-def licence_problems(out: Path, names) -> list[str]:
+def licence_problems(out: Path, names, overrides: dict | None = None) -> list[str]:
     """``licenses.json`` names exactly ``names`` (plus the core's two), every licence file it
-    cites is in the output, and the SBOM lists the same components."""
+    cites is in the output, no vetted licence-text override names a version other than the one
+    shipped, and the SBOM lists the same components."""
+    overrides = licence_overrides() if overrides is None else overrides
     path = out / LICENSES_JSON
     if not path.is_file():
         return [f"no {LICENSES_JSON} in {out.name}"]
@@ -324,6 +384,12 @@ def licence_problems(out: Path, names) -> list[str]:
     problems = [f"{LICENSES_JSON} lists a distribution the output does not ship: {n}"
                 for n in sorted(listed - set(names))]
     problems += [f"{LICENSES_JSON} does not list a shipped distribution: {n}" for n in sorted(set(names) - listed)]
+    for row in rows:
+        override = overrides.get(row["distribution"])
+        if override and override["version"] != row["version"]:
+            problems.append(f"licence-text override of {row['distribution']} is vetted at "
+                            f"{override['version']}, the output ships {row['version']}: re-vet it "
+                            f"(agent_runtime/bundle_profiles/licence-texts)")
     for row in record["components"]:
         if row.get("licence_files_placed_by"):
             continue

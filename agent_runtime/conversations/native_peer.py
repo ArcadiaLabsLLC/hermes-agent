@@ -12,7 +12,6 @@ import threading
 import uuid
 from collections.abc import Callable
 from concurrent.futures import Future, TimeoutError
-import psutil
 
 from .model import ConversationError, Refusal
 
@@ -39,30 +38,28 @@ def _frames(stream):
             yield frame
 
 
-class NativePeer:
-    def __init__(self, process: subprocess.Popen, *, receive: Callable[[dict], None],
-                 lost: Callable[[], None], containment=None):
-        self.process, self.receive, self.lost = process, receive, lost
-        self.containment = containment
-        self.process_identity = (process.pid, psutil.Process(process.pid).create_time())
+def encode_frame(frame: dict) -> bytes:
+    """One wire line; a frame over the bound is refused before it is sent."""
+    encoded = json.dumps(frame, ensure_ascii=True, separators=(",", ":")).encode() + b"\n"
+    if len(encoded) > MAX_FRAME_BYTES:
+        raise ConversationError(Refusal.INVALID_REQUEST)
+    return encoded
+
+
+class PeerCore:
+    """The RPC half every worker peer shares: pending calls, replies, questions, events.
+
+    A subclass provides ``alive``, ``execution_possible``, ``process_identity`` and
+    ``_send(frame, encoded)``; it feeds each frame the worker emits to :meth:`_route`
+    and calls :meth:`_ended` once, when the worker can emit no more.
+    """
+
+    def __init__(self, *, receive: Callable[[dict], None], lost: Callable[[], None]):
+        self.receive, self.lost = receive, lost
         self._lock = threading.RLock()
         self._write_lock = threading.Lock()
         self._pending: dict[str, Future] = {}
         self._closed = False
-        self._close_lock = threading.Lock()
-        self._disposed = False
-        self._reader = threading.Thread(target=self._read, daemon=True,
-                                        name="native-conversation-reader")
-        self._reader.start()
-
-    @property
-    def alive(self) -> bool:
-        with self._lock:
-            return not self._closed and self.process.poll() is None
-
-    @property
-    def execution_possible(self) -> bool:
-        return self.process.poll() is None
 
     def call(self, method: str, params: dict, *, timeout: float = 60) -> dict:
         rid = uuid.uuid4().hex
@@ -92,37 +89,72 @@ class NativePeer:
                 self._pending.pop(rid, None)
 
     def write(self, frame: dict) -> None:
-        encoded = json.dumps(frame, ensure_ascii=True, separators=(",", ":")).encode() + b"\n"
-        if len(encoded) > MAX_FRAME_BYTES:
-            raise ConversationError(Refusal.INVALID_REQUEST)
+        encoded = encode_frame(frame)
         with self._write_lock:
             if not self.alive:
                 raise ConversationError(Refusal.WORKER_LOST)
-            try:
-                self.process.stdin.write(encoded)
-                self.process.stdin.flush()
-            except (BrokenPipeError, OSError, ValueError) as exc:
-                raise ConversationError(Refusal.WORKER_LOST) from exc
+            self._send(frame, encoded)
+
+    def _send(self, frame: dict, encoded: bytes) -> None:
+        raise NotImplementedError
+
+    def _route(self, frame: dict) -> None:
+        with self._lock:
+            rid = frame.get("id")
+            pending = self._pending.get(rid) if isinstance(rid, str) and "method" not in frame else None
+        if pending is not None:
+            if not pending.done():
+                pending.set_result(frame)
+        elif "method" in frame:
+            self.receive(frame)
+
+    def _ended(self) -> None:
+        with self._lock:
+            self._closed = True
+            pending = list(self._pending.values())
+        for request in pending:
+            if not request.done():
+                request.set_exception(ConversationError(Refusal.WORKER_LOST))
+        self.lost()
+
+
+class NativePeer(PeerCore):
+    def __init__(self, process: subprocess.Popen, *, receive: Callable[[dict], None],
+                 lost: Callable[[], None], containment=None):
+        import psutil
+
+        super().__init__(receive=receive, lost=lost)
+        self.process = process
+        self.containment = containment
+        self.process_identity = (process.pid, psutil.Process(process.pid).create_time())
+        self._close_lock = threading.Lock()
+        self._disposed = False
+        self._reader = threading.Thread(target=self._read, daemon=True,
+                                        name="native-conversation-reader")
+        self._reader.start()
+
+    @property
+    def alive(self) -> bool:
+        with self._lock:
+            return not self._closed and self.process.poll() is None
+
+    @property
+    def execution_possible(self) -> bool:
+        return self.process.poll() is None
+
+    def _send(self, frame: dict, encoded: bytes) -> None:
+        try:
+            self.process.stdin.write(encoded)
+            self.process.stdin.flush()
+        except (BrokenPipeError, OSError, ValueError) as exc:
+            raise ConversationError(Refusal.WORKER_LOST) from exc
 
     def _read(self) -> None:
         try:
             for frame in _frames(self.process.stdout):
-                with self._lock:
-                    rid = frame.get("id")
-                    pending = self._pending.get(rid) if isinstance(rid, str) and "method" not in frame else None
-                if pending is not None:
-                    if not pending.done():
-                        pending.set_result(frame)
-                elif "method" in frame:
-                    self.receive(frame)
+                self._route(frame)
         finally:
-            with self._lock:
-                self._closed = True
-                pending = list(self._pending.values())
-            for request in pending:
-                if not request.done():
-                    request.set_exception(ConversationError(Refusal.WORKER_LOST))
-            self.lost()
+            self._ended()
 
     def close(self) -> None:
         """Explicit service shutdown only; never invoked for view/socket loss."""

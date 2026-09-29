@@ -247,6 +247,8 @@ def _load_json_file(path: Path) -> dict:
     ``docker exec`` as root wrote it, the gosu-dropped gateway can't read it)
     would otherwise silently leave the user unauthorized.
     """
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    path = _host_secrets.view(path)
     if not path.exists():
         return {}
     try:
@@ -277,6 +279,9 @@ def _load_json_file(path: Path) -> dict:
 
 
 def _save_json_file(path: Path, data: dict) -> None:
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    if _host_secrets.bound():
+        return _host_secrets.write_json(path, data)
     atomic_json_write(path, data, mode=0o600)
 
 

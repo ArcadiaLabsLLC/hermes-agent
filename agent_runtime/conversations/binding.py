@@ -27,7 +27,10 @@ def bind(root: Path, install_id: str) -> ConversationService:
             if (_owner.root, _owner.install_id) != (root.resolve(), install_id):
                 raise ConversationError(Refusal.WRONG_OWNER)
             return _owner
-        _owner = ConversationService(root, install_id, profile_home=_profile_home)
+        from .worker import select_worker_factory
+
+        _owner = ConversationService(root, install_id, profile_home=_profile_home,
+                                     worker_factory=select_worker_factory())
         return _owner
 
 

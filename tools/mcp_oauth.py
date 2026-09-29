@@ -385,6 +385,8 @@ def _can_open_browser() -> bool:
 
 def _read_json(path: Path) -> dict | None:
     """Read a JSON file, returning None if it doesn't exist or is invalid."""
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    path = _host_secrets.view(path)
     if not path.exists():
         return None
     try:
@@ -398,6 +400,9 @@ def _write_json(path: Path, data: dict) -> None:
     """OAuth tokens/client info at 0600 from creation, parent tightened to 0700 (``secure_parent_dir``
     refuses ``/``, top-level dirs and the install tree — #25821, #93050)."""
     from hermes_constants import mkdir_under_hermes_home
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    if _host_secrets.bound():
+        return _host_secrets.write_json(path, data, default=str)
 
     mkdir_under_hermes_home(path.parent)
     secure_parent_dir(path)
@@ -591,8 +596,10 @@ class HermesTokenStorage:
         server's metadata document cannot be re-fetched (#115329)."""
         # The ``.refresh.lock`` sidecar is deliberately kept: flock is inode-bound, so unlinking it
         # while a peer holds the fence would let the next acquirer lock a fresh inode (two holders).
+        from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
         for p in (self._tokens_path(), self._client_info_path(), self._cimd_rejected_path(),
                   *(() if keep_metadata else (self._meta_path(),))):
+            p = _host_secrets.view(p)
             p.unlink(missing_ok=True)
 
     def snapshot(self) -> dict[str, bytes]:

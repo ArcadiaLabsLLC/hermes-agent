@@ -14,7 +14,9 @@ switch Hermes already has:
   (:mod:`agent_runtime.bundle_profiles.route_gate`);
 * ``packaging`` -> the import-closure walk's roots and switched-off modules,
   the optional extras the bundle ships, and the base distributions it omits
-  (``scripts/bundle_profile_closure.py``).
+  (``scripts/bundle_profile_closure.py``); for a phone profile also its targets,
+  the skill marker, and the compiled distributions it admits
+  (``scripts/bundle_profile_gate.py``).
 
 ``unswitched`` records the matrix rows that have no existing switch, so the gap
 is data a reader can see rather than a flag somebody invented.
@@ -48,6 +50,10 @@ KEYS_READ_OUTSIDE_DEFAULTS = {
     "gateway.platform_adapters": "gateway/run_adapters.py::platform_adapters_allowed",
     "updates.checkout_bound": "agent_runtime/build_stamp.py::checkout_bound_enabled",
     "voice.mode_enabled": "tui_gateway/methods_voice.py::_voice_mode_available",
+    # The phone switches (embedded-hermes plan Stage 2 steps 6 and 8, and the sign-in runner).
+    "agent.provider_sdks": "agent/transports/httpx_client.py::provider_sdks_enabled",
+    "conversations.subprocess_worker": "agent_runtime/conversations/worker.py::subprocess_worker_enabled",
+    "auth.subprocess_signin": "agent_runtime/provider_signin.py::subprocess_signin_enabled",
     # ``providers.<slug>.enabled`` is upstream's per-provider switch (DEFAULT_CONFIG's ``providers``
     # is an empty mapping, so no slug is a default key).
     "providers.qwen-oauth.enabled": "hermes_cli/config_providers.py::is_provider_enabled",
@@ -92,6 +98,14 @@ class ProfileManifest:
     #: requirement of a shipped distribution -> why a placeholder module stands in for it
     #: (``av`` under faster-whisper: arrays only); the closure never follows into it
     placeholder_distributions: Mapping[str, str] = dataclasses.field(default_factory=dict)
+    #: ``scripts/bundle_profile_closure.TARGETS`` keys the bundle is built for; empty = the
+    #: desktop installer's interpreter
+    packaging_targets: tuple[str, ...] = ()
+    #: when non-empty, a skill ships only if its ``platforms:`` frontmatter names one of these —
+    #: the existing per-skill OS switch, so a phone ships only skills marked for phones
+    packaging_skill_platforms: tuple[str, ...] = ()
+    #: compiled (non-pure-Python) distribution -> why the profile gate admits it
+    admitted_native: Mapping[str, str] = dataclasses.field(default_factory=dict)
 
 
 def manifest_path(profile: str) -> Path:
@@ -177,6 +191,9 @@ def parse_manifest(data: Any, *, validate: bool = True) -> ProfileManifest:
         dynamic_distributions=_reasons(packaging.get("dynamic_distributions"), "packaging.dynamic_distributions"),
         placeholder_distributions=_reasons(packaging.get("placeholder_distributions"),
                                            "packaging.placeholder_distributions"),
+        packaging_targets=_strings(packaging.get("targets"), "packaging.targets"),
+        packaging_skill_platforms=_strings(packaging.get("skill_platforms"), "packaging.skill_platforms"),
+        admitted_native=_reasons(packaging.get("admitted_native"), "packaging.admitted_native"),
     )
     if validate:
         validate_manifest(manifest)

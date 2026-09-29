@@ -19,6 +19,7 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ### Filed on arrival — 2026-09-28 (lane w4-hfix2)
 - [ ] **36 reds on this Windows box at `687f1fbe70e`, identical before and after the httpx2 2.12.0 bump: `tests/tools/test_mcp_{cimd,client_cert,oauth,oauth_integration,oauth_user_agent,oauth_manager,sse_transport,multiplex_connection_keys,startup_summary_names_failures,shared_connection_resolved_identity,tool_issue_948,windows_orphan_fix}.py` (mostly `OAuthNonInteractiveError`, `npx` path resolution, SSE `auth=`/`sse_read_timeout` not forwarded) and `tests/scripts/test_bundle_native.py` — triage environment vs code.** · runner logs of lane w4-hfix2 (base vs branch, same 36). **UNCLAIMED**
+
 ### Filed on arrival — 2026-09-27 (Windows console signal safety)
 
 - [ ] **Retire the Windows signal-safety carry when upstream adopts an equivalent fix.** · [[Windows console signal safety]]; held upstream candidate recorded in `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md`; no parallel supervisor or PID helper added, no PR submitted.

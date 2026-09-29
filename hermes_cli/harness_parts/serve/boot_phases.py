@@ -62,9 +62,7 @@ class BootPhases:
         #    the shape of the dispatch dead-flag-proxy incident, which ran
         #    green for a week. Resolved once per process and cached.
         try:
-            from agent_runtime.build_stamp import build_stamp
-
-            self.build_block = build_stamp().frame_payload()
+            self.build_block = self.shell.build_block()
         except Exception as exc:  # an instrument must never take the boot down
             self.build_block = {
                 "commit": None,
@@ -89,9 +87,7 @@ class BootPhases:
         self.auth_block: dict[str, Any] = {"token_file": "error:root_unresolved"}
         if self.store_root_path is not None:
             try:
-                from agent_runtime.serve_auth import ensure_token
-
-                self.auth_block = ensure_token(self.store_root_path).payload()
+                self.auth_block = self.shell.auth_block(self.store_root_path)
             except Exception as exc:
                 self.auth_block = {"token_file": f"error:{type(exc).__name__}"}
         # 2b. WHICH INSTALL. The secret above says a caller MAY talk to this
@@ -173,6 +169,26 @@ class BootPhases:
             self.socket_lock = None
             self.socket_block = {"outcome": f"error:{type(exc).__name__}"}
         return None
+
+    def _boot_embedded_conversations(self) -> None:
+        """An embedded serve's host app is its only client and it has no socket lane: bind
+        the ``runtime.conversation.*`` owner here, where a daemon binds it with its socket.
+
+        The worker factory is the profile's (``conversations.subprocess_worker``): on a phone,
+        the in-process worker behind ``NativePeer``.
+        """
+
+        if (self.shell.kind != "embedded" or self.store_root_path is None
+                or not self.install_block.get("install_id")):
+            return
+        try:
+            from agent_runtime.conversations.binding import bind as bind_conversations
+            self.conversation_owner = bind_conversations(
+                self.store_root_path, self.install_block["install_id"])
+        except Exception:
+            import logging as _conversation_logging
+            _conversation_logging.getLogger(__name__).warning(
+                "independent conversations unavailable in the embedded serve")
 
     def _open_socket_lane(self, lock_result: Any) -> None:
         """This serve won the per-root lock: bind the lane and advertise it."""
@@ -437,8 +453,6 @@ class BootPhases:
         self.instance_block: dict[str, Any] = {"outcome": "error:root_unresolved"}
         if self.store_root_path is not None:
             try:
-                from agent_runtime.serve_registry import register_serve_instance
-
                 # WHICH HOME this child resolved (D-3). store_root answers a
                 # DIFFERENT question — one root is shared by serves on
                 # different profile homes — so from outside the process
@@ -453,7 +467,7 @@ class BootPhases:
                     resolved_home: str | None = str(get_hermes_home())
                 except Exception:
                     resolved_home = None
-                self.instance_block = register_serve_instance(
+                self.instance_block = self.shell.register_instance(
                     self.store_root_path,
                     transport=self.socket_transport,
                     build=self.build_block,
@@ -470,7 +484,7 @@ class BootPhases:
                     # connecting.
                     service=self.service,
                     starter_pid=self.starter_pid,
-                ).payload()
+                )
             except Exception as exc:
                 self.instance_block = {"outcome": f"error:{type(exc).__name__}"}
 
@@ -498,9 +512,7 @@ class BootPhases:
         # it (pinned by the non-service arm of the child e2e).
         if self.service and self.store_root_path is not None:
             try:
-                from agent_runtime.serve_registry import open_serve_stderr_log
-
-                self.service_stderr_log = open_serve_stderr_log(
+                self.service_stderr_log = self.shell.open_stderr_log(
                     self.store_root_path, boot_id=self.boot_id, build=self.build_block
                 )
             except Exception:  # pragma: no cover - the opener never raises
@@ -576,11 +588,7 @@ class BootPhases:
             # ``boot_id``. A live row — this boot's own entry, every time —
             # writes nothing, so a quiet machine's log stays quiet.
             try:
-                from agent_runtime.serve_registry import (
-                    prune_stale_serve_instances,
-                )
-
-                prune_report = prune_stale_serve_instances(
+                prune_report = self.shell.prune_stale_instances(
                     self.store_root_path, emit=self._service_log, boot_id=self.boot_id
                 )
                 if prune_report.get("deleted_count") or any(
@@ -627,9 +635,7 @@ class BootPhases:
             # consumes a REASON, so without a floor this directory grows for the
             # life of the machine.
             try:
-                from agent_runtime.serve_registry import prune_serve_ended
-
-                prune_serve_ended(self.store_root_path)
+                self.shell.prune_ended(self.store_root_path)
             except Exception:
                 pass
 

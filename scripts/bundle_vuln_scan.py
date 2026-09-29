@@ -109,9 +109,28 @@ def _parse_version(text: str):
         return None
 
 
+def _range_contains(rng: dict, target) -> bool:
+    """One OSV ECOSYSTEM range, its events walked in order: is ``target`` inside an interval
+    (``introduced`` inclusive, ``fixed`` exclusive, ``last_affected`` inclusive, open-ended last)?"""
+    low = None
+    for event in rng.get("events", []):
+        if "introduced" in event:
+            low = _parse_version("0") if event["introduced"] == "0" else _parse_version(event["introduced"])
+        elif low is not None and "fixed" in event:
+            fixed = _parse_version(event["fixed"])
+            if fixed is not None and low <= target < fixed:
+                return True
+            low = None
+        elif low is not None and "last_affected" in event:
+            last = _parse_version(event["last_affected"])
+            if last is not None and low <= target <= last:
+                return True
+            low = None
+    return low is not None and low <= target
+
+
 def affects(record: dict, name: str, version: str) -> bool:
-    """OSV semantics: listed in ``versions``, or inside an ECOSYSTEM range
-    (``introduced`` inclusive, ``fixed`` exclusive, ``last_affected`` inclusive)."""
+    """OSV semantics: listed in ``versions``, or inside an ECOSYSTEM range (:func:`_range_contains`)."""
     if record.get("withdrawn"):
         return False
     target = _parse_version(version)
@@ -121,27 +140,9 @@ def affects(record: dict, name: str, version: str) -> bool:
             continue
         if version in affected.get("versions", []):
             return True
-        if target is None:
-            continue
-        for rng in affected.get("ranges", []):
-            if rng.get("type") != "ECOSYSTEM":
-                continue
-            low = None
-            for event in rng.get("events", []):
-                if "introduced" in event:
-                    low = _parse_version("0") if event["introduced"] == "0" else _parse_version(event["introduced"])
-                elif low is not None and "fixed" in event:
-                    fixed = _parse_version(event["fixed"])
-                    if fixed is not None and low <= target < fixed:
-                        return True
-                    low = None
-                elif low is not None and "last_affected" in event:
-                    last = _parse_version(event["last_affected"])
-                    if last is not None and low <= target <= last:
-                        return True
-                    low = None
-            if low is not None and low <= target:
-                return True
+        if target is not None and any(rng.get("type") == "ECOSYSTEM" and _range_contains(rng, target)
+                                      for rng in affected.get("ranges", [])):
+            return True
     return False
 
 

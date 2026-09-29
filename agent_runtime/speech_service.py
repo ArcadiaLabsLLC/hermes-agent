@@ -520,14 +520,18 @@ class SpeechService:
         with self._lock:
             for slot in (self.stt, self.tts):
                 if which in (slot.kind, "both"):
-                    if slot.kind == "stt":
-                        for stream in self._streams.values():
-                            stream.ended = True
-                        self._streams.clear()
-                    if slot.state == "loaded":
-                        self._drop(slot, "unloaded")
-                    slot.error = None
+                    self._unload_slot(slot)
             return self.status()
+
+    def _unload_slot(self, slot: _Slot) -> None:
+        """Unload one model (caller holds the lock); unloading STT ends every open recognition stream."""
+        if slot.kind == "stt":
+            for stream in self._streams.values():
+                stream.ended = True
+            self._streams.clear()
+        if slot.state == "loaded":
+            self._drop(slot, "unloaded")
+        slot.error = None
 
     # ── recognition ─────────────────────────────────────────────────────
 

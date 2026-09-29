@@ -1,15 +1,27 @@
 {
-  "measured_at": "2026-09-27",
+  "measured_at": "2026-09-28",
   "base": "2f14d5e6e4",
-  "files": 117,
-  "deleted_lines": 770,
-  "heavy": 3,
+  "files": 155,
+  "deleted_lines": 921,
+  "heavy": 4,
   "reasons": [
+    {
+      "change": "phone-P1 landing tip (lanes p1-hsplit + p1-hsec + p1-hloop + p1-hint) on origin/main 48ec00999a",
+      "files": "117 -> 155: origin/main 48ec00999a already measures 143 (unrecorded main drift, 26 files); p1-hsec adds 12 (its seams, reasons row above); p1-hsplit, p1-hloop and p1-hint add 0",
+      "deleted_lines": "770 -> 921: all 151 from origin/main's unrecorded drift; the three phone lanes and p1-hint add 0 (every phone edit to an upstream file is additive)",
+      "reason": "The ratchet was red on main before this landing (main 143/921/4 vs fixture 117/770/3). The phone lanes' own share is p1-hsec's +12 additive seam files, argued in its row above; the main drift is not absorbed as reviewed — its audit and disposition stay the open fork-hygiene row 'Reconcile the upstream-footprint ledger with main's unrecorded growth'. Measured with scripts/upstream_footprint.py's own counting over git diff --numstat base..<ref> for origin/main, each lane commit and the tip."
+    },
     {
       "change": "Owner-approved optional Discussion conclusion, 2026-09-28",
       "files": "unchanged; gateway/hosted_room_discussion.py already carries the host seam",
       "deleted_lines": "+4 (766 -> 770 allowance); heavy unchanged",
       "reason": "Extend the existing Group Chat planner and turn-coordinate validation for one opt-in ordinary conclusion turn, instead of creating a second scheduler. Relative to main 08ee5074cb, this file changes from +85/-33 to +143/-37. Retires through the held generic host-surface PR recorded in upstream-footprint-ledger.md. Main already measures 141/900/4 against 117/766/3; that unrelated drift is not absorbed by this allowance. Conclusion-off controls and restart, approval, Stop and failure tests preserve the existing behavior."
+    },
+    {
+      "change": "phone credentials + history storage seams (lane p1-hsec, embedded-hermes Stage 2 steps 5/9)",
+      "files": "+12 (tree 142 -> 154 at this branch; the fixture was already below the base tree before this lane)",
+      "deleted_lines": "flat (902): every edit is additive",
+      "reason": "One-line views / bound-branches at each credential store's read/write chokepoint (auth.json, .anthropic_oauth.json, .env, mcp-tokens, pairing, webhook, Nous shared store, borrowed CLI stores) and at SessionDB construction and the transcript writers, delegating to fork-only agent_runtime/host_store. Unbound (every desktop) each seam is a no-op. No plugin hook reaches these file I/O points."
     },
     {
       "change": "ACP named-provider identity correction (owner requested 2026-09-24)",

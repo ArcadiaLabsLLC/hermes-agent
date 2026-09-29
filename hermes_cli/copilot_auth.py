@@ -116,6 +116,9 @@ def _invalidate_gh_cli_token_cache() -> None:
 def _try_gh_cli_token() -> Optional[str]:
     """Token from ``gh auth token`` when available; the result (incl. a miss) is cached per TTL."""
     global _gh_cli_token_cache
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: borrowed store refused when bound
+    if _host_secrets.external_logins_refused():
+        return None
     now = time.monotonic()
     cache = _gh_cli_token_cache
     if cache is not None and now - cache[0] < _GH_CLI_TOKEN_CACHE_TTL_SECONDS:

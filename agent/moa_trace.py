@@ -109,6 +109,10 @@ def save_moa_turn(
                 "streamed": aggregator_streamed, "output_location": output_location,
             },
         }
+        from agent_runtime.host_store import history as _host_history  # fork seam: phone history storage seam
+        if _host_history.bound():
+            _host_history.append_json_records(path, [record])
+            return
         with path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
     except Exception as exc:  # pragma: no cover - tracing must never break a turn
