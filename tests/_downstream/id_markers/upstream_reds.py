@@ -122,6 +122,14 @@ if _WIN:
             _up_red("the fabricated 8.3 profile alias is refused as a drive root before "
                     "the normalizer rebuilds it; 10 of the suite's assertions"),
         ),
+        # Lane h10-fhrest (2026-09-29): _tool_defs_cache_key is upstream's bytes; on NTFS
+        # shutil.copy2 over an existing file keeps its file index and creation-time
+        # st_ctime, so with the mtime pinned back every keyed stat field is unchanged.
+        "tests/tools/test_model_tools.py::"
+        "test_tool_defs_cache_key_sees_config_replacement_with_pinned_mtime": (
+            _up_red("NTFS copy2 keeps st_ino and creation st_ctime; the pinned-mtime swap "
+                    "leaves every keyed stat field equal"),
+        ),
         "tests/hermes_cli/test_gateway_windows.py::"
         "test_exec_schtasks_round_trips_non_ascii_task_argument_live": (
             _up_red("schtasks /Create is refused unelevated (Access is denied); the "
