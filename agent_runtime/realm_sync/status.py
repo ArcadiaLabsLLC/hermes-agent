@@ -33,6 +33,7 @@ from .artifacts import (
 from .drift import (
     _BOARD_DRIFT_COUNTS,
     _FLOW_GRAPH_DRIFT_COUNTS,
+    _PERSONA_DEFINITION_DRIFT_COUNTS,
     _OFFICE_DRIFT_COUNTS,
     _PERSONA_INSTANCE_DRIFT_COUNTS,
     _SKILL_DRIFT_COUNTS,
@@ -256,6 +257,11 @@ def _status_store_drift(realm_id: str, workspaces: list[Workspace]) -> dict[str,
         # reason: a drift row the operator cannot address is an exit that does
         # not exist.
         "skills": _drift_counts(drift_items, _SKILL_DRIFT_COUNTS),
+        # Additive sixth family (2026-09-28): the persona DEFINITIONS, compared
+        # as the resolved record's projection against the last-synced baseline,
+        # so a local model-switcher edit lights "unpublished changes". Arrives
+        # with its revert arm, for the canvas family's reason.
+        "personas": _drift_counts(drift_items, _PERSONA_DEFINITION_DRIFT_COUNTS),
         "items": [item.as_dict() for item in drift_items],
     }
 

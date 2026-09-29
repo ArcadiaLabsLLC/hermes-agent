@@ -173,25 +173,13 @@ def _resolve_artifacts_with_projection(realm_id: str) -> _ResolvedPublish:
     # (plan §5): an office-only persona must be materializable on pull. The
     # wanted set was workspace.agent_ids only, which would sync a placement
     # referencing a persona the member cannot resolve.
-    required_persona_ids = _required_realm_persona_ids(
-        workspaces, office_persona_ids=office_scan.persona_ids
+    published_persona_ids = published_realm_persona_ids(
+        realm, workspaces, personas, office_persona_ids=office_scan.persona_ids
     )
-    selected_persona_ids = (
-        list(realm.agent_selection or [])
-        if getattr(realm, "agent_publish_mode", "workspace") == "selected"
-        else []
-    )
-    wanted_persona_ids = list(
-        dict.fromkeys([*required_persona_ids, *selected_persona_ids])
-    )
-    published_persona_ids: list[str] = []
     profile_files_withheld: list[dict[str, str]] = []
     bound_profiles: set[str] = set()
-    for persona_id in wanted_persona_ids:
-        persona = personas.get(persona_id)
-        if persona is None:
-            continue
-        published_persona_ids.append(persona_id)
+    for persona_id in published_persona_ids:
+        persona = personas[persona_id]
         bound_profiles.add(_bound_profile_name(persona))
         persona_artifacts, withheld = _persona_artifacts(persona)
         artifacts.extend(persona_artifacts)
@@ -308,6 +296,32 @@ def _workspaces_for_realm(realm: Realm) -> list[Workspace]:
         workspace_store.get(workspace_id)
         for workspace_id in sorted(workspace_ids)
         if paths.workspace_path(workspace_id).exists()
+    ]
+
+
+def published_realm_persona_ids(
+    realm: Any,
+    workspaces: list[Workspace],
+    personas: dict[str, Any],
+    *,
+    office_persona_ids: list[str],
+) -> list[str]:
+    """The persona ids whose definitions this realm's publish ships: the required
+    set (workspace rosters + office placements) plus the explicit selection, kept
+    to ids that resolve to a record. ONE answer for the publish and for the
+    persona-definition drift walk, so a drift row can never name a persona the
+    publish would not ship."""
+
+    required = _required_realm_persona_ids(workspaces, office_persona_ids=office_persona_ids)
+    selected = (
+        list(realm.agent_selection or [])
+        if getattr(realm, "agent_publish_mode", "workspace") == "selected"
+        else []
+    )
+    return [
+        persona_id
+        for persona_id in dict.fromkeys([*required, *selected])
+        if persona_id in personas
     ]
 
 

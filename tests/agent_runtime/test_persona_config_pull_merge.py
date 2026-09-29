@@ -99,9 +99,33 @@ def _legacy_subtree(tmp_path: Path, profile: str, config: dict) -> Path:
     return subtree
 
 
-DEV_V1 = {"display_name": "Dev", "hermes_profile": "launcher-dev", "iteration_budget": 12}
-DEV_V2 = {"display_name": "Dev (realm)", "hermes_profile": "launcher-dev", "iteration_budget": 20}
-DEV_LOCAL_EDIT = {"display_name": "Dev (mine)", "hermes_profile": "launcher-dev", "iteration_budget": 12}
+def _resolved(**body) -> dict:
+    """A body the way a publisher ships it — the RESOLVED record's projection.
+
+    Since 2026-09-28 the pull's local side is what a publish would ship
+    (``local_persona_bodies``: the resolved record plus the config-only keys),
+    not the raw config override. A config-declared persona resolves defaults
+    (``role``, ``autonomy``, the model triple, the bools), so a fixture whose
+    local copy must EQUAL a baseline carries them explicitly — which is also
+    what every real publisher's body looks like."""
+
+    return {
+        "role": "developer",
+        "model": "realm-model",
+        "provider": "realm-provider",
+        "api_mode": "chat_completions",
+        "autonomy": "review",
+        "include_core_context_files": False,
+        "include_profile_memory": False,
+        "system_prompt_path": "",
+        **body,
+    }
+
+
+DEV_V1 = _resolved(display_name="Dev", hermes_profile="launcher-dev", iteration_budget=12)
+DEV_V2 = _resolved(display_name="Dev (realm)", hermes_profile="launcher-dev", iteration_budget=20)
+DEV_LOCAL_EDIT = _resolved(display_name="Dev (mine)", hermes_profile="launcher-dev", iteration_budget=12)
+QA_V1 = _resolved(display_name="QA", role="qa")
 
 
 # ── decision table ─────────────────────────────────────────────────────────
@@ -188,8 +212,8 @@ def test_retains_a_definition_the_realm_stopped_publishing(tmp_path):
     placements, persona instances and running assignments — a sync never removes
     it from the member's config."""
 
-    _member_config({"dev": dict(DEV_V1), "qa": {"display_name": "QA"}})
-    write_persona_config_baseline(REALM, {"dev": persona_def_hash(DEV_V1), "qa": persona_def_hash({"display_name": "QA"})})
+    _member_config({"dev": dict(DEV_V1), "qa": dict(QA_V1)})
+    write_persona_config_baseline(REALM, {"dev": persona_def_hash(DEV_V1), "qa": persona_def_hash(QA_V1)})
 
     summary = apply_persona_config_pull(REALM, _remote_projection(tmp_path, {"dev": DEV_V1}))
 

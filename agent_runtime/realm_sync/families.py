@@ -76,6 +76,11 @@ class SyncFamily(StrEnum):
     OFFICE_SURFACE = "office_surface"
     OFFICE_ACTOR = "office_actor"
     PERSONA_CONFIG = "persona_config"
+    #: The persona-DEFINITION drift family (2026-09-28): one row per persona id,
+    #: where ``persona_config`` above is the ONE artifact carrying them all — the
+    #: office surface's two-member precedent (artifact ``office``, drift
+    #: ``office_surface``).
+    PERSONA_DEFINITION = "persona_definition"
     PERSONA_INSTANCE_CONFIG = "persona_instance_config"
     PERSONA_INSTANCE = "persona_instance"
     FLOW_GRAPH_CONFIG = "flow_graph_config"

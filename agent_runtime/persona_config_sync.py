@@ -356,6 +356,130 @@ def load_raw_config(config_path: Path | None = None) -> dict[str, Any]:
     return loaded if isinstance(loaded, dict) else {}
 
 
+def _record_field_types() -> dict[str, str]:
+    from .models import AgentPersona
+
+    return {item.name: str(item.type) for item in fields(AgentPersona)}
+
+
+def record_backed_keys() -> frozenset[str]:
+    """Shared keys the persona RECORD carries — adopt writes these into the store."""
+
+    return frozenset(PERSONA_DEF_ALLOWED_KEYS & set(_record_field_types()))
+
+
+def config_only_keys() -> frozenset[str]:
+    """Shared keys no ``AgentPersona`` field carries (``chat_lane_restore_toolsets``,
+    ``skills_remove``): ``config.yaml`` is their only home, on publish and on adopt."""
+
+    return frozenset(PERSONA_DEF_ALLOWED_KEYS - set(_record_field_types()))
+
+
+def resolved_persona_records(config_path: Path | None = None) -> dict[str, Any]:
+    """The resolved persona records — ``config.ensure_persisted_personas``, the
+    same roster the publish projects — keyed by id."""
+
+    from .config import ensure_persisted_personas, load_agent_runtime_config
+
+    return {
+        persona.id: persona
+        for persona in ensure_persisted_personas(load_agent_runtime_config(config_path))
+    }
+
+
+def local_persona_bodies(
+    persona_ids: list[str] | set[str],
+    *,
+    config_path: Path | None = None,
+    records: dict[str, Any] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """What a publish would ship for each id RIGHT NOW — the ONE local body the
+    pull, the drift walk and the revert compare against the baseline.
+
+    Built by :func:`project_persona_definitions` over the resolved records and
+    the raw override, exactly as the publish builds it, so "local" can never mean
+    one thing to the publish and another to the pull (the defect this retired:
+    the pull used to hash the raw ``config.yaml`` override alone, so a store edit
+    was invisible to it and to status).
+    """
+
+    raw = load_raw_config(config_path)
+    if records is None:
+        records = resolved_persona_records(config_path)
+    return project_persona_definitions(persona_ids, raw_config=raw, records=records).personas
+
+
+def adopt_persona_def(
+    persona_id: str,
+    remote_body: dict[str, Any],
+    *,
+    config_path: Path | None = None,
+    store: Any = None,
+) -> str:
+    """Write ONE adopted shared body where the runtime reads it. Returns the
+    destination: ``"record"`` or ``"config"``.
+
+    The pull's adopt arm and the revert's, spelled once.
+
+    - **A persona with a store record**: the record-backed shared keys go through
+      ``AgentStore.save`` — the same single write path ``harness persona
+      set-model`` / ``set-skills`` use — because the record is what resolution
+      reads and a config key would be shadowed by it. A shared key the remote
+      body omits is cleared to the value the projection reads as absent
+      (``None`` / ``[]``); a non-nullable field (``display_name``, ``role``,
+      ``autonomy``, the bools) keeps its local value, since the record cannot
+      express its absence. Machine-local fields (``repo_scope``, ``readiness``,
+      the issue clocks) are never touched. The config-only shared keys still go
+      to ``config.yaml``, their only home; the member's other config keys stay.
+    - **No store record** (a config-declared persona, or a new one): today's
+      key-wise config write, unchanged — minting a store row here would freeze
+      every other field of that persona (the ``persona_not_persisted`` ruling).
+    """
+
+    from dataclasses import replace
+
+    from utils import atomic_roundtrip_yaml_update
+
+    from .store import AgentStore
+
+    path = Path(config_path) if config_path is not None else get_config_path()
+    local_raw = raw_persona_overrides(load_raw_config(path)).get(persona_id)
+    store = store if store is not None else AgentStore()
+    try:
+        record = store.get(persona_id)
+    except Exception:  # noqa: BLE001 — no store row: the config lane owns this persona
+        record = None
+    if record is None:
+        atomic_roundtrip_yaml_update(
+            path, f"agent_runtime.personas.{persona_id}", merge_persona_def(local_raw, remote_body)
+        )
+        return "config"
+
+    types = _record_field_types()
+    updates: dict[str, Any] = {}
+    for name in sorted(record_backed_keys()):
+        if name in remote_body:
+            value = remote_body[name]
+        elif "None" in types[name]:
+            value = None
+        elif types[name].startswith("list"):
+            value = []
+        else:
+            continue
+        if getattr(record, name) != value:
+            updates[name] = value
+    if updates:
+        store.save(replace(record, **updates))
+
+    only = config_only_keys()
+    current = dict(local_raw) if isinstance(local_raw, dict) else {}
+    wanted = {key: value for key, value in current.items() if str(key) not in only}
+    wanted.update({key: remote_body[key] for key in sorted(only) if key in remote_body})
+    if wanted != current and (wanted or local_raw is not None):
+        atomic_roundtrip_yaml_update(path, f"agent_runtime.personas.{persona_id}", wanted)
+    return "record"
+
+
 def project_persona_definitions(
     persona_ids: list[str] | set[str],
     *,
@@ -488,7 +612,8 @@ class PersonaConfigPullSummary:
     Nothing is silently dropped and nothing is silently overwritten:
 
     - ``adopted`` — the member had no copy, or an unchanged copy the realm moved
-      forward; written key-wise into ``agent_runtime.personas.<id>``.
+      forward; written through :func:`adopt_persona_def` (the store record when
+      one exists, else key-wise into ``agent_runtime.personas.<id>``).
     - ``converged`` — local already equals remote (no write).
     - ``kept_local`` — the member edited it and the realm did not; stays local
       and unpublished.
@@ -624,6 +749,20 @@ def merge_persona_def(local_raw: Any, remote_body: dict[str, Any]) -> dict[str, 
     return {**preserved, **remote_body}
 
 
+def persona_def_admission_refusal(persona_id: str, remote_body: dict[str, Any]):
+    """The shared ``sync_admission.Refusal`` for one incoming definition, or
+    ``None`` — the door the pull holds, in the shape the revert lane reads."""
+
+    from .sync_admission import refuse_entity
+
+    return refuse_entity(
+        persona_id,
+        payload=remote_body,
+        prefix=f"personas.{persona_id}",
+        prose_keys=frozenset(),
+    )
+
+
 def _admission_refusal(persona_id: str, remote_body: dict[str, Any]) -> dict[str, str] | None:
     """Per-definition admission through the SHARED guard.
 
@@ -635,14 +774,7 @@ def _admission_refusal(persona_id: str, remote_body: dict[str, Any]) -> dict[str
     themselves an allowlist — so nothing here is exempt prose.
     """
 
-    from .sync_admission import refuse_entity
-
-    refusal = refuse_entity(
-        persona_id,
-        payload=remote_body,
-        prefix=f"personas.{persona_id}",
-        prose_keys=frozenset(),
-    )
+    refusal = persona_def_admission_refusal(persona_id, remote_body)
     return None if refusal is None else _refusal(persona_id, refusal.code, refusal.message)
 
 
@@ -652,19 +784,20 @@ def apply_persona_config_pull(
     *,
     dry_run: bool = False,
     config_path: Path | None = None,
+    records: dict[str, Any] | None = None,
 ) -> PersonaConfigPullSummary:
-    """Merge pulled persona definitions into the member's config, key-wise.
+    """Merge pulled persona definitions into the member's persona, key-wise.
 
-    The member's own machine sections (``mcp_servers``, ``model``, ``display``,
-    everything else) are untouched by construction: only
-    ``agent_runtime.personas.<id>`` subtrees are written, one dotted key at a
-    time through the existing comment-preserving chokepoint
-    (``utils.atomic_roundtrip_yaml_update`` — the same writer ``save_config_value``
-    uses). Decisions come from the SHARED ``sync_merge.classify_three_way_pull``
+    ONE authority (owner ruling 2026-09-28): the local body compared against the
+    baseline is the resolved record's projection (:func:`local_persona_bodies`,
+    what a publish would ship), and an adopt writes where resolution reads
+    (:func:`adopt_persona_def` — the store record through ``AgentStore.save`` when
+    one exists, else the key-wise ``agent_runtime.personas.<id>`` write through
+    ``utils.atomic_roundtrip_yaml_update``). The member's own machine sections
+    (``mcp_servers``, ``model``, ``display``, everything else) are untouched by
+    construction. Decisions come from the SHARED ``sync_merge.classify_three_way_pull``
     against a never-synced baseline sidecar; there is no second merge engine.
     """
-
-    from utils import atomic_roundtrip_yaml_update
 
     summary = PersonaConfigPullSummary()
     remote, dropped, source = read_remote_persona_defs(Path(subtree))
@@ -676,8 +809,14 @@ def apply_persona_config_pull(
         return summary
 
     path = Path(config_path) if config_path is not None else get_config_path()
-    local = raw_persona_overrides(load_raw_config(path))
     baseline = read_persona_config_baseline(realm_id)
+    # "Local" is the body a publish would ship right now — the resolved record
+    # plus the config-only keys — never the raw override alone.
+    local = local_persona_bodies(
+        [pid for pid in set(remote) | set(baseline) if _PERSONA_ID_RE.match(pid)],
+        config_path=path,
+        records=records,
+    )
 
     for persona_id in sorted(set(remote) | set(baseline)):
         remote_body = remote.get(persona_id)
@@ -692,7 +831,7 @@ def apply_persona_config_pull(
                 summary.refused.append(refusal)
                 continue
 
-        local_body = _allowlist_persona_def(persona_id, local.get(persona_id), []) if persona_id in local else None
+        local_body = local.get(persona_id)
         local_hash = persona_def_hash(local_body) if local_body else None
         remote_hash = persona_def_hash(remote_body) if remote_body else None
         decision = classify_three_way_pull(local_hash, remote_hash, baseline.get(persona_id))
@@ -726,11 +865,7 @@ def apply_persona_config_pull(
             else:
                 summary.adopted.append(persona_id)
                 if not dry_run:
-                    atomic_roundtrip_yaml_update(
-                        path,
-                        f"agent_runtime.personas.{persona_id}",
-                        merge_persona_def(local.get(persona_id), remote_body),
-                    )
+                    adopt_persona_def(persona_id, remote_body, config_path=path)
             baseline[persona_id] = remote_hash or ""
             continue
 

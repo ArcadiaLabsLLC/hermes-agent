@@ -66,6 +66,7 @@ from .realm_sync import (
     DRIFT_FAMILY_FLOW_GRAPH,
     DRIFT_FAMILY_OFFICE_ACTOR,
     DRIFT_FAMILY_OFFICE_SURFACE,
+    DRIFT_FAMILY_PERSONA_DEFINITION,
     DRIFT_FAMILY_PERSONA_INSTANCE,
     DRIFT_FAMILY_SKILL,
     DRIFT_KIND_ADDED,
@@ -133,6 +134,10 @@ APPLIED_OUTCOMES = frozenset(
 #: Families whose row IS the container definition. They have no local-only
 #: archive lane, which is the one place their transition table differs.
 CONTAINER_FAMILIES = frozenset({DRIFT_FAMILY_BOARD, DRIFT_FAMILY_OFFICE_SURFACE})
+#: Families with no local-only archive lane: the containers above, plus the
+#: persona DEFINITION — a persona is referenced by placements, instances and
+#: assignments, and a revert never deletes one (the pull's ``retained`` rule).
+NO_LOCAL_ARCHIVE_FAMILIES = CONTAINER_FAMILIES | frozenset({DRIFT_FAMILY_PERSONA_DEFINITION})
 FAMILIES = frozenset(
     {
         DRIFT_FAMILY_BOARD,
@@ -142,6 +147,7 @@ FAMILIES = frozenset(
         DRIFT_FAMILY_PERSONA_INSTANCE,
         DRIFT_FAMILY_FLOW_GRAPH,
         DRIFT_FAMILY_SKILL,
+        DRIFT_FAMILY_PERSONA_DEFINITION,
     }
 )
 
@@ -166,6 +172,7 @@ _PROCESS_ORDER = {
     DRIFT_FAMILY_BOARD_CARD: 0,
     DRIFT_FAMILY_PERSONA_INSTANCE: 0,
     DRIFT_FAMILY_SKILL: 0,
+    DRIFT_FAMILY_PERSONA_DEFINITION: 0,
     DRIFT_FAMILY_OFFICE_SURFACE: 1,
     DRIFT_FAMILY_BOARD: 1,
     DRIFT_FAMILY_FLOW_GRAPH: 2,
@@ -230,7 +237,7 @@ def classify_revert(*, family: str, kind: str, upstream_present: bool) -> Revert
         # not deleting it; only a row upstream genuinely lacks is local-only.
         if upstream_present:
             return RevertDecision(RevertAction.ADOPT, OUTCOME_REVERTED)
-        if family in CONTAINER_FAMILIES:
+        if family in NO_LOCAL_ARCHIVE_FAMILIES:
             return RevertDecision(RevertAction.REFUSE, REFUSED_NO_UPSTREAM)
         return RevertDecision(RevertAction.ARCHIVE_LOCAL, OUTCOME_ARCHIVED_LOCAL_ONLY)
     raise ValueError("invalid_request")
@@ -339,6 +346,8 @@ class _Upstream:
         self._instances: tuple[dict[str, Any], str | None] | None = None
         #: So is the canvas projection.
         self._flow_graphs: tuple[dict[str, Any], str | None] | None = None
+        #: And the persona-definition projection.
+        self._persona_defs: tuple[dict[str, Any], bool] | None = None
 
     def _office(self, workspace_id: str):
         from .office_sync import _read_remote_office
@@ -395,6 +404,26 @@ class _Upstream:
             return None, True
         return bodies.get(graph_id), False
 
+    def _persona_def(self, persona_id: str) -> tuple[Any, bool]:
+        """One persona-definition BODY out of the pulled ``store/personas.yaml``
+        (or a legacy publisher's raw configs), read by the pull's own reader.
+
+        A projection file that exists and does not parse as one is UNREADABLE,
+        never absent — ``read_remote_persona_defs`` falls back to the legacy
+        configs in that case, and reading its answer as absence would drop the
+        baseline on a read failure."""
+
+        from .persona_config_sync import PROJECTION_RELATIVE_PATH, read_remote_persona_defs
+
+        if self._persona_defs is None:
+            defs, _dropped, source = read_remote_persona_defs(self._subtree)
+            projection = self._subtree.joinpath(*PROJECTION_RELATIVE_PATH.split("/"))
+            self._persona_defs = (defs, projection.is_file() and source != "projection")
+        defs, unreadable = self._persona_defs
+        if unreadable:
+            return None, True
+        return defs.get(persona_id), False
+
     def _skill(self, slug: str) -> tuple[Any, bool]:
         """The inbox package DIRECTORY for one slug, or ``None`` when the realm
         does not carry it.
@@ -419,6 +448,8 @@ class _Upstream:
 
         if family == DRIFT_FAMILY_SKILL:
             return self._skill(item_key)
+        if family == DRIFT_FAMILY_PERSONA_DEFINITION:
+            return self._persona_def(item_key)
         if family == DRIFT_FAMILY_PERSONA_INSTANCE:
             return self._instance(item_key)
         if family == DRIFT_FAMILY_FLOW_GRAPH:
@@ -518,6 +549,7 @@ def revert_realm_sync(
         read_persona_instance_baseline,
         write_persona_instance_baseline,
     )
+    from .persona_config_sync import read_persona_config_baseline, write_persona_config_baseline
     from .skill_sync import read_skill_baseline, write_skill_baseline
 
     upstream = _Upstream(subtree, realm_id=realm.id)
@@ -528,6 +560,8 @@ def revert_realm_sync(
     instance_baseline = read_persona_instance_baseline(realm.id)
     flow_graph_baseline = read_flow_graph_baseline(realm.id)
     skill_baseline = read_skill_baseline(realm.id)
+    persona_def_baseline = read_persona_config_baseline(realm.id)
+    touched_persona_defs = False
     touched_office = touched_board = touched_instances = touched_flow_graphs = False
     touched_skills = False
 
@@ -542,6 +576,7 @@ def revert_realm_sync(
             instance_baseline=instance_baseline,
             flow_graph_baseline=flow_graph_baseline,
             skill_baseline=skill_baseline,
+            persona_def_baseline=persona_def_baseline,
             realm_id=realm.id,
             dry_run=dry_run,
         )
@@ -555,6 +590,8 @@ def revert_realm_sync(
                 touched_flow_graphs = True
             elif item.family == DRIFT_FAMILY_SKILL:
                 touched_skills = True
+            elif item.family == DRIFT_FAMILY_PERSONA_DEFINITION:
+                touched_persona_defs = True
             else:
                 touched_board = True
 
@@ -575,6 +612,8 @@ def revert_realm_sync(
             write_flow_graph_baseline(realm.id, flow_graph_baseline)
         if touched_skills:
             write_skill_baseline(realm.id, skill_baseline)
+        if touched_persona_defs:
+            write_persona_config_baseline(realm.id, persona_def_baseline)
         if applied:
             _append_realm_sync_event(
                 REVERT_EVENT_TYPE, realm, changed=True, artifacts=len(applied)
@@ -610,6 +649,7 @@ def _revert_one(
     instance_baseline: dict[str, str] | None = None,
     flow_graph_baseline: dict[str, str] | None = None,
     skill_baseline: dict[str, str] | None = None,
+    persona_def_baseline: dict[str, str] | None = None,
     realm_id: str | None = None,
     dry_run: bool,
 ) -> RevertRow:
@@ -645,6 +685,8 @@ def _revert_one(
         baseline = flow_graph_baseline if flow_graph_baseline is not None else {}
     elif item.family == DRIFT_FAMILY_SKILL:
         baseline = skill_baseline if skill_baseline is not None else {}
+    elif item.family == DRIFT_FAMILY_PERSONA_DEFINITION:
+        baseline = persona_def_baseline if persona_def_baseline is not None else {}
     else:
         baseline = board_baseline
     key = item.baseline_key()
@@ -685,6 +727,13 @@ def _revert_one(
             from .sync_admission import refuse_package
 
             refusal = refuse_package(item.item_key, entity)
+        elif item.family == DRIFT_FAMILY_PERSONA_DEFINITION:
+            # The pull's own per-definition door, for the canvas family's
+            # reason: the same bytes must be admissible through a pull and a
+            # revert alike.
+            from .persona_config_sync import persona_def_admission_refusal
+
+            refusal = persona_def_admission_refusal(item.item_key, entity)
         else:
             refusal = refuse_entity(key, payload=to_jsonable(entity))
         if refusal is not None:
@@ -696,7 +745,15 @@ def _revert_one(
         return row
 
     try:
-        if item.family == DRIFT_FAMILY_SKILL:
+        if item.family == DRIFT_FAMILY_PERSONA_DEFINITION:
+            # ONE arm: RESTORE never arises (the family has no ``removed`` rows)
+            # and ARCHIVE_LOCAL is refused by the table, so this is the adopt —
+            # the pull's own door, which writes the record through
+            # ``AgentStore.save`` and never deletes a persona.
+            from .persona_config_sync import adopt_persona_def
+
+            adopt_persona_def(item.item_key, entity)
+        elif item.family == DRIFT_FAMILY_SKILL:
             # ONE arm for this family: RESTORE and ADOPT are the same install
             # (the canonical slot is empty for a ``removed`` row and occupied for
             # a ``changed`` one, and the guarded door decides which), so splitting
@@ -998,6 +1055,12 @@ def _current_content_hash(item: StoreDriftItem, *, office_store, board_store) ->
     make the sheet read in-sync for content this install does not hold.
     """
 
+    if item.family == DRIFT_FAMILY_PERSONA_DEFINITION:
+        from .persona_config_sync import local_persona_bodies, persona_def_hash
+
+        # What a publish would now ship for this persona — the same body the
+        # drift walk hashes, so a reverted row reads ``local == baseline``.
+        return persona_def_hash(local_persona_bodies([item.item_key])[item.item_key])
     if item.family == DRIFT_FAMILY_SKILL:
         from agent_runtime.profile_home import get_shared_skills_dir
 

@@ -442,6 +442,30 @@ What is true now:
   write path, and no per-skill publish verb (the launcher runs `resolve --take
   local` and then the ONE credentialed publish).
 
+### The persona-definition lane: one authority (2026-09-28)
+
+- **The resolved record is the only authority.** Publish, pull, drift and revert
+  all compare the SAME local body — `persona_config_sync.local_persona_bodies`,
+  the resolved record (`ensure_persisted_personas`, store over config) projected
+  through the allowlist plus the config-only keys — against
+  `read_persona_config_baseline`. Before this the pull hashed the raw
+  `config.yaml` override alone, so a pulled model landed in a key the store record
+  shadowed and a model-switcher edit (it writes the store) was invisible to pull
+  and to status.
+- **Adopt writes where resolution reads** (`adopt_persona_def`, the pull's and the
+  revert's one door): record-backed keys through `AgentStore.save`, config-only
+  keys (`chat_lane_restore_toolsets`, `skills_remove`) to config; a persona with
+  no store row keeps the key-wise config write.
+- **Drift family** `persona_definition`, container EMPTY, `item_key` = persona id,
+  counts `store_drift.personas = {personas_changed, personas_added}`, scoped by
+  `realm_sync.artifacts.published_realm_persona_ids` (the publish's own set). No
+  `removed` kind: a de-selected persona and a gone one cannot be told apart, and
+  the only revert would mint a record.
+- **Revert** `--item persona_definition::<id>` adopts the last-pulled body into
+  the record; an `added` row with no upstream is `refused_no_upstream` — a revert
+  never deletes a persona. Publish records the projection hashes, which clears
+  the drift. Pinned by `tests/agent_runtime/test_persona_def_one_authority.py`.
+
 ### The instance-replication lane
 
 **A pull that delivers a desk now delivers the AGENT behind it**

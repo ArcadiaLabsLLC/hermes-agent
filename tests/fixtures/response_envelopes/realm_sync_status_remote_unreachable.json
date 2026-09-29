@@ -72,6 +72,10 @@
         "instances_changed": 0,
         "instances_removed": 0
       },
+      "personas": {
+        "personas_added": 0,
+        "personas_changed": 0
+      },
       "skills": {
         "skills_added": 0,
         "skills_changed": 0,

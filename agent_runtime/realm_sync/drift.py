@@ -30,6 +30,7 @@ __all__ = [
     "DRIFT_FAMILY_FLOW_GRAPH",
     "DRIFT_FAMILY_OFFICE_ACTOR",
     "DRIFT_FAMILY_OFFICE_SURFACE",
+    "DRIFT_FAMILY_PERSONA_DEFINITION",
     "DRIFT_FAMILY_PERSONA_INSTANCE",
     "DRIFT_FAMILY_SKILL",
     "DRIFT_KEY_BOARD_DEF",
@@ -43,6 +44,7 @@ __all__ = [
     "_BOARD_DRIFT_COUNTS",
     "_FLOW_GRAPH_DRIFT_COUNTS",
     "_OFFICE_DRIFT_COUNTS",
+    "_PERSONA_DEFINITION_DRIFT_COUNTS",
     "_PERSONA_INSTANCE_DRIFT_COUNTS",
     "_SKILL_DRIFT_COUNTS",
     "_any_store_drift",
@@ -57,6 +59,8 @@ __all__ = [
     "_office_store_drift",
     "_office_store_drift_items",
     "_office_surface_baseline_key",
+    "_persona_definition_drift_key",
+    "_persona_definition_store_drift_items",
     "_persona_instance_drift_key",
     "_persona_instance_store_drift_items",
     "_skill_drift_key",
@@ -101,6 +105,12 @@ DRIFT_FAMILY_FLOW_GRAPH = SyncFamily.FLOW_GRAPH
 #: own spec is ``skill::<slug>`` (``parse_item_spec`` accepts a blank container —
 #: see its docstring).
 DRIFT_FAMILY_SKILL = SyncFamily.SKILL
+#: The persona-DEFINITION family (2026-09-28, owner ruling "one authority — the
+#: resolved record"). A row is a persona whose local body — what a publish would
+#: ship, :func:`persona_config_sync.local_persona_bodies` — differs from the
+#: last-synced baseline. The container is EMPTY: the definitions travel in ONE
+#: realm-wide document, so the row's spec is ``persona_definition::<id>``.
+DRIFT_FAMILY_PERSONA_DEFINITION = SyncFamily.PERSONA_DEFINITION
 
 DRIFT_KIND_ADDED = "added"
 DRIFT_KIND_CHANGED = "changed"
@@ -201,6 +211,12 @@ def _skill_drift_key(item: StoreDriftItem) -> str:
     return skill_baseline_key(item.item_key)
 
 
+def _persona_definition_drift_key(item: StoreDriftItem) -> str:
+    # The persona config baseline is keyed on the bare persona id
+    # (``update_persona_config_baseline_after_publish`` / the pull).
+    return item.item_key
+
+
 def _flow_graph_drift_key(item: StoreDriftItem) -> str:
     from ..flow_graph_sync import flow_graph_baseline_key
 
@@ -221,6 +237,7 @@ _BASELINE_KEY_OF: Final[Mapping[str, Callable[[StoreDriftItem], str]]] = {
     SyncFamily.PERSONA_INSTANCE: _persona_instance_drift_key,
     SyncFamily.SKILL: _skill_drift_key,
     SyncFamily.FLOW_GRAPH: _flow_graph_drift_key,
+    SyncFamily.PERSONA_DEFINITION: _persona_definition_drift_key,
 }
 
 #: (count name, family, kind or None for "every row of this family"). The
@@ -268,6 +285,15 @@ _SKILL_DRIFT_COUNTS = (
     ("skills_changed", SyncFamily.SKILL, DRIFT_KIND_CHANGED),
     ("skills_added", SyncFamily.SKILL, DRIFT_KIND_ADDED),
     ("skills_removed", SyncFamily.SKILL, DRIFT_KIND_REMOVED),
+)
+
+#: The persona-definition family's counts. No ``removed`` counter, deliberately:
+#: a baselined persona that no longer resolves here, or is no longer in this
+#: realm's publish set, cannot be told apart from a de-selected one, and its only
+#: revert would MINT a persona record — the family cannot express it honestly.
+_PERSONA_DEFINITION_DRIFT_COUNTS = (
+    ("personas_changed", SyncFamily.PERSONA_DEFINITION, DRIFT_KIND_CHANGED),
+    ("personas_added", SyncFamily.PERSONA_DEFINITION, DRIFT_KIND_ADDED),
 )
 
 
@@ -376,6 +402,52 @@ def _skill_store_drift_items(realm_id: str) -> list[StoreDriftItem]:
         if skill_tombstoned(realm, slug) is not None:
             continue
         items.append(_row(slug, DRIFT_KIND_REMOVED))
+    return items
+
+
+def _persona_definition_store_drift_items(
+    realm_id: str, workspaces: list[Workspace]
+) -> list[StoreDriftItem]:
+    """The persona-DEFINITION half of the drift walk.
+
+    Scoped exactly as the publish is (``published_realm_persona_ids`` over the
+    same office scan) and hashed over the same body the publish would write
+    (``local_persona_bodies`` — the resolved record plus the config-only keys),
+    against ``read_persona_config_baseline``, which the publish and the pull both
+    advance. So a store edit (the launcher's model switcher writes the store) is
+    a ``changed`` row, a persona this realm ships and has never synced is
+    ``added``, and a publish or a pull that records the body clears it.
+    """
+
+    from ..config import ensure_persisted_personas, load_agent_runtime_config
+    from ..persona_config_sync import (
+        local_persona_bodies,
+        persona_def_hash,
+        read_persona_config_baseline,
+    )
+    from .artifacts import published_realm_persona_ids
+
+    realm = RealmStore().get(realm_id)
+    records = {persona.id: persona for persona in ensure_persisted_personas(load_agent_runtime_config())}
+    ids = published_realm_persona_ids(
+        realm, workspaces, records, office_persona_ids=_office_publish_scan(workspaces).persona_ids
+    )
+    bodies = local_persona_bodies(ids, records=records)
+    baseline = read_persona_config_baseline(realm_id)
+    items: list[StoreDriftItem] = []
+    for persona_id in sorted(bodies):
+        base_hash = baseline.get(persona_id)
+        if base_hash is None:
+            kind = DRIFT_KIND_ADDED
+        elif base_hash != persona_def_hash(bodies[persona_id]):
+            kind = DRIFT_KIND_CHANGED
+        else:
+            continue
+        items.append(
+            StoreDriftItem(
+                family=SyncFamily.PERSONA_DEFINITION, container="", item_key=persona_id, kind=kind
+            )
+        )
     return items
 
 
@@ -764,4 +836,5 @@ DRIFT_WALKS: Final[tuple[Callable[[str, list[Workspace]], list[StoreDriftItem]],
     _persona_instance_store_drift_items,
     _flow_graph_store_drift_items,
     _skill_drift_walk,
+    _persona_definition_store_drift_items,
 )
