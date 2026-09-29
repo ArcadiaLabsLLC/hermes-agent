@@ -170,7 +170,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-25 (batch gates on `6bae3f2484`, filed by the orchestrator)
 
-- [ ] **`tui_gateway/plugin_inject.py` fails `ruff check` with seven F821 undefined names (`_sessions_lock`, `_sessions`, `_enqueue_prompt`, `time`, `uuid`, `threading`, `_drain_queued_prompt`) — the sibling landed by `177f275b77` (2026-09-24) reads names it never imports, so the inject path raises `NameError` the first time it runs** · `fork / seams` (fork edit in an upstream tree) · fix: import what it reads, or late-import the facade per AGENTS.md § Facade + siblings; one invariant test that the queue path executes · evidence: `X:/wt/_holds/gates-0925/ruff.log`; the file is unchanged since `177f275b77`, so this predates the 2026-09-25 batch · filed 2026-09-25 **UNCLAIMED** **TAKEN 2026-09-29 h10-fhrest**
 
 ## Filed on arrival — 2026-09-25 (lane LAYERS-DESIGN, filed by the orchestrator)
 
