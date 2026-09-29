@@ -141,9 +141,9 @@ class _Run:
             return
 
         def _validate(text: str) -> None:
-            import yaml
+            from agent_runtime import yaml_io
 
-            yaml.safe_load(text)
+            yaml_io.load(text)  # parse check only; the rewrite itself stays textual
 
         self._rewrite_text(path, "config_yaml", _YAML_PROVIDER_RE, _validate)
 
