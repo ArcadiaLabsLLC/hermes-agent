@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import threading
 import time
+from agent.interrupt_scope import InterruptScope
 from typing import Any, Callable
 
 from hermes_cli.harness_parts.serve.constants import (
@@ -38,6 +39,7 @@ class _ArgvRequest:
         "is_long_run",
         "is_runtime_stream",
         "cancel_event",
+        "interrupt_scope",
         "key",
         "owner",
         "sink",
@@ -75,6 +77,7 @@ class _ArgvRequest:
         )
         self.is_runtime_stream = bool(tail and tail[0] == "stream")
         self.cancel_event = threading.Event()
+        self.interrupt_scope = InterruptScope()
         #: Which connection asked. ``stdio`` for the inherited pipe.
         self.owner = owner
         #: The inflight-table key. Request ids are chosen by CLIENTS, so two

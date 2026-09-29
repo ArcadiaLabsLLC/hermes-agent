@@ -15,7 +15,8 @@ from agent_runtime.mission_chat_turns.states import (
 )
 from agent_runtime.persona_chat_continuity.clarify_tickets import PersonaChatClarifyTicketStore
 from agent_runtime.workspace_scope import effective_workspace_id
-from agent_runtime.chat_turn_reservations import reserve_chat_turn
+from agent_runtime.chat_turn_reservations import reserve_chat_turn, unsettled_chat_receipts
+from agent_runtime.operator_execution import execution_status
 from agent_runtime.chat_turn import CHAT_MESSAGE_METHOD
 from tools.agent_chat.lane import session_belongs_to_chat_lane
 from agent_runtime.serde import safe_assignment_token
@@ -54,7 +55,7 @@ def exact_operator_target(params: dict[str, Any]):
     return instance
 
 
-def read_operator_conversation(params: dict[str, Any]) -> dict[str, Any]:
+def read_operator_conversation(params: dict[str, Any], *, can_interrupt: bool = False) -> dict[str, Any]:
     instance = exact_operator_target(params)
     session = params["session_id"]
     history = existing_persona_chat_messages(session_id=session, before=params.get("before"))
@@ -70,6 +71,10 @@ def read_operator_conversation(params: dict[str, Any]) -> dict[str, Any]:
                                session_scope=session) as reservation:
             receipt = reservation.record.state
     recorded = any(turn["client_message_id"] == requested for turn in turns)
+    journal_ids = {turn["client_message_id"] for turn in turns}
+    queued = [record.ack["turn_request_id"] for record in unsettled_chat_receipts(session)
+              if record.verb == CHAT_MESSAGE_METHOD and record.ack["turn_request_id"] not in journal_ids]
+    execution_ids = list(dict.fromkeys([turn["client_message_id"] for turn in active] + queued))
     return {
         **history,
         "install_id": params["install_id"],
@@ -81,6 +86,7 @@ def read_operator_conversation(params: dict[str, Any]) -> dict[str, Any]:
         "clarify_token": ticket.get("clarify_token") if ticket else None,
         "delivery_observed": recorded or receipt == "settled",
         "delivery_pending": receipt == "accepted" and not recorded,
-        # Operator turns use the existing owner; independent-worker controls do not apply.
-        "can_interrupt": False,
+        "executions": [execution_status(session, key) for key in execution_ids],
+        "requested_execution": execution_status(session, requested) if requested else None,
+        "can_interrupt": can_interrupt,
     }

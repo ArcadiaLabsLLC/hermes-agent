@@ -717,6 +717,7 @@ def perform_chat_turn(
             verb=request.verb,
             session_scope=request.session_scope,
         ) as reservation:
+            reservation.verify_payload(request.argv)
             if reservation.replayed and reservation.state is not None:
                 return ChatTurnOutcome(result=reservation.replay_ack())
             ack: dict[str, Any] = {

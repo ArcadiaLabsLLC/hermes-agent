@@ -120,6 +120,8 @@ class ChatTurnRecord:
     request_id: str | None = None
     ack: dict[str, Any] = field(default_factory=dict)
     exit_code: int | None = None
+    stop_requested: bool = False
+    payload_fingerprint: str | None = None
 
     @property
     def is_new(self) -> bool:
@@ -208,12 +210,40 @@ class ChatTurnReservation:
             payload["settled"] = False
         return payload
 
+    def request_stop(self) -> None:
+        """Persist intent, not an outcome; the worker/journal owns confirmation."""
+        if self.record.state == STATE_ACCEPTED and not self.record.stop_requested:
+            self.record = replace(self.record, stop_requested=True, updated_at=_timestamp())
+            _write(self.record)
+
+    def verify_payload(self, argv: list[str]) -> None:
+        fingerprint = hashlib.sha256(json.dumps(argv, ensure_ascii=False).encode("utf-8")).hexdigest()
+        if self.record.is_new:
+            self.record = replace(self.record, payload_fingerprint=fingerprint)
+        elif self.record.payload_fingerprint not in (None, fingerprint):
+            raise ChatTurnReservationError("turn_payload_conflict", "This turn id already names a different message.")
+
 
 def turn_request_digest(turn_request_id: str) -> str:
     """The receipt/lock key. Digested for the same reason the create's is: the
     id is client-chosen text and a filename must not be."""
 
     return hashlib.sha256(str(turn_request_id).encode("utf-8")).hexdigest()
+
+
+def read_chat_turn_receipt(turn_request_id: str) -> ChatTurnRecord | None:
+    """Read an atomic receipt without accepting or replaying work."""
+    digest = turn_request_digest(turn_request_id)
+    path = paths.chat_turn_reservation_path(digest)
+    return _read(path, digest=digest) if path.is_file() else None
+
+
+def unsettled_chat_receipts(session_scope: str) -> list[ChatTurnRecord]:
+    """Recover the pre-journal admission window from its existing authority."""
+    records = (_read(path, digest=path.stem)
+               for path in paths.chat_turn_reservations_dir().glob("*.json"))
+    return [record for record in records
+            if record.session_scope == session_scope and record.state == STATE_ACCEPTED]
 
 
 @contextmanager
@@ -355,6 +385,8 @@ def _read(path, *, digest: str) -> ChatTurnRecord:
             request_id=raw.get("request_id") or None,
             ack=dict(raw.get("ack") or {}),
             exit_code=int(exit_raw) if isinstance(exit_raw, int) else None,
+            stop_requested=raw.get("stop_requested") is True,
+            payload_fingerprint=raw.get("payload_fingerprint"),
             created_at=str(raw["created_at"]),
             updated_at=str(raw["updated_at"]),
         )
@@ -392,6 +424,8 @@ def _write(record: ChatTurnRecord) -> None:
             "request_id": record.request_id,
             "ack": record.ack,
             "exit_code": record.exit_code,
+            "stop_requested": record.stop_requested,
+            "payload_fingerprint": record.payload_fingerprint,
             "created_at": record.created_at,
             "updated_at": record.updated_at,
         },

@@ -104,6 +104,7 @@ class ArgvLanes:
     def _dispatch_guarded(self, request: _ArgvRequest, state: _RunState) -> None:
         from agent_runtime.profile_context import process_home_scope
         from agent_runtime.request_control import request_cancel_scope
+        from hermes_cli.harness_parts.serve.operator_interrupt import operator_interrupt_scope
 
         try:
             # THE REQUEST'S OWN HOME, pinned for the width of the dispatch.
@@ -135,7 +136,10 @@ class ArgvLanes:
             # another lane last left in the environment.
             with process_home_scope(self.serve_request_home), request_cancel_scope(
                 request.cancel_event
-            ):
+            ), operator_interrupt_scope(request) as stopped:
+                if stopped:
+                    state.code = 130
+                    return
                 if state.cache_key is not None:
                     from agent_runtime.snapshot.context import snapshot_build_context_scope
 
@@ -226,10 +230,12 @@ class ArgvLanes:
             # bookkeeping failure must never take the place of a turn's own
             # exit frame.
             from agent_runtime.chat_turn_reservations import settle_chat_turn
+            from agent_runtime.profile_context import process_home_scope
 
-            settle_chat_turn(
-                turn_request_id=request.turn_request_id, exit_code=state.code
-            )
+            with process_home_scope(self.serve_request_home):
+                settle_chat_turn(
+                    turn_request_id=request.turn_request_id, exit_code=state.code
+                )
         self.stdout_proxy.flush_request(request.rid)
         self.stderr_proxy.flush_request(request.rid)
         if state.capturing:

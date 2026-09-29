@@ -831,6 +831,7 @@ class MessageHandling:
         from agent_runtime.call_authorization import caller_for_connection
         from agent_runtime.serve_rpc.dispatch import handle_request
         from agent_runtime.serve_rpc.protocol import RpcContext, is_deferred
+        from hermes_cli.harness_parts.serve.operator_interrupt import interrupt_operator_turn
 
         rpc_frame = handle_request(
             message,
@@ -841,6 +842,7 @@ class MessageHandling:
                 caller=caller_for_connection(connection),
                 spawn_chat_turn=partial(self._spawn_chat_turn, sink, connection),
                 spawn_reply=partial(self._spawn_reply, sink),
+                interrupt_operator=partial(interrupt_operator_turn, self),
             ),
         )
         # The ONE frame this lane does not write: the handler took the
