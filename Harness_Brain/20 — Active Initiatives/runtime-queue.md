@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-09-29 (lane h10-rtseam, filed by the orchestrator)
+
+- [ ] **`tests/hermes_cli/test_gateway_spawn_fence.py::test_classifier_refuses_a_hermes_run_pointed_at_the_real_store` is red on main (Windows), independent of docstring edits** · `fork / suite` · evidence: h10-rtseam `.lane-logs/r328-fence-base.log` · filed 2026-09-29 **UNCLAIMED**
+
 
 ### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
 
@@ -284,6 +288,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - [ ] **Upstream `_apply_request_chain` hands every `llm_request` callback the ORIGINAL request and keeps only the LAST result, so a second callback silently drops the first's rewrite; the eternia-harness plugin therefore composes the wire-brief rewrite and the Codex cache-key rewrite in ONE callback** · `hermes / seams` · widening PR candidate (HELD while PRs are paused): chain the callbacks (each sees the previous result) — a one-line upstream change; until then every fork `llm_request` rewrite must join the single composed callback in `plugins/eternia-harness/` · evidence: lane DOORS-A 2026-09-24 (`seam/doors-a-2026-09-24`, the cache-key commit) **UNCLAIMED** **TAKEN 2026-09-29 h10-rtseam** · VERDICT 2026-09-29 h10-rtseam: still true on upstream/main 5bb2be179d. Not one line: `invoke_middleware` fans out once, so the chain needs a manager entry point. Drafted `up/middleware-request-chain` (940ab495bc, pushed to origin, NOT opened): `PluginManager.invoke_middleware_chain` + `_apply_request_chain` on it, red→green test in `tests/hermes_cli/test_plugins.py`. Owed: the owner opens it when PRs resume; then the eternia-harness plugin may split its composed callback
 
 ## Upstream-owned
+
+### Filed on arrival — 2026-09-29 (lane h10-rtseam, filed by the orchestrator)
+
+- [ ] **`test_execute_code_composition_strips_inherited_hermes_entries` reds on Windows (inherited `c:\python312\lib\site-packages` not stripped) once its F821 is fixed (draft `up/test-local-env-magicmock-import`)** · `upstream / suite` · evidence: h10-up `.lane-logs/up4-test.log` · filed 2026-09-29 **UNCLAIMED**
 
 ### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
 
