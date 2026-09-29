@@ -72,24 +72,35 @@ sites 642 into 104 -> 701 into 112 (the newly switched-off client modules are la
 desktop-only callers — cron, the messaging gateway, ACP, the CLI's MCP config, the connectors,
 the persona MCP admission — none on the phone turn path, which the e2e proves).
 
-Profile `bundled-phone`, targets android_arm64, ios_arm64; 1652 first-party modules kept. Verdict: **REFUSED** (162 findings).
+**Re-taken at lane h10b-phone (2026-09-29): 162 -> 164 findings.** The closure walk now sees what the
+phone's registries and plugin loader import at run time: `plugins/web/` was hidden from the module
+index (the frontend `web` skip matched it at any depth; it now applies at the top level only), and
+the imports two registries make by name from a table (`hermes_cli.plugins._SCOPED_PROVIDER_REGISTRARS`,
+`agent.secret_sources.registry._BUILTIN_SOURCES`) are declared in the walk's `DYNAMIC_IMPORTS`, held
+to those tables at run time by `tests/scripts/test_bundle_profile_closure.py`. A plugin directory's
+`plugin.yaml` no longer ships as data of `plugins/` when its code does not (the loader's "No
+`__init__.py`"). Kept modules 1653 -> 1685; subprocess_call 83 -> 85 modules — `agent.secret_sources.command`
+and `plugins.web.ddgs.provider` were already imported on the phone at run time, and the gate now
+sees them; lazy unguarded sites 702 -> 704 into 112 modules.
+
+Profile `bundled-phone`, targets android_arm64, ios_arm64; 1685 first-party modules kept. Verdict: **REFUSED** (164 findings).
 
 | kind | distinct subjects | subjects |
 |---|---:|---|
 | native | 3 | `cffi`, `cryptography`, `pillow-heif` |
 | pinned | 1 | `tools.skills_hub` |
 | process | 3 | `psutil`, `termios`, `tty` |
-| subprocess_call | 83 modules | `agent.anthropic_adapter`, `agent.anthropic_credentials`, `agent.command_token_source`, `agent.context_references`, `agent.deadline`, `agent.proxy_sources.iron_proxy`, `agent.secret_sources.base`, `agent.shell_hooks`, `agent.skill_preprocessing`, `agent.transports.codex_app_server`, `agent.vault_backends.base`, `agent_runtime.build_identity`, `agent_runtime.gateway_endpoints.routes`, `agent_runtime.git_cmd`, `agent_runtime.provider_signin`, `agent_runtime.repo_context`, `agent_runtime.store_file_io`, `gateway.platforms.base`, `gateway.run`, `gateway.run_inbound`, `gateway.run_shutdown`, `gateway.shutdown_forensics`, `gateway.slash_commands`, `gateway.status`, `hermes_bootstrap`, `hermes_cli._early_recovery`, `hermes_cli._subprocess_compat`, `hermes_cli.commands_completion`, `hermes_cli.config`, `hermes_cli.copilot_auth`, `hermes_cli.git_credentials`, `hermes_cli.github_api`, `hermes_cli.gitlock`, `hermes_cli.goals`, `hermes_cli.kanban_db`, `hermes_cli.kanban_db_dispatch`, `hermes_cli.kanban_db_workspace`, `hermes_cli.kanban_pr_acceptance`, `hermes_cli.mcp_catalog`, `hermes_cli.plugin_catalog`, `hermes_cli.profiles`, `hermes_cli.profiles_service_cleanup`, `hermes_cli.quiet_single_query`, `hermes_cli.source_check`, `hermes_cli.source_releases`, `hermes_cli.sqlite_runtime`, `hermes_cli.stderr_timestamp`, `hermes_cli.tools_config_cua`, `hermes_cli.update_cmd_check`, `hermes_cli.venv_sync`, `hermes_cli.version_info`, `hermes_cli.worktree_ops`, `hermes_constants`, `hermes_constants_scratch`, `plugins.memory.byterover`, `plugins.memory.honcho.client`, `plugins.memory.mem0._setup`, `plugins.memory.openviking`, `pm.client`, `pm.environment`, `pm.extras`, `pm.features`, `pm.package`, `pm.packages`, `pm.plugin_eviction`, `pm.progress`, `pm.recovery`, `pm.runtime`, `pm.runtime_stage`, `tools.agent_chat_dispatch.local`, `tools.async_delegation_recovery_hints`, `tools.bot_mode_dm`, `tools.checkpoint_manager`, `tools.env_probe`, `tools.file_operations_lint`, `tools.file_operations_search`, `tools.skills_hub_github`, `tools.tts_command_provider`, `tools.tts_tool_delivery`, `tools.vision_tools_image_prep`, `tui_gateway.host_supervisor`, `tui_gateway.methods_prompt`, `tui_gateway.server` |
+| subprocess_call | 85 modules | `agent.anthropic_adapter`, `agent.anthropic_credentials`, `agent.command_token_source`, `agent.context_references`, `agent.deadline`, `agent.proxy_sources.iron_proxy`, `agent.secret_sources.base`, `agent.secret_sources.command`, `agent.shell_hooks`, `agent.skill_preprocessing`, `agent.transports.codex_app_server`, `agent.vault_backends.base`, `agent_runtime.build_identity`, `agent_runtime.gateway_endpoints.routes`, `agent_runtime.git_cmd`, `agent_runtime.provider_signin`, `agent_runtime.repo_context`, `agent_runtime.store_file_io`, `gateway.platforms.base`, `gateway.run`, `gateway.run_inbound`, `gateway.run_shutdown`, `gateway.shutdown_forensics`, `gateway.slash_commands`, `gateway.status`, `hermes_bootstrap`, `hermes_cli._early_recovery`, `hermes_cli._subprocess_compat`, `hermes_cli.commands_completion`, `hermes_cli.config`, `hermes_cli.copilot_auth`, `hermes_cli.git_credentials`, `hermes_cli.github_api`, `hermes_cli.gitlock`, `hermes_cli.goals`, `hermes_cli.kanban_db`, `hermes_cli.kanban_db_dispatch`, `hermes_cli.kanban_db_workspace`, `hermes_cli.kanban_pr_acceptance`, `hermes_cli.mcp_catalog`, `hermes_cli.plugin_catalog`, `hermes_cli.profiles`, `hermes_cli.profiles_service_cleanup`, `hermes_cli.quiet_single_query`, `hermes_cli.source_check`, `hermes_cli.source_releases`, `hermes_cli.sqlite_runtime`, `hermes_cli.stderr_timestamp`, `hermes_cli.tools_config_cua`, `hermes_cli.update_cmd_check`, `hermes_cli.venv_sync`, `hermes_cli.version_info`, `hermes_cli.worktree_ops`, `hermes_constants`, `hermes_constants_scratch`, `plugins.memory.byterover`, `plugins.memory.honcho.client`, `plugins.memory.mem0._setup`, `plugins.memory.openviking`, `plugins.web.ddgs.provider`, `pm.client`, `pm.environment`, `pm.extras`, `pm.features`, `pm.package`, `pm.packages`, `pm.plugin_eviction`, `pm.progress`, `pm.recovery`, `pm.runtime`, `pm.runtime_stage`, `tools.agent_chat_dispatch.local`, `tools.async_delegation_recovery_hints`, `tools.bot_mode_dm`, `tools.checkpoint_manager`, `tools.env_probe`, `tools.file_operations_lint`, `tools.file_operations_search`, `tools.skills_hub_github`, `tools.tts_command_provider`, `tools.tts_tool_delivery`, `tools.vision_tools_image_prep`, `tui_gateway.host_supervisor`, `tui_gateway.methods_prompt`, `tui_gateway.server` |
 | unproven | 2 | `psutil`, `ruamel-yaml-clib` |
 
 How each shipped distribution is first reached (first target):
 
 | distribution | via |
 |---|---|
-| cryptography | `agent_runtime.serve_rpc.gateway_peers → agent_runtime.gateway_peers → agent_runtime.gateway_peers.dial → agent_runtime.gateway_tls` |
+| cryptography | `model_tools → hermes_cli.plugins → agent.secret_sources.registry → agent.secret_sources.bitwarden` |
 | pillow-heif | `plugins.image_gen.openai_codex → agent.image_routing` |
 | psutil | `plugins.memory.openviking` |
 
 Switched-off modules kept code imports at module level that the loop's placeholders (`agent_runtime/loop_tool_lifecycles.py`) answer — proven at run time, not pinned: `tools.browser_tool_lifecycle` (`cleanup_browser`); `tools.terminal_tool_lifecycle` (`cleanup_vm`, `get_active_env`, `is_persistent_env`).
 
-Lazy, unguarded imports into switched-off modules (an ImportError if the line runs on a phone; each must sit behind its feature's own switch or a seam): 701 sites, into 112 modules.
+Lazy, unguarded imports into switched-off modules (an ImportError if the line runs on a phone; each must sit behind its feature's own switch or a seam): 704 sites, into 112 modules.
