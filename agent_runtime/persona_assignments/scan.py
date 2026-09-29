@@ -155,7 +155,12 @@ def _session_presence_probe(session_db: Any | None = None) -> tuple[Any | None, 
     db = session_db
     if db is None:
         try:
-            from ..chat_session_scope import open_chat_session_db, resolve_process_chat_scope
+            from ..chat_session_scope import (
+                SessionDbAccess,
+                chat_session_store_exists,
+                open_chat_session_db,
+                resolve_process_chat_scope,
+            )
 
             # DESTRUCTIVE posture: a head RECORDED for the shared runtime root
             # is enough to read or mint a transcript, and deliberately NOT
@@ -168,7 +173,11 @@ def _session_presence_probe(session_db: Any | None = None) -> tuple[Any | None, 
             # per-conversation one, so it resolves on the process ladder.
             if not resolve_process_chat_scope().explicitly_named:
                 return None, "head_home_not_authoritative"
-            db = open_chat_session_db()
+            db = open_chat_session_db(access=SessionDbAccess.READ)
+            # A READ never creates the store; an ABSENT one holds no session,
+            # so it takes the empty-store refusal below, not "unavailable".
+            if db is None and not chat_session_store_exists():
+                return None, "session_db_empty"
         except Exception:
             db = None
     if db is None:

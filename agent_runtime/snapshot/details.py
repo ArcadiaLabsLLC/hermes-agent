@@ -59,7 +59,9 @@ def _default_persona_session_db():
     # stream watchdog fingerprints (``open_chat_session_db``'s docstring).
     from ..chat_session_scope import open_chat_session_db
 
-    return open_chat_session_db(read_only=True)
+    from ..chat_session_scope import SessionDbAccess
+
+    return open_chat_session_db(access=SessionDbAccess.READ)
 
 
 @contextmanager

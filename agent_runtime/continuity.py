@@ -141,7 +141,9 @@ def _session_db():
 
     from .chat_session_scope import open_chat_session_db
 
-    db = open_chat_session_db()
+    from .chat_session_scope import SessionDbAccess
+
+    db = open_chat_session_db(access=SessionDbAccess.WRITE)
     if db is None:
         raise RuntimeError("chat session database unavailable")
     return db

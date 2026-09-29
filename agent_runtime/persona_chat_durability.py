@@ -96,6 +96,7 @@ def default_persona_session_db():
         from hermes_constants import get_hermes_home_override
 
         from agent_runtime.chat_session_scope import (
+            SessionDbAccess,
             open_chat_session_db,
             resolve_process_chat_scope,
         )
@@ -122,7 +123,7 @@ def default_persona_session_db():
         override = get_hermes_home_override()
         if override is not None and not scope.authoritative:
             raise PersonaChatPersistenceError("session_db_acquire")
-        db = open_chat_session_db(scope)
+        db = open_chat_session_db(scope, access=SessionDbAccess.WRITE)
         if db is None:
             raise PersonaChatPersistenceError("session_db_acquire")
         return db

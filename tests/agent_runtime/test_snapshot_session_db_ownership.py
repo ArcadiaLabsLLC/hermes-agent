@@ -61,6 +61,11 @@ def session_db_ledger(monkeypatch) -> _Ledger:
     """
 
     ledger = _Ledger()
+    # The build's acquisition is a READ, and a READ answers None for an absent
+    # store — so the store is made to exist first, or the case proves nothing.
+    from agent_runtime.chat_session_scope import SessionDbAccess, open_chat_session_db
+
+    open_chat_session_db(access=SessionDbAccess.WRITE).close()
     real_acquire = snapshot_mod._default_persona_session_db
 
     def counting_acquire():

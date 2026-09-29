@@ -439,7 +439,10 @@ def test_without_the_pointer_the_same_turn_reproduces_the_gap(
     session_ids, accountant = _projected_session_ids(_instance(session_id))
 
     assert session_id not in session_ids
-    assert "session_not_in_db" in _drop_codes(accountant)
+    # The serve lane's head has no store at all, and a READ no longer creates
+    # one, so the dark row is accounted as ``session_db_absent`` (it was
+    # ``session_not_in_db`` over a store the read itself had just created).
+    assert "session_db_absent" in _drop_codes(accountant)
 
 
 # ── D1: the serve read-model cache key ──────────────────────────────────────
@@ -713,7 +716,7 @@ def test_opening_the_chat_db_deletes_retired_scratch_rows_and_reports_them(
 
     scope_mod._SCRATCH_PURGED.discard(str(scope.db_path))
     with caplog.at_level(logging.WARNING, logger=scope_mod.__name__):
-        db = open_chat_session_db(scope)
+        db = open_chat_session_db(scope, access=scope_mod.SessionDbAccess.WRITE)
     try:
         assert db.get_session("old-scratch") is None
         assert db.get_messages("old-scratch") == []

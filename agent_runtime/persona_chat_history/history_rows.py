@@ -31,7 +31,6 @@ __layer__ = "stores"
 __all__ = [
     "_list_sessions",
     "_get_session_row",
-    "_default_session_db",
     "_mission_assignment_for",
     "_history_row",
     "_model_config",
@@ -86,18 +85,6 @@ def _get_session_row(db: Any, session_id: str) -> dict[str, Any] | None:
     except Exception:
         return None
     return raw if isinstance(raw, dict) else None
-
-
-def _default_session_db() -> Any | None:
-    # History pointers, on-demand message tails, open/send validation and
-    # transcript writes must all resolve the same operator-visible database.
-    # A Launcher-selected profile changes HERMES_HOME, but not the chat scope:
-    # ``chat_session_scope`` is the ONE place that decides which database that
-    # is (relay context > HERMES_HEAD_HOME > the shared runtime root's recorded
-    # head pointer > the degraded ambient home).
-    from ..chat_session_scope import open_chat_session_db
-
-    return open_chat_session_db()
 
 
 def _mission_assignment_for(

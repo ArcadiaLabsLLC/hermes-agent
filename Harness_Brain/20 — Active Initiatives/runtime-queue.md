@@ -119,7 +119,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-25 (lane W3-D)
 
-- [ ] **`open_chat_session_db` callers do not declare read vs write: `persona_chat_history.history_rows._default_session_db` serves on-demand reads AND transcript writes through one writer open, and the snapshot read door still CREATES an absent store (one writer open) because `None` would drop bound sessions unaccounted** · `fork / runtime` · type the acquisition per caller (`read` / `write`), give an absent store a typed `session_db_absent` drop instead of creating it from a read · evidence: lane W3-D row-1 follow-up commit body · filed by lane W3-D 2026-09-25 **TAKEN 2026-09-29 h9-serve**
 
 
 ### Filed on arrival — 2026-09-25 (lane W3-C)

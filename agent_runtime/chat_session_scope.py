@@ -136,9 +136,12 @@ __all__ = [
     "ChatSessionScope",
     "InstanceChatHead",
     "InstanceChatHeadStatus",
+    "SESSION_DB_ABSENT",
+    "SessionDbAccess",
     "DECLARED_HEAD_HOME_KEY",
     "ambient_chat_reads_allowed",
     "chat_session_db_path",
+    "chat_session_store_exists",
     "declared_chat_head_home",
     "is_canonical_session_persistence",
     "open_chat_session_db",
@@ -617,40 +620,62 @@ def chat_session_db_path() -> Path:
     return resolve_process_chat_scope().db_path
 
 
+class SessionDbAccess(str, Enum):
+    """What a caller is about to do with the chat ``SessionDB`` — declared, never inferred."""
+
+    READ = "read"
+    WRITE = "write"
+
+
+#: The projection drop for a session bound to an instance while the chat store
+#: does not exist at all. Anomalous (the binding names a transcript nobody has),
+#: and distinct from ``session_not_in_db`` (the store exists, the row does not).
+SESSION_DB_ABSENT = "session_db_absent"
+
+
 def open_chat_session_db(
-    scope: ChatSessionScope | None = None, *, read_only: bool = False
+    scope: ChatSessionScope | None = None, *, access: SessionDbAccess
 ) -> Any | None:
-    """Open the operator-visible chat ``SessionDB``; ``None`` when unavailable.
+    """Open the operator-visible chat ``SessionDB`` for ``access``; ``None`` when unavailable.
 
-    Callers that must fail loudly wrap the ``None`` in their own typed error —
-    the acquisition is shared, the failure posture is not.
+    Every caller declares READ or WRITE; there is no default, so an acquisition
+    cannot be a write by omission. Callers that must fail loudly wrap the
+    ``None`` in their own typed error — the acquisition is shared, the failure
+    posture is not.
 
-    ``read_only=True`` is the READ-MODEL door: an EXISTING store is attached
-    with upstream's ``mode=ro`` (no schema init, no data migration, no scratch
-    purge). A writer open is not a read: upstream ``_run_data_migrations``
-    stamps ``fts_storage_version`` on a fresh database's second writer open, so
-    a build that opened a writer moved ``state.db``'s mtime under the stream
-    watchdog that stats it and minted a spurious ``state.reconciled``
-    (runtime-queue, lane W3-C verdict).
+    READ attaches an EXISTING store with upstream's ``mode=ro`` (no schema init,
+    no data migration, no scratch purge) and answers ``None`` for an ABSENT one
+    — a read never creates the store. A writer open is not a read: upstream
+    ``_run_data_migrations`` stamps ``fts_storage_version`` on a fresh
+    database's second writer open, so a build that opened a writer moved
+    ``state.db``'s mtime under the stream watchdog (runtime-queue, lane W3-C
+    verdict). A read caller that needs "absent" apart from "failed" asks
+    :func:`chat_session_store_exists`; the projection accounts a bound session
+    in an absent store as :data:`SESSION_DB_ABSENT`.
 
-    An ABSENT store is still created by one writer open, as before: ``None``
-    there would turn "this home has no transcripts yet" into "unavailable", and
-    a bound session would vanish from the projection with no
-    ``session_not_in_db`` drop to account for it. Only the SECOND and later
-    writer opens — the migration stamps — are what the read door retires.
+    WRITE opens a writer, creating the store when it is absent, and runs the
+    once-per-process retired-scratch purge.
     """
 
     resolved = scope or resolve_process_chat_scope()
-    attach = read_only and _store_exists(resolved.db_path)
+    read = SessionDbAccess(access) is SessionDbAccess.READ
+    if read and not _store_exists(resolved.db_path):
+        return None
     try:
         from hermes_state import SessionDB
 
-        db = SessionDB(db_path=resolved.db_path, read_only=attach)
+        db = SessionDB(db_path=resolved.db_path, read_only=read)
     except Exception:
         return None
-    if not attach:
+    if not read:
         _purge_retired_scratch_once(db, resolved.db_path)
     return db
+
+
+def chat_session_store_exists(scope: ChatSessionScope | None = None) -> bool:
+    """Is there a chat store at all? Tells a READ's ``None`` for "absent" from "failed"."""
+
+    return _store_exists((scope or resolve_process_chat_scope()).db_path)
 
 
 def _store_exists(db_path: Any) -> bool:

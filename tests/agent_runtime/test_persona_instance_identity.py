@@ -790,7 +790,7 @@ def test_repair_skips_when_head_home_is_not_authoritative(monkeypatch):
     monkeypatch.setattr(
         chat_session_scope,
         "open_chat_session_db",
-        lambda: (_ for _ in ()).throw(AssertionError("guard must refuse before resolving the DB")),
+        lambda **_access: (_ for _ in ()).throw(AssertionError("guard must refuse before resolving the DB")),
     )
 
     report = PersonaInstanceStore().repair_missing_chat_session_bindings()
@@ -813,7 +813,7 @@ def test_reconcile_repairs_stale_chat_bindings_and_dry_run_is_inert(monkeypatch)
     monkeypatch.setattr(
         chat_session_scope,
         "open_chat_session_db",
-        lambda: _FakeSessionDB(["persona_chat_live"]),
+        lambda **_access: _FakeSessionDB(["persona_chat_live"]),
     )
 
     dry = reconcile_persona_instances(apply=False, event_log=EventLog())

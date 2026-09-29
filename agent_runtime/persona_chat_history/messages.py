@@ -40,7 +40,8 @@ def existing_persona_chat_messages(*, session_id: str, before: str | None = None
         return refusal
     if not scope.db_path.is_file():
         return {"ok": False, "error_kind": "session_not_found"}
-    db = chat_session_scope.open_chat_session_db(scope, read_only=True)
+    db = chat_session_scope.open_chat_session_db(
+        scope, access=chat_session_scope.SessionDbAccess.READ)
     if db is None:
         return {"ok": False, "error_kind": "session_db_unavailable"}
     with closing(db):
@@ -78,7 +79,8 @@ def persona_chat_session_messages(
         scope, refusal = _resolve_scope(session_id, bounded)
         if refusal is not None:
             return refusal
-        db = chat_session_scope.open_chat_session_db(scope)
+        db = chat_session_scope.open_chat_session_db(
+            scope, access=chat_session_scope.SessionDbAccess.READ)
     messages, status, unread = _safe_curated_messages(db, session_id=session_id)
     if unread is not None:
         # A read that did not happen is NOT an empty conversation. This used to

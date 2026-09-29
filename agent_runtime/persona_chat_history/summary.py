@@ -88,8 +88,11 @@ def persona_chat_history_summary(
     summary.index_instances()
     # A summary is a read: the fallback attaches an existing store read-only
     # (``open_chat_session_db``'s read door), never a second writer open.
-    db = session_db or chat_session_scope.open_chat_session_db(read_only=True)
+    db = session_db or chat_session_scope.open_chat_session_db(
+        access=chat_session_scope.SessionDbAccess.READ)
     if db is None:
+        if session_db is None and not chat_session_scope.chat_session_store_exists():
+            summary.account_absent_store()
         return []
     summary.session_candidates(db)
     summary.bound_candidates(db)
@@ -242,6 +245,20 @@ class HistorySummary:
             )
         else:
             accountant.drop("no_instance_match", entity_id=session_id)
+
+    def account_absent_store(self) -> None:
+        """No chat store exists: every bound session is a typed drop, never a silent one.
+
+        The read door no longer creates an absent store (that was a write from a
+        read), so the ``session_not_in_db`` accounting a created-empty store used
+        to produce is this drop instead: anomalous, one per bound session.
+        """
+
+        if self.accountant is None:
+            return
+        for session_id in self.bound_by_session:
+            self.accountant.consider(1)
+            self.accountant.drop(chat_session_scope.SESSION_DB_ABSENT, entity_id=session_id)
 
     def bound_candidates(self, db: Any) -> None:
         # Create/open paths now persist persona chat sessions before exposing them.
