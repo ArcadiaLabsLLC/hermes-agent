@@ -232,7 +232,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-26 (lane PF-1, seams; filed by the orchestrator)
 
-- [ ] **`terminal_tool.py` (b), the persona chat container scope, is NOT plugin-movable: the key is the dispatch kwarg `task_id` (`model_tools._execute_tool`) and no `tool_request` rewrite reaches it — owner call: pass `run_conversation(task_id=<chat root>)` and adopt upstream's session-key branch (the runner already binds `chat_root_session_key_scope`); the two differ only for persistent docker (per-profile vs per-chat)** · `fork / seams` · evidence: commit `6c7ec1f257` · filed 2026-09-26 (lane PF-1) **UNCLAIMED** **TAKEN 2026-09-29 h10-rtseam**
+- [ ] **`terminal_tool.py` (b), the persona chat container scope, is NOT plugin-movable: the key is the dispatch kwarg `task_id` (`model_tools._execute_tool`) and no `tool_request` rewrite reaches it — owner call: pass `run_conversation(task_id=<chat root>)` and adopt upstream's session-key branch (the runner already binds `chat_root_session_key_scope`); the two differ only for persistent docker (per-profile vs per-chat)** · `fork / seams` · evidence: commit `6c7ec1f257` · filed 2026-09-26 (lane PF-1) **UNCLAIMED** **TAKEN 2026-09-29 h10-rtseam** · VERDICT 2026-09-29 h10-rtseam: owner call, unchanged in the tree (dispatch kwarg `task_id` still keys the container). Owed: the owner picks per-profile vs per-chat persistent docker; then one seam lane passes `run_conversation(task_id=<chat root>)` and drops terminal_tool (b)
 
 ### Filed on arrival — 2026-09-26 (lane AUTH-PR, filed by the orchestrator)
 
