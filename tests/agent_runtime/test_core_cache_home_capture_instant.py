@@ -46,6 +46,7 @@ from types import SimpleNamespace
 import pytest
 
 from agent_runtime import core_cache
+from tests._downstream import _seams
 from hermes_cli.harness_parts.serve import FINGERPRINT_HOME_BOOT_SITE, serve_loop
 
 
@@ -93,7 +94,7 @@ def test_a_lazy_capture_in_a_process_that_declared_an_instant_says_so(caplog):
     assert any(
         field in ("authoritative=true", "authoritative=false") for field in fields
     ), lines[0]
-    assert core_cache.fingerprint_home_capture().eager is False
+    assert _seams.fingerprint_home_capture().eager is False
 
 
 def test_a_process_that_declared_nothing_is_not_accused_of_anything(caplog):
@@ -118,7 +119,7 @@ def test_the_eager_capture_is_what_silences_it(caplog):
         core_cache.resolved_fingerprint_home()
 
     assert _warnings(caplog) == []
-    state = core_cache.fingerprint_home_capture()
+    state = _seams.fingerprint_home_capture()
     assert state.eager is True
     assert state.boot_site == "probe:declared_and_captured"
 
@@ -137,12 +138,12 @@ class _StateAtEachFrame:
 
     def __init__(self) -> None:
         self.out = io.StringIO()
-        self.at: dict[str, core_cache.FingerprintHomeCapture] = {}
+        self.at: dict[str, _seams.FingerprintHomeCapture] = {}
 
     def write(self, payload: str):
         for event in ("booting", "ready"):
             if f'"event": "{event}"' in payload and event not in self.at:
-                self.at[event] = core_cache.fingerprint_home_capture()
+                self.at[event] = _seams.fingerprint_home_capture()
         return self.out.write(payload)
 
     def flush(self):
@@ -193,10 +194,10 @@ def test_the_capture_precedes_the_prewarm_that_builds_the_read_model(caplog):
     prewarm rather than after ``serve_loop`` returns, because "captured by the
     time the loop exits" is satisfied by the build itself capturing."""
 
-    seen: list[core_cache.FingerprintHomeCapture] = []
+    seen: list[_seams.FingerprintHomeCapture] = []
 
     def prewarm() -> None:
-        seen.append(core_cache.fingerprint_home_capture())
+        seen.append(_seams.fingerprint_home_capture())
 
     with caplog.at_level(logging.WARNING, logger="agent_runtime.core_cache"):
         assert (
@@ -265,7 +266,7 @@ def test_the_cli_harness_dispatch_captures_before_the_command_runs():
 
     capture_for_harness_command(SimpleNamespace(command="harness"))
 
-    state = core_cache.fingerprint_home_capture()
+    state = _seams.fingerprint_home_capture()
     assert state.home is not None and state.eager is True, state
     assert state.boot_site == FINGERPRINT_HOME_CLI_BOOT_SITE, state
 
@@ -279,7 +280,7 @@ def test_a_command_that_cannot_reach_this_lane_pays_nothing_for_it():
 
     capture_for_harness_command(SimpleNamespace(command="chat"))
 
-    assert core_cache.fingerprint_home_capture() == core_cache.FingerprintHomeCapture(
+    assert _seams.fingerprint_home_capture() == _seams.FingerprintHomeCapture(
         home=None, authoritative=False, eager=False, boot_site=None
     )
 
@@ -299,7 +300,7 @@ def test_an_eager_capture_does_not_overwrite_one_already_taken(caplog):
         second = core_cache.capture_fingerprint_home()
 
     assert second == first
-    assert core_cache.fingerprint_home_capture().eager is False, (
+    assert _seams.fingerprint_home_capture().eager is False, (
         "a capture taken lazily was relabelled as eager by the late call, which "
         "erases the only evidence that the instant was missed"
     )

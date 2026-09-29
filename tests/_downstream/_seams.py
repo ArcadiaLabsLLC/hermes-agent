@@ -17,17 +17,22 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Iterator, NamedTuple
 
 from agent_runtime import repo_context as _rc
 from agent_runtime.redaction import TEXT_SECRET_VALUE_ASSIGNMENT_RE
 
 __all__ = [
+    "BUILD_SELF_PERTURBED_CLASSES",
+    "FingerprintHomeCapture",
     "RepoContextExcerpt",
     "RepoExecutionContext",
     "active_workspace_lifts",
     "chat_live_log_failures",
     "existing_run_worktrees",
+    "fingerprint_home_capture",
     "isolated_repo_context_for_run",
+    "iter_fingerprint_paths",
     "remove_harness_worktree_for_repo",
     "repo_execution_context_for_task",
     "reset_unreadable_instance_rows",
@@ -594,3 +599,58 @@ _MAX_CONTEXT_LINE_CHARS = 500
 # re-emits the ``=`` explicitly, so the rendered output is unchanged for the
 # ``KEY=value`` form and normalized (``:`` -> ``=``) for the ``key: value`` one.
 _SECRET_ASSIGNMENT_RE = TEXT_SECRET_VALUE_ASSIGNMENT_RE
+
+
+# -- core_cache: the HC-1 home-capture instrument and two audit enumerations ------
+# Dead-code queue row (R3 TEST SEAM, lane h10-fhrel 2026-09-29): no production
+# caller; the timing suites (core-cache-home-capture-timing.md) and the closure /
+# restat audits are their only readers.
+
+
+class FingerprintHomeCapture(NamedTuple):
+    """What this process captured, and WHERE it came from (``home`` is ``None``
+    until something has captured)."""
+
+    home: Path | None
+    authoritative: bool
+    eager: bool
+    boot_site: str | None
+
+
+def fingerprint_home_capture() -> FingerprintHomeCapture:
+    """Observe the fingerprint-home capture WITHOUT taking one."""
+
+    from agent_runtime.core_cache import home as _home
+
+    with _home._fingerprint_home_lock:
+        if _home._fingerprint_home is None:
+            return FingerprintHomeCapture(
+                home=None, authoritative=False, eager=False, boot_site=_home._fingerprint_home_boot_site,
+            )
+        return FingerprintHomeCapture(
+            home=_home._fingerprint_home[0],
+            authoritative=_home._fingerprint_home[1],
+            eager=_home._fingerprint_home_eager,
+            boot_site=_home._fingerprint_home_boot_site,
+        )
+
+
+def iter_fingerprint_paths(fingerprint) -> Iterator[str]:
+    """Every path in a fingerprint — the §6.1 audit surface, enumerable."""
+
+    for entry in fingerprint.entries:
+        yield entry.path
+
+
+def _build_self_perturbed_classes() -> tuple[str, ...]:
+    from agent_runtime.core_cache import restat as _restat
+
+    return (
+        _restat.SELF_PERTURBED_SESSION_DB,
+        _restat.SELF_PERTURBED_PERSONA_INSTANCES,
+        _restat.SELF_PERTURBED_LIVE_EVENTS,
+    )
+
+
+#: The three classes the build itself moves (restat.py argues each one).
+BUILD_SELF_PERTURBED_CLASSES = _build_self_perturbed_classes()

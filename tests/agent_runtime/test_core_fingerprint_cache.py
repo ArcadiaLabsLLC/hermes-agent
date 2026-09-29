@@ -37,6 +37,7 @@ from typing import NamedTuple
 import pytest
 
 from agent_runtime import core_cache, paths
+from tests._downstream import _seams
 from agent_runtime.models import OfficeActor, OfficeItem, OfficeSurface
 from agent_runtime.serde import to_jsonable
 from agent_runtime.snapshot import BUILD_ROLE_CACHE, BUILD_ROLE_LED, build_snapshot
@@ -1837,7 +1838,7 @@ def test_the_fingerprint_covers_every_named_input_class(isolate_agent_runtime_ro
     _write_office_by_hand(OFFICE_WORKSPACE)
     fingerprint = core_cache.build_input_fingerprint()
     assert fingerprint is not None
-    covered = set(core_cache.iter_fingerprint_paths(fingerprint))
+    covered = set(_seams.iter_fingerprint_paths(fingerprint))
 
     def assert_covered(label: str, path) -> None:
         assert str(path) in covered, (
@@ -1897,7 +1898,7 @@ def test_the_chat_sessiondb_class_is_resolved_through_its_own_authority(
     monkeypatch.setattr(chat_session_scope, "chat_session_db_path", lambda: distinct)
     fingerprint = core_cache.build_input_fingerprint()
     assert fingerprint is not None
-    covered = set(core_cache.iter_fingerprint_paths(fingerprint))
+    covered = set(_seams.iter_fingerprint_paths(fingerprint))
     assert str(distinct) in covered, (
         "the fingerprint did not follow chat_session_db_path(); it is watching "
         "whichever database ambient resolution hands it, which is defect D1"

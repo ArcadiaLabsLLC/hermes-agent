@@ -54,6 +54,7 @@ from types import SimpleNamespace
 import pytest
 
 from agent_runtime import core_cache
+from tests._downstream import _seams
 from agent_runtime.profile_context import (
     PersonaProfileBinding,
     persona_profile_context,
@@ -135,7 +136,7 @@ def _fingerprint_off_thread(scope_is_held: threading.Event, released: threading.
 
 
 def _paths(fingerprint) -> set[str]:
-    return set(core_cache.iter_fingerprint_paths(fingerprint))
+    return set(_seams.iter_fingerprint_paths(fingerprint))
 
 
 def _under(paths: set[str], home: Path) -> list[str]:
@@ -606,7 +607,7 @@ def test_a_genuine_multi_home_install_still_demotes_after_an_eager_capture(
 
     core_cache.declare_fingerprint_home_boot_site("probe:multi_home_boot")
     core_cache.capture_fingerprint_home()
-    assert core_cache.fingerprint_home_capture().eager is True
+    assert _seams.fingerprint_home_capture().eager is True
 
     key = _persist_pair(monkeypatch, fingerprint_home=str(two_profiles.other))
 

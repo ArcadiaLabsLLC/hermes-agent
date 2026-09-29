@@ -3637,6 +3637,25 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "RepoContextExcerpt",
         scope=_AR,
     ),
+    *rows(
+        # Lane h10-fhrel (2026-09-29): dead-code queue row
+        # `fingerprint_home_capture` / `iter_fingerprint_paths` /
+        # `BUILD_SELF_PERTURBED_CLASSES` (R3 TEST SEAM). The NamedTuple went
+        # with its only constructor. `reset_fingerprint_home` stays: its
+        # production caller is lane.reset_process_state.
+        "s-h10",
+        "HEAD",
+        Form.CODE,
+        "tests-only readers of core_cache state with no production caller (the "
+        "HC-1 home-capture observer, the fingerprint path enumeration, the "
+        "self-perturbed class tuple); they live in tests/_downstream/_seams.py "
+        "and read core_cache.home / restat the same way",
+        "fingerprint_home_capture",
+        "FingerprintHomeCapture",
+        "iter_fingerprint_paths",
+        "BUILD_SELF_PERTURBED_CLASSES",
+        scope=_AR,
+    ),
     # -- the 2026-09-25 upstream merge ------------------------------------
     *rows(
         "s-merge-2026-09-25",

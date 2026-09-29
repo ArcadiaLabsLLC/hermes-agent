@@ -5,10 +5,9 @@ ignoring the keys that legitimately differ.
 from __future__ import annotations
 
 import threading
-from typing import Any, Callable, Iterator
+from typing import Any, Callable
 
 from agent_runtime.core_cache.vocabulary import logger
-from agent_runtime.core_cache.models import CoreFingerprint
 from agent_runtime.core_cache.persist import write_back
 from agent_runtime.core_cache.lane import (
     claim_shadow_slot,
@@ -24,7 +23,6 @@ __all__ = [
     "_SHADOW_IGNORED_WATERMARK_KEYS",
     "_stripped",
     "compare_cores",
-    "iter_fingerprint_paths",
     "maybe_start_shadow_validation",
     "shadow_validate",
 ]
@@ -212,10 +210,3 @@ def maybe_start_shadow_validation(cached: dict, *, caller: str, build: Callable[
     )
     thread.start()
     return True
-
-
-def iter_fingerprint_paths(fingerprint: CoreFingerprint) -> Iterator[str]:
-    """Every path in a fingerprint — the §6.1 audit surface, enumerable."""
-
-    for entry in fingerprint.entries:
-        yield entry.path
