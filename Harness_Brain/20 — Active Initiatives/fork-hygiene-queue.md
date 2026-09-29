@@ -21,7 +21,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 ### Filed on arrival — 2026-09-28 (lane w5-hstt)
 
 ### Filed on arrival — 2026-09-29 (lane h7-reds)
-- [ ] **Upstream-owned Windows reds, identical in a pure-upstream tree at merge-base `2f14d5e6e4`: 51 in `tests/tools/test_mcp_{cimd,oauth,oauth_integration,oauth_manager,oauth_user_agent,shared_connection_resolved_identity,startup_summary_names_failures,tool_issue_948,windows_orphan_fix}.py` (40 are `OAuthNonInteractiveError`: the tests mock `sys.stdin.isatty` but `_stdin_is_console` also asks `GetConsoleMode`) plus `tests/scripts/test_bundle_native.py` (`No module named hermes_bootstrap`: the fixture repo omits it, `launcher_wrapper` imports it) — decide upstream PR vs `upstream_reds.py` rows** · fork-hygiene · evidence: h7-reds loader commit message · UNCLAIMED **TAKEN 2026-09-29 h10-fhrel**
 - [ ] **With the directory conftests restored, `scripts/run_tests.sh tests/tools tests/agent tests/hermes_cli` on this box is 561 failed / 33244 passed in 237 files, all pre-existing (none new vs the old loader; `tests/tools/test_file_read_guards.py` flakes 4-5 reds on both) — triage by class, environment vs code** · fork-hygiene · evidence: h7-reds loader commit message · UNCLAIMED **TAKEN 2026-09-29 h10-fhrel**
 
 ### Filed on arrival — 2026-09-28 (lane w4-hfix2)
