@@ -12,19 +12,28 @@ Frames, error codes and the manifest follow
 Every success result carries `contract: 1`. Adding these methods grows the
 manifest set without moving `RPC_CONTRACT_VERSION`.
 
-## Engines — enabled, not reimplemented
+## Engines
 
-| Step | Upstream code used |
+| Step | Code used |
 |---|---|
-| STT load | `tools/transcription_local.py::_load_local_whisper_model` (via `_upstream_doors.whisper_load_model`), `device="cpu"`, `compute_type="int8"` |
-| STT decode | `build_local_transcribe_kwargs` (VAD, confidence gate, `language: en` unless `stt.language` says otherwise) and `_join_confident_segments` |
+| STT load | upstream `tools/transcription_local.py::_load_local_whisper_model` (via `_upstream_doors.whisper_load_model`), `device="cpu"`, `compute_type="int8"` |
+| STT decode | upstream `build_local_transcribe_kwargs` (VAD, confidence gate, `language: en` unless `stt.language` says otherwise) and `_join_confident_segments` |
 | STT load + decode, Parakeet | onnx-asr 0.12.0 `load_model("nemo-conformer-tdt", <dir>, quantization="int8", providers=["CPUExecutionProvider"])`, then `recognize` per chunk (`agent_runtime/speech_stt_engines.py`) |
-| TTS load | `tools/tts_tool_local.py::_load_piper_voice_for_config` (the same LRU slot the `speak` tool reads); unload is `release_tts_provider("piper")` |
-| TTS synth | `PiperVoice.synthesize` (one chunk per sentence) |
+| TTS load | fork `agent_runtime/speech_onnx_voice.py::load_voice` — a Piper or Kokoro voice on onnxruntime, with its phonemizer artifact; unload drops the object |
+| TTS synth | the same runner, one chunk per sentence |
 
-Versions measured: faster-whisper 1.2.1, ctranslate2 4.8.2, piper-tts 1.8.0,
-onnxruntime 1.30.0, numpy 2.5.3 (the `pyproject.toml` pins). Parakeet: onnx-asr 0.12.0,
-onnxruntime 1.29.0, numpy 2.5.3.
+**TTS is the fork's own, on purpose.** The speech pack ships no GPL code (owner
+ruling 2026-09-28, second sitting, item 2; launcher
+`docs/embedded_hermes/planned/GPL_FREE_TTS_OPTIONS_2026-09-28.md`). Upstream's
+Piper path is `piper-tts` (GPL-3.0, espeak-ng compiled in), so the bundled
+service does not enable it: `speech_onnx_voice.py` runs the voice's ONNX file
+the way Piper's and Kokoro's own inference code does, and
+`agent_runtime/speech_phonemize.py` turns text into phonemes. Full Hermes's
+`speak` tool still uses upstream's Piper when `piper-tts` is installed.
+
+Versions measured: faster-whisper 1.2.1, ctranslate2 4.8.1, onnxruntime 1.29.0,
+numpy 2.4.3 (the `pyproject.toml` pins; the TTS runner is the `speech-tts`
+extra). Parakeet: onnx-asr 0.12.0, onnxruntime 1.29.0, numpy 2.5.3.
 
 **The STT engine is chosen by the model folder's files, never by a config
 string** (`speech_stt_engines.engine_for`). A folder whose `config.json` names
@@ -52,20 +61,24 @@ A model is named by an **absolute path**, or by a bare name under `models_dir`:
   (`istupakov/parakeet-tdt-0.6b-v2-onnx`, 661 MB): `config.json`
   (`model_type: nemo-conformer-tdt`), `vocab.txt`, `encoder-model.int8.onnx`
   and `decoder_joint-model.int8.onnx`. Weights CC-BY-4.0 (attribution).
-- TTS: a Piper voice `<name>.onnx` with its `<name>.onnx.json` beside it.
-  Upstream's resolver returns an existing `.onnx` before its download branch.
-- TTS pronunciation data: the voice's own `espeak-ng-data/` folder beside the
-  `.onnx` (the speech pack ships none; the Launcher downloads the language
-  subset with the voice). Required: `phontab`, `phonindex`, `phondata`,
-  `intonations`, `<lang>_dict` (`en_dict`) and the language file named by the
-  voice's `espeak.voice` anywhere under `lang/` (`en-us` is `lang/gmw/en-US`).
-  The service passes that folder to `PiperVoice.load(model, espeak_data_dir=…)`
-  (through upstream's loader, fork seam in `tools/tts_tool_local.py`). The set
-  is checked BEFORE the loader because a missing `en_dict` does not fail — espeak
-  prints a warning and phonemizes to nothing, i.e. silent audio. The first voice
-  loaded fixes espeak's data directory for the process. With no folder beside
-  the voice, piper-tts's own `piper/espeak-ng-data` is used when it is installed
-  (full Hermes); otherwise the voice reads `espeak_data_missing`.
+- TTS, Piper: a voice `<name>.onnx` with its `<name>.onnx.json` beside it.
+- TTS, Kokoro: `kokoro-v1.0.onnx` with `voices-v1.0.bin` beside it (preset
+  `af_heart`, 24 kHz).
+- TTS phonemizer: an ARTIFACT beside the voice, downloaded with it — no
+  espeak-ng anywhere:
+
+  | voice | files | what it is |
+  |---|---|---|
+  | Piper | `openphonemizer-en_us.onnx` + `.json` | OpenPhonemizer (BSD-3-Clause-Clear) exported to ONNX: its 274 927-word dictionary, then its transformer for any other word; espeak-style `en-us` IPA, mapped to espeak's British `en` for a voice whose `espeak.voice` is `en` (all three catalog voices) |
+  | Kokoro | `misaki-en_us-g2p.onnx` + `.json` | misaki's gold + silver lexicons and its neural fallback (both Apache-2.0), plus Kokoro's phoneme vocabulary; a word the lexicon lacks goes to the fallback, never to silence |
+
+  Both consult a product-name lexicon first (Eternia, Hermes, Arcadia) and
+  spell digits and clock times as words (the pack ships no `num2words`). The
+  artifacts are made by `scripts/phonemizer_openphonemizer_onnx.py` and
+  `scripts/phonemizer_misaki_g2p_onnx.py`; neither needs torch at runtime. A
+  voice without its artifact reads `unavailable`, reason `phonemizer_missing`,
+  `missing` naming the absent files — checked BEFORE the loader. A Piper voice
+  with `phoneme_type: "text"` needs none.
 
 **No PyAV** (bundled speech pack). faster-whisper imports `av` at module top but
 decodes only FILES; this service passes arrays (the Launcher sends raw PCM), so
@@ -82,18 +95,18 @@ there (`base`, `en_US-lessac-medium`) reads `model_not_local`; it is never
 fetched.
 
 Validation runs before any loader, so a missing or partial model reads
-`unavailable` with a typed reason and nothing is fetched. The bundled profile
+`unavailable` with a typed reason and nothing is fetched. The TTS runner reads
+only files; it has no download path at all. The bundled profile
 (`agent_runtime/bundle_profiles/bundled-desktop.yaml`) also sets
-`HF_HUB_OFFLINE=1`; Piper's voice download (`python -m piper.download_voices`,
-not `huggingface_hub`) now honours that switch too, through a two-line fork seam
-in `tools/tts_tool_local.py::_resolve_piper_voice_path`.
+`HF_HUB_OFFLINE=1`, which upstream's Piper voice download (full Hermes) honours
+through a two-line fork seam in `tools/tts_tool_local.py::_resolve_piper_voice_path`.
 
 **CPU default** (owner ruling 1: mid-range PC, no dedicated GPU): `int8` on
-CPU, one Whisper-family English model and one Piper voice. Measured below:
+CPU, one Whisper-family English model and one voice. Measured below:
 `faster-whisper-tiny.en` meets the ≤ ~1 s budgets on the measurement machine;
-`faster-whisper-base.en` is more accurate and misses them. Voice:
-`en_US-lessac-medium`. The model the Launcher's catalog lists is the product
-choice; the service loads whichever directory it is given.
+`faster-whisper-base.en` is more accurate and misses them. The voice the
+Launcher's catalog lists is the product choice; the service loads whichever
+file it is given.
 
 ## Methods
 
@@ -124,8 +137,8 @@ when it has one (`RpcContext.spawn_reply`); the reply arrives on the same `id`.
 
 ```
 {state, reason, model_path, engine, reserved_bytes, unloaded_reason,
- missing?,                       # model_partial / espeak_data_*: the absent/empty/unparseable files
- espeak_data_dir?,               # tts available: the voice folder's espeak-ng-data, or null (piper's own)
+ missing?,                       # model_partial / phonemizer_missing: the absent/empty/unparseable files
+ voice_family?,                  # tts: "piper" | "kokoro" (null when neither companion file is there)
  disk_bytes?,                    # available
  device, compute_type, input_sample_rate, input_encoding,   # stt
  sample_rate}                    # tts (from the voice's .onnx.json)
@@ -133,7 +146,7 @@ when it has one (`RpcContext.spawn_reply`); the reply arrives on the same `id`.
 
 | state | meaning |
 |---|---|
-| `unavailable` | `reason` ∈ `model_unset`, `model_not_local`, `model_missing`, `model_partial` (stt: `engine` names whose file list `missing` is), `model_unsupported` (stt: a NeMo folder whose `model_type` is not TDT; `+model_type`), `espeak_data_partial` (tts; `missing` names the `espeak-ng-data/…` files), `espeak_data_missing` (tts; no data beside the voice and none installed with piper), `engine_missing`, `load_failed` |
+| `unavailable` | `reason` ∈ `model_unset`, `model_not_local`, `model_missing`, `model_partial` (stt: `engine` names whose file list `missing` is), `model_unsupported` (stt: a NeMo folder whose `model_type` is not TDT; `+model_type`), `phonemizer_missing` (tts; `missing` names the artifact files, `voice_family` which voice wanted them), `engine_missing` (tts: onnxruntime / numpy, i.e. no speech pack), `load_failed` |
 | `available` | files complete, engine importable, not loaded |
 | `loading` | a load is running |
 | `loaded` | ready; `reserved_bytes` is its admission reservation |
@@ -185,8 +198,8 @@ reserved_bytes, lease_seconds}`. **release** — `{contract, holder, released}`.
   Launcher (the voice sampling authority) resamples before sending; other rates
   are refused (`audio_format_unsupported`). One push carries at most 64 KiB
   decoded (2 s); the Launcher sends ~100 ms.
-- Out: `pcm_s16le` mono at the voice's rate (22 050 Hz for lessac-medium),
-  pushed in chunks of at most 32 KiB raw.
+- Out: `pcm_s16le` mono at the voice's rate (22 050 Hz for the Piper
+  medium voices, 24 000 Hz for Kokoro), pushed in chunks of at most 32 KiB raw.
 
 Measured (2026-09-28, the machine below): a 100 ms input chunk is a **4 427-byte**
 push frame; the largest synthesis chunk frame is **43 864 bytes**; a 3.5 s
@@ -256,12 +269,30 @@ preprocessor graphs left out; `cudnn64_9.dll` stripped, 0.25 MiB), 159.49 MiB
 installed, **31.24 MiB LZMA**. Both engines decode from the built pack on the
 pinned 3.14 interpreter: Parakeet transcribed clip `1272-135031-0004` exactly,
 Whisper tiny.en ran on CPU int8 with no cuDNN present. Licences: the pack's
-`review_required` is `ctranslate2` (embedded `intel-openmp`, `libiomp5md.dll`,
-`review: true`) and `piper-tts`; the core's is empty (the interpreter's
+`review_required` was `ctranslate2` (embedded `intel-openmp`, `libiomp5md.dll`,
+`review: true`) and `piper-tts` (piper-tts left in lane w5-htts, below); the core's is empty (the interpreter's
 `vcruntime140` carries `accepted`, owner ruling item 8).
 
-Piper `en_US-lessac-medium`: load 4.7–5.1 s (+85 MiB), first chunk 0.26–0.28 s (2.0 s on the very first run after install)
-for the sentence, whole sentence (3.5 s of audio) 0.26–0.28 s warm.
+**TTS on the pack's own runner** (lane w5-htts, 2026-09-28, same machine, other
+lanes running: CPU 38–65 % busy). One sentence is synthesized whole, so "first
+audio" is that sentence's synthesis time. Three warm runs each; intelligibility
+is faster-whisper `base.en` transcribing the WAV back.
+
+| voice | load | first audio: S0 (one 5.5 s sentence) | first audio: S1's first sentence | Whisper heard |
+|---|---|---|---|---|
+| Piper `en_US-ljspeech-medium` + OpenPhonemizer | 11.2 s | 0.40 / 0.37 / 0.33 s | 0.09 s | S0 exact; S1 "…at 3.45 pm. The game is ready to play." ("and" lost); S2 every word |
+| Kokoro 82M `af_heart` + misaki | 2.9 s | 1.95 / 2.10 / 1.80 s | 0.72 s | S0, S1 ("Welcome back to Eternia…") and S2 every word |
+
+S0 "The quick brown fox jumps over the lazy dog, and then it runs back home
+before dark." · S1 "Welcome back to Eternia. Your download finished at 3:45 PM
+and the game is ready to play." · S2 "Hermes saved 2 files on September 28th,
+2026; the update is 12.5 percent smaller." No `torch`, `piper`, `phonemizer`,
+`espeakng_loader`, `misaki`, `spacy` or `num2words` module was loaded (checked
+through `sys.modules`). Piper's load is mostly onnxruntime building the voice's
+session (7.0 s of it on this loaded box; the phonemizer adds 0.6 s).
+
+Before (piper-tts + espeak-ng, lessac-medium, 2026-09-28 w2): load 4.7–5.1 s,
+first chunk 0.26–0.28 s for a 3.5 s sentence.
 
 ## Admission — one budget for speech and LLMs
 

@@ -35,6 +35,7 @@ ANCHORS: dict[str, str | tuple[str, ...]] = {
     "stt-whisper": "faster_whisper",
     "stt-parakeet": ("onnx_asr", "onnxruntime"),
     "audio-io": ("sounddevice", "numpy"),
+    "speech-tts": ("onnxruntime", "numpy"),
     "silk": "pilk",
     "wake": "pyopen_wakeword",
     "wake-openwakeword": "pyopen_wakeword",

@@ -205,7 +205,7 @@ packaging:
   packs:
     speech:
       extras:
-        - piper         # speech service: TTS (On)
+        - speech-tts    # speech service: TTS (On) — our onnxruntime runner, no piper-tts / espeak-ng (GPL)
         - stt-whisper   # speech service: STT, Whisper tiers (On)
         - stt-parakeet  # speech service: STT, Parakeet TDT tiers on onnxruntime (On)
   # Agent resources (scripts/build/inputs.py RESOURCE_ENV) shipped beside the code.
@@ -238,10 +238,6 @@ packaging:
   # Left out of the bundle, each with its reason (bundle-root-relative:
   # app/... or site-packages/...; a trailing path or an fnmatch glob).
   excluded_data:
-    site-packages/piper/espeak-ng-data: "pronunciation data, not code: the Launcher downloads the language data a voice needs with that voice (owner, 2026-09-28); English needs 7 files, see docs/downstream/bundled-desktop-closure-2026-09-28.md"
-    site-packages/piper/hebrew/nakdimon.onnx: "Hebrew diacritizer model (20 MiB): no models in the installer; loaded only for a Hebrew voice"
-    site-packages/piper/tashkeel/model.onnx: "Arabic diacritizer model: no models in the installer; loaded only for an Arabic voice"
-    site-packages/piper/train: "Piper's voice-training code: dev code, never imported by synthesis"
     site-packages/ctranslate2/cudnn64_9.dll: "cuDNN (owner ruling 2026-09-28 item 7): a CUDA-only library in a CPU speech pack; ctranslate2 loads the DLLs it finds and runs CPU int8 without it (measured: tiny.en decodes with it removed)"
     site-packages/onnx_asr/preprocessors/data/*_conv.onnx: "onnx-asr's Conv-STFT graphs for GPU providers: the CPU path uses its numpy preprocessors"
     site-packages/onnx_asr/preprocessors/data/gigaam*: "GigaAM (Russian) preprocessors: not a bundled model"

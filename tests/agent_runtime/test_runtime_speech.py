@@ -20,7 +20,7 @@ import time
 
 import pytest
 
-from agent_runtime import model_admission, speech_service
+from agent_runtime import model_admission, speech_phonemize, speech_service
 from agent_runtime.model_admission import AdmissionRefused, ModelAdmission
 from agent_runtime.model_admission_client import BundledAdmissionClient
 from agent_runtime.serve_rpc import RpcContext, handle_request
@@ -41,23 +41,31 @@ def _whisper_dir(root, *, drop=()):
     return folder
 
 
-#: The English espeak-ng subset a voice folder carries (closure doc § Piper's pronunciation data).
-ESPEAK_SET = ("phontab", "phonindex", "phondata", "intonations", "en_dict", "lang/gmw/en-US")
+def _phonemizer(root, family, drop=()):
+    """The phonemizer artifact a voice family reads, beside the voice (its bytes are never parsed here)."""
+    for name in speech_phonemize.PHONEMIZER_ARTIFACTS[family]:
+        if name not in drop:
+            (root / name).write_bytes(b"\2" * 8)
 
 
-def _piper_voice(root, *, sidecar=True, empty_onnx=False, espeak=True, espeak_drop=()):
+def _piper_voice(root, *, sidecar=True, empty_onnx=False, phonemizer=True, phonemizer_drop=()):
     onnx = root / "en_US-test-low.onnx"
     onnx.write_bytes(b"" if empty_onnx else b"\1" * 64)
     if sidecar:
         (root / "en_US-test-low.onnx.json").write_text(json.dumps(
             {"audio": {"sample_rate": 16000}, "phoneme_type": "espeak", "espeak": {"voice": "en-us"}}))
-    if espeak:
-        for rel in ESPEAK_SET:
-            if rel not in espeak_drop:
-                target = root / "espeak-ng-data" / rel
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(b"\2" * 8)
+    if phonemizer:
+        _phonemizer(root, "piper", phonemizer_drop)
     return onnx
+
+
+def _kokoro(root, *, voices=True, phonemizer_drop=()):
+    model = root / "kokoro-v1.0.onnx"
+    model.write_bytes(b"\1" * 64)
+    if voices:
+        (root / "voices-v1.0.bin").write_bytes(b"\3" * 32)
+    _phonemizer(root, "kokoro", phonemizer_drop)
+    return model
 
 
 class FakeEngines:
@@ -489,66 +497,68 @@ def test_unloading_speech_to_text_ends_its_open_streams(fakes):
     assert gone["error"]["data"]["reason"] == "stream_not_found"
 
 
-# ── Piper pronunciation data (espeak-ng) ────────────────────────────────────
+# ── the phonemizer artifact (no espeak-ng) ─────────────────────────────────
 
 
-@pytest.mark.parametrize("drop, missing", [
-    (("en_dict",), ["espeak-ng-data/en_dict"]),
-    (("lang/gmw/en-US",), ["espeak-ng-data/lang/en-us"]),
-])
-def test_an_incomplete_pronunciation_set_reads_unavailable_before_the_loader(drop, missing, tmp_path, no_network,
-                                                                              real_engines):
-    """A missing ``en_dict`` makes espeak-ng phonemize to NOTHING (a warning, no error), so the
-    set is checked before Piper loads. Mutation: drop the ``espeak_data_partial`` return in
-    ``inspect_tts`` -> the voice reads available and the loader is reached. The positive control
-    is ``test_the_positive_control_a_complete_model_does_reach_the_loader`` (the full set)."""
-    _piper_voice(tmp_path, espeak_drop=drop)
+@pytest.mark.parametrize("drop", [("openphonemizer-en_us.onnx",), ("openphonemizer-en_us.json",)])
+def test_a_voice_without_its_phonemizer_reads_unavailable_before_the_loader(drop, tmp_path, no_network,
+                                                                            real_engines):
+    """No phonemizer, no speech: typed before the loader, never a load that fails or says nothing.
+    Mutation: drop the ``phonemizer_missing`` return in ``inspect_tts`` -> the voice reads available
+    and the loader is reached. Positive control:
+    ``test_the_positive_control_a_complete_model_does_reach_the_loader`` (the same voice, artifact whole)."""
+    _piper_voice(tmp_path, phonemizer_drop=drop)
     params = {"models_dir": str(tmp_path), "tts_voice": "en_US-test-low", "which": "tts"}
     wire = Wire()
     status = wire.result("runtime.speech.status", params)["tts"]
     loaded = wire.result("runtime.speech.load", params)["results"]["tts"]
-    assert (status["state"], status["reason"], status["missing"]) == ("unavailable", "espeak_data_partial", missing)
-    assert (loaded["state"], loaded["reason"], loaded["missing"]) == ("unavailable", "espeak_data_partial", missing)
+    expected = ("unavailable", "phonemizer_missing", list(drop), "piper")
+    assert (status["state"], status["reason"], status["missing"], status["voice_family"]) == expected
+    assert (loaded["state"], loaded["reason"], loaded["missing"], loaded["voice_family"]) == expected
     assert real_engines == [] and no_network == []
 
 
-def test_a_voice_with_no_pronunciation_data_anywhere_reads_unavailable(tmp_path, no_network, real_engines,
-                                                                     monkeypatch):
-    """No ``espeak-ng-data`` beside the voice and none in the piper package (the bundled pack)."""
-    monkeypatch.setattr(speech_service, "_packaged_espeak_data", lambda: False)
-    _piper_voice(tmp_path, espeak=False)
-    params = {"models_dir": str(tmp_path), "tts_voice": "en_US-test-low"}
-    status = Wire().result("runtime.speech.status", params)["tts"]
-    assert (status["state"], status["reason"]) == ("unavailable", "espeak_data_missing")
-    # Positive control: piper's own full data directory (a full install) makes it available.
-    monkeypatch.setattr(speech_service, "_packaged_espeak_data", lambda: True)
-    status = Wire().result("runtime.speech.status", params)["tts"]
-    assert status["state"] == "available" and status["espeak_data_dir"] is None
+def test_kokoro_is_a_voice_with_its_voices_file_and_its_own_phonemizer(tmp_path, no_network, real_engines):
+    """Kokoro has no ``.onnx.json``: its companion is ``voices-v1.0.bin`` and its phonemizer misaki's.
+    Mutation: keep the ``.onnx.json`` companion for every voice -> Kokoro reads ``model_partial``."""
+    folder = tmp_path / "kokoro"
+    folder.mkdir()
+    model = _kokoro(folder)
+    status = Wire().result("runtime.speech.status", {"tts_voice": str(model)})["tts"]
+    assert (status["state"], status["voice_family"], status["sample_rate"]) == ("available", "kokoro", 24000)
+    Wire().result("runtime.speech.load", {"which": "tts", "tts_voice": str(model)})
+    assert real_engines == ["tts"]
+    Wire().result("runtime.speech.unload", {"which": "tts"})
+    # A Piper artifact beside Kokoro is not Kokoro's: misaki's is what it needs.
+    for name in speech_phonemize.PHONEMIZER_ARTIFACTS["kokoro"]:
+        (folder / name).unlink()
+    _phonemizer(folder, "piper")
+    status = Wire().result("runtime.speech.status", {"tts_voice": str(model)})["tts"]
+    assert (status["reason"], status["missing"]) == ("phonemizer_missing", list(
+        speech_phonemize.PHONEMIZER_ARTIFACTS["kokoro"]))
+    (folder / "voices-v1.0.bin").write_bytes(b"")
+    status = Wire().result("runtime.speech.status", {"tts_voice": str(model)})["tts"]
+    assert (status["reason"], status["missing"]) == ("model_partial", ["voices-v1.0.bin"])
+    assert no_network == []
 
 
-def test_the_voice_folders_pronunciation_data_reaches_piper_voice_load(tmp_path, monkeypatch):
-    """The real engine through upstream's loader, with Piper stood in: ``espeak_data_dir`` is the
-    voice folder's ``espeak-ng-data``. Mutation: drop the ``espeak_data_dir`` key in
-    ``SpeechEngines.load_tts`` (or the seam's ``load_kwargs``) -> red."""
-    import tools.tts_tool as tts_tool
+def test_the_bundled_tts_engine_is_onnxruntime_never_piper_tts(monkeypatch):
+    """The pack ships no ``piper`` package: availability asks for onnxruntime + numpy only.
+    Mutation: route ``tts_importable`` back through ``piper_engine_importable`` -> red here."""
+    import importlib.util
 
-    calls = []
+    real = importlib.util.find_spec
+    asked = []
 
-    class FakePiperVoice:
-        @classmethod
-        def load(cls, model_path, **kwargs):
-            calls.append((str(model_path), kwargs))
-            return cls()
+    def spec(name, *args):
+        asked.append(name)
+        return object() if name in ("onnxruntime", "numpy") else None
 
-    monkeypatch.setattr(tts_tool, "_import_piper", lambda: FakePiperVoice)
-    with_data, without = tmp_path / "with", tmp_path / "without"
-    with_data.mkdir()
-    without.mkdir()
-    speech_service.SpeechEngines().load_tts(_piper_voice(with_data))
-    speech_service.SpeechEngines().load_tts(_piper_voice(without, espeak=False))
-    assert calls[0][1].get("espeak_data_dir") == str(with_data / "espeak-ng-data")
-    # Positive control: a voice with no folder data leaves Piper on its own default.
-    assert "espeak_data_dir" not in calls[1][1]
+    monkeypatch.setattr(importlib.util, "find_spec", spec)
+    assert speech_service.SpeechEngines().tts_importable() is True
+    assert "piper" not in asked
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name, *a: None if name == "onnxruntime" else real(name))
+    assert speech_service.SpeechEngines().tts_importable() is False
 
 
 # ── PyAV is not in the speech pack ──────────────────────────────────────────

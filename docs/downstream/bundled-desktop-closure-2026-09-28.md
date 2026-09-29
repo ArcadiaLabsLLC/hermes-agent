@@ -81,7 +81,7 @@ python scripts/bundle_profile_package.py --verify <core dir> [--verify-pack <pac
 
 **No wheel.** `setup.py` refuses `bdist_wheel` outside Nix (upstream's guard), and upstream's own assembler (`scripts/build/agent.py`) ships source layouts with a PEP 621 dist-info rather than a wheel. The packaging step does the same (`write_metadata`), so the "wheel" is the reproducible `app/` tree at a commit.
 
-**Two outputs (owner, 2026-09-28): speech engines download on first use.** `packaging.packs.speech` holds the `piper` and `stt-whisper` extras; the core bundle ships the profile's closure without them, the speech pack ships only what the closure adds with them. Bundled Hermes finds an installed pack through `HERMES_ENGINE_PACKS` (os.pathsep list of pack `site-packages` directories), read by `hermes-engine-packs.pth`, which the packager writes into the core `site-packages`: `site` runs its one `import` line at every interpreter start (conversation workers included) and adds only directories that exist. No pack: `faster_whisper` / `piper` are not importable and both providers report unavailable (measured, `find_spec` / `_importable` → False); pack present: STT transcribes from the pack (measured below).
+**Two outputs (owner, 2026-09-28): speech engines download on first use.** `packaging.packs.speech` holds the `speech-tts`, `stt-whisper` and `stt-parakeet` extras (`piper` instead of `speech-tts` until lane w5-htts); the core bundle ships the profile's closure without them, the speech pack ships only what the closure adds with them. Bundled Hermes finds an installed pack through `HERMES_ENGINE_PACKS` (os.pathsep list of pack `site-packages` directories), read by `hermes-engine-packs.pth`, which the packager writes into the core `site-packages`: `site` runs its one `import` line at every interpreter start (conversation workers included) and adds only directories that exist. No pack: `faster_whisper` / `onnxruntime` are not importable and both providers report unavailable (measured, `find_spec` / `_importable` → False); pack present: STT transcribes from the pack (measured below).
 
 ### Interpreter
 
@@ -93,7 +93,7 @@ CPython **3.14.7**, the python-build-standalone `install_only` build PM already 
 |---|---:|---:|---:|
 | core: interpreter + app + site-packages, source only | **173.11** | 61.53 | **38.71** |
 | core, bytecode baked (`unchecked-hash`, stdlib included) | 274.05 | 106.27 | 61.46 |
-| speech pack, source only | ~~225.59~~ **159.51** | ~~78.23~~ **52.02** | ~~49.32~~ **31.30** |
+| speech pack, source only | ~~225.59~~ ~~159.51~~ **158.64** | ~~78.23~~ 52.02 | ~~49.32~~ ~~31.30~~ **31.01** |
 | speech pack, bytecode baked (pre-w3-hfix, with PyAV) | 244.21 | 85.78 | 53.43 |
 | core app + site-packages only, source only (w3-hfix: + tzdata, socksio) | 141.22 | 51.02 | 31.61 |
 
@@ -124,11 +124,55 @@ faster-whisper 1.2.1 takes a float32 numpy array (`transcribe()` calls `decode_a
 
 **Dropped (lane w3-hfix).** `packaging.placeholder_distributions: {av: …}` — the closure never follows `av` under faster-whisper (refused if kept first-party code imports it or it is a base dependency). `agent_runtime/speech_decode.py` registers the placeholder in `SpeechEngines.load_stt` before upstream's loader imports faster_whisper (a no-op when PyAV is installed). No second decode path is bundled, so a voice-note FILE through upstream's `_transcribe_local` answers `{success: false, state: "unavailable", reason: "file_decode_unavailable"}` before any model loads (fork seam, `tools/transcription_tools.py`); the Launcher sends raw PCM, which never needs it.
 
-### Piper's pronunciation data
+### Text-to-speech without GPL code (lane w5-htts)
 
-All of `piper/espeak-ng-data` (18.2 MiB, 125 languages) is left out (`packaging.excluded_data`), as are the Hebrew and Arabic diacritizer models and Piper's training code. **English needs seven files**, measured identical in output to the full directory: `phontab`, `phonindex`, `phondata`, `intonations`, `en_dict`, and under `lang/gmw/` the voice's own file (`en-US` for `en-us` voices, `en` for `en`; a voice's `espeak.voice` in its `.onnx.json` names it) — 0.84 MiB. Piper is told where they are only through `PiperVoice.load(model, espeak_data_dir=<dir>)` (default `piper/espeak-ng-data`; no environment variable); the first voice loaded fixes the phonemizer's directory for the process. A missing `lang/…` file fails loudly (`RuntimeError: Failed to set voice`); a missing `en_dict` does NOT — it prints a warning and returns empty phonemes, so the catalog must verify the set.
+Owner ruling 2026-09-28 (second sitting, item 2): the speech pack ships no GPL
+code. `piper-tts` (GPL-3.0, espeak-ng compiled into `espeakbridge`, plus its
+`espeak-ng-data`) is gone from the pack; so is the lane-w3-hfix arrangement
+that shipped English espeak data beside each voice (the seven-file set and its
+`espeak_data_partial` / `espeak_data_missing` checks, and the
+`piper.espeak_data_dir` seam in `tools/tts_tool_local.py`, which is back to
+upstream's text). In their place:
 
-**Wired (lane w3-hfix).** The speech service passes the voice folder's `espeak-ng-data/` (the Launcher's layout) through upstream's loader (`piper.espeak_data_dir`, additive seam in `tools/tts_tool_local.py`). `inspect_tts` checks the set BEFORE the loader — the four tables, `<lang>_dict` and the `espeak.voice` language file anywhere under `lang/` — and an incomplete set reads `unavailable`, reason `espeak_data_partial`, `missing` naming the files; no data beside the voice and none installed with piper reads `espeak_data_missing`.
+- **Runner** — `agent_runtime/speech_onnx_voice.py`, on `onnxruntime` (MIT) +
+  `numpy` (BSD), the `speech-tts` extra: Piper VITS voices (ids from the voice's
+  `phoneme_id_map`) and Kokoro 82M (ids from Kokoro's vocabulary, style row
+  from `voices-v1.0.bin`).
+- **Phonemizers** — `agent_runtime/speech_phonemize.py` runs two downloadable
+  artifacts (`.onnx` + `.json`), placed by the Launcher beside the voice they
+  serve; code in the pack, weights and dictionaries in the artifact:
+
+  | artifact | size | SHA-256 (as exported here) | licence |
+  |---|---:|---|---|
+  | `openphonemizer-en_us.onnx` | 61 437 915 | `b0557ca5639d839d77d040c2610f2b1e95f584379cc1cdfa5c4984fb3d8f1b78` | BSD-3-Clause-Clear (OpenPhonemizer checkpoint) |
+  | `openphonemizer-en_us.json` | 9 223 033 | `36dda6260c7e560a4d846528387fd07ababcd1012a52b530063fefadd5987db0` | BSD-3-Clause-Clear (its dictionary) |
+  | `misaki-en_us-g2p.onnx` | 3 438 244 | `757759c3e3ccb0bf59c379b1671c9834a27543ceaefd6846850823633b9665a1` | Apache-2.0 (`PeterReid/graphemes_to_phonemes_en_us`) |
+  | `misaki-en_us-g2p.json` | 5 724 857 | `8a8e3350713b0a00102425a5d5bd6b58b34854c74a3e8d837589f55212c51658` | Apache-2.0 (misaki lexicons; Kokoro vocabulary) |
+
+  Made by `scripts/phonemizer_openphonemizer_onnx.py` (torch 2.14 CPU,
+  deep-phonemizer 0.0.19, `openphonemizer/ckpt` `best_model.pt` 175 008 823 B;
+  `--check 1000`: 1 000 / 1 000 dictionary words give the identical frame
+  argmax in torch and ONNX) and `scripts/phonemizer_misaki_g2p_onnx.py`
+  (misaki `fba1236595f2`, transformers 5.17; `--check 500`: 500 / 500 words
+  decode identically to `generate`). The ONNX bytes are not reproducible run to
+  run (the exporter's graph names), so the SHA-256 that counts is the one of the
+  file uploaded for the catalog. An int8 OpenPhonemizer (23 487 495 B) agreed on
+  959 / 1 000 words; fp32 is what the catalog should carry.
+- **Dialect.** OpenPhonemizer writes espeak's `en-us`; the three catalog
+  voices (`ljspeech`, `kristin`, `norman`) were trained on espeak's British
+  `en`, where `ɑː` is the vowel of "dark". Unmapped, Whisper heard "fox" as
+  "farks" and "dog" as "dart"; `rp_from_us` maps the difference and the same
+  sentence transcribes exactly.
+- **Measured** (the contract doc, "Latency — measured"): Piper ljspeech first
+  audio 0.33–0.40 s for a 5.5 s sentence, Kokoro 1.8–2.1 s; Whisper `base.en`
+  heard every word of three test sentences from Kokoro and all but one "and"
+  from Piper.
+- **Licences.** The speech pack's `licenses.json` (win32-x64, rebased on
+  `aae4d60d02`, with w5-hstt's Parakeet): 14 components, no GPL / LGPL anywhere;
+  `review_required` is only `ctranslate2` (embedded `intel-openmp`, w5-hstt's
+  row, not GPL). No `piper`, `phonemizer`, `espeakng_loader` or
+  `espeak-ng-data` file in either output. `--verify <core> --verify-pack <pack>`:
+  0 problems. Pack 158.64 MiB installed, 31.01 MiB LZMA.
 
 ### Every package, and which output it lands in
 
@@ -163,7 +207,6 @@ Installed MiB, source only (no bytecode), Windows x64.
 | mcp | 2.0.0 | 1.14 | core |
 | pytz | 2026.3.post1 | 0.96 | core |
 | tzdata | 2025.3 | 0.56 | core (w3-hfix: `packaging.dynamic_distributions`, stdlib `zoneinfo`) |
-| piper-tts | 1.8.0 | 0.82 | speech pack |
 | snowballstemmer | 3.1.1 | 0.74 | core |
 | fastapi | 0.133.1 | 0.74 | core |
 | fsspec | 2026.7.0 | 0.64 | speech pack |
@@ -244,13 +287,12 @@ Built for real against `8110944532b` (win32-x64, baked with CPython 3.14.5 — t
 
 | output | component | why |
 |---|---|---|
-| speech pack | piper-tts 1.8.0 | `GPL-3.0-or-later` itself, and espeak-ng (GPL-3.0-or-later) compiled into its phonemizer — the open GPL decision |
 | core | fal-client 0.13.1 | no licence metadata at all (no expression, field or classifier) and no licence text in the wheel |
 | core | firecrawl-anydoc 0.2.4 | MIT, but the wheel carries no licence text |
 | speech pack | ctranslate2 4.8.1, flatbuffers 25.12.19, tokenizers 0.23.1 | MIT / Apache-2.0, but the wheels carry no licence text |
 | core | cpython (embedded vcruntime140) | Microsoft's redistributable C runtime: confirm the redistribution terms |
 
-**`sherpa-onnx` ships in no output.** It is only in the `wake` / `wake-sherpa` extras, which the profile neither ships (`packaging.extras`) nor packs (`packaging.packs`); `tools.wake_word*` are switched off. Measured: absent from the win32-x64 pool (core + every pack's extras, 107 distributions) and from the exported pins of every target (the union of all markers, 108 pins). The espeak-ng in bundled desktop is piper-tts's, flagged above. `EMBEDDED_COMPONENTS` still names sherpa-onnx, so the day it ships its record is flagged.
+**`sherpa-onnx` ships in no output.** It is only in the `wake` / `wake-sherpa` extras, which the profile neither ships (`packaging.extras`) nor packs (`packaging.packs`); `tools.wake_word*` are switched off. Measured: absent from the win32-x64 pool (core + every pack's extras, 107 distributions) and from the exported pins of every target (the union of all markers, 108 pins). There is no espeak-ng in bundled desktop: piper-tts left the speech pack in lane w5-htts (above). `EMBEDDED_COMPONENTS` still names sherpa-onnx, so the day it ships its record is flagged.
 
 **Vulnerability scan** — `python scripts/bundle_vuln_scan.py [--bundle <core> --bundle <pack>] [--target T] [--osv-db PyPI-all.zip] [--json out]`: OSV (online `api.osv.dev`, or offline from OSV's PyPI export), GHSA/PYSEC twins folded into one finding, waivers in `agent_runtime/bundle_profiles/vulnerability-waivers.json` (`id`, `distribution`, `reason`, `expires`; expired covers nothing). Exit 0 clean, 1 an unwaived vulnerability, 2 the scan could not run. **It exits 0** (lane w4-hfix2, core + speech pack built at `49df4f54f77`: 91 pins, 0 unwaived, 0 waived). It exited 1 until then on `httpx2==2.7.0` (CVE-2026-84378, -84379, -84380, -84381, -84382) and `httpcore2==2.7.0` (CVE-2026-84381); `httpx2` is now 2.12.0, which pins `httpcore2==2.12.0` — a fork carry on upstream's pin lines, held by `tests/agent_runtime/test_bundle_vuln_floors.py`.
 

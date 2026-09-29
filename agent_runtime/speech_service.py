@@ -50,10 +50,8 @@ __all__ = [
     "SpeechEngines",
     "SpeechRefused",
     "SpeechService",
-    "espeak_required_files",
     "inspect_stt",
     "inspect_tts",
-    "voice_espeak_dir",
     "service",
     "set_service",
 ]
@@ -89,12 +87,6 @@ MAX_TEXT_CHARS = 4000
 _TTS_DISK_FACTOR = 1.5
 _TTS_OVERHEAD = 64 * 1024 * 1024
 
-#: A Piper voice's espeak-ng pronunciation data, in the voice's own folder (the Launcher downloads
-#: the language subset with the voice; the speech pack ships none). The phoneme tables every
-#: language needs; the language's dictionary (``en_dict``) and its ``lang/…`` file are added from
-#: the voice's ``espeak.voice`` (closure doc § "Piper's pronunciation data").
-ESPEAK_DIR = "espeak-ng-data"
-_ESPEAK_TABLES = ("phontab", "phonindex", "phondata", "intonations")
 
 STT_HOLDER = "speech:stt"
 TTS_HOLDER = "speech:tts"
@@ -144,85 +136,47 @@ def inspect_stt(path: Path | None, *, importable: Callable[[str], bool]) -> dict
 
 
 def inspect_tts(path: Path | None, *, engine_ok: bool) -> dict:
-    """``available`` or ``unavailable`` + reason for a Piper voice (``<voice>.onnx`` + ``.onnx.json``)."""
+    """``available`` or ``unavailable`` + reason for a voice on the pack's onnxruntime runner.
+
+    A Piper voice is ``<voice>.onnx`` + ``.onnx.json``; Kokoro is its ``.onnx`` with
+    ``voices-v1.0.bin`` beside it. Either needs its phonemizer artifact beside it
+    (:data:`agent_runtime.speech_phonemize.PHONEMIZER_ARTIFACTS`) — checked here, before the
+    loader, so a voice without one reads ``phonemizer_missing`` rather than failing to load.
+    """
     if path is None:
         return _unavailable("model_unset", None)
     if path.suffix.lower() != ".onnx":
         return _unavailable("model_not_local", path)
+    from agent_runtime.speech_onnx_voice import KOKORO_SAMPLE_RATE, KOKORO_VOICES, voice_family
+
     sidecar = path.with_name(path.name + ".json")
-    if not path.exists() and not sidecar.exists():
+    family = voice_family(path)
+    if family is None and not path.exists():
         return _unavailable("model_missing", path)
-    missing = [p.name for p in (path, sidecar) if not _nonempty(p)]
+    companion = (path.parent / KOKORO_VOICES) if family == "kokoro" else sidecar
+    missing = [p.name for p in (path, companion) if not _nonempty(p)]
     if missing:
         return _unavailable("model_partial", path, missing=missing)
-    try:
-        rate = json.loads(sidecar.read_text(encoding="utf-8"))["audio"]["sample_rate"]
-    except (OSError, ValueError, KeyError, TypeError):
-        return _unavailable("model_partial", path, missing=[sidecar.name])
-    if type(rate) is not int or rate <= 0:
-        return _unavailable("model_partial", path, missing=[sidecar.name])
-    config = json.loads(sidecar.read_text(encoding="utf-8"))
-    required = espeak_required_files(config)
-    if required is None:
-        return _unavailable("model_partial", path, missing=[sidecar.name])
-    local = voice_espeak_dir(path)
-    if local is not None:
-        # Checked BEFORE the loader: a missing ``en_dict`` makes espeak-ng print a warning and
-        # phonemize to nothing — silent empty audio, never an error.
-        missing = [f"{ESPEAK_DIR}/{rel}" for rel in required if not _espeak_file(local, rel)]
-        if missing:
-            return _unavailable("espeak_data_partial", path, missing=missing)
+    rate, phonemized = KOKORO_SAMPLE_RATE, True
+    if family == "piper":
+        try:
+            config = json.loads(sidecar.read_text(encoding="utf-8"))
+            rate, phonemized = config["audio"]["sample_rate"], config.get("phoneme_type", "espeak") == "espeak"
+        except (OSError, ValueError, KeyError, TypeError):
+            return _unavailable("model_partial", path, missing=[sidecar.name])
+        if type(rate) is not int or rate <= 0:
+            return _unavailable("model_partial", path, missing=[sidecar.name])
+    if phonemized:
+        from agent_runtime.speech_phonemize import artifact_files
+
+        # A voice with no phonemizer cannot say anything: typed, before the loader.
+        absent = [p.name for p in artifact_files(family, path) if not _nonempty(p)]
+        if absent:
+            return _unavailable("phonemizer_missing", path, missing=absent, voice_family=family)
     if not engine_ok:
-        return _unavailable("engine_missing", path, engine="piper")
-    if local is None and required and not _packaged_espeak_data():
-        return _unavailable("espeak_data_missing", path, missing=[f"{ESPEAK_DIR}/{rel}" for rel in required])
-    return {"state": "available", "reason": None, "model_path": str(path),
-            "disk_bytes": path.stat().st_size + sidecar.stat().st_size, "sample_rate": rate,
-            "espeak_data_dir": None if local is None else str(local)}
-
-
-def espeak_required_files(voice_config: dict) -> tuple[str, ...] | None:
-    """The espeak-ng files a voice needs, relative to the data directory.
-
-    ``()`` for a voice that does not phonemize through espeak-ng; ``None`` when an espeak voice
-    names no ``espeak.voice`` (its ``.onnx.json`` is incomplete). ``lang/<voice>`` stands for the
-    language file, found by name anywhere under ``lang/`` (``en-us`` is ``lang/gmw/en-US``).
-    """
-    if voice_config.get("phoneme_type", "espeak") != "espeak":
-        return ()
-    espeak = voice_config.get("espeak")
-    voice = espeak.get("voice") if isinstance(espeak, dict) else None
-    if not isinstance(voice, str) or not voice.strip():
-        return None
-    voice = voice.strip()
-    return (*_ESPEAK_TABLES, f"{voice.split('-')[0].lower()}_dict", f"lang/{voice}")
-
-
-def _espeak_file(data_dir: Path, rel: str) -> bool:
-    if not rel.startswith("lang/"):
-        return _nonempty(data_dir / rel)
-    wanted = rel[len("lang/"):].lower()
-    lang = data_dir / "lang"
-    try:
-        return any(p.name.lower() == wanted and _nonempty(p) for p in lang.rglob("*"))
-    except OSError:
-        return False
-
-
-def voice_espeak_dir(voice: Path) -> Path | None:
-    """``<voice folder>/espeak-ng-data`` when the voice carries its own pronunciation data."""
-    candidate = voice.parent / ESPEAK_DIR
-    return candidate if candidate.is_dir() else None
-
-
-def _packaged_espeak_data() -> bool:
-    """piper-tts's own ``piper/espeak-ng-data`` (full installs; the bundled speech pack excludes it)."""
-    try:
-        spec = importlib.util.find_spec("piper")
-    except (ImportError, ValueError):
-        return False
-    origin = getattr(spec, "origin", None) if spec is not None else None
-    return bool(origin) and _nonempty(Path(origin).parent / ESPEAK_DIR / "phontab")
+        return _unavailable("engine_missing", path, engine="onnxruntime")
+    return {"state": "available", "reason": None, "model_path": str(path), "voice_family": family,
+            "disk_bytes": path.stat().st_size + companion.stat().st_size, "sample_rate": rate}
 
 
 # ── engines (upstream's, behind one seam so tests can stand in) ────────────
@@ -235,9 +189,7 @@ class SpeechEngines:
         return stt_engines.engine_importable(stt_engines.STT_ENGINES[engine])
 
     def tts_importable(self) -> bool:
-        from agent_runtime._upstream_doors import piper_engine_importable
-
-        return piper_engine_importable()
+        return all(importlib.util.find_spec(name) is not None for name in ("onnxruntime", "numpy"))
 
     def load_stt(self, path: Path, *, device: str, compute_type: str) -> Any:
         """The model in ``path`` on the engine its artifact set names (``engine_for``)."""
@@ -280,24 +232,15 @@ class SpeechEngines:
         return whisper_confident_text(segments, config.get("local") or {})
 
     def load_tts(self, path: Path) -> Any:
-        from agent_runtime._upstream_doors import piper_voice_for_config
+        from agent_runtime.speech_onnx_voice import load_voice
 
-        piper = {"voice": str(path), "voices_dir": str(path.parent), "use_cuda": False}
-        espeak = voice_espeak_dir(path)
-        if espeak is not None:
-            # espeak-ng fixes its data directory at the first voice loaded in the process.
-            piper["espeak_data_dir"] = str(espeak)
-        voice, _config = piper_voice_for_config({"piper": piper})
-        return voice
+        return load_voice(path)
 
     def unload_tts(self) -> None:
-        from tools.tts_tool_lifecycle import release_tts_provider
-
-        release_tts_provider("piper")
+        pass  # the voice object is the whole model: dropping the slot's reference frees it
 
     def synthesize(self, voice: Any, text: str) -> Iterator[tuple[int, bytes]]:
-        for chunk in voice.synthesize(text):
-            yield chunk.sample_rate, chunk.audio_int16_bytes
+        return voice.synthesize(text)
 
     #: STT engine name -> its loader and its decoder (routing is data, not a ladder).
     _STT_LOADERS = {stt_engines.WHISPER: _load_whisper, stt_engines.PARAKEET: _load_parakeet}
@@ -428,7 +371,7 @@ class SpeechService:
         return inspect_tts(path, engine_ok=self.engines.tts_importable())
 
     def _slot_view(self, slot: _Slot, params: dict | None = None) -> dict:
-        engine = slot.engine or (stt_engines.WHISPER if slot.kind == "stt" else "piper")
+        engine = slot.engine or (stt_engines.WHISPER if slot.kind == "stt" else "onnxruntime")
         if slot.state in ("loaded", "loading"):
             view = {"state": slot.state, "reason": None, "model_path": str(slot.path)}
         else:
@@ -475,7 +418,7 @@ class SpeechService:
             view = self._inspect(slot, path, note)
             if view["state"] != "available":
                 return {"state": "unavailable", "reason": view["reason"], **{k: v for k, v in view.items()
-                                                                          if k in ("missing", "engine", "model_type")}}
+                                                                          if k in ("missing", "engine", "model_type", "voice_family")}}
             if already_loaded:
                 self._drop(slot, "replaced")
             slot.state, slot.path, slot.error, slot.engine = "loading", path, None, view.get("engine")

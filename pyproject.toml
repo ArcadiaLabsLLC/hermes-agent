@@ -338,6 +338,13 @@ audio-io = ["sounddevice==0.5.5", "numpy==2.4.3"]
 stt-parakeet = [
   "onnx-asr[cpu]==0.12.0; (platform_machine != 'ARM64' or sys_platform != 'win32') and (platform_machine != 'x86_64' or sys_platform != 'darwin')",
 ]
+# Fork (bundled desktop): the speech pack's own TTS runner (agent_runtime/speech_onnx_voice.py)
+# runs Piper and Kokoro voices on onnxruntime with no piper-tts, phonemizer or espeak-ng (GPL).
+# Its phonemizers are downloaded model artifacts, not packages.
+speech-tts = [
+  "onnxruntime==1.29.0; (platform_machine != 'ARM64' or sys_platform != 'win32') and (platform_machine != 'x86_64' or sys_platform != 'darwin')",
+  "numpy==2.4.3; (platform_machine != 'ARM64' or sys_platform != 'win32') and (platform_machine != 'x86_64' or sys_platform != 'darwin')",
+]
 # WeChat voice decode (tools/transcription_tools.py self-heal path).
 silk = ["pilk==0.2.4"]
 # Wake-engine sub-extras — lazy per-engine installs so a user who only wants
@@ -615,6 +622,8 @@ neutts = "python_version < '3.14'"
 kittentts = "(platform_machine != 'ARM64' or sys_platform != 'win32') and (platform_machine != 'x86_64' or sys_platform != 'darwin')"
 piper = "(platform_machine != 'ARM64' or sys_platform != 'win32') and (platform_machine != 'x86_64' or sys_platform != 'darwin')"
 stt-parakeet = "(platform_machine != 'ARM64' or sys_platform != 'win32') and (platform_machine != 'x86_64' or sys_platform != 'darwin')"
+# onnxruntime has no Windows ARM64 or Intel macOS wheel.
+speech-tts = "(platform_machine != 'ARM64' or sys_platform != 'win32') and (platform_machine != 'x86_64' or sys_platform != 'darwin')"
 
 [tool.uv]
 # uv otherwise enables the dev group by default, including in payload builds.
