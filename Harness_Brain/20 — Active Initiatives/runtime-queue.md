@@ -206,7 +206,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-25 (lane B2)
 
-- [ ] **`gateway_peers._emit_peer_event` cannot fold onto `store_events.emit_store_event`: the helper drops None-valued keys, the peer reachability event sends `"unreachable_since": None` — two event emitters, two None rules** · `fork / runtime` · decide the one rule (a typed absent-marker, or None preserved) and fold; until then every future emitter fold has to check this first · evidence: B2 gateway_peers CHANGE body · filed by lane B2 2026-09-25 **UNCLAIMED** · VERDICT 2026-09-29 h10-rtfork: confirmed in the tree: store_events.emit_store_event drops None-valued keys (store_events.py:43), gateway_peers/trust_store.py _emit_peer_event keeps them and the reachability event sends unreachable_since: None. Owed: the owner's one rule — recommend a typed absent-marker is NOT needed: preserve None only for keys a schema declares nullable (a keep_none=frozenset({...}) argument on emit_store_event), which lets the peer emitter fold without changing any existing payload · OWNER 2026-09-29: keep_none=frozenset({...}) on emit_store_event: keep None only for schema-declared nullable keys **TAKEN 2026-09-29 h10b-fix**
 
 ### Filed on arrival — 2026-09-25 (lane B3)
 
