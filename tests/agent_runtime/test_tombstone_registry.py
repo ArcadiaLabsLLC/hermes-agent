@@ -3687,6 +3687,17 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         scope=("agent_runtime.core_cache",),
     ),
     *rows(
+        # Lane h10b-refac (2026-09-29): fork-hygiene row "skills-catalog
+        # concept stays split" — CHANGE (context_store takes the catalog writer
+        # by injection) then MOVE (catalog_lookup folded into catalog_store).
+        "s-h10b",
+        "HEAD",
+        Form.MODULE,
+        "the skills-catalog concept is one module, catalog_store; a second "
+        "module for its two verbs is the split the fold retired",
+        "agent_runtime.prompt_observability.catalog_lookup",
+    ),
+    *rows(
         # Lane h10-fhrel (2026-09-29): dead-code queue row
         # `_split_discovery_roots` (S2 TEST SEAM -> DELETE): a fork-added
         # one-line alias of `_split_path_list` inside an upstream file; its

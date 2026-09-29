@@ -4,7 +4,7 @@ Separate because it owns one store: ``persist_context_row`` is the only writer
 of the per-lane index (program rule 13). The skills-catalog writer is INJECTED
 into it (``store_catalog``) rather than imported, so the catalog module can read
 this store's rows without an import cycle; the public composition is
-``catalog_lookup.persist_prompt_observability_context``.
+``catalog_store.persist_prompt_observability_context``.
 """
 
 from __future__ import annotations

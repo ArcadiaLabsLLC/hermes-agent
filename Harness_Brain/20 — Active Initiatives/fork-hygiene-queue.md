@@ -189,7 +189,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-25 (lane W3-A)
 
-- [ ] **`prompt_observability`'s skills-catalog concept stays split across `catalog_store` (48 code lines) and `catalog_lookup` (73) because `context_store` sits between them — it writes through one and is read by the other; passing the catalog writer into `context_store`'s persist would let the two fold into one module** · `fork / refactor` · evidence: lane W3-A fold-review commit 14726ae2a8 · filed by lane W3-A 2026-09-25 **UNCLAIMED** · VERDICT 2026-09-29 h10-fhrest: still true on cce73ee553 (context_store imports catalog_store._store_skills_catalog; catalog_lookup imports both stores). The fold is a CHANGE (inject the catalog writer into context_store's persist) then a MOVE (catalog_store+catalog_lookup -> one module, retargeting the po.catalog_lookup / po.catalog_store monkeypatches in 3 test files) — two commits and a layer re-declaration, which a one-commit-per-row lane cannot carry; owed: a refactor lane runs it as CHANGE then MOVE · OWNER 2026-09-29: schedule the CHANGE+MOVE fold, low priority **TAKEN 2026-09-29 h10b-refac**
 ## Filed on arrival — 2026-09-25 (round-2 gate pass)
 
 

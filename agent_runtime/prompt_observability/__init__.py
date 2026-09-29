@@ -17,10 +17,10 @@ Modules, by layer (lowest first; a module imports only its own layer or lower):
   files and their prompt contribution), ``safe_views`` (bounded, redacted views
   of the model input and usage).
 * stores — ``workspace_agents`` (the workspace ``AGENTS.md`` read),
-  ``catalog_store`` (the content-addressed skills catalogs), ``context_store``
-  (the persisted per-lane rows, their index and retention — one writer),
-  ``catalog_lookup`` (the two verbs over both stores: a row persisted with its
-  catalogs, a hoisted ref resolved),
+  ``context_store`` (the persisted per-lane rows, their index and retention —
+  one writer), ``catalog_store`` (the content-addressed skills catalogs and the
+  two verbs over both stores: a row persisted with its catalogs, a hoisted ref
+  resolved),
   ``skills_resolver`` (which skills a persona reaches; the installed-catalog
   memo), ``skills_context`` (the available and used skill rows).
 * lanes — ``mission_chat``, ``turn_results``, ``snapshot_frame``.
@@ -33,7 +33,7 @@ module here imports a layer above its own (W0-G6).
 
 from __future__ import annotations
 
-from .catalog_lookup import persist_prompt_observability_context, skills_catalog_by_hash
+from .catalog_store import persist_prompt_observability_context, skills_catalog_by_hash
 from .context_store import load_persisted_context_row
 from .mission_chat import mission_chat_prompt_observability
 from .safe_views import turn_usage_from_result
