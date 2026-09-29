@@ -601,6 +601,7 @@ def _build_stale_first_convergence_pair() -> tuple[dict, dict]:
     """
 
     from agent_runtime import core_cache
+    from tests._downstream import _seams
     from agent_runtime.parity import events_position
     from agent_runtime.persona_assignments import PersonaInstanceStore
     from agent_runtime.snapshot import build_snapshot
@@ -611,7 +612,7 @@ def _build_stale_first_convergence_pair() -> tuple[dict, dict]:
     for _ in range(_CONVERGENCE_BUILDS):
         core_cache.core_path().unlink(missing_ok=True)
         core_cache.sidecar_path().unlink(missing_ok=True)
-        core_cache.reset_process_state()
+        _seams.reset_core_cache_process_state()
         build_snapshot()
         if core_cache.read_persisted_core().matched:
             break
@@ -637,7 +638,7 @@ def _build_stale_first_convergence_pair() -> tuple[dict, dict]:
 
     # 3. A fresh serve boot over that store: the stale paint, then the real
     #    gated build, through the production constructor both times.
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     stale_core = core_cache.take_stale_first_core(caller="cli")
     assert stale_core is not None, (
         "take_stale_first_core declined, so this fixture would pin an empty "

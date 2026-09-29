@@ -67,11 +67,11 @@ def _reset_core_cache_lane():
     the file that started building.
     """
 
-    from agent_runtime import core_cache
+    from tests._downstream import _seams
 
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     yield
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
 
 
 def _fixture(name: str) -> dict:

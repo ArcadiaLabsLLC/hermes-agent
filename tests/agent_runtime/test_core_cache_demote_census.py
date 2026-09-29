@@ -31,6 +31,7 @@ import logging
 import pytest
 
 from agent_runtime import core_cache
+from tests._downstream import _seams
 # One of the four names the channel table lists verbatim as runtime-authored.
 # Taken from the module that OWNS it, never spelled, for the reason
 # ``core_cache``'s exclusion set records: a comment naming a constant is not a
@@ -373,13 +374,13 @@ def test_the_census_reads_a_receipt_the_real_cache_lane_wrote(
 
     from agent_runtime import paths
 
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     try:
         workspace = WorkspaceStore().create(name="census-subject")
         for _ in range(4):
             core_cache.core_path().unlink(missing_ok=True)
             core_cache.sidecar_path().unlink(missing_ok=True)
-            core_cache.reset_process_state()
+            _seams.reset_core_cache_process_state()
             build_snapshot()
             if core_cache.read_persisted_core().matched:
                 break
@@ -395,13 +396,13 @@ def test_the_census_reads_a_receipt_the_real_cache_lane_wrote(
         payload["name"] = "census-subject-renamed"
         atomic_json_write(path, payload)
 
-        core_cache.reset_process_state()
+        _seams.reset_core_cache_process_state()
         caplog.clear()
         with caplog.at_level(logging.INFO, logger=_LOGGER):
             decision = core_cache.consult(caller="census")
         assert decision.demoted, "the lane did not demote, so no receipt was written"
     finally:
-        core_cache.reset_process_state()
+        _seams.reset_core_cache_process_state()
 
     lines = [record.getMessage() for record in caplog.records]
     report = census_demotes(lines)

@@ -52,6 +52,7 @@ from pathlib import Path
 import pytest
 
 from agent_runtime import core_cache
+from tests._downstream import _seams
 from utils import atomic_json_write
 
 
@@ -59,9 +60,9 @@ from utils import atomic_json_write
 def fresh_cache_lane():
     """Every case starts and ends with a process that has built nothing."""
 
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     yield
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
 
 
 @pytest.fixture(autouse=True)

@@ -191,7 +191,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - **No CLI-level test pins the `realm sync resolve --key skill::<slug>` envelope the launcher's held-skill buttons call — only the python seam (`skill_sync.resolve_held_skill`) and the argparse dump are covered, nothing drives `main()` end-to-end** · `hermes` · handed over by the hermes lane 2026-09-12; evidence `docs/agent-runtime-harness/planned/skill-three-way-sync-mutation-record-2026-09-12.md`, contract §4.6 of `EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md` · `tests/hermes_cli/` **UNCLAIMED**
 
 
-- [ ] **H2 sheet leftover — the `runtime_commands` → `runtime/{work,verify}` split with `WorkCancelOutcome`** · `fork / refactor` · a sheet-sized MOVE, one MOVE + one CHANGE, cut as its own lane when the H3 lane is cut · evidence: `docs/agent-runtime-harness/planned/god-file-layout-sheets/harness.md` §1–§3; the split row's verdict of 2026-09-25 (lane Q-RUNTIME) · split by the orchestrator 2026-09-25 from the H2 bundle row **UNCLAIMED** · VERDICT 2026-09-29 h10-rtfork: still owed and still its own lane: hermes_cli/harness_parts/runtime_commands.py is 956 raw lines, and the split is a sheet-sized MOVE (harness.md §1–§3) + the WorkCancelOutcome CHANGE; this lane already spent its one MOVE (chat_lane_scope, 8edc90e9d0), so it cannot take a second. Owed: cut it as a dedicated MOVE+CHANGE lane · OWNER 2026-09-29: schedule its MOVE+CHANGE lane **TAKEN 2026-09-29 h10b-refac**
 
 ### Filed on arrival — 2026-09-25 (lane R4)
 

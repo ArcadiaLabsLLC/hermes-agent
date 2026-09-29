@@ -27,10 +27,8 @@ from agent_runtime.core_cache.models import (
     _ConsultStamp,
 )
 from agent_runtime.core_cache.walk import _stat_entry
-from agent_runtime.core_cache.home import reset_fingerprint_home
 from agent_runtime.core_cache.fingerprint import build_input_fingerprint
 from agent_runtime.core_cache.generations import _live_generation_dir, pointer_path
-from agent_runtime.core_cache.convergence import _reset_convergence_state
 from agent_runtime.core_cache.read import _judge_persisted_pair, _read_pair, label_core
 
 __layer__ = "lanes"
@@ -54,7 +52,6 @@ __all__ = [
     "lane_armed",
     "note_full_build_completed",
     "pre_build_fingerprint",
-    "reset_process_state",
     "shadow_build_scope",
     "take_stale_first_core",
 ]
@@ -268,29 +265,6 @@ def pre_build_fingerprint() -> CoreFingerprint | None:
     return build_input_fingerprint()
 
 
-def reset_process_state() -> None:
-    """Re-arm the lane, as a fresh process would. Tests only.
-
-    Same shape and same reason as ``build_stamp.reset_build_stamp_cache``: a
-    property of the PROCESS has to be resettable for a test to be able to
-    exercise a second process's behaviour without spawning one.
-
-    The convergence history (ML-10) is process state by the same definition and
-    is reset here too — a case that left a streak behind would hand the next case
-    a process that had already half-declared non-convergence. So is the boot
-    lane's shared consult: a memo surviving into the next case would answer it
-    with the previous case's store. So is the captured fingerprint home (MC-2):
-    a capture surviving into the next case would resolve its closure through the
-    previous case's home, which the sandbox has already deleted.
-    """
-
-    global _lane_armed, _shadow_done
-    with _lane_lock:
-        _lane_armed = True
-        _shadow_done = False
-    _reset_convergence_state()
-    _drop_consult_memo()
-    reset_fingerprint_home()
 
 
 def lane_armed() -> bool:

@@ -60,6 +60,7 @@ from datetime import datetime, timezone
 import pytest
 
 from agent_runtime import core_cache, paths
+from tests._downstream import _seams
 from agent_runtime.events import EventLog
 from agent_runtime.models import Event
 from agent_runtime.snapshot import build_snapshot
@@ -80,14 +81,14 @@ WS_NEW = "ws_second_agent"
 def fresh_cache_lane():
     """Every case starts and ends with a process that has built nothing.
 
-    The lane and its memo are PROCESS state (see ``core_cache.reset_process_state``),
+    The lane and its memo are PROCESS state (see ``_seams.reset_core_cache_process_state``),
     so a case that left the lane closed would turn the next case's cache probe
     into an unconditional rebuild and pass for the wrong reason.
     """
 
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     yield
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
 
 
 @pytest.fixture
@@ -176,10 +177,10 @@ def converge_persisted_core(*, limit: int = 4) -> None:
     for _ in range(limit):
         core_cache.core_path().unlink(missing_ok=True)
         core_cache.sidecar_path().unlink(missing_ok=True)
-        core_cache.reset_process_state()
+        _seams.reset_core_cache_process_state()
         build_snapshot()
         if core_cache.read_persisted_core().matched:
-            core_cache.reset_process_state()
+            _seams.reset_core_cache_process_state()
             return
     raise AssertionError(
         "the persisted core's fingerprint never converged, so no case in this "

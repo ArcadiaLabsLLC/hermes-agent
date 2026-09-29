@@ -47,9 +47,9 @@ from utils import atomic_json_write
 
 @pytest.fixture(autouse=True)
 def fresh_cache_lane():
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     yield
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
 
 
 @pytest.fixture(autouse=True)
@@ -239,7 +239,7 @@ def test_a_foreign_write_still_demotes_the_next_consult(
     atomic_json_write(workspace, {"id": "ws_alpha", "name": "moved-by-somebody-else"})
     assert core_cache.write_back(_core(), fingerprint=key) is True
 
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     read = core_cache.read_persisted_core()
     assert read.matched is False, (
         "the persisted pair was judged CURRENT over a store whose workspace row "
@@ -269,7 +269,7 @@ def test_a_settled_store_writes_a_key_that_matches_it(
     assert key is not None
     assert core_cache.write_back(_core(), fingerprint=key) is True
 
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     read = core_cache.read_persisted_core()
     assert read.matched is True, (
         "a write-back over a store nothing touched produced a key that does not "

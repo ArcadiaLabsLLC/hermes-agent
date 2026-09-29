@@ -245,9 +245,9 @@ def two_profiles_for_capture(tmp_path, monkeypatch):
         (home / "config.yaml").write_text("skills:\n  external_dirs: []\n", "utf-8")
     monkeypatch.setenv("HERMES_HOME", str(head))
     monkeypatch.setenv("HERMES_HEAD_HOME", str(head))
-    core_cache.reset_fingerprint_home()
+    _seams.reset_fingerprint_home()
     yield SimpleNamespace(root=root, head=head, other=other)
-    core_cache.reset_fingerprint_home()
+    _seams.reset_fingerprint_home()
 
 
 # --------------------------------------------------------------------------- #

@@ -53,6 +53,7 @@ from agent_runtime import (
 )
 from agent_runtime.office_store import OfficeStore
 from agent_runtime.store import WorkspaceStore
+from tests._downstream import _seams
 
 
 # --------------------------------------------------------------------------- #
@@ -609,7 +610,7 @@ def test_the_persisted_entries_shrink_with_the_closure(
     monkeypatch.setattr(core_cache.fingerprint, "build_stamp_token", lambda: "probe:mc8:clean")
     monkeypatch.setattr(core_cache.read, "build_stamp_token", lambda: "probe:mc8:clean")
     monkeypatch.setattr(core_cache.persist, "build_stamp_token", lambda: "probe:mc8:clean")
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     try:
         key = core_cache.build_input_fingerprint()
         assert key is not None
@@ -617,7 +618,7 @@ def test_the_persisted_entries_shrink_with_the_closure(
 
         payload = json.loads(core_cache.entries_path().read_text(encoding="utf-8"))
     finally:
-        core_cache.reset_process_state()
+        _seams.reset_core_cache_process_state()
 
     persisted = [str(row[0]) for row in payload["entries"]]
     assert persisted, "the entries file carried no rows, so this gate proved nothing"

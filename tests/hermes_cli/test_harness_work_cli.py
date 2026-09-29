@@ -396,6 +396,44 @@ def test_a_refused_cancel_arrives_typed_with_its_own_exit_code(
     assert payload["error"]["safe_details"]["work_id"] == "terminal:sess-1"
 
 
+@pytest.mark.parametrize(
+    "argv_tail, cancel_result, verdict, exit_code, prints",
+    [
+        (["terminal:ghost", "--yes"], None, "NOT_FOUND", 3, True),
+        (["terminal:sess-1", "--yes", "--issued-at", "2026-08-03T09:00:00Z"], None, "SUPERSEDED", 4, True),
+        (["terminal:sess-1"], None, "CONFIRMATION_REQUIRED", 8, False),
+        (["terminal:sess-1", "--dry-run"], None, "DRY_RUN", 0, True),
+        (["terminal:sess-1", "--yes"], {"status": "error", "code": "cancel_failed"}, "REFUSED", 7, True),
+        (["terminal:sess-1", "--yes"], {"status": "cancelled", "code": ""}, "CANCELLED", 0, True),
+    ],
+)
+def test_every_cancel_path_ends_in_one_typed_outcome(
+    one_row, monkeypatch, capsys, argv_tail, cancel_result, verdict, exit_code, prints
+):
+    """``WorkCancelOutcome`` is the verb's decision as a value: one verdict per
+    exit path, the exit code a caller branches on, and the envelope — absent
+    only where the confirmation chokepoint printed its own refusal."""
+
+    from hermes_cli.harness_parts import work_commands
+
+    def _cancel(work_id, *, reason):
+        if cancel_result is None:
+            raise AssertionError(f"{verdict} must not reach the interrupt seam")
+        return dict(cancel_result)
+
+    monkeypatch.setattr(running_work, "cancel_work", _cancel)
+    args = parser().parse_args(["harness", "work", "cancel", *argv_tail, "--json"])
+
+    outcome = work_commands._work_cancel_outcome(args)
+
+    assert outcome.verdict is work_commands.WorkCancelVerdict[verdict]
+    assert outcome.exit_code == exit_code
+    assert (outcome.envelope is not None) is prints
+    printed = capsys.readouterr().out.strip()
+    # The confirmation refusal is printed by the chokepoint, never by the outcome.
+    assert bool(printed) is (not prints)
+
+
 # --- parser shape -----------------------------------------------------------
 
 

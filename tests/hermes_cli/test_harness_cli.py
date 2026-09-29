@@ -1448,7 +1448,7 @@ def test_run_verify_command_survives_non_cp1252_bytes_in_child_output(tmp_path):
     locale codepage: byte 0x90 is undefined in cp1252, and without a pinned
     encoding it crashed subprocess's reader thread on Windows, silently
     dropping the captured output from the verification payload."""
-    from hermes_cli.harness_parts.runtime_commands import _run_verify_command
+    from hermes_cli.harness_parts.verify_commands import _run_verify_command
 
     child = (
         "import sys;"

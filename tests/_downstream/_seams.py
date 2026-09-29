@@ -35,6 +35,8 @@ __all__ = [
     "iter_fingerprint_paths",
     "remove_harness_worktree_for_repo",
     "repo_execution_context_for_task",
+    "reset_core_cache_process_state",
+    "reset_fingerprint_home",
     "reset_runtime_resolve_cache",
     "reset_unreadable_instance_rows",
 ]
@@ -43,7 +45,7 @@ __all__ = [
 def reset_unreadable_instance_rows() -> None:
     """Forget the persona-instance re-mint history, as a fresh process would.
 
-    Same shape and same reason as ``core_cache.reset_process_state``: a property
+    Same shape and same reason as :func:`reset_core_cache_process_state`: a property
     of the PROCESS has to be resettable for a test to exercise a second
     process's behaviour without spawning one — and, here, so that one case's
     corrupt row cannot silence the next case's first legitimate repair when the
@@ -668,3 +670,65 @@ def reset_runtime_resolve_cache() -> None:
 
     with _execute._RUNTIME_RESOLVE_CACHE_LOCK:
         _execute._RUNTIME_RESOLVE_CACHE.clear()
+
+
+# -- core_cache: the process-state reset (TEST SEAM, lane h10b-refac 2026-09-29) --
+# Owner ruling 2026-09-29 (dead-code queue row ``reset_fingerprint_home``): no
+# production caller — ``lane.reset_process_state`` was reached only from tests,
+# the ``tests/agent_runtime`` conftest and the stream-fixture generator script.
+# Moved as ONE unit with the private chain only it called
+# (``convergence._reset_convergence_state``); each piece still takes the lock
+# of the module that owns the state, so a production reader never sees half a
+# reset.
+
+
+def reset_fingerprint_home() -> None:
+    """Forget the captured fingerprint home, as a fresh process would.
+
+    The per-test environment sandbox moves ``HERMES_HOME`` between cases, and a
+    capture frozen from case 1 would answer case 2 through a directory pytest
+    has already deleted. Drops the boot-site declaration too: a case that drove
+    a serve boot would otherwise leave every later case claiming to be a serve.
+    """
+
+    from agent_runtime.core_cache import home as _home
+
+    with _home._fingerprint_home_lock:
+        _home._fingerprint_home = None
+        _home._fingerprint_home_eager = False
+        _home._fingerprint_home_boot_site = None
+
+
+def _reset_core_cache_convergence_state() -> None:
+    """Forget this process's convergence history, seed included."""
+
+    from agent_runtime.core_cache import convergence as _conv
+
+    with _conv._convergence_lock:
+        _conv._last_written_digest = None
+        _conv._streak_entries = ()
+        _conv._streak_length = 0
+        _conv._streak_last_diff = None
+        _conv._streak_common_diff = None
+        _conv._never_converged_reported = False
+        _conv._boot_streak_seed = None
+        _conv._boot_streak_seed_taken = False
+        _conv._streak_seeded = False
+
+
+def reset_core_cache_process_state() -> None:
+    """Re-arm the core-cache lane, as a fresh process would.
+
+    Resets every piece of core_cache PROCESS state a case can leave behind: the
+    lane (armed, no shadow run), the convergence history (ML-10), the boot
+    lane's shared consult memo, and the captured fingerprint home (MC-2).
+    """
+
+    from agent_runtime.core_cache import lane as _lane
+
+    with _lane._lane_lock:
+        _lane._lane_armed = True
+        _lane._shadow_done = False
+    _reset_core_cache_convergence_state()
+    _lane._drop_consult_memo()
+    reset_fingerprint_home()

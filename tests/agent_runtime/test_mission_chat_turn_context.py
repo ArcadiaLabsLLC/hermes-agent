@@ -1326,7 +1326,7 @@ def _prompt_observability_walk_gate(monkeypatch, walked_home):
     monkeypatch.setattr(prompt_observability.skills_context, "_installed_skill_catalog", _gated)
     monkeypatch.setattr(prompt_observability.skills_resolver, "_installed_skill_catalog", _gated)
     monkeypatch.setattr(
-        prompt_observability.catalog_lookup, "load_latest_prompt_observability_contexts", lambda: []
+        prompt_observability.catalog_store, "load_latest_prompt_observability_contexts", lambda: []
     )
     monkeypatch.setattr(
         prompt_observability.context_store, "load_latest_prompt_observability_contexts", lambda: []

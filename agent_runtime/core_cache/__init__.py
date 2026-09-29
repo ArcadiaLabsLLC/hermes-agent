@@ -5,8 +5,8 @@ Entry points (what calls in):
 * ``decision.consult`` / ``lane.take_stale_first_core`` — the snapshot builder
   and the stream's stale-first routing ask whether a persisted core may serve.
 * ``persist.write_back`` — the builder lands a fresh core.
-* ``lane.close_cache_lane`` / ``lane.note_full_build_completed`` /
-  ``lane.reset_process_state`` — the process-level lane.
+* ``lane.close_cache_lane`` / ``lane.note_full_build_completed`` — the
+  process-level lane (its test reset is ``tests/_downstream/_seams.py``).
 * ``home.declare_fingerprint_home_boot_site`` / ``capture_fingerprint_home`` —
   the serve boot pins the fingerprint home; ``home.capture_for_harness_command``
   is the CLI dispatch's instant (``hermes_cli.harness._harness_entry``).
@@ -168,7 +168,6 @@ from agent_runtime.core_cache.home import (
     _pinned_to_fingerprint_home,
     capture_fingerprint_home,
     declare_fingerprint_home_boot_site,
-    reset_fingerprint_home,
     resolved_fingerprint_home,
 )
 from agent_runtime.core_cache.fingerprint import build_input_fingerprint
@@ -214,7 +213,6 @@ from agent_runtime.core_cache.lane import (
     lane_armed,
     note_full_build_completed,
     pre_build_fingerprint,
-    reset_process_state,
     shadow_build_scope,
     take_stale_first_core,
 )
@@ -312,8 +310,6 @@ __all__ = [
     "pointer_path",
     "pre_build_fingerprint",
     "read_persisted_core",
-    "reset_fingerprint_home",
-    "reset_process_state",
     "resolved_fingerprint_home",
     "shadow_build_scope",
     "shadow_validate",
