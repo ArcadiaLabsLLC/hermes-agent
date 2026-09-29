@@ -45,6 +45,7 @@ SCHEMA_VERSION = 1
 KEYS_READ_OUTSIDE_DEFAULTS = {
     "delegation.worktree_isolation": "tools/delegate_tool_config.py::_get_worktree_isolation",
     "mcp.stdio_servers": "tools/mcp_tool_common.py::mcp_stdio_servers_allowed",
+    "mcp.client": "tools/mcp_tool_common.py::mcp_client_enabled",
     "tts.piper.download_voices": "tools/tts_tool_local.py::_load_piper_voice_for_config",
     "terminal.external_backends": "tools/terminal_tool_backends.py::external_backends_allowed",
     "gateway.platform_adapters": "gateway/run_adapters.py::platform_adapters_allowed",

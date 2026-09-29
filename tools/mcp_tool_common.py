@@ -141,10 +141,27 @@ def mcp_server_enabled(cfg: dict) -> bool:
     """Whether ``mcp_servers.<name>`` is on. The ONE reader of the ``enabled`` key: the MCP client,
     the toolset resolver, the profile editor, and every list/status surface call it, so a value
     can never be on for one surface and off for another. Absent, ``null`` or unparseable = on.
-    A stdio server (no ``url``) is also off while :func:`mcp_stdio_servers_allowed` says no."""
+    A stdio server (no ``url``) is also off while :func:`mcp_stdio_servers_allowed` says no, and
+    every server is off while :func:`mcp_client_enabled` says no."""
     if not _parse_boolish(cfg.get("enabled", True), default=True):
         return False
+    if not mcp_client_enabled():
+        return False
     return "url" in cfg or mcp_stdio_servers_allowed()
+
+
+def mcp_client_enabled() -> bool:
+    """Config ``mcp.client`` (default on): does this Hermes run the MCP client at all — discover,
+    connect to, authorise and run the configured ``mcp_servers``? A distribution that connects to
+    no MCP server (the bundled phone profile, which does not ship the client runtime) turns it off.
+    Callers on a kept path ask this BEFORE importing ``tools.mcp_tool`` or a client sibling of it.
+    The per-turn tool snapshot (``tools.mcp_tool_agent``) is not the client and is unaffected. An
+    unreadable config keeps today's behaviour (on). Fork seam: bundled-phone.yaml."""
+    try:
+        from hermes_cli.config import config_switch
+    except ImportError:  # a config module without the reader (a stubbed one) is today's behaviour
+        return True
+    return config_switch("mcp", "client")
 
 
 def mcp_stdio_servers_allowed() -> bool:
