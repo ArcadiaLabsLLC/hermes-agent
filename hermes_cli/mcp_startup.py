@@ -51,8 +51,18 @@ def get_mcp_server_filter() -> Optional[list[str]]:
     return _mcp_server_filter
 
 
+def _mcp_client_on() -> bool:
+    """Fork seam: config ``mcp.client`` off (the bundled phone) starts no discovery, so the client
+    runtime is never imported (tools/mcp_tool_common.py::mcp_client_enabled)."""
+    from tools.mcp_tool_common import mcp_client_enabled
+
+    return mcp_client_enabled()
+
+
 def _has_configured_mcp_servers() -> bool:
     """Cheap config probe so non-MCP users avoid importing the MCP stack."""
+    if not _mcp_client_on():
+        return False
     try:
         from hermes_cli.config import read_raw_config
 
@@ -99,6 +109,8 @@ def start_background_mcp_discovery(*, logger, thread_name: str) -> None:
     Desktop backend) is connected by the next call, which every agent build makes, so a new session
     gets its tools without a reload (#76954). Discovery is additive: live servers are untouched.
     """
+    if not _mcp_client_on():  # fork seam: no discovery, not even the retry probe's import
+        return
     home_key = hermes_home_key()
     with _mcp_discovery_lock:
         if home_key in _mcp_discovery_started:

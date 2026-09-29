@@ -15,6 +15,10 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 - [ ] **Isolate wrapper-publication tests before resuming interrupted desktop qualification.** · Whole-PC freeze during the single-worker continuation; running-wrapper publication is the last surviving fixture, not a proven cause. Preserve evidence; use contained off-desktop reproduction, not an unbounded rerun. [Incident boundary](../../docs/downstream/discussion-qualification-2026-09-28.md#host-freeze--qualification-interrupted). Filed 2026-09-28 Discussion qualification. **TAKEN 2026-09-29 h10-fhrel** · VERDICT 2026-09-29 h10-fhrel: static read done — `tests/hermes_cli/test_source_launcher_publication.py::test_running_source_launcher_can_republish_itself` runs the freshly published native `hermes.exe`/`.cmd` once (`subprocess.run`, 30 s timeout) and that child rewrites its own running launcher; nothing in the body is unbounded, so the test is a candidate trigger only through the OS/driver side of self-overwrite. Owed: one contained reproduction in a disposable Windows VM with commit/process limits and per-file diagnostics (a box this lane does not have); the updater-retarget half of the residual population is fenced by `319c6ff69d`, so the VM run no longer reaches the primary checkout
 
 
+### Filed on arrival — 2026-09-29 (h11-mcp landing)
+
+- [ ] **`tests/agent_runtime/test_serve_wedge_lifecycle.py` (`lost_the_lane`, `owner_still_runs`) flakes under the 8-worker runner and passes 8/8 alone: the tests check the delivery drain before the serve has finished booting — wait on the serve's ready signal instead of a fixed window.** · lane h11-mcp landing run, 2026-09-29 · UNCLAIMED
+
 ### Filed on arrival — 2026-09-29 (lane h7-phone)
 
 

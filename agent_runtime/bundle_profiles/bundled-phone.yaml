@@ -48,6 +48,9 @@ config:
   # Local LLM engine supervision: phones use the OS model (host provider, Stage 4).
   local_runtime.enabled: false
   mcp.stdio_servers: false
+  # The MCP client runtime (discovery, sessions, transports, OAuth, the server loop): a phone
+  # connects to no MCP server. The per-turn tool snapshot (tools.mcp_tool_agent) stays on.
+  mcp.client: false
   tts.piper.download_voices: false
   terminal.external_backends: false
   gateway.platform_adapters: false
@@ -181,8 +184,22 @@ packaging:
     - tools.computer_use
     - tools.environments
     - tools.subagent_worktree
-    # MCP stdio servers start processes.
+    # The MCP client runtime (mcp.client false): no server is discovered, connected or run. Kept:
+    # tools.mcp_tool_agent (the per-turn tool snapshot) and the common / schema / config helpers
+    # that carry the switches and the tool-name prefix.
+    - tools.mcp_tool
+    - tools.mcp_tool_content
+    - tools.mcp_tool_discovery
+    - tools.mcp_tool_errors
+    - tools.mcp_tool_handlers
+    - tools.mcp_tool_health
+    - tools.mcp_tool_lifecycle
+    - tools.mcp_tool_loop
+    - tools.mcp_tool_registration
+    - tools.mcp_tool_sampling
+    - tools.mcp_tool_scope
     - tools.mcp_tool_server_run
+    - tools.mcp_tool_transport
     # Cron.
     - tools.cronjob_tools
     - tools.cronjob_job_args
