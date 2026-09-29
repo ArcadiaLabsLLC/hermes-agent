@@ -45,7 +45,6 @@ Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2
 ### Filed on arrival — 2026-09-28 (lane p1-hsplit)
 
 ### Filed on arrival — 2026-09-28 (lane w4-hd4)
-- [ ] **Licence review before a bundled release: piper-tts (GPL-3.0-or-later + espeak-ng) and vcruntime140's Microsoft redistribution terms (via the interpreter); the five texts once missing are vetted (lane w4-hlic). Owner decision per component; the packager's `licenses.json` `review_required` is the list.** · closure doc "Release gates", flagged-for-review table. **TAKEN 2026-09-29 h9-bundle**
 
 ### Filed on arrival — 2026-09-29 (upstream merge `merge/upstream-2026-09-29`, filed by the orchestrator)
 - [ ] **`tests/hermes_cli/test_apply_profile_override_downstream.py` imports `_pin_hermes_root`, which exists nowhere — ImportError on origin/main before the merge too** · `fork` · filed 2026-09-29 **UNCLAIMED**
