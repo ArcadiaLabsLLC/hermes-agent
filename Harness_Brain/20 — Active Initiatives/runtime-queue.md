@@ -115,7 +115,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-25 (lane LLAMA-ALIAS)
 
-- [ ] **Drop `local-llama-hermes` once the launcher speaks `llamacpp`: `PROVIDER_ID` becomes `llamacpp`, `PROVIDER_ID_ALIASES` and `is_local_llama_provider` in `agent_runtime/local_llama_adapter/__init__.py` collapse to one id, and the two sub-64K floor exemptions keyed on the `requested_provider` literal (`agent/agent_init.py`, `agent/conversation_compression.py`) move with it** · `fork / local llama` · gated on the launcher switch row (`EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`); stored persona rows still carrying `local-llama-hermes` need a one-chokepoint rewrite-and-report · evidence: the lane LLAMA-ALIAS commit `feat(local-llama): accept upstream's llamacpp as a persona provider id through one chokepoint` (input accepts both ids, output publishes `local-llama-hermes` for one release, owner ruling 2026-09-25) · filed by lane LLAMA-ALIAS 2026-09-25 · UNBLOCKED 2026-09-26: the launcher speaks `llamacpp` since lane LLAMA-SWITCH landed (launcher `d80c6ae4e`; one tolerant read of the old id stays at its parse boundary until this row lands) **UNCLAIMED** **TAKEN 2026-09-29 h9-bundle**
+- [ ] **Drop the `local-llama-hermes` input alias (step 2): once the launcher's l9 lane has landed, `LEGACY_PROVIDER_ID` leaves `PROVIDER_ID_ALIASES` in `agent_runtime/local_llama_adapter/__init__.py`, with one rewrite-and-report of stored persona rows still carrying it** · `fork / local llama` · step 1 (publish `llamacpp`, read the old id) landed in lane h9-bundle · evidence: that commit, `tests/agent_runtime/test_local_llama_adapter.py` legacy parametrizations
 
 ### Filed on arrival — 2026-09-25 (lane W3-D)
 
@@ -222,6 +222,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
 
+
+### Filed on arrival — 2026-09-29 (lane h9-bundle)
+
+- [ ] **Move the two sub-64K floor exemptions off the `local-llama-hermes` literal: `agent/agent_init.py` and `agent/conversation_compression.py` compare `requested_provider` to it; key them on the adapter's `FLOOR_EXEMPTION_REQUESTED_PROVIDER` (or `llamacpp`) so the old spelling leaves the tree** · `seams` · evidence: `agent_runtime/local_llama_adapter/__init__.py` `FLOOR_EXEMPTION_REQUESTED_PROVIDER`; `tests/agent/test_compression_feasibility_downstream.py` builds its marker through the adapter
 
 ### Filed on arrival — 2026-09-26 (lane FIX-TRIAGE, filed by the orchestrator)
 

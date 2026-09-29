@@ -1,9 +1,9 @@
 """Persona-facing half: the provider profile, the visibility block, and the turn route.
 
-A persona that picked a local model keeps the launcher's provider id ``local-llama-hermes`` and
-a preset UUID (the launcher contract). Upstream's ``llamacpp`` is accepted as an input alias of
-that id (``is_local_llama_provider``) until the launcher switches; what is published stays
-``local-llama-hermes``. The turn itself runs on upstream's ``llamacpp`` provider: the endpoint
+A persona that picked a local model stores provider ``llamacpp`` (upstream's id) and a preset
+UUID (the launcher contract). The pre-2026-09-29 id ``local-llama-hermes`` is still read as an
+alias (``is_local_llama_provider``) and never written. The turn runs on upstream's ``llamacpp``
+provider: the endpoint
 comes from ``resolve_runtime_provider(requested="llamacpp")`` (the ``server.json`` upstream's
 supervisor publishes), under a whole-turn lease (row 12). Row 10 (generation parameters) rides
 the agent factory's kwargs; row 21 is the visibility block.
@@ -18,7 +18,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from . import DISPLAY_NAME, PROVIDER_ID, is_local_llama_provider
+from . import DISPLAY_NAME, FLOOR_EXEMPTION_REQUESTED_PROVIDER, PROVIDER_ID, is_local_llama_provider
 from .config import ConfigStore
 
 __layer__ = "stores"
@@ -99,7 +99,7 @@ def construction_kwargs(runtime):
     if "local_parameters" not in runtime:
         return {}
     generation = runtime["local_parameters"]["generation"]
-    return {"requested_provider": PROVIDER_ID, "max_tokens": generation["max_output_tokens"],
+    return {"requested_provider": FLOOR_EXEMPTION_REQUESTED_PROVIDER, "max_tokens": generation["max_output_tokens"],
             "fallback_model": [], "request_overrides": {"temperature": generation["temperature"],
               "top_p": generation["top_p"], "extra_body": {"top_k": generation["top_k"]}}}
 

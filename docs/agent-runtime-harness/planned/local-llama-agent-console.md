@@ -68,7 +68,7 @@ H0 verifies the installed executable and records its version and capabilities.
 
 ## 3. Fixed product decisions
 
-Provider ID: `local-llama-hermes`; display name: **Local llama Hermes**.
+Provider ID: `local-llama-hermes`; display name: **Local llama Hermes**. *(Superseded 2026-09-29, lane h9-bundle: the id is upstream's `llamacpp`, `local-llama-hermes` is read as an input alias only, and the display name is **Eternia Harness local llama** — `agent_runtime/local_llama_adapter/__init__.py`.)*
 Model IDs are immutable UUIDs assigned on import; display names and GGUF paths
 may change without breaking agent selections. The inference alias is
 `hermes-local-<model UUID>`; a filesystem path is never an inference model ID.

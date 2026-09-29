@@ -11,12 +11,21 @@ No import-time process or filesystem I/O.
 
 __layer__ = "policy"
 
-PROVIDER_ID = "local-llama-hermes"
-# Upstream's ``llamacpp`` is accepted as an INPUT spelling of this provider for one release
-# (owner ruling 2026-09-25): the launcher switches to it, then ``local-llama-hermes`` is dropped.
-# Output (persona rows, the catalog visibility ``provider_id``) keeps publishing ``PROVIDER_ID``.
-PROVIDER_ID_ALIASES = frozenset({PROVIDER_ID, "llamacpp"})
-DISPLAY_NAME = "Local llama Hermes"
+PROVIDER_ID = "llamacpp"
+# The id this provider published before it took upstream's ``llamacpp`` (owner ruling
+# 2026-09-25). Still read on input — a launcher build that sends it, a persona row stored
+# with it — and never written. It leaves ``PROVIDER_ID_ALIASES`` in the step after the
+# launcher's l9 lane lands (it already reads ``llamacpp`` and folds this id at its parse
+# boundary), together with a rewrite-and-report of stored rows that still carry it.
+LEGACY_PROVIDER_ID = "local-llama-hermes"
+PROVIDER_ID_ALIASES = frozenset({PROVIDER_ID, LEGACY_PROVIDER_ID})
+# "Hermes" alone names upstream (owner naming ruling 2026-09-29); this is the fork's.
+DISPLAY_NAME = "Eternia Harness local llama"
+# The ``requested_provider`` a managed local turn is built with. Two fork seams inside upstream
+# files (``agent/agent_init.py``, ``agent/conversation_compression.py``: the sub-64K floor
+# exemptions) compare against this literal, so it stays the old spelling until a seam lane
+# moves those two lines; it is a turn marker, never a provider id a client sees.
+FLOOR_EXEMPTION_REQUESTED_PROVIDER = "local-llama-hermes"
 SCHEMA = "hermes.local_llama/v1"
 SETUP_SCHEMA = "hermes.local_llama.setup/v1"
 MODEL_ALIAS_PREFIX = "hermes-local-"
@@ -24,7 +33,7 @@ MODEL_ALIAS_PREFIX = "hermes-local-"
 
 def is_local_llama_provider(provider) -> bool:
     """The one chokepoint for "is this persona on the managed local model". Readers accept
-    every id in ``PROVIDER_ID_ALIASES``; writers normalize to ``PROVIDER_ID``."""
+    every id in ``PROVIDER_ID_ALIASES``; writers normalize to ``PROVIDER_ID`` (``llamacpp``)."""
     return provider in PROVIDER_ID_ALIASES
 
 

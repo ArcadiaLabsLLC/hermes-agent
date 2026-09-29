@@ -120,7 +120,7 @@ def _validated_set_model_request(args) -> dict:
         profile = get_provider_profile(provider_raw)
         from agent_runtime.local_llama_adapter import is_local_llama_provider
         if is_local_llama_provider(provider_raw):
-            # Either id stores the launcher's ``local-llama-hermes`` (the profile's name).
+            # Either id stores ``llamacpp`` (the profile's name); the old id is input only.
             from agent_runtime.local_llama_adapter.provider import provider_profile
             profile = provider_profile()
         if profile is None:

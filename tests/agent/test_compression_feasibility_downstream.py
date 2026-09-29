@@ -1,7 +1,8 @@
 """Fork-owned half of ``tests/agent/test_compression_feasibility.py``.
 
-The fork's ``local-llama-hermes`` same-model aux floor exemption
-(``agent.conversation_compression``). Upstream's autouse
+The fork's managed-local-model same-model aux floor exemption
+(``agent.conversation_compression``), keyed on the ``requested_provider`` the local llama
+adapter builds a turn with (``FLOOR_EXEMPTION_REQUESTED_PROVIDER``). Upstream's autouse
 ``_stable_aux_provider_config`` and ``_make_agent`` are imported by name.
 """
 
@@ -21,7 +22,12 @@ from tests.agent.test_compression_feasibility import (  # noqa: F401 — upstrea
 @patch("agent.auxiliary_client.get_text_auxiliary_client")
 def test_managed_local_compression_honors_verified_small_context(mock_get_client, mock_ctx_len):
     agent = _make_agent(main_context=8192)
-    agent.requested_provider = "local-llama-hermes"
+    from agent_runtime.local_llama_adapter.provider import construction_kwargs
+
+    # The marker the adapter really builds a managed turn with — not a copy of the literal.
+    agent.requested_provider = construction_kwargs(
+        {"local_parameters": {"generation": {"max_output_tokens": 1, "temperature": 0, "top_p": 1, "top_k": 1}}}
+    )["requested_provider"]
     agent.provider = "custom"
     agent._emit_status = lambda msg: None
     agent.base_url = "http://127.0.0.1:49152/v1"

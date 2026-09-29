@@ -17,7 +17,15 @@ import pytest
 
 from agent_runtime import serve_rpc
 from agent_runtime.call_authorization import CALLER_PEER, UNKNOWN_CALLER, RpcCaller
-from agent_runtime.local_llama_adapter import PROVIDER_ID, binding, model_alias, provider, rpc
+from agent_runtime.local_llama_adapter import (
+    FLOOR_EXEMPTION_REQUESTED_PROVIDER,
+    LEGACY_PROVIDER_ID,
+    PROVIDER_ID,
+    binding,
+    model_alias,
+    provider,
+    rpc,
+)
 from agent_runtime.local_llama_adapter.config import GENERATION_DEFAULTS, LOAD_DEFAULTS, LocalLlamaError, default_config
 from agent_runtime.local_llama_adapter.engine import scan, validate_model, write_preset
 from agent_runtime.local_llama_adapter.manager import LocalLlamaManager
@@ -350,7 +358,7 @@ def test_the_read_projection_pins_the_window_and_routes_aux_without_credentials(
 def test_generation_parameters_ride_the_factory_and_bust_the_resident_actor():
     resolved = runtime_row()
     kwargs = provider.construction_kwargs(resolved)
-    assert (kwargs["requested_provider"], kwargs["max_tokens"], kwargs["request_overrides"]["extra_body"]["top_k"]) == (PROVIDER_ID, 1024, 40)
+    assert (kwargs["requested_provider"], kwargs["max_tokens"], kwargs["request_overrides"]["extra_body"]["top_k"]) == (FLOOR_EXEMPTION_REQUESTED_PROVIDER, 1024, 40)
     old = provider.actor_signature(resolved, "session")
     resolved["local_parameters"]["generation"]["max_output_tokens"] = 2048
     assert provider.actor_signature(resolved, "session") != old
@@ -592,8 +600,8 @@ def test_setup_mutations_pass_the_same_epoch_guard(manager):
     assert caught.value.reason == "stale_epoch"
 
 
-# ── the upstream ``llamacpp`` provider id is an input alias (lane LLAMA-ALIAS) ──
-@pytest.mark.parametrize("provider_id", [PROVIDER_ID, "llamacpp"])
+# ── the provider is upstream's ``llamacpp``; the old id is an input alias (lanes LLAMA-ALIAS, h9-bundle) ──
+@pytest.mark.parametrize("provider_id", [PROVIDER_ID, LEGACY_PROVIDER_ID])
 def test_either_provider_id_takes_the_whole_turn_lease(provider_id, monkeypatch):
     from contextlib import contextmanager, nullcontext
     leases = []
@@ -619,7 +627,7 @@ def test_a_cloud_provider_takes_no_lease(monkeypatch):
         pass
 
 
-@pytest.mark.parametrize("provider_id", [PROVIDER_ID, "llamacpp"])
+@pytest.mark.parametrize("provider_id", [PROVIDER_ID, LEGACY_PROVIDER_ID])
 def test_either_provider_id_resolves_through_the_adapter(provider_id, monkeypatch):
     from agent_runtime import profile_runner
     monkeypatch.setattr(profile_runner.execute, "resolve_runtime_provider", lambda **kw: pytest.fail("reached the cloud resolver"))
@@ -630,7 +638,7 @@ def test_either_provider_id_resolves_through_the_adapter(provider_id, monkeypatc
     assert calls == ["preset-id"]
 
 
-@pytest.mark.parametrize("provider_id", [PROVIDER_ID, "llamacpp"])
+@pytest.mark.parametrize("provider_id", [PROVIDER_ID, LEGACY_PROVIDER_ID])
 def test_either_provider_id_is_ready_on_the_local_catalog_not_a_credential(provider_id, monkeypatch):
     from agent_runtime import profile_readiness
     monkeypatch.setattr(provider, "catalog_visibility",
@@ -653,3 +661,9 @@ def test_hardware_reports_the_discrete_cards_vram_and_null_without_one(manager, 
 
     monkeypatch.setattr(hardware, "probe_budget", lambda planning=False: HardwareBudget(**budget))
     assert manager.setup.hardware()["vram_bytes"] == vram
+
+
+def test_the_published_id_is_upstreams_llamacpp_under_an_eternia_harness_name():
+    visibility_profile = provider.provider_profile()
+    assert (PROVIDER_ID, visibility_profile.name) == ("llamacpp", "llamacpp")
+    assert "Hermes" not in provider.DISPLAY_NAME.replace("Eternia Harness", "")
