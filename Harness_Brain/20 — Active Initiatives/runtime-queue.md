@@ -96,7 +96,6 @@ Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2
 
 ### Filed on arrival — 2026-09-26 (lane L4, filed by the orchestrator)
 
-- [ ] **`tests/agent_runtime/test_dispatch_session_policy.py::test_clarify_binding_never_loads_the_configured_policy` asserts only `loads == []` with no positive control, so a patch on the wrong module passes it silently** · `fork / tests` · add the positive control (the binding that DOES load, asserted through the same capture) · evidence: lane L4 report 2026-09-26 · filed by lane L4 2026-09-26 **UNCLAIMED** **TAKEN 2026-09-29 h9-serve**
 - [ ] **The `homes` fixture in `tests/agent_runtime/test_profile_artifact_sync.py` patches only `if hasattr(module, name)`, so a moved global silently stops being patched and nothing reports it** · `fork / tests` · the fixture asserts every name it means to patch exists, or fails · evidence: lane L4 report 2026-09-26 · filed by lane L4 2026-09-26 **UNCLAIMED** **TAKEN 2026-09-29 h9-serve**
 
 ### Filed on arrival — 2026-09-26 (launcher lane LLAMA-SWITCH, filed by the orchestrator)

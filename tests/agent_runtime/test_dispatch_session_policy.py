@@ -207,6 +207,11 @@ def test_clarify_binding_never_loads_the_configured_policy(monkeypatch):
     decision = resolve_dispatch_session_decision(clarify_session_id=_CLARIFY_SESSION)
     assert loads == []
     assert decision.policy is None
+    # Positive control through the SAME capture: the unset lane loads the policy,
+    # so the patch sits on the module the resolver reads. Without it, a patch on
+    # the wrong module leaves ``loads == []`` true for every caller.
+    assert resolve_dispatch_session_decision().reason == REASON_POLICY_STICKY
+    assert loads == [1], "the capture never saw a load — the patch is on the wrong module"
 
 
 # ── tri-state coercion ──────────────────────────────────────────────────────
