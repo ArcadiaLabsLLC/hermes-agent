@@ -38,6 +38,7 @@ from tests._downstream.id_markers.reasons import (
     NO_OLLAMA_SHOW_PROBE_MARK as _NO_OLLAMA_SHOW_PROBE_MARK,
     NO_REAL_ORPHAN_REAP_MARK as _NO_REAL_ORPHAN_REAP_MARK,
     SCOPED_MONKEYPATCH_UNDO_MARK as _SCOPED_MONKEYPATCH_UNDO_MARK,
+    STRIP_REAL_HOME_PATH_MARK as _STRIP_REAL_HOME_PATH_MARK,
     TIRITH_CONFIG_VALUE_UNDER_TEST_MARK as _TIRITH_CONFIG_VALUE_UNDER_TEST_MARK,
 )
 
@@ -616,6 +617,41 @@ def _config_reads_through_load_config(request, monkeypatch):
 
 
 
+def _real_hermes_roots() -> list[str]:
+    """The home-I/O guard's own roots (``tests/conftest.py``), normcased; [] if unloaded."""
+    for module in list(sys.modules.values()):
+        roots = getattr(module, "_REAL_HERMES_ROOT_CANDIDATES", None)
+        origin = str(getattr(module, "__file__", "") or "").replace("\\", "/")
+        if isinstance(roots, list) and origin.endswith("tests/conftest.py"):
+            return [os.path.normcase(os.path.abspath(os.fspath(root))) for root in roots]
+    return []
+
+
+def _path_without_real_hermes_roots(path: str, roots: list[str]) -> str:
+    """*path* with every entry inside a real hermes root dropped."""
+    def inside(entry: str) -> bool:
+        normalized = os.path.normcase(os.path.abspath(entry))
+        return any(normalized == root or normalized.startswith(root + os.sep) for root in roots)
+
+    return os.pathsep.join(entry for entry in path.split(os.pathsep) if entry and not inside(entry))
+
+
+@pytest.fixture(autouse=True)
+def _strip_real_home_path_entries(request, monkeypatch, _hermetic_environment):
+    """Drop PATH entries inside the REAL hermes home for the ids the table marks.
+
+    A command lookup that stats every PATH directory (``shutil.which("")``) is
+    I/O against a developer's real ``%LOCALAPPDATA%\\hermes\\bin`` once that is on
+    PATH, and the home-I/O guard refuses it. CI has no such entries, so there
+    the fixture changes nothing.
+    """
+    if request.node.get_closest_marker(_STRIP_REAL_HOME_PATH_MARK) is None:
+        return
+    roots = _real_hermes_roots()
+    if roots:
+        monkeypatch.setenv("PATH", _path_without_real_hermes_roots(os.environ.get("PATH", ""), roots))
+
+
 @pytest.fixture(autouse=True)
 def _no_real_orphan_reap(request, monkeypatch):
     """Keep an upstream web-server test off the machine's real process table.
@@ -776,6 +812,11 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         f"{_NO_REAL_ORPHAN_REAP_MARK}: the gateway orphan reap finds nothing, so the "
         "test never waits on this machine's real unsupervised gateways (applied by "
         "id from tests/_downstream/id_markers/).",
+    )
+    config.addinivalue_line(
+        "markers",
+        f"{_STRIP_REAL_HOME_PATH_MARK}: PATH entries inside the real hermes home are "
+        "dropped for the test (applied by id from tests/_downstream/id_markers/).",
     )
     config.addinivalue_line(
         "markers",

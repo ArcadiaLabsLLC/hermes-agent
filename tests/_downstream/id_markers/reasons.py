@@ -33,6 +33,7 @@ CONFIG_READS_THROUGH_LOAD_CONFIG_MARK = "config_reads_through_load_config"
 NO_OLLAMA_SHOW_PROBE_MARK = "no_ollama_show_probe"
 NO_REAL_ORPHAN_REAP_MARK = "no_real_orphan_reap"
 SCOPED_MONKEYPATCH_UNDO_MARK = "scoped_monkeypatch_undo"
+STRIP_REAL_HOME_PATH_MARK = "strip_real_home_path"
 TIRITH_CONFIG_VALUE_UNDER_TEST_MARK = "tirith_config_value_under_test"
 #: Upstream's own mark (read by ``tests/conftest.py``'s live-system guard, used by
 #: upstream tests); nobody registers it -- see tests/test_id_markers_downstream.py.
@@ -121,6 +122,7 @@ _TIRITH_NO_BUILD = _posix_only(
 # undo narrowed to their own patches (conftest_plugin.pytest_pyfunc_call, lane
 # CARRY3); no sibling copy.
 _SCOPED_UNDO = getattr(pytest.mark, SCOPED_MONKEYPATCH_UNDO_MARK)
+_STRIP_REAL_HOME_PATH = getattr(pytest.mark, STRIP_REAL_HOME_PATH_MARK)
 
 _CLAUDE_HOME_TMP = getattr(pytest.mark, CLAUDE_HOME_IS_TMP_PATH_MARK)
 
