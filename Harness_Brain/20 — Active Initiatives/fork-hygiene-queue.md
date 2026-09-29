@@ -31,7 +31,7 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ### Filed on arrival — 2026-09-26 (native Hermes qualification)
 
-- [ ] **Finish classifying the validated-suite residuals, including the two worktree-only fleet identity assertions and baseline gateway certificate mismatch blocking registered mutations.** · [Native qualification evidence](../../docs/downstream/native-hermes-qualification-2026-09-26.md); [[Windows console signal safety]] adds an incomplete one-hour run and failures reproduced on primary in 33 of 35 files; no baseline expansion or unrelated runtime repair was made. **TAKEN 2026-09-29 h10-fhrel**
+- [ ] **Finish classifying the validated-suite residuals, including the two worktree-only fleet identity assertions and baseline gateway certificate mismatch blocking registered mutations.** · [Native qualification evidence](../../docs/downstream/native-hermes-qualification-2026-09-26.md); [[Windows console signal safety]] adds an incomplete one-hour run and failures reproduced on primary in 33 of 35 files; no baseline expansion or unrelated runtime repair was made. **TAKEN 2026-09-29 h10-fhrel** · VERDICT 2026-09-29 h10-fhrel: the classification needs the validated suite (~1 h) plus the fleet/gateway certificate fixtures on an isolated host; the two siblings this lane could settle from the tree are closed (doc-cite `dd153d6946`, frozen-home refuted `930b335b48`). Owed: the program-end validated-suite run classifies the fleet identity pair and `ServeCertificatePinMismatch` against a clean primary
 
 ### Filed on arrival — 2026-09-26 (lane FIX-TRIAGE, filed by the orchestrator)
 
