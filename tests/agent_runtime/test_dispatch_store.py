@@ -561,10 +561,12 @@ def test_pruning_never_deletes_an_undelivered_answer(store_home, monkeypatch):
         held = _dispatch(dispatch_id=f"dispatch-stranded-{index}")
         record_completion(held, state=STATE_COMPLETED, reply=f"answer {index}")
         stranded.append(held)
+    delivered = []
     for index in range(2):
         settled = _dispatch(dispatch_id=f"dispatch-settled-{index}")
         record_completion(settled, state=STATE_COMPLETED, reply="ok")
         mark_delivered(settled)
+        delivered.append(settled)
 
     # One more completion, purely to run the pruner after the store is loaded.
     trigger = _dispatch(dispatch_id="dispatch-trigger")
@@ -575,6 +577,15 @@ def test_pruning_never_deletes_an_undelivered_answer(store_home, monkeypatch):
         assert row is not None, f"{held}: an undelivered answer was silently deleted"
         assert row["delivery_state"] == DELIVERY_PENDING
         assert row["result"]["reply"] == f"answer {index}"
+
+    # Positive control: the assertions above are negative, and they hold just
+    # as well at the real cap of 200, where the pruner deletes nothing. At a
+    # cap of one the DELIVERED rows must be pruned — proof the seam bound and
+    # the pruner really ran with an excess to place.
+    assert any(get_dispatch(settled) is None for settled in delivered), (
+        "no delivered row was pruned at a cap of one: the _MAX_RETAINED_TERMINAL "
+        "seam did not bind, so nothing above reached the fall-through"
+    )
 
 
 def test_pruning_still_bounds_settled_history(store_home, monkeypatch):

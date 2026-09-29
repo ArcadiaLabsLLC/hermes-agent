@@ -145,7 +145,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-25 (lane 2B-A)
 
-- [ ] **`test_pruning_never_deletes_an_undelivered_answer` passes whether or not its `_MAX_RETAINED_TERMINAL` seam binds** · `fork / suite` · reverting its `setattr` to the package (a no-op) stays green: the negative assertion ("nothing pending was deleted") holds at the real cap of 200 because the fall-through is never reached — its docstring says the fixture is "shaped so the fall-through is REACHED" but nothing checks it; wants a positive control (the delivered rows ARE pruned at cap 1) · evidence: lane 2B-A dispatch_store MOVE body · filed by lane 2B-A 2026-09-25 **UNCLAIMED** **TAKEN 2026-09-29 h10-fhrest**
 
 ## Filed on arrival — 2026-09-25 (lane Q-DEAD-A)
 
