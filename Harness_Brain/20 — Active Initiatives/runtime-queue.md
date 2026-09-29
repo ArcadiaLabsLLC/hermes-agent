@@ -115,7 +115,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-25 (lane LAYERS-DESIGN, filed by the orchestrator)
 
-- [ ] **`gateway_peers/trust_store.py` (stores) calls `serve_gateway_peers_rpc.publish_peer_event` (lanes) from inside its event append — a store reaching up into the serve lane's notification hub; the sheet routes it through a listener list the lane registers at boot (exec lane L1)** · `fork / runtime` · evidence: `docs/agent-runtime-harness/planned/god-file-layout-sheets/layers-undeclared-2026-09-25.md` §2.1 `serve_gateway_peers_rpc` row · filed by lane LAYERS-DESIGN 2026-09-25 **UNCLAIMED** (the L1 exec lane closes it) **TAKEN 2026-09-29 h9-serve**
 
 ### Filed on arrival — 2026-09-25 (lane LLAMA-ALIAS)
 
