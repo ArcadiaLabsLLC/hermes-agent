@@ -218,6 +218,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
+### Filed on arrival — 2026-09-29 (lane fix-cron-openai)
+
+- [ ] **`pm.environments.activate_dependencies` has no interpreter-version gate and `venv_python_version` misses uv's `version_info`: upstream PR to refuse/re-enter a generation built for another Python, then retire the fork seams `hermes_cli/interpreter_abi.py` + its calls in `hermes_bootstrap.py` and `cron/worker_bootstrap.py`** · `seams` · evidence: branch `fix/cron-openai` commit messages (alice cron, 2026-09-29 04:32–11:39) · filed 2026-09-29 (lane fix-cron-openai) **UNCLAIMED**
+
 ### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
 
 
