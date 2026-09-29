@@ -186,6 +186,8 @@ HARNESS_NAMESPACE = (
     "hermes_cli.harness_parts.persona.lifecycle_commands",
     "hermes_cli.harness_parts.persona.model_and_skills_commands",
     "hermes_cli.harness_parts.runtime_commands",
+    "hermes_cli.harness_parts.verify_commands",
+    "hermes_cli.harness_parts.work_commands",
     # The verb families lane H2 moved out of harness.py (2026-09-24).
     "hermes_cli.harness_parts.agent_commands",
     "hermes_cli.harness_parts.characters.auto",

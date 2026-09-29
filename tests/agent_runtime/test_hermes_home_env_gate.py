@@ -99,7 +99,7 @@ ALLOWED: dict[str, str] = {
         "operator can see the environment DISAGREEING with the resolved root — "
         "which is the whole tell, and is lost if it reports the resolved value."
     ),
-    "hermes_cli/harness_parts/runtime_commands.py": (
+    "hermes_cli/harness_parts/verify_commands.py": (
         "Diagnostic, same contract as snapshot.py: `hermes_home` in the "
         "runtime report is the raw environment, deliberately not the "
         "resolution."
