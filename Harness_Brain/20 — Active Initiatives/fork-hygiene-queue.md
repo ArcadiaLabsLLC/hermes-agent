@@ -17,6 +17,10 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 - [ ] **Reconcile the upstream-footprint ledger with main's unrecorded growth.** · Executed measurement of `08ee5074cb`: `files=141 deleted_lines=900 heavy=4`, fixture `117/766/3`. Discussion's separately recorded conclusion allowance adds four deleted lines only; it does not absorb this baseline drift. Audit and disposition the changed upstream files rather than raising the aggregate silently. `scripts/upstream_footprint.py`, `tests/fixtures/upstream_footprint.json` · filed 2026-09-28 Discussion qualification.
 
+### Filed on arrival — 2026-09-29 (lane h7-phone)
+
+- [ ] **Phone e2e `[full]` case flakes under load (2 of ~11 runs): CPython's `platform` module spawns `ver` on Windows and the call times out when the box is busy — the `[phone]` case never flaked. Stub or pre-seed the platform probe in that case, or read the version without a subprocess.** · `tests/agent_runtime/test_embedded_phone_session.py` (lane h7-phone e2e loop, 2026-09-29) · UNCLAIMED
+
 ### Filed on arrival — 2026-09-28 (lane w5-hstt)
 
 - [ ] **Duplicate-helper gate red on main: `_read` duplicated across `agent_runtime/agent_create_reservations.py`, `agent_runtime/chat_turn_reservations.py` and `agent_runtime/serve_rpc/operator_conversation.py` (operator-chat commits 454ed7a69a…359849b0d2), plus a stale baseline row for the first two** · fork-hygiene · evidence: seen at the w5-htts landing, 2026-09-28 · UNCLAIMED **TAKEN 2026-09-29 h7-reds**
