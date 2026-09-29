@@ -308,3 +308,23 @@ def test_module_cli_builds_the_requested_products(source_products, desktop, monk
     assert acquired == ["npm"]
     assert (root / "hermes_cli/web_dist/index.html").is_file()
     assert (root / "apps/desktop/release/linux-unpacked/hermes").exists() == desktop
+
+
+def test_launch_preparation_opts_into_reusing_a_wider_completed_install(tmp_path, monkeypatch):
+    """A launch must not npm ci a narrower union over a tree running frontends hold open;
+    update/explicit preparation keeps the exact-union contract."""
+    import hermes_cli.main_desktop as main_desktop
+    import hermes_cli.source_build as source_build
+
+    calls = []
+    monkeypatch.setattr(source_build, "run_source_script", lambda root, script, *args, **kw: calls.append(args))
+    monkeypatch.setattr(pm, "lazy_installs_allowed", lambda: True)
+    monkeypatch.setattr(main_desktop, "_desktop_dist_exists", lambda path: False)
+    monkeypatch.setattr(main_desktop, "_desktop_packaged_executable", lambda path: None)
+
+    source_build.prepare_launch_dependencies(tmp_path, env={})
+    source_build.prepare_source_dependencies(tmp_path, ("ui-tui", "web"), env={}, explicit=True)
+
+    launch, update = calls
+    assert "--reuse-installed-superset" in launch
+    assert "--reuse-installed-superset" not in update

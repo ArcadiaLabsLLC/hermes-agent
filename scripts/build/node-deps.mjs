@@ -84,7 +84,7 @@ function runNpmCi(node, npm, args, { source, env }) {
 }
 
 /** Install the full requested workspace union in one strict, locked operation. */
-export function prepareNodeDependencies({ source, workspaces, env = process.env, reuse = false, install = true, nativeToolchain }) {
+export function prepareNodeDependencies({ source, workspaces, env = process.env, reuse = false, install = true, nativeToolchain, reuseInstalledSuperset = false }) {
   source = resolve(source)
   if (!Array.isArray(workspaces) || workspaces.length === 0) {
     throw new Error('Select at least one workspace; implicit all-workspace installation is not allowed')
@@ -109,10 +109,11 @@ export function prepareNodeDependencies({ source, workspaces, env = process.env,
     const range = manifest.engines?.[name]
     if (range && !satisfies(version, range)) throw new Error(`${name} ${version} violates ${range}`)
   }
-  const args = ['ci', '--no-audit', '--no-fund', '--engine-strict', '--include=dev',
+  const argsFor = union => ['ci', '--no-audit', '--no-fund', '--engine-strict', '--include=dev',
     '--include=optional', '--include-workspace-root=true',
-    ...selected.flatMap(workspace => ['--workspace', workspace]),
+    ...union.flatMap(workspace => ['--workspace', workspace]),
   ]
+  const args = argsFor(selected)
   // This receipt certifies dependency preparation, never compiled product freshness.
   // Keep it inside the cached tree so a clean npm ci also removes the receipt.
   const receipt = join(source, 'node_modules/.hermes-node-deps')
@@ -122,32 +123,52 @@ export function prepareNodeDependencies({ source, workspaces, env = process.env,
   const nativeReceipt = `${receipt}.native-toolchain`
   const nativeKey = nativeToolchain === undefined ? undefined : JSON.stringify(nativeToolchain)
   const hiddenLock = join(source, 'node_modules/.package-lock.json')
-  const inputs = createHash('sha256').update(JSON.stringify({
-    node: process.versions.node, npm: npmVersion, platform: process.platform, arch: process.arch, args,
-    // npm names are case-insensitive; Windows Python uppercases inherited keys.
-    config: Object.entries(env).filter(([key]) => /^npm_config_/i.test(key) && !/^npm_config_(cache|offline|prefer_offline)$/i.test(key))
-      .map(([key, value]) => [key.toLowerCase(), value]).sort(),
-  }))
+  // The installed union, recorded beside the receipt, so a later request for a
+  // subset of it can be answered from the same completed install.
+  const unionReceipt = `${receipt}.workspaces`
+  const keyFor = union => {
+    const inputs = createHash('sha256').update(JSON.stringify({
+      node: process.versions.node, npm: npmVersion, platform: process.platform, arch: process.arch, args: argsFor(union),
+      // npm names are case-insensitive; Windows Python uppercases inherited keys.
+      config: Object.entries(env).filter(([key]) => /^npm_config_/i.test(key) && !/^npm_config_(cache|offline|prefer_offline)$/i.test(key))
+        .map(([key, value]) => [key.toLowerCase(), value]).sort(),
+    }))
+    for (const file of files) {
+      inputs.update(file).update('\0').update(existsSync(join(source, file)) ? readFileSync(join(source, file)) : '<missing>').update('\0')
+    }
+    return inputs.digest('hex')
+  }
   const files = ['package-lock.json', '.npmrc', ...Object.keys(lock.packages)
     .filter(path => !path.split('/').includes('node_modules'))
     .map(path => join(path, 'package.json'))].sort()
-  for (const file of files) {
-    inputs.update(file).update('\0').update(existsSync(join(source, file)) ? readFileSync(join(source, file)) : '<missing>').update('\0')
-  }
-  const key = inputs.digest('hex')
+  const key = keyFor(selected)
   if (reuse && completedInstallMatches({ source, receipt, hiddenLock, key, nativeKey })) {
     console.log(`node-deps: reusing completed install (${selected.join(', ')})`)
     return { source, workspaces: selected }
+  }
+  // Opt-in for launch paths: a completed install of a wider union already serves
+  // this selection, and npm ci for the narrower one would delete and prune a tree
+  // that running frontends may hold open. Every other input must still match.
+  if (reuse && reuseInstalledSuperset && existsSync(unionReceipt)) {
+    let installed
+    try { installed = JSON.parse(readFileSync(unionReceipt, 'utf8')) } catch { installed = undefined }
+    if (Array.isArray(installed) && selected.every(path => installed.includes(path))
+      && completedInstallMatches({ source, receipt, hiddenLock, key: keyFor(installed), nativeKey })) {
+      console.log(`node-deps: reusing completed install (${installed.join(', ')}) for (${selected.join(', ')})`)
+      return { source, workspaces: selected }
+    }
   }
   if (!install) throw new Error('Workspace dependencies are stale or missing and lazy installs are disabled; run an explicit build/update')
   // npm can fail during validation before deleting node_modules. Invalidate first.
   rmSync(receipt, { force: true })
   rmSync(nativeReceipt, { force: true })
+  rmSync(unionReceipt, { force: true })
   console.log(`node-deps: installing workspace dependencies with npm ci (${selected.join(', ')})...`)
   runNpmCi(node, npm, args, { source, env })
   if (reuse) {
     const completed = `${key}\n${createHash('sha256').update(readFileSync(hiddenLock)).digest('hex')}\n`
     writeFileSync(receipt, completed)
+    writeFileSync(unionReceipt, JSON.stringify(selected))
     if (nativeKey !== undefined) writeFileSync(nativeReceipt, `${completed}${nativeKey}\n`)
   }
   return { source, workspaces: selected }
@@ -166,7 +187,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     reuse: { type: 'boolean', default: false },
     'no-install': { type: 'boolean', default: false },
     'native-toolchain': { type: 'string' },
+    'reuse-installed-superset': { type: 'boolean', default: false },
   } })
   if (!values.source) throw new Error('--source is required')
-  prepareNodeDependencies({ source: values.source, workspaces: values.workspace, reuse: values.reuse, install: !values['no-install'], nativeToolchain: values['native-toolchain'] })
+  prepareNodeDependencies({ source: values.source, workspaces: values.workspace, reuse: values.reuse, install: !values['no-install'], nativeToolchain: values['native-toolchain'], reuseInstalledSuperset: values['reuse-installed-superset'] })
 }

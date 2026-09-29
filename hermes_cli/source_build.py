@@ -59,25 +59,31 @@ def run_source_script(project_root: Path, script: str, *args: str, env: dict, la
 
 
 def prepare_source_dependencies(project_root: Path, workspaces: tuple[str, ...], *, env: dict,
-                                explicit: bool = False) -> None:
+                                explicit: bool = False, reuse_installed_superset: bool = False) -> None:
     from pm import lazy_installs_allowed
 
     run_source_script(
         project_root, "scripts/build/node-deps.mjs", "--source", str(project_root), "--reuse",
         *(() if explicit or lazy_installs_allowed() else ("--no-install",)),
+        *(("--reuse-installed-superset",) if reuse_installed_superset else ()),
         *(arg for workspace in workspaces for arg in ("--workspace", workspace)), env=env,
         label="Preparing Node dependencies",
     )
 
 
 def prepare_launch_dependencies(project_root: Path, *, env: dict) -> None:
-    """A launch rebuild must not prune another installed source frontend."""
+    """A launch rebuild must not prune another installed source frontend.
+
+    A completed install of a wider union already serves a launch: npm ci for the
+    narrower selection would delete a node_modules tree that a running frontend
+    may still hold open (on Windows a loaded native binding fails it with EPERM).
+    """
     from hermes_cli.main_desktop import _desktop_dist_exists, _desktop_packaged_executable
 
     desktop_dir = project_root / "apps/desktop"
     desktop = _desktop_dist_exists(desktop_dir) or _desktop_packaged_executable(desktop_dir) is not None
     workspaces = ("ui-tui", "web") + (("apps/desktop",) if desktop else ())
-    prepare_source_dependencies(project_root, workspaces, env=env)
+    prepare_source_dependencies(project_root, workspaces, env=env, reuse_installed_superset=True)
 
 
 def build_source_tui(project_root: Path, *, env: dict) -> None:

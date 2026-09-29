@@ -308,3 +308,24 @@ test('a receipt keyed by the probed version reuses under the manifest version, e
   json(join(npmRoot, 'package.json'), { name: 'npm', version: '10.8.3' })
   expect(() => prepareNodeDependencies({ ...options, install: false })).toThrow(/disabled/)
 }, 30000)
+
+test('a launch reuses a completed wider install instead of pruning it with npm ci', async () => {
+  const { prepareNodeDependencies } = await import('../scripts/build/node-deps.mjs')
+  const source = fixture()
+  const options = { source, reuse: true,
+    env: { ...process.env, npm_config_offline: 'true', npm_config_cache: join(source, '.npm-cache') } }
+  prepareNodeDependencies({ ...options, workspaces: ['ui-tui', 'web'] })
+  const receipt = readFileSync(join(source, 'node_modules/.hermes-node-deps'))
+  // Control: without the opt-in only the exact union is reused.
+  expect(() => prepareNodeDependencies({ ...options, workspaces: ['web'], install: false })).toThrow(/disabled/)
+  prepareNodeDependencies({ ...options, workspaces: ['web'], install: false, reuseInstalledSuperset: true })
+  expect(existsSync(join(source, 'node_modules/tui-only'))).toBe(true)
+  expect(readFileSync(join(source, 'node_modules/.hermes-node-deps'))).toEqual(receipt)
+  // A selection the installed union does not cover still needs an install.
+  expect(() => prepareNodeDependencies({ ...options, workspaces: ['web', 'apps/desktop'], install: false,
+    reuseInstalledSuperset: true })).toThrow(/disabled/)
+  // So does a completed install that lost a package.
+  rmSync(join(source, 'node_modules/tui-only'), { recursive: true })
+  expect(() => prepareNodeDependencies({ ...options, workspaces: ['web'], install: false,
+    reuseInstalledSuperset: true })).toThrow(/disabled/)
+}, 30000)
