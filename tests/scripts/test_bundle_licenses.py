@@ -3,14 +3,21 @@ record names exactly what the output ships with every licence file it cites pres
 
 from __future__ import annotations
 
+import hashlib
 import json
 from email.parser import HeaderParser
 from pathlib import Path
 
+import pytest
+
 from scripts.bundle_licenses import (
+    LICENCE_TEXTS,
     installed_wheel,
     licence_expression,
+    licence_overrides,
     licence_problems,
+    lock_wheels,
+    place_override,
     review_reasons,
     write_licence_records,
 )
@@ -109,3 +116,83 @@ def test_the_core_record_carries_the_interpreter_and_the_first_party_app(tmp_pat
     assert kinds["interpreter"]["licence"] == "PSF-2.0"
     assert kinds["first-party"]["licence"] == "MIT"
     assert licence_problems(tmp_path, set()) == []
+
+
+# -- vetted licence texts for wheels that ship none ----------------------------------------------
+
+
+def _bare(site: Path, name: str, version: str, header: str = "") -> None:
+    info = site / f"{name}-{version}.dist-info"
+    info.mkdir(parents=True)
+    (info / "METADATA").write_text(f"Metadata-Version: 2.4\nName: {name}\nVersion: {version}\n{header}",
+                                   encoding="utf-8")
+    (info / "WHEEL").write_text("Wheel-Version: 1.0\nTag: py3-none-any\n", encoding="utf-8")
+
+
+def _override(root: Path, name: str, version: str, text: bytes = b"Apache text\n") -> dict:
+    (root / name / version).mkdir(parents=True)
+    (root / name / version / "LICENSE").write_bytes(text)
+    return {"version": version, "licence": "Apache-2.0",
+            "files": {"LICENSE": hashlib.sha256(text).hexdigest()},
+            "source_url": "https://h/x/LICENSE", "tag": f"v{version}", "commit": "ab" * 20}
+
+
+def test_a_wheel_without_licence_text_gets_its_override_only_at_the_vetted_version(tmp_path: Path):
+    texts, out = tmp_path / "texts", tmp_path / "out"
+    _bare(out / "site-packages", "bare", "1.0")
+    overrides = {"bare": _override(texts, "bare", "1.0")}
+    record = write_licence_records(out, "p", {"bare"}, "win32-x64", "c0ffee", core=False, wheels={},
+                                   overrides=overrides, override_root=texts)
+    row = record["components"][0]
+    assert row["licence_files"] == ["licence-texts/bare/1.0/LICENSE"]
+    assert (out / "licence-texts/bare/1.0/LICENSE").read_bytes() == b"Apache text\n"
+    assert row["licence"] == "Apache-2.0"  # the wheel's metadata named none
+    assert row["licence_text_override"]["tag"] == "v1.0"
+    assert (row["review"], record["review_required"]) == (False, [])
+    assert licence_problems(out, {"bare"}, overrides) == []
+
+    # The same wheel, bumped: the override is stale, so it is not applied and the verify fails.
+    stale = tmp_path / "stale"
+    _bare(stale / "site-packages", "bare", "1.1")
+    record = write_licence_records(stale, "p", {"bare"}, "win32-x64", "c0ffee", core=False, wheels={},
+                                   overrides=overrides, override_root=texts)
+    row = record["components"][0]
+    assert row["licence_files"] == [] and not (stale / "licence-texts").exists()
+    assert "no licence text in the output" in row["review_reasons"]
+    assert licence_problems(stale, {"bare"}, overrides) == [
+        "licence-text override of bare is vetted at 1.0, the output ships 1.1: re-vet it "
+        "(agent_runtime/bundle_profiles/licence-texts)"]
+
+
+def test_an_override_the_wheel_metadata_contradicts_stays_in_review(tmp_path: Path):
+    texts, out = tmp_path / "texts", tmp_path / "out"
+    _bare(out / "site-packages", "bare", "1.0", "License: MIT\n")
+    overrides = {"bare": _override(texts, "bare", "1.0")}
+    row = write_licence_records(out, "p", {"bare"}, "win32-x64", "c0ffee", core=False, wheels={},
+                                overrides=overrides, override_root=texts)["components"][0]
+    assert row["review_reasons"] == ["vetted licence text is Apache-2.0; the wheel metadata says MIT"]
+    # Positive control: a spelling of the same licence is not a contradiction.
+    _bare(tmp_path / "o2" / "site-packages", "bare", "1.0", "License: Apache 2.0\n")
+    row = write_licence_records(tmp_path / "o2", "p", {"bare"}, "win32-x64", "c0ffee", core=False,
+                                wheels={}, overrides=overrides, override_root=texts)["components"][0]
+    assert row["review"] is False
+
+
+def test_a_vetted_text_whose_bytes_changed_is_refused(tmp_path: Path):
+    texts = tmp_path / "texts"
+    override = _override(texts, "bare", "1.0")
+    (texts / "bare" / "1.0" / "LICENSE").write_bytes(b"edited\n")
+    with pytest.raises(ValueError, match="changed"):
+        place_override(tmp_path / "out", "bare", override, texts)
+
+
+def test_every_vetted_override_matches_its_text_and_the_locked_version():
+    overrides = licence_overrides()
+    assert set(overrides) >= {"fal-client", "firecrawl-anydoc", "ctranslate2", "flatbuffers", "tokenizers"}
+    locked = {name: version for name, version in lock_wheels()}
+    for name, override in overrides.items():
+        assert locked.get(name) == override["version"], f"{name}: uv.lock pins {locked.get(name)}"
+        for filename, digest in override["files"].items():
+            text = (LICENCE_TEXTS / name / override["version"] / filename).read_bytes()
+            assert hashlib.sha256(text).hexdigest() == digest, f"{name}/{filename}"
+        assert override["commit"] and override["tag"] and override["source_url"].startswith("https://")
