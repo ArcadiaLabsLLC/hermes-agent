@@ -182,7 +182,7 @@ for the runner's durations):
 | `turn_context_ms` | `profile_timing.profile_conversation_turn_context_ms` |
 | `request_assembled_ms` | `phases.request_assembled` |
 | `provider_first_byte_ms` | `phases.provider_first_byte` |
-| `responses_create_ms` | `profile_timing.profile_provider_responses_create_ms` |
+| `provider_dispatch_ms` | `profile_timing.profile_conversation_provider_dispatch_ms` — the `llm_execution` span; replaced `responses_create_ms`, whose source nothing wrote after plugin-fit §4 Q4 (2026-09-29) |
 | `stream_consume_ms` | `profile_timing.profile_provider_stream_consume_ms` |
 | `builds_overlapped` | `phases.builds_overlapped` |
 | `resident_actor_reused` | `profile_timing.resident_actor_reused`, as a bool |

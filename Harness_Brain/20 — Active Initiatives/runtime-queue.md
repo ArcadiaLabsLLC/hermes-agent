@@ -75,7 +75,6 @@ Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2
 
 ### Filed on arrival — 2026-09-26 (lane PF-3, filed by the orchestrator)
 
-- [ ] **`mission_chat_phases.TURN_TIMING_ORDER` still maps `responses_create_ms` ← `profile_provider_responses_create_ms`, which no receipt writes after PF-3 (§4 Q4 dropped client_resolve): the launcher's turn-timing key is permanently empty — retire the key or map it to the dispatch span** · `fork / observability` · evidence: plugin-fit sheet §4, `agent_runtime/codex_observability.py`, lane PF-3 report (landed 5c24dd925d) · filed 2026-09-26 (lane PF-3) **UNCLAIMED** **TAKEN 2026-09-29 h9-serve**
 - [ ] **`agent_runtime/skill_inspection.py::skill_inspection_reader` has zero production callers (only its test): wire the launcher's reader to it or delete it with its door `_upstream_doors.skills_tool_inspection_doors`** · `fork / skills` · evidence: plugin-fit sheet §4, `agent_runtime/codex_observability.py`, lane PF-3 report (landed 5c24dd925d) · filed 2026-09-26 (lane PF-3) **UNCLAIMED** **TAKEN 2026-09-29 h9-serve**
 
 ### Filed on arrival — 2026-09-26 (the wedged live serve, owner screenshot 15:05; filed by the orchestrator)

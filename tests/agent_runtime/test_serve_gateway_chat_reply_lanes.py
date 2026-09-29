@@ -515,7 +515,7 @@ def test_a_device_tier_turn_reports_which_lane_carries_its_start_and_reply(
     runner_timing = payload.get("profile_timing") or {}
     for wire_key, source_key in (
         ("turn_context_ms", "profile_conversation_turn_context_ms"),
-        ("responses_create_ms", "profile_provider_responses_create_ms"),
+        ("provider_dispatch_ms", "profile_conversation_provider_dispatch_ms"),
         ("stream_consume_ms", "profile_provider_stream_consume_ms"),
     ):
         assert (wire_key in timing) == (source_key in runner_timing), (

@@ -557,7 +557,16 @@ _TIMING_COUNT_KEYS = frozenset({"builds_overlapped", "visibility_bundle_builds"}
 #: one turn, not by a caller walking the runner's namespace.
 _TIMING_FROM_PROFILE: tuple[tuple[str, str], ...] = (
     ("turn_context_ms", "profile_conversation_turn_context_ms"),
-    ("responses_create_ms", "profile_provider_responses_create_ms"),
+    # The provider span. It was ``responses_create_ms`` <- ``profile_provider_responses_create_ms``,
+    # which nothing writes since the Codex phase stamps moved onto the plugin's
+    # hooks (plugin-fit §4 Q4 dropped ``client_resolve`` and the create/consume
+    # split), so that key was permanently absent. What IS written is the
+    # ``llm_execution`` middleware's span (``conversation_observability.
+    # time_provider_dispatch``): request out to provider return, stream
+    # consumption included on a streaming attempt. That is a different quantity
+    # from the old create call, so it rides under its own name rather than the
+    # old one. One span per physical attempt; a retried turn keeps the last.
+    ("provider_dispatch_ms", "profile_conversation_provider_dispatch_ms"),
     ("stream_consume_ms", "profile_provider_stream_consume_ms"),
     # Stage 6 item 1, from the runner's own namespace rather than the marks:
     # the credential resolve inside ``write_ahead → agent_ready``. It bills 0
@@ -589,7 +598,7 @@ TURN_TIMING_ORDER: tuple[str, ...] = (
     "turn_context_ms",
     "request_assembled_ms",
     "provider_first_byte_ms",
-    "responses_create_ms",
+    "provider_dispatch_ms",
     "stream_consume_ms",
     "builds_overlapped",
     _TIMING_REUSED_KEY,

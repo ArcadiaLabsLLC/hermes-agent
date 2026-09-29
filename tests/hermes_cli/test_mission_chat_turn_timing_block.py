@@ -55,7 +55,7 @@ from tests.hermes_cli.test_mission_chat_budget_payload import (  # type: ignore
 #: block.
 _RUNNER_TIMING = {
     "profile_conversation_turn_context_ms": 1_233,
-    "profile_provider_responses_create_ms": 889,
+    "profile_conversation_provider_dispatch_ms": 889,
     "profile_provider_stream_consume_ms": 1_630,
     "runtime_resolve_ms": 512,
     "resident_actor_reused": 1,
@@ -145,7 +145,7 @@ def test_the_terminal_payload_carries_the_whole_timing_block(timed_payload):
     block = payload[TURN_TIMING_KEY]
     assert set(block) == set(TURN_TIMING_ORDER), block
     assert block["turn_context_ms"] == 1_233
-    assert block["responses_create_ms"] == 889
+    assert block["provider_dispatch_ms"] == 889
     assert block["stream_consume_ms"] == 1_630
     assert block["runtime_resolve_ms"] == 512
     assert block["resident_actor_reused"] is True
@@ -272,7 +272,7 @@ def test_a_turn_whose_runner_reported_nothing_carries_only_what_was_marked(
 ):
     """No runner durations at all: the three profile-sourced keys are ABSENT.
 
-    Not zero. A ``responses_create_ms`` of ``0`` on a turn whose runner never
+    Not zero. A ``provider_dispatch_ms`` of ``0`` on a turn whose runner never
     reported one would read as a provider that answered before it was asked.
 
     *Killing mutation:* default the missing keys to ``0`` in
@@ -289,7 +289,7 @@ def test_a_turn_whose_runner_reported_nothing_carries_only_what_was_marked(
     block = payload[TURN_TIMING_KEY]
     for key in (
         "turn_context_ms",
-        "responses_create_ms",
+        "provider_dispatch_ms",
         "stream_consume_ms",
         "resident_actor_reused",
     ):
@@ -330,7 +330,7 @@ def test_the_projection_reads_both_instruments_and_renames_neither_wrongly():
         },
         profile_timing={
             "profile_conversation_turn_context_ms": 4_730,
-            "profile_provider_responses_create_ms": 1_542,
+            "profile_conversation_provider_dispatch_ms": 1_542,
             "profile_provider_stream_consume_ms": 594,
             "resident_actor_reused": 0,
         },
@@ -340,7 +340,7 @@ def test_the_projection_reads_both_instruments_and_renames_neither_wrongly():
         "turn_context_ms": 4_730,
         "request_assembled_ms": 1_762,
         "provider_first_byte_ms": 7_800,
-        "responses_create_ms": 1_542,
+        "provider_dispatch_ms": 1_542,
         "stream_consume_ms": 594,
         "builds_overlapped": 3,
         "resident_actor_reused": False,
@@ -460,7 +460,7 @@ def test_the_new_keys_did_not_displace_the_old_ones():
         "turn_context_ms",
         "request_assembled_ms",
         "provider_first_byte_ms",
-        "responses_create_ms",
+        "provider_dispatch_ms",
         "stream_consume_ms",
         "builds_overlapped",
         "resident_actor_reused",
@@ -473,3 +473,43 @@ def test_the_new_keys_did_not_displace_the_old_ones():
         "visibility_bundle_builds",
         "runtime_resolve_ms",
     }
+
+
+# --------------------------------------------------------------------------- #
+# 5. The join: the provider span's source key is one a producer WRITES        #
+# --------------------------------------------------------------------------- #
+def test_the_provider_span_rides_from_the_dispatch_middleware_to_the_block():
+    """The key this block copies must be the key the ``llm_execution`` span
+    actually lands under, recorded by the runner's own status emitter.
+
+    Every other test here hands ``turn_timing_block`` a hand-written
+    ``profile_timing`` dict, which is how ``responses_create_ms`` stayed mapped
+    to ``profile_provider_responses_create_ms`` for days after the last writer
+    of that key was gone: both halves were green and only the join was dead.
+
+    *Killing mutation:* map ``provider_dispatch_ms`` back to
+    ``profile_provider_responses_create_ms`` in ``_TIMING_FROM_PROFILE`` and
+    the block comes back without the key.
+    """
+
+    from types import SimpleNamespace
+
+    from agent_runtime import conversation_observability
+    from agent_runtime.persona_turn_binding import bind_persona_turn_agent
+    from agent_runtime.profile_runner.status import StatusEmitter
+
+    timing: dict = {}
+    emitter = StatusEmitter(SimpleNamespace(progress_callback=None), timing)
+    agent = SimpleNamespace(status_callback=emitter.emit)
+    with bind_persona_turn_agent(agent):
+        assert conversation_observability.time_provider_dispatch(
+            None, lambda: "reply", api_call_count=1, api_mode="codex_responses",
+            provider="openai-codex", model="gpt-5",
+        ) == "reply"
+
+    block = turn_timing_block(phases={}, profile_timing=timing)
+    assert block is not None, timing
+    assert isinstance(block.get("provider_dispatch_ms"), int), (block, timing)
+    # Positive control on the capture: the emitter recorded the span at all,
+    # so a missing block key is the mapping's fault, not an empty fixture's.
+    assert "profile_conversation_provider_dispatch_ms" in timing, timing
