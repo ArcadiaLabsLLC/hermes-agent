@@ -137,39 +137,3 @@ def _emit_gateway_home_receipt(emit_diag) -> dict:
     return receipt
 
 
-def _command_matches_profile(command: str, *, profile_name: str, hermes_home: str) -> bool:
-    """Return whether a process command belongs to the requested profile.
-
-    Use token/boundary-aware profile matching so ``--profile alice`` does not
-    accidentally match ``--profile aliceimagecron`` in Windows process scans.
-
-    Windows command lines and ``HERMES_HOME`` values mix separators freely, so
-    normalize both sides to forward slashes *first* (upstream's normalization)
-    and only then apply the boundary-aware matching. Callers may pass an
-    already-normalized home; normalizing again is idempotent. The matching
-    itself is upstream's (``profile_flag_value`` /
-    ``command_line_names_hermes_home`` / ``hermes_home_assignments``); this
-    function is the fork's named seam over it.
-    """
-    from gateway.status import (
-        command_line_names_hermes_home, hermes_home_assignments, profile_flag_value)
-    command_lc = command.lower().replace("\\", "/")
-    profile_name = (profile_name or "").lower()
-    hermes_home = (hermes_home or "").lower().replace("\\", "/").rstrip('/')
-
-    if profile_name:
-        # Token equality, not substring: `-p ops` must not claim (or SIGTERM) an `-p ops-2` gateway.
-        if profile_flag_value(command_lc) == profile_name:
-            return True
-        return bool(hermes_home) and command_line_names_hermes_home(command_lc, hermes_home)
-
-    # Default-profile case: no profile flag in argv. Accept as long as the command doesn't
-    # advertise *some other* profile in any spelling the CLI pre-parser accepts
-    # (``--profile=ops`` slipped past a substring test, so a default-profile fallback stop could
-    # SIGTERM the named gateway). HERMES_HOME may be passed via env (not visible in wmic/CIM
-    # command line) so its absence is NOT disqualifying — only a non-matching explicit
-    # HERMES_HOME= in argv is.
-    if profile_flag_value(command_lc) is not None:
-        return False
-    return (not hermes_home_assignments(command_lc)
-            or command_line_names_hermes_home(command_lc, hermes_home))

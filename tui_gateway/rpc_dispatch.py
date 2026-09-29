@@ -53,7 +53,7 @@ def dispatch(req: dict, transport: Optional[Transport] = None) -> dict | None:
         from tui_gateway import server_requests
         if server_requests.is_response_frame(req):
             # The renderer answering one of OUR requests (clarify, approval, …): no response frame goes back.
-            if not server_requests.resolve_response(req):
+            if not server_requests.resolve_response(req, t):
                 _enqueue_rpc(lambda: _relay_response(req), contextvars.copy_context())
             return None
         normalized = _normalize_request(req)

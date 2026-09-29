@@ -48,44 +48,39 @@ def _install_fake_gateway_run(monkeypatch, start_gateway):
     )
 
 
-def test_command_matches_profile_does_not_match_prefix_collision():
-    alice_home = r"x:\\eternia\\.hermes\\profiles\\alice"
+def _matches_named_profile(command: str, profile_name: str, hermes_home: str) -> bool:
+    """The named-profile branch of upstream's ``_scan_gateway_pids._matches_current_profile``
+    (the fork's ``_command_matches_profile`` extraction was retired at the 2026-09-29 merge;
+    these Windows-spelling pins now run against upstream's own primitives)."""
+    from gateway.status import command_line_names_hermes_home, profile_flag_value
+    command_lc = command.lower().replace("\\", "/")
+    home_lc = hermes_home.lower().replace("\\", "/").rstrip("/")
+    if profile_flag_value(command_lc) == profile_name:
+        return True
+    return command_line_names_hermes_home(command_lc, home_lc)
 
-    assert gateway._command_matches_profile(
-        r'"pythonw.exe" -m hermes_cli.main --profile alice gateway run',
-        profile_name="alice",
-        hermes_home=alice_home,
-    )
-    assert gateway._command_matches_profile(
-        r'"pythonw.exe" -m hermes_cli.main -p alice gateway run',
-        profile_name="alice",
-        hermes_home=alice_home,
-    )
-    assert not gateway._command_matches_profile(
-        r'"pythonw.exe" -m hermes_cli.main --profile aliceimagecron gateway run',
-        profile_name="alice",
-        hermes_home=alice_home,
-    )
-    assert not gateway._command_matches_profile(
-        r'"pythonw.exe" -m hermes_cli.main -p aliceimagecron gateway run',
-        profile_name="alice",
-        hermes_home=alice_home,
-    )
+
+def test_command_matches_profile_does_not_match_prefix_collision():
+    alice_home = r"x:\eternia\.hermes\profiles\alice"
+
+    assert _matches_named_profile(
+        r'"pythonw.exe" -m hermes_cli.main --profile alice gateway run', "alice", alice_home)
+    assert _matches_named_profile(
+        r'"pythonw.exe" -m hermes_cli.main -p alice gateway run', "alice", alice_home)
+    assert not _matches_named_profile(
+        r'"pythonw.exe" -m hermes_cli.main --profile aliceimagecron gateway run', "alice", alice_home)
+    assert not _matches_named_profile(
+        r'"pythonw.exe" -m hermes_cli.main -p aliceimagecron gateway run', "alice", alice_home)
 
 
 def test_command_matches_profile_home_uses_path_boundary():
-    alice_home = r"x:\\eternia\\.hermes\\profiles\\alice"
+    alice_home = r"x:\eternia\.hermes\profiles\alice"
 
-    assert gateway._command_matches_profile(
-        r'set HERMES_HOME=X:\\Eternia\\.hermes\\profiles\\alice && hermes gateway run',
-        profile_name="alice",
-        hermes_home=alice_home,
-    )
-    assert not gateway._command_matches_profile(
-        r'set HERMES_HOME=X:\\Eternia\\.hermes\\profiles\\aliceimagecron && hermes gateway run',
-        profile_name="alice",
-        hermes_home=alice_home,
-    )
+    assert _matches_named_profile(
+        r'set HERMES_HOME=X:\Eternia\.hermes\profiles\alice && hermes gateway run', "alice", alice_home)
+    assert not _matches_named_profile(
+        r'set HERMES_HOME=X:\Eternia\.hermes\profiles\aliceimagecron && hermes gateway run',
+        "alice", alice_home)
 
 
 def test_run_gateway_windows_foreground_keeps_ctrl_c_enabled(monkeypatch):

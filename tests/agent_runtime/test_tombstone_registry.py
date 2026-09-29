@@ -127,7 +127,6 @@ import ast
 import functools
 import importlib
 import importlib.util
-import json
 import os
 import subprocess
 import sys
@@ -4379,17 +4378,7 @@ def _production_references(
     return references
 
 
-@functools.lru_cache(maxsize=1)
-def _plugin_compat_only_symbols() -> frozenset[tuple[str, str]]:
-    manifest = json.loads((HERMES_ROOT / "compat_manifest.json").read_text(encoding="utf-8"))
-    return frozenset((entry["facade"], entry["name"]) for entry in manifest["entries"])
-
-
 def _live_production_symbol(subject: tuple[str, str]) -> bool:
-    # The compat manifest prohibits first-party readers of these external-plugin
-    # pointers. Coverage belongs to the defining module, not the retired facade.
-    if subject in _plugin_compat_only_symbols():
-        return False
     module_name, symbol = subject
     source_path = HERMES_ROOT / f"{module_name.replace('.', '/')}.py"
     if not source_path.is_file():
