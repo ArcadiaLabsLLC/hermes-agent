@@ -7,6 +7,7 @@ log backfill, the peer directory) — one conversation, not the roster.
 from __future__ import annotations
 
 import logging
+from contextlib import closing
 from typing import Any
 
 from .. import chat_session_scope
@@ -26,7 +27,26 @@ from .vocabulary import (
 __layer__ = "lanes"
 __all__ = [
     "persona_chat_session_messages",
+    "existing_persona_chat_messages",
 ]
+
+
+def existing_persona_chat_messages(*, session_id: str, before: str | None = None) -> dict[str, Any]:
+    """Attach to an existing transcript without creating a database or session."""
+    bounded = _bounded_message_tail(40)
+    scope, refusal = _resolve_scope(session_id, bounded)
+    if refusal is not None:
+        return refusal
+    if not scope.db_path.is_file():
+        return {"ok": False, "error_kind": "session_not_found"}
+    db = chat_session_scope.open_chat_session_db(scope, read_only=True)
+    if db is None:
+        return {"ok": False, "error_kind": "session_db_unavailable"}
+    with closing(db):
+        if db.get_session(session_id) is None:
+            return {"ok": False, "error_kind": "session_not_found"}
+        return _with_chat_scope(persona_chat_session_messages(
+            session_id=session_id, before=before, limit=bounded, session_db=db), scope)
 
 
 def persona_chat_session_messages(
