@@ -61,9 +61,9 @@ from utils import atomic_json_write
 def fresh_cache_lane():
     """Every case starts and ends with a process that has built nothing."""
 
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     yield
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
 
 
 @pytest.fixture(autouse=True)
@@ -336,7 +336,7 @@ def test_a_fingerprint_miss_names_the_input_that_moved(
     moved = root / "workspaces" / "ws_that_moved.json"
     moved.write_text("{}", encoding="utf-8")
 
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     with caplog.at_level(logging.INFO, logger="agent_runtime.core_cache"):
         decision = core_cache.consult(caller="probe")
 
@@ -528,7 +528,7 @@ def test_a_matched_consult_reads_no_entries_at_all(
     monkeypatch.setattr(core_cache.read, "entries_path", counted_entries_path)
 
     for handed_in in (key, None):
-        core_cache.reset_process_state()
+        _seams.reset_core_cache_process_state()
         touches.clear()
         decision = core_cache.consult(caller="probe", fingerprint=handed_in)
         assert decision.core is not None and not decision.demoted, (

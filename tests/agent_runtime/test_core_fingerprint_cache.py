@@ -63,9 +63,9 @@ def fresh_cache_lane():
     wrong reason.
     """
 
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     yield
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
 
 
 @pytest.fixture(autouse=True)
@@ -97,7 +97,7 @@ def shadow_requests(monkeypatch):
 def _new_context() -> None:
     """What a fresh serve child sees: a lane that has built nothing yet."""
 
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
 
 
 def _seed_workspace(name: str) -> str:
@@ -2388,7 +2388,7 @@ def _boot_keys(root, *, passes: int) -> tuple[list, str, str]:
 def _reboot() -> None:
     """What the next serve child sees: no memory, and the pair still on disk."""
 
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
 
 
 def test_a_store_that_never_converges_across_boots_reaches_the_receipt(

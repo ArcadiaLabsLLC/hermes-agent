@@ -3641,8 +3641,8 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         # Lane h10-fhrel (2026-09-29): dead-code queue row
         # `fingerprint_home_capture` / `iter_fingerprint_paths` /
         # `BUILD_SELF_PERTURBED_CLASSES` (R3 TEST SEAM). The NamedTuple went
-        # with its only constructor. `reset_fingerprint_home` stays: its
-        # production caller is lane.reset_process_state.
+        # with its only constructor. `reset_fingerprint_home` followed in
+        # lane h10b-refac (row below).
         "s-h10",
         "HEAD",
         Form.CODE,
@@ -3667,6 +3667,24 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "profile_runner.execute's cache under its lock the same way",
         "reset_runtime_resolve_cache",
         scope=_AR,
+    ),
+    *rows(
+        # Lane h10b-refac (2026-09-29): dead-code queue row
+        # `reset_fingerprint_home` (R3 TEST SEAM), owner ruling "move it with
+        # reset_process_state to the seam". The convergence reset went with
+        # them: reset_process_state was its only caller. Scoped to core_cache
+        # because demote_core_reuse keeps a live reset_process_state of its own.
+        "s-h10b",
+        "HEAD",
+        Form.CODE,
+        "tests-only resets of core_cache process state (the lane, the "
+        "convergence history, the consult memo, the captured home) with no "
+        "production caller; they live in tests/_downstream/_seams.py as "
+        "reset_core_cache_process_state / reset_fingerprint_home",
+        "reset_process_state",
+        "reset_fingerprint_home",
+        "_reset_convergence_state",
+        scope=("agent_runtime.core_cache",),
     ),
     *rows(
         # Lane h10-fhrel (2026-09-29): dead-code queue row

@@ -79,6 +79,7 @@ from pathlib import Path
 import pytest
 
 from agent_runtime import core_cache
+from tests._downstream import _seams
 from agent_runtime.snapshot import BUILD_ROLE_CACHE, BUILD_ROLE_LED, build_snapshot
 from agent_runtime.store import WorkspaceStore
 
@@ -133,9 +134,9 @@ def _realistic_body(tail: str = TAIL_LIVE) -> str:
 def fresh_cache_lane():
     """Every case starts and ends with a process that has built nothing."""
 
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     yield
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
 
 
 def _profiles_root() -> Path:
@@ -201,10 +202,10 @@ def _converge_persisted_core(*, limit: int = 4) -> int:
     for attempt in range(1, limit + 1):
         core_cache.core_path().unlink(missing_ok=True)
         core_cache.sidecar_path().unlink(missing_ok=True)
-        core_cache.reset_process_state()
+        _seams.reset_core_cache_process_state()
         build_snapshot()
         if core_cache.read_persisted_core().matched:
-            core_cache.reset_process_state()
+            _seams.reset_core_cache_process_state()
             return attempt
     raise AssertionError(
         "the persisted core's fingerprint never converged: after "
@@ -309,7 +310,7 @@ def test_the_persisted_core_survives_a_restart_after_an_identical_rewrite(
     )
 
     counted = _CountedStoreReads(monkeypatch)
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     info: dict = {"caller": "probe"}
     core = build_snapshot(build_info=info)
 
@@ -348,7 +349,7 @@ def test_a_genuine_config_change_still_invalidates(
     assert len(BODY_SAME_LENGTH) == len(BODY), "the probe's own edit changed size"
     _atomic_rewrite(config, BODY_SAME_LENGTH)
 
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     info: dict = {"caller": "probe"}
     core = build_snapshot(build_info=info)
 
@@ -388,7 +389,7 @@ def test_a_genuine_change_that_preserves_mtime_still_invalidates(
     )
     assert config.stat().st_size == stamp.st_size
 
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     core = build_snapshot(build_info={"caller": "probe"})
     assert core["parity"]["core_source"] == core_cache.CORE_SOURCE_REBUILT, (
         "an edit that preserved both mtime and size was served from cache — "

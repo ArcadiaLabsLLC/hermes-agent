@@ -44,6 +44,7 @@ from datetime import datetime, timezone
 import pytest
 
 from agent_runtime import core_cache, demote_core_reuse, snapshot as snapshot_module
+from tests._downstream import _seams
 from agent_runtime.events import EventLog
 from agent_runtime.models import Event
 from agent_runtime.store import WorkspaceStore
@@ -62,10 +63,10 @@ def fresh_process_lanes():
     would turn the next one's demote into a cache hit and count zero builds.
     """
 
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     demote_core_reuse.reset_process_state()
     yield
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     demote_core_reuse.reset_process_state()
 
 

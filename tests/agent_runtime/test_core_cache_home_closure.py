@@ -101,7 +101,7 @@ def two_profiles(tmp_path, monkeypatch):
     monkeypatch.delenv("HERMES_HEAD_HOME", raising=False)
     monkeypatch.delenv("HERMES_SHARED_SKILLS", raising=False)
     monkeypatch.delenv("HERMES_PROFILE", raising=False)
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     yield SimpleNamespace(
         root=root,
         head=head,
@@ -110,7 +110,7 @@ def two_profiles(tmp_path, monkeypatch):
             persona_id="probe", hermes_profile="other", profile_home=other
         ),
     )
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
 
 
 def _ambient_home() -> Path:
@@ -348,7 +348,7 @@ def test_the_captured_home_is_dropped_by_reset_process_state(two_profiles, monke
 
     Freezing the home for the life of the interpreter would make the closure
     stable and WRONG: an install that legitimately moves its home would be served
-    a core built against the old one forever. ``reset_process_state`` is the
+    a core built against the old one forever. ``_seams.reset_core_cache_process_state`` is the
     declared seam for "as a fresh process would", so the capture belongs in it.
     """
 
@@ -356,13 +356,13 @@ def test_the_captured_home_is_dropped_by_reset_process_state(two_profiles, monke
     assert first is not None
     assert core_cache.resolved_fingerprint_home()[0] == two_profiles.head
 
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     monkeypatch.setenv("HERMES_HOME", str(two_profiles.other))
 
     second = core_cache.build_input_fingerprint()
     assert second is not None
     assert core_cache.resolved_fingerprint_home()[0] == two_profiles.other, (
-        "reset_process_state did not forget the captured home, so this process "
+        "reset_core_cache_process_state did not forget the captured home, so this process "
         "cannot exercise a second process's behaviour"
     )
     assert second.digest != first.digest, (
@@ -452,7 +452,7 @@ def test_the_sidecar_records_whether_the_head_was_authoritative(
 
     if explicit:
         monkeypatch.setenv("HERMES_HEAD_HOME", str(two_profiles.head))
-        core_cache.reset_fingerprint_home()
+        _seams.reset_fingerprint_home()
 
     sidecar = _write_back_sidecar(monkeypatch)
 
