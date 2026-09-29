@@ -735,7 +735,8 @@ def run_oauth_setup_token() -> Optional[str]:
 
 
 def _get_hermes_oauth_file() -> Path:
-    return get_hermes_home() / ".anthropic_oauth.json"
+    from agent_runtime.provider_credentials import provider_credential_file
+    return provider_credential_file(".anthropic_oauth.json", get_hermes_home())
 
 
 def _root_hermes_oauth_file() -> Optional[Path]:

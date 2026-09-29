@@ -23,8 +23,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
-- [ ] **Bind native conversations to the selected service's provider authority, preserving profile/tool isolation and runtime-owned model defaults and overrides.** · Owner approval 2026-09-29; Launcher shared-provider correction depends on this runtime seam. **TAKEN 2026-09-29 shared-provider-correction**
-
 ### Filed on arrival — 2026-09-29 (lane h10-rtseam, filed by the orchestrator)
 
 - [ ] **The phone e2e is red on origin/main: `test_embedded_phone_session.py[phone]` dies with `ModuleNotFoundError: not in the phone wheel: agent_runtime.serve_socket` — the embedded turn imports a module the phone wheel's closure does not keep** · `fork` · evidence: lane h10-rtfork, same failure before and after its changes · filed 2026-09-29 **UNCLAIMED**

@@ -24,6 +24,7 @@ def test_reopen_live_question_and_stream_then_stop_same_execution(tmp_path, comp
         recovered = until(open_, lambda page: bool(page["recovery"].get("open_requests")))
         question = recovered["recovery"]["open_requests"][0]
         assert question["method"] == "clarify"
+        answer = {"answers": {question["params"]["questions"][0]["qid"]: "Yes"}}
         assert recovered["turn"]["turn_id"] == "original"
         execution_id = recovered["turn"]["execution_id"]
         peer = service._bindings._entries[sid].live.peer
@@ -36,9 +37,9 @@ def test_reopen_live_question_and_stream_then_stop_same_execution(tmp_path, comp
             return result
         peer.call = lose_answer_ack
         with pytest.raises(ConversationError):
-            service.respond(scope, sid, question["id"], {"answer": "Yes"})
+            service.respond(scope, sid, question["id"], answer)
         peer.call = original_call
-        assert service.respond(scope, sid, question["id"], {"answer": "Yes"}) == {"accepted": True}
+        assert service.respond(scope, sid, question["id"], answer) == {"accepted": True}
         assert provider.partial.wait(10)
         streamed = until(open_, lambda page: page["recovery"].get("inflight_position", {}).get("assistant", 0) > 0)
         position = streamed["recovery"]["inflight_position"]

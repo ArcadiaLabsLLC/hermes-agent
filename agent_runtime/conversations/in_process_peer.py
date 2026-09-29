@@ -107,9 +107,11 @@ def _log():
 
 class InProcessPeer(PeerCore):
     def __init__(self, home: Path, *, receive: Callable[[dict], None], lost: Callable[[], None],
-                 dispatch: Callable[[dict, object], dict | None] = _gateway_dispatch):
+                 dispatch: Callable[[dict, object], dict | None] = _gateway_dispatch,
+                 auth_home: Path | None = None):
         super().__init__(receive=receive, lost=lost)
         self.home = Path(home)
+        self.auth_home = auth_home
         self.profile = _profile_for(self.home)
         self._dispatch = dispatch
         self._transport = _Transport(self._route)
@@ -149,9 +151,19 @@ class InProcessPeer(PeerCore):
         if method in _SESSION_OPENERS and isinstance(request.get("id"), str):
             with self._lock:
                 self._openers.add(request["id"])
-        response = self._dispatch(request, self._transport)
+        response = self._dispatch_scoped(request)
         if response is not None:
             self._transport.write(response)
+
+    def _dispatch_scoped(self, request: dict):
+        from agent_runtime.profile_home import (
+            reset_hermes_auth_home_override, set_hermes_auth_home_override,
+        )
+        token = set_hermes_auth_home_override(self.auth_home)
+        try:
+            return self._dispatch(request, self._transport)
+        finally:
+            reset_hermes_auth_home_override(token)
 
     def _route(self, frame: dict) -> None:
         result = frame.get("result")
@@ -174,8 +186,8 @@ class InProcessPeer(PeerCore):
             self._unclosed = set(self._sessions)
         for session_id in sorted(self._unclosed):
             try:
-                reply = self._dispatch({"jsonrpc": "2.0", "id": "close-" + session_id, "method": "session.close",
-                                        "params": {"session_id": session_id}}, self._transport)
+                reply = self._dispatch_scoped({"jsonrpc": "2.0", "id": "close-" + session_id,
+                    "method": "session.close", "params": {"session_id": session_id}})
             except Exception:
                 _log().warning("in-process worker could not close session %s", session_id, exc_info=True)
                 continue
@@ -187,13 +199,13 @@ class InProcessPeer(PeerCore):
 
 
 def start_in_process_worker(home: Path, *, receive: Callable[[dict], None],
-                            lost: Callable[[], None]) -> InProcessPeer:
+                            lost: Callable[[], None], auth_home: Path | None = None) -> InProcessPeer:
     """``start_worker``'s in-process twin: same arguments, same handshake."""
     from agent_runtime.loop_tool_lifecycles import ensure_lifecycle_placeholders
 
     ensure_lifecycle_placeholders()  # before the gateway imports the loop
     _install_gateway_methods()
-    peer = InProcessPeer(home, receive=receive, lost=lost)
+    peer = InProcessPeer(home, receive=receive, lost=lost, auth_home=auth_home)
     try:
         peer.call("client.capabilities", {"server_requests": True})
     except Exception:

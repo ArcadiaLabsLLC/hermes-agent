@@ -52,7 +52,8 @@ class Provider(BaseHTTPRequestHandler):
 
 
 @pytest.mark.parametrize("compute", [False, True], ids=["inline", "compute-child"])
-def test_real_profile_a_b_a_native_turns_and_persistent_sessions(tmp_path, compute):
+@pytest.mark.parametrize("shared", [False, True], ids=["private-provider", "shared-provider"])
+def test_real_profile_a_b_a_native_turns_and_persistent_sessions(tmp_path, compute, shared):
     Provider.requests = []
     provider = ThreadingHTTPServer(("127.0.0.1", 0), Provider)
     thread = threading.Thread(target=provider.serve_forever, daemon=True)
@@ -62,16 +63,24 @@ def test_real_profile_a_b_a_native_turns_and_persistent_sessions(tmp_path, compu
     for profile in ("a", "b"):
         home = tmp_path / profile
         home.mkdir()
+        definitions = ("" if shared else
+            f"providers:\n  local-test:\n    api: http://127.0.0.1:{provider.server_port}/v1\n    api_key: isolated-{profile}\n")
         (home / "config.yaml").write_text(
-            "model:\n  default: test-model\n  provider: custom:local-test\n"
-            f"providers:\n  local-test:\n    api: http://127.0.0.1:{provider.server_port}/v1\n    api_key: isolated-{profile}\n"
+            "model:\n  default: test-model\n  provider: custom:local-test\n" + definitions +
             f"dashboard:\n  turn_isolation: {str(compute).lower()}\n"
             "mcp_servers: {}\n", encoding="utf-8")
         skill = home / "skills" / f"review-{profile}" / "SKILL.md"
         skill.parent.mkdir(parents=True)
         skill.write_text(f"---\nname: review-{profile}\ndescription: Profile review\n---\nRead only {profile}.\n", encoding="utf-8")
     now = [0.0]
+    owner = tmp_path / "owner"
+    owner.mkdir()
+    (owner / "config.yaml").write_text(
+        f"providers:\n  local-test:\n    api: http://127.0.0.1:{provider.server_port}/v1\n"
+        "    key_env: PRIVATE_LLM_KEY\n    models: [test-model, alternate-model]\n    discover_models: false\n", encoding="utf-8")
+    (owner / ".env").write_text("PRIVATE_LLM_KEY=shared-provider\n", encoding="utf-8")
     service = ConversationService(root, "isolated-install", profile_home=lambda p: tmp_path / p,
+                                  auth_home=owner if shared else None,
                                   retention_options={"clock": lambda: now[0]})
     sessions = {}
     try:
@@ -84,6 +93,10 @@ def test_real_profile_a_b_a_native_turns_and_persistent_sessions(tmp_path, compu
             sessions[profile] = sid
             # Give native prewarming time to run, as when a user waits before typing.
             time.sleep(1)
+            if shared and number in {0, 2}:
+                choice = json.dumps(["custom:local-test", "test-model" if number == 0 else "alternate-model"], separators=(",", ":"))
+                facts = service.select_model(scope, sid, choice, save_default=True)
+                assert facts["current_model_id"] == facts["default_model_id"] == choice
             turn = f"turn-{number}"
             service.send(scope, sid, turn, {"text": f"Reply to marker-{profile}-{number}", "images": []})
             deadline = time.monotonic() + 45
@@ -112,8 +125,11 @@ def test_real_profile_a_b_a_native_turns_and_persistent_sessions(tmp_path, compu
             "marker-" in str(m.get("content", "")) for m in body.get("messages", []))]
         assert len(chat) >= 3
         for auth, body in chat:
-            expected = auth.removeprefix("Bearer isolated-")
+            expected = next(p for p in ("a", "b") if f"marker-{p}-" in json.dumps(body))
             assert expected in {"a", "b"}
+            assert auth == ("Bearer shared-provider" if shared else f"Bearer isolated-{expected}")
+            if shared and any("marker-a-2" in str(m.get("content", "")) for m in body.get("messages", [])):
+                assert body["model"] == "alternate-model"
             other = "b" if expected == "a" else "a"
             assert f"marker-{other}-" not in json.dumps(body)
         assert (tmp_path / "a" / "state.db").is_file()

@@ -21,16 +21,19 @@ def _profile_home(profile: str) -> Path:
 
 
 def bind(root: Path, install_id: str) -> ConversationService:
+    from .worker import select_worker_factory
+    from agent_runtime.provider_credentials import bound_provider_home
+    from hermes_constants import get_hermes_home
+
     global _owner
+    auth_home = bound_provider_home() or get_hermes_home().resolve()
     with _lock:
         if _owner is not None:
-            if (_owner.root, _owner.install_id) != (root.resolve(), install_id):
+            if (_owner.root, _owner.install_id, _owner.auth_home) != (root.resolve(), install_id, auth_home):
                 raise ConversationError(Refusal.WRONG_OWNER)
             return _owner
-        from .worker import select_worker_factory
-
         _owner = ConversationService(root, install_id, profile_home=_profile_home,
-                                     worker_factory=select_worker_factory())
+            worker_factory=select_worker_factory(), auth_home=auth_home)
         return _owner
 
 

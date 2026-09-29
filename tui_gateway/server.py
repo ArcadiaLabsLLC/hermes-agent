@@ -1180,7 +1180,8 @@ def _start_agent_build(sid: str, session: dict) -> None:
                 sid, key, current, notify_registered=notify_registered, scopes=scopes, session_db=session_db)
             ready.set()
 
-    build_thread = threading.Thread(target=_build, daemon=True)
+    from agent.memory_provider import spawn_context_thread
+    build_thread = spawn_context_thread(_build, name="tui-agent-build")
     # _wait_agent_for_prompt handle: dead thread + unset agent_ready = died hard; waiters must not sit out the cap.
     session["_agent_build_thread"] = build_thread
     build_thread.start()
@@ -2256,15 +2257,13 @@ def _session_info(agent, session: dict | None = None) -> dict:
     # A switch queued mid-turn applies at next turn start (agent.model still reads the OLD model); report the
     # pending pick so the end-of-turn settle doesn't blip the UI back first.
     pending_switch = sess.get("pending_model_switch") or {}
-    pending_model = str(pending_switch.get("display_model") or "").strip()
     pending_provider = str(pending_switch.get("display_provider") or "").strip()
-    provider = mirror.get("provider", getattr(agent, "provider", ""))
+    model, provider = _live_session_identity({**sess, "agent": agent})
     if provider == "custom" and "provider" not in mirror and agent is not None:
         # Clients reuse this identity for new chats without carrying the endpoint or key.
         # Broadcast/resume callers need not be bound to this session's profile.
         with _profile_build_scope(sess.get("profile_home") or _hermes_home):
             provider = _runtime_model_config(agent).get("provider", provider)
-    model = pending_model or mirror.get("model", getattr(agent, "model", ""))
     # The level the route's entry clamp actually sends (== reasoning_effort when verbatim), so the
     # Desktop can say "ultra sends max on this route" like `/reasoning` does instead of presenting a
     # Hermes-internal step (#61634) as a wire level the route does not have.
@@ -2947,7 +2946,7 @@ def _find_live_session_by_key(session_key: str, profile_home=_ANY_PROFILE) -> tu
 def _fallback_session_info(session: dict) -> dict:
     agent = session.get("agent")
     if agent is not None:
-        return _session_info(agent)
+        return _session_info(agent, session)
     # The SESSION's own workspace, not the launch dir (wrong project in the desktop Files pane). `branch` is
     # always emitted ("" outside git) so a stale label clears; `desktop_contract` missing reads as "out of date".
     # Reporting `_default_session_cwd()` here told a lazily-resumed session's client that its workspace was
@@ -2956,9 +2955,10 @@ def _fallback_session_info(session: dict) -> dict:
     # so a client can clear a stale label instead of retaining it — the same contract `_lazy_session_info`
     # above already follows.
     cwd = _session_cwd(session)
+    model, provider = _live_session_identity(session)
     return {
         "cwd": cwd, "branch": git_probe.branch(cwd), "project": _project_info_for_cwd(cwd), "lazy": True,
-        "model": _session_default_model(session), "skills": {}, "tools": {}, "desktop_contract": DESKTOP_BACKEND_CONTRACT,
+        "model": model, "provider": provider, "skills": {}, "tools": {}, "desktop_contract": DESKTOP_BACKEND_CONTRACT,
     }
 
 

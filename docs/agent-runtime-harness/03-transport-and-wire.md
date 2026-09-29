@@ -23,6 +23,13 @@ requests return their existing receipt; uncertain outcomes are never silently
 replayed. Native worker messages stay behind `NativePeer`; consumers receive
 bounded event projections, not provider credentials or raw diagnostics.
 
+Provider access follows the service's captured auth owner; tools, skills and
+history stay profile-scoped. Model facts expose provider labels, current/default
+model IDs, `can_save_model_default` and `model_selection_required`. The `.model`
+operation changes only the session unless `save_default: true` is explicit;
+both identities must be confirmed before success. Existing config/model and
+compute owners perform the write. [Shared-provider evidence](../downstream/shared-provider-authority-2026-09-29.md).
+
 `agent_runtime/discussions/rpc.py` exposes the same discussion service to both
 consumers. Non-spatial room admission uses explicit workspace and persona-instance
 identities; spatial placement remains separate.

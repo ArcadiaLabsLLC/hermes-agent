@@ -716,10 +716,11 @@ def _(rid, params: dict) -> dict:
     # A completed FAILED build must not wedge the session: rebuild, don't replay it.
     if not _restart_completed_failed_agent_build(sid, session, session.get("agent_ready")):
         _start_agent_build(sid, session)
-    run_thread = threading.Thread(
-        target=lambda: _run_after_agent_ready(
+    from agent.memory_provider import spawn_context_thread
+    run_thread = spawn_context_thread(
+        lambda: _run_after_agent_ready(
             rid, sid, session, text, display_kind, display_metadata, hosted_terminal_callback, turn_author),
-        daemon=True)
+        name="tui-prompt")
     # Handle lets session.interrupt tell a live turn from a stuck `running` flag.
     session["_run_thread"] = run_thread
     run_thread.start()

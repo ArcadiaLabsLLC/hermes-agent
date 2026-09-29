@@ -12,12 +12,14 @@ __layer__ = "lanes"
 
 
 def start_worker(home: Path, *, receive: Callable[[dict], None],
-                 lost: Callable[[], None]) -> NativePeer:
+                 lost: Callable[[], None], auth_home: Path | None = None) -> NativePeer:
     from tools.environments.local import served_profile_child_env
     from hermes_cli.local_runtime.processes import spawn_server
     from hermes_cli.process_identity import spawn_env, register_child
 
     environment = served_profile_child_env(target_home=home, inherit_credentials=True)
+    if auth_home is not None:
+        environment["HERMES_AUTH_HOME"] = str(auth_home)
     environment["PYTHONUNBUFFERED"] = "1"
     environment["PYTHONUTF8"] = "1"
     environment.update(spawn_env("native-conversation"))

@@ -11,6 +11,8 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Release validation — 2026-09-23
 
+- [ ] **Repair two stale doc-citation anchors in boot/lifecycle and observability.** · Changed neither by the shared-provider slice nor since its base; [gate evidence](../../docs/downstream/shared-provider-authority-2026-09-29.md#evidence). Filed 2026-09-29 shared-provider-correction. UNCLAIMED
+
 
 - [ ] **Isolate wrapper-publication tests before resuming interrupted desktop qualification.** · Whole-PC freeze during the single-worker continuation; running-wrapper publication is the last surviving fixture, not a proven cause. Preserve evidence; use contained off-desktop reproduction, not an unbounded rerun. [Incident boundary](../../docs/downstream/discussion-qualification-2026-09-28.md#host-freeze--qualification-interrupted). Filed 2026-09-28 Discussion qualification. · VERDICT 2026-09-29 h10-fhrel: static read done — `tests/hermes_cli/test_source_launcher_publication.py::test_running_source_launcher_can_republish_itself` runs the freshly published native `hermes.exe`/`.cmd` once (`subprocess.run`, 30 s timeout) and that child rewrites its own running launcher; nothing in the body is unbounded, so the test is a candidate trigger only through the OS/driver side of self-overwrite. Owed: one contained reproduction in a disposable Windows VM with commit/process limits and per-file diagnostics (a box this lane does not have); the updater-retarget half of the residual population is fenced by `319c6ff69d`, so the VM run no longer reaches the primary checkout · OWNER 2026-09-29: park, low priority; needs a disposable VM
 
@@ -198,4 +200,3 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 
 ## Filed on arrival — 2026-09-27 (lane MERGE-0927)
-
