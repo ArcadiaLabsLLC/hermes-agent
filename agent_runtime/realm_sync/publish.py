@@ -40,7 +40,13 @@ from .persona_artifacts import (
     _published_profile_file_hashes,
 )
 from .families import SyncFamily
-from .artifacts import _ResolvedPublish, _resolve_artifacts_with_projection, publishable_skill_packages
+from .artifacts import (
+    _ResolvedPublish,
+    _resolve_artifacts_with_projection,
+    _workspaces_for_realm,
+    publishable_skill_packages,
+)
+from .drift import store_drift_items
 from .sidecar import (
     _append_realm_sync_event,
     _sync_result,
@@ -110,7 +116,9 @@ def publish_realm_sync(
         return result
 
     subtree = _realm_subtree(repo, realm.id)
-    changed = _stage_commit_and_push(realm, repo=repo, subtree=subtree, artifacts=artifacts, credential=credential)
+    changed, changed_paths = _stage_commit_and_push(
+        realm, repo=repo, subtree=subtree, artifacts=artifacts, credential=credential
+    )
     _write_timestamp(repo, "last_publish.txt")
     receipts = _record_publish_baselines(realm, resolved)
     # The SKILL family: the same baseline discipline as every family in
@@ -134,6 +142,12 @@ def publish_realm_sync(
             office_baseline=receipts.get(SyncFamily.OFFICE) or {"recorded": [], "refused": []},
         )
     )
+    # H2 (additive): WHICH published paths moved, and the local drift the baselines
+    # did not absorb — so "Published" can never read as "nothing left to publish"
+    # while a row the operator edited is still drifted.
+    result["changed_paths"] = changed_paths
+    result["changed_count"] = len(changed_paths)
+    result["residual_drift"] = _residual_drift(realm, resolved, receipts)
     if warnings:
         result["warnings"] = warnings
     _write_sync_sidecar(realm, repo=repo, git=git_after, skills_drift=_held_skill_packages_for_realm(realm), artifacts=artifacts)
@@ -153,9 +167,10 @@ def _stage_commit_and_push(
     subtree: Path,
     artifacts: list[RealmSyncArtifact],
     credential: "RealmSyncCredential | None",
-) -> bool:
+) -> tuple[bool, list[str]]:
     """Rewrite the realm subtree when its canonical bytes changed, then commit and
-    push. Returns whether a commit was made."""
+    push. Returns whether a commit was made, and the subtree-relative paths whose
+    published bytes changed (added, changed or removed; ``manifest.json`` never)."""
 
     subtree_rel = f"realms/{paths.safe_path_token(realm.id)}"
     # Canonicalize every published artifact to LF at this single write/copy
@@ -171,7 +186,8 @@ def _stage_commit_and_push(
     # canonical artifact bytes actually differ from what is already published.
     # manifest.json is excluded from this comparison because it carries a
     # volatile generated_at — a timestamp-only rewrite is never a real change.
-    content_changed = _published_artifacts_differ(subtree, desired)
+    changed_paths = _published_artifact_changes(subtree, desired)
+    content_changed = bool(changed_paths)
     # The repo-root .gitattributes is materialized at the ensure chokepoint; make
     # sure a newly-introduced one still rides this publish even when no artifact
     # changed. It is never an artifact, so it skips the manifest + secret scan.
@@ -192,7 +208,7 @@ def _stage_commit_and_push(
             target.write_bytes(desired[artifact.relative_path.replace("\\", "/")])
         _write_sync_metadata(subtree, realm=realm, artifacts=artifacts)
     if not (content_changed or gitattributes_pending):
-        return False
+        return False, []
     _git(repo, "add", "--", *add_paths)
     changed = bool(_git(repo, "status", "--porcelain", "--", *add_paths).strip())
     if changed:
@@ -202,7 +218,7 @@ def _stage_commit_and_push(
             _git(repo, "push", extra_config=_credential_git_config(credential))
         except RealmSyncError as exc:
             raise RealmSyncError("sync_remote_unreachable", "Realm sync publish committed locally but could not push upstream.", retryable=True, safe_details=exc.safe_details) from exc
-    return changed
+    return changed, changed_paths if changed else []
 
 
 def _publish_accounting(resolved: _ResolvedPublish, *, office_baseline: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -436,17 +452,67 @@ def _record_skill_publish_baseline(realm: Realm, *, subtree: Path) -> None:
         logger.exception("skill inbox re-mirror failed after publish for realm %s", realm.id)
 
 
-def _published_artifacts_differ(subtree: Path, desired: dict[str, bytes]) -> bool:
-    """True when the canonical published bytes differ from what is already in the
-    realm subtree, ignoring manifest.json (its ``generated_at`` is volatile).
+def _published_artifact_changes(subtree: Path, desired: dict[str, bytes]) -> list[str]:
+    """The subtree-relative paths whose canonical published bytes differ from what
+    is already in the realm subtree — added, changed or removed — sorted, ignoring
+    manifest.json (its ``generated_at`` is volatile).
 
     ``desired`` is canonical (LF); the on-disk bytes are compared RAW, so a legacy
     CRLF subtree triggers a one-time LF migration on the next publish while an
     already-canonical subtree is a true no-op (no rewrite, no commit)."""
-    if not subtree.exists():
-        return bool(desired)
     existing: dict[str, bytes] = {}
-    for path in subtree.rglob("*"):
-        if path.is_file() and path.name != "manifest.json":
-            existing[path.relative_to(subtree).as_posix()] = path.read_bytes()
-    return existing != desired
+    if subtree.exists():
+        for path in subtree.rglob("*"):
+            if path.is_file() and path.name != "manifest.json":
+                existing[path.relative_to(subtree).as_posix()] = path.read_bytes()
+    return sorted(rel for rel in existing.keys() | desired.keys() if existing.get(rel) != desired.get(rel))
+
+
+def _published_artifacts_differ(subtree: Path, desired: dict[str, bytes]) -> bool:
+    """True when :func:`_published_artifact_changes` names any path."""
+    return bool(_published_artifact_changes(subtree, desired))
+
+
+#: Store-drift family -> the ``BASELINE_FAMILIES`` row whose record absorbs it.
+_BASELINE_FAMILY_OF_DRIFT: Final[dict[str, SyncFamily]] = {
+    SyncFamily.BOARD: SyncFamily.BOARD,
+    SyncFamily.BOARD_CARD: SyncFamily.BOARD,
+    SyncFamily.OFFICE_SURFACE: SyncFamily.OFFICE,
+    SyncFamily.OFFICE_ACTOR: SyncFamily.OFFICE,
+    SyncFamily.PERSONA_DEFINITION: SyncFamily.PERSONA_CONFIG,
+    SyncFamily.PERSONA_INSTANCE: SyncFamily.PERSONA_INSTANCE,
+    SyncFamily.FLOW_GRAPH: SyncFamily.FLOW_GRAPH,
+}
+
+
+def _residual_drift(realm: Realm, resolved: _ResolvedPublish, receipts: dict[SyncFamily, Any]) -> list[dict[str, str]]:
+    """The store-drift rows still present after this publish recorded its baselines,
+    each with WHY: ``baseline_write_failed`` (its family's record raised),
+    ``baseline_refused`` (its container was refused by the scan or the record), or
+    ``not_in_publish_set`` (the publish did not ship it). Best-effort: a walk that
+    fails reports nothing rather than failing a publish that already landed."""
+
+    refused: dict[SyncFamily, set[str]] = {
+        SyncFamily.BOARD: {str(row.get("board_id") or "") for row in resolved.board_refused or ()},
+        SyncFamily.OFFICE: {
+            str(row.get("workspace_id") or "")
+            for row in [*(resolved.office_refused or ()), *((receipts.get(SyncFamily.OFFICE) or {}).get("refused") or ())]
+            if isinstance(row, dict)
+        },
+    }
+    try:
+        items = store_drift_items(realm.id, _workspaces_for_realm(realm))
+    except Exception:  # noqa: BLE001 — accounting never fails a landed publish
+        logger.exception("residual drift walk failed after publish for realm %s", realm.id)
+        return []
+    rows = []
+    for item in items:
+        family = _BASELINE_FAMILY_OF_DRIFT.get(item.family)
+        if family is not None and family in receipts and receipts[family] is None:
+            reason = "baseline_write_failed"
+        elif family is not None and item.container and item.container in refused.get(family, set()):
+            reason = "baseline_refused"
+        else:
+            reason = "not_in_publish_set"
+        rows.append({**item.as_dict(), "reason": reason})
+    return rows

@@ -59,9 +59,9 @@ def _harness_lane():
 
 @pytest.fixture(autouse=True)
 def _flag_off(monkeypatch):
-    import agent_runtime.chat_lane_bundle as chat_lane_bundle
+    import agent_runtime.chat_lane_scope as chat_lane_scope
 
-    monkeypatch.setattr(chat_lane_bundle, "admission_enabled", lambda: False)
+    monkeypatch.setattr(chat_lane_scope, "admission_enabled", lambda: False)
 
 
 # ── the renderer ────────────────────────────────────────────────────────────
@@ -230,6 +230,7 @@ def test_the_flag_off_line_costs_no_root_config_load_and_no_profile_read(monkeyp
     import agent_runtime.mcp_admission as mcp_admission
     import agent_runtime.parse_cache as parse_cache
     import agent_runtime.chat_lane_bundle as chat_lane_bundle
+    import agent_runtime.chat_lane_scope as chat_lane_scope
     import agent_runtime.profile_context as profile_context
 
     def _never_config(*_args, **_kwargs):
@@ -239,7 +240,7 @@ def test_the_flag_off_line_costs_no_root_config_load_and_no_profile_read(monkeyp
         raise AssertionError("the flag-off path must not read the persona profile")
 
     patch_where_bound(monkeypatch, mcp_admission, "resolve_mcp_admission", _never_config)
-    monkeypatch.setattr(chat_lane_bundle, "resolve_mcp_admission", _never_config)
+    monkeypatch.setattr(chat_lane_scope, "resolve_mcp_admission", _never_config)
     monkeypatch.setattr(parse_cache, "cached_yaml_file", _never_profile)
     monkeypatch.setattr(profile_context, "resolve_persona_profile", _never_profile)
 

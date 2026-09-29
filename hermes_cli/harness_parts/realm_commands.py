@@ -55,6 +55,7 @@ __all__ = [
     "_cmd_realm_skills_set",
     "_cmd_realm_skills_show",
     "_cmd_realm_sync_held",
+    "_cmd_realm_sync_history",
     "_cmd_realm_sync_publish",
     "_cmd_realm_sync_pull",
     "_cmd_realm_sync_resolve",
@@ -199,6 +200,20 @@ def _cmd_realm_sync_status(args) -> int:
         # The sibling verbs that read a realm by id already catch it exactly
         # here (``_cmd_realm_skill_restore``); this one did not, and the response
         # fixture for the case is what made that visible.
+        return emit_harness_error(exc, args=args, code="not_found")
+    except RealmSyncError as exc:
+        return emit_harness_error(exc, args=args)
+    _print_stage42(data, args=args, default_output="json")
+    return 0
+
+
+def _cmd_realm_sync_history(args) -> int:
+    """H1: the realm's published versions from the local clone — read-only, no fetch, no credential."""
+    from agent_runtime.realm_sync.history import realm_sync_history
+
+    try:
+        data = realm_sync_history(args.realm_id, limit=getattr(args, "limit", 50))
+    except NotFound as exc:
         return emit_harness_error(exc, args=args, code="not_found")
     except RealmSyncError as exc:
         return emit_harness_error(exc, args=args)

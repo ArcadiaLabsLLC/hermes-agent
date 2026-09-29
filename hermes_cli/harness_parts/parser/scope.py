@@ -23,6 +23,7 @@ from hermes_cli.harness_parts.realm_commands import (
     _cmd_realm_sync_pull,
     _cmd_realm_sync_resolve,
     _cmd_realm_sync_revert,
+    _cmd_realm_sync_history,
     _cmd_realm_sync_status,
     _cmd_realm_use,
 )
@@ -200,6 +201,13 @@ def _add_realm_sync_verbs(realm_subs) -> None:
     realm_sync_status_cmd.add_argument("--credential-file", default=None, help="Launcher-brokered realm sync credential JSON (fallback: HERMES_REALM_SYNC_CREDENTIAL)")
     _add_stage42_global_args(realm_sync_status_cmd)
     realm_sync_status_cmd.set_defaults(func=_cmd_realm_sync_status)
+    realm_sync_history_cmd = realm_sync_subs.add_parser(
+        "history", help="List the realm's published versions from the local sync clone (read-only, no fetch)"
+    )
+    realm_sync_history_cmd.add_argument("realm_id")
+    realm_sync_history_cmd.add_argument("--limit", type=int, default=50, help="Newest N versions (1-500, default 50)")
+    _add_stage42_global_args(realm_sync_history_cmd)
+    realm_sync_history_cmd.set_defaults(func=_cmd_realm_sync_history)
     realm_sync_pull = realm_sync_subs.add_parser("pull", help="Pull and materialize realm sync artifacts")
     realm_sync_pull.add_argument("realm_id")
     realm_sync_pull.add_argument("--credential-file", default=None, help="Launcher-brokered realm sync credential JSON (fallback: HERMES_REALM_SYNC_CREDENTIAL)")

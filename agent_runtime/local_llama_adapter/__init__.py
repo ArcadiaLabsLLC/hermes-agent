@@ -21,10 +21,9 @@ LEGACY_PROVIDER_ID = "local-llama-hermes"
 PROVIDER_ID_ALIASES = frozenset({PROVIDER_ID, LEGACY_PROVIDER_ID})
 # "Hermes" alone names upstream (owner naming ruling 2026-09-29); this is the fork's.
 DISPLAY_NAME = "Eternia Harness local llama"
-# The ``requested_provider`` a managed local turn is built with. Two fork seams inside upstream
-# files (``agent/agent_init.py``, ``agent/conversation_compression.py``: the sub-64K floor
-# exemptions) compare against this literal, so it stays the old spelling until a seam lane
-# moves those two lines; it is a turn marker, never a provider id a client sees.
+# The ``requested_provider`` a managed local turn is built with. The two sub-64K floor
+# exemption seams (``agent/agent_init.py``, ``agent/conversation_compression.py``) read this
+# name, never a copy of its value; it is a turn marker, never a provider id a client sees.
 FLOOR_EXEMPTION_REQUESTED_PROVIDER = "local-llama-hermes"
 SCHEMA = "hermes.local_llama/v1"
 SETUP_SCHEMA = "hermes.local_llama.setup/v1"

@@ -13,7 +13,8 @@ agent_runtime/runtime_hud/
   envelopes.py    policy  the two envelope grammars (runtime_context, skill_preload): extract / render / delivery choice / revision / split / EnvelopeCodec
   hud.py          policy  the HUD itself: resolve_situational_hud and its block builders (lane, mission, roster, residency stamp, steering) and render_situational_hud_block — the hashed body's prose — with the handle / install / age phrasings
   capability.py   policy  resolve_capability_block + render_capability_block — the volatile tail's capability account
-  ambient.py      lanes   the chat-side wrappers that do I/O: situational_hud_for_instance, capability_block_for_persona, the board digest, installs_block
+  ambient.py      lanes   the chat-side wrappers that do I/O: situational_hud_for_instance, the board digest, installs_block
+                          (as landed, lane L5: capability_block_for_persona is runtime_hud/capability_account.py)
 ```
 Entry points and the modules an agent opens: the chat turn's HUD (`mission_chat_turn_context`) → `ambient.py` → `hud.py` → `fields.py` — **3**; the observability frame (`prompt_observability/snapshot_frame`) → `hud.resolve_situational_hud` + `ambient.installs_block` — 2; the capability account → `ambient.py` → `capability.py` — 2; the envelope round-trip (`persona_chat_history/curation`, `persona_runtime`) → `envelopes.py` — 1. Layers: `ambient` (lanes) → `hud`, `capability`, `envelopes` (policy) → `fields` (models); `capability` imports `terminal_envelope.ENVELOPE_DECISION_LOG` and `chat_lane_toolsets.DROP_KIND_*` (flat siblings), nothing above policy.
 

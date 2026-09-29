@@ -201,6 +201,22 @@ if _WIN:
         "test_spawns_with_gateway_flag": (
             _posix_only("reads the bash -c command string; win32 spawns an argv list"),
         ),
+        # A bare "bash" argv on Windows resolves to System32's WSL bash, which reads
+        # "C:\...\out.bin" as a relative name and litters the cwd with PUA-mapped files.
+        # Skipped so the child never spawns; upstream fix: write from Python or hand bash
+        # the POSIX spelling (runtime-queue row, h10-rtseam 2026-09-29).
+        **{
+            f"tests/tools/test_file_write_surrogate_roundtrip.py::{test}": (
+                _posix_only("spawns a bare `bash -c`; win32 PATH order reaches WSL bash"),
+            )
+            for test in (
+                "TestPipeStdinSurrogates::test_roundtrips_surrogateescape_bytes",
+                "TestPipeStdinSurrogates::test_unencodable_surrogate_captures_error_and_closes_stdin",
+                "TestPipeStdinSurrogates::test_normal_content_unchanged",
+                "TestPipeStdinRemainingBranches::test_bytes_input_passes_through_untouched",
+                "TestPipeStdinRemainingBranches::test_stdin_none_records_runtime_error",
+            )
+        },
         "tests/gateway/test_complete_path_at_filter.py::"
         "test_leading_slash_prefers_a_real_absolute_path": (
             _posix_only('"/etc" is drive-relative on Windows'),

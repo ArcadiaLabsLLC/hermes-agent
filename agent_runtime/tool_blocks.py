@@ -128,10 +128,28 @@ def prune_agent_tools(agent: Any, names: Iterable[Any] | None) -> None:
         agent._kanban_worker_guidance = ""
 
 
+def reprune_turn_agent(session_id: Any = None) -> None:
+    """Re-apply the run's block to the turn's bound agent before a provider request.
+
+    A mid-session registry refresh (``tools/mcp_tool_agent.py`` re-derives ``agent.tools``
+    and ``valid_tool_names`` through ``get_tool_definitions``) brings blocked names back; the
+    wire filter and ``pre_tool_call`` still hold, but upstream's guidance and review nudges
+    read the agent's own set. Pruning again at every request keeps that set blocked.
+    """
+
+    from agent_runtime.persona_turn_binding import current_persona_turn_agent
+
+    agent = current_persona_turn_agent()
+    if agent is None:
+        return
+    prune_agent_tools(agent, blocked_tools_for(session_id or getattr(agent, "session_id", None)))
+
+
 __all__ = [
     "blocked_call_message",
     "blocked_tools_for",
     "bound_tool_block",
     "drop_blocked_request_tools",
     "prune_agent_tools",
+    "reprune_turn_agent",
 ]

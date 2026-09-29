@@ -39,8 +39,15 @@ import threading
 from pathlib import Path
 from typing import Any, Callable, Iterator, MutableMapping
 
+import hermes_state_registry  # noqa: F401 — see below
 from hermes_cli.harness_parts.serve.session import serve_loop
 from hermes_cli.harness_parts.serve.shell import EmbeddedShell
+
+# ``hermes_state_registry`` is loaded up front, never lazily: upstream
+# ``SessionDB.close()`` runs ``from hermes_state_registry import release`` from
+# ``__del__`` at interpreter exit, when a daemon thread (auto-title, the token
+# writer) can be frozen holding the global import lock. Already in ``sys.modules``,
+# that line never takes the lock.
 
 __layer__ = "lanes"
 
