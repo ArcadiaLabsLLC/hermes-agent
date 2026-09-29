@@ -1132,7 +1132,7 @@ def _load_tools(agent, enabled_toolsets, disabled_toolsets):
         enabled_toolsets=enabled_toolsets, disabled_toolsets=disabled_toolsets,
         quiet_mode=agent.quiet_mode,
     )
-    _emit_tool_defs_receipt(agent.status_callback, started=_tool_defs_started,
+    _emit_tool_defs_receipt(getattr(agent, "status_callback", None), started=_tool_defs_started,
         misses_before=_tool_defs_misses_before, misses_after=_tool_defs_cache_misses())
     # A finite -q run has no later session to learn for: no skill authoring tool (agent/oneshot_footprint.py).
     from agent.oneshot_footprint import prune_oneshot_tools
@@ -2059,6 +2059,12 @@ def _build_context_engine(agent, _agent_cfg, cs, _custom_providers, _effective_c
     agent.compression_idle_compact_after_seconds = cs.idle_compact_after_seconds
 
 
+def _managed_local_marker():
+    # Fork seam: the managed local llama turn marker, read from its one owner (the adapter).
+    import agent_runtime.local_llama_adapter as _lla
+    return _lla.FLOOR_EXEMPTION_REQUESTED_PROVIDER
+
+
 def _enforce_minimum_context(agent):
     # Reject windows below the 64K floor needed for reliable tool-calling; an explicit
     # positive model.context_length on LM Studio is allowed below the floor.
@@ -2075,7 +2081,7 @@ def _enforce_minimum_context(agent):
         and agent._config_context_length > 0
     )
     _allow_managed_local_context = (
-        agent.requested_provider == "local-llama-hermes" and agent.provider == "custom"
+        agent.requested_provider == _managed_local_marker() and agent.provider == "custom"
         and isinstance(agent._config_context_length, int)
         and not isinstance(agent._config_context_length, bool)
         and agent._config_context_length >= 4096 and _ctx == agent._config_context_length

@@ -126,8 +126,8 @@ in the report, not written here — this session cannot write that vault.
 
 - **[READ] Stubbing costs no coverage, and that is checkable rather than asserted.**
   The venv-holder guard's own behaviour — the refuse-and-exit-2 path, the `--force-venv`
-  escape, the `--force` NON-bypass — is `tests/hermes_cli/test_update_venv_health.py`,
-  which stubs the same two seams for the same reason and was the pattern followed here.
+  escape, the `--force` NON-bypass — was `tests/hermes_cli/test_update_venv_health.py` (deleted
+  since, in `427d4936c2`, with the retired code it tested), which stubbed the same two seams for the same reason and was the pattern followed here.
 
 - **[NOT VERIFIED — say it out loud] The six-file batch timeout was not reproduced.**
   The row's symptom (timeout before collection in a six-file batch) is taken from the

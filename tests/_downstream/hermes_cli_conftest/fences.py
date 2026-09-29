@@ -142,8 +142,8 @@ def _no_windows_gateway_pause_token(request, monkeypatch):
     real gateway against the operator's real profile. Measured 2026-08-31;
     ``test_update_autostash.py`` alone reproduces it.
 
-    Five files here call ``cmd_update`` / ``_cmd_update_impl`` and only
-    ``test_update_venv_health.py`` patches this seam, so the default belongs in
+    Several files here call ``cmd_update`` / ``_cmd_update_impl`` and the one that
+    patched this seam, ``test_update_venv_health.py``, was deleted since (``427d4936c2``), so the default belongs in
     the directory's conftest — the same shape, and the same reasoning, as
     ``_suppress_concurrent_hermes_gate`` above: a Windows-only production guard
     that reads the developer's live machine has no defined answer in a test.
