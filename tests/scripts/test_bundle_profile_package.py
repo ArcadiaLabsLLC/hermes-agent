@@ -11,6 +11,8 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from scripts.bundle_profile_package import (
     Dist,
     Plan,
@@ -291,3 +293,59 @@ def test_a_shipped_skill_script_is_not_counted_as_a_module(tmp_path):
         (tmp_path / rel).write_text("", encoding="utf-8")
     assert app_module_names(tmp_path, (), ("skills",)) == {"pkg", "pkg.mod"}
     assert "skills.p.docx.scripts.render" in app_module_names(tmp_path, (), ())  # positive control
+
+
+PLUGIN_TREE = ["plugins/__init__.py", "plugins/README.md",
+               "plugins/eternia-harness/__init__.py", "plugins/eternia-harness/plugin.yaml"]
+
+
+def test_a_plugin_s_manifest_ships_only_with_its_code():
+    """The plugin loader errors on a ``plugin.yaml`` whose ``__init__.py`` did not ship ("No
+    __init__.py"): a plugin directory is its manifest's package even when the index cannot name
+    it (hyphenated, unlisted), so the enclosing ``plugins`` package does not carry it as data."""
+    from scripts.bundle_profile_closure import ROOT
+    from scripts.bundle_profile_package import first_party_files
+
+    index = {"plugins": ROOT / "plugins/__init__.py"}  # an unlisted hyphenated plugin: not indexed
+    assert first_party_files(_plan({"plugins"}, set()), index, PLUGIN_TREE, ()) == [
+        "plugins/README.md", "plugins/__init__.py"]
+    # Positive control: the plugin's code ships (listed, so indexed), so its manifest does.
+    index["plugins.eternia_harness"] = ROOT / "plugins/eternia-harness/__init__.py"
+    assert first_party_files(_plan({"plugins", "plugins.eternia_harness"}, set()), index, PLUGIN_TREE, ()) == sorted(PLUGIN_TREE)
+
+
+@pytest.mark.timeout(300)  # the phone walk (~40 s)
+def test_the_phone_wheel_ships_what_its_registries_and_plugin_loader_import():
+    """The staged phone tree (the e2e's ``_stage_phone_wheel``: the walk's kept modules plus the
+    packager's file list) holds every module a kept registry imports BY NAME — read from the
+    registries' own tables at run time — ``tools.web_tools``'s ``plugins.web.firecrawl.provider``,
+    and no ``plugin.yaml`` without its ``__init__.py``."""
+    from agent.secret_sources import registry as secret_registry
+    from agent_runtime.bundle_profiles.manifest import load_profile
+    from hermes_cli import plugins as plugin_context
+    from scripts.bundle_profile_closure import ROOT, profile_walk
+    from scripts.bundle_profile_package import _with_parents, first_party_files, tracked_files
+
+    manifest = load_profile("bundled-phone")
+    walk, index = profile_walk(manifest, parents=True)
+    kept = _with_parents(set(walk.kept), index)
+    off = manifest.switched_off_modules
+
+    def is_off(name):
+        return any(name == m or name.startswith(m + ".") for m in off)
+
+    named = {row[2] for row in plugin_context._SCOPED_PROVIDER_REGISTRARS}
+    named |= {row[3].partition(":")[0] for row in plugin_context._SCOPED_PROVIDER_REGISTRARS}
+    named |= {row[0] for row in secret_registry._BUILTIN_SOURCES}
+    assert {"hermes_cli.plugins", "agent.secret_sources.registry", "tools.web_tools"} <= kept
+    assert {n for n in named if not is_off(n)} - kept == set()
+    assert "plugins.web.firecrawl.provider" in kept
+    plan = Plan(profile=manifest.profile, target="android_arm64", python_version="3.14", first_party=kept,
+                pinned=set(), distributions=set())
+    files = set(first_party_files(plan, index, tracked_files(), manifest.packaging_resources,
+                                  manifest.excluded_data, manifest.packaging_skill_platforms))
+    orphans = sorted(f for f in files if f.endswith("/plugin.yaml")
+                     and f.rpartition("/")[0] + "/__init__.py" not in files)
+    assert orphans == []
+    assert "plugins/web/firecrawl/plugin.yaml" in files  # positive control: a shipped plugin's manifest
+    assert (ROOT / "plugins/web/firecrawl/provider.py").is_file()

@@ -389,8 +389,10 @@ def first_party_files(plan: Plan, index: dict[str, Path], tracked: list[str],
         rels.add(rel)
         if rel.endswith("/__init__.py"):
             package_dirs.add(rel.rsplit("/", 1)[0])
-    all_package_dirs = {p.relative_to(ROOT).as_posix().rsplit("/", 1)[0]
-                        for p in index.values() if p.name == "__init__.py"}
+    # Every tracked package, not only the index's: a plugin directory the index cannot name
+    # (``plugins/eternia-harness``) is still the package its ``plugin.yaml`` belongs to, and the
+    # plugin loader errors on a shipped ``plugin.yaml`` whose ``__init__.py`` did not ship.
+    all_package_dirs = {rel.rsplit("/", 1)[0] for rel in tracked if rel.endswith("/__init__.py")}
     for rel in tracked:
         parts = rel.split("/")
         if _in_resource(rel, resources):

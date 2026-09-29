@@ -49,7 +49,8 @@ def _key_env_secret(entry: Dict[str, Any], label: str) -> str:
     key_env = _clean(entry.get("key_env") or entry.get("api_key_env"))
     if not key_env:
         return ""
-    value = get_secret_str(key_env, "").strip()
+    from hermes_cli.model_switch import _scoped_key_env
+    value = _scoped_key_env(key_env)
     if not value:
         logger.warning("%s: key_env %s is set but the variable is empty/unset — the request will carry the "
                        "placeholder no-key-required and the endpoint will reject it", label, key_env)
@@ -152,7 +153,8 @@ def _match_new_style_provider(requested_norm: str, providers: Dict[str, Any]) ->
         # Resolve credentials only after identity and endpoint validation. Merely scanning an
         # unrelated entry must not read its profile-scoped secret.
         key_env = _clean(entry.get("key_env") or entry.get("api_key_env"))
-        api_key = get_secret_str(key_env, "").strip() if key_env else ""
+        from hermes_cli.model_switch import _scoped_key_env
+        api_key = _scoped_key_env(key_env)
         result: Dict[str, Any] = {"name": entry.get("name", ep_name), "base_url": base_url.strip(),
                                   "api_key": api_key or _clean(entry.get("api_key", "")), "model": entry.get("default_model", "")}
         # Command that PRINTS a short-lived credential; wrapped in a per-request token provider.

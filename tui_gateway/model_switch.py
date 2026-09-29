@@ -311,7 +311,8 @@ def _apply_model_switch(
     user_provs = custom_provs = cfg = None
     with contextlib.suppress(Exception):
         from hermes_cli.config import get_compatible_custom_providers, load_config
-        cfg = load_config()
+        from agent_runtime.provider_configuration import provider_configuration
+        cfg = provider_configuration(load_config())
         user_provs = cfg.get("providers")
         custom_provs = get_compatible_custom_providers(cfg)
     result = switch_model(
