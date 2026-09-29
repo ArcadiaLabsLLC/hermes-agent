@@ -21,7 +21,7 @@ def test_compute_answer_frame_keeps_stop_readable(monkeypatch):
         stopped.set()
         return server._err(rid, 4001, "Test session")
 
-    monkeypatch.setattr(server_requests, "resolve_response", lambda _: False)
+    monkeypatch.setattr(server_requests, "resolve_response", lambda *_: False)
     monkeypatch.setattr(server, "_relay_compute_host_response", answer)
     monkeypatch.setitem(server._methods, "session.interrupt", stop)
     def input_frames():
