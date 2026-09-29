@@ -302,7 +302,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-26 (lane HELD-TESTS, filed by the orchestrator)
 
-- [ ] **`tests/tools/test_file_read_guards.py::TestDedupStubLoopGuard` / `TestFileDedup` flake on Windows: 1–3 different tests fail per run of one tree (e.g. `test_file_modification_clears_block`: the stub-loop `_warning` comes back where `error` is expected)** · `upstream / suite` · 2 reruns per side on the win-posix-guard-forms branch (#121645) and its base · evidence: `X:/wt/heldtests/.lane-logs/wpgf-rr-*.log` · filed 2026-09-26 **TAKEN 2026-09-29 h10-rtseam**
+- [ ] **`tests/tools/test_file_read_guards.py::TestDedupStubLoopGuard` / `TestFileDedup` flake on Windows: 1–3 different tests fail per run of one tree (e.g. `test_file_modification_clears_block`: the stub-loop `_warning` comes back where `error` is expected)** · `upstream / suite` · 2 reruns per side on the win-posix-guard-forms branch (#121645) and its base · evidence: `X:/wt/heldtests/.lane-logs/wpgf-rr-*.log` · filed 2026-09-26 **TAKEN 2026-09-29 h10-rtseam** · VERDICT 2026-09-29 h10-rtseam: root cause found, not a timing flake: on Windows CPython 3.12 `os.fstat` st_ctime_ns is the change time and `os.stat`'s is the creation time, so `tools/file_tools_read_tracking.py::_file_version` answers None for ~30% of fresh files (63/200 probed) and dedup reads the file as unstable. Upstream code, no fork edit to move. Drafted `up/win-file-version-ctime` (ebe6d57769, pushed, NOT opened): version from `os.stat` on both sides, red→green test, 0/200 after, 3 clean runs. Owed: the owner opens it
 
 
 ### Filed on arrival — 2026-09-26 (lane FIX-TRIAGE, filed by the orchestrator)
