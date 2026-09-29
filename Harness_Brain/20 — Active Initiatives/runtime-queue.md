@@ -300,7 +300,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-27 (lane PR-REPLIES, filed by the orchestrator)
 
-- [ ] **`tests/hermes_cli/test_anon_sign_in_flow.py::test_the_scope_is_entered_for_the_preconditions_and_the_persist_but_never_around_a_wait` reds on Windows at the yields assertion (line 442) on unmodified upstream `3f18855fa1`** · `upstream / suite` · not caused by any PR of ours; candidate for the next Windows-reds triage or a `posix_marks` entry · evidence: `X:/wt/prreplies/.lane-logs/anon-base.log` · filed 2026-09-27 **TAKEN 2026-09-29 h10-rtseam**
 
 ### Filed on arrival — 2026-09-26 (lane HELD-TESTS, filed by the orchestrator)
 
