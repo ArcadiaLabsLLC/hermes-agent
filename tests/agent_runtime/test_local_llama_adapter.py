@@ -19,7 +19,6 @@ from agent_runtime import serve_rpc
 from agent_runtime.call_authorization import CALLER_PEER, UNKNOWN_CALLER, RpcCaller
 from agent_runtime.local_llama_adapter import (
     FLOOR_EXEMPTION_REQUESTED_PROVIDER,
-    LEGACY_PROVIDER_ID,
     PROVIDER_ID,
     binding,
     model_alias,
@@ -600,8 +599,15 @@ def test_setup_mutations_pass_the_same_epoch_guard(manager):
     assert caught.value.reason == "stale_epoch"
 
 
-# ── the provider is upstream's ``llamacpp``; the old id is an input alias (lanes LLAMA-ALIAS, h9-bundle) ──
-@pytest.mark.parametrize("provider_id", [PROVIDER_ID, LEGACY_PROVIDER_ID])
+# ── the provider is upstream's ``llamacpp``; the retired id is no longer read (h10b-fix) ──
+def test_the_retired_id_is_not_the_local_provider():
+    from agent_runtime.local_llama_adapter import is_local_llama_provider
+    from agent_runtime.local_llama_adapter.legacy_id_migration import RETIRED_PROVIDER_ID
+    assert is_local_llama_provider(PROVIDER_ID)  # positive control
+    assert not is_local_llama_provider(RETIRED_PROVIDER_ID)
+
+
+@pytest.mark.parametrize("provider_id", [PROVIDER_ID])
 def test_either_provider_id_takes_the_whole_turn_lease(provider_id, monkeypatch):
     from contextlib import contextmanager, nullcontext
     leases = []
@@ -627,7 +633,7 @@ def test_a_cloud_provider_takes_no_lease(monkeypatch):
         pass
 
 
-@pytest.mark.parametrize("provider_id", [PROVIDER_ID, LEGACY_PROVIDER_ID])
+@pytest.mark.parametrize("provider_id", [PROVIDER_ID])
 def test_either_provider_id_resolves_through_the_adapter(provider_id, monkeypatch):
     from agent_runtime import profile_runner
     monkeypatch.setattr(profile_runner.execute, "resolve_runtime_provider", lambda **kw: pytest.fail("reached the cloud resolver"))
@@ -638,7 +644,7 @@ def test_either_provider_id_resolves_through_the_adapter(provider_id, monkeypatc
     assert calls == ["preset-id"]
 
 
-@pytest.mark.parametrize("provider_id", [PROVIDER_ID, LEGACY_PROVIDER_ID])
+@pytest.mark.parametrize("provider_id", [PROVIDER_ID])
 def test_either_provider_id_is_ready_on_the_local_catalog_not_a_credential(provider_id, monkeypatch):
     from agent_runtime import profile_readiness
     monkeypatch.setattr(provider, "catalog_visibility",

@@ -9,6 +9,7 @@ a prompt is being rendered. ``plugin.yaml`` declares both commands under
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 
@@ -283,12 +284,24 @@ def default_no_venv_lazy_installs() -> None:
     os.environ.setdefault("HERMES_DISABLE_LAZY_INSTALLS", "1")
 
 
+def migrate_retired_local_llama_id() -> None:
+    """Owner 2026-09-29: the one-shot startup rewrite of ``local-llama-hermes`` -> ``llamacpp``
+    across every store and the user's config.yaml, per home (a marker makes it one-shot)."""
+    try:
+        from agent_runtime.local_llama_adapter.legacy_id_migration import migrate_retired_provider_id_once
+
+        migrate_retired_provider_id_once()
+    except Exception:  # a failed migration must not take plugin load down
+        logging.getLogger(__name__).warning("local llama retired-id migration failed", exc_info=True)
+
+
 def register(ctx) -> None:
     from hermes_cli.harness_parts.mission_chat_door_binding import bind_mission_chat_door
 
     bind_mission_chat_door()  # ruling Q10: the runtime's door onto the CLI turn handler
     default_kanban_claim_ttl()
     default_no_venv_lazy_installs()
+    migrate_retired_local_llama_id()
     ctx.register_system_prompt_section("eternia-harness.tool-guidance", render_tool_guidance)
     ctx.register_system_prompt_section("eternia-harness.windows-tooling", render_windows_tooling)
     ctx.register_middleware("llm_request", brief_tool_descriptions)
