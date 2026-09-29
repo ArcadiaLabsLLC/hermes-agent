@@ -22,6 +22,7 @@ from tools.registry import CHECK_FN_CACHE_BYPASS, check_fn_cache_scope, discover
 from tools.registry import _MAX_TOOL_ERROR_CHARS as _TOOL_ERROR_MAX_LEN
 from toolsets import resolve_toolset, validate_toolset
 from tools.tool_defs_observability import bump_tool_defs_counter as _bump_tool_defs_counter, with_tool_describe
+from tools.tool_defs_observability import ensure_plugin_tools_discovered as _ensure_plugin_tools_discovered
 from tools.arg_coercion import coerce_tool_args
 from tools.todo_tool import TODO_LEGACY_ALIASES, TODO_SCHEMA
 from utils import file_signature
@@ -223,6 +224,7 @@ def get_tool_definitions(enabled_toolsets: Optional[List[str]] = None, disabled_
     """
     def compute():
         _bump_tool_defs_counter("misses")
+        _ensure_plugin_tools_discovered()
         return _compute_tool_definitions(enabled_toolsets, disabled_toolsets, quiet_mode,
                                          skip_tool_search_assembly=skip_tool_search_assembly)
     if not quiet_mode:
