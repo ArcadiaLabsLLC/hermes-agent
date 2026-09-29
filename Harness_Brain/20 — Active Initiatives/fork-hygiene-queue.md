@@ -35,7 +35,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ### Filed on arrival — 2026-09-26 (lane FIX-TRIAGE, filed by the orchestrator)
 
-- [ ] **Ledger drift: `tests/agent/test_coding_context.py` says "lifted: up/win-line-endings" but #121221 carries 5 other files; `tests/tools/test_file_tools_live.py` credits up/win-line-endings though the whole diff is in #121226; `tests/tools/test_file_tools.py` carries only a dead `import os`** · evidence: `docs/agent-runtime-harness/planned/fix-triage-2026-09-26.md` §1 rows · filed 2026-09-26 (lane FIX-TRIAGE) **UNCLAIMED** **TAKEN 2026-09-29 h10-fhrel**
 
 
 
