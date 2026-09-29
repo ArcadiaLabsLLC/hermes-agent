@@ -103,3 +103,16 @@ def test_the_fixture_function_is_long_enough_to_be_a_row():
     """The fixtures above only mean something if an unreached DEAD is a census row at all."""
     node = ast.parse(DEAD.format(name="f")).body[0]
     assert (node.end_lineno - node.lineno + 1) >= census.MIN_UNIT_LINES
+
+
+def test_a_from_scripts_import_joins_the_traced_suite_by_its_resolved_import():
+    """``from scripts import doc_claims`` never spells ``scripts.doc_claims``; the
+    import graph resolves it, so the test is traced. Control: the same test
+    importing an unrelated module stays out."""
+
+    modules = {"scripts.doc_claims"}
+    tokens = {"scripts.doc_claims", "scripts/doc_claims.py"}
+
+    assert census.selects("from scripts import doc_claims\n", tokens, modules)
+    assert census.selects("import scripts.doc_claims as dc\n", tokens, modules)
+    assert not census.selects("from scripts import other_tool\n", tokens, modules)

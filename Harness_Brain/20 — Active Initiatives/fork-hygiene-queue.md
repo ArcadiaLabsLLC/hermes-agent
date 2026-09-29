@@ -148,7 +148,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-25 (lane Q-DEAD-A)
 
-- [ ] **The reach census chooses its traced suite by SUBSTRING, so a test spelling `from scripts import <module>` is never traced — `tests/scripts/` calls `_claims_for` nine times and the census still read it 0 hits** · `fork / refactor` · select the suite from resolved imports (the AST import graph `god_file_probe.imports_of` already walks), not tokens; until then a script's tested functions read cold · evidence: `docs/agent-runtime-harness/planned/downstream-god-file-refactor-reach-census.md` ("Re-run 2026-09-25") · filed by lane Q-DEAD-B 2026-09-25 **UNCLAIMED** **TAKEN 2026-09-29 h10-fhrest**
 ## Filed on arrival — 2026-09-25 (lane B2)
 
 - [ ] **`test_every_stage42_global_flag_is_honored` is a source walk keyed on the name `args`: a flag read through `self.args` or a renamed parameter reads as unhonoured, so phase objects must read flags in the handler** · `fork / gates` · a source walk certifying a POSITIVE guarantee ("this flag is honoured") by spelling — the fork CLAUDE.md gate rule says ask the runtime or the element model; re-key it on the parser's `set_defaults` targets and the attribute reads they reach · evidence: B2 gateway_commands CHANGE body · filed by lane B2 2026-09-25 **UNCLAIMED** **TAKEN 2026-09-29 h10-fhrest**
