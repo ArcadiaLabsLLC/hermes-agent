@@ -76,7 +76,6 @@ Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2
 
 ### Filed on arrival — 2026-09-26 (lane CI-RESTORE, filed by the orchestrator)
 
-- [ ] **`.github/workflows/fork-ci-red-notify.yml` triggers on `workflow_run: workflows: [CI]`, and CI is disabled on the fork since 2026-09-26 — the notifier fires on nothing** · `fork / ci` · retarget it to `Fork gates` (whose new `history-gates` job is red today on the s72 tombstone row, fork-hygiene) or retire it · evidence: lane CI-RESTORE report 2026-09-26 · filed by lane CI-RESTORE 2026-09-26 **UNCLAIMED** **TAKEN 2026-09-29 h10-rtfork**
 ### Filed on arrival — 2026-09-26 (post-landing gate, filed by the orchestrator)
 
 
