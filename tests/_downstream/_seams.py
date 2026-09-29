@@ -35,6 +35,7 @@ __all__ = [
     "iter_fingerprint_paths",
     "remove_harness_worktree_for_repo",
     "repo_execution_context_for_task",
+    "reset_runtime_resolve_cache",
     "reset_unreadable_instance_rows",
 ]
 
@@ -654,3 +655,16 @@ def _build_self_perturbed_classes() -> tuple[str, ...]:
 
 #: The three classes the build itself moves (restat.py argues each one).
 BUILD_SELF_PERTURBED_CLASSES = _build_self_perturbed_classes()
+
+
+def reset_runtime_resolve_cache() -> None:
+    """Drop every memoized runtime resolution, as a fresh process would.
+
+    Dead-code queue row (R3 TEST SEAM, lane h10-fhrel 2026-09-29): no production
+    caller; ``tests/agent_runtime/conftest.py`` resets around every test.
+    """
+
+    from agent_runtime.profile_runner import execute as _execute
+
+    with _execute._RUNTIME_RESOLVE_CACHE_LOCK:
+        _execute._RUNTIME_RESOLVE_CACHE.clear()

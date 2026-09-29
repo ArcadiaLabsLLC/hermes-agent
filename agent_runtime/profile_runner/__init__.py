@@ -80,7 +80,6 @@ from agent_runtime.profile_runner.execute import (
     _resolve_request_runtime,
     _run_conversation_with_usage_ledger,
     _runtime_resolve_cache_key,
-    reset_runtime_resolve_cache,
 )
 from agent_runtime.profile_runner.workdir import (
     _WORKDIR_LOCK,
@@ -150,7 +149,6 @@ __all__ = [
     "normalize_profile_name",
     "persona_profile_context",
     "profile_exists",
-    "reset_runtime_resolve_cache",
     "resolve_runtime_provider",
     "stage_persona_chat_user_row_marker",
     "time",

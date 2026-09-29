@@ -24,8 +24,8 @@ from agent_runtime.profile_runner import (
     AgentRunRequest,
     ProfileAgentRunner,
     _runtime_resolve_cache_key,
-    reset_runtime_resolve_cache,
 )
+from tests._downstream._seams import reset_runtime_resolve_cache
 
 
 class _BoundaryAgent:

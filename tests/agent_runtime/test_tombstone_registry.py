@@ -3656,6 +3656,18 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "BUILD_SELF_PERTURBED_CLASSES",
         scope=_AR,
     ),
+    *rows(
+        # Lane h10-fhrel (2026-09-29): dead-code queue row
+        # `reset_runtime_resolve_cache` (R3 TEST SEAM).
+        "s-h10",
+        "HEAD",
+        Form.CODE,
+        "a tests-only reset of the runtime-resolve memo with no production "
+        "caller; it lives in tests/_downstream/_seams.py and clears "
+        "profile_runner.execute's cache under its lock the same way",
+        "reset_runtime_resolve_cache",
+        scope=_AR,
+    ),
     # -- the 2026-09-25 upstream merge ------------------------------------
     *rows(
         "s-merge-2026-09-25",
