@@ -154,7 +154,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-25 (lane Q-GATES)
 
-- [ ] **The live-system guard's refusal tests spawn the REAL command when the refusal list regresses** · `fork / tests` · dropping `serve` from `_BACKEND_SUBCOMMANDS` (tests/conftest.py) made `test_subprocess_run_hermes_serve_blocked` start a live `hermes serve --port 8090` from the operator runtime; point every blocked-spawn case in `tests/test_live_system_guard_self_test_downstream.py` at an absent `hermes` path (the pattern its pass-through cases now use) so a regression reds with FileNotFoundError instead of booting a backend · evidence: lane Q-GATES commit `test(guard): lookalike and pass-through …` body · filed by lane Q-GATES 2026-09-25 **TAKEN 2026-09-29 h10-fhrest**
 ## Filed on arrival — 2026-09-25 (lane B3)
 
 

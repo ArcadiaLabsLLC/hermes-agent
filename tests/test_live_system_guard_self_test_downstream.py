@@ -20,46 +20,57 @@ from tests.test_live_system_guard_self_test import (  # noqa: F401 — upstream 
 )
 
 
-def test_subprocess_run_hermes_gateway_run_blocked():
-    with pytest.raises(RuntimeError, match="live-system guard"):
-        subprocess.run(["hermes", "gateway", "run", "--profile", "x"])
+# Every blocked case spawns an entry point that does NOT exist (the pattern the
+# pass-through cases below use): if the refusal list regresses, the case reds
+# with FileNotFoundError (or a shell's not-found) instead of booting a real
+# backend from the operator's runtime. The guard keys on the basename / the
+# ``hermes_cli.main`` token, never on the path existing.
+def _absent(tmp_path, name: str) -> str:
+    return (tmp_path / name).as_posix()
 
-def test_subprocess_run_hermes_serve_blocked():
-    with pytest.raises(RuntimeError, match="live-system guard"):
-        subprocess.run(["hermes", "serve", "--port", "8090"])
 
-def test_subprocess_run_python_m_hermes_cli_dashboard_blocked():
+def test_subprocess_run_hermes_gateway_run_blocked(tmp_path):
+    with pytest.raises(RuntimeError, match="live-system guard"):
+        subprocess.run([_absent(tmp_path, "hermes"), "gateway", "run", "--profile", "x"])
+
+def test_subprocess_run_hermes_serve_blocked(tmp_path):
+    with pytest.raises(RuntimeError, match="live-system guard"):
+        subprocess.run([_absent(tmp_path, "hermes"), "serve", "--port", "8090"])
+
+def test_subprocess_run_python_m_hermes_cli_dashboard_blocked(tmp_path):
     """The argv an old desktop app shell sends."""
     with pytest.raises(RuntimeError, match="live-system guard"):
         subprocess.run(
-            [sys.executable, "-m", "hermes_cli.main", "dashboard", "--no-open"]
+            [_absent(tmp_path, "python"), "-m", "hermes_cli.main", "dashboard", "--no-open"]
         )
 
-def test_subprocess_popen_harness_serve_blocked():
+def test_subprocess_popen_harness_serve_blocked(tmp_path):
     """``harness serve`` puts the subcommand PAST position 1 — still caught."""
     with pytest.raises(RuntimeError, match="live-system guard"):
         subprocess.Popen(
-            [sys.executable, "-m", "hermes_cli.main", "harness", "serve", "--ndjson"]
+            [_absent(tmp_path, "python"), "-m", "hermes_cli.main", "harness", "serve", "--ndjson"]
         )
 
-def test_subprocess_run_flag_before_subcommand_blocked():
+def test_subprocess_run_flag_before_subcommand_blocked(tmp_path):
     """``hermes --profile work gateway run`` — a flag and its value first."""
     with pytest.raises(RuntimeError, match="live-system guard"):
-        subprocess.run(["hermes", "--profile", "work", "gateway", "run"])
+        subprocess.run([_absent(tmp_path, "hermes"), "--profile", "work", "gateway", "run"])
 
-def test_subprocess_run_absolute_path_hermes_serve_blocked():
+def test_subprocess_run_absolute_path_hermes_serve_blocked(tmp_path):
     """A venv's ``bin/hermes`` is the same entry point under another spelling."""
     with pytest.raises(RuntimeError, match="live-system guard"):
-        subprocess.run(["/home/dev/.venv/bin/hermes", "serve"])
+        subprocess.run([_absent(tmp_path, ".venv/bin/hermes"), "serve"])
 
-def test_subprocess_run_bash_c_hermes_gateway_blocked():
+def test_subprocess_run_bash_c_hermes_gateway_blocked(tmp_path):
     """The wrapper shape: argv[0] is bash, the backend is in its argument."""
     with pytest.raises(RuntimeError, match="live-system guard"):
-        subprocess.run(["bash", "-c", "hermes gateway run"])
+        subprocess.run(
+            [_absent(tmp_path, "bash"), "-c", f"{_absent(tmp_path, 'hermes')} gateway run"]
+        )
 
-def test_os_system_hermes_dashboard_blocked():
+def test_os_system_hermes_dashboard_blocked(tmp_path):
     with pytest.raises(RuntimeError, match="live-system guard"):
-        os.system("hermes dashboard --no-open")
+        os.system(f"{_absent(tmp_path, 'hermes')} dashboard --no-open")
 
 # The pass-through cases spawn an entry point named ``hermes`` that does not
 # exist: the guard reads it as the hermes entry point, and a pass-through is
