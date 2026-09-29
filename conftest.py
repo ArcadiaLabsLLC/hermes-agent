@@ -84,12 +84,18 @@ def _graft_fixtures(half, upstream) -> None:
         setattr(upstream, name, value)
 
 
-def _hooks_of(half) -> types.SimpleNamespace:
+def _hooks_of(half) -> types.ModuleType:
     """The fork half's ``pytest_*`` hooks and nothing else, so registering them
-    under a non-conftest name adds no session-wide fixture."""
-    return types.SimpleNamespace(
-        **{name: getattr(half, name) for name in dir(half) if name.startswith("pytest_")}
-    )
+    under a non-conftest name adds no session-wide fixture.
+
+    A MODULE object, not a ``SimpleNamespace``: pytest < 9.1's FixtureManager keys
+    plugins in a set/dict when it replays ``pytest_plugin_registered``, and a
+    ``SimpleNamespace`` is unhashable (INTERNALERROR under pytest 9.0.3)."""
+    holder = types.ModuleType(f"{half.__name__}:hooks")
+    for name in dir(half):
+        if name.startswith("pytest_"):
+            setattr(holder, name, getattr(half, name))
+    return holder
 
 
 @pytest.hookimpl(tryfirst=True)
