@@ -173,8 +173,11 @@ def brief_tool_descriptions(request=None, **_context):
     """
     from agent_runtime.cache_routing import route_persona_cache
     from agent_runtime.prompt_guidance import rewrite_request_safety_sentence
-    from agent_runtime.tool_blocks import drop_blocked_request_tools
+    from agent_runtime.tool_blocks import drop_blocked_request_tools, reprune_turn_agent
     from tools.downstream_schema import brief_request_tools
+
+    # A registry refresh since the last request may have put blocked names back on the agent.
+    reprune_turn_agent(_context.get("session_id"))
 
     # ONE callback, every rewrite: upstream feeds every llm_request callback the same
     # original request and keeps the LAST result, so two callbacks would drop the first.

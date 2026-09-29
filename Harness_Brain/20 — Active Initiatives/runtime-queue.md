@@ -67,7 +67,6 @@ Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2
 
 ### Filed on arrival — 2026-09-26 (lane PF-1, filed by the orchestrator)
 
-- [ ] **Tool blocks: a mid-session registry refresh (`tools/mcp_tool_agent.py` re-derives `agent.tools` via `get_tool_definitions`) brings blocked names back into `agent.tools` / `valid_tool_names`; the wire filter and `pre_tool_call` still hold, but guidance and review nudges can re-see them — re-apply `prune_agent_tools` after a refresh** · `fork / plugin` · evidence: `agent_runtime/tool_blocks.py`, commit `859d68a1b4` · filed 2026-09-26 (lane PF-1) **UNCLAIMED** **TAKEN 2026-09-29 h10-rtfork**
 
 ### Filed on arrival — 2026-09-26 (lane PF-3, filed by the orchestrator)
 
