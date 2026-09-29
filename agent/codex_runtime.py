@@ -173,12 +173,16 @@ def _fire_codex_post_api_request(agent, turn, *, task_id: str, message_count: in
         logger.debug("codex app-server post_api_request hook failed", exc_info=True)
 
 
-def _record_codex_app_server_usage(agent, turn, messages=None, task_id: str = "") -> dict[str, Any]:
+def _record_codex_app_server_usage(agent, turn, messages=None, task_id: str = "", *,
+                                   emit_hook: bool = True) -> dict[str, Any]:
     """Translate Codex app-server token usage into Hermes accounting. Prompt bucket = uncached + cached
     input (the protocol exposes no cache-write tokens); a turn with no usage still counts as one API call.
     ``messages`` (the transcript mirror) lets real usage anchor the next preflight: this runtime bypasses
     the main loop's capture, and the mirror is never compacted natively, so without an anchor the rough
-    estimate grows monotonically and hermes-mode fires thread compaction on tiny threads (#100381)."""
+    estimate grows monotonically and hermes-mode fires thread compaction on tiny threads (#100381).
+    ``emit_hook=False`` (a compaction call) records the call but fires no ``post_api_request``: that
+    hook is the turn's provider call, and compaction spend is not one (``chat_completions`` reports it
+    through the auxiliary path instead)."""
     agent.session_api_calls += 1
     usage = getattr(turn, "token_usage_last", None)
     compressor = getattr(agent, "context_compressor", None)
@@ -194,7 +198,9 @@ def _record_codex_app_server_usage(agent, turn, messages=None, task_id: str = ""
             compressor.note_usage_less_response()
         _queue_token_counts(agent, "Codex app-server api-call persistence failed (session=%s): %s",
                             counts=lambda: billing(billing_mode="subscription_included"))
-        _fire_codex_post_api_request(agent, turn, task_id=task_id, message_count=message_count, usage=None, cost=None)
+        if emit_hook:
+            _fire_codex_post_api_request(agent, turn, task_id=task_id, message_count=message_count,
+                                         usage=None, cost=None)
         return {}
     from agent.usage_pricing import CanonicalUsage, estimate_usage_cost
     # ``inputTokens`` is INCLUSIVE of ``cachedInputTokens`` (same contract as the Responses API, see
@@ -240,9 +246,11 @@ def _record_codex_app_server_usage(agent, turn, messages=None, task_id: str = ""
     from agent.turn_usage import record_api_call_usage
     record_api_call_usage(agent, {**token_counts, "prompt_tokens": prompt_tokens, "total_tokens": total_tokens},
                           **cost_fields)
-    _fire_codex_post_api_request(agent, turn, task_id=task_id, message_count=message_count,
-                                 usage={**token_counts, "prompt_tokens": prompt_tokens, "total_tokens": total_tokens},
-                                 cost=cost_fields)
+    if emit_hook:
+        _fire_codex_post_api_request(agent, turn, task_id=task_id, message_count=message_count,
+                                     usage={**token_counts, "request_count": canonical_usage.request_count,
+                                            "prompt_tokens": prompt_tokens, "total_tokens": total_tokens},
+                                     cost=cost_fields)
     _queue_token_counts(
         agent, "Codex app-server token persistence failed (session=%s, tokens=%d): %s", total_tokens,
         counts=lambda: billing(**token_counts, **cost_fields,
