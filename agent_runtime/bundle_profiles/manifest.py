@@ -57,6 +57,8 @@ KEYS_READ_OUTSIDE_DEFAULTS = {
     # ``providers.<slug>.enabled`` is upstream's per-provider switch (DEFAULT_CONFIG's ``providers``
     # is an empty mapping, so no slug is a default key).
     "providers.qwen-oauth.enabled": "hermes_cli/config_providers.py::is_provider_enabled",
+    # Default OFF: sign-ins in the OS secure store (owner ruling 2026-09-28 item 4).
+    "auth.os_secure_store": "agent_runtime/host_store/desktop_binding.py::os_secure_store_enabled",
 }
 
 

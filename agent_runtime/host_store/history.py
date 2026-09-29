@@ -38,7 +38,9 @@ class HistoryUnreadable(HostStoreError):
 
 
 def bound() -> bool:
-    return _binding.bound()
+    """A host store is bound AND it encrypts history (a credentials-only binding does not)."""
+    current = _binding.current()
+    return current is not None and current.encrypts_history
 
 
 def _aad(current: _binding.HostStoreBinding, path: PathLike) -> bytes:
@@ -124,7 +126,7 @@ def read_records(path: PathLike) -> List[str]:
 
 def session_db_class(requested: type) -> type:
     """The class ``SessionDB()`` constructs: the encrypted store when bound, else *requested*."""
-    if not _binding.bound():
+    if not bound():
         return requested
     from agent_runtime.host_store.session_db import encrypted_session_db_class
 

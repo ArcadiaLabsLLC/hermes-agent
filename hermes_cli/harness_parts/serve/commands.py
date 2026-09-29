@@ -127,6 +127,11 @@ def _cmd_serve(args, *, harness_parser: Callable[[Any], None] | None = None) -> 
         print(json.dumps({"ok": False, "error": "invalid_parent_pid",
                           "detail": "--parent-pid must be a positive process id"}))
         return 2
+    # Bundled desktop: sign-ins in the OS secure store, bound before the loop reads one.
+    # Idempotent behind the ``hermes_cli.main`` entry's own bind; a refusal exits 2.
+    from agent_runtime.host_store.desktop_binding import bind_desktop_host_store_or_exit
+
+    bind_desktop_host_store_or_exit()
     if harness_parser is not None:
         bind_harness_parser(harness_parser)
     protocol_in, protocol_out = _claim_protocol_pipes()
