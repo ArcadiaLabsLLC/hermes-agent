@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-09-29",
   "base": "ee5f49b943",
-  "files": 180,
-  "deleted_lines": 956,
+  "files": 179,
+  "deleted_lines": 954,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "landing of lane h10-fhrel onto main (after h10-rtseam and h10-rtfork)",
+      "files": "180 -> 179: the merge with main brings h10-rtseam's restore of upstream's bytes (row L324, check_subprocess_stdin) onto h10-fhrel's 180",
+      "deleted_lines": "956 -> 954: measured on the merged tree (h10-fhrel alone measured 956)",
+      "reason": "Ratchet down to the tree, as the gate requires; measured with scripts/upstream_footprint.py on the merged lane tree."
+    },
     {
       "change": "lane h10-fhrel (lane/h10-fhrel): reconcile main's growth since the ee5f49b943 re-baseline (460ac86c9b); main measured 182/958/4, red",
       "files": "176 -> 182 on main, -> 180 here. Moved out (upstream bytes restored): tests/agent/test_run_agent_codex_responses.py (dbf8257326's SDK-free retry test -> *_downstream.py sibling) and tests/cron/test_restart_safe_worker.py (1655333833's foreign-generation test -> *_downstream.py sibling). Kept, each a one-call fork seam with no upstream hook to sit behind: cron/worker_bootstrap.py (1655333833) and hermes_bootstrap.py (8441eb6bff), the interpreter-ABI guard; gateway/readiness.py and hermes_state_dbfile.py (dbf8257326), the phone sealed state.db reader",

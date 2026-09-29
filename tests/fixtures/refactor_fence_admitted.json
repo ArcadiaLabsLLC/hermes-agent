@@ -18,5 +18,10 @@
   "commit": "62e5416e03bc06d7ba1260ff68b946796f125c8d",
   "path": "tools/transcription_tools.py",
   "reason": "removes the fork's file-decode seam, returning the file to upstream's blob aa48ed19ee: the crossing shrinks the fork's upstream footprint (h7-speech)"
+ },
+ {
+  "commit": "9bdad4ac0cac054867192a82a7c31659917a0a83",
+  "path": "scripts/run_tests_parallel.py",
+  "reason": "deletes a caller-less FORK alias (_split_discovery_roots) from the upstream runner, restoring upstream's bytes there; the crossing shrinks the footprint, it does not widen it (h10-fhrel dead-code row)"
  }
 ]
