@@ -23,6 +23,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+- [ ] **Support chat-first groups through existing Discussion and native conversation authorities: exact profile/participant binding, bounded default discussion and explicit per-message audience without duplicate agents or credential stores.** · Owner approval 2026-09-29; Launcher chat-first group UX depends on this seam. **TAKEN 2026-09-29 chat-first-groups**
+
 ### Filed on arrival — 2026-09-29 (lane h10-rtseam, filed by the orchestrator)
 
 - [ ] **The phone e2e is red on origin/main: `test_embedded_phone_session.py[phone]` dies with `ModuleNotFoundError: not in the phone wheel: agent_runtime.serve_socket` — the embedded turn imports a module the phone wheel's closure does not keep** · `fork` · evidence: lane h10-rtfork, same failure before and after its changes · filed 2026-09-29 **UNCLAIMED**
