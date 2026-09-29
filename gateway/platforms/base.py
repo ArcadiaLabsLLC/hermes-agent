@@ -938,9 +938,11 @@ def _kanban_board_db_paths() -> List[Path]:
 
 def _media_delivery_denied_paths() -> List[Path]:
     """Return absolute denylist paths under which delivery is never allowed."""
-    home = Path(os.environ.get("HOME") or os.path.expanduser("~"))
+    # The native home (USERPROFILE on Windows) AND an operator ``$HOME`` that differs from it:
+    # adding the second root must never drop the first one's credential dirs.
+    homes = dict.fromkeys(Path(h) for h in (os.path.expanduser("~"), os.environ.get("HOME")) if h)
     return [*map(Path, _MEDIA_DELIVERY_DENIED_PREFIXES),
-            *(home / sub for sub in _MEDIA_DELIVERY_DENIED_HOME_SUBPATHS),
+            *(home / sub for home in homes for sub in _MEDIA_DELIVERY_DENIED_HOME_SUBPATHS),
             *(r / rel for r in _credential_home_roots() for rel in _ROOT_CREDENTIAL_PATHS),
             *_kanban_board_db_paths()]
 
@@ -1329,7 +1331,12 @@ MEDIA_TAG_CLEANUP_RE = re.compile(
     r'''[`"'*_]{0,3}MEDIA:\s*'''
     r'''(?P<path>`[^`\n]+?`|"[^"\n]+?"|'[^'\n]+?'|'''
     r'''(?:~/|/|[A-Za-z]:[/\\])\S+?(?:[^\S\n]+\S+?)*?\.(?:''' + _MEDIA_EXT_ALTERNATION + r'''))'''
-    r'''(?=[\s`"'*_,;:)\]}\[\\''' + _MEDIA_CJK_TERMINATORS + r''']|MEDIA:|\.(?:\s|$)|$)[`"'*_]{0,3}\.?''',
+    r'''(?=[\s`"'*_,;:)\]}\[''' + _MEDIA_CJK_TERMINATORS + r''']|MEDIA:|\.(?:\s|$)|$|'''
+    # An escaped ``\n`` / ``\r`` / ``\t`` glued to the path ends it, but only when the rest of the
+    # token (up to whitespace or the next ``MEDIA:``) names no further media file: in
+    # ``C:\out\album.png\photo.jpg`` the backslash is a separator and ``album.png`` a directory.
+    r'''\\[nrt](?!(?:(?!MEDIA:)\S)*?\.(?:''' + _MEDIA_EXT_ALTERNATION + r''')\b))'''
+    r'''[`"'*_]{0,3}\.?''',
     re.IGNORECASE)
 
 # Extension-less (Caddyfile) / unknown-ext (.py, .log) tags deliver only after
@@ -3334,9 +3341,12 @@ class BasePlatformAdapter(ABC):
         # Dedupe on the expanded path (first occurrence wins) so the same file referenced twice in one
         # response — e.g. a MEDIA tag inline AND in a summary footer — is uploaded once, not twice (#29131).
         seen_paths: set = set()
+        dropped_nul = False
 
         def _add(path: str) -> None:
+            nonlocal dropped_nul
             if "\x00" in path:
+                dropped_nul = True  # never delivered, but its tag still leaves the caption
                 return
             # is_voice only for audio: a voice-flagged image would leave the photo batch.
             if path not in seen_paths:
@@ -3353,7 +3363,7 @@ class BasePlatformAdapter(ABC):
             _add(safe_path)
         # Locate tag spans on a masked copy, delete them from the unmasked text (protected spans
         # survive).
-        if media:
+        if media or dropped_nul:
             spans = _deliverable_tag_spans(cleaned)
             if spans:
                 cleaned = re.sub(r'\n{3,}', '\n\n', _delete_spans(cleaned, spans)).strip()
