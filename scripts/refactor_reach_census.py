@@ -78,9 +78,43 @@ def population(root: Path = ROOT) -> list[str]:
     )
 
 
+def imported_modules(text: str) -> set[str]:
+    """Every absolute module an ``import`` in *text* resolves to, ``from X import y`` as both X and X.y."""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return set()
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            found.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            found.add(node.module)
+            found.update(f"{node.module}.{alias.name}" for alias in node.names)
+    return found
+
+
+def selects(text: str, tokens: set[str], modules: set[str]) -> bool:
+    """A test joins the traced suite when an IMPORT resolves into the population, or a token names it.
+
+    The import arm is the one that matters: ``from scripts import x`` never spells
+    ``scripts.x``, so the token arm alone read a directly tested script as cold.
+    The token arm stays for tests that reach a population file by PATH (a
+    subprocess of ``scripts/x.py``) or by a dotted string (``import_module``).
+    """
+    if any(token in text for token in tokens):
+        return True
+    return any(
+        name == module or name.startswith(module + ".")
+        for name in imported_modules(text)
+        for module in modules
+    )
+
+
 def suite(root: Path, files: list[str]) -> list[str]:
-    """Tracked test files that name the population (broad tokens, dotted modules, script stems)."""
+    """Tracked test files that import or name the population (see ``selects``)."""
     tokens = set(BROAD_TOKENS)
+    modules = {probe.module_name(path) for path in files}
     for path in files:
         tokens.add(probe.module_name(path))
         tokens.add(path)
@@ -91,7 +125,7 @@ def suite(root: Path, files: list[str]) -> list[str]:
     chosen = []
     for test in sorted(p for p in listing if p):
         text = (root / test).read_text(encoding="utf-8", errors="replace")
-        if any(token in text for token in tokens):
+        if selects(text, tokens, modules):
             chosen.append(test)
     return chosen
 

@@ -831,6 +831,12 @@ def test_a_key_written_with_an_empty_wal_matches_once_it_is_gone(
     _write_wal(wal, b"")
     _new_context()
     converge_persisted_core()
+    # SQLite 3.53 unlinks an unused empty WAL when the build's connection
+    # closes, so the precondition is re-established rather than assumed: the
+    # file is present and empty before the settle check, on every SQLite.
+    if not os.path.exists(wal):
+        _write_wal(wal, b"")
+    assert os.path.exists(wal) and os.path.getsize(wal) == 0
     assert _wal_is_in_the_closure(wal), (
         "the chat SessionDB's -wal path is not in the fingerprint's entries at "
         "all, so a match below would be true for want of anything to be true of"
@@ -1127,7 +1133,7 @@ def test_the_next_boots_own_open_recreates_the_wal_and_the_key_still_matches(
             next_boot.close()
 
 
-def test_a_led_build_leaves_the_chat_database_at_rest(isolate_agent_runtime_root):
+def test_a_led_build_leaves_the_chat_database_at_rest(isolate_agent_runtime_root, monkeypatch):
     """H2 / MCF-27 from the WAL side: the build's release, and the key after it.
 
     The two cases above are about a mask over a WAL that is coming and going. This
@@ -1146,7 +1152,10 @@ def test_a_led_build_leaves_the_chat_database_at_rest(isolate_agent_runtime_root
 
     *Kill:* delete the ``session_db.close()`` arm from
     ``snapshot.persona_session_db_scope``. The build's handle stays open, the WAL
-    it created is still on disk when the build returns, and this reds.
+    it created is still on disk when the build returns, and this reds. The test
+    RETAINS every handle the scope acquires: without that, CPython finalizes the
+    dropped ``SessionDB`` on the scope's exit and closes the connection for it,
+    and the kill stayed green (measured, lane W3-D follow-up).
 
     *Not* killed by reverting MC-3b's ``_wal_without_frames_is_content_free``, and
     that is worth stating rather than leaving as a silent gap: with the release in
@@ -1186,8 +1195,24 @@ def test_a_led_build_leaves_the_chat_database_at_rest(isolate_agent_runtime_root
         "one behind' would be unmeasurable below"
     )
 
+    from agent_runtime.snapshot import details as snapshot_details
+
+    acquire = snapshot_details._default_persona_session_db
+    retained = []
+
+    def _retaining_acquire():
+        handle = acquire()
+        retained.append(handle)
+        return handle
+
+    monkeypatch.setattr(snapshot_details, "_default_persona_session_db", _retaining_acquire)
+
     _seed_workspace("alpha-one")
     converge_persisted_core()
+    assert any(handle is not None for handle in retained), (
+        "the build never acquired the chat SessionDB through the scope, so nothing "
+        "below is about its release"
+    )
 
     # The build attaches the store READ-ONLY (lane W3-D), and a ``mode=ro``
     # connection creates a zero-length ``-wal`` it can never unlink, so the

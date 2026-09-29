@@ -20,12 +20,6 @@ from tests._downstream.hermes_cli_conftest.probes import (
     _unelevated_windows_shell,
 )
 
-#: The one-line reason the ``xfail`` mark on ``test_telegram_parity`` carries.
-#: The mark (applied by id from ``tests/_downstream/id_markers/``, which
-#: owns the text) and this banner share ONE string rather than restating it, so the fence and the report cannot drift apart into two
-#: accounts of one defect — the register-rot shape C25 is about.
-from tests._downstream.id_markers.reasons import TELEGRAM_PARITY_DEFECT_REASON  # noqa: E402 — single source, the table applies the mark
-
 __layer__ = "stores"
 
 # ── Prerequisite guard: files that execute the REAL web-UI build ───────────
@@ -221,32 +215,7 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
 
 
 
-_KNOWN_DEFECTS: dict[str, str] = {
-    "test_commands.py": (
-        "KNOWN DEFECT — NOT an environment gap. Slack allows an app only 50\n"
-        "  slash commands, and the registry no longer fits: 'platform' is a\n"
-        "  gateway command on Telegram/Discord/CLI with NO native Slack slash,\n"
-        "  so test_telegram_parity cannot pass. It is the only CANONICAL\n"
-        "  casualty: every other name the cap drops is an alias whose\n"
-        "  canonical spelling either still holds a native slot or is already a\n"
-        "  deliberate _SLACK_VIA_HERMES_ONLY entry. (The exact casualty set\n"
-        "  depends on which plugins are installed.)\n"
-        "  The fork's clamp report (a WARNING naming each dropped slash, and a\n"
-        "  stderr note on `hermes slack manifest`) was reverted to upstream\n"
-        "  bytes 2026-09-26 (fix-triage DROP: the fork runs no Slack adapter),\n"
-        "  so the clamp is silent again; the DEFECT STAYS either way.\n"
-        "  It is now fenced as xfail(strict=True) rather than left as a\n"
-        "  permanent red (ML-16 / B20(iv)): a file that can never be green has\n"
-        "  no red left to spend on a REGRESSION, and the canonical per-file\n"
-        "  runner's red definition could never be all-green while it stood.\n"
-        "  strict is what keeps the fence honest — the day parity actually\n"
-        "  holds, the test XPASSes and reds, and someone must come delete the\n"
-        "  mark and this row. Fenced is not fixed.\n"
-        "  Closing it means either pinning 'platform' a native slot (something\n"
-        "  else then loses one) or declaring it Slack-via-/hermes in\n"
-        "  _SLACK_VIA_HERMES_ONLY. Which commands get a native slot is product\n"
-        "  curation, so it is an owner decision. The 50 is SLACK'S limit, not\n"
-        "  ours — do not 'fix' this by raising it. Do NOT re-file this as\n"
-        "  host_dependency_gap."
-    ),
-}
+#: Known defects fenced strict under tests/hermes_cli/, by file basename. Empty
+#: since the test_telegram_parity fence retired (it XPASSed: '/platform' fits
+#: Slack's cap again at upstream bytes; lane h10-fhrest, 2026-09-29).
+_KNOWN_DEFECTS: dict[str, str] = {}

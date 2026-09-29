@@ -76,7 +76,6 @@ from tests.hermes_cli import _gateway_fence  # noqa: E402
 from tests._downstream.hermes_cli_conftest.registry import (  # noqa: E402, F401
     _WEB_BUILD_PREREQ_FILES,
     _ENV_GAP_SKIPS,
-    TELEGRAM_PARITY_DEFECT_REASON,
     _KNOWN_DEFECTS,
 )
 

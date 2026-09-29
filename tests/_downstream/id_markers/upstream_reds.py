@@ -114,6 +114,22 @@ if _WIN:
             )
             for test in tests
         },
+        # Lane h10-fhrest (2026-09-29): install.ps1 is byte-identical to upstream; its own
+        # long-path suite fails every "short alias is rebuilt" case on a host whose profile
+        # has no 8.3 alias (PowerShell refuses the fabricated FIRST~1.LAS drive root first).
+        "tests/scripts/install/test_install_ps1_script_suites.py::"
+        "test_suite_passes[test-install-ps1-longpath.ps1-pwsh]": (
+            _up_red("the fabricated 8.3 profile alias is refused as a drive root before "
+                    "the normalizer rebuilds it; 10 of the suite's assertions"),
+        ),
+        # Lane h10-fhrest (2026-09-29): _tool_defs_cache_key is upstream's bytes; on NTFS
+        # shutil.copy2 over an existing file keeps its file index and creation-time
+        # st_ctime, so with the mtime pinned back every keyed stat field is unchanged.
+        "tests/tools/test_model_tools.py::"
+        "test_tool_defs_cache_key_sees_config_replacement_with_pinned_mtime": (
+            _up_red("NTFS copy2 keeps st_ino and creation st_ctime; the pinned-mtime swap "
+                    "leaves every keyed stat field equal"),
+        ),
         "tests/hermes_cli/test_gateway_windows.py::"
         "test_exec_schtasks_round_trips_non_ascii_task_argument_live": (
             _up_red("schtasks /Create is refused unelevated (Access is denied); the "
@@ -413,7 +429,8 @@ if _WIN:
             )
             for test in (
                 "test_symlink_alias_compares_equal",
-                "test_missing_path_keeps_lexical_normalization",
+                # test_missing_path_keeps_lexical_normalization XPASSes (strict) on
+                # cce73ee553 — upstream's fix landed; row retired (lane h10-fhrest).
                 "test_list_sessions_matches_symlink_alias_cwd",
             )
         },

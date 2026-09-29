@@ -16,7 +16,7 @@ import pytest
 
 from tests._downstream.id_markers import distributions, fork_marks, posix_marks, upstream_reds
 from tests._downstream.id_markers.distributions import REQUIRES_DISTRIBUTION
-from tests._downstream.id_markers.posix_marks import IMPORT_TIME_POSIX_SHIMS
+from tests._downstream.id_markers.posix_marks import IMPORT_TIME_POSIX_MODULES, IMPORT_TIME_POSIX_SHIMS
 from tests._downstream.id_markers.reasons import NO_LIVE_GATEWAY_MARK
 
 __layer__ = "lanes"
@@ -62,7 +62,18 @@ def pytest_make_collect_report(collector):  # noqa: D401 — pytest hook
     finally:
         for name in lent:
             delattr(os, name)
-    return _skip_if_distribution_missing(collector, report)
+    return _skip_if_posix_module_missing(
+        collector, _skip_if_distribution_missing(collector, report)
+    )
+
+
+def _skip_if_posix_module_missing(collector, report):
+    """Turn a collection that failed on its row's POSIX-only import into a skip."""
+    module = IMPORT_TIME_POSIX_MODULES.get(collector.nodeid)
+    if not (report.failed and module and f"No module named '{module}'" in str(report.longrepr)):
+        return report
+    reason = f"Skipped: POSIX-only module `{module}` is imported at collection (no Windows build)"
+    return pytest.CollectReport(report.nodeid, "skipped", (str(collector.path), 0, reason), [])
 
 
 def _skip_if_distribution_missing(collector, report):

@@ -44,7 +44,7 @@ spawns the Launcher bridge otherwise pays a ~3s import tax on
 (hermes_cli/harness_parts/serve/__init__.py:1-7). Requests arrive as NDJSON, one frame
 per line, and dispatch into the **existing** harness argparse tree unchanged:
 `dispatch_argv` (hermes_cli/harness_parts/serve/argv_lane.py:229) builds a fresh parser per request
-(`_build_harness_parser`, hermes_cli/harness_parts/serve/argv_lane.py:128) and calls the same `_cmd_*` handler the CLI
+(`_build_harness_parser`, hermes_cli/harness_parts/serve/argv_lane.py:137) and calls the same `_cmd_*` handler the CLI
 would, including the harness error-envelope contract — argv arrives verbatim as
 the bridge already builds it, which keeps the per-call CLI fallback
 byte-identical to the served path. **`ready` is a BOOT frame, not a request

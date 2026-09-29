@@ -33,6 +33,7 @@ CONFIG_READS_THROUGH_LOAD_CONFIG_MARK = "config_reads_through_load_config"
 NO_OLLAMA_SHOW_PROBE_MARK = "no_ollama_show_probe"
 NO_REAL_ORPHAN_REAP_MARK = "no_real_orphan_reap"
 SCOPED_MONKEYPATCH_UNDO_MARK = "scoped_monkeypatch_undo"
+STRIP_REAL_HOME_PATH_MARK = "strip_real_home_path"
 TIRITH_CONFIG_VALUE_UNDER_TEST_MARK = "tirith_config_value_under_test"
 #: Upstream's own mark (read by ``tests/conftest.py``'s live-system guard, used by
 #: upstream tests); nobody registers it -- see tests/test_id_markers_downstream.py.
@@ -93,18 +94,6 @@ _FORK_SPAWN_DETACHED = (
     "upstream's breakaway retry; covered by tests/gateway/test_windows_gateway_spawn.py"
 )
 
-#: Single source: the banner in ``hermes_cli_conftest._KNOWN_DEFECTS`` and the
-#: strict xfail below carry this one string (ML-16).
-TELEGRAM_PARITY_DEFECT_REASON = (
-    "KNOWN DEFECT (owner call, not an environment gap): Slack's 50-slash app "
-    "cap drops '/platform', a canonical gateway command with no native Slack "
-    "slot, so Telegram/Slack parity cannot hold until an owner either pins it "
-    "a slot (something else loses one) or declares it _SLACK_VIA_HERMES_ONLY. "
-    "strict=True: the day parity holds, this XPASSes and reds — delete the "
-    "mark and this row. Full account: _KNOWN_DEFECTS in "
-    "tests/_downstream/hermes_cli_conftest/registry.py."
-)
-
 _CREDENTIALS_FILE = getattr(pytest.mark, ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK)
 _REAL_PAUSE = getattr(pytest.mark, REAL_PAUSE_MARK)
 _TIRITH_CONFIG_VALUE = getattr(pytest.mark, TIRITH_CONFIG_VALUE_UNDER_TEST_MARK)
@@ -133,6 +122,7 @@ _TIRITH_NO_BUILD = _posix_only(
 # undo narrowed to their own patches (conftest_plugin.pytest_pyfunc_call, lane
 # CARRY3); no sibling copy.
 _SCOPED_UNDO = getattr(pytest.mark, SCOPED_MONKEYPATCH_UNDO_MARK)
+_STRIP_REAL_HOME_PATH = getattr(pytest.mark, STRIP_REAL_HOME_PATH_MARK)
 
 _CLAUDE_HOME_TMP = getattr(pytest.mark, CLAUDE_HOME_IS_TMP_PATH_MARK)
 

@@ -127,6 +127,13 @@ class TestApprovalMainFlow:
 class TestApprovalCronLane:
     @pytest.fixture(autouse=True)
     def _cron_session(self, monkeypatch):
+        # The session ContextVars win over os.environ once set, and
+        # clear_session_vars() leaves them at "" (an explicit NON-cron) — so a
+        # gateway/TUI test earlier in the process masks the env var below.
+        # Back to _UNSET ("never bound here") so the env decides.
+        from gateway.session_context import reset_session_vars
+
+        reset_session_vars()
         monkeypatch.setenv("HERMES_CRON_SESSION", "1")
         for var in (
             "HERMES_INTERACTIVE",

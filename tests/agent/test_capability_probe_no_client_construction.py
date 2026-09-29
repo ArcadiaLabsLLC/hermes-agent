@@ -93,7 +93,7 @@ def codex_vision_route(monkeypatch):
         "_resolve_task_provider_model",
         lambda *args, **kwargs: ("openai-codex", "gpt-5.4", None, None, None),
     )
-    monkeypatch.setattr(ac, "_read_codex_access_token", lambda: "codex-token")
+    monkeypatch.setattr(ac, "_read_codex_singleton_token", lambda: "codex-token")
     monkeypatch.setattr(ac, "_select_pool_entry", lambda _provider: (False, None))
     yield
 
@@ -161,7 +161,7 @@ def test_an_unavailable_backend_still_answers_unavailable(monkeypatch):
         "_resolve_task_provider_model",
         lambda *args, **kwargs: ("openai-codex", "gpt-5.4", None, None, None),
     )
-    monkeypatch.setattr(ac, "_read_codex_access_token", lambda: None)
+    monkeypatch.setattr(ac, "_read_codex_singleton_token", lambda: None)
     monkeypatch.setattr(ac, "_select_pool_entry", lambda _provider: (False, None))
 
     with ac.aux_probe_mode():
@@ -215,7 +215,7 @@ def test_the_stand_in_never_enters_the_shared_client_cache(monkeypatch):
     cannot make a request."""
 
     monkeypatch.setattr(ac, "_client_cache", {})
-    monkeypatch.setattr(ac, "_read_codex_access_token", lambda: "codex-token")
+    monkeypatch.setattr(ac, "_read_codex_singleton_token", lambda: "codex-token")
     monkeypatch.setattr(ac, "_select_pool_entry", lambda _provider: (False, None))
 
     with ac.aux_probe_mode():

@@ -31,7 +31,7 @@ from tests._downstream.id_markers.reasons import (
     _NO_REAL_ORPHAN_REAP,
     _REAL_PAUSE,
     _SCOPED_UNDO,
-    TELEGRAM_PARITY_DEFECT_REASON,
+    _STRIP_REAL_HOME_PATH,
     _TIRITH_CONFIG_VALUE,
     _WIN,
 )
@@ -53,10 +53,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "TestRunOauthSetupToken",
         )
     },
-    # ML-16 / B20(iv): a known, owner-owned defect, fenced strict.
-    "tests/hermes_cli/test_commands.py::TestSlackNativeSlashes::test_telegram_parity": (
-        pytest.mark.xfail(strict=True, reason=TELEGRAM_PARITY_DEFECT_REASON),
-    ),
     # A test ABOUT _pause_windows_gateways_for_update opts out of the fork conftest
     # default that returns None; its transports are mocked and the gateway fence
     # still stands behind it (upstream renamed the seven it replaced, 2026-09-25).
@@ -235,12 +231,17 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # The fork runs the whole tree under --timeout=30; these PowerShell
     # harnesses carry their own child budgets above that.
     "tests/scripts/desktop_update/test_desktop_update_windows_cwd.py": (pytest.mark.timeout(75),),
+    # Lane h10-fhrest (2026-09-29): _apply_tui_python_env runs shutil.which("") for an
+    # unset HERMES_PYTHON, which stats every PATH directory; a developer PATH that
+    # carries a real hermes home's bin trips the home-I/O guard. Upstream PR candidate:
+    # an empty HERMES_PYTHON is unset before the lookup.
+    "tests/hermes_cli/test_web_server_profile_unification.py::TestProfileScopedChatPty": (
+        _STRIP_REAL_HOME_PATH,
+    ),
     "tests/scripts/desktop_update/test_desktop_update_windows_progress.py": (pytest.mark.timeout(120),),
     "tests/scripts/desktop_update/test_desktop_update_windows_ui_delivery.py": (pytest.mark.timeout(75),),
     "tests/scripts/desktop_update/test_desktop_update_windows_pipe_drain.py::"
     "test_update_step_survives_pipe_leak_flood_and_live_child_stall": (pytest.mark.timeout(330),),
-    "tests/scripts/install/test_install_ps1_managed_python_provenance.py::"
-    "test_python_find_timeout_kills_uv_and_fails_stage": (pytest.mark.timeout(60),),
     # Upstream's bundle test copies the host interpreter's whole prefix into its
     # payload and tree-digests it ~55 times under the home-I/O guard (a realpath per
     # stat): 57 s on X:, ~245 s under the runner's C: temp root (lane h7-reds, 2026-09-29).

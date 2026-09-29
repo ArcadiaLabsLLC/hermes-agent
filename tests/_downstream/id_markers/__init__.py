@@ -46,10 +46,7 @@ from tests._downstream.id_markers.hooks import (
 )
 from tests._downstream.id_markers.distributions import REQUIRES_DISTRIBUTION
 from tests._downstream.id_markers.posix_marks import IMPORT_TIME_POSIX_SHIMS
-from tests._downstream.id_markers.reasons import (
-    NO_LIVE_GATEWAY_MARK,
-    TELEGRAM_PARITY_DEFECT_REASON,
-)
+from tests._downstream.id_markers.reasons import NO_LIVE_GATEWAY_MARK
 
 __layer__ = "wiring"
 
@@ -58,7 +55,6 @@ __all__ = [
     "IMPORT_TIME_POSIX_SHIMS",
     "NO_LIVE_GATEWAY_MARK",
     "REQUIRES_DISTRIBUTION",
-    "TELEGRAM_PARITY_DEFECT_REASON",
     "ids_marked",
     "pytest_collection_modifyitems",
     "pytest_make_collect_report",

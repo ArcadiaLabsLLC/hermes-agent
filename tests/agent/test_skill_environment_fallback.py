@@ -1,6 +1,4 @@
 import builtins
-import importlib
-import sys
 
 
 def _block_environment_helper_import(monkeypatch):
@@ -19,19 +17,10 @@ def _block_environment_helper_import(monkeypatch):
     monkeypatch.setattr(builtins, "__import__", guarded_import)
 
 
-def test_prompt_builder_import_survives_missing_environment_helper(monkeypatch):
-    original = sys.modules.pop("agent.prompt_builder", None)
-    try:
-        _block_environment_helper_import(monkeypatch)
-
-        module = importlib.import_module("agent.prompt_builder")
-
-        assert module.skill_matches_environment({}) is True
-        assert module.skill_matches_environment({"environments": ["kanban"]}) is False
-    finally:
-        sys.modules.pop("agent.prompt_builder", None)
-        if original is not None:
-            sys.modules["agent.prompt_builder"] = original
+# test_prompt_builder_import_survives_missing_environment_helper was deleted
+# (lane h10-fhrest, 2026-09-29): upstream's agent/prompt_builder.py now imports
+# skill_matches_environment unconditionally, so the fallback it pinned no longer
+# exists; the skills_tool half below is upstream's own delegate and still holds.
 
 
 def test_skills_tool_environment_helper_fails_closed_for_tagged_skills(monkeypatch):
