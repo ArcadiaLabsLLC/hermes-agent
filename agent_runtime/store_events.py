@@ -8,8 +8,9 @@ swallowed rather than turned into a failed write the caller would retry.
 
 Callers: ``office_store`` (through ``OfficeStore._emit``, which adds the
 gesture token first), ``store`` (every workspace / realm / persona write),
-``board_store`` (``BoardStore._emit``) and ``dispatch_store`` (``db._emit``,
-over a fresh ``EventLog()``). ``serve``'s ``_emit`` is a FRAME
+``board_store`` (``BoardStore._emit``), ``dispatch_store`` (``db._emit``,
+over a fresh ``EventLog()``) and ``gateway_peers`` (``_emit_peer_event``, with its
+nullable keys in ``keep_none``). ``serve``'s ``_emit`` is a FRAME
 writer, not this — it is named here so nobody folds it.
 """
 
@@ -30,17 +31,25 @@ __all__ = ["emit_store_event"]
 
 
 def emit_store_event(
-    event_log: EventLog, event_type: str, payload: Mapping[str, Any], *, domain: str
+    event_log: EventLog,
+    event_type: str,
+    payload: Mapping[str, Any],
+    *,
+    domain: str,
+    keep_none: frozenset[str] = frozenset(),
 ) -> None:
     """Append ``event_type`` with ``payload`` minus its ``None`` fields; never raises.
 
     ``None`` is filtered, not written, so a field that is absent for this event
-    keeps the payload byte-identical to an event that never had the key.
+    keeps the payload byte-identical to an event that never had the key. The one
+    exception is a key the event's schema declares NULLABLE, named in
+    ``keep_none``: there ``None`` is a value ("not unreachable"), so it is written
+    (owner 2026-09-29, the ``gateway.peer.reachability`` fold).
     ``domain`` names the store in the warning a failed append leaves behind.
     """
 
     try:
-        body = {key: value for key, value in payload.items() if value is not None}
+        body = {key: value for key, value in payload.items() if value is not None or key in keep_none}
         event_log.append(Event(now(), event_type, None, None, None, body))
     except Exception:
         logging.getLogger(__name__).warning(

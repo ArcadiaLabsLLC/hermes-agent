@@ -13,12 +13,9 @@ __layer__ = "policy"
 
 PROVIDER_ID = "llamacpp"
 # The id this provider published before it took upstream's ``llamacpp`` (owner ruling
-# 2026-09-25). Still read on input — a launcher build that sends it, a persona row stored
-# with it — and never written. It leaves ``PROVIDER_ID_ALIASES`` in the step after the
-# launcher's l9 lane lands (it already reads ``llamacpp`` and folds this id at its parse
-# boundary), together with a rewrite-and-report of stored rows that still carry it.
-LEGACY_PROVIDER_ID = "local-llama-hermes"
-PROVIDER_ID_ALIASES = frozenset({PROVIDER_ID, LEGACY_PROVIDER_ID})
+# 2026-09-25) is no longer read (owner 2026-09-29): stored rows carrying it are rewritten
+# once at startup (``legacy_id_migration``, run from the eternia-harness plugin).
+PROVIDER_ID_ALIASES = frozenset({PROVIDER_ID})
 # "Hermes" alone names upstream (owner naming ruling 2026-09-29); this is the fork's.
 DISPLAY_NAME = "Eternia Harness local llama"
 # The ``requested_provider`` a managed local turn is built with. The two sub-64K floor
@@ -31,8 +28,8 @@ MODEL_ALIAS_PREFIX = "hermes-local-"
 
 
 def is_local_llama_provider(provider) -> bool:
-    """The one chokepoint for "is this persona on the managed local model". Readers accept
-    every id in ``PROVIDER_ID_ALIASES``; writers normalize to ``PROVIDER_ID`` (``llamacpp``)."""
+    """The one chokepoint for "is this persona on the managed local model": ``PROVIDER_ID``
+    (``llamacpp``) only."""
     return provider in PROVIDER_ID_ALIASES
 
 

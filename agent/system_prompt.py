@@ -119,6 +119,10 @@ def _frozen_plugin_prompt_sections(agent: Any) -> tuple:
     if hasattr(agent, "_plugin_system_prompt_sections_snapshot"):
         return agent._plugin_system_prompt_sections_snapshot
     stored_prompt = getattr(agent, "_cached_system_prompt", None)
+    # fork (h10b-fix): a stored prompt with no recoverable container renders fresh, so the first
+    # build and the compaction re-render agree and the volatile tail keeps its cache prefix.
+    if isinstance(stored_prompt, str) and stored_prompt and not _restore_plugin_prompt_sections(stored_prompt):
+        stored_prompt = None
     if isinstance(stored_prompt, str) and stored_prompt:
         rendered = _restore_plugin_prompt_sections(stored_prompt)
     else:
@@ -149,6 +153,12 @@ def _restore_plugin_prompt_sections(prompt: str) -> tuple:
     if end < 0:
         return ()
     after_end = end + len(PLUGIN_SECTIONS_END)
+    # fork (h10b-fix): the volatile tier puts the profile line between the container and the
+    # timestamp line, so the anchor below never matched and persisted sections never restored.
+    _tail = prompt[after_end:]
+    if _tail.startswith("\n\nActive Hermes profile: "):
+        _next = _tail.find("\n\n", 2)
+        prompt = prompt[:after_end] + (_tail[_next:] if _next >= 0 else "")
     if not prompt[after_end:].startswith("\n\nConversation started:"):
         return ()
     framed = prompt[start:after_end]

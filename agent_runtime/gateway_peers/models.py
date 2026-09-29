@@ -406,6 +406,10 @@ PEER_EVENT_TYPES: Final[tuple[str, ...]] = (
     PEER_EVENT_REACHABILITY,
 )
 
+#: Payload keys a ``gateway.peer.*`` event writes even when ``None``: the schema's
+#: nullable fields (``unreachable_since: None`` is "reachable again", not "absent").
+PEER_EVENT_NULLABLE_KEYS: Final[frozenset[str]] = frozenset({"unreachable_since"})
+
 #: How many roster rows one cached peer keeps. The HUD shows eight; this is the
 #: store's own ceiling so a far install with two hundred agents cannot grow this
 #: file without bound through an edge that is supposed to be read-only.

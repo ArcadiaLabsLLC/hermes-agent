@@ -794,16 +794,16 @@ def test_store_persisted_model_survives_config_persona_override(monkeypatch, cap
     assert merged["base"].model == "claude-x", "store tier must win over config catalog tier"
 
 
-def test_cli_instance_set_model_accepts_the_legacy_id_and_stores_llamacpp(monkeypatch, capsys):
-    # Lanes LLAMA-ALIAS / h9-bundle: the provider is upstream's ``llamacpp``; the pre-2026-09-29
-    # ``local-llama-hermes`` is still accepted on input and never stored.
+def test_cli_instance_set_model_stores_llamacpp(monkeypatch, capsys):
+    # Lanes LLAMA-ALIAS / h9-bundle / h10b-fix: the provider is upstream's ``llamacpp``; the
+    # retired id is no longer read (rewritten once at startup by ``legacy_id_migration``).
     import uuid
     _patched_harness(monkeypatch)
     store = PersonaInstanceStore()
     _, second = _two_instances(store, _persona())
     model = str(uuid.uuid4())
     code = model_and_skills_commands._cmd_persona_instance_set_model(
-        _instance_args(second.id, provider="local-llama-hermes", model=model))
+        _instance_args(second.id, provider="llamacpp", model=model))
     assert code == 0
     data = json.loads(capsys.readouterr().out)
     assert (data["provider"], data["api_mode"]) == ("llamacpp", "chat_completions")

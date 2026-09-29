@@ -9,6 +9,7 @@ a prompt is being rendered. ``plugin.yaml`` declares both commands under
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 
@@ -274,11 +275,24 @@ def default_kanban_claim_ttl() -> None:
 
 
 def default_no_venv_lazy_installs() -> None:
-    """Owner ruling 2026-09-24 (1): lazy installs go through upstream's door. With
-    ``HERMES_DISABLE_LAZY_INSTALLS=1`` ``tools.lazy_deps`` refuses to mutate the running venv,
-    or redirects into ``HERMES_LAZY_INSTALL_TARGET`` when the operator set one; setting the
-    env yourself (``0``) is the opt-out."""
+    """Keep harness processes off upstream's startup venv sync. Upstream's
+    ``hermes_cli.venv_sync`` skips its sync-and-relaunch when
+    ``HERMES_DISABLE_LAZY_INSTALLS=1``, so a harness process never mutates or restarts the
+    running venv on its own. Setting the env yourself (``0``) is the opt-out. (The lazy
+    install door this env once shut, ``tools.lazy_deps``, is now a relaunch shim; owner
+    2026-09-29: the env stays.)"""
     os.environ.setdefault("HERMES_DISABLE_LAZY_INSTALLS", "1")
+
+
+def migrate_retired_local_llama_id() -> None:
+    """Owner 2026-09-29: the one-shot startup rewrite of ``local-llama-hermes`` -> ``llamacpp``
+    across every store and the user's config.yaml, per home (a marker makes it one-shot)."""
+    try:
+        from agent_runtime.local_llama_adapter.legacy_id_migration import migrate_retired_provider_id_once
+
+        migrate_retired_provider_id_once()
+    except Exception:  # a failed migration must not take plugin load down
+        logging.getLogger(__name__).warning("local llama retired-id migration failed", exc_info=True)
 
 
 def register(ctx) -> None:
@@ -287,6 +301,7 @@ def register(ctx) -> None:
     bind_mission_chat_door()  # ruling Q10: the runtime's door onto the CLI turn handler
     default_kanban_claim_ttl()
     default_no_venv_lazy_installs()
+    migrate_retired_local_llama_id()
     ctx.register_system_prompt_section("eternia-harness.tool-guidance", render_tool_guidance)
     ctx.register_system_prompt_section("eternia-harness.windows-tooling", render_windows_tooling)
     ctx.register_middleware("llm_request", brief_tool_descriptions)
