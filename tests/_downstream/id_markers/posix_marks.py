@@ -82,6 +82,17 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
 
 if _WIN:
     ROWS.update({
+        # Lane h10-fhrest (2026-09-29): install.sh refuses a MINGW/MSYS host by design
+        # ("unsupported platform ... On Windows use install.ps1"), so these bash-driven
+        # cases have a POSIX premise upstream never marked.
+        "tests/scripts/install/test_install_diverged_rescue_ref.py::"
+        "test_install_sh_repository_stage_parks_local_commits_before_reset": (
+            _posix_only("install.sh refuses MINGW/MSYS; Windows installs via install.ps1"),
+        ),
+        "tests/scripts/install/test_install_sh_termux_refusal.py::"
+        "test_plain_linux_host_passes_platform_check": (
+            _posix_only("install.sh refuses MINGW/MSYS; Windows installs via install.ps1"),
+        ),
         "tests/hermes_cli/test_relaunch.py::TestRelaunch::test_calls_execvp": (
             pytest.mark.skip(reason=_POSIX_ONLY),
         ),
@@ -388,4 +399,14 @@ if _WIN:
 #: branch ``up/win-posix-only-apis`` (the ``os.name != "nt" and`` form).
 IMPORT_TIME_POSIX_SHIMS: dict[str, dict[str, object]] = {
     "tests/agent/test_prompt_builder.py": {"geteuid": lambda: -1},
+} if _WIN else {}
+
+#: Upstream test modules that import a POSIX-only stdlib module at TOP LEVEL
+#: (``import pty`` pulls ``termios``), so their own ``platforms("posix")`` mark
+#: never gets to apply on Windows: collection fails first. A collection that
+#: failed on exactly that missing module is reported as a skip; any other
+#: collection error still fails. Retires with the open PR branch
+#: ``up/win-posix-only-apis`` (a module-level ``pytest.importorskip``).
+IMPORT_TIME_POSIX_MODULES: dict[str, str] = {
+    "tests/scripts/install/test_install_sh_output.py": "termios",
 } if _WIN else {}

@@ -131,7 +131,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-24 (lane W0)
 
-- [ ] **`tests/scripts/install/*`: 16 reds on the Windows test host (install.sh stage tests — commit-pin, lockfile churn, unmerged index, termux bounds…), seen by lanes CLOSE and W0, untouched by either, not id-marked** · `fork / tests` · classify on base (host `charmap` decode vs a missing `encoding="utf-8"` = the check-windows-footguns class) and mark by id or fix · evidence: lane CLOSE + W0 reports, `X:/wt/_holds/seam-s1-green-2026-09-23.md` **UNCLAIMED** **TAKEN 2026-09-29 h10-fhrest**
 
 ## Filed on arrival — 2026-09-24 (lane MERGE)
 

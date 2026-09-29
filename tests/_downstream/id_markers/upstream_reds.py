@@ -114,6 +114,14 @@ if _WIN:
             )
             for test in tests
         },
+        # Lane h10-fhrest (2026-09-29): install.ps1 is byte-identical to upstream; its own
+        # long-path suite fails every "short alias is rebuilt" case on a host whose profile
+        # has no 8.3 alias (PowerShell refuses the fabricated FIRST~1.LAS drive root first).
+        "tests/scripts/install/test_install_ps1_script_suites.py::"
+        "test_suite_passes[test-install-ps1-longpath.ps1-pwsh]": (
+            _up_red("the fabricated 8.3 profile alias is refused as a drive root before "
+                    "the normalizer rebuilds it; 10 of the suite's assertions"),
+        ),
         "tests/hermes_cli/test_gateway_windows.py::"
         "test_exec_schtasks_round_trips_non_ascii_task_argument_live": (
             _up_red("schtasks /Create is refused unelevated (Access is denied); the "

@@ -69,6 +69,27 @@ def test_import_time_posix_shims_are_taken_back():
     assert not hasattr(os, "geteuid")
 
 
+@pytest.mark.skipif(
+    not hooks.IMPORT_TIME_POSIX_MODULES, reason="no import-time POSIX module row on this host"
+)
+def test_only_the_rows_own_missing_module_turns_a_collection_error_into_a_skip():
+    """A row's module missing at import is a skip; any other collection error still fails."""
+
+    nodeid, module = next(iter(hooks.IMPORT_TIME_POSIX_MODULES.items()))
+    collector = SimpleNamespace(nodeid=nodeid, path=nodeid)
+
+    def failed(message: str):
+        return SimpleNamespace(failed=True, nodeid=nodeid, longrepr=message)
+
+    skipped = hooks._skip_if_posix_module_missing(
+        collector, failed(f"ModuleNotFoundError: No module named '{module}'")
+    )
+    assert skipped.outcome == "skipped", "positive control: the row's own import is a skip"
+
+    other = failed("ModuleNotFoundError: No module named 'not_a_posix_module'")
+    assert hooks._skip_if_posix_module_missing(collector, other) is other
+
+
 def _registered_by_the_fork() -> set[str]:
     lines: list[str] = []
     config = SimpleNamespace(

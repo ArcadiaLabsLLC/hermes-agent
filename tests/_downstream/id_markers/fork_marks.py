@@ -239,8 +239,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     "tests/scripts/desktop_update/test_desktop_update_windows_ui_delivery.py": (pytest.mark.timeout(75),),
     "tests/scripts/desktop_update/test_desktop_update_windows_pipe_drain.py::"
     "test_update_step_survives_pipe_leak_flood_and_live_child_stall": (pytest.mark.timeout(330),),
-    "tests/scripts/install/test_install_ps1_managed_python_provenance.py::"
-    "test_python_find_timeout_kills_uv_and_fails_stage": (pytest.mark.timeout(60),),
     # Upstream's bundle test copies the host interpreter's whole prefix into its
     # payload and tree-digests it ~55 times under the home-I/O guard (a realpath per
     # stat): 57 s on X:, ~245 s under the runner's C: temp root (lane h7-reds, 2026-09-29).
