@@ -261,7 +261,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-25 (lane 2B-B)
 
-- [ ] **`tools/terminal_tool.py::_log_harness_blocked_attempt` still re-derives the `blocked_tool_attempts.jsonl` writer (env-only root, silent drop) instead of the one-line delegation to `agent_runtime.terminal_envelope.record_legacy_block`** · `seams / tools` · the diff is in `record_legacy_block`'s own docstring (`terminal_envelope/receipts.py`); an edit inside an upstream file, so a held widening row, never a lane edit · evidence: `god-file-layout-sheets/terminal_envelope.md` §4 · filed by lane 2B-B 2026-09-25 **TAKEN 2026-09-29 h10-rtseam** · VERDICT 2026-09-29 h10-rtseam: held widening row by its own text (an edit inside `tools/terminal_tool.py`), unchanged at the tip. Owed: the one-line delegation to `record_legacy_block` ships with the next terminal widening PR or seam wave the owner releases
 
 ### Filed on arrival — 2026-09-24 (seam lane S2)
 
