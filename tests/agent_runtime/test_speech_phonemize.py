@@ -116,7 +116,31 @@ def test_piper_ids_intersperse_pad_and_follow_the_voices_espeak_dialect(dialect,
     assert voice.phoneme_ids(voice.phonemes("dock")) == ids
 
 
-# ── misaki (Kokoro) ─────────────────────────────────────────────────────────
+def test_a_piper_voice_session_skips_memory_reuse_planning_and_other_sessions_keep_it(tmp_path, monkeypatch):
+    """ORT's buffer-reuse planning is most of a Piper voice's session build (~7 s of ~8 s, same
+    PCM), so the voice's session turns it off; every other session keeps ORT's default. Mutation:
+    drop ``reuse_memory=False`` in ``PiperVoice`` -> red; default it off in ``OnnxModel`` -> red
+    (the control session)."""
+    import sys
+    import types
+
+    built = []
+
+    class Options:
+        enable_mem_reuse = True
+
+    def session(path, sess_options, providers):
+        built.append((path, sess_options.enable_mem_reuse))
+
+    monkeypatch.setitem(sys.modules, "onnxruntime",
+                        types.SimpleNamespace(SessionOptions=Options, InferenceSession=session))
+    onnx = _piper_config(tmp_path, "en-us")
+    speech_onnx_voice.PiperVoice(onnx, phonemizer=lambda _t: "")
+    speech_phonemize.OnnxModel(tmp_path / "other.onnx")  # control: a phonemizer's or Kokoro's session
+    assert built == [(str(onnx), False), (str(tmp_path / "other.onnx"), True)]
+
+
+# ── misaki (Kokoro)─────────────────────────────────────────────────────────
 
 _GRAPHEMES = "____abcdefghijklmnopqrstuvwxyz"
 _MISAKI_PHONEMES = "____zɔɹb"

@@ -73,7 +73,7 @@ class PiperVoice:
         if phonemizer is None and config.get("phoneme_type", "espeak") != "espeak":
             phonemizer = str  # a ``text`` voice reads characters: no phonemizer at all
         self._phonemize = phonemizer or OpenPhonemizer(*artifact_files("piper", voice))
-        self._model = model or OnnxModel(voice)
+        self._model = model or OnnxModel(voice, reuse_memory=False)
 
     def phonemes(self, sentence: str) -> str:
         ipa = self._phonemize(sentence)

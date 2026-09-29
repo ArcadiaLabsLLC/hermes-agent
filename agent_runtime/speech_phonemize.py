@@ -62,11 +62,14 @@ class OnnxModel:
     or arrays; :meth:`run` answers the first output as an array, :meth:`rows` as nested lists — the
     phonemizers read only that, so they never import numpy themselves."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, reuse_memory: bool = True) -> None:
         import onnxruntime as ort
 
         options = ort.SessionOptions()
         options.log_severity_level = 3
+        # ``reuse_memory=False`` skips ORT's buffer-reuse planning, which is most of a Piper voice's
+        # session build (3 845 nodes: 7-8 s -> 1.8 s, same PCM; runtime-speech-methods.md "Latency").
+        options.enable_mem_reuse = reuse_memory
         self._session = ort.InferenceSession(str(path), sess_options=options, providers=["CPUExecutionProvider"])
 
     def run(self, feeds: dict[str, Any]) -> Any:

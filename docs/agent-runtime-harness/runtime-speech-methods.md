@@ -348,6 +348,43 @@ and the game is ready to play." · S2 "Hermes saved 2 files on September 28th,
 through `sys.modules`). Piper's load is mostly onnxruntime building the voice's
 session (7.0 s of it on this loaded box; the phonemizer adds 0.6 s).
 
+**Piper voice load, re-measured 2026-09-29 (lane h8-voice).** Same machine,
+pinned CPython 3.14.7, the pack's onnxruntime 1.29.0, the catalog's
+`en_US-ljspeech-medium` (sha-verified) through `SpeechService.load` +
+`synthesize` with S0. The box was NOT idle (other lanes' test runs held the CPU
+at 90–100 % throughout), so variants were run round-robin and compared within
+a round. ORT's verbose log placed the time: the voice graph has 3 845 nodes, and
+~11 s (log level 0) sat between the allocation planner starting and the
+initializers being saved — the buffer-reuse plan, not graph optimization
+(`ORT_DISABLE_ALL` was slower, 10.1–11.6 s).
+
+| voice session option | load (service) | voice session | same PCM? |
+|---|---|---|---|
+| default (before) | 7.6–9.1 s | 6.6–7.9 s | — |
+| graph level BASIC / EXTENDED / DISABLE_ALL | 9.0–17.2 s | 7.9–11.6 s | not kept |
+| `intra_op_num_threads=4` | 8.6–9.3 s | 7.7–8.1 s | not kept |
+| optimized-model cache read (default reuse) | 7.3–11.3 s | 6.2–6.9 s | not kept |
+| **`enable_mem_reuse=False`** (kept) | **2.6–3.1 s** | **1.75–1.96 s** | byte-identical |
+| `enable_mem_reuse=False` + optimized-model cache read | 1.1–1.4 s | 0.35–0.38 s | byte-identical |
+
+"Same PCM" was checked with the voice's noise scales set to 0 (VITS samples
+noise, so two default runs never match): six runs across both options, one
+SHA-256. Peak working set 363–370 MiB and peak private bytes 876–877 MiB either
+way; warm S0 synthesis 0.6–1.5 s either way (noise on this box dominates).
+**Kept:** the Piper voice's session is built with `enable_mem_reuse=False`
+(`OnnxModel(..., reuse_memory=False)` in `PiperVoice`); every other session
+(both phonemizers, Kokoro) keeps ORT's default. Mutation: restoring
+`OnnxModel(voice)` put the load back to 8.3 / 8.5 s (voice session 7.4 / 7.7 s)
+and reddened
+`test_a_piper_voice_session_skips_memory_reuse_planning_and_other_sessions_keep_it`.
+Kokoro under the same option: load 3.9 → 3.0 s, PCM byte-identical, first
+audio not separable from the box's noise — left on the default until measured
+idle. **Not kept:** the optimized-model cache (a further ~1.6 s). It writes a
+63 MiB hardware-specific graph beside the voice, into the Launcher-owned model
+folder, which the Launcher neither accounts for nor verifies, and needs a key
+(onnxruntime version, CPU, source file) to never read a stale one; the first
+load pays +0.6 s to write it.
+
 Before (piper-tts + espeak-ng, lessac-medium, 2026-09-28 w2): load 4.7–5.1 s,
 first chunk 0.26–0.28 s for a 3.5 s sentence.
 
