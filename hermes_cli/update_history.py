@@ -6,9 +6,11 @@ from pathlib import Path
 import subprocess
 import uuid
 
-#: Exit 2 is the desktop updaters' non-retryable safety refusal (upstream
-#: ``scripts/desktop-update``: posix.sh skips the retry, retry-policy.ps1 retries
-#: exit 2 only when ``.update-incomplete`` exists). A fold review is deterministic.
+#: Exit 2 is the one non-zero code both desktop updaters never retry: the legacy
+#: retry arms in ``scripts/desktop-update/posix.sh`` and ``windows.ps1`` exempt only
+#: 0 and 2, and the PM path never retries. A fold review is deterministic, so a
+#: retry would only repeat it. Both scripts still report it with their generic
+#: "Update failed (exit 2)" text; the banner below is what names the cause.
 HISTORY_REVIEW_EXIT = 2
 
 #: The first commit of the fork's reconstructed history (2026-09-15, "fork: build
