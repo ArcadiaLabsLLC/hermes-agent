@@ -134,7 +134,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-24 (lane MERGE)
 
-- [ ] **Four fork gates red on `origin/main` `f6cb75f2de`, byte-identical inputs after the merge: `test_commands.py::TestSlackNativeSlashes::test_telegram_parity` XPASS(strict) (DOORS-A put `hermes_cli/commands.py` at upstream bytes, '/platform' fits Slack's cap again), `test_no_kanban_dependency` (DOORS-A `kanban_blocked_pm_tick.py` imports `hermes_cli.kanban_blocked_pm`), `test_dispatch_delivery_observability::test_an_event_upstream_rejects_is_still_named` (`considered` 1 != 0), `tests/scripts/test_doc_cite_adjacency.py` (2 unwaived cites: 04-boot-and-lifecycle.md:112, 05-chat-turn-lane.md:466)** · `fork / tests` · per test: retire the telegram fence + banner, rule the kanban import (owner), re-read the ghost-drop tally, re-anchor the two cites. **TAKEN 2026-09-29 h10-fhrest**
 - [ ] **`tests/hermes_cli/test_process_dock.py::test_monitor_controls_stop_processes_and_never_steer_them` hangs to the pytest-timeout in `process_registry._release_finished_handles` → `stream.close()` under `scripts/run_tests_bundled.sh` (alone too, 108 s, identically on `f6cb75f2de`) but passes in 2 s under plain pytest, with or without PYTHONUTF8=1** · `fork / tests` · bisect the runner's `env -i` environment for the variable that makes the pipe close block. **TAKEN 2026-09-29 h10-fhrest**
 
 ## Filed on arrival — 2026-09-24 (lane H1)

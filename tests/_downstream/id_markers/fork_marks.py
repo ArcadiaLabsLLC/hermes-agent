@@ -31,7 +31,6 @@ from tests._downstream.id_markers.reasons import (
     _NO_REAL_ORPHAN_REAP,
     _REAL_PAUSE,
     _SCOPED_UNDO,
-    TELEGRAM_PARITY_DEFECT_REASON,
     _TIRITH_CONFIG_VALUE,
     _WIN,
 )
@@ -53,10 +52,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "TestRunOauthSetupToken",
         )
     },
-    # ML-16 / B20(iv): a known, owner-owned defect, fenced strict.
-    "tests/hermes_cli/test_commands.py::TestSlackNativeSlashes::test_telegram_parity": (
-        pytest.mark.xfail(strict=True, reason=TELEGRAM_PARITY_DEFECT_REASON),
-    ),
     # A test ABOUT _pause_windows_gateways_for_update opts out of the fork conftest
     # default that returns None; its transports are mocked and the gateway fence
     # still stands behind it (upstream renamed the seven it replaced, 2026-09-25).

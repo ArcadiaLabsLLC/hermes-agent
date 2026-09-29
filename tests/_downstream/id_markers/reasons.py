@@ -93,18 +93,6 @@ _FORK_SPAWN_DETACHED = (
     "upstream's breakaway retry; covered by tests/gateway/test_windows_gateway_spawn.py"
 )
 
-#: Single source: the banner in ``hermes_cli_conftest._KNOWN_DEFECTS`` and the
-#: strict xfail below carry this one string (ML-16).
-TELEGRAM_PARITY_DEFECT_REASON = (
-    "KNOWN DEFECT (owner call, not an environment gap): Slack's 50-slash app "
-    "cap drops '/platform', a canonical gateway command with no native Slack "
-    "slot, so Telegram/Slack parity cannot hold until an owner either pins it "
-    "a slot (something else loses one) or declares it _SLACK_VIA_HERMES_ONLY. "
-    "strict=True: the day parity holds, this XPASSes and reds — delete the "
-    "mark and this row. Full account: _KNOWN_DEFECTS in "
-    "tests/_downstream/hermes_cli_conftest/registry.py."
-)
-
 _CREDENTIALS_FILE = getattr(pytest.mark, ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK)
 _REAL_PAUSE = getattr(pytest.mark, REAL_PAUSE_MARK)
 _TIRITH_CONFIG_VALUE = getattr(pytest.mark, TIRITH_CONFIG_VALUE_UNDER_TEST_MARK)
