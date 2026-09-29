@@ -1,4 +1,4 @@
-"""Bundled Hermes's speech service: one STT model (faster-whisper or Parakeet TDT) and one Piper voice.
+"""Bundled Hermes's speech service: one STT model (Whisper or Parakeet TDT, both ONNX) and one voice.
 
 Plan D3 items 1-2 (launcher ``docs/embedded_hermes/planned/``): the Launcher
 downloads speech models into its models folder and samples the voice; bundled
@@ -6,19 +6,17 @@ Hermes LOADS the models from explicit local paths and runs inference, served as
 ``runtime.speech.*`` (:mod:`agent_runtime.serve_rpc.speech`). Contract:
 ``docs/agent-runtime-harness/runtime-speech-methods.md``.
 
-Enable, never reimplement: loading goes through upstream's own loaders
-(``_upstream_doors.whisper_load_model`` / ``piper_voice_for_config``), the
-transcribe kwargs are upstream's ``build_local_transcribe_kwargs`` and the
-silence gate is upstream's. What this module adds is what upstream has no
+Enable, never reimplement: both STT engines load through onnx-asr
+(:mod:`agent_runtime.speech_stt_engines`) and the Whisper silence gate is
+upstream's (``_upstream_doors.whisper_confident_text``). What this module adds is what upstream has no
 equivalent for: path validation that answers ``unavailable`` with a typed reason
 BEFORE any loader runs (so a missing or partial model can never fall through to
 a download), streaming sessions over pushed PCM chunks, and admission of every
 load through :mod:`agent_runtime.model_admission`.
 
-No network: a model is only ever named by an absolute local path, a whisper
-model is a directory (faster-whisper never resolves a directory against the
-Hub) and a Piper voice is an existing ``.onnx`` (upstream's resolver returns an
-existing path before its download branch). The bundled profile also sets
+No network: a model is only ever named by an absolute local path, an STT model
+is a directory (onnx-asr given a model type and an existing directory never
+resolves against a Hub) and a voice is an existing ``.onnx``. The bundled profile also sets
 ``HF_HUB_OFFLINE``, which upstream's Piper resolver now honours too.
 
 Which STT engine runs a model is decided by the model folder's artifact set
@@ -67,8 +65,8 @@ _BYTES_PER_SECOND_IN = INPUT_SAMPLE_RATE * 2  # 32 KB/s — the wire budget the 
 MAX_CHUNK_BYTES = 64 * 1024
 #: One recognition stream. Dictation is short; this bounds the buffer at 3.84 MB.
 MAX_STREAM_SECONDS = 120
-#: Audio before the FIRST partial, and new audio between later ones. One CPU pass costs about
-#: 0.7 s whatever the clip length (whisper pads to a 30 s window), so the first pass starts early.
+#: Audio before the FIRST partial, and new audio between later ones. One Whisper CPU pass costs
+#: about 0.5 s whatever the chunk length (Whisper pads to a 30 s window), so the first starts early.
 FIRST_PARTIAL_MS = 300
 PARTIAL_INTERVAL_MS = 600
 #: How much trailing audio a partial transcribes is the engine's
@@ -115,8 +113,8 @@ def _local_path(value: Any) -> Path | None:
 
 
 def inspect_stt(path: Path | None, *, importable: Callable[[str], bool]) -> dict:
-    """``available`` or ``unavailable`` + reason for an STT model DIRECTORY: a faster-whisper
-    (CTranslate2) directory or a Parakeet TDT int8 ONNX export — the folder's files say which."""
+    """``available`` or ``unavailable`` + reason for an STT model DIRECTORY: a Whisper or a
+    Parakeet TDT int8 ONNX export — the folder's files say which."""
     if path is None:
         return _unavailable("model_unset", None)
     if not path.is_dir():
@@ -197,39 +195,19 @@ class SpeechEngines:
         return _SttModel(engine, self._STT_LOADERS[engine](self, path, device, compute_type))
 
     def transcribe(self, model: Any, pcm: bytes, *, final: bool) -> str:
-        return self._STT_DECODERS[model.engine](self, model.model, pcm, final)
+        # Both engines decode greedily through a chunked runner: a partial and a final agree.
+        return model.model.transcribe(pcm)
 
     def _load_whisper(self, path: Path, device: str, compute_type: str) -> Any:
-        from agent_runtime._upstream_doors import whisper_load_model
-        from agent_runtime.speech_decode import ensure_av_placeholder
+        from agent_runtime._upstream_doors import whisper_confident_text
 
-        # The speech pack ships no PyAV: faster-whisper imports ``av`` at module top but decodes
-        # only files, and this service passes arrays (the Launcher sends raw PCM).
-        ensure_av_placeholder()
-
-        return whisper_load_model(str(path), device=device, compute_type=compute_type)
+        # Upstream's silence-hallucination gate, with the user's ``stt.local`` thresholds.
+        local = _stt_config().get("local") or {}
+        return stt_engines.load_whisper(
+            path, keep=lambda segment: bool(whisper_confident_text([segment], local)))
 
     def _load_parakeet(self, path: Path, device: str, compute_type: str) -> Any:
-        return stt_engines.load_parakeet(path)  # CPU int8 is the only build this service loads
-
-    def _transcribe_parakeet(self, model: Any, pcm: bytes, final: bool) -> str:
-        return stt_engines.transcribe_parakeet(model, pcm)
-
-    def _transcribe_whisper(self, model: Any, pcm: bytes, final: bool) -> str:
-        import numpy as np
-
-        from agent_runtime._upstream_doors import whisper_confident_text
-        from tools.transcription_local import build_local_transcribe_kwargs
-
-        config = _stt_config()
-        kwargs = build_local_transcribe_kwargs(config)
-        if not final:
-            # A partial is a preview the final replaces: greedy decode keeps it inside the
-            # first-words budget; the final keeps upstream's beam.
-            kwargs["beam_size"] = 1
-        audio = np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32768.0
-        segments, _info = model.transcribe(audio, **kwargs)
-        return whisper_confident_text(segments, config.get("local") or {})
+        return stt_engines.load_parakeet(path)
 
     def load_tts(self, path: Path) -> Any:
         from agent_runtime.speech_onnx_voice import load_voice
@@ -242,9 +220,9 @@ class SpeechEngines:
     def synthesize(self, voice: Any, text: str) -> Iterator[tuple[int, bytes]]:
         return voice.synthesize(text)
 
-    #: STT engine name -> its loader and its decoder (routing is data, not a ladder).
+    #: STT engine name -> its loader (routing is data, not a ladder). Both load CPU int8, the
+    #: only build this service loads.
     _STT_LOADERS = {stt_engines.WHISPER: _load_whisper, stt_engines.PARAKEET: _load_parakeet}
-    _STT_DECODERS = {stt_engines.WHISPER: _transcribe_whisper, stt_engines.PARAKEET: _transcribe_parakeet}
 
 
 @dataclass(frozen=True)

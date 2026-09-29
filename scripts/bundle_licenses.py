@@ -54,9 +54,6 @@ OUTPUT_LICENCE_TEXTS = "licence-texts"
 #: Copyleft or proprietary code shipped inside a wheel whose own metadata names a permissive
 #: licence (or none). Keyed by normalized distribution name.
 EMBEDDED_COMPONENTS: dict[str, list[dict[str, str]]] = {
-    "ctranslate2": [{"name": "intel-openmp", "licence": "LicenseRef-Intel-Simplified-Software-License",
-                     "note": "libiomp5md.dll, Intel's OpenMP runtime shipped beside ctranslate2.dll "
-                             "(Windows wheel); listed for licence review, owner ruling 2026-09-28 item 7"}],
     "piper-tts": [{"name": "espeak-ng", "licence": "GPL-3.0-or-later",
                    "note": "compiled into piper's espeakbridge extension (phonemizer)"}],
     "sherpa-onnx": [{"name": "espeak-ng", "licence": "GPL-3.0-or-later",

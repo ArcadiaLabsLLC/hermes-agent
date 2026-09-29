@@ -15,14 +15,13 @@ Launcher's release lane, which reads this script's JSON.
   first start of the bundle as built (bytecode baked by
   ``bundle_profile_package.py --bake-with`` when it was; the OS file cache is
   not flushed); ``warm`` are the following starts against the same home.
-* ``stt`` — with the speech pack on the path and a faster-whisper model
-  directory (``--stt-model``; default: the default tier, Whisper ``tiny.en``,
-  when a snapshot with ``model.bin`` is in the Hugging Face cache): model load
-  seconds, then ``first_words_s`` — a partial (greedy) transcription of the
-  first ``--first-chunk`` seconds of ``--stt-audio`` through the speech
-  service's own ``SpeechEngines.transcribe`` — and ``final_s``, the final
-  (beam) transcription of the whole clip. ``null`` with a reason when there is
-  no model or no pack.
+* ``stt`` — with the speech pack on the path and an STT model directory in the
+  Launcher's layout (``--stt-model``: a Whisper or Parakeet ONNX folder, as
+  ``agent_runtime.speech_stt_engines.engine_for`` reads it): model load
+  seconds, then ``first_words_s`` — a partial transcription of the first
+  ``--first-chunk`` seconds of ``--stt-audio`` through the speech service's own
+  ``SpeechEngines.transcribe`` — and ``final_s``, the final transcription of
+  the whole clip. ``null`` with a reason when there is no model or no pack.
 
 Usage::
 
@@ -47,7 +46,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_AUDIO = ROOT / "tools" / "neutts_samples" / "jo.wav"
-DEFAULT_TIER_REPO = "models--Systran--faster-whisper-tiny.en"
 MIB = 1024 * 1024
 
 
@@ -190,21 +188,11 @@ print(json.dumps({"load_s": round(load_s, 3), "first_words_s": round(first_words
 """
 
 
-def default_tier_model() -> Path | None:
-    """The default STT tier (Whisper tiny.en) when a complete snapshot is in the HF cache."""
-    hub = Path(os.environ.get("HF_HUB_CACHE") or Path(os.environ.get("HF_HOME") or Path.home() / ".cache"
-                                                      / "huggingface") / "hub")
-    for snapshot in sorted((hub / DEFAULT_TIER_REPO / "snapshots").glob("*")):
-        if (snapshot / "model.bin").is_file():
-            return snapshot
-    return None
-
-
 def stt_latency(python: Path, core: Path, packs: list[Path], model: Path | None, audio: Path,
                 first_chunk: float, home: Path) -> dict:
     if model is None:
         return {"measured": False, "reason": "model_not_present",
-                "detail": f"no --stt-model and no {DEFAULT_TIER_REPO} snapshot with model.bin"}
+                "detail": "pass --stt-model <a Whisper or Parakeet ONNX folder, the Launcher's layout>"}
     if not packs:
         return {"measured": False, "reason": "no_speech_pack", "detail": "pass --pack <speech pack dir>"}
     done = subprocess.run([str(python), "-I", "-S", "-c", _STT_DRIVER, str(core / "site-packages"),
@@ -265,7 +253,7 @@ def main(argv=None) -> int:
     parser.add_argument("--json", type=Path)
     args = parser.parse_args(argv)
     result = measure(args.core, args.python, args.pack, args.interpreter_dir, args.warm_runs,
-                     args.stt_model or default_tier_model(), args.stt_audio, args.first_chunk, args.serve_log)
+                     args.stt_model, args.stt_audio, args.first_chunk, args.serve_log)
     text = json.dumps(result, indent=2)
     if args.json:
         args.json.write_text(text + "\n", encoding="utf-8")

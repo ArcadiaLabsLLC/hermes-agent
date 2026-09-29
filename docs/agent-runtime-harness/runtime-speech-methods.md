@@ -16,8 +16,8 @@ manifest set without moving `RPC_CONTRACT_VERSION`.
 
 | Step | Code used |
 |---|---|
-| STT load | upstream `tools/transcription_local.py::_load_local_whisper_model` (via `_upstream_doors.whisper_load_model`), `device="cpu"`, `compute_type="int8"` |
-| STT decode | upstream `build_local_transcribe_kwargs` (VAD, confidence gate, `language: en` unless `stt.language` says otherwise) and `_join_confident_segments` |
+| STT load, Whisper | onnx-asr 0.12.0 `load_model("whisper", <dir>, quantization="int8", providers=["CPUExecutionProvider"])` (`agent_runtime/speech_stt_engines.py::load_whisper`) |
+| STT decode, Whisper | `WhisperDecoder`: greedy, over onnx-asr's encoder and decoder step, per 10 s chunk; upstream's `_join_confident_segments` gate (via `_upstream_doors.whisper_confident_text`) over each chunk |
 | STT load + decode, Parakeet | onnx-asr 0.12.0 `load_model("nemo-conformer-tdt", <dir>, quantization="int8", providers=["CPUExecutionProvider"])`, then `recognize` per chunk (`agent_runtime/speech_stt_engines.py`) |
 | TTS load | fork `agent_runtime/speech_onnx_voice.py::load_voice` — a Piper or Kokoro voice on onnxruntime, with its phonemizer artifact; unload drops the object |
 | TTS synth | the same runner, one chunk per sentence |
@@ -31,16 +31,38 @@ the way Piper's and Kokoro's own inference code does, and
 `agent_runtime/speech_phonemize.py` turns text into phonemes. Full Hermes's
 `speak` tool still uses upstream's Piper when `piper-tts` is installed.
 
-Versions measured: faster-whisper 1.2.1, ctranslate2 4.8.1, onnxruntime 1.29.0,
-numpy 2.4.3 (the `pyproject.toml` pins; the TTS runner is the `speech-tts`
-extra). Parakeet: onnx-asr 0.12.0, onnxruntime 1.29.0, numpy 2.5.3.
+Versions measured: onnx-asr 0.12.0, onnxruntime 1.29.0, numpy 2.4.3 (the
+`pyproject.toml` pins; both STT engines are the `stt-parakeet` extra, the TTS
+runner is `speech-tts`). **No ctranslate2** (owner ruling 2026-09-29): Whisper
+ran on faster-whisper / ctranslate2 until lane w6-hwort, which brought Intel's
+OpenMP runtime (`libiomp5md.dll`) and its licence review into the pack. The
+speech pack ships neither now; full Hermes keeps upstream's faster-whisper
+(`stt-whisper` extra) for its own local STT.
 
 **The STT engine is chosen by the model folder's files, never by a config
 string** (`speech_stt_engines.engine_for`). A folder whose `config.json` names
 `model_type: nemo-conformer-tdt`, or that holds an `encoder-model*.onnx`, is
-Parakeet; anything else is read as faster-whisper. `status`, `load` and the
-admission estimate all read that one answer, and `status.stt.engine` reports it
-(`faster-whisper` | `parakeet-tdt`).
+Parakeet; anything else is read as Whisper. `status`, `load` and the admission
+estimate all read that one answer, and `status.stt.engine` reports it
+(`whisper-onnx` | `parakeet-tdt`). A folder of the retired faster-whisper
+engine (`model.bin`) reads `model_partial`, `missing` naming the ONNX files; a
+complete folder whose `config.json` `model_type` is not its engine's reads
+`model_unsupported`.
+
+**Why the Whisper decode loop is ours.** onnx-asr loads the transformers.js
+export and owns the sessions, the log-mel features (numpy, `fbanks.npz`) and
+the decoder step with its key/value cache. Its own `recognize` puts
+`<|en|><|transcribe|>` into every prompt; an English-only (`.en`) model was
+trained on `<|startoftranscript|><|notimestamps|>` alone, and with the extra
+tokens tiny.en returned empty text on two of the bench's three clips.
+`WhisperDecoder` runs the greedy loop with the right prompt (a multilingual
+model gets the language and task tokens), reads the no-speech probability at
+the start position and the mean log-probability, and hands both to upstream's
+gate. faster-whisper's VAD is replaced by an energy floor: a chunk whose
+loudest 20 ms frame is under −45 dBFS is not decoded (Whisper writes "you"
+over silence with a confident log-probability, which upstream's AND gate keeps),
+and a whole-chunk caption such as `[BLANK_AUDIO]` is no text. Decoding is
+greedy for partials and finals alike (faster-whisper's final used beam 5).
 
 Why onnx-asr and not sherpa-onnx or an own runner: it adds the least. It is a
 7 MB pure-Python MIT package whose only hard requirement is numpy, running on
@@ -54,9 +76,13 @@ speech pack ships only the preprocessor data the CPU path reads
 
 A model is named by an **absolute path**, or by a bare name under `models_dir`:
 
-- STT: a faster-whisper (CTranslate2) **directory** holding `model.bin`,
-  `config.json`, `tokenizer.json` and `vocabulary.txt` (or `.json`).
-  faster-whisper never resolves a directory against the Hub.
+- STT, Whisper: the transformers.js ONNX export, int8, **flat** in one folder:
+  `config.json` (`model_type: whisper`), `vocab.json`, `added_tokens.json`,
+  `encoder_model_int8.onnx`, `decoder_model_merged_int8.onnx` — from
+  `onnx-community/whisper-tiny.en` @ `2575352d61be1bf7225cf8f8b268a4678025fc58`
+  (41 MB) or `onnx-community/whisper-base.en` @
+  `51eefc0af78b103839eda9e7e4f4186acc6517fe` (77 MB); the repos keep the two
+  `.onnx` files under `onnx/`. Weights: OpenAI Whisper (MIT).
 - STT, Parakeet: the int8 ONNX export of Parakeet TDT 0.6B v2
   (`istupakov/parakeet-tdt-0.6b-v2-onnx`, 661 MB): `config.json`
   (`model_type: nemo-conformer-tdt`), `vocab.txt`, `encoder-model.int8.onnx`
@@ -80,14 +106,11 @@ A model is named by an **absolute path**, or by a bare name under `models_dir`:
   `missing` naming the absent files — checked BEFORE the loader. A Piper voice
   with `phoneme_type: "text"` needs none.
 
-**No PyAV** (bundled speech pack). faster-whisper imports `av` at module top but
-decodes only FILES; this service passes arrays (the Launcher sends raw PCM), so
-`agent_runtime/speech_decode.py` registers an `av` placeholder before the loader
-imports `faster_whisper` (a no-op when PyAV is installed). A voice-note FILE —
-upstream's `_transcribe_local`, which hands faster-whisper a path — has no decode
-path in the bundle and answers `{success: false, state: "unavailable", reason:
-"file_decode_unavailable"}` before any model loads (fork seam in
-`tools/transcription_tools.py`).
+**No PyAV, no faster-whisper** (bundled speech pack). A voice-note FILE —
+upstream's `_transcribe_local`, which hands faster-whisper a path — has no
+decode path in the bundle: faster-whisper is not installed there, so upstream's
+own "not installed" answer applies. (`agent_runtime/speech_decode.py`'s PyAV
+placeholder served the faster-whisper pack; retiring it is a runtime-queue row.)
 
 With no param, the existing config keys are read: `stt.local.model` and
 `tts.piper.voice` — used only when they hold an absolute path. A bare Hub name
@@ -102,9 +125,9 @@ only files; it has no download path at all. The bundled profile
 through a two-line fork seam in `tools/tts_tool_local.py::_resolve_piper_voice_path`.
 
 **CPU default** (owner ruling 1: mid-range PC, no dedicated GPU): `int8` on
-CPU, one Whisper-family English model and one voice. Measured below:
-`faster-whisper-tiny.en` meets the ≤ ~1 s budgets on the measurement machine;
-`faster-whisper-base.en` is more accurate and misses them. The voice the
+CPU, one English STT model and one voice. Measured below: Whisper tiny.en (ONNX
+int8) meets the ≤ ~1 s budgets on the measurement machine; base.en is more
+accurate and misses them. The voice the
 Launcher's catalog lists is the product choice; the service loads whichever
 file it is given.
 
@@ -213,17 +236,19 @@ first partial runs after 300 ms of audio, later ones after 600 ms of new audio,
 one pass at a time. The final pass queues behind a partial already running;
 `adopted_partial` skips it when that partial covered everything.
 
-- **Whisper** partials cover the last 30 s at most. A pass costs about the same
-  whatever the clip length, because whisper pads to a 30 s window.
-- **Parakeet** partials cover the whole take, decoded in **chunks**. Its encoder
+- **Both engines** decode in **chunks**, and a partial covers the whole take.
+  Whisper's window is 30 s (onnx-asr's features cut there), so a longer take
+  must be cut anyway; a Whisper pass costs about the same whatever the chunk
+  length, because Whisper pads to 30 s.
+- **Parakeet** Its encoder
   attends over its whole input, so one pass costs time and memory in proportion
   to the audio (measured below: 3.1 s and +0.95 GiB for 30 s, 15.8 s and
   +1.9 GiB for 120 s in one pass). The runner cuts the take every 10 s, in the
   quietest 200 ms of the 4 s before each boundary, and decodes each finished
   chunk once (cached by its bytes). A cut depends only on audio at or before its
   boundary, so the cuts of a growing take never move, and a partial or the final
-  decodes only the open tail (< 10 s). TDT decodes greedily, so a partial and the
-  final are the same computation.
+  decodes only the open tail (< 10 s). Both engines decode greedily, so a
+  partial and the final are the same computation.
 
 ## Latency — measured
 
@@ -260,6 +285,37 @@ running. A 126-second take (the three clips eight times over, 15 cuts) held
 resident growth at +0.83 GiB; the cold whole-take pass took 5.0–5.9 s and the
 next pass over the same take 0.44–0.55 s (every finished chunk cached). WER
 8 / 304: all eight are the same dropped "of" in "instant of panic", none at a cut.
+
+**Whisper on onnxruntime, measured 2026-09-29 (lane w6-hwort).** Same machine
+and method as the Parakeet table (the bench's three clips, three runs through
+`handle_request`, CPU, other sessions on the box), run from the built speech
+pack on CPython 3.14.5 (`-I -S`, the bundle's site-packages). The old engine was
+re-baselined in the same sitting from the base commit's pack
+(`ff012d8a9e`).
+
+| STT model | first words | final | WER | load | RAM (resident growth) |
+|---|---|---|---|---|---|
+| Whisper tiny.en, ONNX int8 (onnx-asr) | 0.90 / 0.90 / 0.92 s · 0.88 / 0.88 / 0.88 s · 0.85 / 0.86 / 0.86 s | 0.58 / 0.57 / 0.61 s · 0.67 / 0.70 / 0.74 s · 0.41 / 0.44 / 0.43 s | 6 / 38 (all three runs) | 2.2 s | +172 MiB loaded, +362 MiB after decoding; process peak 442 MiB |
+| `faster-whisper-tiny.en` (ctranslate2, re-baseline) | 0.89 / 0.89 / 0.90 s · 1.83 / 1.75 / 1.93 s · 0.90 / 0.87 / 0.87 s | 0.45 / 0.36 / 0.36 s · 0.53 / 0.38 / 0.58 s · 0.36 / 0.34 / 0.37 s | 5 / 38 | 2.4 s | +111 MiB loaded, +141 MiB after; peak 327 MiB |
+| Whisper base.en, ONNX int8 | 1.14 / 1.13 / 1.15 s · 1.15 / 1.18 / 1.12 s · 1.81 / 1.80 / 1.90 s | 1.03 / 1.02 / 1.00 s · 1.55 / 1.42 / 1.60 s · 0.85 / 0.76 / 1.50 s | 3 / 38 | 1.4 s | +224 MiB loaded, +482 MiB after; peak 562 MiB |
+
+The first call after load (1 s of audio) took 0.36 s (tiny) and 0.59 s (base).
+One tiny.en int8 pass over a clip is 0.46–0.56 s on this CPU; the fp32 export
+decoded faster here (0.33–0.44 s; this Zen 2 CPU has no VNNI) but is 151 MB,
+3.7 times the download, with the same 6 / 38, so int8 ships. The errors are tiny.en's own: "fled in"
+→ "flooded", "His instant of" → "This instant", "along" → "out on" (faster-whisper
+made the first and third). The final is greedy where faster-whisper's used beam
+5, which is most of the final-latency gap; the first-words figure no longer has
+faster-whisper's 1.8 s outlier on the second clip.
+
+**The speech pack after w6-hwort** (win32-x64, packager `--verify` and
+`--verify-pack` 0 problems, `scripts/bundle_ceilings.py`'s `lzma_size`): before
+(`ff012d8a9e`) 14 distributions, 158.6 MiB installed, 31.02 MiB LZMA; after,
+5 distributions (onnx-asr, onnxruntime, numpy, flatbuffers, protobuf), 73.8 MiB
+installed, **14.11 MiB LZMA**. Gone: ctranslate2, faster-whisper, tokenizers,
+huggingface-hub, hf-xet, fsspec, filelock, pyyaml, setuptools. The pack's
+`licenses.json` `review_required` went from `[ctranslate2]` (Intel OpenMP) to
+`[]`; the core's stays `[]`.
 
 **The speech pack, re-measured 2026-09-28 (lane w5-hstt, win32-x64, packager
 `--verify` 0 problems, `scripts/bundle_ceilings.py`'s `lzma_size`):** before
@@ -319,10 +375,11 @@ first chunk 0.26–0.28 s for a 3.5 s sentence.
   the lease). Wire holders are stored as `remote:<holder>` — they can never
   replace a local row — are never evicted, and lapse if not renewed.
 
-Speech estimates: STT = directory size + the engine's overhead — 96 MiB for
-faster-whisper, 256 MiB for Parakeet (`speech_stt_engines.STT_ENGINES`) — and
-TTS = voice size × 1.5 + 64 MiB (measured resident: base.en +137 MiB against
-237 MiB reserved; Parakeet int8 +0.80 GiB after decoding, +0.83 GiB on a
+Speech estimates: STT = directory size × the engine's factor + its overhead —
+× 3.5 + 240 MiB for Whisper (tiny.en reserves about 380 MiB against +362 MiB
+measured, base.en about 500 against +482), × 1 + 256 MiB for Parakeet
+(`speech_stt_engines.STT_ENGINES`) — and
+TTS = voice size × 1.5 + 64 MiB (measured resident: Parakeet int8 +0.80 GiB after decoding, +0.83 GiB on a
 126 s take, against 887 MiB reserved; lessac-medium +85 MiB against 154 MiB
 reserved — estimates round up). Parakeet's figure holds because it decodes in
 chunks: one unchunked pass over 120 s grows to +1.9 GiB.

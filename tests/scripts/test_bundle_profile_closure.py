@@ -193,7 +193,9 @@ def test_a_placeholder_requirement_is_never_followed_or_shipped():
                                 "placeholder distribution httpx is a base dependency"]
 
 
-def test_the_bundled_desktop_profile_stands_a_placeholder_in_for_pyav():
+def test_the_bundled_desktop_profile_stands_no_placeholder_in_since_faster_whisper_left():
     from agent_runtime.bundle_profiles.manifest import load_profile
 
-    assert "av" in load_profile("bundled-desktop", validate=False).placeholder_distributions
+    """PyAV's placeholder existed for faster-whisper, which the speech pack no longer ships (Whisper
+    runs on onnx-asr). Mutation: restore the ``av`` entry -> red."""
+    assert load_profile("bundled-desktop", validate=False).placeholder_distributions == {}

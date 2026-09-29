@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from scripts.bundle_licenses import (
+    EMBEDDED_COMPONENTS,
     LICENCE_TEXTS,
     installed_wheel,
     licence_expression,
@@ -39,25 +40,33 @@ def test_a_copyleft_component_compiled_into_a_permissive_wheel_is_flagged():
     assert review_reasons("MIT", embedded) == ["embedded espeak-ng: GPL-family licence"]
 
 
-def test_intel_openmp_is_listed_for_review_and_the_accepted_vc_runtime_is_not(tmp_path: Path):
-    """Owner ruling 2026-09-28 items 7-8. Mutation: drop the ``accepted`` skip in
-    ``review_reasons`` -> cpython is back in ``review_required``; drop ctranslate2's
-    ``EMBEDDED_COMPONENTS`` row -> it leaves review."""
+def test_an_embedded_gpl_component_is_listed_for_review_and_the_accepted_vc_runtime_is_not(tmp_path: Path):
+    """Owner ruling 2026-09-28 item 8. Mutation: drop the ``accepted`` skip in ``review_reasons``
+    -> cpython is back in ``review_required``; drop sherpa-onnx's ``EMBEDDED_COMPONENTS`` row ->
+    it leaves review."""
     site = tmp_path / "site-packages"
-    _install(site, "ctranslate2", "MIT")
+    _install(site, "sherpa-onnx", "Apache-2.0")
     (tmp_path / "app").mkdir()
-    record = write_licence_records(tmp_path, "core", {"ctranslate2"}, "win32-x64", "c0ffee" * 7, core=True,
+    record = write_licence_records(tmp_path, "core", {"sherpa-onnx"}, "win32-x64", "c0ffee" * 7, core=True,
                                    wheels={})
     rows = {r["distribution"]: r for r in record["components"]}
-    assert "ctranslate2" in record["review_required"] and "cpython" not in record["review_required"]
-    assert rows["ctranslate2"]["embedded"][0]["name"] == "intel-openmp"
-    assert rows["ctranslate2"]["embedded"][0]["review"] is True
+    assert "sherpa-onnx" in record["review_required"] and "cpython" not in record["review_required"]
+    assert rows["sherpa-onnx"]["embedded"][0]["name"] == "espeak-ng"
+    assert rows["sherpa-onnx"]["embedded"][0]["review"] is True
     vcruntime = next(c for c in rows["cpython"]["embedded"] if c["name"] == "vcruntime140")
     assert vcruntime["review"] is False and vcruntime["accepted"].startswith("owner ruling 2026-09-28 item 8")
     assert rows["cpython"]["review"] is False
     # Positive control: the same component WITHOUT the ruling is still flagged.
     unruled = {k: v for k, v in vcruntime.items() if k not in ("accepted", "review")}
     assert review_reasons("PSF-2.0", [unruled]) == ["embedded vcruntime140: proprietary or non-SPDX licence"]
+
+
+def test_ctranslate2_and_its_intel_openmp_are_gone_from_the_embedded_table():
+    """Owner ruling 2026-09-29: Whisper runs on onnxruntime, so no bundle ships ctranslate2 and
+    its Intel OpenMP row (``libiomp5md.dll``) has nothing to describe. Mutation: restore the row
+    -> red."""
+    assert "ctranslate2" not in EMBEDDED_COMPONENTS
+    assert not any(c["name"] == "intel-openmp" for rows in EMBEDDED_COMPONENTS.values() for c in rows)
 
 
 def _meta(text: str):

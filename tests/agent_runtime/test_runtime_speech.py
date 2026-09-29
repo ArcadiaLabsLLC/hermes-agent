@@ -1,7 +1,7 @@
 """``runtime.speech.*`` and ``runtime.admission.*`` — the bundled speech service and the one
 model-memory admission authority (embedded-hermes D3 items 1-2).
 
-Engines are fakes (the CI venv has neither faster-whisper nor Piper) EXCEPT in the
+Engines are fakes (the CI venv has neither onnx-asr nor onnxruntime) EXCEPT in the
 unavailable tests, which run the real ``SpeechEngines`` with the network and every
 subprocess blocked: a missing or partial model must be answered before any loader or
 downloader runs. Every check names its killing mutation; the reds are recorded in the
@@ -26,17 +26,25 @@ from agent_runtime.model_admission_client import BundledAdmissionClient
 from agent_runtime.serve_rpc import RpcContext, handle_request
 
 MiB = 1 << 20
+#: The Whisper engine's measured estimate (``speech_stt_engines.STT_ENGINES``), restated here so
+#: a change to it is a visible edit.
+WHISPER_DISK_FACTOR, WHISPER_OVERHEAD_MIB = 3.5, 240
 
 
 # ── fixtures ────────────────────────────────────────────────────────────────
 
 
-def _whisper_dir(root, *, drop=()):
-    folder = root / "faster-whisper-tiny.en"
+WHISPER_SET = ("config.json", "vocab.json", "added_tokens.json", "encoder_model_int8.onnx",
+               "decoder_model_merged_int8.onnx")
+
+
+def _whisper_dir(root, *, drop=(), model_type="whisper"):
+    """A Whisper ONNX export in the Launcher's layout (flat), onnx-asr's ``whisper`` type."""
+    folder = root / "whisper-tiny.en-int8"
     folder.mkdir()
-    for name, body in (("model.bin", b"\0" * 64), ("config.json", b"{}"), ("tokenizer.json", b"{}"),
-                       ("vocabulary.txt", b"a\n")):
+    for name in WHISPER_SET:
         if name not in drop:
+            body = json.dumps({"model_type": model_type}).encode() if name == "config.json" else b"\4" * 64
             (folder / name).write_bytes(body)
     return folder
 
@@ -75,7 +83,7 @@ class FakeEngines:
         self.loads = []
         self.passes = []
 
-    def stt_importable(self, engine="faster-whisper"):
+    def stt_importable(self, engine="whisper-onnx"):
         return True
 
     def tts_importable(self):
@@ -200,13 +208,13 @@ def test_a_missing_or_partial_model_reads_unavailable_with_no_network(case, expe
     """Mutation: drop the ``missing`` early return in ``inspect_stt`` / ``inspect_tts`` -> the
     partial rows read ``available`` and the loader is reached."""
     if case == "partial":
-        _whisper_dir(tmp_path, drop=("model.bin",))
+        _whisper_dir(tmp_path, drop=("encoder_model_int8.onnx",))
         _piper_voice(tmp_path, sidecar=False)
     elif case == "empty_file":
         _whisper_dir(tmp_path)
-        (tmp_path / "faster-whisper-tiny.en" / "tokenizer.json").write_bytes(b"")
+        (tmp_path / "whisper-tiny.en-int8" / "vocab.json").write_bytes(b"")
         _piper_voice(tmp_path, empty_onnx=True)
-    params = {"models_dir": str(tmp_path), "stt_model": "faster-whisper-tiny.en", "tts_voice": "en_US-test-low"}
+    params = {"models_dir": str(tmp_path), "stt_model": "whisper-tiny.en-int8", "tts_voice": "en_US-test-low"}
     wire = Wire()
     status = wire.result("runtime.speech.status", params)
     loaded = wire.result("runtime.speech.load", params)["results"]
@@ -214,7 +222,8 @@ def test_a_missing_or_partial_model_reads_unavailable_with_no_network(case, expe
     assert (status["stt"]["reason"], status["tts"]["reason"]) == expected
     assert (loaded["stt"]["reason"], loaded["tts"]["reason"]) == expected
     if case == "partial":
-        assert status["stt"]["missing"] == ["model.bin"] and status["tts"]["missing"] == ["en_US-test-low.onnx.json"]
+        assert status["stt"]["missing"] == ["encoder_model_int8.onnx"]
+        assert status["tts"]["missing"] == ["en_US-test-low.onnx.json"]
     assert real_engines == [] and no_network == []
     assert model_admission.admission().status()["reservations"] == []
 
@@ -224,7 +233,7 @@ def test_the_positive_control_a_complete_model_does_reach_the_loader(tmp_path, n
     negative rows above are about the check, not a fixture that never gets that far."""
     _whisper_dir(tmp_path)
     _piper_voice(tmp_path)
-    Wire().result("runtime.speech.load", {"models_dir": str(tmp_path), "stt_model": "faster-whisper-tiny.en",
+    Wire().result("runtime.speech.load", {"models_dir": str(tmp_path), "stt_model": "whisper-tiny.en-int8",
                                           "tts_voice": "en_US-test-low"})
     assert real_engines == ["stt", "tts"] and no_network == []
 
@@ -561,22 +570,159 @@ def test_the_bundled_tts_engine_is_onnxruntime_never_piper_tts(monkeypatch):
     assert speech_service.SpeechEngines().tts_importable() is False
 
 
-# ── PyAV is not in the speech pack ──────────────────────────────────────────
+# ── Whisper on onnx-asr (no ctranslate2, no Intel OpenMP) ──────────────────
 
 
-def test_loading_whisper_registers_the_av_placeholder_first(tmp_path, monkeypatch):
-    """Mutation: drop ``ensure_av_placeholder()`` from ``SpeechEngines.load_stt`` -> the loader
-    sees no ``av`` and (for real) ``import faster_whisper`` raises ModuleNotFoundError."""
+def test_a_retired_faster_whisper_folder_is_judged_as_the_onnx_engine_and_never_loaded(tmp_path, no_network,
+                                                                                    real_engines):
+    """A ctranslate2 folder (``model.bin``) left from the old engine reads ``model_partial``
+    naming the ONNX files, before any loader. Mutation: ``engine_for`` answers Parakeet for any
+    folder -> ``missing`` names Parakeet's files."""
+    folder = tmp_path / "faster-whisper-tiny.en"
+    folder.mkdir()
+    for name in ("model.bin", "config.json", "tokenizer.json", "vocabulary.txt"):
+        (folder / name).write_bytes(b"{}")
+    status = Wire().result("runtime.speech.status", {"stt_model": str(folder)})["stt"]
+    assert (status["reason"], status["engine"]) == ("model_partial", "whisper-onnx")
+    assert status["missing"] == ["vocab.json", "added_tokens.json", "encoder_model_int8.onnx",
+                                 "decoder_model_merged_int8.onnx"]
+    assert real_engines == [] and no_network == []
+
+
+def test_a_complete_folder_of_another_model_type_is_unsupported(tmp_path, no_network, real_engines):
+    """Mutation: ``unsupported_model_type`` answers only for Parakeet (as it did) -> the folder
+    reads available. Positive control: the same bytes naming ``whisper`` are available."""
+    other = _whisper_dir(tmp_path, model_type="wav2vec2")
+    status = Wire().result("runtime.speech.status", {"stt_model": str(other)})["stt"]
+    assert (status["reason"], status["model_type"]) == ("model_unsupported", "wav2vec2")
+    (other / "config.json").write_text(json.dumps({"model_type": "whisper"}))
+    assert Wire().result("runtime.speech.status", {"stt_model": str(other)})["stt"]["state"] == "available"
+    assert real_engines == [] and no_network == []
+
+
+def _fake_onnx_asr(monkeypatch, asr):
     import sys
+    import types
 
-    from agent_runtime import _upstream_doors, speech_decode
+    calls = []
 
-    monkeypatch.setitem(sys.modules, "av", None)  # PyAV not installed
+    def load_model(model, path, **kwargs):
+        calls.append((model, path, kwargs))
+        return types.SimpleNamespace(asr=asr)
+
+    monkeypatch.setitem(sys.modules, "onnx_asr", types.SimpleNamespace(load_model=load_model))
+    return calls
+
+
+def test_whisper_loads_by_model_type_from_the_local_folder_on_cpu(tmp_path, monkeypatch):
+    """onnx-asr stood in: the real ``SpeechEngines`` hands it the model TYPE ``whisper`` (a Hub
+    name would download) and the folder, int8, CPU. Mutation: pass ``onnx-community/whisper-tiny.en``
+    -> red; load the Whisper folder through the Parakeet loader -> red."""
+    calls = _fake_onnx_asr(monkeypatch, FakeWhisperAsr(["hello"]))
+    folder = _whisper_dir(tmp_path)
+    model = speech_service.SpeechEngines().load_stt(folder, device="cpu", compute_type="int8")
+    assert model.engine == "whisper-onnx"
+    assert calls == [("whisper", str(folder), {"quantization": "int8", "providers": ["CPUExecutionProvider"]})]
+
+
+class FakeWhisperAsr:
+    """onnx-asr 0.12.0's ``WhisperHf`` surface the decoder reads: token tables, config, and the
+    encode / state / decoder-step / detokenize methods. Each decode step emits the next scripted
+    word's token, then ``<|endoftext|>``; the start position scores ``no_speech``."""
+
+    TOKENS = {"<|startoftranscript|>": 50257, "<|en|>": 50258, "<|transcribe|>": 50358,
+              "<|nocaptions|>": 50361, "<|notimestamps|>": 50362, "<|endoftext|>": 50256}
+
+    def __init__(self, words, *, vocab_size=51864, no_speech=0.01):
+        self._tokens = dict(self.TOKENS)
+        self.words = list(words)
+        self.config = {"vocab_size": vocab_size}
+        self.no_speech = no_speech
+        self.prompts, self.encoded = [], 0
+
+    def _encode(self, waveforms, lens):
+        self.encoded += 1
+        return waveforms
+
+    def _create_state(self):
+        return {"step": 0}
+
+    def _decode(self, tokens, state, encoded):
+        import numpy as np
+
+        if state["step"] == 0:
+            self.prompts.append([int(t) for t in tokens[0]])
+        step = state["step"]
+        vocab = 51865
+        logits = np.full((1, tokens.shape[1], vocab), -30.0, dtype=np.float32)
+        # the start position: no_speech against everything else
+        logits[0, 0, self.TOKENS["<|nocaptions|>"]] = np.log(self.no_speech)
+        logits[0, 0, 0] = np.log(1 - self.no_speech)
+        target = step + 1 if step < len(self.words) else self.TOKENS["<|endoftext|>"]
+        logits[0, -1, target] = 0.0
+        return logits, {"step": step + 1}
+
+    def _decode_tokens(self, tokens):
+        import types
+
+        return types.SimpleNamespace(text=" " + " ".join(self.words[int(t) - 1] for t in tokens))
+
+
+def _speech(ms, level=3000):
+    import numpy as np
+
+    return np.full(16 * ms, level / 32768.0, dtype=np.float32)
+
+
+def test_an_english_only_whisper_is_prompted_without_language_or_task_tokens():
+    """onnx-asr's own ``recognize`` writes ``<|en|><|transcribe|>`` into every prompt, which an
+    English-only model was never trained on (measured: empty text). Mutation: always use the
+    multilingual prompt -> red; the positive control is a multilingual model, which gets it."""
+    pytest.importorskip("numpy")  # the speech pack's; the CI test venv has none
+    from agent_runtime.speech_stt_engines import WhisperDecoder
+
+    english = FakeWhisperAsr(["the", "king"])
+    assert WhisperDecoder(english)(_speech(500)) == "the king"
+    assert english.prompts == [[50257, 50362]]
+    multilingual = FakeWhisperAsr(["the", "king"], vocab_size=51865)
+    WhisperDecoder(multilingual)(_speech(500))
+    assert multilingual.prompts == [[50257, 50258, 50358, 50362]]
+
+
+def test_silence_is_never_decoded_and_a_caption_or_a_gated_segment_is_no_text():
+    """Mutation: drop the ``SILENCE_DBFS`` check -> the silent chunk is decoded (and a real
+    Whisper writes "you"); drop the caption match -> ``[BLANK_AUDIO]`` is the text; ignore
+    ``keep`` -> the gated segment is text. Positive control: speech at the same length decodes."""
+    pytest.importorskip("numpy")
+    from agent_runtime.speech_stt_engines import WhisperDecoder
+
+    asr = FakeWhisperAsr(["hello"])
+    decoder = WhisperDecoder(asr)
+    assert decoder(_speech(1000, level=150)) == "" and asr.encoded == 0  # -46.8 dBFS: silence
+    assert decoder(_speech(1000, level=300)) == "hello" and asr.encoded == 1  # -40.8 dBFS: speech
+    assert WhisperDecoder(FakeWhisperAsr(["[BLANK_AUDIO]"]))(_speech(300)) == ""
     seen = []
-    monkeypatch.setattr(_upstream_doors, "whisper_load_model",
-                        lambda *a, **k: seen.append(speech_decode.is_av_placeholder(sys.modules.get("av"))))
-    speech_service.SpeechEngines().load_stt(_whisper_dir(tmp_path), device="cpu", compute_type="int8")
-    assert seen == [True]
+    gated = WhisperDecoder(FakeWhisperAsr(["you"], no_speech=0.9), keep=lambda seg: seen.append(seg) or False)
+    assert gated(_speech(300)) == ""
+    assert seen[0].text == "you" and seen[0].no_speech_prob == pytest.approx(0.9, abs=1e-3)
+    assert seen[0].avg_logprob == pytest.approx(0.0, abs=1e-6)
+
+
+def test_the_service_gates_whisper_with_upstreams_confidence_thresholds(tmp_path, monkeypatch):
+    """The ``keep`` the service passes is upstream's gate (``no_speech_prob > 0.6`` AND
+    ``avg_logprob < -1.0``). Mutation: pass ``keep=None`` from ``_load_whisper`` -> the low-confidence
+    silence segment is text."""
+    pytest.importorskip("numpy")
+    from agent_runtime.speech_stt_engines import WhisperSegment
+
+    _fake_onnx_asr(monkeypatch, FakeWhisperAsr(["hello"]))
+    model = speech_service.SpeechEngines().load_stt(_whisper_dir(tmp_path), device="cpu", compute_type="int8")
+    keep = model.model.recognize.keep
+    assert keep(WhisperSegment("you", 0.9, -1.5)) is False
+    assert keep(WhisperSegment("you", 0.9, -0.2)) is True  # confident: upstream keeps it
+    assert keep(WhisperSegment("hello", 0.1, -1.5)) is True
+    assert speech_service.SpeechEngines().transcribe(model, (_speech(500) * 32768).astype("int16").tobytes(),
+                                                     final=True) == "hello"
 
 
 # ── Parakeet TDT: the engine the model folder's files name ──────────────────
@@ -596,9 +742,9 @@ def _parakeet_dir(root, *, drop=()):
 
 
 def test_the_model_folders_files_choose_the_engine_and_its_reservation(fakes, authority):
-    """Mutation: ``engine_for`` always answers faster-whisper -> the Parakeet folder reads
-    ``model_partial`` (no ``model.bin``); Parakeet's estimate swapped for whisper's -> the
-    reservation is 160 MiB short."""
+    """Mutation: ``engine_for`` always answers Whisper -> the Parakeet folder reads
+    ``model_partial`` (no ``vocab.json``); Parakeet's estimate swapped for Whisper's -> the
+    reservation is short."""
     engines, root = fakes
     parakeet, whisper = _parakeet_dir(root), _whisper_dir(root)
     wire = Wire()
@@ -610,15 +756,16 @@ def test_the_model_folders_files_choose_the_engine_and_its_reservation(fakes, au
     assert loaded["stt"]["engine"] == "parakeet-tdt"
     # Positive control: the whisper folder, through the same service, reads the other engine.
     swapped = wire.result("runtime.speech.load", {"which": "stt", "stt_model": str(whisper)})
-    assert swapped["stt"]["engine"] == "faster-whisper"
-    assert swapped["results"]["stt"]["reserved_bytes"] == sum(f.stat().st_size for f in whisper.iterdir()) + 96 * MiB
+    assert swapped["stt"]["engine"] == "whisper-onnx"
+    assert swapped["results"]["stt"]["reserved_bytes"] == (
+        int(sum(f.stat().st_size for f in whisper.iterdir()) * WHISPER_DISK_FACTOR) + WHISPER_OVERHEAD_MIB * MiB)
 
 
 @pytest.mark.parametrize("drop", ["encoder-model.int8.onnx", "config.json"])
 def test_a_partial_parakeet_folder_reads_unavailable_with_no_network(drop, tmp_path, no_network, real_engines):
     """A torn Parakeet download is judged against Parakeet's list, before any loader. Mutation:
     drop ``encoder-model*.onnx`` from ``engine_for``'s markers -> the config-less folder is judged
-    as whisper (``missing`` names ``model.bin``). The positive control is the complete folder."""
+    as Whisper (``missing`` names ``vocab.json``). The positive control is the complete folder."""
     _parakeet_dir(tmp_path, drop=(drop,))
     params = {"models_dir": str(tmp_path), "stt_model": "parakeet-tdt-0.6b-v2-int8", "which": "stt"}
     status = Wire().result("runtime.speech.status", params)["stt"]
@@ -672,22 +819,22 @@ def _speech_with_gaps(seconds):
     return samples
 
 
-def test_parakeet_decodes_a_growing_take_chunk_by_chunk_and_each_chunk_once():
-    """Mutation: ``chunk_cuts`` returns no cut -> one 35 s pass (the memory the chunking
-    bounds); skip the cache lookup in ``_chunk_text`` -> the second pass re-decodes the
-    finished chunks (the second pass decodes four chunks, not two)."""
+def test_a_growing_take_is_decoded_chunk_by_chunk_and_each_chunk_once():
+    """Both engines (Whisper's window is 30 s, so a longer take must be cut). Mutation:
+    ``chunk_cuts`` returns no cut -> one 35 s pass (the memory the chunking bounds); skip the
+    cache lookup in ``_chunk_text`` -> the second pass re-decodes the finished chunks (the second
+    pass decodes four chunks, not two)."""
     pytest.importorskip("numpy")  # the speech pack's; the CI test venv has none
-    from agent_runtime.speech_stt_engines import CHUNK_SECONDS, ParakeetRunner, chunk_cuts
+    from agent_runtime.speech_stt_engines import CHUNK_SECONDS, ChunkedRunner, chunk_cuts
 
     lengths = []
 
-    class Model:
-        def recognize(self, audio, sample_rate):
-            lengths.append(len(audio))
-            return f"w{len(lengths)}"
+    def recognize(audio):
+        lengths.append(len(audio))
+        return f"w{len(lengths)}"
 
     samples = _speech_with_gaps(35)
-    runner = ParakeetRunner(Model())
+    runner = ChunkedRunner(recognize)
     runner.transcribe(samples[:30 * 16000].tobytes())
     first_pass = list(lengths)
     assert len(first_pass) >= 3 and max(first_pass) < CHUNK_SECONDS * 16000

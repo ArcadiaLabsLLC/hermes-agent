@@ -162,16 +162,29 @@ def test_gate_refuses_to_install_over_a_missing_route():
         install_route_gate(FastAPI(), load_profile(PROFILE))
 
 
-def test_the_cpu_speech_pack_strips_cudnn_and_keeps_what_parakeet_reads():
-    """Owner ruling 2026-09-28 item 7. Mutation: delete the ``cudnn64_9.dll`` entry -> red;
-    widen the onnx-asr globs to ``preprocessors/data/*`` -> the positive controls go red
-    (``fbanks.npz`` and the 16 kHz resamplers load at Parakeet start)."""
+def test_the_cpu_speech_pack_keeps_only_what_the_numpy_preprocessors_read():
+    """Mutation: widen the onnx-asr globs to ``preprocessors/data/*`` -> the positive controls go
+    red (``fbanks.npz`` holds both engines' mel filterbanks; the 16 kHz resamplers load at model
+    start); drop the ``whisper*`` entry -> the Whisper graphs ship unused."""
     from scripts.bundle_profile_package import _excluded
 
     excluded = load_profile(PROFILE).excluded_data
-    assert _excluded("site-packages/ctranslate2/cudnn64_9.dll", excluded)
-    assert _excluded("site-packages/onnx_asr/preprocessors/data/nemo128.onnx", excluded)
-    for kept in ("ctranslate2/ctranslate2.dll", "ctranslate2/libiomp5md.dll",
-                 "onnx_asr/preprocessors/data/fbanks.npz", "onnx_asr/preprocessors/data/resample_8_16.onnx",
-                 "onnx_asr/preprocessors/data/resample_48_16.onnx"):
-        assert not _excluded(f"site-packages/{kept}", excluded), kept
+    for dropped in ("nemo128.onnx", "whisper80.onnx", "whisper128_conv.onnx"):
+        assert _excluded(f"site-packages/onnx_asr/preprocessors/data/{dropped}", excluded), dropped
+    for kept in ("fbanks.npz", "resample_8_16.onnx", "resample_48_16.onnx"):
+        assert not _excluded(f"site-packages/onnx_asr/preprocessors/data/{kept}", excluded), kept
+
+
+def test_the_speech_pack_runs_whisper_on_onnx_asr_and_ships_no_ctranslate2():
+    """Owner ruling 2026-09-29: Whisper runs on onnxruntime, so the speech pack carries no
+    ctranslate2 (and with it no Intel OpenMP) and no faster-whisper. The pack's closure is taken
+    from ``uv.lock`` through the packager's own graph. Mutation: put ``stt-whisper`` back in the
+    pack's extras -> red; positive control: onnx-asr and onnxruntime are in the closure."""
+    from scripts.bundle_profile_closure import Graph, _lock, declared
+
+    manifest = load_profile(PROFILE)
+    _, extras = declared()
+    roots = set().union(*(extras[extra] for extra in manifest.packaging_packs["speech"]))
+    closure = Graph(_lock(), placeholders=manifest.placeholder_distributions).closure(roots)
+    assert {"onnx-asr", "onnxruntime", "numpy"} <= closure
+    assert not {"ctranslate2", "faster-whisper", "av", "tokenizers"} & closure

@@ -81,8 +81,8 @@ config:
   auth.os_secure_store: true
 
 environment:
-  # Speech loaders' download-if-missing fallbacks (faster-whisper, KittenTTS,
-  # NeuTTS all fetch through huggingface_hub; Piper's voice download honours it
+  # Speech loaders' download-if-missing fallbacks (onnx-asr, faster-whisper,
+  # KittenTTS, NeuTTS all fetch through huggingface_hub; Piper's voice download honours it
   # through the fork seam in tools/tts_tool_local.py): offline, so a missing
   # model is an error, never a download. The Launcher downloads every model file.
   HF_HUB_OFFLINE: "1"
@@ -146,8 +146,8 @@ packaging:
   # Requirements of a shipped distribution that a placeholder module stands in for:
   # the closure never follows into them. Refused when kept first-party code imports
   # one or when it is a base dependency.
-  placeholder_distributions:
-    av: "PyAV (66 MiB, the speech pack's largest distribution): faster-whisper imports it at module top but decodes only FILES; the speech service passes arrays (the Launcher sends raw PCM) and registers an av placeholder first (agent_runtime.speech_decode). A voice-note FILE reads unavailable, reason file_decode_unavailable"
+  # (None since Whisper moved onto onnx-asr, 2026-09-29: PyAV's placeholder went with faster-whisper.)
+  placeholder_distributions: {}
   # First-party modules of switched-off / not-packaged features. The walk does
   # not follow an import into these; a third-party distribution reached only
   # through them is "excludable".
@@ -206,8 +206,9 @@ packaging:
     speech:
       extras:
         - speech-tts    # speech service: TTS (On) — our onnxruntime runner, no piper-tts / espeak-ng (GPL)
-        - stt-whisper   # speech service: STT, Whisper tiers (On)
-        - stt-parakeet  # speech service: STT, Parakeet TDT tiers on onnxruntime (On)
+        - stt-parakeet  # speech service: STT, Whisper and Parakeet TDT tiers, both on onnx-asr / onnxruntime (On)
+        # (stt-whisper is upstream's faster-whisper extra: ctranslate2 + Intel OpenMP. Not shipped
+        # since owner ruling 2026-09-29; full Hermes keeps it for its own local STT.)
   # Agent resources (scripts/build/inputs.py RESOURCE_ENV) shipped beside the code.
   resources:
     - skills
@@ -238,11 +239,10 @@ packaging:
   # Left out of the bundle, each with its reason (bundle-root-relative:
   # app/... or site-packages/...; a trailing path or an fnmatch glob).
   excluded_data:
-    site-packages/ctranslate2/cudnn64_9.dll: "cuDNN (owner ruling 2026-09-28 item 7): a CUDA-only library in a CPU speech pack; ctranslate2 loads the DLLs it finds and runs CPU int8 without it (measured: tiny.en decodes with it removed)"
     site-packages/onnx_asr/preprocessors/data/*_conv.onnx: "onnx-asr's Conv-STFT graphs for GPU providers: the CPU path uses its numpy preprocessors"
     site-packages/onnx_asr/preprocessors/data/gigaam*: "GigaAM (Russian) preprocessors: not a bundled model"
     site-packages/onnx_asr/preprocessors/data/kaldi*: "Kaldi/Vosk preprocessors: not a bundled model"
-    site-packages/onnx_asr/preprocessors/data/whisper*: "Whisper-ONNX preprocessors: bundled Whisper runs on ctranslate2"
+    site-packages/onnx_asr/preprocessors/data/whisper*: "Whisper-ONNX preprocessor graphs: the CPU path uses the numpy one (preprocessors/data/fbanks.npz)"
     site-packages/onnx_asr/preprocessors/data/wespeaker.onnx: "speaker-embedding preprocessor: not a bundled model"
     site-packages/onnx_asr/preprocessors/data/nemo*.onnx: "NeMo ONNX preprocessors: the CPU path uses the numpy one (preprocessors/data/fbanks.npz)"
     site-packages/onnx_asr/preprocessors/data/resample_*_8.onnx: "resamplers to 8 kHz: Parakeet takes 16 kHz (the 16 kHz ones load at model start)"

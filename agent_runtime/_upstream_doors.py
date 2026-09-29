@@ -56,7 +56,6 @@ __all__ = [
     "strip_quotes",
     "terminate_host_pid",
     "whisper_confident_text",
-    "whisper_load_model",
 ]
 
 
@@ -336,18 +335,10 @@ def non_continuation_child_filter(alias: str = "") -> str:
     return SessionSessionsMixin._NON_CONTINUATION_CHILD_FILTER_SQL.format(alias=alias)
 
 
-def whisper_load_model(model_path: str, *, device: str, compute_type: str):
-    """``tools.transcription_local._load_local_whisper_model`` — upstream's faster-whisper
-    loader (CUDA -> CPU fallback, Apple Silicon pinning). Read by ``speech_service``, which
-    hands it a validated local model DIRECTORY, so faster-whisper never resolves a Hub name."""
-    from tools.transcription_local import _load_local_whisper_model
-
-    return _load_local_whisper_model(model_path, device=device, compute_type=compute_type)
-
-
 def whisper_confident_text(segments, local_cfg: dict) -> str:
     """``tools.transcription_local._join_confident_segments`` — upstream's silence-hallucination
-    gate over faster-whisper segments. Read by ``speech_service``."""
+    gate over faster-whisper segments. Read by ``speech_service`` over the ONNX Whisper
+    engine's segments (``speech_stt_engines.WhisperSegment``, the same three fields)."""
     from tools.transcription_local import _join_confident_segments
 
     return _join_confident_segments(segments, local_cfg)
