@@ -1810,20 +1810,30 @@ def discover_plugins(force: bool = False) -> None:
 
 # fork: hook-pending (seam Stage 1) — manifest-declared CLI commands, the upstream PR's generic half.
 def _materialize_declared_cli_command(manifest: PluginManifest, name: str, parser: Any) -> None:
-    """Stub ``setup_fn``: load ONLY ``manifest``'s plugin, then run the parser setup its ``register(ctx)``
-    registered for ``name``. Never runs :func:`discover_plugins`."""
+    """Stub ``setup_fn``: load ONLY ``manifest``'s plugin, run the parser setup its ``register(ctx)``
+    registered for ``name``, then unload it again. Never runs :func:`discover_plugins`.
+
+    The load is transient because every ``hermes`` invocation builds its parser and a later discovery
+    (``gateway run``; anything importing ``model_tools``) calls ``register(ctx)`` a second time: kept
+    loaded, that call hits the duplicate system-prompt-section refusal and the failed load's ledger
+    sweep disposes BOTH loads. The parser keeps whatever ``setup_fn`` bound into it."""
     manager = get_plugin_manager()
     key = manifest_key(manifest)
     entry = manager._cli_commands.get(name)
-    if entry is None or entry.get("plugin_key") != key:
+    loaded_here = entry is None or entry.get("plugin_key") != key
+    if loaded_here:
         manager._load_plugin(manifest)
         entry = manager._cli_commands.get(name)
-    if entry is None or entry.get("plugin_key") != key:
-        raise RuntimeError(f"plugin {key!r} declares CLI command {name!r} in its manifest "
-                           "but register(ctx) did not register it")
-    entry["setup_fn"](parser)
-    if entry.get("handler_fn") is not None:
-        parser.set_defaults(func=entry["handler_fn"])
+    try:
+        if entry is None or entry.get("plugin_key") != key:
+            raise RuntimeError(f"plugin {key!r} declares CLI command {name!r} in its manifest "
+                               "but register(ctx) did not register it")
+        entry["setup_fn"](parser)
+        if entry.get("handler_fn") is not None:
+            parser.set_defaults(func=entry["handler_fn"])
+    finally:
+        if loaded_here:
+            manager.unload(key)
 
 
 def discover_declared_cli_commands() -> List[Dict[str, Any]]:

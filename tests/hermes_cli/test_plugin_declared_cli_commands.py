@@ -146,3 +146,31 @@ def test_the_declared_scan_reads_config_once(two_bundled_plugins, monkeypatch):
     assert len(reads) == 1
     # The one read is the one the gate used: beta is disabled by it.
     assert names == ["alpha"]
+
+
+def test_discovery_after_a_declared_stub_loads_the_plugin_once(two_bundled_plugins):
+    """Every ``hermes`` invocation attaches the declared stubs while building its parser, and a
+    ``gateway run`` then discovers. The stub's load must not survive into that discovery: a
+    second ``register(ctx)`` hits upstream's duplicate-section refusal and the ledger then
+    disposes BOTH loads' registrations (alice's gateway, 2026-09-24..29)."""
+    bundled = plugins_mod.get_bundled_plugins_dir()
+    with open(bundled / "alpha" / "__init__.py", "a", encoding="utf-8") as fh:
+        fh.write('\ndef _register_section(ctx):\n'
+                 '    ctx.register_system_prompt_section("alpha.guidance", "alpha guidance")\n'
+                 '_plain_register = register\n'
+                 'def register(ctx):\n'
+                 '    _plain_register(ctx)\n'
+                 '    _register_section(ctx)\n')
+    declared = {c["name"]: c for c in plugins_mod.discover_declared_cli_commands()}
+
+    parser = _attach(declared["alpha"])
+    plugins_mod.discover_plugins()
+
+    manager = plugins_mod.get_plugin_manager()
+    loaded = manager._plugins["alpha"]
+    assert loaded.error is None and loaded.enabled, loaded.error
+    assert manager._system_prompt_sections["alpha.guidance"].plugin == "alpha"
+    assert manager._cli_commands["alpha"]["plugin_key"] == "alpha"
+    # The parser the stub built outlives the stub's load.
+    args = parser.parse_args(["--alpha-flag"])
+    assert args.alpha_flag is True and args.func(args) == 0
