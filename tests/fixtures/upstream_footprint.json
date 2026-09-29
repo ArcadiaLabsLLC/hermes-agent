@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-09-29",
   "base": "ee5f49b943",
-  "files": 179,
-  "deleted_lines": 954,
+  "files": 180,
+  "deleted_lines": 955,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "lane h11-mcp (5c8e850b18, c05c9d58d7), landed on main while h10-fhrel was landing",
+      "files": "179 -> 180: adds agent/tool_dispatch_helpers.py and hermes_cli/mcp_startup.py (additive, 0 deleted each), retires tools/mcp_tool.py",
+      "deleted_lines": "954 -> 955: tui_gateway/server.py 5 -> 7, net of tools/mcp_tool.py leaving",
+      "reason": "Recorded by the h10 landing so the gate states main honestly; the owner's move-first ruling (2026-09-29) applies — whether the two new files can move behind a fork seam is the h11 program's to check."
+    },
     {
       "change": "landing of lane h10-fhrel onto main (after h10-rtseam and h10-rtfork)",
       "files": "180 -> 179: the merge with main brings h10-rtseam's restore of upstream's bytes (row L324, check_subprocess_stdin) onto h10-fhrel's 180",
