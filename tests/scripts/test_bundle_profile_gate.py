@@ -172,3 +172,26 @@ def test_a_pin_the_loop_placeholders_answer_is_a_seam_proven_at_run_time(tmp_pat
     index["loop_a"].write_text("from tools.terminal_tool_lifecycle import cleanup_vm, cleanup_all_environments\n"
                                "import tools.browser_tool_lifecycle\n", encoding="utf-8")
     assert placeholder_seams(manifest, walk, index) == {}
+
+
+def test_a_relative_import_is_resolved_against_the_kept_modules_package(tmp_path):
+    """``from .lifecycle import x`` inside ``tools/__init__.py`` or ``tools/a.py`` names
+    ``tools.lifecycle``; a guarded import and a bare ``import m`` are the two other answers."""
+    from scripts.bundle_profile_gate import eager_imported_names
+
+    pkg = tmp_path / "tools"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("from .lifecycle import from_init\n", encoding="utf-8")
+    (pkg / "a.py").write_text(
+        "from .lifecycle import from_a\n"
+        "from . import lifecycle_sibling\n"
+        "try:\n    from .lifecycle import guarded\nexcept ImportError:\n    guarded = None\n",
+        encoding="utf-8",
+    )
+    (pkg / "b.py").write_text("import other.pinned\n", encoding="utf-8")
+    index = {"tools": pkg / "__init__.py", "tools.a": pkg / "a.py", "tools.b": pkg / "b.py"}
+    pinned = {"tools.lifecycle", "tools", "other.pinned"}
+    names = eager_imported_names(pinned, ["tools", "tools.a", "tools.b"], index)
+    assert names["tools.lifecycle"] == {"from_init", "from_a"}
+    assert names["tools"] == {"lifecycle_sibling"}
+    assert names["other.pinned"] is None

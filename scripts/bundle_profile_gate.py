@@ -175,6 +175,31 @@ def distribution_findings(shipped, lock: dict[str, dict], admitted_native) -> li
     return out
 
 
+def _import_from_base(node: ast.ImportFrom, package: str) -> str:
+    """The absolute module an ``ImportFrom`` names, a relative one resolved against ``package``."""
+    base = node.module or ""
+    if not node.level:
+        return base
+    anchor = package.split(".")[: len(package.split(".")) - (node.level - 1)]
+    return ".".join([*anchor, base] if base else anchor)
+
+
+def _record_eager_imports(tree: ast.Module, package: str, out: dict[str, set[str] | None]) -> None:
+    """Fold one kept module's unguarded module-level imports of pinned modules into ``out``."""
+    guarded = _guarded_ids(tree)
+    for node in tree.body:
+        if id(node) in guarded:
+            continue
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name in out:
+                    out[alias.name] = None
+        elif isinstance(node, ast.ImportFrom):
+            base = _import_from_base(node, package)
+            if base in out and out[base] is not None:
+                out[base].update(alias.name for alias in node.names)
+
+
 def eager_imported_names(pinned: set[str], kept, index: dict[str, Path]) -> dict[str, set[str] | None]:
     """pinned module -> the names kept modules import from it at module level, unguarded; None
     when some kept module binds the module itself (``import m``), whose later uses no name list
@@ -185,22 +210,8 @@ def eager_imported_names(pinned: set[str], kept, index: dict[str, Path]) -> dict
         tree = _parse(path)
         if tree is None:
             continue
-        guarded = _guarded_ids(tree)
         package = module if path.name == "__init__.py" else module.rpartition(".")[0]
-        for node in tree.body:
-            if id(node) in guarded:
-                continue
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    if alias.name in out:
-                        out[alias.name] = None
-            elif isinstance(node, ast.ImportFrom):
-                base = node.module or ""
-                if node.level:
-                    anchor = package.split(".")[: len(package.split(".")) - (node.level - 1)]
-                    base = ".".join([*anchor, base] if base else anchor)
-                if base in out and out[base] is not None:
-                    out[base].update(alias.name for alias in node.names)
+        _record_eager_imports(tree, package, out)
     return out
 
 
