@@ -129,12 +129,62 @@ def extra_model_dirs(section: dict | None = None) -> "list[Path]":
         section = load_config_readonly().get("local_runtime") or {}
     raw = section.get("model_dirs") if isinstance(section, dict) else None
     dirs = (Path(os.path.expanduser(str(d).strip())) for d in (raw if isinstance(raw, list) else []) if str(d).strip())
-    return [d for d in dirs if d.is_dir()]
+    out = []
+    for d in dirs:
+        if d.is_dir():
+            out.append(d)
+        else:
+            _warn_once(f"local_runtime.model_dirs entry {d} is not a directory; ignoring it")
+    return out
+
+
+_WARNED: set[str] = set()
+
+
+def _warn_once(message: str) -> None:
+    if message not in _WARNED:
+        _WARNED.add(message)
+        logger.warning("%s", message)
+
+
+def staged_across(models_dir: Path, extra_dirs: "tuple[Path, ...] | list[Path]" = ()) -> "list[Path]":
+    """Servable GGUFs in ``models_dir`` then ``extra_dirs``, one per model id. The preset INI and the
+    router name a model by its id, so a root listed twice is walked once and a later file whose id
+    is already taken is skipped (the managed dir wins) rather than written as a second section."""
+    roots: set[str] = set()
+    ids: set[str] = set()
+    out = []
+    for root in (models_dir, *extra_dirs):
+        key = os.path.normcase(str(root.resolve()))
+        if key in roots:
+            continue
+        roots.add(key)
+        for gguf in staged_in(root):
+            model_id = model_id_from_stem(gguf.stem)
+            if model_id in ids:
+                _warn_once(f"local_runtime.model_dirs: {gguf} is shadowed by another {model_id!r}; ignoring it")
+                continue
+            ids.add(model_id)
+            out.append(gguf)
+    return out
+
+
+def server_binary(section: dict) -> "tuple[Path, object | None] | None":
+    """The llama-server to supervise: ``local_runtime.executable_path`` when set, else the installed
+    PM engine's binary (with the engine), else None. The on-demand boot gate asks this too, so a
+    configured executable boots without a PM engine."""
+    executable = str(section.get("executable_path") or "").strip()
+    if executable:
+        return Path(os.path.expanduser(executable)), None
+    from hermes_cli.local_runtime.binaries import installed_engine
+
+    engine = installed_engine(section.get("backend") or "auto")
+    return (engine.binary, engine) if engine is not None else None
 
 
 def staged_models() -> "list[Path]":
     """Servable staged models (continuation parts, incomplete splits and assets/ never count)."""
-    return [gguf for root in (models_dir(), *extra_model_dirs()) for gguf in staged_in(root)]
+    return staged_across(models_dir(), extra_model_dirs())
 
 
 def staged_model_ids() -> "list[str]":
@@ -445,22 +495,19 @@ def ensure_local_runtime(config: dict, force: bool = False) -> "object | None":
             _stop_state_server(state)
 
         try:
-            from hermes_cli.local_runtime.binaries import installed_engine
             from hermes_cli.local_runtime.supervisor import LlamaServerSupervisor
 
-            # executable_path: serve a user-supplied llama-server instead of the PM engine.
-            executable = str(section.get("executable_path") or "").strip()
-            engine = None if executable else installed_engine(section.get("backend", "auto"))
-            if engine is None and not executable:
+            served = server_binary(section)
+            if served is None:
                 logger.info("local runtime enabled but no PM engine installed; use the Local Models pane")
                 return None
+            binary, engine = served
             _SERVING_ENGINE = engine
 
             mdir = models_dir()
             mdir.mkdir(parents=True, exist_ok=True)
             preset_path = _generate_presets(mdir, runtimes_root() / "presets.ini", section)
 
-            binary = Path(os.path.expanduser(executable)) if executable else engine.binary
             sup = LlamaServerSupervisor(binary, mdir, preset_path=preset_path,
                                         models_max=_admitted_models_max(
                                             mdir, int(section.get("models_max", 4)),

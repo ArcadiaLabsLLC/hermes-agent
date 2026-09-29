@@ -206,12 +206,12 @@ def admitted_residency_count(models_dir: Path, budget: HardwareBudget, configure
     number is honoured), and an unpriceable input (no usable device memory, no readable model)
     keeps today's behaviour.
     """
-    from hermes_cli.local_runtime.bootstrap import staged_in
+    from hermes_cli.local_runtime.bootstrap import staged_across
 
     if configured <= 1 or budget.usable_vram_bytes <= 0:
         return configured
     largest = 0
-    for gguf in (g for root in (models_dir, *extra_dirs) for g in staged_in(root)):
+    for gguf in staged_across(models_dir, extra_dirs):
         need = _launch_footprint(gguf, budget)
         if need:
             largest = max(largest, need)
@@ -226,10 +226,10 @@ def plan_presets(models_dir: Path, budget: HardwareBudget, mtp_capable: set[str]
     """The launch decision for every staged model (``models_dir`` then ``extra_dirs``); unreadable
     headers are skipped. ``overrides`` (``local_runtime.model_overrides``) maps a model id to
     llama-server preset keys laid over the policy's — the user's explicit choice wins."""
-    from hermes_cli.local_runtime.bootstrap import staged_in
+    from hermes_cli.local_runtime.bootstrap import staged_across
 
     entries = []
-    for gguf in (g for root in (models_dir, *extra_dirs) for g in staged_in(root)):
+    for gguf in staged_across(models_dir, extra_dirs):
         entry = preset_for_model(gguf, budget, mtp_capable or set(), live=live)
         if entry is None:
             continue

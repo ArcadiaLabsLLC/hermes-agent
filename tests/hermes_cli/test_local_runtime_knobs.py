@@ -85,3 +85,34 @@ def test_model_overrides_land_in_the_preset_ini(hermes_home, tmp_path, monkeypat
     decision = presets.read_preset_decisions(ini)["tiny-dense"]
     assert decision.window == 4096
     assert decision.keys["flash-attn"] == "on"
+
+
+def test_a_model_id_in_two_roots_is_one_preset_section(hermes_home, tmp_path, monkeypatch):
+    """The INI names a model by its id; a second file with a taken id (or a root listed twice)
+    must not become a second section, which configparser refuses — the whole read-back empties."""
+    from hermes_cli.local_runtime.bootstrap import staged_model_ids
+
+    managed, extra = hermes_home / "models", tmp_path / "shared-models"
+    _stage(managed, "tiny-dense")
+    _stage(extra, "tiny-dense")
+    _stage(extra, "tiny-other")
+    (hermes_home / "config.yaml").write_text(
+        f"local_runtime:\n  model_dirs:\n    - {extra.as_posix()}\n    - {extra.as_posix()}\n", encoding="utf-8")
+
+    presets, budget = _tiny_presets(monkeypatch)
+    ini = tmp_path / "p.ini"
+    presets.generate_presets(managed, budget, ini, extra_dirs=[extra, extra])
+    decisions = presets.read_preset_decisions(ini)
+    assert sorted(decisions) == ["tiny-dense", "tiny-other"]
+    assert decisions["tiny-dense"].keys["model"] == str(managed / "tiny-dense.gguf")
+    assert sorted(staged_model_ids()) == ["tiny-dense", "tiny-other"]
+
+
+def test_executable_path_opens_the_on_demand_boot_gate(hermes_home, tmp_path, monkeypatch):
+    """With no PM engine the gate is shut — unless executable_path names the server to supervise."""
+    from hermes_cli.local_runtime import endpoint as ep
+
+    monkeypatch.setattr("hermes_cli.local_runtime.binaries.installed_engine", lambda backend="auto": None)
+    assert ep._boot_in_flight({"local_runtime": {"enabled": True}}) is False
+    exe = str(tmp_path / "bin" / "llama-server.exe")
+    assert ep._boot_in_flight({"local_runtime": {"enabled": True, "executable_path": exe}}) is True
