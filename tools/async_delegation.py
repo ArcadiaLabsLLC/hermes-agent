@@ -113,6 +113,15 @@ def _db_path():
 
 
 def _connect() -> sqlite3.Connection:
+    from agent_runtime.host_store import history as _host_history  # fork seam: phone history storage seam
+    if _host_history.bound():
+        conn = _host_history.connect_state_db(_db_path(), timeout=10.0)
+        try:
+            _initialize_schema(conn)
+        except BaseException:
+            conn.close()
+            raise
+        return conn
     from hermes_cli.sqlite_util import open_db
     # Same state.db as hermes_state.SessionDB -- reuse its owner-only (0600)
     # hardening so this writer doesn't create/leave the file (and its WAL

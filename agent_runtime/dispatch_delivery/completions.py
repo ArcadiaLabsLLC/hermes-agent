@@ -300,6 +300,10 @@ def drain_background_completions(
     loudly rather than spin quietly.
     """
 
+    from agent_runtime.loop_tool_lifecycles import shipped
+
+    if not shipped("tools.process_registry"):  # the phone wheel: no background processes to drain
+        return BackgroundDrain.empty_tally()
     try:
         from tools.process_registry import process_registry
     except Exception:

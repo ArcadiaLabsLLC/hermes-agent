@@ -19,7 +19,12 @@ from typing import Any, Optional
 
 from agent.deadline import kill_process_tree
 from agent.transports.hermes_tools_mcp_server import HERMES_TOOLS_MCP_SERVER_NAME
-from tools.environments.local import hermes_subprocess_env
+try:
+    from tools.environments.local import hermes_subprocess_env
+except ImportError:  # fork seam: phone wheel — the local execution environment is not shipped
+    from agent_runtime.loop_tool_lifecycles import not_shipped
+
+    hermes_subprocess_env = not_shipped("tools.environments.local", "hermes_subprocess_env")
 
 MIN_CODEX_VERSION = (0, 125, 0)
 

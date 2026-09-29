@@ -322,7 +322,6 @@ class BootPhases:
         return 0
 
     def _boot_gateway_lane(self) -> None:
-        from agent_runtime.serve_socket.vocabulary import SOCKET_HOST
         # 3b. THE SECOND DOOR (remote-gateway Stage 1). Off unless an operator
         #     names an interface in `remote_gateway.listen`, and the block SAYS
         #     which of those it is either way — `disabled` is a different fact
@@ -372,6 +371,10 @@ class BootPhases:
             )
             self.gateway_block = with_capabilities(self.gateway_block)
             if self.gateway_server is not None and self.socket_lock is not None:
+                # Imported here: only a serve that owns the socket lane gets this far, and the
+                # embedded (phone) serve ships no socket lane.
+                from agent_runtime.serve_socket.vocabulary import SOCKET_HOST
+
                 # RE-PUBLISH the ownership sidecar, now that the second door has
                 # a real port. The first publish happens before this block on
                 # purpose (the loopback port must be advertised as early as

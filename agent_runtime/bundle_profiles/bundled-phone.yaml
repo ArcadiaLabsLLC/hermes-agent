@@ -68,6 +68,8 @@ config:
   # The system prompt's environment probe spawns python/pip/git (tools/env_probe.py); a phone
   # starts no process and has none of them.
   agent.environment_probe: false
+  # The native gateway's session branch / repo-root probe (tui_gateway/git_probe.py) spawns git.
+  sessions.git_probe: false
   # agent.log records each turn's opening words at INFO (agent/turn_context.py); a phone keeps no
   # plaintext chat on disk, so its file log starts at WARNING.
   logging.level: WARNING
@@ -140,9 +142,28 @@ packaging:
     - tools.terminal_tool_backends
     - tools.terminal_tool_lifecycle
     - tools.process_registry
+    - tools.close_terminal_tool     # desktop_ui toolset: closes a background process's tab
+    - tools.browser_tool_lifecycle  # the loop's cleanup_browser: a placeholder stands in
+    - tools.delegate_tool           # imports the terminal tool; a placeholder answers the loop's cap
     - tools.code_execution_tool
     - tools.file_tools
     - tools.browser_tool
+    - tools.browser_camofox
+    - tools.browser_camofox_state
+    - tools.browser_lightpanda
+    - tools.browser_supervisor
+    - tools.browser_supervisor_dialogs
+    - tools.browser_supervisor_frames
+    - tools.browser_tool_cdp
+    - tools.browser_tool_cloud
+    - tools.browser_tool_eval_policy
+    - tools.browser_tool_install
+    - tools.browser_tool_lightpanda_fallback
+    - tools.browser_tool_origin
+    - tools.browser_tool_real_profile
+    - tools.browser_tool_session
+    - tools.browser_tool_snapshot
+    - plugins.browser
     - tools.browser_cdp_tool
     - tools.browser_dialog_tool
     - tools.browser_use_cli
@@ -155,6 +176,9 @@ packaging:
     - tools.mcp_tool_server_run
     # Cron.
     - tools.cronjob_tools
+    - tools.cronjob_job_args
+    - tools.cronjob_prompt_scan
+    - agent.monitoring.cron_health
     - cron
     # Local LLM and the speech service (OS speech and the OS model on phones).
     - hermes_cli.local_runtime
@@ -163,6 +187,9 @@ packaging:
     - agent_runtime.speech_decode
     - tools.tts_tool_local
     - tools.transcription_local
+    - tools.transcription_tools     # the STT tool: phones transcribe with the OS
+    - tools.transcription_command
+    - plugins.teams_pipeline
     # Hermes's own mic/speaker features.
     - tools.voice_mode
     - tools.voice_live
@@ -177,7 +204,37 @@ packaging:
     - tools.feishu_doc_tool
     - tools.feishu_drive_tool
     - tools.yuanbao_tools
-    - gateway.platforms
+    # The adapters, not the platform core (base / event / helpers / _shared / base_exec_approval),
+    # which the gateway's own runner and the native gateway import at module level.
+    - gateway.platforms._http_client_limits
+    - gateway.platforms.access_policy_mixin
+    - gateway.platforms.api_server
+    - gateway.platforms.api_server_memory_sessions
+    - gateway.platforms.api_server_openai_routes
+    - gateway.platforms.api_server_room_dispatch
+    - gateway.platforms.api_server_room_grants
+    - gateway.platforms.api_server_run_idempotency
+    - gateway.platforms.api_server_runs
+    - gateway.platforms.api_server_turn_boundary
+    - gateway.platforms.bluebubbles
+    - gateway.platforms.media_cache
+    - gateway.platforms.msgraph_webhook
+    - gateway.platforms.qqbot
+    - gateway.platforms.shared_ingress
+    - gateway.platforms.signal
+    - gateway.platforms.signal_format
+    - gateway.platforms.signal_rate_limit
+    - gateway.platforms.tcp_site
+    - gateway.platforms.webhook
+    - gateway.platforms.webhook_coalesce
+    - gateway.platforms.webhook_filters
+    - gateway.platforms.weixin
+    - gateway.platforms.whatsapp_cloud
+    - gateway.platforms.whatsapp_common
+    - gateway.platforms.yuanbao
+    - gateway.platforms.yuanbao_media
+    - gateway.platforms.yuanbao_proto
+    - gateway.platforms.yuanbao_sticker
     - plugins.platforms
     # Checkout-bound.
     - gateway.code_skew
@@ -189,6 +246,80 @@ packaging:
     - hermes_cli.update_inventory
     - hermes_cli.worktree_cmd
     - hermes_cli.relay_plugin_migrate
+    # The desktop CLI, its dashboard and web server (the phone's only door is the embedded serve).
+    - cli
+    - hermes_cli.main
+    - hermes_cli.main_dashboard
+    - hermes_cli.main_desktop
+    - hermes_cli.main_platform_setup
+    - hermes_cli.main_tui_launch
+    - hermes_cli.cli_commands_mixin
+    - hermes_cli.cli_session_mixin
+    - hermes_cli.bang_shell
+    - hermes_cli.clipboard
+    - hermes_cli.web_server
+    - hermes_cli.web_server_gateway
+    - hermes_cli.web_server_lifecycle
+    - hermes_cli.web_server_memory
+    - hermes_cli.web_server_chat
+    - hermes_cli.web_server_config
+    - hermes_cli.web_server_cron
+    - hermes_cli.web_server_dashboard
+    - hermes_cli.web_server_files
+    - hermes_cli.web_server_idle_exit
+    - hermes_cli.web_server_idle_proof
+    - hermes_cli.web_server_mcp
+    - hermes_cli.web_server_messaging
+    - hermes_cli.web_server_oauth
+    - hermes_cli.web_server_profiles
+    - hermes_cli.web_server_sessions
+    - hermes_cli.web_server_skew_exit
+    - hermes_cli.web_routers
+    - hermes_cli.web_git
+    - hermes_cli.dashboard_procs
+    - hermes_cli.dump
+    - hermes_cli.session_lost_and_found
+    - hermes_cli.browser_connect
+    # Install, service and update machinery: the app store ships the wheel; nothing installs or relaunches.
+    - hermes_cli.boot_bootstrap
+    - hermes_cli._old_updater
+    - hermes_cli.bundled_app
+    - hermes_cli.relaunch
+    - hermes_cli.uninstall
+    - hermes_cli.service_manager
+    - hermes_cli.source_build
+    - hermes_cli.update_cmd_git
+    - hermes_cli.update_cmd_stash
+    - hermes_cli.update_lock
+    - hermes_cli.update_owning_install
+    - hermes_cli.update_stage
+    - hermes_cli.linux_desktop_entry
+    - hermes_cli.macos_signing
+    - hermes_cli.windows_ssh_runtime
+    - hermes_cli.worktree_gc
+    - hermes_cli.gateway
+    - hermes_cli.gateway_launchd
+    - hermes_cli.gateway_migrate_guards
+    - hermes_cli.gateway_windows
+    # Setup wizards and catalog/plugin authoring (desktop flows).
+    - hermes_cli.setup
+    - hermes_cli.setup_terminal
+    - hermes_cli.setup_tts
+    - hermes_cli.memory_setup
+    - hermes_cli.model_setup_flows
+    - hermes_cli.plugin_validate
+    - hermes_cli.plugins_provenance
+    - hermes_cli.plugins_updates
+    - hermes_cli.secrets_cli
+    - hermes_cli.onepassword_secrets_cli
+    # Process-starting integrations: LSP servers, verify runner, shell hooks, ACP/app-server children, desktop bot.
+    - agent.lsp
+    - agent.verify
+    - agent.copilot_acp_client
+    - tools.bot_desktop
+    - tools.working_diff
+    - tools.self_repo_guard
+    - tools.tirith_security
     # Dev and QA tooling.
     - agent_runtime.doctor_extensions
     - tests

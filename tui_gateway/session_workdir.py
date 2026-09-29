@@ -310,6 +310,10 @@ def _register_session_cwd(session: dict | None) -> None:
     # Do not reinitialize memory providers or invalidate the cached system prompt.
     if hasattr(agent := session.get("agent"), "session_cwd"):
         agent.session_cwd = session.get("cwd") or None
+    from agent_runtime.loop_tool_lifecycles import shipped  # fork seam: phone wheel ships no terminal tool
+
+    if not shipped("tools.terminal_tool"):
+        return
     with contextlib.suppress(Exception):
         from tools.terminal_tool import register_task_env_overrides
         cwd, cwd_source = _terminal_task_cwd_with_source(session)

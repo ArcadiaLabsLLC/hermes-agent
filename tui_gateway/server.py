@@ -28,7 +28,12 @@ from hermes_constants import (
 from hermes_cli.env_loader import load_hermes_dotenv
 from utils import file_signature, is_truthy_value
 from hermes_state_ids import new_session_id
-from tools.environments.local import hermes_subprocess_env
+try:
+    from tools.environments.local import hermes_subprocess_env
+except ImportError:  # fork seam: phone wheel — the local execution environment is not shipped
+    from agent_runtime.loop_tool_lifecycles import not_shipped
+
+    hermes_subprocess_env = not_shipped("tools.environments.local", "hermes_subprocess_env")
 from agent.replay_cleanup import canonicalize_replay_history
 from agent.reasoning_effort import clamp_effort, route_supported_efforts
 from agent.compaction_display import project_compaction_message_for_display  # noqa: F401

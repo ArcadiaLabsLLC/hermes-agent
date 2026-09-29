@@ -45,7 +45,14 @@ from tools.tts_tool_delivery import (
 from tools.tts_tool_providers import (
     _generate_edge_tts, _generate_elevenlabs, _generate_gemini_tts, _generate_minimax_tts,
     _generate_mistral_tts, _generate_xai_tts, _resolve_minimax_tts_runtime)
-from tools.tts_tool_local import _generate_kittentts, _generate_neutts, _generate_piper_tts
+try:
+    from tools.tts_tool_local import _generate_kittentts, _generate_neutts, _generate_piper_tts
+except ImportError:  # fork seam: phone wheel — no local TTS engines (their packages are absent too)
+    from agent_runtime.loop_tool_lifecycles import not_shipped
+
+    _generate_kittentts, _generate_neutts, _generate_piper_tts = (
+        not_shipped("tools.tts_tool_local", name)
+        for name in ("_generate_kittentts", "_generate_neutts", "_generate_piper_tts"))
 from tools.tts_tool_plugins import (
     _dispatch_to_plugin_provider, _plugin_provider_is_available,
     _plugin_provider_is_voice_compatible)

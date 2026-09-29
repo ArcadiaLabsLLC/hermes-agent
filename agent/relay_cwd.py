@@ -20,6 +20,10 @@ def _clean_cwd(value: Any) -> str:
 def _recorded_cwd(key: str) -> str:
     if not key:
         return ""
+    from agent_runtime.loop_tool_lifecycles import shipped  # fork seam: phone wheel ships no terminal tool
+
+    if not shipped("tools.terminal_tool"):
+        return ""  # no terminal session, so no recorded cwd
     from tools.terminal_tool import get_session_cwd
 
     return _clean_cwd(get_session_cwd(key))

@@ -247,3 +247,80 @@ def test_unbound_is_upstream():
     probe = Path("x") / "auth.json"
     assert secret_files.view(probe) is probe
     assert history.session_db_class(SessionDB) is SessionDB
+
+
+def _pending_delegation(home: Path) -> None:
+    """One abandoned delegation row, written through the ledger's own writer (bound or not)."""
+    from tools import async_delegation
+
+    async_delegation._persist_dispatch({"delegation_id": "d-1", "session_key": "s1", "dispatched_at": 1.0,
+                                        "goal": f"summarise {CHAT}"})
+    with async_delegation._DB_LOCK, async_delegation._transaction() as conn:  # its owner has since died
+        conn.execute("UPDATE async_delegations SET owner_pid=?, owner_started_at=? WHERE delegation_id='d-1'",
+                     (2 ** 22 + 7, 1.0))
+
+
+def test_the_delegation_ledger_writes_the_sealed_image_not_a_plaintext_database(app):
+    """``tools.process_registry``'s import-time recovery (``restore_undelivered_completions``) opens
+    ``state.db`` beside ``SessionDB``. Bound, it must write the sealed image: once it won the race
+    it wrote a plaintext database, which ``SessionDB`` then refused ("not a history envelope")."""
+    import queue
+
+    from hermes_state import SessionDB
+    from tools import async_delegation
+
+    import sqlite3
+
+    root, home = app
+    FakeHostSecureStore().bind(profile="p1", store_root=root)
+    _pending_delegation(home)  # before any SessionDB: the ledger alone creates the state DB
+    assert not (home / "state.db").read_bytes().startswith(b"SQLite format 3")
+    db = SessionDB(home / "state.db")  # the sealed store opens what the ledger wrote, and stays open
+    try:
+        db.create_session("s1", source="cli")
+        restored = queue.Queue()
+        async_delegation.restore_undelivered_completions(restored)
+        # The ledger's write reached the disk while SessionDB still holds the image: sealed, and
+        # it decrypts to the settled row.
+        blob = (home / "state.db").read_bytes()
+        assert not blob.startswith(b"SQLite format 3") and CHAT.encode() not in blob
+        image = sqlite3.connect(":memory:")
+        try:
+            image.deserialize(history.read_blob(home / "state.db"))
+            row = image.execute("SELECT state FROM async_delegations WHERE delegation_id='d-1'").fetchone()
+        finally:
+            image.close()
+        assert row == ("unknown",)
+    finally:
+        db.close()
+    # Positive control: the recovery really ran over the ledger row (it settled and re-queued it).
+    event = restored.get_nowait()
+    assert event["delegation_id"] == "d-1" and event["status"] == "unknown" and CHAT in event["goal"]
+
+
+def test_file_logs_are_sealed_records_when_bound(app):
+    import logging
+
+    import hermes_logging
+
+    root, home = app
+    FakeHostSecureStore().bind(profile="p1", store_root=root)
+    hermes_logging._reset_queued_handlers()
+    hermes_logging._logging_initialized = False
+    hermes_logging.setup_logging(hermes_home=home, log_level="INFO", force=True)
+    try:
+        logging.getLogger("agent.turn_context").info("turn opens with %s", CHAT)
+        logging.getLogger("agent.turn_context").warning("provider said %s", DUMP)
+        hermes_logging.flush_log_queue()
+        logs = sorted(p.name for p in (home / "logs").iterdir())
+        assert {"agent.log", "errors.log"} <= set(logs)
+        for name in ("agent.log", "errors.log"):
+            data = (home / "logs" / name).read_bytes()
+            assert CHAT.encode() not in data and DUMP.encode() not in data
+        # Positive control: the records decrypt, through the bound store, to the lines logged.
+        agent = history.read_records(home / "logs" / "agent.log")
+        assert any(CHAT in r for r in agent) and any(DUMP in r for r in agent)
+        assert any(DUMP in r for r in history.read_records(home / "logs" / "errors.log"))
+    finally:
+        hermes_logging._reset_queued_handlers()
+        hermes_logging._logging_initialized = False

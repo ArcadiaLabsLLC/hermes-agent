@@ -552,6 +552,10 @@ def _new_file_handler(
 ) -> "_ManagedRotatingFileHandler":
     """Create the ``logs/`` directory and a configured ``_ManagedRotatingFileHandler``."""
     mkdir_under_hermes_home(path.parent)
+    from agent_runtime.host_store import log_records as _host_logs  # fork seam: phone sealed logs seam
+    if _host_logs.bound():
+        return _host_logs.sealed_file_handler(
+            path, level=level, max_bytes=max_bytes, backup_count=backup_count, formatter=formatter)
     if _WINDOWS_CLH_FALLBACK:
         # stdlib fallback: no rollover, or the file pins at the size threshold
         # and every emit re-triggers the WinError 32 rename failure (#44873).

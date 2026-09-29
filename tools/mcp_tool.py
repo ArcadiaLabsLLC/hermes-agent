@@ -27,7 +27,13 @@ from tools.mcp_tool_common import _DEFAULT_TOOL_TIMEOUT, mcp_field
 from tools.mcp_tool_config import _get_mcp_stderr_log, _npx_cached_bin
 from tools.mcp_tool_sampling import ElicitationHandler, SamplingHandler
 from tools.mcp_tool_transport import MCPServerTransportMixin
-from tools.mcp_tool_server_run import MCPServerRunMixin
+try:
+    from tools.mcp_tool_server_run import MCPServerRunMixin
+except ImportError:  # fork seam: phone wheel — MCP servers are not run there (bundled-phone.yaml)
+    from agent_runtime.loop_tool_lifecycles import not_shipped
+
+    class MCPServerRunMixin:  # type: ignore[no-redef]
+        run = not_shipped("tools.mcp_tool_server_run", "MCPServerRunMixin.run")
 from tools.mcp_tool_health import MCPServerHealthMixin
 
 

@@ -134,7 +134,8 @@ def test_the_loop_runs_a_turn_without_sdks_or_desktop_tool_lifecycles(tmp_path):
     assert "todo_list" in tool["tools"]
     assert tool["roles"] == ["system", "user", "assistant", "tool"]
     assert json.loads(tool["tool_results"][0])["todos"] == []  # the safe tool really ran
-    assert report["placed"] == ["tools.terminal_tool_lifecycle", "tools.browser_tool_lifecycle", "tools.delegate_tool"]
+    assert report["placed"] == ["tools.terminal_tool_lifecycle", "tools.browser_tool_lifecycle", "tools.delegate_tool",
+                                "tools.computer_use.tool", "tools.browser_tool_cloud"]  # blocked here; file_tools is not
     assert report["loaded"] == []
 
 

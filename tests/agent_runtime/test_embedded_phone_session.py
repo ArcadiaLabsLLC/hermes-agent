@@ -30,6 +30,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -43,6 +44,8 @@ from agent_runtime.host_store.fake import FakeHostSecureStore
 from hermes_cli.harness_parts.serve.in_memory import EmbeddedServe, app_folder_environment
 
 pytestmark = pytest.mark.timeout(180)
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 SECRET = "phone-e2e-provider-key-4c7a"
 CHAT = "saffron-lighthouse-cadenza"
@@ -123,14 +126,6 @@ class Phone:
 def app(tmp_path, monkeypatch):
     from agent_runtime import provider_signin
 
-    # Named gap: ``tools.process_registry``'s import-time recovery opens ``state.db`` with raw sqlite
-    # (``tools/async_delegation.py``) — when a background import wins the race against the sealed
-    # store, the history becomes a plaintext database. The phone wheel does not ship the module,
-    # but the loop and the in-process gateway still import it (and the rest of the switched-off
-    # tree) on the turn path — runtime-queue rows filed by lane p1-hint. Imported here, BEFORE the
-    # app folder exists, so its side effect lands in the test's own home and the run is deterministic.
-    import tools.process_registry  # noqa: F401
-
     app_dir = tmp_path / "app"
     for name, value in app_folder_environment(app_dir).items():
         Path(value).mkdir(parents=True, exist_ok=True)
@@ -148,8 +143,11 @@ def _phone_config(home: Path, port: int) -> None:
     base = {"model": {"default": "test-model", "provider": f"custom:{PROVIDER}"},
             "providers": {PROVIDER: {"api": f"http://127.0.0.1:{port}/v1", "key_env": KEY_ENV}},
             "dashboard": {"turn_isolation": False}, "mcp_servers": {}}
-    (home / "config.yaml").write_text(yaml.safe_dump(apply_to_config(load_profile("bundled-phone"), base)),
-                                      encoding="utf-8")
+    config = apply_to_config(load_profile("bundled-phone"), base)
+    # The profile keeps its file log at WARNING; INFO here makes agent.log record the turn's opening
+    # words, so the scan below proves the log itself is sealed rather than merely quiet.
+    config.setdefault("logging", {})["level"] = "INFO"
+    (home / "config.yaml").write_text(yaml.safe_dump(config), encoding="utf-8")
 
 
 def _sign_in_driver(verify, flow):
@@ -171,18 +169,6 @@ def _leaks(root: Path) -> dict[str, list[str]]:
     return found
 
 
-def _no_spawn(monkeypatch) -> list:
-    spawned: list = []
-    real_popen = subprocess.Popen
-
-    def recording_popen(*args, **kwargs):
-        spawned.append(args[0] if args else kwargs.get("args"))
-        return real_popen(*args, **kwargs)
-
-    monkeypatch.setattr(subprocess, "Popen", recording_popen)
-    return spawned
-
-
 def _settle(phone: Phone, ids: dict, session_id: str, turn_id: str) -> dict:
     deadline = time.monotonic() + 90
     while True:
@@ -193,73 +179,228 @@ def _settle(phone: Phone, ids: dict, session_id: str, turn_id: str) -> dict:
         time.sleep(.05)
 
 
-def test_sign_in_and_one_chat_turn_leave_no_secret_and_no_chat_text_on_disk(app, monkeypatch):
-    from hermes_cli import provider_browser_login as wire
+def _sign_in(phone: Phone) -> None:
+    login = phone.call("runtime.provider.signin.begin", {"provider": PROVIDER})
+    deadline = time.monotonic() + 30
+    while (view := phone.call("runtime.provider.signin.poll", {"login_id": login["login_id"]}))["state"] \
+            not in {"succeeded", "failed", "cancelled"}:
+        assert time.monotonic() < deadline, view
+        time.sleep(.05)
+    assert view["state"] == "succeeded", view
 
-    home = Path(os.environ["HERMES_HOME"])
-    Provider.requests = []
-    provider = ThreadingHTTPServer(("127.0.0.1", 0), Provider)
-    threading.Thread(target=provider.serve_forever, daemon=True).start()
-    _phone_config(home, provider.server_port)
-    monkeypatch.setitem(wire._DRIVERS, PROVIDER, _sign_in_driver)
-    store = FakeHostSecureStore()
-    store.bind(profile="phone-e2e", store_root=app)
-    spawned = _no_spawn(monkeypatch)
 
-    frames = Frames()
-    serve = EmbeddedServe(frames.on_frame)
-    serve.start()
-    phone = Phone(serve, frames)
-    try:
-        ready = frames.wait_for(lambda f: f.get("event") == "ready")
-        install_id = ready["install"]["install_id"]
-        assert install_id
+def _chat_turn(phone: Phone, install_id: str, app: Path, home: Path) -> dict:
+    ids = {"install_id": install_id, "client_scope": "phone-account", "profile": "default"}
+    opened = phone.call("runtime.conversation.open", {**ids, "key": "chat", "cwd": str(app),
+                                                      "profile_home": str(home)})
+    sid = opened["session_id"]
+    phone.call("runtime.conversation.send", {**ids, "session_id": sid, "turn_id": "turn-1",
+                                             "prompt": {"text": f"Please remember {CHAT}", "images": []}})
+    return _settle(phone, ids, sid, "turn-1")
 
-        login = phone.call("runtime.provider.signin.begin", {"provider": PROVIDER})
-        deadline = time.monotonic() + 30
-        while (view := phone.call("runtime.provider.signin.poll", {"login_id": login["login_id"]}))["state"] \
-                not in {"succeeded", "failed", "cancelled"}:
-            assert time.monotonic() < deadline, view
-            time.sleep(.05)
-        assert view["state"] == "succeeded", view
-        os.environ.pop(KEY_ENV, None)  # the chat must find the key through the host store, not this process
 
-        ids = {"install_id": install_id, "client_scope": "phone-account", "profile": "default"}
-        opened = phone.call("runtime.conversation.open", {**ids, "key": "chat", "cwd": str(app),
-                                                          "profile_home": str(home)})
-        sid = opened["session_id"]
-        phone.call("runtime.conversation.send", {**ids, "session_id": sid, "turn_id": "turn-1",
-                                                 "prompt": {"text": f"Please remember {CHAT}", "images": []}})
-        result = _settle(phone, ids, sid, "turn-1")
-        assert result["turn"]["state"] == "completed", json.dumps(result)[-3000:]
-        done = [e["frame"]["params"]["payload"] for e in result["events"]
-                if e["turn_id"] == "turn-1" and e["frame"].get("params", {}).get("type") == "message.complete"]
-        assert done and done[-1]["text"] == REPLY
-    finally:
-        serve.close()
-        exit_code = serve.wait(60)
-        provider.shutdown()
-        provider.server_close()
-    assert exit_code is not None, "the embedded serve did not end at EOF"
-
-    # Positive controls: the key and the chat really travelled, and the history the scan reads holds them.
-    chat = [(auth, body) for auth, body in Provider.requests if CHAT in json.dumps(body)]
-    assert chat and all(auth == f"Bearer {SECRET}" for auth, _ in chat)
-    assert any(SECRET.encode() in value for value in store.slots.values())
-    assert (home / "state.db").is_file() and (home / "state.db").stat().st_size > 0
+def _what_the_turn_left(home: Path, store: FakeHostSecureStore) -> dict:
+    """Read back, through the bound store, the history and the log the byte scan covers."""
+    import hermes_logging
+    from agent_runtime.host_store import history
     from hermes_state import SessionDB
 
+    hermes_logging.flush_log_queue()
     db = SessionDB(home / "state.db")
     try:
         transcript = json.dumps([db.get_messages(row["id"]) for row in db.list_sessions_rich(limit=10)])
     finally:
         db.close()
-    assert CHAT in transcript and REPLY in transcript
+    log = home / "logs" / "agent.log"
+    records = history.read_records(log) if log.is_file() else []
+    return {
+        "chat_auth": [auth for auth, body in Provider.requests if CHAT in json.dumps(body)],
+        "key_in_store": any(SECRET.encode() in value for value in store.slots.values()),
+        "state_db_bytes": (home / "state.db").stat().st_size if (home / "state.db").is_file() else 0,
+        "transcript": [needle for needle in (CHAT, REPLY) if needle in transcript],
+        "log_records": len(records),
+        "log_has_chat": any(CHAT in record for record in records),
+    }
 
-    # No Hermes child: no worker subprocess, no `hermes auth login`, no python/pip probe. The one
-    # spawn left is the native gateway's git branch probe (tui_gateway/git_probe.py), which has no
-    # switch yet — a named gap, filed in the runtime queue (lane p1-hint), not a pass.
-    assert all(argv and Path(str(argv[0])).stem.lower() == "git" for argv in spawned), spawned
+
+def phone_turn(app: Path) -> dict:
+    """Sign in and run one chat turn over ``EmbeddedServe`` frames; report what the turn left.
+
+    Runs in the child interpreter the test starts (:data:`_CHILD`), so the phone wheel's absent
+    modules are really absent and nothing an earlier test imported is already loaded.
+    """
+    from agent_runtime import provider_signin
+    from hermes_cli import provider_browser_login as wire
+
+    for name, value in app_folder_environment(app).items():
+        Path(value).mkdir(parents=True, exist_ok=True)
+        os.environ[name] = value
+    os.environ.pop(KEY_ENV, None)
+    provider_signin._REGISTRY = None
+    home = Path(os.environ["HERMES_HOME"])
+    Provider.requests = []
+    provider = ThreadingHTTPServer(("127.0.0.1", 0), Provider)
+    threading.Thread(target=provider.serve_forever, daemon=True).start()
+    _phone_config(home, provider.server_port)
+    wire._DRIVERS[PROVIDER] = _sign_in_driver
+    store = FakeHostSecureStore()
+    store.bind(profile="phone-e2e", store_root=app)
+    spawned: list = []
+    real_popen = subprocess.Popen
+
+    class RecordingPopen(real_popen):  # a class: asyncio's Windows loop subclasses subprocess.Popen at import
+        def __init__(self, args, *rest, **kwargs):
+            spawned.append(str(args))
+            super().__init__(args, *rest, **kwargs)
+
+    subprocess.Popen = RecordingPopen
+    frames = Frames()
+    serve = EmbeddedServe(frames.on_frame)
+    serve.start()
+    phone = Phone(serve, frames)
+    try:
+        install_id = frames.wait_for(lambda f: f.get("event") == "ready")["install"]["install_id"]
+        assert install_id
+        _sign_in(phone)
+        os.environ.pop(KEY_ENV, None)  # the chat must find the key through the host store, not this process
+        result = _chat_turn(phone, install_id, app, home)
+    finally:
+        serve.close()
+        exit_code = serve.wait(60)
+        provider.shutdown()
+        provider.server_close()
+        subprocess.Popen = real_popen
+    done = [e["frame"]["params"]["payload"] for e in result["events"]
+            if e["turn_id"] == "turn-1" and e["frame"].get("params", {}).get("type") == "message.complete"]
+    return {"turn": result["turn"]["state"], "turn_tail": json.dumps(result)[-3000:],
+            "reply": done[-1]["text"] if done else None, "exit_code": exit_code, "spawned": spawned,
+            **_what_the_turn_left(home, store)}
+
+
+#: The child: the phone wheel's absent modules (the profile's ``switched_off_modules``) cannot be
+#: imported, and every attempt outside a ``find_spec`` presence probe is recorded with the line that
+#: made it — a turn that swallows the ImportError still reached into the switched-off tree. Two kinds
+#: of attempt only a source checkout can make are not recorded: one made BY a switched-off module's
+#: own file, and the tool registry's directory scan naming a switched-off tool module — the wheel
+#: has neither file. The wheel also carries its build stamp and no ``.git``, so Hermes's version is
+#: the stamp's, never ``git describe``'s.
+_CHILD = r"""
+import json, os, sys
+from pathlib import Path
+
+app, test_file, wheel = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+root = Path.cwd().resolve()
+from agent_runtime.bundle_profiles.manifest import load_profile
+
+OFF = tuple(load_profile("bundled-phone").switched_off_modules)
+attempts = []
+
+def _off(name):
+    return any(name == m or name.startswith(m + ".") for m in OFF)
+
+def _importer(frame):
+    probe = False
+    site = None
+    while frame is not None:
+        code = frame.f_code
+        name = code.co_filename.replace("\\", "/")
+        if code.co_name == "find_spec" and name.endswith(("importlib/util.py", "importlib.util>")):
+            probe = True
+        if site is None and not name.startswith("<") and "/importlib/" not in name:
+            site = (Path(code.co_filename).resolve(), frame.f_lineno, code.co_name)
+        frame = frame.f_back
+    return probe, site
+
+class PhoneWheel:
+    def find_spec(self, name, path=None, target=None):
+        if _off(name):
+            probe, site = _importer(sys._getframe(1))
+            if not probe and site is not None:
+                where, line, func = site
+                rel = where.relative_to(root).as_posix() if where.is_relative_to(root) else str(where)
+                importer = rel[:-3].replace("/", ".").removesuffix(".__init__")
+                scan = rel == "tools/registry.py" and func == "discover_builtin_tools"
+                if not (_off(importer) or scan):
+                    attempts.append({"module": name, "site": rel, "line": line})
+            raise ModuleNotFoundError(f"not in the phone wheel: {name}", name=name)
+
+if wheel == "phone":
+    sys.meta_path.insert(0, PhoneWheel())
+    try:
+        import tools.terminal_tool  # noqa: F401
+        raise SystemExit("control failed: tools.terminal_tool imported")
+    except ModuleNotFoundError:
+        pass
+
+import hermes_cli.version_info as version_info
+version_info._cached_version_info = version_info.VersionInfo("0.0.0", "0.0.0", 0, "0" * 39 + "1", None, "build")
+
+import importlib.util
+spec = importlib.util.spec_from_file_location("phone_turn_scenario", test_file)
+scenario = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(scenario)
+result = scenario.phone_turn(app)
+result["attempted"] = attempts
+result["registry_loaded"] = "tools.process_registry" in sys.modules
+print("RESULT " + json.dumps(result), flush=True)
+"""
+
+
+def _unseamed(attempts: list[dict]) -> list[dict]:
+    """The attempts not made by a module-level ``try: import … except ImportError`` seam.
+
+    A module-level guarded import is the profile's seam (the gate reads the same shape as
+    "not pinned"): it binds a stand-in and the importer loads. Anything else — a lazy import
+    whose ImportError the caller swallowed, an unguarded one — is the turn reaching into code
+    the phone does not have.
+    """
+    from scripts.bundle_profile_closure import _imports
+
+    seams = {}
+    out = []
+    for attempt in attempts:
+        path = REPO_ROOT / attempt["site"]
+        if path not in seams:
+            module = attempt["site"][:-3].replace("/", ".").removesuffix(".__init__")
+            seams[path] = {line for _dotted, eager, guarded, line in _imports(path, module, path.name == "__init__.py")
+                           if eager and guarded} if path.is_file() else set()
+        if attempt["line"] not in seams[path]:
+            out.append(attempt)
+    return out
+
+
+@pytest.mark.parametrize("wheel", ["phone", "full"])
+def test_sign_in_and_one_chat_turn_leave_no_secret_and_no_chat_text_on_disk(tmp_path, wheel):
+    """``phone``: the switched-off modules are absent. ``full``: every module is installed, so the
+    background drain loads the process registry, whose import-time delegation recovery opens the
+    state DB beside the sealed store — the bound store must still hold every byte (the recovery's own
+    write path is pinned in test_host_store_seam.py)."""
+    app = tmp_path / "app"
+    proc = subprocess.run([sys.executable, "-c", _CHILD, str(app), __file__, wheel], cwd=REPO_ROOT,
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=170)
+    lines = [line for line in proc.stdout.splitlines() if line.startswith("RESULT ")]
+    assert proc.returncode == 0 and lines, (proc.stdout[-3000:], proc.stderr[-6000:])
+    result = json.loads(lines[-1][len("RESULT "):])
+
+    assert result["turn"] == "completed", result["turn_tail"]
+    assert result["reply"] == REPLY
+    assert result["exit_code"] is not None, "the embedded serve did not end at EOF"
+    # Positive controls: the key and the chat really travelled, the history the scan reads holds
+    # them, and the log recorded the chat — sealed, so the scan looked where the bytes are.
+    assert result["chat_auth"] and all(auth == f"Bearer {SECRET}" for auth in result["chat_auth"])
+    assert result["key_in_store"]
+    assert result["state_db_bytes"] > 0 and result["transcript"] == [CHAT, REPLY]
+    assert result["log_records"] > 0 and result["log_has_chat"]
+    # The phone wheel: nothing on the turn path reached a switched-off module except through a
+    # module-level seam (not even into an ImportError it swallowed), and no process was started —
+    # no worker, no `hermes auth login`, no python/pip probe, no git probe. Positive control: the
+    # recorder saw the native gateway's own seam (tui_gateway/server.py's environments import).
+    if wheel == "phone":
+        assert (unseamed := _unseamed(result["attempted"])) == [], unseamed
+        assert any(a["site"] == "tui_gateway/server.py" for a in result["attempted"]), result["attempted"]
+    else:
+        assert result["registry_loaded"]  # the full wheel really ran the recovery the seam routes
+    assert result["spawned"] == []
     assert _leaks(app) == {}
 
 

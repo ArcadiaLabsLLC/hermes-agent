@@ -17,6 +17,13 @@ installed, a placeholder module carrying exactly the names the loop imports, wit
 answers that are true when the tool cannot exist: nothing to clean up, no active
 environment, nothing persistent, no cap on a ``delegate_task`` call (with no delegation
 tool registered, each such call is answered "tool does not exist" rather than dropped). Any other name raises :class:`LifecycleNotShipped`.
+
+The loop's task cleanup (``agent.client_lifecycle._close_task_resources``) also reaches the
+file tools and the computer-use tool, and the per-turn cleanup
+(``agent.chat_completion_helpers.cleanup_task_resources``) asks the browser tool whether it
+runs headed: absent, there is no read stamp to forget, no computer-use session to release
+and no headed browser — the same answers. (Its process-registry step asks
+:func:`shipped` instead: the registry's surface is too wide for a stand-in.)
 With the real modules installed (desktop, full Hermes) it does nothing. It must run
 before the loop is imported: the in-process conversation worker calls it, and so must
 the phone runtime's entry point.
@@ -30,12 +37,15 @@ import types
 from typing import Any
 
 __layer__ = "lanes"
-__all__ = ["BROWSER_LIFECYCLE", "DELEGATE_TOOL", "TERMINAL_LIFECYCLE", "LifecycleNotShipped",
-           "ensure_lifecycle_placeholders", "is_lifecycle_placeholder"]
+__all__ = ["BROWSER_CLOUD", "BROWSER_LIFECYCLE", "COMPUTER_USE_TOOL", "DELEGATE_TOOL", "FILE_TOOLS", "TERMINAL_LIFECYCLE", "LifecycleNotShipped",
+           "ensure_lifecycle_placeholders", "is_lifecycle_placeholder", "not_shipped", "shipped"]
 
 TERMINAL_LIFECYCLE = "tools.terminal_tool_lifecycle"
 BROWSER_LIFECYCLE = "tools.browser_tool_lifecycle"
 DELEGATE_TOOL = "tools.delegate_tool"
+FILE_TOOLS = "tools.file_tools"
+COMPUTER_USE_TOOL = "tools.computer_use.tool"
+BROWSER_CLOUD = "tools.browser_tool_cloud"
 
 
 class LifecycleNotShipped(RuntimeError):
@@ -63,6 +73,10 @@ def _not_persistent(task_id: Any) -> bool:
     return False
 
 
+def _not_headed() -> bool:
+    return False
+
+
 def _no_delegation_cap() -> int:
     return sys.maxsize
 
@@ -72,14 +86,38 @@ _LOOP_NAMES: dict[str, dict[str, Any]] = {
     TERMINAL_LIFECYCLE: {"cleanup_vm": _no_cleanup, "get_active_env": _no_env, "is_persistent_env": _not_persistent},
     BROWSER_LIFECYCLE: {"cleanup_browser": _no_cleanup},
     DELEGATE_TOOL: {"_get_max_concurrent_children": _no_delegation_cap},
+    FILE_TOOLS: {"clear_file_ops_cache": _no_cleanup},
+    COMPUTER_USE_TOOL: {"release_computer_use_session": _no_cleanup},
+    BROWSER_CLOUD: {"_is_headed_mode": _not_headed},
 }
+
+
+def not_shipped(module: str, name: str):
+    """A stand-in for ``module.name`` where *module* is not shipped: calling it raises.
+
+    For an upstream module-level ``from module import name`` whose ImportError guard needs a
+    binding: the importer loads (the phone wheel omits *module*), and the one path that would
+    have used the name — spawning a child process, say — fails loudly instead of silently.
+    """
+
+    def unavailable(*_args: Any, **_kwargs: Any) -> Any:
+        raise LifecycleNotShipped(f"{module}.{name} is not in this installation")
+
+    unavailable.__name__ = unavailable.__qualname__ = name
+    return unavailable
 
 
 def is_lifecycle_placeholder(module: object) -> bool:
     return bool(getattr(type(module), "__hermes_placeholder__", False))
 
 
-def _installed(module: str) -> bool:
+def shipped(module: str) -> bool:
+    """True when *module* is in this installation — importable, and not one of these placeholders.
+
+    The presence test for a feature a profile leaves out of its wheel (``packaging.switched_off_modules``):
+    the phone wheel omits the module, so the caller skips the step that would import it. Desktop and
+    full Hermes ship every module, so there the answer is always True and the step runs as before.
+    """
     loaded = sys.modules.get(module)
     if loaded is not None:
         return not is_lifecycle_placeholder(loaded)
@@ -93,7 +131,7 @@ def ensure_lifecycle_placeholders() -> tuple[str, ...]:
     """Register a placeholder for each loop lifecycle module not installed; returns those placed."""
     placed = []
     for module, names in _LOOP_NAMES.items():
-        if module in sys.modules or _installed(module):
+        if module in sys.modules or shipped(module):
             continue
         stand_in = _LifecyclePlaceholder(module, f"Placeholder: {module} is not shipped in this installation.")
         for name, answer in names.items():

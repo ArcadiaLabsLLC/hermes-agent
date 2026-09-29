@@ -133,6 +133,13 @@ def session_db_class(requested: type) -> type:
     return encrypted_session_db_class(requested)
 
 
+def connect_state_db(path: PathLike, *, timeout: float):
+    """A plain connection onto the bound store's encrypted image of *path* (see ``session_db.connect_image``)."""
+    from agent_runtime.host_store.session_db import connect_image
+
+    return connect_image(path, timeout=timeout)
+
+
 def erase_history(home: PathLike, *, db_name: str = "state.db") -> List[Path]:
     """Delete every history file this profile wrote under *home*: the DB image and its temp
     files, and the ``sessions/`` transcripts and dumps. The DB must be closed. The host then

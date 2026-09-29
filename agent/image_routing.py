@@ -276,6 +276,10 @@ def _probe_managed_runtime(provider: str, model: str, cfg: Optional[Dict[str, An
     on whether it can see (its /props reports modalities). Cloud catalogs have never
     heard of a local GGUF, so without this every local model reads as text-only and
     screenshots detour to a cloud auxiliary."""
+    from agent_runtime.loop_tool_lifecycles import shipped  # fork seam: phone wheel ships no local runtime
+
+    if not shipped("hermes_cli.local_runtime"):
+        return None
     from hermes_cli.local_runtime.capabilities import is_managed_provider, managed_model_supports_vision
 
     managed = is_managed_provider(provider, _resolve_inference_base_url(cfg, provider) or "")

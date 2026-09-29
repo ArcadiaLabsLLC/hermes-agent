@@ -21,7 +21,12 @@ from pathlib import Path
 from typing import Any
 
 from hermes_constants import get_hermes_home
-from tools.environments.local import hermes_subprocess_env
+try:
+    from tools.environments.local import hermes_subprocess_env
+except ImportError:  # fork seam: phone wheel — the local execution environment is not shipped
+    from agent_runtime.loop_tool_lifecycles import not_shipped
+
+    hermes_subprocess_env = not_shipped("tools.environments.local", "hermes_subprocess_env")
 
 logger = logging.getLogger(__name__)
 

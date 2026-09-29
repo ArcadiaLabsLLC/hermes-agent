@@ -281,8 +281,8 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
                         from agent_runtime.discussions.service import shutdown as shutdown_discussions
                         shutdown_discussions(root=self.discussion_owner.context.root)
                 finally:
-                    from agent_runtime.local_llama_adapter.binding import shutdown as shutdown_local_llama
-                    if self.local_llama_bound_root is not None:
+                    if self.local_llama_bound_root is not None:  # bound only with the socket lane
+                        from agent_runtime.local_llama_adapter.binding import shutdown as shutdown_local_llama
                         shutdown_local_llama(root=self.local_llama_bound_root)
 
     def _boot_and_serve(self) -> int:

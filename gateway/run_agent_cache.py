@@ -17,7 +17,10 @@ from gateway.config import Platform
 from gateway.session import SessionSource, build_session_context_prompt
 from gateway.run_shutdown import _log_suppressed
 from hermes_cli.config import DEFAULT_CONFIG, cfg_get
-from hermes_cli.local_runtime.endpoint import LLAMACPP_ALIASES
+try:
+    from hermes_cli.local_runtime.endpoint import LLAMACPP_ALIASES
+except ImportError:  # fork seam: phone wheel — no local runtime; the provider registry owns the aliases
+    from hermes_cli.providers import LLAMACPP_ALIASES
 
 if TYPE_CHECKING:  # string annotations only; never imported at runtime (cycle)
     from gateway.run import GatewayRunner  # noqa: F401

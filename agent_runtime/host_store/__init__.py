@@ -13,6 +13,7 @@ byte-for-byte upstream's.
 * :mod:`.envelope` — the at-rest cipher (stdlib only).
 * :mod:`.history` — encrypted history files and the session store's class seam.
 * :mod:`.session_db` — the one session store over an encrypted image.
+* :mod:`.log_records` — file logs as encrypted records.
 * :mod:`.fake` — an in-memory host store for CI.
 """
 

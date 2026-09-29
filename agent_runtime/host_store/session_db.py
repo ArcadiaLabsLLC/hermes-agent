@@ -120,6 +120,43 @@ def _release_image(image: _Image) -> None:
     image.close()
 
 
+class _SealingConnection(sqlite3.Connection):
+    """A plain connection onto an image: closing it seals the image if it wrote, then releases it."""
+
+    _hsec_image: Optional[_Image] = None
+
+    def close(self) -> None:
+        image, self._hsec_image = self._hsec_image, None
+        try:
+            if image is not None and self.total_changes:
+                image.seal()
+        finally:
+            super().close()
+            if image is not None:
+                _release_image(image)
+
+
+def connect_image(path: "os.PathLike[str] | str", *, timeout: float) -> sqlite3.Connection:
+    """A raw ``sqlite3`` connection onto *path*'s encrypted image, for a second writer of the one DB.
+
+    Upstream keeps some rows in ``state.db`` beside the sessions without going through
+    ``SessionDB`` (the async-delegation ledger, ``tools/async_delegation.py``). Bound, such a
+    writer must not open the sealed file as SQLite: it would find an envelope, or, winning the race,
+    write a plaintext database the sealed store then refuses. It gets the same in-process image
+    ``SessionDB`` uses instead; closing the connection seals the image when it wrote anything.
+    """
+    image = _acquire_image(Path(os.path.abspath(os.fspath(path))))
+    try:
+        conn = sqlite3.connect(image.uri, uri=True, check_same_thread=False, timeout=timeout,
+                               factory=_SealingConnection)
+        conn.execute("PRAGMA secure_delete=ON")
+    except BaseException:
+        _release_image(image)
+        raise
+    conn._hsec_image = image
+    return conn
+
+
 def image_is_open(path: "os.PathLike[str] | str") -> bool:
     with _IMAGES_LOCK:
         return _canonical(path) in _IMAGES

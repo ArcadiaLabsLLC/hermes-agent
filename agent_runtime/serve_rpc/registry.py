@@ -98,7 +98,10 @@ def _ensure_discussion_methods():
 
 
 def _ensure_local_llama_methods():
-    if "runtime.local_llama.status" not in _METHODS:
+    from ..loop_tool_lifecycles import shipped
+
+    # The phone wheel ships no local LLM adapter (bundled-phone.yaml), so it has no such methods.
+    if "runtime.local_llama.status" not in _METHODS and shipped("agent_runtime.local_llama_adapter"):
         from ..local_llama_adapter.rpc import register
         register(method, ok, err)
 

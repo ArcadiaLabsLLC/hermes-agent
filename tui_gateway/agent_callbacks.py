@@ -209,9 +209,7 @@ def _apply_project_workspace(task_id: str, path: str, _name: str = "") -> None:
 
 
 def _wire_callbacks(sid: str):
-    from tools.terminal_tool import set_sudo_password_callback
-    from tools.terminal_tool_sudo import get_sudo_prompt_command
-    from gateway.run import _redact_approval_command
+    from agent_runtime.loop_tool_lifecycles import shipped  # fork seam: phone wheel ships no terminal tool
     from tools.skills_tool import set_secret_capture_callback
     from tools.project_tools import set_project_workspace_callback
 
@@ -240,8 +238,13 @@ def _wire_callbacks(sid: str):
         from hermes_cli.config import save_env_value_secure
         return {**save_env_value_secure(env_var, val), "skipped": False, "message": "ok"}
 
-    set_sudo_password_callback(lambda: _ask(
-        "sudo", sid, {"command": _redact_approval_command(get_sudo_prompt_command())}, timeout=120))
+    if shipped("tools.terminal_tool"):
+        from tools.terminal_tool import set_sudo_password_callback
+        from tools.terminal_tool_sudo import get_sudo_prompt_command
+        from gateway.run import _redact_approval_command
+
+        set_sudo_password_callback(lambda: _ask(
+            "sudo", sid, {"command": _redact_approval_command(get_sudo_prompt_command())}, timeout=120))
     set_project_workspace_callback(_apply_project_workspace)
     set_secret_capture_callback(secret_cb)
     # External password-manager unlock: the renderer shows a masked master-password card; the
