@@ -21,7 +21,7 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 ### Filed on arrival — 2026-09-28 (lane w5-hstt)
 
 ### Filed on arrival — 2026-09-29 (lane h7-reds)
-- [ ] **With the directory conftests restored, `scripts/run_tests.sh tests/tools tests/agent tests/hermes_cli` on this box is 561 failed / 33244 passed in 237 files, all pre-existing (none new vs the old loader; `tests/tools/test_file_read_guards.py` flakes 4-5 reds on both) — triage by class, environment vs code** · fork-hygiene · evidence: h7-reds loader commit message · UNCLAIMED **TAKEN 2026-09-29 h10-fhrel**
+- [ ] **With the directory conftests restored, `scripts/run_tests.sh tests/tools tests/agent tests/hermes_cli` on this box is 561 failed / 33244 passed in 237 files, all pre-existing (none new vs the old loader; `tests/tools/test_file_read_guards.py` flakes 4-5 reds on both) — triage by class, environment vs code** · fork-hygiene · evidence: h7-reds loader commit message · UNCLAIMED **TAKEN 2026-09-29 h10-fhrel** · VERDICT 2026-09-29 h10-fhrel: this lane retired 48 of the 561 by class in `43eee6f03f` (40 MCP OAuth e-TTY + 2 hangs + 2 singles as upstream_reds rows) and 7 orphaned env-gap rows in `10570a2b80`; the remainder needs the three-directory run itself (~40 min, a suite-size run a lane may not take). Owed: one triage lane that takes that run once, buckets the failures by exception class, and files each class as its own row
 
 ### Filed on arrival — 2026-09-28 (lane w4-hfix2)
 
