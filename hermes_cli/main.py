@@ -521,6 +521,9 @@ from hermes_cli.env_loader import load_hermes_dotenv
 # helpers inside the import probe) — ``_early_recovery._should_skip_external_secret_sources``
 # owns that argv check for every dotenv load in the process. See #73381.
 load_hermes_dotenv(project_env=PROJECT_ROOT / ".env")
+from agent_runtime.host_store.desktop_binding import bind_desktop_host_store_or_exit  # fork seam: bundled desktop sign-ins in the OS secure store
+
+bind_desktop_host_store_or_exit()
 
 # Bridge security.redact_secrets → HERMES_REDACT_SECRETS BEFORE hermes_logging
 # imports agent.redact, which snapshots the flag exactly once at import. A

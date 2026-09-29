@@ -73,6 +73,12 @@ config:
   providers.qwen-oauth.enabled: false
   # No shared metrics (nemo-relay is omitted; bundled runs NoopRelayRuntime).
   telemetry.shared_metrics.enabled: false
+  # Sign-ins live in the OS secure store (owner ruling 2026-09-28 item 4): DPAPI
+  # on Windows, Keychain / Secret Service where the bundle has them, else the
+  # process refuses to start. Bound at every entry through the phones' host-store
+  # seam; an older install's plaintext auth.json / .env / tokens move in at first
+  # start. Chat history stays a SQLite file (the worker is a second process).
+  auth.os_secure_store: true
 
 environment:
   # Speech loaders' download-if-missing fallbacks (faster-whisper, KittenTTS,

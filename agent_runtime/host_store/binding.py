@@ -63,6 +63,7 @@ class HostStoreBinding:
     callbacks: HostStoreCallbacks
     profile: str
     store_root: Path
+    encrypts_history: bool = True
 
     def relative(self, path: "os.PathLike[str] | str") -> str:
         """*path* relative to the store root, POSIX-spelled; raises :class:`OutsideStoreRoot`."""
@@ -91,13 +92,19 @@ _LOCK = threading.Lock()
 _BINDING: Optional[HostStoreBinding] = None
 
 
-def bind_host_store(callbacks: HostStoreCallbacks, *, profile: str, store_root: "os.PathLike[str] | str") -> HostStoreBinding:
-    """Bind the process to a host store. One binding per process; rebinding raises."""
+def bind_host_store(callbacks: HostStoreCallbacks, *, profile: str, store_root: "os.PathLike[str] | str",
+                    history: bool = True) -> HostStoreBinding:
+    """Bind the process to a host store. One binding per process; rebinding raises.
+
+    ``history=False`` binds the credential stores only: chat history stays upstream's
+    SQLite file. The bundled desktop binds so, because its conversation worker is a
+    second process and the encrypted image (:mod:`.session_db`) has one writer."""
     global _BINDING
     if not isinstance(profile, str) or not _PROFILE_RE.match(profile):
         raise HostStoreError(f"profile {profile!r} is not a valid slot namespace")
     root = Path(os.path.abspath(os.fspath(store_root)))
-    binding = HostStoreBinding(callbacks=callbacks, profile=profile, store_root=root)
+    binding = HostStoreBinding(callbacks=callbacks, profile=profile, store_root=root,
+                               encrypts_history=bool(history))
     with _LOCK:
         if _BINDING is not None:
             raise HostStoreError(f"a host store is already bound (profile {_BINDING.profile!r})")
