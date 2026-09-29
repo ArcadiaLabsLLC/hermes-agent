@@ -139,7 +139,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-25 (lane S2B)
 
-- [ ] **dead-code census rows carry no OWN-FILE count — 6 of 13 rows on the batch-2b files are refuted by an in-file call or a production caller** · `fork / refactor` · `_rebalance_column`@847, `_guard_turn_state_vocabulary`@351, `_get_executor`@1088, `_kill_child`@1008, `dispatch_detached_turn` (agent_chat_tool), `mission_chat_compaction_threshold_tokens` (profile_runner/execute:507) · evidence: sheets §5 · filed by lane S2B 2026-09-25 **UNCLAIMED** **TAKEN 2026-09-29 h10-fhrest**
 
 ## Filed on arrival — 2026-09-25 (lane S2A)
 
