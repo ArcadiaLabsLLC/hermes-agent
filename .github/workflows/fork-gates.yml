@@ -119,6 +119,15 @@ jobs:
           fetch-depth: 0
           filter: blob:none
 
+      # tests/_fork_scope.py reads `upstream/main` to tell the fork's lines from
+      # upstream's, and fails CLOSED without it: the round-4 coverage audit then
+      # counts upstream's own retired tests (21 of them, measured 2026-09-29 on a
+      # fresh clone) as the fork's losses.
+      - name: Fetch upstream main for the fork-scope filter
+        run: |
+          git remote add upstream https://github.com/NousResearch/hermes-agent.git
+          git fetch --no-tags --filter=blob:none upstream main:refs/remotes/upstream/main
+
       - name: Install uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
         with:

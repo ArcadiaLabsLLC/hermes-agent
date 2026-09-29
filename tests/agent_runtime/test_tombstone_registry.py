@@ -125,8 +125,10 @@ from __future__ import annotations
 
 import ast
 import functools
+import hashlib
 import importlib
 import importlib.util
+import json
 import os
 import subprocess
 import sys
@@ -4436,7 +4438,23 @@ def test_tombstoned_name_is_absent_from_production_code(row: Tombstone):
     assert offenders == [], f"{row.label} reappeared in {offenders}: {row.reason}"
 
 
+#: The pinned base of the round-4 coverage audit. It is a PRE-FOLD commit that
+#: main's history does not contain, so a fresh clone cannot resolve it (CI run
+#: 36621081725 failed ``bad revision``). The audit therefore never reads it at
+#: test time: everything it needs from that commit is frozen in
+#: ``_ROUND4_FIXTURE`` below, and this name survives only as the fixture's
+#: provenance and as the argument to :func:`_base_test_references`, which
+#: regenerates the fixture on a clone that still holds the pre-fold objects.
 _ROUND4_COVERAGE_BASE = "4a21f0779"
+#: ``git merge-base 4a21f0779 upstream/main`` -- the upstream point the base had
+#: merged. Frozen for the same reason: the merge-base cannot be computed without
+#: the base. It is an upstream commit, so it resolves wherever upstream is fetched.
+_ROUND4_UPSTREAM_MERGED = "126ff7071b6b755055879648f4e859b3187d0fac"
+#: Every top-level ``test_*`` at the base that referenced a production symbol,
+#: with the ``(module, symbol)`` subjects it referenced. Hash-pinned so a refresh
+#: is a reviewable act; see ``fixtures/README.md``.
+_ROUND4_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "round4_base_test_references.json"
+_ROUND4_FIXTURE_SHA256 = "7714caec75881a47ef52524f851d250e34eab8c03b4f99127048158e2da8b41c"
 _PRODUCTION_PACKAGES = ("agent_runtime", "hermes_cli")
 
 
@@ -4556,15 +4574,15 @@ def test_the_test_tree_walk_is_also_paid_at_import():
     )
 
 
-#: Set by :func:`_round4_uncovered_subjects` when git could not answer for the
-#: base commit — a shallow checkout, most often. Recorded rather than raised:
-#: the walk is warmed at module import, so raising here aborts collection of
-#: this whole file. The round-4 test names this instead, so the walk's empty
-#: result can never be read as "nothing uncovered".
+#: Set by :func:`_round4_uncovered_subjects` when the frozen fixture is missing,
+#: unreadable or not the pinned bytes. Recorded rather than raised: the walk is
+#: warmed at module import, so raising here aborts collection of this whole
+#: file. The round-4 test names this instead, so the walk's empty result can
+#: never be read as "nothing uncovered".
 _ROUND4_HISTORY_ERROR: str | None = None
 
 
-def _historical_test_sources(root: Path, base: str) -> dict[str, str]:
+def _historical_test_sources(root: Path, base: str, *, every_file: bool = False) -> dict[str, str]:
     """Read changed pre-existing tests in three Git calls, including partial clones.
 
     numstat makes Git prefetch missing historical blobs in one batch. A
@@ -4573,14 +4591,16 @@ def _historical_test_sources(root: Path, base: str) -> dict[str, str]:
     Disabling rename detection both avoids similarity work and keeps the old
     side of a moved test in the deleted-test coverage audit.
     """
-    diff = subprocess.run(
-        ["git", "diff", "--numstat", "--no-renames", "--diff-filter=DMT", "-z",
-         base, "HEAD", "--", "tests"],
-        cwd=root, check=True, capture_output=True,
-    )
-    paths = [record.split(b"\t", 2)[2] for record in diff.stdout.split(b"\0") if record]
-    if not paths:
-        return {}
+    paths: list[bytes] = []
+    if not every_file:
+        diff = subprocess.run(
+            ["git", "diff", "--numstat", "--no-renames", "--diff-filter=DMT", "-z",
+             base, "HEAD", "--", "tests"],
+            cwd=root, check=True, capture_output=True,
+        )
+        paths = [record.split(b"\t", 2)[2] for record in diff.stdout.split(b"\0") if record]
+        if not paths:
+            return {}
     tree = subprocess.run(
         ["git", "ls-tree", "-r", "-z", base, "--", "tests"],
         cwd=root, check=True, capture_output=True,
@@ -4592,6 +4612,8 @@ def _historical_test_sources(root: Path, base: str) -> dict[str, str]:
             _mode, kind, oid = metadata.split()
             if kind == b"blob":
                 objects[path] = oid
+    if every_file:
+        paths = sorted(path for path in objects if path.endswith(b".py"))
     if any(path not in objects for path in paths):
         raise ValueError("Git did not list a historical test blob")
     # Object IDs avoid filename delimiters and work with older Git versions
@@ -4618,6 +4640,64 @@ def _historical_test_sources(root: Path, base: str) -> dict[str, str]:
     if cursor != len(contents):
         raise ValueError("Git returned unexpected trailing historical test data")
     return sources
+
+
+def _base_test_references(root: Path, base: str) -> dict[str, dict[str, list[list[str]]]]:
+    """The fixture's generator: every base test's production subjects.
+
+    Needs ``base``'s objects, so it runs only on a clone that still holds the
+    pre-fold history; the committed JSON is its output through
+    :func:`_serialise_base_test_references`.
+    """
+
+    references: dict[str, dict[str, list[list[str]]]] = {}
+    for relative, source in _historical_test_sources(root, base, every_file=True).items():
+        tree = _parsed(source)
+        if tree is None:
+            continue
+        module_direct, module_imports = _production_imports(tree)
+        tests: dict[str, list[list[str]]] = {}
+        for node in tree.body:
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if not node.name.startswith("test_"):
+                continue
+            local_direct, local_imports = _production_imports(node)
+            subjects = _production_references(
+                node, module_direct | local_direct, module_imports | local_imports
+            )
+            if subjects:
+                tests[node.name] = sorted([list(subject) for subject in subjects])
+        if tests:
+            references[relative] = tests
+    return references
+
+
+def _serialise_base_test_references(references: dict[str, dict[str, list[list[str]]]]) -> bytes:
+    """One line per test, sorted, so a refresh diffs by test rather than by blob."""
+
+    lines = ["{"]
+    for file_index, relative in enumerate(sorted(references)):
+        lines.append(f" {json.dumps(relative)}: {{")
+        tests = references[relative]
+        for test_index, name in enumerate(sorted(tests)):
+            comma = "," if test_index < len(tests) - 1 else ""
+            subjects = json.dumps(tests[name], separators=(",", ":"))
+            lines.append(f"  {json.dumps(name)}: {subjects}{comma}")
+        lines.append(" }," if file_index < len(references) - 1 else " }")
+    lines.append("}")
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def _frozen_base_test_references() -> dict[str, dict[str, list[list[str]]]]:
+    payload = _ROUND4_FIXTURE.read_bytes()
+    digest = hashlib.sha256(payload).hexdigest()
+    if digest != _ROUND4_FIXTURE_SHA256:
+        raise ValueError(
+            f"{_ROUND4_FIXTURE.name} is not the pinned snapshot (sha256 {digest}, "
+            f"pinned {_ROUND4_FIXTURE_SHA256})"
+        )
+    return json.loads(payload)
 
 
 def _subject_definition_line(subject: tuple[str, str]) -> int | None:
@@ -4648,12 +4728,7 @@ def _upstream_side_test_names(relative: str) -> tuple[frozenset[str] | None, fro
     merged, and at ``upstream/main`` — ``None`` where that side lacks the file."""
 
     root = _fork_scope.repo_root()
-    merged = _fork_scope._git(
-        ["merge-base", _ROUND4_COVERAGE_BASE, _fork_scope.UPSTREAM_REF], cwd=root
-    )
-    if merged is None:
-        return None, None
-    then = _fork_scope._git(["cat-file", "blob", f"{merged.decode().strip()}:{relative}"], cwd=root)
+    then = _fork_scope._git(["cat-file", "blob", f"{_ROUND4_UPSTREAM_MERGED}:{relative}"], cwd=root)
     then_lines = then.decode("utf-8", errors="replace").splitlines() if then is not None else None
     return _top_level_test_names(then_lines), _top_level_test_names(_fork_scope._upstream_text(relative))
 
@@ -4690,21 +4765,16 @@ def _round4_uncovered_subjects() -> tuple[str, ...]:
     global _ROUND4_HISTORY_ERROR
     covered = _covered_production_subjects()
     try:
-        historical = _historical_test_sources(HERMES_ROOT, _ROUND4_COVERAGE_BASE)
-    except (subprocess.CalledProcessError, ValueError) as exc:
+        historical = _frozen_base_test_references()
+    except (OSError, ValueError) as exc:
         # Import-time warming must not abort collection of unrelated rows, but
-        # the named coverage test below must fail when history cannot be read.
-        detail = (exc.stderr or b"").decode("utf-8", errors="replace")[:300] if isinstance(exc, subprocess.CalledProcessError) else str(exc)
+        # the named coverage test below must fail when the base cannot be read.
         _ROUND4_HISTORY_ERROR = (
-            f"Cannot read historical tests at {_ROUND4_COVERAGE_BASE}: {detail}. "
-            "This audit requires the pinned base history; use fetch-depth: 0."
+            f"Cannot read the frozen round-4 base ({_ROUND4_COVERAGE_BASE}): {exc}"
         )
         return ()
     uncovered: list[str] = []
-    for relative, source in historical.items():
-        old_tree = _parsed(source)
-        if old_tree is None:
-            continue
+    for relative, base_tests in historical.items():
         current_path = HERMES_ROOT / relative
         current_tree = (
             _parsed(current_path.read_text(encoding="utf-8", errors="replace"))
@@ -4717,27 +4787,19 @@ def _round4_uncovered_subjects() -> tuple[str, ...]:
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
             and node.name.startswith("test_")
         }
-        module_direct, module_imports = _production_imports(old_tree)
-        for old_test in old_tree.body:
-            if not isinstance(old_test, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        for test_name, subjects in base_tests.items():
+            if test_name in current_test_names:
                 continue
-            if not old_test.name.startswith("test_") or old_test.name in current_test_names:
-                continue
-            local_direct, local_imports = _production_imports(old_test)
-            subjects = _production_references(
-                old_test,
-                module_direct | local_direct,
-                module_imports | local_imports,
-            )
-            for subject in subjects:
+            for module_name, symbol in subjects:
+                subject = (module_name, symbol)
                 if (
                     _live_production_symbol(subject)
                     and subject not in covered
-                    and not _upstream_retired_its_own_coverage(relative, old_test.name, subject)
+                    and not _upstream_retired_its_own_coverage(relative, test_name, subject)
                 ):
                     uncovered.append(
-                        f"{relative}::{old_test.name} deleted the last direct test "
-                        f"reference to {subject[0]}.{subject[1]}"
+                        f"{relative}::{test_name} deleted the last direct test "
+                        f"reference to {module_name}.{symbol}"
                     )
     return tuple(uncovered)
 
