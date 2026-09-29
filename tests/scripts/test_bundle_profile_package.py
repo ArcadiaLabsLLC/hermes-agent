@@ -259,3 +259,35 @@ def test_the_packager_selects_a_nested_resource_and_nothing_beside_it():
 
     plan = _plan(set(), set())
     assert first_party_files(plan, {}, TRACKED, (SKILLS,)) == sorted(TRACKED[:2])
+
+
+SCRIPTED = ["skills/p/docx/SKILL.md", "skills/p/docx/scripts/render.py", "skills/p/docx/tests/test_render.py",
+            "pkg/__init__.py", "pkg/loose.py"]
+
+
+def test_a_skill_ships_its_scripts_but_not_its_tests():
+    """A skill's ``scripts/*.py`` are resource files it runs; its tests and package ``.py``
+    files outside a resource are not data."""
+    from scripts.bundle_profile_package import first_party_files
+
+    plan = _plan(set(), set())
+    assert first_party_files(plan, {}, SCRIPTED, ("skills",)) == [
+        "skills/p/docx/SKILL.md", "skills/p/docx/scripts/render.py"]
+    assert first_party_files(plan, {}, SCRIPTED, ()) == []  # positive control: no resource, no .py
+
+
+def test_verify_names_a_missing_skill_script():
+    shipped = {"skills/p/docx/SKILL.md", "skills/p/docx/scripts/render.py"}
+    assert resource_problems(shipped, SCRIPTED, ("skills",), {}) == []  # positive control
+    assert resource_problems(shipped - {"skills/p/docx/scripts/render.py"}, SCRIPTED, ("skills",), {}) == [
+        "missing resource file (skills): app/skills/p/docx/scripts/render.py"]
+
+
+def test_a_shipped_skill_script_is_not_counted_as_a_module(tmp_path):
+    from scripts.bundle_profile_package import app_module_names
+
+    for rel in ("skills/p/docx/scripts/render.py", "pkg/__init__.py", "pkg/mod.py"):
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text("", encoding="utf-8")
+    assert app_module_names(tmp_path, (), ("skills",)) == {"pkg", "pkg.mod"}
+    assert "skills.p.docx.scripts.render" in app_module_names(tmp_path, (), ())  # positive control

@@ -392,12 +392,13 @@ def first_party_files(plan: Plan, index: dict[str, Path], tracked: list[str],
     all_package_dirs = {p.relative_to(ROOT).as_posix().rsplit("/", 1)[0]
                         for p in index.values() if p.name == "__init__.py"}
     for rel in tracked:
-        if not _data_file(rel, excluded or {}):
-            continue
         parts = rel.split("/")
         if _in_resource(rel, resources):
-            if parts[0] != "skills" or skill_ships(rel, skill_platforms, _cache=skill_cache):
+            if _resource_file(rel, excluded or {}) and (
+                    parts[0] != "skills" or skill_ships(rel, skill_platforms, _cache=skill_cache)):
                 rels.add(rel)
+            continue
+        if not _data_file(rel, excluded or {}):
             continue
         # Package data: the nearest enclosing Python package must be shipped.
         for i in range(len(parts) - 1, 0, -1):
@@ -414,6 +415,13 @@ def _data_file(rel: str, excluded: dict[str, str]) -> bool:
     return not (rel.endswith(".py") or _is_noise(rel) or _is_test(rel) or _excluded(f"app/{rel}", excluded))
 
 
+def _resource_file(rel: str, excluded: dict[str, str]) -> bool:
+    """A tracked file under a resource that ships. Unlike package data, a ``.py`` ships: a
+    skill's ``scripts/*.py`` are files the skill runs, never modules the closure imports
+    (terminal / code_execution are present-but-off features, and present-off code ships)."""
+    return not (_is_noise(rel) or _is_test(rel) or _excluded(f"app/{rel}", excluded))
+
+
 def _in_resource(rel: str, resources: tuple[str, ...]) -> bool:
     """``rel`` lies under a ``packaging.resources`` entry: a top-level resource
     (``skills``) or a repo-relative directory (``docs/agent-runtime-harness/harness-skills``,
@@ -428,7 +436,7 @@ def resource_problems(app_files: set[str], tracked: list[str], resources: tuple[
     problems = []
     cache: dict = {}
     for resource in resources:
-        wanted = {rel for rel in tracked if _in_resource(rel, (resource,)) and _data_file(rel, excluded)
+        wanted = {rel for rel in tracked if _in_resource(rel, (resource,)) and _resource_file(rel, excluded)
                   and (not rel.startswith("skills/") or skill_ships(rel, skill_platforms, _cache=cache))}
         if not wanted:
             problems.append(f"resource selects no tracked file: {resource}")
@@ -694,6 +702,13 @@ def serve_import_problems(out: Path, first_party: set[str], index: dict[str, Pat
     return [f"serve entrypoint does not import inside the bundle: {line}" for line in result["failures"]]
 
 
+def app_module_names(app: Path, plugins=(), resources: tuple[str, ...] = ()) -> set[str]:
+    """The bundle's modules, named by the same indexer the walk uses. A resource's ``.py``
+    (a skill script) is a shipped file, not a module, so it is not compared to the closure."""
+    return {name for name, path in module_index(app, plugins=plugins).items()
+            if not _in_resource(path.relative_to(app).as_posix(), resources)}
+
+
 def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None,
                   python: Path | str = sys.executable) -> list[str]:
     """Recompute the plan from the source tree and the bundle's OWN site-packages; compare.
@@ -703,8 +718,7 @@ def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None,
     plan = make_plan(manifest, site, record["target"], record["python_version"], index=index)
     site_files = {p.relative_to(site).as_posix() for p in site.rglob("*") if p.is_file()}
     app_files = {p.relative_to(app).as_posix() for p in app.rglob("*") if p.is_file()}
-    # The bundle's modules, named by the same indexer the walk uses.
-    app_modules = set(module_index(app, plugins=manifest.packaging_plugins))
+    app_modules = app_module_names(app, manifest.packaging_plugins, manifest.packaging_resources)
     problems = compare(plan, app_modules, read_site(site), site_files, manifest.excluded_data,
                        baked=(out / BAKED_MARKER).is_file(), app_files=app_files)
     problems += licence_problems(out, plan.distributions)

@@ -61,7 +61,6 @@ Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2
 - [ ] **The speech service cannot pick a Kokoro voice preset (h8-voice set `am_michael` / `af_nicole` inside the engine hook): expose the preset as the voice-out voice id so the Launcher's voice picker can offer Kokoro voices.** · `agent_runtime/speech_onnx_voice.py` (lane h8-voice, 2026-09-29) **UNCLAIMED**
 
 ### Filed on arrival — 2026-09-28 (lane w4-hfix2)
-- [ ] **The bundle ships no `.py` file from the `skills` resource (50 tracked skill scripts, e.g. `skills/productivity/docx/scripts/*.py`): `first_party_files` drops every `.py` before the resource test, so a bundled skill that runs its script finds nothing — ship them, or record per skill why not (terminal/code_execution are off in bundled-desktop).** · `scripts/bundle_profile_package.py` `_data_file`; `git ls-files skills | grep '\.py$'`. **TAKEN 2026-09-29 h9-bundle**
 
 ### Filed on arrival — 2026-09-28 (lane w1-hclean, filed by the launcher orchestrator)
 
