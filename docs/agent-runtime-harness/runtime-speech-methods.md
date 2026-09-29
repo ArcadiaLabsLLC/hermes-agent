@@ -109,8 +109,9 @@ A model is named by an **absolute path**, or by a bare name under `models_dir`:
 **No PyAV, no faster-whisper** (bundled speech pack). A voice-note FILE —
 upstream's `_transcribe_local`, which hands faster-whisper a path — has no
 decode path in the bundle: faster-whisper is not installed there, so upstream's
-own "not installed" answer applies. (`agent_runtime/speech_decode.py`'s PyAV
-placeholder served the faster-whisper pack; retiring it is a runtime-queue row.)
+own "not installed" answer applies. (The PyAV placeholder and its
+`file_decode_unavailable` seam served the faster-whisper pack and were retired
+with it, lane h7-speech, 2026-09-29.)
 
 With no param, the existing config keys are read: `stt.local.model` and
 `tts.piper.voice` — used only when they hold an absolute path. A bare Hub name

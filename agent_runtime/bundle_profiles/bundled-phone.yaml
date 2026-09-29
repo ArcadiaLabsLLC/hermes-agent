@@ -184,7 +184,6 @@ packaging:
     - hermes_cli.local_runtime
     - agent_runtime.local_llama_adapter
     - agent_runtime.speech_service
-    - agent_runtime.speech_decode
     - tools.tts_tool_local
     - tools.transcription_local
     - tools.transcription_tools     # the STT tool: phones transcribe with the OS

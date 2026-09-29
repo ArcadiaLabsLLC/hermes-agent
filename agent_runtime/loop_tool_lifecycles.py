@@ -10,7 +10,7 @@ terminal tool, so a profile that does not ship the terminal and browser tools (t
 phone wheel — and delegation, which imports the terminal tool) could not load the
 loop, or could not finish a tool round. This is
 the fork seam that lets the SAME loop load there — never a second loop, and no edit
-to upstream: the precedent is the ``av`` placeholder (``agent_runtime.speech_decode``).
+to upstream.
 
 :func:`ensure_lifecycle_placeholders` registers, for each lifecycle module that is NOT
 installed, a placeholder module carrying exactly the names the loop imports, with the

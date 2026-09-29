@@ -182,7 +182,7 @@ def test_the_bundled_desktop_profile_ships_tzdata():
 
 
 def test_a_placeholder_requirement_is_never_followed_or_shipped():
-    """``av`` under ``faster-whisper``: the speech service registers a placeholder module instead."""
+    """A declared placeholder (once ``av`` under ``faster-whisper``) is never followed or shipped."""
     lock = {"fw": {"dependencies": [{"name": "fakeav"}, {"name": "numpy"}]}}
     assert Graph(lock, placeholders={"fakeav"}).closure({"fw"}) == {"fw", "numpy"}
     # Positive control: without the declaration the requirement ships.

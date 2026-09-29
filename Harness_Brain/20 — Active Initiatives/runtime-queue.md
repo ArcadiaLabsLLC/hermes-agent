@@ -55,7 +55,6 @@ Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2
 - [ ] **Licence review before a bundled release: piper-tts (GPL-3.0-or-later + espeak-ng) and vcruntime140's Microsoft redistribution terms (via the interpreter); the five texts once missing are vetted (lane w4-hlic). Owner decision per component; the packager's `licenses.json` `review_required` is the list.** · closure doc "Release gates", flagged-for-review table.
 
 ### Filed on arrival — 2026-09-29 (lane w6-hwort)
-- [ ] **`agent_runtime/speech_decode.py` (the PyAV placeholder) and its `file_decode_unavailable` seam in `tools/transcription_tools.py` served faster-whisper inside the speech pack, which no longer ships it (Whisper runs on onnx-asr): in the bundle faster-whisper is simply absent and upstream's own "not installed" path answers — retire the module and the seam, or record why they stay.** · `agent_runtime/speech_decode.py`; `tests/agent_runtime/test_speech_decode.py` **UNCLAIMED** **TAKEN 2026-09-29 h7-speech**
 - [ ] **The `stt-parakeet` extra now carries both STT engines (onnx-asr runs Whisper and Parakeet): rename it for what it holds (e.g. `stt-onnx`) across `pyproject.toml`, `bundled-desktop.yaml` and PM's extra gates.** · `pyproject.toml` `[project.optional-dependencies]` **UNCLAIMED** **TAKEN 2026-09-29 h7-speech**
 
 ### Filed on arrival — 2026-09-28 (lane w4-hfix2)
