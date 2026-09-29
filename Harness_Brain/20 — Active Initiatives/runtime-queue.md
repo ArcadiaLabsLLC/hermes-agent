@@ -75,7 +75,6 @@ Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2
 
 ### Filed on arrival — 2026-09-26 (lane PF-3, filed by the orchestrator)
 
-- [ ] **`agent_runtime/skill_inspection.py::skill_inspection_reader` has zero production callers (only its test): wire the launcher's reader to it or delete it with its door `_upstream_doors.skills_tool_inspection_doors`** · `fork / skills` · evidence: plugin-fit sheet §4, `agent_runtime/codex_observability.py`, lane PF-3 report (landed 5c24dd925d) · filed 2026-09-26 (lane PF-3) **UNCLAIMED** **TAKEN 2026-09-29 h9-serve**
 
 ### Filed on arrival — 2026-09-26 (the wedged live serve, owner screenshot 15:05; filed by the orchestrator)
 
