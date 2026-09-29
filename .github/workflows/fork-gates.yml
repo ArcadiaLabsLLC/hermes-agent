@@ -76,7 +76,7 @@ jobs:
         if: steps.select.outputs.run == 'true'
         uses: ./.github/actions/retry
         with:
-          command: uv sync --locked --python 3.11 --extra dev
+          command: uv sync --locked --python 3.14 --extra dev
 
       # The bound is WALL CLOCK (ruled 2026-09-04, replacing `--max-candidates`).
       # It is passed here rather than left to the script's default for the same
@@ -131,7 +131,7 @@ jobs:
       - name: Install test environment
         uses: ./.github/actions/retry
         with:
-          command: uv sync --locked --python 3.11 --extra all --group dev
+          command: uv sync --locked --python 3.14 --extra all --group dev
 
       - name: Tombstone registry and docket stage claims
         run: >-
