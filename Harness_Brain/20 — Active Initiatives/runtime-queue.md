@@ -83,7 +83,6 @@ Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2
 
 ### Filed on arrival — 2026-09-26 (lane L5, filed by the orchestrator)
 
-- [ ] **`agent_runtime/chat_lane_bundle.py` is 884 raw lines after lane L5 moved the chat-lane scope family into it (sheet §2.1 `persona_runtime` row) — over the god-file readability cap of 500; split the scope family (`_enabled_toolsets_for_chat` … `apply_chat_lane_tool_scope`, `stores`) into a sibling `chat_lane_scope.py` and leave the memo/bundle in `chat_lane_bundle`** · `fork / refactor` · also stale: `docs/agent-runtime-harness/planned/god-file-layout-sheets/runtime_hud.md` still places `capability_block_for_persona` in `ambient.py` (it is `runtime_hud/capability_account.py` since L5) · evidence: lane L5 commit `bfd1f656ec` · filed by lane L5 2026-09-26 **UNCLAIMED** **TAKEN 2026-09-29 h10-rtfork**
 
 ### Filed on arrival — 2026-09-26 (lane L4, filed by the orchestrator)
 
