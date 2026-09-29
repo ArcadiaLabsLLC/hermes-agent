@@ -78,3 +78,20 @@ The doc-citation gate reports two unrelated stale line references: boot/lifecycl
 to `core_cache/lane.py`, and observability to `context_store.py`. The referenced
 files, citations and gate are unchanged from base `85920eadc4`; these remain in
 the fork-hygiene queue. No citation waiver was added.
+
+## Installed update
+
+Provider change `ccca4c3138` is included in installed fork main `a58b3c7dbc`.
+The canonical updater completed after enabling Windows certificate-store trust
+for uv; certificate verification was not disabled. The success receipt and live
+gateway agree on the new revision, with Amelia among eight served profiles.
+Upstream migrated the gateway to its shared-host topology and seeded six missing
+profile `.env` files from default tool settings; those contained no configured
+provider secrets. Desktop was untouched.
+
+Quick snapshots covered every profile but skipped Amelia's 3.9 GiB history by
+size. The full backup contains all eight profile databases and 1,698 files. It
+is marked incomplete solely because the live `agent-runtime/serve_socket.lock`
+could not be read; the archive is retained for recovery. Excluding runtime locks
+from that upstream backup classification is separate maintenance, not a reason
+to weaken profile protection or create another backup implementation.
