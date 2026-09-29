@@ -274,10 +274,12 @@ def default_kanban_claim_ttl() -> None:
 
 
 def default_no_venv_lazy_installs() -> None:
-    """Owner ruling 2026-09-24 (1): lazy installs go through upstream's door. With
-    ``HERMES_DISABLE_LAZY_INSTALLS=1`` ``tools.lazy_deps`` refuses to mutate the running venv,
-    or redirects into ``HERMES_LAZY_INSTALL_TARGET`` when the operator set one; setting the
-    env yourself (``0``) is the opt-out."""
+    """Keep harness processes off upstream's startup venv sync. Upstream's
+    ``hermes_cli.venv_sync`` skips its sync-and-relaunch when
+    ``HERMES_DISABLE_LAZY_INSTALLS=1``, so a harness process never mutates or restarts the
+    running venv on its own. Setting the env yourself (``0``) is the opt-out. (The lazy
+    install door this env once shut, ``tools.lazy_deps``, is now a relaunch shim; owner
+    2026-09-29: the env stays.)"""
     os.environ.setdefault("HERMES_DISABLE_LAZY_INSTALLS", "1")
 
 
