@@ -21,6 +21,22 @@ _log = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _gate_model_downloads() -> None:
+    """``local_models.downloads: false`` refuses upstream's model download routes on the dashboard
+    this module is being mounted into (``_mount_plugin_api_routes`` imports it while the app is
+    assembled, before it serves). Imported anywhere else, there is no app to gate."""
+    import sys
+
+    app = getattr(sys.modules.get("hermes_cli.web_server"), "app", None)
+    if app is not None:
+        from agent_runtime.bundle_profiles.model_downloads import gate_model_download_routes
+
+        gate_model_download_routes(app)
+
+
+_gate_model_downloads()
+
+
 class ProfilePromoteRequest(BaseModel):
     """Body for ``POST /api/plugins/eternia-harness/profiles/{name}/promote``."""
 
