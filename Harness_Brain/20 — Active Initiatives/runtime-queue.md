@@ -64,7 +64,6 @@ Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2
 - [ ] **The bundle ships no `.py` file from the `skills` resource (50 tracked skill scripts, e.g. `skills/productivity/docx/scripts/*.py`): `first_party_files` drops every `.py` before the resource test, so a bundled skill that runs its script finds nothing — ship them, or record per skill why not (terminal/code_execution are off in bundled-desktop).** · `scripts/bundle_profile_package.py` `_data_file`; `git ls-files skills | grep '\.py$'`. **TAKEN 2026-09-29 h9-bundle**
 
 ### Filed on arrival — 2026-09-28 (lane w1-hclean, filed by the launcher orchestrator)
-- [ ] **Publish per-method reply budgets in `docs/agent-runtime-harness/runtime-provider-methods.md` — the Launcher derives them from source bounds (usage 20 s past `account_usage`'s 15 s, refresh/signout 30 s, signin.begin 15 s, rest 10 s; `HermesProviderMethod.timeoutFor`), so a hermes change to those bounds would not reach it.** · launcher lane w3-largv `0c3523309`. **TAKEN 2026-09-29 h9-bundle**
 
 
 ### Native conversation lifecycle audit — 2026-09-26

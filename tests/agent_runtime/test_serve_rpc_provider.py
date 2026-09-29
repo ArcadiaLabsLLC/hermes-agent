@@ -348,3 +348,20 @@ def test_the_default_child_is_the_machine_sign_in_verb(monkeypatch, tmp_path):
     assert captured["stdin"] is provider_signin.subprocess.PIPE
     assert captured["stderr"] is provider_signin.subprocess.DEVNULL
     assert captured["env"]["HERMES_HOME"] == str(tmp_path)
+
+
+def test_the_contract_publishes_a_reply_budget_for_every_provider_method():
+    """``runtime-provider-methods.md`` "Reply budgets" names every registered
+    ``runtime.provider.*`` method once — the Launcher derives its waits from it."""
+    import re
+    from pathlib import Path
+
+    from agent_runtime.serve_rpc import registry
+
+    doc = (Path(__file__).resolve().parents[2] / "docs" / "agent-runtime-harness"
+           / "runtime-provider-methods.md").read_text(encoding="utf-8")
+    section = doc.split("## Reply budgets", 1)[1].split("\n## ", 1)[0]
+    rows = re.findall(r"^\| `(runtime\.provider\.[a-z.]+)` \|.*\| (\d+) s \|$", section, re.M)
+    registered = {name for name in registry.method_names() if name.startswith("runtime.provider.")}
+    assert registered  # positive control: the family is registered
+    assert sorted(name for name, _ in rows) == sorted(registered)

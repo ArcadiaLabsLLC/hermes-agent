@@ -28,6 +28,25 @@ moving `RPC_CONTRACT_VERSION`.
 `list`, `usage`, `refresh` and `signout` run on the transport's worker lane
 when it has one (`RpcContext.spawn_reply`); the reply arrives on the same `id`.
 
+## Reply budgets
+
+How long a client waits for each method's reply before it treats the call as
+lost. Each budget sits past the bound this runtime puts on the work, so a reply
+the runtime will still send is never given up on. A change to a bound in the
+middle column changes its budget in the same commit; the Launcher reads this
+table (`HermesProviderMethod.timeoutFor`).
+
+| method | bound on the work | budget |
+|---|---|---|
+| `runtime.provider.usage` | every usage fetch in `agent/account_usage.py` is an HTTP call with `timeout=15.0`; Nous reads `hermes_cli/nous_account.py` with `timeout=8` | 20 s |
+| `runtime.provider.refresh` | `hermes auth refresh`: token endpoint calls under upstream's HTTP timeouts; no single bound, and a lost reply leaves the outcome unknown | 30 s |
+| `runtime.provider.signout` | `hermes auth logout`: as refresh | 30 s |
+| `runtime.provider.signin.begin` | spawns the login child and answers in state `starting` without waiting on it | 15 s |
+| `runtime.provider.list` | local files only | 10 s |
+| `runtime.provider.signin.poll` | in-memory session read | 10 s |
+| `runtime.provider.signin.complete` | one line written to the child's stdin | 10 s |
+| `runtime.provider.signin.cancel` | kills the child | 10 s |
+
 ## Results
 
 **list** — the `hermes.provider_visibility/v2` envelope, unchanged:
