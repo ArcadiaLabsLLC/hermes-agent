@@ -3050,8 +3050,9 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "dead-code audit pass 2 HA-3 — a SECOND authority for a number "
         "`ProjectionAccountant.summary()` already carries as `reasons` + "
         "`by_design`. Only tests ever asked it, and they now do the "
-        "subtraction a real reader has to do",
-        "parity.ProjectionAccountant.dropped_by_design",
+        "subtraction a real reader has to do (the class moved from `parity` to "
+        "`projection_accountant`; the row follows it)",
+        "projection_accountant.ProjectionAccountant.dropped_by_design",
         scope=_AR,
     ),
     # `realm_sync._board_artifacts` / `._office_artifacts` were the pre-ML-8

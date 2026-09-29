@@ -64,7 +64,6 @@ Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2
 ### Filed on arrival — 2026-09-28 (lane w1-hclean, filed by the launcher orchestrator)
 - [ ] **Publish per-method reply budgets in `docs/agent-runtime-harness/runtime-provider-methods.md` — the Launcher derives them from source bounds (usage 20 s past `account_usage`'s 15 s, refresh/signout 30 s, signin.begin 15 s, rest 10 s; `HermesProviderMethod.timeoutFor`), so a hermes change to those bounds would not reach it.** · launcher lane w3-largv `0c3523309`. **TAKEN 2026-09-29 h9-bundle**
 
-- [ ] **Tombstone registry s72 row `parity.ProjectionAccountant.dropped_by_design` is red on main — the class moved to `agent_runtime/projection_accountant.py`; retarget the row or add an ATTR row.** · `tests/agent_runtime/test_tombstone_registry.py`; red at the lane's base, not caused by it. **TAKEN 2026-09-29 h9-serve**
 
 ### Native conversation lifecycle audit — 2026-09-26
 
