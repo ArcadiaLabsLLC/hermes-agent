@@ -1940,6 +1940,13 @@ def create_openai_client(agent, client_kwargs: dict, *, reason: str, shared: boo
         client_kwargs, access_token=client_kwargs.get("api_key", ""),
         base_url=str(client_kwargs.get("base_url", "")),
     )
+    # Fork seam (embedded Hermes): a profile that ships no provider SDK gets the raw-httpx client.
+    from agent.transports.httpx_client import sdk_free_client
+    sdk_free = sdk_free_client(client_kwargs, api_mode=getattr(agent, "api_mode", None))
+    if sdk_free is not None:
+        from agent.served_model import install_served_model_capture
+        install_served_model_capture(agent, sdk_free)
+        return sdk_free
     # ``process_bootstrap.OpenAI`` is a lazy SDK proxy; resolved at call time so tests can patch it.
     from agent import process_bootstrap
     client = process_bootstrap.OpenAI(**client_kwargs)

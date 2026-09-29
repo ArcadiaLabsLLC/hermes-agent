@@ -199,30 +199,6 @@
   },
   {
    "arms": 4,
-   "site": "mobile_core/src/hermes_mobile_core/redact.py|redact|isinstance|value"
-  },
-  {
-   "arms": 4,
-   "site": "mobile_core/src/hermes_mobile_core/turn_runner.py|TurnRunner._attempt_anthropic|ladder|kind"
-  },
-  {
-   "arms": 4,
-   "site": "mobile_core/src/hermes_mobile_core/turn_runner.py|TurnRunner._attempt_responses|ladder|kind"
-  },
-  {
-   "arms": 3,
-   "site": "mobile_core/src/hermes_mobile_core/turn_runner.py|TurnRunner._attempt|ladder|provider.transport"
-  },
-  {
-   "arms": 6,
-   "site": "mobile_core/src/hermes_mobile_core/turn_runner.py|classify_error|isinstance|exc"
-  },
-  {
-   "arms": 3,
-   "site": "mobile_core/src/hermes_mobile_core/turn_runner.py|classify_error|isinstance|item"
-  },
-  {
-   "arms": 4,
    "site": "scripts/doc_cite_adjacency.py|_judge_one|ladder|outcome"
   },
   {

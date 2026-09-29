@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 
-__layer__ = "wiring"
+__layer__ = "lanes"
 
 
 def install() -> None:
@@ -29,7 +31,8 @@ def install() -> None:
             if "error" in snapshot:
                 return snapshot
             try:
-                data = _inspect(operation, snapshot["result"], params.get("skill_id"))
+                with _bind_profile_home(params.get("profile")):
+                    data = _inspect(operation, snapshot["result"], params.get("skill_id"))
                 if len(json.dumps(data, ensure_ascii=True)) > 900 * 1024:
                     return {"jsonrpc": "2.0", "id": rid, "error": {
                         "code": 4130, "message": "This skill exceeds the document limit."}}
@@ -39,6 +42,23 @@ def install() -> None:
                     "code": 4090, "message": "Skill information is unavailable."}}
 
         server.register_method(name, inspect)
+
+
+@contextmanager
+def _bind_profile_home(profile: str | None) -> Iterator[None]:
+    """The named profile's home for the read. A subprocess worker IS its profile (no
+    ``profile`` param); the in-process worker names it on every request it sends."""
+    if not profile:
+        yield
+        return
+    from hermes_cli.profiles import get_profile_dir
+    from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+
+    token = set_hermes_home_override(get_profile_dir(profile))
+    try:
+        yield
+    finally:
+        reset_hermes_home_override(token)
 
 
 def _inspect(operation: str, snapshot: dict, skill_id: str | None) -> dict:

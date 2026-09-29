@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import AbstractContextManager, contextmanager, redirect_stderr, redirect_stdout
+from contextvars import ContextVar
 import io
 import json
 import logging
 import re
 import sys
+import threading
 from types import SimpleNamespace
-from typing import Callable
+from typing import Callable, Iterator
 
 
 def _persist(provider_id: str, state: dict) -> None:
@@ -70,8 +72,9 @@ def _anthropic(verify: Callable[[str, str], None], flow: str) -> None:
 
     ``run_hermes_oauth_login_pure`` prints the authorize link and ``input()``s the
     pasted code; both names are shadowed on that one module for this one call,
-    so the link reaches ``verify`` and the code comes from this child's stdin
-    (``runtime.provider.signin.complete`` writes it). PKCE, the state check, the
+    so the link reaches ``verify`` and the code comes from the pasted-line reader —
+    this child's stdin, or the in-process runner's queue — which
+    ``runtime.provider.signin.complete`` writes. PKCE, the state check, the
     exchange and the pool write stay upstream's. The browser is not auto-opened,
     matching every other driver's ``open_browser=False``.
     """
@@ -90,7 +93,7 @@ def _anthropic(verify: Callable[[str, str], None], flow: str) -> None:
     def pasted(_prompt: str = "") -> str:
         if not seen:
             raise RuntimeError("anthropic_authorize_url_missing")
-        line = sys.stdin.readline()
+        line = _read_pasted_line()
         if not line:
             raise EOFError
         return line
@@ -143,28 +146,118 @@ class _Discard(io.TextIOBase):
         pass
 
 
-def browser_login_command(provider: str, *, home: str, flow: str | None = None) -> int:
-    """One owned child, one selected home, one terminal NDJSON event."""
-    output = sys.stdout
+#: Where a paste-code driver reads the pasted line; unset, this child's stdin.
+_READ_LINE: ContextVar[Callable[[], str] | None] = ContextVar("provider_login_read_line", default=None)
 
-    def emit(event: dict) -> None:
-        output.write(json.dumps({**event, "home": home}) + "\n")
-        output.flush()
 
-    def verify(url: str, code: str) -> None:
-        emit({"event": "code", "verification_uri": url, "user_code": code})
-        emit({"event": "pending"})
+def _read_pasted_line() -> str:
+    reader = _READ_LINE.get()
+    return reader() if reader is not None else sys.stdin.readline()
 
-    methods = browser_login_methods(provider)
-    chosen = flow or default_login_method(provider)
-    if chosen not in methods:
-        emit({"event": "error", "ok": False, "code": "unsupported_flow"})
-        return 1
+
+@contextmanager
+def _process_quiet() -> Iterator[None]:
+    """The sign-in child owns its process: silence all of its output and logging."""
     previous_logging = logging.root.manager.disable
     try:
         # Canonical CLI helpers retain their terminal UX. It is not this wire protocol.
         logging.disable(logging.CRITICAL)
         with redirect_stdout(_Discard()), redirect_stderr(_Discard()):
+            yield
+    finally:
+        logging.disable(previous_logging)
+
+
+_QUIET_THREADS: set[int] = set()
+_QUIET_LOCK = threading.Lock()
+
+
+class _QuietThreadStream(io.TextIOBase):
+    """``sys.stdout``/``sys.stderr`` stand-in: a quiet thread's writes vanish, others pass."""
+
+    def __init__(self, target) -> None:
+        self.target = target
+
+    def write(self, value: str) -> int:
+        return len(value) if threading.get_ident() in _QUIET_THREADS else self.target.write(value)
+
+    def flush(self) -> None:
+        if threading.get_ident() not in _QUIET_THREADS:
+            self.target.flush()
+
+    def __getattr__(self, name: str):
+        return getattr(self.target, name)
+
+
+class _QuietThreadFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.thread not in _QUIET_THREADS
+
+
+_QUIET_FILTER = _QuietThreadFilter()
+
+
+def _quiet_install(quiet: bool) -> None:
+    """Wrap (first thread in) or unwrap (last thread out) the process streams and root handlers."""
+    for name in ("stdout", "stderr"):
+        stream = getattr(sys, name)
+        if quiet and not isinstance(stream, _QuietThreadStream):
+            setattr(sys, name, _QuietThreadStream(stream))
+        elif not quiet and isinstance(stream, _QuietThreadStream):
+            setattr(sys, name, stream.target)
+    for handler in logging.root.handlers:
+        (handler.addFilter if quiet else handler.removeFilter)(_QUIET_FILTER)
+
+
+@contextmanager
+def quiet_current_thread() -> Iterator[None]:
+    """:func:`_process_quiet` for a sign-in that shares its process (no subprocess allowed).
+
+    Only THIS thread's prints and root-handled log records are dropped, so the host keeps
+    its own output while a driver's token-bearing prints and errors still die unseen. A
+    thread the driver itself starts is not covered — the drivers print from the calling
+    thread, and the wire (the ``emit`` callback) never carries their output either way.
+    """
+    ident = threading.get_ident()
+    with _QUIET_LOCK:
+        if not _QUIET_THREADS:
+            _quiet_install(True)
+        _QUIET_THREADS.add(ident)
+    try:
+        yield
+    finally:
+        with _QUIET_LOCK:
+            _QUIET_THREADS.discard(ident)
+            if not _QUIET_THREADS:
+                _quiet_install(False)
+
+
+def run_browser_login(
+    provider: str, *, home: str, flow: str | None, emit: Callable[[dict], None],
+    read_line: Callable[[], str] | None = None,
+    quiet: Callable[[], AbstractContextManager[None]] = _process_quiet,
+) -> int:
+    """One sign-in, one selected home, one terminal event through ``emit``.
+
+    The sign-in child (:func:`browser_login_command`) binds ``emit`` to its stdout
+    and reads a pasted code from its stdin; an in-process runner binds both to
+    queues and ``quiet`` to :func:`quiet_current_thread`. The drivers are the same.
+    """
+    def send(event: dict) -> None:
+        emit({**event, "home": home})
+
+    def verify(url: str, code: str) -> None:
+        send({"event": "code", "verification_uri": url, "user_code": code})
+        send({"event": "pending"})
+
+    methods = browser_login_methods(provider)
+    chosen = flow or default_login_method(provider)
+    if chosen not in methods:
+        send({"event": "error", "ok": False, "code": "unsupported_flow"})
+        return 1
+    reader = _READ_LINE.set(read_line)
+    try:
+        with quiet():
             _DRIVERS[provider](verify, chosen)
     except (Exception, SystemExit, KeyboardInterrupt) as error:
         # Never serialize the exception message, response body, or token payload.
@@ -173,9 +266,20 @@ def browser_login_command(provider: str, *, home: str, flow: str | None = None) 
                  "codex_browser_auth_denied": "denied", "access_denied": "denied",
                  "expired_token": "expired"}
         code = "cancelled" if isinstance(error, KeyboardInterrupt) else codes.get(getattr(error, "code", None), "login_failed")
-        emit({"event": "error", "ok": False, "code": code, "reason": "Sign-in did not finish."})
+        send({"event": "error", "ok": False, "code": code, "reason": "Sign-in did not finish."})
         return 1
     finally:
-        logging.disable(previous_logging)
-    emit({"event": "done", "ok": True})
+        _READ_LINE.reset(reader)
+    send({"event": "done", "ok": True})
     return 0
+
+
+def browser_login_command(provider: str, *, home: str, flow: str | None = None) -> int:
+    """One owned child, one selected home, one terminal NDJSON event."""
+    output = sys.stdout
+
+    def emit(event: dict) -> None:
+        output.write(json.dumps(event) + "\n")
+        output.flush()
+
+    return run_browser_login(provider, home=home, flow=flow, emit=emit)
