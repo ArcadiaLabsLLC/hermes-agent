@@ -3,6 +3,7 @@
 Measured escape this pins (2026-08-31, this Windows workstation)::
 
     test_update_autostash.py::test_cmd_update_skips_stash_restore_when_reset_fails
+      (that test was removed by the 32d7745648 consolidation; the path below is unchanged)
       -> cmd_update -> _cmd_update_impl
            atexit.register(_resume_windows_gateways_after_update,
                            {"cold_start_if_installed": True, ...})
