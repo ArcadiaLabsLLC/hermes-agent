@@ -245,7 +245,7 @@ def _db_flush_row(agent, msg: Dict, is_current_turn_user: bool, msg_idx: int = 0
         row[DB_ROW_SNAPSHOT] = msg[DB_ROW_SNAPSHOT]
     from hermes_cli.lifecycle import has_hook, invoke_hook
     if has_hook("transform_persisted_row"):
-        results = invoke_hook("transform_persisted_row", agent=agent, message=msg, row=dict(row), msg_idx=msg_idx)
+        results = invoke_hook("transform_persisted_row", agent=agent, message=dict(msg), row=dict(row), msg_idx=msg_idx)
         row = next((r for r in results if isinstance(r, dict)), row)
     return row
 

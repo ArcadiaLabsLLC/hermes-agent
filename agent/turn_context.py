@@ -1108,6 +1108,10 @@ def build_turn_context(
             (i for i in range(len(messages) - 1, -1, -1) if messages[i].get("role") == "user"), -1)
         if current_turn_user_idx < 0:
             raise ValueError("reuse_current_user_message requires a user row in conversation_history")
+        # The whole list is durable: anchor the persist boundary past it (as an adopted durable parent
+        # does), so turn-start rotation/preflush treat messages[:anchor] as persisted instead of seeing
+        # no anchor and re-writing the history, and no later row takes the user-row override.
+        agent._persist_user_message_idx = len(messages)
     else:
         append_message(messages, user_msg)
         current_turn_user_idx = len(messages) - 1
