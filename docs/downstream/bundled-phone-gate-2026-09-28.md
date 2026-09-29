@@ -56,14 +56,30 @@ subprocess_call 80 -> 80 modules; unproven 2 -> 2; provider_sdk 0 -> 0. Kept mod
 file copy cannot open); lazy unguarded sites 578 into 89 -> 610 into 98 (the switched-off
 connectors, contracts and MCP OAuth modules are now lazy targets).
 
-Profile `bundled-phone`, targets android_arm64, ios_arm64; 1634 first-party modules kept. Verdict: **REFUSED** (152 findings).
+**Re-taken at lane h11-mcp (2026-09-29): 163 -> 162 findings.** The baseline is this tree's own
+before-run (main `d23b6230bf`: 163, 1667 kept modules — main had grown since h7-phone's 152). The MCP
+client runtime is switched off behind a new `mcp.client` switch (default on; off in
+`bundled-phone.yaml`; its one reader is `tools/mcp_tool_common.py::mcp_client_enabled`, which
+`mcp_server_enabled` also honours). The kept callers ask it before importing the client: the
+discovery start (`hermes_cli/mcp_startup.py`), `session.info`'s MCP status (`tui_gateway/server.py`)
+and the parallel-safety probe (`agent/tool_dispatch_helpers.py`). `tools.mcp_tool` and its client
+siblings (content, discovery, errors, handlers, health, lifecycle, loop, registration, sampling,
+scope, transport) are switched-off modules; the stand-in run mixin `tools/mcp_tool.py` bound is
+gone. `tools.mcp_tool_agent` (the per-turn tool snapshot) and the common / schema / config helpers
+stay. Per bucket, before -> after: subprocess_call 84 -> 83 modules (`tools.mcp_tool` gone); native
+3 -> 3; pinned 1 -> 1; process 3 -> 3; unproven 2 -> 2. Kept modules 1667 -> 1652; lazy unguarded
+sites 642 into 104 -> 701 into 112 (the newly switched-off client modules are lazy targets of kept
+desktop-only callers — cron, the messaging gateway, ACP, the CLI's MCP config, the connectors,
+the persona MCP admission — none on the phone turn path, which the e2e proves).
+
+Profile `bundled-phone`, targets android_arm64, ios_arm64; 1652 first-party modules kept. Verdict: **REFUSED** (162 findings).
 
 | kind | distinct subjects | subjects |
 |---|---:|---|
 | native | 3 | `cffi`, `cryptography`, `pillow-heif` |
 | pinned | 1 | `tools.skills_hub` |
 | process | 3 | `psutil`, `termios`, `tty` |
-| subprocess_call | 80 modules | `agent.anthropic_adapter`, `agent.anthropic_credentials`, `agent.command_token_source`, `agent.context_references`, `agent.deadline`, `agent.proxy_sources.iron_proxy`, `agent.secret_sources.base`, `agent.shell_hooks`, `agent.skill_preprocessing`, `agent.transports.codex_app_server`, `agent.vault_backends.base`, `agent_runtime.build_identity`, `agent_runtime.gateway_endpoints.routes`, `agent_runtime.git_cmd`, `agent_runtime.provider_signin`, `agent_runtime.repo_context`, `agent_runtime.store_file_io`, `gateway.platforms.base`, `gateway.run`, `gateway.run_inbound`, `gateway.run_shutdown`, `gateway.shutdown_forensics`, `gateway.slash_commands`, `gateway.status`, `hermes_bootstrap`, `hermes_cli._early_recovery`, `hermes_cli._subprocess_compat`, `hermes_cli.commands_completion`, `hermes_cli.config`, `hermes_cli.copilot_auth`, `hermes_cli.git_credentials`, `hermes_cli.github_api`, `hermes_cli.gitlock`, `hermes_cli.goals`, `hermes_cli.kanban_db`, `hermes_cli.kanban_db_dispatch`, `hermes_cli.kanban_db_workspace`, `hermes_cli.kanban_pr_acceptance`, `hermes_cli.mcp_catalog`, `hermes_cli.plugin_catalog`, `hermes_cli.profiles`, `hermes_cli.quiet_single_query`, `hermes_cli.source_check`, `hermes_cli.source_releases`, `hermes_cli.sqlite_runtime`, `hermes_cli.tools_config_cua`, `hermes_cli.venv_sync`, `hermes_cli.version_info`, `hermes_cli.worktree_ops`, `hermes_constants`, `hermes_constants_scratch`, `plugins.memory.byterover`, `plugins.memory.honcho.client`, `plugins.memory.mem0._setup`, `plugins.memory.openviking`, `pm.client`, `pm.environment`, `pm.extras`, `pm.features`, `pm.package`, `pm.packages`, `pm.plugin_eviction`, `pm.progress`, `pm.recovery`, `pm.runtime`, `pm.runtime_stage`, `tools.agent_chat_dispatch.local`, `tools.async_delegation_recovery_hints`, `tools.bot_mode_dm`, `tools.checkpoint_manager`, `tools.env_probe`, `tools.file_operations_search`, `tools.mcp_tool`, `tools.skills_hub_github`, `tools.tts_command_provider`, `tools.tts_tool_delivery`, `tools.vision_tools_image_prep`, `tui_gateway.host_supervisor`, `tui_gateway.methods_prompt`, `tui_gateway.server` |
+| subprocess_call | 83 modules | `agent.anthropic_adapter`, `agent.anthropic_credentials`, `agent.command_token_source`, `agent.context_references`, `agent.deadline`, `agent.proxy_sources.iron_proxy`, `agent.secret_sources.base`, `agent.shell_hooks`, `agent.skill_preprocessing`, `agent.transports.codex_app_server`, `agent.vault_backends.base`, `agent_runtime.build_identity`, `agent_runtime.gateway_endpoints.routes`, `agent_runtime.git_cmd`, `agent_runtime.provider_signin`, `agent_runtime.repo_context`, `agent_runtime.store_file_io`, `gateway.platforms.base`, `gateway.run`, `gateway.run_inbound`, `gateway.run_shutdown`, `gateway.shutdown_forensics`, `gateway.slash_commands`, `gateway.status`, `hermes_bootstrap`, `hermes_cli._early_recovery`, `hermes_cli._subprocess_compat`, `hermes_cli.commands_completion`, `hermes_cli.config`, `hermes_cli.copilot_auth`, `hermes_cli.git_credentials`, `hermes_cli.github_api`, `hermes_cli.gitlock`, `hermes_cli.goals`, `hermes_cli.kanban_db`, `hermes_cli.kanban_db_dispatch`, `hermes_cli.kanban_db_workspace`, `hermes_cli.kanban_pr_acceptance`, `hermes_cli.mcp_catalog`, `hermes_cli.plugin_catalog`, `hermes_cli.profiles`, `hermes_cli.profiles_service_cleanup`, `hermes_cli.quiet_single_query`, `hermes_cli.source_check`, `hermes_cli.source_releases`, `hermes_cli.sqlite_runtime`, `hermes_cli.stderr_timestamp`, `hermes_cli.tools_config_cua`, `hermes_cli.update_cmd_check`, `hermes_cli.venv_sync`, `hermes_cli.version_info`, `hermes_cli.worktree_ops`, `hermes_constants`, `hermes_constants_scratch`, `plugins.memory.byterover`, `plugins.memory.honcho.client`, `plugins.memory.mem0._setup`, `plugins.memory.openviking`, `pm.client`, `pm.environment`, `pm.extras`, `pm.features`, `pm.package`, `pm.packages`, `pm.plugin_eviction`, `pm.progress`, `pm.recovery`, `pm.runtime`, `pm.runtime_stage`, `tools.agent_chat_dispatch.local`, `tools.async_delegation_recovery_hints`, `tools.bot_mode_dm`, `tools.checkpoint_manager`, `tools.env_probe`, `tools.file_operations_lint`, `tools.file_operations_search`, `tools.skills_hub_github`, `tools.tts_command_provider`, `tools.tts_tool_delivery`, `tools.vision_tools_image_prep`, `tui_gateway.host_supervisor`, `tui_gateway.methods_prompt`, `tui_gateway.server` |
 | unproven | 2 | `psutil`, `ruamel-yaml-clib` |
 
 How each shipped distribution is first reached (first target):
@@ -76,4 +92,4 @@ How each shipped distribution is first reached (first target):
 
 Switched-off modules kept code imports at module level that the loop's placeholders (`agent_runtime/loop_tool_lifecycles.py`) answer — proven at run time, not pinned: `tools.browser_tool_lifecycle` (`cleanup_browser`); `tools.terminal_tool_lifecycle` (`cleanup_vm`, `get_active_env`, `is_persistent_env`).
 
-Lazy, unguarded imports into switched-off modules (an ImportError if the line runs on a phone; each must sit behind its feature's own switch or a seam): 610 sites, into 98 modules.
+Lazy, unguarded imports into switched-off modules (an ImportError if the line runs on a phone; each must sit behind its feature's own switch or a seam): 701 sites, into 112 modules.

@@ -3637,6 +3637,77 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "RepoContextExcerpt",
         scope=_AR,
     ),
+    *rows(
+        # Lane h10-fhrel (2026-09-29): dead-code queue row
+        # `fingerprint_home_capture` / `iter_fingerprint_paths` /
+        # `BUILD_SELF_PERTURBED_CLASSES` (R3 TEST SEAM). The NamedTuple went
+        # with its only constructor. `reset_fingerprint_home` stays: its
+        # production caller is lane.reset_process_state.
+        "s-h10",
+        "HEAD",
+        Form.CODE,
+        "tests-only readers of core_cache state with no production caller (the "
+        "HC-1 home-capture observer, the fingerprint path enumeration, the "
+        "self-perturbed class tuple); they live in tests/_downstream/_seams.py "
+        "and read core_cache.home / restat the same way",
+        "fingerprint_home_capture",
+        "FingerprintHomeCapture",
+        "iter_fingerprint_paths",
+        "BUILD_SELF_PERTURBED_CLASSES",
+        scope=_AR,
+    ),
+    *rows(
+        # Lane h10-fhrel (2026-09-29): dead-code queue row
+        # `reset_runtime_resolve_cache` (R3 TEST SEAM).
+        "s-h10",
+        "HEAD",
+        Form.CODE,
+        "a tests-only reset of the runtime-resolve memo with no production "
+        "caller; it lives in tests/_downstream/_seams.py and clears "
+        "profile_runner.execute's cache under its lock the same way",
+        "reset_runtime_resolve_cache",
+        scope=_AR,
+    ),
+    *rows(
+        # Lane h10-fhrel (2026-09-29): dead-code queue row
+        # `_split_discovery_roots` (S2 TEST SEAM -> DELETE): a fork-added
+        # one-line alias of `_split_path_list` inside an upstream file; its
+        # only reader was two asserts duplicating `_split_path_list`'s own.
+        "s-h10",
+        "HEAD",
+        Form.CODE,
+        "a fork-added alias of _split_path_list with no caller in the runner; "
+        "the two test asserts that read it restated _split_path_list's",
+        "_split_discovery_roots",
+        scope=("scripts.run_tests_parallel",),
+    ),
+    *rows(
+        # Dead-code queue row `_default_session_db` (R2, sheet
+        # persona_chat_history.md §5 DELETE). The deletion itself landed in
+        # a7fead6520 (every SessionDB acquisition declares READ or WRITE)
+        # without a tombstone; lane h10-fhrel (2026-09-29) adds it.
+        "s-h10",
+        "a7fead6520",
+        Form.CODE,
+        "the untyped writer-open door for persona chat history; every reader "
+        "now acquires through chat_session_scope.open_chat_session_db with an "
+        "explicit SessionDbAccess, so a second door would be a second authority",
+        "_default_session_db",
+        scope=_AR,
+    ),
+    *rows(
+        # Lane h10-fhrel (2026-09-29): dead-code queue row
+        # `persona_chat_continuity.bounds._safe_text` (lane B3, DELETE). Scoped
+        # to the package: six other modules keep live `_safe_text`s of their own.
+        "s-h10",
+        "HEAD",
+        Form.CODE,
+        "the flat, unaccounted truncation the per-role accounting replaced "
+        "(_bounded_free_text says when it cuts); a public rename would collide "
+        "with serde.bounded_text",
+        "_safe_text",
+        scope=("agent_runtime.persona_chat_continuity",),
+    ),
     # -- the 2026-09-25 upstream merge ------------------------------------
     *rows(
         "s-merge-2026-09-25",

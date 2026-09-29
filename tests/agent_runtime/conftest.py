@@ -161,7 +161,7 @@ def reset_profile_runner_runtime_resolve_cache():
     second test. Process-global state gets a process-global reset.
     """
 
-    from agent_runtime.profile_runner import reset_runtime_resolve_cache
+    from tests._downstream._seams import reset_runtime_resolve_cache
 
     reset_runtime_resolve_cache()
     yield

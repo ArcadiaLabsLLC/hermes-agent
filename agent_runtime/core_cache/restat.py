@@ -22,7 +22,6 @@ from agent_runtime.core_cache.fingerprint import (
 __layer__ = "stores"
 
 __all__ = [
-    "BUILD_SELF_PERTURBED_CLASSES",
     "SELF_PERTURBED_LIVE_EVENTS",
     "SELF_PERTURBED_PERSONA_INSTANCES",
     "SELF_PERTURBED_SESSION_DB",
@@ -101,18 +100,6 @@ SELF_PERTURBED_PERSONA_INSTANCES = "persona_instances"
 
 
 SELF_PERTURBED_LIVE_EVENTS = "live_events_slice"
-
-
-#: The three classes, in one tuple, so a census and a test can enumerate them
-#: without re-typing the strings. ADDING A MEMBER IS A CHANGE TO THE ARGUMENT
-#: ABOVE, not a configuration tweak: each one is a claim that the BUILD ITSELF
-#: moves that input on every pass, and it needs the same kind of citation the
-#: three below carry.
-BUILD_SELF_PERTURBED_CLASSES = (
-    SELF_PERTURBED_SESSION_DB,
-    SELF_PERTURBED_PERSONA_INSTANCES,
-    SELF_PERTURBED_LIVE_EVENTS,
-)
 
 
 def _self_perturbed_inputs() -> _SelfPerturbedInputs | None:

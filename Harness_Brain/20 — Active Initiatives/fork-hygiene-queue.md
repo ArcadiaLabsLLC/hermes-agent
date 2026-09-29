@@ -11,11 +11,13 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Release validation — 2026-09-23
 
-- [ ] **Fence test updater retargeting from the real owning installation.** · The contained canonical runner reached `update_owning_install` from a temporary release-channel fixture; its child entered the primary checkout and rejected pytest arguments. No update ran, but process limits are not filesystem isolation. Finish residual qualification in an isolated environment; also resolve the newly observed stale PID-marker collection refusal. [Contained continuation](../../docs/downstream/discussion-qualification-2026-09-28.md#contained-continuation). Filed 2026-09-28 Discussion qualification. **TAKEN 2026-09-29 h10-fhrel**
 
-- [ ] **Isolate wrapper-publication tests before resuming interrupted desktop qualification.** · Whole-PC freeze during the single-worker continuation; running-wrapper publication is the last surviving fixture, not a proven cause. Preserve evidence; use contained off-desktop reproduction, not an unbounded rerun. [Incident boundary](../../docs/downstream/discussion-qualification-2026-09-28.md#host-freeze--qualification-interrupted). Filed 2026-09-28 Discussion qualification. **TAKEN 2026-09-29 h10-fhrel**
+- [ ] **Isolate wrapper-publication tests before resuming interrupted desktop qualification.** · Whole-PC freeze during the single-worker continuation; running-wrapper publication is the last surviving fixture, not a proven cause. Preserve evidence; use contained off-desktop reproduction, not an unbounded rerun. [Incident boundary](../../docs/downstream/discussion-qualification-2026-09-28.md#host-freeze--qualification-interrupted). Filed 2026-09-28 Discussion qualification. **TAKEN 2026-09-29 h10-fhrel** · VERDICT 2026-09-29 h10-fhrel: static read done — `tests/hermes_cli/test_source_launcher_publication.py::test_running_source_launcher_can_republish_itself` runs the freshly published native `hermes.exe`/`.cmd` once (`subprocess.run`, 30 s timeout) and that child rewrites its own running launcher; nothing in the body is unbounded, so the test is a candidate trigger only through the OS/driver side of self-overwrite. Owed: one contained reproduction in a disposable Windows VM with commit/process limits and per-file diagnostics (a box this lane does not have); the updater-retarget half of the residual population is fenced by `319c6ff69d`, so the VM run no longer reaches the primary checkout
 
-- [ ] **Reconcile the upstream-footprint ledger with main's unrecorded growth.** · Executed measurement of `08ee5074cb`: `files=141 deleted_lines=900 heavy=4`, fixture `117/766/3`. Discussion's separately recorded conclusion allowance adds four deleted lines only; it does not absorb this baseline drift. Audit and disposition the changed upstream files rather than raising the aggregate silently. `scripts/upstream_footprint.py`, `tests/fixtures/upstream_footprint.json` · filed 2026-09-28 Discussion qualification. **TAKEN 2026-09-29 h10-fhrel**
+
+### Filed on arrival — 2026-09-29 (h11-mcp landing)
+
+- [ ] **`tests/agent_runtime/test_serve_wedge_lifecycle.py` (`lost_the_lane`, `owner_still_runs`) flakes under the 8-worker runner and passes 8/8 alone: the tests check the delivery drain before the serve has finished booting — wait on the serve's ready signal instead of a fixed window.** · lane h11-mcp landing run, 2026-09-29 · UNCLAIMED
 
 ### Filed on arrival — 2026-09-29 (lane h10-fhrest)
 
@@ -23,30 +25,24 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ### Filed on arrival — 2026-09-29 (lane h7-phone)
 
-- [ ] **Phone e2e `[full]` case flakes under load (2 of ~11 runs): CPython's `platform` module spawns `ver` on Windows and the call times out when the box is busy — the `[phone]` case never flaked. Stub or pre-seed the platform probe in that case, or read the version without a subprocess.** · `tests/agent_runtime/test_embedded_phone_session.py` (lane h7-phone e2e loop, 2026-09-29) · UNCLAIMED **TAKEN 2026-09-29 h10-fhrel**
 
 ### Filed on arrival — 2026-09-28 (lane w5-hstt)
 
 ### Filed on arrival — 2026-09-29 (lane h7-reds)
-- [ ] **Upstream-owned Windows reds, identical in a pure-upstream tree at merge-base `2f14d5e6e4`: 51 in `tests/tools/test_mcp_{cimd,oauth,oauth_integration,oauth_manager,oauth_user_agent,shared_connection_resolved_identity,startup_summary_names_failures,tool_issue_948,windows_orphan_fix}.py` (40 are `OAuthNonInteractiveError`: the tests mock `sys.stdin.isatty` but `_stdin_is_console` also asks `GetConsoleMode`) plus `tests/scripts/test_bundle_native.py` (`No module named hermes_bootstrap`: the fixture repo omits it, `launcher_wrapper` imports it) — decide upstream PR vs `upstream_reds.py` rows** · fork-hygiene · evidence: h7-reds loader commit message · UNCLAIMED **TAKEN 2026-09-29 h10-fhrel**
-- [ ] **`tests/test_env_gap_registry.py::test_no_skip_row_points_at_a_deleted_test` red for `[tools]` (`test_lazy_deps_durable_target.py`, file gone) and `[hermes_cli]` (six ids in `test_web_ui_build.py`, `test_cmd_update.py`, `test_venv_holder_windows_live.py`) — delete the stale `_ENV_GAP_SKIPS` rows** · fork-hygiene · evidence: h7-reds touched run, 2026-09-29 · UNCLAIMED **TAKEN 2026-09-29 h10-fhrel**
-- [ ] **With the directory conftests restored, `scripts/run_tests.sh tests/tools tests/agent tests/hermes_cli` on this box is 561 failed / 33244 passed in 237 files, all pre-existing (none new vs the old loader; `tests/tools/test_file_read_guards.py` flakes 4-5 reds on both) — triage by class, environment vs code** · fork-hygiene · evidence: h7-reds loader commit message · UNCLAIMED **TAKEN 2026-09-29 h10-fhrel**
+- [ ] **With the directory conftests restored, `scripts/run_tests.sh tests/tools tests/agent tests/hermes_cli` on this box is 561 failed / 33244 passed in 237 files, all pre-existing (none new vs the old loader; `tests/tools/test_file_read_guards.py` flakes 4-5 reds on both) — triage by class, environment vs code** · fork-hygiene · evidence: h7-reds loader commit message · UNCLAIMED **TAKEN 2026-09-29 h10-fhrel** · VERDICT 2026-09-29 h10-fhrel: this lane retired 48 of the 561 by class in `43eee6f03f` (40 MCP OAuth e-TTY + 2 hangs + 2 singles as upstream_reds rows) and 7 orphaned env-gap rows in `10570a2b80`; the remainder needs the three-directory run itself (~40 min, a suite-size run a lane may not take). Owed: one triage lane that takes that run once, buckets the failures by exception class, and files each class as its own row
 
 ### Filed on arrival — 2026-09-28 (lane w4-hfix2)
 
 ### Filed on arrival — 2026-09-27 (Windows console signal safety)
 
-- [ ] **Retire the Windows signal-safety carry when upstream adopts an equivalent fix.** · [[Windows console signal safety]]; held upstream candidate recorded in `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md`; no parallel supervisor or PID helper added, no PR submitted. **TAKEN 2026-09-29 h10-fhrel**
+- [ ] **Retire the Windows signal-safety carry when upstream adopts an equivalent fix.** · [[Windows console signal safety]]; held upstream candidate recorded in `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md`; no parallel supervisor or PID helper added, no PR submitted. **TAKEN 2026-09-29 h10-fhrel** · VERDICT 2026-09-29 h10-fhrel: not retirable yet: `tui_gateway/host_supervisor.py` and the carry's other files at manifest base `ee5f49b943` are still upstream's pre-fix bytes (the fork diff is intact), so upstream has not adopted an equivalent. Owed: re-check at the next upstream merge; retire in that merge's lane if upstream carries it
 
 ### Filed on arrival — 2026-09-26 (native Hermes qualification)
 
-- [ ] **Finish classifying the validated-suite residuals, including the two worktree-only fleet identity assertions and baseline gateway certificate mismatch blocking registered mutations.** · [Native qualification evidence](../../docs/downstream/native-hermes-qualification-2026-09-26.md); [[Windows console signal safety]] adds an incomplete one-hour run and failures reproduced on primary in 33 of 35 files; no baseline expansion or unrelated runtime repair was made. **TAKEN 2026-09-29 h10-fhrel**
-- [ ] **Re-anchor eight runtime-canon citations and remove the stale boot waiver after the upstream refactor.** · [Native recovery gate comparison](../../docs/downstream/native-recovery-repairs-2026-09-26.md#final-wire-qualification--2026-09-27); all eight and the waiver reproduce on unchanged main `b25aca3cafd4`. **TAKEN 2026-09-29 h10-fhrel**
-- [ ] **Resolve the baseline gateway mirror and TUI server frozen-home assertions without creating a second profile resolver.** · [Native qualification evidence](../../docs/downstream/native-hermes-qualification-2026-09-26.md). **TAKEN 2026-09-29 h10-fhrel**
+- [ ] **Finish classifying the validated-suite residuals, including the two worktree-only fleet identity assertions and baseline gateway certificate mismatch blocking registered mutations.** · [Native qualification evidence](../../docs/downstream/native-hermes-qualification-2026-09-26.md); [[Windows console signal safety]] adds an incomplete one-hour run and failures reproduced on primary in 33 of 35 files; no baseline expansion or unrelated runtime repair was made. **TAKEN 2026-09-29 h10-fhrel** · VERDICT 2026-09-29 h10-fhrel: the classification needs the validated suite (~1 h) plus the fleet/gateway certificate fixtures on an isolated host; the two siblings this lane could settle from the tree are closed (doc-cite `dd153d6946`, frozen-home refuted `930b335b48`). Owed: the program-end validated-suite run classifies the fleet identity pair and `ServeCertificatePinMismatch` against a clean primary
 
 ### Filed on arrival — 2026-09-26 (lane FIX-TRIAGE, filed by the orchestrator)
 
-- [ ] **Ledger drift: `tests/agent/test_coding_context.py` says "lifted: up/win-line-endings" but #121221 carries 5 other files; `tests/tools/test_file_tools_live.py` credits up/win-line-endings though the whole diff is in #121226; `tests/tools/test_file_tools.py` carries only a dead `import os`** · evidence: `docs/agent-runtime-harness/planned/fix-triage-2026-09-26.md` §1 rows · filed 2026-09-26 (lane FIX-TRIAGE) **UNCLAIMED** **TAKEN 2026-09-29 h10-fhrel**
 
 
 
@@ -55,6 +51,11 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 ## Filed on arrival — 2026-09-29 (footprint attribution, filed by the orchestrator)
 
 - [ ] **Move the phone lanes' edits out of upstream files first: 25 files raised `[up-fp]` 155 → 177 with no reasons rows — `7d80bad505` (p2-hphone, 13), `aae4d60d02` (p2-hsdk, 9), `dbf8257326` (h7-phone, 3). Per file: move the fork behaviour into a fork-owned module or seam and restore upstream's bytes; ONLY an edit that cannot move becomes an upstream-PR candidate (one clean commit on `upstream/main`); keep-with-reasons-row is the last resort. Ratchet the fixture down as files leave.** · `fork / upstream sync` · owner ruling 2026-09-29: "only PR it if it can't move out of upstream files" · the p2-hsdk PR half is also gated on the runtime-queue row "Offer the SDK-free httpx client … ask the owner" · filed 2026-09-29 **UNCLAIMED**
+
+## Filed on arrival — 2026-09-29 (lane h10-fhrel, filed by the orchestrator)
+
+- [ ] **`tests/scripts/test_bundle_native.py::test_bundle_stages_git_tree_and_runs_native_children_before_manifest` red: `uv sync` rejects the suite's Python 3.12 interpreter against `requires-python ==3.14.*` in its fixture payload** · `fork / suite` · evidence: lane h10-fhrel · filed 2026-09-29 **UNCLAIMED**
+- [ ] **Unused imports (ruff F401): `tests/_downstream/hermes_cli_conftest/registry.py` (`TELEGRAM_PARITY_DEFECT_REASON`), `tests/_downstream/tools_conftest.py` (`importlib`)** · `fork / tests` · evidence: lane h10-fhrel · filed 2026-09-29 **UNCLAIMED**
 
 ## Filed on the move — 2026-09-22 (fork rows the launcher queue had carried since 2026-09-02)
 

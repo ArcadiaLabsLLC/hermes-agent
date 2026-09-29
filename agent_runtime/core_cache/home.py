@@ -14,7 +14,6 @@ from agent_runtime.core_cache.vocabulary import (
     RECEIPT_FINGERPRINT_HOME_LAZY_CAPTURE,
     logger,
 )
-from agent_runtime.core_cache.models import FingerprintHomeCapture
 
 __layer__ = "stores"
 
@@ -30,7 +29,6 @@ __all__ = [
     "_receipt_fingerprint_home_lazy_capture",
     "capture_fingerprint_home",
     "declare_fingerprint_home_boot_site",
-    "fingerprint_home_capture",
     "reset_fingerprint_home",
     "resolved_fingerprint_home",
 ]
@@ -184,31 +182,6 @@ def capture_fingerprint_home() -> tuple[Path, bool]:
         if _fingerprint_home is None:
             return _capture_fingerprint_home_locked(eager=True)
         return _fingerprint_home
-
-
-def fingerprint_home_capture() -> FingerprintHomeCapture:
-    """Observe the capture WITHOUT taking one.
-
-    Its own function rather than exposing the globals, and pointedly not a call
-    to :func:`resolved_fingerprint_home`: an observer that captured would destroy
-    the very thing it is being asked about — "was this captured eagerly?" cannot
-    be answered by a function whose answer is "it is now".
-    """
-
-    with _fingerprint_home_lock:
-        if _fingerprint_home is None:
-            return FingerprintHomeCapture(
-                home=None,
-                authoritative=False,
-                eager=False,
-                boot_site=_fingerprint_home_boot_site,
-            )
-        return FingerprintHomeCapture(
-            home=_fingerprint_home[0],
-            authoritative=_fingerprint_home[1],
-            eager=_fingerprint_home_eager,
-            boot_site=_fingerprint_home_boot_site,
-        )
 
 
 def resolved_fingerprint_home() -> tuple[Path, bool]:

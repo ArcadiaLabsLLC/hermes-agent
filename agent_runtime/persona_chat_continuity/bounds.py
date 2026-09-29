@@ -186,10 +186,6 @@ def _truncate(text: str, limit: int) -> str:
     return text[:keep].rstrip() + _TRUNCATION_MARKER
 
 
-def _safe_text(value: Any, *, limit: int = _MAX_CONTENT) -> str:
-    return _truncate(_redacted(value), limit)
-
-
 def _bound_envelope(
     envelope: str, *, limit: int, part: str, codec: Any
 ) -> tuple[str, ContentBoundNote | None]:
@@ -341,7 +337,7 @@ def _bounded_free_text(
 ) -> BoundedUserContent:
     """Bound one opaque free-text row, and SAY SO when it cuts.
 
-    ``_safe_text`` does the same truncation and returns a bare string, which is
+    A flat ``_truncate`` returning a bare string does the same cut, which is
     how the assistant/tool/system rows have been losing content silently: the
     per-part accounting added for the composed operator row covered ``user``
     only, while the other three roles kept a flat cap with no note, no log and

@@ -142,16 +142,6 @@ def _no_posix_privilege_api() -> bool:
     return not hasattr(os, "geteuid")
 
 
-def _posix_only_branch() -> bool:
-    """True where the code under test selects its non-POSIX arm.
-
-    Used ONLY where the production code itself branches on ``sys.platform`` and
-    the assertion pins the arm this host never takes — i.e. where the platform
-    genuinely is the mechanism rather than a stand-in for one.
-    """
-    return sys.platform == "win32"
-
-
 @functools.cache
 def _no_shebang_script_execution() -> bool:
     """True where the OS cannot spawn a ``#!``-prefixed script directly.

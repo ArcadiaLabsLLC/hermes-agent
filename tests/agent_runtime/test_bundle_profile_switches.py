@@ -61,6 +61,37 @@ def test_stdio_mcp_servers_are_off_and_http_servers_kept():
     assert mcp_server_enabled(http)
 
 
+def test_phone_profile_runs_no_mcp_client(monkeypatch):
+    """``mcp.client`` (bundled-phone): no server is enabled and discovery never starts, so the
+    client runtime is never imported. The desktop profile keeps its HTTP server (control)."""
+    import logging
+
+    from hermes_cli import mcp_startup
+    from hermes_constants import get_hermes_home
+    from tools.mcp_tool_common import mcp_client_enabled, mcp_server_enabled
+
+    http = {"url": "https://mcp.example/mcp"}
+    home = Path(get_hermes_home())
+    home.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(mcp_startup, "_mcp_discovery_started", set())
+    monkeypatch.setattr(mcp_startup, "_mcp_discovery_thread", {})
+    monkeypatch.setattr(mcp_startup, "_discover_mcp_tools_without_interactive_oauth", lambda: None)
+
+    def install(profile: str) -> None:
+        config = apply_to_config(load_profile(profile), {"mcp_servers": {"docs": http}})
+        (home / "config.yaml").write_text(json.dumps(config), encoding="utf-8")
+
+    install("bundled-desktop")  # positive control: the same server is on and would be discovered
+    assert mcp_client_enabled() and mcp_server_enabled(http)
+    assert mcp_startup._has_configured_mcp_servers()
+
+    install("bundled-phone")
+    assert not mcp_client_enabled() and not mcp_server_enabled(http)
+    assert not mcp_startup._has_configured_mcp_servers()
+    mcp_startup.start_background_mcp_discovery(logger=logging.getLogger("t"), thread_name="t")
+    assert mcp_startup._mcp_discovery_started == set() and mcp_startup._mcp_discovery_thread == {}
+
+
 def test_external_execution_backends_are_refused_before_their_builder(monkeypatch):
     from tools import terminal_tool_backends as backends
 

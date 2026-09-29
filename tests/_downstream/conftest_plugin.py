@@ -842,3 +842,23 @@ def _mission_chat_door_bound():
     bind_mission_chat_door()
     yield
     mission_chat_door._turn, mission_chat_door._open_chat = previous
+
+
+@pytest.fixture(autouse=True)
+def _no_owning_install_retarget(monkeypatch, _hermetic_environment):
+    """No test hands ``hermes update`` to the REAL install that owns this interpreter.
+
+    ``cmd_update`` opens with ``retarget_to_owning_install(PROJECT_ROOT)``. A
+    worktree run on the primary checkout's venv is exactly the redirected
+    install that function repairs: it re-runs ``sys.argv[1:]`` — pytest's
+    arguments — as ``hermes_cli.main`` with ``cwd`` at the primary checkout.
+    Measured 2026-09-28 (Discussion qualification, "Contained continuation"): a
+    release-channel fixture reached it, the child entered the primary checkout
+    and exited 2 on the pytest arguments. Nothing updated only because argparse
+    refused. ``None`` from ``owning_install_root`` is production's own "nothing
+    redirected" answer, so every other line of ``cmd_update`` runs unchanged;
+    ``owning_install_root`` itself stays real for the tests that are about it.
+    """
+    from hermes_cli import update_owning_install
+
+    monkeypatch.setattr(update_owning_install, "retarget_to_owning_install", lambda *_a, **_k: None)

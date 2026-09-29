@@ -70,7 +70,6 @@ from tests._downstream.hermes_cli_conftest.probes import (  # noqa: E402, F401
     _no_os_chown,
     _no_posix_wait_status,
     _no_posix_privilege_api,
-    _posix_only_branch,
     _no_shebang_script_execution,
 )
 from tests.hermes_cli import _gateway_fence  # noqa: E402

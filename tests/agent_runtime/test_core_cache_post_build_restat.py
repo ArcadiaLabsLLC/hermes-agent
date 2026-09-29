@@ -41,6 +41,7 @@ import logging
 import pytest
 
 from agent_runtime import core_cache, paths
+from tests._downstream import _seams
 from utils import atomic_json_write
 
 
@@ -315,7 +316,7 @@ def test_the_self_perturbation_set_resolves_through_the_builds_own_authorities(
         "the persona-instances tree is not in the set, though ensure_for_personas "
         "rewrites rows in it on every build"
     )
-    assert set(core_cache.BUILD_SELF_PERTURBED_CLASSES) == {
+    assert set(_seams.BUILD_SELF_PERTURBED_CLASSES) == {
         core_cache.SELF_PERTURBED_SESSION_DB,
         core_cache.SELF_PERTURBED_PERSONA_INSTANCES,
         core_cache.SELF_PERTURBED_LIVE_EVENTS,

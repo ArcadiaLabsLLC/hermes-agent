@@ -682,6 +682,10 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
     def _another_serve_owns_this_root(self) -> bool:
         """This serve asked for the socket lane and a LIVE owner holds it."""
 
+        # A serve that never asked for the socket lane (boot_phases' default block, the embedded
+        # phone serve, which does not ship agent_runtime.serve_socket) has no owner to defer to.
+        if self.socket_block.get("outcome") == "disabled":
+            return False
         from agent_runtime.serve_socket.vocabulary import LOCK_OUTCOME_HELD
 
         return self.socket_block.get("outcome") == LOCK_OUTCOME_HELD

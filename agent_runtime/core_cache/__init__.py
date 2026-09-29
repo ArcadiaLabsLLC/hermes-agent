@@ -156,7 +156,6 @@ from agent_runtime.core_cache.models import (
     CacheRead,
     CoreFingerprint,
     FingerprintEntry,
-    FingerprintHomeCapture,
 )
 from agent_runtime.core_cache.walk import (
     _CONFIG_CONTENT_MAX_BYTES,
@@ -169,7 +168,6 @@ from agent_runtime.core_cache.home import (
     _pinned_to_fingerprint_home,
     capture_fingerprint_home,
     declare_fingerprint_home_boot_site,
-    fingerprint_home_capture,
     reset_fingerprint_home,
     resolved_fingerprint_home,
 )
@@ -184,7 +182,6 @@ from agent_runtime.core_cache.generations import (
     sidecar_path,
 )
 from agent_runtime.core_cache.restat import (
-    BUILD_SELF_PERTURBED_CLASSES,
     SELF_PERTURBED_LIVE_EVENTS,
     SELF_PERTURBED_PERSONA_INSTANCES,
     SELF_PERTURBED_SESSION_DB,
@@ -227,7 +224,6 @@ from agent_runtime.core_cache.shadow import (
     _SHADOW_IGNORED_TOP_KEYS,
     _SHADOW_IGNORED_WATERMARK_KEYS,
     compare_cores,
-    iter_fingerprint_paths,
     maybe_start_shadow_validation,
     shadow_validate,
 )
@@ -235,7 +231,6 @@ from agent_runtime.core_cache.shadow import (
 __layer__ = "lanes"
 
 __all__ = [
-    "BUILD_SELF_PERTURBED_CLASSES",
     "CORE_FILENAME",
     "CORE_SOURCE_CACHE",
     "CORE_SOURCE_REBUILT",
@@ -260,7 +255,6 @@ __all__ = [
     "DIFF_UNAVAILABLE_NO_ENTRY_DELTA",
     "ENTRIES_FILENAME",
     "FingerprintEntry",
-    "FingerprintHomeCapture",
     "GENERATION_RESIDUE_BOUND",
     "NEVER_CONVERGED_BUILDS",
     "POINTER_FILENAME",
@@ -311,8 +305,6 @@ __all__ = [
     "core_path",
     "declare_fingerprint_home_boot_site",
     "entries_path",
-    "fingerprint_home_capture",
-    "iter_fingerprint_paths",
     "label_core",
     "lane_armed",
     "maybe_start_shadow_validation",

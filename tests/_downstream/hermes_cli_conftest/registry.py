@@ -16,7 +16,6 @@ from tests._downstream.hermes_cli_conftest.probes import (
     _no_posix_privilege_api,
     _no_posix_wait_status,
     _no_shebang_script_execution,
-    _posix_only_branch,
     _test_python_outside_project_venv,
     _unelevated_windows_shell,
 )
@@ -187,31 +186,7 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             },
         ),
     ],
-    'test_web_ui_build.py': [
-        (
-            _no_module("fcntl"),
-            'the flock test imports fcntl; main.py:5602-5605 explicitly falls '
-            'through on ImportError ("Windows: no flock"), so the branch under '
-            'test is unreachable here',
-            {
-                'TestBuildWebUIFlock::test_contended_lock_without_dist_waits_then_skips_fresh_build',
-            },
-        ),
-    ],
     # ── the production code itself branches on sys.platform ────────────────
-    'test_cmd_update.py': [
-        (
-            _posix_only_branch,
-            'cmd_update prepends `git -c windows.appendAtomically=false` on '
-            'win32 and resolves npm as npm.CMD; the mocks assert the POSIX '
-            'argv. WARNING: this file only stubs subprocess.run, so '
-            '_build_web_ui still runs a REAL npm install + vite build against '
-            'the checkout — treat it as side-effecting',
-            {
-                'TestCmdUpdateBranchFallback::test_update_on_fork_checks_upstream_when_origin_up_to_date',
-            },
-        ),
-    ],
     # ── Lane REDS3: live Windows E2Es whose premise is this box, not the code ──
     'test_venv_holder_windows_live.py': [
         (
@@ -223,10 +198,6 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             {
                 'TestDetection::test_detects_hermes_argv_process',
                 'TestDetection::test_long_runtime_path_gateway_detected_with_full_argv',
-                'TestClassification::test_pausable_exemption_sees_long_path_gateway',
-                'TestClassification::test_serve_backend_not_classified_pausable',
-                'TestHolderMessage::test_dashboard_not_labeled_desktop_backend',
-                'TestHolderMessage::test_substring_subcommand_not_mislabeled',
             },
         ),
     ],

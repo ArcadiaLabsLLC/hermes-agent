@@ -293,6 +293,17 @@ from pathlib import Path
 app, test_file, wheel, checkout = Path(sys.argv[1]), sys.argv[2], sys.argv[3], Path(sys.argv[4]).resolve()
 OFF = tuple(json.loads(sys.argv[5]))
 root = Path.cwd().resolve()
+if sys.platform == "win32":
+    # CPython's platform module asks WMI for the Windows version and, when WMI times out on a busy
+    # box, spawns `cmd /c ver` -- a process the `spawned == []` assertion then (rightly) sees. The
+    # version is a test-host fact, not the turn's: read it without a subprocess (2 of ~11 runs).
+    import platform as _platform
+
+    def _ver_without_a_subprocess(system="", release="", version="", supported_platforms=()):
+        w = sys.getwindowsversion()
+        return system or "Microsoft Windows", release, f"{w.major}.{w.minor}.{w.build}"
+
+    _platform._syscmd_ver = _ver_without_a_subprocess
 if wheel == "phone":
     sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != checkout]
 attempts = []

@@ -5,7 +5,6 @@ persisted entries, a cache read, the consult memo, and the decision.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import NamedTuple
 
 __layer__ = "models"
@@ -15,7 +14,6 @@ __all__ = [
     "CoreDecision",
     "CoreFingerprint",
     "FingerprintEntry",
-    "FingerprintHomeCapture",
     "PersistedEntries",
     "_ConsultMemo",
     "_ConsultStamp",
@@ -46,21 +44,6 @@ class CoreFingerprint(NamedTuple):
     @property
     def count(self) -> int:
         return len(self.entries)
-
-
-class FingerprintHomeCapture(NamedTuple):
-    """What this process captured, and WHERE it came from.
-
-    ``home`` is ``None`` until something has captured — which is a state worth
-    being able to observe rather than a gap: a process that declared a boot
-    instant and then reached a request with ``home is None`` is a process whose
-    eager capture did not run.
-    """
-
-    home: Path | None
-    authoritative: bool
-    eager: bool
-    boot_site: str | None
 
 
 class _SelfPerturbedInputs(NamedTuple):

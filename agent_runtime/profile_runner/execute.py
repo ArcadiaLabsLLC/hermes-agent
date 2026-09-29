@@ -80,7 +80,6 @@ __all__ = [
     "_resolve_request_runtime",
     "_run_conversation_with_usage_ledger",
     "_runtime_resolve_cache_key",
-    "reset_runtime_resolve_cache",
 ]
 
 
@@ -164,13 +163,6 @@ _RUNTIME_RESOLVE_CACHE: dict[tuple, tuple[float, dict[str, Any]]] = {}
 
 
 _RUNTIME_RESOLVE_CACHE_LOCK = RLock()
-
-
-def reset_runtime_resolve_cache() -> None:
-    """Drop every memoized runtime resolution (tests; profile teardown)."""
-
-    with _RUNTIME_RESOLVE_CACHE_LOCK:
-        _RUNTIME_RESOLVE_CACHE.clear()
 
 
 def _runtime_resolve_cache_key(request: AgentRunRequest) -> tuple:

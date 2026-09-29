@@ -53,6 +53,7 @@ import logging
 import pytest
 
 from agent_runtime import core_cache
+from tests._downstream import _seams
 from utils import atomic_json_write
 
 
@@ -255,7 +256,7 @@ def test_the_entries_file_is_outside_the_key_it_is_written_beside(
 
     after = core_cache.build_input_fingerprint()
     assert after is not None
-    walked = set(core_cache.iter_fingerprint_paths(after))
+    walked = set(_seams.iter_fingerprint_paths(after))
     assert str(core_cache.entries_path()) not in walked, (
         "the cache fingerprints its own diagnostic, so every write-back "
         "guarantees the next process a miss"
