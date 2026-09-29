@@ -289,6 +289,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - [ ] **Bundled profiles must not download models themselves: switch off `hermes_cli/web_routers/local_models.py` download/catalog routes and the "download if missing" fallbacks in `tools/tts_tool_local.py` / `tools/transcription_local.py` by profile config or a caller-side gate — never by editing those files.** · `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2026-09-28.md` D1 item 1, D2, D3 item 1; the Launcher is the one downloader.
 - [ ] **Offer the SDK-free httpx client (re-homed `turn_runner`) upstream as a transport "client" door, after the fork polish.** · architecture §4; ask the owner before opening the PR.
 
+### Filed on arrival — 2026-09-29 (lane fix-node-deps, filed by the orchestrator)
+
+- [ ] **node-deps: launch-time `npm ci` on Windows fails EPERM when a loaded native binding under `node_modules` is held open (the retry covers ENOTEMPTY only), and the npm error goes to stderr only, so "source-update completion failed" loses the real cause** · `upstream` · `scripts/build/node-deps.mjs` `runNpmCi`, `hermes_cli/source_build.py` `run_source_script` · reproduced 2026-09-29 in a worktree (lightningcss `.node` held by a second node process); the live checkout self-healed at the 12:03 pm sync · filed 2026-09-29 **UNCLAIMED**
+
 ### Filed on arrival — 2026-09-29 (PR #125262 review follow-up, filed by the orchestrator)
 
 - [ ] **`tools/file_tools.py::_is_blocked_device_path("/dev/zero")` returns False on a Windows host, so a container-backend read of `/dev/zero` may not be blocked — prove it end to end on Windows; if it reproduces, a separate upstream PR (not #125262)** · `upstream` · seen in code only, not run · filed 2026-09-29 **UNCLAIMED**
