@@ -11,8 +11,18 @@ a local one.
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
+
+from agent_runtime.launcher_app_functions import (
+    ORIGIN_LOCAL,
+    ORIGIN_PAIRED_DEVICE,
+    LauncherLink,
+    bind_launcher_link,
+    refresh_app_function_tools,
+    reset_launcher_link,
+)
 
 from hermes_cli.harness_parts.serve.argv_lane import (
     ArgvRootUnsupported,
@@ -27,8 +37,11 @@ from hermes_cli.harness_parts.serve.frames import (
     _request_id,
     _request_sink,
 )
+from hermes_cli.harness_parts.serve.manifest import _is_gateway
 
 __layer__ = "lanes"
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["ArgvLanes"]
 
@@ -75,10 +88,37 @@ class ArgvLanes:
             request.sink if request.sink is not None else self.frames,
             _CACHEABLE_ARGV.get(tuple(request.argv)),
         )
+        link_token = self._bind_launcher_link(request, state.sink)
         try:
             self._execute_request(request, state)
         finally:
+            if link_token is not None:
+                reset_launcher_link(link_token)
             self._reply_exit(request, state, token, sink_token)
+
+    def _bind_launcher_link(self, request: _ArgvRequest, sink: Any) -> Any:
+        """A chat turn's app-function link (Stage 7): refresh the tools, bind the link.
+
+        The Launcher that answers app functions is the local client. A turn it
+        started gets its own sink; a turn a paired device started over the
+        gateway gets the stdio starter's pipe, and none when that pipe is
+        detached (the Launcher is then attached over the local socket, which a
+        gateway turn has no handle on).
+        """
+
+        if not request.is_chat_turn:
+            return None
+        if request.from_gateway:
+            if getattr(self.frames, "detached", False):
+                return None
+            link = LauncherLink(self.frames, ORIGIN_PAIRED_DEVICE)
+        else:
+            link = LauncherLink(sink, ORIGIN_LOCAL)
+        try:
+            refresh_app_function_tools(link)
+        except Exception:  # a tool list must never cost the turn
+            logger.warning("launcher app-function refresh failed", exc_info=True)
+        return bind_launcher_link(link)
 
     def _execute_request(self, request: _ArgvRequest, state: _RunState) -> None:
         cached = None
@@ -312,6 +352,7 @@ class ArgvLanes:
             owner=self._owner_of(connection),
             sink=None if connection is None else sink,
             turn_request_id=turn_request_id,
+            from_gateway=_is_gateway(connection),
         )
         with self.inflight_lock:
             if self.drain_state is not None:

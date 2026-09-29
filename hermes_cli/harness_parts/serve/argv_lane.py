@@ -44,6 +44,7 @@ class _ArgvRequest:
         "owner",
         "sink",
         "turn_request_id",
+        "from_gateway",
         "submitted_monotonic",
         "started_monotonic",
         "progress_monotonic",
@@ -57,6 +58,7 @@ class _ArgvRequest:
         owner: str = "stdio",
         sink: Any = None,
         turn_request_id: str | None = None,
+        from_gateway: bool = False,
     ):
         self.rid = rid
         self.argv = argv
@@ -94,6 +96,10 @@ class _ArgvRequest:
         #: a local launcher sends — the receipt exists to close the RPC lane's
         #: accept window and a local send never opens one.
         self.turn_request_id = turn_request_id
+        #: The turn was started by a paired device or peer over the gateway
+        #: lane. Read by the app-function link: the Launcher is told the
+        #: caller's origin on every app-function request it answers.
+        self.from_gateway = from_gateway
         #: When the dispatcher took it. Set HERE rather than in ``_run``,
         #: because the gap between the two is the whole point: it is the time
         #: the request spent in the pool's queue, and that time is invisible to

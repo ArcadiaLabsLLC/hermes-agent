@@ -847,8 +847,16 @@ _CHAT_CAPABILITY_TOOLSETS = ("agent_chat", "board", "clarify")
 
 
 def _augment_chat_capabilities(persona: AgentPersona, toolsets: list[str]) -> list[str]:
+    from .launcher_app_functions import APP_FUNCTIONS_TOOLSET, app_function_tools_registered
+
     augmented = list(toolsets)
-    for toolset in _CHAT_CAPABILITY_TOOLSETS:
+    capabilities = list(_CHAT_CAPABILITY_TOOLSETS)
+    # The Launcher's app functions (Stage 7) are a chat capability once a
+    # Launcher has listed them; the Launcher's dispatcher is their policy, and
+    # each tool is offered only to a turn bound to a Launcher link.
+    if app_function_tools_registered():
+        capabilities.append(APP_FUNCTIONS_TOOLSET)
+    for toolset in capabilities:
         if toolset in augmented:
             continue
         augmented.append(toolset)
