@@ -46,7 +46,6 @@ Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2
 ### Filed on arrival — 2026-09-28 (lane w4-hd4)
 
 ### Filed on arrival — 2026-09-29 (upstream merge `merge/upstream-2026-09-29`, filed by the orchestrator)
-- [ ] **`tests/hermes_cli/test_apply_profile_override_downstream.py` imports `_pin_hermes_root`, which exists nowhere — ImportError on origin/main before the merge too** · `fork` · filed 2026-09-29 **UNCLAIMED** **TAKEN 2026-09-29 h10-rtfork**
 - [ ] **`test_codex_stream_receipt` failed once under `-n 8` at the merge, green alone and on re-run — flaky under parallel load** · `fork` · filed 2026-09-29 **UNCLAIMED** **TAKEN 2026-09-29 h10-rtfork**
 
 ### Filed on arrival — 2026-09-29 (lane h7-phone)
