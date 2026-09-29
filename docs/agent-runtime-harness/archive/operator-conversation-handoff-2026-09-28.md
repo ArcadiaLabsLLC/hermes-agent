@@ -2,6 +2,7 @@
 
 Implementation: `454ed7a69a`, `088d8f30fa`, `359849b0d2`.
 Latest-main reconciliation: `105195343c`, including `0cf918c853`.
+Final sync: `fc8f0a35cc`, including the speech-pack changes through `f85a141b98`.
 Owner authorized coordinated main landing on 2026-09-28 after automated checks.
 This record does not claim native desktop acceptance.
 Launcher tracking: `EterniaLauncher/docs/companion/planned/CROSS_INTERFACE_RECOVERY_2026-09-28.md`.
@@ -77,6 +78,10 @@ against this merged runtime. No model, serve or operator profile was started.
 The citation gate failed identically on clean main `0cf918c853`: eight stale
 line references and one obsolete waiver. Replaced the references with verified
 symbols and removed that waiver; the unchanged gate passes. No waiver was added.
+
+The final incoming speech/profile/licence population passed **55 tests**, with
+engines mocked and no microphone or model started. The recovery and secure-store
+modules are present in the bundled desktop's first-party import closure.
 
 The native implementation claim is closed by the coordinated landing. Native
 desktop acceptance remains a separate Launcher queue item because the required
