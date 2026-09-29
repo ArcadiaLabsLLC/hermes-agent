@@ -71,3 +71,19 @@ def generation_interpreter_for_mismatch(project_root: Path) -> Path | None:
             f"{built_for[0]}.{built_for[1]}, this interpreter is {running[0]}.{running[1]} "
             f"({sys.executable}), and the environment has no interpreter to relaunch into")
     return python
+
+
+def refuse_foreign_generation(project_root: Path) -> None:
+    """Raise ``RuntimeError`` when the committed generation was built for another Python.
+
+    For an entry point that cannot re-enter itself -- the cron external worker, whose pid and
+    ownership acknowledgement its spawner already holds -- refusing before activation is the
+    honest answer: the spawner reports the pre-ack exit with this message.
+    """
+    python = generation_interpreter_for_mismatch(project_root)
+    if python is not None:
+        raise RuntimeError(
+            f"the dependency environment {python.parent.parent} is built for Python "
+            f"{'.'.join(map(str, generation_python_version(python.parent.parent) or ()))}, "
+            f"this interpreter is {sys.version_info.major}.{sys.version_info.minor} "
+            f"({sys.executable}); start it with {python}")
