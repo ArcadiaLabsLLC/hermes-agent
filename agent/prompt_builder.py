@@ -807,6 +807,12 @@ PLATFORM_HINTS = {
     # 'desktop' or 'tui'). If a real WebUI chat surface ships, write a hint from its actual renderer.
 }
 
+# Fork seam (embedded Hermes, plan Stage 5): the phone hint is DERIVED from the phone profile's
+# disabled toolsets (agent_runtime/bundle_profiles/phone_hint.py), never written by hand here.
+from agent_runtime.bundle_profiles.phone_hint import phone_platform_hint as _phone_platform_hint  # noqa: E402
+
+PLATFORM_HINTS["phone"] = _phone_platform_hint()
+
 # Telegram rich-messages extension — injected only with
 # ``platforms.telegram.extra.rich_messages: true`` (gateway.* or top-level).
 # NOTE: a "webui" hint lived here until 2026-08-29. It was a ghost (verified in the all-platform hint audit,

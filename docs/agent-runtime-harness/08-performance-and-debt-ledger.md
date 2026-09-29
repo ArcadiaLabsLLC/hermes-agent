@@ -334,7 +334,8 @@ Executed history stays archived. The duplicate-implementation retirement's rows
   deleted; phones run the real Hermes wheel under a profile. 14 files are HELD for
   re-homing: `turn_runner.py` (the SDK-free client, plan Stage 2; it no longer imports
   until then), `redact.py` (its rules folded into `agent_runtime/redaction.py`), the golden
-  tests, and `tools/import_gate.py` (replaced by the Stage 2 profile gate).
+  tests, and `tools/import_gate.py` — DELETED 2026-09-28 (lane p1-hsplit), replaced by the
+  profile gate `scripts/bundle_profile_gate.py` over the phone profile's whole-wheel closure.
 - `F401` in `pyproject.toml` with upstream per-file-ignores — **still not enabled**
   (`select = ["PLW1514", "F821"]`), and R11 already refused the naive form: F401 cannot
   model an exec namespace, and `harness.py` imports ~100 names *so the exec'd parts can

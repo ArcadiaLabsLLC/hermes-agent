@@ -72,6 +72,7 @@ __all__ = [
     "SOURCE_GIT",
     "SOURCE_UNKNOWN",
     "BuildStamp",
+    "baked_build_stamp",
     "build_stamp",
     "checkout_bound_enabled",
     "reset_build_stamp_cache",
@@ -242,23 +243,34 @@ def checkout_bound_enabled() -> bool:
     return config_switch("updates", "checkout_bound")
 
 
+def baked_build_stamp() -> BuildStamp:
+    """The stamp of a wheel-installed Hermes: the baked sha, or unmeasured — no git, ever.
+
+    The one reading a distribution that is not a checkout gets: config
+    ``updates.checkout_bound: false`` routes :func:`build_stamp` here, and an
+    embedded runtime (no subprocess, no config read before boot) calls it
+    directly. Never raises.
+    """
+
+    baked_root = _fallback_repo_root()
+    commit = _baked_sha(baked_root)
+    source = SOURCE_BUILD_SHA_FILE if commit else SOURCE_UNKNOWN
+    return BuildStamp(
+        commit=commit,
+        dirty=None,
+        source=source,
+        reason=REASON_CHECKOUT_BOUND_OFF,
+        repo_root=str(baked_root or "") if commit else None,
+        resolved_at=_iso(time.time()),
+        code_tree=None,
+        code_tree_reason=f"not_git:{source}",
+    )
+
+
 def _resolve() -> BuildStamp:
     resolved_at = _iso(time.time())
     if not checkout_bound_enabled():
-        # No git, ever: the build is what was baked in at packaging time, or unmeasured.
-        baked_root = _fallback_repo_root()
-        commit = _baked_sha(baked_root)
-        source = SOURCE_BUILD_SHA_FILE if commit else SOURCE_UNKNOWN
-        return BuildStamp(
-            commit=commit,
-            dirty=None,
-            source=source,
-            reason=REASON_CHECKOUT_BOUND_OFF,
-            repo_root=str(baked_root or "") if commit else None,
-            resolved_at=resolved_at,
-            code_tree=None,
-            code_tree_reason=f"not_git:{source}",
-        )
+        return baked_build_stamp()
     try:
         root = repo_root_for()
     except Exception:  # pragma: no cover - defensive; must never raise

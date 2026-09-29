@@ -1,0 +1,175 @@
+# Bundled phone profile — the real Hermes wheel, embedded in the Eternia app on iOS and Android.
+#
+# Source: the "Bundled phone" column of the launcher's profile matrix
+# (`EterniaLauncher/docs/embedded_hermes/planned/PROFILE_MATRIX_2026-09-28.md`) and architecture
+# §4/§6 (`EterniaLauncher/docs/embedded_hermes/planned/ARCHITECTURE_2026-09-28.md`).
+# Standing rules: enable, never reimplement; bundle only what is needed; one Python
+# implementation — no vendored copies.
+#
+# On phones a feature is ABSENT, not switched off: its modules are not packaged, and the profile
+# gate (scripts/bundle_profile_gate.py) refuses the build when the import closure of what IS
+# packaged still reaches a provider SDK, a compiled (Rust/C) distribution, pty, psutil, a browser
+# tool or a subprocess call. Every switch below is an EXISTING Hermes switch, exactly as for the
+# desktop profile (see bundled-desktop.yaml's header for the mapping).
+schema_version: 1
+profile: bundled-phone
+
+toolsets:
+  disabled:
+    # Shell family — not packaged (matrix: "—").
+    - terminal          # terminal + process_manage: no shell, no background processes
+    - code_execution    # execute_code
+    - file              # read_file/write_file/patch/search_files run through the terminal backend
+    - browser
+    - browser-cdp
+    - browser-use
+    - computer_use
+    # Cron: no background ticker on phones.
+    - cronjob
+    # Desktop app panes: a phone is not the desktop app.
+    - desktop_ui
+    # Messaging platform tools — not packaged.
+    - discord
+    - discord_admin
+    - yuanbao
+    - feishu_doc
+    - feishu_drive
+
+config:
+  delegation.worktree_isolation: false
+  terminal.backend: local
+  wake_word.enabled: false
+  updates.check: false
+  security.allow_lazy_installs: false
+  # Local LLM engine supervision: phones use the OS model (host provider, Stage 4).
+  local_runtime.enabled: false
+  mcp.stdio_servers: false
+  tts.piper.download_voices: false
+  terminal.external_backends: false
+  gateway.platform_adapters: false
+  updates.checkout_bound: false
+  voice.mode_enabled: false
+  auth.adopt_external_logins: false
+  providers.qwen-oauth.enabled: false
+  telemetry.shared_metrics.enabled: false
+
+environment:
+  HF_HUB_OFFLINE: "1"
+
+refused_routes:
+  feature: model_downloads
+  paths:
+    - /api/local-models/catalog
+    - /api/local-models/download
+    - /api/local-models/download/pause
+    - /api/local-models/download/resume
+    - /api/local-models/quickstart
+    - /api/local-models/search
+    - /api/local-models/search/files
+    - /api/local-models/download-browsed
+
+unswitched:
+  - area: Native conversation workers (subprocess per profile)
+    gap: runtime.conversation.* still spawns agent_runtime.conversations.worker; the in-process worker behind NativePeer is plan Stage 2 step 8 (lane p1-hloop)
+  - area: Credentials and history storage
+    gap: auth.json / .anthropic_oauth.json / the state DB are still plaintext files under HERMES_HOME; the secure-store and history seams are plan Stage 2 steps 5 and 9 (lane p1-hsec)
+  - area: Realm sync
+    gap: realm_sync still shells out to git; the dulwich/HTTP backend behind the realm_sync seam is not built
+
+packaging:
+  # CPython 3.14's mobile platforms; markers are evaluated for each.
+  targets:
+    - android_arm64
+    - ios_arm64
+  roots:
+    - hermes_cli.harness_parts.serve.in_memory   # the embedded entry: the serve loop over the in-memory pipe
+    - agent_runtime.serve_rpc                     # the runtime.* method lane
+    - run_agent                                   # the core agent loop (upstream's own)
+    - model_tools
+  # No optional extras: phones call providers over raw HTTP (architecture §6), never an SDK.
+  extras: []
+  # Compiled distributions the gate admits (architecture §6: small, ships for both platforms,
+  # no pure alternative). CPython's own ssl / sqlite3 are the interpreter, not distributions.
+  admitted_native:
+    pillow: "image sheets and image prep; the one compiled library architecture §6 admits"
+  # Skills ship only when their frontmatter `platforms:` names a phone OS — the existing
+  # per-skill OS switch (agent/skill_utils.py::skill_matches_platform), so the same marker also
+  # hides an unmarked skill from a phone's skill index at run time.
+  skill_platforms:
+    - android
+    - ios
+  resources:
+    - skills
+    - locales
+  plugins:
+    - model-providers
+    - memory
+    - context_engine
+    - web
+    - image_gen
+    - video_gen
+  switched_off_modules:
+    # The desktop serve's daemon shell: pid registry (psutil), sidecars, git stamp, socket lane.
+    - hermes_cli.harness_parts.serve.daemon_shell
+    - agent_runtime.serve_registry
+    - agent_runtime.serve_socket
+    - agent_runtime.parent_watch
+    # Shell family.
+    - tools.terminal_tool
+    - tools.terminal_tool_backends
+    - tools.terminal_tool_lifecycle
+    - tools.process_registry
+    - tools.code_execution_tool
+    - tools.file_tools
+    - tools.browser_tool
+    - tools.browser_cdp_tool
+    - tools.browser_dialog_tool
+    - tools.browser_use_cli
+    - tools.browser_vault_tool
+    - tools.computer_use_tool
+    - tools.computer_use
+    - tools.environments
+    - tools.subagent_worktree
+    # MCP stdio servers start processes.
+    - tools.mcp_tool_server_run
+    # Cron.
+    - tools.cronjob_tools
+    - cron
+    # Local LLM and the speech service (OS speech and the OS model on phones).
+    - hermes_cli.local_runtime
+    - agent_runtime.local_llama_adapter
+    - agent_runtime.speech_service
+    - agent_runtime.speech_decode
+    - tools.tts_tool_local
+    - tools.transcription_local
+    # Hermes's own mic/speaker features.
+    - tools.voice_mode
+    - tools.voice_live
+    - tools.wake_word
+    - tools.wake_word_engines
+    - hermes_cli.voice
+    # Skills hub installs download code (app-store rule).
+    - tools.skills_hub
+    - hermes_cli.skills_hub
+    # Messaging platforms.
+    - tools.discord_tool
+    - tools.feishu_doc_tool
+    - tools.feishu_drive_tool
+    - tools.yuanbao_tools
+    - gateway.platforms
+    - plugins.platforms
+    # Checkout-bound.
+    - gateway.code_skew
+    - hermes_cli.update_cmd
+    - hermes_cli.update_cmd_fleet
+    - hermes_cli.update_cmd_maint
+    - hermes_cli.update_cmd_windows
+    - hermes_cli.update_completion
+    - hermes_cli.update_inventory
+    - hermes_cli.worktree_cmd
+    - hermes_cli.relay_plugin_migrate
+    # Dev and QA tooling.
+    - agent_runtime.doctor_extensions
+    - tests
+    - scripts
+    - evals

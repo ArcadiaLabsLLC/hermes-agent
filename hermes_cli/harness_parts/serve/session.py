@@ -57,6 +57,7 @@ from hermes_cli.harness_parts.serve.frames import (
 )
 from hermes_cli.harness_parts.serve.handle_message import MessageHandling
 from hermes_cli.harness_parts.serve.lanes import ArgvLanes
+from hermes_cli.harness_parts.serve.shell import ServeShell, default_shell
 from hermes_cli.harness_parts.serve.subscriptions import SubscriptionLanes
 
 __layer__ = "lanes"
@@ -182,7 +183,14 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         stream_buffer_limit: int | None = None,
         stream_byte_limit: int | None = None,
         parent_pid: int | None = None,
+        shell: ServeShell | None = None,
     ) -> None:
+        #: The host-process concerns (registry row, sidecars, build stamp, token) —
+        #: :mod:`hermes_cli.harness_parts.serve.shell`. Checked FIRST: a lever the
+        #: shell cannot honour is refused before anything else is set up.
+        self.shell: ServeShell = shell if shell is not None else default_shell()
+        self.shell.refuse_levers(socket_lane=socket_lane, service=service,
+                                 record_end_reason=record_end_reason, parent_pid=parent_pid)
         self.reader = reader
         self.writer = writer
         self.pool_size = pool_size
@@ -1055,13 +1063,10 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         if self.store_root_path is None:
             return
         try:
-            from agent_runtime.serve_registry import (
-                serve_instance_path,
-                unregister_serve_instance,
-            )
-
-            row_path = serve_instance_path(self.store_root_path, os.getpid())
-            if unregister_serve_instance(self.store_root_path):
+            removed, row_path = self.shell.unregister_instance(self.store_root_path)
+            if row_path is None:
+                return  # nothing was advertised (an embedded shell)
+            if removed:
                 # RS-3. The one line that marks the INSTANT this runtime
                 # stopped advertising itself. The drain's terminal frame is
                 # published before the teardown it accounts for, so until

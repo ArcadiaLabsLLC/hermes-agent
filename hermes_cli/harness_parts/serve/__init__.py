@@ -13,6 +13,8 @@ Entry points (what calls in):
 * ``frames.current_serve_request_id`` — read by the harness verbs to learn the
   request they run under.
 * ``gateway_listener.gateway_listen_config`` — read by ``gateway_commands``.
+* ``in_memory.EmbeddedServe`` / ``in_memory.configure_app_folder`` — the third
+  transport, for a runtime embedded in its host app (the phone profile's shim).
 
 Modules, lowest layer first (no module imports one above it — W0-G6):
 
@@ -23,6 +25,9 @@ constants           models  the wire protocol (its docstring), the ``OPS``
                             vocabulary and every constant
 manifest            policy  ``ops_manifest``, the pairing block, the gateway test
 end_reason          stores  ``EndReason``; signal / console-ctrl hooks; recorder
+shell               lanes   ``ServeShell``: the host-process seam, ``EmbeddedShell``
+daemon_shell        lanes   ``DaemonShell``: pid registry, sidecars, git stamp,
+                            token (lazy; never imported by this package map)
 frames              stores  frame writer, line proxies, poll cache, request ids
 argv_lane           lanes   ``_ArgvRequest``, the parser binding, ``dispatch_argv``
 gateway_listener    lanes   listen config, listener start, hello authenticator
@@ -34,6 +39,7 @@ handle_message      lanes   ``MessageHandling`` and the ``OP_HANDLERS`` table
 session             lanes   ``ServeSession``: fields, boot order, liveness;
                             ``serve_loop`` (builds a session, runs it)
 commands            lanes   ``_cmd_serve``, ``_cmd_serve_connect``, pipe claim
+in_memory           lanes   ``InMemoryPipe``, ``EmbeddedServe``, the app folder
 ==================  ======  ====================================================
 
 Stores written: ``<store_root>/serve_instances/`` (through ``serve_registry``),
@@ -115,6 +121,15 @@ from hermes_cli.harness_parts.serve.session import (
     ServeSession,
     serve_loop,
 )
+from hermes_cli.harness_parts.serve.shell import (
+    EmbeddedShell,
+    ServeShell,
+)
+from hermes_cli.harness_parts.serve.in_memory import (
+    EmbeddedServe,
+    InMemoryPipe,
+    configure_app_folder,
+)
 from hermes_cli.harness_parts.serve.commands import (
     SERVE_CONNECT_NO_SERVICE_EXIT_CODE,
     SERVE_CONNECT_REJECTED_EXIT_CODE,
@@ -166,6 +181,11 @@ __all__ = [
     "parse_subscribe_options",
     "ServeSession",
     "serve_loop",
+    "EmbeddedServe",
+    "EmbeddedShell",
+    "InMemoryPipe",
+    "ServeShell",
+    "configure_app_folder",
     "SERVE_CONNECT_NO_SERVICE_EXIT_CODE",
     "SERVE_CONNECT_REJECTED_EXIT_CODE",
     "SERVE_CONNECT_TRANSPORT_EXIT_CODE",

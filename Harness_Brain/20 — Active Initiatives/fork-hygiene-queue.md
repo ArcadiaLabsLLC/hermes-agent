@@ -19,6 +19,10 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ### Filed on arrival — 2026-09-28 (lane w4-hfix2)
 - [ ] **36 reds on this Windows box at `687f1fbe70e`, identical before and after the httpx2 2.12.0 bump: `tests/tools/test_mcp_{cimd,client_cert,oauth,oauth_integration,oauth_user_agent,oauth_manager,sse_transport,multiplex_connection_keys,startup_summary_names_failures,shared_connection_resolved_identity,tool_issue_948,windows_orphan_fix}.py` (mostly `OAuthNonInteractiveError`, `npx` path resolution, SSE `auth=`/`sse_read_timeout` not forwarded) and `tests/scripts/test_bundle_native.py` — triage environment vs code.** · runner logs of lane w4-hfix2 (base vs branch, same 36). **UNCLAIMED**
+
+### Filed on arrival — 2026-09-28 (lane p1-hsplit)
+- [ ] **Two whole-fork gates red on `origin/main` since `ed1fe6cf5d` (D4 lane): W0-G7 legibility floor NEW `agent_runtime/speech_service.py|SpeechService.unload`, `scripts/bundle_vuln_scan.py|affects`; W0-G3 helper names NEW `_row` (`discussions/attempt_store.py`, `scripts/bundle_licenses.py`), `_version` (`scripts/bundle_profile_closure.py`, `scripts/bundle_vuln_scan.py`) — lift / rename.** · `tests/tooling/test_function_legibility_floor.py`, `tests/agent_runtime/test_duplicate_helper_bodies.py`
+
 ### Filed on arrival — 2026-09-27 (Windows console signal safety)
 
 - [ ] **Retire the Windows signal-safety carry when upstream adopts an equivalent fix.** · [[Windows console signal safety]]; held upstream candidate recorded in `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md`; no parallel supervisor or PID helper added, no PR submitted.

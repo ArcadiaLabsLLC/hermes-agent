@@ -222,10 +222,6 @@
    "site": "mobile_core/src/hermes_mobile_core/turn_runner.py|classify_error|isinstance|item"
   },
   {
-   "arms": 3,
-   "site": "mobile_core/tools/import_gate.py|scan|isinstance|node"
-  },
-  {
    "arms": 4,
    "site": "scripts/doc_cite_adjacency.py|_judge_one|ladder|outcome"
   },
