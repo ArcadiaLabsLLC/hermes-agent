@@ -11,9 +11,10 @@ reads the runtime ``hermes_cli.harness`` module. Gates:
 from __future__ import annotations
 
 import ast
+import json
 from pathlib import Path
 
-from scripts.god_file_probe import ROOT, _git, _tree, fork_production_files
+from scripts.god_file_probe import FIXTURES, ROOT, _git, _tree, fork_production_files
 
 
 # ── W0-G2: the upstream fence on refactor commits ───────────────────────────
@@ -31,8 +32,9 @@ def fence_anchor(root: Path = ROOT) -> str | None:
     return None
 
 
-def fence_violations(root: Path, upstream: frozenset[str], base: str) -> list[str]:
-    """Every upstream path a first-parent ``refactor(`` commit after ``base`` changed.
+def fence_crossings(root: Path, upstream: frozenset[str], base: str) -> list[tuple[str, str, str]]:
+    """``(sha, subject, path)`` for every upstream path a first-parent ``refactor(`` commit after
+    ``base`` changed.
 
     First-parent, because an upstream merge's second parent carries upstream's
     own ``refactor(...)`` commits, which are not the fork's.
@@ -43,8 +45,28 @@ def fence_violations(root: Path, upstream: frozenset[str], base: str) -> list[st
         if not subject.startswith(REFACTOR_PREFIX):
             continue
         touched = _git(root, "diff-tree", "--no-commit-id", "--name-only", "-r", "-m", "--first-parent", sha).split()
-        out += [f"{sha[:10]} {subject!r} touches upstream {path}" for path in sorted(set(touched) & upstream)]
+        out += [(sha, subject, path) for path in sorted(set(touched) & upstream)]
     return out
+
+
+def fence_violations(root: Path, upstream: frozenset[str], base: str,
+                     admitted: frozenset[tuple[str, str]] = frozenset()) -> list[str]:
+    """:func:`fence_crossings`, rendered, minus the ``(sha, path)`` pairs in ``admitted``."""
+    return [f"{sha[:10]} {subject!r} touches upstream {path}"
+            for sha, subject, path in fence_crossings(root, upstream, base) if (sha, path) not in admitted]
+
+
+#: Landed crossings the fence admits. History cannot be rewritten, so a crossing that is already
+#: on ``main`` would red the gate forever; a row here names the FULL sha, the one path and why that
+#: edit is fork-owned. A row may only name a real crossing (the gate reds a stale one), so the
+#: ledger cannot outlive the history it excuses. New refactor work still never crosses.
+FENCE_ADMITTED = FIXTURES / "refactor_fence_admitted.json"
+
+
+def admitted_crossings(path: Path = FENCE_ADMITTED) -> dict[tuple[str, str], str]:
+    """``{(sha, path): reason}`` from the admitted-crossings ledger."""
+    rows = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else []
+    return {(row["commit"], row["path"]): row["reason"] for row in rows}
 
 
 # ── W0-G4: the thin harness namespace ───────────────────────────────────────

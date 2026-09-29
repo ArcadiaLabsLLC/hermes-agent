@@ -1,0 +1,22 @@
+[
+ {
+  "commit": "450f05c104e8664a3c612048077e785e8ca4f764",
+  "path": "pm/extras.py",
+  "reason": "the stt-onnx extra is fork-owned; the edit is the one ANCHORS key of the documented one-line seam, renamed with the extra (h7-speech)"
+ },
+ {
+  "commit": "450f05c104e8664a3c612048077e785e8ca4f764",
+  "path": "pyproject.toml",
+  "reason": "the stt-onnx extra and its extras-platforms gate are fork-owned lines; the edit renames them (h7-speech)"
+ },
+ {
+  "commit": "450f05c104e8664a3c612048077e785e8ca4f764",
+  "path": "uv.lock",
+  "reason": "relock of the fork-owned extra's rename only: its table key, onnx-asr's marker, provides-extras (h7-speech)"
+ },
+ {
+  "commit": "62e5416e03bc06d7ba1260ff68b946796f125c8d",
+  "path": "tools/transcription_tools.py",
+  "reason": "removes the fork's file-decode seam, returning the file to upstream's blob aa48ed19ee: the crossing shrinks the fork's upstream footprint (h7-speech)"
+ }
+]

@@ -36,8 +36,23 @@ def test_no_refactor_commit_touches_an_upstream_file():
     assert base is not None, (
         f"no first-parent commit whose subject starts {fences.FENCE_ANCHOR_SUBJECT!r} — the gate has no anchor"
     )
-    found = fences.fence_violations(root, probe.upstream_paths(), base)
+    admitted = fences.admitted_crossings()
+    found = fences.fence_violations(root, probe.upstream_paths(), base, frozenset(admitted))
     assert found == [], "refactor lanes stay downstream (rule 9) — file a widening row instead:\n" + "\n".join(found)
+
+
+def test_every_admitted_crossing_is_a_real_one_with_a_reason():
+    """The ledger may only name history: a row that names no crossing is stale."""
+    root = probe.ROOT
+    if _git(root, "rev-parse", "--is-shallow-repository").strip() == "true":
+        pytest.skip("shallow clone: the history this gate reads is not here")
+    base = fences.fence_anchor(root)
+    assert base is not None
+    real = {(sha, path) for sha, _, path in fences.fence_crossings(root, probe.upstream_paths(), base)}
+    admitted = fences.admitted_crossings()
+    assert all(reason.strip() for reason in admitted.values()), "every admitted crossing needs its reason"
+    stale = sorted(f"{sha[:10]} {path}" for sha, path in admitted.keys() - real)
+    assert stale == [], "these admitted rows name no crossing — delete them:\n" + "\n".join(stale)
 
 
 def test_the_fence_reds_a_refactor_commit_on_an_upstream_file(tmp_path):
@@ -61,3 +76,7 @@ def test_the_fence_reds_a_refactor_commit_on_an_upstream_file(tmp_path):
     commit("hermes_cli/main.py", "refactor(y): crosses the fence")
     found = fences.fence_violations(tmp_path, upstream, base)
     assert len(found) == 1 and found[0].endswith("touches upstream hermes_cli/main.py")
+    # The admitted door excuses exactly the named (sha, path), nothing wider.
+    sha, _, path = fences.fence_crossings(tmp_path, upstream, base)[0]
+    assert fences.fence_violations(tmp_path, upstream, base, frozenset({(sha, path)})) == []
+    assert fences.fence_violations(tmp_path, upstream, base, frozenset({(sha, "other.py")})) == found
