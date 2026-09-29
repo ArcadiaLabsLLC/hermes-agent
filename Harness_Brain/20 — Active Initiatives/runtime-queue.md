@@ -287,6 +287,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - [ ] **Bundled profiles must not download models themselves: switch off `hermes_cli/web_routers/local_models.py` download/catalog routes and the "download if missing" fallbacks in `tools/tts_tool_local.py` / `tools/transcription_local.py` by profile config or a caller-side gate — never by editing those files.** · `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2026-09-28.md` D1 item 1, D2, D3 item 1; the Launcher is the one downloader.
 - [ ] **Offer the SDK-free httpx client (re-homed `turn_runner`) upstream as a transport "client" door, after the fork polish.** · architecture §4; ask the owner before opening the PR.
 
+### Filed on arrival — 2026-09-29 (PR #125262 review follow-up, filed by the orchestrator)
+
+- [ ] **`tools/file_tools.py::_is_blocked_device_path("/dev/zero")` returns False on a Windows host, so a container-backend read of `/dev/zero` may not be blocked — prove it end to end on Windows; if it reproduces, a separate upstream PR (not #125262)** · `upstream` · seen in code only, not run · filed 2026-09-29 **UNCLAIMED**
+
 ### Filed on arrival — 2026-09-27 (lane PR-REPLIES, filed by the orchestrator)
 
 - [ ] **`tests/hermes_cli/test_anon_sign_in_flow.py::test_the_scope_is_entered_for_the_preconditions_and_the_persist_but_never_around_a_wait` reds on Windows at the yields assertion (line 442) on unmodified upstream `3f18855fa1`** · `upstream / suite` · not caused by any PR of ours; candidate for the next Windows-reds triage or a `posix_marks` entry · evidence: `X:/wt/prreplies/.lane-logs/anon-base.log` · filed 2026-09-27
