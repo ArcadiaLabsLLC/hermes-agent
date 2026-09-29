@@ -1078,7 +1078,7 @@ def register(ctx):
     ctx.add_to_toolset("hermes-cli", "my_tool")
 ```
 
-Both are scoped to the plugin's profile (a multi-profile process keeps them apart) and are removed when the plugin unloads. A name held by a built-in toolset, or already defined by another plugin in the same profile, is rejected with a warning; `add_to_toolset` refuses an unknown toolset. Toolset membership is part of the tool schema sent on every API call, so register at plugin load, not mid-session.
+Both are scoped to the plugin's profile (a multi-profile process keeps them apart) and are removed when the plugin unloads. A name held by a built-in toolset or a connected MCP server, or already defined by another plugin in the same profile, is rejected with a warning (an MCP server that connects later under the same name has its tools merged into the plugin toolset rather than hidden); `add_to_toolset` refuses an unknown toolset. Toolset membership is part of the tool schema sent on every API call, so register at plugin load, not mid-session.
 
 ### Overriding a built-in tool
 

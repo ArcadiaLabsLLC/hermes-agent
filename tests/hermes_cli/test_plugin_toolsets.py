@@ -42,3 +42,43 @@ def test_plugin_toolset_is_scoped_to_its_profile(tmp_path, monkeypatch):
         assert resolve_toolset("probe_scoped") == ["probe_tool"]
     finally:
         handle.dispose()
+
+
+def _mcp_server(name, tools):
+    """An MCP server as discovery registers it: tools in ``mcp-<name>`` plus the bare alias."""
+    from tools.registry import registry
+
+    for tool in tools:
+        registry.register(name=tool, toolset=f"mcp-{name}", schema={"name": tool, "parameters": {}},
+                          handler=lambda **_: "")
+    registry.register_toolset_alias(name, f"mcp-{name}")
+
+    def _cleanup():
+        for tool in tools:
+            registry.deregister(tool)
+        registry._toolset_aliases.pop(name, None)
+    return _cleanup
+
+
+def test_plugin_toolset_never_hides_an_mcp_server_of_the_same_name():
+    cleanup = _mcp_server("probe_weather", ["probe_weather_now", "probe_weather_forecast"])
+    try:
+        # MCP server first: the name is taken, the plugin registration is refused.
+        assert _ctx().register_toolset("probe_weather", "Mine", tools=["probe_mine"]) is None
+        assert set(resolve_toolset("probe_weather")) == {"probe_weather_now", "probe_weather_forecast"}
+        # Positive control: the same call under a free name is accepted.
+        free = _ctx().register_toolset("probe_weather_free", "Mine", tools=["probe_mine"])
+        assert free is not None
+        free.dispose()
+    finally:
+        cleanup()
+
+
+def test_mcp_server_connecting_after_a_plugin_toolset_is_merged_not_hidden():
+    handle = _ctx().register_toolset("probe_late", "Mine", tools=["probe_mine"])
+    cleanup = _mcp_server("probe_late", ["probe_late_now"])
+    try:
+        assert set(resolve_toolset("probe_late")) == {"probe_mine", "probe_late_now"}
+    finally:
+        cleanup()
+        handle.dispose()

@@ -317,8 +317,14 @@ def get_toolset(name: str, *, include_registry: bool = True) -> Optional[Dict[st
 
     definition = registry.get_toolset_definition(name)
     if definition is not None:  # PluginContext.register_toolset
-        definition["tools"] = sorted(set(definition["tools"]) | set(registry.get_tool_names_for_toolset(name))
-                                     | set(registry.get_toolset_members(name)))
+        merged_tools = (set(definition["tools"]) | set(registry.get_tool_names_for_toolset(name))
+                        | set(registry.get_toolset_members(name)))
+        # An MCP server connecting after the plugin registered under its name aliases `name` to
+        # `mcp-<name>`; union it like the static branch so the definition never hides that server.
+        alias_target = registry.get_toolset_alias_target(name)
+        if alias_target and alias_target != name:
+            merged_tools |= set(registry.get_tool_names_for_toolset(alias_target))
+        definition["tools"] = sorted(merged_tools)
         return definition
 
     if name in _get_plugin_toolset_names():

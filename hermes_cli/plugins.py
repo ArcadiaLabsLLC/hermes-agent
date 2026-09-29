@@ -503,14 +503,14 @@ class PluginContext:
     ) -> Optional[PluginRegistration]:
         """Define a toolset: ``tools`` by name plus every tool of the toolsets in ``includes`` (and any
         tool later registered into ``name``). Selectable wherever a built-in toolset is. Scoped to this
-        plugin's profile; a name a built-in toolset or another plugin in this profile holds is rejected.
-        Unloading the plugin removes it."""
+        plugin's profile; a name a built-in toolset, an MCP server alias or another plugin in this profile
+        holds is rejected. Unloading the plugin removes it."""
         from toolsets import TOOLSETS
         from tools.registry import registry
         clean = (name or "").strip()
-        if not clean or clean in TOOLSETS:
-            logger.warning("Plugin '%s' tried to register toolset %r, which is empty or a built-in toolset. "
-                           "Skipping.", self.manifest.name, name)
+        if not clean or clean in TOOLSETS or registry.get_toolset_alias_target(clean):
+            logger.warning("Plugin '%s' tried to register toolset %r, which is empty, a built-in toolset or an "
+                           "MCP server alias. Skipping.", self.manifest.name, name)
             return None
         scope = self._manager.scope_key
         definition = registry.register_toolset_definition(
