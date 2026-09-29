@@ -10,17 +10,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
+from agent_runtime import yaml_io
 
 WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
 
 
 def _load(path: Path) -> dict:
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
+    return yaml_io.load(path.read_text(encoding="utf-8"))
 
 
 def _triggers(workflow: dict) -> dict:
-    # PyYAML reads the bare key ``on`` as the boolean True.
+    # A YAML 1.1 loader reads the bare key ``on`` as the boolean True.
     return workflow.get("on", workflow.get(True)) or {}
 
 
