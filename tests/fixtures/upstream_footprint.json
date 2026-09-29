@@ -1,10 +1,16 @@
 {
-  "measured_at": "2026-09-28",
-  "base": "2f14d5e6e4",
-  "files": 155,
-  "deleted_lines": 921,
+  "measured_at": "2026-09-29",
+  "base": "ee5f49b943",
+  "files": 176,
+  "deleted_lines": 952,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "upstream merge ee5f49b943 (merge/upstream-2026-09-29)",
+      "files": "155 -> 176: origin/main 94d3405137 already measured 177 at base 2f14d5e6e4 before this merge (unrecorded main drift, ratchet red on main); the merge retires 1 (hermes_cli/plugin_compat.py, byte-identical to upstream)",
+      "deleted_lines": "921 -> 952: all 31 already on origin/main before the merge (952 at base 2f14d5e6e4); the merge adds 0",
+      "reason": "Re-baseline at the new manifest base, as the gate requires in the same change. The merge's own effect is -1 file / 0 deleted lines; the rise over the old fixture is main's pre-merge drift and stays the open fork-hygiene row 'Reconcile the upstream-footprint ledger with main's unrecorded growth'. Measured with scripts/upstream_footprint.py on the merged tree."
+    },
     {
       "change": "phone-P1 landing tip (lanes p1-hsplit + p1-hsec + p1-hloop + p1-hint) on origin/main 48ec00999a",
       "files": "117 -> 155: origin/main 48ec00999a already measures 143 (unrecorded main drift, 26 files); p1-hsec adds 12 (its seams, reasons row above); p1-hsplit, p1-hloop and p1-hint add 0",
