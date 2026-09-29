@@ -21,6 +21,7 @@ from agent_runtime.launcher_app_functions import (
     LauncherLink,
     answers_launcher_requests,
     bind_launcher_link,
+    latest_answerer,
     refresh_app_function_tools,
     reset_launcher_link,
 )
@@ -103,17 +104,18 @@ class ArgvLanes:
         The Launcher that answers app functions is the local client, and only a
         connection that declared it answers ``launcher.`` requests is asked. A
         turn it started gets its own sink; a turn a paired device started over
-        the gateway gets the stdio starter's pipe, and none when that pipe is
-        detached or undeclared (a socket-attached Launcher is out of a gateway
-        turn's reach).
+        the gateway gets the stdio starter's pipe while that pipe is attached and
+        declared, else the local socket connection that most recently declared
+        it answers (a Launcher attached over the local socket), else none.
         """
 
         if not request.is_chat_turn:
             return None
         if request.from_gateway:
-            if getattr(self.frames, "detached", False) or not answers_launcher_requests("stdio"):
+            sink = self._gateway_turn_launcher_sink()
+            if sink is None:
                 return None
-            link = LauncherLink(self.frames, ORIGIN_PAIRED_DEVICE)
+            link = LauncherLink(sink, ORIGIN_PAIRED_DEVICE)
         elif answers_launcher_requests(request.owner):
             link = LauncherLink(sink, ORIGIN_LOCAL)
         else:
@@ -123,6 +125,20 @@ class ArgvLanes:
         except Exception:  # a tool list must never cost the turn
             logger.warning("launcher app-function refresh failed", exc_info=True)
         return bind_launcher_link(link)
+
+    def _gateway_turn_launcher_sink(self) -> Any:
+        """The local Launcher a paired-device turn asks: stdio first, then a socket."""
+
+        if not getattr(self.frames, "detached", False) and answers_launcher_requests("stdio"):
+            return self.frames
+        lock = getattr(self, "connection_sinks_lock", None)
+        sinks = getattr(self, "connection_sinks", None)
+        if lock is None or sinks is None:
+            return None
+        with lock:
+            live = {str(key): sink for key, sink in sinks.items()}
+        owner = latest_answerer(live)
+        return None if owner is None else live[owner]
 
     def _execute_request(self, request: _ArgvRequest, state: _RunState) -> None:
         cached = None

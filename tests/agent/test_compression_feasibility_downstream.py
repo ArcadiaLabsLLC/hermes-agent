@@ -42,3 +42,42 @@ def test_managed_local_compression_honors_verified_small_context(mock_get_client
     mock_get_client.return_value = (MagicMock(), "different-auxiliary-model")
     with pytest.raises(ValueError, match="below the minimum"):
         agent._check_compression_model_feasibility()
+
+
+def _probe_marker(monkeypatch) -> str:
+    """Re-spell the adapter's marker: a seam that still compares a copy of the literal goes red."""
+    import agent_runtime.local_llama_adapter as lla
+
+    monkeypatch.setattr(lla, "FLOOR_EXEMPTION_REQUESTED_PROVIDER", "probe-managed-local")
+    return lla.FLOOR_EXEMPTION_REQUESTED_PROVIDER
+
+
+def test_main_floor_exemption_keys_on_the_adapter_marker(monkeypatch):
+    from types import SimpleNamespace
+
+    from agent.agent_init import _enforce_minimum_context
+
+    agent = SimpleNamespace(
+        context_compressor=SimpleNamespace(context_length=8192), _ollama_num_ctx=None,
+        base_url="http://127.0.0.1:49152/v1", provider="custom", _config_context_length=8192,
+        requested_provider=_probe_marker(monkeypatch), model="m",
+    )
+    _enforce_minimum_context(agent)  # exempt: no raise
+    agent.requested_provider = "openrouter"  # positive control: same bytes, no marker
+    with pytest.raises(ValueError, match="below the minimum"):
+        _enforce_minimum_context(agent)
+
+
+@patch("agent.model_metadata.get_model_context_length", return_value=8192)
+@patch("agent.auxiliary_client.get_text_auxiliary_client")
+def test_aux_floor_exemption_keys_on_the_adapter_marker(mock_get_client, mock_ctx_len, monkeypatch):
+    agent = _make_agent(main_context=8192)
+    agent.requested_provider = _probe_marker(monkeypatch)
+    agent.provider = "custom"
+    agent._emit_status = lambda msg: None
+    agent.base_url = "http://127.0.0.1:49152/v1"
+    client = MagicMock()
+    client.base_url = agent.base_url
+    mock_get_client.return_value = (client, agent.model)
+    agent._check_compression_model_feasibility()
+    assert agent.context_compressor.threshold_tokens == 4096

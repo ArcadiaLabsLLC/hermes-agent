@@ -39,6 +39,8 @@ pull               lanes   ``pull_realm_sync`` over ``PULL_APPLIERS`` (ORDER is
                            the argument); the secret scan both verbs run
 publish            lanes   ``publish_realm_sync`` and ``BASELINE_FAMILIES``
 status             lanes   ``realm_sync_status``
+history            lanes   ``realm_sync_history`` — the published versions,
+                           ``git log`` over the realm subtree (read-only)
 =================  ======  =====================================================
 
 Stores written: the realm sync git repo (``git``), ``realm_sync_state/``

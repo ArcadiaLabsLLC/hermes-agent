@@ -190,3 +190,28 @@ def test_the_runner_binds_the_block_for_the_run(monkeypatch):
     )
     assert "send_message" in observed["during"]
     assert blocked_tools_for("s-run") == frozenset()
+
+
+def test_a_registry_refresh_mid_session_is_pruned_again_at_the_next_request():
+    from agent_runtime.persona_turn_binding import bind_persona_turn_agent
+
+    callback = _plugin_callbacks()["llm_request"]
+    shape = _PAYLOADS["chat_completions"]
+    request = {"model": "m", "tools": [shape("terminal")]}
+    agent = _Agent(["terminal", "memory"])
+    agent.session_id = "s-refresh"
+    with bound_tool_block(["memory"], session_ids=["s-refresh"]), bind_persona_turn_agent(agent):
+        prune_agent_tools(agent, ["memory"])
+        # tools/mcp_tool_agent._publish_tool_snapshot: the live registry's set, blocked name included
+        agent.tools = [{"type": "function", "function": {"name": n}} for n in ("terminal", "memory")]
+        agent.valid_tool_names = {"terminal", "memory"}
+        callback(request=request, session_id="s-refresh", api_mode="chat_completions")
+        assert [t["function"]["name"] for t in agent.tools] == ["terminal"]
+        assert agent.valid_tool_names == {"terminal"}
+
+    # Positive control: same refresh, no block bound -> the agent keeps the name.
+    control = _Agent(["terminal", "memory"])
+    control.session_id = "s-refresh"
+    with bind_persona_turn_agent(control):
+        callback(request=request, session_id="s-refresh", api_mode="chat_completions")
+    assert "memory" in control.valid_tool_names

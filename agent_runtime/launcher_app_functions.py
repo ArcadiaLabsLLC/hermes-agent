@@ -39,7 +39,7 @@ import logging
 import threading
 import uuid
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 __layer__ = "stores"
 
@@ -55,6 +55,7 @@ __all__ = [
     "ORIGIN_PAIRED_DEVICE",
     "AppFunctionEntry",
     "answers_launcher_requests",
+    "latest_answerer",
     "declare_answerer",
     "app_function_tools_registered",
     "ClientRequestFailed",
@@ -272,7 +273,8 @@ class _ToolsetState:
     def __init__(self) -> None:
         self.lock = threading.Lock()
         self.registered: dict[str, AppFunctionEntry] = {}
-        self.answerers: set[str] = set()
+        #: Declaring owners in declaration order (a re-declaration moves to the end).
+        self.answerers: dict[str, None] = {}
         self.unanswered: dict[int, Any] = {}
 
 
@@ -284,15 +286,24 @@ def declare_answerer(owner: str, answers: bool) -> None:
     ``launcher.`` requests (``runtime.client.capabilities``)."""
 
     with _state.lock:
+        _state.answerers.pop(owner, None)
         if answers:
-            _state.answerers.add(owner)
-        else:
-            _state.answerers.discard(owner)
+            _state.answerers[owner] = None
 
 
 def answers_launcher_requests(owner: str) -> bool:
     with _state.lock:
         return owner in _state.answerers
+
+
+def latest_answerer(owners: Iterable[str]) -> str | None:
+    """The owner among *owners* that most recently declared it answers ``launcher.``
+    requests, or ``None`` when none of them did."""
+
+    candidates = set(owners)
+    with _state.lock:
+        declared = [owner for owner in _state.answerers if owner in candidates]
+    return declared[-1] if declared else None
 
 
 def app_function_tools_registered() -> bool:

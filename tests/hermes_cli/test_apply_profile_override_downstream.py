@@ -10,9 +10,22 @@ import sys
 from pathlib import Path
 
 from tests.hermes_cli.test_apply_profile_override import (  # noqa: F401 — upstream names the moved tests use
-    _pin_hermes_root,
     _run_apply_profile_override,
 )
+
+
+def _pin_hermes_root(monkeypatch, root: Path) -> None:
+    """Point the platform-native Hermes root at ``root`` on every OS.
+
+    ``get_default_hermes_root()`` resolves through
+    ``hermes_constants._get_platform_default_hermes_home()`` (``~/.hermes`` on
+    POSIX, ``%LOCALAPPDATA%/hermes`` on Windows), so patching ``Path.home``
+    alone would leave these tests reading the real profile store on Windows.
+    Fork-owned: upstream's file dropped its copy when it went back to upstream bytes.
+    """
+    import hermes_constants
+
+    monkeypatch.setattr(hermes_constants, "_get_platform_default_hermes_home", lambda: root)
 
 
 class TestApplyProfileOverrideHermesHomeGuard:

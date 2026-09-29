@@ -25,12 +25,15 @@ name: Fork CI red notifier
 # ─────────────────────────────────────────────────────────────────────
 #
 # Moved out of upstream's ci.yaml (disposition-misc-2026-09-24.md §5): it runs
-# on `workflow_run` of the "CI" workflow, so it reads the failed job names from
-# the run's own jobs list instead of ci.yaml's `all-checks-pass` needs-json.
+# on `workflow_run`, so it reads the failed job names from the run's own jobs
+# list instead of ci.yaml's `all-checks-pass` needs-json. It watches "Fork
+# gates" (fork-gates.yml), not upstream's "CI": CI is disabled on the fork
+# since 2026-09-26, and a notifier on it fired on nothing
+# (tests/ci/test_fork_ci_red_notifier_target.py).
 
 on:
   workflow_run:
-    workflows: [CI]
+    workflows: ["Fork gates"]
     types: [completed]
 
 permissions:

@@ -228,6 +228,8 @@ def test_the_serve_dispatcher_routes_a_response_frame_and_answers_nothing():
 
 
 class _Lanes:
+    _gateway_turn_launcher_sink = ArgvLanes._gateway_turn_launcher_sink
+
     def __init__(self, frames):
         self.frames = frames
 
@@ -302,3 +304,41 @@ def test_the_chat_lane_adds_the_toolset_only_once_a_launcher_listed_it():
     assert laf.APP_FUNCTIONS_TOOLSET not in _augment_chat_capabilities(None, [])
     laf.refresh_app_function_tools(laf.LauncherLink(_Launcher(), laf.ORIGIN_LOCAL))
     assert laf.APP_FUNCTIONS_TOOLSET in _augment_chat_capabilities(None, [])
+
+
+class _SocketLanes(_Lanes):
+    def __init__(self, frames, sinks):
+        super().__init__(frames)
+        self.connection_sinks = dict(sinks)
+        self.connection_sinks_lock = threading.Lock()
+
+
+class _DetachedStdio(_Launcher):
+    detached = True
+
+
+def test_a_gateway_turn_reaches_a_socket_attached_launcher_when_stdio_is_detached():
+    stdio, device, other, socket_client = _DetachedStdio(), _Launcher(), _Launcher(), _Launcher()
+    _declare("stdio")
+    request = _ArgvRequest("r", _CHAT_ARGV, owner="gw-1", sink=device, from_gateway=True)
+    lanes = _SocketLanes(stdio, {"sock-0": other, "sock-1": socket_client})
+    assert ArgvLanes._bind_launcher_link(lanes, request, device) is None  # positive control: nobody declared on a socket
+    _declare("sock-1")
+    token = ArgvLanes._bind_launcher_link(lanes, request, device)
+    try:
+        link = laf.current_launcher_link()
+        assert (link.sink, link.origin) == (socket_client, laf.ORIGIN_PAIRED_DEVICE)
+    finally:
+        laf.reset_launcher_link(token)
+    assert socket_client.sent[0]["method"] == laf.LIST_METHOD
+    assert stdio.sent == device.sent == other.sent == []
+
+
+def test_a_gateway_turn_asks_the_most_recent_socket_declaration():
+    first, second = _Launcher(), _Launcher()
+    _declare("sock-2")
+    _declare("sock-1")
+    lanes = _SocketLanes(_DetachedStdio(), {"sock-1": first, "sock-2": second})
+    request = _ArgvRequest("r", _CHAT_ARGV, owner="gw-1", sink=_Launcher(), from_gateway=True)
+    laf.reset_launcher_link(ArgvLanes._bind_launcher_link(lanes, request, request.sink))
+    assert first.sent and not second.sent

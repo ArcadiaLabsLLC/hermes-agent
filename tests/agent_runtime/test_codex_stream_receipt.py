@@ -118,7 +118,6 @@ def _plugin_hooks():
 
 def test_the_codex_stream_writes_the_receipt_through_the_plugin_hooks(tmp_path, monkeypatch):
     import sys
-    import time
     import types
 
     sys.modules.setdefault("fire", types.SimpleNamespace(Fire=lambda *a, **k: None))
@@ -149,10 +148,10 @@ def test_the_codex_stream_writes_the_receipt_through_the_plugin_hooks(tmp_path, 
         plugin.time_provider_dispatch(
             request=None, next_call=lambda: h.interruptible_streaming_api_call(agent, {"model": "gpt-5.5", "input": "hi"}),
             api_call_count=1, api_mode="codex_responses", provider="openai-codex", model="gpt-5.5")
-    deadline = time.monotonic() + 3
-    while time.monotonic() < deadline and "provider_stream_consume" not in _by_step(events):
-        time.sleep(0.02)
-    shutdown_plugin_stream_hook_dispatcher()
+    # Drain, don't race a wall clock: each hook's worker is FIFO, so joining it after its
+    # STOP sentinel means every event queued before it has run (a 3 s deadline lost that
+    # race once under -n 8). The timeout only bounds a hung worker.
+    shutdown_plugin_stream_hook_dispatcher(timeout=60)
 
     steps = _by_step(events)
     assert "provider_stream_consume" in steps, sorted(steps)

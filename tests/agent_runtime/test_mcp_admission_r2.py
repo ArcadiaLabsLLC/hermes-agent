@@ -916,22 +916,24 @@ def test_the_mission_chat_line_is_empty_with_the_flag_off(qa_profile, monkeypatc
     """
 
     import agent_runtime.chat_lane_bundle as chat_lane_bundle
+    import agent_runtime.chat_lane_scope as chat_lane_scope
 
     def _never(*_args, **_kwargs):
         raise AssertionError("the flag-off path must not resolve admission policy")
 
-    monkeypatch.setattr(chat_lane_bundle, "admission_enabled", lambda: False)
-    monkeypatch.setattr(chat_lane_bundle, "resolve_mcp_admission", _never)
+    monkeypatch.setattr(chat_lane_scope, "admission_enabled", lambda: False)
+    monkeypatch.setattr(chat_lane_scope, "resolve_mcp_admission", _never)
 
     assert chat_lane_bundle.mission_chat_admission_line(_persona("qa"), session_id=None) == ""
 
 
 def test_the_mission_chat_line_reports_a_denial_with_the_flag_on(qa_profile, monkeypatch):
     import agent_runtime.chat_lane_bundle as chat_lane_bundle
+    import agent_runtime.chat_lane_scope as chat_lane_scope
 
-    monkeypatch.setattr(chat_lane_bundle, "admission_enabled", lambda: True)
+    monkeypatch.setattr(chat_lane_scope, "admission_enabled", lambda: True)
     monkeypatch.setattr(
-        chat_lane_bundle,
+        chat_lane_scope,
         "resolve_mcp_admission",
         lambda *_a, **_k: _denied(MCP_SERVER_NOT_CONFIGURED),
     )
@@ -943,13 +945,14 @@ def test_the_mission_chat_line_reports_a_denial_with_the_flag_on(qa_profile, mon
 
 def test_the_mission_chat_line_never_fails_a_turn(qa_profile, monkeypatch):
     import agent_runtime.chat_lane_bundle as chat_lane_bundle
+    import agent_runtime.chat_lane_scope as chat_lane_scope
 
-    monkeypatch.setattr(chat_lane_bundle, "admission_enabled", lambda: True)
+    monkeypatch.setattr(chat_lane_scope, "admission_enabled", lambda: True)
 
     def _boom(*_a, **_k):
         raise RuntimeError("config is wedged")
 
-    monkeypatch.setattr(chat_lane_bundle, "resolve_mcp_admission", _boom)
+    monkeypatch.setattr(chat_lane_scope, "resolve_mcp_admission", _boom)
 
     assert chat_lane_bundle.mission_chat_admission_line(_persona("qa"), session_id=None) == ""
 
