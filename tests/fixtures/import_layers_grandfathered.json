@@ -50,7 +50,6 @@
   "agent_runtime/_upstream_doors.py|tools.terminal_tool_guards|_looks_like_help_or_version_command",
   "agent_runtime/_upstream_doors.py|tools.terminal_tool_guards|_strip_quotes",
   "agent_runtime/_upstream_doors.py|tools.transcription_local|_join_confident_segments",
-  "agent_runtime/_upstream_doors.py|tools.transcription_local|_load_local_whisper_model",
   "agent_runtime/_upstream_doors.py|tools.tts_tool_local|_load_piper_voice_for_config",
   "agent_runtime/_upstream_doors.py|tools.tts_tool|_import_piper",
   "hermes_cli/_bytecode_sweep.py|hermes_cli.main|_clear_bytecode_cache",
